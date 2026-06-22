@@ -1,0 +1,26 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../views';
+@source '../js/**/*.vue';
+
+/*
+ | 7Cav dark + gold theme tokens — the core dark+gold subset.
+ | Source of truth: _bmad-output/planning-artifacts/mockups/assets/styles.css :root.
+ | Seeded here so every later UI story inherits the core palette (bg-bg, bg-panel,
+ | text-gold, border-border, etc.). Status tokens (--good/--warn/--bad/--info) from
+ | the mockups are intentionally NOT seeded yet — add them when a story needs them.
+ | The sample page is throwaway; these tokens are not.
+ */
+@theme {
+    --font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+
+    --color-bg: #1a1d20;        /* page background */
+    --color-panel: #23272b;     /* cards / table rows */
+    --color-panel-2: #2c3137;   /* hover / header row */
+    --color-border: #353a40;    /* subtle dividers */
+    --color-gold: #f0b929;      /* 7Cav primary accent (links, active tab) */
+    --color-gold-soft: #b88e1f; /* muted gold for borders / underlines */
+}
