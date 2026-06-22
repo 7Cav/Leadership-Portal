@@ -1,0 +1,18 @@
+# --- AI / assistant tooling (never commit) ---
+.claude/
+CLAUDE.md
+RTK.md
+.mcp.json
+_bmad/
+_bmad-output/
+.cursor/
+.aider*
+.windsurf/
+.github/copilot-instructions.md
+
+# --- OS / editor cruft ---
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
