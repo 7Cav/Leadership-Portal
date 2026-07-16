@@ -1,0 +1,155 @@
+# Deptrac — machine-enforced layer boundaries for the 7Cav Leadership Portal.
+#
+# This file IS the architecture's enforcement mechanism (spine AD-1). It encodes the
+# layered CQRS-lite dependency graph so an illegal cross-layer dependency fails the
+# build instead of slipping through code review. A contributor who wires a Controller
+# straight to a Repository — or runs a `DB::` query outside a Repository — gets a red
+# build, not a merged regression.
+#
+# Run it:   composer deptrac            (analyse — fails on any violation)
+#           composer deptrac:unassigned (list app/ classes that match no layer)
+#
+# The AD-1 graph (arrows = "may depend on"):
+#   Controller     → CommandHandler, ReadService, ScopeResolver
+#   CommandHandler → Repository, AuditEnvelope, Service seam
+#   ReadService    → Repository, ScopeResolver
+#   Sync           → Repository, Service seam
+#   Repository     → Model, DB
+#   Model          → DB
+#   Service seam   → Integration
+#   Integration    → External
+# Everything else is forbidden: Controller → Repository is a skip edge, ReadService →
+# Model is a skip edge, and no reverse edges exist.
+
+deptrac:
+  paths:
+    - ./app
+
+  layers:
+    # ── Business layers — the AD-1 graph. Each maps 1:1 to a directory in app/. ──
+    - name: Controller
+      collectors:
+        - type: directory
+          value: app/Http/Controllers/.*
+    - name: CommandHandler
+      collectors:
+        - type: directory
+          value: app/Commands/.*
+    - name: ReadService
+      collectors:
+        - type: directory
+          value: app/ReadServices/.*
+    - name: Repository
+      collectors:
+        - type: directory
+          value: app/Repositories/.*
+    - name: Model
+      collectors:
+        - type: directory
+          value: app/Models/.*
+    - name: ServiceSeam
+      collectors:
+        - type: directory
+          value: app/Services/.*
+    - name: Integration
+      collectors:
+        - type: directory
+          value: app/Integration/.*
+    - name: Sync
+      collectors:
+        - type: directory
+          value: app/Sync/.*
+    - name: ScopeResolver
+      collectors:
+        - type: directory
+          value: app/Authorization/.*
+    - name: AuditEnvelope
+      collectors:
+        - type: directory
+          value: app/Support/Audit/.*
+
+    # ── Boundary layers — matched by fully-qualified class name, not by directory.
+    #    They live in vendor/, so they are only ever dependency *targets*. Defining
+    #    them is what lets Deptrac enforce AD-2 (DB reachable only from Repository)
+    #    and AD-3 (the external world reachable only from Integration) — and it works
+    #    today, before Saloon is installed, because the DB/HTTP facades already exist. ──
+    - name: DB
+      collectors:
+        - type: classNameRegex
+          value: '#^Illuminate\\Database\\#'
+        - type: classNameRegex
+          value: '#^Illuminate\\Support\\Facades\\DB$#'
+    - name: External
+      collectors:
+        - type: classNameRegex
+          value: '#^Saloon\\#'
+        - type: classNameRegex
+          value: '#^GuzzleHttp\\#'
+        - type: classNameRegex
+          value: '#^Illuminate\\Http\\Client\\#'
+        - type: classNameRegex
+          value: '#^Illuminate\\Support\\Facades\\Http$#'
+
+    # ── Framework glue — bootstrap code that sits outside the business graph but must
+    #    still be classified so no app/ class is left unassigned (see AD-1's "no
+    #    untracked code slips the graph"). ──
+    - name: Provider
+      collectors:
+        - type: directory
+          value: app/Providers/.*
+    - name: Middleware
+      collectors:
+        - type: directory
+          value: app/Http/Middleware/.*
+
+  ruleset:
+    # The AD-1 graph, encoded exactly.
+    Controller:
+      - CommandHandler
+      - ReadService
+      - ScopeResolver
+    CommandHandler:
+      - Repository
+      - AuditEnvelope
+      - ServiceSeam
+    ReadService:
+      - Repository
+      - ScopeResolver
+    Sync:
+      - Repository
+      - ServiceSeam
+    Repository:
+      - Model
+      - DB
+    Model:
+      - DB
+    ServiceSeam:
+      - Integration
+    Integration:
+      - External
+
+    # Terminal layers — no outgoing edge yet. ScopeResolver and AuditEnvelope gain
+    # edges (e.g. ScopeResolver → Repository) in the story that builds them; the graph
+    # evolves consciously, one reviewed edit at a time.
+    ScopeResolver: ~
+    AuditEnvelope: ~
+    DB: ~
+    External: ~
+
+    # Composition root: a service provider's job is to wire dependency injection, so it
+    # legitimately references the layers it binds. This is bootstrap, not business logic.
+    Provider:
+      - Controller
+      - CommandHandler
+      - ReadService
+      - Repository
+      - Model
+      - ServiceSeam
+      - Integration
+      - Sync
+      - ScopeResolver
+      - AuditEnvelope
+      - DB
+    # Request glue (Inertia shared props). No app-layer dependency yet; when the auth
+    # story shares the current user / effective scope, add ScopeResolver here.
+    Middleware: ~
