@@ -37,7 +37,12 @@ class HandleInertiaRequests extends Middleware
     {
         return [
             ...parent::share($request),
-            //
+            // Current identity, read-only, minimal (Story 1.4). `->only()` on the
+            // Authenticatable avoids a static App\Models\User reference, so this glue
+            // layer stays terminal in the Deptrac graph.
+            'auth' => [
+                'user' => $request->user()?->only(['id', 'username', 'is_admin']),
+            ],
         ];
     }
 }
