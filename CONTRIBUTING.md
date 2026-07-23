@@ -26,35 +26,41 @@ composer dev        # serve + queue + logs + vite (all at once)
 
 ## 2. The architecture, in one screen
 
-The paradigm is **layered CQRS-lite**: dependencies point one direction only, the
-database is reachable through exactly one layer, and the outside world through exactly one
-seam. This is not a convention you have to remember — **Deptrac fails the build if you
-break it** (AD-1).
+The paradigm is a **slim, Laravel-idiomatic layering**: dependencies point one direction
+only, the database is reachable through exactly one layer (`Repositories/`), and the
+outside world through exactly one layer (`Integration/`). This is not a convention you
+have to remember — **Deptrac fails the build if you break it** (AD-1). It began as a
+fuller CQRS-lite graph; the read-service and service-facade indirection were dropped in
+favour of the conventional Laravel shape — controllers read repositories directly, and
+CommandHandlers call the outbound seam directly.
 
 ```
 Route → Controller ─┬─ (write) Command → CommandHandler ─┐
-                    └─ (read)  ReadService / Query ───────┤
-                                                          ▼
-                                                     Repository → Model → DB
-Controller / CommandHandler / Sync ── Service seam (CavApi · ForumApi · …) → Integration → external
+                    │                                     ▼
+                    └─ (read) ────────────────────► Repository → Model → DB
+                                       CommandHandler ─► Integration (Saloon connectors) → external
 ```
 
 | Layer | Directory | May depend on | Role |
 | --- | --- | --- | --- |
-| Controller | `app/Http/Controllers/` | CommandHandler, ReadService, ScopeResolver | Orchestrate a request. **No business logic.** |
-| Command / Handler | `app/Commands/` | Repository, AuditEnvelope, Service seam | Write-side business logic (AD-16) |
-| ReadService / Query | `app/ReadServices/` | Repository, ScopeResolver | Shape Inertia read props (AD-15) |
+| Controller | `app/Http/Controllers/` | CommandHandler, Repository, Model | Orchestrate a request. **No business logic.** Reads repositories directly; writes via Commands. |
+| Command / Handler | `app/Commands/` | Repository, Model, Integration | Write-side business logic; the **only** caller of the outbound seam. |
 | Repository | `app/Repositories/` | Model, DB | **Sole** DB access (AD-2) |
 | Model | `app/Models/` | DB | Eloquent entities |
-| Service seam | `app/Services/{Cav,Forum,…}/` | Integration | **Sole** path to external systems (AD-3) |
-| Integration | `app/Integration/` | External (Saloon/HTTP) | Saloon connectors + DTOs |
-| Sync | `app/Sync/` | Repository, Service seam | One-writer cache sync (AD-4) |
-| Authorization | `app/Authorization/` | — | ScopeResolver, policies, view-as (AD-6/7/8/9) |
-| Support/Audit | `app/Support/Audit/` | — | The audited-action envelope (AD-16) |
+| Integration | `app/Integration/` | External (Saloon/HTTP) | **Sole** path to external systems (AD-3) — Saloon connectors, requests, DTOs, and a `{Target}Api` seam class |
+| Provider | `app/Providers/` | (wires every layer) | DI composition root — bootstrap, not business logic |
+| Middleware | `app/Http/Middleware/` | — | Request glue (e.g. Inertia shared props) |
+
+**Planned layers, not yet enforced.** These directories exist as placeholders and are
+added back to `deptrac.yaml` — consciously, with their edges — when their stories land:
+`Sync/` (one-writer cache sync, AD-4), `Authorization/` (ScopeResolver, policies, view-as,
+AD-6/7/8/9), and `Support/Audit/` (the audited-action envelope, AD-16). Until then they
+carry no enforced edge.
 
 Each layer directory has a `README.md` explaining its rules — read the one for the layer
-you're touching. The forbidden moves that catch people: **Controller → Repository** (skip
-the read/write layer) and **`DB::` / Eloquent outside a Repository**. Both fail the build.
+you're touching. The forbidden moves that catch people: **Controller → Integration** (an
+external call in a controller — route it through a Command) and **`DB::` / Eloquent
+outside a Repository**. Both fail the build.
 
 ## 3. Rules that fail the build (Deptrac)
 
@@ -74,13 +80,16 @@ that single edge in the same PR, with a one-line reason. That deliberate, review
 
 ## 4. Where code goes & naming
 
-- One Inertia page ↔ one controller; props shaped by a ReadService (AD-20). Pages are
-  PascalCase matching the controller, under `resources/js/Pages/`.
+- One Inertia page ↔ one controller; the controller shapes its own props, reading
+  `Repositories/` directly (AD-20). Pages are PascalCase matching the controller, under
+  `resources/js/Pages/`.
 - Eloquent models are **singular** (`Trooper`); tables **plural snake_case**
   (`weekly_reports`). Commands are imperative (`SendWeeklyReport`), handlers end `…Handler`,
-  sync handlers `Sync{Thing}Handler`, service facades `{Target}Api` (`CavApi`).
-- Reads never mutate. Every state change goes through a Command → CommandHandler and the
-  audited envelope (AD-16); personnel actions and report sends **require** a reason.
+  sync handlers `Sync{Thing}Handler`, and each external target's seam class is
+  `{Target}Api` in `app/Integration/{Target}/` (`ForumApi`, `CavApi`).
+- Reads never mutate. Every state change goes through a Command → CommandHandler;
+  personnel actions and report sends **require** a reason. These route through the
+  audited-action envelope (AD-16) once it lands in Story 1.10.
 - KPIs are defined once and computed by the one shared KPI service (AD-21) — never
   re-derived inline in a feature.
 - Repositories return fully-loaded models or DTOs. `preventLazyLoading()` is on outside
