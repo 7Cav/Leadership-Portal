@@ -20,6 +20,9 @@ Thumbs.db
 /.zed
 /.codex
 
+# --- Tooling caches ---
+/.deptrac.cache
+
 # --- Laravel ---
 *.log
 .env

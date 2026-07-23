@@ -12,6 +12,7 @@
         "laravel/tinker": "^3.0"
     },
     "require-dev": {
+        "deptrac/deptrac": "^4.6",
         "fakerphp/faker": "^1.23",
         "laravel/pail": "^1.2.5",
         "laravel/pao": "^1.0.6",
@@ -51,6 +52,8 @@
             "@php artisan config:clear --ansi @no_additional_args",
             "@php artisan test"
         ],
+        "deptrac": "deptrac analyse --no-progress",
+        "deptrac:unassigned": "deptrac debug:unassigned",
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
             "@php artisan package:discover --ansi"

@@ -2,20 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\ReadServices\SampleReadService;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Throwaway controller proving the Controller -> Inertia::render -> Vue wire (Story 1.1, AC-2).
- * Made layer-legal or removed in Story 1.2 when Deptrac lands — holds no business logic.
+ * Throwaway controller proving the Controller -> Inertia::render -> Vue wire (Story 1.1, AC-2),
+ * refactored layer-legal in Story 1.2: props are shaped by a ReadService (AD-15/AD-20), so the
+ * controller only orchestrates and holds no business logic. Removed once a real page lands.
  */
 class SampleController extends Controller
 {
-    public function show(): Response
+    public function show(SampleReadService $readService): Response
     {
-        return Inertia::render('Sample', [
-            'appName' => config('app.name'),
-            'stack' => ['Laravel 13', 'Inertia 3', 'Vue 3.5', 'Tailwind 4', 'MySQL 8.4'],
-        ]);
+        return Inertia::render('Sample', $readService->props());
     }
 }
