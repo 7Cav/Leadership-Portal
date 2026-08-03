@@ -47,6 +47,12 @@ class HandleInertiaRequests extends Middleware
                 // portal asserted them (AD-20 rule 1, NFR7). Null when enrichment did not
                 // run or the trooper holds no milpac — the page degrades to the bare username.
                 'profile' => $request->user() ? $request->session()->get('cav_profile') : null,
+                // Why it is absent, for Story 1.7's degraded messaging. The literal keys here
+                // duplicate ForumAuthController's constants because Deptrac gives Middleware no
+                // outgoing edge; the shared-prop tests fail if the two ever drift.
+                'profileUnavailable' => $request->user()
+                    ? $request->session()->get('cav_profile_unavailable')
+                    : null,
             ],
         ];
     }

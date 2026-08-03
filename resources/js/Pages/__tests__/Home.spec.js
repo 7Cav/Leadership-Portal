@@ -80,7 +80,7 @@ describe('Home page', () => {
             rank_full: 'Warrant Officer 1',
             billet: 'S1 Personnel NCO',
             mos: '42A',
-            roster: 'ROSTER_TYPE_COMBAT',
+            roster: 'Combat',
             source: 'Cav roster (api.7cav.us)',
             fetched_at: '2026-08-03T09:14:00+00:00',
             ...overrides,
@@ -106,6 +106,7 @@ describe('Home page', () => {
 
             // The tooltip only *adds* detail: removing it must not hide the attribution.
             expect(provenance.attributes('title')).toContain('Warrant Officer 1');
+            expect(provenance.attributes('title')).toContain('fetched');
             expect(provenance.text()).toContain('Cav roster (api.7cav.us)');
         });
 
@@ -124,6 +125,21 @@ describe('Home page', () => {
             // Each field is independently optional: one missing value must not suppress the
             // others, and must not leave a dangling separator.
             expect(factory({ username: 'Hale.S' }, enriched(overrides)).find('.identity').text()).toBe(expected);
+        });
+
+        it.each([
+            ['today', new Date(), false],
+            ['a day ago', new Date(Date.now() - 26 * 60 * 60 * 1000), true],
+        ])('shows the date in the visible line only when the fetch was not %s', (_label, at, expectsDate) => {
+            // The snapshot is per-login and the session lasts 24h (SESSION_LIFETIME=1440), so a
+            // time-only stamp would let a day-old rank read as an hour old — hiding the very
+            // staleness AD-20 exists to expose.
+            const text = factory({ username: 'Hale.S' }, enriched({ fetched_at: at.toISOString() })).find(
+                '.provenance',
+            ).text();
+            const month = at.toLocaleDateString(undefined, { month: 'short' });
+
+            expect(text.includes(month)).toBe(expectsDate);
         });
 
         it('omits the MOS from the provenance line when the roster has none', () => {

@@ -31,15 +31,28 @@ const fetchedAt = computed(() => {
     return Number.isNaN(at.getTime()) ? null : at;
 });
 
+// The snapshot is taken once per login and the session lives for 24h (SESSION_LIFETIME=1440),
+// so a bare `09:14` would read as "an hour ago" to someone looking at it the next morning. Show
+// the date too whenever the fetch was not today — the point of AD-20 is that age is legible,
+// and a time-only stamp on a day-old value hides exactly what it is meant to reveal.
+const fetchedAtLabel = computed(() => {
+    const at = fetchedAt.value;
+    if (!at) return null;
+
+    const time = at.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    const isToday = at.toDateString() === new Date().toDateString();
+
+    return isToday ? time : `${at.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${time}`;
+});
+
 // MOS shares this line rather than getting its own: it is the same synced value from the same
 // fetch, so one source-and-time stamp covers rank, billet and MOS together.
 const provenance = computed(() => {
     if (!profile.value?.source) return null;
 
     const mos = profile.value.mos ? `MOS ${profile.value.mos}` : null;
-    const time = fetchedAt.value?.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
-    return [mos, profile.value.source, time].filter(Boolean).join(' · ');
+    return [mos, profile.value.source, fetchedAtLabel.value].filter(Boolean).join(' · ');
 });
 
 const provenanceDetail = computed(() =>

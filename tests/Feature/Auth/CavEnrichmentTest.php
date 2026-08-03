@@ -2,8 +2,11 @@
 
 use App\Commands\Auth\CavEnrichmentException;
 use App\Models\User;
+use App\Repositories\IdentityLinkException;
+use App\Repositories\UserRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Exceptions;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Testing\TestResponse;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
@@ -149,7 +152,7 @@ it('sweeps past a roster the trooper is not on (AC #1)', function () {
     login();
 
     expect(User::firstWhere('forum_user_id', 4)->cav_id)->toBe(31)
-        ->and(session('cav_profile')['roster'])->toBe('ROSTER_TYPE_RESERVE');
+        ->and(session('cav_profile')['roster'])->toBe('Reserve');
 });
 
 it('goes straight to the profile endpoint once cav_id is known, and does not sweep again (AC #6)', function () {
@@ -223,29 +226,44 @@ it('never writes to Cav — every call the flow makes is a GET (AC #4)', functio
         ->and($cavRequests->every(fn ($pending) => $pending->getMethod()->value === 'GET'))->toBeTrue();
 });
 
-it('signs the user in unenriched when they hold no milpac, and reports why (AC #1)', function () {
+it('signs the user in unenriched when they hold no milpac, recorded at info not error (AC #1)', function () {
     Exceptions::fake();
+    Log::spy();
 
     mockLogin(cav: [COMBAT_URL => emptyRoster()]);
 
     login()->assertRedirect(route('home'));
 
     $this->assertAuthenticated();
-    expect(session('cav_profile'))->toBeNull();
-    // Degrading is not the same as failing silently: 1.7 owns the user-facing story, but the
-    // cause has to be observable now or an outage looks like "everyone lost their rank".
-    Exceptions::assertReported(CavEnrichmentException::class);
+    expect(session('cav_profile'))->toBeNull()
+        // Story 1.7 needs to tell "holds no milpac" apart from "roster is down".
+        ->and(session('cav_profile_unavailable'))->toBe('not_on_roster');
+
+    // A forum member with no milpac is a normal population, so this must NOT be an error with a
+    // stack trace on every one of their logins — that noise is what makes a real outage
+    // invisible. Observable, but at the level the event deserves.
+    Exceptions::assertNothingReported();
+    Log::shouldHaveReceived('info')
+        ->withArgs(fn (string $message) => str_contains($message, 'holds no milpac'))
+        ->once();
 });
 
-it('keeps login working when the roster API is unreachable (AC #1; degraded UX is 1.7)', function () {
+it('keeps login working when the roster API returns an error status (AC #1; degraded UX is 1.7)', function () {
     Exceptions::fake();
 
-    mockLogin(cav: [COMBAT_URL => MockResponse::make(['code' => 13, 'message' => 'internal'], 500)]);
+    mockLogin(cav: [
+        COMBAT_URL => MockResponse::make(['code' => 13, 'message' => 'internal'], 500),
+        RESERVE_URL => MockResponse::make([], 500),
+        ELOA_URL => MockResponse::make([], 500),
+    ]);
 
     login()->assertRedirect(route('home'));
 
     $this->assertAuthenticated();
-    expect(session('cav_profile'))->toBeNull();
+    expect(session('cav_profile'))->toBeNull()
+        // NOT 'not_on_roster': no roster actually answered, so claiming the trooper holds no
+        // milpac would be an unsupported conclusion.
+        ->and(session('cav_profile_unavailable'))->toBe('http_error');
     Exceptions::assertReported(CavEnrichmentException::class);
 });
 
@@ -263,7 +281,8 @@ it('does not send a Cav request at all when no API key is configured', function 
         ->map(fn ($response) => $response->getPendingRequest()->getUrl())
         ->filter(fn ($url) => str_contains($url, 'api.7cav.us'));
 
-    expect($sent)->toBeEmpty();
+    expect($sent)->toBeEmpty()
+        ->and(session('cav_profile_unavailable'))->toBe('missing_credential');
     Exceptions::assertReported(CavEnrichmentException::class);
 });
 
@@ -277,4 +296,174 @@ it('carries the snapshot into the next request, not just the callback response',
     login();
 
     $this->get('/home')->assertOk()->assertInertia(fn ($page) => $page->has('auth.profile'));
+});
+
+it('re-resolves a dead milpac id instead of leaving the trooper stuck on it (AC #6)', function () {
+    // A 404 on the stored link is the same situation as a reassigned one: the link is wrong.
+    // Without a re-sweep, `cav_id` stays 77 and this trooper is unenriched on EVERY future
+    // login — permanently, with no way back short of editing the database by hand.
+    User::create(['forum_user_id' => 4, 'cav_id' => 77, 'username' => 'Hale.S']);
+
+    mockLogin(cav: [
+        'api.7cav.us/api/v1/milpacs/profile/id/77' => MockResponse::make(['code' => 5, 'message' => 'not found'], 404),
+        COMBAT_URL => MockResponse::make(['profiles' => ['81' => rosterEntry(4, 'Hale.S')]]),
+    ]);
+
+    login()->assertRedirect(route('home'));
+
+    expect(User::firstWhere('forum_user_id', 4)->cav_id)->toBe(81)
+        ->and(session('cav_profile')['mos'])->toBe('42A');
+});
+
+it('does not sweep on the back of a transport failure, which says nothing about the link', function () {
+    Exceptions::fake();
+    // Distinct from the 404 above: an unreachable API is no evidence the stored id is wrong, so
+    // re-sweeping would be guesswork — and would cost three more doomed calls on a login.
+    User::create(['forum_user_id' => 4, 'cav_id' => 77, 'username' => 'Hale.S']);
+    config()->set('services.cav.api_key', '');
+
+    mockLogin();
+
+    login()->assertRedirect(route('home'));
+
+    expect(User::firstWhere('forum_user_id', 4)->cav_id)->toBe(77)
+        ->and(session('cav_profile_unavailable'))->toBe('missing_credential');
+});
+
+it('clears the previous trooper\'s roster context when enrichment fails on a shared session', function () {
+    // The leak this guards: `session()->regenerate()` migrates the session id but carries its
+    // attributes across, so without an explicit forget, trooper A's rank/billet/MOS survives
+    // into trooper B's login — stamped with a source and fetch time that make it look
+    // authoritative. B is then rendered wearing A's rank.
+    mockLogin();
+    login();
+    expect(session('cav_profile')['mos'])->toBe('42A');
+
+    Exceptions::fake();
+    mockLogin(cav: [
+        COMBAT_URL => MockResponse::make([], 500),
+        RESERVE_URL => MockResponse::make([], 500),
+        ELOA_URL => MockResponse::make([], 500),
+    ], forumUserId: 999, username: 'Other.P');
+
+    login()->assertRedirect(route('home'));
+
+    expect(session('cav_profile'))->toBeNull();
+    $this->get('/home')->assertInertia(fn ($page) => $page->where('auth.profile', null));
+});
+
+it('finds the trooper on a later roster even when an earlier one is down (AC #1)', function () {
+    // A hit is definitive regardless of what COMBAT did, so a COMBAT outage must not deny a
+    // RESERVE trooper their context.
+    mockLogin(cav: [
+        COMBAT_URL => MockResponse::make([], 503),
+        RESERVE_URL => MockResponse::make(['profiles' => ['31' => rosterEntry(4, 'Hale.S')]]),
+    ]);
+
+    login()->assertRedirect(route('home'));
+
+    expect(User::firstWhere('forum_user_id', 4)->cav_id)->toBe(31)
+        ->and(session('cav_profile')['mos'])->toBe('42A');
+});
+
+it('reassigns a milpac id away from its previous holder, atomically and audibly', function () {
+    Log::spy();
+    // `cav_id` is unique, so without clearing the previous holder first this write throws a
+    // constraint violation AFTER Auth::login() — an uncatchable 500 mid-login.
+    $previous = User::create(['forum_user_id' => 555, 'cav_id' => 77, 'username' => 'Previous.H']);
+
+    mockLogin();
+
+    login()->assertRedirect(route('home'));
+
+    expect(User::firstWhere('forum_user_id', 4)->cav_id)->toBe(77)
+        ->and($previous->fresh()->cav_id)->toBeNull();
+
+    // Destroying a portal-owned identity link on the strength of an external payload must leave
+    // a trace, or the null is unexplainable when Epic 2's sync later reads it.
+    Log::shouldHaveReceived('warning')
+        ->withArgs(fn (string $message) => str_contains($message, 'Reassigning a Cav milpac id'))
+        ->once();
+});
+
+it('logs the stale link before re-resolving, so a systematic re-keying is visible', function () {
+    Log::spy();
+    User::create(['forum_user_id' => 4, 'cav_id' => 77, 'username' => 'Hale.S']);
+
+    mockLogin(cav: [
+        'api.7cav.us/api/v1/milpacs/profile/id/77' => MockResponse::make(rosterEntry(999, 'Someone.Else')),
+        COMBAT_URL => MockResponse::make(['profiles' => ['81' => rosterEntry(4, 'Hale.S')]]),
+    ]);
+
+    login();
+
+    Log::shouldHaveReceived('warning')
+        ->withArgs(fn (string $message) => str_contains($message, 'Stored Cav milpac link is stale'))
+        ->once();
+});
+
+it('degrades rather than 500s when the roster answers 200 with a non-object body', function () {
+    Exceptions::fake();
+    // Saloon substitutes `[]` only for an EMPTY body; `null`, a number or a bare string decode
+    // to a non-array and would hit the seam's `array` return type as a TypeError — which no
+    // handler catches, so every login would 500 for as long as the roster answered that way.
+    mockLogin(cav: [
+        COMBAT_URL => MockResponse::make('null'),
+        RESERVE_URL => MockResponse::make('123'),
+        ELOA_URL => MockResponse::make('"just a string"'),
+    ]);
+
+    login()->assertRedirect(route('home'));
+
+    $this->assertAuthenticated();
+    expect(session('cav_profile'))->toBeNull()
+        ->and(session('cav_profile_unavailable'))->toBe('malformed');
+});
+
+it('does not claim the trooper has no milpac when their own roster entry is unusable', function () {
+    Exceptions::fake();
+    // The roster DOES carry forum user 4, but their record is broken. Reporting "no milpac"
+    // would assert the opposite of the truth and send whoever debugs it at the wrong system.
+    mockLogin(cav: [
+        // Key '77.9' is not a valid milpac id, but the row IS forum user 4's.
+        COMBAT_URL => MockResponse::make(['profiles' => ['77.9' => rosterEntry(4, 'Hale.S')]]),
+    ]);
+
+    login()->assertRedirect(route('home'));
+
+    expect(session('cav_profile'))->toBeNull()
+        // Deliberately NOT 'not_on_roster' — the roster plainly carries them.
+        ->and(session('cav_profile_unavailable'))->toBe('record_unusable');
+});
+
+it('reads the Cav credential from env only, never a default in the repo (AC #5)', function () {
+    // AD-23/NFR2: the key is environment-only. A committed fallback would be a secret in the
+    // repo, so the config must resolve to null when the env key is absent — while the *base URL*
+    // (not a secret) may safely default.
+    $cav = withoutEnv('CAV_API_KEY', fn () => require config_path('services.php'))['cav'];
+
+    expect($cav['api_key'])->toBeNull()
+        ->and($cav['base_url'])->toBe('https://api.7cav.us');
+});
+
+it('degrades rather than 500s when the identity link cannot be written', function () {
+    Exceptions::fake();
+    // `cav_id` is unique, so two concurrent logins resolving the same milpac id can still
+    // collide despite the transaction. That failure arrives after Auth::login(), so if it
+    // escaped it would 500 a request whose user is already authenticated.
+    $this->mock(UserRepository::class, function ($mock) {
+        $mock->shouldReceive('upsertFromForumIdentity')
+            ->andReturn(User::create(['forum_user_id' => 4, 'username' => 'Hale.S']));
+        $mock->shouldReceive('linkCavId')
+            ->andThrow(IdentityLinkException::cavIdNotLinked(1, 77, new RuntimeException('duplicate key')));
+    });
+
+    mockLogin();
+
+    login()->assertRedirect(route('home'));
+
+    $this->assertAuthenticated();
+    expect(session('cav_profile'))->toBeNull()
+        ->and(session('cav_profile_unavailable'))->toBe('link_failed');
+    Exceptions::assertReported(CavEnrichmentException::class);
 });

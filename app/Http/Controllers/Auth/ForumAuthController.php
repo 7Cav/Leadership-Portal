@@ -31,6 +31,15 @@ class ForumAuthController extends Controller
     private const CAV_PROFILE_KEY = 'cav_profile';
 
     /**
+     * The session key holding why enrichment produced nothing, as the string value of the
+     * Integration layer's failure-reason enum (no type reference here on purpose — the
+     * controller must not depend on `Integration/`). `auth.profile === null` alone conflates "roster down", "holds no milpac", "no key
+     * configured" and "session predates 1.6" — Story 1.7 needs to tell those apart to say
+     * anything useful to the user.
+     */
+    private const CAV_UNAVAILABLE_KEY = 'cav_profile_unavailable';
+
+    /**
      * Provenance label shown wherever the enriched values render (AD-20 rule 1). Names the
      * system that owns the facts, so a stale rank is never mistaken for a portal assertion.
      */
@@ -124,16 +133,35 @@ class ForumAuthController extends Controller
      * how fresh they are (AD-20, NFR7).
      *
      * A Cav failure degrades the session rather than the login: the user is already
-     * authenticated, and the forum is the identity authority — the roster is not. The cause
-     * is reported so an outage is visible in the logs instead of looking like every leader
-     * quietly losing their rank. Story 1.7 owns what the *user* is told about it.
+     * authenticated, and the forum is the identity authority — the roster is not. Story 1.7 owns
+     * what the *user* is told about it; the reason is stashed in the session so that story is a
+     * view change rather than a re-plumbing of this callback.
+     *
+     * Only genuine faults are reported. A forum member who holds no milpac is a normal,
+     * expected population, and an ERROR with a stack trace on every one of their logins would
+     * bury the case that matters — an actual outage — in noise operators learn to ignore.
      */
     private function attachCavProfile(Request $request, User $user, EnrichCavProfile $enrich): void
     {
+        // Clear first, so no path can leave a previous snapshot standing. `session()->regenerate()`
+        // migrates the session id but carries its attributes across, so on a shared browser the
+        // prior trooper's rank would otherwise survive into this login and render — stamped with a
+        // source and fetch time that make it look authoritative.
+        $request->session()->forget([self::CAV_PROFILE_KEY, self::CAV_UNAVAILABLE_KEY]);
+
         try {
             $profile = $enrich->handle($user);
         } catch (CavEnrichmentException $e) {
-            report($e);
+            $request->session()->put(self::CAV_UNAVAILABLE_KEY, $e->reason->value);
+
+            if ($e->reason->isFault()) {
+                report($e);
+            } else {
+                Log::info('Login completed without Cav roster context: the trooper holds no milpac.', [
+                    'user_id' => $user->getKey(),
+                    'forum_user_id' => $user->forum_user_id,
+                ]);
+            }
 
             return;
         }
@@ -143,7 +171,8 @@ class ForumAuthController extends Controller
             'rank_full' => $profile->rankFull,
             'billet' => $profile->billet,
             'mos' => $profile->mos,
-            'roster' => $profile->roster,
+            // The label, not the wire token: `ROSTER_TYPE_COMBAT` should never reach a view.
+            'roster' => $profile->roster?->label(),
             'source' => self::CAV_PROFILE_SOURCE,
             'fetched_at' => $profile->fetchedAt->format(DateTimeInterface::ATOM),
         ]);
