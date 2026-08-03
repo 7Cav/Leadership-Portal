@@ -178,8 +178,25 @@ describe('CavRosterProfile::findInRoster', function () use ($fetchedAt) {
         // The roster name is interpolated into the URL path, so the enum is what stops a
         // traversing or bogus path being constructible at all.
         expect(RosterType::serving())->toBe([RosterType::Combat, RosterType::Reserve, RosterType::Eloa])
-            ->and(RosterType::tryFrom('ROSTER_TYPE_UNSPECIFIED'))->toBeNull()
-            ->and(RosterType::Eloa->label())->toBe('ELOA');
+            ->and(RosterType::tryFrom('ROSTER_TYPE_UNSPECIFIED'))->toBeNull();
+    });
+
+    it('gives every roster type a display label, never the wire token', function (RosterType $roster) {
+        // A label is what reaches the session and the view, so a member without one would leak
+        // `ROSTER_TYPE_…` into the UI.
+        expect($roster->label())
+            ->not->toContain('ROSTER_TYPE')
+            ->not->toContain('_')
+            ->not->toBe('');
+    })->with(RosterType::cases());
+
+    it('labels each roster as leadership refers to it', function () {
+        expect(RosterType::Combat->label())->toBe('Combat')
+            ->and(RosterType::Reserve->label())->toBe('Reserve')
+            ->and(RosterType::Eloa->label())->toBe('ELOA')
+            ->and(RosterType::WallOfHonor->label())->toBe('Wall of Honor')
+            ->and(RosterType::Arlington->label())->toBe('Arlington')
+            ->and(RosterType::PastMembers->label())->toBe('Past Members');
     });
 
     it('rejects a response with no profiles map', function () use ($fetchedAt) {

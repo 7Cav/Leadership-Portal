@@ -27,24 +27,37 @@ use UnexpectedValueException;
  *
  * **Every failure leaves through {@see CavRequestException}.** That is the contract the login
  * path depends on: enrichment may degrade a session but must never break a login, and it can
- * only promise that if nothing else escapes. Hence the deliberately broad `Throwable` catch
- * around the send — see `sendForJson`.
+ * only promise that if nothing else escapes. Hence the deliberately broad `Throwable` catches.
  */
 class CavApi
 {
     /**
-     * Wall-clock budget for a whole roster sweep. Per-request timeouts bound each call but not
-     * the total, and the sweep makes up to three: a login blocking on the sum of them is the
-     * failure mode that piles up PHP-FPM workers. Enrichment is optional, so it gives up.
+     * Default wall-clock budget for a whole roster sweep. Per-request timeouts bound each call
+     * but not the total, and the sweep makes up to three: a login blocking on the sum of them is
+     * the failure mode that piles up PHP-FPM workers. Enrichment is optional, so it gives up.
      */
-    private const SWEEP_BUDGET_SECONDS = 12.0;
+    public const DEFAULT_SWEEP_BUDGET_SECONDS = 12.0;
 
     private ?CavConnector $connector = null;
 
+    private readonly float $sweepBudgetSeconds;
+
     /**
-     * @param  array{base_url: string|null, api_key: string|null}  $config
+     * `?array` rather than `array`: `config('services.cav')` is null if the block is missing, and
+     * a TypeError here would fire during container resolution — before any caller's guard exists,
+     * so it would 500 the login instead of degrading the session.
+     *
+     * @param  array{base_url?: string|null, api_key?: string|null, sweep_budget_seconds?: float|int|null}|null  $config
      */
-    public function __construct(private readonly array $config) {}
+    public function __construct(private readonly ?array $config = [])
+    {
+        // Configurable so the safety valve is reachable in a test without burning real seconds.
+        $budget = $config['sweep_budget_seconds'] ?? null;
+
+        $this->sweepBudgetSeconds = is_numeric($budget)
+            ? (float) $budget
+            : self::DEFAULT_SWEEP_BUDGET_SECONDS;
+    }
 
     /**
      * Fetch a known trooper's roster context by their milpac relation id.
@@ -68,8 +81,8 @@ class CavApi
      *
      * A roster that errors does not abort the sweep, because a hit on a *later* roster is a
      * definitive answer regardless: the trooper is on it. Only the negative conclusion needs a
-     * complete sweep, so if nothing matched and something failed, the failure is what is
-     * raised — never "not on the roster", which would be an unsupported claim.
+     * complete sweep — so "not on the roster" is claimed **only** when every roster answered and
+     * every row in them parsed. Anything less is raised as the failure it was.
      *
      * @throws CavRequestException when the trooper is on none of the serving rosters, or the
      *                             sweep could not be completed
@@ -78,12 +91,18 @@ class CavApi
     {
         $startedAt = $this->monotonicSeconds();
         $failure = null;
+        $skipped = 0;
 
         foreach (RosterType::serving() as $roster) {
-            $elapsed = $this->monotonicSeconds() - $startedAt;
+            // Measured against the time a call would *finish*, not the time it starts. A check
+            // that only asks "have I run out yet?" always admits one more full request timeout,
+            // so the budget would overshoot by that much; skipping a call we cannot afford to
+            // complete is what actually bounds the sweep.
+            $remaining = $this->sweepBudgetSeconds - ($this->monotonicSeconds() - $startedAt);
 
-            if ($elapsed >= self::SWEEP_BUDGET_SECONDS) {
-                throw CavRequestException::sweepBudgetExhausted($forumUserId, self::SWEEP_BUDGET_SECONDS);
+            if ($remaining < $this->requestCeilingSeconds()) {
+                // Prefer a failure we actually diagnosed over the generic timeout.
+                throw $failure ?? CavRequestException::sweepBudgetExhausted($forumUserId, $this->sweepBudgetSeconds);
             }
 
             try {
@@ -96,12 +115,30 @@ class CavApi
                     $payload,
                     $forumUserId,
                     $this->now(),
-                    fn (int|string $cavIdKey, string $reason) => Log::warning(
-                        'Skipped an unparseable Cav roster entry.',
-                        ['roster' => $roster->value, 'cav_id_key' => $cavIdKey, 'reason' => $reason],
-                    ),
+                    function (int|string $cavIdKey, string $reason) use ($roster, $forumUserId, &$skipped) {
+                        $skipped++;
+
+                        Log::warning('Skipped an unparseable Cav roster entry.', [
+                            'roster' => $roster->value,
+                            'cav_id_key' => $cavIdKey,
+                            // Without this the warning cannot be tied to the login it explains.
+                            'sought_forum_user_id' => $forumUserId,
+                            'reason' => $reason,
+                        ]);
+                    },
                 );
             } catch (CavRequestException $e) {
+                // Logged here, not only at the end: `$failure` keeps the *first* failure and a
+                // later match discards it entirely, so without this a Combat roster erroring for
+                // a week would be invisible for every trooper who happens to be on Reserve.
+                Log::warning('A Cav roster could not be read; continuing the sweep.', [
+                    'roster' => $roster->value,
+                    'reason' => $e->reason->value,
+                    'status' => $e->status,
+                    'sought_forum_user_id' => $forumUserId,
+                    'message' => $e->getMessage(),
+                ]);
+
                 // A record that is unusable *for this trooper* is not something a later roster
                 // can answer — they have been found. Anything else, keep sweeping.
                 if ($e->reason === CavFailureReason::RecordUnusable) {
@@ -118,9 +155,17 @@ class CavApi
             }
         }
 
-        // Only assert "no milpac" if every roster actually answered. Otherwise the honest
-        // answer is that the sweep failed, which is a different thing entirely.
-        throw $failure ?? CavRequestException::notOnRoster($forumUserId);
+        if ($failure !== null) {
+            throw $failure;
+        }
+
+        // Every roster answered, but rows in them were unparseable — so a roster carrying this
+        // trooper in a broken row cannot be ruled out, and absence is not established.
+        if ($skipped > 0) {
+            throw CavRequestException::rosterIncomplete($forumUserId, $skipped);
+        }
+
+        throw CavRequestException::notOnRoster($forumUserId);
     }
 
     /**
@@ -137,18 +182,18 @@ class CavApi
         // what an unconfigured deploy actually has, since `.env.example` ships the key empty.
         $apiKey = $this->config['api_key'] ?? null;
 
-        if (! is_string($apiKey) || $apiKey === '') {
+        if (! is_string($apiKey) || trim($apiKey) === '') {
             throw CavRequestException::missingCredential();
         }
 
         $baseUrl = $this->config['base_url'] ?? null;
 
         if (! is_string($baseUrl) || trim($baseUrl) === '') {
-            throw CavRequestException::unusableBaseUrl((string) $baseUrl);
+            throw CavRequestException::unusableBaseUrl(is_string($baseUrl) ? $baseUrl : get_debug_type($baseUrl));
         }
 
         try {
-            $response = $this->connector($baseUrl, $apiKey)->send($request);
+            $response = $this->connector(trim($baseUrl), $apiKey)->send($request);
         } catch (Throwable $e) {
             // Broad on purpose. Saloon's own transport failure is `FatalRequestException`, but
             // a malformed base URL surfaces as a PSR-7 `InvalidArgumentException` from URI
@@ -191,6 +236,16 @@ class CavApi
         // Memoised so a three-roster sweep reuses one connector, and with it Guzzle's
         // connection pool, instead of building three.
         return $this->connector ??= new CavConnector($baseUrl, $apiKey);
+    }
+
+    /**
+     * The longest a single call can take, used to decide whether the remaining budget can afford
+     * another one. Guzzle's connect and request timeouts are not additive — `timeout` covers the
+     * whole transfer — so the request timeout is the ceiling.
+     */
+    private function requestCeilingSeconds(): float
+    {
+        return (float) CavConnector::REQUEST_TIMEOUT_SECONDS;
     }
 
     /**

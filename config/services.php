@@ -67,6 +67,9 @@ return [
     'cav' => [
         'base_url' => env('CAV_API_BASE_URL', 'https://api.7cav.us'),
         'api_key' => env('CAV_API_KEY'),
+        // Wall-clock ceiling for a first-login roster sweep, which makes up to three calls on the
+        // synchronous login path. Configurable so the safety valve can be exercised in a test.
+        'sweep_budget_seconds' => env('CAV_API_SWEEP_BUDGET_SECONDS', 12.0),
     ],
 
 ];

@@ -138,6 +138,8 @@ readonly class CavRosterProfile
         // trooper's, a problem with it can no longer be skipped quietly: continuing would let the
         // sweep finish and conclude "no milpac", which asserts the opposite of what the roster
         // actually says and sends whoever debugs it after the wrong system.
+        $unusableOwnRow = null;
+
         foreach ($profiles as $cavIdKey => $entry) {
             if (! is_array($entry)) {
                 $onSkip($cavIdKey, 'the entry was not an object');
@@ -162,14 +164,24 @@ readonly class CavRosterProfile
             $cavId = self::id($cavIdKey);
 
             if ($cavId === null) {
-                $onSkip($cavIdKey, 'the map key was not an integer milpac id');
+                // Remembered rather than thrown immediately: a roster carrying this trooper twice
+                // — once under a broken key, once under a good one — is still recoverable, and
+                // aborting on the first would turn that into a hard failure. No $onSkip call
+                // here; this row is not being skipped over, it is being held against the sweep.
+                $unusableOwnRow ??= $cavIdKey;
 
-                throw CavRequestException::rosterEntryUnusable($forumUserId, $cavIdKey);
+                continue;
             }
 
             // Cannot throw from here: the identity fields are already parsed and `$cavId` is a
             // positive integer, and every remaining field is lenient by design.
             return self::fromPayload($cavId, $entry, $fetchedAt);
+        }
+
+        // The roster does carry this trooper, and no usable row for them was found. Returning
+        // null would let the caller conclude "no milpac" — the opposite of the truth.
+        if ($unusableOwnRow !== null) {
+            throw CavRequestException::rosterEntryUnusable($forumUserId, $unusableOwnRow);
         }
 
         return null;

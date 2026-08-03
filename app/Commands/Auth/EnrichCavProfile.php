@@ -86,12 +86,15 @@ class EnrichCavProfile
 
             $staleReason = "it now reports forum user id {$profile->forumUserId}";
         } catch (CavRequestException $e) {
-            // A dead milpac id (404) is the same situation as a reassigned one: the stored link
-            // is wrong, and re-resolving is the only way back. Without this, a deleted milpac
-            // leaves `cav_id` stuck at the dead value and the trooper unenriched on every future
-            // login. A transport or credential failure, though, says nothing about the link — do
-            // not sweep on the back of it, and do not discard the diagnosis.
-            if ($e->reason !== CavFailureReason::HttpError && $e->reason !== CavFailureReason::Malformed) {
+            // A *missing* record — a 404/410, or the API's 200-with-`{code,message}` envelope — is
+            // the same situation as a reassigned id: the stored link is wrong and re-resolving is
+            // the only way back. Without this, a deleted milpac leaves `cav_id` stuck at the dead
+            // value and the trooper unenriched on every future login.
+            //
+            // Anything else — 401 on a rotated key, 429, 503, an unreachable host — is evidence
+            // about the *API*, not the link. Re-sweeping on it would cost three more doomed calls
+            // and, worse, log this as a data-integrity event pointing at the wrong system.
+            if (! $e->indicatesMissingRecord()) {
                 throw $e;
             }
 
@@ -108,6 +111,12 @@ class EnrichCavProfile
             'stored_cav_id' => $storedCavId,
             'reason' => $staleReason,
         ]);
+
+        // Drop the link *before* re-resolving. It has just been established that this milpac id
+        // does not belong to this trooper, and the re-sweep may well fail (a trooper whose milpac
+        // was deleted is often no longer on any roster). Keeping a known-wrong link would leave
+        // the row asserting someone else's identity — which Epic 2's sync will read and act on.
+        $this->users->unlinkCavId($user);
 
         return $this->cav->findOnRosterByForumUserId($forumUserId);
     }

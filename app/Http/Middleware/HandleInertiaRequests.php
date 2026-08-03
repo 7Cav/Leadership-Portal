@@ -49,7 +49,8 @@ class HandleInertiaRequests extends Middleware
                 'profile' => $request->user() ? $request->session()->get('cav_profile') : null,
                 // Why it is absent, for Story 1.7's degraded messaging. The literal keys here
                 // duplicate ForumAuthController's constants because Deptrac gives Middleware no
-                // outgoing edge; the shared-prop tests fail if the two ever drift.
+                // outgoing edge, so a feature test asserts each prop against a real login —
+                // renaming a constant without updating this line turns that test red.
                 'profileUnavailable' => $request->user()
                     ? $request->session()->get('cav_profile_unavailable')
                     : null,

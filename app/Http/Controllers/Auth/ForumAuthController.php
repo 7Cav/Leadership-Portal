@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 /**
  * Orchestration only (AD-1): no business logic, no HTTP-out. External calls run
@@ -162,6 +163,17 @@ class ForumAuthController extends Controller
                     'forum_user_id' => $user->forum_user_id,
                 ]);
             }
+
+            return;
+        } catch (Throwable $e) {
+            // The one place in this codebase where a bare `Throwable` catch is the correct call.
+            // Everything below promises that enrichment cannot break a login, but that promise
+            // currently rests on four layers each being individually exhaustive — one new logging
+            // handler, container binding or DB driver quirk on this path re-breaks it silently.
+            // The user is already authenticated by the time we get here and roster context is
+            // strictly optional, so there is no failure worth trading a working login for.
+            report($e);
+            $request->session()->put(self::CAV_UNAVAILABLE_KEY, 'unexpected');
 
             return;
         }

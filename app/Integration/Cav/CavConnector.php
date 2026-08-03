@@ -24,9 +24,14 @@ class CavConnector extends Connector
 {
     use AcceptsJson, HasTimeout;
 
-    protected int $connectTimeout = 5;
+    /** Exposed so {@see CavApi}'s sweep budget can tell whether it can afford another call. */
+    public const CONNECT_TIMEOUT_SECONDS = 5;
 
-    protected int $requestTimeout = 10;
+    public const REQUEST_TIMEOUT_SECONDS = 10;
+
+    protected int $connectTimeout = self::CONNECT_TIMEOUT_SECONDS;
+
+    protected int $requestTimeout = self::REQUEST_TIMEOUT_SECONDS;
 
     public function __construct(
         private readonly string $baseUrl,

@@ -26,4 +26,12 @@ class IdentityLinkException extends RuntimeException
             previous: $previous,
         );
     }
+
+    public static function cavIdNotUnlinked(int $userId, Throwable $previous): self
+    {
+        return new self(
+            "Could not clear the stale cav id link on user {$userId}.",
+            previous: $previous,
+        );
+    }
 }

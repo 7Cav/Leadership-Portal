@@ -21,6 +21,13 @@ class CavRequestException extends RuntimeException
         public readonly CavFailureReason $reason,
         string $message,
         ?Throwable $previous = null,
+        /**
+         * The HTTP status, when the failure was one. Carried rather than flattened into
+         * `HttpError` because 404 and 401 call for opposite responses: a 404 is evidence a stored
+         * milpac link is dead, while a 401 is evidence about the *credential* and says nothing
+         * about the link.
+         */
+        public readonly ?int $status = null,
     ) {
         parent::__construct($message, previous: $previous);
     }
@@ -30,6 +37,7 @@ class CavRequestException extends RuntimeException
         return new self(
             CavFailureReason::HttpError,
             "Cav milpac profile fetch failed for cav id {$cavId} (HTTP {$status}).",
+            status: $status,
         );
     }
 
@@ -38,7 +46,18 @@ class CavRequestException extends RuntimeException
         return new self(
             CavFailureReason::HttpError,
             "Cav roster fetch failed for {$roster} (HTTP {$status}).",
+            status: $status,
         );
+    }
+
+    /**
+     * Whether this failure is evidence that a *stored* milpac link no longer resolves — the
+     * record is gone, as opposed to the API being unwilling or unable to answer.
+     */
+    public function indicatesMissingRecord(): bool
+    {
+        return $this->reason === CavFailureReason::Malformed
+            || in_array($this->status, [404, 410], strict: true);
     }
 
     public static function notOnRoster(int $forumUserId): self
@@ -60,6 +79,20 @@ class CavRequestException extends RuntimeException
         return new self(
             CavFailureReason::RecordUnusable,
             "The Cav roster entry for forum user id {$forumUserId} (cav id {$cavIdKey}) could not be parsed.",
+        );
+    }
+
+    /**
+     * The sweep completed without a match, but rows were skipped as unparseable — so a roster
+     * that carries this trooper in a broken row cannot be ruled out. Distinct from
+     * {@see notOnRoster}, which asserts a *complete* negative answer.
+     */
+    public static function rosterIncomplete(int $forumUserId, int $skipped): self
+    {
+        return new self(
+            CavFailureReason::Malformed,
+            "No Cav roster record matched forum user id {$forumUserId}, but {$skipped} entr"
+                .($skipped === 1 ? 'y was' : 'ies were').' unparseable, so absence is not established.',
         );
     }
 
