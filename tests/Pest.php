@@ -18,6 +18,11 @@ pest()->extend(TestCase::class)
     // Intentionally off: the scaffold's smoke tests touch no database. Re-enable the moment
     // a Feature test hits the DB (and point the test env at a real MySQL 8.4 in CI, Story 1.3).
     // ->use(RefreshDatabase::class)
+    // Feature tests render the real Blade layout, which calls @vite. The backend CI job is
+    // deliberately PHP-only, so there is no built manifest there — stub Vite out rather than
+    // make a PHP gate depend on the front-end toolchain. Drop this if a test ever needs to
+    // assert on real asset URLs.
+    ->beforeEach(fn () => $this->withoutVite())
     ->in('Feature');
 
 /*
