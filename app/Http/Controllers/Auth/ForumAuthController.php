@@ -101,6 +101,13 @@ class ForumAuthController extends Controller
      * be replayed, and `regenerateToken()` rotates the CSRF token so a token captured
      * while signed in is worthless afterwards (NFR5, proposal §10.2). Order matters —
      * `Auth::logout()` first, so nothing writes the user back into the fresh session.
+     *
+     * `clearHistory()` is what actually satisfies AC #2 on this stack. Killing the session
+     * and sending `no-store` govern what the *server* answers and what the *HTTP cache*
+     * keeps — but pressing "back" in an Inertia SPA fires `popstate`, and the client
+     * re-renders the stored page object without issuing a request at all. Clearing the
+     * history tells it to discard that stored state, so "back" has to hit the server and
+     * gets bounced to login. It runs last because the flag lives in the new session.
      */
     public function logout(Request $request): RedirectResponse
     {
@@ -108,6 +115,8 @@ class ForumAuthController extends Controller
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+
+        Inertia::clearHistory();
 
         return redirect()->route('login');
     }

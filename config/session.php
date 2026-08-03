@@ -171,9 +171,15 @@ return [
     | to the server if the browser has a HTTPS connection. This will keep
     | the cookie from being sent to you when it can't be done securely.
     |
+    | 7Cav: Secure by default in production (NFR5) rather than the framework's bare
+    | `env()`, which yields null — a deploy that simply forgets the key would otherwise
+    | ship a session cookie with no Secure attribute and nothing would complain. Local
+    | dev runs over http, where a Secure cookie is never sent at all, so non-production
+    | defaults to false and any environment can still override explicitly. Story 1.5.
+    |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    'secure' => env('SESSION_SECURE_COOKIE', env('APP_ENV') === 'production'),
 
     /*
     |--------------------------------------------------------------------------

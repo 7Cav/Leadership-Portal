@@ -35,12 +35,22 @@ it('keeps the session cookie HttpOnly + SameSite=Lax across login, use and logou
 });
 
 it('marks the session cookie Secure when configured for HTTPS (AC #3)', function () {
-    // `secure` is env-driven (SESSION_SECURE_COOKIE) because local dev runs over http and a
-    // Secure cookie would simply never be sent. Production sets it true; assert that setting
-    // actually reaches the cookie.
+    // `secure` stays env-overridable because local dev runs over http, where a Secure cookie
+    // is never sent at all. Assert the setting actually reaches the cookie.
     config()->set('session.secure', true);
 
     expect(sessionCookie($this->get('/login'))->isSecure())->toBeTrue();
+});
+
+it('never leaves the Secure flag unset by default (AC #3)', function () {
+    // The framework ships a bare `env('SESSION_SECURE_COOKIE')`, which is *null* when the key
+    // is absent — so a deploy that simply forgets it gets a session cookie with no Secure
+    // attribute and nothing anywhere complains. The shipped default must resolve to an
+    // explicit boolean (true under APP_ENV=production, false for local http) so the decision
+    // is always made rather than defaulted into a hole.
+    $shipped = withoutEnv('SESSION_SECURE_COOKIE', fn () => require config_path('session.php'));
+
+    expect($shipped['secure'])->toBeBool();
 });
 
 it('ships a 24h session window as the default (AC #4)', function () {
@@ -51,9 +61,15 @@ it('ships a 24h session window as the default (AC #4)', function () {
     // This asserts the *shipped* default, not the resolved value: a contributor's local .env
     // may carry any lifetime, so `config('session.lifetime')` would test their machine. What
     // the repo must guarantee is that an environment setting nothing still gets 24h.
-    expect(withoutEnv('SESSION_LIFETIME', fn () => (require config_path('session.php'))['lifetime']))
-        ->toBe(1440);
-    expect(config('session.expire_on_close'))->toBeFalse();
+    $shipped = withoutEnv(
+        'SESSION_LIFETIME',
+        fn () => withoutEnv('SESSION_EXPIRE_ON_CLOSE', fn () => require config_path('session.php')),
+    );
+
+    expect($shipped['lifetime'])->toBe(1440);
+    // Also the shipped default rather than resolved config: a window is meaningless if the
+    // session dies with the browser instead.
+    expect($shipped['expire_on_close'])->toBeFalse();
 });
 
 it('expires the session cookie on the configured window rather than on browser close (AC #4)', function () {
@@ -65,13 +81,27 @@ it('expires the session cookie on the configured window rather than on browser c
         ->toBeGreaterThan(now()->addMinutes(config('session.lifetime') - 1)->getTimestamp());
 });
 
-it('redirects an expired session to login with a 302, never a 500 (AC #4)', function () {
-    // An aged-out session is indistinguishable from no session: the driver holds no auth
-    // payload for the cookie's id, so the auth middleware must bounce rather than blow up.
-    $this->withSession(['_token' => 'stale-token'])
-        ->get('/home')
+it('redirects a genuinely aged-out session to login with a 302, never a 500 (AC #4)', function () {
+    // Really age a session out rather than send an empty one: sign in for real against a
+    // persistent driver, then travel past the window so the handler treats the record as
+    // expired on read. Sending a session that merely lacks an auth key would be
+    // indistinguishable from an anonymous request and would pass with the lifetime deleted.
+    config(['session.driver' => 'database']);
+
+    $sessionId = logInThroughTheForum();
+    $this->withCookie(config('session.cookie'), $sessionId);
+
+    $this->get('/home')->assertOk();
+
+    $this->travel(config('session.lifetime') + 1)->minutes();
+    $this->flushSession();
+    $this->app['auth']->forgetGuards();
+
+    $this->get('/home')
         ->assertStatus(302)
         ->assertRedirect(route('login'));
+
+    $this->assertGuest();
 });
 
 it('rejects a state-changing POST with no CSRF token, server-side (AC #5)', function () {
@@ -95,37 +125,42 @@ it('accepts a state-changing POST carrying the session CSRF token (AC #5)', func
 
     liftCsrfTestShortCircuit();
 
+    // Guard the guard: a redirect to login is also what an unprotected logout returns, so
+    // without this the test would pass even if the short-circuit lift silently stopped
+    // working — unlike its 419 siblings, which can only come from real validation.
+    expect(app()->runningUnitTests())->toBeFalse();
+
     $this->actingAs($user)->get('/home');
 
     $this->post('/logout', ['_token' => session()->token()])->assertRedirect(route('login'));
+    $this->assertGuest();
 });
 
-/**
- * `ValidateCsrfToken::handle` short-circuits on `$app->runningUnitTests()`, so a plain
- * feature-test POST never exercises CSRF at all — a test written without lifting that
- * would pass while proving nothing. Moving the app off the `testing` environment makes the
- * middleware validate for real, which is the only way AC #5 becomes a gate.
- */
-function liftCsrfTestShortCircuit(): void
-{
-    app()['env'] = 'production';
-}
+it('admits a same-origin POST on the Sec-Fetch-Site header alone (AC #5, as the framework enforces it)', function () {
+    $user = User::factory()->create();
 
-/**
- * Run `$probe` with an environment variable hidden, so a config file can be re-evaluated as
- * an environment that never sets the key would see it. Restored afterwards either way.
- */
-function withoutEnv(string $key, Closure $probe): mixed
-{
-    $repository = Env::getRepository();
-    $original = $repository->get($key);
-    $repository->clear($key);
+    liftCsrfTestShortCircuit();
 
-    try {
-        return $probe();
-    } finally {
-        if ($original !== null) {
-            $repository->set($key, $original);
-        }
-    }
-}
+    // Documents the path production traffic actually takes, which is NOT the token path.
+    // Laravel 13's PreventRequestForgery checks `hasValidOrigin()` BEFORE `tokensMatch()`,
+    // so a browser sending `Sec-Fetch-Site: same-origin` is admitted with no token at all.
+    // That is sound — the header is browser-set and cannot be forged cross-site — but it
+    // makes AC #5's literal "all state-changing requests require a valid CSRF token" false,
+    // and the 419 tests above only see rejection because they omit the header. Pinned here
+    // so flipping `$originOnly`/`$allowSameSite` can't change the contract unnoticed.
+    $this->actingAs($user)
+        ->withHeader('Sec-Fetch-Site', 'same-origin')
+        ->post('/logout')
+        ->assertRedirect(route('login'));
+});
+
+it('rejects a cross-site POST with no token — the attack AC #5 is about (AC #5)', function () {
+    $user = User::factory()->create();
+
+    liftCsrfTestShortCircuit();
+
+    $this->actingAs($user)
+        ->withHeader('Sec-Fetch-Site', 'cross-site')
+        ->post('/logout')
+        ->assertStatus(419);
+});

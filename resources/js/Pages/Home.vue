@@ -4,7 +4,9 @@ import { Head, Link, usePage } from '@inertiajs/vue3';
 
 // Minimal authenticated landing (Story 1.4). Real leadership screens land in later epics.
 const page = usePage();
-const username = computed(() => page.props.auth?.user?.username ?? 'Trooper');
+// `||`, not `??`: an empty username would otherwise render a blank identity and a blank
+// monogram rather than falling back.
+const username = computed(() => page.props.auth?.user?.username || 'Trooper');
 
 // Avatar monogram, matching the mockup top-nav's two-letter initials (`HS` for Hale.S).
 const initials = computed(() =>

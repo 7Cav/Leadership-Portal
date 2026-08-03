@@ -1,6 +1,11 @@
 <?php
 
+use App\Integration\Forum\Requests\ExchangeCodeRequest;
+use App\Integration\Forum\Requests\FetchProfileRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Env;
+use Saloon\Http\Faking\MockClient;
+use Saloon\Http\Faking\MockResponse;
 use Tests\TestCase;
 
 /*
@@ -24,6 +29,9 @@ pest()->extend(TestCase::class)
     // make a PHP gate depend on the front-end toolchain. Drop this if a test ever needs to
     // assert on real asset URLs.
     ->beforeEach(fn () => $this->withoutVite())
+    // A global Saloon mock client outlives the test that installed it, so drop it between
+    // tests rather than relying on every file that fakes the forum to remember (Story 1.5).
+    ->afterEach(fn () => MockClient::destroyGlobal())
     ->in('Feature');
 
 /*
@@ -55,4 +63,73 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+/**
+ * Make CSRF verification real for the current test (Story 1.5).
+ *
+ * `PreventRequestForgery::handle` short-circuits on `$app->runningUnitTests()`, so a plain
+ * feature-test POST never exercises CSRF at all — a test written without lifting this would
+ * pass while proving nothing. Moving the app off the `testing` environment makes the
+ * middleware validate for real.
+ */
+function liftCsrfTestShortCircuit(): void
+{
+    app()['env'] = 'production';
+}
+
+/**
+ * Run `$probe` with an environment variable hidden, so a config file can be re-evaluated as
+ * an environment that never sets the key would see it. Restored afterwards either way.
+ *
+ * Caveat: Laravel's env repository is immutable, so this only masks values that came from
+ * `.env`. A variable exported in the real shell (or set by a CI job) cannot be cleared and
+ * will still be visible to `$probe`.
+ */
+function withoutEnv(string $key, Closure $probe): mixed
+{
+    $repository = Env::getRepository();
+    $original = $repository->get($key);
+    $repository->clear($key);
+
+    try {
+        return $probe();
+    } finally {
+        if ($original !== null) {
+            $repository->set($key, $original);
+        }
+    }
+}
+
+/**
+ * Sign in the way production does — through the OAuth callback, so `Auth::login()` writes
+ * identity into the session store. Returns the session id the authenticated session lives
+ * under. `actingAs()` cannot stand in for this: it sets the guard's user in memory and
+ * leaves the session empty, so there is nothing for a replay to replay.
+ */
+function logInThroughTheForum(): string
+{
+    config()->set('services.sevencav', [
+        'client_id' => 'test-client',
+        'client_secret' => 'test-secret',
+        'redirect_uri' => 'http://localhost/oauth/callback/7cav',
+        'base_url' => 'https://7cav.us',
+        'authorize_url' => 'https://7cav.us/oauth2/authorize',
+        'scopes' => ['user:read'],
+    ]);
+
+    MockClient::destroyGlobal();
+    MockClient::global([
+        ExchangeCodeRequest::class => MockResponse::make(['access_token' => 'tok-abc'], 200),
+        FetchProfileRequest::class => MockResponse::make(
+            ['me' => ['user_id' => 4, 'username' => 'Gryspeert.J', 'email' => 'j@7cav.us']],
+            200,
+        ),
+    ]);
+
+    test()->withSession(['forum_oauth_state' => 'valid-state'])
+        ->get('/oauth/callback/7cav?code=good-code&state=valid-state')
+        ->assertRedirect(route('home'));
+
+    return session()->getId();
 }
