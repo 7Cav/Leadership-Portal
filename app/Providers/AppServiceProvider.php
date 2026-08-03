@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Integration\Forum\ForumApi;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\ServiceProvider;
 
@@ -12,7 +13,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // The Forum OAuth2 seam (AD-3). Config carries the client secret from env only
+        // (AD-23); binding it here keeps that read in the composition root.
+        $this->app->singleton(ForumApi::class, fn () => new ForumApi(config('services.sevencav')));
     }
 
     /**

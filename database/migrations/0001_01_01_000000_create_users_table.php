@@ -11,20 +11,19 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Portal-owned identity link (AD-22, proposal §9.3) — NOT an account store.
+        // SSO-only, so there is nothing password-shaped to breach (AD-6): no password,
+        // no remember_token, no password_reset_tokens table. Identity is keyed on the
+        // forum user id returned by 7cav.us OAuth; `cav_id` stays null until the Cav
+        // roster enrichment (Story 1.6) fills it.
         Schema::create('users', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
-            $table->rememberToken();
+            $table->unsignedBigInteger('forum_user_id')->unique();
+            $table->unsignedBigInteger('cav_id')->nullable()->unique();
+            $table->string('username');
+            $table->string('email')->nullable();
+            $table->boolean('is_admin')->default(false);
             $table->timestamps();
-        });
-
-        Schema::create('password_reset_tokens', function (Blueprint $table) {
-            $table->string('email')->primary();
-            $table->string('token');
-            $table->timestamp('created_at')->nullable();
         });
 
         Schema::create('sessions', function (Blueprint $table) {
@@ -43,7 +42,6 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('users');
-        Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('sessions');
     }
 };
