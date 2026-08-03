@@ -3,9 +3,13 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Commands\Auth\BeginForumLogin;
+use App\Commands\Auth\CavEnrichmentException;
 use App\Commands\Auth\CompleteForumLogin;
+use App\Commands\Auth\EnrichCavProfile;
 use App\Commands\Auth\ForumLoginException;
 use App\Http\Controllers\Controller;
+use App\Models\User;
+use DateTimeInterface;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,6 +26,15 @@ class ForumAuthController extends Controller
 {
     /** The session key holding the single-use OAuth CSRF `state` nonce. */
     private const STATE_KEY = 'forum_oauth_state';
+
+    /** The session key holding this login's Cav roster snapshot (Story 1.6). */
+    private const CAV_PROFILE_KEY = 'cav_profile';
+
+    /**
+     * Provenance label shown wherever the enriched values render (AD-20 rule 1). Names the
+     * system that owns the facts, so a stale rank is never mistaken for a portal assertion.
+     */
+    private const CAV_PROFILE_SOURCE = 'Cav roster (api.7cav.us)';
 
     /**
      * The login screen. Surfaces any error flashed by a failed callback (AC #5).
@@ -51,7 +64,7 @@ class ForumAuthController extends Controller
      * missing/mismatched `state` BEFORE any token work — no partial session is ever
      * created; failures redirect back to login with a clear message (never a 500).
      */
-    public function callback(Request $request, CompleteForumLogin $command): RedirectResponse
+    public function callback(Request $request, CompleteForumLogin $command, EnrichCavProfile $enrich): RedirectResponse
     {
         $expectedState = $request->session()->pull(self::STATE_KEY);
         $providedState = $request->query('state');
@@ -92,7 +105,48 @@ class ForumAuthController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
+        $this->attachCavProfile($request, $user, $enrich);
+
         return redirect()->intended(route('home'));
+    }
+
+    /**
+     * Attach the trooper's Cav roster context to the session (Story 1.6 AC #1).
+     *
+     * Sequenced after `Auth::login()` + `session()->regenerate()` because enrichment is a
+     * property of an established session: it needs the resolved user, and nothing about it
+     * should be able to affect whether the login itself succeeds. (Placement is not
+     * load-bearing for *retention* — `regenerate()` migrates the session id but carries the
+     * attributes over, unlike `invalidate()`, which flushes them.)
+     *
+     * The values are Cav's, not the portal's (AD-5), so they are stored with their source
+     * and fetch time and never persisted as portal facts — whatever renders them can show
+     * how fresh they are (AD-20, NFR7).
+     *
+     * A Cav failure degrades the session rather than the login: the user is already
+     * authenticated, and the forum is the identity authority — the roster is not. The cause
+     * is reported so an outage is visible in the logs instead of looking like every leader
+     * quietly losing their rank. Story 1.7 owns what the *user* is told about it.
+     */
+    private function attachCavProfile(Request $request, User $user, EnrichCavProfile $enrich): void
+    {
+        try {
+            $profile = $enrich->handle($user);
+        } catch (CavEnrichmentException $e) {
+            report($e);
+
+            return;
+        }
+
+        $request->session()->put(self::CAV_PROFILE_KEY, [
+            'rank_short' => $profile->rankShort,
+            'rank_full' => $profile->rankFull,
+            'billet' => $profile->billet,
+            'mos' => $profile->mos,
+            'roster' => $profile->roster,
+            'source' => self::CAV_PROFILE_SOURCE,
+            'fetched_at' => $profile->fetchedAt->format(DateTimeInterface::ATOM),
+        ]);
     }
 
     /**
