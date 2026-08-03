@@ -23,4 +23,8 @@ Route::get('/oauth/callback/7cav', [ForumAuthController::class, 'callback'])->na
 // middleware. Named `home` — the target Laravel's guest middleware bounces to.
 Route::middleware('auth')->group(function () {
     Route::get('/home', fn () => Inertia::render('Home'))->name('home');
+
+    // Logout (Story 1.5). POST, so it carries CSRF protection and can't be triggered by a
+    // prefetched link or a cross-site <img>.
+    Route::post('/logout', [ForumAuthController::class, 'logout'])->name('logout');
 });

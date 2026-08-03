@@ -30,9 +30,13 @@ return [
     | to expire immediately when the browser is closed then you may
     | indicate that via the expire_on_close configuration option.
     |
+    | 7Cav: the default is 1440 minutes — the 24h window from proposal §10.2 (NFR5), set
+    | here rather than only in .env so an environment that never sets the key still gets
+    | the hardened lifetime. Story 1.5.
+    |
     */
 
-    'lifetime' => (int) env('SESSION_LIFETIME', 120),
+    'lifetime' => (int) env('SESSION_LIFETIME', 1440),
 
     'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
 

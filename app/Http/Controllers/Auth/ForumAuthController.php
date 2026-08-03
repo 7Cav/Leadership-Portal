@@ -95,6 +95,23 @@ class ForumAuthController extends Controller
         return redirect()->intended(route('home'));
     }
 
+    /**
+     * End the session (Story 1.5 AC #1). Dropping the auth state is not enough on its own:
+     * `invalidate()` flushes the payload and migrates the session id so the old one cannot
+     * be replayed, and `regenerateToken()` rotates the CSRF token so a token captured
+     * while signed in is worthless afterwards (NFR5, proposal §10.2). Order matters —
+     * `Auth::logout()` first, so nothing writes the user back into the fresh session.
+     */
+    public function logout(Request $request): RedirectResponse
+    {
+        Auth::logout();
+
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect()->route('login');
+    }
+
     private function backToLogin(string $message): RedirectResponse
     {
         return redirect()->route('login')->with('error', $message);
