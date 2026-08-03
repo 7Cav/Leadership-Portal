@@ -1,9 +1,9 @@
 name: CI
 
 # The quality gate (Story 1.3, NFR9). Every push to and PR against the integration
-# branch runs all five gates — Pint, Deptrac, Pest, Vitest, Playwright. They run as
-# separate jobs, so the overall pipeline status is failure if ANY single gate fails
-# (AND-combined, not advisory). External API seams are never called from CI.
+# branch runs all six gates — Pint, Deptrac, Pest, Vitest, Playwright, npm audit. They
+# run as separate jobs, so the overall pipeline status is failure if ANY single gate
+# fails (AND-combined, not advisory). External API seams are never called from CI.
 
 on:
   push:
@@ -75,6 +75,26 @@ jobs:
 
       - name: Vitest (Vue unit tests)
         run: npm run test:unit
+
+  # ── Supply-chain gate: no known high/critical advisory in the npm lockfile ──
+  audit:
+    name: Audit (npm)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Reads package-lock.json against the registry's advisory database, so no install
+      # is needed. Note this gate can go red on a PR that changed nothing: advisories are
+      # published against dependencies we already had. That is the gate working — fix it
+      # in its own change rather than lowering the threshold. Only high and critical fail;
+      # moderate and below are reported by `npm audit` locally but do not block a merge.
+      - name: npm audit (high and above)
+        run: npm audit --audit-level=high --package-lock-only
 
   # ── Browser E2E gate: Playwright drives the real app ──
   e2e:

@@ -1,0 +1,4 @@
+Keeps this directory in git. phpunit.xml declares tests/Unit as a testsuite, and
+`php artisan test` exits 2 if it is missing — but git does not track empty
+directories, so without this file a fresh clone fails the Pest gate. Delete it
+once a real unit test lives here.
