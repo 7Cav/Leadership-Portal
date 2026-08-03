@@ -91,11 +91,17 @@ that single edge in the same PR, with a one-line reason. That deliberate, review
 ```bash
 composer test                 # Pest (config:clear + artisan test)
 vendor/bin/pint --dirty       # format only changed files (run before committing)
+npm audit --audit-level=high  # supply-chain gate — must report no high/critical
 ```
 
 - Test stack: **Pest 4** (PHP), Vitest 4 / Playwright (front end).
 - Keep the build green: `pint --dirty`, `composer test`, and `composer deptrac` should all
   pass locally before you open a PR. CI enforces the same gates.
+- CI also fails on any **high or critical** npm advisory. That gate can go red on a PR that
+  changed no dependencies, because advisories are published against packages we already
+  had — it isn't your PR's fault, but it does block it. Fix it in its own dependency PR
+  rather than lowering `--audit-level`. Moderate findings are reported locally and never
+  block a merge.
 
 ## 6. Git & PRs
 
