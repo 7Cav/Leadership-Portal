@@ -12,6 +12,17 @@ const username = computed(() => page.props.auth?.user?.username || 'Trooper');
 // the roster API was unavailable — the cluster then degrades to the bare username.
 const profile = computed(() => page.props.auth?.profile ?? null);
 
+// Why enrichment produced nothing this login (Story 1.7). The server shares the reason
+// unfiltered (Story 1.6 keeps the fault/non-fault split out of the session contract), so the
+// view is where that split lands: `not_on_roster` is a normal, expected population — a
+// trooper without a milpac — not a Cav outage, and warning them on every login would bury the
+// case this banner exists for.
+const profileUnavailable = computed(() => {
+    const reason = page.props.auth?.profileUnavailable ?? null;
+
+    return reason && reason !== 'not_on_roster' ? reason : null;
+});
+
 // `WO1 Hale.S · S1`, per the mockup top-nav. Rank and billet are each optional: a trooper
 // mid-transfer can hold a rank with no billet, so neither is allowed to drag the other out.
 const identity = computed(() => {
@@ -119,7 +130,21 @@ const initials = computed(() =>
             </div>
         </nav>
 
-        <main class="flex items-center justify-center p-8">
+        <main class="flex flex-col items-center justify-center gap-4 p-8">
+            <!--
+              Degraded-mode warning (Story 1.7, AC #2). Gold-left-border `.notice` strip per the
+              mockup token set — distinct from the login page's `.error` box, since a Cav outage
+              never breaks the login itself. No dismiss control: it stays until enrichment
+              actually succeeds on a later login (AD-20, NFR8).
+            -->
+            <div
+                v-if="profileUnavailable"
+                role="alert"
+                class="w-full max-w-lg rounded-md border border-border border-l-[3px] border-l-gold bg-panel px-4 py-3 text-[12.5px] leading-normal text-gray-400"
+            >
+                Roster enrichment is currently unavailable — rank, billet and MOS are unavailable this session.
+            </div>
+
             <div class="w-full max-w-lg rounded-lg border border-border bg-panel p-8">
                 <span class="inline-block rounded bg-gold px-3 py-1 text-sm font-semibold text-bg">
                     Signed in
