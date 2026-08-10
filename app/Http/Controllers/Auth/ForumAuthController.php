@@ -95,6 +95,32 @@ class ForumAuthController extends Controller
         return redirect()->intended(route('home'));
     }
 
+    /**
+     * End the session (Story 1.5 AC #1). Dropping the auth state is not enough on its own:
+     * `invalidate()` flushes the payload and migrates the session id so the old one cannot
+     * be replayed, and `regenerateToken()` rotates the CSRF token so a token captured
+     * while signed in is worthless afterwards (NFR5, proposal §10.2). Order matters —
+     * `Auth::logout()` first, so nothing writes the user back into the fresh session.
+     *
+     * `clearHistory()` is what actually satisfies AC #2 on this stack. Killing the session
+     * and sending `no-store` govern what the *server* answers and what the *HTTP cache*
+     * keeps — but pressing "back" in an Inertia SPA fires `popstate`, and the client
+     * re-renders the stored page object without issuing a request at all. Clearing the
+     * history tells it to discard that stored state, so "back" has to hit the server and
+     * gets bounced to login. It runs last because the flag lives in the new session.
+     */
+    public function logout(Request $request): RedirectResponse
+    {
+        Auth::logout();
+
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        Inertia::clearHistory();
+
+        return redirect()->route('login');
+    }
+
     private function backToLogin(string $message): RedirectResponse
     {
         return redirect()->route('login')->with('error', $message);

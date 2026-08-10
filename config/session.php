@@ -30,9 +30,13 @@ return [
     | to expire immediately when the browser is closed then you may
     | indicate that via the expire_on_close configuration option.
     |
+    | 7Cav: the default is 1440 minutes — the 24h window from proposal §10.2 (NFR5), set
+    | here rather than only in .env so an environment that never sets the key still gets
+    | the hardened lifetime. Story 1.5.
+    |
     */
 
-    'lifetime' => (int) env('SESSION_LIFETIME', 120),
+    'lifetime' => (int) env('SESSION_LIFETIME', 1440),
 
     'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
 
@@ -167,9 +171,15 @@ return [
     | to the server if the browser has a HTTPS connection. This will keep
     | the cookie from being sent to you when it can't be done securely.
     |
+    | 7Cav: Secure by default in production (NFR5) rather than the framework's bare
+    | `env()`, which yields null — a deploy that simply forgets the key would otherwise
+    | ship a session cookie with no Secure attribute and nothing would complain. Local
+    | dev runs over http, where a Secure cookie is never sent at all, so non-production
+    | defaults to false and any environment can still override explicitly. Story 1.5.
+    |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    'secure' => env('SESSION_SECURE_COOKIE', env('APP_ENV') === 'production'),
 
     /*
     |--------------------------------------------------------------------------
