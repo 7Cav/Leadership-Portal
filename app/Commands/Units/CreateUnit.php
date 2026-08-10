@@ -4,7 +4,9 @@ namespace App\Commands\Units;
 
 use App\Models\Unit;
 use App\Models\UnitType;
+use App\Models\User;
 use App\Repositories\UnitRepository;
+use App\Support\Audit\AuditEnvelope;
 
 /**
  * Add a node to the chain of command (AD-18). Admin-only — enforced by the controller
@@ -19,19 +21,22 @@ use App\Repositories\UnitRepository;
  *
  * The path computation itself stays entirely in {@see UnitRepository::create()}, since Deptrac
  * keeps DB access there — duplicating it here would just be a second place for the two to
- * drift apart. Kept as its own Command, not folded into the controller, because AD-15 routes
- * every write through one: this is the audited-write seam Story 1.10 attaches to.
+ * drift apart. The write itself is staged through `AuditEnvelope` (AD-16) — a reason is never
+ * required for org-structure edits, only for personnel actions and report sends.
  */
 class CreateUnit
 {
-    public function __construct(private readonly UnitRepository $units) {}
+    public function __construct(
+        private readonly UnitRepository $units,
+        private readonly AuditEnvelope $audit,
+    ) {}
 
     /**
      * @throws InvalidUnitPlacementException when the requested placement breaks echelon
      *                                       ordering — caught by the controller and turned
      *                                       into a form validation error.
      */
-    public function handle(UnitType $type, string $name, ?string $callsign, ?int $parentId): Unit
+    public function handle(User $actor, UnitType $type, string $name, ?string $callsign, ?int $parentId): Unit
     {
         if ($parentId === null) {
             if ($type !== UnitType::Regiment) {
@@ -49,6 +54,12 @@ class CreateUnit
             }
         }
 
-        return $this->units->create($type, $name, $callsign, $parentId);
+        return $this->audit->record(
+            actorId: $actor->id,
+            action: 'unit.created',
+            reason: null,
+            reasonRequired: false,
+            mutation: fn () => $this->units->create($type, $name, $callsign, $parentId),
+        );
     }
 }

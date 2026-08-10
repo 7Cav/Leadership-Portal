@@ -73,6 +73,7 @@ class OrgStructureController extends Controller
 
         try {
             $command->handle(
+                $request->user(),
                 UnitType::from($data['type']),
                 $data['name'],
                 $data['callsign'] ?? null,
@@ -109,8 +110,8 @@ class OrgStructureController extends Controller
         ]);
 
         try {
-            $moveUnit->handle($unit, $data['parent_id'] ?? null);
-            $renameUnit->handle($unit, $data['name'], $data['callsign'] ?? null);
+            $moveUnit->handle($request->user(), $unit, $data['parent_id'] ?? null);
+            $renameUnit->handle($request->user(), $unit, $data['name'], $data['callsign'] ?? null);
         } catch (InvalidUnitPlacementException $e) {
             // Cycle and echelon-rank violations are domain rules the request-shape validation
             // above can't express — surfaced as a form error on `parent_id` (AC #3).
@@ -130,7 +131,7 @@ class OrgStructureController extends Controller
         }
 
         try {
-            $command->handle($unit);
+            $command->handle($request->user(), $unit);
         } catch (UnitHasDependentsException $e) {
             throw ValidationException::withMessages(['delete' => $e->getMessage()]);
         }
