@@ -83,6 +83,11 @@ class UnitRepository
     public function move(Unit $unit, int $newParentId): Unit
     {
         return DB::transaction(function () use ($unit, $newParentId) {
+            // Re-fetch under lock before reading `path`: the caller's `$unit` was hydrated
+            // before this transaction opened, so trusting its in-memory `path` would let two
+            // concurrent moves of the same unit both compute a new path from the same stale
+            // ancestor chain — the exact interleaving a transaction is supposed to prevent.
+            $unit = Unit::whereKey($unit->id)->lockForUpdate()->firstOrFail();
             $newParent = Unit::whereKey($newParentId)->lockForUpdate()->firstOrFail();
             $oldPath = $unit->path;
             $newOwnPath = "{$newParent->path}{$unit->id}/";

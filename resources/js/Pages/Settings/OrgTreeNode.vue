@@ -56,7 +56,10 @@ const childType = computed(() => ECHELON_ORDER[ECHELON_ORDER.indexOf(props.node.
               hidden here for a non-Admin per the mockup, the server enforces the same gate
               regardless (AD-6). Root gets rename only; a leaf gets no add-child.
             -->
-            <span v-if="isAdmin" class="ml-2 flex items-center gap-1 opacity-0 group-hover:opacity-100">
+            <span
+                v-if="isAdmin"
+                class="ml-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+            >
                 <button
                     type="button"
                     :data-testid="`tool-edit-${node.id}`"
@@ -67,7 +70,7 @@ const childType = computed(() => ECHELON_ORDER[ECHELON_ORDER.indexOf(props.node.
                     ✎
                 </button>
                 <button
-                    v-if="childType"
+                    v-if="childType && !isRoot"
                     type="button"
                     :data-testid="`tool-add-${node.id}`"
                     :title="`Add ${childType}`"

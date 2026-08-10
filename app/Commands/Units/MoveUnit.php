@@ -38,7 +38,8 @@ class MoveUnit
 
         // `parent_id` was already confirmed to exist by the controller's `exists:units,id`
         // rule, so a null find() here would mean that guarantee broke, not a user error — let
-        // it surface as a TypeError below rather than silently accept an inconsistent write.
+        // it fail loudly below (a null `$newParent` breaks on the first property access)
+        // rather than silently accept an inconsistent write.
         $newParent = $this->units->find($newParentId);
 
         if (str_starts_with($newParent->path, $unit->path)) {

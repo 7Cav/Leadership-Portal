@@ -82,13 +82,6 @@ function prefillAddChild({ parentId, type }) {
     form.parent_id = parentId;
 }
 
-// A unit's own `path` tells us which candidate parents are its descendants (or itself) without
-// a second request — re-parenting under either would be a cycle, refused server-side anyway,
-// but there's no reason to offer it in the select.
-function isSelfOrDescendant(candidate, unit) {
-    return candidate.id === unit.id || candidate.path.startsWith(unit.path);
-}
-
 const editForm = useForm({ name: '', callsign: '', parent_id: null });
 
 watch(
@@ -104,14 +97,15 @@ watch(
     { immediate: true },
 );
 
+// A descendant always has strictly higher rank than its ancestor, and the unit itself has equal
+// rank — neither can ever equal `rank - 1`, so this rank filter alone already excludes both a
+// cycle and a self-reparent without a separate path check (mirrors the add-form's `legalParents`).
 const editLegalParents = computed(() => {
     if (!selectedUnit.value) {
         return [];
     }
 
-    return props.units.filter(
-        (unit) => RANK[unit.type] === RANK[selectedUnit.value.type] - 1 && !isSelfOrDescendant(unit, selectedUnit.value),
-    );
+    return props.units.filter((unit) => RANK[unit.type] === RANK[selectedUnit.value.type] - 1);
 });
 
 function submitEdit() {
@@ -132,18 +126,27 @@ function cancelEdit() {
 // a re-render to observe it through the DOM (the mocked `useForm` in tests isn't reactive).
 defineExpose({ form });
 
+// A blocked delete (e.g. remaining children) 422s with an `errors.delete` message — there's no
+// `useForm` in play for a plain `router.delete()` call, so that error has nowhere to land
+// without this: without it, a refused delete would fail with no visible feedback at all.
+const deleteError = ref(null);
+
 function requestDelete(id) {
     const unit = props.units.find((candidate) => candidate.id === id);
     if (!unit || !confirm(`Delete "${unit.name}"? This cannot be undone.`)) {
         return;
     }
 
+    deleteError.value = null;
     router.delete(`/settings/org-structure/${id}`, {
         preserveScroll: true,
         onSuccess: () => {
             if (selectedId.value === id) {
                 selectedId.value = null;
             }
+        },
+        onError: (errors) => {
+            deleteError.value = errors.delete ?? 'Delete failed — see server response.';
         },
     });
 }
@@ -240,7 +243,13 @@ function requestDelete(id) {
                         </label>
 
                         <div class="flex items-center justify-between border-t border-border pt-3">
+                            <!--
+                              Matches the tree's own tool visibility (`OrgTreeNode.vue`): the
+                              root can't be removed via a UI control here either, so the two
+                              affordances for the same node never disagree.
+                            -->
                             <button
+                                v-if="selectedUnit.parent_id !== null"
                                 type="button"
                                 data-testid="delete-unit"
                                 class="rounded border border-bad px-3 py-1.5 text-sm font-medium text-bad"
@@ -248,7 +257,9 @@ function requestDelete(id) {
                             >
                                 Delete {{ selectedUnit.type }}
                             </button>
-                            <div class="flex gap-2">
+                            <span v-else></span>
+                            <div class="flex flex-1 items-center justify-end gap-2">
+                                <p v-if="deleteError" data-testid="delete-error" class="text-[11px] text-bad">{{ deleteError }}</p>
                                 <button type="button" data-testid="cancel-edit" class="rounded px-3 py-1.5 text-sm text-gray-400" @click="cancelEdit">
                                     Cancel
                                 </button>

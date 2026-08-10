@@ -8,7 +8,7 @@ import OrgStructure from '../OrgStructure.vue';
 // them apart by their distinct initial shape (`type` only exists on the add form).
 const addSubmit = vi.fn();
 const editSubmit = vi.fn();
-const deleteSpy = vi.fn();
+let deleteSpy = vi.fn();
 let addFormState = { type: 'battalion', name: '', callsign: '', parent_id: null, processing: false, errors: {} };
 let editFormState = { name: '', callsign: '', parent_id: null, processing: false, errors: {} };
 
@@ -97,14 +97,16 @@ describe('Settings/OrgStructure', () => {
         expect(wrapper.find('[data-testid="error-type"]').text()).toBe('A section cannot be placed under a regiment.');
     });
 
-    // Story 1.9 AC #1, #2 — the detail panel becomes an editable form for an Admin.
-    it('shows editable name/callsign/parent fields for an Admin', async () => {
+    // Story 1.9 AC #1, #2 — the detail panel becomes an editable form for an Admin, pre-filled
+    // from the selected unit (the `watch(selectedUnit, ...)` in OrgStructure.vue).
+    it('shows editable name/callsign fields for an Admin, pre-filled with the unit\'s current values', async () => {
         const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
 
         await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
 
         expect(wrapper.find('[data-testid="edit-unit-form"]').exists()).toBe(true);
-        expect(wrapper.find('[data-testid="edit-name"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="edit-name"]').element.value).toBe('2nd Battalion');
+        expect(wrapper.find('[data-testid="edit-callsign"]').element.value).toBe('2-7');
     });
 
     it('keeps the detail panel read-only for a non-Admin (AC #5 — UI mirrors the server gate)', async () => {
@@ -153,6 +155,21 @@ describe('Settings/OrgStructure', () => {
         vi.unstubAllGlobals();
     });
 
+    // A blocked delete (remaining children) 422s with `errors.delete` — the message must
+    // actually reach the page, or a refused delete looks like nothing happened at all.
+    it('shows the server\'s reason when a delete is refused', async () => {
+        deleteSpy = vi.fn((url, { onError }) => onError({ delete: 'Cannot delete "2nd Battalion" — it still has child units.' }));
+        vi.stubGlobal('confirm', vi.fn(() => true));
+        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+
+        await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+        await wrapper.find('[data-testid="delete-unit"]').trigger('click');
+
+        expect(wrapper.find('[data-testid="delete-error"]').text()).toBe('Cannot delete "2nd Battalion" — it still has child units.');
+        vi.unstubAllGlobals();
+        deleteSpy = vi.fn();
+    });
+
     it('does not delete when the confirmation is declined', async () => {
         deleteSpy.mockClear();
         vi.stubGlobal('confirm', vi.fn(() => false));
@@ -165,13 +182,34 @@ describe('Settings/OrgStructure', () => {
         vi.unstubAllGlobals();
     });
 
-    // Story 1.9 AC #6 — hover tools per row, Admin-only.
-    it('shows inline tools for an Admin, hides them for a non-Admin', () => {
+    // Story 1.9 AC #6 — hover tools per row, Admin-only. Battalion (id 2) is non-root and
+    // non-leaf, so it's the one row that should show all three tools.
+    it('shows all three inline tools for an Admin, hides them all for a non-Admin', () => {
         const adminWrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
         expect(adminWrapper.find('[data-testid="tool-edit-2"]').exists()).toBe(true);
+        expect(adminWrapper.find('[data-testid="tool-add-2"]').exists()).toBe(true);
+        expect(adminWrapper.find('[data-testid="tool-delete-2"]').exists()).toBe(true);
 
         const nonAdminWrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: false } });
         expect(nonAdminWrapper.find('[data-testid="tool-edit-2"]').exists()).toBe(false);
+        expect(nonAdminWrapper.find('[data-testid="tool-add-2"]').exists()).toBe(false);
+        expect(nonAdminWrapper.find('[data-testid="tool-delete-2"]').exists()).toBe(false);
+    });
+
+    it('gives the root only the rename tool — no add-child, no delete', () => {
+        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+
+        expect(wrapper.find('[data-testid="tool-edit-1"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="tool-add-1"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="tool-delete-1"]').exists()).toBe(false);
+    });
+
+    it('hides the detail panel\'s delete button for the root, matching the tree\'s tools', async () => {
+        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+
+        await wrapper.find('[data-testid="unit-row-1"]').trigger('click');
+
+        expect(wrapper.find('[data-testid="delete-unit"]').exists()).toBe(false);
     });
 
     it('pre-fills the add-node form from a row\'s ＋ tool', async () => {
@@ -182,5 +220,18 @@ describe('Settings/OrgStructure', () => {
 
         expect(wrapper.vm.form.type).toBe('company');
         expect(wrapper.vm.form.parent_id).toBe(2);
+    });
+
+    // The tree's own 🗑 tool must wire to the same delete flow as the detail panel's button —
+    // it emits a raw id (not `{ id }`, unlike `addChild`'s payload), so a mismatch there would
+    // silently no-op.
+    it('deletes from the tree\'s own 🗑 tool, not just the detail panel', async () => {
+        vi.stubGlobal('confirm', vi.fn(() => true));
+        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+
+        await wrapper.find('[data-testid="tool-delete-2"]').trigger('click');
+
+        expect(deleteSpy).toHaveBeenCalledWith('/settings/org-structure/2', expect.objectContaining({ preserveScroll: true }));
+        vi.unstubAllGlobals();
     });
 });

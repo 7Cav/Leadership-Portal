@@ -157,6 +157,24 @@ it('lets an Admin re-parent a unit, recomputing the subtree path (AC #2)', funct
         ->and($moved->path)->toBe("{$battalionB->path}{$company->id}/");
 });
 
+it('never persists the rename half of a request whose re-parent is refused', function () {
+    // A rejected re-parent must not leave the accompanying rename committed behind the 422 —
+    // that would look to the Admin like the whole request was refused when half of it landed.
+    $admin = User::factory()->admin()->create();
+    $repo = app(UnitRepository::class);
+    $regiment = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+    $battalion = $repo->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
+    $company = $repo->create(UnitType::Company, 'Alpha Company', 'A/1-7', $battalion->id);
+
+    $this->actingAs($admin)->patch("/settings/org-structure/{$battalion->id}", [
+        'name' => 'Hijacked Battalion Name',
+        'callsign' => $battalion->callsign,
+        'parent_id' => $company->id, // cyclic: battalion under its own descendant
+    ])->assertInvalid('parent_id');
+
+    expect(Unit::find($battalion->id)->name)->toBe('1st Battalion');
+});
+
 it('422s a cyclic re-parent as a form error on parent_id (AC #3)', function () {
     $admin = User::factory()->admin()->create();
     $repo = app(UnitRepository::class);
@@ -182,6 +200,18 @@ it('refuses a non-Admin server-side on rename/re-parent, even with the UI contro
         'callsign' => null,
         'parent_id' => null,
     ])->assertForbidden();
+
+    expect(Unit::find($regiment->id)->name)->toBe('7th Cavalry Regiment');
+});
+
+it('422s a missing name on update', function () {
+    $admin = User::factory()->admin()->create();
+    $regiment = app(UnitRepository::class)->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+
+    $this->actingAs($admin)->patch("/settings/org-structure/{$regiment->id}", [
+        'callsign' => null,
+        'parent_id' => null,
+    ])->assertInvalid('name');
 
     expect(Unit::find($regiment->id)->name)->toBe('7th Cavalry Regiment');
 });

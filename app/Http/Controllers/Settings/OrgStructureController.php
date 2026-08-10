@@ -91,7 +91,10 @@ class OrgStructureController extends Controller
     /**
      * Rename a node and/or re-parent it (AC #1, #2). Echelon (`type`) isn't editable here — see
      * `UpdateUnit`'s docblock. Both are staged through their own Commands so a rename with no
-     * `parent_id` change never touches `UnitRepository::move()`.
+     * `parent_id` change never touches `UnitRepository::move()`. `MoveUnit` runs first
+     * deliberately: it validates before it ever writes (a no-op or a thrown
+     * `InvalidUnitPlacementException`), whereas `UpdateUnit` always writes — renaming first
+     * would let a refused re-parent leave the rename committed behind a 422.
      */
     public function update(Request $request, Unit $unit, UpdateUnit $renameUnit, MoveUnit $moveUnit): RedirectResponse
     {
@@ -106,8 +109,8 @@ class OrgStructureController extends Controller
         ]);
 
         try {
-            $renameUnit->handle($unit, $data['name'], $data['callsign'] ?? null);
             $moveUnit->handle($unit, $data['parent_id'] ?? null);
+            $renameUnit->handle($unit, $data['name'], $data['callsign'] ?? null);
         } catch (InvalidUnitPlacementException $e) {
             // Cycle and echelon-rank violations are domain rules the request-shape validation
             // above can't express — surfaced as a form error on `parent_id` (AC #3).
