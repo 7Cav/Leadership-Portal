@@ -34,6 +34,11 @@ function mockForum(
             ['me' => ['user_id' => $userId, 'username' => $username, 'email' => $email]],
             $profileStatus,
         ),
+        // A successful callback also enriches from the Cav roster (Story 1.6). These tests are
+        // about the forum handshake, so the roster answers empty: enrichment degrades, login
+        // does not. Without a mock here Saloon throws NoMockResponseFound and the callback
+        // 500s — which is itself the useful signal that the login path now calls Cav.
+        'api.7cav.us/*' => MockResponse::make(['profiles' => []]),
     ]);
 }
 

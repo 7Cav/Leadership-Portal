@@ -117,6 +117,7 @@ function logInThroughTheForum(): string
         'authorize_url' => 'https://7cav.us/oauth2/authorize',
         'scopes' => ['user:read'],
     ]);
+    config()->set('services.cav', ['base_url' => 'https://api.7cav.us', 'api_key' => 'cav7_test-key']);
 
     MockClient::destroyGlobal();
     MockClient::global([
@@ -125,6 +126,27 @@ function logInThroughTheForum(): string
             ['me' => ['user_id' => 4, 'username' => 'Gryspeert.J', 'email' => 'j@7cav.us']],
             200,
         ),
+        // A real login also enriches from the Cav roster (Story 1.6), so the helper answers
+        // that call too — with forum user 4 sitting at milpac id 77 on the combat roster.
+        // Callers that care about enrichment specifically should mock it themselves; this
+        // keeps the *session* the helper returns representative of a production login.
+        'api.7cav.us/api/v1/roster/ROSTER_TYPE_COMBAT/lite' => MockResponse::make(['profiles' => [
+            '77' => [
+                'user' => ['userId' => '4', 'username' => 'Gryspeert.J'],
+                'rank' => ['rankShort' => 'SPC', 'rankFull' => 'Specialist', 'rankImageUrl' => '', 'rankId' => '9'],
+                'realName' => 'Jens Gryspeert',
+                'uniformUrl' => '',
+                'roster' => 'ROSTER_TYPE_COMBAT',
+                'primary' => ['positionTitle' => 'Rifleman', 'positionId' => '501'],
+                'secondaries' => [],
+                'joinDate' => '2024-01-08',
+                'promotionDate' => '2025-06-01',
+                'discordId' => '',
+                'lastForumPostDate' => '',
+                'mos' => '11B',
+                'consoleGamertag' => '',
+            ],
+        ]]),
     ]);
 
     test()->withSession(['forum_oauth_state' => 'valid-state'])

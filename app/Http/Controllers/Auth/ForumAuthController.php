@@ -3,15 +3,20 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Commands\Auth\BeginForumLogin;
+use App\Commands\Auth\CavEnrichmentException;
 use App\Commands\Auth\CompleteForumLogin;
+use App\Commands\Auth\EnrichCavProfile;
 use App\Commands\Auth\ForumLoginException;
 use App\Http\Controllers\Controller;
+use App\Models\User;
+use DateTimeInterface;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 /**
  * Orchestration only (AD-1): no business logic, no HTTP-out. External calls run
@@ -22,6 +27,24 @@ class ForumAuthController extends Controller
 {
     /** The session key holding the single-use OAuth CSRF `state` nonce. */
     private const STATE_KEY = 'forum_oauth_state';
+
+    /** The session key holding this login's Cav roster snapshot (Story 1.6). */
+    private const CAV_PROFILE_KEY = 'cav_profile';
+
+    /**
+     * The session key holding why enrichment produced nothing, as the string value of the
+     * Integration layer's failure-reason enum (no type reference here on purpose — the
+     * controller must not depend on `Integration/`). `auth.profile === null` alone conflates "roster down", "holds no milpac", "no key
+     * configured" and "session predates 1.6" — Story 1.7 needs to tell those apart to say
+     * anything useful to the user.
+     */
+    private const CAV_UNAVAILABLE_KEY = 'cav_profile_unavailable';
+
+    /**
+     * Provenance label shown wherever the enriched values render (AD-20 rule 1). Names the
+     * system that owns the facts, so a stale rank is never mistaken for a portal assertion.
+     */
+    private const CAV_PROFILE_SOURCE = 'Cav roster (api.7cav.us)';
 
     /**
      * The login screen. Surfaces any error flashed by a failed callback (AC #5).
@@ -51,7 +74,7 @@ class ForumAuthController extends Controller
      * missing/mismatched `state` BEFORE any token work — no partial session is ever
      * created; failures redirect back to login with a clear message (never a 500).
      */
-    public function callback(Request $request, CompleteForumLogin $command): RedirectResponse
+    public function callback(Request $request, CompleteForumLogin $command, EnrichCavProfile $enrich): RedirectResponse
     {
         $expectedState = $request->session()->pull(self::STATE_KEY);
         $providedState = $request->query('state');
@@ -92,7 +115,79 @@ class ForumAuthController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
+        $this->attachCavProfile($request, $user, $enrich);
+
         return redirect()->intended(route('home'));
+    }
+
+    /**
+     * Attach the trooper's Cav roster context to the session (Story 1.6 AC #1).
+     *
+     * Sequenced after `Auth::login()` + `session()->regenerate()` because enrichment is a
+     * property of an established session: it needs the resolved user, and nothing about it
+     * should be able to affect whether the login itself succeeds. (Placement is not
+     * load-bearing for *retention* — `regenerate()` migrates the session id but carries the
+     * attributes over, unlike `invalidate()`, which flushes them.)
+     *
+     * The values are Cav's, not the portal's (AD-5), so they are stored with their source
+     * and fetch time and never persisted as portal facts — whatever renders them can show
+     * how fresh they are (AD-20, NFR7).
+     *
+     * A Cav failure degrades the session rather than the login: the user is already
+     * authenticated, and the forum is the identity authority — the roster is not. Story 1.7 owns
+     * what the *user* is told about it; the reason is stashed in the session so that story is a
+     * view change rather than a re-plumbing of this callback.
+     *
+     * Only genuine faults are reported. A forum member who holds no milpac is a normal,
+     * expected population, and an ERROR with a stack trace on every one of their logins would
+     * bury the case that matters — an actual outage — in noise operators learn to ignore.
+     */
+    private function attachCavProfile(Request $request, User $user, EnrichCavProfile $enrich): void
+    {
+        // Clear first, so no path can leave a previous snapshot standing. `session()->regenerate()`
+        // migrates the session id but carries its attributes across, so on a shared browser the
+        // prior trooper's rank would otherwise survive into this login and render — stamped with a
+        // source and fetch time that make it look authoritative.
+        $request->session()->forget([self::CAV_PROFILE_KEY, self::CAV_UNAVAILABLE_KEY]);
+
+        try {
+            $profile = $enrich->handle($user);
+        } catch (CavEnrichmentException $e) {
+            $request->session()->put(self::CAV_UNAVAILABLE_KEY, $e->reason->value);
+
+            if ($e->reason->isFault()) {
+                report($e);
+            } else {
+                Log::info('Login completed without Cav roster context: the trooper holds no milpac.', [
+                    'user_id' => $user->getKey(),
+                    'forum_user_id' => $user->forum_user_id,
+                ]);
+            }
+
+            return;
+        } catch (Throwable $e) {
+            // The one place in this codebase where a bare `Throwable` catch is the correct call.
+            // Everything below promises that enrichment cannot break a login, but that promise
+            // currently rests on four layers each being individually exhaustive — one new logging
+            // handler, container binding or DB driver quirk on this path re-breaks it silently.
+            // The user is already authenticated by the time we get here and roster context is
+            // strictly optional, so there is no failure worth trading a working login for.
+            report($e);
+            $request->session()->put(self::CAV_UNAVAILABLE_KEY, 'unexpected');
+
+            return;
+        }
+
+        $request->session()->put(self::CAV_PROFILE_KEY, [
+            'rank_short' => $profile->rankShort,
+            'rank_full' => $profile->rankFull,
+            'billet' => $profile->billet,
+            'mos' => $profile->mos,
+            // The label, not the wire token: `ROSTER_TYPE_COMBAT` should never reach a view.
+            'roster' => $profile->roster?->label(),
+            'source' => self::CAV_PROFILE_SOURCE,
+            'fetched_at' => $profile->fetchedAt->format(DateTimeInterface::ATOM),
+        ]);
     }
 
     /**

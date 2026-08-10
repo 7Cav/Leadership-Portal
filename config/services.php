@@ -58,4 +58,18 @@ return [
         ))),
     ],
 
+    /*
+    | api.7cav.us — the Cav roster/milpac API (Story 1.6, AD-3's second seam). A *different*
+    | service from the forum above: read-only JSON authenticated with a static `cav7_…` bearer
+    | key rather than OAuth, so it carries no user context and can never write. The key is a
+    | machine credential read from env only (AD-23, NFR2).
+    */
+    'cav' => [
+        'base_url' => env('CAV_API_BASE_URL', 'https://api.7cav.us'),
+        'api_key' => env('CAV_API_KEY'),
+        // Wall-clock ceiling for a first-login roster sweep, which makes up to three calls on the
+        // synchronous login path. Configurable so the safety valve can be exercised in a test.
+        'sweep_budget_seconds' => env('CAV_API_SWEEP_BUDGET_SECONDS', 12.0),
+    ],
+
 ];

@@ -42,6 +42,18 @@ class HandleInertiaRequests extends Middleware
             // layer stays terminal in the Deptrac graph.
             'auth' => [
                 'user' => $request->user()?->only(['id', 'username', 'is_admin']),
+                // Cav roster context for this login (Story 1.6): rank, billet and MOS, each
+                // carrying the source and fetch time so the UI can never show them as if the
+                // portal asserted them (AD-20 rule 1, NFR7). Null when enrichment did not
+                // run or the trooper holds no milpac — the page degrades to the bare username.
+                'profile' => $request->user() ? $request->session()->get('cav_profile') : null,
+                // Why it is absent, for Story 1.7's degraded messaging. The literal keys here
+                // duplicate ForumAuthController's constants because Deptrac gives Middleware no
+                // outgoing edge, so a feature test asserts each prop against a real login —
+                // renaming a constant without updating this line turns that test red.
+                'profileUnavailable' => $request->user()
+                    ? $request->session()->get('cav_profile_unavailable')
+                    : null,
             ],
         ];
     }
