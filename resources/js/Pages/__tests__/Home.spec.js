@@ -9,10 +9,17 @@ import Home from '../Home.vue';
 let mockUser = { username: 'Gryspeert.J' };
 // The Cav roster snapshot the server shares (Story 1.6); null for an unenriched session.
 let mockProfile = null;
+// Why enrichment produced nothing this login (Story 1.7); null when enrichment succeeded
+// or never ran degraded.
+let mockProfileUnavailable = null;
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
-    usePage: () => ({ props: { auth: { user: mockUser, profile: mockProfile } } }),
+    usePage: () => ({
+        props: {
+            auth: { user: mockUser, profile: mockProfile, profileUnavailable: mockProfileUnavailable },
+        },
+    }),
 }));
 
 // Vitest unit test (Story 1.5). The sign-out control is the only way a leader ends a
@@ -20,9 +27,10 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
 describe('Home page', () => {
     // renderStubDefaultSlot keeps <Link>'s label in the output while still stubbing the
     // component itself, so the control's text and its props can be asserted together.
-    const factory = (user = { username: 'Gryspeert.J' }, profile = null) => {
+    const factory = (user = { username: 'Gryspeert.J' }, profile = null, profileUnavailable = null) => {
         mockUser = user;
         mockProfile = profile;
+        mockProfileUnavailable = profileUnavailable;
 
         return shallowMount(Home, { global: { renderStubDefaultSlot: true } });
     };
@@ -158,6 +166,52 @@ describe('Home page', () => {
             expect(provenance.text()).toContain('Cav roster (api.7cav.us)');
             expect(provenance.text()).not.toContain('NaN');
             expect(provenance.attributes('title')).not.toContain('Invalid');
+        });
+    });
+
+    // Story 1.7 — degraded-safe login. AD-20/NFR8: a Cav outage must never look like silence,
+    // so an unenriched session says so rather than just quietly showing the bare username.
+    describe('degraded roster enrichment', () => {
+        it('shows no warning when enrichment succeeded or never ran degraded (AC #2)', () => {
+            expect(factory({ username: 'Hale.S' }, null, null).find('[role="alert"]').exists()).toBe(false);
+        });
+
+        it('shows no warning for a trooper who simply holds no milpac', () => {
+            // `not_on_roster` is a normal, expected population, not a Cav outage — warning on
+            // every one of their logins would bury the case this banner exists for.
+            expect(factory({ username: 'Hale.S' }, null, 'not_on_roster').find('[role="alert"]').exists()).toBe(
+                false,
+            );
+        });
+
+        it('warns when the Cav roster is unavailable, without a dismiss control (AC #2)', () => {
+            const banner = factory({ username: 'Hale.S' }, null, 'unreachable').find('[role="alert"]');
+
+            expect(banner.exists()).toBe(true);
+            expect(banner.text().toLowerCase()).toContain('roster');
+            // Non-dismissable-until-resolved: nothing on the banner can hide it.
+            expect(banner.find('button').exists()).toBe(false);
+        });
+
+        it.each(['record_unusable', 'http_error', 'malformed', 'missing_credential', 'link_failed', 'unexpected'])(
+            'warns for every fault reason the server can report (%s)',
+            (reason) => {
+                expect(factory({ username: 'Hale.S' }, null, reason).find('[role="alert"]').exists()).toBe(true);
+            },
+        );
+
+        it('does not fabricate roster fields alongside the warning (AD-5)', () => {
+            const wrapper = factory({ username: 'Hale.S' }, null, 'unreachable');
+
+            expect(wrapper.find('.identity').text()).toBe('Hale.S');
+            expect(wrapper.find('.provenance').exists()).toBe(false);
+        });
+
+        it('clears once enrichment succeeds again, even with a stale-looking prior reason', () => {
+            const wrapper = factory({ username: 'Hale.S' }, { rank_short: 'WO1' }, null);
+
+            expect(wrapper.find('[role="alert"]').exists()).toBe(false);
+            expect(wrapper.find('.identity').text()).toContain('Hale.S');
         });
     });
 });
