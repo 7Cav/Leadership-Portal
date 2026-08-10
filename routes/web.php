@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\ForumAuthController;
 use App\Http\Controllers\SampleController;
+use App\Http\Controllers\Settings\OrgStructureController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -27,4 +28,10 @@ Route::middleware('auth')->group(function () {
     // Logout (Story 1.5). POST, so it carries CSRF protection and can't be triggered by a
     // prefetched link or a cross-site <img>.
     Route::post('/logout', [ForumAuthController::class, 'logout'])->name('logout');
+
+    // Chain of command (Story 1.8). Viewing is open to any authenticated user (AC #3); the
+    // Admin gate on `store` is enforced in the controller, not by route middleware — there is
+    // no `can:` policy for it yet (Authorization/ScopeResolver lands in 1.11).
+    Route::get('/settings/org-structure', [OrgStructureController::class, 'index'])->name('settings.org-structure');
+    Route::post('/settings/org-structure', [OrgStructureController::class, 'store'])->name('settings.org-structure.store');
 });
