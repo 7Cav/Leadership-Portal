@@ -3,8 +3,13 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Commands\Units\CreateUnit;
+use App\Commands\Units\DeleteUnit;
 use App\Commands\Units\InvalidUnitPlacementException;
+use App\Commands\Units\MoveUnit;
+use App\Commands\Units\UnitHasDependentsException;
+use App\Commands\Units\UpdateUnit;
 use App\Http\Controllers\Controller;
+use App\Models\Unit;
 use App\Models\UnitType;
 use App\Repositories\UnitRepository;
 use Illuminate\Http\RedirectResponse;
@@ -78,6 +83,56 @@ class OrgStructureController extends Controller
             // express (it needs the parent's own type) — surfaced as a form error on `type`
             // rather than a 500, so the Inertia form's `errors.type` renders it.
             throw ValidationException::withMessages(['type' => $e->getMessage()]);
+        }
+
+        return redirect()->route('settings.org-structure');
+    }
+
+    /**
+     * Rename a node and/or re-parent it (AC #1, #2). Echelon (`type`) isn't editable here — see
+     * `UpdateUnit`'s docblock. Both are staged through their own Commands so a rename with no
+     * `parent_id` change never touches `UnitRepository::move()`. `MoveUnit` runs first
+     * deliberately: it validates before it ever writes (a no-op or a thrown
+     * `InvalidUnitPlacementException`), whereas `UpdateUnit` always writes — renaming first
+     * would let a refused re-parent leave the rename committed behind a 422.
+     */
+    public function update(Request $request, Unit $unit, UpdateUnit $renameUnit, MoveUnit $moveUnit): RedirectResponse
+    {
+        if (! $request->user()->is_admin) {
+            abort(403, 'Only an Admin may edit the chain of command.');
+        }
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'callsign' => ['nullable', 'string', 'max:255'],
+            'parent_id' => ['nullable', 'integer', 'exists:units,id'],
+        ]);
+
+        try {
+            $moveUnit->handle($unit, $data['parent_id'] ?? null);
+            $renameUnit->handle($unit, $data['name'], $data['callsign'] ?? null);
+        } catch (InvalidUnitPlacementException $e) {
+            // Cycle and echelon-rank violations are domain rules the request-shape validation
+            // above can't express — surfaced as a form error on `parent_id` (AC #3).
+            throw ValidationException::withMessages(['parent_id' => $e->getMessage()]);
+        }
+
+        return redirect()->route('settings.org-structure');
+    }
+
+    /**
+     * Remove a node (AC #4). Refused, not a raw DB constraint error, when children remain.
+     */
+    public function destroy(Request $request, Unit $unit, DeleteUnit $command): RedirectResponse
+    {
+        if (! $request->user()->is_admin) {
+            abort(403, 'Only an Admin may edit the chain of command.');
+        }
+
+        try {
+            $command->handle($unit);
+        } catch (UnitHasDependentsException $e) {
+            throw ValidationException::withMessages(['delete' => $e->getMessage()]);
         }
 
         return redirect()->route('settings.org-structure');

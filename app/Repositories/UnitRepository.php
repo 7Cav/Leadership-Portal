@@ -58,4 +58,73 @@ class UnitRepository
     {
         return Unit::find($id);
     }
+
+    /**
+     * Update a unit's own attributes. `name`/`callsign` are mass-assignable (unlike
+     * `parent_id`/`path`), so this never needs `forceFill`.
+     */
+    public function rename(Unit $unit, string $name, ?string $callsign): Unit
+    {
+        $unit->update(['name' => $name, 'callsign' => $callsign]);
+
+        return $unit;
+    }
+
+    /**
+     * Re-parent a unit, recomputing the materialized `path` of the unit and every descendant in
+     * one transaction (AD-18) — a partial recompute would leave some descendants scoped under
+     * the old ancestor chain and others under the new one. Every touched row is locked for the
+     * duration of the transaction: this is the first place a unit's own row is written a second
+     * time after creation, so a concurrent move of an overlapping subtree must not interleave.
+     *
+     * Placement rules (cycle, echelon rank) are the caller's job (the CommandHandler layer) —
+     * this method trusts `$newParentId` is already a valid destination.
+     */
+    public function move(Unit $unit, int $newParentId): Unit
+    {
+        return DB::transaction(function () use ($unit, $newParentId) {
+            // Re-fetch under lock before reading `path`: the caller's `$unit` was hydrated
+            // before this transaction opened, so trusting its in-memory `path` would let two
+            // concurrent moves of the same unit both compute a new path from the same stale
+            // ancestor chain — the exact interleaving a transaction is supposed to prevent.
+            $unit = Unit::whereKey($unit->id)->lockForUpdate()->firstOrFail();
+            $newParent = Unit::whereKey($newParentId)->lockForUpdate()->firstOrFail();
+            $oldPath = $unit->path;
+            $newOwnPath = "{$newParent->path}{$unit->id}/";
+
+            $descendants = Unit::query()
+                ->where('path', 'like', "{$oldPath}%")
+                ->where('id', '!=', $unit->id)
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($descendants as $descendant) {
+                $descendant->forceFill([
+                    'path' => $newOwnPath.substr($descendant->path, strlen($oldPath)),
+                ])->save();
+            }
+
+            $unit->forceFill([
+                'parent_id' => $newParentId,
+                'path' => $newOwnPath,
+            ])->save();
+
+            return $unit;
+        });
+    }
+
+    public function hasChildren(Unit $unit): bool
+    {
+        return $unit->children()->exists();
+    }
+
+    /**
+     * The FK on `parent_id` (`restrictOnDelete`) would refuse this at the DB level anyway if
+     * children exist, but the CommandHandler layer checks {@see hasChildren()} first so an
+     * Admin gets a clear reason instead of a raw constraint-violation exception.
+     */
+    public function delete(Unit $unit): void
+    {
+        $unit->delete();
+    }
 }
