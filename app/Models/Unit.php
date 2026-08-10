@@ -2,8 +2,6 @@
 
 namespace App\Models;
 
-use App\Commands\Units\CreateUnit;
-use App\Repositories\UnitRepository;
 use Database\Factories\UnitFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -13,12 +11,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * A node in the chain of command (AD-18): adjacency list (`parent_id`) plus a cached
- * materialized `path`. Portal-owned (AD-22) — Admin is the sole author, via
- * {@see CreateUnit}; there is no synced writer.
+ * materialized `path`. Portal-owned (AD-22) — the write side (Commands/Units) is the sole
+ * author; there is no synced writer.
  *
- * `path` and `parent_id` are not mass-assignable: both are computed by
- * {@see UnitRepository} inside a transaction, never taken from
- * caller-supplied form data directly.
+ * `path` and `parent_id` are not mass-assignable: both are computed by the Repository layer
+ * inside a transaction, never taken from caller-supplied form data directly. Deliberately
+ * not naming that class here — Deptrac forbids `Model → Repository` (AD-1), and pint's
+ * `fully_qualified_strict_types` fixer turns any `{@see}` reference into a real `use` import,
+ * which would quietly create that reverse edge.
  */
 #[Fillable(['type', 'name', 'callsign'])]
 class Unit extends Model

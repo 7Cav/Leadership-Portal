@@ -12,6 +12,7 @@
  | text-gold, border-border, etc.). Status tokens (--good/--warn/--bad/--info) from
  | the mockups are intentionally NOT seeded yet — add them when a story needs them.
  | The sample page is throwaway; these tokens are not.
+ | --bad added in Story 1.8 for inline form-validation error text (org tree add-node form).
  */
 @theme {
     --font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
@@ -23,4 +24,5 @@
     --color-border: #353a40;    /* subtle dividers */
     --color-gold: #f0b929;      /* 7Cav primary accent (links, active tab) */
     --color-gold-soft: #b88e1f; /* muted gold for borders / underlines */
+    --color-bad: #d9534f;       /* validation errors / missed-attendance status */
 }

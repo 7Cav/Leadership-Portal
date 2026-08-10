@@ -3,15 +3,16 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Commands\Units\CreateUnit;
+use App\Commands\Units\InvalidUnitPlacementException;
 use App\Http\Controllers\Controller;
 use App\Models\UnitType;
 use App\Repositories\UnitRepository;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
  * Org structure settings (Story 1.8, AD-18). Reads `UnitRepository` directly per the slim,
@@ -55,7 +56,7 @@ class OrgStructureController extends Controller
     public function store(Request $request, CreateUnit $command): RedirectResponse
     {
         if (! $request->user()->is_admin) {
-            throw new HttpException(403, 'Only an Admin may edit the chain of command.');
+            abort(403, 'Only an Admin may edit the chain of command.');
         }
 
         $data = $request->validate([
@@ -65,12 +66,19 @@ class OrgStructureController extends Controller
             'parent_id' => ['nullable', 'integer', 'exists:units,id'],
         ]);
 
-        $command->handle(
-            UnitType::from($data['type']),
-            $data['name'],
-            $data['callsign'] ?? null,
-            $data['parent_id'] ?? null,
-        );
+        try {
+            $command->handle(
+                UnitType::from($data['type']),
+                $data['name'],
+                $data['callsign'] ?? null,
+                $data['parent_id'] ?? null,
+            );
+        } catch (InvalidUnitPlacementException $e) {
+            // Echelon ordering is a domain rule the request-shape validation above can't
+            // express (it needs the parent's own type) — surfaced as a form error on `type`
+            // rather than a 500, so the Inertia form's `errors.type` renders it.
+            throw ValidationException::withMessages(['type' => $e->getMessage()]);
+        }
 
         return redirect()->route('settings.org-structure');
     }

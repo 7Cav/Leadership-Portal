@@ -57,3 +57,69 @@ it('requires authentication to view or author the tree', function () {
         'parent_id' => null,
     ])->assertRedirect(route('login'));
 });
+
+it('422s an unrecognized type value', function () {
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin)->post('/settings/org-structure', [
+        'type' => 'squad', // not a UnitType member
+        'name' => 'Bogus',
+        'callsign' => null,
+        'parent_id' => null,
+    ])->assertInvalid('type');
+
+    expect(Unit::count())->toBe(0);
+});
+
+it('422s a missing name', function () {
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin)->post('/settings/org-structure', [
+        'type' => 'regiment',
+        'callsign' => null,
+        'parent_id' => null,
+    ])->assertInvalid('name');
+
+    expect(Unit::count())->toBe(0);
+});
+
+it('422s a parent_id that does not exist', function () {
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin)->post('/settings/org-structure', [
+        'type' => 'battalion',
+        'name' => '2nd Battalion',
+        'callsign' => '2-7',
+        'parent_id' => 999999,
+    ])->assertInvalid('parent_id');
+
+    expect(Unit::count())->toBe(0);
+});
+
+it('422s a node placed at the wrong echelon rank, as a form error on type (AC #6 counterpart)', function () {
+    $admin = User::factory()->admin()->create();
+    $regiment = app(UnitRepository::class)->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+
+    // Skips battalion — a company cannot be placed directly under a regiment.
+    $this->actingAs($admin)->post('/settings/org-structure', [
+        'type' => 'company',
+        'name' => 'Echo Company',
+        'callsign' => 'E/2-7',
+        'parent_id' => $regiment->id,
+    ])->assertInvalid('type');
+
+    expect(Unit::where('name', 'Echo Company')->exists())->toBeFalse();
+});
+
+it('422s a non-Regiment root node', function () {
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin)->post('/settings/org-structure', [
+        'type' => 'battalion',
+        'name' => '2nd Battalion',
+        'callsign' => '2-7',
+        'parent_id' => null,
+    ])->assertInvalid('type');
+
+    expect(Unit::count())->toBe(0);
+});

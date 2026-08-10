@@ -52,4 +52,43 @@ describe('Settings/OrgStructure', () => {
         expect(wrapper.find('[data-testid="detail-panel"]').text()).toContain('2nd Battalion');
         expect(wrapper.find('[data-testid="detail-panel"]').text()).toContain('2-7');
     });
+
+    // AC #3: the tree must be collapsible. This is `OrgTreeNode`'s entire reason to exist, so
+    // its toggle behaviour is asserted from the page that actually wires `collapsed` through.
+    it('collapses and re-expands a branch on caret click', async () => {
+        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: false } });
+
+        expect(wrapper.find('[data-testid="unit-row-2"]').exists()).toBe(true);
+
+        await wrapper.find('[data-testid="unit-row-1"] button').trigger('click');
+        expect(wrapper.find('[data-testid="unit-row-2"]').exists()).toBe(false);
+
+        await wrapper.find('[data-testid="unit-row-1"] button').trigger('click');
+        expect(wrapper.find('[data-testid="unit-row-2"]').exists()).toBe(true);
+    });
+
+    // The single most breakable behaviour on this page is the write — assert the submit path
+    // is actually wired to the server route, not just that the form renders.
+    it('submits the add-node form to the org-structure store route', async () => {
+        formState = { type: 'battalion', name: 'New Battalion', callsign: '9-7', parent_id: 1, processing: false, errors: {} };
+        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+
+        await wrapper.find('[data-testid="add-unit-form"]').trigger('submit');
+
+        expect(submit).toHaveBeenCalledWith('/settings/org-structure', expect.objectContaining({ onSuccess: expect.any(Function) }));
+    });
+
+    it('renders a server-side validation error next to its field', () => {
+        formState = {
+            type: 'section',
+            name: '',
+            callsign: '',
+            parent_id: null,
+            processing: false,
+            errors: { type: 'A section cannot be placed under a regiment.' },
+        };
+        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+
+        expect(wrapper.find('[data-testid="error-type"]').text()).toBe('A section cannot be placed under a regiment.');
+    });
 });

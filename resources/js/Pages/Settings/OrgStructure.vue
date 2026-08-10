@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import OrgTreeNode from './OrgTreeNode.vue';
 
@@ -40,7 +40,12 @@ function toggleCollapsed(id) {
 const selectedId = ref(null);
 const selectedUnit = computed(() => props.units.find((unit) => unit.id === selectedId.value) ?? null);
 
-const unitTypes = ['regiment', 'battalion', 'company', 'platoon', 'section'];
+// Mirrors `UnitType::rank()` (app/Models/UnitType.php) — Regiment first, one rank per echelon.
+// `CreateUnit` enforces the real invariant server-side; this is the UI's best-effort mirror of
+// it (AC #5's "hidden in the UI" pattern), so the parent list below only ever offers legal
+// parents instead of relying on the 422 round-trip to teach the Admin the rule.
+const RANK = { regiment: 0, battalion: 1, company: 2, platoon: 3, section: 4 };
+const unitTypes = Object.keys(RANK);
 
 const form = useForm({
     type: 'battalion',
@@ -49,8 +54,23 @@ const form = useForm({
     parent_id: null,
 });
 
+// A Regiment is always a root (no legal parent); everything else needs a parent exactly one
+// rank above it.
+const legalParents = computed(() =>
+    form.type === 'regiment' ? [] : props.units.filter((unit) => RANK[unit.type] === RANK[form.type] - 1),
+);
+
+// Changing the echelon can invalidate the previously-selected parent (e.g. switching from
+// Company to Regiment), so re-pick rather than silently submit a now-illegal combination.
+watch(
+    () => form.type,
+    () => {
+        form.parent_id = legalParents.value.some((unit) => unit.id === form.parent_id) ? form.parent_id : null;
+    },
+);
+
 function submitAdd() {
-    form.post(route('settings.org-structure.store'), {
+    form.post('/settings/org-structure', {
         onSuccess: () => form.reset('name', 'callsign'),
     });
 }
@@ -78,7 +98,7 @@ function submitAdd() {
         <div class="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
             <div class="rounded-lg border border-border bg-panel p-3">
                 <h2 class="mb-2 px-2 text-sm font-medium text-gray-300">Chain of command</h2>
-                <ul>
+                <ul role="tree">
                     <OrgTreeNode
                         v-for="node in tree"
                         :key="node.id"
@@ -133,11 +153,17 @@ function submitAdd() {
                         <select v-model="form.type" class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm">
                             <option v-for="type in unitTypes" :key="type" :value="type">{{ type }}</option>
                         </select>
+                        <p v-if="form.errors.type" class="mt-1 text-[11px] text-bad" data-testid="error-type">
+                            {{ form.errors.type }}
+                        </p>
                     </label>
 
                     <label class="block text-xs text-gray-400">
                         Name
                         <input v-model="form.name" type="text" class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm" />
+                        <p v-if="form.errors.name" class="mt-1 text-[11px] text-bad" data-testid="error-name">
+                            {{ form.errors.name }}
+                        </p>
                     </label>
 
                     <label class="block text-xs text-gray-400">
@@ -147,14 +173,24 @@ function submitAdd() {
                             type="text"
                             class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm font-mono"
                         />
+                        <p v-if="form.errors.callsign" class="mt-1 text-[11px] text-bad" data-testid="error-callsign">
+                            {{ form.errors.callsign }}
+                        </p>
                     </label>
 
                     <label class="block text-xs text-gray-400">
                         Parent
-                        <select v-model="form.parent_id" class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm">
-                            <option :value="null">— none (root) —</option>
-                            <option v-for="unit in units" :key="unit.id" :value="unit.id">{{ unit.name }}</option>
+                        <select
+                            v-model="form.parent_id"
+                            :disabled="form.type === 'regiment'"
+                            class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm disabled:opacity-50"
+                        >
+                            <option :value="null">{{ form.type === 'regiment' ? '— none (root) —' : '— choose a parent —' }}</option>
+                            <option v-for="unit in legalParents" :key="unit.id" :value="unit.id">{{ unit.name }}</option>
                         </select>
+                        <p v-if="form.errors.parent_id" class="mt-1 text-[11px] text-bad" data-testid="error-parent_id">
+                            {{ form.errors.parent_id }}
+                        </p>
                     </label>
 
                     <button

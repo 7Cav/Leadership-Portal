@@ -61,6 +61,26 @@ it('writes the row and computes the path in one transaction', function () {
     expect(Unit::find($unit->id)->path)->toBe("{$unit->id}/");
 });
 
+it('encodes the full ancestor chain through all five echelons', function () {
+    $repo = app(UnitRepository::class);
+
+    $regiment = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+    $battalion = $repo->create(UnitType::Battalion, '2nd Battalion', '2-7', $regiment->id);
+    $company = $repo->create(UnitType::Company, 'Echo Company', 'E/2-7', $battalion->id);
+    $platoon = $repo->create(UnitType::Platoon, '1st Platoon', '1/E/2-7', $company->id);
+    $section = $repo->create(UnitType::Section, 'Nightriders', '1/1/E/2-7', $platoon->id);
+
+    expect($section->path)->toBe("{$regiment->id}/{$battalion->id}/{$company->id}/{$platoon->id}/{$section->id}/");
+
+    // A platoon-level subtree query must exclude both the top-level sibling battalion and the
+    // company-level cousin — not just direct siblings.
+    $cousinCompany = $repo->create(UnitType::Company, 'Foxtrot Company', 'F/2-7', $battalion->id);
+    $subtree = Unit::query()->where('path', 'like', "{$platoon->path}%")->pluck('id');
+
+    expect($subtree)->toContain($platoon->id, $section->id)
+        ->and($subtree)->not->toContain($company->id, $cousinCompany->id, $battalion->id, $regiment->id);
+});
+
 it('returns every unit for the tree read, each carrying its ancestor path', function () {
     $repo = app(UnitRepository::class);
 
