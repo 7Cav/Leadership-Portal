@@ -3,9 +3,14 @@ import { mount } from '@vue/test-utils';
 import OrgStructure from '../OrgStructure.vue';
 
 // `useForm` needs a real Inertia page context; stub the adapter surface this page touches
-// while keeping enough behaviour to assert the submit call it makes (Story 1.8 AC #2, #5).
-const submit = vi.fn();
-let formState = { type: 'battalion', name: '', callsign: '', parent_id: null, processing: false, errors: {} };
+// while keeping enough behaviour to assert the submit call it makes (Story 1.8 AC #2, #5;
+// Story 1.9 AC #1, #2, #4). The page calls `useForm` twice (add-node form, edit form) — tell
+// them apart by their distinct initial shape (`type` only exists on the add form).
+const addSubmit = vi.fn();
+const editSubmit = vi.fn();
+const deleteSpy = vi.fn();
+let addFormState = { type: 'battalion', name: '', callsign: '', parent_id: null, processing: false, errors: {} };
+let editFormState = { name: '', callsign: '', parent_id: null, processing: false, errors: {} };
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
@@ -13,10 +18,10 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     // which this unit test deliberately doesn't stand up — stub it to a no-op like the rest
     // of the adapter surface this page touches.
     Head: { template: '<head></head>' },
-    useForm: () => ({
-        ...formState,
-        post: submit,
-    }),
+    router: { delete: (...args) => deleteSpy(...args) },
+    useForm: (initial) => ('type' in initial
+        ? { ...addFormState, post: addSubmit }
+        : { ...editFormState, patch: editSubmit, clearErrors: vi.fn() }),
 }));
 
 const UNITS = [
@@ -70,16 +75,16 @@ describe('Settings/OrgStructure', () => {
     // The single most breakable behaviour on this page is the write — assert the submit path
     // is actually wired to the server route, not just that the form renders.
     it('submits the add-node form to the org-structure store route', async () => {
-        formState = { type: 'battalion', name: 'New Battalion', callsign: '9-7', parent_id: 1, processing: false, errors: {} };
+        addFormState = { type: 'battalion', name: 'New Battalion', callsign: '9-7', parent_id: 1, processing: false, errors: {} };
         const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
 
         await wrapper.find('[data-testid="add-unit-form"]').trigger('submit');
 
-        expect(submit).toHaveBeenCalledWith('/settings/org-structure', expect.objectContaining({ onSuccess: expect.any(Function) }));
+        expect(addSubmit).toHaveBeenCalledWith('/settings/org-structure', expect.objectContaining({ onSuccess: expect.any(Function) }));
     });
 
     it('renders a server-side validation error next to its field', () => {
-        formState = {
+        addFormState = {
             type: 'section',
             name: '',
             callsign: '',
@@ -90,5 +95,92 @@ describe('Settings/OrgStructure', () => {
         const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
 
         expect(wrapper.find('[data-testid="error-type"]').text()).toBe('A section cannot be placed under a regiment.');
+    });
+
+    // Story 1.9 AC #1, #2 — the detail panel becomes an editable form for an Admin.
+    it('shows editable name/callsign/parent fields for an Admin', async () => {
+        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+
+        await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+
+        expect(wrapper.find('[data-testid="edit-unit-form"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="edit-name"]').exists()).toBe(true);
+    });
+
+    it('keeps the detail panel read-only for a non-Admin (AC #5 — UI mirrors the server gate)', async () => {
+        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: false } });
+
+        await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+
+        expect(wrapper.find('[data-testid="edit-unit-form"]').exists()).toBe(false);
+    });
+
+    it('submits the edit form to the update route for the selected unit', async () => {
+        editFormState = { name: '2nd Battalion', callsign: '2-7', parent_id: 1, processing: false, errors: {} };
+        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+
+        await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+        await wrapper.find('[data-testid="edit-unit-form"]').trigger('submit');
+
+        expect(editSubmit).toHaveBeenCalledWith('/settings/org-structure/2', expect.objectContaining({ preserveScroll: true }));
+    });
+
+    it('renders a server-side validation error on the edit form', async () => {
+        editFormState = {
+            name: '2nd Battalion',
+            callsign: '2-7',
+            parent_id: 1,
+            processing: false,
+            errors: { parent_id: 'Cannot re-parent "2nd Battalion" under itself.' },
+        };
+        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+
+        await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+
+        expect(wrapper.find('[data-testid="edit-error-parent_id"]').text()).toBe('Cannot re-parent "2nd Battalion" under itself.');
+    });
+
+    // Story 1.9 AC #4 — delete asks for confirmation before dispatching the request.
+    it('asks for confirmation and calls router.delete when deleting from the detail panel', async () => {
+        vi.stubGlobal('confirm', vi.fn(() => true));
+        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+
+        await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+        await wrapper.find('[data-testid="delete-unit"]').trigger('click');
+
+        expect(confirm).toHaveBeenCalled();
+        expect(deleteSpy).toHaveBeenCalledWith('/settings/org-structure/2', expect.objectContaining({ preserveScroll: true }));
+        vi.unstubAllGlobals();
+    });
+
+    it('does not delete when the confirmation is declined', async () => {
+        deleteSpy.mockClear();
+        vi.stubGlobal('confirm', vi.fn(() => false));
+        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+
+        await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+        await wrapper.find('[data-testid="delete-unit"]').trigger('click');
+
+        expect(deleteSpy).not.toHaveBeenCalled();
+        vi.unstubAllGlobals();
+    });
+
+    // Story 1.9 AC #6 — hover tools per row, Admin-only.
+    it('shows inline tools for an Admin, hides them for a non-Admin', () => {
+        const adminWrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+        expect(adminWrapper.find('[data-testid="tool-edit-2"]').exists()).toBe(true);
+
+        const nonAdminWrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: false } });
+        expect(nonAdminWrapper.find('[data-testid="tool-edit-2"]').exists()).toBe(false);
+    });
+
+    it('pre-fills the add-node form from a row\'s ＋ tool', async () => {
+        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+
+        // Battalion (id 2) has no children yet, so its ＋ tool adds a Company under it.
+        await wrapper.find('[data-testid="tool-add-2"]').trigger('click');
+
+        expect(wrapper.vm.form.type).toBe('company');
+        expect(wrapper.vm.form.parent_id).toBe(2);
     });
 });

@@ -29,9 +29,12 @@ Route::middleware('auth')->group(function () {
     // prefetched link or a cross-site <img>.
     Route::post('/logout', [ForumAuthController::class, 'logout'])->name('logout');
 
-    // Chain of command (Story 1.8). Viewing is open to any authenticated user (AC #3); the
-    // Admin gate on `store` is enforced in the controller, not by route middleware — there is
-    // no `can:` policy for it yet (Authorization/ScopeResolver lands in 1.11).
+    // Chain of command (Story 1.8, edit/delete in 1.9). Viewing is open to any authenticated
+    // user (AC #3); the Admin gate on every write is enforced in the controller, not by route
+    // middleware — there is no `can:` policy for it yet (Authorization/ScopeResolver lands in
+    // 1.11).
     Route::get('/settings/org-structure', [OrgStructureController::class, 'index'])->name('settings.org-structure');
     Route::post('/settings/org-structure', [OrgStructureController::class, 'store'])->name('settings.org-structure.store');
+    Route::patch('/settings/org-structure/{unit}', [OrgStructureController::class, 'update'])->name('settings.org-structure.update');
+    Route::delete('/settings/org-structure/{unit}', [OrgStructureController::class, 'destroy'])->name('settings.org-structure.destroy');
 });

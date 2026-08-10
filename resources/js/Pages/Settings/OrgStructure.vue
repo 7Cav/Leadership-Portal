@@ -1,6 +1,6 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, router, useForm } from '@inertiajs/vue3';
 import OrgTreeNode from './OrgTreeNode.vue';
 
 // Flat units array with `path` (AD-18) — nested here for rendering; the server keeps the
@@ -74,6 +74,79 @@ function submitAdd() {
         onSuccess: () => form.reset('name', 'callsign'),
     });
 }
+
+// Pre-fills the shared add-unit form from a row's ＋ tool rather than duplicating a form per
+// row (the mockup's per-node ".add-child" affordance, built on the one form 1.8 already has).
+function prefillAddChild({ parentId, type }) {
+    form.type = type;
+    form.parent_id = parentId;
+}
+
+// A unit's own `path` tells us which candidate parents are its descendants (or itself) without
+// a second request — re-parenting under either would be a cycle, refused server-side anyway,
+// but there's no reason to offer it in the select.
+function isSelfOrDescendant(candidate, unit) {
+    return candidate.id === unit.id || candidate.path.startsWith(unit.path);
+}
+
+const editForm = useForm({ name: '', callsign: '', parent_id: null });
+
+watch(
+    selectedUnit,
+    (unit) => {
+        if (unit) {
+            editForm.name = unit.name;
+            editForm.callsign = unit.callsign ?? '';
+            editForm.parent_id = unit.parent_id;
+            editForm.clearErrors();
+        }
+    },
+    { immediate: true },
+);
+
+const editLegalParents = computed(() => {
+    if (!selectedUnit.value) {
+        return [];
+    }
+
+    return props.units.filter(
+        (unit) => RANK[unit.type] === RANK[selectedUnit.value.type] - 1 && !isSelfOrDescendant(unit, selectedUnit.value),
+    );
+});
+
+function submitEdit() {
+    editForm.patch(`/settings/org-structure/${selectedUnit.value.id}`, { preserveScroll: true });
+}
+
+function cancelEdit() {
+    if (!selectedUnit.value) {
+        return;
+    }
+    editForm.name = selectedUnit.value.name;
+    editForm.callsign = selectedUnit.value.callsign ?? '';
+    editForm.parent_id = selectedUnit.value.parent_id;
+    editForm.clearErrors();
+}
+
+// Exposed so a test can assert the ＋ tool actually pre-filled this form, without depending on
+// a re-render to observe it through the DOM (the mocked `useForm` in tests isn't reactive).
+defineExpose({ form });
+
+function requestDelete(id) {
+    const unit = props.units.find((candidate) => candidate.id === id);
+    if (!unit || !confirm(`Delete "${unit.name}"? This cannot be undone.`)) {
+        return;
+    }
+
+    router.delete(`/settings/org-structure/${id}`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            if (selectedId.value === id) {
+                selectedId.value = null;
+            }
+        },
+    });
+}
 </script>
 
 <template>
@@ -105,16 +178,93 @@ function submitAdd() {
                         :node="node"
                         :selected-id="selectedId"
                         :collapsed="collapsed"
+                        :is-admin="isAdmin"
                         @select="(id) => (selectedId = id)"
                         @toggle="toggleCollapsed"
+                        @add-child="prefillAddChild"
+                        @delete="requestDelete"
                     />
                 </ul>
             </div>
 
             <div class="rounded-lg border border-border bg-panel p-4">
                 <div v-if="selectedUnit" data-testid="detail-panel">
-                    <h2 class="mb-3 text-sm font-medium text-gray-300">Unit — {{ selectedUnit.name }}</h2>
-                    <dl class="grid grid-cols-2 gap-3 text-[13px]">
+                    <h2 class="mb-3 text-sm font-medium text-gray-300">
+                        Edit unit — {{ selectedUnit.name }}
+                        <span class="ml-1.5 rounded border border-gold-soft px-1.5 py-0.5 text-[11px] capitalize text-gold">{{
+                            selectedUnit.type
+                        }}</span>
+                    </h2>
+
+                    <!--
+                      Editable for an Admin (AC #1, #2); read-only otherwise. Echelon isn't
+                      editable — see `UpdateUnit`'s docblock for why re-parenting is kept
+                      separate from a rank change.
+                    -->
+                    <form v-if="isAdmin" data-testid="edit-unit-form" class="space-y-3" @submit.prevent="submitEdit">
+                        <label class="block text-xs text-gray-400">
+                            Name
+                            <input v-model="editForm.name" data-testid="edit-name" type="text" class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm" />
+                            <p v-if="editForm.errors.name" class="mt-1 text-[11px] text-bad" data-testid="edit-error-name">
+                                {{ editForm.errors.name }}
+                            </p>
+                        </label>
+
+                        <label class="block text-xs text-gray-400">
+                            Callsign
+                            <input
+                                v-model="editForm.callsign"
+                                data-testid="edit-callsign"
+                                type="text"
+                                class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm font-mono"
+                            />
+                            <p v-if="editForm.errors.callsign" class="mt-1 text-[11px] text-bad" data-testid="edit-error-callsign">
+                                {{ editForm.errors.callsign }}
+                            </p>
+                        </label>
+
+                        <label class="block text-xs text-gray-400">
+                            Parent
+                            <select
+                                v-model="editForm.parent_id"
+                                data-testid="edit-parent_id"
+                                :disabled="selectedUnit.type === 'regiment'"
+                                class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm disabled:opacity-50"
+                            >
+                                <option :value="null">{{ selectedUnit.type === 'regiment' ? '— none (root) —' : '— choose a parent —' }}</option>
+                                <option v-for="unit in editLegalParents" :key="unit.id" :value="unit.id">{{ unit.name }}</option>
+                            </select>
+                            <p v-if="editForm.errors.parent_id" class="mt-1 text-[11px] text-bad" data-testid="edit-error-parent_id">
+                                {{ editForm.errors.parent_id }}
+                            </p>
+                        </label>
+
+                        <div class="flex items-center justify-between border-t border-border pt-3">
+                            <button
+                                type="button"
+                                data-testid="delete-unit"
+                                class="rounded border border-bad px-3 py-1.5 text-sm font-medium text-bad"
+                                @click="requestDelete(selectedUnit.id)"
+                            >
+                                Delete {{ selectedUnit.type }}
+                            </button>
+                            <div class="flex gap-2">
+                                <button type="button" data-testid="cancel-edit" class="rounded px-3 py-1.5 text-sm text-gray-400" @click="cancelEdit">
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    data-testid="save-unit"
+                                    :disabled="editForm.processing"
+                                    class="rounded bg-gold px-3 py-1.5 text-sm font-medium text-bg disabled:opacity-50"
+                                >
+                                    Save unit
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+
+                    <dl v-else class="grid grid-cols-2 gap-3 text-[13px]">
                         <div>
                             <dt class="text-gray-500">Name</dt>
                             <dd>{{ selectedUnit.name }}</dd>

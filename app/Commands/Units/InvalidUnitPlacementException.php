@@ -24,4 +24,11 @@ class InvalidUnitPlacementException extends RuntimeException
             "A {$given->value} cannot be placed under a {$parent->value} — it must sit exactly one rank below its parent.",
         );
     }
+
+    public static function cyclicParent(string $unitName, string $newParentName): self
+    {
+        return new self(
+            "Cannot re-parent \"{$unitName}\" under \"{$newParentName}\" — that would place it under one of its own descendants.",
+        );
+    }
 }

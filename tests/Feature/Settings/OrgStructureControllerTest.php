@@ -123,3 +123,94 @@ it('422s a non-Regiment root node', function () {
 
     expect(Unit::count())->toBe(0);
 });
+
+it('lets an Admin rename a unit (AC #1)', function () {
+    $admin = User::factory()->admin()->create();
+    $regiment = app(UnitRepository::class)->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+
+    $this->actingAs($admin)->patch("/settings/org-structure/{$regiment->id}", [
+        'name' => '7th Cav Regiment',
+        'callsign' => '7CAV',
+        'parent_id' => null,
+    ])->assertRedirect();
+
+    expect(Unit::find($regiment->id)->name)->toBe('7th Cav Regiment')
+        ->and(Unit::find($regiment->id)->callsign)->toBe('7CAV');
+});
+
+it('lets an Admin re-parent a unit, recomputing the subtree path (AC #2)', function () {
+    $admin = User::factory()->admin()->create();
+    $repo = app(UnitRepository::class);
+    $regiment = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+    $battalionA = $repo->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
+    $battalionB = $repo->create(UnitType::Battalion, '2nd Battalion', '2-7', $regiment->id);
+    $company = $repo->create(UnitType::Company, 'Alpha Company', 'A/1-7', $battalionA->id);
+
+    $this->actingAs($admin)->patch("/settings/org-structure/{$company->id}", [
+        'name' => $company->name,
+        'callsign' => $company->callsign,
+        'parent_id' => $battalionB->id,
+    ])->assertRedirect();
+
+    $moved = Unit::find($company->id);
+    expect($moved->parent_id)->toBe($battalionB->id)
+        ->and($moved->path)->toBe("{$battalionB->path}{$company->id}/");
+});
+
+it('422s a cyclic re-parent as a form error on parent_id (AC #3)', function () {
+    $admin = User::factory()->admin()->create();
+    $repo = app(UnitRepository::class);
+    $regiment = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+    $battalion = $repo->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
+    $company = $repo->create(UnitType::Company, 'Alpha Company', 'A/1-7', $battalion->id);
+
+    $this->actingAs($admin)->patch("/settings/org-structure/{$battalion->id}", [
+        'name' => $battalion->name,
+        'callsign' => $battalion->callsign,
+        'parent_id' => $company->id,
+    ])->assertInvalid('parent_id');
+
+    expect(Unit::find($battalion->id)->parent_id)->toBe($regiment->id);
+});
+
+it('refuses a non-Admin server-side on rename/re-parent, even with the UI control hidden (AC #5)', function () {
+    $user = User::factory()->create();
+    $regiment = app(UnitRepository::class)->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+
+    $this->actingAs($user)->patch("/settings/org-structure/{$regiment->id}", [
+        'name' => 'Hijacked Name',
+        'callsign' => null,
+        'parent_id' => null,
+    ])->assertForbidden();
+
+    expect(Unit::find($regiment->id)->name)->toBe('7th Cavalry Regiment');
+});
+
+it('lets an Admin delete a childless unit (AC #4)', function () {
+    $admin = User::factory()->admin()->create();
+    $unit = app(UnitRepository::class)->create(UnitType::Section, 'Nightriders', '1/1/E/2-7', null);
+
+    $this->actingAs($admin)->delete("/settings/org-structure/{$unit->id}")->assertRedirect();
+
+    expect(Unit::find($unit->id))->toBeNull();
+});
+
+it('422s a delete blocked by remaining children, with a clear reason (AC #4)', function () {
+    $admin = User::factory()->admin()->create();
+    $repo = app(UnitRepository::class);
+    $regiment = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+    $repo->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
+
+    $this->actingAs($admin)->delete("/settings/org-structure/{$regiment->id}")->assertInvalid('delete');
+
+    expect(Unit::find($regiment->id))->not->toBeNull();
+});
+
+it('refuses a non-Admin delete server-side, even with the UI control hidden (AC #5)', function () {
+    $user = User::factory()->create();
+    $unit = app(UnitRepository::class)->create(UnitType::Section, 'Nightriders', '1/1/E/2-7', null);
+
+    $this->actingAs($user)->delete("/settings/org-structure/{$unit->id}")->assertForbidden();
+
+    expect(Unit::find($unit->id))->not->toBeNull();
+});

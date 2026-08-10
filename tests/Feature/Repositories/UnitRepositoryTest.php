@@ -92,3 +92,91 @@ it('returns every unit for the tree read, each carrying its ancestor path', func
     expect($tree)->toHaveCount(2)
         ->and($tree->pluck('name'))->toContain('7th Cavalry Regiment', '1st Battalion');
 });
+
+it('renames a unit without touching its path or parent', function () {
+    $repo = app(UnitRepository::class);
+    $regiment = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+    $battalion = $repo->create(UnitType::Battalion, '2nd Battalion', '2-7', $regiment->id);
+
+    $renamed = $repo->rename($battalion, '3rd Battalion', '3-7');
+
+    expect($renamed->name)->toBe('3rd Battalion')
+        ->and($renamed->callsign)->toBe('3-7')
+        ->and($renamed->parent_id)->toBe($regiment->id)
+        ->and($renamed->path)->toBe($battalion->path);
+});
+
+it('allows a null callsign on rename', function () {
+    $repo = app(UnitRepository::class);
+    $unit = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);
+
+    $renamed = $repo->rename($unit, '7th Cavalry Regiment', null);
+
+    expect($renamed->callsign)->toBeNull();
+});
+
+it('recomputes the path of the moved node when re-parented', function () {
+    // AD-18: "recomputed transactionally on any edit" — the moved node's own path must extend
+    // the *new* parent's path, not keep the old ancestor chain.
+    $repo = app(UnitRepository::class);
+    $regiment = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+    $battalionA = $repo->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
+    $battalionB = $repo->create(UnitType::Battalion, '2nd Battalion', '2-7', $regiment->id);
+    $company = $repo->create(UnitType::Company, 'Alpha Company', 'A/1-7', $battalionA->id);
+
+    $moved = $repo->move($company, $battalionB->id);
+
+    expect($moved->parent_id)->toBe($battalionB->id)
+        ->and($moved->path)->toBe("{$battalionB->path}{$company->id}/");
+});
+
+it('recomputes the path of every descendant when a subtree is re-parented', function () {
+    $repo = app(UnitRepository::class);
+    $regiment = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+    $battalionA = $repo->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
+    $battalionB = $repo->create(UnitType::Battalion, '2nd Battalion', '2-7', $regiment->id);
+    $company = $repo->create(UnitType::Company, 'Alpha Company', 'A/1-7', $battalionA->id);
+    $platoon = $repo->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', $company->id);
+    $section = $repo->create(UnitType::Section, 'Nightriders', '1/1/A/1-7', $platoon->id);
+
+    $repo->move($company, $battalionB->id);
+
+    $newCompanyPath = "{$battalionB->path}{$company->id}/";
+    expect(Unit::find($platoon->id)->path)->toBe("{$newCompanyPath}{$platoon->id}/")
+        ->and(Unit::find($section->id)->path)->toBe("{$newCompanyPath}{$platoon->id}/{$section->id}/");
+});
+
+it('leaves siblings and ancestors untouched by a re-parent', function () {
+    $repo = app(UnitRepository::class);
+    $regiment = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+    $battalionA = $repo->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
+    $battalionB = $repo->create(UnitType::Battalion, '2nd Battalion', '2-7', $regiment->id);
+    $company = $repo->create(UnitType::Company, 'Alpha Company', 'A/1-7', $battalionA->id);
+    $cousinCompany = $repo->create(UnitType::Company, 'Foxtrot Company', 'F/1-7', $battalionA->id);
+    $regimentPath = $regiment->path;
+    $battalionAPath = $battalionA->path;
+
+    $repo->move($company, $battalionB->id);
+
+    expect(Unit::find($regiment->id)->path)->toBe($regimentPath)
+        ->and(Unit::find($battalionA->id)->path)->toBe($battalionAPath)
+        ->and(Unit::find($cousinCompany->id)->path)->toBe("{$battalionAPath}{$cousinCompany->id}/");
+});
+
+it('deletes a childless unit', function () {
+    $repo = app(UnitRepository::class);
+    $unit = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+
+    $repo->delete($unit);
+
+    expect(Unit::find($unit->id))->toBeNull();
+});
+
+it('reports whether a unit has children', function () {
+    $repo = app(UnitRepository::class);
+    $regiment = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+    $battalion = $repo->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
+
+    expect($repo->hasChildren($regiment))->toBeTrue()
+        ->and($repo->hasChildren($battalion))->toBeFalse();
+});
