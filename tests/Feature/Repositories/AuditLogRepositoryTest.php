@@ -21,12 +21,49 @@ it('writes exactly one audit_log row derived from the mutation result', function
     expect(AuditLogEntry::count())->toBe(1);
 
     $entry = AuditLogEntry::first();
+    $attributes = $unit->getAttributes();
+    ksort($attributes);
+
     expect($entry->actor_id)->toBe($actor->id)
         ->and($entry->action)->toBe('unit.created')
         ->and($entry->target_type)->toBe('Unit')
         ->and($entry->target_id)->toBe((string) $unit->id)
         ->and($entry->reason)->toBeNull()
-        ->and($entry->content_digest)->toBe(hash('sha256', json_encode($unit)));
+        ->and($entry->content_digest)->toBe(hash('sha256', json_encode($attributes, JSON_THROW_ON_ERROR)));
+});
+
+it('digests two units with different content differently', function () {
+    $actor = User::factory()->create();
+    $units = app(UnitRepository::class);
+
+    app(AuditLogRepository::class)->recordWithMutation(
+        $actor->id,
+        'unit.created',
+        null,
+        fn () => $units->create(UnitType::Regiment, '7th Cavalry Regiment', null, null),
+    );
+    app(AuditLogRepository::class)->recordWithMutation(
+        $actor->id,
+        'unit.created',
+        null,
+        fn () => $units->create(UnitType::Regiment, '1st Cavalry Regiment', null, null),
+    );
+
+    $digests = AuditLogEntry::pluck('content_digest');
+    expect($digests->unique())->toHaveCount(2);
+});
+
+it('refuses to log a mutation result that is not an Eloquent Model', function () {
+    $actor = User::factory()->create();
+
+    expect(fn () => app(AuditLogRepository::class)->recordWithMutation(
+        $actor->id,
+        'unit.created',
+        null,
+        fn () => null,
+    ))->toThrow(RuntimeException::class, 'must return an Eloquent Model');
+
+    expect(AuditLogEntry::count())->toBe(0);
 });
 
 it('persists the given reason', function () {

@@ -13,8 +13,9 @@ use App\Support\Audit\AuditEnvelope;
  * {@see CreateUnit}. Guards the same echelon-ordering rule `CreateUnit` guards, plus the one
  * placement error only a move can create: a cycle, where the chosen parent is one of the unit's
  * own descendants (or the unit itself). The transactional subtree path recompute stays in
- * {@see UnitRepository::move()}, since Deptrac keeps DB access there. A no-op move (parent
- * unchanged) never reaches `AuditEnvelope` — no state changes, so nothing is logged.
+ * {@see UnitRepository::move()}, since Deptrac keeps DB access there. A no-op move (the
+ * requested parent is already the unit's current parent) never reaches `AuditEnvelope` — no
+ * state changes, so nothing is logged.
  */
 class MoveUnit
 {

@@ -25,6 +25,12 @@ return new class extends Migration
             $table->text('reason')->nullable();
             $table->string('content_digest');
             $table->timestamp('created_at')->useCurrent();
+
+            // The two ways this table is actually read: "what happened to this target" and
+            // "what happened recently" (the 1.14 review screen). Without these, both are a full
+            // scan of a table that's never pruned (AD-22).
+            $table->index(['target_type', 'target_id']);
+            $table->index('created_at');
         });
     }
 
