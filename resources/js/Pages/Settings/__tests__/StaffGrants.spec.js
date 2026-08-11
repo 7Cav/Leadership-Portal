@@ -86,7 +86,7 @@ describe('Settings/StaffGrants', () => {
         vi.unstubAllGlobals();
     });
 
-    it('does not revoke when no reason is given', async () => {
+    it('does not revoke when the prompt is cancelled, and shows no error (a deliberate no-op)', async () => {
         deleteSpy.mockClear();
         vi.stubGlobal('prompt', vi.fn(() => null));
         const wrapper = mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, isAdmin: true } });
@@ -94,6 +94,21 @@ describe('Settings/StaffGrants', () => {
         await wrapper.find('[data-testid="revoke-100"]').trigger('click');
 
         expect(deleteSpy).not.toHaveBeenCalled();
+        expect(wrapper.find('[data-testid="revoke-error"]').exists()).toBe(false);
+        vi.unstubAllGlobals();
+    });
+
+    // An OK-with-empty-field submission is falsy just like Cancel, but it is not the same
+    // gesture — silently doing nothing here would look exactly like a broken button.
+    it('shows feedback, not a silent no-op, when the prompt is submitted blank', async () => {
+        deleteSpy.mockClear();
+        vi.stubGlobal('prompt', vi.fn(() => '   '));
+        const wrapper = mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, isAdmin: true } });
+
+        await wrapper.find('[data-testid="revoke-100"]').trigger('click');
+
+        expect(deleteSpy).not.toHaveBeenCalled();
+        expect(wrapper.find('[data-testid="revoke-error"]').text()).toBe('A reason is required to revoke a grant.');
         vi.unstubAllGlobals();
     });
 

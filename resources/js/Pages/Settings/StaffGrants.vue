@@ -31,7 +31,11 @@ const revokeError = ref(null);
 
 function requestRevoke(grant) {
     const reason = window.prompt(`Reason for revoking ${grant.username}'s grant at ${grant.unit_name}?`);
-    if (!reason) {
+    if (reason === null) {
+        return; // Cancelled — a deliberate no-op, not an error.
+    }
+    if (reason.trim() === '') {
+        revokeError.value = 'A reason is required to revoke a grant.';
         return;
     }
 

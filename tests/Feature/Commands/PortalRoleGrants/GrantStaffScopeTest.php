@@ -62,7 +62,7 @@ it('refuses to grant scope to a user who already holds the admin flag (AD-7)', f
         ->and(AuditLogEntry::count())->toBe(0);
 });
 
-it('is idempotent on re-granting an already-held node (AD-8 — never a duplicate row)', function () {
+it('is idempotent on re-granting an already-held node, logging nothing for the no-op (AD-8 — never a duplicate row)', function () {
     $actor = User::factory()->admin()->create();
     $target = User::factory()->create();
     $unit = Unit::factory()->create();
@@ -70,5 +70,6 @@ it('is idempotent on re-granting an already-held node (AD-8 — never a duplicat
     app(GrantStaffScope::class)->handle($actor, $target, $unit, 'first grant');
     app(GrantStaffScope::class)->handle($actor, $target, $unit, 'second grant');
 
-    expect(PortalRoleGrant::count())->toBe(1);
+    expect(PortalRoleGrant::count())->toBe(1)
+        ->and(AuditLogEntry::count())->toBe(1);
 });

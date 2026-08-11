@@ -10,7 +10,6 @@ use App\Models\PortalRoleGrant;
 use App\Repositories\PortalRoleGrantRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
-use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -31,25 +30,6 @@ class StaffGrantsController extends Controller
         private readonly UnitRepository $units,
         private readonly UserRepository $users,
     ) {}
-
-    /**
-     * `AuditEnvelope::record()` (Support\Audit — off-limits to a Controller, AD-1) rejects a
-     * whitespace-only reason via `blank()`, which trims before checking. Laravel's own
-     * `required` rule does not trim, so without this closure `"   "` would pass request-shape
-     * validation and only fail once the Command layer is reached — surfacing as an uncaught
-     * exception instead of a form error. Mirroring the trim here at the request-shape boundary
-     * keeps the two checks agreeing without the controller ever depending on `Support\Audit`.
-     *
-     * @return array<int, mixed>
-     */
-    private function reasonRule(): array
-    {
-        return ['required', 'string', 'max:1000', function (string $attribute, mixed $value, Closure $fail) {
-            if (trim((string) $value) === '') {
-                $fail('The reason field is required.');
-            }
-        }];
-    }
 
     /**
      * Everyone authenticated may view the list (matches `OrgStructureController`'s read/write
@@ -98,7 +78,7 @@ class StaffGrantsController extends Controller
         $data = $request->validate([
             'user_id' => ['required', 'integer', 'exists:users,id'],
             'unit_id' => ['required', 'integer', 'exists:units,id'],
-            'reason' => $this->reasonRule(),
+            'reason' => ['required', 'string', 'max:1000'],
         ]);
 
         // `user_id`/`unit_id` were already confirmed to exist by the validation rules above, so
@@ -126,7 +106,7 @@ class StaffGrantsController extends Controller
         }
 
         $data = $request->validate([
-            'reason' => $this->reasonRule(),
+            'reason' => ['required', 'string', 'max:1000'],
         ]);
 
         // Plain FK columns, not relations — reading them off `$grant` doesn't trigger lazy

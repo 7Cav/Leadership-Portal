@@ -19,6 +19,15 @@ it('renders the grants list for any authenticated user', function () {
             ->where('isAdmin', false));
 });
 
+it('excludes Admins from the target-user picker (AD-7 — a grant to an Admin is meaningless)', function () {
+    $admin = User::factory()->admin()->create();
+    $staff = User::factory()->create();
+
+    $this->actingAs($admin)->get('/settings/staff-grants')
+        ->assertInertia(fn ($page) => $page
+            ->where('users', fn ($users) => collect($users)->pluck('id')->all() === [$staff->id]));
+});
+
 it('lets an Admin grant a non-admin staff user scope at a chosen node (AC #1)', function () {
     $admin = User::factory()->admin()->create();
     $target = User::factory()->create();
@@ -90,6 +99,20 @@ it('422s a missing reason (AD-16)', function () {
     $this->actingAs($admin)->post('/settings/staff-grants', [
         'user_id' => $target->id,
         'unit_id' => $unit->id,
+    ])->assertInvalid('reason');
+
+    expect(PortalRoleGrant::count())->toBe(0);
+});
+
+it('422s a whitespace-only reason — Laravel\'s `required` rule already trims (AD-16)', function () {
+    $admin = User::factory()->admin()->create();
+    $target = User::factory()->create();
+    $unit = Unit::factory()->create();
+
+    $this->actingAs($admin)->post('/settings/staff-grants', [
+        'user_id' => $target->id,
+        'unit_id' => $unit->id,
+        'reason' => '   ',
     ])->assertInvalid('reason');
 
     expect(PortalRoleGrant::count())->toBe(0);
