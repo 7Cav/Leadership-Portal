@@ -2,6 +2,7 @@
 
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
+use App\Models\Unit;
 use App\Repositories\TrooperRepository;
 
 // AD-4: the cache is upserted keyed by `cav_id` onto a stable internal PK, never
@@ -76,4 +77,29 @@ it('never truncates: an empty active set marks every cached row inactive instead
 
     expect(Trooper::count())->toBe(1)
         ->and(Trooper::sole()->status)->toBe(TrooperStatus::Inactive);
+});
+
+it('leaves primary_section_id untouched by an upsert — that column belongs to a different writer', function () {
+    $repo = app(TrooperRepository::class);
+    $section = Unit::factory()->create();
+    Trooper::factory()->create(['cav_id' => 1, 'primary_section_id' => $section->id, 'status' => TrooperStatus::Combat]);
+
+    $repo->upsertActive([
+        ['cav_id' => 1, 'rank' => 'Corporal', 'mos' => '11B', 'tis' => null, 'tig' => null, 'status' => TrooperStatus::Combat->value],
+    ]);
+
+    expect(Trooper::where('cav_id', 1)->sole()->primary_section_id)->toBe($section->id);
+});
+
+it('wraps upsert and departure marking in one transaction via sync()', function () {
+    $repo = app(TrooperRepository::class);
+    $departed = Trooper::factory()->create(['cav_id' => 2, 'status' => TrooperStatus::Combat]);
+
+    $repo->sync(
+        [['cav_id' => 1, 'rank' => 'Sergeant', 'mos' => '11B', 'tis' => null, 'tig' => null, 'status' => TrooperStatus::Combat->value]],
+        [1],
+    );
+
+    expect(Trooper::where('cav_id', 1)->sole()->status)->toBe(TrooperStatus::Combat)
+        ->and($departed->refresh()->status)->toBe(TrooperStatus::Inactive);
 });

@@ -8,12 +8,11 @@ use App\Repositories\TrooperRepository;
 use App\Sync\SyncRosterHandler;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
-use Tests\Feature\Integration\Cav\CavApiFetchRosterTest;
 
 /**
  * Story 2.2 — the sole writer of the `troopers` cache. Every Cav call is faked at the AD-3 seam,
- * matching {@see CavApiFetchRosterTest}'s convention: mocks are
- * keyed by URL because a full-roster sync issues the same request three times.
+ * matching the full-roster fetch test's convention: mocks are keyed by URL because a full-roster
+ * sync issues the same request three times.
  */
 const SR_COMBAT_URL = 'api.7cav.us/api/v1/roster/ROSTER_TYPE_COMBAT/lite';
 const SR_RESERVE_URL = 'api.7cav.us/api/v1/roster/ROSTER_TYPE_RESERVE/lite';
@@ -117,6 +116,25 @@ it('reactivates a previously-departed trooper who reappears on the roster', func
 
     expect(Trooper::count())->toBe(1)
         ->and($trooper->refresh()->status)->toBe(TrooperStatus::Combat);
+});
+
+it('does not mark a trooper departed just because their row failed to parse', function () {
+    // No `user` key: CavRosterEntry::fromPayload treats this as an error envelope and the row
+    // is collected in RosterFetchResult::$errors rather than turned into a CavRosterEntry — but
+    // cav id 5 is still the roster's own key, so the trooper is known to be present.
+    $stillPresent = Trooper::factory()->create(['cav_id' => 5, 'rank' => 'Sergeant', 'status' => TrooperStatus::Combat]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['5' => ['code' => 1, 'message' => 'unavailable']]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    expect(Trooper::count())->toBe(1)
+        ->and($stillPresent->refresh()->status)->toBe(TrooperStatus::Combat)
+        ->and($stillPresent->rank)->toBe('Sergeant');
 });
 
 it('aborts before writing anything when the Cav seam fails, leaving the last good cache intact', function () {

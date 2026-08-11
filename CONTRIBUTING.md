@@ -54,9 +54,10 @@ Route → Controller ─┬─ (write) Command → CommandHandler ─┐
 | Provider | `app/Providers/` | (wires every layer) | DI composition root — bootstrap, not business logic |
 | Middleware | `app/Http/Middleware/` | — | Request glue (e.g. Inertia shared props) |
 
-**Planned layers, not yet enforced.** `Authorization/`, `Support/Audit/`, and `Sync/` were
-all placeholders added consciously to `deptrac.yaml` — with their edges — when their stories
-landed (Story 1.11, Story 1.10, and Story 2.2 respectively), and all three are enforced today.
+**Layers added consciously as their stories landed.** `Authorization/`, `Support/Audit/`, and
+`Sync/` were all placeholders in `deptrac.yaml` until each one's own story added it — with its
+edges — deliberately (Story 1.11, Story 1.10, and Story 2.2 respectively). All three are
+enforced today.
 
 Each layer directory has a `README.md` explaining its rules — read the one for the layer
 you're touching. The forbidden moves that catch people: **Controller → Integration** (an

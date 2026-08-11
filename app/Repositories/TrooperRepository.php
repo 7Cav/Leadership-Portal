@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Sole DB access for the cached roster (AD-2, AD-4). `Sync\SyncRosterHandler` is the only caller
@@ -12,6 +13,24 @@ use App\Models\TrooperStatus;
  */
 class TrooperRepository
 {
+    /**
+     * Upsert the active rows and mark everyone else departed as one transaction, so a crash
+     * between the two halves can never leave the cache in a state where some troopers were
+     * refreshed but departures were not yet applied (or vice versa) — a torn write the sync
+     * handler's own "no partial wipe" contract would otherwise only hold for a *fetch* failure,
+     * not a write-time one.
+     *
+     * @param  list<array{cav_id: int, rank: ?string, mos: ?string, tis: mixed, tig: mixed, status: string}>  $rows
+     * @param  list<int>  $activeCavIds
+     */
+    public function sync(array $rows, array $activeCavIds): void
+    {
+        DB::transaction(function () use ($rows, $activeCavIds) {
+            $this->upsertActive($rows);
+            $this->markDepartedExcept($activeCavIds);
+        });
+    }
+
     /**
      * Upsert every row keyed by `cav_id`, updating an existing trooper's synced columns in place
      * (their internal `id` PK never changes) or inserting a new one. Never touches

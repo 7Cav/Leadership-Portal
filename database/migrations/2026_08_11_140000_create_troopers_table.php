@@ -17,7 +17,9 @@ return new class extends Migration
         // flips to inactive; the row is never truncated or hard-deleted (AD-4).
         Schema::create('troopers', function (Blueprint $table) {
             $table->id();
-            $table->unsignedInteger('cav_id')->unique();
+            // Matches `users.cav_id`'s width (unsignedBigInteger) — both hold the same milpac
+            // relation id, and a later FK between them needs identical column types.
+            $table->unsignedBigInteger('cav_id')->unique();
             $table->string('rank')->nullable();
             $table->string('mos')->nullable();
             $table->date('tis')->nullable();
