@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -94,6 +95,24 @@ class UserRepository
         }
 
         return $user;
+    }
+
+    public function find(int $id): ?User
+    {
+        return User::find($id);
+    }
+
+    /**
+     * Every user who is not an Admin, for the staff-grants target picker (Story 1.12). No
+     * roster/Trooper model exists yet (Epic 2), so this is the full pool of portal-known
+     * identities minus the ones a grant would be meaningless for — an Admin already resolves
+     * the full tree (AD-6, AD-7).
+     *
+     * @return Collection<int, User>
+     */
+    public function nonAdminUsers(): Collection
+    {
+        return User::query()->where('is_admin', false)->orderBy('username')->get();
     }
 
     private function writeCavIdLink(User $user, int $cavId): void
