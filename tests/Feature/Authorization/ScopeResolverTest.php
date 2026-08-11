@@ -16,7 +16,10 @@ it('resolves the full tree for an Admin, regardless of grants', function () {
     $regiment = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
     $battalion = $repo->create(UnitType::Battalion, '2nd Battalion', '2-7', $regiment->id);
 
+    // Holding a grant on a single, narrow unit must not narrow an Admin's scope down to it —
+    // the admin short-circuit has to win outright, not merge with the grant union.
     $admin = User::factory()->admin()->create();
+    PortalRoleGrant::factory()->create(['user_id' => $admin->id, 'unit_id' => $battalion->id]);
 
     $scope = app(ScopeResolver::class)->resolve($admin);
 

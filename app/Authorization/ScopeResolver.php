@@ -9,7 +9,7 @@ use Illuminate\Support\Collection;
 
 /**
  * The single authority for "which units may this user read" (AD-8) — every echelon-scoped
- * read filters through here, and no controller or ReadService hand-rolls visibility.
+ * read filters through here, and no controller or repository caller hand-rolls visibility.
  *
  * Effective scope is deny-by-default: it starts empty and only ever grows, from two sources
  * that are unioned together —

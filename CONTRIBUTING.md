@@ -43,19 +43,20 @@ Route → Controller ─┬─ (write) Command → CommandHandler ─┐
 
 | Layer | Directory | May depend on | Role |
 | --- | --- | --- | --- |
-| Controller | `app/Http/Controllers/` | CommandHandler, Repository, Model | Orchestrate a request. **No business logic.** Reads repositories directly; writes via Commands. |
-| Command / Handler | `app/Commands/` | Repository, Model, Integration | Write-side business logic; the **only** caller of the outbound seam. |
+| Controller | `app/Http/Controllers/` | CommandHandler, Repository, Model, Authorization | Orchestrate a request. **No business logic.** Reads repositories directly; writes via Commands. |
+| Command / Handler | `app/Commands/` | Repository, Model, Integration, Support\Audit, Authorization | Write-side business logic; the **only** caller of the outbound seam. |
 | Repository | `app/Repositories/` | Model, DB | **Sole** DB access (AD-2) |
 | Model | `app/Models/` | DB | Eloquent entities |
 | Integration | `app/Integration/` | External (Saloon/HTTP) | **Sole** path to external systems (AD-3) — Saloon connectors, requests, DTOs, and a `{Target}Api` seam class |
+| Authorization | `app/Authorization/` | Repository, Model | The single `ScopeResolver` gating read visibility (AD-8), plus policies and view-as |
+| Support\Audit | `app/Support/Audit/` | Repository | The audited-action envelope every state-changing Command routes through (AD-16) |
 | Provider | `app/Providers/` | (wires every layer) | DI composition root — bootstrap, not business logic |
 | Middleware | `app/Http/Middleware/` | — | Request glue (e.g. Inertia shared props) |
 
-**Planned layers, not yet enforced.** These directories exist as placeholders and are
-added back to `deptrac.yaml` — consciously, with their edges — when their stories land:
-`Sync/` (one-writer cache sync, AD-4). Until then it carries no enforced edge.
-`Authorization/` (ScopeResolver, policies, view-as, AD-6/7/8/9) entered the graph in
-Story 1.11; `Support/Audit/` (the audited-action envelope, AD-16) in Story 1.10.
+**Planned layers, not yet enforced.** `Sync/` (one-writer cache sync, AD-4) exists as a
+placeholder and is added back to `deptrac.yaml` — consciously, with its edges — when its
+story lands. `Authorization/` and `Support/Audit/` were placeholders too, but have since
+entered the graph (Story 1.11 and Story 1.10 respectively) and are enforced today.
 
 Each layer directory has a `README.md` explaining its rules — read the one for the layer
 you're touching. The forbidden moves that catch people: **Controller → Integration** (an
