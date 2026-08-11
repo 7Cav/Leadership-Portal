@@ -167,6 +167,28 @@ it('filters by target type and target id', function () {
         ->and($entries->first()->target_id)->toBe('1');
 });
 
+it('filters by target type alone, independent of target id', function () {
+    $actor = User::factory()->create();
+    AuditLogEntry::factory()->create(['actor_id' => $actor->id, 'target_type' => 'Unit', 'target_id' => '1']);
+    AuditLogEntry::factory()->create(['actor_id' => $actor->id, 'target_type' => 'Unit', 'target_id' => '2']);
+    AuditLogEntry::factory()->create(['actor_id' => $actor->id, 'target_type' => 'PortalRoleGrant', 'target_id' => '1']);
+
+    $entries = app(AuditLogRepository::class)->filtered(targetType: 'Unit');
+
+    expect($entries->pluck('target_type')->all())->toBe(['Unit', 'Unit']);
+});
+
+it('breaks ties on id when two entries share a created_at timestamp', function () {
+    $actor = User::factory()->create();
+    $sameInstant = now();
+    $first = AuditLogEntry::factory()->create(['actor_id' => $actor->id, 'created_at' => $sameInstant]);
+    $second = AuditLogEntry::factory()->create(['actor_id' => $actor->id, 'created_at' => $sameInstant]);
+
+    $entries = app(AuditLogRepository::class)->filtered();
+
+    expect($entries->pluck('id')->all())->toBe([$second->id, $first->id]);
+});
+
 it('filters by a date range, inclusive of both ends', function () {
     $actor = User::factory()->create();
     $before = AuditLogEntry::factory()->create(['actor_id' => $actor->id, 'created_at' => '2026-05-01 12:00:00']);

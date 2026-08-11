@@ -93,6 +93,38 @@ it('rejects an invalid date filter with a 422 rather than a raw DB error', funct
         ->assertInvalid('date_from');
 });
 
+it('rejects a non-numeric actor_id with a 422', function () {
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin)->get('/settings/audit-log?actor_id=abc')
+        ->assertInvalid('actor_id');
+});
+
+it('carries the actor filter across pagination so page 2 stays filtered (AC #2)', function () {
+    $admin = User::factory()->admin()->create();
+    $wanted = User::factory()->create();
+    $other = User::factory()->create();
+    AuditLogEntry::factory()->count(30)->create(['actor_id' => $wanted->id]);
+    AuditLogEntry::factory()->count(5)->create(['actor_id' => $other->id]);
+
+    $nextPageUrl = null;
+
+    $this->actingAs($admin)->get('/settings/audit-log?actor_id='.$wanted->id)
+        ->assertInertia(function ($page) use (&$nextPageUrl) {
+            $page->has('entries.data', 25);
+            $nextPageUrl = $page->toArray()['props']['entries']['next_page_url'];
+        });
+
+    expect($nextPageUrl)->toContain('actor_id='.$wanted->id);
+
+    $this->actingAs($admin)->get($nextPageUrl)
+        ->assertInertia(fn ($page) => $page
+            ->has('entries.data', 5)
+            ->where('entries.data', fn ($data) => collect($data)->pluck('id')->every(
+                fn ($id) => AuditLogEntry::find($id)->actor_id === $wanted->id,
+            )));
+});
+
 it('passes distinct actor and action options for the filter controls', function () {
     $admin = User::factory()->admin()->create();
     $actor = User::factory()->create(['username' => 'zed']);

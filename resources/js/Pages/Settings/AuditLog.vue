@@ -1,7 +1,7 @@
 <script setup>
 import { reactive } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
-import { forumDate } from '../../lib/forumDate';
+import { forumDateTime } from '../../lib/forumDate';
 
 // Flat entries + option lists (mirrors `StaffGrants.vue`'s flat-props pattern). `entries` is a
 // Laravel paginator serialized as-is — `data` plus the standard pagination metadata — so no
@@ -119,8 +119,8 @@ function goTo(url) {
                         <td class="px-2 py-2">{{ entry.action }}</td>
                         <td class="px-2 py-2">{{ entry.target_type }}#{{ entry.target_id }}</td>
                         <td class="px-2 py-2">{{ entry.reason ?? '—' }}</td>
-                        <td class="px-2 py-2 font-mono text-xs text-gray-400">{{ entry.content_digest }}</td>
-                        <td class="px-2 py-2">{{ forumDate(entry.created_at) }}</td>
+                        <td class="px-2 py-2 font-mono text-xs text-gray-400" :title="entry.content_digest">{{ entry.content_digest.slice(0, 12) }}…</td>
+                        <td class="px-2 py-2">{{ forumDateTime(entry.created_at) }}</td>
                     </tr>
                     <tr v-if="entries.data.length === 0">
                         <td colspan="6" class="px-2 py-4 text-center text-sm text-gray-500">No audit entries match these filters.</td>

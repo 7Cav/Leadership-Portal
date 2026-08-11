@@ -91,4 +91,16 @@ describe('Settings/AuditLog', () => {
 
         expect(getSpy).toHaveBeenCalledWith('/settings/audit-log?page=2', {}, expect.objectContaining({ preserveState: true }));
     });
+
+    it('resets every filter field and re-applies when Clear is clicked', async () => {
+        const wrapper = makeWrapper({ filters: { actor_id: 10, action: 'unit.created', target_type: 'Unit', target_id: '7', date_from: '2026-05-01', date_to: '2026-05-31' } });
+
+        await wrapper.find('[data-testid="clear-filters"]').trigger('click');
+
+        expect(getSpy).toHaveBeenCalledWith(
+            '/settings/audit-log',
+            { actor_id: null, action: null, target_type: '', target_id: '', date_from: '', date_to: '' },
+            expect.objectContaining({ preserveState: true }),
+        );
+    });
 });

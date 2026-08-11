@@ -10,3 +10,13 @@ export function forumDate(value) {
 
     return `${day}${month}${year}`;
 }
+
+// `forumDate()` plus a UTC 24h clock — an audit trail needs to order same-day entries, which the
+// date-only convention can't do.
+export function forumDateTime(value) {
+    const date = new Date(value);
+    const hours = String(date.getUTCHours()).padStart(2, '0');
+    const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+
+    return `${forumDate(value)} ${hours}:${minutes}`;
+}

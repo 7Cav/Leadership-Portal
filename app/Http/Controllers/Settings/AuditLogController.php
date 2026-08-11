@@ -27,11 +27,15 @@ class AuditLogController extends Controller
 
         $filters = $request->validate([
             'actor_id' => ['nullable', 'integer'],
-            'action' => ['nullable', 'string'],
-            'target_type' => ['nullable', 'string'],
-            'target_id' => ['nullable', 'string'],
-            'date_from' => ['nullable', 'date'],
-            'date_to' => ['nullable', 'date'],
+            'action' => ['nullable', 'string', 'max:255'],
+            'target_type' => ['nullable', 'string', 'max:255'],
+            'target_id' => ['nullable', 'string', 'max:255'],
+            // `date_format:Y-m-d`, not the looser `date` rule — `date` accepts anything
+            // `strtotime()` parses (e.g. "now", "+1 day"), which `AuditLogRepository::filtered()`
+            // would then hand straight to the query, silently returning an empty result instead
+            // of failing loudly. `Y-m-d` matches what the `<input type="date">` controls emit.
+            'date_from' => ['nullable', 'date_format:Y-m-d'],
+            'date_to' => ['nullable', 'date_format:Y-m-d'],
         ]);
 
         $entries = $this->auditLog->filtered(
@@ -50,7 +54,12 @@ class AuditLogController extends Controller
             'reason' => $entry->reason,
             'content_digest' => $entry->content_digest,
             'created_at' => $entry->created_at->toIso8601String(),
-        ]);
+        ])
+            // Without this, `next_page_url`/`prev_page_url` carry no query string (Laravel only
+            // appends one that's been set explicitly), so paging silently drops every filter and
+            // the Admin ends up looking at an unfiltered page while the form still shows the
+            // filters they set.
+            ->appends(array_filter($filters, fn ($value) => $value !== null));
 
         return Inertia::render('Settings/AuditLog', [
             'entries' => $entries,

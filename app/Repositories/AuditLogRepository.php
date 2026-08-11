@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Models\AuditLogEntry;
 use App\Models\User;
+use Carbon\Carbon;
 use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -64,8 +65,13 @@ class AuditLogRepository
     /**
      * The 1.14 review screen's filtered, most-recent-first, paginated read. Every filter is
      * optional and they combine with AND; the date range is inclusive of both ends since Admin
-     * reasons about whole days, not timestamps. `actor` is eager-loaded so the controller never
-     * lazy-loads it (AD-2's `preventLazyLoading()`).
+     * reasons about whole days, not timestamps — `dateTo` is compared against the *start* of the
+     * following day rather than wrapped in `whereDate()`, so the comparison stays sargable on the
+     * `created_at` index the migration added for exactly this read (AD-22, a table that's never
+     * pruned). `actor` is eager-loaded so the controller never lazy-loads it (AD-2's
+     * `preventLazyLoading()`). The `id` tiebreaker after `created_at` keeps pagination stable
+     * across requests — the column is second-precision, so an audited batch (several rows from
+     * one action) can otherwise land on the same timestamp with no deterministic order.
      *
      * @return LengthAwarePaginator<int, AuditLogEntry>
      */
@@ -84,9 +90,10 @@ class AuditLogRepository
             ->when($action, fn ($query, $value) => $query->where('action', $value))
             ->when($targetType, fn ($query, $value) => $query->where('target_type', $value))
             ->when($targetId, fn ($query, $value) => $query->where('target_id', $value))
-            ->when($dateFrom, fn ($query, $value) => $query->whereDate('created_at', '>=', $value))
-            ->when($dateTo, fn ($query, $value) => $query->whereDate('created_at', '<=', $value))
+            ->when($dateFrom, fn ($query, $value) => $query->where('created_at', '>=', Carbon::parse($value)->startOfDay()))
+            ->when($dateTo, fn ($query, $value) => $query->where('created_at', '<', Carbon::parse($value)->addDay()->startOfDay()))
             ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->paginate($perPage);
     }
 
