@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\ForumAuthController;
 use App\Http\Controllers\SampleController;
 use App\Http\Controllers\Settings\OrgStructureController;
+use App\Http\Controllers\Settings\StaffGrantsController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -37,4 +38,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/settings/org-structure', [OrgStructureController::class, 'store'])->name('settings.org-structure.store');
     Route::patch('/settings/org-structure/{unit}', [OrgStructureController::class, 'update'])->name('settings.org-structure.update');
     Route::delete('/settings/org-structure/{unit}', [OrgStructureController::class, 'destroy'])->name('settings.org-structure.destroy');
+
+    // Staff grants (Story 1.12). Viewing is open to any authenticated user, matching
+    // org-structure; the Admin gate on every write is enforced in the controller (AD-6).
+    Route::get('/settings/staff-grants', [StaffGrantsController::class, 'index'])->name('settings.staff-grants');
+    Route::post('/settings/staff-grants', [StaffGrantsController::class, 'store'])->name('settings.staff-grants.store');
+    Route::delete('/settings/staff-grants/{grant}', [StaffGrantsController::class, 'destroy'])->name('settings.staff-grants.destroy');
 });
