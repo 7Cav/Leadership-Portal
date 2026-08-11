@@ -5,6 +5,7 @@ namespace App\Repositories;
 use App\Models\Unit;
 use App\Models\UnitType;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as ScalarCollection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -57,6 +58,27 @@ class UnitRepository
     public function find(int $id): ?Unit
     {
         return Unit::find($id);
+    }
+
+    /**
+     * Every unit id in the tree — the Admin tier's full scope (AD-6, AD-8).
+     *
+     * @return ScalarCollection<int, int>
+     */
+    public function allIds(): ScalarCollection
+    {
+        return Unit::query()->pluck('id');
+    }
+
+    /**
+     * The subtree rooted at `$unit`, including itself — a cheap `path LIKE 'ancestorpath%'`
+     * query (AD-18), the same idiom {@see move()} uses to find every descendant to re-path.
+     *
+     * @return ScalarCollection<int, int>
+     */
+    public function subtreeIds(Unit $unit): ScalarCollection
+    {
+        return Unit::query()->where('path', 'like', "{$unit->path}%")->pluck('id');
     }
 
     /**
