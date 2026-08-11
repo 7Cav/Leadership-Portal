@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AuditLogEntry;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
@@ -155,6 +156,26 @@ it('lets an Admin re-parent a unit, recomputing the subtree path (AC #2)', funct
     $moved = Unit::find($company->id);
     expect($moved->parent_id)->toBe($battalionB->id)
         ->and($moved->path)->toBe("{$battalionB->path}{$company->id}/");
+});
+
+it('logs only the move, not a rename, when a re-parent request carries the unchanged name/callsign', function () {
+    // The request always resubmits name/callsign alongside parent_id — a pure re-parent must
+    // not also log a "unit.renamed" entry asserting a rename that never happened.
+    $admin = User::factory()->admin()->create();
+    $repo = app(UnitRepository::class);
+    $regiment = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+    $battalionA = $repo->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
+    $battalionB = $repo->create(UnitType::Battalion, '2nd Battalion', '2-7', $regiment->id);
+    $company = $repo->create(UnitType::Company, 'Alpha Company', 'A/1-7', $battalionA->id);
+
+    $this->actingAs($admin)->patch("/settings/org-structure/{$company->id}", [
+        'name' => $company->name,
+        'callsign' => $company->callsign,
+        'parent_id' => $battalionB->id,
+    ])->assertRedirect();
+
+    expect(AuditLogEntry::count())->toBe(1)
+        ->and(AuditLogEntry::first()->action)->toBe('unit.moved');
 });
 
 it('never persists the rename half of a request whose re-parent is refused', function () {

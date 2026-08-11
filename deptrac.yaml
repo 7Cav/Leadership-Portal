@@ -11,7 +11,8 @@
 #
 # The graph (arrows = "may depend on"):
 #   Controller     → CommandHandler, Repository, Model    # writes via Commands; reads direct
-#   CommandHandler → Repository, Model, Integration        # write-side business logic
+#   CommandHandler → Repository, Model, Integration, Support\Audit  # write-side business logic
+#   Support\Audit  → Repository                             # audited-action envelope (AD-16)
 #   Repository     → Model, DB                             # sole DB access (AD-2)
 #   Model          → DB
 #   Integration    → External                              # sole path out — Saloon lives here (AD-3)
@@ -44,6 +45,10 @@ deptrac:
       collectors:
         - type: directory
           value: app/Integration/.*
+    - name: Support\Audit
+      collectors:
+        - type: directory
+          value: app/Support/Audit/.*
 
     # ── Boundary layers — matched by fully-qualified class name, not by directory.
     #    They live in vendor/, so they are only ever dependency *targets*. Defining
@@ -88,6 +93,12 @@ deptrac:
       - Repository
       - Model
       - Integration
+      - Support\Audit
+    # Reaches AuditLogRepository to write the audit_log row — the one place outside
+    # Repositories/ that needs a DB-writing path, so it goes through the Repository layer
+    # rather than touching DB itself (AD-2 unchanged).
+    Support\Audit:
+      - Repository
     Repository:
       - Model
       - DB
