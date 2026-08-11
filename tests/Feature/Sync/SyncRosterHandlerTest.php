@@ -2,8 +2,12 @@
 
 use App\Integration\Cav\CavApi;
 use App\Integration\Cav\CavRequestException;
+use App\Models\AuditLogEntry;
+use App\Models\SyncRun;
+use App\Models\SyncRunStatus;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
+use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
 use App\Sync\SyncRosterHandler;
 use Saloon\Http\Faking\MockClient;
@@ -50,7 +54,7 @@ function syncRosterCavApi(): CavApi
 
 function syncRosterHandler(): SyncRosterHandler
 {
-    return new SyncRosterHandler(syncRosterCavApi(), app(TrooperRepository::class));
+    return new SyncRosterHandler(syncRosterCavApi(), app(TrooperRepository::class), app(SyncRunRepository::class));
 }
 
 beforeEach(function () {
@@ -151,4 +155,88 @@ it('aborts before writing anything when the Cav seam fails, leaving the last goo
     expect(Trooper::count())->toBe(1);
     expect($existing->refresh()->rank)->toBe('Sergeant')
         ->and($existing->status)->toBe(TrooperStatus::Combat);
+});
+
+it('records a successful sync run with the row counts, defaulting triggered_by to system', function () {
+    Trooper::factory()->create(['cav_id' => 1, 'status' => TrooperStatus::Combat]);
+    Trooper::factory()->create(['cav_id' => 99, 'status' => TrooperStatus::Combat]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => [
+            '1' => srRosterRow('ROSTER_TYPE_COMBAT'),
+            '2' => srRosterRow('ROSTER_TYPE_COMBAT'),
+        ]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    $run = SyncRun::sole();
+    expect($run->source)->toBe('roster')
+        ->and($run->status)->toBe(SyncRunStatus::Success)
+        ->and($run->inserted)->toBe(1)
+        ->and($run->updated)->toBe(1)
+        ->and($run->inactivated)->toBe(1)
+        ->and($run->errored)->toBe(0)
+        ->and($run->error)->toBeNull()
+        ->and($run->triggered_by)->toBe('system')
+        ->and($run->started_at)->not->toBeNull()
+        ->and($run->finished_at)->not->toBeNull();
+});
+
+it('records a manual sync run under the triggering user id', function () {
+    MockClient::global([
+        SR_COMBAT_URL => srEmptyRoster(),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle(triggeredBy: 42);
+
+    expect(SyncRun::sole()->triggered_by)->toBe('42');
+});
+
+it('records a partial sync run when a row failed to parse, capturing the errored count', function () {
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['5' => ['code' => 1, 'message' => 'unavailable']]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    $run = SyncRun::sole();
+    expect($run->status)->toBe(SyncRunStatus::Partial)
+        ->and($run->errored)->toBe(1);
+});
+
+it('records a failed sync run capturing the error when the Cav seam errors', function () {
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(status: 500),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    expect(fn () => syncRosterHandler()->handle())->toThrow(CavRequestException::class);
+
+    $run = SyncRun::sole();
+    expect($run->status)->toBe(SyncRunStatus::Failure)
+        ->and($run->error)->not->toBeNull()
+        ->and($run->finished_at)->not->toBeNull()
+        ->and($run->inserted)->toBe(0)
+        ->and($run->updated)->toBe(0)
+        ->and($run->inactivated)->toBe(0);
+});
+
+it('does not write an audit_log row for a sync run', function () {
+    MockClient::global([
+        SR_COMBAT_URL => srEmptyRoster(),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    expect(AuditLogEntry::count())->toBe(0);
 });

@@ -18,16 +18,20 @@ class TrooperRepository
      * between the two halves can never leave the cache in a state where some troopers were
      * refreshed but departures were not yet applied (or vice versa) — a torn write the sync
      * handler's own "no partial wipe" contract would otherwise only hold for a *fetch* failure,
-     * not a write-time one.
+     * not a write-time one. Returns the row counts the sync handler reports to `sync_runs`
+     * (Story 2.3).
      *
      * @param  list<array{cav_id: int, rank: ?string, mos: ?string, tis: mixed, tig: mixed, status: string}>  $rows
      * @param  list<int>  $activeCavIds
+     * @return array{inserted: int, updated: int, inactivated: int}
      */
-    public function sync(array $rows, array $activeCavIds): void
+    public function sync(array $rows, array $activeCavIds): array
     {
-        DB::transaction(function () use ($rows, $activeCavIds) {
-            $this->upsertActive($rows);
-            $this->markDepartedExcept($activeCavIds);
+        return DB::transaction(function () use ($rows, $activeCavIds) {
+            $upserted = $this->upsertActive($rows);
+            $inactivated = $this->markDepartedExcept($activeCavIds);
+
+            return [...$upserted, 'inactivated' => $inactivated];
         });
     }
 
@@ -37,11 +41,15 @@ class TrooperRepository
      * `primary_section_id` — that column belongs to 2.5/2.7, not the sync handler.
      *
      * @param  list<array{cav_id: int, rank: ?string, mos: ?string, tis: mixed, tig: mixed, status: string}>  $rows
+     * @return array{inserted: int, updated: int}
      */
-    public function upsertActive(array $rows): void
+    public function upsertActive(array $rows): array
     {
+        $inserted = 0;
+        $updated = 0;
+
         foreach ($rows as $row) {
-            Trooper::updateOrCreate(
+            $trooper = Trooper::updateOrCreate(
                 ['cav_id' => $row['cav_id']],
                 [
                     'rank' => $row['rank'],
@@ -51,19 +59,24 @@ class TrooperRepository
                     'status' => $row['status'],
                 ],
             );
+
+            $trooper->wasRecentlyCreated ? $inserted++ : $updated++;
         }
+
+        return ['inserted' => $inserted, 'updated' => $updated];
     }
 
     /**
      * Flip every cached trooper whose `cav_id` is not in `$activeCavIds` to inactive — retained,
      * never deleted, so dependent `attendance`/`weekly_reports` history survives a roster
      * departure (AD-4, AD-5). Already-inactive rows are left alone rather than re-touched.
+     * Returns the number of rows actually flipped.
      *
      * @param  list<int>  $activeCavIds
      */
-    public function markDepartedExcept(array $activeCavIds): void
+    public function markDepartedExcept(array $activeCavIds): int
     {
-        Trooper::query()
+        return Trooper::query()
             ->whereNotIn('cav_id', $activeCavIds)
             ->where('status', '!=', TrooperStatus::Inactive->value)
             ->update(['status' => TrooperStatus::Inactive->value]);
