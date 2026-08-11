@@ -188,22 +188,12 @@ readonly class CavRosterProfile
     }
 
     /**
-     * Parse an id the strict way. The API sends 64-bit ids as decimal strings, so only digits
-     * are acceptable — `is_numeric` would admit `'4.9'` and `'1e3'`, and the `(int)` cast would
-     * then quietly truncate them into a *different, valid* trooper's id. For values that decide
-     * which human being's record is used, "close enough" is the whole failure mode.
+     * The API sends 64-bit ids as decimal strings; {@see MilpacId::parse()} is the one strict
+     * predicate every caller that reads a milpac id off the wire shares.
      */
     private static function id(mixed $value): ?int
     {
-        if (is_int($value)) {
-            return $value > 0 ? $value : null;
-        }
-
-        if (! is_string($value) || $value === '' || ! ctype_digit($value)) {
-            return null;
-        }
-
-        return (int) $value > 0 ? (int) $value : null;
+        return MilpacId::parse($value);
     }
 
     /**

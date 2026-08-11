@@ -2,7 +2,11 @@
 
 namespace App\Integration\Cav;
 
+use App\Integration\Cav\Data\CavRosterEntry;
 use App\Integration\Cav\Data\CavRosterProfile;
+use App\Integration\Cav\Data\MilpacId;
+use App\Integration\Cav\Data\RosterFetchResult;
+use App\Integration\Cav\Data\RosterRowError;
 use App\Integration\Cav\Data\RosterType;
 use App\Integration\Cav\Requests\FetchMilpacProfileRequest;
 use App\Integration\Cav\Requests\FetchRosterRequest;
@@ -166,6 +170,82 @@ class CavApi
         }
 
         throw CavRequestException::notOnRoster($forumUserId);
+    }
+
+    /**
+     * Fetch the full active roster — every serving roster (Combat, Reserve, ELOA), merged into
+     * one collection (story 2.1).
+     *
+     * Unlike {@see findOnRosterByForumUserId}, a roster that fails here aborts the whole sweep
+     * immediately: that method can afford to keep looking because a hit on a later roster is a
+     * definitive answer regardless, but there is no such fallback for "the full roster" — a
+     * roster this call could not read makes the result incomplete, not merely inconclusive, so
+     * AC #4/#5 require the caller see that failure rather than a silently short roster.
+     *
+     * A single unparseable *row*, in contrast, is collected rather than thrown (AC #6): a sweep
+     * of ~800 troopers reliably carries a handful of stale entries, and aborting the whole fetch
+     * over one would mean the sync never completes.
+     *
+     * @throws CavRequestException when any roster call fails or returns an unusable shape
+     */
+    public function fetchRoster(): RosterFetchResult
+    {
+        $fetchedAt = $this->now();
+        $troopers = [];
+        $errors = [];
+
+        foreach (RosterType::serving() as $roster) {
+            $payload = $this->sendForJson(
+                new FetchRosterRequest($roster),
+                fn (int $status) => CavRequestException::rosterFetchFailed($roster->value, $status),
+            );
+
+            $profiles = $payload['profiles'] ?? null;
+
+            if (! is_array($profiles)) {
+                throw CavRequestException::malformedRoster('it carried no `profiles` map');
+            }
+
+            // A JSON *list* would pass `is_array` while its keys were 0,1,2… — array offsets
+            // that look like valid milpac ids. See CavRosterProfile::findInRoster for the full
+            // rationale; the same fabrication risk applies to a full-roster read.
+            if ($profiles !== [] && array_is_list($profiles)) {
+                throw CavRequestException::malformedRoster('its `profiles` field was a list, not a map keyed by milpac id');
+            }
+
+            foreach ($profiles as $key => $entry) {
+                try {
+                    $cavId = $this->parseRosterKey($key);
+
+                    if (! is_array($entry)) {
+                        throw CavRequestException::malformedProfile('the entry was not an object');
+                    }
+
+                    $troopers[] = CavRosterEntry::fromPayload($cavId, $entry, $fetchedAt);
+                } catch (CavRequestException $e) {
+                    Log::warning('Skipped an unparseable Cav roster entry during a full-roster fetch.', [
+                        'roster' => $roster->value,
+                        'cav_id_key' => $key,
+                        'reason' => $e->getMessage(),
+                    ]);
+
+                    $errors[] = new RosterRowError($key, $e->getMessage());
+                }
+            }
+        }
+
+        return new RosterFetchResult($troopers, $errors);
+    }
+
+    /**
+     * Parse a roster map key via the shared {@see MilpacId::parse()} predicate, reported as a
+     * collectible per-row error here rather than an aborting exception, since an unparseable key
+     * on a full-roster read costs the caller one row, not the whole roster.
+     */
+    private function parseRosterKey(int|string $key): int
+    {
+        return MilpacId::parse($key)
+            ?? throw CavRequestException::malformedProfile("cav id key '{$key}' is not a positive integer");
     }
 
     /**
