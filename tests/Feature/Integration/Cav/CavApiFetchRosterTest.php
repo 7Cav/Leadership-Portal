@@ -10,8 +10,8 @@ use Saloon\Http\Faking\MockResponse;
 
 /**
  * Story 2.1 — `CavApi::fetchRoster()`, the full-roster read seam. Every Cav call is faked at the
- * AD-3 seam per {@see CavEnrichmentTest}'s convention: mocks are keyed by URL, because the sweep
- * issues the same request class three times with different roster types.
+ * AD-3 seam per {@see CavApiTest}'s convention: mocks are keyed by URL, because the sweep issues
+ * the same request class three times with different roster types.
  */
 const FR_COMBAT_URL = 'api.7cav.us/api/v1/roster/ROSTER_TYPE_COMBAT/lite';
 const FR_RESERVE_URL = 'api.7cav.us/api/v1/roster/ROSTER_TYPE_RESERVE/lite';
@@ -47,6 +47,18 @@ function fetchRosterCav(): CavApi
     return new CavApi(['base_url' => 'https://api.7cav.us', 'api_key' => 'cav7_test-key']);
 }
 
+/** Find a trooper in the result's plain array by cav id, for assertion convenience. */
+function frFind(array $troopers, int $cavId): ?object
+{
+    foreach ($troopers as $trooper) {
+        if ($trooper->cavId === $cavId) {
+            return $trooper;
+        }
+    }
+
+    return null;
+}
+
 it('sweeps every serving roster and merges them into one collection', function () {
     MockClient::destroyGlobal();
     MockClient::global([
@@ -56,12 +68,14 @@ it('sweeps every serving roster and merges them into one collection', function (
     ]);
 
     $result = fetchRosterCav()->fetchRoster();
+    $cavIds = array_map(fn ($t) => $t->cavId, $result->troopers);
+    sort($cavIds);
 
     expect($result->troopers)->toHaveCount(3)
-        ->and($result->troopers->pluck('cavId')->sort()->values()->all())->toBe([1, 2, 3])
-        ->and($result->troopers->firstWhere('cavId', 1)->status)->toBe(RosterType::Combat)
-        ->and($result->troopers->firstWhere('cavId', 2)->status)->toBe(RosterType::Reserve)
-        ->and($result->troopers->firstWhere('cavId', 3)->status)->toBe(RosterType::Eloa)
+        ->and($cavIds)->toBe([1, 2, 3])
+        ->and(frFind($result->troopers, 1)->status)->toBe(RosterType::Combat)
+        ->and(frFind($result->troopers, 2)->status)->toBe(RosterType::Reserve)
+        ->and(frFind($result->troopers, 3)->status)->toBe(RosterType::Eloa)
         ->and($result->errors)->toBeEmpty();
 });
 
@@ -92,7 +106,7 @@ it('stamps every trooper with the time of this fetch', function () {
     $result = fetchRosterCav()->fetchRoster();
     CarbonImmutable::setTestNow();
 
-    expect($result->troopers->sole()->fetchedAt)->toEqual(new CarbonImmutable('2026-08-11 12:00:00'));
+    expect($result->troopers[0]->fetchedAt)->toEqual(new CarbonImmutable('2026-08-11 12:00:00'));
 });
 
 it('collects a malformed row instead of aborting the whole roster', function () {
@@ -109,7 +123,7 @@ it('collects a malformed row instead of aborting the whole roster', function () 
     $result = fetchRosterCav()->fetchRoster();
 
     expect($result->troopers)->toHaveCount(1)
-        ->and($result->troopers->sole()->cavId)->toBe(2)
+        ->and($result->troopers[0]->cavId)->toBe(2)
         ->and($result->errors)->toHaveCount(1)
         ->and($result->errors[0]->key)->toBe(1);
 });
@@ -124,8 +138,48 @@ it('collects a row that is not an object rather than aborting', function () {
 
     $result = fetchRosterCav()->fetchRoster();
 
-    expect($result->troopers->pluck('cavId')->all())->toBe([2])
+    expect(array_map(fn ($t) => $t->cavId, $result->troopers))->toBe([2])
         ->and($result->errors)->toHaveCount(1);
+});
+
+it('collects a roster key that is not a positive integer instead of aborting', function (mixed $key) {
+    MockClient::destroyGlobal();
+    MockClient::global([
+        FR_COMBAT_URL => MockResponse::make(['profiles' => [(string) $key => frRosterRow(), '2' => frRosterRow()]]),
+        FR_RESERVE_URL => frEmptyRoster(),
+        FR_ELOA_URL => frEmptyRoster(),
+    ]);
+
+    $result = fetchRosterCav()->fetchRoster();
+
+    // The fractional/exponent/non-digit keys below all cast to strings PHP does NOT coerce to
+    // an int array key, so they survive as the literal string key this asserts on. A key of
+    // '0' or '-5' is the one case PHP *does* coerce to an int key, which is why the id itself is
+    // asserted instead — this is exactly the truncation risk the strict parse guards against.
+    expect(array_map(fn ($t) => $t->cavId, $result->troopers))->toBe([2])
+        ->and($result->errors)->toHaveCount(1);
+})->with([
+    'non-digit string' => ['abc'],
+    'fractional' => ['4.9'],
+    'exponent notation' => ['1e3'],
+    'zero' => ['0'],
+    'negative' => ['-5'],
+]);
+
+it('raises a typed error when a roster response carries no profiles map', function () {
+    MockClient::destroyGlobal();
+    MockClient::global([
+        FR_COMBAT_URL => MockResponse::make(['code' => 13, 'message' => 'internal']),
+        FR_RESERVE_URL => frEmptyRoster(),
+        FR_ELOA_URL => frEmptyRoster(),
+    ]);
+
+    try {
+        fetchRosterCav()->fetchRoster();
+        test()->fail('Expected a CavRequestException.');
+    } catch (CavRequestException $e) {
+        expect($e->reason)->toBe(CavFailureReason::Malformed);
+    }
 });
 
 it('raises a typed error and returns no partial roster when a roster call fails', function () {

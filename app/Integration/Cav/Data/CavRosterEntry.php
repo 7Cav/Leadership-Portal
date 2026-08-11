@@ -17,8 +17,12 @@ use Throwable;
  * milpac relation id, which is always the caller's map key, never the payload's — is strict
  * here. Every other field degrades to null on drift, per AC #6: a bad row costs a caller a
  * field, not the record.
+ *
+ * `tis`/`tig` are the *dates* Cav reports (`joinDate`/`promotionDate`) — points in time, not
+ * durations. A caller wanting an actual time-in-service/time-in-grade span computes it from
+ * these against the current date; that is a display concern, not this seam's.
  */
-readonly class TrooperDto
+readonly class CavRosterEntry
 {
     public function __construct(
         public int $cavId,

@@ -1,9 +1,9 @@
 <?php
 
 use App\Integration\Cav\CavRequestException;
+use App\Integration\Cav\Data\CavRosterEntry;
 use App\Integration\Cav\Data\CavRosterProfile;
 use App\Integration\Cav\Data\RosterType;
-use App\Integration\Cav\Data\TrooperDto;
 use Carbon\CarbonImmutable;
 
 // Pure, app-free unit tests (Pest binds Laravel/DB only to the Feature suite).
@@ -15,7 +15,7 @@ $fetchedAt = new CarbonImmutable('2026-08-03 09:14:00');
  * `forumUserId` requirement here, unlike {@see CavRosterProfile}: a
  * roster row need not resolve to a portal user to still be a valid trooper record.
  */
-function trooperPayload(array $overrides = []): array
+function rosterEntryPayload(array $overrides = []): array
 {
     return [...[
         'user' => ['userId' => '3', 'username' => 'Jarvis.A'],
@@ -39,9 +39,9 @@ function trooperPayload(array $overrides = []): array
     ], ...$overrides];
 }
 
-describe('TrooperDto::fromPayload', function () use ($fetchedAt) {
+describe('CavRosterEntry::fromPayload', function () use ($fetchedAt) {
     it('reads the roster facts, taking the cav id from the caller not the body', function () use ($fetchedAt) {
-        $trooper = TrooperDto::fromPayload(1, trooperPayload(), $fetchedAt);
+        $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload(), $fetchedAt);
 
         expect($trooper->cavId)->toBe(1)
             ->and($trooper->rankShort)->toBe('MG')
@@ -57,13 +57,13 @@ describe('TrooperDto::fromPayload', function () use ($fetchedAt) {
     it('does not require a resolvable forum user id, unlike CavRosterProfile', function () use ($fetchedAt) {
         // A trooper can be on the roster with no forum account linked yet; this DTO must not
         // punish that with a thrown exception the way the identity-focused DTO does.
-        $trooper = TrooperDto::fromPayload(1, trooperPayload(['user' => null]), $fetchedAt);
+        $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload(['user' => null]), $fetchedAt);
 
         expect($trooper->cavId)->toBe(1);
     });
 
     it('normalizes the API\'s "unset object is null" convention to null fields', function () use ($fetchedAt) {
-        $trooper = TrooperDto::fromPayload(1, trooperPayload(['rank' => null, 'primary' => null]), $fetchedAt);
+        $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload(['rank' => null, 'primary' => null]), $fetchedAt);
 
         expect($trooper->rankShort)->toBeNull()
             ->and($trooper->rankFull)->toBeNull()
@@ -71,19 +71,19 @@ describe('TrooperDto::fromPayload', function () use ($fetchedAt) {
     });
 
     it('normalizes the API\'s "unset string is empty" convention to null fields', function () use ($fetchedAt) {
-        $trooper = TrooperDto::fromPayload(1, trooperPayload(['mos' => '']), $fetchedAt);
+        $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload(['mos' => '']), $fetchedAt);
 
         expect($trooper->mos)->toBeNull();
     });
 
     it('maps the API\'s explicit unspecified roster to a null status rather than a magic string', function () use ($fetchedAt) {
-        $trooper = TrooperDto::fromPayload(1, trooperPayload(['roster' => 'ROSTER_TYPE_UNSPECIFIED']), $fetchedAt);
+        $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload(['roster' => 'ROSTER_TYPE_UNSPECIFIED']), $fetchedAt);
 
         expect($trooper->status)->toBeNull();
     });
 
     it('leaves tis/tig null when the API sends no join or promotion date', function () use ($fetchedAt) {
-        $trooper = TrooperDto::fromPayload(1, trooperPayload(['joinDate' => '', 'promotionDate' => '']), $fetchedAt);
+        $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload(['joinDate' => '', 'promotionDate' => '']), $fetchedAt);
 
         expect($trooper->tis)->toBeNull()->and($trooper->tig)->toBeNull();
     });
@@ -91,16 +91,16 @@ describe('TrooperDto::fromPayload', function () use ($fetchedAt) {
     it('leaves tis null on an unparseable join date rather than throwing', function () use ($fetchedAt) {
         // A date field drifting is not identity — it must cost this trooper their TIS badge,
         // not their whole roster record.
-        $trooper = TrooperDto::fromPayload(1, trooperPayload(['joinDate' => 'not-a-date']), $fetchedAt);
+        $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload(['joinDate' => 'not-a-date']), $fetchedAt);
 
         expect($trooper->tis)->toBeNull();
     });
 
     it('rejects an error body returned with a 200 (the API\'s `code`/`message` envelope)', function () use ($fetchedAt) {
-        TrooperDto::fromPayload(1, ['code' => 5, 'message' => 'no profile found', 'details' => []], $fetchedAt);
+        CavRosterEntry::fromPayload(1, ['code' => 5, 'message' => 'no profile found', 'details' => []], $fetchedAt);
     })->throws(CavRequestException::class);
 
     it('rejects a non-positive cav id at construction', function () use ($fetchedAt) {
-        new TrooperDto(cavId: 0, fetchedAt: $fetchedAt);
+        new CavRosterEntry(cavId: 0, fetchedAt: $fetchedAt);
     })->throws(CavRequestException::class);
 });

@@ -2,11 +2,12 @@
 
 namespace App\Integration\Cav;
 
+use App\Integration\Cav\Data\CavRosterEntry;
 use App\Integration\Cav\Data\CavRosterProfile;
+use App\Integration\Cav\Data\MilpacId;
 use App\Integration\Cav\Data\RosterFetchResult;
 use App\Integration\Cav\Data\RosterRowError;
 use App\Integration\Cav\Data\RosterType;
-use App\Integration\Cav\Data\TrooperDto;
 use App\Integration\Cav\Requests\FetchMilpacProfileRequest;
 use App\Integration\Cav\Requests\FetchRosterRequest;
 use Carbon\CarbonImmutable;
@@ -190,7 +191,7 @@ class CavApi
     public function fetchRoster(): RosterFetchResult
     {
         $fetchedAt = $this->now();
-        $troopers = collect();
+        $troopers = [];
         $errors = [];
 
         foreach (RosterType::serving() as $roster) {
@@ -220,7 +221,7 @@ class CavApi
                         throw CavRequestException::malformedProfile('the entry was not an object');
                     }
 
-                    $troopers->push(TrooperDto::fromPayload($cavId, $entry, $fetchedAt));
+                    $troopers[] = CavRosterEntry::fromPayload($cavId, $entry, $fetchedAt);
                 } catch (CavRequestException $e) {
                     Log::warning('Skipped an unparseable Cav roster entry during a full-roster fetch.', [
                         'roster' => $roster->value,
@@ -237,31 +238,14 @@ class CavApi
     }
 
     /**
-     * Parse a roster map key the strict way — mirrors {@see CavRosterProfile}'s id parsing, but
-     * reported as a collectible per-row error here rather than an aborting exception, since an
-     * unparseable key on a full-roster read costs the caller one row, not the whole roster.
+     * Parse a roster map key via the shared {@see MilpacId::parse()} predicate, reported as a
+     * collectible per-row error here rather than an aborting exception, since an unparseable key
+     * on a full-roster read costs the caller one row, not the whole roster.
      */
     private function parseRosterKey(int|string $key): int
     {
-        if (is_int($key)) {
-            if ($key > 0) {
-                return $key;
-            }
-
-            throw CavRequestException::malformedProfile("cav id key {$key} is not a positive integer");
-        }
-
-        if ($key === '' || ! ctype_digit($key)) {
-            throw CavRequestException::malformedProfile("cav id key '{$key}' is not a positive integer");
-        }
-
-        $id = (int) $key;
-
-        if ($id <= 0) {
-            throw CavRequestException::malformedProfile("cav id key '{$key}' is not a positive integer");
-        }
-
-        return $id;
+        return MilpacId::parse($key)
+            ?? throw CavRequestException::malformedProfile("cav id key '{$key}' is not a positive integer");
     }
 
     /**
