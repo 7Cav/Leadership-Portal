@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\ForumAuthController;
 use App\Http\Controllers\SampleController;
+use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\OrgStructureController;
 use App\Http\Controllers\Settings\StaffGrantsController;
 use Illuminate\Support\Facades\Route;
@@ -44,4 +45,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/settings/staff-grants', [StaffGrantsController::class, 'index'])->name('settings.staff-grants');
     Route::post('/settings/staff-grants', [StaffGrantsController::class, 'store'])->name('settings.staff-grants.store');
     Route::delete('/settings/staff-grants/{grant}', [StaffGrantsController::class, 'destroy'])->name('settings.staff-grants.destroy');
+
+    // Audit-log review (Story 1.14). The whole screen is Admin-only (AC #4) — the gate is
+    // enforced in the controller, not route middleware, matching every other Admin gate here.
+    Route::get('/settings/audit-log', [AuditLogController::class, 'index'])->name('settings.audit-log');
 });
