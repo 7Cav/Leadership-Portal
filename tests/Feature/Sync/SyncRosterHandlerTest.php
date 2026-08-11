@@ -197,7 +197,7 @@ it('records a manual sync run under the triggering user id', function () {
     expect(SyncRun::sole()->triggered_by)->toBe('42');
 });
 
-it('records a partial sync run when a row failed to parse, capturing the errored count', function () {
+it('records a partial sync run when a row failed to parse, capturing the errored count and detail', function () {
     MockClient::global([
         SR_COMBAT_URL => MockResponse::make(['profiles' => ['5' => ['code' => 1, 'message' => 'unavailable']]]),
         SR_RESERVE_URL => srEmptyRoster(),
@@ -208,7 +208,28 @@ it('records a partial sync run when a row failed to parse, capturing the errored
 
     $run = SyncRun::sole();
     expect($run->status)->toBe(SyncRunStatus::Partial)
-        ->and($run->errored)->toBe(1);
+        ->and($run->errored)->toBe(1)
+        ->and($run->error)->toContain('5');
+});
+
+it('accumulates the errored count and detail across multiple bad rows', function () {
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => [
+            '5' => ['code' => 1, 'message' => 'unavailable'],
+            '6' => ['code' => 1, 'message' => 'unavailable'],
+        ]]),
+        SR_RESERVE_URL => MockResponse::make(['profiles' => ['7' => ['code' => 1, 'message' => 'unavailable']]]),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    $run = SyncRun::sole();
+    expect($run->status)->toBe(SyncRunStatus::Partial)
+        ->and($run->errored)->toBe(3)
+        ->and($run->error)->toContain('5')
+        ->and($run->error)->toContain('6')
+        ->and($run->error)->toContain('7');
 });
 
 it('records a failed sync run capturing the error when the Cav seam errors', function () {

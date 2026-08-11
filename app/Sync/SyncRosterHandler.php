@@ -5,6 +5,7 @@ namespace App\Sync;
 use App\Integration\Cav\CavApi;
 use App\Integration\Cav\Data\CavRosterEntry;
 use App\Integration\Cav\Data\MilpacId;
+use App\Integration\Cav\Data\RosterRowError;
 use App\Integration\Cav\Data\RosterType;
 use App\Models\TrooperStatus;
 use App\Repositories\SyncRunRepository;
@@ -64,19 +65,38 @@ class SyncRosterHandler
             ];
 
             $counts = $this->troopers->sync($rows, array_values(array_unique($activeCavIds)));
+
+            $this->syncRuns->complete(
+                $run,
+                inserted: $counts['inserted'],
+                updated: $counts['updated'],
+                inactivated: $counts['inactivated'],
+                errored: count($result->errors),
+                error: $this->errorSummary($result->errors),
+            );
         } catch (Throwable $e) {
             $this->syncRuns->fail($run, $e->getMessage());
 
             throw $e;
         }
+    }
 
-        $this->syncRuns->complete(
-            $run,
-            inserted: $counts['inserted'],
-            updated: $counts['updated'],
-            inactivated: $counts['inactivated'],
-            errored: count($result->errors),
-        );
+    /**
+     * The per-row detail for a partial run's `sync_runs.error` column — otherwise a partial run's
+     * `errored` count says *how many* rows were bad with no way to find out *which*.
+     *
+     * @param  list<RosterRowError>  $errors
+     */
+    private function errorSummary(array $errors): ?string
+    {
+        if ($errors === []) {
+            return null;
+        }
+
+        return implode('; ', array_map(
+            fn (RosterRowError $error) => "{$error->key}: {$error->reason}",
+            $errors,
+        ));
     }
 
     /**

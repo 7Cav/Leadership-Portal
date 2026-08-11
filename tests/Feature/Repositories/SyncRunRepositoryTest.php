@@ -42,12 +42,14 @@ it('completes a run as success when nothing errored', function () {
         ->and($run->finished_at)->not->toBeNull();
 });
 
-it('completes a run as partial when rows errored', function () {
+it('completes a run as partial when rows errored, capturing the error detail', function () {
     $run = syncRunRepository()->open('roster', 'system');
 
-    syncRunRepository()->complete($run, inserted: 0, updated: 0, inactivated: 0, errored: 2);
+    syncRunRepository()->complete($run, inserted: 0, updated: 0, inactivated: 0, errored: 2, error: '5: unavailable; 6: unavailable');
 
-    expect($run->refresh()->status)->toBe(SyncRunStatus::Partial);
+    $run->refresh();
+    expect($run->status)->toBe(SyncRunStatus::Partial)
+        ->and($run->error)->toBe('5: unavailable; 6: unavailable');
 });
 
 it('fails a run, capturing the error and leaving counts at zero', function () {
@@ -75,4 +77,12 @@ it('finds the latest successful run for a source, ignoring other sources and non
 
 it('returns null when a source has no successful run', function () {
     expect(syncRunRepository()->latestSuccessful('roster'))->toBeNull();
+});
+
+it('breaks a tie on finished_at by the most recent id', function () {
+    $sameSecond = now();
+    SyncRun::factory()->create(['source' => 'roster', 'finished_at' => $sameSecond]);
+    $latest = SyncRun::factory()->create(['source' => 'roster', 'finished_at' => $sameSecond]);
+
+    expect(syncRunRepository()->latestSuccessful('roster')->id)->toBe($latest->id);
 });

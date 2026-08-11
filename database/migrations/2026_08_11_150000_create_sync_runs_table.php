@@ -28,6 +28,10 @@ return new class extends Migration
             // A user id (manual sync, 2.4) or the literal 'system' (scheduler) — no FK, since
             // 'system' isn't a row in `users` and this table must never block on one existing.
             $table->string('triggered_by');
+
+            // Covers SyncRunRepository::latestSuccessful()'s filtered, ordered read — the 2.8
+            // roster view's "last synced" stamp, on the hot path of every roster page load.
+            $table->index(['source', 'status', 'finished_at']);
         });
     }
 
