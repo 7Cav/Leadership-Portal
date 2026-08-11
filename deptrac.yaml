@@ -10,8 +10,9 @@
 #           composer deptrac:unassigned (list app/ classes that match no layer)
 #
 # The graph (arrows = "may depend on"):
-#   Controller     → CommandHandler, Repository, Model    # writes via Commands; reads direct
-#   CommandHandler → Repository, Model, Integration, Support\Audit  # write-side business logic
+#   Controller     → CommandHandler, Repository, Model, Authorization  # writes via Commands; reads direct
+#   CommandHandler → Repository, Model, Integration, Support\Audit, Authorization  # write-side business logic
+#   Authorization  → Repository, Model                     # ScopeResolver, the single scope gate (AD-8)
 #   Support\Audit  → Repository                             # audited-action envelope (AD-16)
 #   Repository     → Model, DB                             # sole DB access (AD-2)
 #   Model          → DB
@@ -49,6 +50,10 @@ deptrac:
       collectors:
         - type: directory
           value: app/Support/Audit/.*
+    - name: Authorization
+      collectors:
+        - type: directory
+          value: app/Authorization/.*
 
     # ── Boundary layers — matched by fully-qualified class name, not by directory.
     #    They live in vendor/, so they are only ever dependency *targets*. Defining
@@ -89,16 +94,23 @@ deptrac:
       - CommandHandler
       - Repository
       - Model
+      - Authorization
     CommandHandler:
       - Repository
       - Model
       - Integration
       - Support\Audit
+      - Authorization
     # Reaches AuditLogRepository to write the audit_log row — the one place outside
     # Repositories/ that needs a DB-writing path, so it goes through the Repository layer
     # rather than touching DB itself (AD-2 unchanged).
     Support\Audit:
       - Repository
+    # ScopeResolver reads the org tree and grants through Repositories/ only (AD-2, AD-8);
+    # it never touches the DB or an external system directly.
+    Authorization:
+      - Repository
+      - Model
     Repository:
       - Model
       - DB
@@ -119,6 +131,7 @@ deptrac:
       - Repository
       - Model
       - Integration
+      - Authorization
       - DB
     # Request glue (Inertia shared props). No app-layer dependency yet; when auth shares
     # the current user, add the layers it reads here.

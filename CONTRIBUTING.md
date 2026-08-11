@@ -53,9 +53,9 @@ Route → Controller ─┬─ (write) Command → CommandHandler ─┐
 
 **Planned layers, not yet enforced.** These directories exist as placeholders and are
 added back to `deptrac.yaml` — consciously, with their edges — when their stories land:
-`Sync/` (one-writer cache sync, AD-4), `Authorization/` (ScopeResolver, policies, view-as,
-AD-6/7/8/9), and `Support/Audit/` (the audited-action envelope, AD-16). Until then they
-carry no enforced edge.
+`Sync/` (one-writer cache sync, AD-4). Until then it carries no enforced edge.
+`Authorization/` (ScopeResolver, policies, view-as, AD-6/7/8/9) entered the graph in
+Story 1.11; `Support/Audit/` (the audited-action envelope, AD-16) in Story 1.10.
 
 Each layer directory has a `README.md` explaining its rules — read the one for the layer
 you're touching. The forbidden moves that catch people: **Controller → Integration** (an
