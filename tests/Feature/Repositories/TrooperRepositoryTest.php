@@ -9,10 +9,10 @@ use App\Repositories\TrooperRepository;
 // truncate-and-reinsert, and a departed trooper is marked inactive rather than deleted — these
 // tests exercise exactly those invariants, not just that a row lands.
 
-it('inserts a new row for an unseen cav_id', function () {
+it('inserts a new row for an unseen cav_id, reporting it as an insert', function () {
     $repo = app(TrooperRepository::class);
 
-    $repo->upsertActive([
+    $counts = $repo->upsertActive([
         ['cav_id' => 42, 'rank' => 'Sergeant', 'mos' => '11B', 'tis' => '2020-01-01', 'tig' => '2022-01-01', 'status' => TrooperStatus::Combat->value],
     ]);
 
@@ -20,10 +20,11 @@ it('inserts a new row for an unseen cav_id', function () {
 
     expect($trooper->rank)->toBe('Sergeant')
         ->and($trooper->mos)->toBe('11B')
-        ->and($trooper->status)->toBe(TrooperStatus::Combat);
+        ->and($trooper->status)->toBe(TrooperStatus::Combat)
+        ->and($counts)->toBe(['inserted' => 1, 'updated' => 0]);
 });
 
-it('updates an existing row in place, leaving the internal PK unchanged', function () {
+it('updates an existing row in place, leaving the internal PK unchanged, reporting it as an update', function () {
     $repo = app(TrooperRepository::class);
 
     $repo->upsertActive([
@@ -31,7 +32,7 @@ it('updates an existing row in place, leaving the internal PK unchanged', functi
     ]);
     $originalId = Trooper::where('cav_id', 42)->sole()->id;
 
-    $repo->upsertActive([
+    $counts = $repo->upsertActive([
         ['cav_id' => 42, 'rank' => 'Corporal', 'mos' => '11B', 'tis' => null, 'tig' => null, 'status' => TrooperStatus::Reserve->value],
     ]);
 
@@ -40,19 +41,59 @@ it('updates an existing row in place, leaving the internal PK unchanged', functi
     expect(Trooper::count())->toBe(1)
         ->and($trooper->id)->toBe($originalId)
         ->and($trooper->rank)->toBe('Corporal')
-        ->and($trooper->status)->toBe(TrooperStatus::Reserve);
+        ->and($trooper->status)->toBe(TrooperStatus::Reserve)
+        ->and($counts)->toBe(['inserted' => 0, 'updated' => 1]);
 });
 
-it('marks every cav_id outside the active set as inactive, retaining the row', function () {
+it('counts several inserts and updates independently in one batch', function () {
+    $repo = app(TrooperRepository::class);
+    Trooper::factory()->create(['cav_id' => 1, 'status' => TrooperStatus::Combat]);
+    Trooper::factory()->create(['cav_id' => 2, 'status' => TrooperStatus::Combat]);
+
+    $counts = $repo->upsertActive([
+        ['cav_id' => 1, 'rank' => 'Sergeant', 'mos' => '11B', 'tis' => null, 'tig' => null, 'status' => TrooperStatus::Combat->value],
+        ['cav_id' => 2, 'rank' => 'Sergeant', 'mos' => '11B', 'tis' => null, 'tig' => null, 'status' => TrooperStatus::Combat->value],
+        ['cav_id' => 3, 'rank' => 'Sergeant', 'mos' => '11B', 'tis' => null, 'tig' => null, 'status' => TrooperStatus::Combat->value],
+        ['cav_id' => 4, 'rank' => 'Sergeant', 'mos' => '11B', 'tis' => null, 'tig' => null, 'status' => TrooperStatus::Combat->value],
+    ]);
+
+    expect($counts)->toBe(['inserted' => 2, 'updated' => 2]);
+});
+
+it('counts a cav_id repeated within the same batch as one insert then one update', function () {
+    $repo = app(TrooperRepository::class);
+
+    $counts = $repo->upsertActive([
+        ['cav_id' => 1, 'rank' => 'Private', 'mos' => '11B', 'tis' => null, 'tig' => null, 'status' => TrooperStatus::Combat->value],
+        ['cav_id' => 1, 'rank' => 'Corporal', 'mos' => '11B', 'tis' => null, 'tig' => null, 'status' => TrooperStatus::Combat->value],
+    ]);
+
+    expect(Trooper::count())->toBe(1)
+        ->and(Trooper::sole()->rank)->toBe('Corporal')
+        ->and($counts)->toBe(['inserted' => 1, 'updated' => 1]);
+});
+
+it('marks every cav_id outside the active set as inactive, retaining the row, reporting the count flipped', function () {
     $repo = app(TrooperRepository::class);
     $stillActive = Trooper::factory()->create(['cav_id' => 1, 'status' => TrooperStatus::Combat]);
     $departed = Trooper::factory()->create(['cav_id' => 2, 'status' => TrooperStatus::Combat]);
 
-    $repo->markDepartedExcept([$stillActive->cav_id]);
+    $inactivated = $repo->markDepartedExcept([$stillActive->cav_id]);
 
     expect(Trooper::count())->toBe(2)
         ->and($stillActive->refresh()->status)->toBe(TrooperStatus::Combat)
-        ->and($departed->refresh()->status)->toBe(TrooperStatus::Inactive);
+        ->and($departed->refresh()->status)->toBe(TrooperStatus::Inactive)
+        ->and($inactivated)->toBe(1);
+});
+
+it('reports zero inactivated when the active set already covers every cached row', function () {
+    $repo = app(TrooperRepository::class);
+    $trooper = Trooper::factory()->create(['cav_id' => 1, 'status' => TrooperStatus::Combat]);
+
+    $inactivated = $repo->markDepartedExcept([$trooper->cav_id]);
+
+    expect($inactivated)->toBe(0)
+        ->and($trooper->refresh()->status)->toBe(TrooperStatus::Combat);
 });
 
 it('reactivates a previously-departed trooper by cav_id rather than duplicating the row', function () {
@@ -91,15 +132,16 @@ it('leaves primary_section_id untouched by an upsert — that column belongs to 
     expect(Trooper::where('cav_id', 1)->sole()->primary_section_id)->toBe($section->id);
 });
 
-it('wraps upsert and departure marking in one transaction via sync()', function () {
+it('wraps upsert and departure marking in one transaction via sync(), returning both counts', function () {
     $repo = app(TrooperRepository::class);
     $departed = Trooper::factory()->create(['cav_id' => 2, 'status' => TrooperStatus::Combat]);
 
-    $repo->sync(
+    $counts = $repo->sync(
         [['cav_id' => 1, 'rank' => 'Sergeant', 'mos' => '11B', 'tis' => null, 'tig' => null, 'status' => TrooperStatus::Combat->value]],
         [1],
     );
 
     expect(Trooper::where('cav_id', 1)->sole()->status)->toBe(TrooperStatus::Combat)
-        ->and($departed->refresh()->status)->toBe(TrooperStatus::Inactive);
+        ->and($departed->refresh()->status)->toBe(TrooperStatus::Inactive)
+        ->and($counts)->toBe(['inserted' => 1, 'updated' => 0, 'inactivated' => 1]);
 });
