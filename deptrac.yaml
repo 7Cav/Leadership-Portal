@@ -12,6 +12,7 @@
 # The graph (arrows = "may depend on"):
 #   Controller     → CommandHandler, Repository, Model, Authorization  # writes via Commands; reads direct
 #   CommandHandler → Repository, Model, Integration, Support\Audit, Authorization  # write-side business logic
+#   Sync           → Repository, Model, Integration        # one-writer cache sync handlers (AD-4)
 #   Authorization  → Repository, Model                     # ScopeResolver, the single scope gate (AD-8)
 #   Support\Audit  → Repository                             # audited-action envelope (AD-16)
 #   Repository     → Model, DB                             # sole DB access (AD-2)
@@ -54,6 +55,10 @@ deptrac:
       collectors:
         - type: directory
           value: app/Authorization/.*
+    - name: Sync
+      collectors:
+        - type: directory
+          value: app/Sync/.*
 
     # ── Boundary layers — matched by fully-qualified class name, not by directory.
     #    They live in vendor/, so they are only ever dependency *targets*. Defining
@@ -101,6 +106,13 @@ deptrac:
       - Integration
       - Support\Audit
       - Authorization
+    # One-writer cache sync handler (AD-4, AD-22): reads the source of truth through
+    # Integration and persists only through its Repository — the same write-side shape
+    # as CommandHandler, minus Support\Audit (sync runs record to sync_runs instead, AD-16).
+    Sync:
+      - Repository
+      - Model
+      - Integration
     # Reaches AuditLogRepository to write the audit_log row — the one place outside
     # Repositories/ that needs a DB-writing path, so it goes through the Repository layer
     # rather than touching DB itself (AD-2 unchanged).
