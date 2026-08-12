@@ -4,9 +4,6 @@ namespace App\Repositories;
 
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Throwable;
 
 /**
  * Sole DB access for the portal-owned identity link (AD-2).
@@ -15,20 +12,14 @@ use Throwable;
  * Deptrac forbids Repository → Integration, so the CommandHandler unpacks the DTO
  * and hands the primitives here.
  */
-class UserRepository
+interface UserRepository
 {
     /**
      * Create or update the identity row for a forum user, keyed on `forum_user_id`
      * so a re-login updates the existing row and never creates a duplicate.
      * `cav_id` is deliberately left untouched — roster enrichment (Story 1.6) owns it.
      */
-    public function upsertFromForumIdentity(int $forumUserId, string $username, ?string $email): User
-    {
-        return User::updateOrCreate(
-            ['forum_user_id' => $forumUserId],
-            ['username' => $username, 'email' => $email],
-        );
-    }
+    public function upsertFromForumIdentity(int $forumUserId, string $username, ?string $email): User;
 
     /**
      * Link the trooper's milpac relation id (Story 1.6). This is the one roster-derived value
@@ -62,45 +53,16 @@ class UserRepository
      *
      * @throws IdentityLinkException when the link could not be written
      */
-    public function linkCavId(User $user, int $cavId): User
-    {
-        try {
-            $this->writeCavIdLink($user, $cavId);
-        } catch (Throwable $e) {
-            // `Throwable`, not `QueryException`. `DB::transaction()` does not wrap the BEGIN or
-            // COMMIT it issues: `ManagesTransactions::commit()` calls `$pdo->commit()` directly
-            // and `handleCommitTransactionException()` rethrows as-is, so a lost connection at
-            // commit arrives as a raw `PDOException` — and `QueryException extends PDOException`,
-            // not the reverse, so catching the narrower type misses it. It would then escape all
-            // the way out and 500 a request where `Auth::login()` has already run. Translating
-            // everything here is the repository honouring its own contract: nothing DB-shaped
-            // leaves this layer.
-            throw IdentityLinkException::cavIdNotLinked((int) $user->getKey(), $cavId, $e);
-        }
-
-        return $user;
-    }
+    public function linkCavId(User $user, int $cavId): User;
 
     /**
      * Drop the trooper's milpac link (Story 1.6). Used when the stored id has been shown not to
      * belong to them, so the row stops asserting an identity the portal knows to be wrong. Their
      * next login re-resolves from scratch, which is the same path a first-time user takes.
      */
-    public function unlinkCavId(User $user): User
-    {
-        try {
-            $user->update(['cav_id' => null]);
-        } catch (Throwable $e) {
-            throw IdentityLinkException::cavIdNotUnlinked((int) $user->getKey(), $e);
-        }
+    public function unlinkCavId(User $user): User;
 
-        return $user;
-    }
-
-    public function find(int $id): ?User
-    {
-        return User::find($id);
-    }
+    public function find(int $id): ?User;
 
     /**
      * Every user who is not an Admin, for the staff-grants target picker (Story 1.12). No
@@ -110,30 +72,5 @@ class UserRepository
      *
      * @return Collection<int, User>
      */
-    public function nonAdminUsers(): Collection
-    {
-        return User::query()->where('is_admin', false)->orderBy('username')->get();
-    }
-
-    private function writeCavIdLink(User $user, int $cavId): void
-    {
-        DB::transaction(function () use ($user, $cavId) {
-            $displaced = User::where('cav_id', $cavId)
-                ->whereKeyNot($user->getKey())
-                ->lockForUpdate()
-                ->pluck('id');
-
-            if ($displaced->isNotEmpty()) {
-                Log::warning('Reassigning a Cav milpac id; clearing it from its previous holder.', [
-                    'cav_id' => $cavId,
-                    'from_user_ids' => $displaced->all(),
-                    'to_user_id' => $user->getKey(),
-                ]);
-
-                User::whereIn('id', $displaced)->update(['cav_id' => null]);
-            }
-
-            $user->update(['cav_id' => $cavId]);
-        });
-    }
+    public function nonAdminUsers(): Collection;
 }

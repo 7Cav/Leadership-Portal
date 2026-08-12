@@ -2,16 +2,12 @@
 
 namespace App\Repositories;
 
-use App\Models\Trooper;
-use App\Models\TrooperStatus;
-use Illuminate\Support\Facades\DB;
-
 /**
  * Sole DB access for the cached roster (AD-2, AD-4). `Sync\SyncRosterHandler` is the only caller
  * of the writes here — this class enforces the upsert/never-delete shape AD-4 requires, but it
  * is the handler's job to decide *which* rows are active.
  */
-class TrooperRepository
+interface TrooperRepository
 {
     /**
      * Upsert the active rows and mark everyone else departed as one transaction, so a crash
@@ -25,15 +21,7 @@ class TrooperRepository
      * @param  list<int>  $activeCavIds
      * @return array{inserted: int, updated: int, inactivated: int}
      */
-    public function sync(array $rows, array $activeCavIds): array
-    {
-        return DB::transaction(function () use ($rows, $activeCavIds) {
-            $upserted = $this->upsertActive($rows);
-            $inactivated = $this->markDepartedExcept($activeCavIds);
-
-            return [...$upserted, 'inactivated' => $inactivated];
-        });
-    }
+    public function sync(array $rows, array $activeCavIds): array;
 
     /**
      * Upsert every row keyed by `cav_id`, updating an existing trooper's synced columns in place
@@ -43,28 +31,7 @@ class TrooperRepository
      * @param  list<array{cav_id: int, rank: ?string, mos: ?string, tis: mixed, tig: mixed, status: string}>  $rows
      * @return array{inserted: int, updated: int}
      */
-    public function upsertActive(array $rows): array
-    {
-        $inserted = 0;
-        $updated = 0;
-
-        foreach ($rows as $row) {
-            $trooper = Trooper::updateOrCreate(
-                ['cav_id' => $row['cav_id']],
-                [
-                    'rank' => $row['rank'],
-                    'mos' => $row['mos'],
-                    'tis' => $row['tis'],
-                    'tig' => $row['tig'],
-                    'status' => $row['status'],
-                ],
-            );
-
-            $trooper->wasRecentlyCreated ? $inserted++ : $updated++;
-        }
-
-        return ['inserted' => $inserted, 'updated' => $updated];
-    }
+    public function upsertActive(array $rows): array;
 
     /**
      * Flip every cached trooper whose `cav_id` is not in `$activeCavIds` to inactive — retained,
@@ -74,11 +41,5 @@ class TrooperRepository
      *
      * @param  list<int>  $activeCavIds
      */
-    public function markDepartedExcept(array $activeCavIds): int
-    {
-        return Trooper::query()
-            ->whereNotIn('cav_id', $activeCavIds)
-            ->where('status', '!=', TrooperStatus::Inactive->value)
-            ->update(['status' => TrooperStatus::Inactive->value]);
-    }
+    public function markDepartedExcept(array $activeCavIds): int;
 }
