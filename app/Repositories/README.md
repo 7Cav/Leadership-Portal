@@ -11,5 +11,6 @@ dev so a query escaping this layer via lazy-loading throws loudly.
 **Shape:** every repository is a contract, with exactly one implementation registered
 against it today. `{Name}Repository.php` is an `interface` — method signatures and their
 docblocks only, no bodies. `{Name}Repository/Eloquent.php` holds `class Eloquent implements
-{Name}Repository` with the actual Eloquent access. A new repository needs a `bind()` line
-for its interface in `AppServiceProvider::register()`, next to the existing five.
+{Name}Repository` with the actual Eloquent access. A new repository needs no wiring:
+`App\Providers\RepositoryServiceBinder` binds every `{Name}Repository` interface here to its
+`{Name}Repository\Eloquent` implementation by convention, so adding the two files is enough.

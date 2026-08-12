@@ -4,12 +4,6 @@ namespace App\Providers;
 
 use App\Integration\Cav\CavApi;
 use App\Integration\Forum\ForumApi;
-use App\Repositories\AuditLogRepository;
-use App\Repositories\PortalRoleGrantRepository;
-use App\Repositories\SyncRunRepository;
-use App\Repositories\TrooperRepository;
-use App\Repositories\UnitRepository;
-use App\Repositories\UserRepository;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\ServiceProvider;
 
@@ -28,13 +22,9 @@ class AppServiceProvider extends ServiceProvider
         // (env only, AD-23) here in the composition root, not inside the seam.
         $this->app->singleton(CavApi::class, fn () => new CavApi(config('services.cav')));
 
-        // Repository contracts (AD-2), each with exactly one implementation registered today.
-        $this->app->bind(AuditLogRepository::class, AuditLogRepository\Eloquent::class);
-        $this->app->bind(PortalRoleGrantRepository::class, PortalRoleGrantRepository\Eloquent::class);
-        $this->app->bind(SyncRunRepository::class, SyncRunRepository\Eloquent::class);
-        $this->app->bind(TrooperRepository::class, TrooperRepository\Eloquent::class);
-        $this->app->bind(UnitRepository::class, UnitRepository\Eloquent::class);
-        $this->app->bind(UserRepository::class, UserRepository\Eloquent::class);
+        // Repository contracts (AD-2), each with exactly one implementation registered today,
+        // bound by convention — see RepositoryServiceBinder.
+        (new RepositoryServiceBinder)->bind($this->app);
     }
 
     /**
