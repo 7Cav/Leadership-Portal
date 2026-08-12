@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\ForumAuthController;
 use App\Http\Controllers\SampleController;
 use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\OrgStructureController;
+use App\Http\Controllers\Settings\RosterSyncController;
 use App\Http\Controllers\Settings\StaffGrantsController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -49,4 +50,9 @@ Route::middleware('auth')->group(function () {
     // Audit-log review (Story 1.14). The whole screen is Admin-only (AC #4) — the gate is
     // enforced in the controller, not route middleware, matching every other Admin gate here.
     Route::get('/settings/audit-log', [AuditLogController::class, 'index'])->name('settings.audit-log');
+
+    // Manual roster sync trigger (Story 2.4). No GET view yet — the roster screen that will
+    // host this control is Story 2.8's. The Admin gate is enforced in the controller (AD-6),
+    // matching every other admin-gated write here.
+    Route::post('/settings/roster-sync', [RosterSyncController::class, 'store'])->name('settings.roster-sync.store');
 });
