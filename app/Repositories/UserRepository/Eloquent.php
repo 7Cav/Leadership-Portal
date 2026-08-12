@@ -63,6 +63,21 @@ class Eloquent implements UserRepository
         return User::query()->where('is_admin', false)->orderBy('username')->get();
     }
 
+    /**
+     * What the transaction does **not** do is make concurrent logins collision-free, and it is
+     * worth being precise since a future reader will trust this comment. The `lockForUpdate()`
+     * below takes a record lock only when a row actually holds the id, which correctly
+     * serializes the *displacement* case. When no row holds it, InnoDB takes a gap lock instead,
+     * and gap locks are mutually compatible — so two logins resolving the same new id can both
+     * pass the SELECT and then deadlock on the insert-intention lock. Either way the failure
+     * surfaces as a `QueryException` from inside the callback and is translated in
+     * {@see linkCavId()}'s catch, so the login degrades rather than 500s; the race is narrowed
+     * and made survivable, not eliminated.
+     *
+     * The unlink is logged because it *destroys* a portal-owned link on the strength of an
+     * external payload. When Epic 2's sync or a later scope decision reads that null, this line
+     * is the only thing that will explain it.
+     */
     private function writeCavIdLink(User $user, int $cavId): void
     {
         DB::transaction(function () use ($user, $cavId) {
