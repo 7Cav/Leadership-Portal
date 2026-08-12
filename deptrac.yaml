@@ -10,8 +10,9 @@
 #           composer deptrac:unassigned (list app/ classes that match no layer)
 #
 # The graph (arrows = "may depend on"):
-#   Controller     → CommandHandler, Repository, Model, Authorization  # writes via Commands; reads direct
+#   Controller     → CommandHandler, Repository, Model, Authorization, Job  # writes via Commands; reads direct
 #   CommandHandler → Repository, Model, Integration, Support\Audit, Authorization  # write-side business logic
+#   Job            → Sync                                  # queued jobs invoke a Sync handler (Story 2.4)
 #   Sync           → Repository, Model, Integration        # one-writer cache sync handlers (AD-4)
 #   Authorization  → Repository, Model                     # ScopeResolver, the single scope gate (AD-8)
 #   Support\Audit  → Repository                             # audited-action envelope (AD-16)
@@ -59,6 +60,13 @@ deptrac:
       collectors:
         - type: directory
           value: app/Sync/.*
+    # Queued jobs (Story 2.4): the scheduler and a manual-trigger controller both dispatch a
+    # Job, which does nothing but invoke a Sync handler — the async wrapper AD-23 requires
+    # around a slow external sync, kept out of the request path.
+    - name: Job
+      collectors:
+        - type: directory
+          value: app/Jobs/.*
 
     # ── Boundary layers — matched by fully-qualified class name, not by directory.
     #    They live in vendor/, so they are only ever dependency *targets*. Defining
@@ -100,6 +108,7 @@ deptrac:
       - Repository
       - Model
       - Authorization
+      - Job
     CommandHandler:
       - Repository
       - Model
@@ -113,6 +122,10 @@ deptrac:
       - Repository
       - Model
       - Integration
+    # A queued job is a thin wrapper — its whole job is calling into its Sync handler
+    # off the request path (AD-23). No DB/external access of its own.
+    Job:
+      - Sync
     # Reaches AuditLogRepository to write the audit_log row — the one place outside
     # Repositories/ that needs a DB-writing path, so it goes through the Repository layer
     # rather than touching DB itself (AD-2 unchanged).
