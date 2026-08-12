@@ -21,6 +21,10 @@ class AppServiceProvider extends ServiceProvider
         // The Cav roster seam (AD-3). Same reasoning: the bearer key is read from config
         // (env only, AD-23) here in the composition root, not inside the seam.
         $this->app->singleton(CavApi::class, fn () => new CavApi(config('services.cav')));
+
+        // Repository contracts (AD-2), each with exactly one implementation registered today,
+        // bound by convention — see RepositoryServiceBinder.
+        (new RepositoryServiceBinder)->bind($this->app);
     }
 
     /**
