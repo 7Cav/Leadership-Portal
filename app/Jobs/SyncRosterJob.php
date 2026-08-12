@@ -6,6 +6,8 @@ use App\Sync\SyncRosterHandler;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * The queued wrapper the scheduler and the manual-trigger controller both dispatch (Story 2.4,
@@ -43,5 +45,19 @@ class SyncRosterJob implements ShouldQueue
     public function middleware(): array
     {
         return [(new WithoutOverlapping('roster'))->releaseAfter(60)->expireAfter(3600)];
+    }
+
+    /**
+     * `SyncRosterHandler` already records the failed `sync_runs` row (Story 2.3) — this exists
+     * only so exhausting every retry leaves a trace outside that table too. Nothing reads
+     * `sync_runs` yet (that's Story 2.8), so without this a run failing five times in a row would
+     * be visible only by cross-referencing `failed_jobs` against `sync_runs` by hand.
+     */
+    public function failed(Throwable $e): void
+    {
+        Log::error('Roster sync exhausted every retry.', [
+            'triggeredBy' => $this->triggeredBy,
+            'exception' => $e->getMessage(),
+        ]);
     }
 }

@@ -3,6 +3,7 @@
 use App\Jobs\SyncRosterJob;
 use Illuminate\Contracts\Queue\Job as QueueJobContract;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Story 2.4, AC #2/#7 — a manual trigger (or a second scheduled tick) fired while a roster
@@ -46,4 +47,13 @@ it('bounds the job to a timeout well under the lock\'s hour-long expiry', functi
 
     expect($job->timeout)->toBeGreaterThan(0);
     expect($job->timeout)->toBeLessThan($lockExpiry);
+});
+
+it('logs when every retry is exhausted, so a failure has a trace beyond sync_runs (Story 2.8 reads that table, nothing does yet)', function () {
+    Log::shouldReceive('error')->once()->with(
+        'Roster sync exhausted every retry.',
+        ['triggeredBy' => 7, 'exception' => 'Cav API unreachable'],
+    );
+
+    (new SyncRosterJob(7))->failed(new Exception('Cav API unreachable'));
 });
