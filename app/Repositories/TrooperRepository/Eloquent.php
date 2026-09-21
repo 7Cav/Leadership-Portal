@@ -49,4 +49,17 @@ class Eloquent implements TrooperRepository
             ->where('status', '!=', TrooperStatus::Inactive->value)
             ->update(['status' => TrooperStatus::Inactive->value]);
     }
+
+    public function updatePrimarySections(array $cavIdToSectionId): int
+    {
+        $updated = 0;
+
+        foreach ($cavIdToSectionId as $cavId => $sectionId) {
+            $updated += Trooper::query()
+                ->where('cav_id', $cavId)
+                ->update(['primary_section_id' => $sectionId]);
+        }
+
+        return $updated;
+    }
 }

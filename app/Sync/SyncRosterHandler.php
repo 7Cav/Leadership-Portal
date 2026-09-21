@@ -10,6 +10,7 @@ use App\Integration\Cav\Data\RosterType;
 use App\Models\TrooperStatus;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
+use App\Repositories\UnitBilletMappingRepository;
 use Throwable;
 
 /**
@@ -23,6 +24,12 @@ use Throwable;
  * Every call opens and closes a `sync_runs` row (Story 2.3, AD-16's carve-out for system jobs —
  * this does not route through the per-Command audited-action envelope). `$triggeredBy` defaults
  * to `'system'` since the scheduler (2.4) is, for now, the only caller.
+ *
+ * Mapping each trooper into their primary section (2.5) runs after the upsert above, as a second
+ * write rather than inside the same transaction: 2.2's `TrooperRepository::sync()` contract is
+ * already shipped and tested, and the mapping step is idempotent — recomputed fresh from the
+ * billet table on every run, so a crash between the two writes self-heals on the very next
+ * scheduled sync rather than needing its own recovery path.
  */
 class SyncRosterHandler
 {
@@ -30,6 +37,7 @@ class SyncRosterHandler
         private readonly CavApi $cavApi,
         private readonly TrooperRepository $troopers,
         private readonly SyncRunRepository $syncRuns,
+        private readonly UnitBilletMappingRepository $billetMappings,
     ) {}
 
     public function handle(int|string $triggeredBy = 'system'): void
@@ -66,6 +74,8 @@ class SyncRosterHandler
 
             $counts = $this->troopers->sync($rows, array_values(array_unique($activeCavIds)));
 
+            $this->troopers->updatePrimarySections($this->resolveSections($result->troopers));
+
             $this->syncRuns->complete(
                 $run,
                 inserted: $counts['inserted'],
@@ -97,6 +107,31 @@ class SyncRosterHandler
             fn (RosterRowError $error) => "{$error->key}: {$error->reason}",
             $errors,
         ));
+    }
+
+    /**
+     * Resolve each fetched trooper's billet to a section unit id via the curated
+     * `unit_billet_mappings` table (2.5) — a trooper with no `positionId` (2.1, AC #6's per-field
+     * degrade) or whose billet has no mapping is simply absent from the returned map rather than
+     * carrying a null, so {@see TrooperRepository::updatePrimarySections()} leaves their existing
+     * value untouched instead of nulling it.
+     *
+     * @param  list<CavRosterEntry>  $entries
+     * @return array<int, int> cav_id => units.id
+     */
+    private function resolveSections(array $entries): array
+    {
+        $sectionIdsByPosition = $this->billetMappings->sectionIdsByPositionId();
+
+        $resolved = [];
+
+        foreach ($entries as $entry) {
+            if ($entry->positionId !== null && $sectionIdsByPosition->has($entry->positionId)) {
+                $resolved[$entry->cavId] = $sectionIdsByPosition->get($entry->positionId);
+            }
+        }
+
+        return $resolved;
     }
 
     /**

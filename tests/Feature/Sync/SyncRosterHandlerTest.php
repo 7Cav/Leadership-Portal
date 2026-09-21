@@ -7,8 +7,12 @@ use App\Models\SyncRun;
 use App\Models\SyncRunStatus;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
+use App\Models\Unit;
+use App\Models\UnitBilletMapping;
+use App\Models\UnitType;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
+use App\Repositories\UnitBilletMappingRepository;
 use App\Sync\SyncRosterHandler;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
@@ -54,7 +58,12 @@ function syncRosterCavApi(): CavApi
 
 function syncRosterHandler(): SyncRosterHandler
 {
-    return new SyncRosterHandler(syncRosterCavApi(), app(TrooperRepository::class), app(SyncRunRepository::class));
+    return new SyncRosterHandler(
+        syncRosterCavApi(),
+        app(TrooperRepository::class),
+        app(SyncRunRepository::class),
+        app(UnitBilletMappingRepository::class),
+    );
 }
 
 beforeEach(function () {
@@ -260,4 +269,86 @@ it('does not write an audit_log row for a sync run', function () {
     syncRosterHandler()->handle();
 
     expect(AuditLogEntry::count())->toBe(0);
+});
+
+// 2.5 — mapping a trooper's billet (positionId) to a section unit via the curated
+// unit_billet_mappings table, on the same sync run that upserts them.
+
+it("resolves a trooper's primary_section_id from their billet mapping", function () {
+    $section = Unit::factory()->create(['type' => UnitType::Section]);
+    UnitBilletMapping::factory()->create(['unit_id' => $section->id, 'cav_position_id' => 773]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT')]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    expect(Trooper::where('cav_id', 1)->sole()->primary_section_id)->toBe($section->id);
+});
+
+it('leaves primary_section_id null when the billet has no mapping', function () {
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT')]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    expect(Trooper::where('cav_id', 1)->sole()->primary_section_id)->toBeNull();
+});
+
+it('re-resolves a trooper into a new section automatically when the mapping changes (reorg)', function () {
+    $oldSection = Unit::factory()->create(['type' => UnitType::Section]);
+    $mapping = UnitBilletMapping::factory()->create(['unit_id' => $oldSection->id, 'cav_position_id' => 773]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT')]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+    syncRosterHandler()->handle();
+    expect(Trooper::where('cav_id', 1)->sole()->primary_section_id)->toBe($oldSection->id);
+
+    $newSection = Unit::factory()->create(['type' => UnitType::Section]);
+    $mapping->update(['unit_id' => $newSection->id]);
+
+    syncRosterHandler()->handle();
+
+    expect(Trooper::where('cav_id', 1)->sole()->primary_section_id)->toBe($newSection->id);
+});
+
+it('leaves an existing primary_section_id untouched when the billet no longer resolves', function () {
+    // Forward-looking to 2.7's manual placement: the sync must never re-null a trooper it simply
+    // can't resolve anymore — only ever overwrite when it *does* resolve.
+    $section = Unit::factory()->create(['type' => UnitType::Section]);
+    Trooper::factory()->create(['cav_id' => 1, 'primary_section_id' => $section->id, 'status' => TrooperStatus::Combat]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT')]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    expect(Trooper::where('cav_id', 1)->sole()->primary_section_id)->toBe($section->id);
+});
+
+it('does not resolve a mapping that points at a non-section unit', function () {
+    $platoon = Unit::factory()->create(['type' => UnitType::Platoon]);
+    UnitBilletMapping::factory()->create(['unit_id' => $platoon->id, 'cav_position_id' => 773]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT')]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    expect(Trooper::where('cav_id', 1)->sole()->primary_section_id)->toBeNull();
 });
