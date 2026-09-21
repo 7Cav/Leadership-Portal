@@ -47,6 +47,7 @@ describe('CavRosterEntry::fromPayload', function () use ($fetchedAt) {
             ->and($trooper->rankShort)->toBe('MG')
             ->and($trooper->rankFull)->toBe('Major General')
             ->and($trooper->billet)->toBe('Regimental Technical Aide')
+            ->and($trooper->positionId)->toBe(773)
             ->and($trooper->mos)->toBe('255N')
             ->and($trooper->tis)->toEqual(new CarbonImmutable('2012-05-18'))
             ->and($trooper->tig)->toEqual(new CarbonImmutable('2025-05-16'))
@@ -67,7 +68,28 @@ describe('CavRosterEntry::fromPayload', function () use ($fetchedAt) {
 
         expect($trooper->rankShort)->toBeNull()
             ->and($trooper->rankFull)->toBeNull()
-            ->and($trooper->billet)->toBeNull();
+            ->and($trooper->billet)->toBeNull()
+            ->and($trooper->positionId)->toBeNull();
+    });
+
+    it('leaves positionId null when the primary position carries no positionId', function () use ($fetchedAt) {
+        $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload(['primary' => ['positionTitle' => 'Rifleman', 'positionId' => '']]), $fetchedAt);
+
+        expect($trooper->positionId)->toBeNull()
+            ->and($trooper->billet)->toBe('Rifleman');
+    });
+
+    it('leaves positionId null on a non-numeric positionId rather than throwing', function () use ($fetchedAt) {
+        // A drift here must cost this trooper their section mapping (2.5), not their whole record.
+        $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload(['primary' => ['positionTitle' => 'Rifleman', 'positionId' => 'not-a-number']]), $fetchedAt);
+
+        expect($trooper->positionId)->toBeNull();
+    });
+
+    it('reads positionId when the API sends it as a bare int rather than a numeric string', function () use ($fetchedAt) {
+        $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload(['primary' => ['positionTitle' => 'Rifleman', 'positionId' => 773]]), $fetchedAt);
+
+        expect($trooper->positionId)->toBe(773);
     });
 
     it('normalizes the API\'s "unset string is empty" convention to null fields', function () use ($fetchedAt) {

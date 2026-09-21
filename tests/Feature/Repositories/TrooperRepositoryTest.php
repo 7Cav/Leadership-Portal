@@ -132,6 +132,39 @@ it('leaves primary_section_id untouched by an upsert — that column belongs to 
     expect(Trooper::where('cav_id', 1)->sole()->primary_section_id)->toBe($section->id);
 });
 
+it('sets primary_section_id for a trooper present in the map, reporting it as updated', function () {
+    $repo = app(TrooperRepository::class);
+    $section = Unit::factory()->create();
+    $trooper = Trooper::factory()->create(['cav_id' => 1, 'status' => TrooperStatus::Combat]);
+
+    $updated = $repo->updatePrimarySections([1 => $section->id]);
+
+    expect($trooper->refresh()->primary_section_id)->toBe($section->id)
+        ->and($updated)->toBe(1);
+});
+
+it('leaves primary_section_id untouched for a trooper absent from the map', function () {
+    $repo = app(TrooperRepository::class);
+    $section = Unit::factory()->create();
+    $trooper = Trooper::factory()->create(['cav_id' => 1, 'primary_section_id' => $section->id, 'status' => TrooperStatus::Combat]);
+
+    $updated = $repo->updatePrimarySections([]);
+
+    expect($trooper->refresh()->primary_section_id)->toBe($section->id)
+        ->and($updated)->toBe(0);
+});
+
+it('moves a trooper to a new section on reorg by overwriting the previously resolved value', function () {
+    $repo = app(TrooperRepository::class);
+    $oldSection = Unit::factory()->create();
+    $newSection = Unit::factory()->create();
+    $trooper = Trooper::factory()->create(['cav_id' => 1, 'primary_section_id' => $oldSection->id, 'status' => TrooperStatus::Combat]);
+
+    $repo->updatePrimarySections([1 => $newSection->id]);
+
+    expect($trooper->refresh()->primary_section_id)->toBe($newSection->id);
+});
+
 it('wraps upsert and departure marking in one transaction via sync(), returning both counts', function () {
     $repo = app(TrooperRepository::class);
     $departed = Trooper::factory()->create(['cav_id' => 2, 'status' => TrooperStatus::Combat]);

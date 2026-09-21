@@ -21,6 +21,10 @@ use Throwable;
  * `tis`/`tig` are the *dates* Cav reports (`joinDate`/`promotionDate`) — points in time, not
  * durations. A caller wanting an actual time-in-service/time-in-grade span computes it from
  * these against the current date; that is a display concern, not this seam's.
+ *
+ * `positionId` is the primary billet's numeric id (2.5): Cav's API names a trooper's role, never
+ * their section — `positionId` is the only stable key a portal-owned mapping (billet → section)
+ * can be keyed on, since `billet`/`positionTitle` is free text a reorg could rename.
  */
 readonly class CavRosterEntry
 {
@@ -31,6 +35,7 @@ readonly class CavRosterEntry
         public ?string $rankFull = null,
         public ?string $mos = null,
         public ?string $billet = null,
+        public ?int $positionId = null,
         public ?DateTimeImmutable $tis = null,
         public ?DateTimeImmutable $tig = null,
         public ?RosterType $status = null,
@@ -66,6 +71,7 @@ readonly class CavRosterEntry
             rankFull: self::text($rank['rankFull'] ?? null),
             mos: self::text($payload['mos'] ?? null),
             billet: self::text($primary['positionTitle'] ?? null),
+            positionId: self::integer($primary['positionId'] ?? null),
             tis: self::date($payload['joinDate'] ?? null),
             tig: self::date($payload['promotionDate'] ?? null),
             // An unrecognised roster type — including the API's explicit `*_UNSPECIFIED`
@@ -81,6 +87,23 @@ readonly class CavRosterEntry
     private static function text(mixed $value): ?string
     {
         return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    /**
+     * `positionId` arrives as a numeric string; accepts a bare int too in case that ever changes,
+     * since a JSON-encoding drift there must not silently stop every trooper from resolving a
+     * section (2.5). A drift to something genuinely non-numeric costs this trooper their section
+     * mapping, not their whole record.
+     */
+    private static function integer(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        $text = self::text($value);
+
+        return $text !== null && is_numeric($text) ? (int) $text : null;
     }
 
     /**

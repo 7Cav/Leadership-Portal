@@ -42,4 +42,15 @@ interface TrooperRepository
      * @param  list<int>  $activeCavIds
      */
     public function markDepartedExcept(array $activeCavIds): int;
+
+    /**
+     * Set `primary_section_id` for exactly the troopers present in `$cavIdToSectionId` (2.5) — a
+     * trooper *absent* from the map is left untouched, not nulled: an unmapped trooper's existing
+     * `null` stays `null`, and a manually-placed trooper (2.7) whose billet no longer resolves
+     * keeps their placement rather than being silently re-nulled by a sync that simply can't
+     * resolve them anymore. Returns the number of rows actually updated.
+     *
+     * @param  array<int, int>  $cavIdToSectionId  cav_id => units.id
+     */
+    public function updatePrimarySections(array $cavIdToSectionId): int;
 }
