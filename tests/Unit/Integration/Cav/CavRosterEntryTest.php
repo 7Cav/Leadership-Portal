@@ -86,6 +86,12 @@ describe('CavRosterEntry::fromPayload', function () use ($fetchedAt) {
         expect($trooper->positionId)->toBeNull();
     });
 
+    it('reads positionId when the API sends it as a bare int rather than a numeric string', function () use ($fetchedAt) {
+        $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload(['primary' => ['positionTitle' => 'Rifleman', 'positionId' => 773]]), $fetchedAt);
+
+        expect($trooper->positionId)->toBe(773);
+    });
+
     it('normalizes the API\'s "unset string is empty" convention to null fields', function () use ($fetchedAt) {
         $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload(['mos' => '']), $fetchedAt);
 

@@ -54,9 +54,12 @@ class Eloquent implements TrooperRepository
     {
         $updated = 0;
 
-        foreach ($cavIdToSectionId as $cavId => $sectionId) {
+        // Grouped by target section rather than one UPDATE per trooper: a full-roster sync can
+        // resolve several hundred troopers into a handful of sections, and this turns that into
+        // one query per section instead of one per trooper.
+        foreach (collect($cavIdToSectionId)->groupBy(fn ($sectionId) => $sectionId, preserveKeys: true) as $sectionId => $cavIds) {
             $updated += Trooper::query()
-                ->where('cav_id', $cavId)
+                ->whereIn('cav_id', $cavIds->keys())
                 ->update(['primary_section_id' => $sectionId]);
         }
 

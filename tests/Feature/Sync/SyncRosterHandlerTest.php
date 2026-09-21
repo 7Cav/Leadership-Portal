@@ -352,3 +352,45 @@ it('does not resolve a mapping that points at a non-section unit', function () {
 
     expect(Trooper::where('cav_id', 1)->sole()->primary_section_id)->toBeNull();
 });
+
+it('produces the same mapping on a re-run when nothing changed (idempotent)', function () {
+    $section = Unit::factory()->create(['type' => UnitType::Section]);
+    UnitBilletMapping::factory()->create(['unit_id' => $section->id, 'cav_position_id' => 773]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT')]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+    expect(Trooper::where('cav_id', 1)->sole()->primary_section_id)->toBe($section->id);
+
+    syncRosterHandler()->handle();
+
+    expect(Trooper::count())->toBe(1)
+        ->and(Trooper::where('cav_id', 1)->sole()->primary_section_id)->toBe($section->id);
+});
+
+it('resolves each trooper independently in a mixed batch — mapped, differently mapped, and unmapped', function () {
+    $sectionA = Unit::factory()->create(['type' => UnitType::Section]);
+    $sectionB = Unit::factory()->create(['type' => UnitType::Section]);
+    UnitBilletMapping::factory()->create(['unit_id' => $sectionA->id, 'cav_position_id' => 100]);
+    UnitBilletMapping::factory()->create(['unit_id' => $sectionB->id, 'cav_position_id' => 200]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => [
+            '1' => srRosterRow('ROSTER_TYPE_COMBAT', ['primary' => ['positionTitle' => 'A', 'positionId' => '100']]),
+            '2' => srRosterRow('ROSTER_TYPE_COMBAT', ['primary' => ['positionTitle' => 'B', 'positionId' => '200']]),
+            '3' => srRosterRow('ROSTER_TYPE_COMBAT', ['primary' => ['positionTitle' => 'C', 'positionId' => '999']]),
+        ]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    expect(Trooper::where('cav_id', 1)->sole()->primary_section_id)->toBe($sectionA->id)
+        ->and(Trooper::where('cav_id', 2)->sole()->primary_section_id)->toBe($sectionB->id)
+        ->and(Trooper::where('cav_id', 3)->sole()->primary_section_id)->toBeNull();
+});

@@ -90,12 +90,17 @@ readonly class CavRosterEntry
     }
 
     /**
-     * `positionId` arrives as a numeric string (like every other id on this payload); a drift to
-     * something non-numeric costs this trooper their section mapping (2.5), not their whole
-     * record.
+     * `positionId` arrives as a numeric string; accepts a bare int too in case that ever changes,
+     * since a JSON-encoding drift there must not silently stop every trooper from resolving a
+     * section (2.5). A drift to something genuinely non-numeric costs this trooper their section
+     * mapping, not their whole record.
      */
     private static function integer(mixed $value): ?int
     {
+        if (is_int($value)) {
+            return $value;
+        }
+
         $text = self::text($value);
 
         return $text !== null && is_numeric($text) ? (int) $text : null;

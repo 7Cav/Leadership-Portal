@@ -4,6 +4,7 @@ use App\Models\Unit;
 use App\Models\UnitBilletMapping;
 use App\Models\UnitType;
 use App\Repositories\UnitBilletMappingRepository;
+use Illuminate\Database\QueryException;
 
 // 2.5 / AD-18: this table is the documented, deterministic bridge from a Cav billet to a portal
 // section — these tests exercise the one rule that keeps the mapping trustworthy: it only ever
@@ -42,4 +43,13 @@ it('returns an empty map when no mappings exist', function () {
     $map = app(UnitBilletMappingRepository::class)->sectionIdsByPositionId();
 
     expect($map->isEmpty())->toBeTrue();
+});
+
+it('rejects a second mapping for a cav_position_id already mapped — the unique index that makes this a deterministic function', function () {
+    $sectionA = Unit::factory()->create(['type' => UnitType::Section]);
+    $sectionB = Unit::factory()->create(['type' => UnitType::Section]);
+    UnitBilletMapping::factory()->create(['unit_id' => $sectionA->id, 'cav_position_id' => 773]);
+
+    expect(fn () => UnitBilletMapping::factory()->create(['unit_id' => $sectionB->id, 'cav_position_id' => 773]))
+        ->toThrow(QueryException::class);
 });
