@@ -63,10 +63,11 @@ it('refuses a row for a trooper that does not exist', function () {
     expect(fn () => DB::table('loas')->insert(rawLoaRow(['trooper_id' => 999999])))->toThrow(QueryException::class);
 });
 
-it('refuses a type or a parse status it does not know', function (string $column, string $value) {
+it('refuses a type or a parse status it does not know, reserve included', function (string $column, string $value) {
     expect(fn () => DB::table('loas')->insert(rawLoaRow([$column => $value])))->toThrow(QueryException::class);
 })->with([
     'type' => ['type', 'vacation'],
+    'reserve, which is a roster status and not leave' => ['type', 'reserve'],
     'parse status' => ['parse_status', 'maybe'],
 ]);
 

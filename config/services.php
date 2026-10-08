@@ -61,12 +61,12 @@ return [
         // cannot be read for leave.
         'api_key' => env('SEVENCAV_FORUM_API_KEY'),
         // The forum sections (node ids) that hold leave threads, as `id:type` pairs, comma separated,
-        // e.g. `180:loa,341:eloa`. The type is loa, eloa or reserve. The 7Cav forum keeps one LOA
+        // e.g. `180:loa,341:eloa`. The type is loa or eloa. The 7Cav forum keeps one LOA
         // section per battalion (plus HHQ and non-battalion) and one section for ELOA. Only these are
         // ever read; none configured means no leave section is read. A malformed pair is dropped.
         'loa_nodes' => collect(explode(',', (string) env('SEVENCAV_FORUM_LOA_NODES', '')))
             ->map(fn (string $pair) => array_map('trim', explode(':', $pair)))
-            ->filter(fn (array $pair) => count($pair) === 2 && ctype_digit($pair[0]) && (int) $pair[0] > 0 && in_array($pair[1], ['loa', 'eloa', 'reserve'], true))
+            ->filter(fn (array $pair) => count($pair) === 2 && ctype_digit($pair[0]) && (int) $pair[0] > 0 && in_array($pair[1], ['loa', 'eloa'], true))
             ->mapWithKeys(fn (array $pair) => [(int) $pair[0] => $pair[1]])
             ->all(),
     ],

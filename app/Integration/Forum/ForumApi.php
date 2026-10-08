@@ -14,6 +14,7 @@ use JsonException;
 use Saloon\Exceptions\Request\FatalRequestException;
 use Saloon\Http\Auth\TokenAuthenticator;
 use Saloon\Http\Request;
+use Saloon\Http\Response;
 
 /**
  * The single door out to the 7cav.us forum OAuth2 flow (AD-3). CommandHandlers call
@@ -34,7 +35,7 @@ class ForumApi
 {
     /**
      * `api_key` and `loa_nodes` are only needed for reading leave threads: `loa_nodes` maps each forum
-     * section id that holds them to the kind of leave posted there (`loa`, `eloa` or `reserve`).
+     * section id that holds them to the kind of leave posted there (`loa` or `eloa`).
      *
      * @param  array{client_id: string, client_secret: string, redirect_uri: string, base_url: string, authorize_url: string, scopes: list<string>, api_key?: ?string, loa_nodes?: array<int, string>}  $config
      */
@@ -44,7 +45,7 @@ class ForumApi
      * The forum sections that hold leave threads, with the kind of leave each one holds. Empty until
      * configured, in which case nothing can be read.
      *
-     * @return array<int, string> forum section id => `loa` | `eloa` | `reserve`
+     * @return array<int, string> forum section id => `loa` | `eloa`
      */
     public function loaNodes(): array
     {
@@ -154,7 +155,8 @@ class ForumApi
      * (AC #5): connection failures (`FatalRequestException`), HTTP error statuses,
      * and unparseable bodies (`JsonException`) all funnel through one type.
      *
-     * @param  callable(int): ForumRequestException  $onHttpError  given the HTTP status
+     * @param  callable(int, ?string): ForumRequestException  $onHttpError  given the HTTP status and, when the
+     *                                                                      forum sent one, its error code
      * @return array<string, mixed>
      */
     private function sendForJson(Request $request, callable $onHttpError): array
@@ -166,7 +168,7 @@ class ForumApi
         }
 
         if ($response->failed()) {
-            throw $onHttpError($response->status());
+            throw $onHttpError($response->status(), $this->errorCode($response));
         }
 
         try {
@@ -174,6 +176,22 @@ class ForumApi
         } catch (JsonException $e) {
             throw ForumRequestException::malformedResponse($e);
         }
+    }
+
+    /**
+     * The forum's own code for a failed call (`errors.0.code`, e.g. `no_api_key_in_request`), so a
+     * misconfigured key is diagnosed from the message alone. Null when the body is not the forum's error
+     * format. The code is a fixed machine string; the forum's free-text message is never passed on.
+     */
+    private function errorCode(Response $response): ?string
+    {
+        try {
+            $code = $response->json('errors.0.code');
+        } catch (JsonException) {
+            return null;
+        }
+
+        return is_string($code) && preg_match('/^[a-z0-9_]{1,64}$/', $code) === 1 ? $code : null;
     }
 
     private function connector(): ForumConnector

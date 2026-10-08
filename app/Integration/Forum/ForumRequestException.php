@@ -35,14 +35,14 @@ class ForumRequestException extends RuntimeException
         return new self('Forum profile response was missing a user id or username.');
     }
 
-    public static function threadListFailed(int $status): self
+    public static function threadListFailed(int $status, ?string $code = null): self
     {
-        return new self("Forum thread list failed (HTTP {$status}).");
+        return new self("Forum thread list failed (HTTP {$status}".($code === null ? '' : ", {$code}").').');
     }
 
-    public static function threadFetchFailed(int $status): self
+    public static function threadFetchFailed(int $status, ?string $code = null): self
     {
-        return new self("Forum thread fetch failed (HTTP {$status}).");
+        return new self("Forum thread fetch failed (HTTP {$status}".($code === null ? '' : ", {$code}").').');
     }
 
     public static function malformedThread(): self

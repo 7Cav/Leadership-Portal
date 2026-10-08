@@ -27,12 +27,9 @@ readonly class ForumThread
             throw ForumRequestException::malformedThread();
         }
 
-        // The first post arrives alongside the thread; tolerate it under `first_post` or as the head
-        // of a `posts` list, since both shapes appear in the forum's thread views.
-        $firstPost = is_array($data['first_post'] ?? null)
-            ? $data['first_post']
-            : (is_array($data['posts'][0] ?? null) ? $data['posts'][0] : null);
-        $message = $firstPost['message'] ?? null;
+        // `first_post` is present because the request asks for it (`with_first_post`); its `message` is
+        // the raw BBCode as posted. A response without it is not a thread we can read.
+        $message = is_array($data['first_post'] ?? null) ? ($data['first_post']['message'] ?? null) : null;
 
         if (! is_string($message)) {
             throw ForumRequestException::malformedThread();
