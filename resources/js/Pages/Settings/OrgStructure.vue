@@ -1,6 +1,15 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
+import { PhCheckCircle, PhCloudArrowDown, PhLockSimple, PhPlus, PhTreeStructure, PhWarningCircle } from '@phosphor-icons/vue';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { NativeSelect } from '@/components/ui/native-select';
+import { Separator } from '@/components/ui/separator';
+import EmptyState from '@/components/EmptyState.vue';
 import OrgTreeNode from './OrgTreeNode.vue';
 
 // Flat units array with `path` (AD-18) — nested here for rendering; the server keeps the
@@ -173,7 +182,7 @@ function requestDelete(id) {
             }
         },
         onError: (errors) => {
-            deleteError.value = errors.delete ?? 'Delete failed — see server response.';
+            deleteError.value = errors.delete ?? 'The delete failed. Reload the page and try again; if it persists, check the server logs.';
         },
     });
 }
@@ -182,55 +191,70 @@ function requestDelete(id) {
 <template>
     <Head title="Settings · Organization structure · 7Cav Leadership Portal" />
 
-    <div class="min-h-screen bg-bg p-6 text-white">
-        <div class="mb-4 flex items-center justify-between">
-            <div>
-                <h1 class="text-xl font-semibold text-gold">Settings · Organization structure</h1>
-                <p class="mt-1 text-sm text-gray-400">
-                    Author the chain of command: Regiment › Battalion › Company › Platoon › Section.
+    <div class="space-y-5">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0">
+                <h1 class="text-xl font-semibold tracking-tight">Organization structure</h1>
+                <p class="mt-1 text-[13px] text-muted-foreground">
+                    The chain of command, from regiment down to section. Rosters, rollcalls and reports all roll up along it.
                 </p>
             </div>
             <div v-if="isAdmin" class="flex items-center gap-2">
+                <Badge variant="outline" class="gap-1"><PhLockSimple aria-hidden="true" />Admin</Badge>
                 <!--
-                  Admin-only (Story 2.9). Hidden for everyone else; the server refuses a
-                  non-Admin import regardless (AD-6) — this is convenience, not the boundary.
+                  Admin-only (Story 2.9). Hidden for everyone else; the server refuses a non-Admin
+                  import regardless (AD-6). This is convenience, not the boundary.
                 -->
-                <button
-                    type="button"
-                    data-testid="import-from-cav"
-                    :disabled="importing"
-                    class="rounded border border-gold-soft bg-panel px-3 py-1.5 text-sm font-medium text-gold disabled:opacity-50"
-                    @click="runImport"
-                >
+                <Button variant="outline" data-testid="import-from-cav" :disabled="importing" @click="runImport">
+                    <PhCloudArrowDown aria-hidden="true" />
                     {{ importing ? 'Importing…' : 'Import from Cav roster' }}
-                </button>
-                <span class="inline-flex items-center gap-1.5 rounded border border-gold-soft bg-panel px-2.5 py-1 text-xs text-gold">
-                    🔒 Admin
-                </span>
+                </Button>
             </div>
         </div>
 
-        <p v-if="importError" data-testid="import-error" role="alert" class="mb-4 rounded border border-bad bg-panel px-3 py-2 text-sm text-bad">
-            {{ importError }}
+        <p
+            v-if="importError"
+            data-testid="import-error"
+            role="alert"
+            class="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/8 px-3.5 py-2.5 text-[13px] text-destructive"
+        >
+            <PhWarningCircle class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <span>{{ importError }}</span>
         </p>
-        <div v-else-if="importResult" data-testid="import-result" role="status" class="mb-4 rounded border border-border bg-panel px-3 py-2 text-sm text-gray-300">
-            Imported from the Cav roster: {{ importResult.unitsCreated }} {{ importResult.unitsCreated === 1 ? 'node' : 'nodes' }} and
-            {{ importResult.mappingsCreated }} section {{ importResult.mappingsCreated === 1 ? 'mapping' : 'mappings' }} created.
-            <template v-if="importResult.mappingsDiffering">
-                {{ importResult.mappingsDiffering }} existing {{ importResult.mappingsDiffering === 1 ? 'mapping points' : 'mappings point' }}
-                at a different section than Cav now lists — kept as they are.
-            </template>
-            <template v-if="importResult.skippedTitles.length">
-                {{ importResult.skippedTitles.length }} position {{ importResult.skippedTitles.length === 1 ? 'title' : 'titles' }} skipped
-                (designation not recognised):
-                <span class="font-mono text-gray-400">{{ importResult.skippedTitles.join(', ') }}</span>
-            </template>
+        <div
+            v-else-if="importResult"
+            data-testid="import-result"
+            role="status"
+            class="flex items-start gap-2 rounded-lg border border-success/30 bg-success/8 px-3.5 py-2.5 text-[13px]"
+        >
+            <PhCheckCircle class="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
+            <p>
+                Imported from the Cav roster: {{ importResult.unitsCreated }} {{ importResult.unitsCreated === 1 ? 'node' : 'nodes' }} and
+                {{ importResult.mappingsCreated }} section {{ importResult.mappingsCreated === 1 ? 'mapping' : 'mappings' }} created.
+                <template v-if="importResult.mappingsDiffering">
+                    {{ importResult.mappingsDiffering }} existing {{ importResult.mappingsDiffering === 1 ? 'mapping points' : 'mappings point' }}
+                    at a different section than Cav now lists, kept as they are.
+                </template>
+                <!-- Story 1.16's command-billet counts: shown only when the server sends them. -->
+                <template v-if="importResult.commandMappingsCreated !== undefined">
+                    {{ importResult.commandMappingsCreated }} command {{ importResult.commandMappingsCreated === 1 ? 'mapping' : 'mappings' }} created,
+                    {{ importResult.commandMappingsRepointed ?? 0 }} repointed and {{ importResult.commandMappingsRemoved ?? 0 }} removed.
+                </template>
+                <template v-if="importResult.skippedTitles.length">
+                    {{ importResult.skippedTitles.length }} position {{ importResult.skippedTitles.length === 1 ? 'title' : 'titles' }} skipped
+                    (designation not recognised):
+                    <span class="font-mono text-xs text-muted-foreground">{{ importResult.skippedTitles.join(', ') }}</span>
+                </template>
+            </p>
         </div>
 
-        <div class="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
-            <div class="rounded-lg border border-border bg-panel p-3">
-                <h2 class="mb-2 px-2 text-sm font-medium text-gray-300">Chain of command</h2>
-                <ul role="tree">
+        <div class="grid items-start gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+            <Card class="min-w-0 gap-0 py-0">
+                <div class="flex items-center gap-2 px-4 pt-3.5 pb-2">
+                    <h2 class="text-[15px] font-semibold">Chain of command</h2>
+                    <span class="truncate text-xs text-muted-foreground">{{ units.length }} {{ units.length === 1 ? 'unit' : 'units' }}</span>
+                </div>
+                <ul v-if="tree.length" role="tree" aria-label="Chain of command" class="px-2 pb-2">
                     <OrgTreeNode
                         v-for="node in tree"
                         :key="node.id"
@@ -244,181 +268,153 @@ function requestDelete(id) {
                         @delete="requestDelete"
                     />
                 </ul>
-            </div>
+                <EmptyState v-else :icon="PhTreeStructure" title="No units yet" class="border-t border-border py-10">
+                    {{ isAdmin ? 'Import the tree from the Cav roster, or add the regiment by hand.' : 'An Admin has not set up the chain of command yet.' }}
+                </EmptyState>
+            </Card>
 
-            <div class="rounded-lg border border-border bg-panel p-4">
+            <Card class="min-w-0 gap-0 p-4">
                 <div v-if="selectedUnit" data-testid="detail-panel">
-                    <h2 class="mb-3 text-sm font-medium text-gray-300">
-                        Edit unit — {{ selectedUnit.name }}
-                        <span class="ml-1.5 rounded border border-gold-soft px-1.5 py-0.5 text-[11px] capitalize text-gold">{{
-                            selectedUnit.type
-                        }}</span>
+                    <h2 class="mb-3 flex items-center gap-2 text-[15px] font-semibold">
+                        <span class="truncate">{{ selectedUnit.name }}</span>
+                        <Badge variant="outline" class="capitalize">{{ selectedUnit.type }}</Badge>
                     </h2>
 
                     <!--
-                      Editable for an Admin (AC #1, #2); read-only otherwise. Echelon isn't
-                      editable — see `UpdateUnit`'s docblock for why re-parenting is kept
-                      separate from a rank change.
+                      Editable for an Admin (AC #1, #2); read-only otherwise. Echelon isn't editable:
+                      see `UpdateUnit`'s docblock for why re-parenting is kept separate from a rank change.
                     -->
                     <form v-if="isAdmin" data-testid="edit-unit-form" class="space-y-3" @submit.prevent="submitEdit">
-                        <label class="block text-xs text-gray-400">
-                            Name
-                            <input v-model="editForm.name" data-testid="edit-name" type="text" class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm" />
-                            <p v-if="editForm.errors.name" class="mt-1 text-[11px] text-bad" data-testid="edit-error-name">
-                                {{ editForm.errors.name }}
-                            </p>
-                        </label>
+                        <div class="grid gap-1.5">
+                            <Label for="edit-name">Name</Label>
+                            <Input id="edit-name" v-model="editForm.name" data-testid="edit-name" type="text" :aria-invalid="!!editForm.errors.name" />
+                            <p v-if="editForm.errors.name" class="text-xs text-destructive" data-testid="edit-error-name">{{ editForm.errors.name }}</p>
+                        </div>
 
-                        <label class="block text-xs text-gray-400">
-                            Callsign
-                            <input
+                        <div class="grid gap-1.5">
+                            <Label for="edit-callsign">Callsign</Label>
+                            <Input
+                                id="edit-callsign"
                                 v-model="editForm.callsign"
                                 data-testid="edit-callsign"
                                 type="text"
-                                class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm font-mono"
+                                class="font-mono"
+                                :aria-invalid="!!editForm.errors.callsign"
                             />
-                            <p v-if="editForm.errors.callsign" class="mt-1 text-[11px] text-bad" data-testid="edit-error-callsign">
+                            <p v-if="editForm.errors.callsign" class="text-xs text-destructive" data-testid="edit-error-callsign">
                                 {{ editForm.errors.callsign }}
                             </p>
-                        </label>
+                        </div>
 
-                        <label class="block text-xs text-gray-400">
-                            Parent
-                            <select
+                        <div class="grid gap-1.5">
+                            <Label for="edit-parent">Parent</Label>
+                            <NativeSelect
+                                id="edit-parent"
                                 v-model="editForm.parent_id"
                                 data-testid="edit-parent_id"
                                 :disabled="selectedUnit.type === 'regiment'"
-                                class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm disabled:opacity-50"
+                                :aria-invalid="!!editForm.errors.parent_id"
                             >
-                                <option :value="null">{{ selectedUnit.type === 'regiment' ? '— none (root) —' : '— choose a parent —' }}</option>
+                                <option :value="null">{{ selectedUnit.type === 'regiment' ? 'None, this is the root' : 'Choose a parent' }}</option>
                                 <option v-for="unit in editLegalParents" :key="unit.id" :value="unit.id">{{ unit.name }}</option>
-                            </select>
-                            <p v-if="editForm.errors.parent_id" class="mt-1 text-[11px] text-bad" data-testid="edit-error-parent_id">
+                            </NativeSelect>
+                            <p v-if="editForm.errors.parent_id" class="text-xs text-destructive" data-testid="edit-error-parent_id">
                                 {{ editForm.errors.parent_id }}
                             </p>
-                        </label>
+                        </div>
 
-                        <div class="flex items-center justify-between border-t border-border pt-3">
+                        <div class="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
                             <!--
-                              Matches the tree's own tool visibility (`OrgTreeNode.vue`): the
-                              root can't be removed via a UI control here either, so the two
-                              affordances for the same node never disagree.
+                              Matches the tree's own tool visibility (`OrgTreeNode.vue`): the root can't be
+                              removed from a UI control here either, so the two affordances agree.
                             -->
-                            <button
+                            <Button
                                 v-if="selectedUnit.parent_id !== null"
                                 type="button"
+                                variant="outline"
                                 data-testid="delete-unit"
-                                class="rounded border border-bad px-3 py-1.5 text-sm font-medium text-bad"
+                                class="text-destructive hover:text-destructive"
                                 @click="requestDelete(selectedUnit.id)"
                             >
                                 Delete {{ selectedUnit.type }}
-                            </button>
+                            </Button>
                             <span v-else></span>
                             <div class="flex flex-1 items-center justify-end gap-2">
-                                <p v-if="deleteError" data-testid="delete-error" class="text-[11px] text-bad">{{ deleteError }}</p>
-                                <button type="button" data-testid="cancel-edit" class="rounded px-3 py-1.5 text-sm text-gray-400" @click="cancelEdit">
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    data-testid="save-unit"
-                                    :disabled="editForm.processing"
-                                    class="rounded bg-gold px-3 py-1.5 text-sm font-medium text-bg disabled:opacity-50"
-                                >
-                                    Save unit
-                                </button>
+                                <p v-if="deleteError" data-testid="delete-error" role="alert" class="text-xs text-destructive">{{ deleteError }}</p>
+                                <Button type="button" variant="ghost" data-testid="cancel-edit" @click="cancelEdit">Cancel</Button>
+                                <Button type="submit" data-testid="save-unit" :disabled="editForm.processing">Save unit</Button>
                             </div>
                         </div>
                     </form>
 
                     <dl v-else class="grid grid-cols-2 gap-3 text-[13px]">
                         <div>
-                            <dt class="text-gray-500">Name</dt>
+                            <dt class="text-xs text-muted-foreground">Name</dt>
                             <dd>{{ selectedUnit.name }}</dd>
                         </div>
                         <div>
-                            <dt class="text-gray-500">Callsign</dt>
-                            <dd class="font-mono">{{ selectedUnit.callsign ?? '—' }}</dd>
+                            <dt class="text-xs text-muted-foreground">Callsign</dt>
+                            <dd class="font-mono">{{ selectedUnit.callsign ?? 'None' }}</dd>
                         </div>
                         <div>
-                            <dt class="text-gray-500">Echelon</dt>
+                            <dt class="text-xs text-muted-foreground">Echelon</dt>
                             <dd class="capitalize">{{ selectedUnit.type }}</dd>
                         </div>
                         <div>
-                            <dt class="text-gray-500">Troopers</dt>
-                            <dd>{{ selectedUnit.trooper_count }}</dd>
+                            <dt class="text-xs text-muted-foreground">Troopers</dt>
+                            <dd class="tabular-nums">{{ selectedUnit.trooper_count }}</dd>
                         </div>
                     </dl>
                 </div>
-                <p v-else class="text-sm text-gray-500">Select a unit to see its details.</p>
+                <p v-else class="text-[13px] text-muted-foreground">Select a unit to see its details.</p>
 
                 <!--
-                  Add-node control, Admin-only (AC #2). Hidden here for a non-Admin per the
-                  mockup, but the server enforces the same gate on `store` regardless (AC #5,
-                  AD-6) — this is convenience, not the security boundary.
+                  Add-node control, Admin-only (AC #2). Hidden for a non-Admin per the mockup; the
+                  server enforces the same gate on `store` regardless (AC #5, AD-6).
                 -->
-                <form
-                    v-if="isAdmin"
-                    data-testid="add-unit-form"
-                    class="mt-5 space-y-3 border-t border-border pt-4"
-                    @submit.prevent="submitAdd"
-                >
-                    <h3 class="text-sm font-medium text-gray-300">+ Add unit</h3>
+                <template v-if="isAdmin">
+                    <Separator class="my-4" />
+                    <form data-testid="add-unit-form" class="space-y-3" @submit.prevent="submitAdd">
+                        <h3 class="flex items-center gap-1.5 text-[13px] font-semibold"><PhPlus aria-hidden="true" />Add unit</h3>
 
-                    <label class="block text-xs text-gray-400">
-                        Echelon
-                        <select v-model="form.type" class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm">
-                            <option v-for="type in unitTypes" :key="type" :value="type">{{ type }}</option>
-                        </select>
-                        <p v-if="form.errors.type" class="mt-1 text-[11px] text-bad" data-testid="error-type">
-                            {{ form.errors.type }}
-                        </p>
-                    </label>
+                        <div class="grid gap-1.5">
+                            <Label for="add-type">Echelon</Label>
+                            <NativeSelect id="add-type" v-model="form.type" class="capitalize" :aria-invalid="!!form.errors.type">
+                                <option v-for="type in unitTypes" :key="type" :value="type">{{ type }}</option>
+                            </NativeSelect>
+                            <p v-if="form.errors.type" class="text-xs text-destructive" data-testid="error-type">{{ form.errors.type }}</p>
+                        </div>
 
-                    <label class="block text-xs text-gray-400">
-                        Name
-                        <input v-model="form.name" type="text" class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm" />
-                        <p v-if="form.errors.name" class="mt-1 text-[11px] text-bad" data-testid="error-name">
-                            {{ form.errors.name }}
-                        </p>
-                    </label>
+                        <div class="grid gap-1.5">
+                            <Label for="add-name">Name</Label>
+                            <Input id="add-name" v-model="form.name" type="text" :aria-invalid="!!form.errors.name" />
+                            <p v-if="form.errors.name" class="text-xs text-destructive" data-testid="error-name">{{ form.errors.name }}</p>
+                        </div>
 
-                    <label class="block text-xs text-gray-400">
-                        Callsign
-                        <input
-                            v-model="form.callsign"
-                            type="text"
-                            class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm font-mono"
-                        />
-                        <p v-if="form.errors.callsign" class="mt-1 text-[11px] text-bad" data-testid="error-callsign">
-                            {{ form.errors.callsign }}
-                        </p>
-                    </label>
+                        <div class="grid gap-1.5">
+                            <Label for="add-callsign">Callsign</Label>
+                            <Input id="add-callsign" v-model="form.callsign" type="text" class="font-mono" :aria-invalid="!!form.errors.callsign" />
+                            <p v-if="form.errors.callsign" class="text-xs text-destructive" data-testid="error-callsign">{{ form.errors.callsign }}</p>
+                        </div>
 
-                    <label class="block text-xs text-gray-400">
-                        Parent
-                        <select
-                            v-model="form.parent_id"
-                            :disabled="form.type === 'regiment'"
-                            class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm disabled:opacity-50"
-                        >
-                            <option :value="null">{{ form.type === 'regiment' ? '— none (root) —' : '— choose a parent —' }}</option>
-                            <option v-for="unit in legalParents" :key="unit.id" :value="unit.id">{{ unit.name }}</option>
-                        </select>
-                        <p v-if="form.errors.parent_id" class="mt-1 text-[11px] text-bad" data-testid="error-parent_id">
-                            {{ form.errors.parent_id }}
-                        </p>
-                    </label>
+                        <div class="grid gap-1.5">
+                            <Label for="add-parent">Parent</Label>
+                            <NativeSelect
+                                id="add-parent"
+                                v-model="form.parent_id"
+                                :disabled="form.type === 'regiment'"
+                                :aria-invalid="!!form.errors.parent_id"
+                            >
+                                <option :value="null">{{ form.type === 'regiment' ? 'None, this is the root' : 'Choose a parent' }}</option>
+                                <option v-for="unit in legalParents" :key="unit.id" :value="unit.id">{{ unit.name }}</option>
+                            </NativeSelect>
+                            <p v-if="form.errors.parent_id" class="text-xs text-destructive" data-testid="error-parent_id">{{ form.errors.parent_id }}</p>
+                        </div>
 
-                    <button
-                        type="submit"
-                        :disabled="form.processing"
-                        class="rounded bg-gold px-3 py-1.5 text-sm font-medium text-bg disabled:opacity-50"
-                    >
-                        Save unit
-                    </button>
-                </form>
-            </div>
+                        <Button type="submit" :disabled="form.processing">Save unit</Button>
+                    </form>
+                </template>
+            </Card>
         </div>
     </div>
 </template>
