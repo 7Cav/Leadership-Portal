@@ -10,14 +10,15 @@ use App\Repositories\TrooperRepository;
 /**
  * The leader-written half of a weekly report (5.5) — notes, training subject, and a reason for
  * each trooper who missed practice without a makeup — checked the same way whether it is being
- * saved as a draft or frozen by a send. Blank text is stored as null.
+ * saved as a draft or frozen by a send. Blank text is stored as null. Built only through
+ * `checked()`, so holding one means the content was checked.
  */
 final readonly class ReportContent
 {
     /**
      * @param  list<array{trooper_id: int, reason: string}>  $unaccounted
      */
-    public function __construct(
+    private function __construct(
         public ?string $notes,
         public ?string $trainingSubject,
         public array $unaccounted,

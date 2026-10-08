@@ -10,6 +10,7 @@ use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
 use App\Models\PortalRoleGrant;
 use App\Models\RollcallSignature;
+use App\Models\SyncRun;
 use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
@@ -233,4 +234,118 @@ it('lets a platoon leader send with a child missing, freezing who was missing', 
 
 it('lets an admin open any unit\'s report', function () {
     $this->actingAs(User::factory()->admin()->create())->get(reportUrl($this->sibling, $this->week))->assertOk();
+});
+
+it('keeps a sent report reading as it froze: its baseline and delta never change later', function () {
+    $this->actingAs($this->leader)->post(reportUrl($this->section, $this->week, '/send'), ['reason' => 'Weekly report'])->assertSessionHasNoErrors();
+    // The prior week is sent late, after this one froze; a trooper joins after the freeze.
+    CarbonImmutable::setTestNow(CarbonImmutable::now()->addHour());
+    app(WeeklyReportRepository::class)->send($this->section->id, $this->weekStart->subWeek(), frozenSnapshot(5), null, $this->leader->id, 'd', null);
+    Trooper::factory()->create(['primary_section_id' => $this->section->id]);
+
+    $this->actingAs($this->leader)->get(reportUrl($this->section, $this->week))
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('report.status', 'sent')
+            ->where('delta', null)
+            ->where('baseline.kind', 'first')
+            ->where('kpis.strength', 2));
+});
+
+it('freezes the delta, including the rate deltas, as computed at send', function () {
+    app(WeeklyReportRepository::class)->send($this->section->id, $this->weekStart->subWeek(), frozenSnapshot(5), null, $this->leader->id, 'd', null);
+    markSp($this->section, $this->trooper, $this->weekStart, AttendanceStatus::Present);
+    $this->actingAs($this->leader)->post(reportUrl($this->section, $this->week, '/send'), ['reason' => 'Weekly report'])->assertSessionHasNoErrors();
+    Trooper::factory()->create(['primary_section_id' => $this->section->id]); // after the freeze
+
+    $this->actingAs($this->leader)->get(reportUrl($this->section, $this->week))
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('baseline.kind', 'prior')
+            ->where('delta.strength', -3)
+            ->where('delta.spBp', -2500) // 1/2 now vs 3/4 then
+            ->has('delta.rcBp'));
+});
+
+it('renders an unreadable prior snapshot as a page-level error, and refuses the send but not the draft', function () {
+    app(WeeklyReportRepository::class)->send($this->section->id, $this->weekStart->subWeek(), ['corrupt' => true], null, $this->leader->id, 'd', null);
+
+    $this->actingAs($this->leader)->get(reportUrl($this->section, $this->week))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('kpis', null)
+            ->where('kpiError', fn ($error) => str_contains($error, "Last week's sent report cannot be read"))
+            ->where('history.0.kpis', null)
+            ->has('trend', 8));
+
+    $this->actingAs($this->leader)->post(reportUrl($this->section, $this->week, '/send'), ['reason' => 'Weekly report'])
+        ->assertSessionHasErrors('report');
+    expect(WeeklyReport::query()->where('week_start', $this->weekStart)->exists())->toBeFalse();
+
+    $this->actingAs($this->leader)->put(reportUrl($this->section, $this->week), ['notes' => 'Kept.'])->assertSessionHasNoErrors();
+    expect(WeeklyReport::query()->where('week_start', $this->weekStart)->sole()->notes)->toBe('Kept.');
+});
+
+it('renders a damaged sent report as an error rather than failing the page', function () {
+    app(WeeklyReportRepository::class)->send($this->section->id, $this->weekStart, ['corrupt' => true], null, $this->leader->id, 'd', null);
+
+    $this->actingAs($this->leader)->get(reportUrl($this->section, $this->week))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('kpis', null)->whereNot('kpiError', null));
+});
+
+it('explains a roll-up with no units under it, and refuses to send it', function () {
+    $company = Unit::factory()->create(['type' => UnitType::Company, 'path' => '800/']);
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin)->get(reportUrl($company, $this->week))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('kpiError', 'This unit has no units under it, so there are no reports to roll up.'));
+    $this->actingAs($admin)->post(reportUrl($company, $this->week, '/send'), ['reason' => 'Weekly report'])
+        ->assertSessionHasErrors('report');
+});
+
+it('tells the leader when the report was already sent, leaving the frozen content as it was', function () {
+    $this->actingAs($this->leader)->post(reportUrl($this->section, $this->week, '/send'), ['reason' => 'Weekly report', 'notes' => 'First.']);
+
+    $this->actingAs($this->leader)->post(reportUrl($this->section, $this->week, '/send'), ['reason' => 'Weekly report', 'notes' => 'Second.'])
+        ->assertSessionHasErrors('report');
+
+    expect(WeeklyReport::query()->sole()->notes)->toBe('First.')
+        ->and(AuditLogEntry::query()->count())->toBe(1);
+});
+
+it('shows a sent roll-up\'s children as they froze, not as they stand now', function () {
+    $platoonLeader = User::factory()->create();
+    PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
+    $this->actingAs($platoonLeader)->post(reportUrl($this->platoon, $this->week, '/send'), ['reason' => 'Weekly report']);
+    app(WeeklyReportRepository::class)->send($this->sibling->id, $this->weekStart, frozenSnapshot(4), null, $platoonLeader->id, 'd', null); // sent late
+
+    $this->actingAs($platoonLeader)->get(reportUrl($this->platoon, $this->week))
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('children.1.status', 'missing')
+            ->where('children.1.kpis', null)
+            ->where('kpis.strength', 0));
+});
+
+it('never widens scope upward: a section leader cannot open their platoon', function () {
+    $this->actingAs($this->leader)->get(reportUrl($this->platoon, $this->week))->assertForbidden();
+});
+
+it('narrows to the viewed-as unit and refuses writes while viewing as (AD-9)', function () {
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->section->id])->assertSessionHasNoErrors();
+
+    $this->get(reportUrl($this->section, $this->week))->assertOk();
+    $this->get(reportUrl($this->sibling, $this->week))->assertForbidden();
+    $this->put(reportUrl($this->section, $this->week), ['notes' => 'x'])->assertForbidden();
+
+    expect(WeeklyReport::query()->exists())->toBeFalse();
+});
+
+it('carries the roster source and its last sync time (AD-20)', function () {
+    $run = SyncRun::factory()->create(['finished_at' => CarbonImmutable::parse('2026-10-08 09:14:00', 'UTC')]);
+
+    $this->actingAs($this->leader)->get(reportUrl($this->section, $this->week))
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('rosterSync.source', 'Cav roster (api.7cav.us)')
+            ->where('rosterSync.at', $run->finished_at->toIso8601String()));
 });

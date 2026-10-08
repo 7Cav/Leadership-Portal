@@ -13,13 +13,15 @@ use DateTimeImmutable;
  */
 final readonly class SendWeeklyReport
 {
+    /**
+     * @param  list<array{trooper_id: int, reason: string}>  $unaccounted
+     */
     public function __construct(
         public int $unitId,
         public DateTimeImmutable $week,
         public ?string $reason,
         public ?string $notes,
         public ?string $trainingSubject = null,
-        /** @var list<array{trooper_id: int, reason: string}> */
         public array $unaccounted = [],
     ) {}
 }

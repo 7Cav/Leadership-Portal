@@ -182,4 +182,82 @@ describe('Reports/Show', () => {
 
         expect(wrapper.find('[data-testid="no-attendance"]').exists()).toBe(true);
     });
+
+    it('drops the pending autosave when the leader sends, freezing what they typed', async () => {
+        vi.useFakeTimers();
+        const wrapper = mountShow();
+
+        await wrapper.get('#report-notes').setValue('Comms tighter.');
+        await wrapper.get('[data-testid="send-anyway"]').trigger('click');
+        await flushPromises();
+        document.querySelector('[data-testid="send-confirm"]').click();
+        vi.advanceTimersByTime(2000);
+
+        expect(put).not.toHaveBeenCalled();
+        expect(post.mock.calls[0][1].notes).toBe('Comms tighter.');
+    });
+
+    it('keeps the notes and saves them when the overview is cancelled', async () => {
+        vi.useFakeTimers();
+        const wrapper = mountShow();
+
+        await wrapper.get('#report-notes').setValue('Comms tighter.');
+        await wrapper.get('[data-testid="send-anyway"]').trigger('click');
+        await flushPromises();
+        [...document.querySelectorAll('button')].find((b) => b.textContent.includes('Keep editing')).click();
+        await flushPromises();
+        vi.advanceTimersByTime(900);
+
+        expect(wrapper.get('#report-notes').element.value).toBe('Comms tighter.');
+        expect(post).not.toHaveBeenCalled();
+        expect(put.mock.calls[0][1].notes).toBe('Comms tighter.');
+    });
+
+    it('shows a failed send inside the overview and keeps it open', async () => {
+        post.mockImplementation((url, data, options) => {
+            options.onError({ report: 'This report was already sent.' });
+            options.onFinish();
+        });
+        const wrapper = mountShow();
+
+        await wrapper.get('[data-testid="send-anyway"]').trigger('click');
+        await flushPromises();
+        document.querySelector('[data-testid="send-confirm"]').click();
+        await flushPromises();
+
+        expect(document.querySelector('[data-testid="send-dialog"]').textContent).toContain('This report was already sent.');
+    });
+
+    it('un-ticks the review when the notes change afterwards', async () => {
+        const wrapper = mountShow();
+
+        await wrapper.get('#reviewed').trigger('click');
+        expect(wrapper.get('#reviewed').attributes('data-state')).toBe('checked');
+        await wrapper.get('#report-notes').setValue('Changed.');
+
+        expect(wrapper.get('#reviewed').attributes('data-state')).toBe('unchecked');
+        expect(wrapper.text()).toContain('You edited the notes after confirming');
+    });
+
+    it('colours each change by what it means for that KPI', () => {
+        const wrapper = mountShow({
+            delta: { strength: 1, rcBp: 500, spBp: -300, atRisk: 1, onLoa: 0, makeups: 0 },
+            baseline: { kind: 'prior', week: '2026-09-26T00:00:00+00:00' },
+        });
+        const badge = (key) => wrapper.get(`[data-testid="kpi-grid"] [data-kpi="${key}"] [data-testid="delta"]`);
+
+        expect(badge('rc').text()).toContain('+5');
+        expect(badge('rc').classes()).toContain('text-success');
+        expect(badge('sp').text()).toContain('-3');
+        expect(badge('sp').classes()).toContain('text-destructive');
+        expect(badge('atRisk').classes()).toContain('text-destructive');
+        expect(wrapper.get('[data-testid="baseline"]').text()).toContain('26Sep26');
+    });
+
+    it('blocks sending when the numbers cannot be computed, saying why', () => {
+        const wrapper = mountShow({ kpis: null, kpiError: "Last week's sent report cannot be read." });
+
+        expect(wrapper.get('[data-testid="send-anyway"]').attributes('disabled')).toBeDefined();
+        expect(wrapper.get('[role="alert"]').text()).toContain("Last week's sent report cannot be read.");
+    });
 });

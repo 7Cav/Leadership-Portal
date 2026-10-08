@@ -39,5 +39,7 @@ it('fails loudly on a stored array that is not a report snapshot', function (arr
     'no delta key — must not pass as a first report' => [(new UnitKpis(3, new Ratio(0, 12), new Ratio(0, 0), 0, 0, 0))->toArray()],
     'a KPI missing' => [['strength' => 3, 'delta' => null]],
     'a delta key missing' => [[...(new UnitKpis(3, new Ratio(0, 12), new Ratio(0, 0), 0, 0, 0))->toArray(), 'delta' => ['strength' => 1]]],
+    'missing_children not a list of ids' => [[...(new UnitKpis(3, new Ratio(0, 12), new Ratio(0, 0), 0, 0, 0))->toArray(), 'delta' => null, 'missing_children' => ['7']]],
+    'missing_children a scalar' => [[...(new UnitKpis(3, new Ratio(0, 12), new Ratio(0, 0), 0, 0, 0))->toArray(), 'delta' => null, 'missing_children' => 7]],
     'a pre-basis-point float delta' => [[...(new UnitKpis(3, new Ratio(0, 12), new Ratio(0, 0), 0, 0, 0))->toArray(), 'delta' => ['strength' => 0, 'rc_30d' => 0.1, 'sp_30d' => null, 'at_risk' => 0, 'on_loa' => 0, 'makeups' => 0]]],
 ])->throws(InvalidArgumentException::class);

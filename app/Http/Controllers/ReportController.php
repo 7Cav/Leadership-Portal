@@ -90,11 +90,16 @@ class ReportController extends Controller
         $snapshot = null;
         $kpiError = null;
 
-        try {
-            // A sent report is read back as frozen (AD-12); a draft is computed live.
-            $snapshot = $sent ? ReportSnapshot::fromArray($report->kpis) : $this->snapshots->snapshot($unit, $weekStart);
-        } catch (ReportKpisUnavailableException $e) {
-            $kpiError = $e->getMessage();
+        if ($sent) {
+            // A sent report is read back as frozen, never recomputed (AD-12).
+            $snapshot = $this->frozen($report);
+            $kpiError = $snapshot === null ? 'the frozen snapshot of this report cannot be read.' : null;
+        } else {
+            try {
+                $snapshot = $this->snapshots->snapshot($unit, $weekStart);
+            } catch (ReportKpisUnavailableException $e) {
+                $kpiError = $this->unavailableMessage($e);
+            }
         }
 
         $roster = $isLeaf ? $this->troopers->rosterOf($unit) : collect();
@@ -118,11 +123,15 @@ class ReportController extends Controller
             'kpis' => $snapshot === null ? null : $this->kpiProps($snapshot->kpis),
             'delta' => $snapshot?->delta === null ? null : $this->deltaProps($snapshot->delta),
             'kpiError' => $kpiError,
-            'baseline' => $this->baseline($snapshot, $history, $weekStart),
+            'baseline' => $this->baseline($snapshot, $sent ? $report : null, $history, $weekStart),
             'trend' => $this->trend($weekStart, $snapshot, $history),
             'troopers' => $isLeaf && ! $sent ? $this->trooperRows($unit, $weekStart, $roster) : null,
             'names' => $roster->mapWithKeys(fn (Trooper $t) => [$t->id => $this->trooperLabel($t)]),
-            'children' => $isLeaf ? null : $this->childRows($unit, $weekStart, $children),
+            'children' => match (true) {
+                $isLeaf => null,
+                $sent => $this->frozenChildRows($children, $snapshot?->missingChildren ?? []),
+                default => $this->childRows($unit, $weekStart, $children),
+            },
             'missingChildren' => $snapshot?->missingChildren ?? [],
             'history' => $history->map(fn (WeeklyReport $past) => $this->historyRow($past, $senders))->values(),
             'reasons' => collect(UnaccountedReason::cases())->map(fn (UnaccountedReason $r) => ['value' => $r->value, 'label' => $r->label()])->values(),
@@ -154,7 +163,7 @@ class ReportController extends Controller
         $weekStart = $this->weekStart($week);
         $data = $request->validate([...$this->contentRules(), 'reason' => ['required', 'string', 'max:1000']]);
 
-        $this->asFormErrors(fn () => $handler->handle($request->user(), new SendWeeklyReport(
+        $result = $this->asFormErrors(fn () => $handler->handle($request->user(), new SendWeeklyReport(
             $unit->id,
             $weekStart,
             $data['reason'],
@@ -162,6 +171,12 @@ class ReportController extends Controller
             $data['training_subject'] ?? null,
             $data['unaccounted'] ?? [],
         )));
+
+        // Already frozen (an earlier or concurrent send): the snapshot stands as it was, so the
+        // leader learns that what they just confirmed was not what got frozen.
+        if ($result->alreadySent) {
+            throw ValidationException::withMessages(['report' => 'This report was already sent. It is shown as it was frozen; your latest changes were not saved.']);
+        }
 
         return redirect()->route('reports.show', ['unit' => $unit->id, 'week' => $weekStart->toDateString()]);
     }
@@ -184,17 +199,33 @@ class ReportController extends Controller
      * A Command's refusal that the leader can act on becomes a form error on the page; an
      * out-of-scope refusal stays an `AuthorizationException` (403).
      */
-    private function asFormErrors(callable $write): void
+    private function asFormErrors(callable $write): mixed
     {
         try {
-            $write();
-        } catch (InvalidReportContentException $e) {
-            throw ValidationException::withMessages(['unaccounted' => $e->getMessage()]);
+            return $write();
+        } catch (InvalidReportContentException) {
+            // Most often a trooper moved out of the section since the page loaded.
+            throw ValidationException::withMessages(['unaccounted' => 'A trooper you gave a reason for is no longer in this section, or the reason is not one of the listed ones. Reload the page to update the roster.']);
         } catch (ReportKpisUnavailableException $e) {
-            throw ValidationException::withMessages(['report' => $e->getMessage()]);
+            throw ValidationException::withMessages(['report' => $this->unavailableMessage($e)]);
         } catch (WeeklyReportAlreadySentException) {
             throw ValidationException::withMessages(['report' => 'This report has already been sent and can no longer be edited.']);
         }
+    }
+
+    /**
+     * Leader-facing wording for why the numbers cannot be computed. A damaged prior snapshot is
+     * corrupt data an operator must hear about, so it is reported as well.
+     */
+    private function unavailableMessage(ReportKpisUnavailableException $e): string
+    {
+        if ($e->getPrevious() === null) {
+            return 'This unit has no units under it, so there are no reports to roll up.';
+        }
+
+        report($e);
+
+        return "Last week's sent report cannot be read, so this week's numbers cannot be compared with it. An admin needs to look at it.";
     }
 
     private function unitInScope(Request $request, int $unitId): Unit
@@ -283,18 +314,19 @@ class ReportController extends Controller
     /**
      * What the deltas compare against (5.4): the prior week's sent snapshot; or, when that week
      * was not sent, the most recent earlier sent week ("no prior baseline"); or nothing at all —
-     * the unit's first report.
+     * the unit's first report. For a sent report this is what was true when it froze: a week
+     * sent late, after it, never changes how it reads.
      *
      * @param  Collection<int, WeeklyReport>  $history
      * @return array{kind: string, week: ?string}
      */
-    private function baseline(?ReportSnapshot $snapshot, Collection $history, CarbonImmutable $weekStart): array
+    private function baseline(?ReportSnapshot $snapshot, ?WeeklyReport $sent, Collection $history, CarbonImmutable $weekStart): array
     {
         if ($snapshot?->delta !== null) {
             return ['kind' => 'prior', 'week' => $weekStart->subWeek()->toIso8601String()];
         }
 
-        $latest = $history->first();
+        $latest = $history->first(fn (WeeklyReport $past) => $sent === null || $past->sent_at?->lessThan($sent->sent_at));
 
         return $latest === null
             ? ['kind' => 'first', 'week' => null]
@@ -338,8 +370,11 @@ class ReportController extends Controller
     {
         try {
             return ReportSnapshot::fromArray($report->kpis);
-        } catch (InvalidArgumentException|TypeError|ErrorException) {
-            // A corrupt history row is shown as unreadable, not allowed to break this week's page.
+        } catch (InvalidArgumentException|TypeError|ErrorException $e) {
+            // A corrupt sent row is shown as unreadable rather than breaking the page, and reported
+            // so the corruption does not go unnoticed.
+            report($e);
+
             return null;
         }
     }
@@ -375,6 +410,25 @@ class ReportController extends Controller
                 'onLoa' => $reading->onLoa ?? false,
             ];
         })->values()->all();
+    }
+
+    /**
+     * A sent roll-up's children as it froze them: in the total, or missing at send. Their live
+     * status and numbers now would contradict the frozen total (AD-12, AD-13).
+     *
+     * @param  Collection<int, Unit>  $children
+     * @param  list<int>  $missing
+     * @return list<array<string, mixed>>
+     */
+    private function frozenChildRows(Collection $children, array $missing): array
+    {
+        return $children->map(fn (Unit $child) => [
+            ...$this->unitProps($child),
+            'status' => in_array($child->id, $missing, true) ? 'missing' : 'included',
+            'kpis' => null,
+            'sentAt' => null,
+            'trainingSubject' => null,
+        ])->values()->all();
     }
 
     /**

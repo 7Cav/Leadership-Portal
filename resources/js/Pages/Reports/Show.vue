@@ -112,14 +112,28 @@ function saveDraft() {
             save.state = 'saved';
             save.at = props.report.savedAt;
         },
-        onError: (errors) => {
-            save.state = 'error';
-            toast.error('Draft not saved', { description: Object.values(errors)[0] });
+        onError: (errors) => saveFailed(Object.values(errors)[0]),
+        onHttpException: (response) => {
+            saveFailed(httpProblem(response, 'The portal could not save your draft. Try again.'));
+
+            return false;
         },
         onNetworkError: () => {
-            save.state = 'error';
+            saveFailed('Could not reach the portal. Your changes are kept here; try again.');
+
+            return false;
         },
     });
+}
+
+function saveFailed(description) {
+    save.state = 'error';
+    toast.error('Draft not saved', { description });
+}
+
+// A 419 is an expired session on a page left open a long time; anything else is the server's.
+function httpProblem(response, fallback) {
+    return response?.status === 419 ? 'Your session expired. Copy your notes, then reload the page to sign in again.' : fallback;
 }
 
 watch(
@@ -137,8 +151,32 @@ watch(
     },
 );
 
+// Unsaved edits are never dropped silently: leaving the page (another week, another screen, or
+// closing the tab) while a save is pending or failed asks first.
+const unsaved = () => !readOnly.value && ['pending', 'saving', 'error'].includes(save.state);
+const LEAVE = 'Your latest changes to this report are not saved yet. Leave anyway?';
+
+function onBeforeUnload(event) {
+    if (!unsaved()) return;
+    event.preventDefault();
+    event.returnValue = '';
+}
+
+let stopGuard = null;
+onMounted(() => {
+    window.addEventListener('beforeunload', onBeforeUnload);
+    stopGuard = router.on?.('before', (event) => {
+        const visit = event.detail.visit;
+        // Our own autosave and send are writes to this report; only leaving is guarded.
+        if (visit.method !== 'get' || !unsaved()) return;
+
+        return window.confirm(LEAVE);
+    });
+});
 onBeforeUnmount(() => {
-    if (timer) saveDraft();
+    clearTimeout(timer);
+    window.removeEventListener('beforeunload', onBeforeUnload);
+    stopGuard?.();
 });
 
 // ---- Readiness and highlights ----
@@ -192,6 +230,11 @@ function openSend() {
     dialogOpen.value = true;
 }
 
+// The send cleared the pending autosave; when it fails, keep the edits saving as a draft.
+function rearm() {
+    if (save.state === 'pending' && !timer) timer = setTimeout(saveDraft, 800);
+}
+
 function confirmSend(reason) {
     clearTimeout(timer);
     timer = null;
@@ -207,6 +250,19 @@ function confirmSend(reason) {
         },
         onError: (errors) => {
             sendError.value = errors.reason ?? errors.report ?? errors.unaccounted ?? Object.values(errors)[0];
+            rearm();
+        },
+        onHttpException: (response) => {
+            sendError.value = httpProblem(response, 'The portal could not send the report. It has NOT been sent; try again.');
+            rearm();
+
+            return false;
+        },
+        onNetworkError: () => {
+            sendError.value = 'Could not reach the portal. The report has NOT been sent; try again.';
+            rearm();
+
+            return false;
         },
         onFinish: () => {
             sending.value = false;

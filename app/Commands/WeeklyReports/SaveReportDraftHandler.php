@@ -17,7 +17,7 @@ use App\Support\Time\WeekOf;
 /**
  * Saves a unit-week's draft report (5.5) through the audited envelope (AD-16; no reason — a draft
  * changes nothing anyone else reads as reported). The row's `kpis` is refreshed to the live
- * snapshot as a last saved copy only; a draft is always re-computed for display and the send
+ * snapshot as a last saved copy only (left empty when the KPIs cannot be computed); a draft is always re-computed for display and the send
  * freezes its own (AD-12).
  *
  * Refused before anything is written: a unit outside the actor's scope (AD-8), content that is
@@ -40,7 +40,6 @@ class SaveReportDraftHandler
      * @throws SendWeeklyReportForbiddenException when the unit is outside the actor's scope, or
      *                                            does not exist.
      * @throws InvalidReportContentException when the content is not the unit's to record.
-     * @throws ReportKpisUnavailableException when the unit's KPIs cannot be computed.
      * @throws WeeklyReportAlreadySentException when the unit-week is already sent.
      */
     public function handle(User $actor, SaveReportDraft $command): WeeklyReport
@@ -53,7 +52,13 @@ class SaveReportDraftHandler
 
         $content = ReportContent::checked($unit, $command->notes, $command->trainingSubject, $command->unaccounted, $this->troopers);
         $weekStart = WeekOf::start($command->week);
-        $kpis = $this->snapshots->snapshot($unit, $weekStart)->toArray();
+        try {
+            $kpis = $this->snapshots->snapshot($unit, $weekStart)->toArray();
+        } catch (ReportKpisUnavailableException) {
+            // The copy is informational only; the leader's notes must still save. The send keeps
+            // refusing until the numbers can be computed.
+            $kpis = [];
+        }
 
         return $this->audit->record(
             actorId: $actor->id,

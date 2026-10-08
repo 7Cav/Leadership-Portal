@@ -167,16 +167,19 @@ const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id ===
                             <TableRow class="hover:bg-transparent">
                                 <TableHead class="h-auto py-2 text-xs">Unit</TableHead>
                                 <TableHead class="h-auto py-2 text-xs">Status</TableHead>
-                                <TableHead v-for="k in KPIS.slice(0, 4)" :key="k.key" class="h-auto py-2 text-right text-xs">{{ k.label.replace(' 30d', '') }}</TableHead>
+                                <TableHead v-for="k in sent ? [] : KPIS.slice(0, 4)" :key="k.key" class="h-auto py-2 text-right text-xs">{{ k.label.replace(' 30d', '') }}</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            <TableRow v-for="c in children" :key="c.id" :class="{ 'text-muted-foreground': c.status !== 'sent' }">
+                            <TableRow v-for="c in children" :key="c.id" :class="{ 'text-muted-foreground': !['sent', 'included'].includes(c.status) }">
                                 <TableCell class="font-medium">{{ unitLabel(c) }}</TableCell>
                                 <TableCell>
-                                    <Badge :variant="c.status === 'sent' ? 'success' : 'outline'">{{ c.status === 'sent' ? 'Sent' : 'Not in' }}</Badge>
+                                    <Badge v-if="c.status === 'sent'" variant="success">Sent</Badge>
+                                    <Badge v-else-if="c.status === 'included'" variant="success">In this report</Badge>
+                                    <Badge v-else-if="c.status === 'missing'" variant="outline">Not in at send</Badge>
+                                    <Badge v-else variant="outline">Not in</Badge>
                                 </TableCell>
-                                <TableCell v-for="k in KPIS.slice(0, 4)" :key="k.key" class="text-right tabular-nums">
+                                <TableCell v-for="k in sent ? [] : KPIS.slice(0, 4)" :key="k.key" class="text-right tabular-nums">
                                     {{ c.kpis ? formatKpi(c.kpis, k) : '—' }}
                                 </TableCell>
                             </TableRow>

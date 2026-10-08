@@ -59,8 +59,22 @@ final readonly class ReportSnapshot
         return new self(
             UnitKpis::fromArray($snapshot),
             $snapshot['delta'] === null ? null : KpiDelta::fromArray($snapshot['delta']),
-            array_values(array_map(fn (int $id) => $id, (array) ($snapshot['missing_children'] ?? []))),
+            self::missingChildren($snapshot['missing_children'] ?? []),
         );
+    }
+
+    /**
+     * @return list<int>
+     *
+     * @throws InvalidArgumentException when the stored value is not a list of unit ids.
+     */
+    private static function missingChildren(mixed $stored): array
+    {
+        if (! is_array($stored) || ! array_is_list($stored) || array_filter($stored, fn ($id) => ! is_int($id)) !== []) {
+            throw new InvalidArgumentException('Not a report snapshot: missing_children is not a list of unit ids.');
+        }
+
+        return $stored;
     }
 
     /**

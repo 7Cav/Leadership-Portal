@@ -126,10 +126,10 @@ Artisan::command('portal:demo-history {unit : A unit designation (A/1-7) or id}
 
 // Browser-test fixture for the report screen (Stories 5.3–5.5): seeds a platoon with six weeks
 // of reports and signs a leader in, printing the session cookie Playwright sets — the real
-// sign-in is a 7cav.us OAuth round-trip a browser test cannot make. Refused in production.
+// sign-in is a 7cav.us OAuth round-trip a browser test cannot make. Refused outside local and testing.
 Artisan::command('e2e:report-fixture {--as=section : section or platoon — whose session to print}', function () {
-    if (app()->environment('production')) {
-        $this->error('Refusing to seed test fixtures in production.');
+    if (! app()->environment(['local', 'testing'])) {
+        $this->error('Refusing to seed test fixtures outside a local or testing environment.');
 
         return 1;
     }
@@ -152,4 +152,4 @@ Artisan::command('e2e:report-fixture {--as=section : section or platoon — whos
     ]));
 
     return 0;
-})->purpose('Seed the report screen browser-test fixture and print a signed-in session cookie (not for production)');
+})->purpose('Seed the report screen browser-test fixture and print a signed-in session cookie (local and testing only)');
