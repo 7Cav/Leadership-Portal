@@ -38,9 +38,16 @@ interface SectionPracticeRepository
 
     /**
      * The section's practice row for the week, or null when none has been recorded — a read that
-     * never creates one.
+     * never creates one. Its `rollcallPostedBy` user is loaded (null until marked posted).
      *
      * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
      */
     public function find(int $sectionId, CarbonInterface $weekStart): ?SectionPractice;
+
+    /**
+     * Record that the practice's rollcall was posted to the forum (3.10): `rollcall_posted_at` =
+     * now, `rollcall_posted_by` = `$userId`, overwriting any earlier mark — the latest post wins.
+     * Returns the row with `rollcallPostedBy` loaded. Callers route it through the audit envelope.
+     */
+    public function markRollcallPosted(SectionPractice $practice, int $userId): SectionPractice;
 }

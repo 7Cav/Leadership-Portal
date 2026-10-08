@@ -39,15 +39,20 @@ export function useRollcallAutosave({ url, week, onSaved = () => {}, post = post
         schedule();
     }
 
-    // Take queued (not yet sent) changes back — Undo during a hold.
+    // Take queued (not yet sent) changes back — Undo during a hold. Returns the ids actually taken
+    // back: a change already sent (e.g. flushed early to mark the rollcall posted) cannot be.
     function cancel(trooperIds, field) {
+        const cancelled = [];
         for (const id of trooperIds) {
             const entry = pending.get(id);
-            if (!entry) continue;
+            if (!entry || entry[field] === undefined) continue;
             delete entry[field];
+            cancelled.push(id);
             if (entry.status === undefined && entry.rollcall === undefined) pending.delete(id);
         }
         sync();
+
+        return cancelled;
     }
 
     function messageFor(result) {

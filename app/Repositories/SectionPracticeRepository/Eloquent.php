@@ -45,8 +45,16 @@ class Eloquent implements SectionPracticeRepository
     public function find(int $sectionId, CarbonInterface $weekStart): ?SectionPractice
     {
         return SectionPractice::query()
+            ->with('rollcallPostedBy')
             ->where('section_id', $sectionId)
             ->where('week_start', WeekOf::requireStart($weekStart))
             ->first();
+    }
+
+    public function markRollcallPosted(SectionPractice $practice, int $userId): SectionPractice
+    {
+        $practice->forceFill(['rollcall_posted_at' => now(), 'rollcall_posted_by' => $userId])->save();
+
+        return $practice->load('rollcallPostedBy');
     }
 }

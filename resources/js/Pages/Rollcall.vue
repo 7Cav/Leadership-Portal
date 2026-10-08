@@ -15,9 +15,12 @@ import {
     PhCloudSlash,
     PhHandSwipeRight,
     PhClock,
+    PhCheckCircle,
     PhClockCounterClockwise,
+    PhCopy,
     PhEye,
     PhUsersThree,
+    PhWarning,
 } from '@phosphor-icons/vue';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -28,7 +31,10 @@ import SectionPicker from '@/components/rollcall/SectionPicker.vue';
 import StepReview from '@/components/rollcall/StepReview.vue';
 import TrooperCard from '@/components/rollcall/TrooperCard.vue';
 import { forumDate, forumDateTime } from '@/lib/forumDate';
+import ForumPost from '@/components/rollcall/ForumPost.vue';
 import { useRollcallAutosave } from '@/composables/useRollcallAutosave';
+import { postJson } from '@/lib/postJson';
+import { rollcallBbcode } from '@/lib/rollcallBbcode';
 import {
     countsOf,
     displayName,
@@ -101,6 +107,7 @@ function set(trooper, kind, value, options = {}) {
 
     trooper[field] = value;
     if (field === 'status') trooper.source = 'manual';
+    if (posted.value) editedSincePost.value = true;
     autosave.queue(trooper.id, field, value, options);
 }
 
@@ -120,9 +127,12 @@ function applyMany(entries, title) {
             label: 'Undo',
             onClick: () => {
                 // Only rows still holding the bulk value: a mark changed by hand since then stays.
-                const undone = before.filter(({ trooper, value }) => trooper.status === value);
-                autosave.cancel(undone.map(({ trooper }) => trooper.id), 'status');
-                for (const { trooper, status, source } of undone) Object.assign(trooper, { status, source });
+                // A change already saved stays: a saved practice mark cannot be cleared again.
+                const held = before.filter(({ trooper, value }) => trooper.status === value);
+                const cancelled = new Set(autosave.cancel(held.map(({ trooper }) => trooper.id), 'status'));
+                for (const { trooper, status, source } of held) {
+                    if (cancelled.has(trooper.id)) Object.assign(trooper, { status, source });
+                }
             },
         },
     });
@@ -184,6 +194,50 @@ const changes = computed(() =>
     }),
 );
 
+// The forum post (3.10): generated client-side from the current marks, copied by the leader. The
+// portal makes no outbound call on copy or on marking posted (AD-20).
+const bbcode = computed(() =>
+    props.section ? rollcallBbcode({ designation: props.section.designation, weekStart: props.week.start, troopers: rows.value }) : '',
+);
+const copied = ref(false);
+const posting = ref(false);
+
+async function copyBbcode() {
+    try {
+        await navigator.clipboard.writeText(bbcode.value);
+        copied.value = true;
+        toast.success('BBCode copied', { description: `Paste it as a reply in the ${props.section.designation} rollcall thread.` });
+    } catch {
+        toast.error('Could not copy the BBCode', { description: 'Open the BBCode tab and copy it by hand.' });
+    }
+}
+
+async function markPosted() {
+    posting.value = true;
+    try {
+        // The post on the forum was made from the marks on screen, so they must be saved first.
+        if (!(await autosave.flush({ includeHeld: true }))) {
+            toast.error('Changes are not saved yet', { description: autosave.error.value });
+
+            return;
+        }
+        const result = await postJson(`/rollcall/${props.section.id}/posted`, { week: props.week.date }).catch(() => ({ ok: false, data: null }));
+        if (result.ok && result.data?.posted) {
+            posted.value = result.data.posted;
+            editedSincePost.value = false;
+            toast.success('Rollcall marked posted', { description: `${props.section.designation}, week of ${weekLabel.value}` });
+        } else {
+            toast.error('Could not mark the rollcall posted', { description: result.data?.message ?? 'Try again in a moment.' });
+        }
+    } finally {
+        posting.value = false;
+    }
+}
+
+const postedLabel = computed(() =>
+    posted.value ? `${forumDateTime(posted.value.at)}Z${posted.value.by ? ` by ${posted.value.by}` : ''}` : null,
+);
+
 const saveLabel = computed(() => {
     if (!autosave) return null;
     if (autosave.state.value === 'saving') return 'Saving...';
@@ -194,8 +248,15 @@ const saveLabel = computed(() => {
     return null;
 });
 
+// Rollcall posted to the forum (3.10): when and by whom, and whether marks changed since — then
+// the post on the forum is stale and needs reposting.
+const posted = ref(props.practice?.posted ?? null);
+const editedSincePost = ref(
+    Boolean(posted.value && props.practice?.lastMarkedAt && new Date(props.practice.lastMarkedAt) > new Date(posted.value.at)),
+);
+
 const counts = computed(() => countsOf(rows.value));
-const steps = computed(() => stepsOf(rows.value, null));
+const steps = computed(() => stepsOf(rows.value, posted.value && !editedSincePost.value ? posted.value.at : null));
 
 // The step is part of the URL (`?step=2`), so a step can be linked to and Back walks the steps.
 const query = computed(() => new URL(page.url, 'http://portal.local').searchParams);
@@ -511,6 +572,27 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                             Check the totals, copy the forum post into the rollcall thread on 7cav.us, then mark it posted.
                         </p>
                     </div>
+                    <div
+                        v-if="posted"
+                        role="status"
+                        :class="
+                            cn(
+                                'mt-3 flex items-start gap-2.5 rounded-lg border px-3.5 py-3 text-[13px]',
+                                editedSincePost ? 'border-warning/40 bg-warning/7' : 'border-success/35 bg-success/7',
+                            )
+                        "
+                        data-testid="posted-state"
+                    >
+                        <PhWarning v-if="editedSincePost" class="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
+                        <PhCheckCircle v-else class="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
+                        <div class="flex-1">
+                            <p class="font-medium">Rollcall posted {{ postedLabel }}</p>
+                            <p class="mt-0.5 text-xs text-muted-foreground">
+                                <template v-if="editedSincePost">Marks changed since then. Repost the updated BBCode, then mark it posted again.</template>
+                                <template v-else>Edits after this show up here as changes to repost.</template>
+                            </p>
+                        </div>
+                    </div>
                     <StepReview :troopers="rows" :at-risk="liveAtRisk" @go="go">
                         <template #changes>
                             <section aria-labelledby="review-changes" class="rounded-lg border border-border bg-card" data-testid="changes">
@@ -532,6 +614,23 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                                 <p v-else class="px-4 pt-1 pb-4 text-xs text-muted-foreground">Nothing changed on this visit.</p>
                             </section>
                         </template>
+                        <ForumPost :designation="section.designation" :week-start="week.start" :troopers="rows" />
+
+                        <div class="mt-5 flex flex-wrap items-center gap-2 py-3">
+                            <Button variant="outline" class="hidden h-11 sm:inline-flex sm:h-9" @click="go(2)"><PhCaretLeft />Back</Button>
+                            <Button variant="outline" class="h-11 flex-1 sm:ml-auto sm:h-9 sm:flex-none" data-testid="copy-bbcode" @click="copyBbcode">
+                                <PhCopy />{{ copied ? 'Copy again' : 'Copy BBCode' }}
+                            </Button>
+                            <Button
+                                class="h-11 flex-1 sm:h-9 sm:flex-none"
+                                data-testid="mark-posted"
+                                :disabled="!editable || posting"
+                                :title="readOnlyReason ?? undefined"
+                                @click="markPosted"
+                            >
+                                <PhCheck />{{ posted ? 'Mark posted again' : 'Mark rollcall posted' }}
+                            </Button>
+                        </div>
                     </StepReview>
                 </template>
             </section>
@@ -559,6 +658,33 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                         <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Not marked</dt><dd :class="cn('font-medium tabular-nums', counts.unmarked && 'text-warning')">{{ counts.unmarked }}</dd></div>
                         <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">On LOA</dt><dd class="font-medium text-muted-foreground tabular-nums">{{ counts.loa }}</dd></div>
                     </dl>
+                </Card>
+                <Card v-if="step === 3" class="gap-0 p-4 text-[13px]">
+                    <p class="mb-2 font-semibold">To finish</p>
+                    <ol class="space-y-2.5">
+                        <li
+                            v-for="(item, index) in [
+                                { label: 'Copy the BBCode', done: copied },
+                                { label: 'Paste it as a reply in the rollcall thread', done: copied && !!posted && !editedSincePost },
+                                { label: 'Mark the rollcall posted', done: !!posted && !editedSincePost },
+                            ]"
+                            :key="item.label"
+                            class="flex items-center gap-2.5"
+                        >
+                            <span
+                                :class="
+                                    cn(
+                                        'grid size-6 place-items-center rounded-full border border-border bg-card text-xs font-semibold text-muted-foreground',
+                                        item.done && 'border-success/35 bg-success/8 text-success',
+                                    )
+                                "
+                                aria-hidden="true"
+                            >
+                                <PhCheck v-if="item.done" /><template v-else>{{ index + 1 }}</template>
+                            </span>
+                            <span :class="item.done && 'text-muted-foreground'">{{ item.label }}</span>
+                        </li>
+                    </ol>
                 </Card>
                 <Card v-if="editable && step < 3" class="gap-1.5 p-4 text-xs text-muted-foreground pointer-coarse:hidden">
                     <p class="mb-1 text-[13px] font-semibold text-foreground">Keyboard</p>

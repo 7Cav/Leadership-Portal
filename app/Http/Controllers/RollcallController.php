@@ -8,11 +8,15 @@ use App\Commands\Attendance\InvalidAttendanceMarkException;
 use App\Commands\Attendance\MarkAttendance;
 use App\Commands\Attendance\MarkAttendanceForbiddenException;
 use App\Commands\Attendance\MarkAttendanceHandler;
+use App\Commands\Attendance\MarkRollcallPosted;
+use App\Commands\Attendance\MarkRollcallPostedForbiddenException;
+use App\Commands\Attendance\MarkRollcallPostedHandler;
 use App\Kpi\KpiService;
 use App\Kpi\TrooperAttendance;
 use App\Models\Attendance;
 use App\Models\AttendanceStatus;
 use App\Models\RollcallSignature;
+use App\Models\SectionPractice;
 use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
@@ -159,6 +163,56 @@ class RollcallController extends Controller
         ]);
     }
 
+    /**
+     * The leader has posted the week's BBCode to the forum thread and says so (3.10). The portal
+     * itself never posts (AD-20); this only records when, and who, through the audited
+     * `MarkRollcallPosted` Command. Marking again after edits is allowed — the latest wins.
+     */
+    public function posted(Request $request, int $unit, MarkRollcallPostedHandler $handler): JsonResponse
+    {
+        $validator = Validator::make($request->all(), ['week' => ['required', 'date_format:Y-m-d']]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => $validator->errors()->first()], 422);
+        }
+
+        $currentWeek = WeekOf::start(CarbonImmutable::now());
+        $weekStart = $this->requestedWeek($request->input('week'), $currentWeek);
+
+        if ($weekStart->greaterThan($currentWeek)) {
+            return response()->json(['message' => 'A future week cannot be posted yet.'], 422);
+        }
+
+        if ($this->units->find($unit) === null) {
+            return response()->json(['message' => 'No such section.'], 404);
+        }
+
+        try {
+            $practice = $handler->handle($request->user(), new MarkRollcallPosted($unit, $weekStart));
+        } catch (MarkRollcallPostedForbiddenException $e) {
+            return response()->json(['message' => $e->getMessage()], 403);
+        } catch (InvalidAttendanceMarkException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['posted' => $this->postedProps($practice)]);
+    }
+
+    /**
+     * @return array{at: string, by: ?string}|null
+     */
+    private function postedProps(?SectionPractice $practice): ?array
+    {
+        if ($practice?->rollcall_posted_at === null) {
+            return null;
+        }
+
+        return [
+            'at' => $practice->rollcall_posted_at->toIso8601String(),
+            'by' => $practice->rollcallPostedBy?->username,
+        ];
+    }
+
     private function requestedWeek(?string $week, CarbonImmutable $currentWeek): CarbonImmutable
     {
         return $week === null ? $currentWeek : WeekOf::start(CarbonImmutable::createFromFormat('!Y-m-d', $week, 'UTC'));
@@ -267,6 +321,7 @@ class RollcallController extends Controller
             ],
             'practice' => [
                 'lastMarkedAt' => $marks->max(fn (Attendance $row) => $row->updated_at)?->toIso8601String(),
+                'posted' => $this->postedProps($practice),
             ],
         ];
     }

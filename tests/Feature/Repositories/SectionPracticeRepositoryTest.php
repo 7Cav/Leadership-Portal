@@ -3,6 +3,7 @@
 use App\Models\SectionPractice;
 use App\Models\Unit;
 use App\Models\UnitType;
+use App\Models\User;
 use App\Repositories\SectionPracticeRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -113,4 +114,21 @@ it('finds the existing practice row when called inside an already-open transacti
 
     expect($found->id)->toBe($existing->id)
         ->and(SectionPractice::query()->count())->toBe(1);
+});
+
+it('stamps a practice posted by a user, overwriting an earlier stamp, and find() loads who (3.10)', function () {
+    $repo = app(SectionPracticeRepository::class);
+    $practice = $repo->findOrCreate($this->section->id, $this->saturday);
+    $first = User::factory()->create();
+    $second = User::factory()->create();
+
+    $repo->markRollcallPosted($practice, $first->id);
+    $stamped = $repo->markRollcallPosted($practice, $second->id);
+
+    expect($stamped->rollcall_posted_by)->toBe($second->id)
+        ->and($stamped->rollcall_posted_at)->not->toBeNull();
+
+    $found = $repo->find($this->section->id, $this->saturday);
+    expect($found->relationLoaded('rollcallPostedBy'))->toBeTrue()
+        ->and($found->rollcallPostedBy->id)->toBe($second->id);
 });

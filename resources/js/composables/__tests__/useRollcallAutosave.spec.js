@@ -97,7 +97,7 @@ describe('rollcall autosave', () => {
         await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
         expect(post).not.toHaveBeenCalled();
 
-        save.cancel([1], 'status');
+        expect(save.cancel([1, 9], 'status')).toEqual([1]);
         await vi.advanceTimersByTimeAsync(6000);
 
         expect(post).toHaveBeenCalledTimes(1);

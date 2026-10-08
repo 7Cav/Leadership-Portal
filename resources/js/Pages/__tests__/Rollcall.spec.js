@@ -12,7 +12,8 @@ const post = vi.fn();
 const toastSuccess = vi.fn();
 
 vi.mock('@/lib/postJson', () => ({ postJson: (...args) => post(...args) }));
-vi.mock('vue-sonner', () => ({ toast: { success: (...args) => toastSuccess(...args) } }));
+const toastError = vi.fn();
+vi.mock('vue-sonner', () => ({ toast: { success: (...args) => toastSuccess(...args), error: (...args) => toastError(...args) } }));
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
@@ -296,6 +297,93 @@ describe('Rollcall page', () => {
 
             const change = wrapper.find('[data-testid="changes"] li');
             expect(change.findAll('span').map((span) => span.text())).toEqual(expect.arrayContaining(['Trooper3.A', 'Signature', 'Unsigned', 'Will attend']));
+        });
+    });
+
+    describe('forum post (3.10)', () => {
+        beforeEach(() => {
+            page.url = '/rollcall/12?step=3';
+            toastError.mockClear();
+        });
+
+        it('previews the post and keeps the BBCode in step with the marks', async () => {
+            const wrapper = factory();
+
+            expect(wrapper.find('[data-testid="forum-preview"]').text()).toContain('Trooper3.A');
+            expect(wrapper.find('[data-testid="forum-post"]').text()).toContain('2/1/A/1-7 Rollcall, week of 03Oct26');
+
+            page.url = '/rollcall/12?step=2';
+            await wrapper.vm.$nextTick();
+            await wrapper.find('[data-trooper="3"] button[data-value="missed"]').trigger('click');
+            page.url = '/rollcall/12?step=3';
+            await wrapper.vm.$nextTick();
+
+            const row = wrapper.findAll('[data-testid="forum-preview"] tbody tr').find((tr) => tr.text().includes('Trooper3.A'));
+            expect(row.text()).toContain('Missed');
+        });
+
+        it('copies the generated BBCode to the clipboard, with no request to the server (AD-20)', async () => {
+            const writeText = vi.fn().mockResolvedValue();
+            Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+            const wrapper = factory();
+
+            await wrapper.find('[data-testid="copy-bbcode"]').trigger('click');
+            await vi.waitFor(() => expect(writeText).toHaveBeenCalled());
+
+            expect(writeText.mock.calls[0][0]).toMatch(/^\[b\]2\/1\/A\/1-7 Rollcall, week of 03Oct26\[\/b\]/);
+            expect(writeText.mock.calls[0][0]).toContain('[tr][td]PFC[/td][td]Trooper2.A[/td][td]Cannot attend[/td][td]Not marked[/td][/tr]');
+            expect(post).not.toHaveBeenCalled();
+            await vi.waitFor(() => expect(wrapper.find('[data-testid="copy-bbcode"]').text()).toBe('Copy again'));
+        });
+
+        it('says so when the clipboard is unavailable', async () => {
+            Object.defineProperty(navigator, 'clipboard', { value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) }, configurable: true });
+            const wrapper = factory();
+
+            await wrapper.find('[data-testid="copy-bbcode"]').trigger('click');
+            await vi.waitFor(() => expect(toastError).toHaveBeenCalledWith('Could not copy the BBCode', expect.anything()));
+        });
+
+        it('marks the rollcall posted and shows when and by whom', async () => {
+            post.mockResolvedValueOnce({ ok: true, status: 200, data: { posted: { at: '2026-10-08T16:20:00+00:00', by: 'Vasquez.R' } } });
+            const wrapper = factory();
+
+            await wrapper.find('[data-testid="mark-posted"]').trigger('click');
+            await vi.waitFor(() => expect(wrapper.find('[data-testid="posted-state"]').exists()).toBe(true));
+
+            expect(post).toHaveBeenCalledWith('/rollcall/12/posted', { week: '2026-10-03' });
+            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Rollcall posted 08Oct26 16:20Z by Vasquez.R');
+            expect(wrapper.find('[data-step="3"]').attributes('aria-label')).toBe('Step 3, Review and post, Posted');
+            expect(wrapper.find('[data-testid="mark-posted"]').text()).toBe('Mark posted again');
+        });
+
+        it('saves pending marks before marking posted', async () => {
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory();
+            await wrapper.find('[data-trooper="3"] button[data-value="present"]').trigger('click');
+            page.url = '/rollcall/12?step=3';
+            await wrapper.vm.$nextTick();
+            post.mockResolvedValueOnce({ ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00', atRisk: [] } })
+                .mockResolvedValueOnce({ ok: true, status: 200, data: { posted: { at: '2026-10-08T16:21:00+00:00', by: 'Vasquez.R' } } });
+
+            await wrapper.find('[data-testid="mark-posted"]').trigger('click');
+            await vi.waitFor(() => expect(post).toHaveBeenCalledTimes(2));
+
+            expect(post.mock.calls[0][0]).toBe('/rollcall/12');
+            expect(post.mock.calls[1][0]).toBe('/rollcall/12/posted');
+        });
+
+        it('flags a posted rollcall whose marks changed since, so it gets reposted', async () => {
+            const wrapper = factory({ practice: { lastMarkedAt: '2026-10-08T17:00:00+00:00', posted: { at: '2026-10-08T16:20:00+00:00', by: 'Vasquez.R' } } });
+
+            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Repost the updated BBCode');
+            expect(wrapper.find('[data-step="3"]').attributes('aria-label')).toBe('Step 3, Review and post, Not posted yet');
+        });
+
+        it('cannot be marked posted during a view-as preview', () => {
+            page.props.viewAs = { label: 'CPL Lindqvist.E', admin: false };
+
+            expect(factory().find('[data-testid="mark-posted"]').attributes('disabled')).toBeDefined();
         });
     });
 });
