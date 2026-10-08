@@ -19,7 +19,10 @@ use InvalidArgumentException;
  */
 final readonly class KpiDelta
 {
-    private const MAX_BASIS_POINTS = 10_000;
+    private const BASIS_POINTS_PER_UNIT = 10_000;
+
+    /** The largest change between two fractions in [0, 1]: from 0 to 1. */
+    private const MAX_BASIS_POINTS = self::BASIS_POINTS_PER_UNIT;
 
     /**
      * @throws InvalidArgumentException when a rate delta lies outside ±10000 bp — no change between
@@ -87,6 +90,6 @@ final readonly class KpiDelta
         $now = $current->value();
         $then = $prior->value();
 
-        return $now === null || $then === null ? null : (int) round(($now - $then) * self::MAX_BASIS_POINTS);
+        return $now === null || $then === null ? null : (int) round(($now - $then) * self::BASIS_POINTS_PER_UNIT);
     }
 }

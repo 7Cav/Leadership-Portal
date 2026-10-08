@@ -7,7 +7,9 @@ use App\Models\WeeklyReportStatus;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonInterface;
+use ErrorException;
 use InvalidArgumentException;
+use TypeError;
 
 /**
  * A unit-week's report snapshot (5.6): its six KPIs from the echelon's {@see ReportKpiSource},
@@ -42,7 +44,8 @@ final class WeeklyReportKpis
 
         try {
             $priorKpis = ReportSnapshot::fromArray($prior->kpis)->kpis;
-        } catch (InvalidArgumentException $unreadable) {
+        } catch (InvalidArgumentException|TypeError|ErrorException $unreadable) {
+            // A missing key, an impossible value, or a value of the wrong type in the stored JSON.
             throw ReportKpisUnavailableException::unreadablePrior($unit, $weekStart->subWeek(), $unreadable);
         }
 

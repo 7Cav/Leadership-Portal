@@ -85,11 +85,15 @@ it('refuses a week_start that is not a Saturday 00:00 UTC', function () {
     $this->snapshots->snapshot($this->section, $this->week->addHour());
 })->throws(InvalidArgumentException::class);
 
-it('refuses, naming the unit and week, when the prior week\'s sent snapshot cannot be read', function () {
+it('refuses, naming the unit and week, when the prior week\'s sent snapshot cannot be read', function (array $stored) {
     app(WeeklyReportRepository::class)->send(
-        $this->section->id, $this->week->subWeek(), ['strength' => ['value' => 4]], null, User::factory()->create()->id, 'digest', null,
+        $this->section->id, $this->week->subWeek(), $stored, null, User::factory()->create()->id, 'digest', null,
     );
 
     expect(fn () => $this->snapshots->snapshot($this->section, $this->week))
         ->toThrow(ReportKpisUnavailableException::class, "Unit {$this->section->id}'s sent report for the week of 2026-06-20 cannot be read");
-});
+})->with([
+    'not a report snapshot' => [['strength' => ['value' => 4]]],
+    'a ratio stored as a number' => [['strength' => 4, 'rc_30d' => 5, 'sp_30d' => 5, 'at_risk' => 0, 'on_loa' => 0, 'makeups' => 0, 'delta' => null]],
+    'a count stored as text' => [['strength' => 'x', 'rc_30d' => ['numerator' => 0, 'denominator' => 0], 'sp_30d' => ['numerator' => 0, 'denominator' => 0], 'at_risk' => 0, 'on_loa' => 0, 'makeups' => 0, 'delta' => null]],
+]);
