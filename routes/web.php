@@ -38,6 +38,9 @@ Route::middleware('auth')->group(function () {
     // 1.11).
     Route::get('/settings/org-structure', [OrgStructureController::class, 'index'])->name('settings.org-structure');
     Route::post('/settings/org-structure', [OrgStructureController::class, 'store'])->name('settings.org-structure.store');
+    // Import the tree + billet mapping from the Cav position groups (Story 2.9). Admin gate in the
+    // controller, as for every other write here.
+    Route::post('/settings/org-structure/import', [OrgStructureController::class, 'import'])->name('settings.org-structure.import');
     Route::patch('/settings/org-structure/{unit}', [OrgStructureController::class, 'update'])->name('settings.org-structure.update');
     Route::delete('/settings/org-structure/{unit}', [OrgStructureController::class, 'destroy'])->name('settings.org-structure.destroy');
 

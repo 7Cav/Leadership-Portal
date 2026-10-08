@@ -9,6 +9,7 @@ import OrgStructure from '../OrgStructure.vue';
 const addSubmit = vi.fn();
 const editSubmit = vi.fn();
 let deleteSpy = vi.fn();
+let postSpy = vi.fn();
 let addFormState = { type: 'battalion', name: '', callsign: '', parent_id: null, processing: false, errors: {} };
 let editFormState = { name: '', callsign: '', parent_id: null, processing: false, errors: {} };
 
@@ -18,7 +19,7 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     // which this unit test deliberately doesn't stand up — stub it to a no-op like the rest
     // of the adapter surface this page touches.
     Head: { template: '<head></head>' },
-    router: { delete: (...args) => deleteSpy(...args) },
+    router: { delete: (...args) => deleteSpy(...args), post: (...args) => postSpy(...args) },
     useForm: (initial) => ('type' in initial
         ? { ...addFormState, post: addSubmit }
         : { ...editFormState, patch: editSubmit, clearErrors: vi.fn() }),
@@ -233,5 +234,62 @@ describe('Settings/OrgStructure', () => {
 
         expect(deleteSpy).toHaveBeenCalledWith('/settings/org-structure/2', expect.objectContaining({ preserveScroll: true }));
         vi.unstubAllGlobals();
+    });
+
+    // Story 2.9 — import from the Cav position groups.
+    describe('import from Cav roster', () => {
+        it('hides the import action for a non-Admin', () => {
+            const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: false } });
+
+            expect(wrapper.find('[data-testid="import-from-cav"]').exists()).toBe(false);
+        });
+
+        it('posts to the import route when an Admin clicks it', async () => {
+            postSpy = vi.fn();
+            const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+
+            await wrapper.find('[data-testid="import-from-cav"]').trigger('click');
+
+            expect(postSpy).toHaveBeenCalledWith('/settings/org-structure/import', {}, expect.objectContaining({ preserveScroll: true }));
+            expect(wrapper.find('[data-testid="import-from-cav"]').text()).toBe('Importing…');
+            expect(wrapper.find('[data-testid="import-from-cav"]').attributes('disabled')).toBeDefined();
+        });
+
+        it('shows the server error when the import is refused, and re-enables the button', async () => {
+            postSpy = vi.fn((url, data, { onError, onFinish }) => {
+                onError({ import: 'Could not read the Cav position groups: down.' });
+                onFinish();
+            });
+            const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+
+            await wrapper.find('[data-testid="import-from-cav"]').trigger('click');
+
+            expect(wrapper.find('[data-testid="import-error"]').text()).toBe('Could not read the Cav position groups: down.');
+            expect(wrapper.find('[data-testid="import-from-cav"]').attributes('disabled')).toBeUndefined();
+        });
+
+        it('reports how many nodes and mappings were created, and what was skipped', () => {
+            const wrapper = mount(OrgStructure, {
+                props: {
+                    units: UNITS,
+                    isAdmin: true,
+                    importResult: { unitsCreated: 31, mappingsCreated: 29, skippedTitles: ['Section Leader 3/2/C/1-7'] },
+                },
+            });
+
+            const text = wrapper.find('[data-testid="import-result"]').text();
+            expect(text).toContain('31 nodes');
+            expect(text).toContain('29 section mappings');
+            expect(text).toContain('1 position title skipped');
+            expect(text).toContain('Section Leader 3/2/C/1-7');
+        });
+
+        it('omits the skipped line when nothing was skipped', () => {
+            const wrapper = mount(OrgStructure, {
+                props: { units: UNITS, isAdmin: true, importResult: { unitsCreated: 0, mappingsCreated: 0, skippedTitles: [] } },
+            });
+
+            expect(wrapper.find('[data-testid="import-result"]').text()).not.toContain('skipped');
+        });
     });
 });

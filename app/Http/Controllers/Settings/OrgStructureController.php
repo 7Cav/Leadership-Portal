@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Settings;
 
 use App\Commands\Units\CreateUnit;
 use App\Commands\Units\DeleteUnit;
+use App\Commands\Units\ImportOrgStructure;
 use App\Commands\Units\InvalidUnitPlacementException;
 use App\Commands\Units\MoveUnit;
+use App\Commands\Units\OrgStructureImportFailedException;
 use App\Commands\Units\UnitHasDependentsException;
 use App\Commands\Units\UpdateUnit;
 use App\Http\Controllers\Controller;
@@ -50,6 +52,8 @@ class OrgStructureController extends Controller
         return Inertia::render('Settings/OrgStructure', [
             'units' => $units,
             'isAdmin' => (bool) $request->user()->is_admin,
+            // The outcome of an import just run (story 2.9), flashed by `import()` for one render.
+            'importResult' => $request->session()->get('org_import'),
         ]);
     }
 
@@ -137,5 +141,30 @@ class OrgStructureController extends Controller
         }
 
         return redirect()->route('settings.org-structure');
+    }
+
+    /**
+     * Import the chain of command and the billet → section mapping from the Cav position groups
+     * (story 2.9). Admin-only, server-side (AD-6). A Cav failure surfaces as an `errors.import`
+     * message on the page; nothing was written in that case (the Command fetches before it
+     * writes).
+     */
+    public function import(Request $request, ImportOrgStructure $command): RedirectResponse
+    {
+        if (! $request->user()->is_admin) {
+            abort(403, 'Only an Admin may edit the chain of command.');
+        }
+
+        try {
+            $result = $command->handle($request->user());
+        } catch (OrgStructureImportFailedException $e) {
+            throw ValidationException::withMessages(['import' => $e->getMessage()]);
+        }
+
+        return redirect()->route('settings.org-structure')->with('org_import', [
+            'unitsCreated' => $result->unitsCreated,
+            'mappingsCreated' => $result->mappingsCreated,
+            'skippedTitles' => $result->skippedTitles,
+        ]);
     }
 }
