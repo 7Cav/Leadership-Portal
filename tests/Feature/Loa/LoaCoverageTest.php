@@ -134,6 +134,30 @@ describe('a cleanly read leave', function () {
             ->and(coverageOf($undated, coverageWeek('2026-11-28'))->overdue)->toBeFalse();
     });
 
+    it('says how many days a leave has left, counting from the UTC day on the server', function (string $now, string $ends, ?int $days) {
+        $this->travelTo(CarbonImmutable::parse($now, 'UTC'));
+        $trooper = Trooper::factory()->create();
+        coverageLeave($trooper, '2026-10-01', $ends);
+
+        $cover = coverageOf($trooper);
+
+        expect($cover->endsInDays)->toBe($days)
+            ->and($cover->toArray()['endsInDays'])->toBe($days);
+    })->with([
+        'two days left' => ['2026-10-06 09:00:00', '2026-10-08', 2],
+        'ends today, late in the day' => ['2026-10-06 23:59:59', '2026-10-06', 0],
+        'ended earlier in the week' => ['2026-10-08 00:00:01', '2026-10-06', null],
+        'a long way off' => ['2026-10-04 12:00:00', '2026-10-30', 26],
+    ]);
+
+    it('has no days left for an open ELOA, however far past its expected return', function () {
+        $this->travelTo(CarbonImmutable::parse('2026-10-06 09:00:00', 'UTC'));
+        $trooper = Trooper::factory()->create();
+        coverageLeave($trooper, '2026-09-20', null, ['type' => LoaType::Eloa, 'expected_return_at' => '2026-10-08']);
+
+        expect(coverageOf($trooper)->endsInDays)->toBeNull();
+    });
+
     it('does not cover a week before an open-ended leave starts', function () {
         $trooper = Trooper::factory()->create();
         coverageLeave($trooper, '2026-10-10', null, ['type' => LoaType::Eloa]);
@@ -346,6 +370,7 @@ it('gives the badge its props: a covering leave with dates, a review with none',
         'expectedReturnAt' => null,
         'ongoing' => false,
         'overdue' => false,
+        'endsInDays' => null,
         'sourceThread' => 'https://7cav.us/threads/a.1/',
         'reviewReason' => null,
     ])->and(coverageOf($unclear)->toArray())->toBe([
@@ -357,6 +382,7 @@ it('gives the badge its props: a covering leave with dates, a review with none',
         'expectedReturnAt' => null,
         'ongoing' => false,
         'overdue' => false,
+        'endsInDays' => null,
         'sourceThread' => 'https://7cav.us/threads/b.2/',
         'reviewReason' => 'No end date.',
     ]);
