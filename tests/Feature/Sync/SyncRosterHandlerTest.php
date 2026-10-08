@@ -475,3 +475,15 @@ it('revokes a leader\'s derived scope once the sync marks them departed (1.16)',
     expect(Trooper::where('cav_id', 1)->sole()->status)->toBe(TrooperStatus::Inactive)
         ->and(app(ScopeResolver::class)->resolve($user)->all())->toBe([]);
 });
+
+it('keeps a billet that parsed on one roster even when the same trooper errored on another (1.16)', function () {
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT', ['primary' => ['positionTitle' => 'X', 'positionId' => '196']])]]),
+        SR_RESERVE_URL => MockResponse::make(['profiles' => ['1' => ['code' => 1, 'message' => 'unavailable']]]),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    expect(Trooper::where('cav_id', 1)->sole()->cav_position_id)->toBe(196);
+});

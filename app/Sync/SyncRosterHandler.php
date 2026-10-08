@@ -72,11 +72,17 @@ class SyncRosterHandler
                 fn ($error) => MilpacId::parse($error->key),
                 $result->errors,
             )));
-            $activeCavIds = [...array_column($rows, 'cav_id'), ...$unreadableCavIds];
+            $parsedCavIds = array_column($rows, 'cav_id');
+            $activeCavIds = [...$parsedCavIds, ...$unreadableCavIds];
 
             // An unreadable row's billet is unknown, so it is cleared rather than left conferring
-            // the last-known command scope (1.16).
-            $counts = $this->troopers->sync($rows, array_values(array_unique($activeCavIds)), $unreadableCavIds);
+            // the last-known command scope (1.16) — unless the same trooper also parsed on another
+            // roster this run, whose billet is then current and kept.
+            $counts = $this->troopers->sync(
+                $rows,
+                array_values(array_unique($activeCavIds)),
+                array_values(array_diff(array_unique($unreadableCavIds), $parsedCavIds)),
+            );
 
             $this->troopers->updatePrimarySections($this->resolveSections($result->troopers));
 
