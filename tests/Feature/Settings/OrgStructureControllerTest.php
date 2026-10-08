@@ -291,6 +291,9 @@ it('lets an Admin import the tree and reports what was created (2.9)', function 
             'unitsCreated' => 31,
             'mappingsCreated' => 29,
             'mappingsDiffering' => 0,
+            'commandMappingsCreated' => 40,
+            'commandMappingsRepointed' => 0,
+            'commandMappingsRemoved' => 0,
             'skippedTitles' => ['Section Leader 3/2/C/1-7'],
         ]);
 

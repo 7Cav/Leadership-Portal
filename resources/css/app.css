@@ -1,28 +1,203 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 @source '../views';
 @source '../js/**/*.vue';
 
-/*
- | 7Cav dark + gold theme tokens — the core dark+gold subset.
- | Source of truth: _bmad-output/planning-artifacts/mockups/assets/styles.css :root.
- | Seeded here so every later UI story inherits the core palette (bg-bg, bg-panel,
- | text-gold, border-border, etc.). Status tokens (--good/--warn/--bad/--info) from
- | the mockups are intentionally NOT seeded yet — add them when a story needs them.
- | The sample page is throwaway; these tokens are not.
- | --bad added in Story 1.8 for inline form-validation error text (org tree add-node form).
- */
-@theme {
-    --font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+/* `dark:` follows a `.dark` class on <html> (set pre-paint in app.blade.php, toggled by
+   useTheme from the header toggle and the user menu), not the OS setting alone, so the in-app
+   choice wins. */
+@custom-variant dark (&:is(.dark *));
 
-    --color-bg: #1a1d20;        /* page background */
-    --color-panel: #23272b;     /* cards / table rows */
-    --color-panel-2: #2c3137;   /* hover / header row */
-    --color-border: #353a40;    /* subtle dividers */
-    --color-gold: #f0b929;      /* 7Cav primary accent (links, active tab) */
-    --color-gold-soft: #b88e1f; /* muted gold for borders / underlines */
-    --color-bad: #d9534f;       /* validation errors / missed-attendance status */
+/*
+ | 7Cav design tokens (Story 1.15). Source of truth: the variant Jens picked,
+ | _bmad-output/planning-artifacts/mockups/v2/shell-f.html ("Weekly cycle").
+ | Written in shadcn-vue's Tailwind 4 CSS-variable format: raw values here, mapped to
+ | utilities (`bg-background`, `text-muted-foreground`, `border-border`...) in @theme below.
+ |
+ | Neutral: olive-drab tint (hue 75). Accent: cavalry gold, the ONLY accent. It is reserved for
+ | primary actions, the active nav marker, the focus ring, chart-1 and the "today" marker.
+ | Status (success / warning / destructive / info, plus muted-foreground as neutral) is for
+ | attendance and report state, never decoration.
+ | Radius rule: badges 4px, controls 6px, panels / sheets / menus 10px, avatars round.
+ */
+:root {
+    --background: hsl(75 10% 97.5%);
+    --foreground: hsl(75 14% 10%);
+    --card: hsl(75 12% 99.5%);
+    --card-foreground: hsl(75 14% 10%);
+    --popover: hsl(75 12% 99.5%);
+    --popover-foreground: hsl(75 14% 10%);
+    --primary: hsl(43 87% 55%);
+    --primary-foreground: hsl(75 20% 9%);
+    --secondary: hsl(75 9% 93.5%);
+    --secondary-foreground: hsl(75 14% 10%);
+    --muted: hsl(75 9% 93.5%);
+    --muted-foreground: hsl(75 6% 37%);
+    --accent: hsl(75 10% 92%);
+    --accent-foreground: hsl(75 14% 10%);
+    --border: hsl(75 9% 87%);
+    --input: hsl(75 9% 82%);
+    --ring: hsl(40 92% 38%);
+
+    --success: hsl(148 52% 30%);
+    --warning: hsl(32 92% 38%);
+    --destructive: hsl(3 68% 46%);
+    --info: hsl(206 64% 40%);
+
+    --sidebar: hsl(75 10% 95.5%);
+    --sidebar-foreground: hsl(75 12% 16%);
+    --sidebar-primary: hsl(43 87% 55%);
+    --sidebar-primary-foreground: hsl(75 20% 9%);
+    --sidebar-accent: hsl(75 10% 90%);
+    --sidebar-accent-foreground: hsl(75 14% 10%);
+    --sidebar-border: hsl(75 9% 86%);
+    --sidebar-ring: hsl(40 92% 38%);
+    /* The active nav icon: gold reads too pale on the light sidebar, so it takes the ring's
+       deeper gold here and the full primary in dark (mockup `.nav-item[aria-current]`). */
+    --nav-active-icon: hsl(40 92% 38%);
+
+    --chart-1: hsl(43 87% 50%);
+    --chart-2: hsl(75 7% 42%);
+    --chart-3: hsl(148 40% 38%);
+    --chart-4: hsl(206 50% 45%);
+    --chart-5: hsl(3 55% 52%);
+
+    --radius: 6px;
+    --shadow-panel: 0 1px 2px hsl(75 20% 20% / 0.06), 0 8px 24px -12px hsl(75 20% 20% / 0.18);
+}
+
+.dark {
+    --background: hsl(75 8% 6.5%);
+    --foreground: hsl(75 10% 92%);
+    --card: hsl(75 7% 9%);
+    --card-foreground: hsl(75 10% 92%);
+    --popover: hsl(75 7% 9%);
+    --popover-foreground: hsl(75 10% 92%);
+    --primary: hsl(43 90% 58%);
+    --primary-foreground: hsl(75 20% 8%);
+    --secondary: hsl(75 6% 13.5%);
+    --secondary-foreground: hsl(75 10% 92%);
+    --muted: hsl(75 6% 13.5%);
+    --muted-foreground: hsl(75 6% 63%);
+    --accent: hsl(75 6% 15%);
+    --accent-foreground: hsl(75 10% 92%);
+    --border: hsl(75 6% 17.5%);
+    --input: hsl(75 6% 22%);
+    --ring: hsl(43 90% 58%);
+
+    --success: hsl(148 45% 52%);
+    --warning: hsl(36 90% 58%);
+    --destructive: hsl(3 78% 64%);
+    --info: hsl(206 72% 64%);
+
+    --sidebar: hsl(75 8% 5%);
+    --sidebar-foreground: hsl(75 8% 86%);
+    --sidebar-primary: hsl(43 90% 58%);
+    --sidebar-primary-foreground: hsl(75 20% 8%);
+    --sidebar-accent: hsl(75 6% 13%);
+    --sidebar-accent-foreground: hsl(75 10% 92%);
+    --sidebar-border: hsl(75 6% 14%);
+    --sidebar-ring: hsl(43 90% 58%);
+    --nav-active-icon: hsl(43 90% 58%);
+
+    --chart-1: hsl(43 90% 58%);
+    --chart-2: hsl(75 6% 62%);
+    --chart-3: hsl(148 40% 52%);
+    --chart-4: hsl(206 60% 62%);
+    --chart-5: hsl(3 65% 62%);
+
+    --shadow-panel: 0 1px 2px hsl(0 0% 0% / 0.3), 0 12px 32px -12px hsl(0 0% 0% / 0.6);
+}
+
+@theme inline {
+    --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'Geist Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+
+    --color-success: var(--success);
+    --color-warning: var(--warning);
+    --color-info: var(--info);
+
+    /* The status palette by meaning (AC: good / warn / bad / info / neutral), for the
+       attendance and report screens. Aliases of the tokens above, so one value per state. */
+    --color-status-good: var(--success);
+    --color-status-warn: var(--warning);
+    --color-status-bad: var(--destructive);
+    --color-status-info: var(--info);
+    --color-status-neutral: var(--muted-foreground);
+
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
+
+    /* Fixed steps, not multiples of --radius: the mockup's rule is 4 / 6 / 10. `xl` is pinned
+       to the panel radius too, because shadcn-vue's Card (and SidebarInset) reach for `rounded-xl`. */
+    --radius-sm: 4px;
+    --radius-md: var(--radius);
+    --radius-lg: 10px;
+    --radius-xl: 10px;
+
+    --shadow-panel: var(--shadow-panel);
+}
+
+@layer base {
+    * {
+        @apply border-border outline-ring/50;
+    }
+
+    html {
+        -webkit-text-size-adjust: 100%;
+        overflow-x: clip;
+    }
+
+    body {
+        @apply bg-background text-foreground font-sans antialiased;
+        font-feature-settings: 'ss01';
+    }
+
+    :focus-visible {
+        outline: 2px solid var(--ring);
+        outline-offset: 2px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        transition-duration: 0s !important;
+        animation: none !important;
+    }
 }

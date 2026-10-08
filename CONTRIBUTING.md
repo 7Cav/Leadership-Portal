@@ -90,6 +90,11 @@ that single edge in the same PR, with a one-line reason. That deliberate, review
 - One Inertia page ↔ one controller; the controller shapes its own props, reading
   `Repositories/` directly (AD-20). Pages are PascalCase matching the controller, under
   `resources/js/Pages/`.
+- UI is composed from the in-repo **shadcn-vue** components in `resources/js/components/ui/`
+  (add more with `npx shadcn-vue@latest add <name>`, then re-theme them; never ship one in its
+  default look), Phosphor icons (`@phosphor-icons/vue`), and the design tokens in
+  `resources/css/app.css`. Every authenticated page renders inside `Layouts/AppLayout.vue`; new
+  sidebar entries go in `Layouts/navigation.js`.
 - Eloquent models are **singular** (`Trooper`); tables **plural snake_case**
   (`weekly_reports`). Commands are imperative (`SendWeeklyReport`), handlers end `…Handler`,
   sync handlers `Sync{Thing}Handler`, and each external target's seam class is

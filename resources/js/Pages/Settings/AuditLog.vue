@@ -1,7 +1,16 @@
 <script setup>
 import { reactive } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
-import { forumDateTime } from '../../lib/forumDate';
+import { PhCaretLeft, PhCaretRight, PhListMagnifyingGlass, PhLockSimple } from '@phosphor-icons/vue';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { NativeSelect } from '@/components/ui/native-select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import EmptyState from '@/components/EmptyState.vue';
+import { forumDateTime } from '@/lib/forumDate';
 
 // Flat entries + option lists (mirrors `StaffGrants.vue`'s flat-props pattern). `entries` is a
 // Laravel paginator serialized as-is — `data` plus the standard pagination metadata — so no
@@ -47,110 +56,103 @@ function goTo(url) {
 <template>
     <Head title="Settings · Audit log · 7Cav Leadership Portal" />
 
-    <div class="min-h-screen bg-bg p-6 text-white">
-        <div class="mb-4 flex items-center justify-between">
-            <div>
-                <h1 class="text-xl font-semibold text-gold">Settings · Audit log</h1>
-                <p class="mt-1 text-sm text-gray-400">Every audited action, filterable by actor, action, target, and date range.</p>
+    <div class="space-y-5">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0">
+                <h1 class="text-xl font-semibold tracking-tight">Audit log</h1>
+                <p class="mt-1 text-[13px] text-muted-foreground">Every audited action, filterable by actor, action, target and date range.</p>
             </div>
-            <span class="inline-flex items-center gap-1.5 rounded border border-gold-soft bg-panel px-2.5 py-1 text-xs text-gold">
-                🔒 Admin only
-            </span>
+            <Badge variant="outline" class="gap-1"><PhLockSimple aria-hidden="true" />Admin only</Badge>
         </div>
 
-        <div class="rounded-lg border border-border bg-panel p-3">
-            <form data-testid="filter-form" class="mb-3 grid gap-2 border-b border-border pb-3 sm:grid-cols-3 lg:grid-cols-6" @submit.prevent="applyFilters">
-                <label class="block text-xs text-gray-400">
-                    Actor
-                    <select v-model="filters.actor_id" data-testid="filter-actor_id" class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm">
-                        <option :value="null">— any —</option>
+        <Card class="min-w-0 gap-0 py-0">
+            <form
+                data-testid="filter-form"
+                class="grid gap-3 border-b border-border p-4 sm:grid-cols-3 lg:grid-cols-6"
+                @submit.prevent="applyFilters"
+            >
+                <div class="grid gap-1.5">
+                    <Label for="filter-actor">Actor</Label>
+                    <NativeSelect id="filter-actor" v-model="filters.actor_id" data-testid="filter-actor_id">
+                        <option :value="null">Any actor</option>
                         <option v-for="actor in actorOptions" :key="actor.id" :value="actor.id">{{ actor.username }}</option>
-                    </select>
-                </label>
+                    </NativeSelect>
+                </div>
 
-                <label class="block text-xs text-gray-400">
-                    Action
-                    <select v-model="filters.action" data-testid="filter-action" class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm">
-                        <option :value="null">— any —</option>
+                <div class="grid gap-1.5">
+                    <Label for="filter-action">Action</Label>
+                    <NativeSelect id="filter-action" v-model="filters.action" data-testid="filter-action">
+                        <option :value="null">Any action</option>
                         <option v-for="action in actionOptions" :key="action" :value="action">{{ action }}</option>
-                    </select>
-                </label>
+                    </NativeSelect>
+                </div>
 
-                <label class="block text-xs text-gray-400">
-                    Target type
-                    <input v-model="filters.target_type" data-testid="filter-target_type" type="text" class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm" />
-                </label>
+                <div class="grid gap-1.5">
+                    <Label for="filter-target-type">Target type</Label>
+                    <Input id="filter-target-type" v-model="filters.target_type" data-testid="filter-target_type" type="text" />
+                </div>
 
-                <label class="block text-xs text-gray-400">
-                    Target id
-                    <input v-model="filters.target_id" data-testid="filter-target_id" type="text" class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm" />
-                </label>
+                <div class="grid gap-1.5">
+                    <Label for="filter-target-id">Target id</Label>
+                    <Input id="filter-target-id" v-model="filters.target_id" data-testid="filter-target_id" type="text" />
+                </div>
 
-                <label class="block text-xs text-gray-400">
-                    From
-                    <input v-model="filters.date_from" data-testid="filter-date_from" type="date" class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm" />
-                </label>
+                <div class="grid gap-1.5">
+                    <Label for="filter-from">From</Label>
+                    <Input id="filter-from" v-model="filters.date_from" data-testid="filter-date_from" type="date" />
+                </div>
 
-                <label class="block text-xs text-gray-400">
-                    To
-                    <input v-model="filters.date_to" data-testid="filter-date_to" type="date" class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm" />
-                </label>
+                <div class="grid gap-1.5">
+                    <Label for="filter-to">To</Label>
+                    <Input id="filter-to" v-model="filters.date_to" data-testid="filter-date_to" type="date" />
+                </div>
 
                 <div class="col-span-full flex gap-2">
-                    <button type="submit" data-testid="apply-filters" class="rounded bg-gold px-3 py-1.5 text-sm font-medium text-bg">Apply filters</button>
-                    <button type="button" data-testid="clear-filters" class="rounded border border-border px-3 py-1.5 text-sm text-gray-300" @click="clearFilters">Clear</button>
+                    <Button type="submit" data-testid="apply-filters">Apply filters</Button>
+                    <Button type="button" variant="outline" data-testid="clear-filters" @click="clearFilters">Clear</Button>
                 </div>
             </form>
 
-            <table class="w-full text-left text-sm">
-                <thead>
-                    <tr class="text-xs text-gray-500">
-                        <th class="px-2 py-1 font-normal">Actor</th>
-                        <th class="px-2 py-1 font-normal">Action</th>
-                        <th class="px-2 py-1 font-normal">Target</th>
-                        <th class="px-2 py-1 font-normal">Reason</th>
-                        <th class="px-2 py-1 font-normal">Digest</th>
-                        <th class="px-2 py-1 font-normal">Time</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr v-for="entry in entries.data" :key="entry.id" :data-testid="`entry-row-${entry.id}`" class="border-t border-border align-top">
-                        <td class="px-2 py-2">{{ entry.actor }}</td>
-                        <td class="px-2 py-2">{{ entry.action }}</td>
-                        <td class="px-2 py-2">{{ entry.target_type }}#{{ entry.target_id }}</td>
-                        <td class="px-2 py-2">{{ entry.reason ?? '—' }}</td>
-                        <td class="px-2 py-2 font-mono text-xs text-gray-400" :title="entry.content_digest">{{ entry.content_digest.slice(0, 12) }}…</td>
-                        <td class="px-2 py-2">{{ forumDateTime(entry.created_at) }}</td>
-                    </tr>
-                    <tr v-if="entries.data.length === 0">
-                        <td colspan="6" class="px-2 py-4 text-center text-sm text-gray-500">No audit entries match these filters.</td>
-                    </tr>
-                </tbody>
-            </table>
+            <Table v-if="entries.data.length" class="text-[13px]">
+                <TableHeader>
+                    <TableRow class="hover:bg-transparent">
+                        <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">Actor</TableHead>
+                        <TableHead class="h-8 text-xs font-medium text-muted-foreground">Action</TableHead>
+                        <TableHead class="h-8 text-xs font-medium text-muted-foreground">Target</TableHead>
+                        <TableHead class="h-8 text-xs font-medium text-muted-foreground">Reason</TableHead>
+                        <TableHead class="h-8 text-xs font-medium text-muted-foreground">Digest</TableHead>
+                        <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">Time (UTC)</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    <TableRow v-for="entry in entries.data" :key="entry.id" :data-testid="`entry-row-${entry.id}`" class="align-top">
+                        <TableCell class="px-4 font-medium">{{ entry.actor }}</TableCell>
+                        <TableCell class="font-mono text-xs">{{ entry.action }}</TableCell>
+                        <TableCell class="font-mono text-xs">{{ entry.target_type }}#{{ entry.target_id }}</TableCell>
+                        <TableCell class="max-w-[28ch] whitespace-normal">
+                            <template v-if="entry.reason">{{ entry.reason }}</template>
+                            <span v-else class="text-muted-foreground">None given</span>
+                        </TableCell>
+                        <TableCell class="font-mono text-xs text-muted-foreground" :title="entry.content_digest">{{ entry.content_digest.slice(0, 12) }}…</TableCell>
+                        <TableCell class="px-4 tabular-nums">{{ forumDateTime(entry.created_at) }}</TableCell>
+                    </TableRow>
+                </TableBody>
+            </Table>
+            <EmptyState v-else :icon="PhListMagnifyingGlass" title="No audit entries match these filters." class="py-10">
+                Widen the date range or clear a filter to see more.
+            </EmptyState>
 
-            <div class="mt-3 flex items-center justify-between text-xs text-gray-400">
-                <span>{{ entries.total }} total, page {{ entries.current_page }} of {{ entries.last_page }}</span>
+            <div class="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
+                <span class="tabular-nums">{{ entries.total }} total, page {{ entries.current_page }} of {{ entries.last_page }}</span>
                 <div class="flex gap-2">
-                    <button
-                        type="button"
-                        data-testid="prev-page"
-                        :disabled="!entries.prev_page_url"
-                        class="rounded border border-border px-2 py-1 disabled:opacity-40"
-                        @click="goTo(entries.prev_page_url)"
-                    >
-                        Previous
-                    </button>
-                    <button
-                        type="button"
-                        data-testid="next-page"
-                        :disabled="!entries.next_page_url"
-                        class="rounded border border-border px-2 py-1 disabled:opacity-40"
-                        @click="goTo(entries.next_page_url)"
-                    >
-                        Next
-                    </button>
+                    <Button variant="outline" size="sm" data-testid="prev-page" :disabled="!entries.prev_page_url" @click="goTo(entries.prev_page_url)">
+                        <PhCaretLeft aria-hidden="true" />Previous
+                    </Button>
+                    <Button variant="outline" size="sm" data-testid="next-page" :disabled="!entries.next_page_url" @click="goTo(entries.next_page_url)">
+                        Next<PhCaretRight aria-hidden="true" />
+                    </Button>
                 </div>
             </div>
-        </div>
+        </Card>
     </div>
 </template>

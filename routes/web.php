@@ -1,17 +1,16 @@
 <?php
 
 use App\Http\Controllers\Auth\ForumAuthController;
-use App\Http\Controllers\SampleController;
+use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\OrgStructureController;
 use App\Http\Controllers\Settings\RosterSyncController;
 use App\Http\Controllers\Settings\StaffGrantsController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
-// Throwaway skeleton page (Story 1.1). Kept so the 1.3 smoke tests stay green;
-// retired once real pages take over.
-Route::get('/', [SampleController::class, 'show']);
+// `/` is only a doorway (Story 1.15 retired the Story 1.1 sample page): signed-in users land on
+// home, everyone else on the login screen, in one hop either way.
+Route::get('/', fn () => redirect()->route(auth()->check() ? 'home' : 'login'));
 
 // 7Cav SSO (Story 1.4). `login` is the name Laravel's auth middleware redirects to.
 // Login screen + starting the handshake are guest-only; the callback stays public so
@@ -26,7 +25,7 @@ Route::get('/oauth/callback/7cav', [ForumAuthController::class, 'callback'])->na
 // Authenticated landing. Unauthenticated hits redirect to `login` via the auth
 // middleware. Named `home` — the target Laravel's guest middleware bounces to.
 Route::middleware('auth')->group(function () {
-    Route::get('/home', fn () => Inertia::render('Home'))->name('home');
+    Route::get('/home', [HomeController::class, 'show'])->name('home');
 
     // Logout (Story 1.5). POST, so it carries CSRF protection and can't be triggered by a
     // prefetched link or a cross-site <img>.

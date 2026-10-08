@@ -1,0 +1,51 @@
+import { describe, expect, it } from 'vitest';
+import { NAV_GROUPS, isActive, locate, visibleGroups } from '../navigation';
+import { resolveLayout } from '../resolveLayout';
+import AppLayout from '../AppLayout.vue';
+
+describe('navigation', () => {
+    it.each([
+        ['/home', '/home', true],
+        ['/home/', '/home', true],
+        ['/home?tab=inbox', '/home', true],
+        ['/home#week', '/home', true],
+        ['/settings/audit-log?page=2', '/settings/audit-log', true],
+        ['/homework', '/home', false],
+        ['/settings', '/settings/audit-log', false],
+        [null, '/home', false],
+        [undefined, '/home', false],
+        ['/home', null, false],
+    ])('isActive(%s, %s) is %s', (url, href, expected) => {
+        expect(isActive(url, href)).toBe(expected);
+    });
+
+    it('locates a Settings page whatever the viewer can see (the breadcrumb relies on it)', () => {
+        const found = locate('/settings/org-structure');
+
+        expect(found.group.id).toBe('settings');
+        expect(found.item.label).toBe('Org structure');
+    });
+
+    it('locates nothing for a page outside the nav', () => {
+        expect(locate('/somewhere-else')).toBeNull();
+    });
+
+    it('hides only the admin-only groups from a non-Admin', () => {
+        expect(visibleGroups(false).map((group) => group.id)).toEqual(['leadership']);
+        expect(visibleGroups(true).map((group) => group.id)).toEqual(NAV_GROUPS.map((group) => group.id));
+    });
+});
+
+describe('resolveLayout', () => {
+    it.each(['Home', 'Settings/OrgStructure', 'Settings/StaffGrants', 'Settings/AuditLog'])('wraps %s in the app shell', (name) => {
+        expect(resolveLayout(name)).toBe(AppLayout);
+    });
+
+    it('keeps the login screen outside the shell', () => {
+        expect(resolveLayout('Auth/Login')).toBeNull();
+    });
+
+    it('does not treat a page that merely starts with "Auth" as an auth page', () => {
+        expect(resolveLayout('Authorization/Overview')).toBe(AppLayout);
+    });
+});
