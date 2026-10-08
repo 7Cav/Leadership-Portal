@@ -30,7 +30,7 @@ function rawLoaRow(array $overrides = []): array
 
 it('creates loas with the key, type, dates, parse status, source and raw capture columns', function () {
     expect(Schema::hasColumns('loas', [
-        'id', 'trooper_id', 'forum_thread_id', 'forum_node_id', 'type', 'starts_at', 'ends_at', 'parse_status',
+        'id', 'trooper_id', 'forum_thread_id', 'forum_node_id', 'type', 'starts_at', 'ends_at', 'expected_return_at', 'parse_status',
         'source_thread', 'raw_username', 'raw_start_date', 'raw_end_date', 'raw_excerpt',
         'created_at', 'updated_at',
     ]))->toBeTrue();

@@ -26,5 +26,6 @@ final readonly class LoaWrite
         public ?string $rawStartDate,
         public ?string $rawEndDate,
         public ?string $rawExcerpt,
+        public ?CarbonImmutable $expectedReturnAt = null,
     ) {}
 }

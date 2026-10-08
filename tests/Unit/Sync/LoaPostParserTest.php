@@ -204,12 +204,26 @@ describe('an ELOA report', function () {
             ->and($parsed->forumUserId)->toBeNull();
     });
 
-    it('has no start or end date of its own, and keeps the expected return as raw text only', function () {
+    it('has no start or end date of its own, and reads the expected return as an expectation only', function () {
         $parsed = parseLoa('[ELOA Report] - PFC.Lane.M', loaFixture('eloa-report'), LoaType::Eloa);
 
         expect($parsed->startsAt)->toBeNull()
             ->and($parsed->endsAt)->toBeNull()
-            ->and($parsed->rawEnd)->toBe('Nov 13, 2026');
+            ->and($parsed->rawEnd)->toBe('Nov 13, 2026')
+            ->and($parsed->expectedReturnAt?->toDateString())->toBe('2026-11-13');
+    });
+
+    it('does not send a thread to review because its expected return cannot be read', function () {
+        $body = preg_replace('/Nov 13, 2026/', 'when the unit deploys', loaFixture('eloa-report'));
+        $parsed = parseLoa('[ELOA Report] - PFC.Lane.M', $body, LoaType::Eloa);
+
+        expect($parsed->status())->toBe(LoaParseStatus::Ok)
+            ->and($parsed->expectedReturnAt)->toBeNull()
+            ->and($parsed->rawEnd)->toBe('when the unit deploys');
+    });
+
+    it('has no expected return for an LOA', function () {
+        expect(parseLoa('[LOA Request] - SGT.Smith.J', loaFixture('loa-self'), LoaType::Loa)->expectedReturnAt)->toBeNull();
     });
 
     it('finds the PAF thread it links to, from a bare link', function () {
