@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { PhCheckCircle, PhCloudArrowDown, PhLockSimple, PhPlus, PhTreeStructure, PhWarningCircle } from '@phosphor-icons/vue';
+import { PhCheckCircle, PhCloudArrowDown, PhLockSimple, PhPlus, PhTreeStructure, PhUsers, PhWarningCircle } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -20,6 +20,10 @@ const props = defineProps({
     // Flashed once by the import action (Story 2.9):
     // `{ unitsCreated, mappingsCreated, mappingsDiffering, skippedTitles }`.
     importResult: { type: Object, default: null },
+    // Troopers the roster sync could not place into a section (Story 2.6), as
+    // `{ id, cav_id, username, rank, mos, billet, position_id }`. Null when the server withholds
+    // the list (anyone but an Admin), which is different from an empty array (nobody unplaced).
+    unplacedTroopers: { type: Array, default: null },
 });
 
 const tree = computed(() => {
@@ -247,6 +251,51 @@ function requestDelete(id) {
                 </template>
             </p>
         </div>
+
+        <!--
+          Troopers the sync could not place (Story 2.6). Shown only when the server sent the list, which
+          it does for an Admin alone. Read-only here: placing one is Story 2.7.
+        -->
+        <Card v-if="unplacedTroopers !== null" data-testid="unplaced-panel" class="gap-0 py-0">
+            <div class="flex items-center gap-2 px-4 pt-3.5 pb-2">
+                <h2 class="text-[15px] font-semibold">Not yet placed</h2>
+                <span v-if="unplacedTroopers.length" class="truncate text-xs text-muted-foreground" data-testid="unplaced-count">
+                    {{ unplacedTroopers.length }} synced {{ unplacedTroopers.length === 1 ? 'trooper' : 'troopers' }} without a section
+                </span>
+            </div>
+            <!--
+              With no chain of command yet nothing can be mapped, so the whole roster lands here. Say why,
+              instead of leaving an Admin to assume the sync is broken.
+            -->
+            <p v-if="unplacedTroopers.length && !units.length" data-testid="unplaced-hint" class="px-4 pb-2 text-xs text-muted-foreground">
+                The chain of command is empty, so no trooper can be mapped yet. Import it from the Cav roster first.
+            </p>
+            <!-- Scrolls inside the card: right after a fresh install the list can hold the whole roster. -->
+            <ul
+                v-if="unplacedTroopers.length"
+                aria-label="Troopers not yet placed"
+                class="max-h-80 divide-y divide-border overflow-y-auto border-t border-border"
+            >
+                <li
+                    v-for="trooper in unplacedTroopers"
+                    :key="trooper.id"
+                    data-testid="unplaced-trooper"
+                    class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-4 py-2 text-[13px]"
+                >
+                    <span class="font-medium">
+                        <span v-if="trooper.rank" class="text-muted-foreground">{{ trooper.rank }}</span>
+                        {{ trooper.username ?? `Cav #${trooper.cav_id}` }}
+                    </span>
+                    <span v-if="trooper.mos" class="font-mono text-xs text-muted-foreground">{{ trooper.mos }}</span>
+                    <span class="min-w-0 truncate text-xs text-muted-foreground">
+                        {{ trooper.billet ?? (trooper.position_id !== null ? `Billet ${trooper.position_id}` : 'No billet reported') }}
+                    </span>
+                </li>
+            </ul>
+            <EmptyState v-else :icon="PhUsers" title="All synced troopers are placed" class="border-t border-border py-8">
+                Troopers the sync cannot map to a section will be listed here.
+            </EmptyState>
+        </Card>
 
         <div class="grid items-start gap-5 lg:grid-cols-[1.1fr_0.9fr]">
             <Card class="min-w-0 gap-0 py-0">
