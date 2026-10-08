@@ -19,8 +19,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * mapping and 2.7's audited manual placement, never by the sync handler, so it is excluded from
  * `#[Fillable]` here to keep a future non-sync writer from being tempted to mass-assign it
  * alongside the synced fields.
+ *
+ * `cav_position_id` *is* synced: the trooper's primary Cav billet, overwritten on every run, so
+ * the roster-derived command scope (1.16, `unit_command_mappings`) follows a billet change.
  */
-#[Fillable(['cav_id', 'rank', 'mos', 'tis', 'tig', 'status'])]
+#[Fillable(['cav_id', 'rank', 'mos', 'tis', 'tig', 'status', 'cav_position_id'])]
 class Trooper extends Model
 {
     /** @use HasFactory<TrooperFactory> */
@@ -32,6 +35,7 @@ class Trooper extends Model
             'tis' => 'date',
             'tig' => 'date',
             'status' => TrooperStatus::class,
+            'cav_position_id' => 'integer',
         ];
     }
 

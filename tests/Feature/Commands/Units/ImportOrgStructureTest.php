@@ -6,6 +6,7 @@ use App\Integration\Cav\CavApi;
 use App\Models\AuditLogEntry;
 use App\Models\Unit;
 use App\Models\UnitBilletMapping;
+use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\UnitBilletMappingRepository;
@@ -50,12 +51,20 @@ function iosMappings(): array
         ->mapWithKeys(fn ($m) => [$m->cav_position_id => $m->unit->callsign])->all();
 }
 
+/** @return array<int, string> position id => commanded unit's type|callsign */
+function iosCommandMappings(): array
+{
+    return UnitCommandMapping::query()->with('unit')->get()
+        ->mapWithKeys(fn ($m) => [$m->cav_position_id => "{$m->unit->type->value}|{$m->unit->callsign}"])->all();
+}
+
 /** A snapshot of every unit and mapping row, timestamps included, to prove a re-run wrote nothing. */
 function iosSnapshot(): array
 {
     return [
         Unit::query()->orderBy('id')->get()->map->getAttributes()->all(),
         UnitBilletMapping::query()->orderBy('id')->get()->map->getAttributes()->all(),
+        UnitCommandMapping::query()->orderBy('id')->get()->map->getAttributes()->all(),
     ];
 }
 
@@ -185,7 +194,10 @@ it('writes nothing on an unchanged re-run, and still audits it (AC #5)', functio
 
     expect(iosSnapshot())->toBe($before)
         ->and($result->unitsCreated)->toBe(0)
-        ->and($result->mappingsCreated)->toBe(0);
+        ->and($result->mappingsCreated)->toBe(0)
+        ->and($result->commandMappingsCreated)->toBe(0)
+        ->and($result->commandMappingsRepointed)->toBe(0)
+        ->and($result->commandMappingsRemoved)->toBe(0);
 
     $entries = AuditLogEntry::query()->where('action', 'org_structure.imported')->get();
     $root = iosUnit(UnitType::Regiment, '7CAV');
@@ -349,4 +361,114 @@ it('reports zero differing mappings on an unchanged re-run', function () {
     iosImport();
 
     expect(iosImport()->mappingsDiffering)->toBe(0);
+});
+
+// Story 1.16 — every leadership billet is mapped to the unit it commands, for ScopeResolver's
+// roster-derived scope (AD-7).
+
+it('maps every leadership billet to the unit it commands (1.16)', function () {
+    $result = iosImport();
+    $commands = iosCommandMappings();
+
+    expect($commands)->toMatchArray([
+        // Regimental HQ → the regiment.
+        1 => 'regiment|7CAV', 2 => 'regiment|7CAV', 3 => 'regiment|7CAV',
+        // Battalion command groups → their battalion; ACD's "Auxiliary" titles included.
+        178 => 'battalion|1-7', 179 => 'battalion|1-7', 180 => 'battalion|1-7',
+        182 => 'battalion|2-7',
+        552 => 'battalion|ACD', 627 => 'battalion|ACD', 628 => 'battalion|ACD',
+        // Company command team → the company.
+        196 => 'company|A/1-7', 197 => 'company|A/1-7', 198 => 'company|A/1-7',
+        // Platoon Leader / Platoon Sergeant → the platoon.
+        199 => 'platoon|1/A/1-7', 200 => 'platoon|1/A/1-7',
+        // Section Leader / Assistant Section Leader → the section.
+        201 => 'section|1/1/A/1-7', 202 => 'section|1/1/A/1-7',
+    ])
+        ->and($result->commandMappingsCreated)->toBe(40)
+        ->and(count($commands))->toBe(40);
+
+    // A plain Trooper, a staff billet, a non-line "Section Leader" and the cross-company stray
+    // command nothing.
+    foreach ([203, 8, 780, 1086, 193, 528] as $positionId) {
+        expect($commands)->not->toHaveKey($positionId);
+    }
+
+    // Command groups still create no nodes, and the section mapping (2.5's input) is untouched.
+    expect(Unit::count())->toBe(31)
+        ->and(UnitBilletMapping::count())->toBe(29)
+        ->and(app(UnitBilletMappingRepository::class)->sectionIdsByPositionId())->toHaveCount(29);
+});
+
+it('maps no command for a battalion command group whose battalion has no line company (1.16)', function () {
+    $groups = collect(iosFixture()['groups'])->whereIn('groupTitle', ['A/1-7', '4-7 Command'])->values()->all();
+    $groups[] = ['groupId' => '99', 'groupTitle' => '4-7 Command', 'groupDisplayOrder' => 99, 'positions' => [
+        ['positionTitle' => '4-7 Commanding Officer', 'positionId' => '4000', 'positionDisplayOrder' => 10],
+    ]];
+    iosFake(['groups' => $groups]);
+
+    iosImport();
+
+    expect(iosCommandMappings())->not->toHaveKey(4000)
+        ->and(iosUnit(UnitType::Battalion, '4-7'))->toBeNull();
+});
+
+it('repoints a command mapping Cav now places elsewhere, so scope follows the reorg (1.16)', function () {
+    iosImport();
+    // Cav reorgs: billet 199 (was Platoon Leader 1/A/1-7) now leads 2nd Platoon.
+    $payload = iosFixture();
+    foreach ($payload['groups'] as &$group) {
+        foreach ($group['positions'] as &$position) {
+            if ($position['positionId'] === '199') {
+                $position['positionTitle'] = 'Platoon Leader 2/A/1-7';
+            }
+        }
+    }
+    unset($group, $position);
+    iosFake($payload);
+
+    $result = iosImport();
+
+    expect($result->commandMappingsRepointed)->toBe(1)
+        ->and($result->commandMappingsCreated)->toBe(0)
+        ->and(iosCommandMappings()[199])->toBe('platoon|2/A/1-7');
+});
+
+it('removes the command mapping of a billet Cav no longer lists as a command (1.16)', function () {
+    iosImport();
+    // Billet 201 (Section Leader 1/1/A/1-7) is retitled to a plain trooper billet, and the 2-7
+    // command group disappears entirely.
+    $payload = iosFixture();
+    foreach ($payload['groups'] as &$group) {
+        foreach ($group['positions'] as &$position) {
+            if ($position['positionId'] === '201') {
+                $position['positionTitle'] = 'Trooper 1/1/A/1-7';
+            }
+        }
+    }
+    unset($group, $position);
+    $payload['groups'] = array_values(array_filter($payload['groups'], fn ($g) => $g['groupTitle'] !== '2-7 Command'));
+    iosFake($payload);
+
+    $result = iosImport();
+
+    expect($result->commandMappingsRemoved)->toBe(2)
+        ->and(iosCommandMappings())->not->toHaveKey(201)
+        ->and(iosCommandMappings())->not->toHaveKey(182)
+        ->and(count(iosCommandMappings()))->toBe(38)
+        // The section mapping is additive and untouched: 201 still places its holder.
+        ->and(iosMappings()[201])->toBe('1/1/A/1-7');
+});
+
+it('re-creates a command mapping dropped with its unit when the import runs again (1.16)', function () {
+    iosImport();
+    $section = iosUnit(UnitType::Section, '1/1/A/1-7');
+    // Remove the section the way an Admin would have to: its section billets first.
+    UnitBilletMapping::query()->where('unit_id', $section->id)->delete();
+    app(UnitRepository::class)->delete($section);
+    expect(iosCommandMappings())->not->toHaveKey(201);
+
+    $result = iosImport();
+
+    expect(iosCommandMappings()[201])->toBe('section|1/1/A/1-7')
+        ->and($result->commandMappingsCreated)->toBe(2);
 });

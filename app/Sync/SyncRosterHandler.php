@@ -30,6 +30,9 @@ use Throwable;
  * already shipped and tested, and the mapping step is idempotent — recomputed fresh from the
  * billet table on every run, so a crash between the two writes self-heals on the very next
  * scheduled sync rather than needing its own recovery path.
+ *
+ * The primary billet itself (`cav_position_id`) is written with the synced columns, so the
+ * roster-derived command scope (1.16) follows a billet change on the very next sync.
  */
 class SyncRosterHandler
 {
@@ -55,6 +58,7 @@ class SyncRosterHandler
                     'tis' => $entry->tis,
                     'tig' => $entry->tig,
                     'status' => $this->statusFor($entry->status)->value,
+                    'cav_position_id' => $entry->positionId,
                 ],
                 $result->troopers,
             );
@@ -64,15 +68,21 @@ class SyncRosterHandler
             // marked departed alongside troopers genuinely absent from every roster. The row's
             // *key* is still the milpac id the sweep found them under, so it counts toward the
             // active set even without the fields to upsert.
-            $activeCavIds = [
-                ...array_column($rows, 'cav_id'),
-                ...array_filter(array_map(
-                    fn ($error) => MilpacId::parse($error->key),
-                    $result->errors,
-                )),
-            ];
+            $unreadableCavIds = array_values(array_filter(array_map(
+                fn ($error) => MilpacId::parse($error->key),
+                $result->errors,
+            )));
+            $parsedCavIds = array_column($rows, 'cav_id');
+            $activeCavIds = [...$parsedCavIds, ...$unreadableCavIds];
 
-            $counts = $this->troopers->sync($rows, array_values(array_unique($activeCavIds)));
+            // An unreadable row's billet is unknown, so it is cleared rather than left conferring
+            // the last-known command scope (1.16) — unless the same trooper also parsed on another
+            // roster this run, whose billet is then current and kept.
+            $counts = $this->troopers->sync(
+                $rows,
+                array_values(array_unique($activeCavIds)),
+                array_values(array_diff(array_unique($unreadableCavIds), $parsedCavIds)),
+            );
 
             $this->troopers->updatePrimarySections($this->resolveSections($result->troopers));
 
