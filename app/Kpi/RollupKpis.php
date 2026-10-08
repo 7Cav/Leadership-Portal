@@ -54,18 +54,10 @@ final class RollupKpis
 
         $reports = $this->reports->forUnits($children->modelKeys(), $weekStart);
 
-        $childReports = $children
+        return new RollupResult($children
             ->map(fn (Unit $child) => $this->childReport($child, $reports->get($child->id), $weekStart))
             ->values()
-            ->all();
-
-        $kpis = array_reduce(
-            $childReports,
-            fn (UnitKpis $sum, ChildReport $child) => $child->kpis === null ? $sum : $sum->plus($child->kpis),
-            UnitKpis::none(),
-        );
-
-        return new RollupResult($kpis, $childReports);
+            ->all());
     }
 
     private function childReport(Unit $child, ?WeeklyReport $report, CarbonImmutable $weekStart): ChildReport

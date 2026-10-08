@@ -252,6 +252,7 @@ it('rejects a week_start that is not a Saturday 00:00 UTC on every read and writ
 it('reads many units\' reports for one week in a single query, keyed by unit id', function () {
     $other = Unit::factory()->create();
     $noReport = Unit::factory()->create();
+    $this->repo->saveDraft(Unit::factory()->create()->id, $this->saturday, sixKpiSnapshot(), null); // not asked for
     $sent = $this->repo->send($this->unit->id, $this->saturday, sixKpiSnapshot(), null, $this->sender->id, 'd', null);
     $draft = $this->repo->saveDraft($other->id, $this->saturday, sixKpiSnapshot(), null);
     $this->repo->saveDraft($this->unit->id, $this->saturday->subWeek(), sixKpiSnapshot(), null); // another week

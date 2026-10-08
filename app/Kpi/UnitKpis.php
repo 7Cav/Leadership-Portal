@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Kpi;
 
 use InvalidArgumentException;
@@ -67,6 +69,9 @@ final readonly class UnitKpis
     }
 
     /**
+     * Strictly typed (`strict_types`), so a float, bool or numeric string in a stored snapshot is a
+     * `TypeError` rather than silently truncated into a plausible count.
+     *
      * @param  array{strength: int, rc_30d: array{numerator: int, denominator: int}, sp_30d: array{numerator: int, denominator: int}, at_risk: int, on_loa: int, makeups: int}  $kpis
      */
     public static function fromArray(array $kpis): self

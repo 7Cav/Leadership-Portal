@@ -2,21 +2,38 @@
 
 namespace App\Kpi;
 
+use InvalidArgumentException;
+
 /**
- * A non-leaf unit's report for one week (5.7, AD-13): `kpis` is the sum of its direct children's
- * sent snapshots only, and `children` lists every direct child — sent or not — in order. A child
- * that has not sent is excluded from `kpis`, never estimated, and named by `missingChildren()` so
- * the report and the send step (5.5/5.6) can say who is holding up the chain.
+ * A non-leaf unit's report for one week (5.7, AD-13): `children` lists every direct child — sent
+ * or not — in order, and `kpis` is derived here from the sent ones only, so the total can never
+ * disagree with its rows. A child that has not sent is excluded from `kpis`, never estimated, and
+ * named by `missingChildren()` so the report and the send step (5.5/5.6) can say who is holding
+ * up the chain.
  */
 final readonly class RollupResult
 {
+    /** The sum of the sent children's snapshots (`UnitKpis::plus()`). */
+    public UnitKpis $kpis;
+
     /**
-     * @param  list<ChildReport>  $children
+     * @param  non-empty-list<ChildReport>  $children
+     *
+     * @throws InvalidArgumentException when `$children` is empty — a leaf has no roll-up.
      */
     public function __construct(
-        public UnitKpis $kpis,
         public array $children,
-    ) {}
+    ) {
+        if ($children === []) {
+            throw new InvalidArgumentException('A roll-up has at least one child.');
+        }
+
+        $this->kpis = array_reduce(
+            $children,
+            fn (UnitKpis $sum, ChildReport $child) => $child->kpis === null ? $sum : $sum->plus($child->kpis),
+            UnitKpis::none(),
+        );
+    }
 
     /**
      * The children still draft or not started, in order.

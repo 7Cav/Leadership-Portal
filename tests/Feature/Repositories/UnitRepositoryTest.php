@@ -185,10 +185,13 @@ it('reports whether a unit has children', function () {
 it('lists a unit\'s direct children in creation order, not grandchildren or siblings', function () {
     $repo = app(UnitRepository::class);
     $company = $repo->create(UnitType::Company, 'Alpha Company', 'A/1-7', null);
-    $first = $repo->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', $company->id);
-    $second = $repo->create(UnitType::Platoon, '2nd Platoon', '2/A/1-7', $company->id);
+    $first = $repo->create(UnitType::Platoon, '2nd Platoon', '2/A/1-7', $company->id);
+    $second = $repo->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', $company->id);
     $repo->create(UnitType::Section, '1st Squad', '1/1/A/1-7', $first->id);
     $repo->create(UnitType::Company, 'Bravo Company', 'B/1-7', null);
+    // Sibling paths sort as strings — a 10/ sorts before a 9/ — so creation order is by id alone.
+    $first->forceFill(['path' => "{$company->path}9/"])->save();
+    $second->forceFill(['path' => "{$company->path}10/"])->save();
 
     expect($repo->children($company)->modelKeys())->toBe([$first->id, $second->id])
         ->and($repo->children($second))->toBeEmpty();

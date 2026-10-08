@@ -130,17 +130,27 @@ it('reads only the asked week\'s snapshots', function () {
 
 it('refuses a leaf unit — a section reports from attendance, not from children', function () {
     $this->rollup->forUnit($this->squad, rollupWeek());
-})->throws(InvalidArgumentException::class);
+})->throws(InvalidArgumentException::class, 'has no children');
 
 it('refuses a week_start that is not a Saturday 00:00 UTC', function () {
     $this->rollup->forUnit($this->company, rollupWeek()->addDay());
-})->throws(InvalidArgumentException::class);
+})->throws(InvalidArgumentException::class, 'week_start must be a Saturday');
 
-it('fails loudly on a sent snapshot it cannot read, rather than counting it as zero', function () {
-    $this->reports->send($this->first->id, rollupWeek(), ['strength' => ['value' => 4]], null, $this->sender->id, 'd', null);
+it('fails loudly on a sent snapshot it cannot read, rather than counting it as zero', function (array $snapshot) {
+    $this->reports->send($this->first->id, rollupWeek(), $snapshot, null, $this->sender->id, 'd', null);
 
-    $this->rollup->forUnit($this->company, rollupWeek());
-})->throws(UnexpectedValueException::class);
+    expect(fn () => $this->rollup->forUnit($this->company, rollupWeek()))
+        ->toThrow(UnexpectedValueException::class, "unit {$this->first->id} for 2026-06-27");
+})->with([
+    'a wrong type' => [['strength' => ['value' => 4]]],
+    'a fractional count' => [[...rollupKpis(4, [1, 2], [1, 2])->toArray(), 'strength' => 10.7]],
+    'a boolean count' => [[...rollupKpis(4, [1, 2], [1, 2])->toArray(), 'makeups' => true]],
+    'a numeric-string numerator' => [[...rollupKpis(4, [1, 2], [1, 2])->toArray(), 'sp_30d' => ['numerator' => '1', 'denominator' => 2]]],
+    'a missing ratio' => [array_diff_key(rollupKpis(4, [1, 2], [1, 2])->toArray(), ['rc_30d' => true])],
+    'a missing key' => [array_diff_key(rollupKpis(4, [1, 2], [1, 2])->toArray(), ['on_loa' => true])],
+    'an impossible count' => [[...rollupKpis(4, [1, 2], [1, 2])->toArray(), 'at_risk' => 5]],
+    'an impossible ratio' => [[...rollupKpis(4, [1, 2], [1, 2])->toArray(), 'rc_30d' => ['numerator' => 3, 'denominator' => 2]]],
+]);
 
 it('reads any number of children in a constant number of queries', function () {
     foreach (range(1, 12) as $i) {
