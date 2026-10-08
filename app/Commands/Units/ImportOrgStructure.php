@@ -9,8 +9,10 @@ use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\UnitBilletMappingRepository;
+use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitRepository;
 use App\Support\Audit\AuditEnvelope;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -20,12 +22,17 @@ use Illuminate\Support\Facades\Log;
  * Every line-company group (`A/1-7`) yields its Battalion and Company; every billet title in it
  * yields the Platoon / Section it names (see {@see CavDesignation}), and every section-level
  * billet is mapped to its section by `cav_position_id`. Non-line groups (`Regimental HQ`,
- * `1-7 Command`, `Retired`, …) are ignored.
+ * `1-7 Command`, `Retired`, …) create no node.
+ *
+ * Every leadership billet — in a line company, a `<bn> Command` group or Regimental HQ — is also
+ * mapped to the unit it commands (story 1.16, {@see CommandBillet}), the input to the
+ * roster-derived half of `ScopeResolver`. A command billet whose unit the import has no node for
+ * (a battalion command group with no line company) is not mapped: commands never create nodes.
  *
  * **Additive and idempotent.** An existing node is reused when its type + callsign match the
  * designation (the regiment root also falls back to any existing root regiment, so the tree
- * keeps a single root), and is never renamed, moved or deleted; an existing mapping is never
- * repointed — one that now disagrees with Cav is counted in the result instead, so a reorg is
+ * keeps a single root), and is never renamed, moved or deleted; an existing mapping (section or
+ * command) is never repointed — one that now disagrees with Cav is counted in the result instead, so a reorg is
  * visible without the import overriding a deliberate correction. A re-run with unchanged input
  * therefore creates no unit or mapping — but still records an audit row, so the log shows the
  * import ran.
@@ -40,6 +47,7 @@ class ImportOrgStructure
         private readonly CavApi $cav,
         private readonly UnitRepository $units,
         private readonly UnitBilletMappingRepository $mappings,
+        private readonly UnitCommandMappingRepository $commands,
         private readonly AuditEnvelope $audit,
     ) {}
 
@@ -64,7 +72,7 @@ class ImportOrgStructure
             throw OrgStructureImportFailedException::cavUnavailable($e);
         }
 
-        [$designations, $sectionByPositionId, $skippedTitles, $ignoredGroups] = $this->plan($groups);
+        [$designations, $sectionByPositionId, $commandByPositionId, $skippedTitles, $ignoredGroups] = $this->plan($groups);
 
         if ($designations === []) {
             Log::warning('Org-structure import aborted: Cav listed no line companies.', [
@@ -84,15 +92,15 @@ class ImportOrgStructure
         ]);
 
         $unitsCreated = 0;
-        $mappingsCreated = 0;
-        $mappingsDiffering = 0;
+        $sectionCounts = [0, 0];
+        $commandCounts = [0, 0];
 
         $this->audit->record(
             actorId: $actor->id,
             action: 'org_structure.imported',
             reason: null,
             reasonRequired: false,
-            mutation: function () use ($designations, $sectionByPositionId, &$unitsCreated, &$mappingsCreated, &$mappingsDiffering): Unit {
+            mutation: function () use ($designations, $sectionByPositionId, $commandByPositionId, &$unitsCreated, &$sectionCounts, &$commandCounts): Unit {
                 $index = $this->existingUnitsByKey();
                 $regimentKey = CavDesignation::regiment()->key();
                 $root = $index[$regimentKey] ?? null;
@@ -115,44 +123,82 @@ class ImportOrgStructure
                     $unitsCreated++;
                 }
 
-                $existing = $this->mappings->unitIdsByPositionId();
+                $sectionCounts = $this->addMappings(
+                    $sectionByPositionId,
+                    $index,
+                    $this->mappings->unitIdsByPositionId(),
+                    fn (int $unitId, int $positionId) => $this->mappings->create($unitId, $positionId),
+                );
 
-                foreach ($sectionByPositionId as $positionId => $sectionKey) {
-                    $sectionId = $index[$sectionKey]->id;
-
-                    if ($existing->has($positionId)) {
-                        if ($existing->get($positionId) !== $sectionId) {
-                            $mappingsDiffering++;
-                        }
-
-                        continue;
-                    }
-
-                    $this->mappings->create($sectionId, $positionId);
-                    $mappingsCreated++;
-                }
+                $commandCounts = $this->addMappings(
+                    $commandByPositionId,
+                    $index,
+                    $this->commands->unitIdsByPositionId(),
+                    fn (int $unitId, int $positionId) => $this->commands->create($unitId, $positionId),
+                );
 
                 return $root;
             },
         );
 
-        return new OrgStructureImportResult($unitsCreated, $mappingsCreated, $mappingsDiffering, $skippedTitles);
+        return new OrgStructureImportResult($unitsCreated, $sectionCounts[0], $sectionCounts[1], $skippedTitles, $commandCounts[0], $commandCounts[1]);
+    }
+
+    /**
+     * Add every planned `position id => unit key` mapping that does not exist yet; never repoint
+     * one that does — an existing row that now disagrees with Cav is only counted. A key with no
+     * node in `$index` (only possible for a command billet) is skipped. Returns
+     * `[created, differing]`.
+     *
+     * @param  array<int, string>  $unitKeyByPositionId
+     * @param  array<string, Unit>  $index
+     * @param  Collection<int, int>  $existing  position id => unit id
+     * @param  callable(int, int): mixed  $create  (unit id, position id)
+     * @return array{0: int, 1: int}
+     */
+    private function addMappings(array $unitKeyByPositionId, array $index, Collection $existing, callable $create): array
+    {
+        $created = 0;
+        $differing = 0;
+
+        foreach ($unitKeyByPositionId as $positionId => $unitKey) {
+            $unit = $index[$unitKey] ?? null;
+
+            if ($unit === null) {
+                continue;
+            }
+
+            if ($existing->has($positionId)) {
+                if ($existing->get($positionId) !== $unit->id) {
+                    $differing++;
+                }
+
+                continue;
+            }
+
+            $create($unit->id, $positionId);
+            $created++;
+        }
+
+        return [$created, $differing];
     }
 
     /**
      * Turn the groups into the ordered set of nodes to ensure and the billets to map — pure, no
      * DB access, so everything the import will write is decided before the transaction opens;
      * an unrecognised title is skipped and reported, never fatal. Returns the designations to
-     * ensure (keyed, each after its parent), the section key per mapped position id, the titles
-     * skipped as unparseable, and the titles of groups ignored as not line companies.
+     * ensure (keyed, each after its parent), the section key per mapped position id, the
+     * commanded unit's key per leadership position id, the titles skipped as unparseable, and the
+     * titles of groups ignored as not line companies.
      *
      * @param  list<CavPositionGroup>  $groups  in Cav display order
-     * @return array{0: array<string, CavDesignation>, 1: array<int, string>, 2: list<string>, 3: list<string>}
+     * @return array{0: array<string, CavDesignation>, 1: array<int, string>, 2: array<int, string>, 3: list<string>, 4: list<string>}
      */
     private function plan(array $groups): array
     {
         $designations = [];
         $sectionByPositionId = [];
+        $commandByPositionId = [];
         $skippedTitles = [];
         $ignoredGroups = [];
 
@@ -161,6 +207,14 @@ class ImportOrgStructure
 
             if ($company === null) {
                 $ignoredGroups[] = $group->title;
+
+                foreach ($group->positions as $position) {
+                    $commanded = CommandBillet::inCommandGroup($group->title, $position->title);
+
+                    if ($commanded !== null) {
+                        $commandByPositionId[$position->id] ??= $commanded->key();
+                    }
+                }
 
                 continue;
             }
@@ -183,10 +237,14 @@ class ImportOrgStructure
                     // mapping table holds one row per billet.
                     $sectionByPositionId[$position->id] ??= $designation->key();
                 }
+
+                if (CommandBillet::inLineGroup($position->title, $designation) !== null) {
+                    $commandByPositionId[$position->id] ??= $designation->key();
+                }
             }
         }
 
-        return [$designations, $sectionByPositionId, $skippedTitles, $ignoredGroups];
+        return [$designations, $sectionByPositionId, $commandByPositionId, $skippedTitles, $ignoredGroups];
     }
 
     /**

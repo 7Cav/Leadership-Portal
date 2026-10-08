@@ -5,7 +5,8 @@ namespace App\Commands\Units;
 /**
  * What one org-structure import did (story 2.9): how many nodes and billet mappings it created,
  * how many existing mappings now disagree with Cav (kept, never repointed), and which position
- * titles it could not place. An import never updates or deletes anything.
+ * titles it could not place — plus the same two counts for the leadership billet → commanded
+ * unit mappings (story 1.16). An import never updates or deletes anything.
  */
 final readonly class OrgStructureImportResult
 {
@@ -18,5 +19,7 @@ final readonly class OrgStructureImportResult
         public int $mappingsCreated,
         public int $mappingsDiffering,
         public array $skippedTitles,
+        public int $commandMappingsCreated,
+        public int $commandMappingsDiffering,
     ) {}
 }

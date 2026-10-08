@@ -48,6 +48,15 @@ final readonly class CavDesignation
     }
 
     /**
+     * A battalion by its designation (`1-7`, `ACD`) — the unit a battalion command group's billets
+     * command (1.16, {@see CommandBillet}).
+     */
+    public static function battalion(string $designation): self
+    {
+        return new self(UnitType::Battalion, $designation);
+    }
+
+    /**
      * The company a Cav position group stands for, or null when the group is not a line company
      * — `Regimental HQ`, `1-7 Command`, `Start-Up Games`, `Retired` and every other holding group
      * fail the `<letter>/<battalion>` shape, so they are excluded by what they are rather than
