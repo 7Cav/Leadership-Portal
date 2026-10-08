@@ -9,6 +9,7 @@ use App\Repositories\WeeklyReportAlreadySentException;
 use App\Repositories\WeeklyReportRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
+use Illuminate\Support\Facades\DB;
 
 // 5.2 / AD-12, AD-11: one report per (unit, week_start), week_start always a Saturday 00:00 UTC,
 // and a sent snapshot is frozen — never overwritten by a later draft save or a second send.
@@ -246,3 +247,36 @@ it('rejects a week_start that is not a Saturday 00:00 UTC on every read and writ
     'Saturday midday' => ['2026-10-03 12:00:00', 'UTC'],
     'Saturday 00:00 local but not UTC' => ['2026-10-03 00:00:00', 'America/New_York'],
 ]);
+
+// 5.7 / AD-13: a roll-up reads every child's report for the week in one query, keyed by unit.
+it('reads many units\' reports for one week in a single query, keyed by unit id', function () {
+    $other = Unit::factory()->create();
+    $noReport = Unit::factory()->create();
+    $sent = $this->repo->send($this->unit->id, $this->saturday, sixKpiSnapshot(), null, $this->sender->id, 'd', null);
+    $draft = $this->repo->saveDraft($other->id, $this->saturday, sixKpiSnapshot(), null);
+    $this->repo->saveDraft($this->unit->id, $this->saturday->subWeek(), sixKpiSnapshot(), null); // another week
+
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+    $reports = $this->repo->forUnits([$this->unit->id, $other->id, $noReport->id], $this->saturday);
+    $queries = count(DB::getQueryLog());
+    DB::disableQueryLog();
+
+    expect($reports->keys()->sort()->values()->all())->toBe([$this->unit->id, $other->id])
+        ->and($reports[$this->unit->id]->id)->toBe($sent->id)
+        ->and($reports[$other->id]->id)->toBe($draft->id)
+        ->and($queries)->toBe(1);
+});
+
+it('reads nothing, without a query, for an empty list of units', function () {
+    DB::enableQueryLog();
+    $reports = $this->repo->forUnits([], $this->saturday);
+    $queries = count(DB::getQueryLog());
+    DB::disableQueryLog();
+
+    expect($reports)->toBeEmpty()->and($queries)->toBe(0);
+});
+
+it('refuses a batch read for a week_start that is not a Saturday 00:00 UTC', function () {
+    $this->repo->forUnits([$this->unit->id], $this->saturday->addHour());
+})->throws(InvalidArgumentException::class);

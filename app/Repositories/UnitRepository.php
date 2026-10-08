@@ -68,6 +68,15 @@ interface UnitRepository
     public function hasChildren(Unit $unit): bool;
 
     /**
+     * The unit's direct children — not grandchildren — in creation (id) order; sibling `path`s
+     * would sort lexicographically ("10/" before "9/"). A non-leaf report aggregates exactly
+     * these (AD-13).
+     *
+     * @return Collection<int, Unit>
+     */
+    public function children(Unit $unit): Collection;
+
+    /**
      * The FK on `parent_id` (`restrictOnDelete`) would refuse this at the DB level anyway if
      * children exist, but the CommandHandler layer checks {@see hasChildren()} first so an
      * Admin gets a clear reason instead of a raw constraint-violation exception.
