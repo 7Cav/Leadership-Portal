@@ -43,13 +43,14 @@ Route → Controller ─┬─ (write) Command → CommandHandler ─┐
 
 | Layer | Directory | May depend on | Role |
 | --- | --- | --- | --- |
-| Controller | `app/Http/Controllers/` | CommandHandler, Repository, Model, Authorization | Orchestrate a request. **No business logic.** Reads repositories directly; writes via Commands. |
-| Command / Handler | `app/Commands/` | Repository, Model, Integration, Support\Audit, Authorization | Write-side business logic; the **only** caller of the outbound seam. |
-| Repository | `app/Repositories/` | Model, DB | **Sole** DB access (AD-2) |
+| Controller | `app/Http/Controllers/` | CommandHandler, Repository, Model, Authorization, Job, Support\Time | Orchestrate a request. **No business logic.** Reads repositories directly; writes via Commands. |
+| Command / Handler | `app/Commands/` | Repository, Model, Integration, Support\Audit, Authorization, Support\Time | Write-side business logic; the **only** caller of the outbound seam. |
+| Repository | `app/Repositories/` | Model, DB, Support\Time | **Sole** DB access (AD-2) |
 | Model | `app/Models/` | DB | Eloquent entities |
 | Integration | `app/Integration/` | External (Saloon/HTTP) | **Sole** path to external systems (AD-3) — Saloon connectors, requests, DTOs, and a `{Target}Api` seam class |
 | Authorization | `app/Authorization/` | Repository, Model | The single `ScopeResolver` gating read visibility (AD-8), plus policies and view-as |
 | Support\Audit | `app/Support/Audit/` | Repository | The audited-action envelope every state-changing Command routes through (AD-16) |
+| Support\Time | `app/Support/Time/` | — | `WeekOf::start()`, the **only** time → `week_start` mapping (AD-11): Saturday 00:00 UTC |
 | Sync | `app/Sync/` | Repository, Model, Integration | One-writer cache sync handlers (AD-4, AD-22) — `Sync{Thing}Handler` |
 | Provider | `app/Providers/` | (wires every layer) | DI composition root — bootstrap, not business logic |
 | Middleware | `app/Http/Middleware/` | — | Request glue (e.g. Inertia shared props) |
@@ -57,7 +58,8 @@ Route → Controller ─┬─ (write) Command → CommandHandler ─┐
 **Layers added consciously as their stories landed.** `Authorization/`, `Support/Audit/`, and
 `Sync/` were all placeholders in `deptrac.yaml` until each one's own story added it — with its
 edges — deliberately (Story 1.11, Story 1.10, and Story 2.2 respectively). All three are
-enforced today.
+enforced today. `Support/Time/` (Story 3.2) was added the same way: a pure helper with no
+outgoing edge, reachable from Controller, CommandHandler, and Repository.
 
 Each layer directory has a `README.md` explaining its rules — read the one for the layer
 you're touching. The forbidden moves that catch people: **Controller → Integration** (an

@@ -10,13 +10,14 @@
 #           composer deptrac:unassigned (list app/ classes that match no layer)
 #
 # The graph (arrows = "may depend on"):
-#   Controller     → CommandHandler, Repository, Model, Authorization, Job  # writes via Commands; reads direct
-#   CommandHandler → Repository, Model, Integration, Support\Audit, Authorization  # write-side business logic
+#   Controller     → CommandHandler, Repository, Model, Authorization, Job, Support\Time  # writes via Commands; reads direct
+#   CommandHandler → Repository, Model, Integration, Support\Audit, Authorization, Support\Time  # write-side business logic
 #   Job            → Sync                                  # queued jobs invoke a Sync handler (Story 2.4)
 #   Sync           → Repository, Model, Integration        # one-writer cache sync handlers (AD-4)
 #   Authorization  → Repository, Model                     # ScopeResolver, the single scope gate (AD-8)
 #   Support\Audit  → Repository                             # audited-action envelope (AD-16)
-#   Repository     → Model, DB                             # sole DB access (AD-2)
+#   Support\Time   → (nothing)                              # WeekOf, the one week_start mapper (AD-11)
+#   Repository     → Model, DB, Support\Time               # sole DB access (AD-2)
 #   Model          → DB
 #   Integration    → External                              # sole path out — Saloon lives here (AD-3)
 # Everything else is forbidden: Controller → Integration (external calls stay out of
@@ -52,6 +53,10 @@ deptrac:
       collectors:
         - type: directory
           value: app/Support/Audit/.*
+    - name: Support\Time
+      collectors:
+        - type: directory
+          value: app/Support/Time/.*
     - name: Authorization
       collectors:
         - type: directory
@@ -109,12 +114,14 @@ deptrac:
       - Model
       - Authorization
       - Job
+      - Support\Time
     CommandHandler:
       - Repository
       - Model
       - Integration
       - Support\Audit
       - Authorization
+      - Support\Time
     # One-writer cache sync handler (AD-4, AD-22): reads the source of truth through
     # Integration and persists only through its Repository — the same write-side shape
     # as CommandHandler, minus Support\Audit (sync runs record to sync_runs instead, AD-16).
@@ -139,6 +146,11 @@ deptrac:
     Repository:
       - Model
       - DB
+      - Support\Time
+    # The canonical Cav week (AD-11): a pure function over Carbon with no app/ dependency.
+    # Reachable from Controller, CommandHandler and Repository; add an edge here if another
+    # layer needs to bucket a time into a week.
+    Support\Time: ~
     Model:
       - DB
     Integration:
