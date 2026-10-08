@@ -93,4 +93,13 @@ interface TrooperRepository
      * @return Collection<int, string>
      */
     public function ranksByCavId(array $cavIds): Collection;
+
+    /**
+     * The same population as {@see assignedWithin()}, each trooper with the section they are
+     * placed in: `trooper_id => primary_section_id`, ascending by trooper — so one query can split
+     * a whole subtree's troopers by section (5.8's batched roll-up).
+     *
+     * @return Collection<int, int>
+     */
+    public function sectionsOfAssignedWithin(Unit $unit): Collection;
 }

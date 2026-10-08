@@ -91,4 +91,11 @@ class Eloquent implements TrooperRepository
     {
         return Trooper::query()->whereIn('cav_id', $cavIds)->whereNotNull('rank')->pluck('rank', 'cav_id');
     }
+
+    public function sectionsOfAssignedWithin(Unit $unit): Collection
+    {
+        return Trooper::query()->assignedWithin($unit)->orderBy('id')
+            ->pluck('primary_section_id', 'id')
+            ->map(fn ($sectionId) => (int) $sectionId);
+    }
 }

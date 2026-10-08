@@ -113,3 +113,13 @@ it('finds the earliest-created Admin, or none (#115)', function () {
 
     expect($repository->firstAdmin()->id)->toBe($first->id);
 });
+
+// 5.8: names the senders of a whole chain's reports in one query.
+it('maps user ids to usernames, skipping unknown ids', function () {
+    $a = User::factory()->create(['username' => 'Hale.S']);
+    $b = User::factory()->create(['username' => 'Brennan.J']);
+
+    expect(app(UserRepository::class)->usernamesByIds([$b->id, $a->id, 999])->sortKeys()->all())
+        ->toBe([$a->id => 'Hale.S', $b->id => 'Brennan.J'])
+        ->and(app(UserRepository::class)->usernamesByIds([])->all())->toBe([]);
+});

@@ -1,26 +1,32 @@
 import { defineConfig, devices } from '@playwright/test';
+import { E2E_ENV } from './tests/e2e/env.js';
 
 // Playwright browser E2E (Story 1.3). Boots the real Laravel app and drives a real
 // browser against it. Assets must be built first (`npm run build`) so @vite resolves
-// the manifest; CI does that in a prior step. The sample page touches no DB, so a
-// MySQL service isn't required — the app serves on SQLite in CI.
+// the manifest; CI does that in a prior step. The server runs on a throwaway SQLite database that
+// global-setup migrates and seeds fresh (tests/e2e/env.js), so no MySQL service is needed.
 export default defineConfig({
     testDir: './tests/e2e',
+    globalSetup: './tests/e2e/global-setup.js',
     fullyParallel: true,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : 0,
     reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
     use: {
-        baseURL: 'http://127.0.0.1:8000',
+        baseURL: 'http://127.0.0.1:8010',
         trace: 'on-first-retry',
     },
     projects: [
         { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
     ],
     webServer: {
-        command: 'php artisan serve --host=127.0.0.1 --port=8000',
-        url: 'http://127.0.0.1:8000',
-        reuseExistingServer: !process.env.CI,
+        // Its own port and environment (tests/e2e/env.js), so a dev server on :8000 is never
+        // mistaken for it and the seeded e2e database is the one served. `--no-reload` passes the
+        // environment through to the PHP server instead of re-reading .env over it.
+        command: 'php artisan serve --host=127.0.0.1 --port=8010 --no-reload',
+        url: 'http://127.0.0.1:8010',
+        env: E2E_ENV,
+        reuseExistingServer: false,
         timeout: 120_000,
     },
 });

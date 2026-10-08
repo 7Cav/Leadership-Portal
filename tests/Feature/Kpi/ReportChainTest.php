@@ -1,0 +1,203 @@
+<?php
+
+use App\Kpi\ChainNode;
+use App\Kpi\ChildReportStatus;
+use App\Kpi\KpiDelta;
+use App\Kpi\KpiService;
+use App\Kpi\Ratio;
+use App\Kpi\ReportChain;
+use App\Kpi\ReportSnapshot;
+use App\Kpi\UnitKpis;
+use App\Models\AttendanceSource;
+use App\Models\AttendanceStatus;
+use App\Models\RollcallSignature;
+use App\Models\Trooper;
+use App\Models\Unit;
+use App\Models\UnitType;
+use App\Models\User;
+use App\Models\WeeklyReport;
+use App\Repositories\AttendanceRepository;
+use App\Repositories\SectionPracticeRepository;
+use App\Repositories\UnitRepository;
+use App\Repositories\WeeklyReportRepository;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
+
+// 5.8: the navigator's read model. Every node is either its frozen snapshot (sent), or live and
+// labelled so: a leaf from KpiService, a non-leaf from its children's SENT snapshots only (AD-13).
+// Fixture tree:
+//   1-7 ─ A/1-7 ─┬─ 1/A ─┬─ 1/1/A   (sent)
+//                │       └─ 2/1/A   (draft, live attendance)
+//                └─ 2/A ─── 1/2/A   (not started)
+// `week_start` is 2026-10-03 (a Saturday).
+
+function chainWeek(int $weeksBack = 0): CarbonImmutable
+{
+    return CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC')->subWeeks($weeksBack);
+}
+
+function chainKpis(int $strength, array $rc, array $sp, int $atRisk = 0): UnitKpis
+{
+    return new UnitKpis($strength, new Ratio(...$rc), new Ratio(...$sp), $atRisk, 0, 0);
+}
+
+/** @return array<int, ChainNode> every node in the tree, keyed by unit id */
+function chainIndex(ChainNode $node): array
+{
+    $all = [$node->unit->id => $node];
+    foreach ($node->children as $child) {
+        $all += chainIndex($child);
+    }
+
+    return $all;
+}
+
+beforeEach(function () {
+    $units = app(UnitRepository::class);
+    $this->battalion = $units->create(UnitType::Battalion, '1st Battalion', '1-7', null);
+    $this->company = $units->create(UnitType::Company, 'Alpha Company', 'A/1-7', $this->battalion->id);
+    $this->p1 = $units->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', $this->company->id);
+    $this->p2 = $units->create(UnitType::Platoon, '2nd Platoon', '2/A/1-7', $this->company->id);
+    $this->s11 = $units->create(UnitType::Section, '1st Section', '1/1/A/1-7', $this->p1->id);
+    $this->s21 = $units->create(UnitType::Section, '2nd Section', '2/1/A/1-7', $this->p1->id);
+    $this->s12 = $units->create(UnitType::Section, '1st Section', '1/2/A/1-7', $this->p2->id);
+
+    $this->reports = app(WeeklyReportRepository::class);
+    $this->sender = User::factory()->create();
+    $this->send = fn (Unit $unit, UnitKpis $kpis, ?KpiDelta $delta = null, int $weeksBack = 0) => $this->reports
+        ->send($unit->id, chainWeek($weeksBack), (new ReportSnapshot($kpis, $delta))->toArray(), 'sent notes', $this->sender->id, 'digest', null);
+    $this->chain = app(ReportChain::class);
+});
+
+it('builds the tree from the root down, children in creation order', function () {
+    $root = $this->chain->build($this->company, chainWeek());
+
+    expect($root->unit->id)->toBe($this->company->id)
+        ->and(array_map(fn (ChainNode $n) => $n->unit->id, $root->children))->toBe([$this->p1->id, $this->p2->id])
+        ->and(array_map(fn (ChainNode $n) => $n->unit->id, $root->children[0]->children))->toBe([$this->s11->id, $this->s21->id])
+        ->and($root->children[0]->children[0]->children)->toBe([])
+        ->and($root->children[0]->children[0]->rollup)->toBeNull();
+});
+
+it('shows a sent unit\'s frozen snapshot, delta included, never a live recompute', function () {
+    $frozen = chainKpis(6, [20, 24], [10, 12]);
+    $delta = new KpiDelta(1, 200, -150, 0, 0, 0);
+    ($this->send)($this->s11, $frozen, $delta);
+    // Attendance recorded after the send must not move the frozen numbers.
+    $trooper = Trooper::factory()->create();
+    $trooper->forceFill(['primary_section_id' => $this->s11->id])->save();
+
+    $node = chainIndex($this->chain->build($this->company, chainWeek()))[$this->s11->id];
+
+    expect($node->status)->toBe(ChildReportStatus::Sent)
+        ->and($node->live)->toBeFalse()
+        ->and($node->kpis)->toEqual($frozen)
+        ->and($node->delta)->toEqual($delta)
+        ->and($node->report->notes)->toBe('sent notes');
+});
+
+it('shows an unsent section\'s live KPIs from the shared service, with the delta against last week\'s sent snapshot', function () {
+    $trooper = Trooper::factory()->create();
+    $trooper->forceFill(['primary_section_id' => $this->s21->id])->save();
+    $practice = app(SectionPracticeRepository::class)->findOrCreate($this->s21->id, chainWeek());
+    app(AttendanceRepository::class)->markPractice($practice, $trooper->id, AttendanceStatus::Present, AttendanceSource::Manual);
+    app(AttendanceRepository::class)->signRollcall($practice, $trooper->id, RollcallSignature::WillAttend);
+    $this->reports->saveDraft($this->s21->id, chainWeek(), ['draft' => true], 'draft notes');
+    ($this->send)($this->s21, chainKpis(2, [1, 8], [1, 2]), weeksBack: 1);
+
+    $node = chainIndex($this->chain->build($this->company, chainWeek()))[$this->s21->id];
+    $live = app(KpiService::class)->forUnit($this->s21, chainWeek());
+
+    expect($node->status)->toBe(ChildReportStatus::Draft)
+        ->and($node->live)->toBeTrue()
+        ->and($node->kpis)->toEqual($live)
+        ->and($node->delta)->toEqual(KpiDelta::between($live, chainKpis(2, [1, 8], [1, 2])))
+        ->and($node->report->notes)->toBe('draft notes');
+});
+
+it('gives no delta when last week was not sent, and none-KPIs for an empty section', function () {
+    $this->reports->saveDraft($this->s12->id, chainWeek(1), [], null);
+
+    $node = chainIndex($this->chain->build($this->company, chainWeek()))[$this->s12->id];
+
+    expect($node->status)->toBe(ChildReportStatus::NotStarted)
+        ->and($node->report)->toBeNull()
+        ->and($node->delta)->toBeNull()
+        ->and($node->kpis)->toEqual(UnitKpis::none());
+});
+
+it('rolls an unsent non-leaf up from its children\'s sent snapshots only, and marks it holding', function () {
+    ($this->send)($this->s11, chainKpis(6, [20, 24], [10, 12], atRisk: 1));
+    $this->reports->saveDraft($this->s21->id, chainWeek(), [], null);
+
+    $index = chainIndex($this->chain->build($this->company, chainWeek()));
+    $platoon = $index[$this->p1->id];
+
+    expect($platoon->kpis)->toEqual(chainKpis(6, [20, 24], [10, 12], atRisk: 1))
+        ->and($platoon->live)->toBeTrue()
+        ->and($platoon->isHolding())->toBeTrue()
+        ->and(array_map(fn ($c) => $c->unit->id, $platoon->rollup->missingChildren()))->toBe([$this->s21->id])
+        // The company rolls up its platoons' sent snapshots — none sent, so nothing yet.
+        ->and($index[$this->company->id]->kpis)->toEqual(UnitKpis::none())
+        ->and($index[$this->company->id]->isHolding())->toBeTrue();
+});
+
+it('is not holding once every child has sent, and a sent branch has no open reports', function () {
+    ($this->send)($this->s11, chainKpis(6, [20, 24], [10, 12]));
+    ($this->send)($this->s21, chainKpis(4, [8, 16], [3, 4]));
+
+    $index = chainIndex($this->chain->build($this->company, chainWeek()));
+
+    expect($index[$this->p1->id]->isHolding())->toBeFalse()
+        ->and($index[$this->p1->id]->hasOpenReports())->toBeTrue()   // its own report is still unsent
+        ->and($index[$this->s11->id]->hasOpenReports())->toBeFalse()
+        ->and($index[$this->p1->id]->kpis)->toEqual(chainKpis(10, [28, 40], [13, 16]));
+});
+
+it('flags a sent unit whose descendant is still open', function () {
+    ($this->send)($this->p1, chainKpis(6, [20, 24], [10, 12]));
+
+    $node = chainIndex($this->chain->build($this->company, chainWeek()))[$this->p1->id];
+
+    expect($node->status)->toBe(ChildReportStatus::Sent)
+        ->and($node->isHolding())->toBeFalse()
+        ->and($node->hasOpenReports())->toBeTrue();
+});
+
+it('reads a whole battalion in five queries, however many units it holds', function () {
+    $units = app(UnitRepository::class);
+    $count = function (Unit $root) {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->chain->build($root, chainWeek());
+        $queries = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        return $queries;
+    };
+
+    $small = $count($this->battalion);
+
+    foreach (['B', 'C'] as $letter) {
+        $company = $units->create(UnitType::Company, "{$letter} Company", "{$letter}/1-7", $this->battalion->id);
+        foreach ([1, 2] as $p) {
+            $platoon = $units->create(UnitType::Platoon, "Platoon {$p}", "{$p}/{$letter}/1-7", $company->id);
+            foreach ([1, 2, 3, 4] as $s) {
+                $section = $units->create(UnitType::Section, "Section {$s}", "{$s}/{$p}/{$letter}/1-7", $platoon->id);
+                $trooper = Trooper::factory()->create();
+                $trooper->forceFill(['primary_section_id' => $section->id])->save();
+                ($this->send)($section, chainKpis(1, [1, 4], [0, 1]));
+                ($this->send)($section, chainKpis(1, [1, 4], [0, 1]), weeksBack: 1);
+            }
+        }
+    }
+
+    expect($small)->toBe(5)->and($count($this->battalion))->toBe(5);
+});
+
+it('fails loudly on an unreadable sent snapshot rather than showing a plausible zero', function () {
+    ($this->send)($this->s11, chainKpis(6, [20, 24], [10, 12]));
+    WeeklyReport::query()->where('unit_id', $this->s11->id)->update(['kpis' => json_encode(['strength' => 6])]);
+
+    $this->chain->build($this->company, chainWeek());
+})->throws(UnexpectedValueException::class, 'unreadable');

@@ -65,6 +65,15 @@ interface UnitRepository
      */
     public function move(Unit $unit, int $newParentId): Unit;
 
+    /**
+     * The subtree rooted at `$unit` as models, itself included, in id order — one `path LIKE`
+     * query (AD-18) for a reader that walks the whole chain under a unit at once (5.8's roll-up)
+     * and rebuilds the tree from `parent_id` rather than asking {@see children()} once per node.
+     *
+     * @return Collection<int, Unit>
+     */
+    public function subtree(Unit $unit): Collection;
+
     public function hasChildren(Unit $unit): bool;
 
     /**
