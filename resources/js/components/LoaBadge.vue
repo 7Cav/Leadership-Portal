@@ -23,11 +23,14 @@ const visible = computed(() => covered.value || needsReview.value);
 
 const typeLabel = computed(() => props.cover?.typeLabel ?? 'LOA');
 
-const label = computed(() => {
-    if (needsReview.value) return `${typeLabel.value} · needs review`;
-    if (props.cover.ongoing || !props.cover.endsAt) return `${typeLabel.value} · ongoing`;
+// The day the pill names: a leave's end, or for an ELOA still open, the return it expects. An ELOA is not ended
+// by that date (it can be extended, and ends when a return is posted), so it is only shown.
+const endDate = computed(() => props.cover?.endsAt ?? props.cover?.expectedReturnAt ?? null);
 
-    return `${typeLabel.value} · ends ${forumDate(props.cover.endsAt)}`;
+const label = computed(() => {
+    if (needsReview.value) return `${typeLabel.value} needs review`;
+
+    return endDate.value ? `${typeLabel.value} ends ${forumDate(endDate.value)}` : `${typeLabel.value} ongoing`;
 });
 
 // What the label cannot fit: the dates read from the post, or why it could not be read, then where the data
@@ -36,20 +39,24 @@ const details = computed(() => {
     const lines = [];
 
     if (covered.value) {
-        const start = props.cover.startsAt ? forumDate(props.cover.startsAt) : null;
-        const end = props.cover.endsAt ? forumDate(props.cover.endsAt) : 'no end date yet';
-        lines.push(start ? `${typeLabel.value} from ${start} to ${end}` : `${typeLabel.value} to ${end}`);
+        const start = props.cover.startsAt ? `${typeLabel.value} from ${forumDate(props.cover.startsAt)}` : typeLabel.value;
+
+        if (props.cover.endsAt) {
+            lines.push(`${start} to ${forumDate(props.cover.endsAt)}`);
+        } else if (props.cover.expectedReturnAt) {
+            lines.push(`${start}, expected return ${forumDate(props.cover.expectedReturnAt)}`);
+            lines.push('It runs until a return is posted, and can be extended.');
+        } else {
+            lines.push(`${start}, no end date yet`);
+        }
     } else {
         lines.push('The leave post could not be read, so no dates are shown.');
         if (props.cover.reviewReason) lines.push(props.cover.reviewReason);
     }
 
     if (props.sync) {
-        lines.push(
-            props.sync.lastSyncedAt
-                ? `Source: ${props.sync.source} · last synced ${forumDateTime(props.sync.lastSyncedAt)} UTC`
-                : `Source: ${props.sync.source} · never synced`,
-        );
+        lines.push(`Source: ${props.sync.source}`);
+        lines.push(props.sync.lastSyncedAt ? `Last synced ${forumDateTime(props.sync.lastSyncedAt)} UTC` : 'Never synced');
         if (props.sync.stale) lines.push('The latest sync did not succeed, so this is the last good data.');
     }
 
