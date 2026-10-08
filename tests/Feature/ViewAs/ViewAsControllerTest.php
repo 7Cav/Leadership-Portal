@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\PortalRoleGrant;
+use App\Models\SyncRun;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
@@ -25,9 +26,10 @@ function vcTree(): array
     $company = $repo->create(UnitType::Company, 'Alpha Company', 'A/1-7', $battalion->id);
     $platoon = $repo->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', $company->id);
     $section = $repo->create(UnitType::Section, '1st Section', '1/1/A/1-7', $platoon->id);
+    $section2 = $repo->create(UnitType::Section, '2nd Section', '2/1/A/1-7', $platoon->id);
     $otherBattalion = $repo->create(UnitType::Battalion, '2nd Battalion', '2-7', $regiment->id);
 
-    return compact('regiment', 'battalion', 'company', 'platoon', 'section', 'otherBattalion');
+    return compact('regiment', 'battalion', 'company', 'platoon', 'section', 'section2', 'otherBattalion');
 }
 
 function vcLeaderOf(Unit $unit, int $cavId, string $username, ?string $rank = null): User
@@ -53,6 +55,7 @@ describe('options', function () {
                 'units' => [
                     ['id' => $tree['platoon']->id, 'designation' => '1/A/1-7', 'name' => '1st Platoon', 'type' => 'platoon'],
                     ['id' => $tree['section']->id, 'designation' => '1/1/A/1-7', 'name' => '1st Section', 'type' => 'section'],
+                    ['id' => $tree['section2']->id, 'designation' => '2/1/A/1-7', 'name' => '2nd Section', 'type' => 'section'],
                 ],
                 'people' => null,
                 'current' => null,
@@ -83,7 +86,7 @@ describe('options', function () {
         $plain = User::factory()->create(['username' => 'Doyle.K']);
 
         $this->actingAs($admin)->getJson('/view-as/options')
-            ->assertJsonCount(6, 'units')
+            ->assertJsonCount(7, 'units')
             ->assertJsonPath('people', [
                 ['id' => $plain->id, 'label' => 'Doyle.K', 'designation' => null, 'admin' => false],
                 ['id' => $leader->id, 'label' => 'SGT Vasquez.R', 'designation' => '1/1/A/1-7', 'admin' => false],
@@ -233,5 +236,82 @@ describe('read-only preview', function () {
             ->assertRedirect();
 
         expect(Unit::where('name', 'Real Section')->exists())->toBeTrue();
+    });
+
+    // Every write route, by method — an Admin, so a 403 can only come from the preview guard,
+    // never from the controller's own Admin gate — and the database untouched each time.
+    it('refuses each kind of write while viewing as, leaving the data unchanged', function (Closure $request, Closure $unchanged) {
+        $tree = vcTree();
+        $admin = User::factory()->admin()->create();
+        $grant = PortalRoleGrant::factory()->create(['user_id' => User::factory()->create()->id, 'unit_id' => $tree['section']->id]);
+        $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $tree['platoon']->id]);
+
+        $request($this, $tree, $grant)->assertForbidden();
+
+        expect($unchanged($tree, $grant))->toBeTrue();
+    })->with([
+        'PATCH a unit' => [
+            fn ($test, $tree) => $test->patch("/settings/org-structure/{$tree['section']->id}", ['name' => 'Renamed', 'callsign' => 'X', 'reason' => 'x']),
+            fn ($tree) => $tree['section']->fresh()->name === '1st Section',
+        ],
+        'DELETE a unit' => [
+            fn ($test, $tree) => $test->delete("/settings/org-structure/{$tree['section2']->id}", ['reason' => 'x']),
+            fn ($tree) => $tree['section2']->fresh() !== null,
+        ],
+        'DELETE a staff grant' => [
+            fn ($test, $tree, $grant) => $test->delete("/settings/staff-grants/{$grant->id}", ['reason' => 'x']),
+            fn ($tree, $grant) => $grant->fresh() !== null,
+        ],
+        'POST a roster sync' => [
+            fn ($test) => $test->post('/settings/roster-sync'),
+            fn () => SyncRun::count() === 0,
+        ],
+    ]);
+
+    it('lets a viewer switch sideways to another unit in real scope without exiting first', function () {
+        $tree = vcTree();
+        $commander = vcLeaderOf($tree['company'], 100, 'Hale.S', 'CPT');
+        $this->actingAs($commander)->post('/view-as', ['kind' => 'unit', 'id' => $tree['section']->id]);
+
+        $this->post('/view-as', ['kind' => 'unit', 'id' => $tree['section2']->id])->assertSessionHasNoErrors();
+
+        // The picker still offers the whole real scope, not just the previewed subtree.
+        $this->getJson('/view-as/options')
+            ->assertJsonCount(4, 'units')
+            ->assertJsonPath('current', ['kind' => 'unit', 'id' => $tree['section2']->id]);
+    });
+});
+
+describe('Admin screens during a preview', function () {
+    it('shows an Admin previewing a leader the leader\'s settings view, not the Admin\'s', function () {
+        $tree = vcTree();
+        $admin = User::factory()->admin()->create();
+        $leader = vcLeaderOf($tree['section'], 100, 'Vasquez.R', 'SGT');
+        $this->actingAs($admin)->post('/view-as', ['kind' => 'user', 'id' => $leader->id]);
+
+        $this->get('/settings/audit-log')->assertForbidden();
+        $this->get('/settings/org-structure')->assertInertia(fn ($page) => $page->where('isAdmin', false));
+        $this->get('/settings/staff-grants')->assertInertia(fn ($page) => $page->where('isAdmin', false));
+
+        $this->delete('/view-as');
+
+        $this->get('/settings/audit-log')->assertOk();
+        $this->get('/settings/org-structure')->assertInertia(fn ($page) => $page->where('isAdmin', true));
+    });
+
+    it('keeps the Admin view when the previewed person is an Admin too', function () {
+        $admin = User::factory()->admin()->create();
+        $otherAdmin = User::factory()->admin()->create();
+        $this->actingAs($admin)->post('/view-as', ['kind' => 'user', 'id' => $otherAdmin->id]);
+
+        $this->get('/settings/audit-log')->assertOk();
+    });
+
+    it('never makes a non-Admin act as one', function () {
+        $tree = vcTree();
+        $commander = vcLeaderOf($tree['company'], 100, 'Hale.S', 'CPT');
+        $this->actingAs($commander)->post('/view-as', ['kind' => 'unit', 'id' => $tree['platoon']->id]);
+
+        $this->get('/settings/audit-log')->assertForbidden();
     });
 });

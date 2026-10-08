@@ -78,13 +78,34 @@ class ScopeResolver
 
     /**
      * The viewer's stored view-as target, if it still holds against their real authority right
-     * now. Null when there is no target or it no longer passes {@see evaluate()}.
+     * now. Null when there is no target or it no longer passes {@see evaluate()} — and a target
+     * that no longer passes is dropped from the session there and then, so a later return of the
+     * same authority can never silently switch a lapsed preview back on.
      */
     public function activeViewAs(User $viewer): ?ActiveViewAs
     {
         $target = $this->viewAs->targetFor($viewer);
+        if ($target === null) {
+            return null;
+        }
 
-        return $target ? $this->evaluate($viewer, $target) : null;
+        $active = $this->evaluate($viewer, $target);
+        if ($active === null) {
+            $this->viewAs->exit();
+        }
+
+        return $active;
+    }
+
+    /**
+     * Whether the user should be treated as an Admin on a read (Story 1.13): their real flag,
+     * unless a view-as preview of a non-Admin is active — then the preview shows what that leader
+     * sees, Admin-only screens included. Narrows only: a non-Admin never becomes one here. Writes
+     * keep checking the real flag; a preview refuses them anyway.
+     */
+    public function actsAsAdmin(User $user): bool
+    {
+        return $user->is_admin && ($this->activeViewAs($user)?->admin ?? true);
     }
 
     /**
@@ -95,17 +116,20 @@ class ScopeResolver
      *  - a **user** may be previewed by an Admin only, never by themselves; the preview is that
      *    user's own real scope (which an Admin's full tree always contains).
      *
-     * Either way the result is intersected with the viewer's real scope, so even a target that
-     * changes between check and read cannot carry anything outside it.
+     * Either way the result is intersected with the viewer's real scope, here and only here.
      */
     public function evaluate(User $viewer, ViewAsTarget $target): ?ActiveViewAs
     {
         $real = $this->realScope($viewer);
 
-        return match ($target->kind) {
+        $preview = match ($target->kind) {
             ViewAsKind::Unit => $this->asUnit($real, $target),
-            ViewAsKind::User => $viewer->is_admin ? $this->asUser($viewer, $real, $target) : null,
+            ViewAsKind::User => $viewer->is_admin ? $this->asUser($viewer, $target) : null,
         };
+
+        // The one place every kind passes through: whatever a target would see is cut down to
+        // the viewer's own real scope, so no kind — present or future — can widen it.
+        return $preview?->narrowedTo($real);
     }
 
     /**
@@ -123,7 +147,7 @@ class ScopeResolver
 
         return new ActiveViewAs(
             target: $target,
-            scope: $this->units->subtreeIds($unit)->intersect($real)->values(),
+            scope: $this->units->subtreeIds($unit),
             label: $designation,
             designation: $designation,
             unitName: $unit->name,
@@ -131,10 +155,7 @@ class ScopeResolver
         );
     }
 
-    /**
-     * @param  Collection<int, int>  $real
-     */
-    private function asUser(User $viewer, Collection $real, ViewAsTarget $target): ?ActiveViewAs
+    private function asUser(User $viewer, ViewAsTarget $target): ?ActiveViewAs
     {
         $user = $this->users->find($target->id);
 
@@ -147,7 +168,7 @@ class ScopeResolver
 
         return new ActiveViewAs(
             target: $target,
-            scope: $this->realScope($user)->intersect($real)->values(),
+            scope: $this->realScope($user),
             label: trim("{$rank} {$user->username}"),
             designation: $unit ? ($unit->callsign ?? $unit->name) : null,
             unitName: $unit?->name,

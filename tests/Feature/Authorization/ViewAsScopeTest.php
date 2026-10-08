@@ -115,7 +115,15 @@ it('re-checks a stored target against current authority on every call (AC #4)', 
     $grant->delete();
 
     expect($resolver->activeViewAs($staff))->toBeNull()
-        ->and($resolver->resolve($staff)->all())->toBe([]);
+        ->and($resolver->resolve($staff)->all())->toBe([])
+        ->and(app(ViewAs::class)->targetFor($staff))->toBeNull();
+
+    // The lapsed target was dropped, not just ignored: authority coming back does not silently
+    // switch the old preview on again.
+    PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $tree['platoon']->id]);
+
+    expect($resolver->activeViewAs($staff))->toBeNull()
+        ->and($resolver->resolve($staff))->toHaveCount(3);
 });
 
 it('restores the full real scope once view-as is cleared (AC #5)', function () {

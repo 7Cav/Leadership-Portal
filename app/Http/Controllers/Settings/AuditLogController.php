@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Authorization\ScopeResolver;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLogEntry;
 use App\Repositories\AuditLogRepository;
@@ -17,11 +18,16 @@ use Inertia\Response;
  */
 class AuditLogController extends Controller
 {
-    public function __construct(private readonly AuditLogRepository $auditLog) {}
+    public function __construct(
+        private readonly AuditLogRepository $auditLog,
+        private readonly ScopeResolver $scope,
+    ) {}
 
     public function index(Request $request): Response
     {
-        if (! $request->user()->is_admin) {
+        // `actsAsAdmin`, not the raw flag: an Admin previewing a leader (view-as, Story 1.13)
+        // sees what that leader would — no audit log.
+        if (! $this->scope->actsAsAdmin($request->user())) {
             abort(403, 'Only an Admin may review the audit log.');
         }
 

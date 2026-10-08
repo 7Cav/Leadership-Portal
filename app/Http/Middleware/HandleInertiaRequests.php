@@ -3,7 +3,6 @@
 namespace App\Http\Middleware;
 
 use App\Authorization\ScopeResolver;
-use App\Authorization\ViewAs;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -18,10 +17,7 @@ class HandleInertiaRequests extends Middleware
      */
     protected $rootView = 'app';
 
-    public function __construct(
-        private readonly ScopeResolver $scope,
-        private readonly ViewAs $store,
-    ) {}
+    public function __construct(private readonly ScopeResolver $scope) {}
 
     /**
      * Determines the current asset version.
@@ -55,8 +51,8 @@ class HandleInertiaRequests extends Middleware
                 // run or the trooper holds no milpac — the page degrades to the bare username.
                 'profile' => $request->user() ? $request->session()->get('cav_profile') : null,
                 // Why it is absent, for Story 1.7's degraded messaging. The literal keys here
-                // duplicate ForumAuthController's constants because Deptrac gives Middleware no
-                // outgoing edge, so a feature test asserts each prop against a real login —
+                // duplicate ForumAuthController's constants because Deptrac lets Middleware reach
+                // only Authorization, never a Controller, so a feature test asserts each prop against a real login —
                 // renaming a constant without updating this line turns that test red.
                 'profileUnavailable' => $request->user()
                     ? $request->session()->get('cav_profile_unavailable')
@@ -64,26 +60,8 @@ class HandleInertiaRequests extends Middleware
             ],
             // The active view-as preview (Story 1.13), re-validated against real authority on this
             // request (AD-9) — the shell's banner reads it. A stored target that no longer holds
-            // is dropped from the session here, so the banner and the scope never disagree.
-            'viewAs' => fn () => $this->viewAs($request),
+            // is dropped by the resolver, so the banner and the scope never disagree.
+            'viewAs' => fn () => $request->user() ? $this->scope->activeViewAs($request->user())?->toArray() : null,
         ];
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function viewAs(Request $request): ?array
-    {
-        $viewer = $request->user();
-        if ($viewer === null || $this->store->targetFor($viewer) === null) {
-            return null;
-        }
-
-        $active = $this->scope->activeViewAs($viewer);
-        if ($active === null) {
-            $this->store->exit();
-        }
-
-        return $active?->toArray();
     }
 }
