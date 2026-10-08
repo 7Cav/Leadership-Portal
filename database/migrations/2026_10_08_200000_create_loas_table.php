@@ -30,10 +30,10 @@ return new class extends Migration
             $table->unsignedInteger('forum_node_id');
             // Which kind of leave, taken from the section the thread is posted in (LOA sections are per
             // battalion, ELOA has its own); the post itself carries only a username and two dates.
-            $table->enum('type', ['loa', 'eloa', 'reserve']);
+            $table->enum('type', ['loa', 'eloa']);
             // Calendar days, inclusive at both ends, so plain dates rather than timestamps: a time
             // of day would only invite off-by-one bugs at the boundaries. Both are nullable: an open
-            // ended ELOA/Reserve has no end, and a `needs_review` row asserts no dates at all.
+            // ended ELOA has no end, and a `needs_review` row asserts no dates at all.
             $table->date('starts_at')->nullable();
             $table->date('ends_at')->nullable();
             // `needs_review` is the fail-safe: dates that could not be read cleanly are never

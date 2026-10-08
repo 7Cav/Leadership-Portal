@@ -34,7 +34,7 @@ class ForumApi
 {
     /**
      * `api_key` and `loa_nodes` are only needed for reading leave threads: `loa_nodes` maps each forum
-     * section id that holds them to the kind of leave posted there (`loa`, `eloa` or `reserve`).
+     * section id that holds them to the kind of leave posted there (`loa` or `eloa`).
      *
      * @param  array{client_id: string, client_secret: string, redirect_uri: string, base_url: string, authorize_url: string, scopes: list<string>, api_key?: ?string, loa_nodes?: array<int, string>}  $config
      */
@@ -44,7 +44,7 @@ class ForumApi
      * The forum sections that hold leave threads, with the kind of leave each one holds. Empty until
      * configured, in which case nothing can be read.
      *
-     * @return array<int, string> forum section id => `loa` | `eloa` | `reserve`
+     * @return array<int, string> forum section id => `loa` | `eloa`
      */
     public function loaNodes(): array
     {

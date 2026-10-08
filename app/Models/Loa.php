@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * mass-assignable here and none of them comes from a request.
  *
  * `starts_at` and `ends_at` are calendar days, inclusive at both ends. Either can be null: an open
- * ended ELOA or Reserve thread has no end, and a `needs_review` row asserts no dates. `trooper_id` is
+ * ended ELOA thread has no end, and a `needs_review` row asserts no dates. `trooper_id` is
  * null while the thread's username matches no trooper, so an unmatched request stays visible.
  *
  * One row is one leave thread. The ELOA section also holds '[ELOA Return]' threads: those are not leave
