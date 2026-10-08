@@ -1,0 +1,319 @@
+<?php
+
+use App\Loa\LoaCoverage;
+use App\Loa\LoaCoverageState;
+use App\Models\Loa;
+use App\Models\LoaParseStatus;
+use App\Models\LoaType;
+use App\Models\Trooper;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
+
+// Story 4.4: the one definition of LOA coverage, in whole Cav weeks (AD-11), fail-safe for needs_review (AD-4).
+// The week under test runs Saturday 2026-10-03 to Friday 2026-10-09 (UTC).
+
+function coverageWeek(string $saturday = '2026-10-03'): CarbonImmutable
+{
+    return CarbonImmutable::parse($saturday.' 00:00:00', 'UTC');
+}
+
+function coverageLeave(Trooper $trooper, ?string $start, ?string $end, array $state = []): Loa
+{
+    return Loa::factory()->create(array_merge([
+        'trooper_id' => $trooper->id,
+        'starts_at' => $start,
+        'ends_at' => $end,
+    ], $state));
+}
+
+function coverageOf(Trooper $trooper, ?CarbonImmutable $week = null)
+{
+    return app(LoaCoverage::class)->forTrooper($trooper->id, $week ?? coverageWeek());
+}
+
+describe('a cleanly read leave', function () {
+    it('covers the week when its window sits inside it', function () {
+        $trooper = Trooper::factory()->create();
+        coverageLeave($trooper, '2026-10-05', '2026-10-07', ['type' => LoaType::Loa]);
+
+        $cover = coverageOf($trooper);
+
+        expect($cover->state)->toBe(LoaCoverageState::Covered)
+            ->and($cover->isCovered())->toBeTrue()
+            ->and($cover->type)->toBe(LoaType::Loa)
+            ->and($cover->startsAt?->toDateString())->toBe('2026-10-05')
+            ->and($cover->endsAt?->toDateString())->toBe('2026-10-07')
+            ->and($cover->ongoing())->toBeFalse();
+    });
+
+    it('covers the whole week when it touches only part of it', function (string $start, string $end) {
+        $trooper = Trooper::factory()->create();
+        coverageLeave($trooper, $start, $end);
+
+        expect(coverageOf($trooper)->isCovered())->toBeTrue();
+    })->with([
+        'ends on the opening Saturday' => ['2026-09-20', '2026-10-03'],
+        'starts on the closing Friday' => ['2026-10-09', '2026-10-30'],
+        'a single day mid-week' => ['2026-10-06', '2026-10-06'],
+        'spans the whole week and more' => ['2026-09-01', '2026-11-30'],
+    ]);
+
+    it('does not cover a week it ends before or starts after', function (string $start, string $end) {
+        $trooper = Trooper::factory()->create();
+        coverageLeave($trooper, $start, $end);
+
+        $cover = coverageOf($trooper);
+
+        expect($cover->state)->toBe(LoaCoverageState::None)
+            ->and($cover->suppressesAtRisk())->toBeFalse();
+    })->with([
+        'ended the Friday before' => ['2026-09-20', '2026-10-02'],
+        'starts the Saturday after' => ['2026-10-10', '2026-10-20'],
+    ]);
+
+    it('is judged by the Cav week of the week_start it is given', function () {
+        $trooper = Trooper::factory()->create();
+        coverageLeave($trooper, '2026-10-10', '2026-10-12');
+
+        expect(coverageOf($trooper, coverageWeek('2026-10-03'))->isCovered())->toBeFalse()
+            ->and(coverageOf($trooper, coverageWeek('2026-10-10'))->isCovered())->toBeTrue();
+    });
+
+    it('covers every week from its start when it has no end, and says it is ongoing', function () {
+        $trooper = Trooper::factory()->create();
+        coverageLeave($trooper, '2026-09-28', null, ['type' => LoaType::Eloa]);
+
+        $cover = coverageOf($trooper);
+        $later = coverageOf($trooper, coverageWeek('2027-03-06'));
+
+        expect($cover->isCovered())->toBeTrue()
+            ->and($cover->ongoing())->toBeTrue()
+            ->and($cover->endsAt)->toBeNull()
+            ->and($cover->type)->toBe(LoaType::Eloa)
+            ->and($later->isCovered())->toBeTrue()
+            ->and($later->ongoing())->toBeTrue();
+    });
+
+    it('does not cover a week before an open-ended leave starts', function () {
+        $trooper = Trooper::factory()->create();
+        coverageLeave($trooper, '2026-10-10', null, ['type' => LoaType::Eloa]);
+
+        expect(coverageOf($trooper)->state)->toBe(LoaCoverageState::None);
+    });
+
+    it('prefers an open-ended leave, then the one that ends last, when several touch the week', function () {
+        $trooper = Trooper::factory()->create();
+        $short = coverageLeave($trooper, '2026-10-05', '2026-10-06', ['source_thread' => 'https://7cav.us/threads/short.1/']);
+        $long = coverageLeave($trooper, '2026-10-05', '2026-10-20', ['source_thread' => 'https://7cav.us/threads/long.2/']);
+
+        expect(coverageOf($trooper)->sourceThread)->toBe($long->source_thread);
+
+        $open = coverageLeave($trooper, '2026-10-01', null, ['type' => LoaType::Eloa, 'source_thread' => 'https://7cav.us/threads/open.3/']);
+
+        expect(coverageOf($trooper)->sourceThread)->toBe($open->source_thread)
+            ->and($short->exists)->toBeTrue();
+    });
+});
+
+describe('a leave that needs review', function () {
+    it('suppresses at-risk without covering the trooper or asserting any dates', function () {
+        $trooper = Trooper::factory()->create();
+        Loa::factory()->needsReview()->create([
+            'trooper_id' => $trooper->id,
+            'type' => LoaType::Eloa,
+            'review_reason' => 'The end date could not be read.',
+            'created_at' => '2026-10-06 09:00:00',
+        ]);
+
+        $cover = coverageOf($trooper);
+
+        expect($cover->state)->toBe(LoaCoverageState::NeedsReview)
+            ->and($cover->isCovered())->toBeFalse()
+            ->and($cover->suppressesAtRisk())->toBeTrue()
+            ->and($cover->startsAt)->toBeNull()
+            ->and($cover->endsAt)->toBeNull()
+            ->and($cover->ongoing())->toBeFalse()
+            ->and($cover->reviewReason)->toBe('The end date could not be read.')
+            ->and($cover->type)->toBe(LoaType::Eloa);
+    });
+
+    it('applies from the week it was first cached, not to weeks before it', function () {
+        $trooper = Trooper::factory()->create();
+        Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'created_at' => '2026-10-06 09:00:00']);
+
+        expect(coverageOf($trooper, coverageWeek('2026-09-26'))->state)->toBe(LoaCoverageState::None)
+            ->and(coverageOf($trooper, coverageWeek('2026-10-03'))->state)->toBe(LoaCoverageState::NeedsReview)
+            ->and(coverageOf($trooper, coverageWeek('2026-11-14'))->state)->toBe(LoaCoverageState::NeedsReview);
+    });
+
+    it('counts a row cached on the closing Friday into that week, and one cached the next Saturday into the next', function () {
+        $trooper = Trooper::factory()->create();
+        Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'created_at' => '2026-10-10 00:00:00']);
+
+        expect(coverageOf($trooper, coverageWeek('2026-10-03'))->state)->toBe(LoaCoverageState::None)
+            ->and(coverageOf($trooper, coverageWeek('2026-10-10'))->state)->toBe(LoaCoverageState::NeedsReview);
+    });
+
+    it('yields to a cleanly read leave that covers the week', function () {
+        $trooper = Trooper::factory()->create();
+        Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'created_at' => '2026-10-01 09:00:00']);
+        coverageLeave($trooper, '2026-10-05', '2026-10-07');
+
+        expect(coverageOf($trooper)->state)->toBe(LoaCoverageState::Covered);
+    });
+
+    it('is not covered by a clean leave that does not touch the week', function () {
+        $trooper = Trooper::factory()->create();
+        Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'created_at' => '2026-10-01 09:00:00']);
+        coverageLeave($trooper, '2026-09-01', '2026-09-10');
+
+        expect(coverageOf($trooper)->state)->toBe(LoaCoverageState::NeedsReview);
+    });
+
+    it('reads a clean row that somehow has no start date as needing review, never as covered', function () {
+        $trooper = Trooper::factory()->create();
+        Loa::factory()->create([
+            'trooper_id' => $trooper->id,
+            'parse_status' => LoaParseStatus::Ok,
+            'starts_at' => null,
+            'ends_at' => null,
+            'created_at' => '2026-10-02 09:00:00',
+        ]);
+
+        expect(coverageOf($trooper)->state)->toBe(LoaCoverageState::NeedsReview);
+    });
+
+    it('ignores dates on a row that needs review rather than trusting them', function () {
+        $trooper = Trooper::factory()->create();
+        Loa::factory()->create([
+            'trooper_id' => $trooper->id,
+            'parse_status' => LoaParseStatus::NeedsReview,
+            'starts_at' => '2026-10-05',
+            'ends_at' => '2026-10-07',
+            'created_at' => '2026-10-02 09:00:00',
+        ]);
+
+        $cover = coverageOf($trooper);
+
+        expect($cover->state)->toBe(LoaCoverageState::NeedsReview)
+            ->and($cover->startsAt)->toBeNull();
+    });
+});
+
+describe('who a leave belongs to', function () {
+    it('reports no coverage for a trooper with no leave', function () {
+        $trooper = Trooper::factory()->create();
+
+        expect(coverageOf($trooper)->state)->toBe(LoaCoverageState::None);
+    });
+
+    it('never gives one trooper another trooper\'s leave', function () {
+        $away = Trooper::factory()->create();
+        $present = Trooper::factory()->create();
+        coverageLeave($away, '2026-10-05', '2026-10-07');
+        Loa::factory()->needsReview()->create(['trooper_id' => $away->id, 'created_at' => '2026-10-01 09:00:00']);
+
+        expect(coverageOf($present)->state)->toBe(LoaCoverageState::None);
+    });
+
+    it('ignores a thread that matched no trooper', function () {
+        $trooper = Trooper::factory()->create();
+        Loa::factory()->create(['trooper_id' => null, 'starts_at' => '2026-10-05', 'ends_at' => '2026-10-07']);
+        Loa::factory()->needsReview()->create(['trooper_id' => null, 'created_at' => '2026-10-01 09:00:00']);
+
+        expect(coverageOf($trooper)->state)->toBe(LoaCoverageState::None);
+    });
+});
+
+describe('the week it is asked about', function () {
+    it('refuses a week_start that is not a Saturday 00:00 UTC', function (string $moment) {
+        $trooper = Trooper::factory()->create();
+
+        app(LoaCoverage::class)->forTrooper($trooper->id, CarbonImmutable::parse($moment, 'UTC'));
+    })->with([
+        'a Monday' => ['2026-10-05 00:00:00'],
+        'a Saturday afternoon' => ['2026-10-03 12:00:00'],
+    ])->throws(InvalidArgumentException::class, 'week_start');
+
+    it('resolves many troopers in one query, with an entry for every one asked about', function () {
+        $troopers = Trooper::factory()->count(5)->create();
+        coverageLeave($troopers[0], '2026-10-05', '2026-10-06');
+        coverageLeave($troopers[1], '2026-10-01', null, ['type' => LoaType::Eloa]);
+        Loa::factory()->needsReview()->create(['trooper_id' => $troopers[2]->id, 'created_at' => '2026-10-02 09:00:00']);
+
+        $queries = 0;
+        DB::listen(function () use (&$queries) {
+            $queries++;
+        });
+
+        $covers = app(LoaCoverage::class)->forTroopers($troopers->pluck('id'), coverageWeek());
+
+        expect($queries)->toBe(1)
+            ->and(array_keys($covers))->toBe($troopers->pluck('id')->all())
+            ->and($covers[$troopers[0]->id]->state)->toBe(LoaCoverageState::Covered)
+            ->and($covers[$troopers[1]->id]->ongoing())->toBeTrue()
+            ->and($covers[$troopers[2]->id]->state)->toBe(LoaCoverageState::NeedsReview)
+            ->and($covers[$troopers[3]->id]->state)->toBe(LoaCoverageState::None)
+            ->and($covers[$troopers[4]->id]->state)->toBe(LoaCoverageState::None);
+    });
+
+    it('answers for an empty list without touching the database', function () {
+        $queries = 0;
+        DB::listen(function () use (&$queries) {
+            $queries++;
+        });
+
+        expect(app(LoaCoverage::class)->forTroopers([], coverageWeek()))->toBe([])
+            ->and($queries)->toBe(0);
+    });
+});
+
+it('never writes while it resolves', function () {
+    $trooper = Trooper::factory()->create();
+    coverageLeave($trooper, '2026-10-05', '2026-10-07');
+    Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id]);
+
+    $writes = [];
+    DB::listen(function ($query) use (&$writes) {
+        if (preg_match('/^\s*(insert|update|delete|replace|truncate|alter|drop)\b/i', $query->sql)) {
+            $writes[] = $query->sql;
+        }
+    });
+
+    coverageOf($trooper);
+
+    expect($writes)->toBe([]);
+});
+
+it('gives the badge its props: a covering leave with dates, a review with none', function () {
+    $away = Trooper::factory()->create();
+    $unclear = Trooper::factory()->create();
+    coverageLeave($away, '2026-10-05', '2026-10-07', ['type' => LoaType::Loa, 'source_thread' => 'https://7cav.us/threads/a.1/']);
+    Loa::factory()->needsReview()->create([
+        'trooper_id' => $unclear->id,
+        'type' => LoaType::Eloa,
+        'source_thread' => 'https://7cav.us/threads/b.2/',
+        'review_reason' => 'No end date.',
+        'created_at' => '2026-10-02 09:00:00',
+    ]);
+
+    expect(coverageOf($away)->toArray())->toBe([
+        'state' => 'covered',
+        'type' => 'loa',
+        'typeLabel' => 'LOA',
+        'startsAt' => '2026-10-05',
+        'endsAt' => '2026-10-07',
+        'ongoing' => false,
+        'sourceThread' => 'https://7cav.us/threads/a.1/',
+        'reviewReason' => null,
+    ])->and(coverageOf($unclear)->toArray())->toBe([
+        'state' => 'needs_review',
+        'type' => 'eloa',
+        'typeLabel' => 'ELOA',
+        'startsAt' => null,
+        'endsAt' => null,
+        'ongoing' => false,
+        'sourceThread' => 'https://7cav.us/threads/b.2/',
+        'reviewReason' => 'No end date.',
+    ]);
+});

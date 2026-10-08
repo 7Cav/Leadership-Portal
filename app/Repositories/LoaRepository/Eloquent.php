@@ -28,6 +28,33 @@ class Eloquent implements LoaRepository
             ->get();
     }
 
+    public function touchingWeek(array $trooperIds, CarbonImmutable $weekStart): Collection
+    {
+        if ($trooperIds === []) {
+            return new Collection;
+        }
+
+        $firstDay = $weekStart->toDateString();
+        $lastDay = $weekStart->addDays(6)->toDateString();
+        $nextWeek = $weekStart->addDays(7);
+
+        return Loa::query()
+            ->whereIn('trooper_id', $trooperIds)
+            ->where(function ($query) use ($firstDay, $lastDay, $nextWeek) {
+                $query->where(function ($dated) use ($firstDay, $lastDay) {
+                    $dated->where('parse_status', LoaParseStatus::Ok->value)
+                        ->whereNotNull('starts_at')
+                        ->whereDate('starts_at', '<=', $lastDay)
+                        ->where(fn ($end) => $end->whereNull('ends_at')->orWhereDate('ends_at', '>=', $firstDay));
+                })->orWhere(function ($undated) use ($nextWeek) {
+                    $undated->where(fn ($unread) => $unread->where('parse_status', LoaParseStatus::NeedsReview->value)->orWhereNull('starts_at'))
+                        ->where('created_at', '<', $nextWeek);
+                });
+            })
+            ->orderBy('id')
+            ->get();
+    }
+
     public function settledThreadIds(array $forumThreadIds, CarbonImmutable $endedBefore): array
     {
         if ($forumThreadIds === []) {
