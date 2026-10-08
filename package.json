@@ -22,6 +22,9 @@
     },
     "dependencies": {
         "@inertiajs/vue3": "^3.4.0",
-        "vue": "^3.5.38"
+        "vue": "^3.5.43"
+    },
+    "overrides": {
+        "shell-quote": "1.11.0"
     }
 }
