@@ -101,3 +101,17 @@ it('sets and clears the Admin flag despite it not being mass-assignable (2.9)', 
     app(UserRepository::class)->setAdmin($user, false);
     expect($user->fresh()->is_admin)->toBeFalse();
 });
+
+it('returns the earliest-created Admin as the first Admin', function () {
+    User::factory()->create();
+    $first = User::factory()->admin()->create();
+    User::factory()->admin()->create();
+
+    expect(app(UserRepository::class)->firstAdmin()?->id)->toBe($first->id);
+});
+
+it('returns null as the first Admin when no Admin exists', function () {
+    User::factory()->create();
+
+    expect(app(UserRepository::class)->firstAdmin())->toBeNull();
+});

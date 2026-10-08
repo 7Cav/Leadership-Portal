@@ -12,7 +12,7 @@ use Illuminate\Database\UniqueConstraintViolationException;
 it('creates the course through the repository', function () {
     $actor = User::factory()->admin()->create();
 
-    $course = app(CreateCourse::class)->handle($actor, 'ODS', 'Officer Development School', AreaOfOperation::General, null, 40);
+    $course = app(CreateCourse::class)->handle($actor, 'ODS', 'Officer Development School', AreaOfOperation::General, 40);
 
     expect($course->code)->toBe('ODS')
         ->and($course->category)->toBe(AreaOfOperation::General)
@@ -20,10 +20,21 @@ it('creates the course through the repository', function () {
         ->and(Course::count())->toBe(1);
 });
 
+it('trims and upper-cases the code so a duplicate means the same on every database', function () {
+    $actor = User::factory()->admin()->create();
+    app(CreateCourse::class)->handle($actor, '  ncoa-1 ', ' NCOA Phase I ', AreaOfOperation::General, 10);
+
+    expect(Course::first()->code)->toBe('NCOA-1')
+        ->and(Course::first()->name)->toBe('NCOA Phase I');
+
+    expect(fn () => app(CreateCourse::class)->handle($actor, 'Ncoa-1', 'Impostor', AreaOfOperation::General, 20))
+        ->toThrow(UniqueConstraintViolationException::class);
+});
+
 it('records exactly one audit_log entry for the created course', function () {
     $actor = User::factory()->admin()->create();
 
-    $course = app(CreateCourse::class)->handle($actor, 'ODS', 'Officer Development School', AreaOfOperation::General);
+    $course = app(CreateCourse::class)->handle($actor, 'ODS', 'Officer Development School', AreaOfOperation::General, 10);
 
     expect(AuditLogEntry::count())->toBe(1);
 
@@ -38,9 +49,9 @@ it('records exactly one audit_log entry for the created course', function () {
 
 it('refuses a duplicate code and leaves no second course or audit entry behind', function () {
     $actor = User::factory()->admin()->create();
-    app(CreateCourse::class)->handle($actor, 'ODS', 'Officer Development School', AreaOfOperation::General);
+    app(CreateCourse::class)->handle($actor, 'ODS', 'Officer Development School', AreaOfOperation::General, 10);
 
-    expect(fn () => app(CreateCourse::class)->handle($actor, 'ODS', 'Impostor', AreaOfOperation::General))
+    expect(fn () => app(CreateCourse::class)->handle($actor, 'ODS', 'Impostor', AreaOfOperation::General, 20))
         ->toThrow(UniqueConstraintViolationException::class);
 
     expect(Course::count())->toBe(1)

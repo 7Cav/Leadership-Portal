@@ -22,7 +22,13 @@ return new class extends Migration
             // is rejected by the database itself, never silently coalesced into an upsert.
             $table->string('code')->unique();
             $table->string('name');
-            $table->string('category')->default('general');
+            // An enum column, like `units.type` and `attendance.status`: the database refuses a value
+            // `AreaOfOperation` does not know, instead of letting one bad row make the cast throw for
+            // the whole catalog. A new AO is a new migration, as for any other enum here.
+            $table->enum('category', [
+                'general', 'battlefield-6', 'arma-3', 'arma-reforger', 'hll-ww2',
+                'hll-ww2-console', 'hll-vietnam', 'dcs-world', 'squad', 'foxhole',
+            ])->default('general');
             $table->text('description')->nullable();
             // Column/row order for milpac panels and the readiness matrix. Not unique: ties are
             // broken on `code` by `CourseRepository::all()`, so the order is never a shuffle.

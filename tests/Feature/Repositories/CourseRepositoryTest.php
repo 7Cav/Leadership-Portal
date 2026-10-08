@@ -3,7 +3,9 @@
 use App\Models\AreaOfOperation;
 use App\Models\Course;
 use App\Repositories\CourseRepository;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\DB;
 
 it('returns the catalog ordered by sort_order', function () {
     Course::factory()->create(['code' => 'B', 'sort_order' => 20]);
@@ -40,6 +42,21 @@ it('finds a course by its code', function () {
 
     expect($repo->findByCode('NCOA-WLC1')?->id)->toBe($course->id)
         ->and($repo->findByCode('NOPE'))->toBeNull();
+});
+
+it('has a label for every area of operation', function () {
+    foreach (AreaOfOperation::cases() as $area) {
+        expect($area->label())->toBeString()->not->toBeEmpty();
+    }
+});
+
+it('refuses a category the enum does not know, at the database', function () {
+    $insert = fn () => DB::table('courses')->insert([
+        'code' => 'X', 'name' => 'X', 'category' => 'not-an-ao', 'sort_order' => 1,
+    ]);
+
+    // SQLite (the test database) enforces an enum column as a CHECK constraint; MySQL as the ENUM type.
+    expect($insert)->toThrow(QueryException::class);
 });
 
 it('rejects a duplicate code at the database instead of coalescing it', function () {

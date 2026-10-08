@@ -68,6 +68,12 @@ interface UserRepository
     public function nonAdminUsers(): Collection;
 
     /**
+     * The earliest-created Admin, or null when none exists — the actor a seeder audits its writes
+     * against (Story 6.1), where there is no signed-in user to attribute them to.
+     */
+    public function firstAdmin(): ?User;
+
+    /**
      * Every user carrying `$username` — a collection, not a single row, because `users.username`
      * is not unique (it mirrors the forum's display name, which the forum may reassign), so a
      * caller acting on a username must see an ambiguous match rather than silently pick one.

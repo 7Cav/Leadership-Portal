@@ -24,20 +24,28 @@ class CreateCourse
         private readonly AuditEnvelope $audit,
     ) {}
 
+    /**
+     * `$sortOrder` is required, not defaulted: a default would sort a new course ahead of the whole
+     * catalog. `$code` is trimmed and upper-cased first, because MySQL's UNIQUE index ignores case
+     * while SQLite's does not — normalizing here makes "what counts as a duplicate" the same on
+     * both, and keeps matrix column headers uniform.
+     */
     public function handle(
         User $actor,
         string $code,
         string $name,
         AreaOfOperation $category,
+        int $sortOrder,
         ?string $description = null,
-        int $sortOrder = 0,
     ): Course {
+        $code = strtoupper(trim($code));
+
         return $this->audit->record(
             actorId: $actor->id,
             action: 'course.created',
             reason: null,
             reasonRequired: false,
-            mutation: fn () => $this->courses->create($code, $name, $category, $description, $sortOrder),
+            mutation: fn () => $this->courses->create($code, trim($name), $category, $description, $sortOrder),
         );
     }
 }

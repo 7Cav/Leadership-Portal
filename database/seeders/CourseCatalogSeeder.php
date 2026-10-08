@@ -4,8 +4,8 @@ namespace Database\Seeders;
 
 use App\Commands\Courses\CreateCourse;
 use App\Models\AreaOfOperation;
-use App\Models\User;
 use App\Repositories\CourseRepository;
+use App\Repositories\UserRepository;
 use Illuminate\Database\Seeder;
 use RuntimeException;
 
@@ -107,18 +107,22 @@ class CourseCatalogSeeder extends Seeder
         return $catalog;
     }
 
-    public function run(CreateCourse $createCourse, CourseRepository $courses): void
+    public function run(CreateCourse $createCourse, CourseRepository $courses, UserRepository $users): void
     {
-        $actor = User::query()->where('is_admin', true)->orderBy('id')->first()
+        $actor = $users->firstAdmin()
             ?? throw new RuntimeException('Seeding the course catalog needs an Admin user to audit the writes against; sign in once and make yourself Admin first.');
 
-        // Spaced by ten so a course can later be slotted between two without renumbering.
+        $existing = $courses->all()->pluck('code')->all();
+
+        // Spaced by ten so a course can later be slotted between two without renumbering. A course
+        // already in the catalog is left exactly as it is, so reordering or renaming the list here
+        // does not change rows that were seeded earlier — that is a job for an edit Command.
         foreach (self::catalog() as $index => $course) {
-            if ($courses->findByCode($course['code']) !== null) {
+            if (in_array($course['code'], $existing, true)) {
                 continue;
             }
 
-            $createCourse->handle($actor, $course['code'], $course['name'], $course['category'], null, ($index + 1) * 10);
+            $createCourse->handle($actor, $course['code'], $course['name'], $course['category'], ($index + 1) * 10);
         }
     }
 }
