@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { reactive } from 'vue';
-import { mount } from '@vue/test-utils';
+import { enableAutoUnmount, mount } from '@vue/test-utils';
 import Rollcall from '../Rollcall.vue';
 
 const page = reactive({ url: '/rollcall/12', props: { auth: { user: { username: 'Vasquez.R', is_admin: false } }, viewAs: null } });
 const push = vi.fn((visit) => (page.url = visit.url));
 const visit = vi.fn();
+
+enableAutoUnmount(afterEach);
 const post = vi.fn();
 const toastSuccess = vi.fn();
 
@@ -108,7 +110,7 @@ describe('Rollcall page', () => {
     it('says nothing was pre-filled when last week has no marks', () => {
         page.url = '/rollcall/12?step=2';
 
-        expect(factory({ priorWeekMarked: false, troopers: [trooper(3, 'unsigned', null)] }).find('[data-testid="prefill-banner"]').text()).toBe(
+        expect(factory({ priorWeekMarked: false, troopers: [trooper(3, 'unsigned', null)] }).find('[data-testid="prefill-banner"] p').text()).toBe(
             'Nothing pre-filled: no practice marks were recorded last week.',
         );
     });
@@ -120,6 +122,24 @@ describe('Rollcall page', () => {
         const card = wrapper.find('[data-trooper="4"]');
         expect(card.text()).toContain('LOA, nothing to mark');
         expect(card.findAll('button[data-value]')).toHaveLength(0);
+    });
+
+    it('shows each practice mark\'s source, and the shared legend (3.9)', () => {
+        page.url = '/rollcall/12?step=2';
+        const wrapper = factory({
+            troopers: [trooper(1, 'will_attend', 'present'), trooper(2, 'will_attend', 'present', { source: 'auto' }), trooper(3, 'will_attend', 'makeup'), trooper(5, 'will_attend', null)],
+        });
+        const provenance = (id) => wrapper.find(`[data-trooper="${id}"] [data-provenance]`).attributes('data-provenance');
+
+        expect([1, 2, 3, 5].map(provenance)).toEqual(['manual', 'auto', 'makeup', 'unmarked']);
+        expect(wrapper.find('[aria-label="Attendance source legend"]').text()).toContain('Auto');
+    });
+
+    it('shows the signature, not a practice source, on the signature step', () => {
+        const wrapper = factory();
+
+        expect(wrapper.find('[data-trooper="3"] [data-testid="signature-line"]').text()).toBe('Not signed yet');
+        expect(wrapper.find('[data-trooper="1"] [data-testid="signature-line"]').text()).toBe('Signed: Will attend');
     });
 
     it('renders an empty roster as an empty state, not an error', () => {

@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import EmptyState from '@/components/EmptyState.vue';
+import AttendanceSourceLegend from '@/components/attendance/AttendanceSourceLegend.vue';
 import SectionPicker from '@/components/rollcall/SectionPicker.vue';
 import StepReview from '@/components/rollcall/StepReview.vue';
 import TrooperCard from '@/components/rollcall/TrooperCard.vue';
@@ -449,14 +450,15 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
 
                     <div
                         role="status"
-                        class="mt-3 flex items-start gap-2.5 rounded-lg border border-border px-3.5 py-2.5 text-[13px]"
+                        class="mt-3 flex flex-wrap items-start gap-x-2.5 gap-y-2 rounded-lg border border-border px-3.5 py-2.5 text-[13px]"
                         data-testid="prefill-banner"
                     >
                         <PhClockCounterClockwise class="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                        <p v-if="priorWeekMarked" class="flex-1">
+                        <p v-if="priorWeekMarked" class="min-w-[14rem] flex-1">
                             Pre-filled from last week: each trooper still to mark shows last week's practice mark as a suggestion.
                         </p>
-                        <p v-else class="flex-1 text-muted-foreground">Nothing pre-filled: no practice marks were recorded last week.</p>
+                        <p v-else class="min-w-[14rem] flex-1 text-muted-foreground">Nothing pre-filled: no practice marks were recorded last week.</p>
+                        <AttendanceSourceLegend class="w-full sm:w-auto" />
                         <Button v-if="editable && prefillable.length" variant="outline" size="sm" data-testid="use-last-week" @click="useLastWeek">
                             Use last week's marks ({{ prefillable.length }})
                         </Button>

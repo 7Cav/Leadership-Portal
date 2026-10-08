@@ -1,12 +1,13 @@
 <script setup>
 import { computed, ref } from 'vue';
-import { PhClockCounterClockwise, PhLockSimple } from '@phosphor-icons/vue';
+import { PhClockCounterClockwise, PhLockSimple, PhSignature } from '@phosphor-icons/vue';
+import AttendanceSourceIndicator from '@/components/attendance/AttendanceSourceIndicator.vue';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { fullName, initials, isLocked, optionsFor, practiceLabel, signatureLabel } from '@/lib/rollcall';
 
 // One trooper on the guided week (mockups/v2/rollcall-r3.html `.rc-card`): who they are, how the
-// current value came to be, and big status buttons for the step's question — their rollcall
+// current value came to be (the shared source indicator, 3.9), and big status buttons for the step's question — their rollcall
 // signature (step 1) or their Section Practice mark (step 2).
 const props = defineProps({
     trooper: { type: Object, required: true },
@@ -116,9 +117,11 @@ const TONE = {
                     <div class="min-w-0 flex-1">
                         <p class="truncate text-sm leading-tight font-semibold">{{ name }}</p>
                         <div class="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                            <slot name="source" :locked="locked">
-                                <span class="truncate">{{ valueLabel }}</span>
-                            </slot>
+                            <AttendanceSourceIndicator v-if="kind === 'practice' || locked" :status="trooper.status" :source="trooper.source" />
+                            <span v-else class="inline-flex items-center gap-1" data-testid="signature-line">
+                                <PhSignature class="size-3.5" aria-hidden="true" />
+                                {{ trooper.rollcall === 'unsigned' ? 'Not signed yet' : `Signed: ${valueLabel}` }}
+                            </span>
                             <span v-if="suggestion" class="inline-flex items-center gap-1" data-testid="prior-mark">
                                 <PhClockCounterClockwise class="size-3.5" aria-hidden="true" />Last week: {{ suggestion }}
                             </span>
