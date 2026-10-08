@@ -28,12 +28,8 @@ const typeLabel = computed(() => props.cover?.typeLabel ?? 'LOA');
 const endDate = computed(() => props.cover?.endsAt ?? props.cover?.expectedReturnAt ?? null);
 
 // An ELOA runs until a return is posted, so one still open after its expected return date is overdue, not over:
-// the pill says so, so a leader can chase it. Judged by the UTC day, the portal's one clock (AD-11).
-const overdue = computed(() => {
-    if (!covered.value || props.cover.endsAt || !props.cover.expectedReturnAt) return false;
-
-    return props.cover.expectedReturnAt < new Date().toISOString().slice(0, 10);
-});
+// the pill says so, so a leader can chase it. The server decides (on its UTC day, AD-11), not this device's clock.
+const overdue = computed(() => covered.value && props.cover.overdue === true);
 
 const label = computed(() => {
     if (needsReview.value) return `${typeLabel.value} needs review`;
