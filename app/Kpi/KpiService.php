@@ -2,6 +2,9 @@
 
 namespace App\Kpi;
 
+use App\Loa\LoaCover;
+use App\Loa\LoaCoverage;
+use App\Loa\LoaCoverageState;
 use App\Models\AttendanceStatus;
 use App\Models\RollcallSignature;
 use App\Models\Unit;
@@ -42,7 +45,10 @@ use InvalidArgumentException;
  *   another section's practice never counts, a makeup included.
  * - **missed**: practices explicitly marked `missed`. An unmarked trooper is never read as a miss
  *   — the service does not assert absence it was not told about (the AD-4 fail-safe).
- * - An **LOA-covered** week leaves both denominators and is never a miss.
+ * - An **LOA-covered** week leaves both denominators and is never a miss. Coverage is `LoaCoverage` (4.4), the
+ *   one definition, whether or not a practice row exists for the week. A week where a leave that could not be
+ *   read (`needs_review`) may apply is left out the same way: it is not a miss and not in a denominator, but it
+ *   is not counted as `on_loa` either, since nothing says the trooper is away (AD-4).
  *
  * A unit's KPIs are the sum over its troopers: strength = troopers, rc_30d / sp_30d = summed
  * ratios, at_risk = troopers with ≥ `TrooperAttendance::AT_RISK_MISSES` misses, on_loa = troopers
@@ -57,6 +63,7 @@ final class KpiService
     public function __construct(
         private readonly TrooperRepository $troopers,
         private readonly AttendanceRepository $attendance,
+        private readonly LoaCoverage $loa,
     ) {}
 
     /**
@@ -88,47 +95,59 @@ final class KpiService
     public function trooperAttendance(Unit $unit, CarbonInterface $weekStart): Collection
     {
         $weekStart = WeekOf::requireStart($weekStart);
+        $firstWeek = $weekStart->subWeeks(self::WINDOW_WEEKS - 1);
         $marks = $this->attendance
-            ->countingMarks($unit, $weekStart->subWeeks(self::WINDOW_WEEKS - 1), $weekStart)
+            ->countingMarks($unit, $firstWeek, $weekStart)
             ->groupBy(fn (CountingMark $mark) => $mark->trooperId);
 
-        return $this->troopers->assignedWithin($unit)->mapWithKeys(fn (int $trooperId) => [
-            $trooperId => $this->forTrooper($trooperId, $marks->get($trooperId, collect()), $weekStart),
+        $troopers = $this->troopers->assignedWithin($unit);
+        $covers = $this->loa->forTroopersOverWeeks($troopers, $firstWeek, self::WINDOW_WEEKS);
+
+        return $troopers->mapWithKeys(fn (int $trooperId) => [
+            $trooperId => $this->forTrooper($trooperId, $marks->get($trooperId, collect()), $weekStart, $covers[$trooperId]),
         ]);
     }
 
     /**
      * @param  Collection<int, CountingMark>  $marks  this trooper's counting marks in the window
+     * @param  array<string, LoaCover>  $covers  this trooper's LOA coverage per window week, keyed by `week_start` date
      */
-    private function forTrooper(int $trooperId, Collection $marks, CarbonImmutable $weekStart): TrooperAttendance
+    private function forTrooper(int $trooperId, Collection $marks, CarbonImmutable $weekStart, array $covers): TrooperAttendance
     {
-        [$loa, $eligible] = $marks->partition(fn (CountingMark $mark) => $this->isLoaCovered($mark));
+        // A week leaves the window when leave covers it, or when a leave that could not be read might: either way
+        // the trooper is not counted as missing it (AD-4). `$loaWeeks` is those weeks, whether or not a practice
+        // row exists for them, so the rollcall denominator drops them too.
+        $loaWeeks = collect($covers)
+            ->filter(fn ($cover) => $cover->suppressesAtRisk())
+            ->keys()
+            ->merge($marks->filter(fn (CountingMark $mark) => $this->isLoaCovered($mark))->map(fn (CountingMark $mark) => $mark->weekStart->toDateString()))
+            ->unique();
+        $eligible = $marks->reject(fn (CountingMark $mark) => $loaWeeks->contains($mark->weekStart->toDateString()));
         $thisWeek = $marks->filter(fn (CountingMark $mark) => $mark->weekStart->equalTo($weekStart));
 
         return new TrooperAttendance(
             trooperId: $trooperId,
             rollcall: new Ratio(
                 $eligible->filter(fn (CountingMark $mark) => $mark->rollcall !== RollcallSignature::Unsigned)->count(),
-                self::WINDOW_WEEKS - $loa->count(),
+                self::WINDOW_WEEKS - $loaWeeks->count(),
             ),
             practice: new Ratio(
                 $eligible->filter(fn (CountingMark $mark) => in_array($mark->status, self::ATTENDED, true))->count(),
                 $eligible->filter(fn (CountingMark $mark) => $mark->held)->count(),
             ),
             missed: $eligible->filter(fn (CountingMark $mark) => $mark->status === AttendanceStatus::Missed)->count(),
-            onLoa: $thisWeek->contains(fn (CountingMark $mark) => $this->isLoaCovered($mark)),
+            // Covered, not merely suppressed: a leave that needs review is never asserted as "on LOA".
+            onLoa: ($covers[$weekStart->toDateString()]->state === LoaCoverageState::Covered)
+                || $thisWeek->contains(fn (CountingMark $mark) => $this->isLoaCovered($mark)),
             makeups: $thisWeek->filter(fn (CountingMark $mark) => $mark->status === AttendanceStatus::Makeup)->count(),
         );
     }
 
     /**
-     * Whether LOA covers this trooper-week. MVP: the week's mark is `loa` — there is no LOA table
-     * yet, so the only LOA coverage is a mark against a practice row. This predicate is the seam
-     * Epic 4 replaces with coverage from the synced `loas` table for weeks that have a row; LOA
-     * in a week with *no* practice row has no mark to test, so Epic 4 must also derive the RC
-     * denominator and `onLoa` in `forTrooper()` from LOA week coverage rather than from marks.
-     * Epic 4 adds AD-4's fail-safe there as well: a `needs_review` LOA suppresses at-risk for the
-     * trooper rather than let the week count as a miss.
+     * Whether this practice mark is itself an `loa` mark. LOA coverage comes from {@see LoaCoverage} (Story
+     * 4.8), the single definition (AD-21), and covers a week whether or not a practice row exists for it. A
+     * mark of `loa`, derived from LOA data by the rollcall (3.4), is kept as a second way a week leaves the
+     * window, so a week the rollcall already marked is never counted against the trooper either.
      */
     private function isLoaCovered(CountingMark $mark): bool
     {

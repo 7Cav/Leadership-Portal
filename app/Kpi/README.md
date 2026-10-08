@@ -33,7 +33,9 @@ the `Unit` it is handed), `Support/Time/` (the week window, AD-11).
 **Reached from:** `Http/Controllers/` and `Commands/`. Read-only; it never writes. Callers pass
 only units the ScopeResolver permits (AD-8) — the service does not re-check scope.
 
-LOA is not modelled yet (Epic 4): coverage is read from `attendance.status = loa` in one
-predicate, `KpiService::isLoaCovered()` — the seam Epic 4 replaces for weeks with a practice
-row. LOA in a week with no practice row also needs `forTrooper()`'s RC denominator and
-`onLoa` derived from LOA week coverage; the predicate's docblock spells this out.
+LOA coverage is `LoaLoaCoverage` (4.4), the one definition (4.8): for each week of the window it says
+covered, needs review or none, whether or not a practice row exists. A covered week, and a week a
+leave that needs review may apply to, leaves the window: no miss, out of both denominators. Only a
+covered week counts as `on_loa`. A practice mark of `loa` (derived by the rollcall, 3.4) also takes a
+week out, so the two sources never disagree to the trooper's cost. At-risk is still `missed >= 2` explicit
+misses in the weeks that remain, so a trooper with few remaining weeks is never given misses they did not have.

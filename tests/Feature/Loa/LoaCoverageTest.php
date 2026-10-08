@@ -361,3 +361,46 @@ it('gives the badge its props: a covering leave with dates, a review with none',
         'reviewReason' => 'No end date.',
     ]);
 });
+
+describe('a window of weeks (Story 4.8)', function () {
+    it('resolves each week by the same rule as a single week, in one query', function () {
+        $trooper = Trooper::factory()->create();
+        $other = Trooper::factory()->create();
+        coverageLeave($trooper, '2026-10-12', '2026-10-14');
+        Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'created_at' => '2026-10-20 09:00:00']);
+
+        $queries = 0;
+        DB::listen(function () use (&$queries) {
+            $queries++;
+        });
+
+        $covers = app(LoaCoverage::class)->forTroopersOverWeeks([$trooper->id, $other->id], coverageWeek('2026-10-03'), 4);
+
+        expect($queries)->toBe(1)
+            ->and(array_keys($covers[$trooper->id]))->toBe(['2026-10-03', '2026-10-10', '2026-10-17', '2026-10-24'])
+            ->and($covers[$trooper->id]['2026-10-03']->state)->toBe(LoaCoverageState::None)
+            ->and($covers[$trooper->id]['2026-10-10']->state)->toBe(LoaCoverageState::Covered)
+            ->and($covers[$trooper->id]['2026-10-17']->state)->toBe(LoaCoverageState::NeedsReview)
+            ->and($covers[$trooper->id]['2026-10-24']->state)->toBe(LoaCoverageState::NeedsReview)
+            ->and(collect($covers[$other->id])->every(fn ($cover) => $cover->state === LoaCoverageState::None))->toBeTrue();
+    });
+
+    it('agrees, week for week, with asking one week at a time', function () {
+        $trooper = Trooper::factory()->create();
+        coverageLeave($trooper, '2026-10-09', '2026-10-17');
+        coverageLeave($trooper, '2026-11-01', null, ['type' => LoaType::Eloa, 'expected_return_at' => '2026-11-20']);
+
+        $window = app(LoaCoverage::class)->forTroopersOverWeeks([$trooper->id], coverageWeek('2026-10-03'), 8)[$trooper->id];
+
+        foreach ($window as $weekStart => $cover) {
+            expect($cover)->toEqual(coverageOf($trooper, coverageWeek($weekStart)));
+        }
+    });
+
+    it('refuses a window of no weeks, or one that does not start on a Saturday', function () {
+        $coverage = app(LoaCoverage::class);
+
+        expect(fn () => $coverage->forTroopersOverWeeks([1], coverageWeek(), 0))->toThrow(InvalidArgumentException::class)
+            ->and(fn () => $coverage->forTroopersOverWeeks([1], coverageWeek()->addDay(), 2))->toThrow(InvalidArgumentException::class);
+    });
+});

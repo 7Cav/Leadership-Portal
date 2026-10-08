@@ -51,7 +51,7 @@ Route → Controller ─┬─ (write) Command → CommandHandler ─┐
 | Authorization | `app/Authorization/` | Repository, Model | The single `ScopeResolver` gating read visibility (AD-8), plus policies and view-as |
 | Support\Audit | `app/Support/Audit/` | Repository | The audited-action envelope every state-changing Command routes through (AD-16) |
 | Support\Time | `app/Support/Time/` | — | `WeekOf::start()`, the **only** time → `week_start` mapping (AD-11): Saturday 00:00 UTC |
-| Kpi | `app/Kpi/` | Repository, Model, Support\Time | `KpiService`, the **one** place the six canonical KPIs are defined and computed (AD-21) — read-only, over facts read through Repositories |
+| Kpi | `app/Kpi/` | Repository, Model, Support\Time, Loa | `KpiService`, the **one** place the six canonical KPIs are defined and computed (AD-21) — read-only, over facts read through Repositories |
 | Loa | `app/Loa/` | Repository, Model, Support\Time | Read-only LOA logic: the source and last-sync every LOA value shows (AD-20), and the one definition of LOA coverage (AD-21) |
 | Sync | `app/Sync/` | Repository, Model, Integration | One-writer cache sync handlers (AD-4, AD-22) — `Sync{Thing}Handler` |
 | Provider | `app/Providers/` | (wires every layer) | DI composition root — bootstrap, not business logic |

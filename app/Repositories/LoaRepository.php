@@ -26,20 +26,21 @@ interface LoaRepository
     public function forTrooper(int $trooperId): Collection;
 
     /**
-     * The leave rows that bear on these troopers in one Cav week, for the LOA coverage resolver (4.4).
-     * `$weekStart` is the Saturday 00:00 UTC that opens the week, and the week is its seven days.
+     * The leave rows that may bear on these troopers in `$weeks` consecutive Cav weeks from `$firstWeekStart`
+     * (the Saturday 00:00 UTC that opens the first), for the LOA coverage resolver (4.4, 4.8).
      *
-     * - A cleanly read row whose window touches any day of the week: it starts on or before the Friday and
-     *   ends on or after the Saturday, or has no end at all.
-     * - A row that needs review, or a row with no start date, that had been cached by the end of the week.
+     * - A cleanly read row whose window touches any day of the range: it starts on or before its last day
+     *   and ends on or after its first, or has no end at all.
+     * - A row that needs review, or a row with no start date, that had been cached by the end of the range.
      *   The parser keeps no dates for it, so it can only be placed from when it was first seen.
      *
-     * Rows with no trooper never match. Read-only; the resolver decides what the rows mean.
+     * A superset: it says which rows to look at, the resolver decides which weeks each one touches. Rows with
+     * no trooper never match. Read-only.
      *
      * @param  list<int>  $trooperIds
      * @return Collection<int, Loa>
      */
-    public function touchingWeek(array $trooperIds, CarbonImmutable $weekStart): Collection;
+    public function touchingWeeks(array $trooperIds, CarbonImmutable $firstWeekStart, int $weeks): Collection;
 
     /**
      * Which of these forum threads are settled history: a row that read cleanly and whose leave ended before

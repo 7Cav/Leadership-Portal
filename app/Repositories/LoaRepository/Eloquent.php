@@ -28,15 +28,15 @@ class Eloquent implements LoaRepository
             ->get();
     }
 
-    public function touchingWeek(array $trooperIds, CarbonImmutable $weekStart): Collection
+    public function touchingWeeks(array $trooperIds, CarbonImmutable $firstWeekStart, int $weeks): Collection
     {
-        if ($trooperIds === []) {
+        if ($trooperIds === [] || $weeks < 1) {
             return new Collection;
         }
 
-        $firstDay = $weekStart->toDateString();
-        $lastDay = $weekStart->addDays(6)->toDateString();
-        $nextWeek = $weekStart->addDays(7);
+        $firstDay = $firstWeekStart->toDateString();
+        $lastDay = $firstWeekStart->addDays($weeks * 7 - 1)->toDateString();
+        $nextWeek = $firstWeekStart->addDays($weeks * 7);
 
         return Loa::query()
             ->whereIn('trooper_id', $trooperIds)

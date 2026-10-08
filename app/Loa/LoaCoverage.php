@@ -50,24 +50,76 @@ final class LoaCoverage
     {
         $week = WeekOf::requireStart($weekStart);
 
+        return array_map(
+            fn (array $weeks) => $weeks[$week->toDateString()],
+            $this->forTroopersOverWeeks($trooperIds, $week, 1),
+        );
+    }
+
+    /**
+     * Every given trooper's coverage for each of `$weeks` consecutive Cav weeks from `$firstWeekStart`, in one
+     * query however many troopers and weeks: `[trooperId => [weekStart 'Y-m-d' => LoaCover]]`. Every trooper and
+     * every week has an entry. This is what a window (the KPI service's trailing four weeks, the heatmap's
+     * twenty) reads, so it resolves each week by the same rule as {@see forTroopers()}.
+     *
+     * @param  iterable<int>  $trooperIds
+     * @return array<int, array<string, LoaCover>>
+     *
+     * @throws InvalidArgumentException when `$firstWeekStart` is not a Saturday 00:00 UTC, or `$weeks` is below 1.
+     */
+    public function forTroopersOverWeeks(iterable $trooperIds, CarbonInterface $firstWeekStart, int $weeks): array
+    {
+        if ($weeks < 1) {
+            throw new InvalidArgumentException("A window needs at least one week; got {$weeks}.");
+        }
+
+        $first = WeekOf::requireStart($firstWeekStart);
+        $starts = array_map(fn (int $offset) => $first->addDays($offset * 7), range(0, $weeks - 1));
+
         $ids = collect($trooperIds)->map(fn ($id) => (int) $id)->unique()->values()->all();
-        $covers = array_fill_keys($ids, LoaCover::none());
+        $covers = [];
+
+        foreach ($ids as $id) {
+            foreach ($starts as $start) {
+                $covers[$id][$start->toDateString()] = LoaCover::none();
+            }
+        }
 
         if ($ids === []) {
             return $covers;
         }
 
-        foreach ($this->loas->touchingWeek($ids, $week)->groupBy('trooper_id') as $trooperId => $rows) {
-            $covers[(int) $trooperId] = $this->resolve($rows);
+        $today = CarbonImmutable::now('UTC');
+
+        foreach ($this->loas->touchingWeeks($ids, $first, $weeks)->groupBy('trooper_id') as $trooperId => $rows) {
+            foreach ($starts as $start) {
+                $covers[(int) $trooperId][$start->toDateString()] = $this->resolve($rows->filter(fn (Loa $loa) => $this->touches($loa, $start)), $today);
+            }
         }
 
         return $covers;
     }
 
     /**
+     * Whether a row bears on one Cav week: a cleanly read leave whose days include any of the week's seven, or a
+     * row with no usable dates (needs review, or no start) that had been cached by the week's end.
+     */
+    private function touches(Loa $loa, CarbonImmutable $weekStart): bool
+    {
+        $nextWeek = $weekStart->addDays(7);
+
+        if ($loa->parse_status !== LoaParseStatus::Ok || $loa->starts_at === null) {
+            return $loa->created_at !== null && $loa->created_at->lessThan($nextWeek);
+        }
+
+        return $loa->starts_at->toDateString() <= $weekStart->addDays(6)->toDateString()
+            && ($loa->ends_at === null || $loa->ends_at->toDateString() >= $weekStart->toDateString());
+    }
+
+    /**
      * @param  iterable<int, Loa>  $rows  one trooper's rows that touch the week
      */
-    private function resolve(iterable $rows): LoaCover
+    private function resolve(iterable $rows, CarbonImmutable $today): LoaCover
     {
         $rows = collect($rows);
 
@@ -81,7 +133,7 @@ final class LoaCoverage
             ->first();
 
         if ($covering !== null) {
-            return LoaCover::covered($covering, CarbonImmutable::now('UTC'));
+            return LoaCover::covered($covering, $today);
         }
 
         $review = $rows->sortByDesc('id')->first();
