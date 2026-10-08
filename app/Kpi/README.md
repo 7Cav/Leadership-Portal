@@ -33,7 +33,7 @@ the `Unit` it is handed), `Support/Time/` (the week window, AD-11).
 **Reached from:** `Http/Controllers/` and `Commands/`. Read-only; it never writes. Callers pass
 only units the ScopeResolver permits (AD-8) — the service does not re-check scope.
 
-LOA coverage is `LoaLoaCoverage` (4.4), the one definition (4.8): for each week of the window it says
+LOA coverage is `Loa\LoaCoverage` (4.4), the one definition (4.8): for each week of the window it says
 covered, needs review or none, whether or not a practice row exists. A covered week, and a week a
 leave that needs review may apply to, leaves the window: no miss, out of both denominators. Only a
 covered week counts as `on_loa`. A practice mark of `loa` (derived by the rollcall, 3.4) also takes a
