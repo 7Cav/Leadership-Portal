@@ -40,4 +40,12 @@ interface SyncRunRepository
      * second-precision `created_at` column.
      */
     public function latestSuccessful(string $source): ?SyncRun;
+
+    /**
+     * The most recent run for a source that has closed, whatever its outcome: what the roster
+     * view (2.8) compares against {@see latestSuccessful()} to tell a current cache from a stale
+     * one. A run still `in_progress` is skipped, since it has not said how it ended. Same
+     * `finished_at` then `id` ordering as {@see latestSuccessful()}.
+     */
+    public function latestFinished(string $source): ?SyncRun;
 }
