@@ -26,6 +26,7 @@ use App\Support\Audit\ReasonRequiredException;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Saloon\Http\Faking\MockClient;
 
@@ -244,6 +245,11 @@ it('no-ops cleanly when a concurrent send freezes the report first', function ()
         {
             return $this->inner->send($unitId, $weekStart, $kpis, $notes, $sentBy, $contentDigest, $templateVersionId);
         }
+
+        public function forUnits(array $unitIds, CarbonInterface $weekStart): Collection
+        {
+            return $this->inner->forUnits($unitIds, $weekStart);
+        }
     });
 
     $result = sendReport($this->leader, $this->section->id, $this->moment);
@@ -278,6 +284,11 @@ it('rethrows rather than pass off a draft as the sent report when the race re-re
         public function send(int $unitId, CarbonInterface $weekStart, array $kpis, ?string $notes, int $sentBy, string $contentDigest, ?int $templateVersionId): WeeklyReport
         {
             throw WeeklyReportAlreadySentException::for($unitId, $weekStart);
+        }
+
+        public function forUnits(array $unitIds, CarbonInterface $weekStart): Collection
+        {
+            return $this->inner->forUnits($unitIds, $weekStart);
         }
     });
 
