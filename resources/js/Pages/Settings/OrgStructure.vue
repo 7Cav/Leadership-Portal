@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { PhCheckCircle, PhCloudArrowDown, PhLockSimple, PhPlus, PhTreeStructure, PhWarningCircle } from '@phosphor-icons/vue';
+import { PhCaretDown, PhCheckCircle, PhCloudArrowDown, PhLockSimple, PhPlus, PhTreeStructure, PhWarningCircle } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -144,6 +144,52 @@ defineExpose({ form });
 
 // Import from the Cav position groups (Story 2.9). A plain `router.post()` — there is no form
 // state to carry — so a refused import's `errors.import` is caught here, as `deleteError` is.
+// Manual placement of an unplaced trooper (Story 2.7). One chip is open at a time. The sections are
+// the `section` echelon of the tree, listed by `path` so they read in chain-of-command order.
+const sections = computed(() =>
+    props.units
+        .filter((unit) => unit.type === 'section')
+        .sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }))
+        .map((unit) => ({ id: unit.id, label: unit.callsign ? `${unit.callsign} · ${unit.name}` : unit.name })),
+);
+const assigningId = ref(null);
+const assignSection = ref(null);
+const assignReason = ref('');
+const assignError = ref(null);
+const assigning = ref(false);
+
+function openAssign(trooper) {
+    assigningId.value = trooper.id;
+    assignSection.value = null;
+    assignReason.value = '';
+    assignError.value = null;
+}
+
+function cancelAssign() {
+    assigningId.value = null;
+    assignError.value = null;
+}
+
+function submitAssign(trooper) {
+    assignError.value = null;
+    assigning.value = true;
+    router.post(
+        `/settings/org-structure/troopers/${trooper.id}/placement`,
+        { section_id: assignSection.value, reason: assignReason.value.trim() },
+        {
+            preserveScroll: true,
+            onSuccess: cancelAssign,
+            onError: (errors) => {
+                assignError.value =
+                    errors.placement ?? errors.section_id ?? errors.reason ?? Object.values(errors)[0] ?? 'The placement failed. Reload the page and try again.';
+            },
+            onFinish: () => {
+                assigning.value = false;
+            },
+        },
+    );
+}
+
 const importing = ref(false);
 const importError = ref(null);
 
@@ -407,7 +453,7 @@ function requestDelete(id) {
                             v-for="trooper in unplacedTroopers"
                             :key="trooper.id"
                             data-testid="unplaced-trooper"
-                            class="min-w-0 rounded-md border border-border px-2.5 py-1.5 text-[13px]"
+                            :class="['min-w-0 rounded-md border border-border px-2.5 py-1.5 text-[13px]', assigningId === trooper.id && 'w-full']"
                         >
                             <span class="font-medium">
                                 <span v-if="trooper.rank" class="text-muted-foreground">{{ trooper.rank }}</span>
@@ -418,6 +464,49 @@ function requestDelete(id) {
                                     trooper.billet ?? (trooper.position_id !== null ? `Billet ${trooper.position_id}` : 'No billet reported')
                                 }}
                             </span>
+
+                            <!--
+                              Place this trooper into a section by hand (Story 2.7). The server is the boundary:
+                              Admin only, a required reason, and an audited write. This is the convenience layer.
+                            -->
+                            <button
+                                v-if="assigningId !== trooper.id"
+                                type="button"
+                                data-testid="assign-trooper"
+                                class="mt-1 inline-flex items-center gap-0.5 text-xs font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+                                :disabled="!sections.length"
+                                :title="sections.length ? undefined : 'There are no sections to place into yet'"
+                                @click="openAssign(trooper)"
+                            >
+                                Assign <PhCaretDown class="size-3" aria-hidden="true" />
+                            </button>
+                            <form v-else data-testid="assign-form" class="mt-2 space-y-2.5 border-t border-border pt-2.5" @submit.prevent="submitAssign(trooper)">
+                                <div class="grid gap-1">
+                                    <Label :for="`assign-section-${trooper.id}`">Section</Label>
+                                    <NativeSelect :id="`assign-section-${trooper.id}`" v-model="assignSection" data-testid="assign-section">
+                                        <option :value="null">Choose a section</option>
+                                        <option v-for="section in sections" :key="section.id" :value="section.id">{{ section.label }}</option>
+                                    </NativeSelect>
+                                </div>
+                                <div class="grid gap-1">
+                                    <Label :for="`assign-reason-${trooper.id}`">Reason</Label>
+                                    <Input
+                                        :id="`assign-reason-${trooper.id}`"
+                                        v-model="assignReason"
+                                        data-testid="assign-reason"
+                                        type="text"
+                                        maxlength="500"
+                                        placeholder="Why this section, e.g. who confirmed it"
+                                    />
+                                </div>
+                                <p v-if="assignError" data-testid="assign-error" role="alert" class="text-xs text-destructive">{{ assignError }}</p>
+                                <div class="flex items-center justify-end gap-2">
+                                    <Button type="button" variant="ghost" size="sm" data-testid="assign-cancel" @click="cancelAssign">Cancel</Button>
+                                    <Button type="submit" size="sm" data-testid="assign-submit" :disabled="assigning || assignSection === null || !assignReason.trim()">
+                                        {{ assigning ? 'Placing…' : 'Place trooper' }}
+                                    </Button>
+                                </div>
+                            </form>
                         </li>
                     </ul>
                 </section>
