@@ -6,9 +6,7 @@ use RuntimeException;
 
 /**
  * A unit cannot be deleted while it still has dependents (AD-22 protects portal-owned data from
- * silent orphaning). For now the only dependent this codebase can see is a child unit — the
- * `troopers` table doesn't exist until Epic 2's roster sync lands, so a trooper-mapped section
- * can't yet be checked here.
+ * silent orphaning): a child unit, or a Cav billet mapped to the unit (2.9).
  */
 class UnitHasDependentsException extends RuntimeException
 {
@@ -16,6 +14,13 @@ class UnitHasDependentsException extends RuntimeException
     {
         return new self(
             "Cannot delete \"{$unitName}\" — it still has child units. Re-parent or remove them first.",
+        );
+    }
+
+    public static function hasBilletMappings(string $unitName): self
+    {
+        return new self(
+            "Cannot delete \"{$unitName}\" — Cav billets are still mapped to it, so troopers would lose their section.",
         );
     }
 }

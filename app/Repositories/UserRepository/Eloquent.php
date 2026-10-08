@@ -63,6 +63,18 @@ class Eloquent implements UserRepository
         return User::query()->where('is_admin', false)->orderBy('username')->get();
     }
 
+    public function withUsername(string $username): Collection
+    {
+        return User::query()->where('username', $username)->orderBy('id')->get();
+    }
+
+    public function setAdmin(User $user, bool $isAdmin): User
+    {
+        $user->forceFill(['is_admin' => $isAdmin])->save();
+
+        return $user;
+    }
+
     /**
      * What the transaction does **not** do is make concurrent logins collision-free, and it is
      * worth being precise since a future reader will trust this comment. The `lockForUpdate()`

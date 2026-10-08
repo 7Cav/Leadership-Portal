@@ -1,10 +1,14 @@
 <?php
 
+use App\Integration\Cav\CavApi;
 use App\Models\AuditLogEntry;
 use App\Models\Unit;
+use App\Models\UnitBilletMapping;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\UnitRepository;
+use Saloon\Http\Faking\MockClient;
+use Saloon\Http\Faking\MockResponse;
 
 it('renders the org tree for any authenticated user', function () {
     app(UnitRepository::class)->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
@@ -264,4 +268,81 @@ it('refuses a non-Admin delete server-side, even with the UI control hidden (AC 
     $this->actingAs($user)->delete("/settings/org-structure/{$unit->id}")->assertForbidden();
 
     expect(Unit::find($unit->id))->not->toBeNull();
+});
+
+// ── Story 2.9: import from the Cav position groups ──
+
+function oscFakeCav(MockResponse $response): void
+{
+    app()->instance(CavApi::class, new CavApi(['base_url' => 'https://api.7cav.us', 'api_key' => 'cav7_test-key']));
+    MockClient::destroyGlobal();
+    MockClient::global(['api.7cav.us/api/v1/milpacs/position/groups' => $response]);
+}
+
+it('lets an Admin import the tree and reports what was created (2.9)', function () {
+    oscFakeCav(MockResponse::make(
+        json_decode(file_get_contents(base_path('tests/Fixtures/cav/position-groups.json')), true),
+    ));
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin)->post('/settings/org-structure/import')
+        ->assertRedirect(route('settings.org-structure'))
+        ->assertSessionHas('org_import', [
+            'unitsCreated' => 31,
+            'mappingsCreated' => 29,
+            'mappingsDiffering' => 0,
+            'skippedTitles' => ['Section Leader 3/2/C/1-7'],
+        ]);
+
+    expect(Unit::count())->toBe(31)
+        ->and(AuditLogEntry::query()->where('action', 'org_structure.imported')->where('actor_id', $admin->id)->count())->toBe(1);
+
+    // The flashed result reaches the page as a prop for the next render.
+    $this->actingAs($admin)
+        ->withSession(['org_import' => ['unitsCreated' => 31, 'mappingsCreated' => 29, 'skippedTitles' => []]])
+        ->get('/settings/org-structure')
+        ->assertInertia(fn ($page) => $page->where('importResult.unitsCreated', 31)->where('importResult.mappingsCreated', 29));
+});
+
+it('passes a null importResult when no import just ran', function () {
+    $this->actingAs(User::factory()->create())->get('/settings/org-structure')
+        ->assertInertia(fn ($page) => $page->where('importResult', null));
+});
+
+it('refuses a non-Admin import with 403 and calls Cav not at all (2.9, AD-6)', function () {
+    oscFakeCav(MockResponse::make(['groups' => []]));
+
+    $this->actingAs(User::factory()->create())->post('/settings/org-structure/import')->assertForbidden();
+
+    MockClient::getGlobal()->assertNothingSent();
+    expect(Unit::count())->toBe(0);
+});
+
+it('shows the Admin a clear error and writes nothing when Cav is down (2.9)', function () {
+    oscFakeCav(MockResponse::make(['message' => 'down'], 502));
+
+    $this->actingAs(User::factory()->admin()->create())
+        ->from('/settings/org-structure')
+        ->post('/settings/org-structure/import')
+        ->assertRedirect('/settings/org-structure')
+        ->assertSessionHasErrors(['import' => 'Could not read the Cav position groups: Cav position groups fetch failed (HTTP 502).']);
+
+    expect(Unit::count())->toBe(0)->and(AuditLogEntry::count())->toBe(0);
+});
+
+it('requires authentication to import', function () {
+    $this->post('/settings/org-structure/import')->assertRedirect(route('login'));
+});
+
+it('turns a blocked delete of a mapped section into errors.delete, not a 500 (2.9)', function () {
+    $section = app(UnitRepository::class)->create(UnitType::Section, '1st Section', '1/1/A/1-7', null);
+    UnitBilletMapping::factory()->create(['unit_id' => $section->id]);
+
+    $this->actingAs(User::factory()->admin()->create())
+        ->from('/settings/org-structure')
+        ->delete("/settings/org-structure/{$section->id}")
+        ->assertRedirect('/settings/org-structure')
+        ->assertSessionHasErrors('delete');
+
+    expect(Unit::find($section->id))->not->toBeNull();
 });

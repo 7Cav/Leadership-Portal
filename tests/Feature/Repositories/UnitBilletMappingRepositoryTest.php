@@ -53,3 +53,31 @@ it('rejects a second mapping for a cav_position_id already mapped — the unique
     expect(fn () => UnitBilletMapping::factory()->create(['unit_id' => $sectionB->id, 'cav_position_id' => 773]))
         ->toThrow(QueryException::class);
 });
+
+it('lists every mapping as position id => unit id, regardless of the target unit type (2.9)', function () {
+    $section = Unit::factory()->create(['type' => UnitType::Section]);
+    $platoon = Unit::factory()->create(['type' => UnitType::Platoon]);
+    UnitBilletMapping::factory()->create(['unit_id' => $section->id, 'cav_position_id' => 201]);
+    UnitBilletMapping::factory()->create(['unit_id' => $platoon->id, 'cav_position_id' => 199]);
+
+    expect(app(UnitBilletMappingRepository::class)->unitIdsByPositionId()->sortKeys()->all())
+        ->toBe([199 => $platoon->id, 201 => $section->id]);
+});
+
+it('tells whether any billet maps to a unit (2.9)', function () {
+    $mapped = Unit::factory()->create(['type' => UnitType::Section]);
+    $unmapped = Unit::factory()->create(['type' => UnitType::Section]);
+    UnitBilletMapping::factory()->create(['unit_id' => $mapped->id]);
+
+    expect(app(UnitBilletMappingRepository::class)->hasMappings($mapped))->toBeTrue()
+        ->and(app(UnitBilletMappingRepository::class)->hasMappings($unmapped))->toBeFalse();
+});
+
+it('creates a mapping (2.9)', function () {
+    $section = Unit::factory()->create(['type' => UnitType::Section]);
+
+    $mapping = app(UnitBilletMappingRepository::class)->create($section->id, 773);
+
+    expect($mapping->exists)->toBeTrue()
+        ->and(app(UnitBilletMappingRepository::class)->sectionIdsByPositionId()->get(773))->toBe($section->id);
+});

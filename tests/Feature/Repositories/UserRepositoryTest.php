@@ -82,3 +82,22 @@ it('leaves cav_id alone when a forum re-login updates the identity row', functio
         ->username->toBe('Hale.Sam')
         ->cav_id->toBe(77);
 });
+
+it('finds every user carrying a username, oldest first (2.9)', function () {
+    $first = User::factory()->create(['username' => 'Jarvis.A']);
+    $second = User::factory()->create(['username' => 'Jarvis.A']);
+    User::factory()->create(['username' => 'Smith.B']);
+
+    expect(app(UserRepository::class)->withUsername('Jarvis.A')->pluck('id')->all())->toBe([$first->id, $second->id])
+        ->and(app(UserRepository::class)->withUsername('nobody'))->toBeEmpty();
+});
+
+it('sets and clears the Admin flag despite it not being mass-assignable (2.9)', function () {
+    $user = User::factory()->create();
+
+    app(UserRepository::class)->setAdmin($user, true);
+    expect($user->fresh()->is_admin)->toBeTrue();
+
+    app(UserRepository::class)->setAdmin($user, false);
+    expect($user->fresh()->is_admin)->toBeFalse();
+});

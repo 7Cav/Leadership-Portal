@@ -4,6 +4,7 @@ use App\Commands\Units\DeleteUnit;
 use App\Commands\Units\UnitHasDependentsException;
 use App\Models\AuditLogEntry;
 use App\Models\Unit;
+use App\Models\UnitBilletMapping;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\UnitRepository;
@@ -46,4 +47,16 @@ it('refuses to delete a unit that still has children', function () {
 
     expect(Unit::find($regiment->id))->not->toBeNull();
     expect(AuditLogEntry::count())->toBe(0);
+});
+
+it('refuses to delete a section Cav billets still map to, with a reason instead of a constraint error (2.9)', function () {
+    $actor = User::factory()->admin()->create();
+    $unit = app(UnitRepository::class)->create(UnitType::Section, 'Nightriders', '1/1/E/2-7', null);
+    UnitBilletMapping::factory()->create(['unit_id' => $unit->id, 'cav_position_id' => 201]);
+
+    expect(fn () => app(DeleteUnit::class)->handle($actor, $unit))
+        ->toThrow(UnitHasDependentsException::class, 'Cannot delete "Nightriders" — Cav billets are still mapped to it');
+
+    expect(Unit::find($unit->id))->not->toBeNull()
+        ->and(AuditLogEntry::count())->toBe(0);
 });

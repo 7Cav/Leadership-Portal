@@ -8,6 +8,9 @@ import OrgTreeNode from './OrgTreeNode.vue';
 const props = defineProps({
     units: { type: Array, required: true },
     isAdmin: { type: Boolean, required: true },
+    // Flashed once by the import action (Story 2.9):
+    // `{ unitsCreated, mappingsCreated, mappingsDiffering, skippedTitles }`.
+    importResult: { type: Object, default: null },
 });
 
 const tree = computed(() => {
@@ -126,6 +129,30 @@ function cancelEdit() {
 // a re-render to observe it through the DOM (the mocked `useForm` in tests isn't reactive).
 defineExpose({ form });
 
+// Import from the Cav position groups (Story 2.9). A plain `router.post()` — there is no form
+// state to carry — so a refused import's `errors.import` is caught here, as `deleteError` is.
+const importing = ref(false);
+const importError = ref(null);
+
+function runImport() {
+    importError.value = null;
+    importing.value = true;
+    router.post(
+        '/settings/org-structure/import',
+        {},
+        {
+            preserveScroll: true,
+            onError: (errors) => {
+                importError.value =
+                    errors.import ?? Object.values(errors)[0] ?? 'The import failed. Reload the page and try again; if it persists, check the server logs.';
+            },
+            onFinish: () => {
+                importing.value = false;
+            },
+        },
+    );
+}
+
 // A blocked delete (e.g. remaining children) 422s with an `errors.delete` message — there's no
 // `useForm` in play for a plain `router.delete()` call, so that error has nowhere to land
 // without this: without it, a refused delete would fail with no visible feedback at all.
@@ -163,12 +190,41 @@ function requestDelete(id) {
                     Author the chain of command: Regiment › Battalion › Company › Platoon › Section.
                 </p>
             </div>
-            <span
-                v-if="isAdmin"
-                class="inline-flex items-center gap-1.5 rounded border border-gold-soft bg-panel px-2.5 py-1 text-xs text-gold"
-            >
-                🔒 Admin
-            </span>
+            <div v-if="isAdmin" class="flex items-center gap-2">
+                <!--
+                  Admin-only (Story 2.9). Hidden for everyone else; the server refuses a
+                  non-Admin import regardless (AD-6) — this is convenience, not the boundary.
+                -->
+                <button
+                    type="button"
+                    data-testid="import-from-cav"
+                    :disabled="importing"
+                    class="rounded border border-gold-soft bg-panel px-3 py-1.5 text-sm font-medium text-gold disabled:opacity-50"
+                    @click="runImport"
+                >
+                    {{ importing ? 'Importing…' : 'Import from Cav roster' }}
+                </button>
+                <span class="inline-flex items-center gap-1.5 rounded border border-gold-soft bg-panel px-2.5 py-1 text-xs text-gold">
+                    🔒 Admin
+                </span>
+            </div>
+        </div>
+
+        <p v-if="importError" data-testid="import-error" role="alert" class="mb-4 rounded border border-bad bg-panel px-3 py-2 text-sm text-bad">
+            {{ importError }}
+        </p>
+        <div v-else-if="importResult" data-testid="import-result" role="status" class="mb-4 rounded border border-border bg-panel px-3 py-2 text-sm text-gray-300">
+            Imported from the Cav roster: {{ importResult.unitsCreated }} {{ importResult.unitsCreated === 1 ? 'node' : 'nodes' }} and
+            {{ importResult.mappingsCreated }} section {{ importResult.mappingsCreated === 1 ? 'mapping' : 'mappings' }} created.
+            <template v-if="importResult.mappingsDiffering">
+                {{ importResult.mappingsDiffering }} existing {{ importResult.mappingsDiffering === 1 ? 'mapping points' : 'mappings point' }}
+                at a different section than Cav now lists — kept as they are.
+            </template>
+            <template v-if="importResult.skippedTitles.length">
+                {{ importResult.skippedTitles.length }} position {{ importResult.skippedTitles.length === 1 ? 'title' : 'titles' }} skipped
+                (designation not recognised):
+                <span class="font-mono text-gray-400">{{ importResult.skippedTitles.join(', ') }}</span>
+            </template>
         </div>
 
         <div class="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
