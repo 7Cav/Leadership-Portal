@@ -96,7 +96,7 @@ const detailId = useId();
                     </Badge>
                 </TooltipTrigger>
                 <TooltipContent class="max-w-72 space-y-0.5">
-                    <p v-for="line in details" :key="line">{{ line }}</p>
+                    <p v-for="(line, index) in details" :key="index">{{ line }}</p>
                 </TooltipContent>
             </Tooltip>
         </TooltipProvider>
