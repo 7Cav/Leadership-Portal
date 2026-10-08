@@ -35,6 +35,9 @@ class Eloquent implements TrooperRepository
                 ['cav_id' => $row['cav_id']],
                 [
                     'rank' => $row['rank'],
+                    'rank_short' => $row['rank_short'] ?? null,
+                    'username' => $row['username'] ?? null,
+                    'forum_user_id' => $row['forum_user_id'] ?? null,
                     'mos' => $row['mos'],
                     'tis' => $row['tis'],
                     'tig' => $row['tig'],

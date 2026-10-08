@@ -105,6 +105,62 @@ it('updates an existing trooper in place rather than duplicating the row', funct
     expect($existing->rank)->toBe('Sergeant');
 });
 
+it('caches each trooper\'s forum identity and short rank, but never their real name', function () {
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT', ['user' => ['userId' => '1204', 'username' => 'Okafor.T']])]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    $trooper = Trooper::where('cav_id', 1)->sole();
+    expect($trooper->username)->toBe('Okafor.T')
+        ->and($trooper->forum_user_id)->toBe(1204)
+        ->and($trooper->rank_short)->toBe('SGT')
+        ->and($trooper->display_name)->toBe('SGT Okafor.T')
+        ->and(json_encode(Trooper::query()->toBase()->get()))->not->toContain('Adam Jarvis');
+});
+
+it('follows a forum rename on the next sync, overwriting the stale username', function () {
+    $existing = Trooper::factory()->create(['cav_id' => 1, 'username' => 'Vasquez.R', 'forum_user_id' => 3, 'status' => TrooperStatus::Combat]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT', ['user' => ['userId' => '3', 'username' => 'Vasquez-Hale.R']])]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    expect($existing->refresh()->username)->toBe('Vasquez-Hale.R')
+        ->and($existing->forum_user_id)->toBe(3);
+});
+
+it('still syncs and counts a trooper with no forum account linked, nulling a stale identity', function () {
+    $existing = Trooper::factory()->create(['cav_id' => 1, 'username' => 'Gone.X', 'forum_user_id' => 77, 'status' => TrooperStatus::Combat]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => [
+            '1' => srRosterRow('ROSTER_TYPE_COMBAT', ['user' => null]),
+            '2' => srRosterRow('ROSTER_TYPE_COMBAT', ['user' => null]),
+        ]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    $new = Trooper::where('cav_id', 2)->sole();
+    expect($existing->refresh()->username)->toBeNull()
+        ->and($existing->forum_user_id)->toBeNull()
+        ->and($new->username)->toBeNull()
+        ->and($new->display_name)->toBe('SGT #2')
+        ->and(SyncRun::sole()->inserted)->toBe(1)
+        ->and(SyncRun::sole()->updated)->toBe(1)
+        ->and(SyncRun::sole()->errored)->toBe(0);
+});
+
 it('marks a trooper missing from every roster as inactive without deleting the row', function () {
     $departed = Trooper::factory()->create(['cav_id' => 99, 'status' => TrooperStatus::Combat]);
 

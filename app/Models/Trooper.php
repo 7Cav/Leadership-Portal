@@ -6,6 +6,7 @@ use Database\Factories\TrooperFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -22,8 +23,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * `cav_position_id` *is* synced: the trooper's primary Cav billet, overwritten on every run, so
  * the roster-derived command scope (1.16, `unit_command_mappings`) follows a billet change.
+ *
+ * `username`, `forum_user_id` and `rank_short` are synced too (2.10): the forum identity 7Cav
+ * names a member by. Render a trooper through `display_name`, never by hand.
  */
-#[Fillable(['cav_id', 'rank', 'mos', 'tis', 'tig', 'status', 'cav_position_id'])]
+#[Fillable(['cav_id', 'username', 'forum_user_id', 'rank', 'rank_short', 'mos', 'tis', 'tig', 'status', 'cav_position_id'])]
 class Trooper extends Model
 {
     /** @use HasFactory<TrooperFactory> */
@@ -36,7 +40,22 @@ class Trooper extends Model
             'tig' => 'date',
             'status' => TrooperStatus::class,
             'cav_position_id' => 'integer',
+            'forum_user_id' => 'integer',
         ];
+    }
+
+    /**
+     * How 7Cav names a member, `SGT Vasquez.R` — or `SGT #1234` (the `cav_id`) for a trooper with
+     * no forum account linked. A missing short rank is dropped rather than left as a leading space.
+     *
+     * @return Attribute<string, never>
+     */
+    protected function displayName(): Attribute
+    {
+        return Attribute::get(fn (): string => implode(' ', array_filter(
+            [$this->rank_short, $this->username ?? "#{$this->cav_id}"],
+            fn (?string $part) => $part !== null && $part !== '',
+        )));
     }
 
     public function primarySection(): BelongsTo

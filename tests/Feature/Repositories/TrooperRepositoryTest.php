@@ -45,6 +45,28 @@ it('updates an existing row in place, leaving the internal PK unchanged, reporti
         ->and($counts)->toBe(['inserted' => 0, 'updated' => 1]);
 });
 
+it('writes the forum identity and short rank, overwriting stale values and nulling an absent key', function () {
+    $repo = app(TrooperRepository::class);
+
+    $repo->upsertActive([
+        ['cav_id' => 42, 'rank' => 'Sergeant', 'rank_short' => 'SGT', 'username' => 'Vasquez.R', 'forum_user_id' => 1204, 'mos' => '11B', 'tis' => null, 'tig' => null, 'status' => TrooperStatus::Combat->value],
+    ]);
+    $trooper = Trooper::where('cav_id', 42)->sole();
+
+    expect($trooper->username)->toBe('Vasquez.R')
+        ->and($trooper->forum_user_id)->toBe(1204)
+        ->and($trooper->rank_short)->toBe('SGT');
+
+    $repo->upsertActive([
+        ['cav_id' => 42, 'rank' => 'Sergeant', 'mos' => '11B', 'tis' => null, 'tig' => null, 'status' => TrooperStatus::Combat->value],
+    ]);
+    $trooper->refresh();
+
+    expect($trooper->username)->toBeNull()
+        ->and($trooper->forum_user_id)->toBeNull()
+        ->and($trooper->rank_short)->toBeNull();
+});
+
 it('counts several inserts and updates independently in one batch', function () {
     $repo = app(TrooperRepository::class);
     Trooper::factory()->create(['cav_id' => 1, 'status' => TrooperStatus::Combat]);
