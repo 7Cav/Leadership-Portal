@@ -16,7 +16,6 @@ use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
-use InvalidArgumentException;
 
 class Eloquent implements AttendanceRepository
 {
@@ -56,8 +55,8 @@ class Eloquent implements AttendanceRepository
                     ->on('attendance.trooper_id', '=', 'troopers.id');
             })
             ->whereBetween('section_practices.week_start', [
-                $this->assertWeekStart($firstWeek),
-                $this->assertWeekStart($lastWeek),
+                WeekOf::requireStart($firstWeek),
+                WeekOf::requireStart($lastWeek),
             ])
             ->orderBy('troopers.id')
             ->orderBy('section_practices.week_start')
@@ -70,23 +69,6 @@ class Eloquent implements AttendanceRepository
                 // Null only when the left join found no attendance row: nobody signed for them.
                 rollcall: $row->rollcall === null ? RollcallSignature::Unsigned : RollcallSignature::from($row->rollcall),
             ));
-    }
-
-    /**
-     * The same Saturday 00:00 UTC check `SectionPracticeRepository` applies (AD-11), returned as
-     * the UTC instant so the bound compares equal to the stored `week_start` on every driver.
-     */
-    private function assertWeekStart(CarbonInterface $weekStart): CarbonImmutable
-    {
-        $boundary = WeekOf::start($weekStart);
-
-        if (! $boundary->equalTo($weekStart)) {
-            throw new InvalidArgumentException(
-                "week_start must be a Saturday 00:00 UTC (AD-11); got {$weekStart->toIso8601String()}.",
-            );
-        }
-
-        return $boundary;
     }
 
     /**

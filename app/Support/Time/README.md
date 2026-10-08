@@ -2,7 +2,8 @@
 
 `WeekOf::start($moment)` is the **only** code in the portal that maps a time to a
 `week_start`: the Saturday 00:00 UTC that opens the Cav week, which runs from that instant up
-to (not including) the next Saturday 00:00 UTC. Input in any zone is normalized to UTC first; there is no per-unit timezone. Never compute a
+to (not including) the next Saturday 00:00 UTC. Input in any zone is normalized to UTC first; there is no per-unit timezone. A caller *handed* a `week_start` validates it with
+`WeekOf::requireStart()`, which refuses anything but a boundary. Never compute a
 week boundary inline (`startOfWeek`, "previous Saturday", …) — call this. A best-effort unit test
 guards it by scanning `app/` and `database/` for week-boundary idioms.
 

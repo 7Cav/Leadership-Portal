@@ -19,4 +19,6 @@ the `Unit` it is handed), `Support/Time/` (the week window, AD-11).
 only units the ScopeResolver permits (AD-8) — the service does not re-check scope.
 
 LOA is not modelled yet (Epic 4): coverage is read from `attendance.status = loa` in one
-predicate, `KpiService::isLoaCovered()`, which is the seam Epic 4 replaces.
+predicate, `KpiService::isLoaCovered()` — the seam Epic 4 replaces for weeks with a practice
+row. LOA in a week with no practice row also needs `forTrooper()`'s RC denominator and
+`onLoa` derived from LOA week coverage; the predicate's docblock spells this out.

@@ -25,3 +25,14 @@ it('round-trips through its storage array', function () {
         'makeups' => 3,
     ])->and(UnitKpis::fromArray($kpis->toArray()))->toEqual($kpis);
 });
+
+it('refuses a count no computation could produce — negative, or more troopers than strength', function (array $counts) {
+    new UnitKpis(...[
+        'strength' => 2, 'rc30d' => new Ratio(0, 0), 'sp30d' => new Ratio(0, 0),
+        'atRisk' => 0, 'onLoa' => 0, 'makeups' => 0, ...$counts,
+    ]);
+})->with([
+    'negative at-risk' => [['atRisk' => -1]],
+    'on-LOA over strength' => [['onLoa' => 3]],
+    'makeups over strength' => [['makeups' => 3]],
+])->throws(InvalidArgumentException::class);

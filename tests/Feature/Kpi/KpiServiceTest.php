@@ -185,6 +185,32 @@ it('counts only the trooper\'s primary-section practice — one counting SP per 
         ->and($kpis->rc30d->numerator)->toBe(0);
 });
 
+it('does not count a makeup done at another section\'s practice', function () {
+    $trooper = kpiTrooper($this->sectionA);
+    kpiMark($trooper, $this->sectionB, 0, AttendanceStatus::Makeup);
+
+    expect($this->kpis->forUnit($this->regiment, kpiWeek())->makeups)->toBe(0);
+});
+
+it('measures a trooper who changed section mid-window against their current section only', function () {
+    // No placement history in the cache: the earlier section's marks drop out and the new
+    // section's earlier practices count as eligible. Pinned so a change here is deliberate.
+    $trooper = kpiTrooper($this->sectionA);
+    kpiMark($trooper, $this->sectionA, 3, AttendanceStatus::Missed);
+    kpiMark($trooper, $this->sectionA, 2, AttendanceStatus::Missed);
+    kpiHeld($this->sectionB, 1);
+    $trooper->forceFill(['primary_section_id' => $this->sectionB->id])->save();
+
+    $attendance = $this->kpis->trooperAttendance($this->sectionB, kpiWeek())->sole();
+
+    expect($attendance->missed)->toBe(0)
+        ->and($attendance->practice)->toEqual(new Ratio(0, 1))
+        ->and($this->kpis->forUnit($this->sectionA, kpiWeek())->strength)->toBe(0);
+});
+
+it('suppresses at-risk for a trooper with a needs_review LOA (AD-4)')
+    ->todo('Epic 4 — no LOA data exists yet; see KpiService::isLoaCovered()');
+
 it('excludes an LOA-covered week from both denominators rather than counting it as a miss', function () {
     $trooper = kpiTrooper($this->sectionA);
     kpiMark($trooper, $this->sectionA, 3, AttendanceStatus::Present, RollcallSignature::WillAttend);
@@ -308,12 +334,13 @@ it('rolls up additively — a parent equals the sum of its children\'s numerator
         ->and($parent->atRisk)->toBe(1);
 });
 
-it('is deterministic — the same unit and week computed twice is identical', function () {
+it('is deterministic — the same unit and week computed later, with unchanged data, is identical', function () {
     $trooper = kpiTrooper($this->sectionA);
     kpiMark($trooper, $this->sectionA, 1, AttendanceStatus::Missed, RollcallSignature::WillAttend);
     kpiMark($trooper, $this->sectionA, 0, AttendanceStatus::Makeup);
 
     $first = $this->kpis->forUnit($this->regiment, kpiWeek());
+    $this->travel(3)->weeks();   // a recompute must not depend on the clock
     $second = $this->kpis->forUnit($this->regiment, kpiWeek());
 
     expect($second)->toEqual($first)

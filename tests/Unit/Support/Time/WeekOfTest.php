@@ -62,6 +62,16 @@ it('maps the last microsecond of the week to its Saturday with a zeroed time of 
     expect($weekStart->format('Y-m-d H:i:s.u e'))->toBe('2026-05-30 00:00:00.000000 UTC');
 });
 
+it('requires a handed-in week_start to already be a boundary, returning its UTC instant', function () {
+    $sameInstant = new CarbonImmutable('2026-05-29 20:00:00', 'America/New_York');
+
+    expect(WeekOf::requireStart($sameInstant)->format('Y-m-d H:i:s e'))->toBe('2026-05-30 00:00:00 UTC');
+});
+
+it('refuses a week_start that is not a Saturday 00:00 UTC', function () {
+    WeekOf::requireStart(new CarbonImmutable('2026-05-30 00:00:01', 'UTC'));
+})->throws(InvalidArgumentException::class);
+
 /**
  * Code-shaped idioms that compute a week boundary: Carbon week helpers, weekday arithmetic and
  * SQL week bucketing. A best-effort tripwire, not a proof — it cannot see every hand-rolled form.

@@ -42,7 +42,7 @@ class Trooper extends Model
 
     /**
      * Troopers currently assigned within `$unit`'s subtree: primary section anywhere under it (the
-     * materialized-path prefix, AD-18) and not `Inactive` (discharged / transferred out). An LOA
+     * materialized-path prefix, AD-18) and not `Inactive` (gone from every Cav roster, AD-4). An LOA
      * or ELOA trooper is still assigned. The cache holds only the current placement, so this is
      * "assigned now", not a history.
      *

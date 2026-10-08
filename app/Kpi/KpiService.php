@@ -25,13 +25,18 @@ use InvalidArgumentException;
  * including — `week_start`, stepped in whole weeks from a `WeekOf` boundary (AD-11).
  *
  * The population is every trooper currently assigned within the unit's subtree
- * (`TrooperRepository::assignedWithin`). Per trooper, over the window:
+ * (`TrooperRepository::assignedWithin`) — the cache has no placement history, so a trooper who
+ * changed section mid-window is measured entirely against their current section, and a past week
+ * recomputed after the move can differ from the snapshot frozen before it. Per trooper, over the
+ * window:
  *
  * - **RC** (MVP amendment, #23): weeks with a signed rollcall (`will_attend` or `cannot_attend`)
- *   ÷ assigned weeks — all {@see WINDOW_WEEKS}, whether or not a practice was held.
- * - **SP**: practices marked present, makeup or attached ÷ practices their primary section held
- *   (AD-14's counting SP). A week with no practice row is not eligible; a held practice the
- *   trooper is not marked for is eligible but not attended.
+ *   ÷ assigned weeks — all {@see WINDOW_WEEKS}, whether or not a practice was held. A signature
+ *   is recorded against the section-week's practice row, so a week with no row counts unsigned.
+ * - **SP**: practices marked present, makeup or attached ÷ the practice rows (one per
+ *   section-week, AD-14's counting SP) of their *current* primary section. A week with no
+ *   practice row is not eligible; a row the trooper is not marked on is eligible but not
+ *   attended. A mark against another section's practice never counts, a makeup included.
  * - **missed**: practices explicitly marked `missed`. An unmarked practice is never read as a miss
  *   — the service does not assert absence it was not told about (the AD-4 fail-safe).
  * - An **LOA-covered** week leaves both denominators and is never a miss.
@@ -60,8 +65,8 @@ final class KpiService
 
         return new UnitKpis(
             strength: $byTrooper->count(),
-            rc30d: new Ratio($byTrooper->sum(fn (TrooperAttendance $t) => $t->rollcall->numerator), $byTrooper->sum(fn (TrooperAttendance $t) => $t->rollcall->denominator)),
-            sp30d: new Ratio($byTrooper->sum(fn (TrooperAttendance $t) => $t->practice->numerator), $byTrooper->sum(fn (TrooperAttendance $t) => $t->practice->denominator)),
+            rc30d: $byTrooper->reduce(fn (Ratio $sum, TrooperAttendance $t) => $sum->plus($t->rollcall), new Ratio(0, 0)),
+            sp30d: $byTrooper->reduce(fn (Ratio $sum, TrooperAttendance $t) => $sum->plus($t->practice), new Ratio(0, 0)),
             atRisk: $byTrooper->filter(fn (TrooperAttendance $t) => $t->atRisk())->count(),
             onLoa: $byTrooper->filter(fn (TrooperAttendance $t) => $t->onLoa)->count(),
             makeups: $byTrooper->sum(fn (TrooperAttendance $t) => $t->makeups),
@@ -79,7 +84,7 @@ final class KpiService
      */
     public function trooperAttendance(Unit $unit, CarbonInterface $weekStart): Collection
     {
-        $weekStart = $this->assertWeekStart($weekStart);
+        $weekStart = WeekOf::requireStart($weekStart);
         $marks = $this->attendance
             ->countingMarks($unit, $weekStart->subWeeks(self::WINDOW_WEEKS - 1), $weekStart)
             ->groupBy(fn (CountingMark $mark) => $mark->trooperId);
@@ -115,27 +120,15 @@ final class KpiService
 
     /**
      * Whether LOA covers this trooper-week. MVP: the week's mark is `loa` — there is no LOA table
-     * yet, so the only LOA coverage is a mark against a held practice. Epic 4 replaces this one
-     * predicate with coverage from the synced `loas` table (covering weeks with no practice row
-     * too), and adds AD-4's fail-safe there: a `needs_review` LOA must suppress at-risk for the
+     * yet, so the only LOA coverage is a mark against a practice row. This predicate is the seam
+     * Epic 4 replaces with coverage from the synced `loas` table for weeks that have a row; LOA
+     * in a week with *no* practice row has no mark to test, so Epic 4 must also derive the RC
+     * denominator and `onLoa` in `forTrooper()` from LOA week coverage rather than from marks.
+     * Epic 4 adds AD-4's fail-safe there as well: a `needs_review` LOA suppresses at-risk for the
      * trooper rather than let the week count as a miss.
      */
     private function isLoaCovered(CountingMark $mark): bool
     {
         return $mark->status === AttendanceStatus::Loa;
-    }
-
-    /** Validates rather than derives: the Saturday 00:00 UTC rule lives in `WeekOf` (AD-11). */
-    private function assertWeekStart(CarbonInterface $weekStart): CarbonImmutable
-    {
-        $boundary = WeekOf::start($weekStart);
-
-        if (! $boundary->equalTo($weekStart)) {
-            throw new InvalidArgumentException(
-                "week_start must be a Saturday 00:00 UTC (AD-11); got {$weekStart->toIso8601String()}.",
-            );
-        }
-
-        return $boundary;
     }
 }

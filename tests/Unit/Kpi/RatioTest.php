@@ -10,6 +10,10 @@ it('divides numerator by denominator', function () {
         ->and((new Ratio(0, 4))->value())->toBe(0.0);
 });
 
+it('adds parts rather than averaging percentages', function () {
+    expect((new Ratio(1, 1))->plus(new Ratio(0, 3)))->toEqual(new Ratio(1, 4));
+});
+
 it('is not applicable when nothing was eligible', function () {
     expect((new Ratio(0, 0))->value())->toBeNull();
 });

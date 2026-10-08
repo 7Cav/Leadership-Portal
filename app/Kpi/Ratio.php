@@ -20,6 +20,12 @@ final readonly class Ratio
         }
     }
 
+    /** Parts summed, never percentages averaged — how a unit composes its members' ratios. */
+    public function plus(Ratio $other): self
+    {
+        return new self($this->numerator + $other->numerator, $this->denominator + $other->denominator);
+    }
+
     /** The fraction in [0, 1], or null when nothing was eligible. */
     public function value(): ?float
     {
