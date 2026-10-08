@@ -58,4 +58,19 @@ interface UserRepository
      * @return Collection<int, User>
      */
     public function nonAdminUsers(): Collection;
+
+    /**
+     * Every user carrying `$username` — a collection, not a single row, because `users.username`
+     * is not unique (it mirrors the forum's display name, which the forum may reassign), so a
+     * caller acting on a username must see an ambiguous match rather than silently pick one.
+     *
+     * @return Collection<int, User>
+     */
+    public function withUsername(string $username): Collection;
+
+    /**
+     * Set or clear the Admin flag (AD-7). `is_admin` is deliberately not mass-assignable, so this
+     * is the one write path for it — reached only through an audited Command (AD-16).
+     */
+    public function setAdmin(User $user, bool $isAdmin): User;
 }
