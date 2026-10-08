@@ -82,4 +82,13 @@ interface UnitRepository
      * Admin gets a clear reason instead of a raw constraint-violation exception.
      */
     public function delete(Unit $unit): void;
+
+    /**
+     * Every unit whose 7Cav designation (`callsign`, e.g. `A/1-7`) is exactly `$callsign`, in id
+     * order — a collection, because callsigns are not unique, so a caller resolving one sees an
+     * ambiguous match rather than silently picking a node.
+     *
+     * @return Collection<int, Unit>
+     */
+    public function withCallsign(string $callsign): Collection;
 }

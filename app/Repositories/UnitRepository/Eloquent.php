@@ -108,4 +108,9 @@ class Eloquent implements UnitRepository
     {
         $unit->delete();
     }
+
+    public function withCallsign(string $callsign): Collection
+    {
+        return Unit::query()->where('callsign', $callsign)->orderBy('id')->get();
+    }
 }

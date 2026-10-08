@@ -73,6 +73,11 @@ class Eloquent implements UserRepository
         return User::query()->where('username', $username)->orderBy('id')->get();
     }
 
+    public function firstAdmin(): ?User
+    {
+        return User::query()->where('is_admin', true)->orderBy('id')->first();
+    }
+
     public function setAdmin(User $user, bool $isAdmin): User
     {
         $user->forceFill(['is_admin' => $isAdmin])->save();

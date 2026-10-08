@@ -196,3 +196,13 @@ it('lists a unit\'s direct children in creation order, not grandchildren or sibl
     expect($repo->children($company)->modelKeys())->toBe([$first->id, $second->id])
         ->and($repo->children($second))->toBeEmpty();
 });
+
+it('finds every unit carrying a callsign, in id order (#115)', function () {
+    $repository = app(UnitRepository::class);
+    $company = $repository->create(UnitType::Company, 'Alpha Company', 'A/1-7', null);
+    $repository->create(UnitType::Company, 'Bravo Company', 'B/1-7', null);
+    $twin = $repository->create(UnitType::Company, 'Alpha (copy)', 'A/1-7', null);
+
+    expect($repository->withCallsign('A/1-7')->modelKeys())->toBe([$company->id, $twin->id])
+        ->and($repository->withCallsign('Z/9-9'))->toBeEmpty();
+});

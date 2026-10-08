@@ -77,6 +77,12 @@ interface UserRepository
     public function withUsername(string $username): Collection;
 
     /**
+     * The earliest-created Admin, or null when there is none — the actor the console's demo
+     * history command records when no `--as` user is named (#115).
+     */
+    public function firstAdmin(): ?User;
+
+    /**
      * Set or clear the Admin flag (AD-7). `is_admin` is deliberately not mass-assignable, so this
      * is the one write path for it — reached only through an audited Command (AD-16).
      */
