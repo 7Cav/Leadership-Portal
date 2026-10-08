@@ -115,7 +115,7 @@ class ReportController extends Controller
             ],
             'week' => [
                 'start' => $weekStart->toIso8601String(),
-                'due' => $weekStart->addWeek()->setTime(23, 59)->toIso8601String(),
+                'due' => WeekOf::reportDue($weekStart)->toIso8601String(),
                 'previous' => $weekStart->subWeek()->toDateString(),
                 'next' => $weekStart->addWeek()->lessThanOrEqualTo($this->currentWeek()) ? $weekStart->addWeek()->toDateString() : null,
             ],

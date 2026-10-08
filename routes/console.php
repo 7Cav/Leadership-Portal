@@ -8,12 +8,8 @@ use App\Commands\Users\SetAdminFlag;
 use App\Jobs\SyncRosterJob;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
-use App\Support\Time\WeekOf;
-use Database\Seeders\ReportScreenSeeder;
-use Illuminate\Cookie\CookieValuePrefix;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
@@ -123,33 +119,3 @@ Artisan::command('portal:demo-history {unit : A unit designation (A/1-7) or id}
 
     return 0;
 })->purpose('Generate (or with --purge, remove) demo attendance history for a unit\'s real troopers');
-
-// Browser-test fixture for the report screen (Stories 5.3–5.5): seeds a platoon with six weeks
-// of reports and signs a leader in, printing the session cookie Playwright sets — the real
-// sign-in is a 7cav.us OAuth round-trip a browser test cannot make. Refused outside local and testing.
-Artisan::command('e2e:report-fixture {--as=section : section or platoon — whose session to print}', function () {
-    if (! app()->environment(['local', 'testing'])) {
-        $this->error('Refusing to seed test fixtures outside a local or testing environment.');
-
-        return 1;
-    }
-
-    $seeder = new ReportScreenSeeder;
-    $seeder->run();
-    $user = $this->option('as') === 'platoon' ? $seeder->platoonLeader : $seeder->sectionLeader;
-
-    $session = app('session')->driver();
-    $session->start();
-    Auth::guard('web')->login($user);
-    $session->save();
-
-    $name = config('session.cookie');
-    $this->line(json_encode([
-        'cookie' => ['name' => $name, 'value' => app('encrypter')->encrypt(CookieValuePrefix::create($name, app('encrypter')->getKey()).$session->getId(), false)],
-        'section' => $seeder->section->id,
-        'platoon' => $seeder->platoon->id,
-        'week' => WeekOf::start(now())->toDateString(),
-    ]));
-
-    return 0;
-})->purpose('Seed the report screen browser-test fixture and print a signed-in session cookie (local and testing only)');

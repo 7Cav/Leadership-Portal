@@ -23,8 +23,9 @@ use Illuminate\Database\Seeder;
 
 /**
  * A platoon with three sections and six weeks of attendance and sent reports, for the report
- * screen's browser test and screenshots (Stories 5.3–5.5). Local and CI only — never seeded in
- * production. Section 2 is left as this week's draft with open items; section 1 has sent this
+ * compose screen's browser test (Stories 5.3–5.5), seeded by the e2e setup beside
+ * `ReportRollupSeeder` under its own company and usernames (`Mercer.J` leads 2/1/B/1-7,
+ * `Brennan.J` the platoon). Never seeded in production. Section 2 is left as this week's draft with open items; section 1 has sent this
  * week; section 3 has a draft. Exposes the users it made through `$sectionLeader` and
  * `$platoonLeader`.
  */
@@ -41,17 +42,17 @@ class ReportScreenSeeder extends Seeder
     public function run(): void
     {
         $now = CarbonImmutable::now('UTC');
-        $week = WeekOf::start($now);
+        $week = WeekOf::reporting($now);
         $tag = $now->format('His').random_int(100, 999);
 
-        $company = Unit::factory()->create(['type' => UnitType::Company, 'name' => 'Alpha Company', 'callsign' => 'A/1-7', 'path' => "9{$tag}/"]);
-        $this->platoon = Unit::factory()->create(['type' => UnitType::Platoon, 'name' => '1st Platoon', 'callsign' => '1/A/1-7', 'parent_id' => $company->id, 'path' => "9{$tag}/1/"]);
-        $first = Unit::factory()->create(['type' => UnitType::Section, 'name' => '1st Section', 'callsign' => '1/1/A/1-7', 'parent_id' => $this->platoon->id, 'path' => "9{$tag}/1/1/"]);
-        $this->section = Unit::factory()->create(['type' => UnitType::Section, 'name' => '2nd Section', 'callsign' => '2/1/A/1-7', 'parent_id' => $this->platoon->id, 'path' => "9{$tag}/1/2/"]);
-        $third = Unit::factory()->create(['type' => UnitType::Section, 'name' => '3rd Section', 'callsign' => '3/1/A/1-7', 'parent_id' => $this->platoon->id, 'path' => "9{$tag}/1/3/"]);
+        $company = Unit::factory()->create(['type' => UnitType::Company, 'name' => 'Bravo Company', 'callsign' => 'B/1-7', 'path' => "9{$tag}/"]);
+        $this->platoon = Unit::factory()->create(['type' => UnitType::Platoon, 'name' => '1st Platoon', 'callsign' => '1/B/1-7', 'parent_id' => $company->id, 'path' => "9{$tag}/1/"]);
+        $first = Unit::factory()->create(['type' => UnitType::Section, 'name' => '1st Section', 'callsign' => '1/1/B/1-7', 'parent_id' => $this->platoon->id, 'path' => "9{$tag}/1/1/"]);
+        $this->section = Unit::factory()->create(['type' => UnitType::Section, 'name' => '2nd Section', 'callsign' => '2/1/B/1-7', 'parent_id' => $this->platoon->id, 'path' => "9{$tag}/1/2/"]);
+        $third = Unit::factory()->create(['type' => UnitType::Section, 'name' => '3rd Section', 'callsign' => '3/1/B/1-7', 'parent_id' => $this->platoon->id, 'path' => "9{$tag}/1/3/"]);
 
         $people = [
-            ['SGT', 'Vasquez.R'], ['CPL', 'Lindqvist.E'], ['SPC', 'Mbeki.K'], ['PFC', 'Okafor.T'],
+            ['SGT', 'Mercer.J'], ['CPL', 'Lindqvist.E'], ['SPC', 'Mbeki.K'], ['PFC', 'Okafor.T'],
             ['PFC', 'Kowalczyk.P'], ['PVT', 'Doyle.A'], ['PVT', 'Reyes.M'], ['PFC', 'Tanaka.H'],
         ];
         $troopers = collect($people)->map(function (array $person, int $i) use ($tag) {
@@ -112,7 +113,7 @@ class ReportScreenSeeder extends Seeder
         app(SendWeeklyReportHandler::class)->handle($actor, new SendWeeklyReport($unit->id, $week, 'Weekly report', $notes, $subject));
 
         // Backdate a past week's freeze to its Friday evening, as it would have happened.
-        if ($week->greaterThanOrEqualTo(WeekOf::start(CarbonImmutable::now('UTC')))) {
+        if ($week->greaterThanOrEqualTo(WeekOf::reporting(CarbonImmutable::now('UTC')))) {
             return;
         }
         WeeklyReport::query()->where('unit_id', $unit->id)->where('week_start', $week)
