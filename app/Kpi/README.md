@@ -29,7 +29,7 @@ pre-send check. Two queries however many children; a leaf unit is refused. 5.6's
 freezes `RollupResult::$kpis` for a non-leaf unit, and 5.8's navigator renders `$children`.
 
 **May depend on:** `Repositories/` (the facts — never the DB directly, AD-2), `Models/` (enums,
-the `Unit` it is handed), `Support/Time/` (the week window, AD-11).
+the `Unit` it is handed), `Support/Time/` (the week window, AD-11), `Loa/` (LOA coverage, 4.8).
 **Reached from:** `Http/Controllers/` and `Commands/`. Read-only; it never writes. Callers pass
 only units the ScopeResolver permits (AD-8) — the service does not re-check scope.
 

@@ -22,7 +22,7 @@ Everything the portal needs to *read* about leave lives here, so no screen re-de
 
 **May depend on:** `Repositories/` (the facts, never the DB directly, AD-2), `Models/`,
 `Support/Time/` (the week window, AD-11).
-**Reached from:** `Http/Controllers/`. Read-only: the LOA sync (`Sync/SyncLoasHandler`) is the one
+**Reached from:** `Http/Controllers/` and `Kpi/`. Read-only: the LOA sync (`Sync/SyncLoasHandler`) is the one
 writer of `loas` and `sync_runs`.
 
 `forTroopersOverWeeks($ids, $firstWeek, $weeks)` resolves a window the same way, in one query. The KPI service
