@@ -2,6 +2,7 @@
 
 namespace App\Repositories\TrooperRepository;
 
+use App\Models\PlacementSource;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
@@ -70,10 +71,40 @@ class Eloquent implements TrooperRepository
         foreach (collect($cavIdToSectionId)->groupBy(fn ($sectionId) => $sectionId, preserveKeys: true) as $sectionId => $cavIds) {
             $updated += Trooper::query()
                 ->whereIn('cav_id', $cavIds->keys())
-                ->update(['primary_section_id' => $sectionId]);
+                ->update(['primary_section_id' => $sectionId, 'placement_source' => PlacementSource::Sync->value]);
         }
 
         return $updated;
+    }
+
+    public function find(int $id): ?Trooper
+    {
+        return Trooper::find($id);
+    }
+
+    public function countsBySection(): Collection
+    {
+        return Trooper::query()
+            ->whereNotNull('primary_section_id')
+            ->where('status', '!=', TrooperStatus::Inactive->value)
+            ->groupBy('primary_section_id')
+            ->selectRaw('primary_section_id, count(*) as total')
+            ->pluck('total', 'primary_section_id')
+            ->map(fn ($total) => (int) $total);
+    }
+
+    public function place(int $trooperId, int $sectionId): ?Trooper
+    {
+        // One conditional UPDATE rather than read-then-write: it only lands while the trooper is
+        // still unplaced and still on a roster, so two Admins placing the same trooper at once
+        // cannot both win, and neither can overwrite a placement the sync just made.
+        $placed = Trooper::query()
+            ->whereKey($trooperId)
+            ->whereNull('primary_section_id')
+            ->where('status', '!=', TrooperStatus::Inactive->value)
+            ->update(['primary_section_id' => $sectionId, 'placement_source' => PlacementSource::Manual->value]);
+
+        return $placed === 1 ? Trooper::find($trooperId) : null;
     }
 
     public function idsPlacedIn(int $sectionId, array $trooperIds): Collection
