@@ -186,6 +186,8 @@ deptrac:
       - Integration
       - Authorization
       - DB
+      # Binds the weekly report's ReportKpiSource seam to its echelon implementation (5.6).
+      - Kpi
     # Request glue (Inertia shared props). No app-layer dependency yet; when auth shares
     # the current user, add the layers it reads here.
     Middleware: ~

@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Integration\Cav\CavApi;
 use App\Integration\Forum\ForumApi;
+use App\Kpi\ReportKpiSource;
+use App\Kpi\SectionReportKpiSource;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\ServiceProvider;
 
@@ -25,6 +27,12 @@ class AppServiceProvider extends ServiceProvider
         // Repository contracts (AD-2), each with exactly one implementation registered today,
         // bound by convention — see RepositoryServiceBinder.
         (new RepositoryServiceBinder)->bind($this->app);
+
+        // Where a weekly report's KPIs come from, by echelon (5.6). Only the leaf half exists:
+        // a section's live KPIs, with a non-leaf refused.
+        // TODO(5.7): bind an implementation that routes a non-leaf unit to the roll-up of its
+        // children's sent snapshots and keeps this one for sections.
+        $this->app->bind(ReportKpiSource::class, SectionReportKpiSource::class);
     }
 
     /**
