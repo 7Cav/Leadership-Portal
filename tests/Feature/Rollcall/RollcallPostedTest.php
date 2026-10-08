@@ -49,9 +49,16 @@ it('refuses a section outside the leader\'s scope (AD-8)', function () {
     expect(SectionPractice::query()->count())->toBe(0);
 });
 
-it('rejects a missing week and an unknown section', function () {
+it('rejects a missing week, and answers an id outside scope with 403', function () {
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted", [])->assertStatus(422);
-    $this->actingAs($this->leader)->postJson('/rollcall/999999/posted', ['week' => '2026-10-03'])->assertNotFound();
+    $this->actingAs($this->leader)->postJson('/rollcall/999999/posted', ['week' => '2026-10-03'])->assertForbidden();
+});
+
+it('refuses a unit that is not a section, even for an admin', function () {
+    $platoon = Unit::factory()->create(['type' => UnitType::Platoon, 'path' => '921/']);
+
+    $this->actingAs(User::factory()->admin()->create())->postJson("/rollcall/{$platoon->id}/posted", ['week' => '2026-10-03'])
+        ->assertStatus(422);
 });
 
 it('makes no outbound call — the portal never posts to the forum (AD-20)', function () {

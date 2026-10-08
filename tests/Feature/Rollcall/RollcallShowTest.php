@@ -164,10 +164,10 @@ it('refuses a section outside the viewer\'s scope server-side (AD-8)', function 
     $this->actingAs(User::factory()->create())->get("/rollcall/{$this->section->id}")->assertForbidden();
 });
 
-it('404s a unit that does not exist or is not a section', function () {
+it('403s a unit nobody can scope (it does not exist) and 404s a unit that is not a section', function () {
     $admin = User::factory()->admin()->create();
 
-    $this->actingAs($admin)->get('/rollcall/999999')->assertNotFound();
+    $this->actingAs($admin)->get('/rollcall/999999')->assertForbidden();
     $this->actingAs($admin)->get("/rollcall/{$this->platoon->id}")->assertNotFound();
 });
 

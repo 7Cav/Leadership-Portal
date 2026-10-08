@@ -11,8 +11,11 @@ use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\AttendanceRepository;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 // 3.8 / AD-8, AD-14, AD-16, AD-22: the rollcall screen's autosave writes through the audited
 // MarkAttendance Command and answers JSON.
@@ -123,8 +126,75 @@ it('refuses a section outside the leader\'s scope with a 403 (AD-8)', function (
     expect(Attendance::query()->count())->toBe(0);
 });
 
-it('404s a section that does not exist', function () {
-    saveRollcall($this->leader, 999999, [])->assertNotFound();
+it('answers a unit outside the leader\'s scope with 403 whether or not it exists', function () {
+    saveRollcall($this->leader, 999999, [])->assertForbidden();
+});
+
+it('refuses a unit that is not a section, even for an admin', function () {
+    saveRollcall(User::factory()->admin()->create(), $this->platoon->id, [])->assertStatus(422);
+
+    expect(SectionPractice::query()->count())->toBe(0);
+});
+
+it('names the troopers a batch was refused for, so the screen can save everyone else', function () {
+    $moved = Trooper::factory()->create();
+    $moved->forceFill(['primary_section_id' => $this->sibling->id])->save();
+
+    saveRollcall($this->leader, $this->section->id, [
+        ['trooper_id' => $this->trooper->id, 'status' => 'present'],
+        ['trooper_id' => $moved->id, 'status' => 'present'],
+    ])->assertStatus(422)->assertJsonPath('rejected', [$moved->id]);
+});
+
+it('rejects a malformed batch', function (array $payload) {
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}", $payload)->assertStatus(422);
+
+    expect(SectionPractice::query()->count())->toBe(0);
+})->with([
+    'no marks key' => [['week' => '2026-10-03']],
+    'malformed week' => [['week' => 'soon', 'marks' => []]],
+    'duplicate trooper' => [fn () => ['week' => '2026-10-03', 'marks' => [['trooper_id' => $this->trooper->id, 'status' => 'present'], ['trooper_id' => $this->trooper->id, 'status' => 'missed']]]],
+]);
+
+it('lets a leader whose grant sits higher up the tree mark a child section', function () {
+    $platoonLeader = User::factory()->create();
+    PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
+
+    saveRollcall($platoonLeader, $this->section->id, [['trooper_id' => $this->trooper->id, 'status' => 'present']])->assertOk();
+});
+
+it('still answers saved when only the at-risk refresh fails, so the screen never resends a committed batch', function () {
+    // The KPI service reads counting marks after the write; make only that read fail.
+    $real = app(AttendanceRepository::class);
+    app()->instance(AttendanceRepository::class, new class($real) implements AttendanceRepository
+    {
+        public function __construct(private readonly AttendanceRepository $inner) {}
+
+        public function markPractice(SectionPractice $practice, int $trooperId, AttendanceStatus $status, AttendanceSource $source): Attendance
+        {
+            return $this->inner->markPractice($practice, $trooperId, $status, $source);
+        }
+
+        public function signRollcall(SectionPractice $practice, int $trooperId, RollcallSignature $rollcall): Attendance
+        {
+            return $this->inner->signRollcall($practice, $trooperId, $rollcall);
+        }
+
+        public function forPractice(SectionPractice $practice): Collection
+        {
+            return $this->inner->forPractice($practice);
+        }
+
+        public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
+        {
+            throw new RuntimeException('kpi read failed');
+        }
+    });
+
+    saveRollcall($this->leader, $this->section->id, [['trooper_id' => $this->trooper->id, 'status' => 'present']])
+        ->assertOk()->assertJsonPath('atRisk', null);
+
+    expect(Attendance::query()->count())->toBe(1);
 });
 
 it('returns the at-risk flags recomputed from the saved marks', function () {

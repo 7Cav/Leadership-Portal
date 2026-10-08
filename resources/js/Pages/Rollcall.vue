@@ -32,7 +32,7 @@ import StepReview from '@/components/rollcall/StepReview.vue';
 import TrooperCard from '@/components/rollcall/TrooperCard.vue';
 import { forumDate, forumDateTime } from '@/lib/forumDate';
 import ForumPost from '@/components/rollcall/ForumPost.vue';
-import { useRollcallAutosave } from '@/composables/useRollcallAutosave';
+import { messageFor, unreachable, useRollcallAutosave } from '@/composables/useRollcallAutosave';
 import { postJson } from '@/lib/postJson';
 import { rollcallBbcode } from '@/lib/rollcallBbcode';
 import {
@@ -97,6 +97,7 @@ const autosave = props.section
           url: `/rollcall/${props.section.id}`,
           week: props.week.date,
           onSaved: (data) => (liveAtRisk.value = data.atRisk ?? liveAtRisk.value),
+          nameOf: (id) => displayName(rows.value.find((t) => t.id === id) ?? { cavId: id }),
       })
     : null;
 
@@ -115,12 +116,15 @@ function set(trooper, kind, value, options = {}) {
 // the undo window, because a saved practice mark cannot be cleared again (3.3).
 const UNDO_MS = 6000;
 
+// Undo toasts still open; marking posted saves their held changes early, so it closes them.
+const undoToasts = new Set();
+
 function applyMany(entries, title) {
     if (!entries.length) return;
     const before = entries.map(({ trooper, value }) => ({ trooper, value, status: trooper.status, source: trooper.source }));
     for (const { trooper, value } of entries) set(trooper, 'practice', value, { holdMs: UNDO_MS });
 
-    toast.success(title, {
+    const id = toast.success(title, {
         description: entries.map(({ trooper }) => displayName(trooper)).join(', '),
         duration: UNDO_MS,
         action: {
@@ -133,9 +137,17 @@ function applyMany(entries, title) {
                 for (const { trooper, status, source } of held) {
                     if (cancelled.has(trooper.id)) Object.assign(trooper, { status, source });
                 }
+                if (cancelled.size < held.length) {
+                    toast.warning('Some marks were already saved', {
+                        description: `${held.length - cancelled.size} could not be undone. Change them by hand if they are wrong.`,
+                    });
+                }
             },
         },
+        onDismiss: () => undoToasts.delete(id),
+        onAutoClose: () => undoToasts.delete(id),
     });
+    undoToasts.add(id);
 }
 
 const unmarked = computed(() => rows.value.filter((t) => !isLocked(t) && t.status === null));
@@ -216,18 +228,20 @@ async function markPosted() {
     posting.value = true;
     try {
         // The post on the forum was made from the marks on screen, so they must be saved first.
+        for (const id of undoToasts) toast.dismiss(id);
+        undoToasts.clear();
         if (!(await autosave.flush({ includeHeld: true }))) {
             toast.error('Changes are not saved yet', { description: autosave.error.value });
 
             return;
         }
-        const result = await postJson(`/rollcall/${props.section.id}/posted`, { week: props.week.date }).catch(() => ({ ok: false, data: null }));
+        const result = await postJson(`/rollcall/${props.section.id}/posted`, { week: props.week.date }).catch(unreachable);
         if (result.ok && result.data?.posted) {
             posted.value = result.data.posted;
             editedSincePost.value = false;
             toast.success('Rollcall marked posted', { description: `${props.section.designation}, week of ${weekLabel.value}` });
         } else {
-            toast.error('Could not mark the rollcall posted', { description: result.data?.message ?? 'Try again in a moment.' });
+            toast.error('Could not mark the rollcall posted', { description: messageFor(result) });
         }
     } finally {
         posting.value = false;
@@ -368,6 +382,16 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                 Your last changes are not saved. {{ autosave.error.value }} They stay on this screen until they save.
             </p>
             <Button variant="outline" size="sm" @click="autosave.retry()">Retry</Button>
+        </div>
+
+        <div
+            v-if="autosave?.rejectedMessage.value"
+            role="alert"
+            class="mt-3 flex items-start gap-2.5 rounded-lg border border-warning/40 bg-warning/7 px-3.5 py-2.5 text-[13px]"
+            data-testid="save-rejected"
+        >
+            <PhWarning class="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
+            <p class="min-w-0 flex-1">{{ autosave.rejectedMessage.value }}</p>
         </div>
 
         <div

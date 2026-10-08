@@ -24,7 +24,11 @@ export async function postJson(url, body) {
 
     let data = null;
     if ((response.headers.get('content-type') ?? '').includes('application/json')) {
-        data = await response.json().catch(() => null);
+        data = await response.json().catch((error) => {
+            console.warn(`Unreadable JSON from ${url} (HTTP ${response.status})`, error);
+
+            return null;
+        });
     }
 
     return { ok: response.ok && data !== null, status: response.status, data };

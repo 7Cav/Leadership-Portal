@@ -13,7 +13,15 @@ const toastSuccess = vi.fn();
 
 vi.mock('@/lib/postJson', () => ({ postJson: (...args) => post(...args) }));
 const toastError = vi.fn();
-vi.mock('vue-sonner', () => ({ toast: { success: (...args) => toastSuccess(...args), error: (...args) => toastError(...args) } }));
+const toastWarning = vi.fn();
+vi.mock('vue-sonner', () => ({
+    toast: {
+        success: (...args) => toastSuccess(...args),
+        error: (...args) => toastError(...args),
+        warning: (...args) => toastWarning(...args),
+        dismiss: () => {},
+    },
+}));
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
@@ -384,6 +392,81 @@ describe('Rollcall page', () => {
             page.props.viewAs = { label: 'CPL Lindqvist.E', admin: false };
 
             expect(factory().find('[data-testid="mark-posted"]').attributes('disabled')).toBeDefined();
+        });
+    });
+
+    describe('failure paths (review)', () => {
+        beforeEach(() => {
+            toastError.mockClear();
+            toastWarning.mockClear();
+        });
+
+        it('does not mark posted when the pending marks fail to save', async () => {
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory();
+            await wrapper.find('[data-trooper="3"] button[data-value="present"]').trigger('click');
+            await wrapper.find('[data-step="3"]').trigger('click');
+            post.mockResolvedValueOnce({ ok: false, status: 500, data: null });
+
+            await wrapper.find('[data-testid="mark-posted"]').trigger('click');
+            await vi.waitFor(() => expect(toastError).toHaveBeenCalledWith('Changes are not saved yet', expect.anything()));
+
+            expect(post).toHaveBeenCalledTimes(1);
+            expect(post.mock.calls[0][0]).toBe('/rollcall/12');
+            expect(wrapper.find('[data-testid="posted-state"]').exists()).toBe(false);
+        });
+
+        it('shows the server\'s reason when marking posted is refused', async () => {
+            page.url = '/rollcall/12?step=3';
+            post.mockResolvedValueOnce({ ok: false, status: 403, data: { message: 'Outside your scope.' } });
+            const wrapper = factory();
+
+            await wrapper.find('[data-testid="mark-posted"]').trigger('click');
+            await vi.waitFor(() => expect(toastError).toHaveBeenCalledWith('Could not mark the rollcall posted', { description: 'Outside your scope.' }));
+        });
+
+        it('flags the post as stale once a mark changes after marking it posted', async () => {
+            page.url = '/rollcall/12?step=3';
+            post.mockResolvedValueOnce({ ok: true, status: 200, data: { posted: { at: '2026-10-08T16:20:00+00:00', by: 'Vasquez.R' } } });
+            const wrapper = factory();
+            await wrapper.find('[data-testid="mark-posted"]').trigger('click');
+            await vi.waitFor(() => expect(wrapper.find('[data-testid="posted-state"]').exists()).toBe(true));
+
+            await wrapper.find('[data-step="2"]').trigger('click');
+            await wrapper.find('[data-trooper="3"] button[data-value="missed"]').trigger('click');
+            await wrapper.find('[data-step="3"]').trigger('click');
+
+            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Repost the updated BBCode');
+            expect(wrapper.find('[data-step="3"]').attributes('aria-label')).toBe('Step 3, Review and post, Not posted yet');
+        });
+
+        it('warns when Undo comes too late because marking posted already saved the marks', async () => {
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory({ troopers: [trooper(2, 'unsigned', null)] });
+            await wrapper.find('[data-testid="mark-all-present"]').trigger('click');
+            const undo = toastSuccess.mock.calls[0][1].action.onClick;
+            await wrapper.find('[data-step="3"]').trigger('click');
+            post.mockResolvedValueOnce({ ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00', atRisk: [] } })
+                .mockResolvedValueOnce({ ok: true, status: 200, data: { posted: { at: '2026-10-08T16:21:00+00:00', by: 'Vasquez.R' } } });
+            await wrapper.find('[data-testid="mark-posted"]').trigger('click');
+            await vi.waitFor(() => expect(post).toHaveBeenCalledTimes(2));
+
+            undo();
+            expect(toastWarning).toHaveBeenCalledWith('Some marks were already saved', expect.anything());
+            await wrapper.find('[data-step="2"]').trigger('click');
+            expect(wrapper.find('[data-trooper="2"] button[data-value="present"]').attributes('aria-pressed')).toBe('true');
+        });
+
+        it('names troopers whose marks were refused because they left the section', async () => {
+            vi.useFakeTimers();
+            post.mockResolvedValueOnce({ ok: false, status: 422, data: { message: 'not placed', rejected: [3] } });
+            const wrapper = factory();
+
+            await wrapper.find('[data-trooper="3"] button[data-value="will_attend"]').trigger('click');
+            await vi.advanceTimersByTimeAsync(1000);
+
+            expect(wrapper.find('[data-testid="save-rejected"]').text()).toContain('Trooper3.A is no longer placed in this section');
+            vi.useRealTimers();
         });
     });
 });

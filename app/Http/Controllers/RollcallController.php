@@ -37,6 +37,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 /**
  * The weekly rollcall of one section (Stories 3.7–3.10, binding design: mockups/v2/rollcall-r3.html
@@ -94,10 +95,10 @@ class RollcallController extends Controller
             ]);
         }
 
+        // Scope first, so a unit outside it is a 403 whether or not it exists (AD-8).
+        abort_unless($scope->contains($unit), 403, 'This section is outside your scope.');
         $section = $this->units->find($unit);
-        abort_if($section === null, 404);
-        abort_unless($scope->contains($section->id), 403, 'This section is outside your scope.');
-        abort_unless($section->type === UnitType::Section, 404);
+        abort_unless($section?->type === UnitType::Section, 404);
 
         return Inertia::render('Rollcall', [
             'section' => $this->sectionProps($section, $sections),
@@ -137,12 +138,6 @@ class RollcallController extends Controller
             return response()->json(['message' => 'A future week cannot be marked yet.'], 422);
         }
 
-        $section = $this->units->find($unit);
-
-        if ($section === null) {
-            return response()->json(['message' => 'No such section.'], 404);
-        }
-
         try {
             $marks = array_map(fn (array $mark) => new AttendanceMark(
                 trooperId: (int) $mark['trooper_id'],
@@ -150,16 +145,33 @@ class RollcallController extends Controller
                 rollcall: isset($mark['rollcall']) ? RollcallSignature::from($mark['rollcall']) : null,
             ), $request->input('marks', []));
 
-            $handler->handle($request->user(), new MarkAttendance($section->id, $weekStart, ...$marks));
+            // Scope is checked first, by the handler: a unit outside it — existing or not — is a
+            // 403, so ids beyond the leader's scope are not probeable (AD-8).
+            $handler->handle($request->user(), new MarkAttendance($unit, $weekStart, ...$marks));
         } catch (MarkAttendanceForbiddenException $e) {
             return response()->json(['message' => $e->getMessage()], 403);
         } catch (InvalidAttendanceMarkException $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
+            // `rejected` names the troopers the batch was refused for (moved out of the section
+            // since the page loaded), so the screen can keep saving everyone else's marks.
+            return response()->json(['message' => $e->getMessage(), 'rejected' => $e->trooperIds], 422);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'The portal hit an error saving this change.'], 500);
+        }
+
+        // The marks are committed. The at-risk refresh is a convenience on top: if it fails, the
+        // save still answers as saved — never as failed, which would make the screen resend it.
+        try {
+            $atRisk = $this->atRisk($this->units->find($unit), $weekStart);
+        } catch (Throwable $e) {
+            report($e);
+            $atRisk = null;
         }
 
         return response()->json([
             'savedAt' => CarbonImmutable::now()->toIso8601String(),
-            'atRisk' => $this->atRisk($section, $weekStart),
+            'atRisk' => $atRisk,
         ]);
     }
 
@@ -183,16 +195,16 @@ class RollcallController extends Controller
             return response()->json(['message' => 'A future week cannot be posted yet.'], 422);
         }
 
-        if ($this->units->find($unit) === null) {
-            return response()->json(['message' => 'No such section.'], 404);
-        }
-
         try {
             $practice = $handler->handle($request->user(), new MarkRollcallPosted($unit, $weekStart));
         } catch (MarkRollcallPostedForbiddenException $e) {
             return response()->json(['message' => $e->getMessage()], 403);
         } catch (InvalidAttendanceMarkException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'The portal hit an error marking the rollcall posted.'], 500);
         }
 
         return response()->json(['posted' => $this->postedProps($practice)]);

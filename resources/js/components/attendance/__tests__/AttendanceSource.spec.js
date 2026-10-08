@@ -31,8 +31,8 @@ describe('attendance provenance (3.9)', () => {
         const el = mount(AttendanceSourceIndicator, { props: { status: 'loa', source: 'manual' } }).find('[data-provenance]');
 
         expect(el.attributes('data-provenance')).toBe('loa');
-        expect(el.classes()).toContain('rounded-sm');
         expect(el.text()).toBe('LOA');
+        expect(el.classes()).toContain('border');
     });
 
     it('lists auto, manual and makeup in the legend', () => {
