@@ -1,6 +1,7 @@
 <?php
 
 use App\Commands\Users\SetAdminFlag;
+use App\Jobs\SyncLoasJob;
 use App\Jobs\SyncRosterJob;
 use App\Repositories\UserRepository;
 use Illuminate\Foundation\Inspiring;
@@ -15,6 +16,14 @@ Artisan::command('inspire', function () {
 // config so changing it needs no code change. `SyncRosterJob` defaults `triggeredBy` to
 // `system`; the manual-trigger controller dispatches the same job with a user id instead.
 Schedule::job(new SyncRosterJob)->cron(config('sync.roster_cron'));
+
+// Leave sync (Story 4.2). Same shape, offset from the roster run. It only runs once the forum API key and the
+// leave sections are configured, so an install without them does not record a failed run every hour.
+Schedule::job(new SyncLoasJob)->cron(config('sync.loa_cron'))->when(fn () => SyncLoasJob::isConfigured());
+
+// A daily full run: the hourly ones only read threads newer than the last good run, so a post edited after that
+// (an LOA extended, say) is caught here. It skips leave that ended more than two weeks ago.
+Schedule::job(new SyncLoasJob('system', true))->cron(config('sync.loa_full_cron'))->when(fn () => SyncLoasJob::isConfigured());
 
 // Bootstrap or remove an Admin without SQL (story 2.9). The user must already exist — i.e. have
 // signed in once via 7Cav SSO. Audited through `SetAdminFlag` (AD-16); see its docblock for why

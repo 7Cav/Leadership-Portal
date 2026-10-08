@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\ForumAuthController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Settings\AuditLogController;
+use App\Http\Controllers\Settings\LoaSyncController;
 use App\Http\Controllers\Settings\OrgStructureController;
 use App\Http\Controllers\Settings\RosterSyncController;
 use App\Http\Controllers\Settings\StaffGrantsController;
@@ -65,4 +66,7 @@ Route::middleware('auth')->group(function () {
     // host this control is Story 2.8's. The Admin gate is enforced in the controller (AD-6),
     // matching every other admin-gated write here.
     Route::post('/settings/roster-sync', [RosterSyncController::class, 'store'])->name('settings.roster-sync.store');
+
+    // Manual leave-sync trigger (Story 4.2): the same queued job the scheduler runs. Admin gate in the controller (AD-6).
+    Route::post('/settings/loa-sync', [LoaSyncController::class, 'store'])->name('settings.loa-sync.store');
 });

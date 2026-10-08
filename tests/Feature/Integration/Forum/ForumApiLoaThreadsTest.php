@@ -247,3 +247,92 @@ it('keeps the thread DTOs immutable', function () {
 
     expect(fn () => $summary->title = 'x')->toThrow(Error::class);
 });
+
+function pafThreadJson(array $overrides = []): array
+{
+    return ['thread' => [...[
+        'thread_id' => 106503, 'node_id' => 365, 'title' => 'PAF - Lane.M', 'discussion_state' => 'visible',
+        'post_date' => 1_790_000_000,
+    ], ...$overrides]];
+}
+
+describe('reading when a PAF thread was filed', function () {
+    it('returns the thread\'s own creation date and asks for nothing else', function () {
+        $client = MockClient::global(['7cav.us/api/threads/106503' => MockResponse::make(pafThreadJson())]);
+
+        $filed = loaForum(['paf_node' => 365])->fetchPafThreadPostedAt(106503);
+
+        expect($filed->getTimestamp())->toBe(1_790_000_000)->and($filed->utcOffset())->toBe(0);
+        $client->assertSent(fn ($request, $response) => $response->getPendingRequest()->query()->all() === []
+            && $response->getPendingRequest()->headers()->get('XF-Api-Key') === 'forum-key-123');
+    });
+
+    it('refuses, and sends nothing, when no PAF section is configured or there is no key', function (array $config, string $message) {
+        $client = MockClient::global(['7cav.us/api/threads/106503' => MockResponse::make(pafThreadJson())]);
+
+        expect(fn () => loaForum($config)->fetchPafThreadPostedAt(106503))->toThrow(ForumRequestException::class, $message);
+
+        $client->assertNothingSent();
+    })->with([
+        'no section' => [['paf_node' => null], 'SEVENCAV_FORUM_PAF_NODE'],
+        'no key' => [['paf_node' => 365, 'api_key' => null], 'SEVENCAV_FORUM_API_KEY'],
+    ]);
+
+    it('refuses a thread from another section, permanently, so the key cannot read the rest of the forum through it', function () {
+        MockClient::global(['7cav.us/api/threads/106503' => MockResponse::make(pafThreadJson(['node_id' => 12]))]);
+
+        try {
+            loaForum(['paf_node' => 365])->fetchPafThreadPostedAt(106503);
+            test()->fail('Expected a ForumRequestException.');
+        } catch (ForumRequestException $e) {
+            expect($e->getMessage())->toContain('forum section 12')->and($e->isPermanent())->toBeTrue();
+        }
+    });
+
+    it('refuses a thread that is not visible, permanently', function () {
+        MockClient::global(['7cav.us/api/threads/106503' => MockResponse::make(pafThreadJson(['discussion_state' => 'deleted']))]);
+
+        try {
+            loaForum(['paf_node' => 365])->fetchPafThreadPostedAt(106503);
+            test()->fail('Expected a ForumRequestException.');
+        } catch (ForumRequestException $e) {
+            expect($e->isPermanent())->toBeTrue();
+        }
+    });
+
+    it('tells a permanent refusal from a temporary failure by the status the forum answered with', function (int $status, bool $permanent) {
+        MockClient::global(['7cav.us/api/threads/106503' => MockResponse::make([], $status)]);
+
+        try {
+            loaForum(['paf_node' => 365])->fetchPafThreadPostedAt(106503);
+            test()->fail('Expected a ForumRequestException.');
+        } catch (ForumRequestException $e) {
+            expect($e->httpStatus)->toBe($status)->and($e->isPermanent())->toBe($permanent);
+        }
+    })->with([[403, true], [404, true], [410, true], [429, false], [500, false], [502, false], [503, false]]);
+
+    it('treats an unreachable forum as temporary', function () {
+        MockClient::global(['7cav.us/api/threads/106503' => MockResponse::make()->throw(fn ($pendingRequest) => new FatalRequestException(new Exception('timeout'), $pendingRequest))]);
+
+        try {
+            loaForum(['paf_node' => 365])->fetchPafThreadPostedAt(106503);
+            test()->fail('Expected a ForumRequestException.');
+        } catch (ForumRequestException $e) {
+            expect($e->isPermanent())->toBeFalse()->and($e->httpStatus)->toBeNull();
+        }
+    });
+
+    it('rejects a payload with no thread in it', function () {
+        MockClient::global(['7cav.us/api/threads/106503' => MockResponse::make(['something' => 'else'])]);
+
+        expect(fn () => loaForum(['paf_node' => 365])->fetchPafThreadPostedAt(106503))->toThrow(ForumRequestException::class, 'missing a field');
+    });
+
+    it('reads the configured PAF section as a number, and nothing else as one', function (mixed $value, ?int $expected) {
+        expect(loaForum(['paf_node' => $value])->pafNode())->toBe($expected);
+    })->with([[365, 365], [null, null], [0, null], [-4, null], ['365', null]]);
+
+    it('builds a thread address from the forum base when the forum sent none', function () {
+        expect(loaForum()->threadUrl(4001))->toBe('https://7cav.us/threads/4001/');
+    });
+});

@@ -64,6 +64,10 @@ return [
         // e.g. `180:loa,341:eloa`. The type is loa or eloa. The 7Cav forum keeps one LOA
         // section per battalion (plus HHQ and non-battalion) and one section for ELOA. Only these are
         // ever read; none configured means no leave section is read. A malformed pair is dropped.
+        // The forum section where personnel action forms (PAFs) are filed. Only the creation date of a thread
+        // there is read, to date an ELOA, never its contents. Unset means PAFs are not followed and an ELOA
+        // starts on the day its report was posted.
+        'paf_node' => filter_var(env('SEVENCAV_FORUM_PAF_NODE'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: null,
         'loa_nodes' => collect(explode(',', (string) env('SEVENCAV_FORUM_LOA_NODES', '')))
             ->map(fn (string $pair) => array_map('trim', explode(':', $pair)))
             ->filter(fn (array $pair) => count($pair) === 2 && ctype_digit($pair[0]) && (int) $pair[0] > 0 && in_array($pair[1], ['loa', 'eloa'], true))
