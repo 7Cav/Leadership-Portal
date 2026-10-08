@@ -37,7 +37,9 @@ interface AuditLogRepository
      * rolls back every row it wrote and leaves no log.
      *
      * A deadlock against a concurrent batch is retried a few times as a whole transaction, so
-     * `$mutation` must be safe to run again from the start (idempotent upserts are).
+     * `$mutation` must be safe to run again from the start (idempotent upserts are). The retry
+     * only happens when this is the outermost transaction; inside a caller's own transaction a
+     * deadlock propagates to that caller.
      *
      * @throws RuntimeException when `$mutation` doesn't return an {@see AuditedBatch}.
      */

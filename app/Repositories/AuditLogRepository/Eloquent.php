@@ -55,9 +55,9 @@ class Eloquent implements AuditLogRepository
             // Digest the rows as stored, not as the mutation's in-memory models happen to hold
             // them: a freshly created model lacks the columns it never set, so the same persisted
             // state would otherwise digest differently depending on whether it was created or found.
-            $batch->target->refresh();
+            $this->reloadStored($batch->target);
             $members = collect($batch->members)
-                ->each(fn (Model $model) => $model->refresh())
+                ->each(fn (Model $model) => $this->reloadStored($model))
                 ->sort(fn (Model $a, Model $b) => [$a::class, $a->getKey()] <=> [$b::class, $b->getKey()])
                 ->map(fn (Model $model) => $this->sortedAttributes($model))
                 ->values()
@@ -85,6 +85,18 @@ class Eloquent implements AuditLogRepository
         ksort($attributes);
 
         return $attributes;
+    }
+
+    /**
+     * Re-read the stored row into `$model` with a locking read. Not `refresh()`: that is a plain
+     * read, and under MySQL REPEATABLE READ it cannot see a row a racing submit committed after
+     * this transaction's snapshot — a row the batch found through its repositories' locking
+     * fallbacks and may not have modified itself.
+     */
+    private function reloadStored(Model $model): void
+    {
+        $stored = $model->newQueryWithoutScopes()->whereKey($model->getKey())->sharedLock()->firstOrFail();
+        $model->setRawAttributes($stored->getAttributes(), sync: true);
     }
 
     /**
