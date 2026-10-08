@@ -16,14 +16,12 @@ import {
     PhStack,
 } from '@phosphor-icons/vue';
 import { toast } from 'vue-sonner';
-import 'vue-sonner/style.css';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { Toaster } from '@/components/ui/sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import HistoryPanel from '@/components/reports/HistoryPanel.vue';
@@ -342,7 +340,6 @@ const subjectInvalid = computed(() => props.unit.isLeaf && subjectTouched.value 
 
 <template>
     <Head :title="`${unitLabel(unit)} report, week of ${forumDate(week.start)} · 7Cav Leadership Portal`" />
-    <Toaster position="bottom-right" rich-colors />
 
     <div class="flex flex-col gap-4" data-testid="report-page">
         <section aria-labelledby="page-title" class="flex flex-wrap items-end gap-x-6 gap-y-3">
