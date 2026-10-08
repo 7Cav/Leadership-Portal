@@ -9,6 +9,7 @@ use App\Repositories\TrooperCourseRepository;
 use App\Support\Audit\AuditEnvelope;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use InvalidArgumentException;
 
 /**
  * Set where a trooper stands on a course (Story 6.2). The one writer of `trooper_courses`, so every change is
@@ -21,7 +22,10 @@ use Carbon\CarbonInterface;
  *
  * The award date belongs to `qualified` alone. Any other status clears it, so a trooper moved back to
  * `in_progress` never keeps the date they once qualified, and one qualified without a date has none rather
- * than a guess.
+ * than a guess. A date that has not happened yet is refused, since a trooper cannot have qualified on it.
+ *
+ * Setting the status a row already has is recorded like any other change. Two first-time sets for the same
+ * trooper and course at once cannot both create the row: the second meets the UNIQUE constraint and throws.
  */
 class SetTrooperCourseStatus
 {
@@ -39,6 +43,10 @@ class SetTrooperCourseStatus
         ?string $reason = null,
     ): TrooperCourse {
         $awardedAt = $status->holds() && $awardedAt !== null ? CarbonImmutable::instance($awardedAt)->startOfDay() : null;
+
+        if ($awardedAt !== null && $awardedAt->toDateString() > CarbonImmutable::now('UTC')->toDateString()) {
+            throw new InvalidArgumentException('A course cannot be awarded on a date that has not happened yet.');
+        }
 
         return $this->audit->record(
             actorId: $actor->id,

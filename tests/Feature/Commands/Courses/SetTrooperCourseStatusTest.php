@@ -142,3 +142,25 @@ it('leaves other troopers and other courses alone', function () {
     expect(TrooperCourse::count())->toBe(3)
         ->and(TrooperCourse::where('trooper_id', $a->id)->where('course_id', $courseOne->id)->first()->status)->toBe(CourseStatus::Qualified);
 });
+
+it('refuses an award date that has not happened yet, leaving no row and no audit entry', function () {
+    $actor = User::factory()->admin()->create();
+    $trooper = Trooper::factory()->create();
+    $course = Course::factory()->create();
+
+    expect(fn () => app(SetTrooperCourseStatus::class)->handle($actor, $trooper->id, $course->id, CourseStatus::Qualified, CarbonImmutable::now('UTC')->addDay()))
+        ->toThrow(InvalidArgumentException::class);
+
+    expect(TrooperCourse::count())->toBe(0)->and(AuditLogEntry::count())->toBe(0);
+});
+
+it('accepts today as the award date, and ignores a future date on a status that holds none', function () {
+    $actor = User::factory()->admin()->create();
+    $trooper = Trooper::factory()->create();
+
+    $today = app(SetTrooperCourseStatus::class)->handle($actor, $trooper->id, Course::factory()->create()->id, CourseStatus::Qualified, CarbonImmutable::now('UTC'));
+    $inProgress = app(SetTrooperCourseStatus::class)->handle($actor, $trooper->id, Course::factory()->create()->id, CourseStatus::InProgress, CarbonImmutable::now('UTC')->addDays(30));
+
+    expect($today->awarded_at->toDateString())->toBe(CarbonImmutable::now('UTC')->toDateString())
+        ->and($inProgress->awarded_at)->toBeNull();
+});
