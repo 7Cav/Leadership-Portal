@@ -2,6 +2,7 @@
 
 namespace App\Loa;
 
+use App\Models\SyncRun;
 use App\Models\SyncRunStatus;
 use App\Repositories\SyncRunRepository;
 use Carbon\CarbonImmutable;
@@ -15,9 +16,6 @@ use Carbon\CarbonImmutable;
  */
 final class LoaProvenance
 {
-    /** The `sync_runs.source` value the LOA sync records under. */
-    public const SYNC_SOURCE = 'loa';
-
     /** What a value is labelled with when it came from the cache. */
     public const SOURCE_LABEL = 'Forum thread';
 
@@ -25,8 +23,8 @@ final class LoaProvenance
 
     public function current(): LoaSyncState
     {
-        $latest = $this->syncRuns->latestFinished(self::SYNC_SOURCE);
-        $lastGood = $this->syncRuns->latestSuccessful(self::SYNC_SOURCE);
+        $latest = $this->syncRuns->latestFinished(SyncRun::SOURCE_LOA);
+        $lastGood = $this->syncRuns->latestSuccessful(SyncRun::SOURCE_LOA);
 
         return new LoaSyncState(
             source: self::SOURCE_LABEL,
