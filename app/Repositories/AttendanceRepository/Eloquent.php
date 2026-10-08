@@ -7,9 +7,16 @@ use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\RollcallSignature;
 use App\Models\SectionPractice;
+use App\Models\Trooper;
+use App\Models\Unit;
 use App\Repositories\AttendanceRepository;
 use Illuminate\Database\UniqueConstraintViolationException;
+use App\Repositories\CountingMark;
+use App\Support\Time\WeekOf;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
+use InvalidArgumentException;
 
 class Eloquent implements AttendanceRepository
 {
@@ -37,6 +44,49 @@ class Eloquent implements AttendanceRepository
             ->where('section_practice_id', $practice->id)
             ->orderBy('id')
             ->get();
+    }
+
+    public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
+    {
+        return Trooper::query()
+            ->assignedWithin($unit)
+            ->join('section_practices', 'section_practices.section_id', '=', 'troopers.primary_section_id')
+            ->leftJoin('attendance', function ($join) {
+                $join->on('attendance.section_practice_id', '=', 'section_practices.id')
+                    ->on('attendance.trooper_id', '=', 'troopers.id');
+            })
+            ->whereBetween('section_practices.week_start', [
+                $this->assertWeekStart($firstWeek),
+                $this->assertWeekStart($lastWeek),
+            ])
+            ->orderBy('troopers.id')
+            ->orderBy('section_practices.week_start')
+            ->toBase()
+            ->get(['troopers.id as trooper_id', 'section_practices.week_start', 'attendance.status', 'attendance.rollcall'])
+            ->map(fn (object $row) => new CountingMark(
+                trooperId: (int) $row->trooper_id,
+                weekStart: CarbonImmutable::parse($row->week_start, 'UTC'),
+                status: $row->status === null ? null : AttendanceStatus::from($row->status),
+                // Null only when the left join found no attendance row: nobody signed for them.
+                rollcall: $row->rollcall === null ? RollcallSignature::Unsigned : RollcallSignature::from($row->rollcall),
+            ));
+    }
+
+    /**
+     * The same Saturday 00:00 UTC check `SectionPracticeRepository` applies (AD-11), returned as
+     * the UTC instant so the bound compares equal to the stored `week_start` on every driver.
+     */
+    private function assertWeekStart(CarbonInterface $weekStart): CarbonImmutable
+    {
+        $boundary = WeekOf::start($weekStart);
+
+        if (! $boundary->equalTo($weekStart)) {
+            throw new InvalidArgumentException(
+                "week_start must be a Saturday 00:00 UTC (AD-11); got {$weekStart->toIso8601String()}.",
+            );
+        }
+
+        return $boundary;
     }
 
     /**

@@ -6,8 +6,11 @@ use App\Models\AttendanceStatus;
 use App\Models\RollcallSignature;
 use App\Models\SectionPractice;
 use App\Models\Trooper;
+use App\Models\Unit;
 use App\Repositories\AttendanceRepository;
 use Illuminate\Support\Facades\DB;
+use App\Repositories\CountingMark;
+use Carbon\CarbonImmutable;
 
 // 3.1 / AD-14: one attendance row per (trooper, practice). The rollcall signature and the SP
 // mark are independent facts with their own writes — each an update-or-create on that key touching only
@@ -108,3 +111,49 @@ it('updates the existing row when re-marked inside an already-open transaction, 
     expect($row->status)->toBe(AttendanceStatus::Present)
         ->and($row->source)->toBe(AttendanceSource::Manual);
 });
+
+// 5.1: the KPI service's one read of attendance — each assigned trooper's counting marks (their
+// primary section's practice, AD-14) for a span of whole weeks.
+
+function countingFixture(): array
+{
+    $section = Unit::factory()->create(['path' => '900/']);
+    $trooper = Trooper::factory()->create();
+    $trooper->forceFill(['primary_section_id' => $section->id])->save();
+
+    return [$section, $trooper];
+}
+
+it('reads one counting mark per held practice of the trooper\'s primary section in the span', function () {
+    [$section, $trooper] = countingFixture();
+    $week = CarbonImmutable::parse('2026-06-27 00:00:00', 'UTC');
+    $held = SectionPractice::factory()->create(['section_id' => $section->id, 'week_start' => $week]);
+    $unmarked = SectionPractice::factory()->create(['section_id' => $section->id, 'week_start' => $week->subWeek()]);
+    SectionPractice::factory()->create(['section_id' => $section->id, 'week_start' => $week->subWeeks(2)]); // before the span
+    $this->repo->markPractice($held, $trooper->id, AttendanceStatus::Makeup, AttendanceSource::Manual);
+    $this->repo->markPractice($this->practice, $trooper->id, AttendanceStatus::Present, AttendanceSource::Manual); // another section
+
+    $marks = $this->repo->countingMarks($section, $week->subWeek(), $week);
+
+    expect($marks->all())->toEqual([
+        new CountingMark($trooper->id, $week->subWeek(), null, RollcallSignature::Unsigned),
+        new CountingMark($trooper->id, $week, AttendanceStatus::Makeup, RollcallSignature::Unsigned),
+    ]);
+});
+
+it('reads no counting marks for an inactive trooper', function () {
+    [$section, $trooper] = countingFixture();
+    $trooper->update(['status' => 'inactive']);
+    $week = CarbonImmutable::parse('2026-06-27 00:00:00', 'UTC');
+    $practice = SectionPractice::factory()->create(['section_id' => $section->id, 'week_start' => $week]);
+    $this->repo->markPractice($practice, $trooper->id, AttendanceStatus::Missed, AttendanceSource::Manual);
+
+    expect($this->repo->countingMarks($section, $week, $week))->toBeEmpty();
+});
+
+it('refuses a counting-mark span that does not start and end on week boundaries', function () {
+    [$section] = countingFixture();
+    $week = CarbonImmutable::parse('2026-06-27 00:00:00', 'UTC');
+
+    $this->repo->countingMarks($section, $week, $week->addHour());
+})->throws(InvalidArgumentException::class);

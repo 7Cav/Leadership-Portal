@@ -198,3 +198,25 @@ it('returns only the given troopers placed in the section', function () {
 it('returns nothing for an empty list of troopers', function () {
     expect(app(TrooperRepository::class)->idsPlacedIn(Unit::factory()->create()->id, [])->all())->toBe([]);
 });
+
+// 5.1: strength's population — active troopers whose primary section sits in the subtree.
+it('lists the active troopers placed anywhere in a unit\'s subtree, by id', function () {
+    $platoon = Unit::factory()->create(['path' => '800/']);
+    $inside = Unit::factory()->create(['path' => '800/801/']);
+    $sibling = Unit::factory()->create(['path' => '8000/']);  // shares the digit prefix, not the subtree
+
+    $place = function (Unit $unit, TrooperStatus $status = TrooperStatus::Combat) {
+        $trooper = Trooper::factory()->create(['status' => $status]);
+        $trooper->forceFill(['primary_section_id' => $unit->id])->save();
+
+        return $trooper->id;
+    };
+
+    $a = $place($inside);
+    $b = $place($platoon, TrooperStatus::Eloa);
+    $place($inside, TrooperStatus::Inactive);
+    $place($sibling);
+    Trooper::factory()->create();
+
+    expect(app(TrooperRepository::class)->assignedWithin($platoon)->all())->toBe([$a, $b]);
+});
