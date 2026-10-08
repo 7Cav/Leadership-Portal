@@ -3,6 +3,7 @@
 use App\Models\AuditLogEntry;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\AuditedBatch;
 use App\Repositories\UnitRepository;
 use App\Support\Audit\AuditEnvelope;
 use App\Support\Audit\ReasonRequiredException;
@@ -54,4 +55,23 @@ it('allows a reason-required action when a reason is given', function () {
     );
 
     expect(AuditLogEntry::first()->reason)->toBe('Meets time-in-grade requirement');
+});
+
+it('records a batch once, through the same reason gate', function () {
+    $actor = User::factory()->create();
+    $units = app(UnitRepository::class);
+    $envelope = app(AuditEnvelope::class);
+
+    expect(fn () => $envelope->recordBatch($actor->id, 'unit.batch_created', null, reasonRequired: true, mutation: fn () => null))
+        ->toThrow(ReasonRequiredException::class);
+
+    $batch = $envelope->recordBatch(
+        $actor->id,
+        'unit.batch_created',
+        null,
+        reasonRequired: false,
+        mutation: fn () => new AuditedBatch($units->create(UnitType::Regiment, '7th Cavalry Regiment', null, null)),
+    );
+
+    expect(AuditLogEntry::query()->sole()->target_id)->toBe((string) $batch->target->id);
 });

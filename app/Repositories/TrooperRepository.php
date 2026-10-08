@@ -2,6 +2,8 @@
 
 namespace App\Repositories;
 
+use Illuminate\Support\Collection;
+
 /**
  * Sole DB access for the cached roster (AD-2, AD-4). `Sync\SyncRosterHandler` is the only caller
  * of the writes here — this class enforces the upsert/never-delete shape AD-4 requires, but it
@@ -53,4 +55,14 @@ interface TrooperRepository
      * @param  array<int, int>  $cavIdToSectionId  cav_id => units.id
      */
     public function updatePrimarySections(array $cavIdToSectionId): int;
+
+    /**
+     * Which of `$trooperIds` have `$sectionId` as their primary section — the attendance writer
+     * (3.3) marks a trooper only against their own section's practice (AD-14, AD-18). Ids that
+     * are placed elsewhere, unplaced, or not a trooper at all are simply absent from the result.
+     *
+     * @param  list<int>  $trooperIds
+     * @return Collection<int, int>
+     */
+    public function idsPlacedIn(int $sectionId, array $trooperIds): Collection;
 }

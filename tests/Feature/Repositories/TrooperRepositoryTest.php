@@ -178,3 +178,23 @@ it('wraps upsert and departure marking in one transaction via sync(), returning 
         ->and($departed->refresh()->status)->toBe(TrooperStatus::Inactive)
         ->and($counts)->toBe(['inserted' => 1, 'updated' => 0, 'inactivated' => 1]);
 });
+
+// 3.3: the attendance writer marks a trooper only against their primary section's practice
+// (AD-14, AD-18), so it asks which of the submitted troopers are actually placed there.
+
+it('returns only the given troopers placed in the section', function () {
+    $section = Unit::factory()->create();
+    $other = Unit::factory()->create();
+    $placed = Trooper::factory()->create(['primary_section_id' => $section->id]);
+    $elsewhere = Trooper::factory()->create(['primary_section_id' => $other->id]);
+    $unplaced = Trooper::factory()->create(['primary_section_id' => null]);
+    Trooper::factory()->create(['primary_section_id' => $section->id]); // placed, but not asked about
+
+    $ids = app(TrooperRepository::class)->idsPlacedIn($section->id, [$placed->id, $elsewhere->id, $unplaced->id, 999999]);
+
+    expect($ids->all())->toBe([$placed->id]);
+});
+
+it('returns nothing for an empty list of troopers', function () {
+    expect(app(TrooperRepository::class)->idsPlacedIn(Unit::factory()->create()->id, [])->all())->toBe([]);
+});

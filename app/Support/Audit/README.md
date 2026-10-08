@@ -11,3 +11,8 @@ org-structure edits, and role grants may **not** bypass this envelope.
 `audit_log` (AD-2). `AuditEnvelope::record()` opens the mutation-plus-log transaction via
 that Repository and rejects reason-required actions with no reason before the mutation ever
 runs.
+
+`AuditEnvelope::recordBatch()` is the same envelope for one action that writes many
+rows (e.g. a week's attendance marks, Story 3.3): the mutation returns an
+`App\Repositories\AuditedBatch`, and the batch logs once against its target with a digest
+over every row it wrote.

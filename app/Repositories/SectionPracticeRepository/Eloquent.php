@@ -9,6 +9,7 @@ use App\Repositories\SectionPracticeRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Database\UniqueConstraintViolationException;
 use InvalidArgumentException;
 
 class Eloquent implements SectionPracticeRepository
@@ -21,10 +22,17 @@ class Eloquent implements SectionPracticeRepository
             throw new InvalidArgumentException("Unit {$sectionId} is not a section; practices are per section (AD-14).");
         }
 
-        return SectionPractice::query()->createOrFirst([
-            'section_id' => $sectionId,
-            'week_start' => $weekStart,
-        ]);
+        $key = ['section_id' => $sectionId, 'week_start' => $weekStart];
+
+        try {
+            return SectionPractice::query()->createOrFirst($key);
+        } catch (UniqueConstraintViolationException $e) {
+            // createOrFirst's own re-read is a plain (snapshot) read: inside a MySQL REPEATABLE
+            // READ transaction that has already read, it cannot see a row a racing submit committed
+            // after that snapshot, so it rethrows. A locking read always sees the latest committed
+            // row, so the insert-or-find holds inside the audited transaction too.
+            return SectionPractice::query()->where($key)->sharedLock()->first() ?? throw $e;
+        }
     }
 
     public function find(int $sectionId, CarbonInterface $weekStart): ?SectionPractice

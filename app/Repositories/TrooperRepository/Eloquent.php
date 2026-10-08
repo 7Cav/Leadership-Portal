@@ -5,6 +5,7 @@ namespace App\Repositories\TrooperRepository;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Repositories\TrooperRepository;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class Eloquent implements TrooperRepository
@@ -64,5 +65,14 @@ class Eloquent implements TrooperRepository
         }
 
         return $updated;
+    }
+
+    public function idsPlacedIn(int $sectionId, array $trooperIds): Collection
+    {
+        return Trooper::query()
+            ->where('primary_section_id', $sectionId)
+            ->whereIn('id', $trooperIds)
+            ->orderBy('id')
+            ->pluck('id');
     }
 }
