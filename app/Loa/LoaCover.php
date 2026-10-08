@@ -29,6 +29,7 @@ final readonly class LoaCover
         public ?string $reviewReason = null,
         public ?CarbonImmutable $expectedReturnAt = null,
         public bool $overdue = false,
+        public ?int $endsInDays = null,
     ) {}
 
     public static function none(): self
@@ -38,20 +39,27 @@ final readonly class LoaCover
 
     /**
      * `$today` is the server's UTC day (AD-11). An ELOA still open after its expected return date is overdue:
-     * it runs until a return is posted, so it is flagged for a leader to chase, never ended.
+     * it runs until a return is posted, so it is flagged for a leader to chase, never ended. A leave that ends
+     * today or later says in how many days (`endsInDays`), for the "LOA, ends in 2d" pill; one that ended earlier
+     * in the week has none.
      */
     public static function covered(Loa $loa, CarbonInterface $today): self
     {
         $expected = $loa->expected_return_at ? CarbonImmutable::instance($loa->expected_return_at) : null;
+        $ends = $loa->ends_at ? CarbonImmutable::instance($loa->ends_at) : null;
+        $endsInDays = $ends !== null && $ends->toDateString() >= $today->toDateString()
+            ? (int) CarbonImmutable::parse($today->toDateString(), 'UTC')->diffInDays($ends->startOfDay())
+            : null;
 
         return new self(
             LoaCoverageState::Covered,
             $loa->type,
             $loa->starts_at ? CarbonImmutable::instance($loa->starts_at) : null,
-            $loa->ends_at ? CarbonImmutable::instance($loa->ends_at) : null,
+            $ends,
             $loa->source_thread,
             expectedReturnAt: $expected,
             overdue: $loa->ends_at === null && $expected !== null && $expected->toDateString() < $today->toDateString(),
+            endsInDays: $endsInDays,
         );
     }
 
@@ -96,7 +104,7 @@ final readonly class LoaCover
      * The Inertia prop shape the badge reads. Dates are `Y-m-d` calendar days; a needs-review cover has none.
      * `expectedReturnAt` is an ELOA report's expected return: shown, but it never ends the leave.
      *
-     * @return array{state: string, type: ?string, typeLabel: ?string, startsAt: ?string, endsAt: ?string, expectedReturnAt: ?string, ongoing: bool, overdue: bool, sourceThread: ?string, reviewReason: ?string}
+     * @return array{state: string, type: ?string, typeLabel: ?string, startsAt: ?string, endsAt: ?string, expectedReturnAt: ?string, ongoing: bool, overdue: bool, endsInDays: ?int, sourceThread: ?string, reviewReason: ?string}
      */
     public function toArray(): array
     {
@@ -109,6 +117,7 @@ final readonly class LoaCover
             'expectedReturnAt' => $this->expectedReturnAt?->toDateString(),
             'ongoing' => $this->ongoing(),
             'overdue' => $this->overdue,
+            'endsInDays' => $this->endsInDays,
             'sourceThread' => $this->sourceThread,
             'reviewReason' => $this->reviewReason,
         ];
