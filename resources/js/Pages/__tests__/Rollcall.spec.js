@@ -1,16 +1,22 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { reactive } from 'vue';
 import { mount } from '@vue/test-utils';
 import Rollcall from '../Rollcall.vue';
 
-const page = { url: '/rollcall/12', props: { auth: { user: { username: 'Vasquez.R', is_admin: false } }, viewAs: null } };
+const page = reactive({ url: '/rollcall/12', props: { auth: { user: { username: 'Vasquez.R', is_admin: false } }, viewAs: null } });
 const push = vi.fn((visit) => (page.url = visit.url));
 const visit = vi.fn();
+const post = vi.fn();
+const toastSuccess = vi.fn();
+
+vi.mock('@/lib/postJson', () => ({ postJson: (...args) => post(...args) }));
+vi.mock('vue-sonner', () => ({ toast: { success: (...args) => toastSuccess(...args) } }));
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
     Head: { template: '<head></head>' },
     Link: { props: ['href'], template: '<a :href="href"><slot /></a>' },
-    router: { push: (...args) => push(...args), visit: (...args) => visit(...args) },
+    router: { push: (...args) => push(...args), visit: (...args) => visit(...args), on: () => () => {} },
     usePage: () => page,
 }));
 
@@ -43,6 +49,7 @@ function factory(props = {}) {
             practice: { lastMarkedAt: null },
             ...props,
         },
+        attachTo: document.body,
         global: { stubs: { Dialog: true, DialogContent: true, SectionPicker: { props: ['sections'], template: '<div data-picker>{{ sections.length }}</div>' } } },
     });
 }
@@ -50,7 +57,11 @@ function factory(props = {}) {
 describe('Rollcall page', () => {
     beforeEach(() => {
         page.url = '/rollcall/12';
+        page.props.viewAs = null;
         push.mockClear();
+        post.mockReset().mockResolvedValue({ ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00', atRisk: [] } });
+        toastSuccess.mockClear();
+        document.body.innerHTML = '';
     });
 
     it('titles the week in forum date convention and shows where the roster came from (AD-20)', () => {
@@ -97,7 +108,7 @@ describe('Rollcall page', () => {
     it('says nothing was pre-filled when last week has no marks', () => {
         page.url = '/rollcall/12?step=2';
 
-        expect(factory({ priorWeekMarked: false }).find('[data-testid="prefill-banner"]').text()).toBe(
+        expect(factory({ priorWeekMarked: false, troopers: [trooper(3, 'unsigned', null)] }).find('[data-testid="prefill-banner"]').text()).toBe(
             'Nothing pre-filled: no practice marks were recorded last week.',
         );
     });
@@ -138,5 +149,133 @@ describe('Rollcall page', () => {
 
     it('explains an empty scope instead of an empty picker', () => {
         expect(factory({ section: null, sections: [], troopers: [] }).text()).toContain('No sections in your scope');
+    });
+
+    describe('marking (3.8)', () => {
+        beforeEach(() => vi.useFakeTimers());
+        afterEach(() => vi.useRealTimers());
+
+        const button = (wrapper, id, value) => wrapper.find(`[data-trooper="${id}"] button[data-value="${value}"]`);
+
+        it('sets a signature and saves it in the background through rollcall.store', async () => {
+            const wrapper = factory();
+
+            await button(wrapper, 3, 'cannot_attend').trigger('click');
+            expect(button(wrapper, 3, 'cannot_attend').attributes('aria-pressed')).toBe('true');
+
+            await vi.advanceTimersByTimeAsync(1000);
+            expect(post).toHaveBeenCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 3, rollcall: 'cannot_attend' }] });
+            expect(wrapper.find('[data-testid="save-state"]').text()).toBe('Saved 16:20Z');
+        });
+
+        it('offers present, missed, makeup and attached on the practice step, and records a manual source', async () => {
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory();
+
+            expect(wrapper.find('[data-trooper="3"]').findAll('button[data-value]').map((b) => b.attributes('data-value'))).toEqual([
+                'present', 'missed', 'makeup', 'attached',
+            ]);
+            await button(wrapper, 3, 'attached').trigger('click');
+            await vi.advanceTimersByTimeAsync(1000);
+
+            expect(post).toHaveBeenCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 3, status: 'attached' }] });
+        });
+
+        it('marks every unmarked, non-LOA trooper present in one action, and Undo takes it back unsent', async () => {
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory({ troopers: [trooper(1, 'will_attend', 'missed'), trooper(2, 'unsigned', null), trooper(3, 'unsigned', null), trooper(4, 'unsigned', 'loa')] });
+
+            await wrapper.find('[data-testid="mark-all-present"]').trigger('click');
+
+            expect(button(wrapper, 2, 'present').attributes('aria-pressed')).toBe('true');
+            expect(button(wrapper, 3, 'present').attributes('aria-pressed')).toBe('true');
+            expect(button(wrapper, 1, 'missed').attributes('aria-pressed')).toBe('true');
+            expect(wrapper.find('[data-trooper="4"]').text()).toContain('LOA, nothing to mark');
+
+            const [title, options] = toastSuccess.mock.calls[0];
+            expect(title).toBe('Marked 2 as present');
+            await vi.advanceTimersByTimeAsync(1000);
+            expect(post).not.toHaveBeenCalled();
+
+            options.action.onClick();
+            await wrapper.vm.$nextTick();
+            await vi.advanceTimersByTimeAsync(7000);
+
+            expect(button(wrapper, 2, 'present').attributes('aria-pressed')).toBe('false');
+            expect(post).not.toHaveBeenCalled();
+        });
+
+        it('saves "Mark all present" once the undo window has passed', async () => {
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory({ troopers: [trooper(2, 'unsigned', null)] });
+
+            await wrapper.find('[data-testid="mark-all-present"]').trigger('click');
+            await vi.advanceTimersByTimeAsync(7000);
+
+            expect(post).toHaveBeenCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 2, status: 'present' }] });
+        });
+
+        it('applies last week\'s marks to the troopers still to mark', async () => {
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory();
+
+            await wrapper.find('[data-testid="use-last-week"]').trigger('click');
+
+            expect(button(wrapper, 2, 'missed').attributes('aria-pressed')).toBe('true');
+            expect(toastSuccess.mock.calls[0][0]).toBe("Used last week's marks for 1");
+        });
+
+        it('moves between cards with J and K and sets the focused one with 1-4', async () => {
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory();
+            const faces = () => wrapper.findAll('[data-card-face]');
+
+            faces()[0].element.focus();
+            await faces()[0].trigger('keydown', { key: 'j' });
+            expect(document.activeElement).toBe(faces()[1].element);
+
+            await faces()[1].trigger('keydown', { key: 'k' });
+            expect(document.activeElement).toBe(faces()[0].element);
+
+            const id = faces()[0].element.closest('[data-trooper]').dataset.trooper;
+            await faces()[0].trigger('keydown', { key: '3' });
+            expect(button(wrapper, id, 'makeup').attributes('aria-pressed')).toBe('true');
+        });
+
+        it('keeps the input and offers Retry when a save fails', async () => {
+            post.mockResolvedValueOnce({ ok: false, status: 422, data: { message: 'Trooper 3 is not placed in section 12.' } });
+            const wrapper = factory();
+
+            await button(wrapper, 3, 'will_attend').trigger('click');
+            await vi.advanceTimersByTimeAsync(1000);
+
+            expect(wrapper.find('[data-testid="save-error"]').text()).toContain('Trooper 3 is not placed in section 12.');
+            expect(button(wrapper, 3, 'will_attend').attributes('aria-pressed')).toBe('true');
+
+            await wrapper.find('[data-testid="save-error"] button').trigger('click');
+            await vi.advanceTimersByTimeAsync(0);
+            expect(post).toHaveBeenCalledTimes(2);
+            expect(wrapper.find('[data-testid="save-error"]').exists()).toBe(false);
+        });
+
+        it('is read-only during a view-as preview', async () => {
+            page.props.viewAs = { label: 'CPL Lindqvist.E', admin: false };
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory();
+
+            expect(wrapper.find('[data-testid="read-only-notice"]').text()).toContain('Read-only while viewing as CPL Lindqvist.E');
+            expect(button(wrapper, 3, 'present').attributes('disabled')).toBeDefined();
+            expect(button(wrapper, 3, 'present').attributes('title')).toBe('Read-only while viewing as CPL Lindqvist.E');
+            expect(wrapper.find('[data-testid="mark-all-present"]').exists()).toBe(false);
+        });
+
+        it('lists this visit\'s changes on the review step', async () => {
+            const wrapper = factory();
+            await button(wrapper, 3, 'will_attend').trigger('click');
+            await wrapper.find('[data-step="3"]').trigger('click');
+
+            const change = wrapper.find('[data-testid="changes"] li');
+            expect(change.findAll('span').map((span) => span.text())).toEqual(expect.arrayContaining(['Trooper3.A', 'Signature', 'Unsigned', 'Will attend']));
+        });
     });
 });

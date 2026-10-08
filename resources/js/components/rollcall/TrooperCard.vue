@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { PhClockCounterClockwise, PhLockSimple } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -32,6 +32,41 @@ const suggestion = computed(() =>
         : null,
 );
 
+// Swipe on touch (mockup `.rc-under`): right sets the first option (will attend / present), left
+// the second (cannot attend / missed). Mouse pointers use the buttons; `touch-action: pan-y` keeps
+// vertical scrolling native.
+const SWIPE_COMMIT = 90;
+const drag = ref(null);
+const offset = ref(0);
+
+function onPointerDown(event) {
+    if (!props.editable || locked.value || event.pointerType === 'mouse' || event.target.closest('button')) return;
+    drag.value = { x: event.clientX, y: event.clientY, on: false, id: event.pointerId };
+}
+
+function onPointerMove(event) {
+    const d = drag.value;
+    if (!d || d.id !== event.pointerId) return;
+    const dx = event.clientX - d.x;
+    const dy = event.clientY - d.y;
+    if (!d.on) {
+        if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) return (drag.value = null);
+        if (Math.abs(dx) < 8) return;
+        d.on = true;
+    }
+    offset.value = Math.max(-140, Math.min(140, dx));
+}
+
+function onPointerUp() {
+    const d = drag.value;
+    drag.value = null;
+    const dx = offset.value;
+    offset.value = 0;
+    if (!d?.on || Math.abs(dx) <= SWIPE_COMMIT) return;
+    navigator.vibrate?.(8);
+    emit('set', options.value[dx > 0 ? 0 : 1].value);
+}
+
 const TONE = {
     ok: 'aria-pressed:bg-success/10 aria-pressed:text-success aria-pressed:shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--success)_45%,transparent)]',
     bad: 'aria-pressed:bg-destructive/8 aria-pressed:text-destructive aria-pressed:shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--destructive)_40%,transparent)]',
@@ -46,7 +81,26 @@ const TONE = {
         :data-trooper="trooper.id"
     >
         <div
-            class="relative bg-inherit p-3 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+            v-if="!locked && offset !== 0"
+            class="absolute inset-0 flex items-center justify-between px-5 text-[13px] font-semibold"
+            :class="offset > 0 ? 'bg-success/12 text-success' : 'bg-destructive/10 text-destructive'"
+            aria-hidden="true"
+        >
+            <span :class="offset > 0 ? '' : 'invisible'">{{ options[0].label }}</span>
+            <span :class="offset < 0 ? '' : 'invisible'">{{ options[1].label }}</span>
+        </div>
+        <div
+            :class="
+                cn(
+                    'relative touch-pan-y bg-inherit p-3 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+                    !drag?.on && 'transition-transform duration-200',
+                )
+            "
+            :style="offset ? { transform: `translateX(${offset}px)`, backgroundColor: 'var(--card)' } : undefined"
+            @pointerdown="onPointerDown"
+            @pointermove="onPointerMove"
+            @pointerup="onPointerUp"
+            @pointercancel="onPointerUp"
             tabindex="0"
             data-card-face
             :aria-label="`${name}, ${kind === 'signature' ? 'rollcall' : 'section practice'}: ${valueLabel}${locked ? ', locked' : ''}`"

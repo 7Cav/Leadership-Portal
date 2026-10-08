@@ -3,9 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
+use App\Commands\Attendance\AttendanceMark;
+use App\Commands\Attendance\InvalidAttendanceMarkException;
+use App\Commands\Attendance\MarkAttendance;
+use App\Commands\Attendance\MarkAttendanceForbiddenException;
+use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Kpi\KpiService;
 use App\Kpi\TrooperAttendance;
 use App\Models\Attendance;
+use App\Models\AttendanceStatus;
+use App\Models\RollcallSignature;
 use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
@@ -18,9 +25,12 @@ use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -90,6 +100,62 @@ class RollcallController extends Controller
             'sections' => $this->pickerOptions($sections),
             'week' => $this->weekProps($weekStart, $currentWeek),
             ...$this->rosterProps($section, $weekStart),
+        ]);
+    }
+
+    /**
+     * Autosave from the rollcall screen (3.8): a batch of per-trooper changes — a practice mark, a
+     * rollcall signature, or both — written through the audited `MarkAttendance` Command, the one
+     * writer of record (AD-16, AD-22). "Mark all present" is the same batch. Answers JSON, since
+     * the page saves in the background and must keep the leader's input on a failure: 422 for a
+     * batch nobody may record, 403 outside scope (AD-8). On success it returns the at-risk flags
+     * recomputed by the KPI service (AD-21), so the review step reflects the saved marks.
+     */
+    public function store(Request $request, int $unit, MarkAttendanceHandler $handler): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'week' => ['required', 'date_format:Y-m-d'],
+            'marks' => ['present', 'array', 'max:500'],
+            'marks.*.trooper_id' => ['required', 'integer', 'distinct'],
+            'marks.*.status' => ['nullable', Rule::in(array_map(fn (AttendanceStatus $s) => $s->value, [
+                AttendanceStatus::Present, AttendanceStatus::Missed, AttendanceStatus::Makeup, AttendanceStatus::Attached,
+            ]))],
+            'marks.*.rollcall' => ['nullable', Rule::enum(RollcallSignature::class)],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => $validator->errors()->first(), 'errors' => $validator->errors()], 422);
+        }
+
+        $weekStart = $this->requestedWeek($request->input('week'), WeekOf::start(CarbonImmutable::now()));
+
+        if ($weekStart->greaterThan(WeekOf::start(CarbonImmutable::now()))) {
+            return response()->json(['message' => 'A future week cannot be marked yet.'], 422);
+        }
+
+        $section = $this->units->find($unit);
+
+        if ($section === null) {
+            return response()->json(['message' => 'No such section.'], 404);
+        }
+
+        try {
+            $marks = array_map(fn (array $mark) => new AttendanceMark(
+                trooperId: (int) $mark['trooper_id'],
+                status: isset($mark['status']) ? AttendanceStatus::from($mark['status']) : null,
+                rollcall: isset($mark['rollcall']) ? RollcallSignature::from($mark['rollcall']) : null,
+            ), $request->input('marks', []));
+
+            $handler->handle($request->user(), new MarkAttendance($section->id, $weekStart, ...$marks));
+        } catch (MarkAttendanceForbiddenException $e) {
+            return response()->json(['message' => $e->getMessage()], 403);
+        } catch (InvalidAttendanceMarkException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'savedAt' => CarbonImmutable::now()->toIso8601String(),
+            'atRisk' => $this->atRisk($section, $weekStart),
         ]);
     }
 

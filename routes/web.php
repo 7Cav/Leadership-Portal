@@ -52,6 +52,7 @@ Route::middleware('auth')->group(function () {
     // Weekly rollcall of one section (Stories 3.7–3.10). Scope is enforced in the controller
     // through the ScopeResolver (AD-8): an out-of-scope section is a 403, not a hidden link.
     Route::get('/rollcall/{unit?}', [RollcallController::class, 'show'])->whereNumber('unit')->name('rollcall.show');
+    Route::post('/rollcall/{unit}', [RollcallController::class, 'store'])->whereNumber('unit')->name('rollcall.store');
 
     // Logout (Story 1.5). POST, so it carries CSRF protection and can't be triggered by a
     // prefetched link or a cross-site <img>.

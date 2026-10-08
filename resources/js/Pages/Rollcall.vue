@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue';
+import { toast } from 'vue-sonner';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import {
     PhArrowsClockwise,
@@ -7,9 +8,15 @@ import {
     PhCaretRight,
     PhCaretUpDown,
     PhCheck,
+    PhChecks,
+    PhCircleNotch,
     PhClipboardText,
+    PhCloudCheck,
+    PhCloudSlash,
+    PhHandSwipeRight,
     PhClock,
     PhClockCounterClockwise,
+    PhEye,
     PhUsersThree,
 } from '@phosphor-icons/vue';
 import { Button } from '@/components/ui/button';
@@ -20,7 +27,18 @@ import SectionPicker from '@/components/rollcall/SectionPicker.vue';
 import StepReview from '@/components/rollcall/StepReview.vue';
 import TrooperCard from '@/components/rollcall/TrooperCard.vue';
 import { forumDate, forumDateTime } from '@/lib/forumDate';
-import { countsOf, practiceGroups, signatureGroups, stepsOf } from '@/lib/rollcall';
+import { useRollcallAutosave } from '@/composables/useRollcallAutosave';
+import {
+    countsOf,
+    displayName,
+    isLocked,
+    optionsFor,
+    practiceGroups,
+    practiceLabel,
+    signatureGroups,
+    signatureLabel,
+    stepsOf,
+} from '@/lib/rollcall';
 import { cn } from '@/lib/utils';
 
 // The weekly rollcall of one section (Stories 3.7–3.10), binding design mockups/v2/rollcall-r3.html
@@ -45,13 +63,135 @@ const props = defineProps({
 
 const page = usePage();
 
-// The screen's working copy of the marks.
+// The screen's working copy of the marks, and what they were when the page loaded (the review
+// step lists the difference as this visit's changes).
 const rows = ref([]);
+const baseline = ref(new Map());
 watch(
     () => props.troopers,
-    (troopers) => (rows.value = troopers.map((trooper) => ({ ...trooper }))),
+    (troopers) => {
+        rows.value = troopers.map((trooper) => ({ ...trooper }));
+        baseline.value = new Map(troopers.map((trooper) => [trooper.id, { rollcall: trooper.rollcall, status: trooper.status }]));
+    },
     { immediate: true },
 );
+
+const liveAtRisk = ref(props.atRisk);
+watch(() => props.atRisk, (atRisk) => (liveAtRisk.value = atRisk));
+
+// A view-as preview (Story 1.13) is read-only: the server refuses every write during one, so the
+// screen says so up front instead of letting saves fail.
+const viewAs = computed(() => page.props.viewAs ?? null);
+const editable = computed(() => !viewAs.value);
+const readOnlyReason = computed(() => (viewAs.value ? `Read-only while viewing as ${viewAs.value.label}` : null));
+
+const autosave = props.section
+    ? useRollcallAutosave({
+          url: `/rollcall/${props.section.id}`,
+          week: props.week.date,
+          onSaved: (data) => (liveAtRisk.value = data.atRisk ?? liveAtRisk.value),
+      })
+    : null;
+
+function set(trooper, kind, value, options = {}) {
+    if (!editable.value || isLocked(trooper)) return;
+    const field = kind === 'signature' ? 'rollcall' : 'status';
+    if (trooper[field] === value) return;
+
+    trooper[field] = value;
+    if (field === 'status') trooper.source = 'manual';
+    autosave.queue(trooper.id, field, value, options);
+}
+
+// "Mark all present" and "use last week's marks" set many rows at once. Their saves are held for
+// the undo window, because a saved practice mark cannot be cleared again (3.3).
+const UNDO_MS = 6000;
+
+function applyMany(entries, title) {
+    if (!entries.length) return;
+    const before = entries.map(({ trooper, value }) => ({ trooper, value, status: trooper.status, source: trooper.source }));
+    for (const { trooper, value } of entries) set(trooper, 'practice', value, { holdMs: UNDO_MS });
+
+    toast.success(title, {
+        description: entries.map(({ trooper }) => displayName(trooper)).join(', '),
+        duration: UNDO_MS,
+        action: {
+            label: 'Undo',
+            onClick: () => {
+                // Only rows still holding the bulk value: a mark changed by hand since then stays.
+                const undone = before.filter(({ trooper, value }) => trooper.status === value);
+                autosave.cancel(undone.map(({ trooper }) => trooper.id), 'status');
+                for (const { trooper, status, source } of undone) Object.assign(trooper, { status, source });
+            },
+        },
+    });
+}
+
+const unmarked = computed(() => rows.value.filter((t) => !isLocked(t) && t.status === null));
+const prefillable = computed(() => unmarked.value.filter((t) => t.priorStatus && t.priorStatus !== 'loa'));
+
+function markAllPresent() {
+    const entries = unmarked.value.map((trooper) => ({ trooper, value: 'present' }));
+    applyMany(entries, `Marked ${entries.length} as present`);
+}
+
+function useLastWeek() {
+    const entries = prefillable.value.map((trooper) => ({ trooper, value: trooper.priorStatus }));
+    applyMany(entries, `Used last week's marks for ${entries.length}`);
+}
+
+// Keyboard (mockup aside): J / K or the arrows move between cards, 1–4 set the focused card.
+function onCardKeydown(event) {
+    const face = event.target.closest?.('[data-card-face]');
+    if (!face || event.target !== face || event.metaKey || event.ctrlKey || event.altKey) return;
+    const faces = [...event.currentTarget.querySelectorAll('[data-card-face]')];
+    const index = faces.indexOf(face);
+
+    if (event.key === 'j' || event.key === 'ArrowDown') {
+        event.preventDefault();
+        faces[index + 1]?.focus();
+    } else if (event.key === 'k' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        faces[index - 1]?.focus();
+    } else if (/^[1-4]$/.test(event.key)) {
+        const id = Number(face.closest('[data-trooper]').dataset.trooper);
+        const kind = step.value === 1 ? 'signature' : 'practice';
+        const option = optionsFor(kind)[Number(event.key) - 1];
+        const trooper = rows.value.find((t) => t.id === id);
+        if (!option || !trooper) return;
+        event.preventDefault();
+        set(trooper, kind, option.value);
+        // The card may have moved to another group; keep the focus on the same trooper.
+        nextTick(() => document.querySelector(`[data-trooper="${id}"] [data-card-face]`)?.focus());
+    }
+}
+
+// What changed on this visit, for the review step.
+const changes = computed(() =>
+    rows.value.flatMap((trooper) => {
+        const was = baseline.value.get(trooper.id);
+        if (!was) return [];
+        const out = [];
+        if (was.rollcall !== trooper.rollcall) {
+            out.push({ key: `${trooper.id}-sig`, trooper, what: 'Signature', from: signatureLabel(was.rollcall), to: signatureLabel(trooper.rollcall) });
+        }
+        if (was.status !== trooper.status) {
+            out.push({ key: `${trooper.id}-sp`, trooper, what: 'SP', from: practiceLabel(was.status), to: practiceLabel(trooper.status) });
+        }
+
+        return out;
+    }),
+);
+
+const saveLabel = computed(() => {
+    if (!autosave) return null;
+    if (autosave.state.value === 'saving') return 'Saving...';
+    if (autosave.state.value === 'error') return 'Not saved';
+    if (autosave.savedAt.value) return `Saved ${forumDateTime(autosave.savedAt.value).split(' ')[1]}Z`;
+    if (autosave.pendingCount.value) return 'Unsaved changes';
+
+    return null;
+});
 
 const counts = computed(() => countsOf(rows.value));
 const steps = computed(() => stepsOf(rows.value, null));
@@ -144,7 +284,38 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                 <span class="inline-flex items-center gap-1.5">
                     <PhClock class="size-4" aria-hidden="true" />Signatures close {{ closesLabel }}
                 </span>
+                <span role="status" aria-live="polite" class="inline-flex items-center gap-1.5 text-foreground" data-testid="save-state">
+                    <template v-if="saveLabel">
+                        <PhCircleNotch v-if="autosave.state.value === 'saving'" class="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
+                        <PhCloudSlash v-else-if="autosave.state.value === 'error'" class="size-4 text-destructive" aria-hidden="true" />
+                        <PhCloudCheck v-else-if="autosave.state.value === 'saved'" class="size-4 text-success" aria-hidden="true" />
+                        <span :class="autosave.state.value === 'saving' && 'text-muted-foreground'">{{ saveLabel }}</span>
+                    </template>
+                </span>
             </div>
+        </div>
+
+        <div
+            v-if="autosave?.state.value === 'error'"
+            role="alert"
+            class="mt-3 flex flex-wrap items-center gap-2.5 rounded-lg border border-destructive/35 bg-destructive/7 px-3.5 py-2.5 text-[13px]"
+            data-testid="save-error"
+        >
+            <PhCloudSlash class="size-4 shrink-0 text-destructive" aria-hidden="true" />
+            <p class="min-w-0 flex-1">
+                Your last changes are not saved. {{ autosave.error.value }} They stay on this screen until they save.
+            </p>
+            <Button variant="outline" size="sm" @click="autosave.retry()">Retry</Button>
+        </div>
+
+        <div
+            v-if="readOnlyReason"
+            role="status"
+            class="mt-3 flex items-start gap-2.5 rounded-lg border border-info/35 bg-info/7 px-3.5 py-2.5 text-[13px]"
+            data-testid="read-only-notice"
+        >
+            <PhEye class="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
+            <p>{{ readOnlyReason }}. Exit view as to mark attendance.</p>
         </div>
 
         <div
@@ -154,7 +325,9 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
             data-testid="past-week-notice"
         >
             <PhClockCounterClockwise class="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
-            <p>You are looking at a past week, {{ weekLabel }}.</p>
+            <p>
+                Editing a past week, {{ weekLabel }}. Changes correct that week's record and are logged like any other mark.
+            </p>
         </div>
 
         <!-- Stepper -->
@@ -203,7 +376,7 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
         </div>
 
         <div class="mt-4 grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18.5rem]">
-            <section class="min-w-0" :aria-labelledby="`step-${step}-title`">
+            <section class="min-w-0" :aria-labelledby="`step-${step}-title`" @keydown="onCardKeydown">
                 <!-- Empty roster -->
                 <Card v-if="!rows.length" class="py-0">
                     <EmptyState :icon="PhClipboardText" title="No troopers placed in this section" class="py-14">
@@ -221,13 +394,24 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                             Who signed the rollcall thread for this week. You can record a signature for a trooper who told you directly.
                         </p>
                     </div>
+                    <p v-if="editable" class="mt-2 hidden items-center gap-2 text-xs text-muted-foreground pointer-coarse:flex">
+                        <PhHandSwipeRight class="size-4" aria-hidden="true" />Swipe a card right for will attend, left for cannot attend.
+                    </p>
                     <div v-for="group in signatureView" :key="group.id" role="group" :aria-label="group.title">
                         <div class="flex items-baseline justify-between gap-3 px-1 pt-3.5 pb-1.5 text-[13px] font-semibold">
                             <span>{{ group.title }}</span>
                             <span class="text-xs font-normal text-muted-foreground tabular-nums">{{ group.troopers.length }}</span>
                         </div>
                         <div class="space-y-2">
-                            <TrooperCard v-for="trooper in group.troopers" :key="trooper.id" :trooper="trooper" kind="signature" />
+                            <TrooperCard
+                                v-for="trooper in group.troopers"
+                                :key="trooper.id"
+                                :trooper="trooper"
+                                kind="signature"
+                                :editable="editable"
+                                :disabled-reason="readOnlyReason"
+                                @set="(value) => set(trooper, 'signature', value)"
+                            />
                         </div>
                     </div>
                     <div class="mt-5 flex items-center gap-2 py-3">
@@ -273,6 +457,19 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                             Pre-filled from last week: each trooper still to mark shows last week's practice mark as a suggestion.
                         </p>
                         <p v-else class="flex-1 text-muted-foreground">Nothing pre-filled: no practice marks were recorded last week.</p>
+                        <Button v-if="editable && prefillable.length" variant="outline" size="sm" data-testid="use-last-week" @click="useLastWeek">
+                            Use last week's marks ({{ prefillable.length }})
+                        </Button>
+                    </div>
+
+                    <p v-if="editable" class="mt-2 hidden items-center gap-2 text-xs text-muted-foreground pointer-coarse:flex">
+                        <PhHandSwipeRight class="size-4" aria-hidden="true" />Swipe a card right for present, left for missed.
+                    </p>
+                    <div v-if="editable && unmarked.length" class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+                        <span>Sets the {{ unmarked.length }} troopers not marked yet. Marks you already set stay.</span>
+                        <Button variant="outline" size="sm" class="sm:ml-auto" data-testid="mark-all-present" @click="markAllPresent">
+                            <PhChecks />Mark all present
+                        </Button>
                     </div>
 
                     <template v-if="practiceView.length">
@@ -282,7 +479,15 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                                 <span class="text-xs font-normal text-muted-foreground tabular-nums">{{ group.hint ?? group.troopers.length }}</span>
                             </div>
                             <div class="space-y-2">
-                                <TrooperCard v-for="trooper in group.troopers" :key="trooper.id" :trooper="trooper" kind="practice" />
+                                <TrooperCard
+                                    v-for="trooper in group.troopers"
+                                    :key="trooper.id"
+                                    :trooper="trooper"
+                                    kind="practice"
+                                    :editable="editable"
+                                    :disabled-reason="readOnlyReason"
+                                    @set="(value) => set(trooper, 'practice', value)"
+                                />
                             </div>
                         </div>
                     </template>
@@ -304,7 +509,28 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                             Check the totals, copy the forum post into the rollcall thread on 7cav.us, then mark it posted.
                         </p>
                     </div>
-                    <StepReview :troopers="rows" :at-risk="atRisk" @go="go" />
+                    <StepReview :troopers="rows" :at-risk="liveAtRisk" @go="go">
+                        <template #changes>
+                            <section aria-labelledby="review-changes" class="rounded-lg border border-border bg-card" data-testid="changes">
+                                <div class="flex items-baseline justify-between gap-3 px-4 pt-3.5 pb-1">
+                                    <h3 id="review-changes" class="text-[13px] font-semibold">Changes this visit</h3>
+                                    <span class="text-xs text-muted-foreground tabular-nums">{{ changes.length }}</span>
+                                </div>
+                                <ul v-if="changes.length" class="p-1.5">
+                                    <li v-for="change in changes" :key="change.key" class="p-2.5 text-[13px]">
+                                        <span class="font-medium">{{ displayName(change.trooper) }}</span>
+                                        <span class="ml-1 text-muted-foreground">{{ change.what }}</span>
+                                        <span class="ml-1 inline-flex items-center gap-1.5">
+                                            <span class="text-muted-foreground line-through decoration-border">{{ change.from }}</span>
+                                            <PhCaretRight class="size-3 text-muted-foreground" aria-label="to" />
+                                            <span>{{ change.to }}</span>
+                                        </span>
+                                    </li>
+                                </ul>
+                                <p v-else class="px-4 pt-1 pb-4 text-xs text-muted-foreground">Nothing changed on this visit.</p>
+                            </section>
+                        </template>
+                    </StepReview>
                 </template>
             </section>
 
@@ -331,6 +557,13 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                         <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Not marked</dt><dd :class="cn('font-medium tabular-nums', counts.unmarked && 'text-warning')">{{ counts.unmarked }}</dd></div>
                         <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">On LOA</dt><dd class="font-medium text-muted-foreground tabular-nums">{{ counts.loa }}</dd></div>
                     </dl>
+                </Card>
+                <Card v-if="editable && step < 3" class="gap-1.5 p-4 text-xs text-muted-foreground pointer-coarse:hidden">
+                    <p class="mb-1 text-[13px] font-semibold text-foreground">Keyboard</p>
+                    <p class="flex justify-between"><span>Next or previous trooper</span><span><kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">J</kbd> <kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">K</kbd></span></p>
+                    <p class="flex justify-between">
+                        <span>Set status on focused card</span><span><kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">1</kbd> to <kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">{{ step === 1 ? 3 : 4 }}</kbd></span>
+                    </p>
                 </Card>
             </aside>
         </div>
