@@ -206,3 +206,16 @@ it('finds every unit carrying a callsign, in id order (#115)', function () {
     expect($repository->withCallsign('A/1-7')->modelKeys())->toBe([$company->id, $twin->id])
         ->and($repository->withCallsign('Z/9-9'))->toBeEmpty();
 });
+
+// 5.8: the roll-up reads a whole chain in one query and rebuilds it from parent_id.
+it('lists a unit\'s whole subtree, itself included, in id order and nothing outside it', function () {
+    $repo = app(UnitRepository::class);
+    $company = $repo->create(UnitType::Company, 'Alpha Company', 'A/1-7', null);
+    $platoon = $repo->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', $company->id);
+    $section = $repo->create(UnitType::Section, '1st Section', '1/1/A/1-7', $platoon->id);
+    $other = $repo->create(UnitType::Company, 'Bravo Company', 'B/1-7', null);
+    $repo->create(UnitType::Platoon, '1st Platoon', '1/B/1-7', $other->id);
+
+    expect($repo->subtree($company)->modelKeys())->toBe([$company->id, $platoon->id, $section->id])
+        ->and($repo->subtree($section)->modelKeys())->toBe([$section->id]);
+});
