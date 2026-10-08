@@ -10,8 +10,9 @@ use Carbon\CarbonImmutable;
  * thread was read cleanly; any entry means a person should look, and the thread asserts no dates.
  *
  * `startsAt`/`endsAt` are only set for a normal LOA, whose dates are in the post. An ELOA post carries no
- * start date (it is the day the PAF was submitted, found by following `pafThreadId`) and its
- * `Expected return date` is only an expectation, so it stays in `rawEnd` and never becomes `endsAt`.
+ * start date (it is the day the PAF was submitted, found by following `pafThreadId`). Its `Expected return date`
+ * is only an expectation, since an ELOA can be extended: it is read into `expectedReturnAt` for display (null when
+ * it cannot be read, which is not a reason to review the thread) and never becomes `endsAt`.
  */
 final readonly class ParsedLoaThread
 {
@@ -26,6 +27,7 @@ final readonly class ParsedLoaThread
         public ?CarbonImmutable $endsAt,
         public ?string $rawStart,
         public ?string $rawEnd,
+        public ?CarbonImmutable $expectedReturnAt,
         public ?int $pafThreadId,
         public string $excerpt,
         public array $reasons,

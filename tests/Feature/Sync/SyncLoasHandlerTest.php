@@ -333,14 +333,28 @@ describe('an ELOA', function () {
         expect($pafRequest->query()->all())->toBe([]);
     });
 
-    it('does not end at the expected return date, which is only an expectation', function () {
+    it('does not end at the expected return date, which is only an expectation, but keeps it for display', function () {
         Trooper::factory()->create(['username' => 'Lane.M']);
         $report = eloaThread();
         forumWith([341 => [[$report]]], [5001 => $report], [106503 => ['2026-09-22 20:30']]);
 
         runLoaSync();
 
-        expect(Loa::sole()->ends_at)->toBeNull();
+        expect(Loa::sole()->ends_at)->toBeNull()
+            ->and(Loa::sole()->expected_return_at->toDateString())->toBe('2026-11-13');
+    });
+
+    it('keeps the expected return when an extension is posted by editing it', function () {
+        Trooper::factory()->create(['username' => 'Lane.M']);
+        $report = eloaThread();
+        forumWith([341 => [[$report]]], [5001 => $report], [106503 => ['2026-09-22 20:30']]);
+        runLoaSync();
+
+        $extended = eloaThread(5001, '2026-09-23 09:00', str_replace('Nov 13, 2026', 'Dec 18, 2026', loaBody('eloa-report')));
+        forumWith([341 => [[$extended]]], [5001 => $extended], [106503 => ['2026-09-22 20:30']]);
+        runLoaSync(full: true);
+
+        expect(Loa::sole()->expected_return_at->toDateString())->toBe('2026-12-18');
     });
 
     it('falls back to the day the report was posted when the PAF link is missing, and says so', function () {

@@ -324,6 +324,7 @@ class SyncLoasHandler
                 rawStartDate: $parsed->kind === LoaThreadKind::EloaReport ? $eventNote : $parsed->rawStart,
                 rawEndDate: $parsed->rawEnd,
                 rawExcerpt: $parsed->excerpt === '' ? null : $parsed->excerpt,
+                expectedReturnAt: $clean ? $parsed->expectedReturnAt : null,
             );
         }
 

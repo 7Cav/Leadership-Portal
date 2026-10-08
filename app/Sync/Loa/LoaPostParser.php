@@ -55,7 +55,7 @@ final class LoaPostParser
 
         [$username, $forumUserId] = $this->subject($text, $reasons);
 
-        $startsAt = $endsAt = $rawStart = $rawEnd = $pafThreadId = null;
+        $startsAt = $endsAt = $rawStart = $rawEnd = $expectedReturnAt = $pafThreadId = null;
 
         if ($kind === LoaThreadKind::LoaRequest) {
             [$rawStart, $startsAt] = $this->dateField($text, 'Start Date', $reasons);
@@ -63,6 +63,7 @@ final class LoaPostParser
             $this->checkDates($title, $startsAt, $endsAt, $now, $reasons);
         } elseif ($kind === LoaThreadKind::EloaReport || $kind === LoaThreadKind::EloaReturn) {
             $rawEnd = $this->fieldValues($text, 'Expected return date')[0] ?? null;
+            $expectedReturnAt = $kind === LoaThreadKind::EloaReport && $rawEnd !== null ? $this->parseDate($rawEnd) : null;
             $pafThreadId = $this->pafThreadId($text);
             $this->checkBodyType($kind, $text, $reasons);
         }
@@ -75,6 +76,7 @@ final class LoaPostParser
             endsAt: $reasons === [] ? $endsAt : null,
             rawStart: $rawStart,
             rawEnd: $rawEnd,
+            expectedReturnAt: $expectedReturnAt,
             pafThreadId: $pafThreadId,
             excerpt: $this->excerpt($username, $forumUserId, $rawStart, $rawEnd, $text),
             reasons: $reasons,

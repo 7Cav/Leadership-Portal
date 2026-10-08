@@ -89,6 +89,7 @@ class Eloquent implements LoaRepository
                     'type' => $write->type,
                     'starts_at' => $write->startsAt,
                     'ends_at' => $write->endsAt,
+                    'expected_return_at' => $write->expectedReturnAt,
                     'parse_status' => $write->parseStatus,
                     'review_reason' => $write->reviewReason,
                     'source_thread' => $write->sourceThread,
