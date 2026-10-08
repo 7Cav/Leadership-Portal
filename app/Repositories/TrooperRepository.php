@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Models\Unit;
 use Illuminate\Support\Collection;
 
 /**
@@ -65,4 +66,12 @@ interface TrooperRepository
      * @return Collection<int, int>
      */
     public function idsPlacedIn(int $sectionId, array $trooperIds): Collection;
+
+    /**
+     * The ids of the troopers currently assigned within `$unit`'s subtree — primary section
+     * anywhere under it, not inactive (LOA still counts) — ascending. Strength's population (5.1).
+     *
+     * @return Collection<int, int>
+     */
+    public function assignedWithin(Unit $unit): Collection;
 }

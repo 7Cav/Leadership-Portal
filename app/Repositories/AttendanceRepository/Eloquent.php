@@ -7,9 +7,16 @@ use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\RollcallSignature;
 use App\Models\SectionPractice;
+use App\Models\Trooper;
+use App\Models\Unit;
 use App\Repositories\AttendanceRepository;
+use App\Repositories\CountingMark;
+use App\Support\Time\WeekOf;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class Eloquent implements AttendanceRepository
 {
@@ -37,6 +44,49 @@ class Eloquent implements AttendanceRepository
             ->where('section_practice_id', $practice->id)
             ->orderBy('id')
             ->get();
+    }
+
+    public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
+    {
+        // A practice is held once any row on it carries a leader's SP mark. Signatures alone do
+        // not hold it, and neither does `loa` — derived from LOA data, it says nothing about
+        // whether the practice ran.
+        $held = Attendance::query()
+            ->select('section_practice_id')
+            ->whereNotNull('status')
+            ->where('status', '!=', AttendanceStatus::Loa->value)
+            ->groupBy('section_practice_id');
+
+        return Trooper::query()
+            ->assignedWithin($unit)
+            ->join('section_practices', 'section_practices.section_id', '=', 'troopers.primary_section_id')
+            ->leftJoinSub($held, 'held', 'held.section_practice_id', '=', 'section_practices.id')
+            ->leftJoin('attendance', function ($join) {
+                $join->on('attendance.section_practice_id', '=', 'section_practices.id')
+                    ->on('attendance.trooper_id', '=', 'troopers.id');
+            })
+            ->whereBetween('section_practices.week_start', [
+                WeekOf::requireStart($firstWeek),
+                WeekOf::requireStart($lastWeek),
+            ])
+            ->orderBy('troopers.id')
+            ->orderBy('section_practices.week_start')
+            ->toBase()
+            ->get([
+                'troopers.id as trooper_id',
+                'section_practices.week_start',
+                'attendance.status',
+                'attendance.rollcall',
+                DB::raw('held.section_practice_id is not null as held'),
+            ])
+            ->map(fn (object $row) => new CountingMark(
+                trooperId: (int) $row->trooper_id,
+                weekStart: CarbonImmutable::parse($row->week_start, 'UTC'),
+                status: $row->status === null ? null : AttendanceStatus::from($row->status),
+                // Null only when the left join found no attendance row: nobody signed for them.
+                rollcall: $row->rollcall === null ? RollcallSignature::Unsigned : RollcallSignature::from($row->rollcall),
+                held: (bool) $row->held,
+            ));
     }
 
     /**

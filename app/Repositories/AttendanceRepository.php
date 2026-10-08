@@ -7,7 +7,10 @@ use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\RollcallSignature;
 use App\Models\SectionPractice;
+use App\Models\Unit;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
+use InvalidArgumentException;
 
 /**
  * Sole DB access for `attendance` (AD-2, AD-14, AD-22). Portal-owned: 3.3's audited
@@ -57,4 +60,21 @@ interface AttendanceRepository
      * @return Collection<int, Attendance>
      */
     public function forPractice(SectionPractice $practice): Collection;
+
+    /**
+     * The counting marks (AD-14) of every trooper currently assigned within `$unit`'s subtree
+     * (`Trooper::assignedWithin`) over the whole weeks `$firstWeek` through `$lastWeek`
+     * inclusive: one per trooper per practice their *primary* section held in that span, whether
+     * or not the trooper has an attendance row on it (no row reads as a null status and an
+     * unsigned rollcall). Each mark says whether its practice was *held* — at least one attendance
+     * row on it, from any trooper, carries a leader's SP mark (any `status` but `loa`, which is
+     * derived from LOA data); a row with only rollcall signatures or `loa` marks is not. A
+     * row against any other section's practice is not a counting mark and is left out. Ordered by
+     * trooper id, then week. One query, however large the subtree.
+     *
+     * @return Collection<int, CountingMark>
+     *
+     * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
+     */
+    public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection;
 }

@@ -4,6 +4,7 @@ namespace App\Repositories\TrooperRepository;
 
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
+use App\Models\Unit;
 use App\Repositories\TrooperRepository;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -74,5 +75,10 @@ class Eloquent implements TrooperRepository
             ->whereIn('id', $trooperIds)
             ->orderBy('id')
             ->pluck('id');
+    }
+
+    public function assignedWithin(Unit $unit): Collection
+    {
+        return Trooper::query()->assignedWithin($unit)->orderBy('id')->pluck('id');
     }
 }
