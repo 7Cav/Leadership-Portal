@@ -7,6 +7,7 @@ use App\Integration\Forum\ForumApi;
 use App\Integration\Forum\ForumRequestException;
 use App\Models\LoaParseStatus;
 use App\Models\LoaType;
+use App\Models\SyncRun;
 use App\Repositories\LoaRepository;
 use App\Repositories\LoaReturn;
 use App\Repositories\LoaWrite;
@@ -75,7 +76,7 @@ class SyncLoasHandler
      */
     public function handle(int|string $triggeredBy = 'system', bool $full = false): void
     {
-        $run = $this->syncRuns->open('loa', $triggeredBy);
+        $run = $this->syncRuns->open(SyncRun::SOURCE_LOA, $triggeredBy);
 
         try {
             $now = CarbonImmutable::now();
@@ -119,7 +120,7 @@ class SyncLoasHandler
      */
     private function cutoff(CarbonImmutable $horizon): CarbonImmutable
     {
-        $lastGood = $this->syncRuns->latestSuccessful('loa');
+        $lastGood = $this->syncRuns->latestSuccessful(SyncRun::SOURCE_LOA);
 
         if ($lastGood === null) {
             return $horizon;
