@@ -64,7 +64,10 @@ beforeEach(() => {
     toastSuccess.mockReset();
     toastError.mockReset();
 });
-afterEach(() => wrapper?.unmount());
+afterEach(() => {
+    wrapper?.unmount();
+    vi.restoreAllMocks();
+});
 
 describe('Reports/Rollup', () => {
     it('renders the chain as a treegrid, unsent branches only by default', () => {
@@ -158,14 +161,59 @@ describe('Reports/Rollup', () => {
     });
 
     it('says so when the clipboard is blocked', async () => {
-        Object.defineProperty(navigator, 'clipboard', { value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) }, configurable: true });
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        const denied = Object.assign(new Error('denied'), { name: 'NotAllowedError' });
+        Object.defineProperty(navigator, 'clipboard', { value: { writeText: vi.fn().mockRejectedValue(denied) }, configurable: true });
         mountRollup();
         await rows()[2].trigger('click');
         await panel().find('[data-testid="copy-reminder"]').trigger('click');
         await flushPromises();
 
-        expect(toastError).toHaveBeenCalledWith('Could not copy the reminder', expect.anything());
+        expect(toastError).toHaveBeenCalledWith('Could not copy the reminder', { description: expect.stringContaining('blocked clipboard access') });
         expect(toastSuccess).not.toHaveBeenCalled();
+        expect(console.error).toHaveBeenCalled();
+    });
+
+    it('points elsewhere when there is no clipboard at all', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+        mountRollup();
+        await rows()[2].trigger('click');
+        await panel().find('[data-testid="copy-reminder"]').trigger('click');
+        await flushPromises();
+
+        expect(toastError).toHaveBeenCalledWith('Could not copy the reminder', { description: expect.stringContaining('Open the report') });
+    });
+
+    it('opens on every report when the whole chain is sent, and again after a visit to such a week', async () => {
+        const sentEverywhere = (nodes) => nodes.map((n) => ({ ...n, status: 'sent', open: false, holding: false, children: sentEverywhere(n.children) }));
+        mountRollup({ roots: sentEverywhere(roots()) });
+        expect(wrapper.find('[data-testid="filter-all"]').attributes('aria-pressed')).toBe('true');
+        expect(rowIds()).toEqual([1, 2, 11, 21]);
+        wrapper.unmount();
+
+        mountRollup();
+        expect(rowIds()).toEqual([1, 2, 21]);
+        await wrapper.setProps({ roots: sentEverywhere(roots()) });
+        expect(rowIds()).toEqual([1, 2, 11, 21]);
+    });
+
+    it('reveals a unit picked from the report panel in the tree', async () => {
+        mountRollup();
+        await rows()[1].trigger('keydown', { key: 'ArrowLeft' }); // collapse the platoon
+        expect(rowIds()).toEqual([1, 2]);
+
+        await rows()[1].trigger('click');
+        const holding = panel().find('[data-testid="holding"]');
+        await holding.findAll('button').find((b) => b.text() === '2/1/A/1-7').trigger('click');
+        expect(rowIds()).toEqual([1, 2, 21]);
+        expect(rows()[2].attributes('aria-selected')).toBe('true');
+
+        // A sent child, hidden by the "Not sent" filter, switches the tree to All to show it.
+        await rows()[1].trigger('click');
+        await panel().findAll('li button').find((b) => b.text().startsWith('1/1/A/1-7')).trigger('click');
+        expect(wrapper.find('[data-testid="filter-all"]').attributes('aria-pressed')).toBe('true');
+        expect(rows().find((r) => r.attributes('data-row-id') === '11').attributes('aria-selected')).toBe('true');
     });
 
     it('changes week through the selector and the arrows, keeping the unit in the URL', async () => {

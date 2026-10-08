@@ -149,8 +149,8 @@ it('is not holding once every child has sent, and a sent branch has no open repo
     $index = chainIndex($this->chain->build($this->company, chainWeek()));
 
     expect($index[$this->p1->id]->isHolding())->toBeFalse()
-        ->and($index[$this->p1->id]->hasOpenReports())->toBeTrue()   // its own report is still unsent
-        ->and($index[$this->s11->id]->hasOpenReports())->toBeFalse()
+        ->and($index[$this->p1->id]->open)->toBeTrue()   // its own report is still unsent
+        ->and($index[$this->s11->id]->open)->toBeFalse()
         ->and($index[$this->p1->id]->kpis)->toEqual(chainKpis(10, [28, 40], [13, 16]));
 });
 
@@ -161,7 +161,7 @@ it('flags a sent unit whose descendant is still open', function () {
 
     expect($node->status)->toBe(ChildReportStatus::Sent)
         ->and($node->isHolding())->toBeFalse()
-        ->and($node->hasOpenReports())->toBeTrue();
+        ->and($node->open)->toBeTrue();
 });
 
 it('reads a whole battalion in five queries, however many units it holds', function () {
@@ -201,3 +201,15 @@ it('fails loudly on an unreadable sent snapshot rather than showing a plausible 
 
     $this->chain->build($this->company, chainWeek());
 })->throws(UnexpectedValueException::class, 'unreadable');
+
+it('gives an unsent non-leaf the delta of its roll-up against its own last sent report', function () {
+    $prior = chainKpis(4, [10, 16], [2, 4]);
+    ($this->send)($this->p1, $prior, weeksBack: 1);
+    ($this->send)($this->s11, chainKpis(6, [20, 24], [10, 12]));
+
+    $platoon = chainIndex($this->chain->build($this->company, chainWeek()))[$this->p1->id];
+
+    expect($platoon->live)->toBeTrue()
+        ->and($platoon->delta)->toEqual(KpiDelta::between($platoon->rollup->kpis, $prior))
+        ->and($platoon->delta->strength)->toBe(2);
+});

@@ -91,4 +91,10 @@ describe('reportRollup helpers', () => {
         );
         expect(reminderText(unit, { ...week, now: Date.parse('2026-10-11T00:00:00Z') })).toContain('was due Sat 10Oct26 23:59Z and is overdue');
     });
+
+    it('counts mixed leaves as units rather than mislabelling them', () => {
+        const roots = [node(1, 'company', 'not_started', [node(2, 'platoon', 'not_started'), node(3, 'platoon', 'draft', [node(4, 'section', 'sent')])])];
+
+        expect(progress(roots).label).toBe('Units sent 1 of 2');
+    });
 });

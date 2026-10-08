@@ -45,7 +45,7 @@ class ReportRollupController extends Controller
 
     public function index(Request $request, ?int $unit = null): Response|RedirectResponse
     {
-        $current = self::currentWeek();
+        $current = WeekOf::reporting(CarbonImmutable::now());
         $week = $this->requestedWeek($request, $current);
         $scope = $this->scope->resolve($request->user());
 
@@ -69,7 +69,7 @@ class ReportRollupController extends Controller
         return Inertia::render('Reports/Rollup', [
             'week' => [
                 'start' => $week->toIso8601String(),
-                'reportDue' => self::dueOf($week)->toIso8601String(),
+                'reportDue' => WeekOf::reportDue($week)->toIso8601String(),
                 'isCurrent' => $week->equalTo($current),
                 'options' => collect(range(0, self::PAST_WEEKS))
                     ->map(fn (int $back) => $current->subWeeks($back)->toDateString())
@@ -81,25 +81,10 @@ class ReportRollupController extends Controller
     }
 
     /**
-     * The week whose report cycle is running — the rule `HomeController` applies: a week's report
-     * is due at 23:59Z on the Saturday after it ends, so until then the closing week stays current.
-     */
-    private static function currentWeek(): CarbonImmutable
-    {
-        $now = CarbonImmutable::now();
-        $weekStart = WeekOf::start($now);
-
-        return $now->lessThan($weekStart->setTime(23, 59)) ? $weekStart->subWeek() : $weekStart;
-    }
-
-    private static function dueOf(CarbonImmutable $weekStart): CarbonImmutable
-    {
-        return $weekStart->addWeek()->setTime(23, 59);
-    }
-
-    /**
-     * `?week=YYYY-MM-DD`, a week boundary no later than the current week; absent means current.
-     * Anything else is a page that does not exist rather than a silently snapped week.
+     * `?week=YYYY-MM-DD`: a week boundary among the ones the selector offers — the current week and
+     * the {@see PAST_WEEKS} before it; absent means current. Anything else, an overflowing date
+     * such as `2026-02-35` included, is a page that does not exist rather than a silently snapped
+     * week.
      */
     private function requestedWeek(Request $request, CarbonImmutable $current): CarbonImmutable
     {
@@ -109,14 +94,23 @@ class ReportRollupController extends Controller
             return $current;
         }
 
+        abort_unless(is_string($param) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $param) === 1, 404);
+
         try {
-            abort_unless(is_string($param) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $param) === 1, 404);
-            $week = WeekOf::requireStart(CarbonImmutable::createFromFormat('!Y-m-d', $param, 'UTC'));
-        } catch (InvalidArgumentException|InvalidFormatException) {
+            $date = CarbonImmutable::createFromFormat('!Y-m-d', $param, 'UTC');
+        } catch (InvalidFormatException) {
             abort(404);
         }
 
-        abort_if($week->greaterThan($current), 404);
+        abort_unless($date->toDateString() === $param, 404);
+
+        try {
+            $week = WeekOf::requireStart($date);
+        } catch (InvalidArgumentException) {
+            abort(404);
+        }
+
+        abort_if($week->greaterThan($current) || $week->lessThan($current->subWeeks(self::PAST_WEEKS)), 404);
 
         return $week;
     }
@@ -164,7 +158,7 @@ class ReportRollupController extends Controller
             'type' => $node->unit->type->value,
             'status' => $node->status->value,
             'holding' => $node->isHolding(),
-            'open' => $node->hasOpenReports(),
+            'open' => $node->open,
             'live' => $node->live,
             'kpis' => self::kpis($node->kpis),
             'delta' => self::delta($node->delta),

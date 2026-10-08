@@ -153,7 +153,46 @@ it('keeps the closing week current until its report deadline passes', function (
 
 it('404s a week that is not a week boundary, malformed, or in the future', function (string $week) {
     $this->actingAs($this->commander)->get("/reports?week={$week}")->assertNotFound();
-})->with(['a Thursday' => '2026-10-01', 'malformed' => 'last-week', 'not a date' => '2026-13-45', 'future' => '2026-10-10']);
+})->with([
+    'a Thursday' => '2026-10-01',
+    'malformed' => 'last-week',
+    'not a date' => '2026-13-45',
+    'an overflowing day that lands on this week' => '2026-09-33',
+    'future' => '2026-10-10',
+    'older than the selector offers' => '2026-07-04',
+]);
+
+it('404s a week given as an array', function () {
+    $this->actingAs($this->commander)->get('/reports?week[]=2026-10-03')->assertNotFound();
+});
+
+it('accepts the oldest week the selector offers', function () {
+    $this->actingAs($this->commander)->get('/reports?week=2026-07-11')
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('week.options.12', '2026-07-11'));
+});
+
+it('shows one tree per separate unit in scope, without redirecting a leader of two sections', function () {
+    $leader = User::factory()->create();
+    PortalRoleGrant::factory()->create(['user_id' => $leader->id, 'unit_id' => $this->s21->id]);
+    PortalRoleGrant::factory()->create(['user_id' => $leader->id, 'unit_id' => $this->s11->id]);
+
+    $this->actingAs($leader)->get('/reports')
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->has('roots', 2)
+            ->where('roots.0.id', $this->s11->id)
+            ->where('roots.1.id', $this->s21->id)
+        );
+});
+
+it('folds a unit nested inside another granted unit into the outer one', function () {
+    PortalRoleGrant::factory()->create(['user_id' => $this->commander->id, 'unit_id' => $this->s21->id]);
+
+    $this->actingAs($this->commander)->get('/reports')
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page->has('roots', 1)->where('roots.0.id', $this->company->id));
+});
 
 it('reads a whole battalion in a constant number of queries', function () {
     $admin = User::factory()->create(['is_admin' => true]);

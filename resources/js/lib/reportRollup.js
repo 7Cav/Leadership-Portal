@@ -127,7 +127,8 @@ export function progress(roots) {
     roots.forEach((root) => walk(root, true));
 
     const count = (status) => leaves.filter((leaf) => displayStatus(leaf) === status).length;
-    const leafType = leaves[0]?.type ?? 'section';
+    // Mixed leaves (an empty platoon beside sections) are counted as units, not mislabelled.
+    const leafType = leaves.every((leaf) => leaf.type === leaves[0]?.type) ? (leaves[0]?.type ?? 'section') : null;
 
     return {
         label: `${PLURAL[leafType] ?? 'Units'} sent ${count('sent')} of ${leaves.length}`,

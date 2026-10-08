@@ -40,7 +40,9 @@ const props = defineProps({
 
 const byId = computed(() => indexTree(props.roots));
 const expanded = ref(defaultExpanded(props.roots));
-const filter = ref(countNodes(props.roots, (node) => node.open) > 0 ? 'open' : 'all');
+// "Not sent" while anything is, so a fully sent chain never opens on an empty tree.
+const defaultFilter = (roots) => (countNodes(roots, (node) => node.open) > 0 ? 'open' : 'all');
+const filter = ref(defaultFilter(props.roots));
 const selectedId = ref(props.roots[0]?.id ?? null);
 const focusedId = ref(selectedId.value);
 const sheetOpen = ref(false);
@@ -62,6 +64,7 @@ watch(
     () => props.roots,
     (roots) => {
         expanded.value = defaultExpanded(roots);
+        filter.value = defaultFilter(roots);
         if (!byId.value.has(selectedId.value)) selectedId.value = roots[0]?.id ?? null;
         focusedId.value = selectedId.value;
     },
@@ -171,10 +174,16 @@ async function copyReminder(node) {
     const text = reminderText(node, { weekStart: props.week.start, reportDue: props.week.reportDue, origin: window.location.origin });
 
     try {
+        // Absent outside a secure context (plain HTTP): fails into the same error path.
         await navigator.clipboard.writeText(text);
         toast.success('Reminder copied', { description: `${unitLabel(node)}, week of ${forumDate(props.week.start)}. Paste it to the leader.` });
-    } catch {
-        toast.error('Could not copy the reminder', { description: 'The browser blocked clipboard access. Allow it for this site and try again.' });
+    } catch (error) {
+        console.error('Copy reminder failed', { unitId: node.id, error });
+        toast.error('Could not copy the reminder', {
+            description: error?.name === 'NotAllowedError'
+                ? 'The browser blocked clipboard access. Allow it for this site and try again.'
+                : 'This browser cannot copy from this page. Open the report and send the leader its link instead.',
+        });
     }
 }
 

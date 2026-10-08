@@ -46,9 +46,7 @@ class ReportRollupSeeder extends Seeder
         $reports = app(WeeklyReportRepository::class);
         $snapshots = app(WeeklyReportKpis::class);
 
-        $now = CarbonImmutable::now();
-        $week = WeekOf::start($now);
-        $week = $now->lessThan($week->setTime(23, 59)) ? $week->subWeek() : $week;
+        $week = WeekOf::reporting(CarbonImmutable::now());
 
         $regiment = $units->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);
         $battalion = $units->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);

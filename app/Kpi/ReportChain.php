@@ -75,15 +75,16 @@ final class ReportChain
         if ($report?->status === WeeklyReportStatus::Sent) {
             $snapshot = self::snapshot($report);
 
-            return new ChainNode($unit, ChildReportStatus::Sent, $snapshot->kpis, false, $snapshot->delta, $report, $rollup, $childNodes);
+            return new ChainNode($unit, $report, $snapshot->kpis, $snapshot->delta, $rollup, $childNodes);
         }
 
+        // Unsent: a non-leaf shows what its report would freeze, its children's sent snapshots;
+        // a leaf its live KPIs, `none()` when nobody is assigned to it (`forSectionsWithin`).
         $kpis = $rollup?->kpis ?? $liveSections->get($unit->id, UnitKpis::none());
         $prior = $priorReports->get($unit->id);
         $delta = $prior?->status === WeeklyReportStatus::Sent ? KpiDelta::between($kpis, self::snapshot($prior)->kpis) : null;
-        $status = $report === null ? ChildReportStatus::NotStarted : ChildReportStatus::Draft;
 
-        return new ChainNode($unit, $status, $kpis, true, $delta, $report, $rollup, $childNodes);
+        return new ChainNode($unit, $report, $kpis, $delta, $rollup, $childNodes);
     }
 
     /**

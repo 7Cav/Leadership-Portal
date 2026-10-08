@@ -65,8 +65,10 @@ final class RollupKpis
      * @param  Collection<int, Unit>  $children  the unit's direct children, in order
      * @param  Collection<int, WeeklyReport>  $reports  the week's reports, keyed by `unit_id`
      *
-     * @throws InvalidArgumentException when `$children` is empty or `$weekStart` is not a
-     *                                  Saturday 00:00 UTC.
+     * @throws InvalidArgumentException when `$children` is empty, `$weekStart` is not a
+     *                                  Saturday 00:00 UTC, or a report is not the child's own for
+     *                                  that week. That `$children` are one unit's direct children
+     *                                  is the caller's to ensure.
      * @throws UnexpectedValueException when a child's sent snapshot cannot be read as `UnitKpis`.
      */
     public static function fromReports(Collection $children, Collection $reports, CarbonInterface $weekStart): RollupResult
@@ -81,6 +83,12 @@ final class RollupKpis
 
     private static function childReport(Unit $child, ?WeeklyReport $report, CarbonImmutable $weekStart): ChildReport
     {
+        // Handed in by the caller since 5.8: a report keyed to the wrong unit or week would roll
+        // up silently as this child's, so it is refused instead.
+        if ($report !== null && ($report->unit_id !== $child->id || ! $report->week_start->equalTo($weekStart))) {
+            throw new InvalidArgumentException("The report given for unit {$child->id} belongs to unit {$report->unit_id}, week {$report->week_start->toDateString()}; expected week {$weekStart->toDateString()}.");
+        }
+
         return match ($report?->status) {
             null => new ChildReport($child, ChildReportStatus::NotStarted, null),
             WeeklyReportStatus::Draft => new ChildReport($child, ChildReportStatus::Draft, null),
