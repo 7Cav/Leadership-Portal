@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\ForumAuthController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Settings\AuditLogController;
+use App\Http\Controllers\Settings\DemoDataController;
 use App\Http\Controllers\Settings\OrgStructureController;
 use App\Http\Controllers\Settings\RosterSyncController;
 use App\Http\Controllers\Settings\StaffGrantsController;
@@ -65,4 +66,10 @@ Route::middleware('auth')->group(function () {
     // host this control is Story 2.8's. The Admin gate is enforced in the controller (AD-6),
     // matching every other admin-gated write here.
     Route::post('/settings/roster-sync', [RosterSyncController::class, 'store'])->name('settings.roster-sync.store');
+
+    // Demo history for the real roster (#115). Admin-only; every route 404s unless
+    // `portal.demo_tools` is on (DEMO_TOOLS=true) — both gates are enforced in the controller.
+    Route::get('/settings/demo-data', [DemoDataController::class, 'index'])->name('settings.demo-data');
+    Route::post('/settings/demo-data', [DemoDataController::class, 'store'])->name('settings.demo-data.store');
+    Route::delete('/settings/demo-data', [DemoDataController::class, 'destroy'])->name('settings.demo-data.destroy');
 });
