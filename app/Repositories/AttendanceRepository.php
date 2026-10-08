@@ -67,7 +67,8 @@ interface AttendanceRepository
      * inclusive: one per trooper per practice their *primary* section held in that span, whether
      * or not the trooper has an attendance row on it (no row reads as a null status and an
      * unsigned rollcall). Each mark says whether its practice was *held* — at least one attendance
-     * row on it carries an SP `status`; a row that exists only for rollcall signatures is not. A
+     * row on it, from any trooper, carries a leader's SP mark (any `status` but `loa`, which is
+     * derived from LOA data); a row with only rollcall signatures or `loa` marks is not. A
      * row against any other section's practice is not a counting mark and is left out. Ordered by
      * trooper id, then week. One query, however large the subtree.
      *

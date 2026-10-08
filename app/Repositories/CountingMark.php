@@ -11,8 +11,8 @@ use Carbon\CarbonImmutable;
  * fact the KPI service (5.1) reads. `status` is null while the practice is unmarked for this
  * trooper; `rollcall` is `Unsigned` until they sign, including when they have no attendance row
  * at all.
- * `held` is true once anyone in the section has an SP mark on this practice — a practice row
- * created only by rollcall signatures (every `status` null) has not been held.
+ * `held` is true once any attendance row on this practice carries a leader's SP mark (any
+ * `status` but the LOA-derived `loa`) — a row with only rollcall signatures has not been held.
  */
 final readonly class CountingMark
 {

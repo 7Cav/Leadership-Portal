@@ -35,7 +35,8 @@ use InvalidArgumentException;
  *   is recorded against the section-week's practice row, so a week with no row counts unsigned.
  * - **SP**: practices marked present, makeup or attached ÷ the *held* practices (one row per
  *   section-week, AD-14's counting SP) of their *current* primary section. A practice is held
- *   once anyone in the section has an SP mark on it; a week with no practice row, or a row that
+ *   once any attendance row on it carries a leader's SP mark (`loa`, derived from LOA data,
+ *   does not count); a week with no practice row, or a row that
  *   carries only rollcall signatures, is not eligible. In a held practice a trooper left
  *   unmarked is eligible but not attended — the leader saw the practice happen. A mark against
  *   another section's practice never counts, a makeup included.

@@ -148,6 +148,15 @@ it('leaves a practice with only rollcall signatures out of SP, leaving RC unaffe
         ->and($kpis->rc30d)->toEqual(new Ratio(2, 8));
 });
 
+it('does not treat a practice whose only marks are loa as held', function () {
+    $onLoa = kpiTrooper($this->sectionA);
+    $silent = kpiTrooper($this->sectionA);
+    kpiMark($onLoa, $this->sectionA, 0, AttendanceStatus::Loa);
+
+    expect($this->kpis->trooperAttendance($this->sectionA, kpiWeek())[$silent->id]->practice)->toEqual(new Ratio(0, 0))
+        ->and($this->kpis->forUnit($this->sectionA, kpiWeek())->sp30d)->toEqual(new Ratio(0, 0));
+});
+
 it('makes a practice eligible for every assigned trooper of the section once one is marked', function () {
     $marked = kpiTrooper($this->sectionA);
     $signedOnly = kpiTrooper($this->sectionA);

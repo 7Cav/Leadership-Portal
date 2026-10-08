@@ -48,10 +48,13 @@ class Eloquent implements AttendanceRepository
 
     public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
     {
-        // A practice is held once anyone in it has an SP mark; signatures alone do not hold it.
+        // A practice is held once any row on it carries a leader's SP mark. Signatures alone do
+        // not hold it, and neither does `loa` — derived from LOA data, it says nothing about
+        // whether the practice ran.
         $held = Attendance::query()
             ->select('section_practice_id')
             ->whereNotNull('status')
+            ->where('status', '!=', AttendanceStatus::Loa->value)
             ->groupBy('section_practice_id');
 
         return Trooper::query()
