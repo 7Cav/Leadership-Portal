@@ -24,6 +24,9 @@ use InvalidArgumentException;
  * that touches only its own columns. Recording one fact can never overwrite the other, and a
  * repeat write updates the one row rather than adding a second counting mark.
  *
+ * Every write here is a real one: it clears `is_demo` on the row it touches, so a leader marking
+ * over generated demo history (#115) turns that row real and a demo purge leaves it alone.
+ *
  * Like `SectionPracticeRepository::findOrCreate()`, each write holds inside an open transaction:
  * a racing insert of the same key is found by a locking re-read and updated rather than crashing
  * on the duplicate key. Locks are still taken, so a caller writing several rows in one

@@ -62,10 +62,23 @@ function submit() {
     const action = confirming.value;
     form.unit_id = selectedId.value;
 
+    const failed = (message) => {
+        confirming.value = null;
+        toast.error(message);
+
+        return false; // handled here: no raw error page over the screen
+    };
     const options = {
         preserveScroll: true,
         onSuccess: () => (confirming.value = null),
         onError: () => (confirming.value = null),
+        onHttpException: (response) =>
+            failed(
+                response.status === 403
+                    ? 'That is not allowed. Exit view as, or reload and pick the unit again.'
+                    : `${action === 'purge' ? 'The purge' : 'Generating'} failed (HTTP ${response.status}). Earlier weeks may already be written; reload to see what the portal holds now.`,
+            ),
+        onNetworkError: () => failed('The portal could not be reached. Check your connection and try again.'),
     };
 
     if (action === 'generate') {

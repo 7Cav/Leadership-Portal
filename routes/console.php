@@ -98,6 +98,8 @@ Artisan::command('portal:demo-history {unit : A unit designation (A/1-7) or id}
         return 1;
     }
 
+    $this->line("Recording as {$actor->username}".($as === null ? ' (the earliest Admin; pass --as to choose).' : '.'));
+
     if ($this->option('purge')) {
         $this->info($purger->handle($actor, new PurgeDemoHistory($matches->first()->id))->summary());
 
@@ -113,7 +115,7 @@ Artisan::command('portal:demo-history {unit : A unit designation (A/1-7) or id}
     }
 
     $result = $generator->handle($actor, new GenerateDemoHistory($matches->first()->id, $weeks));
-    $result->hasNoTroopers() ? $this->warn($result->summary()) : $this->info($result->summary());
+    $result->hasNoTroopers() || $result->generatedWeeks === [] ? $this->warn($result->summary()) : $this->info($result->summary());
 
     return 0;
 })->purpose('Generate (or with --purge, remove) demo attendance history for a unit\'s real troopers');

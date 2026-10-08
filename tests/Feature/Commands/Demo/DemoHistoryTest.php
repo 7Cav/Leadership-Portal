@@ -27,6 +27,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Models\WeeklyReportStatus;
+use App\Repositories\DemoHistoryRepository;
 use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
 
@@ -159,6 +160,10 @@ it('freezes section KPIs from the shared service and rolls the platoons and comp
     $platoon = ReportSnapshot::fromArray($report($this->platoon1, $week)->kpis)->kpis;
     expect($platoon)->toEqual(UnitKpis::fromArray($report($this->s11, $week)->kpis)->plus(UnitKpis::fromArray($report($this->s21, $week)->kpis)));
 
+    // Roll-ups carry a delta too, from the second generated week on.
+    expect(ReportSnapshot::fromArray($report($this->platoon1, $week)->kpis)->delta)->not->toBeNull()
+        ->and(ReportSnapshot::fromArray($report($this->platoon1, demoWeek('2026-09-12'))->kpis)->delta)->toBeNull();
+
     $company = ReportSnapshot::fromArray($report($this->company, $week)->kpis)->kpis;
     expect($company->strength)->toBe(14)
         ->and($company)->toEqual($platoon->plus(UnitKpis::fromArray($report($this->platoon2, $week)->kpis)));
@@ -174,6 +179,15 @@ it('looks plausible: most sign and attend, and the chosen trooper is flagged at 
     expect($rows->filter(fn ($r) => $r->rollcall === RollcallSignature::WillAttend)->count())->toBeGreaterThan($rows->count() / 2)
         ->and($rows->filter(fn ($r) => $r->status === AttendanceStatus::Present)->count())->toBeGreaterThan($rows->count() / 2)
         ->and($rows->contains(fn ($r) => $r->status === AttendanceStatus::Missed))->toBeTrue();
+
+    // Beyond the at-risk troopers, some ordinary troopers cannot attend and a few never sign.
+    $atRiskIds = collect([$this->s11, $this->s12])->map(fn (Unit $section) => DemoAttendancePattern::atRiskTrooper(
+        $section->id,
+        Trooper::query()->where('primary_section_id', $section->id)->where('status', '!=', 'inactive')->orderBy('id')->pluck('id')->all(),
+    ))->all();
+    $typical = $rows->reject(fn ($r) => in_array($r->trooper_id, $atRiskIds, true));
+    expect($typical->contains(fn ($r) => $r->rollcall === RollcallSignature::CannotAttend))->toBeTrue()
+        ->and($typical->contains(fn ($r) => $r->rollcall === RollcallSignature::Unsigned))->toBeTrue();
 
     $placed = Trooper::query()->where('primary_section_id', $this->s11->id)->where('status', '!=', 'inactive')->orderBy('id')->pluck('id')->all();
     $atRisk = DemoAttendancePattern::atRiskTrooper($this->s11->id, $placed);
@@ -239,12 +253,56 @@ it('skips a week that already holds real attendance, and reports it', function (
         ->and(SectionPractice::query()->count())->toBe(1);
 });
 
-it('skips a week that already holds a real report', function () {
-    WeeklyReport::factory()->create(['unit_id' => $this->platoon2->id, 'week_start' => demoWeek('2026-09-12')]);
+it('skips a week that already holds a real report, and purge leaves that report alone', function () {
+    $real = WeeklyReport::factory()->create(['unit_id' => $this->platoon2->id, 'week_start' => demoWeek('2026-09-12')]);
 
     $result = generateDemo($this->admin, $this->company);
 
     expect(array_map(fn ($w) => $w->toDateString(), $result->skippedWeeks))->toBe(['2026-09-12']);
+
+    purgeDemo($this->admin, $this->company);
+
+    expect(WeeklyReport::query()->sole()->id)->toBe($real->id);
+});
+
+it('says so when every week already holds real history', function () {
+    foreach (['2026-09-12', '2026-09-19', '2026-09-26'] as $date) {
+        WeeklyReport::factory()->create(['unit_id' => $this->company->id, 'week_start' => demoWeek($date)]);
+    }
+
+    $result = generateDemo($this->admin, $this->company);
+
+    expect($result->generatedWeeks)->toBe([])
+        ->and($result->summary())->toBe('No demo history was generated for A/1-7. Skipped 2026-09-12, 2026-09-19, 2026-09-26: real attendance or reports already exist.')
+        ->and(SectionPractice::query()->count())->toBe(0)
+        ->and(AuditLogEntry::query()->count())->toBe(0);
+});
+
+it('turns a demo row real when a leader marks over it, so purge and regeneration leave it alone', function () {
+    generateDemo($this->admin, $this->s21, weeks: 1);
+    $trooper = Trooper::query()->where('primary_section_id', $this->s21->id)->orderBy('id')->value('id');
+    $marked = Attendance::query()->where('trooper_id', $trooper)->sole();
+    $newStatus = $marked->status === AttendanceStatus::Missed ? AttendanceStatus::Present : AttendanceStatus::Missed;
+
+    app(MarkAttendanceHandler::class)->handle($this->admin, new MarkAttendance(
+        $this->s21->id,
+        demoWeek('2026-09-26')->addDay(),
+        new AttendanceMark($trooper, $newStatus),
+    ));
+
+    expect($marked->fresh()->is_demo)->toBeFalse()
+        ->and(SectionPractice::query()->sole()->is_demo)->toBeFalse();
+
+    // A rerun sees real history in that week and skips it rather than overwriting the mark.
+    expect(array_map(fn ($w) => $w->toDateString(), generateDemo($this->admin, $this->s21, weeks: 1)->skippedWeeks))->toBe(['2026-09-26']);
+
+    $purged = purgeDemo($this->admin, $this->s21);
+
+    expect(Attendance::query()->sole()->id)->toBe($marked->id)
+        ->and(Attendance::query()->sole()->status)->toBe($newStatus)
+        ->and($purged->deleted->attendance)->toBe(2)
+        ->and($purged->deleted->practices)->toBe(0)
+        ->and(app(DemoHistoryRepository::class)->count([$this->s21->id], [$this->s21->id])->practices)->toBe(0);
 });
 
 it('generates nothing, unaudited, for a unit with no placed troopers', function () {

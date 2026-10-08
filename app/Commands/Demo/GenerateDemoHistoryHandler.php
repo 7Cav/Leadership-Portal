@@ -73,7 +73,9 @@ class GenerateDemoHistoryHandler
         $root = $this->authorizedUnit($actor, $command->unitId);
         $subtree = $this->demo->subtreeUnits($root);
         $sections = $subtree->filter(fn (Unit $unit) => $unit->type === UnitType::Section)->values();
-        $placed = $this->demo->placedTroopers($root);
+        // Only troopers placed in an actual section: a practice belongs to a section (AD-14), and
+        // clear/purge only ever look at sections.
+        $placed = $this->demo->placedTroopers($root)->only($sections->modelKeys());
 
         if ($placed->isEmpty()) {
             return new DemoHistoryGenerated($root, [], [], 0, 0, 0, 0);
@@ -102,39 +104,51 @@ class GenerateDemoHistoryHandler
             $weekAttendance = 0;
             $weekReports = 0;
 
-            $this->audit->recordBatch(
-                actorId: $actor->id,
-                action: self::ACTION,
-                reason: 'Demo history for '.($root->callsign ?? $root->name).", week of {$week->toDateString()}",
-                reasonRequired: false,
-                mutation: function () use ($actor, $root, $week, $latest, $sections, $sectionIds, $unitIds, $placed, $rollupUnits, &$weekAttendance, &$weekReports) {
-                    $this->demo->clearWeek($sectionIds, $unitIds, $week);
-
-                    $practices = $this->demo->createPractices($placed->keys()->all(), $week);
-                    $rows = [];
-
-                    foreach ($practices as $sectionId => $practice) {
-                        foreach (DemoAttendancePattern::forSectionWeek($sectionId, $week, $placed->get($sectionId)) as $mark) {
-                            $rows[] = [...$mark, 'section_practice_id' => $practice->id];
+            try {
+                $this->audit->recordBatch(
+                    actorId: $actor->id,
+                    action: self::ACTION,
+                    reason: 'Demo history for '.($root->callsign ?? $root->name).", week of {$week->toDateString()}",
+                    reasonRequired: false,
+                    mutation: function () use ($actor, $root, $week, $latest, $sections, $sectionIds, $unitIds, $placed, $rollupUnits, &$weekAttendance, &$weekReports) {
+                        // Checked again inside the week's transaction: a leader may have recorded
+                        // something real since the up-front check. Thrown, so nothing is written or audited.
+                        if ($this->demo->weeksWithRealHistory($sectionIds, $unitIds, [$week]) !== []) {
+                            throw new WeekHoldsRealHistory;
                         }
-                    }
 
-                    $weekAttendance = $this->demo->insertAttendance($rows);
+                        $this->demo->clearWeek($sectionIds, $unitIds, $week);
 
-                    $prior = $this->reports->forUnits($unitIds, $week->subWeek());
-                    $sent = $sections->map(fn (Unit $section) => $this->send($actor, $section, $week, $this->kpis->forUnit($section, $week), $prior));
+                        $practices = $this->demo->createPractices($placed->keys()->all(), $week);
+                        $rows = [];
 
-                    if (! $week->equalTo($latest)) {
-                        $sent = $sent->concat($rollupUnits->map(
-                            fn (Unit $unit) => $this->send($actor, $unit, $week, $this->rollups->forUnit($unit, $week)->kpis, $prior),
-                        ));
-                    }
+                        foreach ($practices as $sectionId => $practice) {
+                            foreach (DemoAttendancePattern::forSectionWeek($sectionId, $week, $placed->get($sectionId)) as $mark) {
+                                $rows[] = [...$mark, 'section_practice_id' => $practice->id];
+                            }
+                        }
 
-                    $weekReports = $sent->count();
+                        $weekAttendance = $this->demo->insertAttendance($rows);
 
-                    return new AuditedBatch($root, ...$practices->values()->all(), ...$sent->all());
-                },
-            );
+                        $prior = $this->reports->forUnits($unitIds, $week->subWeek());
+                        $sent = $sections->map(fn (Unit $section) => $this->send($actor, $section, $week, $this->kpis->forUnit($section, $week), $prior));
+
+                        if (! $week->equalTo($latest)) {
+                            $sent = $sent->concat($rollupUnits->map(
+                                fn (Unit $unit) => $this->send($actor, $unit, $week, $this->rollups->forUnit($unit, $week)->kpis, $prior),
+                            ));
+                        }
+
+                        $weekReports = $sent->count();
+
+                        return new AuditedBatch($root, ...$practices->values()->all(), ...$sent->all());
+                    },
+                );
+            } catch (WeekHoldsRealHistory) {
+                $skipped[] = $week;
+
+                continue;
+            }
 
             $attendance += $weekAttendance;
             $reports += $weekReports;
@@ -144,7 +158,7 @@ class GenerateDemoHistoryHandler
         return new DemoHistoryGenerated(
             unit: $root,
             generatedWeeks: $generated,
-            skippedWeeks: $skipped,
+            skippedWeeks: collect($skipped)->sortBy(fn (CarbonImmutable $week) => $week->getTimestamp())->values()->all(),
             troopers: $placed->sum(fn (array $ids) => count($ids)),
             sections: $placed->count(),
             attendance: $attendance,

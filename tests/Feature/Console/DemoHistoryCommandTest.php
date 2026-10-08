@@ -31,6 +31,7 @@ it('generates the requested weeks for a designation, recording the earliest Admi
     User::factory()->admin()->create(['username' => 'Later.A']);
 
     $this->artisan('portal:demo-history', ['unit' => 'A/1-7', '--weeks' => 2])
+        ->expectsOutput('Recording as Gryspeert.J (the earliest Admin; pass --as to choose).')
         ->expectsOutput('Generated 2 weeks of demo history for A/1-7: 4 troopers in 1 section, 8 attendance rows, 6 sent reports.')
         ->assertSuccessful();
 
@@ -83,9 +84,14 @@ it('refuses an unknown unit, an out-of-range week count, and a missing Admin', f
     $this->artisan('portal:demo-history', ['unit' => 'A/1-7', '--weeks' => 13])->expectsOutputToContain('--weeks must be')->assertFailed();
     $this->artisan('portal:demo-history', ['unit' => 'A/1-7', '--weeks' => 'lots'])->expectsOutputToContain('--weeks must be')->assertFailed();
     $this->artisan('portal:demo-history', ['unit' => 'A/1-7', '--as' => 'Nobody.X'])->expectsOutputToContain("'Nobody.X' is not exactly one Admin")->assertFailed();
-
     $this->admin->forceFill(['is_admin' => false])->save();
     $this->artisan('portal:demo-history', ['unit' => 'A/1-7'])->expectsOutputToContain('Run php artisan portal:admin')->assertFailed();
+    $this->admin->forceFill(['is_admin' => true])->save();
+    User::factory()->create(['username' => 'Leader.L']);
+    $this->artisan('portal:demo-history', ['unit' => 'A/1-7', '--as' => 'Leader.L'])->expectsOutputToContain("'Leader.L' is not exactly one Admin")->assertFailed();
+    $this->artisan('portal:demo-history', ['unit' => '99999'])->expectsOutputToContain("No unit is designated '99999'")->assertFailed();
+    app(UnitRepository::class)->create(UnitType::Company, 'Alpha (copy)', 'A/1-7', null);
+    $this->artisan('portal:demo-history', ['unit' => 'A/1-7'])->expectsOutputToContain("2 units are designated 'A/1-7'; pass the unit id instead.")->assertFailed();
 
     expect(SectionPractice::query()->count())->toBe(0);
 });

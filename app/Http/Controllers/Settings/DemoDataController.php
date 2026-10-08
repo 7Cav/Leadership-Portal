@@ -88,7 +88,7 @@ class DemoDataController extends Controller
         $this->ensureEnabled();
 
         $data = $request->validate([
-            'unit_id' => ['required', 'integer'],
+            'unit_id' => ['required', 'integer', 'exists:units,id'],
             'weeks' => ['required', 'integer', 'min:1', 'max:'.GenerateDemoHistory::MAX_WEEKS],
         ]);
 
@@ -105,7 +105,7 @@ class DemoDataController extends Controller
     {
         $this->ensureEnabled();
 
-        $data = $request->validate(['unit_id' => ['required', 'integer']]);
+        $data = $request->validate(['unit_id' => ['required', 'integer', 'exists:units,id']]);
 
         $result = $handler->handle($request->user(), new PurgeDemoHistory((int) $data['unit_id']));
 

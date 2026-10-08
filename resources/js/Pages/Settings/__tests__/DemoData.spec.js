@@ -6,7 +6,7 @@ import DemoData from '../DemoData.vue';
 
 const mockPage = reactive({ props: { viewAs: null } });
 const mockForm = vi.hoisted(() => ({ post: vi.fn(), delete: vi.fn() }));
-const mockToast = vi.hoisted(() => ({ success: vi.fn(), info: vi.fn() }));
+const mockToast = vi.hoisted(() => ({ success: vi.fn(), info: vi.fn(), error: vi.fn() }));
 
 vi.mock('vue-sonner', () => ({ toast: mockToast }));
 vi.mock('@inertiajs/vue3', async (importOriginal) => {
@@ -109,6 +109,41 @@ describe('Settings/DemoData', () => {
         inBody('[data-testid="confirm"]').click();
 
         expect(mockForm.post).toHaveBeenCalledWith(expect.objectContaining({ unit_id: 2, weeks: 8 }), '/settings/demo-data', expect.objectContaining({ preserveScroll: true }));
+    });
+
+    it('closes the dialog and toasts an error when the server refuses or cannot be reached', async () => {
+        const wrapper = render();
+        await pick(wrapper, 2);
+        await wrapper.find('[data-testid="generate"]').trigger('click');
+        await flushPromises();
+        inBody('[data-testid="confirm"]').click();
+
+        const options = mockForm.post.mock.calls[0][2];
+        expect(options.onHttpException({ status: 500 })).toBe(false);
+        expect(mockToast.error).toHaveBeenCalledWith(expect.stringContaining('failed (HTTP 500)'));
+        expect(options.onNetworkError(new Error('offline'))).toBe(false);
+        expect(mockToast.error).toHaveBeenLastCalledWith('The portal could not be reached. Check your connection and try again.');
+
+        await flushPromises();
+        expect(inBody('[data-testid="confirm-dialog"]')).toBeNull();
+    });
+
+    it('posts a changed week count', async () => {
+        const wrapper = render();
+        await pick(wrapper, 2);
+        await wrapper.find('[data-testid="weeks"]').setValue(3);
+        await wrapper.find('[data-testid="generate"]').trigger('click');
+        await flushPromises();
+        inBody('[data-testid="confirm"]').click();
+
+        expect(mockForm.post).toHaveBeenCalledWith(expect.objectContaining({ unit_id: 2, weeks: 3 }), '/settings/demo-data', expect.any(Object));
+    });
+
+    it('toasts a result that arrives after a redirect', async () => {
+        const wrapper = mount(DemoData, { props: { units: [], existing: NONE, weeks: { default: 8, max: 12 }, recentWeeks: RECENT, result: null } });
+        await wrapper.setProps({ result: { action: 'purged', empty: false, summary: 'Purged demo history for A/1-7.' } });
+
+        expect(mockToast.success).toHaveBeenCalledWith('Purged demo history for A/1-7.');
     });
 
     it('confirms a purge, then deletes with only the unit', async () => {

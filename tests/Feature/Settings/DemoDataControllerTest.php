@@ -25,6 +25,8 @@ beforeEach(function () {
     $this->section = $units->create(UnitType::Section, '1st Squad', '1/1/A/1-7', $platoon->id);
     $units->create(UnitType::Section, '2nd Squad', '2/1/A/1-7', $platoon->id);
     Trooper::factory()->count(5)->create(['primary_section_id' => $this->section->id]);
+    // Gone from the roster: counted nowhere, the picker included.
+    Trooper::factory()->create(['primary_section_id' => $this->section->id, 'status' => 'inactive']);
 
     $this->admin = User::factory()->admin()->create();
 });
@@ -101,9 +103,10 @@ it('validates the unit and the week count', function (array $payload, string $fi
     'too many weeks' => [['unit_id' => 1, 'weeks' => 13], 'weeks'],
 ]);
 
-it('answers 403 for a unit that does not exist', function () {
-    $this->actingAs($this->admin)->post('/settings/demo-data', ['unit_id' => 99999, 'weeks' => 1])->assertForbidden();
-    $this->actingAs($this->admin)->delete('/settings/demo-data', ['unit_id' => 99999])->assertForbidden();
+it('refuses a unit that does not exist as a field error', function () {
+    $this->actingAs($this->admin)->post('/settings/demo-data', ['unit_id' => 99999, 'weeks' => 1])->assertSessionHasErrors('unit_id');
+    $this->actingAs($this->admin)->delete('/settings/demo-data', ['unit_id' => 99999])->assertSessionHasErrors('unit_id');
+    $this->actingAs($this->admin)->delete('/settings/demo-data')->assertSessionHasErrors('unit_id');
 });
 
 it('refuses a non-Admin, even a leader with scope over the unit', function () {
