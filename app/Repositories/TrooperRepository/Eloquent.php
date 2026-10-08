@@ -11,11 +11,15 @@ use Illuminate\Support\Facades\DB;
 
 class Eloquent implements TrooperRepository
 {
-    public function sync(array $rows, array $activeCavIds): array
+    public function sync(array $rows, array $activeCavIds, array $unreadableCavIds = []): array
     {
-        return DB::transaction(function () use ($rows, $activeCavIds) {
+        return DB::transaction(function () use ($rows, $activeCavIds, $unreadableCavIds) {
             $upserted = $this->upsertActive($rows);
             $inactivated = $this->markDepartedExcept($activeCavIds);
+
+            if ($unreadableCavIds !== []) {
+                Trooper::query()->whereIn('cav_id', $unreadableCavIds)->update(['cav_position_id' => null]);
+            }
 
             return [...$upserted, 'inactivated' => $inactivated];
         });
@@ -35,6 +39,7 @@ class Eloquent implements TrooperRepository
                     'tis' => $row['tis'],
                     'tig' => $row['tig'],
                     'status' => $row['status'],
+                    'cav_position_id' => $row['cav_position_id'] ?? null,
                 ],
             );
 

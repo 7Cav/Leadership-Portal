@@ -220,3 +220,18 @@ it('lists the active troopers placed anywhere in a unit\'s subtree, by id', func
 
     expect(app(TrooperRepository::class)->assignedWithin($platoon)->all())->toBe([$a, $b]);
 });
+
+it('writes the primary billet id with the synced columns, overwriting the previous one (1.16)', function () {
+    $repo = app(TrooperRepository::class);
+    $row = ['cav_id' => 1, 'rank' => 'Corporal', 'mos' => '11B', 'tis' => null, 'tig' => null, 'status' => TrooperStatus::Combat->value];
+
+    $repo->upsertActive([[...$row, 'cav_position_id' => 201]]);
+    expect(Trooper::where('cav_id', 1)->sole()->cav_position_id)->toBe(201);
+
+    $repo->upsertActive([[...$row, 'cav_position_id' => 196]]);
+    expect(Trooper::where('cav_id', 1)->sole()->cav_position_id)->toBe(196);
+
+    // Cav reported no usable billet this time: the stale one is cleared, never kept.
+    $repo->upsertActive([[...$row, 'cav_position_id' => null]]);
+    expect(Trooper::where('cav_id', 1)->sole()->cav_position_id)->toBeNull();
+});

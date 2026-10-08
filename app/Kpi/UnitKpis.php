@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Kpi;
 
 use InvalidArgumentException;
@@ -29,6 +31,28 @@ final readonly class UnitKpis
         }
     }
 
+    /** A unit with no troopers — the starting point a roll-up adds its children's KPIs onto. */
+    public static function none(): self
+    {
+        return new self(0, new Ratio(0, 0), new Ratio(0, 0), 0, 0, 0);
+    }
+
+    /**
+     * This unit's KPIs plus a disjoint unit's — how a roll-up composes its children (5.7): counts
+     * summed, ratios composed from their parts ({@see Ratio::plus()}), never averaged.
+     */
+    public function plus(UnitKpis $other): self
+    {
+        return new self(
+            strength: $this->strength + $other->strength,
+            rc30d: $this->rc30d->plus($other->rc30d),
+            sp30d: $this->sp30d->plus($other->sp30d),
+            atRisk: $this->atRisk + $other->atRisk,
+            onLoa: $this->onLoa + $other->onLoa,
+            makeups: $this->makeups + $other->makeups,
+        );
+    }
+
     /**
      * @return array{strength: int, rc_30d: array{numerator: int, denominator: int}, sp_30d: array{numerator: int, denominator: int}, at_risk: int, on_loa: int, makeups: int}
      */
@@ -45,6 +69,9 @@ final readonly class UnitKpis
     }
 
     /**
+     * Strictly typed (`strict_types`), so a float, bool or numeric string in a stored snapshot is a
+     * `TypeError` rather than silently truncated into a plausible count.
+     *
      * @param  array{strength: int, rc_30d: array{numerator: int, denominator: int}, sp_30d: array{numerator: int, denominator: int}, at_risk: int, on_loa: int, makeups: int}  $kpis
      */
     public static function fromArray(array $kpis): self

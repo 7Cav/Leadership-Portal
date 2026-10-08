@@ -99,6 +99,11 @@ class Eloquent implements UnitRepository
         return $unit->children()->exists();
     }
 
+    public function children(Unit $unit): Collection
+    {
+        return Unit::query()->where('parent_id', $unit->id)->orderBy('id')->get();
+    }
+
     public function delete(Unit $unit): void
     {
         $unit->delete();
