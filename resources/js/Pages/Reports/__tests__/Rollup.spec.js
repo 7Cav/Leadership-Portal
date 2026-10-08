@@ -198,6 +198,19 @@ describe('Reports/Rollup', () => {
         expect(rowIds()).toEqual([1, 2, 11, 21]);
     });
 
+    it('drops a selection the new week would hide, so the panel never shows an off-screen row', async () => {
+        mountRollup();
+        await wrapper.find('[data-testid="filter-all"]').trigger('click');
+        await rows()[2].trigger('click'); // 1/1/A/1-7, sent
+        expect(panel().find('h2').text()).toBe('1/1/A/1-7');
+
+        await wrapper.setProps({ roots: roots() });
+
+        expect(wrapper.find('[data-testid="filter-open"]').attributes('aria-pressed')).toBe('true');
+        expect(panel().find('h2').text()).toBe('A/1-7');
+        expect(rows()[0].attributes('aria-selected')).toBe('true');
+    });
+
     it('reveals a unit picked from the report panel in the tree', async () => {
         mountRollup();
         await rows()[1].trigger('keydown', { key: 'ArrowLeft' }); // collapse the platoon

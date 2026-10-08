@@ -65,7 +65,9 @@ watch(
     (roots) => {
         expanded.value = defaultExpanded(roots);
         filter.value = defaultFilter(roots);
-        if (!byId.value.has(selectedId.value)) selectedId.value = roots[0]?.id ?? null;
+        // Keep the selection only while its row is on screen under the reset filter.
+        const kept = byId.value.get(selectedId.value)?.node;
+        if (!kept || (filter.value === 'open' && !kept.open)) selectedId.value = roots[0]?.id ?? null;
         focusedId.value = selectedId.value;
     },
 );
