@@ -60,8 +60,8 @@ function kpiMark(
     }
 }
 
-/** A practice row for the section-week with nobody marked against it yet. */
-function kpiHeld(Unit $section, int $weeksBack): void
+/** A practice row for the section-week with nobody marked or signed against it — not yet held. */
+function kpiPracticeRow(Unit $section, int $weeksBack): void
 {
     app(SectionPracticeRepository::class)->findOrCreate($section->id, kpiWeek($weeksBack));
 }
@@ -134,16 +134,37 @@ it('leaves a week the section held no practice out of the SP denominator', funct
     expect([$sp->numerator, $sp->denominator])->toBe([2, 2]);
 });
 
-it('counts a held practice the trooper was not marked for in the SP denominator, but not as a miss', function () {
-    $trooper = kpiTrooper($this->sectionA);
-    kpiMark($trooper, $this->sectionA, 1, AttendanceStatus::Present);
-    kpiHeld($this->sectionA, 0);
-    kpiMark($trooper, $this->sectionA, 2, rollcall: RollcallSignature::WillAttend); // signed, not marked
+it('leaves a practice with only rollcall signatures out of SP, leaving RC unaffected', function () {
+    $a = kpiTrooper($this->sectionA);
+    $b = kpiTrooper($this->sectionA);
+    kpiMark($a, $this->sectionA, 0, rollcall: RollcallSignature::WillAttend);
+    kpiMark($b, $this->sectionA, 0, rollcall: RollcallSignature::CannotAttend);
+    kpiPracticeRow($this->sectionA, 1);   // a row nobody has marked or signed
 
-    $attendance = $this->kpis->trooperAttendance($this->sectionA, kpiWeek())->sole();
+    $kpis = $this->kpis->forUnit($this->sectionA, kpiWeek());
 
-    expect([$attendance->practice->numerator, $attendance->practice->denominator])->toBe([1, 3])
-        ->and($attendance->missed)->toBe(0);
+    expect($kpis->sp30d)->toEqual(new Ratio(0, 0))
+        ->and($kpis->sp30d->value())->toBeNull()
+        ->and($kpis->rc30d)->toEqual(new Ratio(2, 8));
+});
+
+it('makes a practice eligible for every assigned trooper of the section once one is marked', function () {
+    $marked = kpiTrooper($this->sectionA);
+    $signedOnly = kpiTrooper($this->sectionA);
+    $silent = kpiTrooper($this->sectionA);
+    kpiMark($marked, $this->sectionA, 0, AttendanceStatus::Present);
+    kpiMark($signedOnly, $this->sectionA, 0, rollcall: RollcallSignature::WillAttend);
+
+    $byTrooper = $this->kpis->trooperAttendance($this->sectionA, kpiWeek());
+
+    // The leader saw the practice happen: the unmarked are eligible but not attended — yet never
+    // counted as a miss, so at-risk is not asserted from a missing mark.
+    expect($byTrooper[$marked->id]->practice)->toEqual(new Ratio(1, 1))
+        ->and($byTrooper[$signedOnly->id]->practice)->toEqual(new Ratio(0, 1))
+        ->and($byTrooper[$silent->id]->practice)->toEqual(new Ratio(0, 1))
+        ->and($byTrooper[$signedOnly->id]->missed)->toBe(0)
+        ->and($byTrooper[$silent->id]->missed)->toBe(0)
+        ->and($this->kpis->forUnit($this->sectionA, kpiWeek())->sp30d)->toEqual(new Ratio(1, 3));
 });
 
 it('computes RC % as signed rollcalls of either kind ÷ the 4 assigned weeks', function () {
@@ -198,10 +219,10 @@ it('measures a trooper who changed section mid-window against their current sect
     $trooper = kpiTrooper($this->sectionA);
     kpiMark($trooper, $this->sectionA, 3, AttendanceStatus::Missed);
     kpiMark($trooper, $this->sectionA, 2, AttendanceStatus::Missed);
-    kpiHeld($this->sectionB, 1);
+    kpiMark(kpiTrooper($this->sectionB), $this->sectionB, 1, AttendanceStatus::Present);   // B held week 1
     $trooper->forceFill(['primary_section_id' => $this->sectionB->id])->save();
 
-    $attendance = $this->kpis->trooperAttendance($this->sectionB, kpiWeek())->sole();
+    $attendance = $this->kpis->trooperAttendance($this->sectionB, kpiWeek())[$trooper->id];
 
     expect($attendance->missed)->toBe(0)
         ->and($attendance->practice)->toEqual(new Ratio(0, 1))

@@ -33,11 +33,13 @@ use InvalidArgumentException;
  * - **RC** (MVP amendment, #23): weeks with a signed rollcall (`will_attend` or `cannot_attend`)
  *   ÷ assigned weeks — all {@see WINDOW_WEEKS}, whether or not a practice was held. A signature
  *   is recorded against the section-week's practice row, so a week with no row counts unsigned.
- * - **SP**: practices marked present, makeup or attached ÷ the practice rows (one per
- *   section-week, AD-14's counting SP) of their *current* primary section. A week with no
- *   practice row is not eligible; a row the trooper is not marked on is eligible but not
- *   attended. A mark against another section's practice never counts, a makeup included.
- * - **missed**: practices explicitly marked `missed`. An unmarked practice is never read as a miss
+ * - **SP**: practices marked present, makeup or attached ÷ the *held* practices (one row per
+ *   section-week, AD-14's counting SP) of their *current* primary section. A practice is held
+ *   once anyone in the section has an SP mark on it; a week with no practice row, or a row that
+ *   carries only rollcall signatures, is not eligible. In a held practice a trooper left
+ *   unmarked is eligible but not attended — the leader saw the practice happen. A mark against
+ *   another section's practice never counts, a makeup included.
+ * - **missed**: practices explicitly marked `missed`. An unmarked trooper is never read as a miss
  *   — the service does not assert absence it was not told about (the AD-4 fail-safe).
  * - An **LOA-covered** week leaves both denominators and is never a miss.
  *
@@ -110,7 +112,7 @@ final class KpiService
             ),
             practice: new Ratio(
                 $eligible->filter(fn (CountingMark $mark) => in_array($mark->status, self::ATTENDED, true))->count(),
-                $eligible->count(),
+                $eligible->filter(fn (CountingMark $mark) => $mark->held)->count(),
             ),
             missed: $eligible->filter(fn (CountingMark $mark) => $mark->status === AttendanceStatus::Missed)->count(),
             onLoa: $thisWeek->contains(fn (CountingMark $mark) => $this->isLoaCovered($mark)),

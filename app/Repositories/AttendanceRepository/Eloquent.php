@@ -16,6 +16,7 @@ use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class Eloquent implements AttendanceRepository
 {
@@ -47,9 +48,16 @@ class Eloquent implements AttendanceRepository
 
     public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
     {
+        // A practice is held once anyone in it has an SP mark; signatures alone do not hold it.
+        $held = Attendance::query()
+            ->select('section_practice_id')
+            ->whereNotNull('status')
+            ->groupBy('section_practice_id');
+
         return Trooper::query()
             ->assignedWithin($unit)
             ->join('section_practices', 'section_practices.section_id', '=', 'troopers.primary_section_id')
+            ->leftJoinSub($held, 'held', 'held.section_practice_id', '=', 'section_practices.id')
             ->leftJoin('attendance', function ($join) {
                 $join->on('attendance.section_practice_id', '=', 'section_practices.id')
                     ->on('attendance.trooper_id', '=', 'troopers.id');
@@ -61,13 +69,20 @@ class Eloquent implements AttendanceRepository
             ->orderBy('troopers.id')
             ->orderBy('section_practices.week_start')
             ->toBase()
-            ->get(['troopers.id as trooper_id', 'section_practices.week_start', 'attendance.status', 'attendance.rollcall'])
+            ->get([
+                'troopers.id as trooper_id',
+                'section_practices.week_start',
+                'attendance.status',
+                'attendance.rollcall',
+                DB::raw('held.section_practice_id is not null as held'),
+            ])
             ->map(fn (object $row) => new CountingMark(
                 trooperId: (int) $row->trooper_id,
                 weekStart: CarbonImmutable::parse($row->week_start, 'UTC'),
                 status: $row->status === null ? null : AttendanceStatus::from($row->status),
                 // Null only when the left join found no attendance row: nobody signed for them.
                 rollcall: $row->rollcall === null ? RollcallSignature::Unsigned : RollcallSignature::from($row->rollcall),
+                held: (bool) $row->held,
             ));
     }
 

@@ -136,8 +136,28 @@ it('reads one counting mark per held practice of the trooper\'s primary section 
     $marks = $this->repo->countingMarks($section, $week->subWeek(), $week);
 
     expect($marks->all())->toEqual([
-        new CountingMark($trooper->id, $week->subWeek(), null, RollcallSignature::Unsigned),
-        new CountingMark($trooper->id, $week, AttendanceStatus::Makeup, RollcallSignature::Unsigned),
+        new CountingMark($trooper->id, $week->subWeek(), null, RollcallSignature::Unsigned, held: false),
+        new CountingMark($trooper->id, $week, AttendanceStatus::Makeup, RollcallSignature::Unsigned, held: true),
+    ]);
+});
+
+it('marks a practice held once anyone in the section has an SP mark, not on signatures alone', function () {
+    [$section, $trooper] = countingFixture();
+    $colleague = Trooper::factory()->create();
+    $colleague->forceFill(['primary_section_id' => $section->id])->save();
+    $week = CarbonImmutable::parse('2026-06-27 00:00:00', 'UTC');
+    $signedOnly = SectionPractice::factory()->create(['section_id' => $section->id, 'week_start' => $week->subWeek()]);
+    $marked = SectionPractice::factory()->create(['section_id' => $section->id, 'week_start' => $week]);
+    $this->repo->signRollcall($signedOnly, $trooper->id, RollcallSignature::WillAttend);
+    $this->repo->signRollcall($signedOnly, $colleague->id, RollcallSignature::CannotAttend);
+    $this->repo->markPractice($marked, $colleague->id, AttendanceStatus::Missed, AttendanceSource::Manual);
+
+    $marks = $this->repo->countingMarks($section, $week->subWeek(), $week)
+        ->where('trooperId', $trooper->id)->values();
+
+    expect($marks->map(fn (CountingMark $m) => [$m->weekStart->toDateString(), $m->status, $m->held])->all())->toBe([
+        ['2026-06-20', null, false],
+        ['2026-06-27', null, true],
     ]);
 });
 

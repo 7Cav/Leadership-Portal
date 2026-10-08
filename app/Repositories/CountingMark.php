@@ -11,6 +11,8 @@ use Carbon\CarbonImmutable;
  * fact the KPI service (5.1) reads. `status` is null while the practice is unmarked for this
  * trooper; `rollcall` is `Unsigned` until they sign, including when they have no attendance row
  * at all.
+ * `held` is true once anyone in the section has an SP mark on this practice — a practice row
+ * created only by rollcall signatures (every `status` null) has not been held.
  */
 final readonly class CountingMark
 {
@@ -19,5 +21,6 @@ final readonly class CountingMark
         public CarbonImmutable $weekStart,
         public ?AttendanceStatus $status,
         public RollcallSignature $rollcall,
+        public bool $held,
     ) {}
 }

@@ -16,7 +16,7 @@ final readonly class TrooperAttendance
         public int $trooperId,
         /** Signed rollcalls ÷ assigned, non-LOA weeks. */
         public Ratio $rollcall,
-        /** Attended practices ÷ held, non-LOA practices. */
+        /** Attended practices ÷ held (someone SP-marked), non-LOA practices. */
         public Ratio $practice,
         /** Practices explicitly marked `missed` in the window. */
         public int $missed,
