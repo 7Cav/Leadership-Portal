@@ -18,6 +18,7 @@
 #   Authorization  → Repository, Model                     # ScopeResolver, the single scope gate (AD-8)
 #   Support\Audit  → Repository                             # audited-action envelope (AD-16)
 #   Support\Time   → (nothing)                              # WeekOf, the one week_start mapper (AD-11)
+#   Middleware     → Authorization                         # shares + guards the view-as preview (Story 1.13)
 #   Repository     → Model, DB, Support\Time               # sole DB access (AD-2)
 #   Model          → DB
 #   Integration    → External                              # sole path out — Saloon lives here (AD-3)
@@ -188,6 +189,8 @@ deptrac:
       - DB
       # Binds the weekly report's ReportKpiSource seam to its echelon implementation (5.6).
       - Kpi
-    # Request glue (Inertia shared props). No app-layer dependency yet; when auth shares
-    # the current user, add the layers it reads here.
-    Middleware: ~
+    # Request glue (Inertia shared props, request guards). Reads the active view-as preview
+    # from the ScopeResolver (Story 1.13) to share it with every page and to refuse writes while
+    # it is active (AD-9) — the scope decision itself stays in Authorization.
+    Middleware:
+      - Authorization

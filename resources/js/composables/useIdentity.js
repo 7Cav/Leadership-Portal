@@ -10,7 +10,17 @@ export function useIdentity() {
     // monogram rather than falling back.
     const username = computed(() => page.props.auth?.user?.username || 'Trooper');
 
-    const isAdmin = computed(() => page.props.auth?.user?.is_admin === true);
+    // Whether the signed-in user really is an Admin. The server's own gates read this flag.
+    const isRealAdmin = computed(() => page.props.auth?.user?.is_admin === true);
+
+    // Whether the shell should draw Admin-only chrome. During a view-as preview (Story 1.13) the
+    // shell shows what the previewed leader would see, so it follows the preview: a unit's leader
+    // is never an Admin, a previewed person is one only if they really are.
+    const isAdmin = computed(() => {
+        const viewAs = page.props.viewAs;
+
+        return viewAs ? viewAs.admin === true : isRealAdmin.value;
+    });
 
     // Cav roster context for this session (Story 1.6). Null when the trooper holds no milpac or
     // the roster API was unavailable; the cluster then degrades to the bare username.
@@ -76,5 +86,5 @@ export function useIdentity() {
             .join(''),
     );
 
-    return { username, isAdmin, name, billet, identity, provenance, provenanceDetail, initials };
+    return { username, isAdmin, isRealAdmin, name, billet, identity, provenance, provenanceDetail, initials };
 }

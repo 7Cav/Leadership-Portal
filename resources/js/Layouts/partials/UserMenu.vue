@@ -1,8 +1,7 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
-import { PhArrowsClockwise, PhDotsThreeVertical, PhEye, PhMoon, PhSignOut, PhSun } from '@phosphor-icons/vue';
+import { PhArrowCounterClockwise, PhArrowsClockwise, PhDotsThreeVertical, PhMoon, PhSignOut, PhSun, PhUserSwitch } from '@phosphor-icons/vue';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -16,11 +15,13 @@ import {
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { useIdentity } from '@/composables/useIdentity';
 import { useTheme } from '@/composables/useTheme';
+import { useViewAs } from '@/composables/useViewAs';
 
 // The identity cluster (Story 1.5–1.7, moved here from Home.vue in Story 1.15): who is signed in,
 // where their rank and billet came from (AD-20), the theme, and Sign out.
 const { name, billet, identity, provenance, provenanceDetail, initials } = useIdentity();
 const { theme, setTheme } = useTheme();
+const { active: viewingAs, openPicker, exit: exitViewAs } = useViewAs();
 </script>
 
 <template>
@@ -63,11 +64,14 @@ const { theme, setTheme } = useTheme();
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
 
-                    <!-- View as lands in Story 1.13; until then it is shown, disabled and labelled. -->
-                    <DropdownMenuItem disabled data-testid="view-as">
-                        <PhEye class="size-4 text-muted-foreground" />
-                        View as
-                        <Badge variant="outline" class="ml-auto">Coming soon</Badge>
+                    <!-- View as (Story 1.13): the same picker the top-bar control opens. -->
+                    <DropdownMenuItem data-testid="view-as" @select="openPicker">
+                        <PhUserSwitch class="size-4 text-muted-foreground" />
+                        View as...
+                    </DropdownMenuItem>
+                    <DropdownMenuItem v-if="viewingAs" data-testid="view-as-menu-exit" @select="exitViewAs()">
+                        <PhArrowCounterClockwise class="size-4 text-muted-foreground" />
+                        Exit view as
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
 

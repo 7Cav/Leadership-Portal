@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Authorization\ScopeResolver;
 use App\Commands\Units\CreateUnit;
 use App\Commands\Units\DeleteUnit;
 use App\Commands\Units\ImportOrgStructure;
@@ -35,7 +36,7 @@ class OrgStructureController extends Controller
      * Everyone authenticated may view the tree (AC #3); only the Admin flag gates authoring
      * (checked client-side for the hidden control, and again below on write — AC #5).
      */
-    public function index(Request $request): Response
+    public function index(Request $request, ScopeResolver $scope): Response
     {
         $units = $this->units->tree()->map(fn ($unit) => [
             'id' => $unit->id,
@@ -51,7 +52,9 @@ class OrgStructureController extends Controller
 
         return Inertia::render('Settings/OrgStructure', [
             'units' => $units,
-            'isAdmin' => (bool) $request->user()->is_admin,
+            // Follows a view-as preview (Story 1.13): authoring controls hide as they would for the
+            // previewed leader. The write gates below keep reading the real flag.
+            'isAdmin' => $scope->actsAsAdmin($request->user()),
             // The outcome of an import just run (story 2.9), flashed by `import()` for one render.
             'importResult' => $request->session()->get('org_import'),
         ]);

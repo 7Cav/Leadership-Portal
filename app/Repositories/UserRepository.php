@@ -50,6 +50,14 @@ interface UserRepository
     public function find(int $id): ?User;
 
     /**
+     * Every portal user, ordered by username — the people an Admin may view the portal as
+     * (Story 1.13). Admins are included: previewing another Admin is a legitimate check.
+     *
+     * @return Collection<int, User>
+     */
+    public function all(): Collection;
+
+    /**
      * Every user who is not an Admin, for the staff-grants target picker (Story 1.12). No
      * roster/Trooper model exists yet (Epic 2), so this is the full pool of portal-known
      * identities minus the ones a grant would be meaningless for — an Admin already resolves

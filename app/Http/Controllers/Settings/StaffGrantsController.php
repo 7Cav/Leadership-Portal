@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Authorization\ScopeResolver;
 use App\Commands\PortalRoleGrants\GrantStaffScope;
 use App\Commands\PortalRoleGrants\GrantTargetIsAdminException;
 use App\Commands\PortalRoleGrants\RevokeStaffScope;
@@ -36,7 +37,7 @@ class StaffGrantsController extends Controller
      * split); only the Admin flag gates authoring (checked client-side for the hidden controls,
      * and again below on write — AD-6).
      */
-    public function index(Request $request): Response
+    public function index(Request $request, ScopeResolver $scope): Response
     {
         $grants = $this->grants->all()->map(fn (PortalRoleGrant $grant) => [
             'id' => $grant->id,
@@ -61,7 +62,9 @@ class StaffGrantsController extends Controller
             'grants' => $grants,
             'units' => $units,
             'users' => $users,
-            'isAdmin' => (bool) $request->user()->is_admin,
+            // Follows a view-as preview (Story 1.13): authoring controls hide as they would for the
+            // previewed leader. The write gates below keep reading the real flag.
+            'isAdmin' => $scope->actsAsAdmin($request->user()),
         ]);
     }
 

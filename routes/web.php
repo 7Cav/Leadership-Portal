@@ -6,6 +6,7 @@ use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\OrgStructureController;
 use App\Http\Controllers\Settings\RosterSyncController;
 use App\Http\Controllers\Settings\StaffGrantsController;
+use App\Http\Controllers\ViewAsController;
 use Illuminate\Support\Facades\Route;
 
 // `/` is only a doorway (Story 1.15 retired the Story 1.1 sample page): signed-in users land on
@@ -30,6 +31,13 @@ Route::middleware('auth')->group(function () {
     // Logout (Story 1.5). POST, so it carries CSRF protection and can't be triggered by a
     // prefetched link or a cross-site <img>.
     Route::post('/logout', [ForumAuthController::class, 'logout'])->name('logout');
+
+    // View-as switcher (Story 1.13, AD-9). The picker reads its options as JSON; entering and
+    // leaving are POST/DELETE so they carry CSRF protection. Every target is checked against real
+    // authority by the ScopeResolver, here and again on every later request.
+    Route::get('/view-as/options', [ViewAsController::class, 'options'])->name('view-as.options');
+    Route::post('/view-as', [ViewAsController::class, 'store'])->name('view-as.store');
+    Route::delete('/view-as', [ViewAsController::class, 'destroy'])->name('view-as.destroy');
 
     // Chain of command (Story 1.8, edit/delete in 1.9). Viewing is open to any authenticated
     // user (AC #3); the Admin gate on every write is enforced in the controller, not by route

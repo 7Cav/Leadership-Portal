@@ -58,6 +58,11 @@ class Eloquent implements UserRepository
         return User::find($id);
     }
 
+    public function all(): Collection
+    {
+        return User::query()->orderBy('username')->get();
+    }
+
     public function nonAdminUsers(): Collection
     {
         return User::query()->where('is_admin', false)->orderBy('username')->get();
