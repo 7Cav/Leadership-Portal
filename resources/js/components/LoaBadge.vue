@@ -31,9 +31,18 @@ const endDate = computed(() => props.cover?.endsAt ?? props.cover?.expectedRetur
 // the pill says so, so a leader can chase it. The server decides (on its UTC day, AD-11), not this device's clock.
 const overdue = computed(() => covered.value && props.cover.overdue === true);
 
+// A leave about to end counts down ("ends in 2d", as the section overview mockup draws it) and anything
+// further off names its date. The server counts the days, on its UTC day, like overdue.
+const COUNTDOWN_DAYS = 7;
+
 const label = computed(() => {
     if (needsReview.value) return `${typeLabel.value} needs review`;
     if (overdue.value) return `${typeLabel.value} overdue ${forumDate(props.cover.expectedReturnAt)}`;
+
+    const days = props.cover.endsInDays;
+    if (typeof days === 'number' && days <= COUNTDOWN_DAYS) {
+        return days === 0 ? `${typeLabel.value} ends today` : `${typeLabel.value} ends in ${days}d`;
+    }
 
     return endDate.value ? `${typeLabel.value} ends ${forumDate(endDate.value)}` : `${typeLabel.value} ongoing`;
 });
@@ -72,6 +81,9 @@ const details = computed(() => {
     return lines;
 });
 
+// The pill shape the mockups draw for every status: fully rounded, no outline, a tinted fill.
+const PILL = 'h-[22px] rounded-full px-2.5 text-xs font-medium';
+
 const detailId = useId();
 </script>
 
@@ -82,7 +94,7 @@ const detailId = useId();
                 <TooltipTrigger as-child>
                     <Badge
                         :variant="covered ? 'warning' : 'outline'"
-                        :class="needsReview ? 'border-dashed text-warning' : ''"
+                        :class="needsReview ? PILL + ' border-dashed border-warning/45 bg-transparent text-warning' : PILL + ' border-transparent bg-warning/15'"
                         :data-state-kind="cover.state"
                         :aria-describedby="detailId"
                         tabindex="0"

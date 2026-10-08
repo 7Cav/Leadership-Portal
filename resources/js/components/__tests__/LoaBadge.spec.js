@@ -14,6 +14,7 @@ const covered = (overrides = {}) => ({
     expectedReturnAt: null,
     ongoing: false,
     overdue: false,
+    endsInDays: null,
     sourceThread: 'https://7cav.us/threads/loa-request.1/',
     reviewReason: null,
     ...overrides,
@@ -50,6 +51,30 @@ describe('LoaBadge', () => {
             const wrapper = badge({ cover: covered(), sync: synced() });
 
             expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('LOA ends 30Oct26');
+        });
+
+        it('counts down when a leave is about to end, as the section overview mockup draws it', () => {
+            const label = (endsInDays) => badge({ cover: covered({ endsInDays }), sync: synced() }).get('[data-testid="loa-badge"]').text();
+
+            expect(label(2)).toBe('LOA ends in 2d');
+            expect(label(1)).toBe('LOA ends in 1d');
+            expect(label(0)).toBe('LOA ends today');
+            expect(label(7)).toBe('LOA ends in 7d');
+        });
+
+        it('names the date once a leave is more than a week from ending', () => {
+            const wrapper = badge({ cover: covered({ endsInDays: 8 }), sync: synced() });
+
+            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('LOA ends 30Oct26');
+        });
+
+        it('draws a pill: fully rounded, no outline, a tinted amber fill', () => {
+            const classes = badge({ cover: covered(), sync: synced() }).get('[data-testid="loa-badge"]').classes();
+
+            expect(classes).toContain('rounded-full');
+            expect(classes).toContain('border-transparent');
+            expect(classes).toContain('bg-warning/15');
+            expect(classes).toContain('text-warning');
         });
 
         it('shows the type and ongoing when an open-ended leave has no expected return either', () => {
