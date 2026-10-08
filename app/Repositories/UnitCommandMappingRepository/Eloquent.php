@@ -7,6 +7,7 @@ use App\Models\Unit;
 use App\Models\UnitCommandMapping;
 use App\Models\User;
 use App\Repositories\UnitCommandMappingRepository;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 class Eloquent implements UnitCommandMappingRepository
@@ -37,16 +38,35 @@ class Eloquent implements UnitCommandMappingRepository
             return null;
         }
 
+        return $this->commandedUnits()->where('troopers.cav_id', $user->cav_id)->first();
+    }
+
+    public function commandedUnitsByCavId(array $cavIds): Collection
+    {
+        return $this->commandedUnits()
+            ->addSelect('troopers.cav_id as commander_cav_id')
+            ->whereIn('troopers.cav_id', $cavIds)
+            ->get()
+            ->keyBy('commander_cav_id');
+    }
+
+    /**
+     * Units joined to the serving trooper whose primary billet commands them — an allow-list of
+     * standings, so a departed (`inactive`) trooper's last billet, or any standing added later,
+     * confers nothing.
+     *
+     * @return Builder<Unit>
+     */
+    private function commandedUnits(): Builder
+    {
         return Unit::query()
             ->select('units.*')
             ->join('unit_command_mappings', 'unit_command_mappings.unit_id', '=', 'units.id')
             ->join('troopers', 'troopers.cav_position_id', '=', 'unit_command_mappings.cav_position_id')
-            ->where('troopers.cav_id', $user->cav_id)
             ->whereIn('troopers.status', [
                 TrooperStatus::Combat->value,
                 TrooperStatus::Reserve->value,
                 TrooperStatus::Eloa->value,
-            ])
-            ->first();
+            ]);
     }
 }

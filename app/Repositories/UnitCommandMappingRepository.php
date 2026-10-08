@@ -47,4 +47,14 @@ interface UnitCommandMappingRepository
      * (`inactive`) trooper's last billet, or any standing added later, confers nothing.
      */
     public function commandedUnitFor(User $user): ?Unit;
+
+    /**
+     * {@see commandedUnitFor()} for many users at once, keyed by `cav_id` — one joined query for
+     * the view-as picker's people list (Story 1.13), with the same serving-roster allow-list. A
+     * cav id with no commanded unit is absent.
+     *
+     * @param  list<int>  $cavIds
+     * @return Collection<int, Unit>
+     */
+    public function commandedUnitsByCavId(array $cavIds): Collection;
 }

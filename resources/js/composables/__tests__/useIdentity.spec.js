@@ -5,10 +5,11 @@ import { useIdentity } from '../useIdentity';
 // tested on the composable directly. AD-20 rule 1 / NFR7: a synced value never appears without its
 // source and age, so a stale rank cannot pass for a fact the portal is sure of.
 let mockAuth = {};
+let mockViewAs = null;
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
-    usePage: () => ({ props: { auth: mockAuth } }),
+    usePage: () => ({ props: { auth: mockAuth, viewAs: mockViewAs } }),
 }));
 
 const enriched = (overrides = {}) => ({
@@ -21,8 +22,9 @@ const enriched = (overrides = {}) => ({
     ...overrides,
 });
 
-function identityFor(user, profile = null) {
+function identityFor(user, profile = null, viewAs = null) {
     mockAuth = { user, profile };
+    mockViewAs = viewAs;
 
     return useIdentity();
 }
@@ -108,5 +110,19 @@ describe('useIdentity', () => {
         [undefined, false],
     ])('reads is_admin %s as Admin = %s (only a real true counts)', (value, expected) => {
         expect(identityFor({ username: 'Hale.S', is_admin: value }).isAdmin.value).toBe(expected);
+    });
+
+    // Story 1.13: a view-as preview shows the shell as the previewed leader sees it, while the
+    // real flag (which the server's gates read) is untouched.
+    it.each([
+        ['a unit preview', { kind: 'unit', admin: false }, false],
+        ['a non-Admin person', { kind: 'user', admin: false }, false],
+        ['an Admin person', { kind: 'user', admin: true }, true],
+        ['a non-boolean admin flag', { kind: 'user', admin: 1 }, false],
+    ])('follows the preview while an Admin views as %s', (_label, viewAs, expected) => {
+        const { isAdmin, isRealAdmin } = identityFor({ username: 'Gryspeert.J', is_admin: true }, null, viewAs);
+
+        expect(isAdmin.value).toBe(expected);
+        expect(isRealAdmin.value).toBe(true);
     });
 });

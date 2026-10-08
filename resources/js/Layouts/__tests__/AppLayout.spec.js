@@ -6,11 +6,13 @@ import { THEME_STORAGE_KEY, useTheme } from '@/composables/useTheme';
 
 // The shell reads everything from the shared Inertia page (url + auth). A reactive stand-in lets
 // a test move the URL the way an Inertia visit would.
-const mockPage = reactive({ url: '/home', props: { auth: { user: null, profile: null } } });
+const mockPage = reactive({ url: '/home', props: { auth: { user: null, profile: null }, viewAs: null } });
+const mockRouter = vi.hoisted(() => ({ post: vi.fn(), delete: vi.fn() }));
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
     usePage: () => mockPage,
+    router: mockRouter,
 }));
 
 const ENRICHED = {
@@ -22,9 +24,9 @@ const ENRICHED = {
     fetched_at: '2026-08-03T09:14:00+00:00',
 };
 
-function mountLayout({ url = '/home', user = { id: 1, username: 'Hale.S', is_admin: false }, profile = null } = {}) {
+function mountLayout({ url = '/home', user = { id: 1, username: 'Hale.S', is_admin: false }, profile = null, viewAs = null } = {}) {
     mockPage.url = url;
-    mockPage.props = { auth: { user, profile } };
+    mockPage.props = { auth: { user, profile }, viewAs };
 
     return mount(AppLayout, {
         slots: { default: '<p data-testid="page-body">Page body</p>' },
@@ -320,13 +322,107 @@ describe('AppLayout', () => {
             expect(inBody('[data-testid="sign-out"]').textContent).toContain('Sign out');
         });
 
-        it('shows View as, disabled and marked coming soon, until Story 1.13', async () => {
+    });
+
+    // Story 1.13: the view-as banner, top-bar control and user-menu entry. The picker itself has
+    // its own spec (partials/__tests__/ViewAsPicker.spec.js).
+    describe('view as', () => {
+        const AS_PERSON = { kind: 'user', id: 7, label: 'SGT Vasquez.R', designation: '2/1/A/1-7', unitName: '2nd Section', admin: false };
+        const AS_UNIT = { kind: 'unit', id: 12, label: '1/A/1-7', designation: '1/A/1-7', unitName: '1st Platoon', admin: false };
+
+        beforeEach(() => {
+            mockRouter.post.mockClear();
+            mockRouter.delete.mockClear();
+        });
+
+        it('offers the View as control in the top bar on every page (AC #1)', () => {
+            for (const url of ['/home', '/settings/org-structure']) {
+                wrapper = mountLayout({ url });
+
+                const trigger = wrapper.find('header [data-testid="view-as-trigger"]');
+                expect(trigger.exists()).toBe(true);
+                expect(trigger.text()).toContain('View as');
+                expect(trigger.attributes('aria-haspopup')).toBe('dialog');
+                wrapper.unmount();
+            }
+        });
+
+        it('shows no banner while view-as is off', () => {
             wrapper = mountLayout();
+
+            expect(wrapper.find('[data-testid="view-as-banner"]').exists()).toBe(false);
+        });
+
+        it('shows a status banner naming the person and their unit while viewing as someone', () => {
+            wrapper = mountLayout({ viewAs: AS_PERSON });
+
+            const banner = wrapper.find('[data-testid="view-as-banner"]');
+            expect(banner.attributes('role')).toBe('status');
+            expect(banner.text()).toContain('Viewing as SGT Vasquez.R');
+            expect(banner.text()).toContain('2/1/A/1-7');
+            expect(banner.text()).toContain('Read-only preview');
+        });
+
+        it('names a unit preview as its leader\'s view', () => {
+            wrapper = mountLayout({ viewAs: AS_UNIT });
+
+            expect(wrapper.find('[data-testid="view-as-banner"]').text()).toContain('Viewing as the leader of 1/A/1-7 (1st Platoon)');
+        });
+
+        it('keeps the banner inside the sticky top bar, above the header', () => {
+            wrapper = mountLayout({ viewAs: AS_PERSON });
+
+            const bar = wrapper.find('[data-testid="view-as-banner"]').element.parentElement;
+            expect(bar.className).toContain('sticky');
+            expect(bar.querySelector('header')).not.toBeNull();
+        });
+
+        it('exits view-as from the banner with a DELETE', async () => {
+            wrapper = mountLayout({ viewAs: AS_PERSON });
+
+            await wrapper.find('[data-testid="view-as-exit"]').trigger('click');
+
+            expect(mockRouter.delete).toHaveBeenCalledWith('/view-as', expect.objectContaining({ preserveScroll: true }));
+            expect(wrapper.find('[data-testid="view-as-exit"]').attributes('disabled')).toBeDefined();
+        });
+
+        it('enables View as in the user menu, and adds Exit while a preview is on', async () => {
+            wrapper = mountLayout({ viewAs: AS_UNIT });
             await openMenu(wrapper, 'user-menu');
 
-            const viewAs = inBody('[data-testid="view-as"]');
-            expect(viewAs.getAttribute('aria-disabled')).toBe('true');
-            expect(viewAs.textContent).toContain('Coming soon');
+            expect(inBody('[data-testid="view-as"]').getAttribute('aria-disabled')).toBeNull();
+            expect(inBody('[data-testid="view-as"]').textContent).not.toContain('Coming soon');
+
+            inBody('[data-testid="view-as-menu-exit"]').dispatchEvent(new Event('click', { bubbles: true }));
+            await flushPromises();
+
+            expect(mockRouter.delete).toHaveBeenCalledWith('/view-as', expect.anything());
+        });
+
+        it('opens the picker from the top-bar control', async () => {
+            vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+            try {
+                wrapper = mountLayout();
+
+                await wrapper.find('[data-testid="view-as-trigger"]').trigger('click');
+                await flushPromises();
+
+                expect(inBody('[data-testid="view-as-picker"]')).not.toBeNull();
+            } finally {
+                vi.unstubAllGlobals();
+            }
+        });
+
+        it('hides Admin-only navigation while an Admin previews a leader', () => {
+            wrapper = mountLayout({ user: { id: 1, username: 'Gryspeert.J', is_admin: true }, viewAs: AS_PERSON });
+
+            expect(wrapper.find('[data-testid="nav-group-settings"]').exists()).toBe(false);
+        });
+
+        it('keeps Admin navigation when the previewed person is an Admin too', () => {
+            wrapper = mountLayout({ user: { id: 1, username: 'Gryspeert.J', is_admin: true }, viewAs: { ...AS_PERSON, admin: true } });
+
+            expect(wrapper.find('[data-testid="nav-group-settings"]').exists()).toBe(true);
         });
     });
 });

@@ -83,4 +83,14 @@ interface TrooperRepository
      * @return Collection<int, int>
      */
     public function assignedWithin(Unit $unit): Collection;
+
+    /**
+     * The synced rank of each trooper in `$cavIds`, keyed by `cav_id` — the label the view-as
+     * picker and banner put in front of a username (Story 1.13). A trooper with no cached row,
+     * or no rank, is simply absent.
+     *
+     * @param  list<int>  $cavIds
+     * @return Collection<int, string>
+     */
+    public function ranksByCavId(array $cavIds): Collection;
 }

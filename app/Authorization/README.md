@@ -15,3 +15,10 @@ synced primary Cav billet commands: `users.cav_id` → `troopers.cav_position_id
 `unit_command_mappings` (written by the org import, 2.9) → that unit's subtree. It is read on
 every request, so a roster sync that changes the billet changes the scope; a departed trooper
 or an unmapped billet derives nothing (deny-by-default, AD-8).
+
+**View-as** (AD-9, Story 1.13) narrows, never widens. `ViewAs` keeps the viewer's chosen target
+(a unit in their scope, or — Admins only — another user) in the server-side session, bound to the
+viewer. `ScopeResolver::resolve()` returns the *effective* scope, `real ∩ target`; `realScope()` is
+the ceiling. The target is re-checked by `evaluate()` on every call, so one that falls outside
+current real authority stops applying at once. While a preview is active, the
+`ReadOnlyWhileViewingAs` middleware refuses every write except leaving view-as and signing out.
