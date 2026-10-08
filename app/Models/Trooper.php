@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * The cached Cav roster (AD-5, AD-22): `Sync\SyncRosterHandler` is this table's sole writer,
@@ -61,6 +62,16 @@ class Trooper extends Model
     public function primarySection(): BelongsTo
     {
         return $this->belongsTo(Unit::class, 'primary_section_id');
+    }
+
+    /**
+     * The portal account linked to this trooper's milpac (`users.cav_id`, set at login by 1.6), if
+     * they have ever signed in. The roster cache stores no name of its own, so this is where a
+     * screen finds a trooper's forum username.
+     */
+    public function user(): HasOne
+    {
+        return $this->hasOne(User::class, 'cav_id', 'cav_id');
     }
 
     /**
