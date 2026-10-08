@@ -143,3 +143,17 @@ it('requires authentication, writing nothing', function () {
 
     expect(SectionPractice::query()->count())->toBe(0);
 });
+
+it('refuses every rollcall write during a view-as preview, and the page sees the preview (1.13)', function () {
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->section->id]);
+
+    $this->actingAs($admin)->get("/rollcall/{$this->section->id}")
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->whereNot('viewAs', null));
+    $this->actingAs($admin)->postJson("/rollcall/{$this->section->id}", ['week' => '2026-10-03', 'marks' => [['trooper_id' => $this->trooper->id, 'status' => 'present']]])
+        ->assertForbidden();
+    $this->actingAs($admin)->postJson("/rollcall/{$this->section->id}/posted", ['week' => '2026-10-03'])->assertForbidden();
+
+    expect(SectionPractice::query()->count())->toBe(0);
+});

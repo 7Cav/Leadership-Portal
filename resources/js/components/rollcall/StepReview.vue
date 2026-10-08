@@ -81,7 +81,11 @@ const practiceStats = computed(() => [
         <section aria-labelledby="review-practice">
             <h3 id="review-practice" class="mb-2 text-[13px] font-semibold">Section practice</h3>
             <dl class="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-5">
-                <div v-for="stat in practiceStats" :key="stat.label" class="bg-card px-3 py-2.5">
+                <div
+                    v-for="(stat, index) in practiceStats"
+                    :key="stat.label"
+                    :class="cn('bg-card px-3 py-2.5', index === practiceStats.length - 1 && 'col-span-2 sm:col-span-1')"
+                >
                     <dt class="text-xs text-muted-foreground">{{ stat.label }}</dt>
                     <dd :class="cn('text-lg font-semibold tabular-nums', stat.tone)">{{ stat.value }}</dd>
                 </div>
