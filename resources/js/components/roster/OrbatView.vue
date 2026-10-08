@@ -416,7 +416,7 @@ function clearAll() {
                             <td>
                                 <span class="inline-flex items-center gap-1.5 text-muted-foreground">
                                     <span v-if="row.trooper.role" class="inline-flex h-[1.0625rem] items-center rounded-sm bg-foreground px-1.5 text-[10px] font-semibold tracking-wide text-background">{{ row.trooper.role }}</span>
-                                    <template v-for="(part, i) in highlightParts(row.trooper.billet ?? 'No billet', query)" :key="i"><mark v-if="part.hit" class="hl">{{ part.text }}</mark><template v-else>{{ part.text }}</template></template>
+                                    <span><template v-for="(part, i) in highlightParts(row.trooper.billet ?? 'No billet', query)" :key="i"><mark v-if="part.hit" class="hl">{{ part.text }}</mark><template v-else>{{ part.text }}</template></template></span>
                                 </span>
                             </td>
                             <td>
