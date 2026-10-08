@@ -6,6 +6,7 @@ use App\Models\SectionPractice;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Repositories\SectionPracticeRepository;
+use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use InvalidArgumentException;
@@ -35,21 +36,20 @@ class Eloquent implements SectionPracticeRepository
     }
 
     /**
-     * Validates rather than derives: mapping an arbitrary time to its `week_start` is
-     * `week_of()`'s job alone (AD-11). TODO(3.2): once the `week_of()` helper lands, replace this
-     * check with `week_of($weekStart)->equalTo($weekStart)` so the boundary rule lives in one
-     * place.
+     * Validates rather than derives: `$weekStart` must already be the boundary `WeekOf` maps its
+     * own instant to (AD-11), so the Saturday 00:00 UTC rule lives in that one helper. Returned
+     * as that UTC instant, so the stored and queried value is the same on every driver.
      */
     private function assertWeekStart(CarbonInterface $weekStart): CarbonImmutable
     {
-        $utc = CarbonImmutable::instance($weekStart)->utc();
+        $boundary = WeekOf::start($weekStart);
 
-        if (! $utc->isSaturday() || ! $utc->equalTo($utc->startOfDay())) {
+        if (! $boundary->equalTo($weekStart)) {
             throw new InvalidArgumentException(
-                "week_start must be a Saturday 00:00 UTC (AD-11); got {$utc->toIso8601String()}.",
+                "week_start must be a Saturday 00:00 UTC (AD-11); got {$weekStart->toIso8601String()}.",
             );
         }
 
-        return $utc;
+        return $boundary;
     }
 }
