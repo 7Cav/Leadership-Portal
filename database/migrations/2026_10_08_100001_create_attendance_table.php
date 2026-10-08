@@ -29,8 +29,12 @@ return new class extends Migration
             // before the practice is held and marked. `loa` is derived from the LOA data, never
             // hand-entered (3.4).
             $table->enum('status', ['present', 'missed', 'makeup', 'attached', 'loa'])->nullable();
-            // Who produced the mark: a leader by hand, or (later) game-server auto-capture.
-            $table->enum('source', ['manual', 'auto']);
+            // Who produced the SP mark: a leader by hand, or (later) game-server auto-capture.
+            // Paired with `status` — both null until the practice is marked, both set after — so
+            // a row that so far only carries a rollcall signature claims no mark source, and the
+            // manual-wins-over-auto rule (AD-22) never trips over one. `AttendanceRepository`
+            // keeps the pairing: only its `markPractice()` writes either column.
+            $table->enum('source', ['manual', 'auto'])->nullable();
             // The weekly rollcall-thread signature (MVP amendment), tracked independently of
             // `status`: signing "I will attend" is not attending. Feeds RC % (5.1).
             $table->enum('rollcall', ['unsigned', 'will_attend', 'cannot_attend'])->default('unsigned');
@@ -38,7 +42,8 @@ return new class extends Migration
 
             // AD-14's grain: exactly one counting mark per trooper per practice.
             $table->unique(['trooper_id', 'section_practice_id']);
-            // `trooper_id` leads the unique index above; this covers the per-practice read.
+            // `trooper_id` leads the unique index above; this covers the per-practice read. MySQL
+            // would otherwise reuse the FK's own index for it, but SQLite (the test DB) has none.
             $table->index('section_practice_id');
         });
     }

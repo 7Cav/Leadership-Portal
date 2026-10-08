@@ -3,6 +3,8 @@
 namespace App\Repositories\SectionPracticeRepository;
 
 use App\Models\SectionPractice;
+use App\Models\Unit;
+use App\Models\UnitType;
 use App\Repositories\SectionPracticeRepository;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -12,9 +14,15 @@ class Eloquent implements SectionPracticeRepository
 {
     public function findOrCreate(int $sectionId, CarbonInterface $weekStart): SectionPractice
     {
+        $weekStart = $this->assertWeekStart($weekStart);
+
+        if (! Unit::query()->whereKey($sectionId)->where('type', UnitType::Section->value)->exists()) {
+            throw new InvalidArgumentException("Unit {$sectionId} is not a section; practices are per section (AD-14).");
+        }
+
         return SectionPractice::query()->createOrFirst([
             'section_id' => $sectionId,
-            'week_start' => $this->assertWeekStart($weekStart),
+            'week_start' => $weekStart,
         ]);
     }
 

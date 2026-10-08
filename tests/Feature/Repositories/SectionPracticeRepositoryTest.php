@@ -60,10 +60,25 @@ it('accepts a Saturday 00:00 UTC given in another timezone', function () {
     // Friday 20:00 in New York (EDT, UTC-4) is Saturday 00:00 UTC.
     $sameInstant = CarbonImmutable::parse('2026-10-02 20:00:00', 'America/New_York');
 
-    $practice = app(SectionPracticeRepository::class)->findOrCreate($this->section->id, $sameInstant);
+    $repo = app(SectionPracticeRepository::class);
+    $practice = $repo->findOrCreate($this->section->id, $sameInstant);
 
     expect($practice->week_start->equalTo($this->saturday))->toBeTrue()
-        ->and($practice->getRawOriginal('week_start'))->toBe('2026-10-03 00:00:00');
+        ->and($practice->getRawOriginal('week_start'))->toBe('2026-10-03 00:00:00')
+        ->and($repo->find($this->section->id, $sameInstant)?->id)->toBe($practice->id);
+});
+
+it('refuses to create a practice for a unit that is not a section', function (UnitType $type) {
+    $unit = Unit::factory()->create(['type' => $type]);
+
+    expect(fn () => app(SectionPracticeRepository::class)->findOrCreate($unit->id, $this->saturday))
+        ->toThrow(InvalidArgumentException::class)
+        ->and(SectionPractice::query()->count())->toBe(0);
+})->with([UnitType::Regiment, UnitType::Battalion, UnitType::Company, UnitType::Platoon]);
+
+it('refuses to create a practice for a unit id that does not exist', function () {
+    expect(fn () => app(SectionPracticeRepository::class)->findOrCreate(999999, $this->saturday))
+        ->toThrow(InvalidArgumentException::class);
 });
 
 it('rejects a week_start that is not a Saturday 00:00 UTC', function (string $time, string $zone) {

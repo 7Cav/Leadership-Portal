@@ -12,17 +12,21 @@ use Illuminate\Support\Collection;
 
 class Eloquent implements AttendanceRepository
 {
-    public function record(
+    public function markPractice(
         SectionPractice $practice,
         int $trooperId,
+        AttendanceStatus $status,
         AttendanceSource $source,
-        ?AttendanceStatus $status,
+    ): Attendance {
+        return $this->upsert($practice, $trooperId, ['status' => $status, 'source' => $source]);
+    }
+
+    public function signRollcall(
+        SectionPractice $practice,
+        int $trooperId,
         RollcallSignature $rollcall,
     ): Attendance {
-        return Attendance::query()->updateOrCreate(
-            ['trooper_id' => $trooperId, 'section_practice_id' => $practice->id],
-            ['source' => $source, 'status' => $status, 'rollcall' => $rollcall],
-        );
+        return $this->upsert($practice, $trooperId, ['rollcall' => $rollcall]);
     }
 
     public function forPractice(SectionPractice $practice): Collection
@@ -32,5 +36,16 @@ class Eloquent implements AttendanceRepository
             ->where('section_practice_id', $practice->id)
             ->orderBy('id')
             ->get();
+    }
+
+    /**
+     * @param  array<string, mixed>  $values  only the columns this write owns
+     */
+    private function upsert(SectionPractice $practice, int $trooperId, array $values): Attendance
+    {
+        return Attendance::query()->updateOrCreate(
+            ['trooper_id' => $trooperId, 'section_practice_id' => $practice->id],
+            $values,
+        );
     }
 }

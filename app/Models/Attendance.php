@@ -9,13 +9,15 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * One trooper's mark against one section practice (AD-14) — UNIQUE on `(trooper_id,
- * section_practice_id)`, so a trooper-week holds exactly one counting mark. Portal-owned (AD-22),
+ * One trooper's row against one section practice (AD-14) — UNIQUE on `(trooper_id,
+ * section_practice_id)`. One counting mark per trooper-week additionally needs the writer to mark
+ * only against the trooper's primary section's practice (AD-14, AD-18). Portal-owned (AD-22),
  * with one creating writer — the Repository layer, driven by 3.3's audited `MarkAttendance`
  * Command.
  *
- * Two independent facts per row: `rollcall` (did they sign the weekly thread) and `status` (the
- * SP mark itself, null until the practice is marked).
+ * Two independent facts per row, each written on its own: `rollcall` (did they sign the weekly
+ * thread) and `status` + `source` (the SP mark and who made it — both null until the practice is
+ * marked).
  */
 #[Fillable(['trooper_id', 'section_practice_id', 'status', 'source', 'rollcall'])]
 class Attendance extends Model
@@ -24,6 +26,11 @@ class Attendance extends Model
     use HasFactory;
 
     protected $table = 'attendance';
+
+    /** Mirrors the column's DB default, so a freshly created model reads it without a refresh. */
+    protected $attributes = [
+        'rollcall' => 'unsigned',
+    ];
 
     protected function casts(): array
     {

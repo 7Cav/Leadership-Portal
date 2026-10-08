@@ -22,12 +22,15 @@ return new class extends Migration
             // under its attendance history (no orphaned marks) — the same protective posture as
             // `units.parent_id` (AD-18).
             $table->foreignId('section_id')->constrained('units')->restrictOnDelete();
-            // Always a Saturday 00:00 UTC (AD-11). A datetime rather than a date so the stored
-            // value is that exact instant on every driver, and no session-timezone conversion
-            // (as `timestamp` would apply on MySQL) can shift it off the boundary.
+            // Always a Saturday 00:00 UTC (AD-11). A `datetime` stores the literal clock time with
+            // no session-timezone conversion (unlike MySQL's `timestamp`), so it is the same text
+            // on every driver. That is correct because `SectionPracticeRepository` converts to UTC
+            // before writing and the app timezone (`config/app.php`) is UTC, so the cast reads it
+            // back as the same instant.
             $table->dateTime('week_start');
             // The auto-capture seam (AD-14, AD-19): null until server retrieval lands (sequenced
-            // last). It becomes a second *source* for this row, never a second writer of record.
+            // last), which then fills these on the existing row. The manual/auto distinction
+            // itself lives in `attendance.source`; auto-capture is never a second writer of record.
             $table->string('server_ref')->nullable();
             $table->dateTime('captured_at')->nullable();
             $table->string('capture_source')->nullable();

@@ -20,9 +20,17 @@ interface SectionPracticeRepository
     /**
      * The section's practice row for the week, creating it if absent. Insert-or-find under the
      * `(section_id, week_start)` UNIQUE constraint, so two concurrent first marks for the same
-     * section-week both land on one row rather than one of them crashing on a duplicate key.
+     * section-week land on one row rather than one of them crashing on a duplicate key — when
+     * called outside a transaction. Inside a MySQL REPEATABLE READ transaction that has already
+     * read, the re-read after a duplicate key sees the transaction's old snapshot and the
+     * duplicate-key exception is rethrown, so a caller wrapping this in a transaction resolves
+     * the practice row first or retries.
      *
-     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     * Practices are per section (AD-14) — a practice keyed to a platoon or company would split a
+     * trooper-week's count across two echelons — so a unit of any other type is refused.
+     *
+     * @throws InvalidArgumentException when `$sectionId` is not a `units` row of type section,
+     *                                  or `$weekStart` is not a Saturday 00:00 UTC.
      */
     public function findOrCreate(int $sectionId, CarbonInterface $weekStart): SectionPractice;
 

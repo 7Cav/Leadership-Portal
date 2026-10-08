@@ -126,12 +126,15 @@ it('rejects a rollcall value outside unsigned/will_attend/cannot_attend at the d
         ->toThrow(QueryException::class);
 });
 
-it('accepts a null status — a trooper can sign the rollcall before the practice is marked', function () {
-    $row = rawAttendanceRow(['status' => null, 'rollcall' => 'will_attend']);
+it('accepts a null status and source — a trooper can sign the rollcall before the practice is marked', function () {
+    $row = rawAttendanceRow(['status' => null, 'source' => null, 'rollcall' => 'will_attend']);
 
     DB::table('attendance')->insert($row);
 
-    expect(DB::table('attendance')->sole()->status)->toBeNull();
+    $raw = DB::table('attendance')->sole();
+
+    expect($raw->status)->toBeNull()
+        ->and($raw->source)->toBeNull();
 });
 
 it('defaults rollcall to unsigned when a row omits it', function () {
@@ -143,7 +146,7 @@ it('defaults rollcall to unsigned when a row omits it', function () {
     expect(DB::table('attendance')->sole()->rollcall)->toBe('unsigned');
 });
 
-it('accepts every enum case the model knows — the DB enums and PHP enums stay in lockstep', function () {
+it('accepts every PHP enum case at the DB — the hand-mirrored enum values have not drifted', function () {
     $section = Unit::factory()->create(['type' => UnitType::Section]);
     $practice = SectionPractice::factory()->create(['section_id' => $section->id]);
 
