@@ -3,6 +3,7 @@
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
+use App\Models\User;
 use App\Repositories\TrooperRepository;
 
 // AD-4: the cache is upserted keyed by `cav_id` onto a stable internal PK, never
@@ -279,4 +280,26 @@ it('writes the primary billet id with the synced columns, overwriting the previo
     // Cav reported no usable billet this time: the stale one is cleared, never kept.
     $repo->upsertActive([[...$row, 'cav_position_id' => null]]);
     expect(Trooper::where('cav_id', 1)->sole()->cav_position_id)->toBeNull();
+});
+
+it('lists a unit\'s assigned troopers with the username linked to each, if any (5.3)', function () {
+    $section = Unit::factory()->create(['path' => '900/']);
+    $linked = Trooper::factory()->create(['cav_id' => 4242, 'primary_section_id' => $section->id]);
+    $unlinked = Trooper::factory()->create(['primary_section_id' => $section->id]);
+    Trooper::factory()->create(['primary_section_id' => $section->id, 'status' => TrooperStatus::Inactive]);
+    Trooper::factory()->create();
+    User::factory()->create(['cav_id' => 4242, 'username' => 'Hale.S']);
+
+    $roster = app(TrooperRepository::class)->rosterOf($section);
+
+    expect($roster->pluck('id')->all())->toBe([$linked->id, $unlinked->id])
+        ->and($roster->pluck('username')->all())->toBe(['Hale.S', null]);
+});
+
+it('reads troopers\' ranks by cav id, leaving out unknown ids and unranked troopers', function () {
+    Trooper::factory()->create(['cav_id' => 11, 'rank' => 'Sergeant']);
+    Trooper::factory()->create(['cav_id' => 12, 'rank' => null]);
+
+    expect(app(TrooperRepository::class)->ranksByCavId([11, 12, 13])->all())->toBe([11 => 'Sergeant'])
+        ->and(app(TrooperRepository::class)->ranksByCavId([])->all())->toBe([]);
 });

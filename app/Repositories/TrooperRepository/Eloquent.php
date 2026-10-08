@@ -90,6 +90,17 @@ class Eloquent implements TrooperRepository
         return Trooper::query()->assignedWithin($unit)->orderBy('id')->pluck('id');
     }
 
+    public function rosterOf(Unit $unit): Collection
+    {
+        return Trooper::query()
+            ->assignedWithin($unit)
+            ->leftJoin('users', 'users.cav_id', '=', 'troopers.cav_id')
+            ->select('troopers.*', 'users.username')
+            ->orderBy('troopers.id')
+            ->get()
+            ->toBase();
+    }
+
     public function ranksByCavId(array $cavIds): Collection
     {
         return Trooper::query()->whereIn('cav_id', $cavIds)->whereNotNull('rank')->pluck('rank', 'cav_id');

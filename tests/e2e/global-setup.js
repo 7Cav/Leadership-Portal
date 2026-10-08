@@ -10,4 +10,7 @@ export default function globalSetup() {
     const env = { ...process.env, ...E2E_ENV };
     execFileSync('php', ['artisan', 'config:clear'], { env, stdio: 'inherit' });
     execFileSync('php', ['artisan', 'migrate:fresh', '--force', '--seeder=Database\\Seeders\\ReportRollupSeeder', '--seed'], { env, stdio: 'inherit' });
+    // The compose screen's own platoon (Story 5.3), apart from the roll-up's so its send cannot
+    // change what the roll-up spec counts.
+    execFileSync('php', ['artisan', 'db:seed', '--force', '--class=Database\\Seeders\\ReportScreenSeeder'], { env, stdio: 'inherit' });
 }

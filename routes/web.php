@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\ForumAuthController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ReportRollupController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\DemoDataController;
 use App\Http\Controllers\Settings\OrgStructureController;
@@ -30,6 +31,16 @@ Route::get('/oauth/callback/7cav', [ForumAuthController::class, 'callback'])->na
 // middleware. Named `home` — the target Laravel's guest middleware bounces to.
 Route::middleware('auth')->group(function () {
     Route::get('/home', [HomeController::class, 'show'])->name('home');
+
+    // The weekly report for one unit-week (Stories 5.3–5.5): compose a section's draft, or a
+    // non-leaf unit's roll-up; save the draft; freeze and send it. Scope is checked in the
+    // controller (403 outside it); `{week}` is the Saturday that opens the Cav week.
+    Route::get('/reports/{unit}/{week}', [ReportController::class, 'show'])
+        ->whereNumber('unit')->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.show');
+    Route::put('/reports/{unit}/{week}', [ReportController::class, 'draft'])
+        ->whereNumber('unit')->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.draft');
+    Route::post('/reports/{unit}/{week}/send', [ReportController::class, 'send'])
+        ->whereNumber('unit')->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.send');
 
     // Logout (Story 1.5). POST, so it carries CSRF protection and can't be triggered by a
     // prefetched link or a cross-site <img>.
