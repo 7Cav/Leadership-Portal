@@ -233,3 +233,13 @@ it('never registers the browser-test sign-in outside the e2e environment', funct
     $this->get('/__e2e/login/Haddad.Y')->assertNotFound();
     expect(auth()->check())->toBeFalse();
 });
+
+// AD-9: view-as narrows the workspace to the target's scope, never widens it.
+it('narrows the workspace to a unit viewed as', function () {
+    $this->actingAs($this->commander)->post('/view-as', ['kind' => 'unit', 'id' => $this->p1->id]);
+
+    $this->actingAs($this->commander)->get('/reports')
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page->has('roots', 1)->where('roots.0.id', $this->p1->id));
+    $this->actingAs($this->commander)->get("/reports/{$this->company->id}")->assertForbidden();
+});
