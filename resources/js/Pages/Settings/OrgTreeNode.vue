@@ -52,7 +52,7 @@ const childType = computed(() => ECHELON_ORDER[ECHELON_ORDER.indexOf(props.node.
                 <span v-if="node.callsign" class="ml-1.5 font-mono text-[11px] text-muted-foreground">{{ node.callsign }}</span>
             </span>
 
-            <span class="ml-auto shrink-0 text-[11px] text-muted-foreground tabular-nums">{{ node.trooper_count }} troopers</span>
+            <span class="ml-auto shrink-0 text-[11px] text-muted-foreground tabular-nums">{{ node.trooper_count }} {{ node.trooper_count === 1 ? 'trooper' : 'troopers' }}</span>
 
             <!--
               Inline tools (UX-DR4 / settings-v1-tree.html), Admin-only and revealed on hover or
