@@ -11,7 +11,8 @@ use Carbon\CarbonImmutable;
  * consumer (the badge, the heatmap, the at-risk helper, the KPI service) asks this object rather than
  * reading `loas` and re-deciding what a row means.
  *
- * - `Covered`: a cleanly read leave touches the week. The absence is excused, and the dates are asserted.
+ * - `Covered`: a cleanly read leave touches the week. The absence is excused, and the dates are asserted. An ELOA
+ *   with no return yet stays covered past its expected return date, since it can be extended.
  * - `NeedsReview`: a leave exists that could not be read. No date and no absence is asserted, and no
  *   at-risk or AWOL attribution is made either: {@see suppressesAtRisk()}.
  * - `None`: no leave touches the week.
@@ -25,6 +26,7 @@ final readonly class LoaCover
         public ?CarbonImmutable $endsAt = null,
         public ?string $sourceThread = null,
         public ?string $reviewReason = null,
+        public ?CarbonImmutable $expectedReturnAt = null,
     ) {}
 
     public static function none(): self
@@ -40,6 +42,7 @@ final readonly class LoaCover
             $loa->starts_at ? CarbonImmutable::instance($loa->starts_at) : null,
             $loa->ends_at ? CarbonImmutable::instance($loa->ends_at) : null,
             $loa->source_thread,
+            expectedReturnAt: $loa->expected_return_at ? CarbonImmutable::instance($loa->expected_return_at) : null,
         );
     }
 
@@ -82,8 +85,9 @@ final readonly class LoaCover
 
     /**
      * The Inertia prop shape the badge reads. Dates are `Y-m-d` calendar days; a needs-review cover has none.
+     * `expectedReturnAt` is an ELOA report's expected return: shown, but it never ends the leave.
      *
-     * @return array{state: string, type: ?string, typeLabel: ?string, startsAt: ?string, endsAt: ?string, ongoing: bool, sourceThread: ?string, reviewReason: ?string}
+     * @return array{state: string, type: ?string, typeLabel: ?string, startsAt: ?string, endsAt: ?string, expectedReturnAt: ?string, ongoing: bool, sourceThread: ?string, reviewReason: ?string}
      */
     public function toArray(): array
     {
@@ -93,6 +97,7 @@ final readonly class LoaCover
             'typeLabel' => $this->type?->label(),
             'startsAt' => $this->startsAt?->toDateString(),
             'endsAt' => $this->endsAt?->toDateString(),
+            'expectedReturnAt' => $this->expectedReturnAt?->toDateString(),
             'ongoing' => $this->ongoing(),
             'sourceThread' => $this->sourceThread,
             'reviewReason' => $this->reviewReason,

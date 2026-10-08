@@ -94,6 +94,19 @@ describe('a cleanly read leave', function () {
             ->and($later->ongoing())->toBeTrue();
     });
 
+    it('keeps an ELOA covered past its expected return, which is only an expectation, and passes the date on', function () {
+        $trooper = Trooper::factory()->create();
+        coverageLeave($trooper, '2026-09-20', null, ['type' => LoaType::Eloa, 'expected_return_at' => '2026-10-01']);
+
+        $cover = coverageOf($trooper);
+
+        expect($cover->isCovered())->toBeTrue()
+            ->and($cover->ongoing())->toBeTrue()
+            ->and($cover->endsAt)->toBeNull()
+            ->and($cover->expectedReturnAt?->toDateString())->toBe('2026-10-01')
+            ->and($cover->toArray()['expectedReturnAt'])->toBe('2026-10-01');
+    });
+
     it('does not cover a week before an open-ended leave starts', function () {
         $trooper = Trooper::factory()->create();
         coverageLeave($trooper, '2026-10-10', null, ['type' => LoaType::Eloa]);
@@ -303,6 +316,7 @@ it('gives the badge its props: a covering leave with dates, a review with none',
         'typeLabel' => 'LOA',
         'startsAt' => '2026-10-05',
         'endsAt' => '2026-10-07',
+        'expectedReturnAt' => null,
         'ongoing' => false,
         'sourceThread' => 'https://7cav.us/threads/a.1/',
         'reviewReason' => null,
@@ -312,6 +326,7 @@ it('gives the badge its props: a covering leave with dates, a review with none',
         'typeLabel' => 'ELOA',
         'startsAt' => null,
         'endsAt' => null,
+        'expectedReturnAt' => null,
         'ongoing' => false,
         'sourceThread' => 'https://7cav.us/threads/b.2/',
         'reviewReason' => 'No end date.',
