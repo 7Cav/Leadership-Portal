@@ -196,7 +196,8 @@ it('writes nothing on an unchanged re-run, and still audits it (AC #5)', functio
         ->and($result->unitsCreated)->toBe(0)
         ->and($result->mappingsCreated)->toBe(0)
         ->and($result->commandMappingsCreated)->toBe(0)
-        ->and($result->commandMappingsDiffering)->toBe(0);
+        ->and($result->commandMappingsRepointed)->toBe(0)
+        ->and($result->commandMappingsRemoved)->toBe(0);
 
     $entries = AuditLogEntry::query()->where('action', 'org_structure.imported')->get();
     $root = iosUnit(UnitType::Regiment, '7CAV');
@@ -411,7 +412,7 @@ it('maps no command for a battalion command group whose battalion has no line co
         ->and(iosUnit(UnitType::Battalion, '4-7'))->toBeNull();
 });
 
-it('counts, but never repoints, an existing command mapping that Cav now places elsewhere (1.16)', function () {
+it('repoints a command mapping Cav now places elsewhere, so scope follows the reorg (1.16)', function () {
     iosImport();
     // Cav reorgs: billet 199 (was Platoon Leader 1/A/1-7) now leads 2nd Platoon.
     $payload = iosFixture();
@@ -427,9 +428,35 @@ it('counts, but never repoints, an existing command mapping that Cav now places 
 
     $result = iosImport();
 
-    expect($result->commandMappingsDiffering)->toBe(1)
+    expect($result->commandMappingsRepointed)->toBe(1)
         ->and($result->commandMappingsCreated)->toBe(0)
-        ->and(iosCommandMappings()[199])->toBe('platoon|1/A/1-7');
+        ->and(iosCommandMappings()[199])->toBe('platoon|2/A/1-7');
+});
+
+it('removes the command mapping of a billet Cav no longer lists as a command (1.16)', function () {
+    iosImport();
+    // Billet 201 (Section Leader 1/1/A/1-7) is retitled to a plain trooper billet, and the 2-7
+    // command group disappears entirely.
+    $payload = iosFixture();
+    foreach ($payload['groups'] as &$group) {
+        foreach ($group['positions'] as &$position) {
+            if ($position['positionId'] === '201') {
+                $position['positionTitle'] = 'Trooper 1/1/A/1-7';
+            }
+        }
+    }
+    unset($group, $position);
+    $payload['groups'] = array_values(array_filter($payload['groups'], fn ($g) => $g['groupTitle'] !== '2-7 Command'));
+    iosFake($payload);
+
+    $result = iosImport();
+
+    expect($result->commandMappingsRemoved)->toBe(2)
+        ->and(iosCommandMappings())->not->toHaveKey(201)
+        ->and(iosCommandMappings())->not->toHaveKey(182)
+        ->and(count(iosCommandMappings()))->toBe(38)
+        // The section mapping is additive and untouched: 201 still places its holder.
+        ->and(iosMappings()[201])->toBe('1/1/A/1-7');
 });
 
 it('re-creates a command mapping dropped with its unit when the import runs again (1.16)', function () {

@@ -9,14 +9,15 @@ use Illuminate\Support\Collection;
 
 /**
  * Sole DB access for the leadership billet → commanded unit mapping (AD-2, 1.16). The org-structure
- * import (2.9) is its only writer and only ever adds rows; the roster-derived half of the user's
- * scope (AD-7, AD-8) reads it through {@see commandedUnitFor()}.
+ * import (2.9) is its only writer and reconciles it to exactly what Cav publishes on every run —
+ * unlike the section mapping, there is no hand curation to protect, and a stale row would keep
+ * granting scope. The roster-derived half of the user's scope (AD-7, AD-8) reads it through
+ * {@see commandedUnitFor()}.
  */
 interface UnitCommandMappingRepository
 {
     /**
-     * Every mapping as `cav_position_id => unit_id`. The import never repoints an existing row,
-     * so it uses this to skip mapped billets and to count the ones that now disagree with Cav.
+     * Every mapping as `cav_position_id => unit_id`, for the import to diff against Cav.
      *
      * @return Collection<int, int>
      */
@@ -25,11 +26,25 @@ interface UnitCommandMappingRepository
     public function create(int $unitId, int $cavPositionId): UnitCommandMapping;
 
     /**
+     * Point an existing billet's mapping at a different unit (a Cav reorg).
+     */
+    public function repoint(int $cavPositionId, int $unitId): void;
+
+    /**
+     * Delete every mapping whose billet is not in `$cavPositionIds` — a billet Cav no longer
+     * lists as a command must stop conferring scope. Returns the number of rows removed.
+     *
+     * @param  list<int>  $cavPositionIds
+     */
+    public function deleteExcept(array $cavPositionIds): int;
+
+    /**
      * The unit `$user`'s synced primary billet commands, or null — one joined, indexed query:
      * `users.cav_id` → `troopers.cav_id` (unique) → `troopers.cav_position_id` →
      * `unit_command_mappings.cav_position_id` (unique) → `units`. Null when the user has no
-     * `cav_id`, no synced trooper, a billet with no command mapping, or the trooper has departed
-     * (`inactive`) — a departed trooper's last billet confers nothing even while it stays mapped.
+     * `cav_id`, no synced trooper, or a billet with no command mapping, and unless the trooper
+     * stands on a serving roster (combat, reserve, ELOA) — an allow-list, so a departed
+     * (`inactive`) trooper's last billet, or any standing added later, confers nothing.
      */
     public function commandedUnitFor(User $user): ?Unit;
 }

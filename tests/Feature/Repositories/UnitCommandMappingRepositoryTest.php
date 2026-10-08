@@ -64,6 +64,28 @@ it('finds nothing for a user with no cav_id, no synced trooper, or an unmapped b
         ->and($repo->commandedUnitFor(ucmLeader(43, 203)))->toBeNull();
 });
 
+it('finds the commanded unit for a trooper on any serving roster', function (TrooperStatus $status) {
+    $company = Unit::factory()->create(['type' => UnitType::Company]);
+    UnitCommandMapping::factory()->create(['unit_id' => $company->id, 'cav_position_id' => 196]);
+
+    expect(app(UnitCommandMappingRepository::class)->commandedUnitFor(ucmLeader(42, 196, $status))?->id)->toBe($company->id);
+})->with([TrooperStatus::Combat, TrooperStatus::Reserve, TrooperStatus::Eloa]);
+
+it('repoints a billet and removes every billet not kept', function () {
+    $a = Unit::factory()->create(['type' => UnitType::Company]);
+    $b = Unit::factory()->create(['type' => UnitType::Company]);
+    UnitCommandMapping::factory()->create(['unit_id' => $a->id, 'cav_position_id' => 196]);
+    UnitCommandMapping::factory()->create(['unit_id' => $a->id, 'cav_position_id' => 197]);
+    UnitCommandMapping::factory()->create(['unit_id' => $a->id, 'cav_position_id' => 198]);
+    $repo = app(UnitCommandMappingRepository::class);
+
+    $repo->repoint(196, $b->id);
+    $removed = $repo->deleteExcept([196, 197]);
+
+    expect($removed)->toBe(1)
+        ->and($repo->unitIdsByPositionId()->all())->toEqualCanonicalizing([196 => $b->id, 197 => $a->id]);
+});
+
 it('finds nothing for a departed trooper even though their billet is still mapped', function () {
     $company = Unit::factory()->create(['type' => UnitType::Company]);
     UnitCommandMapping::factory()->create(['unit_id' => $company->id, 'cav_position_id' => 196]);

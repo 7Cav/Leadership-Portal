@@ -21,10 +21,15 @@ interface TrooperRepository
      * (Story 2.3).
      *
      * @param  list<array{cav_id: int, rank: ?string, mos: ?string, tis: mixed, tig: mixed, status: string, cav_position_id?: ?int}>  $rows
+     *                                                                                                                                       `$unreadableCavIds` are troopers Cav listed but whose row could not be parsed: they stay
+     *                                                                                                                                       active (they are in `$activeCavIds`) but their billet is cleared in the same transaction —
+     *                                                                                                                                       their current billet is unknown, and a stale one must not keep conferring command scope
+     *                                                                                                                                       (1.16, deny-by-default).
      * @param  list<int>  $activeCavIds
+     * @param  list<int>  $unreadableCavIds
      * @return array{inserted: int, updated: int, inactivated: int}
      */
-    public function sync(array $rows, array $activeCavIds): array;
+    public function sync(array $rows, array $activeCavIds, array $unreadableCavIds = []): array;
 
     /**
      * Upsert every row keyed by `cav_id`, updating an existing trooper's synced columns in place

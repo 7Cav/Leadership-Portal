@@ -166,7 +166,8 @@ class OrgStructureController extends Controller
             'mappingsCreated' => $result->mappingsCreated,
             'mappingsDiffering' => $result->mappingsDiffering,
             'commandMappingsCreated' => $result->commandMappingsCreated,
-            'commandMappingsDiffering' => $result->commandMappingsDiffering,
+            'commandMappingsRepointed' => $result->commandMappingsRepointed,
+            'commandMappingsRemoved' => $result->commandMappingsRemoved,
             'skippedTitles' => $result->skippedTitles,
         ]);
     }

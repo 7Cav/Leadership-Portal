@@ -27,15 +27,21 @@ use Illuminate\Support\Facades\Log;
  * Every leadership billet — in a line company, a `<bn> Command` group or Regimental HQ — is also
  * mapped to the unit it commands (story 1.16, {@see CommandBillet}), the input to the
  * roster-derived half of `ScopeResolver`. A command billet whose unit the import has no node for
- * (a battalion command group with no line company) is not mapped: commands never create nodes.
+ * (a battalion command group with no line company) is not mapped — commands never create nodes —
+ * and is logged as unplaced.
  *
  * **Additive and idempotent.** An existing node is reused when its type + callsign match the
  * designation (the regiment root also falls back to any existing root regiment, so the tree
- * keeps a single root), and is never renamed, moved or deleted; an existing mapping (section or
- * command) is never repointed — one that now disagrees with Cav is counted in the result instead, so a reorg is
+ * keeps a single root), and is never renamed, moved or deleted; an existing section mapping is
+ * never repointed — one that now disagrees with Cav is counted in the result instead, so a reorg is
  * visible without the import overriding a deliberate correction. A re-run with unchanged input
  * therefore creates no unit or mapping — but still records an audit row, so the log shows the
  * import ran.
+ *
+ * **Command mappings are the exception: reconciled, not additive.** They are pure derived data
+ * with no hand curation to protect, and a stale one keeps granting scope (AD-8 deny-by-default),
+ * so every run makes `unit_command_mappings` exactly what Cav publishes — new billets added,
+ * moved ones repointed, billets no longer listed as a command removed. Still idempotent.
  *
  * **All or nothing.** The Cav fetch and the parsing happen before any write; the writes happen
  * inside the audited envelope's single transaction (AD-16), so a failure part-way leaves no
@@ -93,7 +99,7 @@ class ImportOrgStructure
 
         $unitsCreated = 0;
         $sectionCounts = [0, 0];
-        $commandCounts = [0, 0];
+        $commandCounts = [0, 0, 0, []];
 
         $this->audit->record(
             actorId: $actor->id,
@@ -130,24 +136,77 @@ class ImportOrgStructure
                     fn (int $unitId, int $positionId) => $this->mappings->create($unitId, $positionId),
                 );
 
-                $commandCounts = $this->addMappings(
-                    $commandByPositionId,
-                    $index,
-                    $this->commands->unitIdsByPositionId(),
-                    fn (int $unitId, int $positionId) => $this->commands->create($unitId, $positionId),
-                );
+                $commandCounts = $this->reconcileCommands($commandByPositionId, $index);
 
                 return $root;
             },
         );
 
-        return new OrgStructureImportResult($unitsCreated, $sectionCounts[0], $sectionCounts[1], $skippedTitles, $commandCounts[0], $commandCounts[1]);
+        [$commandsCreated, $commandsRepointed, $commandsRemoved, $unplacedCommands] = $commandCounts;
+
+        if ($unplacedCommands !== [] || $commandsRepointed > 0 || $commandsRemoved > 0) {
+            // The scope-changing outcomes of a run: who gained a different command, who lost one,
+            // and which command billets have no node to command (that leader derives no scope).
+            Log::info('Org-structure import: command mappings changed or unplaced.', [
+                'actor_id' => $actor->id,
+                'repointed' => $commandsRepointed,
+                'removed' => $commandsRemoved,
+                'unplaced' => $unplacedCommands,
+            ]);
+        }
+
+        return new OrgStructureImportResult(
+            $unitsCreated, $sectionCounts[0], $sectionCounts[1], $skippedTitles,
+            $commandsCreated, $commandsRepointed, $commandsRemoved,
+        );
+    }
+
+    /**
+     * Make `unit_command_mappings` exactly the planned commands: create new billets, repoint
+     * moved ones, remove every billet not (or no longer) planned. A planned billet whose unit has
+     * no node is not mapped — and an existing row for it is removed with the rest — and returned
+     * as unplaced. Returns `[created, repointed, removed, unplaced position id => unit key]`.
+     *
+     * @param  array<int, string>  $unitKeyByPositionId
+     * @param  array<string, Unit>  $index
+     * @return array{0: int, 1: int, 2: int, 3: array<int, string>}
+     */
+    private function reconcileCommands(array $unitKeyByPositionId, array $index): array
+    {
+        $existing = $this->commands->unitIdsByPositionId();
+        $created = 0;
+        $repointed = 0;
+        $placed = [];
+        $unplaced = [];
+
+        foreach ($unitKeyByPositionId as $positionId => $unitKey) {
+            $unit = $index[$unitKey] ?? null;
+
+            if ($unit === null) {
+                $unplaced[$positionId] = $unitKey;
+
+                continue;
+            }
+
+            $placed[] = $positionId;
+
+            if (! $existing->has($positionId)) {
+                $this->commands->create($unit->id, $positionId);
+                $created++;
+            } elseif ($existing->get($positionId) !== $unit->id) {
+                $this->commands->repoint($positionId, $unit->id);
+                $repointed++;
+            }
+        }
+
+        $removed = $this->commands->deleteExcept($placed);
+
+        return [$created, $repointed, $removed, $unplaced];
     }
 
     /**
      * Add every planned `position id => unit key` mapping that does not exist yet; never repoint
-     * one that does — an existing row that now disagrees with Cav is only counted. A key with no
-     * node in `$index` (only possible for a command billet) is skipped. Returns
+     * one that does — an existing row that now disagrees with Cav is only counted. Returns
      * `[created, differing]`.
      *
      * @param  array<int, string>  $unitKeyByPositionId
@@ -162,11 +221,7 @@ class ImportOrgStructure
         $differing = 0;
 
         foreach ($unitKeyByPositionId as $positionId => $unitKey) {
-            $unit = $index[$unitKey] ?? null;
-
-            if ($unit === null) {
-                continue;
-            }
+            $unit = $index[$unitKey];
 
             if ($existing->has($positionId)) {
                 if ($existing->get($positionId) !== $unit->id) {

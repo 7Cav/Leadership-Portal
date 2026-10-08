@@ -68,15 +68,15 @@ class SyncRosterHandler
             // marked departed alongside troopers genuinely absent from every roster. The row's
             // *key* is still the milpac id the sweep found them under, so it counts toward the
             // active set even without the fields to upsert.
-            $activeCavIds = [
-                ...array_column($rows, 'cav_id'),
-                ...array_filter(array_map(
-                    fn ($error) => MilpacId::parse($error->key),
-                    $result->errors,
-                )),
-            ];
+            $unreadableCavIds = array_values(array_filter(array_map(
+                fn ($error) => MilpacId::parse($error->key),
+                $result->errors,
+            )));
+            $activeCavIds = [...array_column($rows, 'cav_id'), ...$unreadableCavIds];
 
-            $counts = $this->troopers->sync($rows, array_values(array_unique($activeCavIds)));
+            // An unreadable row's billet is unknown, so it is cleared rather than left conferring
+            // the last-known command scope (1.16).
+            $counts = $this->troopers->sync($rows, array_values(array_unique($activeCavIds)), $unreadableCavIds);
 
             $this->troopers->updatePrimarySections($this->resolveSections($result->troopers));
 

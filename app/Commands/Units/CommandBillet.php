@@ -15,8 +15,8 @@ use App\Models\UnitType;
  *  - a `<bn> Command` group: `<bn> Commanding Officer` / `Executive Officer` / `Sergeant Major` →
  *    that battalion (ACD spells its command team `Auxiliary Commander` / `Executive Officer` /
  *    `Sergeant Major`);
- *  - `Regimental Commanding Officer` / `Executive Officer` / `Command Sergeant Major` → the
- *    regiment.
+ *  - the `Regimental HQ` group: `Regimental Commanding Officer` / `Executive Officer` /
+ *    `Command Sergeant Major` → the regiment.
  *
  * Matching is exact, like {@see CavDesignation}'s: a role at an echelon it does not command
  * (`Section Leader 1/A/1-7`), or any title not listed, confers nothing rather than being guessed
@@ -34,6 +34,8 @@ final class CommandBillet
         'Executive Officer' => UnitType::Company,
         'First Sergeant' => UnitType::Company,
     ];
+
+    private const REGIMENTAL_GROUP = 'Regimental HQ';
 
     private const REGIMENTAL_TITLES = [
         'Regimental Commanding Officer',
@@ -65,18 +67,21 @@ final class CommandBillet
     }
 
     /**
-     * The unit a billet in a group that is not a line company commands: the regiment, or the
-     * battalion its `<bn> Command` group names. Null for every other billet.
+     * The unit a billet in a group that is not a line company commands: the regiment for a
+     * regimental title in `Regimental HQ`, or the battalion its `<bn> Command` group names. Null
+     * for every other billet — a regimental title listed in any other group included, since the
+     * regiment is the widest scope there is.
      */
     public static function inCommandGroup(string $groupTitle, string $title): ?CavDesignation
     {
         $title = trim($title);
+        $groupTitle = trim($groupTitle);
 
-        if (in_array($title, self::REGIMENTAL_TITLES, true)) {
-            return CavDesignation::regiment();
+        if ($groupTitle === self::REGIMENTAL_GROUP) {
+            return in_array($title, self::REGIMENTAL_TITLES, true) ? CavDesignation::regiment() : null;
         }
 
-        if (preg_match(self::COMMAND_GROUP, trim($groupTitle), $m) !== 1) {
+        if (preg_match(self::COMMAND_GROUP, $groupTitle, $m) !== 1) {
             return null;
         }
 

@@ -75,6 +75,10 @@ it('confers no command for any other billet outside a line company', function (s
     // The Auxiliary titles belong to ACD only.
     ['1-7 Command', 'Auxiliary Commander'],
     ['Retired', 'Retired'],
+    // The regiment is the widest scope there is: its titles count only inside Regimental HQ.
+    ['Retired', 'Regimental Commanding Officer'],
+    ['1-7 Command', 'Regimental Executive Officer'],
+    ['Regimental HQ', 'Regimental Clerk'],
     ['Start-Up Games', 'Section Leader Star Citizen Start-Up'],
     ['Discharged', 'Discharged'],
 ]);

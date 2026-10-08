@@ -442,3 +442,36 @@ it('moves a leader\'s derived scope to their new billet on the next sync (1.16)'
     expect(app(ScopeResolver::class)->resolve($user)->all())
         ->toEqualCanonicalizing([$company->id, $platoon->id, $section->id]);
 });
+
+it('clears the billet of a trooper whose row could not be parsed, keeping them active (1.16)', function () {
+    Trooper::factory()->create(['cav_id' => 5, 'cav_position_id' => 196, 'status' => TrooperStatus::Combat]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['5' => ['code' => 1, 'message' => 'unavailable']]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    $trooper = Trooper::where('cav_id', 5)->sole();
+    expect($trooper->status)->toBe(TrooperStatus::Combat)
+        ->and($trooper->cav_position_id)->toBeNull();
+});
+
+it('revokes a leader\'s derived scope once the sync marks them departed (1.16)', function () {
+    $company = Unit::factory()->create(['type' => UnitType::Company, 'path' => '1/']);
+    UnitCommandMapping::factory()->create(['unit_id' => $company->id, 'cav_position_id' => 196]);
+    $user = User::factory()->create(['cav_id' => 1]);
+
+    srFakeRoster('196');
+    syncRosterHandler()->handle();
+    expect(app(ScopeResolver::class)->resolve($user)->all())->toBe([$company->id]);
+
+    MockClient::destroyGlobal();
+    MockClient::global([SR_COMBAT_URL => srEmptyRoster(), SR_RESERVE_URL => srEmptyRoster(), SR_ELOA_URL => srEmptyRoster()]);
+    syncRosterHandler()->handle();
+
+    expect(Trooper::where('cav_id', 1)->sole()->status)->toBe(TrooperStatus::Inactive)
+        ->and(app(ScopeResolver::class)->resolve($user)->all())->toBe([]);
+});

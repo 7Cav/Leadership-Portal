@@ -211,3 +211,17 @@ it('resolves roster-derived scope in a fixed number of queries, however large th
     expect($scope)->toHaveCount(7)
         ->and(DB::getQueryLog())->toHaveCount(3);
 });
+
+it('adds one subtree query per held grant, never one per unit in a subtree', function () {
+    $tree = rdTree();
+    UnitCommandMapping::factory()->create(['unit_id' => $tree['regiment']->id, 'cav_position_id' => 500]);
+    $leader = rdLeader(500);
+    PortalRoleGrant::factory()->create(['user_id' => $leader->id, 'unit_id' => $tree['battalion']->id]);
+    PortalRoleGrant::factory()->create(['user_id' => $leader->id, 'unit_id' => $tree['otherBattalion']->id]);
+
+    DB::enableQueryLog();
+    app(ScopeResolver::class)->resolve($leader);
+
+    // Grants (with their units eager-loaded), the commanded-unit join, and 1 + 2 subtree queries.
+    expect(DB::getQueryLog())->toHaveCount(6);
+});
