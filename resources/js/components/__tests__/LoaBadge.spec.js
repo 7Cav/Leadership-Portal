@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import LoaBadge from '../LoaBadge.vue';
 
@@ -44,6 +44,13 @@ const synced = (overrides = {}) => ({
 const badge = (props) => mount(LoaBadge, { props });
 
 describe('LoaBadge', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-10-08T16:20:30Z'));
+    });
+
+    afterEach(() => vi.useRealTimers());
+
     describe('a leave that was read', () => {
         it('shows the type and the end date in forum convention', () => {
             const wrapper = badge({ cover: covered(), sync: synced() });
@@ -70,6 +77,25 @@ describe('LoaBadge', () => {
             expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('ELOA ends 13Nov26');
             expect(wrapper.get('[data-testid="loa-details"]').text()).toContain('ELOA from 05Oct26, expected return 13Nov26');
             expect(wrapper.get('[data-testid="loa-details"]').text()).toContain('can be extended');
+        });
+
+        it('says overdue, with the date, once an open ELOA is past its expected return', () => {
+            const wrapper = badge({ cover: covered({ type: 'eloa', typeLabel: 'ELOA', endsAt: null, expectedReturnAt: '2026-10-07', ongoing: true }), sync: synced() });
+
+            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('ELOA overdue 07Oct26');
+            expect(wrapper.get('[data-testid="loa-details"]').text()).toContain('no return has been posted');
+        });
+
+        it('is not overdue on the expected return day itself', () => {
+            const wrapper = badge({ cover: covered({ type: 'eloa', typeLabel: 'ELOA', endsAt: null, expectedReturnAt: '2026-10-08', ongoing: true }), sync: synced() });
+
+            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('ELOA ends 08Oct26');
+        });
+
+        it('is not overdue once a return has ended it', () => {
+            const wrapper = badge({ cover: covered({ type: 'eloa', typeLabel: 'ELOA', endsAt: '2026-10-09', expectedReturnAt: '2026-10-01' }), sync: synced() });
+
+            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('ELOA ends 09Oct26');
         });
 
         it('shows the day a return ended an ELOA, not the expected one', () => {

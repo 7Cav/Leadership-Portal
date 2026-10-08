@@ -27,8 +27,17 @@ const typeLabel = computed(() => props.cover?.typeLabel ?? 'LOA');
 // by that date (it can be extended, and ends when a return is posted), so it is only shown.
 const endDate = computed(() => props.cover?.endsAt ?? props.cover?.expectedReturnAt ?? null);
 
+// An ELOA runs until a return is posted, so one still open after its expected return date is overdue, not over:
+// the pill says so, so a leader can chase it. Judged by the UTC day, the portal's one clock (AD-11).
+const overdue = computed(() => {
+    if (!covered.value || props.cover.endsAt || !props.cover.expectedReturnAt) return false;
+
+    return props.cover.expectedReturnAt < new Date().toISOString().slice(0, 10);
+});
+
 const label = computed(() => {
     if (needsReview.value) return `${typeLabel.value} needs review`;
+    if (overdue.value) return `${typeLabel.value} overdue ${forumDate(props.cover.expectedReturnAt)}`;
 
     return endDate.value ? `${typeLabel.value} ends ${forumDate(endDate.value)}` : `${typeLabel.value} ongoing`;
 });
@@ -45,7 +54,11 @@ const details = computed(() => {
             lines.push(`${start} to ${forumDate(props.cover.endsAt)}`);
         } else if (props.cover.expectedReturnAt) {
             lines.push(`${start}, expected return ${forumDate(props.cover.expectedReturnAt)}`);
-            lines.push('It runs until a return is posted, and can be extended.');
+            lines.push(
+                overdue.value
+                    ? 'That date has passed and no return has been posted. It runs until one is.'
+                    : 'It runs until a return is posted, and can be extended.',
+            );
         } else {
             lines.push(`${start}, no end date yet`);
         }
