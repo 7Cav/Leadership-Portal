@@ -349,3 +349,12 @@ it('carries the roster source and its last sync time (AD-20)', function () {
             ->where('rosterSync.source', 'Cav roster (api.7cav.us)')
             ->where('rosterSync.at', $run->finished_at->toIso8601String()));
 });
+
+it('does not claim who was in a sent roll-up whose snapshot is damaged', function () {
+    $admin = User::factory()->admin()->create();
+    app(WeeklyReportRepository::class)->send($this->platoon->id, $this->weekStart, ['corrupt' => true], null, $admin->id, 'd', null);
+
+    $this->actingAs($admin)->get(reportUrl($this->platoon, $this->week))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('children', null)->whereNot('kpiError', null));
+});

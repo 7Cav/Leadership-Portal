@@ -93,7 +93,7 @@ class ReportController extends Controller
         if ($sent) {
             // A sent report is read back as frozen, never recomputed (AD-12).
             $snapshot = $this->frozen($report);
-            $kpiError = $snapshot === null ? 'the frozen snapshot of this report cannot be read.' : null;
+            $kpiError = $snapshot === null ? "This report's frozen snapshot cannot be read. An admin needs to look at it." : null;
         } else {
             try {
                 $snapshot = $this->snapshots->snapshot($unit, $weekStart);
@@ -129,7 +129,8 @@ class ReportController extends Controller
             'names' => $roster->mapWithKeys(fn (Trooper $t) => [$t->id => $this->trooperLabel($t)]),
             'children' => match (true) {
                 $isLeaf => null,
-                $sent => $this->frozenChildRows($children, $snapshot?->missingChildren ?? []),
+                // A damaged snapshot cannot say who was in it.
+                $sent => $snapshot === null ? null : $this->frozenChildRows($children, $snapshot->missingChildren),
                 default => $this->childRows($unit, $weekStart, $children),
             },
             'missingChildren' => $snapshot?->missingChildren ?? [],

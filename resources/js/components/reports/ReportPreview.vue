@@ -95,7 +95,7 @@ const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id ===
 
         <div v-if="kpiError" role="alert" class="flex items-start gap-2.5 border-t border-border px-5 py-4 text-[13px]">
             <PhWarningCircle class="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
-            <p>These numbers cannot be computed right now: {{ kpiError }}</p>
+            <p>{{ kpiError }}</p>
         </div>
 
         <template v-else-if="kpis">
