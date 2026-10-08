@@ -58,3 +58,23 @@ it('orders by username with nameless troopers last, then by cav_id, so the list 
 it('returns an empty collection when everyone is placed', function () {
     expect(app(TrooperRepository::class)->unplaced()->all())->toBe([]);
 });
+
+// Story 2.8: a section's roster.
+
+it('lists every trooper of a section, departed ones last, in a stable order', function () {
+    $section = Unit::factory()->create();
+    $other = Unit::factory()->create();
+    $zed = Trooper::factory()->create(['username' => 'Zed.Z', 'cav_id' => 1, 'primary_section_id' => $section->id]);
+    $nameless = Trooper::factory()->create(['username' => null, 'cav_id' => 2, 'primary_section_id' => $section->id]);
+    $alpha = Trooper::factory()->create(['username' => 'Alpha.A', 'cav_id' => 3, 'primary_section_id' => $section->id]);
+    $departed = Trooper::factory()->create(['username' => 'Aaron.A', 'cav_id' => 4, 'status' => TrooperStatus::Inactive, 'primary_section_id' => $section->id]);
+    Trooper::factory()->create(['primary_section_id' => $other->id]);
+    Trooper::factory()->create(['primary_section_id' => null]);
+
+    expect(app(TrooperRepository::class)->inSection($section->id)->pluck('id')->all())
+        ->toBe([$alpha->id, $zed->id, $nameless->id, $departed->id]);
+});
+
+it('returns an empty collection for a section with nobody in it', function () {
+    expect(app(TrooperRepository::class)->inSection(Unit::factory()->create()->id)->all())->toBe([]);
+});

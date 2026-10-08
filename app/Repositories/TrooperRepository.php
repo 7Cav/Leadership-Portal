@@ -75,6 +75,16 @@ interface TrooperRepository
     public function find(int $id): ?Trooper;
 
     /**
+     * Every trooper whose primary section is `$sectionId`, for that section's roster (2.8). Troopers
+     * the sync has marked inactive are included, not dropped, so a departure reads as one; they come
+     * last. Within each group the order is username (nameless last), then `cav_id`, so the list never
+     * reshuffles between requests.
+     *
+     * @return EloquentCollection<int, Trooper>
+     */
+    public function inSection(int $sectionId): EloquentCollection;
+
+    /**
      * How many troopers are currently assigned to each section, keyed by section id: not inactive
      * (LOA still counts, as in strength), and only sections that have at least one. The Settings tree
      * rolls these up its branches (2.7), so a placement is visible there at once.

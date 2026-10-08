@@ -82,6 +82,17 @@ class Eloquent implements TrooperRepository
         return Trooper::find($id);
     }
 
+    public function inSection(int $sectionId): EloquentCollection
+    {
+        return Trooper::query()
+            ->where('primary_section_id', $sectionId)
+            ->orderByRaw('status = ?', [TrooperStatus::Inactive->value])
+            ->orderByRaw('username is null')
+            ->orderBy('username')
+            ->orderBy('cav_id')
+            ->get();
+    }
+
     public function countsBySection(): Collection
     {
         return Trooper::query()
