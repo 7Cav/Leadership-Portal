@@ -222,6 +222,14 @@ describe('an ELOA report', function () {
             ->and($parsed->rawEnd)->toBe('when the unit deploys');
     });
 
+    it('drops an expected return that is years away, without sending the thread to review', function () {
+        $body = preg_replace('/Nov 13, 2026/', 'Nov 13, 2062', loaFixture('eloa-report'));
+        $parsed = parseLoa('[ELOA Report] - PFC.Lane.M', $body, LoaType::Eloa);
+
+        expect($parsed->status())->toBe(LoaParseStatus::Ok)
+            ->and($parsed->expectedReturnAt)->toBeNull();
+    });
+
     it('has no expected return for an LOA', function () {
         expect(parseLoa('[LOA Request] - SGT.Smith.J', loaFixture('loa-self'), LoaType::Loa)->expectedReturnAt)->toBeNull();
     });

@@ -64,6 +64,12 @@ final class LoaPostParser
         } elseif ($kind === LoaThreadKind::EloaReport || $kind === LoaThreadKind::EloaReturn) {
             $rawEnd = $this->fieldValues($text, 'Expected return date')[0] ?? null;
             $expectedReturnAt = $kind === LoaThreadKind::EloaReport && $rawEnd !== null ? $this->parseDate($rawEnd) : null;
+
+            // Only displayed, so a date that is far off (a typo) is dropped, not shown and not a reason to review.
+            if ($expectedReturnAt !== null && abs($expectedReturnAt->diffInDays($now)) > self::SANE_DAYS) {
+                $expectedReturnAt = null;
+            }
+
             $pafThreadId = $this->pafThreadId($text);
             $this->checkBodyType($kind, $text, $reasons);
         }
