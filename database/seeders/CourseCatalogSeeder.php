@@ -44,6 +44,7 @@ class CourseCatalogSeeder extends Seeder
 
             [AreaOfOperation::Battlefield6, [
                 'BF6-BAMC' => 'Battlefield 6 Basic Assault and Movement Course',
+                'BF6-BCC' => 'Battlefield 6 Basic Communication Course',
             ]],
 
             [AreaOfOperation::Arma3, [
@@ -81,6 +82,8 @@ class CourseCatalogSeeder extends Seeder
                 'DCS-GS' => 'DCS Ground School Course',
                 'DCS-AGS' => 'DCS Aviation Ground School',
                 'DCS-BCQ' => 'DCS Basic Carrier Qualification Course',
+                // A multi-day course graduates one day at a time on the milpac, so each day is its own course.
+                'DCS-F16-1' => 'DCS F-16 Basic Course Day 1',
             ]],
 
             [AreaOfOperation::Squad, []],
