@@ -24,6 +24,8 @@ readonly class ForumThreadPage
      */
     public static function fromArray(array $data): self
     {
+        // Pinned threads arrive separately under `sticky`; they are not read, since a pinned thread is a
+        // notice (how to file a request), not a request.
         $threads = $data['threads'] ?? null;
 
         if (! is_array($threads)) {

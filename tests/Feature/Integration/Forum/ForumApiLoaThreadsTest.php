@@ -60,14 +60,14 @@ describe('listing a leave section', function () {
             ->and($page->hasMore())->toBeTrue();
     });
 
-    it('asks for the page it was given, and reports the last page as the end', function () {
+    it('asks for the page it was given, newest thread first, and reports the last page as the end', function () {
         $client = MockClient::global([LOA_LIST_URL => MockResponse::make([
             'threads' => [], 'pagination' => ['current_page' => 3, 'last_page' => 3],
         ])]);
 
         $page = loaForum()->listLoaThreads(180, 3);
 
-        $client->assertSent(fn ($request, $response) => $request instanceof ListForumThreadsRequest && $response->getPendingRequest()->query()->all() === ['page' => 3]);
+        $client->assertSent(fn ($request, $response) => $request instanceof ListForumThreadsRequest && $response->getPendingRequest()->query()->all() === ['page' => 3, 'order' => 'post_date', 'direction' => 'desc']);
         expect($page->hasMore())->toBeFalse()->and($page->threads)->toBe([]);
     });
 
@@ -87,6 +87,16 @@ describe('listing a leave section', function () {
         expect($thread->nodeId)->toBe(341)
             ->and($thread->title)->toBe('[ELOA Return] - 1SG.Leifried.R')
             ->and(loaForum()->loaNodes()[341])->toBe('eloa');
+    });
+
+    it('leaves pinned threads out, since the forum returns them separately and they are notices', function () {
+        MockClient::global([LOA_LIST_URL => MockResponse::make([
+            'threads' => [loaThreadJson(['thread_id' => 4001])],
+            'sticky' => [loaThreadJson(['thread_id' => 1, 'title' => 'How to file an LOA', 'sticky' => true])],
+            'pagination' => ['current_page' => 1, 'last_page' => 1],
+        ])]);
+
+        expect(array_map(fn ($thread) => $thread->threadId, loaForum()->listLoaThreads(180)->threads))->toBe([4001]);
     });
 
     it('treats a thread that is not visible as such', function () {
@@ -126,12 +136,18 @@ describe('fetching a leave thread', function () {
             ->and($thread->firstPostBody)->toContain('Start Date');
     });
 
-    it('also reads the first post from the head of a posts list', function () {
-        MockClient::global([LOA_THREAD_URL => MockResponse::make([
-            'thread' => loaThreadJson(), 'posts' => [['message' => 'body from posts']],
-        ])]);
+    it('asks the forum to include the first post, which it leaves out otherwise', function () {
+        $client = MockClient::global([LOA_THREAD_URL => MockResponse::make(['thread' => loaThreadJson(), 'first_post' => ['message' => 'x']])]);
 
-        expect(loaForum()->fetchLoaThread(4001)->firstPostBody)->toBe('body from posts');
+        loaForum()->fetchLoaThread(4001);
+
+        $client->assertSent(fn ($request, $response) => $response->getPendingRequest()->query()->all() === ['with_first_post' => 1]);
+    });
+
+    it('does not accept a thread that came back without its first post', function () {
+        MockClient::global([LOA_THREAD_URL => MockResponse::make(['thread' => loaThreadJson(), 'posts' => [['message' => 'a later page of posts']]])]);
+
+        expect(fn () => loaForum()->fetchLoaThread(4001))->toThrow(ForumRequestException::class, 'missing a field');
     });
 
     it('sends the forum API key as the credential', function () {
@@ -167,6 +183,27 @@ describe('when the forum cannot be read', function () {
         expect(fn () => loaForum()->listLoaThreads(180))->toThrow(ForumRequestException::class, "HTTP {$status}");
         expect(fn () => loaForum()->fetchLoaThread(4001))->toThrow(ForumRequestException::class, "HTTP {$status}");
     })->with([401, 403, 404, 500, 503]);
+
+    it('names the error code the forum sends, so a missing or wrong key is obvious', function (string $code, int $status) {
+        MockClient::global([LOA_LIST_URL => MockResponse::make(['errors' => [['code' => $code, 'message' => 'free text the portal never passes on', 'params' => []]]], $status)]);
+
+        try {
+            loaForum()->listLoaThreads(180);
+            test()->fail('Expected a ForumRequestException.');
+        } catch (ForumRequestException $e) {
+            expect($e->getMessage())->toContain("HTTP {$status}, {$code}")->not->toContain('free text');
+        }
+    })->with([
+        'no key' => ['no_api_key_in_request', 400],
+        'unknown key' => ['api_key_not_found', 400],
+        'not permitted' => ['no_permission', 403],
+    ]);
+
+    it('leaves the code out when the error body is not in the forum error format', function () {
+        MockClient::global([LOA_LIST_URL => MockResponse::make('<html>bad gateway</html>', 502)]);
+
+        expect(fn () => loaForum()->listLoaThreads(180))->toThrow(ForumRequestException::class, '(HTTP 502).');
+    });
 
     it('turns an unreachable forum into a ForumRequestException', function () {
         MockClient::global([LOA_LIST_URL => MockResponse::make()->throw(fn ($pendingRequest) => new FatalRequestException(new Exception('timeout'), $pendingRequest))]);
