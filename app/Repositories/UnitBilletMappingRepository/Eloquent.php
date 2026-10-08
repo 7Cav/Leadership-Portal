@@ -15,4 +15,14 @@ class Eloquent implements UnitBilletMappingRepository
             ->whereHas('unit', fn ($query) => $query->where('type', UnitType::Section->value))
             ->pluck('unit_id', 'cav_position_id');
     }
+
+    public function mappedPositionIds(): Collection
+    {
+        return UnitBilletMapping::query()->pluck('cav_position_id');
+    }
+
+    public function create(int $unitId, int $cavPositionId): UnitBilletMapping
+    {
+        return UnitBilletMapping::query()->create(['unit_id' => $unitId, 'cav_position_id' => $cavPositionId]);
+    }
 }

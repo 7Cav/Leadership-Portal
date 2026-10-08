@@ -2,12 +2,12 @@
 
 namespace App\Repositories;
 
+use App\Models\UnitBilletMapping;
 use Illuminate\Support\Collection;
 
 /**
  * Sole DB access for the curated billet → section mapping (AD-2, 2.5). `Sync\SyncRosterHandler`
- * is the only reader today; an Admin maintains the table's rows directly (no writer here yet — a
- * maintenance UI is future work).
+ * reads it; the org-structure import (2.9) is its only writer so far, and only ever adds rows.
  */
 interface UnitBilletMappingRepository
 {
@@ -21,4 +21,14 @@ interface UnitBilletMappingRepository
      * @return Collection<int, int>
      */
     public function sectionIdsByPositionId(): Collection;
+
+    /**
+     * Every `cav_position_id` that already has a mapping, whatever unit it points at — the import
+     * (2.9) skips these so an Admin's hand-corrected mapping is never overwritten.
+     *
+     * @return Collection<int, int>
+     */
+    public function mappedPositionIds(): Collection;
+
+    public function create(int $unitId, int $cavPositionId): UnitBilletMapping;
 }
