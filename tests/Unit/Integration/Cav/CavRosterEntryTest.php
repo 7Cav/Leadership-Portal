@@ -84,6 +84,12 @@ describe('CavRosterEntry::fromPayload', function () use ($fetchedAt) {
             ->and($noName->forumUserId)->toBe(3);
     });
 
+    it('reads the user id when the API sends it as a bare int rather than a numeric string', function () use ($fetchedAt) {
+        $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload(['user' => ['userId' => 3, 'username' => 'Jarvis.A']]), $fetchedAt);
+
+        expect($trooper->forumUserId)->toBe(3);
+    });
+
     it('leaves forumUserId null on a non-numeric or non-positive user id rather than throwing', function () use ($fetchedAt) {
         $garbage = CavRosterEntry::fromPayload(1, rosterEntryPayload(['user' => ['userId' => 'abc', 'username' => 'Jarvis.A']]), $fetchedAt);
         $zero = CavRosterEntry::fromPayload(1, rosterEntryPayload(['user' => ['userId' => '0', 'username' => 'Jarvis.A']]), $fetchedAt);

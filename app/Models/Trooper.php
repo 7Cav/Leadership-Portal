@@ -53,8 +53,8 @@ class Trooper extends Model
     protected function displayName(): Attribute
     {
         return Attribute::get(fn (): string => implode(' ', array_filter(
-            [$this->rank_short, $this->username ?? "#{$this->cav_id}"],
-            fn (?string $part) => $part !== null && $part !== '',
+            [$this->rank_short, filled($this->username) ? $this->username : "#{$this->cav_id}"],
+            fn (?string $part) => filled($part),
         )));
     }
 

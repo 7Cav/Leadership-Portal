@@ -195,7 +195,7 @@ it('does not mark a trooper departed just because their row failed to parse', fu
     // No `user` key: CavRosterEntry::fromPayload treats this as an error envelope and the row
     // is collected in RosterFetchResult::$errors rather than turned into a CavRosterEntry — but
     // cav id 5 is still the roster's own key, so the trooper is known to be present.
-    $stillPresent = Trooper::factory()->create(['cav_id' => 5, 'rank' => 'Sergeant', 'status' => TrooperStatus::Combat]);
+    $stillPresent = Trooper::factory()->create(['cav_id' => 5, 'rank' => 'Sergeant', 'username' => 'Okafor.T', 'status' => TrooperStatus::Combat]);
 
     MockClient::global([
         SR_COMBAT_URL => MockResponse::make(['profiles' => ['5' => ['code' => 1, 'message' => 'unavailable']]]),
@@ -207,7 +207,9 @@ it('does not mark a trooper departed just because their row failed to parse', fu
 
     expect(Trooper::count())->toBe(1)
         ->and($stillPresent->refresh()->status)->toBe(TrooperStatus::Combat)
-        ->and($stillPresent->rank)->toBe('Sergeant');
+        ->and($stillPresent->rank)->toBe('Sergeant')
+        // Unlike the billet, a last-known name confers nothing, so it is kept for display (2.10).
+        ->and($stillPresent->username)->toBe('Okafor.T');
 });
 
 it('aborts before writing anything when the Cav seam fails, leaving the last good cache intact', function () {

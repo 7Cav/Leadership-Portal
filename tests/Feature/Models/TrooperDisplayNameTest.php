@@ -16,7 +16,8 @@ it('renders the short rank and forum username', function () {
 it('falls back to the cav id when the trooper has no forum username', function () {
     $trooper = new Trooper(['cav_id' => 42, 'rank_short' => 'SGT', 'username' => null]);
 
-    expect($trooper->display_name)->toBe('SGT #42');
+    expect($trooper->display_name)->toBe('SGT #42')
+        ->and((new Trooper(['cav_id' => 42, 'rank_short' => 'SGT', 'username' => '']))->display_name)->toBe('SGT #42');
 });
 
 it('drops the rank rather than rendering a leading space when the short rank is missing', function () {
