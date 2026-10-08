@@ -18,6 +18,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\AttendanceRepository;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Collection;
 
@@ -240,6 +241,11 @@ it('rolls the whole batch back — practice, marks and audit — when a write fa
         public function forPractice(SectionPractice $practice): Collection
         {
             return $this->inner->forPractice($practice);
+        }
+
+        public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
+        {
+            return $this->inner->countingMarks($unit, $firstWeek, $lastWeek);
         }
     });
 

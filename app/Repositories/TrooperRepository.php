@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Models\Unit;
 use Illuminate\Support\Collection;
 
 /**
@@ -19,18 +20,27 @@ interface TrooperRepository
      * not a write-time one. Returns the row counts the sync handler reports to `sync_runs`
      * (Story 2.3).
      *
-     * @param  list<array{cav_id: int, rank: ?string, mos: ?string, tis: mixed, tig: mixed, status: string}>  $rows
+     * @param  list<array{cav_id: int, rank: ?string, mos: ?string, tis: mixed, tig: mixed, status: string, cav_position_id?: ?int}>  $rows
+     *                                                                                                                                       `$unreadableCavIds` are troopers Cav listed but whose row could not be parsed: they stay
+     *                                                                                                                                       active (they are in `$activeCavIds`) but their billet is cleared in the same transaction —
+     *                                                                                                                                       their current billet is unknown, and a stale one must not keep conferring command scope
+     *                                                                                                                                       (1.16, deny-by-default).
      * @param  list<int>  $activeCavIds
+     * @param  list<int>  $unreadableCavIds
      * @return array{inserted: int, updated: int, inactivated: int}
      */
-    public function sync(array $rows, array $activeCavIds): array;
+    public function sync(array $rows, array $activeCavIds, array $unreadableCavIds = []): array;
 
     /**
      * Upsert every row keyed by `cav_id`, updating an existing trooper's synced columns in place
      * (their internal `id` PK never changes) or inserting a new one. Never touches
      * `primary_section_id` — that column belongs to 2.5/2.7, not the sync handler.
      *
-     * @param  list<array{cav_id: int, rank: ?string, mos: ?string, tis: mixed, tig: mixed, status: string}>  $rows
+     * `cav_position_id` (the primary billet, 1.16) is overwritten like any synced column, null
+     * included: a billet Cav no longer reports must not keep conferring command scope. A row
+     * without the key is written as null.
+     *
+     * @param  list<array{cav_id: int, rank: ?string, mos: ?string, tis: mixed, tig: mixed, status: string, cav_position_id?: ?int}>  $rows
      * @return array{inserted: int, updated: int}
      */
     public function upsertActive(array $rows): array;
@@ -65,4 +75,12 @@ interface TrooperRepository
      * @return Collection<int, int>
      */
     public function idsPlacedIn(int $sectionId, array $trooperIds): Collection;
+
+    /**
+     * The ids of the troopers currently assigned within `$unit`'s subtree — primary section
+     * anywhere under it, not inactive (LOA still counts) — ascending. Strength's population (5.1).
+     *
+     * @return Collection<int, int>
+     */
+    public function assignedWithin(Unit $unit): Collection;
 }

@@ -198,3 +198,40 @@ it('returns only the given troopers placed in the section', function () {
 it('returns nothing for an empty list of troopers', function () {
     expect(app(TrooperRepository::class)->idsPlacedIn(Unit::factory()->create()->id, [])->all())->toBe([]);
 });
+
+// 5.1: strength's population — active troopers whose primary section sits in the subtree.
+it('lists the active troopers placed anywhere in a unit\'s subtree, by id', function () {
+    $platoon = Unit::factory()->create(['path' => '800/']);
+    $inside = Unit::factory()->create(['path' => '800/801/']);
+    $sibling = Unit::factory()->create(['path' => '8000/']);  // shares the digit prefix, not the subtree
+
+    $place = function (Unit $unit, TrooperStatus $status = TrooperStatus::Combat) {
+        $trooper = Trooper::factory()->create(['status' => $status]);
+        $trooper->forceFill(['primary_section_id' => $unit->id])->save();
+
+        return $trooper->id;
+    };
+
+    $a = $place($inside);
+    $b = $place($platoon, TrooperStatus::Eloa);
+    $place($inside, TrooperStatus::Inactive);
+    $place($sibling);
+    Trooper::factory()->create();
+
+    expect(app(TrooperRepository::class)->assignedWithin($platoon)->all())->toBe([$a, $b]);
+});
+
+it('writes the primary billet id with the synced columns, overwriting the previous one (1.16)', function () {
+    $repo = app(TrooperRepository::class);
+    $row = ['cav_id' => 1, 'rank' => 'Corporal', 'mos' => '11B', 'tis' => null, 'tig' => null, 'status' => TrooperStatus::Combat->value];
+
+    $repo->upsertActive([[...$row, 'cav_position_id' => 201]]);
+    expect(Trooper::where('cav_id', 1)->sole()->cav_position_id)->toBe(201);
+
+    $repo->upsertActive([[...$row, 'cav_position_id' => 196]]);
+    expect(Trooper::where('cav_id', 1)->sole()->cav_position_id)->toBe(196);
+
+    // Cav reported no usable billet this time: the stale one is cleared, never kept.
+    $repo->upsertActive([[...$row, 'cav_position_id' => null]]);
+    expect(Trooper::where('cav_id', 1)->sole()->cav_position_id)->toBeNull();
+});

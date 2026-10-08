@@ -16,6 +16,12 @@
           "positionId": "2",
           "positionDisplayOrder": 15,
           "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Regimental Command Sergeant Major",
+          "positionId": "3",
+          "positionDisplayOrder": 20,
+          "positionPossibleSecondary": false
         }
       ]
     },
@@ -53,6 +59,12 @@
           "positionTitle": "1-7 Executive Officer",
           "positionId": "179",
           "positionDisplayOrder": 20,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "1-7 Sergeant Major",
+          "positionId": "180",
+          "positionDisplayOrder": 30,
           "positionPossibleSecondary": false
         }
       ]
@@ -313,6 +325,12 @@
           "positionId": "627",
           "positionDisplayOrder": 3,
           "positionPossibleSecondary": true
+        },
+        {
+          "positionTitle": "Auxiliary Sergeant Major",
+          "positionId": "628",
+          "positionDisplayOrder": 30,
+          "positionPossibleSecondary": false
         }
       ]
     },

@@ -5,6 +5,7 @@ namespace App\Support\Time;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use DateTimeInterface;
+use InvalidArgumentException;
 
 /**
  * The single time → `week_start` mapping (AD-11). The Cav week runs from Saturday 00:00 UTC up
@@ -27,5 +28,25 @@ final class WeekOf
         return CarbonImmutable::instance($moment)
             ->utc()
             ->startOfWeek(CarbonInterface::SATURDAY);
+    }
+
+    /**
+     * `$weekStart` itself, as its UTC instant, when it already is a week boundary — the guard for
+     * a caller *handed* a `week_start` rather than deriving one. Validates rather than derives, so
+     * a wrong date is refused instead of silently snapped to some other week.
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public static function requireStart(CarbonInterface $weekStart): CarbonImmutable
+    {
+        $boundary = self::start($weekStart);
+
+        if (! $boundary->equalTo($weekStart)) {
+            throw new InvalidArgumentException(
+                "week_start must be a Saturday 00:00 UTC (AD-11); got {$weekStart->toIso8601String()}.",
+            );
+        }
+
+        return $boundary;
     }
 }

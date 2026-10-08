@@ -1,5 +1,6 @@
 <?php
 
+use App\Authorization\ScopeResolver;
 use App\Integration\Cav\CavApi;
 use App\Integration\Cav\CavRequestException;
 use App\Models\AuditLogEntry;
@@ -9,10 +10,13 @@ use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitBilletMapping;
+use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
+use App\Models\User;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitBilletMappingRepository;
+use App\Repositories\UnitRepository;
 use App\Sync\SyncRosterHandler;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
@@ -393,4 +397,93 @@ it('resolves each trooper independently in a mixed batch — mapped, differently
     expect(Trooper::where('cav_id', 1)->sole()->primary_section_id)->toBe($sectionA->id)
         ->and(Trooper::where('cav_id', 2)->sole()->primary_section_id)->toBe($sectionB->id)
         ->and(Trooper::where('cav_id', 3)->sole()->primary_section_id)->toBeNull();
+});
+
+// 1.16 — the trooper's primary billet is persisted on every sync, so the roster-derived command
+// scope (ScopeResolver) follows a billet change with no manual step.
+
+function srFakeRoster(string $positionId): void
+{
+    MockClient::destroyGlobal();
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT', ['primary' => ['positionTitle' => 'X', 'positionId' => $positionId]])]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+}
+
+it("persists each trooper's primary billet id, and refreshes it on the next sync", function () {
+    srFakeRoster('773');
+    syncRosterHandler()->handle();
+    expect(Trooper::where('cav_id', 1)->sole()->cav_position_id)->toBe(773);
+
+    srFakeRoster('199');
+    syncRosterHandler()->handle();
+    expect(Trooper::where('cav_id', 1)->sole()->cav_position_id)->toBe(199);
+});
+
+it('moves a leader\'s derived scope to their new billet on the next sync (1.16)', function () {
+    $repo = app(UnitRepository::class);
+    $regiment = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);
+    $battalion = $repo->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
+    $company = $repo->create(UnitType::Company, 'Alpha Company', 'A/1-7', $battalion->id);
+    $platoon = $repo->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', $company->id);
+    $section = $repo->create(UnitType::Section, '1st Section', '1/1/A/1-7', $platoon->id);
+    UnitCommandMapping::factory()->create(['unit_id' => $section->id, 'cav_position_id' => 201]);  // Section Leader
+    UnitCommandMapping::factory()->create(['unit_id' => $company->id, 'cav_position_id' => 196]);  // Commander
+    $user = User::factory()->create(['cav_id' => 1]);
+
+    srFakeRoster('201');
+    syncRosterHandler()->handle();
+    expect(app(ScopeResolver::class)->resolve($user)->all())->toBe([$section->id]);
+
+    srFakeRoster('196');
+    syncRosterHandler()->handle();
+    expect(app(ScopeResolver::class)->resolve($user)->all())
+        ->toEqualCanonicalizing([$company->id, $platoon->id, $section->id]);
+});
+
+it('clears the billet of a trooper whose row could not be parsed, keeping them active (1.16)', function () {
+    Trooper::factory()->create(['cav_id' => 5, 'cav_position_id' => 196, 'status' => TrooperStatus::Combat]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['5' => ['code' => 1, 'message' => 'unavailable']]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    $trooper = Trooper::where('cav_id', 5)->sole();
+    expect($trooper->status)->toBe(TrooperStatus::Combat)
+        ->and($trooper->cav_position_id)->toBeNull();
+});
+
+it('revokes a leader\'s derived scope once the sync marks them departed (1.16)', function () {
+    $company = Unit::factory()->create(['type' => UnitType::Company, 'path' => '1/']);
+    UnitCommandMapping::factory()->create(['unit_id' => $company->id, 'cav_position_id' => 196]);
+    $user = User::factory()->create(['cav_id' => 1]);
+
+    srFakeRoster('196');
+    syncRosterHandler()->handle();
+    expect(app(ScopeResolver::class)->resolve($user)->all())->toBe([$company->id]);
+
+    MockClient::destroyGlobal();
+    MockClient::global([SR_COMBAT_URL => srEmptyRoster(), SR_RESERVE_URL => srEmptyRoster(), SR_ELOA_URL => srEmptyRoster()]);
+    syncRosterHandler()->handle();
+
+    expect(Trooper::where('cav_id', 1)->sole()->status)->toBe(TrooperStatus::Inactive)
+        ->and(app(ScopeResolver::class)->resolve($user)->all())->toBe([]);
+});
+
+it('keeps a billet that parsed on one roster even when the same trooper errored on another (1.16)', function () {
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT', ['primary' => ['positionTitle' => 'X', 'positionId' => '196']])]]),
+        SR_RESERVE_URL => MockResponse::make(['profiles' => ['1' => ['code' => 1, 'message' => 'unavailable']]]),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    expect(Trooper::where('cav_id', 1)->sole()->cav_position_id)->toBe(196);
 });

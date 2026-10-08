@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Database\Factories\TrooperFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,8 +19,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * mapping and 2.7's audited manual placement, never by the sync handler, so it is excluded from
  * `#[Fillable]` here to keep a future non-sync writer from being tempted to mass-assign it
  * alongside the synced fields.
+ *
+ * `cav_position_id` *is* synced: the trooper's primary Cav billet, overwritten on every run, so
+ * the roster-derived command scope (1.16, `unit_command_mappings`) follows a billet change.
  */
-#[Fillable(['cav_id', 'rank', 'mos', 'tis', 'tig', 'status'])]
+#[Fillable(['cav_id', 'rank', 'mos', 'tis', 'tig', 'status', 'cav_position_id'])]
 class Trooper extends Model
 {
     /** @use HasFactory<TrooperFactory> */
@@ -30,11 +35,27 @@ class Trooper extends Model
             'tis' => 'date',
             'tig' => 'date',
             'status' => TrooperStatus::class,
+            'cav_position_id' => 'integer',
         ];
     }
 
     public function primarySection(): BelongsTo
     {
         return $this->belongsTo(Unit::class, 'primary_section_id');
+    }
+
+    /**
+     * Troopers currently assigned within `$unit`'s subtree: primary section anywhere under it (the
+     * materialized-path prefix, AD-18) and not `Inactive` (gone from every Cav roster, AD-4). An LOA
+     * or ELOA trooper is still assigned. The cache holds only the current placement, so this is
+     * "assigned now", not a history.
+     *
+     * @param  Builder<self>  $query
+     */
+    #[Scope]
+    protected function assignedWithin(Builder $query, Unit $unit): void
+    {
+        $query->where('troopers.status', '!=', TrooperStatus::Inactive->value)
+            ->whereIn('troopers.primary_section_id', Unit::query()->select('id')->where('path', 'like', "{$unit->path}%"));
     }
 }
