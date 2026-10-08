@@ -6,8 +6,8 @@ to (not including) the next Saturday 00:00 UTC. Input in any zone is normalized 
 week boundary inline (`startOfWeek`, "previous Saturday", …) — call this. A best-effort unit test
 guards it by scanning `app/` and `database/` for week-boundary idioms.
 
-**Reached from** `Http/Controllers/`, `Commands/` and `Repositories/` (rollcall week selection,
-the practice-row writer, attendance bucketing).
+**Reached from** `Http/Controllers/`, `Commands/`, `Repositories/` and `Kpi/` (rollcall week
+selection, the practice-row writer, attendance bucketing, the KPI window).
 
 **May depend on:** nothing in `app/` — it is a pure function over Carbon, below the layer graph.
 Display formatting (forum convention `30May26`) is a frontend concern
