@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\ForumAuthController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\SectionRosterController;
 use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\OrgStructureController;
 use App\Http\Controllers\Settings\RosterSyncController;
@@ -28,6 +29,11 @@ Route::get('/oauth/callback/7cav', [ForumAuthController::class, 'callback'])->na
 // middleware. Named `home` — the target Laravel's guest middleware bounces to.
 Route::middleware('auth')->group(function () {
     Route::get('/home', [HomeController::class, 'show'])->name('home');
+
+    // Section roster (Story 2.8). `/roster` opens the viewer's first section in scope; `/roster/{unit}`
+    // shows one. Visibility is decided by the ScopeResolver in the controller, never by the route (AD-8).
+    Route::get('/roster', [SectionRosterController::class, 'index'])->name('roster.index');
+    Route::get('/roster/{unit}', [SectionRosterController::class, 'show'])->whereNumber('unit')->name('roster.show');
 
     // Logout (Story 1.5). POST, so it carries CSRF protection and can't be triggered by a
     // prefetched link or a cross-site <img>.
