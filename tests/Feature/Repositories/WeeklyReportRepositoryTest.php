@@ -144,6 +144,7 @@ it('refuses a second send and leaves the first snapshot and metadata untouched',
     $stored = $this->repo->find($this->unit->id, $this->saturday);
 
     expect($stored->notes)->toBe('first')
+        ->and($stored->updated_at->equalTo(CarbonImmutable::parse('2026-10-09 21:15:00', 'UTC')))->toBeTrue()
         ->and(sortedKeys($stored->kpis))->toBe(sortedKeys(sixKpiSnapshot()))
         ->and($stored->sent_by)->toBe($this->sender->id)
         ->and($stored->content_digest)->toBe('digest-1')

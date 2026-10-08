@@ -61,11 +61,14 @@ class Eloquent implements WeeklyReportRepository
      *
      * 1. Share-lock the `units` row, so the unit cannot be deleted mid-write and a missing unit is
      *    an `InvalidArgumentException` rather than a raw foreign-key error.
-     * 2. Insert-or-ignore the `(unit_id, week_start)` row, so a row always exists before it is
-     *    locked. A `SELECT ... FOR UPDATE` on a missing key would take only a gap lock on MySQL,
-     *    and two first writes holding the same gap deadlock when both insert; insert-or-ignore
-     *    instead makes a concurrent first write of the same key wait for this one to commit and
-     *    then skip. The placeholder values never outlive the transaction.
+     * 2. Upsert a placeholder `(unit_id, week_start)` row, so a row always exists before it is
+     *    locked. A `SELECT ... FOR UPDATE` on a missing key takes only a gap lock on MySQL, and
+     *    first writes sharing the gap deadlock when they all insert. An upsert takes an
+     *    *exclusive* lock on the row whether it inserts or hits the duplicate, so concurrent
+     *    writers of one unit-week queue one at a time — an insert-or-ignore would take only a
+     *    shared lock on the duplicate, and three or more writers then deadlock upgrading it.
+     *    The placeholder values never outlive the transaction; a duplicate touches only
+     *    `updated_at`, which the write below sets again anyway.
      * 3. Lock that row, refuse it if sent, and write `$values` over it.
      *
      * @param  array<string, mixed>  $values  built only by this class, so they are force-filled
@@ -81,14 +84,18 @@ class Eloquent implements WeeklyReportRepository
 
             $now = CarbonImmutable::now('UTC');
 
-            WeeklyReport::query()->insertOrIgnore([
-                'unit_id' => $unitId,
-                'week_start' => $weekStart,
-                'status' => WeeklyReportStatus::Draft->value,
-                'kpis' => '[]',
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
+            WeeklyReport::query()->toBase()->upsert(
+                [[
+                    'unit_id' => $unitId,
+                    'week_start' => $weekStart,
+                    'status' => WeeklyReportStatus::Draft->value,
+                    'kpis' => '[]',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]],
+                ['unit_id', 'week_start'],
+                ['updated_at'],
+            );
 
             $report = WeeklyReport::query()
                 ->where('unit_id', $unitId)
