@@ -262,7 +262,7 @@ it('writes one audit_log row for a batch, targeting the anchor and digesting eve
             $regiment = $units->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
             $squadron = $units->create(UnitType::Battalion, '1st Battalion', null, $regiment->id);
 
-            return new AuditedBatch($regiment, [$squadron]);
+            return new AuditedBatch($regiment, $squadron);
         },
     );
 
@@ -292,8 +292,8 @@ it('digests a batch independently of the order its members were handed over in',
     $b = $units->create(UnitType::Battalion, 'B', null, $regiment->id);
     $repo = app(AuditLogRepository::class);
 
-    $repo->recordBatchWithMutation($actor->id, 'x', null, fn () => new AuditedBatch($regiment, [$a, $b]));
-    $repo->recordBatchWithMutation($actor->id, 'x', null, fn () => new AuditedBatch($regiment, [$b, $a]));
+    $repo->recordBatchWithMutation($actor->id, 'x', null, fn () => new AuditedBatch($regiment, $a, $b));
+    $repo->recordBatchWithMutation($actor->id, 'x', null, fn () => new AuditedBatch($regiment, $b, $a));
 
     expect(AuditLogEntry::query()->pluck('content_digest')->unique())->toHaveCount(1);
 });

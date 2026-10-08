@@ -27,13 +27,16 @@ it('accepts every status a leader may hand-enter', function (AttendanceStatus $s
 })->with([AttendanceStatus::Present, AttendanceStatus::Missed, AttendanceStatus::Makeup, AttendanceStatus::Attached]);
 
 it('refuses a batch that marks the same trooper twice', function () {
-    expect(fn () => new MarkAttendance(1, CarbonImmutable::now(), [
+    expect(fn () => new MarkAttendance(
+        1,
+        CarbonImmutable::now(),
         new AttendanceMark(7, AttendanceStatus::Present),
         new AttendanceMark(7, AttendanceStatus::Missed),
-    ]))->toThrow(InvalidAttendanceMarkException::class, 'Trooper 7');
+    ))->toThrow(InvalidAttendanceMarkException::class, 'Trooper 7');
 });
 
-it('refuses a batch entry that is not an AttendanceMark', function () {
-    expect(fn () => new MarkAttendance(1, CarbonImmutable::now(), [['trooper_id' => 7]]))
-        ->toThrow(InvalidArgumentException::class);
+it('keeps the marks as a list', function () {
+    $command = new MarkAttendance(1, CarbonImmutable::now(), new AttendanceMark(7, AttendanceStatus::Present), new AttendanceMark(3, AttendanceStatus::Missed));
+
+    expect($command->trooperIds())->toBe([7, 3]);
 });

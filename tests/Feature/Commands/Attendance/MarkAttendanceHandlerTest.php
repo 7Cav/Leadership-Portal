@@ -35,9 +35,9 @@ beforeEach(function () {
     $this->troopers = Trooper::factory()->count(3)->create(['primary_section_id' => $this->section->id]);
 });
 
-function mark(User $actor, int $sectionId, DateTimeInterface $moment, array $marks): SectionPractice
+function mark(User $actor, int $sectionId, DateTimeImmutable $moment, array $marks): SectionPractice
 {
-    return app(MarkAttendanceHandler::class)->handle($actor, new MarkAttendance($sectionId, $moment, $marks));
+    return app(MarkAttendanceHandler::class)->handle($actor, new MarkAttendance($sectionId, $moment, ...$marks));
 }
 
 it('creates the week practice row from week_of() before writing the marks', function () {
@@ -155,6 +155,8 @@ it('records exactly one audit entry per batch, targeting the practice', function
 });
 
 it('digests the marks themselves, so two different batches on one practice digest differently', function () {
+    SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->weekStart]);
+
     mark($this->leader, $this->section->id, $this->moment, [
         new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present),
     ]);
@@ -164,6 +166,46 @@ it('digests the marks themselves, so two different batches on one practice diges
 
     expect(AuditLogEntry::query()->pluck('content_digest')->unique())->toHaveCount(2);
 });
+
+it('digests exactly the stored practice row and every written mark', function () {
+    $practice = mark($this->leader, $this->section->id, $this->moment, [
+        new AttendanceMark($this->troopers[1]->id, rollcall: RollcallSignature::WillAttend),
+        new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present),
+    ]);
+
+    $stored = function ($model) {
+        $attributes = $model->fresh()->getAttributes();
+        ksort($attributes);
+
+        return $attributes;
+    };
+
+    expect(AuditLogEntry::query()->sole()->content_digest)->toBe(hash('sha256', json_encode([
+        'target' => $stored($practice),
+        'members' => Attendance::query()->orderBy('id')->get()->map($stored)->all(),
+    ], JSON_THROW_ON_ERROR)));
+});
+
+it('writes the batch in trooper-id order whatever order it was submitted in (a fixed lock order)', function () {
+    mark($this->leader, $this->section->id, $this->moment, [
+        new AttendanceMark($this->troopers[2]->id, AttendanceStatus::Present),
+        new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present),
+        new AttendanceMark($this->troopers[1]->id, AttendanceStatus::Present),
+    ]);
+
+    expect(Attendance::query()->orderBy('id')->pluck('trooper_id')->all())
+        ->toBe($this->troopers->pluck('id')->sort()->values()->all());
+});
+
+it('buckets the submitted moment into its Cav week through WeekOf', function (string $moment, string $weekStart) {
+    $practice = mark($this->leader, $this->section->id, CarbonImmutable::parse($moment), []);
+
+    expect($practice->week_start->equalTo(CarbonImmutable::parse($weekStart, 'UTC')))->toBeTrue();
+})->with([
+    'Friday 23:59:59 UTC is still the previous week' => ['2026-10-09 23:59:59 UTC', '2026-10-03 00:00:00'],
+    'Saturday 00:00 UTC opens the next week' => ['2026-10-10 00:00:00 UTC', '2026-10-10 00:00:00'],
+    'Friday evening in New York is already Saturday UTC' => ['2026-10-09 21:00:00 America/New_York', '2026-10-10 00:00:00'],
+]);
 
 it('creates the practice row with zero attendance for an empty batch, and audits it', function () {
     $practice = mark($this->leader, $this->section->id, $this->moment, []);
@@ -230,6 +272,10 @@ it('rejects a leader scoped to a different section', function () {
     expect(fn () => mark($this->leader, $otherSection->id, $this->moment, [
         new AttendanceMark($otherTrooper->id, AttendanceStatus::Present),
     ]))->toThrow(MarkAttendanceForbiddenException::class);
+
+    expect(SectionPractice::query()->count())->toBe(0)
+        ->and(Attendance::query()->count())->toBe(0)
+        ->and(AuditLogEntry::query()->count())->toBe(0);
 });
 
 it('reports the out-of-scope rejection as an authorization failure (a 403 for any caller)', function () {
@@ -279,9 +325,19 @@ it('refuses to key a practice to a unit that is not a section, writing nothing',
     $platoon = Unit::factory()->create(['type' => UnitType::Platoon]);
     PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $platoon->id]);
 
-    expect(fn () => mark($this->leader, $platoon->id, $this->moment, []))
-        ->toThrow(InvalidArgumentException::class, 'not a section');
+    expect(fn () => mark($this->leader, $platoon->id, $this->moment, [
+        new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present),
+    ]))->toThrow(InvalidAttendanceMarkException::class, "Unit {$platoon->id} is not a section");
 
     expect(SectionPractice::query()->count())->toBe(0)
         ->and(AuditLogEntry::query()->count())->toBe(0);
+});
+
+it('refuses a section id that does not exist, even for an admin (no unit is in anyone\'s scope)', function () {
+    $admin = User::factory()->admin()->create();
+
+    expect(fn () => mark($admin, 999999, $this->moment, []))
+        ->toThrow(MarkAttendanceForbiddenException::class);
+
+    expect(SectionPractice::query()->count())->toBe(0);
 });

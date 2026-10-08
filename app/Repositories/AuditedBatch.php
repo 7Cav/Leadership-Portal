@@ -3,7 +3,6 @@
 namespace App\Repositories;
 
 use Illuminate\Database\Eloquent\Model;
-use InvalidArgumentException;
 
 /**
  * What a batch mutation hands {@see AuditLogRepository::recordBatchWithMutation()}: the one model
@@ -15,19 +14,13 @@ use InvalidArgumentException;
  */
 final readonly class AuditedBatch
 {
-    /**
-     * @param  list<Model>  $members
-     *
-     * @throws InvalidArgumentException when a member is not an Eloquent Model.
-     */
+    /** @var list<Model> */
+    public array $members;
+
     public function __construct(
         public Model $target,
-        public array $members,
+        Model ...$members,
     ) {
-        foreach ($members as $member) {
-            if (! $member instanceof Model) {
-                throw new InvalidArgumentException('Every AuditedBatch member must be an Eloquent Model, got '.get_debug_type($member).'.');
-            }
-        }
+        $this->members = array_values($members);
     }
 }

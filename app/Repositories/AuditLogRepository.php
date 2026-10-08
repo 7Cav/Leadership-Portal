@@ -31,10 +31,13 @@ interface AuditLogRepository
     /**
      * The batch form of {@see recordWithMutation()}: one transaction, one `audit_log` row, for an
      * action that writes many rows at once. `$mutation` returns an {@see AuditedBatch} — its
-     * `target` becomes `target_type`/`target_id`, and `content_digest` hashes the target's raw
-     * attributes together with every member's (members ordered by class and key, so the digest
-     * does not depend on the order they were written in). A mutation that throws rolls back every
-     * row it wrote and leaves no log.
+     * `target` becomes `target_type`/`target_id`, and `content_digest` hashes the target's stored
+     * attributes together with every member's (each re-read after the write, members ordered by
+     * class and key, so the digest depends only on what was persisted). A mutation that throws
+     * rolls back every row it wrote and leaves no log.
+     *
+     * A deadlock against a concurrent batch is retried a few times as a whole transaction, so
+     * `$mutation` must be safe to run again from the start (idempotent upserts are).
      *
      * @throws RuntimeException when `$mutation` doesn't return an {@see AuditedBatch}.
      */
@@ -48,8 +51,8 @@ interface AuditLogRepository
      * `created_at` index the migration added for exactly this read (AD-22, a table that's never
      * pruned). `actor` is eager-loaded so the controller never lazy-loads it (AD-2's
      * `preventLazyLoading()`). The `id` tiebreaker after `created_at` keeps pagination stable
-     * across requests — the column is second-precision, so an audited batch (several rows from
-     * one action) can otherwise land on the same timestamp with no deterministic order.
+     * across requests — the column is second-precision, so several entries written within the
+     * same second can otherwise land on the same timestamp with no deterministic order.
      *
      * @return LengthAwarePaginator<int, AuditLogEntry>
      */

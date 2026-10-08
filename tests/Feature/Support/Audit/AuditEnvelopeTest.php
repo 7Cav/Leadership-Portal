@@ -70,7 +70,7 @@ it('records a batch once, through the same reason gate', function () {
         'unit.batch_created',
         null,
         reasonRequired: false,
-        mutation: fn () => new AuditedBatch($units->create(UnitType::Regiment, '7th Cavalry Regiment', null, null), []),
+        mutation: fn () => new AuditedBatch($units->create(UnitType::Regiment, '7th Cavalry Regiment', null, null)),
     );
 
     expect(AuditLogEntry::query()->sole()->target_id)->toBe((string) $batch->target->id);

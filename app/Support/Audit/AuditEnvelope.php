@@ -9,8 +9,7 @@ use Closure;
 /**
  * The one path every state-changing Command routes through (AD-16): records actor, action,
  * target, reason, content digest, and timestamp in the same transaction as the mutation itself
- * (delegated to {@see AuditLogRepository::recordWithMutation()}, since DB access stays
- * Repository-only, AD-2).
+ * (delegated to {@see AuditLogRepository}, since DB access stays Repository-only, AD-2).
  *
  * Reason-required actions are rejected here, before the mutation ever runs — a rejected action
  * leaves no state change and no log entry.

@@ -2,14 +2,14 @@
 
 namespace App\Commands\Attendance;
 
-use InvalidArgumentException;
+use RuntimeException;
 
 /**
  * A submitted attendance batch asks for something no leader may record. Thrown before anything is
  * written — the batch is all-or-nothing — and lives in the CommandHandler layer so the rollcall
  * controller (3.8) can turn it into a form error (Controller → CommandHandler is allowed).
  */
-class InvalidAttendanceMarkException extends InvalidArgumentException
+class InvalidAttendanceMarkException extends RuntimeException
 {
     public static function nothingToRecord(int $trooperId): self
     {
@@ -19,6 +19,11 @@ class InvalidAttendanceMarkException extends InvalidArgumentException
     public static function loaIsDerived(int $trooperId): self
     {
         return new self("Trooper {$trooperId} cannot be marked loa by hand — LOA status is derived from LOA data, never entered.");
+    }
+
+    public static function notASection(int $unitId): self
+    {
+        return new self("Unit {$unitId} is not a section; attendance is marked against a section's practice.");
     }
 
     public static function duplicateTrooper(int $trooperId): self

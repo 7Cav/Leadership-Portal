@@ -16,6 +16,9 @@ use RuntimeException;
 
 class Eloquent implements AuditLogRepository
 {
+    /** A deadlock between two overlapping batches is retried, not surfaced (see the interface). */
+    private const BATCH_ATTEMPTS = 3;
+
     public function recordWithMutation(int $actorId, string $action, ?string $reason, Closure $mutation): mixed
     {
         return DB::transaction(function () use ($actorId, $action, $reason, $mutation) {
@@ -49,7 +52,12 @@ class Eloquent implements AuditLogRepository
                 ));
             }
 
+            // Digest the rows as stored, not as the mutation's in-memory models happen to hold
+            // them: a freshly created model lacks the columns it never set, so the same persisted
+            // state would otherwise digest differently depending on whether it was created or found.
+            $batch->target->refresh();
             $members = collect($batch->members)
+                ->each(fn (Model $model) => $model->refresh())
                 ->sort(fn (Model $a, Model $b) => [$a::class, $a->getKey()] <=> [$b::class, $b->getKey()])
                 ->map(fn (Model $model) => $this->sortedAttributes($model))
                 ->values()
@@ -61,13 +69,13 @@ class Eloquent implements AuditLogRepository
             ]);
 
             return $batch;
-        });
+        }, attempts: self::BATCH_ATTEMPTS);
     }
 
     /**
      * Raw attributes, sorted by key: independent of insertion order and of any loaded relation or
-     * `$hidden`/`$visible` cast, so two rows over identical content always digest identically
-     * regardless of how the model reached this class.
+     * `$hidden`/`$visible` cast. Only as complete as the model's loaded attributes — the batch path
+     * refreshes its models first so the digest reflects the stored row.
      *
      * @return array<string, mixed>
      */

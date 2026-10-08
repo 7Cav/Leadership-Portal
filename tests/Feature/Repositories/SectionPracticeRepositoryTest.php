@@ -98,6 +98,9 @@ it('rejects a week_start that is not a Saturday 00:00 UTC', function (string $ti
     'Saturday 00:00 local but not UTC' => ['2026-10-03 00:00:00', 'America/New_York'],
 ]);
 
+// The MySQL REPEATABLE READ race (a row committed after this transaction's snapshot) cannot be
+// reproduced on sqlite, so the locking re-read fallback is not reached here; it was verified by
+// hand against MySQL 8.4. This pins the no-race path inside the audited writer's transaction.
 it('finds the existing practice row when called inside an already-open transaction (3.3)', function () {
     $repo = app(SectionPracticeRepository::class);
     $existing = $repo->findOrCreate($this->section->id, $this->saturday);

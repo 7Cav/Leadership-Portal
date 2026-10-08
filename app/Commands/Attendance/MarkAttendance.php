@@ -2,8 +2,7 @@
 
 namespace App\Commands\Attendance;
 
-use DateTimeInterface;
-use InvalidArgumentException;
+use DateTimeImmutable;
 
 /**
  * Record a section's attendance for one Cav week (AD-14): every entry in `$marks` is written
@@ -11,34 +10,35 @@ use InvalidArgumentException;
  * handler maps it to `week_start` through `WeekOf` (AD-11), never the caller. An empty batch is
  * valid: it records that the section's practice exists with nobody marked yet.
  *
- * Handled by {@see MarkAttendanceHandler}.
+ * A separate payload class (rather than plain `handle()` arguments, as the Units commands take)
+ * because a batch of per-trooper entries carries invariants of its own — one entry per trooper —
+ * that are checked here, before any handler runs. Handled by {@see MarkAttendanceHandler}.
  */
 final readonly class MarkAttendance
 {
+    /** @var list<AttendanceMark> */
+    public array $marks;
+
     /**
-     * @param  list<AttendanceMark>  $marks
-     *
      * @throws InvalidAttendanceMarkException when the same trooper appears twice — two entries
      *                                        for one row would make the outcome depend on order.
      */
     public function __construct(
         public int $sectionId,
-        public DateTimeInterface $week,
-        public array $marks,
+        public DateTimeImmutable $week,
+        AttendanceMark ...$marks,
     ) {
         $seen = [];
 
         foreach ($marks as $mark) {
-            if (! $mark instanceof AttendanceMark) {
-                throw new InvalidArgumentException('Every MarkAttendance entry must be an AttendanceMark, got '.get_debug_type($mark).'.');
-            }
-
             if (isset($seen[$mark->trooperId])) {
                 throw InvalidAttendanceMarkException::duplicateTrooper($mark->trooperId);
             }
 
             $seen[$mark->trooperId] = true;
         }
+
+        $this->marks = array_values($marks);
     }
 
     /**

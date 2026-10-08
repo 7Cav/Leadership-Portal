@@ -92,7 +92,10 @@ it('returns an empty collection for a practice with no marks — an empty roster
     expect($this->repo->forPractice($this->practice))->toBeEmpty();
 });
 
-it('updates the existing row when re-marked inside an already-open transaction (3.3)', function () {
+// As for SectionPracticeRepository: the racing-insert fallback is unreachable on sqlite (the
+// racer's row would sit inside createOrFirst's own savepoint and roll back with it); it was
+// verified by hand against MySQL 8.4. This pins the no-race path inside a transaction.
+it('updates the existing row when re-marked inside an already-open transaction, no race (3.3)', function () {
     $this->repo->markPractice($this->practice, $this->trooper->id, AttendanceStatus::Missed, AttendanceSource::Auto);
 
     DB::transaction(function () {
