@@ -2,10 +2,14 @@
 
 use App\Authorization\ScopeResolver;
 use App\Models\PortalRoleGrant;
+use App\Models\Trooper;
+use App\Models\TrooperStatus;
 use App\Models\Unit;
+use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\UnitRepository;
+use Illuminate\Support\Facades\DB;
 
 // AD-8: the resolver's load-bearing behaviour is the *set* of unit ids it hands back, not
 // which method produced it — every scenario here is one leader's real question, "which units
@@ -96,4 +100,114 @@ it('never lets one user\'s grant leak into another user\'s scope', function () {
     $scope = app(ScopeResolver::class)->resolve($bystander);
 
     expect($scope->all())->toBe([]);
+});
+
+// Story 1.16 — roster-derived scope (AD-7): a leader's synced primary billet, mapped by the org
+// import to the unit it commands, confers that unit's subtree with no grant.
+
+/**
+ * 7CAV → 1-7 → A/1-7 → 1/A/1-7 → {1/1/A/1-7, 2/1/A/1-7}, plus a sibling battalion 2-7.
+ *
+ * @return array<string, Unit>
+ */
+function rdTree(): array
+{
+    $repo = app(UnitRepository::class);
+    $regiment = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);
+    $battalion = $repo->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
+    $company = $repo->create(UnitType::Company, 'Alpha Company', 'A/1-7', $battalion->id);
+    $platoon = $repo->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', $company->id);
+    $section1 = $repo->create(UnitType::Section, '1st Section', '1/1/A/1-7', $platoon->id);
+    $section2 = $repo->create(UnitType::Section, '2nd Section', '2/1/A/1-7', $platoon->id);
+    $otherBattalion = $repo->create(UnitType::Battalion, '2nd Battalion', '2-7', $regiment->id);
+
+    return compact('regiment', 'battalion', 'company', 'platoon', 'section1', 'section2', 'otherBattalion');
+}
+
+function rdLeader(int $positionId, TrooperStatus $status = TrooperStatus::Combat): User
+{
+    Trooper::factory()->create(['cav_id' => 4242, 'cav_position_id' => $positionId, 'status' => $status]);
+
+    return User::factory()->create(['cav_id' => 4242]);
+}
+
+it('derives a leader\'s scope from the unit their billet commands', function (string $commands, array $expected) {
+    $tree = rdTree();
+    UnitCommandMapping::factory()->create(['unit_id' => $tree[$commands]->id, 'cav_position_id' => 500]);
+
+    $scope = app(ScopeResolver::class)->resolve(rdLeader(500));
+
+    expect($scope->all())->toEqualCanonicalizing(array_map(fn ($key) => $tree[$key]->id, $expected));
+})->with([
+    'section leader → their section' => ['section1', ['section1']],
+    'platoon leader → their platoon' => ['platoon', ['platoon', 'section1', 'section2']],
+    'commander → their company' => ['company', ['company', 'platoon', 'section1', 'section2']],
+    'battalion command → their battalion' => ['battalion', ['battalion', 'company', 'platoon', 'section1', 'section2']],
+    'regimental command → the regiment' => ['regiment', ['regiment', 'battalion', 'company', 'platoon', 'section1', 'section2', 'otherBattalion']],
+]);
+
+it('unions the roster-derived subtree with explicit grants, without duplicates', function () {
+    $tree = rdTree();
+    UnitCommandMapping::factory()->create(['unit_id' => $tree['platoon']->id, 'cav_position_id' => 500]);
+    $leader = rdLeader(500);
+    PortalRoleGrant::factory()->create(['user_id' => $leader->id, 'unit_id' => $tree['otherBattalion']->id]);
+    PortalRoleGrant::factory()->create(['user_id' => $leader->id, 'unit_id' => $tree['section2']->id]);
+
+    $scope = app(ScopeResolver::class)->resolve($leader);
+
+    expect($scope->all())->toEqualCanonicalizing([
+        $tree['platoon']->id, $tree['section1']->id, $tree['section2']->id, $tree['otherBattalion']->id,
+    ]);
+});
+
+it('derives nothing for a plain trooper billet or a user with no synced trooper — grants only', function () {
+    $tree = rdTree();
+    UnitCommandMapping::factory()->create(['unit_id' => $tree['section1']->id, 'cav_position_id' => 500]);
+
+    $trooper = rdLeader(503);  // no command mapping for this billet
+    $unsynced = User::factory()->create(['cav_id' => 9999]);
+    PortalRoleGrant::factory()->create(['user_id' => $unsynced->id, 'unit_id' => $tree['section2']->id]);
+
+    expect(app(ScopeResolver::class)->resolve($trooper)->all())->toBe([])
+        ->and(app(ScopeResolver::class)->resolve($unsynced)->all())->toBe([$tree['section2']->id]);
+});
+
+it('derives nothing for a departed trooper whose billet is still mapped', function () {
+    $tree = rdTree();
+    UnitCommandMapping::factory()->create(['unit_id' => $tree['company']->id, 'cav_position_id' => 500]);
+
+    expect(app(ScopeResolver::class)->resolve(rdLeader(500, TrooperStatus::Inactive))->all())->toBe([]);
+});
+
+it('derives nothing, and does not fail, once the commanded unit is deleted', function () {
+    $tree = rdTree();
+    UnitCommandMapping::factory()->create(['unit_id' => $tree['section1']->id, 'cav_position_id' => 500]);
+    $leader = rdLeader(500);
+
+    app(UnitRepository::class)->delete($tree['section1']);
+
+    expect(app(ScopeResolver::class)->resolve($leader)->all())->toBe([]);
+});
+
+it('still resolves the whole tree for an Admin who also holds a leadership billet', function () {
+    $tree = rdTree();
+    UnitCommandMapping::factory()->create(['unit_id' => $tree['section1']->id, 'cav_position_id' => 500]);
+    $leader = rdLeader(500);
+    $leader->forceFill(['is_admin' => true])->save();
+
+    expect(app(ScopeResolver::class)->resolve($leader)->all())
+        ->toEqualCanonicalizing(collect($tree)->pluck('id')->all());
+});
+
+it('resolves roster-derived scope in a fixed number of queries, however large the subtree', function () {
+    $tree = rdTree();
+    UnitCommandMapping::factory()->create(['unit_id' => $tree['regiment']->id, 'cav_position_id' => 500]);
+    $leader = rdLeader(500);
+
+    DB::enableQueryLog();
+    $scope = app(ScopeResolver::class)->resolve($leader);
+
+    // Grants, the billet → commanded unit join, and one path-prefix subtree query.
+    expect($scope)->toHaveCount(7)
+        ->and(DB::getQueryLog())->toHaveCount(3);
 });

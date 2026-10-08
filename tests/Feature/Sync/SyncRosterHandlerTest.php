@@ -1,5 +1,6 @@
 <?php
 
+use App\Authorization\ScopeResolver;
 use App\Integration\Cav\CavApi;
 use App\Integration\Cav\CavRequestException;
 use App\Models\AuditLogEntry;
@@ -9,10 +10,13 @@ use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitBilletMapping;
+use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
+use App\Models\User;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitBilletMappingRepository;
+use App\Repositories\UnitRepository;
 use App\Sync\SyncRosterHandler;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
@@ -416,4 +420,25 @@ it("persists each trooper's primary billet id, and refreshes it on the next sync
     srFakeRoster('199');
     syncRosterHandler()->handle();
     expect(Trooper::where('cav_id', 1)->sole()->cav_position_id)->toBe(199);
+});
+
+it('moves a leader\'s derived scope to their new billet on the next sync (1.16)', function () {
+    $repo = app(UnitRepository::class);
+    $regiment = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);
+    $battalion = $repo->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
+    $company = $repo->create(UnitType::Company, 'Alpha Company', 'A/1-7', $battalion->id);
+    $platoon = $repo->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', $company->id);
+    $section = $repo->create(UnitType::Section, '1st Section', '1/1/A/1-7', $platoon->id);
+    UnitCommandMapping::factory()->create(['unit_id' => $section->id, 'cav_position_id' => 201]);  // Section Leader
+    UnitCommandMapping::factory()->create(['unit_id' => $company->id, 'cav_position_id' => 196]);  // Commander
+    $user = User::factory()->create(['cav_id' => 1]);
+
+    srFakeRoster('201');
+    syncRosterHandler()->handle();
+    expect(app(ScopeResolver::class)->resolve($user)->all())->toBe([$section->id]);
+
+    srFakeRoster('196');
+    syncRosterHandler()->handle();
+    expect(app(ScopeResolver::class)->resolve($user)->all())
+        ->toEqualCanonicalizing([$company->id, $platoon->id, $section->id]);
 });
