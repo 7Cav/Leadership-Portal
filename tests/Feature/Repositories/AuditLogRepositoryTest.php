@@ -4,6 +4,7 @@ use App\Models\AuditLogEntry;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\AuditedBatch;
 use App\Repositories\AuditLogRepository;
 use App\Repositories\UnitRepository;
 
@@ -244,4 +245,89 @@ it('lists distinct actions present in the log, alphabetically', function () {
     $actions = app(AuditLogRepository::class)->actions();
 
     expect($actions->all())->toBe(['unit.created', 'unit.deleted']);
+});
+
+// 3.3: a batch (many rows written as one action) logs once, against its anchoring target, with
+// a digest over every row it wrote — not one row per member, and not a digest of the target alone.
+
+it('writes one audit_log row for a batch, targeting the anchor and digesting every member', function () {
+    $actor = User::factory()->create();
+    $units = app(UnitRepository::class);
+
+    $batch = app(AuditLogRepository::class)->recordBatchWithMutation(
+        $actor->id,
+        'unit.batch_created',
+        null,
+        function () use ($units) {
+            $regiment = $units->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+            $squadron = $units->create(UnitType::Battalion, '1st Battalion', null, $regiment->id);
+
+            return new AuditedBatch($regiment, $squadron);
+        },
+    );
+
+    $entry = AuditLogEntry::query()->sole();
+    $sorted = function ($model) {
+        $attributes = $model->getAttributes();
+        ksort($attributes);
+
+        return $attributes;
+    };
+
+    expect($entry->actor_id)->toBe($actor->id)
+        ->and($entry->action)->toBe('unit.batch_created')
+        ->and($entry->target_type)->toBe('Unit')
+        ->and($entry->target_id)->toBe((string) $batch->target->id)
+        ->and($entry->content_digest)->toBe(hash('sha256', json_encode(
+            ['target' => $sorted($batch->target), 'members' => [$sorted($batch->members[0])]],
+            JSON_THROW_ON_ERROR,
+        )));
+});
+
+it('digests a batch independently of the order its members were handed over in', function () {
+    $actor = User::factory()->create();
+    $units = app(UnitRepository::class);
+    $regiment = $units->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+    $a = $units->create(UnitType::Battalion, 'A', null, $regiment->id);
+    $b = $units->create(UnitType::Battalion, 'B', null, $regiment->id);
+    $repo = app(AuditLogRepository::class);
+
+    $repo->recordBatchWithMutation($actor->id, 'x', null, fn () => new AuditedBatch($regiment, $a, $b));
+    $repo->recordBatchWithMutation($actor->id, 'x', null, fn () => new AuditedBatch($regiment, $b, $a));
+
+    expect(AuditLogEntry::query()->pluck('content_digest')->unique())->toHaveCount(1);
+});
+
+it('rolls a batch back with no log row when its mutation throws', function () {
+    $actor = User::factory()->create();
+    $units = app(UnitRepository::class);
+
+    expect(fn () => app(AuditLogRepository::class)->recordBatchWithMutation(
+        $actor->id,
+        'unit.batch_created',
+        null,
+        function () use ($units) {
+            $units->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+
+            throw new RuntimeException('boom');
+        },
+    ))->toThrow(RuntimeException::class, 'boom');
+
+    expect(Unit::query()->count())->toBe(0)
+        ->and(AuditLogEntry::query()->count())->toBe(0);
+});
+
+it('refuses to log a batch mutation that does not return an AuditedBatch', function () {
+    $actor = User::factory()->create();
+    $units = app(UnitRepository::class);
+
+    expect(fn () => app(AuditLogRepository::class)->recordBatchWithMutation(
+        $actor->id,
+        'unit.batch_created',
+        null,
+        fn () => $units->create(UnitType::Regiment, '7th Cavalry Regiment', null, null),
+    ))->toThrow(RuntimeException::class, 'must return an '.AuditedBatch::class);
+
+    expect(Unit::query()->count())->toBe(0)
+        ->and(AuditLogEntry::query()->count())->toBe(0);
 });

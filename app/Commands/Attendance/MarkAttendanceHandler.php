@@ -1,0 +1,102 @@
+<?php
+
+namespace App\Commands\Attendance;
+
+use App\Authorization\ScopeResolver;
+use App\Models\AttendanceSource;
+use App\Models\SectionPractice;
+use App\Models\UnitType;
+use App\Models\User;
+use App\Repositories\AttendanceRepository;
+use App\Repositories\AuditedBatch;
+use App\Repositories\SectionPracticeRepository;
+use App\Repositories\TrooperRepository;
+use App\Repositories\UnitRepository;
+use App\Support\Audit\AuditEnvelope;
+use App\Support\Time\WeekOf;
+
+/**
+ * The one writer of record for `section_practices` and `attendance` (AD-22). Every manual mark —
+ * the rollcall screen's submit (3.8) and anything after it — goes through here, so the audit
+ * trail and the conflict rules live in exactly one place.
+ *
+ * It refuses, before anything is written: a section outside the actor's scope (AD-8), a unit that
+ * is not a section, and any trooper not placed in that section — a trooper is marked only against
+ * their own section's practice (AD-14, AD-18), which also keeps a leader from reaching a trooper
+ * outside their scope. The placement check runs inside the transaction, so a roster sync landing
+ * mid-submit cannot slip a moved trooper through.
+ *
+ * Then, as one audited transaction (AD-16): find-or-create the section's practice for the week
+ * `WeekOf` resolves (AD-11), then write each entry's facts in trooper-id order (a fixed lock order,
+ * so two overlapping submits cannot deadlock each other). Every practice mark is written with
+ * `source = manual`, overwriting whatever was there — including an `auto` mark, since manual wins
+ * on conflict (AD-22); the future auto-capture path (Epic 7), whatever writes `source = auto`, is
+ * the one that must not overwrite a manual mark. A failure anywhere rolls back the practice row,
+ * every mark and the log entry together; the log records the batch once, targeting the practice,
+ * with a digest over every row written.
+ */
+class MarkAttendanceHandler
+{
+    public function __construct(
+        private readonly ScopeResolver $scope,
+        private readonly UnitRepository $units,
+        private readonly TrooperRepository $troopers,
+        private readonly SectionPracticeRepository $practices,
+        private readonly AttendanceRepository $attendance,
+        private readonly AuditEnvelope $audit,
+    ) {}
+
+    /**
+     * @throws MarkAttendanceForbiddenException when the section is outside the actor's scope.
+     * @throws InvalidAttendanceMarkException when the unit is not a section, or a trooper is not
+     *                                        placed in it.
+     */
+    public function handle(User $actor, MarkAttendance $command): SectionPractice
+    {
+        if (! $this->scope->resolve($actor)->contains($command->sectionId)) {
+            throw new MarkAttendanceForbiddenException($command->sectionId);
+        }
+
+        if ($this->units->find($command->sectionId)?->type !== UnitType::Section) {
+            throw InvalidAttendanceMarkException::notASection($command->sectionId);
+        }
+
+        $weekStart = WeekOf::start($command->week);
+        $marks = $command->marks;
+        usort($marks, fn (AttendanceMark $a, AttendanceMark $b) => $a->trooperId <=> $b->trooperId);
+
+        $batch = $this->audit->recordBatch(
+            actorId: $actor->id,
+            action: 'attendance.marked',
+            reason: null,
+            reasonRequired: false,
+            mutation: function () use ($command, $weekStart, $marks) {
+                $trooperIds = $command->trooperIds();
+                $unplaced = array_values(array_diff($trooperIds, $this->troopers->idsPlacedIn($command->sectionId, $trooperIds)->all()));
+
+                if ($unplaced !== []) {
+                    throw InvalidAttendanceMarkException::notPlacedInSection($unplaced, $command->sectionId);
+                }
+
+                $practice = $this->practices->findOrCreate($command->sectionId, $weekStart);
+                $rows = [];
+
+                foreach ($marks as $mark) {
+                    if ($mark->status !== null) {
+                        $row = $this->attendance->markPractice($practice, $mark->trooperId, $mark->status, AttendanceSource::Manual);
+                    }
+
+                    if ($mark->rollcall !== null) {
+                        $row = $this->attendance->signRollcall($practice, $mark->trooperId, $mark->rollcall);
+                    }
+
+                    $rows[] = $row;
+                }
+
+                return new AuditedBatch($practice, ...$rows);
+            },
+        );
+
+        return $batch->target;
+    }
+}

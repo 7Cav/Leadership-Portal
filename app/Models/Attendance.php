@@ -16,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * Command.
  *
  * Two independent facts per row, each written on its own: `rollcall` (did they sign the weekly
- * thread) and `status` + `source` (the SP mark and who made it — both null until the practice is
+ * thread) and `status` + `source` (the SP mark and its source — both null until the practice is
  * marked).
  */
 #[Fillable(['trooper_id', 'section_practice_id', 'status', 'source', 'rollcall'])]
