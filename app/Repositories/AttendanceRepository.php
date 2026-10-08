@@ -75,9 +75,13 @@ interface AttendanceRepository
      * row against any other section's practice is not a counting mark and is left out. Ordered by
      * trooper id, then week. One query, however large the subtree.
      *
+     * `$includeDeparted` widens the population to departed (`inactive`) troopers still placed in
+     * the subtree, so the roster (2.8) can show a departed trooper's history. The KPI service
+     * never passes it: departed troopers are not measured (AD-21).
+     *
      * @return Collection<int, CountingMark>
      *
      * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
      */
-    public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection;
+    public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection;
 }

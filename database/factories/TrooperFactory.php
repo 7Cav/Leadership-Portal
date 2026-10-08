@@ -24,6 +24,7 @@ class TrooperFactory extends Factory
             'forum_user_id' => fake()->unique()->numberBetween(1, 100000),
             'rank' => $rank,
             'rank_short' => $rankShort,
+            'billet' => fake()->randomElement(['Rifleman', 'Grenadier', 'Automatic Rifleman', 'Combat Medic']),
             'mos' => fake()->bothify('##?'),
             'tis' => fake()->date(),
             'tig' => fake()->date(),

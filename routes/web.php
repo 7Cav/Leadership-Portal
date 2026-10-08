@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\ForumAuthController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReportRollupController;
+use App\Http\Controllers\RosterController;
 use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\DemoDataController;
 use App\Http\Controllers\Settings\OrgStructureController;
@@ -41,6 +42,12 @@ Route::middleware('auth')->group(function () {
         ->whereNumber('unit')->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.draft');
     Route::post('/reports/{unit}/{week}/send', [ReportController::class, 'send'])
         ->whereNumber('unit')->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.send');
+
+    // The roster (Stories 2.8, 4.6, 4.7, 4.9): the selected unit's subtree, `?view=orbat|matrix`.
+    // Scope-gated in the controller through the ScopeResolver (AD-8). The trooper Sheet reads its
+    // detail as JSON; that route is declared first so `troopers` is never taken for a unit id.
+    Route::get('/roster/troopers/{trooper}', [RosterController::class, 'trooper'])->whereNumber('trooper')->name('roster.trooper');
+    Route::get('/roster/{unit?}', [RosterController::class, 'index'])->whereNumber('unit')->name('roster.index');
 
     // Logout (Story 1.5). POST, so it carries CSRF protection and can't be triggered by a
     // prefetched link or a cross-site <img>.

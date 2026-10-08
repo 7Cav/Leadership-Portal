@@ -19,7 +19,7 @@ export const NAV_GROUPS = [
         adminOnly: false,
         items: [
             { label: 'Home', href: '/home', icon: PhHouse },
-            { label: 'Roster', href: null, icon: PhUsersThree },
+            { label: 'Roster', href: '/roster', icon: PhUsersThree },
             { label: 'Rollcall', href: null, icon: PhClipboardText },
             { label: 'Reports', href: '/reports', icon: PhFileText },
         ],

@@ -306,3 +306,33 @@ it('reads troopers\' ranks by cav id, leaving out unknown ids and unranked troop
     expect(app(TrooperRepository::class)->ranksByCavId([11, 12, 13])->all())->toBe([11 => 'Sergeant'])
         ->and(app(TrooperRepository::class)->ranksByCavId([])->all())->toBe([]);
 });
+
+// 2.8: the roster's population — every trooper placed in the subtree, departed ones included so
+// the screen can show them as departed rather than drop them.
+it('lists every trooper placed in a unit\'s subtree, departed included, by id', function () {
+    $platoon = Unit::factory()->create(['path' => '700/']);
+    $inside = Unit::factory()->create(['path' => '700/701/']);
+    $sibling = Unit::factory()->create(['path' => '7000/']);
+
+    $place = function (Unit $unit, TrooperStatus $status = TrooperStatus::Combat) {
+        $trooper = Trooper::factory()->create(['status' => $status]);
+        $trooper->forceFill(['primary_section_id' => $unit->id])->save();
+
+        return $trooper->id;
+    };
+
+    $a = $place($inside);
+    $b = $place($inside, TrooperStatus::Inactive);
+    $c = $place($platoon);
+    $place($sibling);
+    Trooper::factory()->create(); // unplaced
+
+    expect(app(TrooperRepository::class)->placedWithin($platoon)->modelKeys())->toBe([$a, $b, $c]);
+});
+
+it('finds a trooper by id, or null', function () {
+    $trooper = Trooper::factory()->create();
+
+    expect(app(TrooperRepository::class)->find($trooper->id)->is($trooper))->toBeTrue()
+        ->and(app(TrooperRepository::class)->find($trooper->id + 1))->toBeNull();
+});

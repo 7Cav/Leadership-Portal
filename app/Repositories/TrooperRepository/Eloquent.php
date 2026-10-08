@@ -6,6 +6,7 @@ use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Repositories\TrooperRepository;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -38,6 +39,7 @@ class Eloquent implements TrooperRepository
                     'rank_short' => $row['rank_short'] ?? null,
                     'username' => $row['username'] ?? null,
                     'forum_user_id' => $row['forum_user_id'] ?? null,
+                    'billet' => $row['billet'] ?? null,
                     'mos' => $row['mos'],
                     'tis' => $row['tis'],
                     'tig' => $row['tig'],
@@ -110,5 +112,18 @@ class Eloquent implements TrooperRepository
         return Trooper::query()->assignedWithin($unit)->orderBy('id')
             ->pluck('primary_section_id', 'id')
             ->map(fn ($sectionId) => (int) $sectionId);
+    }
+
+    public function placedWithin(Unit $unit): EloquentCollection
+    {
+        return Trooper::query()
+            ->whereIn('primary_section_id', Unit::query()->select('id')->where('path', 'like', "{$unit->path}%"))
+            ->orderBy('id')
+            ->get();
+    }
+
+    public function find(int $id): ?Trooper
+    {
+        return Trooper::query()->find($id);
     }
 }

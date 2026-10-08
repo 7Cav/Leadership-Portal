@@ -137,7 +137,7 @@ it('reads one counting mark per held practice of the trooper\'s primary section 
 
     expect($marks->all())->toEqual([
         new CountingMark($trooper->id, $week->subWeek(), null, RollcallSignature::Unsigned, held: false),
-        new CountingMark($trooper->id, $week, AttendanceStatus::Makeup, RollcallSignature::Unsigned, held: true),
+        new CountingMark($trooper->id, $week, AttendanceStatus::Makeup, RollcallSignature::Unsigned, held: true, source: AttendanceSource::Manual),
     ]);
 });
 
@@ -161,6 +161,15 @@ it('marks a practice held once anyone in the section has an SP mark, not on sign
     ]);
 });
 
+it('carries who recorded each counting mark, for the roster cell\'s source (2.8)', function () {
+    [$section, $trooper] = countingFixture();
+    $week = CarbonImmutable::parse('2026-06-27 00:00:00', 'UTC');
+    $auto = SectionPractice::factory()->create(['section_id' => $section->id, 'week_start' => $week]);
+    $this->repo->markPractice($auto, $trooper->id, AttendanceStatus::Present, AttendanceSource::Auto);
+
+    expect($this->repo->countingMarks($section, $week, $week)->sole()->source)->toBe(AttendanceSource::Auto);
+});
+
 it('reads no counting marks for an inactive trooper', function () {
     [$section, $trooper] = countingFixture();
     $trooper->update(['status' => 'inactive']);
@@ -169,6 +178,17 @@ it('reads no counting marks for an inactive trooper', function () {
     $this->repo->markPractice($practice, $trooper->id, AttendanceStatus::Missed, AttendanceSource::Manual);
 
     expect($this->repo->countingMarks($section, $week, $week))->toBeEmpty();
+});
+
+it('reads a departed trooper\'s marks only when asked to include them (2.8)', function () {
+    [$section, $trooper] = countingFixture();
+    $week = CarbonImmutable::parse('2026-06-27 00:00:00', 'UTC');
+    $practice = SectionPractice::factory()->create(['section_id' => $section->id, 'week_start' => $week]);
+    $this->repo->markPractice($practice, $trooper->id, AttendanceStatus::Present, AttendanceSource::Manual);
+    $trooper->update(['status' => 'inactive']);
+
+    expect($this->repo->countingMarks($section, $week, $week))->toBeEmpty()
+        ->and($this->repo->countingMarks($section, $week, $week, includeDeparted: true)->sole()->status)->toBe(AttendanceStatus::Present);
 });
 
 it('refuses a counting-mark span that does not start and end on week boundaries', function () {
