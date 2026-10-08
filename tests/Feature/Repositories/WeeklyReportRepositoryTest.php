@@ -281,3 +281,40 @@ it('reads nothing, without a query, for an empty list of units', function () {
 it('refuses a batch read for a week_start that is not a Saturday 00:00 UTC', function () {
     $this->repo->forUnits([$this->unit->id], $this->saturday->addHour());
 })->throws(InvalidArgumentException::class);
+
+it('saves and freezes the training subject and unaccounted reasons with the report (5.5)', function () {
+    $unit = Unit::factory()->create();
+    $week = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');
+    $repo = app(WeeklyReportRepository::class);
+
+    $repo->saveDraft($unit->id, $week, [], 'Notes', 'Room clearing', [['trooper_id' => 7, 'reason' => 'sick']]);
+    $draft = $repo->find($unit->id, $week);
+    $repo->send($unit->id, $week, [], 'Notes', User::factory()->create()->id, 'd', null, 'Final subject', []);
+    $sent = $repo->find($unit->id, $week);
+
+    expect($draft->training_subject)->toBe('Room clearing')
+        ->and($draft->unaccounted)->toBe([['trooper_id' => 7, 'reason' => 'sick']])
+        ->and($sent->training_subject)->toBe('Final subject')
+        ->and($sent->unaccounted)->toBe([]);
+});
+
+it('lists a unit\'s earlier sent reports newest first, with their sender, skipping drafts and later weeks', function () {
+    $unit = Unit::factory()->create();
+    $other = Unit::factory()->create();
+    $sender = User::factory()->create();
+    $week = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');
+    $repo = app(WeeklyReportRepository::class);
+
+    foreach ([1, 3, 4] as $back) {
+        $repo->send($unit->id, $week->subWeeks($back), [], null, $sender->id, 'd', null);
+    }
+    $repo->saveDraft($unit->id, $week->subWeeks(2), [], null);
+    $repo->send($unit->id, $week, [], null, $sender->id, 'd', null);
+    $repo->send($other->id, $week->subWeek(), [], null, $sender->id, 'd', null);
+
+    $history = $repo->sentBefore($unit->id, $week, 2);
+
+    expect($history->map(fn (WeeklyReport $r) => $r->week_start->toDateString())->all())->toBe(['2026-09-26', '2026-09-12'])
+        ->and($history->first()->relationLoaded('sender'))->toBeTrue()
+        ->and($history->first()->sender->id)->toBe($sender->id);
+});
