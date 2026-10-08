@@ -35,6 +35,31 @@ class ForumRequestException extends RuntimeException
         return new self('Forum profile response was missing a user id or username.');
     }
 
+    public static function threadListFailed(int $status): self
+    {
+        return new self("Forum thread list failed (HTTP {$status}).");
+    }
+
+    public static function threadFetchFailed(int $status): self
+    {
+        return new self("Forum thread fetch failed (HTTP {$status}).");
+    }
+
+    public static function malformedThread(): self
+    {
+        return new self('The forum returned a thread payload that was missing a field the portal needs.');
+    }
+
+    public static function apiKeyMissing(): self
+    {
+        return new self('No forum API key is configured, so the forum cannot be read. Set SEVENCAV_FORUM_API_KEY.');
+    }
+
+    public static function notALoaSection(int $nodeId): self
+    {
+        return new self("Forum section {$nodeId} is not a configured LOA section, so it is not read.");
+    }
+
     public static function unreachable(Throwable $previous): self
     {
         return new self('The 7Cav forum could not be reached.', previous: $previous);
