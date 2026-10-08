@@ -13,6 +13,14 @@ threshold) is the divergence AD-21 exists to prevent. The precise definitions ar
 - `trooperAttendance($unit, $weekStart)` → `TrooperAttendance` per assigned trooper: the rows
   `forUnit()` sums, for a roster or at-risk flag to reuse instead of recomputing.
 
+`RollupKpis` (5.7) is the non-leaf side (AD-13): `forUnit($unit, $weekStart)` →
+`RollupResult`, the sum (`UnitKpis::plus()`) of the unit's **direct** children's **sent**
+snapshots — never live attendance, never a grandchild's report — plus every child as a
+`ChildReport` (`sent` | `draft` | `not_started`, KPIs only when sent). A child that has not sent
+is excluded and named by `missingChildren()` (holding up the chain); `isComplete()` is the
+pre-send check. Two queries however many children; a leaf unit is refused. 5.6's send command
+freezes `RollupResult::$kpis` for a non-leaf unit, and 5.8's navigator renders `$children`.
+
 **May depend on:** `Repositories/` (the facts — never the DB directly, AD-2), `Models/` (enums,
 the `Unit` it is handed), `Support/Time/` (the week window, AD-11).
 **Reached from:** `Http/Controllers/` and `Commands/`. Read-only; it never writes. Callers pass

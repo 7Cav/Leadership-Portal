@@ -11,6 +11,7 @@ use App\Repositories\WeeklyReportRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -22,6 +23,22 @@ class Eloquent implements WeeklyReportRepository
             ->where('unit_id', $unitId)
             ->where('week_start', $this->assertWeekStart($weekStart))
             ->first();
+    }
+
+    public function forUnits(array $unitIds, CarbonInterface $weekStart): Collection
+    {
+        $weekStart = $this->assertWeekStart($weekStart);
+
+        if ($unitIds === []) {
+            return collect();
+        }
+
+        return WeeklyReport::query()
+            ->whereIn('unit_id', $unitIds)
+            ->where('week_start', $weekStart)
+            ->get()
+            ->keyBy('unit_id')
+            ->toBase();
     }
 
     public function saveDraft(int $unitId, CarbonInterface $weekStart, array $kpis, ?string $notes): WeeklyReport

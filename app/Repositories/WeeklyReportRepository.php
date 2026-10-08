@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Models\WeeklyReport;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
 use InvalidArgumentException;
 
 /**
@@ -32,6 +33,18 @@ interface WeeklyReportRepository
      * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
      */
     public function find(int $unitId, CarbonInterface $weekStart): ?WeeklyReport;
+
+    /**
+     * The week's reports — draft or sent — of every unit in `$unitIds` that has one, keyed by
+     * `unit_id`, in one query: a roll-up reads all its children's reports at once (5.7, AD-13).
+     * A unit with no report is simply absent. Never creates a row.
+     *
+     * @param  list<int>  $unitIds
+     * @return Collection<int, WeeklyReport>
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function forUnits(array $unitIds, CarbonInterface $weekStart): Collection;
 
     /**
      * Save the unit-week's draft — `kpis` and `notes` as given — creating the row if absent.

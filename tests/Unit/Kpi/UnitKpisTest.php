@@ -36,3 +36,22 @@ it('refuses a count no computation could produce — negative, or more troopers 
     'on-LOA over strength' => [['onLoa' => 3]],
     'makeups over strength' => [['makeups' => 3]],
 ])->throws(InvalidArgumentException::class);
+
+// 5.7 / AD-21: a roll-up adds its children's KPIs — counts summed, ratios composed from their
+// parts, never their percentages averaged.
+it('adds another unit\'s KPIs — counts summed, ratios composed from numerators and denominators', function () {
+    $a = new UnitKpis(strength: 4, rc30d: new Ratio(4, 4), sp30d: new Ratio(0, 0), atRisk: 1, onLoa: 0, makeups: 2);
+    $b = new UnitKpis(strength: 6, rc30d: new Ratio(1, 3), sp30d: new Ratio(5, 8), atRisk: 2, onLoa: 1, makeups: 0);
+
+    $sum = $a->plus($b);
+
+    expect($sum)->toEqual(new UnitKpis(strength: 10, rc30d: new Ratio(5, 7), sp30d: new Ratio(5, 8), atRisk: 3, onLoa: 1, makeups: 2))
+        ->and($sum->rc30d->value())->toBe(5 / 7); // not (100% + 33%) / 2
+});
+
+it('is the identity when added to the empty unit', function () {
+    $kpis = new UnitKpis(strength: 3, rc30d: new Ratio(2, 3), sp30d: new Ratio(1, 2), atRisk: 1, onLoa: 1, makeups: 1);
+
+    expect(UnitKpis::none()->plus($kpis))->toEqual($kpis)
+        ->and(UnitKpis::none()->rc30d->value())->toBeNull();
+});
