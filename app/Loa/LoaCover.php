@@ -5,6 +5,7 @@ namespace App\Loa;
 use App\Models\Loa;
 use App\Models\LoaType;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 
 /**
  * One trooper's LOA coverage for one Cav week, as {@see LoaCoverage} resolved it (Story 4.4). Every
@@ -27,6 +28,7 @@ final readonly class LoaCover
         public ?string $sourceThread = null,
         public ?string $reviewReason = null,
         public ?CarbonImmutable $expectedReturnAt = null,
+        public bool $overdue = false,
     ) {}
 
     public static function none(): self
@@ -34,15 +36,22 @@ final readonly class LoaCover
         return new self(LoaCoverageState::None);
     }
 
-    public static function covered(Loa $loa): self
+    /**
+     * `$today` is the server's UTC day (AD-11). An ELOA still open after its expected return date is overdue:
+     * it runs until a return is posted, so it is flagged for a leader to chase, never ended.
+     */
+    public static function covered(Loa $loa, CarbonInterface $today): self
     {
+        $expected = $loa->expected_return_at ? CarbonImmutable::instance($loa->expected_return_at) : null;
+
         return new self(
             LoaCoverageState::Covered,
             $loa->type,
             $loa->starts_at ? CarbonImmutable::instance($loa->starts_at) : null,
             $loa->ends_at ? CarbonImmutable::instance($loa->ends_at) : null,
             $loa->source_thread,
-            expectedReturnAt: $loa->expected_return_at ? CarbonImmutable::instance($loa->expected_return_at) : null,
+            expectedReturnAt: $expected,
+            overdue: $loa->ends_at === null && $expected !== null && $expected->toDateString() < $today->toDateString(),
         );
     }
 
@@ -87,7 +96,7 @@ final readonly class LoaCover
      * The Inertia prop shape the badge reads. Dates are `Y-m-d` calendar days; a needs-review cover has none.
      * `expectedReturnAt` is an ELOA report's expected return: shown, but it never ends the leave.
      *
-     * @return array{state: string, type: ?string, typeLabel: ?string, startsAt: ?string, endsAt: ?string, expectedReturnAt: ?string, ongoing: bool, sourceThread: ?string, reviewReason: ?string}
+     * @return array{state: string, type: ?string, typeLabel: ?string, startsAt: ?string, endsAt: ?string, expectedReturnAt: ?string, ongoing: bool, overdue: bool, sourceThread: ?string, reviewReason: ?string}
      */
     public function toArray(): array
     {
@@ -99,6 +108,7 @@ final readonly class LoaCover
             'endsAt' => $this->endsAt?->toDateString(),
             'expectedReturnAt' => $this->expectedReturnAt?->toDateString(),
             'ongoing' => $this->ongoing(),
+            'overdue' => $this->overdue,
             'sourceThread' => $this->sourceThread,
             'reviewReason' => $this->reviewReason,
         ];

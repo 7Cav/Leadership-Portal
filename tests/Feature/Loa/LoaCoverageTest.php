@@ -107,6 +107,33 @@ describe('a cleanly read leave', function () {
             ->and($cover->toArray()['expectedReturnAt'])->toBe('2026-10-01');
     });
 
+    it('flags an open ELOA overdue once the UTC day on the server is past its expected return', function (string $now, bool $overdue) {
+        $this->travelTo(CarbonImmutable::parse($now, 'UTC'));
+        $trooper = Trooper::factory()->create();
+        coverageLeave($trooper, '2026-09-20', null, ['type' => LoaType::Eloa, 'expected_return_at' => '2026-10-08']);
+
+        $cover = coverageOf($trooper);
+
+        expect($cover->isCovered())->toBeTrue()
+            ->and($cover->overdue)->toBe($overdue)
+            ->and($cover->toArray()['overdue'])->toBe($overdue);
+    })->with([
+        'the day before' => ['2026-10-07 23:59:59', false],
+        'the expected day, late in the day' => ['2026-10-08 23:59:59', false],
+        'the next UTC day, just after midnight' => ['2026-10-09 00:00:01', true],
+    ]);
+
+    it('is not overdue once a return has ended the ELOA, or when no return date was given', function () {
+        $this->travelTo(CarbonImmutable::parse('2026-11-30 12:00:00', 'UTC'));
+        $returned = Trooper::factory()->create();
+        $undated = Trooper::factory()->create();
+        coverageLeave($returned, '2026-09-20', '2026-10-06', ['type' => LoaType::Eloa, 'expected_return_at' => '2026-10-01']);
+        coverageLeave($undated, '2026-09-20', null, ['type' => LoaType::Eloa]);
+
+        expect(coverageOf($returned, coverageWeek('2026-10-03'))->overdue)->toBeFalse()
+            ->and(coverageOf($undated, coverageWeek('2026-11-28'))->overdue)->toBeFalse();
+    });
+
     it('does not cover a week before an open-ended leave starts', function () {
         $trooper = Trooper::factory()->create();
         coverageLeave($trooper, '2026-10-10', null, ['type' => LoaType::Eloa]);
@@ -318,6 +345,7 @@ it('gives the badge its props: a covering leave with dates, a review with none',
         'endsAt' => '2026-10-07',
         'expectedReturnAt' => null,
         'ongoing' => false,
+        'overdue' => false,
         'sourceThread' => 'https://7cav.us/threads/a.1/',
         'reviewReason' => null,
     ])->and(coverageOf($unclear)->toArray())->toBe([
@@ -328,6 +356,7 @@ it('gives the badge its props: a covering leave with dates, a review with none',
         'endsAt' => null,
         'expectedReturnAt' => null,
         'ongoing' => false,
+        'overdue' => false,
         'sourceThread' => 'https://7cav.us/threads/b.2/',
         'reviewReason' => 'No end date.',
     ]);

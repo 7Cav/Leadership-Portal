@@ -6,6 +6,7 @@ use App\Models\Loa;
 use App\Models\LoaParseStatus;
 use App\Repositories\LoaRepository;
 use App\Support\Time\WeekOf;
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use InvalidArgumentException;
 
@@ -80,7 +81,7 @@ final class LoaCoverage
             ->first();
 
         if ($covering !== null) {
-            return LoaCover::covered($covering);
+            return LoaCover::covered($covering, CarbonImmutable::now('UTC'));
         }
 
         $review = $rows->sortByDesc('id')->first();
