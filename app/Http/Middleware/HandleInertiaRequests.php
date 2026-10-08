@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Authorization\ScopeResolver;
+use App\Authorization\ViewAs;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -15,6 +17,11 @@ class HandleInertiaRequests extends Middleware
      * @var string
      */
     protected $rootView = 'app';
+
+    public function __construct(
+        private readonly ScopeResolver $scope,
+        private readonly ViewAs $store,
+    ) {}
 
     /**
      * Determines the current asset version.
@@ -55,6 +62,28 @@ class HandleInertiaRequests extends Middleware
                     ? $request->session()->get('cav_profile_unavailable')
                     : null,
             ],
+            // The active view-as preview (Story 1.13), re-validated against real authority on this
+            // request (AD-9) — the shell's banner reads it. A stored target that no longer holds
+            // is dropped from the session here, so the banner and the scope never disagree.
+            'viewAs' => fn () => $this->viewAs($request),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function viewAs(Request $request): ?array
+    {
+        $viewer = $request->user();
+        if ($viewer === null || $this->store->targetFor($viewer) === null) {
+            return null;
+        }
+
+        $active = $this->scope->activeViewAs($viewer);
+        if ($active === null) {
+            $this->store->exit();
+        }
+
+        return $active?->toArray();
     }
 }
