@@ -10,11 +10,11 @@ use App\Models\SectionPractice;
 use App\Models\Trooper;
 use App\Models\Unit;
 use App\Repositories\AttendanceRepository;
-use Illuminate\Database\UniqueConstraintViolationException;
 use App\Repositories\CountingMark;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 

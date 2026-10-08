@@ -8,9 +8,9 @@ use App\Models\SectionPractice;
 use App\Models\Trooper;
 use App\Models\Unit;
 use App\Repositories\AttendanceRepository;
-use Illuminate\Support\Facades\DB;
 use App\Repositories\CountingMark;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
 
 // 3.1 / AD-14: one attendance row per (trooper, practice). The rollcall signature and the SP
 // mark are independent facts with their own writes — each an update-or-create on that key touching only
