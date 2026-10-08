@@ -22,8 +22,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * `cav_position_id` *is* synced: the trooper's primary Cav billet, overwritten on every run, so
  * the roster-derived command scope (1.16, `unit_command_mappings`) follows a billet change.
+ *
+ * `username` and `cav_billet` (2.6) are synced display text: the milpac name and the billet title as
+ * Cav reports them, so a leader can recognise an unplaced trooper and see which billet did not
+ * resolve. Neither is ever used to match or place anyone (`cav_id` and `cav_position_id` are the keys).
  */
-#[Fillable(['cav_id', 'rank', 'mos', 'tis', 'tig', 'status', 'cav_position_id'])]
+#[Fillable(['cav_id', 'username', 'rank', 'mos', 'tis', 'tig', 'status', 'cav_position_id', 'cav_billet'])]
 class Trooper extends Model
 {
     /** @use HasFactory<TrooperFactory> */

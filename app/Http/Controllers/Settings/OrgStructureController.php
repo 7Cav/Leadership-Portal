@@ -14,6 +14,7 @@ use App\Commands\Units\UpdateUnit;
 use App\Http\Controllers\Controller;
 use App\Models\Unit;
 use App\Models\UnitType;
+use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,7 +31,10 @@ use Inertia\Response;
  */
 class OrgStructureController extends Controller
 {
-    public function __construct(private readonly UnitRepository $units) {}
+    public function __construct(
+        private readonly UnitRepository $units,
+        private readonly TrooperRepository $troopers,
+    ) {}
 
     /**
      * Everyone authenticated may view the tree (AC #3); only the Admin flag gates authoring
@@ -50,14 +54,36 @@ class OrgStructureController extends Controller
             'trooper_count' => 0,
         ])->values();
 
+        // Follows a view-as preview (Story 1.13): authoring controls hide as they would for the
+        // previewed leader. The write gates below keep reading the real flag.
+        $isAdmin = $scope->actsAsAdmin($request->user());
+
         return Inertia::render('Settings/OrgStructure', [
             'units' => $units,
-            // Follows a view-as preview (Story 1.13): authoring controls hide as they would for the
-            // previewed leader. The write gates below keep reading the real flag.
-            'isAdmin' => $scope->actsAsAdmin($request->user()),
+            'isAdmin' => $isAdmin,
+            // Troopers the sync could not place (2.6). Admin-tier only: a cached trooper's reported
+            // billet is not part of any leader's scope yet, so everyone else gets null and the panel
+            // is absent. Sent as props only to an Admin, never merely hidden by the page (AD-8, AD-6).
+            'unplacedTroopers' => $isAdmin ? $this->unplacedTroopers() : null,
             // The outcome of an import just run (story 2.9), flashed by `import()` for one render.
             'importResult' => $request->session()->get('org_import'),
         ]);
+    }
+
+    /**
+     * @return list<array{id: int, cav_id: int, username: ?string, rank: ?string, mos: ?string, billet: ?string, position_id: ?int}>
+     */
+    private function unplacedTroopers(): array
+    {
+        return $this->troopers->unplaced()->map(fn ($trooper) => [
+            'id' => $trooper->id,
+            'cav_id' => $trooper->cav_id,
+            'username' => $trooper->username,
+            'rank' => $trooper->rank,
+            'mos' => $trooper->mos,
+            'billet' => $trooper->cav_billet,
+            'position_id' => $trooper->cav_position_id,
+        ])->values()->all();
     }
 
     /**

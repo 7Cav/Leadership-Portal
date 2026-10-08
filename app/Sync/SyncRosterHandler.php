@@ -53,12 +53,14 @@ class SyncRosterHandler
             $rows = array_map(
                 fn (CavRosterEntry $entry) => [
                     'cav_id' => $entry->cavId,
+                    'username' => $entry->username,
                     'rank' => $entry->rankFull,
                     'mos' => $entry->mos,
                     'tis' => $entry->tis,
                     'tig' => $entry->tig,
                     'status' => $this->statusFor($entry->status)->value,
                     'cav_position_id' => $entry->positionId,
+                    'cav_billet' => $entry->billet,
                 ],
                 $result->troopers,
             );

@@ -126,3 +126,24 @@ describe('CavRosterEntry::fromPayload', function () use ($fetchedAt) {
         new CavRosterEntry(cavId: 0, fetchedAt: $fetchedAt);
     })->throws(CavRequestException::class);
 });
+
+describe('username (2.6)', function () use ($fetchedAt) {
+    it('reads the milpac username for display', function () use ($fetchedAt) {
+        $entry = CavRosterEntry::fromPayload(3, rosterEntryPayload(), $fetchedAt);
+
+        expect($entry->username)->toBe('Jarvis.A');
+    });
+
+    it('leaves the username null for a trooper with no forum account linked', function () use ($fetchedAt) {
+        $entry = CavRosterEntry::fromPayload(3, rosterEntryPayload(['user' => null]), $fetchedAt);
+
+        expect($entry->username)->toBeNull()
+            ->and($entry->cavId)->toBe(3);
+    });
+
+    it('treats an empty username as null rather than as a name', function () use ($fetchedAt) {
+        $entry = CavRosterEntry::fromPayload(3, rosterEntryPayload(['user' => ['userId' => '3', 'username' => '']]), $fetchedAt);
+
+        expect($entry->username)->toBeNull();
+    });
+});
