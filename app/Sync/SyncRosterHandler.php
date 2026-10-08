@@ -30,6 +30,9 @@ use Throwable;
  * already shipped and tested, and the mapping step is idempotent — recomputed fresh from the
  * billet table on every run, so a crash between the two writes self-heals on the very next
  * scheduled sync rather than needing its own recovery path.
+ *
+ * The primary billet itself (`cav_position_id`) is written with the synced columns, so the
+ * roster-derived command scope (1.16) follows a billet change on the very next sync.
  */
 class SyncRosterHandler
 {
@@ -55,6 +58,7 @@ class SyncRosterHandler
                     'tis' => $entry->tis,
                     'tig' => $entry->tig,
                     'status' => $this->statusFor($entry->status)->value,
+                    'cav_position_id' => $entry->positionId,
                 ],
                 $result->troopers,
             );

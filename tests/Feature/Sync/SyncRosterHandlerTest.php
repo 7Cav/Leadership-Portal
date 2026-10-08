@@ -394,3 +394,26 @@ it('resolves each trooper independently in a mixed batch — mapped, differently
         ->and(Trooper::where('cav_id', 2)->sole()->primary_section_id)->toBe($sectionB->id)
         ->and(Trooper::where('cav_id', 3)->sole()->primary_section_id)->toBeNull();
 });
+
+// 1.16 — the trooper's primary billet is persisted on every sync, so the roster-derived command
+// scope (ScopeResolver) follows a billet change with no manual step.
+
+function srFakeRoster(string $positionId): void
+{
+    MockClient::destroyGlobal();
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT', ['primary' => ['positionTitle' => 'X', 'positionId' => $positionId]])]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+}
+
+it("persists each trooper's primary billet id, and refreshes it on the next sync", function () {
+    srFakeRoster('773');
+    syncRosterHandler()->handle();
+    expect(Trooper::where('cav_id', 1)->sole()->cav_position_id)->toBe(773);
+
+    srFakeRoster('199');
+    syncRosterHandler()->handle();
+    expect(Trooper::where('cav_id', 1)->sole()->cav_position_id)->toBe(199);
+});
