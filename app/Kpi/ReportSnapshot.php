@@ -6,21 +6,26 @@ use InvalidArgumentException;
 
 /**
  * What a weekly report freezes into `weekly_reports.kpis` on send (AD-12, 5.6): the six KPIs in
- * 5.1's storage shape, plus their week-over-week `delta` (null on a unit's first report). The
- * report screen reads a sent report back through `fromArray()` — never by recomputing it.
+ * `UnitKpis::toArray()`'s storage shape, plus their week-over-week `delta` — null when the prior
+ * week has no sent report (a first report, a skipped week, or a prior week still in draft).
+ * Readers of a sent report rebuild it through `fromArray()`, never by recomputing it.
  *
  * Built by {@see WeeklyReportKpis}; `UnitKpis::fromArray()` reads the KPI keys of this shape too,
  * so a roll-up (5.7) can sum children's snapshots without caring about the delta.
  */
 final readonly class ReportSnapshot
 {
+    private const KEYS = ['strength', 'rc_30d', 'sp_30d', 'at_risk', 'on_loa', 'makeups', 'delta'];
+
+    private const DELTA_KEYS = ['strength', 'rc_30d_bp', 'sp_30d_bp', 'at_risk', 'on_loa', 'makeups'];
+
     public function __construct(
         public UnitKpis $kpis,
         public ?KpiDelta $delta,
     ) {}
 
     /**
-     * @return array<string, mixed> `UnitKpis::toArray()` plus `delta` → `KpiDelta::toArray()` | null
+     * @return array{strength: int, rc_30d: array{numerator: int, denominator: int}, sp_30d: array{numerator: int, denominator: int}, at_risk: int, on_loa: int, makeups: int, delta: array{strength: int, rc_30d_bp: ?int, sp_30d_bp: ?int, at_risk: int, on_loa: int, makeups: int}|null}
      */
     public function toArray(): array
     {
@@ -30,18 +35,34 @@ final readonly class ReportSnapshot
     /**
      * @param  array<string, mixed>  $snapshot
      *
-     * @throws InvalidArgumentException when the stored array carries no `delta` key — a snapshot
-     *                                  this class did not write, which must not pass as a first report.
+     * @throws InvalidArgumentException when the stored array is not this shape — a key missing
+     *                                  (a `delta`-less array must not pass as a first report) or a
+     *                                  value no computation could produce.
      */
     public static function fromArray(array $snapshot): self
     {
-        if (! array_key_exists('delta', $snapshot)) {
-            throw new InvalidArgumentException('Not a report snapshot: the stored KPIs carry no delta key.');
+        self::requireKeys($snapshot, self::KEYS, 'report snapshot');
+
+        if ($snapshot['delta'] !== null) {
+            self::requireKeys((array) $snapshot['delta'], self::DELTA_KEYS, 'report snapshot delta');
         }
 
         return new self(
             UnitKpis::fromArray($snapshot),
             $snapshot['delta'] === null ? null : KpiDelta::fromArray($snapshot['delta']),
         );
+    }
+
+    /**
+     * @param  array<string, mixed>  $array
+     * @param  list<string>  $keys
+     */
+    private static function requireKeys(array $array, array $keys, string $what): void
+    {
+        $missing = array_diff($keys, array_keys($array));
+
+        if ($missing !== []) {
+            throw new InvalidArgumentException("Not a {$what}: missing ".implode(', ', $missing).'.');
+        }
     }
 }

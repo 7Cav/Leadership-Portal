@@ -4,7 +4,6 @@ namespace App\Kpi;
 
 use App\Models\Unit;
 use Carbon\CarbonImmutable;
-use Illuminate\Container\Attributes\Bind;
 
 /**
  * Where a weekly report's six KPIs come from, by echelon — the seam 5.6's send asks, so the
@@ -17,9 +16,8 @@ use Illuminate\Container\Attributes\Bind;
  * TODO(5.7): only the leaf half exists ({@see SectionReportKpiSource}, which refuses a non-leaf).
  * 5.7 supplies the non-leaf half — sum the children's sent snapshots, throw
  * `ReportKpisUnavailableException` while any child holds up the chain — and rebinds this
- * interface to an implementation that routes by unit type.
+ * interface in `AppServiceProvider` to an implementation that routes by unit type.
  */
-#[Bind(SectionReportKpiSource::class)]
 interface ReportKpiSource
 {
     /**

@@ -84,3 +84,12 @@ it('refuses a non-leaf unit until the roll-up of its children\'s sent snapshots 
 it('refuses a week_start that is not a Saturday 00:00 UTC', function () {
     $this->snapshots->snapshot($this->section, $this->week->addHour());
 })->throws(InvalidArgumentException::class);
+
+it('refuses, naming the unit and week, when the prior week\'s sent snapshot cannot be read', function () {
+    app(WeeklyReportRepository::class)->send(
+        $this->section->id, $this->week->subWeek(), ['strength' => ['value' => 4]], null, User::factory()->create()->id, 'digest', null,
+    );
+
+    expect(fn () => $this->snapshots->snapshot($this->section, $this->week))
+        ->toThrow(ReportKpisUnavailableException::class, "Unit {$this->section->id}'s sent report for the week of 2026-06-20 cannot be read");
+});

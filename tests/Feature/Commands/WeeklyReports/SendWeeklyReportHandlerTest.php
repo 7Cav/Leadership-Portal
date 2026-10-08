@@ -20,6 +20,7 @@ use App\Models\WeeklyReport;
 use App\Models\WeeklyReportStatus;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\SectionPracticeRepository;
+use App\Repositories\WeeklyReportAlreadySentException;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Audit\ReasonRequiredException;
 use Carbon\CarbonImmutable;
@@ -56,15 +57,22 @@ function sendReport(User $actor, int $unitId, DateTimeImmutable $moment, ?string
     return app(SendWeeklyReportHandler::class)->handle($actor, new SendWeeklyReport($unitId, $moment, $reason, $notes));
 }
 
-function expectedDigest(WeeklyReport $report): string
+/**
+ * The stored row's digest recomputed from the stored row itself, with the snapshot's keys put in
+ * reverse order — what MySQL's JSON column may hand back — so a match proves the digest does not
+ * depend on key order.
+ */
+function digestOfStored(WeeklyReport $report): string
 {
-    return hash('sha256', json_encode([
-        'unit_id' => $report->unit_id,
-        'week_start' => $report->week_start->toIso8601String(),
-        'kpis' => $report->kpis,
-        'notes' => $report->notes,
-        'template_version_id' => $report->template_version_id,
-    ], JSON_THROW_ON_ERROR | JSON_PRESERVE_ZERO_FRACTION));
+    $reverse = function (array $value) use (&$reverse): array {
+        $value = array_is_list($value) ? $value : array_reverse($value, preserve_keys: true);
+
+        return array_map(fn ($item) => is_array($item) ? $reverse($item) : $item, $value);
+    };
+
+    return SendWeeklyReportHandler::contentDigest(
+        $report->unit_id, $report->week_start, $reverse($report->kpis), $report->notes, $report->template_version_id,
+    );
 }
 
 it('freezes the live KPIs, the delta and the notes, and marks the report sent', function () {
@@ -86,11 +94,28 @@ it('freezes the live KPIs, the delta and the notes, and marks the report sent', 
         ->and($report->template_version_id)->toBeNull(); // template versioning (3.5) deferred
 });
 
-it('records a content digest over exactly the frozen content', function () {
-    sendReport($this->leader, $this->section->id, $this->moment);
+it('records a content digest that can be re-verified from the stored row, whatever its key order', function () {
+    sendReport($this->leader, $this->section->id, $this->moment->subWeek());
+    sendReport($this->leader, $this->section->id, $this->moment); // carries a delta
 
-    $report = WeeklyReport::query()->sole();
-    expect($report->content_digest)->toBe(expectedDigest($report));
+    $report = WeeklyReport::query()->where('week_start', $this->weekStart)->sole();
+    expect($report->kpis['delta'])->not->toBeNull()
+        ->and($report->content_digest)->toBe(digestOfStored($report));
+});
+
+it('digests the notes and the KPIs, so a change to either changes the digest', function () {
+    $report = sendReport($this->leader, $this->section->id, $this->moment, notes: 'original')->report;
+    $digest = fn (array $kpis, ?string $notes) => SendWeeklyReportHandler::contentDigest(
+        $report->unit_id, $report->week_start, $kpis, $notes, null,
+    );
+
+    expect($digest($report->kpis, 'original'))->toBe($report->content_digest)
+        ->and($digest($report->kpis, 'edited'))->not->toBe($report->content_digest)
+        ->and($digest([...$report->kpis, 'strength' => $report->kpis['strength'] + 1], 'original'))->not->toBe($report->content_digest);
+});
+
+it('freezes null notes as null', function () {
+    expect(sendReport($this->leader, $this->section->id, $this->moment, notes: null)->report->notes)->toBeNull();
 });
 
 it('freezes the delta against the unit\'s previous sent report', function () {
@@ -137,6 +162,7 @@ it('requires a reason, writing nothing without one', function (?string $reason) 
     expect(WeeklyReport::query()->count())->toBe(0)
         ->and(AuditLogEntry::query()->count())->toBe(0);
 })->with([
+    'missing' => [null],
     'empty' => [''],
     'whitespace' => ['   '],
 ]);
@@ -227,8 +253,36 @@ it('no-ops cleanly when a concurrent send freezes the report first', function ()
         ->and($result->report->id)->toBe($report->id)
         ->and($report->sent_by)->toBe($racer->id)
         ->and($report->content_digest)->toBe('racer-digest')
-        ->and(AuditLogEntry::query()->count())->toBe(0); // the losing send rolled back its audit entry
+        ->and(AuditLogEntry::query()->count())->toBe(0); // the losing send aborted before writing its audit entry
 });
+
+it('rethrows rather than pass off a draft as the sent report when the race re-read is not sent', function () {
+    $real = app(WeeklyReportRepository::class);
+    // A re-read that cannot see the winner (a stale snapshot inside a caller's transaction) comes
+    // back as the old draft; the handler must not report that as "already sent".
+    $real->saveDraft($this->section->id, $this->weekStart, ['draft' => true], 'draft');
+    app()->instance(WeeklyReportRepository::class, new class($real) implements WeeklyReportRepository
+    {
+        public function __construct(private readonly WeeklyReportRepository $inner) {}
+
+        public function find(int $unitId, CarbonInterface $weekStart): ?WeeklyReport
+        {
+            return $this->inner->find($unitId, $weekStart);
+        }
+
+        public function saveDraft(int $unitId, CarbonInterface $weekStart, array $kpis, ?string $notes): WeeklyReport
+        {
+            return $this->inner->saveDraft($unitId, $weekStart, $kpis, $notes);
+        }
+
+        public function send(int $unitId, CarbonInterface $weekStart, array $kpis, ?string $notes, int $sentBy, string $contentDigest, ?int $templateVersionId): WeeklyReport
+        {
+            throw WeeklyReportAlreadySentException::for($unitId, $weekStart);
+        }
+    });
+
+    sendReport($this->leader, $this->section->id, $this->moment);
+})->throws(WeeklyReportAlreadySentException::class);
 
 it('rejects a user with no scope over the unit, writing nothing', function () {
     expect(fn () => sendReport(User::factory()->create(), $this->section->id, $this->moment))
@@ -237,6 +291,14 @@ it('rejects a user with no scope over the unit, writing nothing', function () {
     expect(WeeklyReport::query()->count())->toBe(0)
         ->and(AuditLogEntry::query()->count())->toBe(0);
 });
+
+it('rejects the leader of a sibling section', function () {
+    $sibling = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => '700/702/']);
+    $siblingLeader = User::factory()->create();
+    PortalRoleGrant::factory()->create(['user_id' => $siblingLeader->id, 'unit_id' => $sibling->id]);
+
+    sendReport($siblingLeader, $this->section->id, $this->moment);
+})->throws(SendWeeklyReportForbiddenException::class);
 
 it('reports the out-of-scope rejection as an authorization failure (a 403 for any caller)', function () {
     expect(new SendWeeklyReportForbiddenException($this->section->id))->toBeInstanceOf(AuthorizationException::class);

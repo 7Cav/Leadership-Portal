@@ -14,6 +14,7 @@ use App\Support\Audit\AuditEnvelope;
 use App\Support\Audit\ReasonRequiredException;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 
 /**
  * Freezes a unit-week's weekly report (AD-12): the six KPIs and their delta as the unit's
@@ -29,8 +30,14 @@ use Carbon\CarbonImmutable;
  * frozen, with `alreadySent` set; nothing is rewritten and no second audit entry is recorded —
  * the original send's entry and `content_digest` stay the record. A concurrent send ends the same
  * way: the repository serializes writers of one unit-week on its UNIQUE row, the loser finds the
- * row sent and throws `WeeklyReportAlreadySentException`, which rolls back its audit entry with
- * it, and this handler answers with the winner's frozen report rather than an error.
+ * row sent and throws `WeeklyReportAlreadySentException` from inside the envelope's mutation —
+ * before any audit entry is written — so its transaction rolls back, and this handler answers with
+ * the winner's frozen report rather than an error.
+ *
+ * Call it outside an open transaction: the race path re-reads the winner's row with a plain read,
+ * which inside a caller's REPEATABLE READ transaction could see a stale snapshot. If that read
+ * does not come back sent, the original `WeeklyReportAlreadySentException` is rethrown rather than
+ * a draft being passed off as the sent report.
  *
  * The template version (AD-17) is frozen as null: template versioning (3.5) is deferred for the
  * MVP. When it lands, resolve the active version here and pass its id to `send()`.
@@ -48,9 +55,11 @@ class SendWeeklyReportHandler
     ) {}
 
     /**
-     * @throws SendWeeklyReportForbiddenException when the unit is outside the actor's scope.
+     * @throws SendWeeklyReportForbiddenException when the unit is outside the actor's scope, or
+     *                                            does not exist.
      * @throws ReasonRequiredException when no reason is given — on a re-send too.
-     * @throws ReportKpisUnavailableException when the unit's KPIs cannot be reported yet.
+     * @throws ReportKpisUnavailableException when the unit's KPIs cannot be reported yet, or the
+     *                                        prior week's sent snapshot is unreadable.
      */
     public function handle(User $actor, SendWeeklyReport $command): SentWeeklyReport
     {
@@ -93,26 +102,47 @@ class SendWeeklyReportHandler
                 ),
             );
         } catch (WeeklyReportAlreadySentException $raced) {
-            return new SentWeeklyReport($this->reports->find($unit->id, $weekStart) ?? throw $raced, alreadySent: true);
+            $winner = $this->reports->find($unit->id, $weekStart);
+
+            if ($winner?->status !== WeeklyReportStatus::Sent) {
+                throw $raced;
+            }
+
+            return new SentWeeklyReport($winner, alreadySent: true);
         }
 
         return new SentWeeklyReport($report, alreadySent: false);
     }
 
     /**
-     * SHA-256 over exactly what is frozen — the unit-week key, the KPI snapshot, the notes and the
-     * template version — so the stored digest proves the snapshot has not changed since the send.
+     * SHA-256 over the content a send freezes — the unit-week key, the KPI snapshot, the notes and
+     * the template version — with every object's keys sorted first, so the digest recomputed from
+     * the stored row matches whatever key order the JSON column hands back (MySQL's JSON type
+     * reorders keys). Public so a reader can verify a sent report against its `content_digest`.
      *
      * @param  array<string, mixed>  $kpis
      */
-    private static function contentDigest(int $unitId, CarbonImmutable $weekStart, array $kpis, ?string $notes, ?int $templateVersionId): string
+    public static function contentDigest(int $unitId, CarbonInterface $weekStart, array $kpis, ?string $notes, ?int $templateVersionId): string
     {
-        return hash('sha256', json_encode([
+        return hash('sha256', json_encode(self::sortKeys([
             'unit_id' => $unitId,
-            'week_start' => $weekStart->toIso8601String(),
+            'week_start' => CarbonImmutable::instance($weekStart)->utc()->toIso8601String(),
             'kpis' => $kpis,
             'notes' => $notes,
             'template_version_id' => $templateVersionId,
-        ], JSON_THROW_ON_ERROR | JSON_PRESERVE_ZERO_FRACTION));
+        ]), JSON_THROW_ON_ERROR | JSON_PRESERVE_ZERO_FRACTION));
+    }
+
+    /**
+     * @param  array<mixed>  $value
+     * @return array<mixed>
+     */
+    private static function sortKeys(array $value): array
+    {
+        if (! array_is_list($value)) {
+            ksort($value);
+        }
+
+        return array_map(fn ($item) => is_array($item) ? self::sortKeys($item) : $item, $value);
     }
 }
