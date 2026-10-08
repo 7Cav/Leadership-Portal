@@ -17,9 +17,11 @@ use Illuminate\Support\Collection;
  *
  * A row carries two independent facts — the rollcall signature and the SP mark — so each has its
  * own write, an update-or-create keyed on `(trooper_id, section_practice_id)` (the UNIQUE key)
- * that touches only
- * its own columns. Recording one fact can never overwrite the other, and a repeat write updates
- * the one row rather than adding a second counting mark.
+ * that touches only its own columns. Recording one fact can never overwrite the other, and a
+ * repeat write updates the one row rather than adding a second counting mark.
+ *
+ * The same concurrency caveat as `SectionPracticeRepository::findOrCreate()` applies: a racing
+ * duplicate is resolved only outside a MySQL REPEATABLE READ transaction that has already read.
  */
 interface AttendanceRepository
 {
