@@ -7,6 +7,7 @@ use App\Models\RollcallSignature;
 use App\Models\SectionPractice;
 use App\Models\Trooper;
 use App\Repositories\AttendanceRepository;
+use Illuminate\Support\Facades\DB;
 
 // 3.1 / AD-14: one attendance row per (trooper, practice). The rollcall signature and the SP
 // mark are independent facts with their own writes — each an update-or-create on that key touching only
@@ -89,4 +90,18 @@ it('lists a practice\'s attendance rows, with the trooper loaded', function () {
 
 it('returns an empty collection for a practice with no marks — an empty roster is valid', function () {
     expect($this->repo->forPractice($this->practice))->toBeEmpty();
+});
+
+it('updates the existing row when re-marked inside an already-open transaction (3.3)', function () {
+    $this->repo->markPractice($this->practice, $this->trooper->id, AttendanceStatus::Missed, AttendanceSource::Auto);
+
+    DB::transaction(function () {
+        Attendance::query()->count(); // a read first, as the audited writer's transaction does
+
+        $this->repo->markPractice($this->practice, $this->trooper->id, AttendanceStatus::Present, AttendanceSource::Manual);
+    });
+
+    $row = Attendance::query()->sole();
+    expect($row->status)->toBe(AttendanceStatus::Present)
+        ->and($row->source)->toBe(AttendanceSource::Manual);
 });

@@ -1,0 +1,287 @@
+<?php
+
+use App\Commands\Attendance\AttendanceMark;
+use App\Commands\Attendance\InvalidAttendanceMarkException;
+use App\Commands\Attendance\MarkAttendance;
+use App\Commands\Attendance\MarkAttendanceForbiddenException;
+use App\Commands\Attendance\MarkAttendanceHandler;
+use App\Models\Attendance;
+use App\Models\AttendanceSource;
+use App\Models\AttendanceStatus;
+use App\Models\AuditLogEntry;
+use App\Models\PortalRoleGrant;
+use App\Models\RollcallSignature;
+use App\Models\SectionPractice;
+use App\Models\Trooper;
+use App\Models\Unit;
+use App\Models\UnitType;
+use App\Models\User;
+use App\Repositories\AttendanceRepository;
+use Carbon\CarbonImmutable;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Collection;
+
+// 3.3 / AD-14, AD-16, AD-22, AD-8: the one audited writer of `section_practices` and `attendance`.
+
+beforeEach(function () {
+    $this->section = Unit::factory()->create(['type' => UnitType::Section]);
+    $this->leader = User::factory()->create();
+    PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
+
+    // Wednesday 2026-10-07 18:00 UTC falls in the Cav week opening Saturday 2026-10-03.
+    $this->moment = CarbonImmutable::parse('2026-10-07 18:00:00', 'UTC');
+    $this->weekStart = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');
+
+    $this->troopers = Trooper::factory()->count(3)->create(['primary_section_id' => $this->section->id]);
+});
+
+function mark(User $actor, int $sectionId, DateTimeInterface $moment, array $marks): SectionPractice
+{
+    return app(MarkAttendanceHandler::class)->handle($actor, new MarkAttendance($sectionId, $moment, $marks));
+}
+
+it('creates the week practice row from week_of() before writing the marks', function () {
+    $practice = mark($this->leader, $this->section->id, $this->moment, [
+        new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present),
+    ]);
+
+    expect(SectionPractice::query()->count())->toBe(1)
+        ->and($practice->section_id)->toBe($this->section->id)
+        ->and($practice->week_start->equalTo($this->weekStart))->toBeTrue()
+        ->and(Attendance::query()->sole()->section_practice_id)->toBe($practice->id);
+});
+
+it('reuses the practice row on a second submit in the same week', function () {
+    $first = mark($this->leader, $this->section->id, $this->moment, [
+        new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present),
+    ]);
+    $second = mark($this->leader, $this->section->id, $this->moment->addDays(2), [
+        new AttendanceMark($this->troopers[1]->id, AttendanceStatus::Missed),
+    ]);
+
+    expect($second->id)->toBe($first->id)
+        ->and(SectionPractice::query()->count())->toBe(1)
+        ->and(Attendance::query()->count())->toBe(2);
+});
+
+it('reuses a practice row another submit already created for the section-week', function () {
+    $existing = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->weekStart]);
+
+    $practice = mark($this->leader, $this->section->id, $this->moment, [
+        new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present),
+    ]);
+
+    expect($practice->id)->toBe($existing->id)
+        ->and(SectionPractice::query()->count())->toBe(1);
+});
+
+it('updates a repeated mark for the same trooper and week rather than duplicating it', function () {
+    mark($this->leader, $this->section->id, $this->moment, [
+        new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Missed),
+    ]);
+    mark($this->leader, $this->section->id, $this->moment, [
+        new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Makeup),
+    ]);
+
+    $row = Attendance::query()->sole();
+    expect($row->status)->toBe(AttendanceStatus::Makeup)
+        ->and($row->source)->toBe(AttendanceSource::Manual);
+});
+
+it('writes source = manual and wins over an existing auto-sourced row', function () {
+    $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->weekStart]);
+    Attendance::factory()->create([
+        'trooper_id' => $this->troopers[0]->id,
+        'section_practice_id' => $practice->id,
+        'status' => AttendanceStatus::Present,
+        'source' => AttendanceSource::Auto,
+    ]);
+
+    mark($this->leader, $this->section->id, $this->moment, [
+        new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Attached),
+    ]);
+
+    $row = Attendance::query()->sole();
+    expect($row->status)->toBe(AttendanceStatus::Attached)
+        ->and($row->source)->toBe(AttendanceSource::Manual);
+});
+
+it('records a rollcall signature, a practice mark, or both, per trooper in one batch', function () {
+    mark($this->leader, $this->section->id, $this->moment, [
+        new AttendanceMark($this->troopers[0]->id, rollcall: RollcallSignature::WillAttend),
+        new AttendanceMark($this->troopers[1]->id, status: AttendanceStatus::Present),
+        new AttendanceMark($this->troopers[2]->id, AttendanceStatus::Missed, RollcallSignature::CannotAttend),
+    ]);
+
+    $rows = Attendance::query()->get()->keyBy('trooper_id');
+
+    expect($rows[$this->troopers[0]->id]->rollcall)->toBe(RollcallSignature::WillAttend)
+        ->and($rows[$this->troopers[0]->id]->status)->toBeNull()
+        ->and($rows[$this->troopers[0]->id]->source)->toBeNull()
+        ->and($rows[$this->troopers[1]->id]->rollcall)->toBe(RollcallSignature::Unsigned)
+        ->and($rows[$this->troopers[1]->id]->status)->toBe(AttendanceStatus::Present)
+        ->and($rows[$this->troopers[2]->id]->rollcall)->toBe(RollcallSignature::CannotAttend)
+        ->and($rows[$this->troopers[2]->id]->status)->toBe(AttendanceStatus::Missed)
+        ->and($rows[$this->troopers[2]->id]->source)->toBe(AttendanceSource::Manual);
+});
+
+it('leaves the other fact untouched when a later submit records only one', function () {
+    mark($this->leader, $this->section->id, $this->moment, [
+        new AttendanceMark($this->troopers[0]->id, rollcall: RollcallSignature::WillAttend),
+    ]);
+    mark($this->leader, $this->section->id, $this->moment, [
+        new AttendanceMark($this->troopers[0]->id, status: AttendanceStatus::Present),
+    ]);
+
+    $row = Attendance::query()->sole();
+    expect($row->rollcall)->toBe(RollcallSignature::WillAttend)
+        ->and($row->status)->toBe(AttendanceStatus::Present);
+});
+
+it('records exactly one audit entry per batch, targeting the practice', function () {
+    $practice = mark($this->leader, $this->section->id, $this->moment, [
+        new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present),
+        new AttendanceMark($this->troopers[1]->id, AttendanceStatus::Missed),
+    ]);
+
+    $entry = AuditLogEntry::query()->sole();
+    expect($entry->actor_id)->toBe($this->leader->id)
+        ->and($entry->action)->toBe('attendance.marked')
+        ->and($entry->target_type)->toBe('SectionPractice')
+        ->and($entry->target_id)->toBe((string) $practice->id)
+        ->and($entry->reason)->toBeNull()
+        ->and($entry->content_digest)->toMatch('/^[0-9a-f]{64}$/')
+        ->and($entry->created_at)->not->toBeNull();
+});
+
+it('digests the marks themselves, so two different batches on one practice digest differently', function () {
+    mark($this->leader, $this->section->id, $this->moment, [
+        new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present),
+    ]);
+    mark($this->leader, $this->section->id, $this->moment, [
+        new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Missed),
+    ]);
+
+    expect(AuditLogEntry::query()->pluck('content_digest')->unique())->toHaveCount(2);
+});
+
+it('creates the practice row with zero attendance for an empty batch, and audits it', function () {
+    $practice = mark($this->leader, $this->section->id, $this->moment, []);
+
+    expect($practice->exists)->toBeTrue()
+        ->and(Attendance::query()->count())->toBe(0)
+        ->and(AuditLogEntry::query()->sole()->target_id)->toBe((string) $practice->id);
+});
+
+it('rolls the whole batch back — practice, marks and audit — when a write fails mid-batch', function () {
+    $real = app(AttendanceRepository::class);
+    app()->instance(AttendanceRepository::class, new class($real) implements AttendanceRepository
+    {
+        private int $calls = 0;
+
+        public function __construct(private readonly AttendanceRepository $inner) {}
+
+        public function markPractice(SectionPractice $practice, int $trooperId, AttendanceStatus $status, AttendanceSource $source): Attendance
+        {
+            if (++$this->calls === 2) {
+                throw new RuntimeException('write failed mid-batch');
+            }
+
+            return $this->inner->markPractice($practice, $trooperId, $status, $source);
+        }
+
+        public function signRollcall(SectionPractice $practice, int $trooperId, RollcallSignature $rollcall): Attendance
+        {
+            return $this->inner->signRollcall($practice, $trooperId, $rollcall);
+        }
+
+        public function forPractice(SectionPractice $practice): Collection
+        {
+            return $this->inner->forPractice($practice);
+        }
+    });
+
+    expect(fn () => mark($this->leader, $this->section->id, $this->moment, [
+        new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present),
+        new AttendanceMark($this->troopers[1]->id, AttendanceStatus::Present),
+    ]))->toThrow(RuntimeException::class, 'write failed mid-batch');
+
+    expect(SectionPractice::query()->count())->toBe(0)
+        ->and(Attendance::query()->count())->toBe(0)
+        ->and(AuditLogEntry::query()->count())->toBe(0);
+});
+
+it('rejects a user with no scope over the section, writing nothing', function () {
+    $outsider = User::factory()->create();
+
+    expect(fn () => mark($outsider, $this->section->id, $this->moment, [
+        new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present),
+    ]))->toThrow(MarkAttendanceForbiddenException::class);
+
+    expect(SectionPractice::query()->count())->toBe(0)
+        ->and(Attendance::query()->count())->toBe(0)
+        ->and(AuditLogEntry::query()->count())->toBe(0);
+});
+
+it('rejects a leader scoped to a different section', function () {
+    $otherSection = Unit::factory()->create(['type' => UnitType::Section]);
+    $otherTrooper = Trooper::factory()->create(['primary_section_id' => $otherSection->id]);
+
+    expect(fn () => mark($this->leader, $otherSection->id, $this->moment, [
+        new AttendanceMark($otherTrooper->id, AttendanceStatus::Present),
+    ]))->toThrow(MarkAttendanceForbiddenException::class);
+});
+
+it('reports the out-of-scope rejection as an authorization failure (a 403 for any caller)', function () {
+    expect(new MarkAttendanceForbiddenException(1))->toBeInstanceOf(AuthorizationException::class);
+});
+
+it('lets a leader whose grant sits higher up the tree mark the section', function () {
+    $platoon = Unit::factory()->create(['type' => UnitType::Platoon, 'path' => '9900/']);
+    $section = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $platoon->id, 'path' => '9900/9901/']);
+    $trooper = Trooper::factory()->create(['primary_section_id' => $section->id]);
+    $platoonLeader = User::factory()->create();
+    PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $platoon->id]);
+
+    mark($platoonLeader, $section->id, $this->moment, [new AttendanceMark($trooper->id, AttendanceStatus::Present)]);
+
+    expect(Attendance::query()->sole()->trooper_id)->toBe($trooper->id);
+});
+
+it('lets an admin mark any section', function () {
+    $admin = User::factory()->admin()->create();
+
+    mark($admin, $this->section->id, $this->moment, [new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present)]);
+
+    expect(Attendance::query()->count())->toBe(1);
+});
+
+it('rejects a trooper not placed in the section, writing nothing for the batch', function () {
+    $elsewhere = Trooper::factory()->create(['primary_section_id' => null]);
+
+    expect(fn () => mark($this->leader, $this->section->id, $this->moment, [
+        new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present),
+        new AttendanceMark($elsewhere->id, AttendanceStatus::Present),
+    ]))->toThrow(InvalidAttendanceMarkException::class, (string) $elsewhere->id);
+
+    expect(SectionPractice::query()->count())->toBe(0)
+        ->and(Attendance::query()->count())->toBe(0)
+        ->and(AuditLogEntry::query()->count())->toBe(0);
+});
+
+it('rejects a trooper id that does not exist', function () {
+    expect(fn () => mark($this->leader, $this->section->id, $this->moment, [
+        new AttendanceMark(999999, AttendanceStatus::Present),
+    ]))->toThrow(InvalidAttendanceMarkException::class, '999999');
+});
+
+it('refuses to key a practice to a unit that is not a section, writing nothing', function () {
+    $platoon = Unit::factory()->create(['type' => UnitType::Platoon]);
+    PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $platoon->id]);
+
+    expect(fn () => mark($this->leader, $platoon->id, $this->moment, []))
+        ->toThrow(InvalidArgumentException::class, 'not a section');
+
+    expect(SectionPractice::query()->count())->toBe(0)
+        ->and(AuditLogEntry::query()->count())->toBe(0);
+});

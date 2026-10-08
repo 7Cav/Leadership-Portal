@@ -5,6 +5,7 @@ use App\Models\Unit;
 use App\Models\UnitType;
 use App\Repositories\SectionPracticeRepository;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
 
 // 3.1 / AD-14, AD-11: one practice row per (section, week_start), and week_start is always a
 // Saturday 00:00 UTC — these tests exercise the find-or-create idempotency 3.3's writer relies on
@@ -96,3 +97,17 @@ it('rejects a week_start that is not a Saturday 00:00 UTC', function (string $ti
     'Saturday midday' => ['2026-10-03 12:00:00', 'UTC'],
     'Saturday 00:00 local but not UTC' => ['2026-10-03 00:00:00', 'America/New_York'],
 ]);
+
+it('finds the existing practice row when called inside an already-open transaction (3.3)', function () {
+    $repo = app(SectionPracticeRepository::class);
+    $existing = $repo->findOrCreate($this->section->id, $this->saturday);
+
+    $found = DB::transaction(function () use ($repo) {
+        SectionPractice::query()->count(); // a read first, as the audited writer's transaction does
+
+        return $repo->findOrCreate($this->section->id, $this->saturday);
+    });
+
+    expect($found->id)->toBe($existing->id)
+        ->and(SectionPractice::query()->count())->toBe(1);
+});

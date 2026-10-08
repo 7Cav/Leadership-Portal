@@ -20,11 +20,10 @@ interface SectionPracticeRepository
     /**
      * The section's practice row for the week, creating it if absent. Insert-or-find under the
      * `(section_id, week_start)` UNIQUE constraint, so two concurrent first marks for the same
-     * section-week land on one row rather than one of them crashing on a duplicate key — when
-     * called outside a transaction. Inside a MySQL REPEATABLE READ transaction that has already
-     * read, the re-read after a duplicate key sees the transaction's old snapshot and the
-     * duplicate-key exception is rethrown, so a caller wrapping this in a transaction resolves
-     * the practice row first or retries.
+     * section-week land on one row rather than one of them crashing on a duplicate key. Safe
+     * inside an open transaction too: the insert runs under a savepoint, and the re-read after a
+     * duplicate key is a locking read, which sees a racing submit's committed row even where a
+     * MySQL REPEATABLE READ snapshot would not.
      *
      * Practices are per section (AD-14) — a practice keyed to a platoon or company would split a
      * trooper-week's count across two echelons — so a unit of any other type is refused.

@@ -29,6 +29,18 @@ interface AuditLogRepository
     public function recordWithMutation(int $actorId, string $action, ?string $reason, Closure $mutation): mixed;
 
     /**
+     * The batch form of {@see recordWithMutation()}: one transaction, one `audit_log` row, for an
+     * action that writes many rows at once. `$mutation` returns an {@see AuditedBatch} — its
+     * `target` becomes `target_type`/`target_id`, and `content_digest` hashes the target's raw
+     * attributes together with every member's (members ordered by class and key, so the digest
+     * does not depend on the order they were written in). A mutation that throws rolls back every
+     * row it wrote and leaves no log.
+     *
+     * @throws RuntimeException when `$mutation` doesn't return an {@see AuditedBatch}.
+     */
+    public function recordBatchWithMutation(int $actorId, string $action, ?string $reason, Closure $mutation): AuditedBatch;
+
+    /**
      * The 1.14 review screen's filtered, most-recent-first, paginated read. Every filter is
      * optional and they combine with AND; the date range is inclusive of both ends since Admin
      * reasons about whole days, not timestamps — `dateTo` is compared against the *start* of the

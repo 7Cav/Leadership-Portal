@@ -20,8 +20,9 @@ use Illuminate\Support\Collection;
  * that touches only its own columns. Recording one fact can never overwrite the other, and a
  * repeat write updates the one row rather than adding a second counting mark.
  *
- * The same concurrency caveat as `SectionPracticeRepository::findOrCreate()` applies: a racing
- * duplicate is resolved only outside a MySQL REPEATABLE READ transaction that has already read.
+ * Like `SectionPracticeRepository::findOrCreate()`, each write is safe inside an open transaction:
+ * a racing insert of the same key is found by a locking re-read and updated, not a duplicate-key
+ * crash.
  */
 interface AttendanceRepository
 {

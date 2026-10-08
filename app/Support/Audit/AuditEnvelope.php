@@ -2,6 +2,7 @@
 
 namespace App\Support\Audit;
 
+use App\Repositories\AuditedBatch;
 use App\Repositories\AuditLogRepository;
 use Closure;
 
@@ -28,5 +29,21 @@ class AuditEnvelope
         }
 
         return $this->auditLog->recordWithMutation($actorId, $action, $reason, $mutation);
+    }
+
+    /**
+     * {@see record()} for one action that writes many rows: `$mutation` returns an
+     * {@see AuditedBatch} and the whole batch commits — or rolls back — with a single log entry
+     * (delegated to {@see AuditLogRepository::recordBatchWithMutation()}).
+     *
+     * @throws ReasonRequiredException when `$reasonRequired` is true and no reason is given.
+     */
+    public function recordBatch(int $actorId, string $action, ?string $reason, bool $reasonRequired, Closure $mutation): AuditedBatch
+    {
+        if ($reasonRequired && blank($reason)) {
+            throw ReasonRequiredException::forAction($action);
+        }
+
+        return $this->auditLog->recordBatchWithMutation($actorId, $action, $reason, $mutation);
     }
 }

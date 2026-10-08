@@ -4,6 +4,7 @@ namespace App\Repositories\AuditLogRepository;
 
 use App\Models\AuditLogEntry;
 use App\Models\User;
+use App\Repositories\AuditedBatch;
 use App\Repositories\AuditLogRepository;
 use Carbon\Carbon;
 use Closure;
@@ -28,24 +29,70 @@ class Eloquent implements AuditLogRepository
                 ));
             }
 
-            // Raw attributes, sorted by key: independent of insertion order and of any loaded
-            // relation or `$hidden`/`$visible` cast, so two rows over identical content always
-            // digest identically regardless of how the model reached this method.
-            $attributes = $result->getAttributes();
-            ksort($attributes);
-
-            AuditLogEntry::query()->forceCreate([
-                'actor_id' => $actorId,
-                'action' => $action,
-                'target_type' => class_basename($result),
-                'target_id' => (string) $result->getKey(),
-                'reason' => $reason,
-                'content_digest' => hash('sha256', json_encode($attributes, JSON_THROW_ON_ERROR)),
-                'created_at' => now(),
-            ]);
+            $this->append($actorId, $action, $reason, $result, $this->sortedAttributes($result));
 
             return $result;
         });
+    }
+
+    public function recordBatchWithMutation(int $actorId, string $action, ?string $reason, Closure $mutation): AuditedBatch
+    {
+        return DB::transaction(function () use ($actorId, $action, $reason, $mutation) {
+            $batch = $mutation();
+
+            if (! $batch instanceof AuditedBatch) {
+                throw new RuntimeException(sprintf(
+                    'AuditLogRepository::recordBatchWithMutation() mutation for action "%s" must return an %s, got %s.',
+                    $action,
+                    AuditedBatch::class,
+                    get_debug_type($batch),
+                ));
+            }
+
+            $members = collect($batch->members)
+                ->sort(fn (Model $a, Model $b) => [$a::class, $a->getKey()] <=> [$b::class, $b->getKey()])
+                ->map(fn (Model $model) => $this->sortedAttributes($model))
+                ->values()
+                ->all();
+
+            $this->append($actorId, $action, $reason, $batch->target, [
+                'target' => $this->sortedAttributes($batch->target),
+                'members' => $members,
+            ]);
+
+            return $batch;
+        });
+    }
+
+    /**
+     * Raw attributes, sorted by key: independent of insertion order and of any loaded relation or
+     * `$hidden`/`$visible` cast, so two rows over identical content always digest identically
+     * regardless of how the model reached this class.
+     *
+     * @return array<string, mixed>
+     */
+    private function sortedAttributes(Model $model): array
+    {
+        $attributes = $model->getAttributes();
+        ksort($attributes);
+
+        return $attributes;
+    }
+
+    /**
+     * @param  array<mixed>  $digested  the content `content_digest` hashes
+     */
+    private function append(int $actorId, string $action, ?string $reason, Model $target, array $digested): void
+    {
+        AuditLogEntry::query()->forceCreate([
+            'actor_id' => $actorId,
+            'action' => $action,
+            'target_type' => class_basename($target),
+            'target_id' => (string) $target->getKey(),
+            'reason' => $reason,
+            'content_digest' => hash('sha256', json_encode($digested, JSON_THROW_ON_ERROR)),
+            'created_at' => now(),
+        ]);
     }
 
     public function filtered(
