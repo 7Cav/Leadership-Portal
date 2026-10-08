@@ -132,6 +132,11 @@ it('maps every section-level billet to its section by cav_position_id (AC #3)', 
 it('creates nothing for non-line groups (AC #4)', function () {
     iosImport();
 
+    // Exactly the line-company tree: 1 regiment + 5 battalions + 7 companies + 8 platoons +
+    // 10 sections. Any node from a non-line group would push this up.
+    expect(Unit::count())->toBe(31)
+        ->and(UnitBilletMapping::count())->toBe(29);
+
     $callsigns = Unit::query()->pluck('callsign')->all();
 
     foreach (['Regimental HQ', 'Support Attachment', '1-7 Command', 'ACD Command', 'Start-Up Games', 'Retired'] as $group) {
@@ -264,9 +269,14 @@ it('rolls every write back when the import fails part-way (single transaction)',
             return collect();
         }
 
-        public function mappedPositionIds(): Collection
+        public function unitIdsByPositionId(): Collection
         {
             return collect();
+        }
+
+        public function hasMappings(Unit $unit): bool
+        {
+            return false;
         }
 
         public function create(int $unitId, int $cavPositionId): UnitBilletMapping
@@ -279,4 +289,64 @@ it('rolls every write back when the import fails part-way (single transaction)',
 
     expect(Unit::count())->toBe(0)
         ->and(AuditLogEntry::count())->toBe(0);
+});
+
+it('reuses the oldest of two nodes sharing a type + callsign, every run', function () {
+    $repo = app(UnitRepository::class);
+    $regiment = $repo->create(UnitType::Regiment, '7th Cav', '7CAV', null);
+    $battalion = $repo->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
+    // Pad ids so the younger duplicate's path sorts *before* the older one's ("1/10/…" < "1/9/…"
+    // as strings) — `tree()` orders by path, so only the explicit id sort picks the older.
+    foreach (range(1, 6) as $i) {
+        $repo->create(UnitType::Battalion, "Filler {$i}", "F{$i}", $regiment->id);
+    }
+    $older = $repo->create(UnitType::Company, 'Alpha (older)', 'A/1-7', $battalion->id);
+    $younger = $repo->create(UnitType::Company, 'Alpha (younger)', 'A/1-7', $battalion->id);
+    expect(strcmp($younger->path, $older->path))->toBeLessThan(0);
+
+    iosImport();
+
+    expect(iosUnit(UnitType::Platoon, '1/A/1-7')->parent_id)->toBe($older->id)
+        ->and(Unit::query()->where('parent_id', $younger->id)->count())->toBe(0);
+});
+
+it('maps a position id Cav lists twice to the first section listing it', function () {
+    iosFake(['groups' => [
+        ['groupId' => '5', 'groupTitle' => 'A/1-7', 'groupDisplayOrder' => 40, 'positions' => [
+            ['positionTitle' => 'Trooper 1/1/A/1-7', 'positionId' => '203', 'positionDisplayOrder' => 10],
+            ['positionTitle' => 'Trooper 2/1/A/1-7', 'positionId' => '203', 'positionDisplayOrder' => 20],
+        ]],
+    ]]);
+
+    $result = iosImport();
+
+    expect($result->mappingsCreated)->toBe(1)
+        ->and(iosMappings())->toBe([203 => '1/1/A/1-7']);
+});
+
+it('counts, but never repoints, an existing mapping that Cav now places elsewhere', function () {
+    iosImport();
+    // Cav reorgs: billet 201 (was Section Leader 1/1/A/1-7) is now listed under 2/1/A/1-7.
+    $payload = iosFixture();
+    foreach ($payload['groups'] as &$group) {
+        foreach ($group['positions'] as &$position) {
+            if ($position['positionId'] === '201') {
+                $position['positionTitle'] = 'Section Leader 2/1/A/1-7';
+            }
+        }
+    }
+    unset($group, $position);
+    iosFake($payload);
+
+    $result = iosImport();
+
+    expect($result->mappingsDiffering)->toBe(1)
+        ->and($result->mappingsCreated)->toBe(0)
+        ->and(iosMappings()[201])->toBe('1/1/A/1-7');
+});
+
+it('reports zero differing mappings on an unchanged re-run', function () {
+    iosImport();
+
+    expect(iosImport()->mappingsDiffering)->toBe(0);
 });

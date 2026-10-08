@@ -3,6 +3,7 @@
 use App\Integration\Cav\CavApi;
 use App\Models\AuditLogEntry;
 use App\Models\Unit;
+use App\Models\UnitBilletMapping;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\UnitRepository;
@@ -289,6 +290,7 @@ it('lets an Admin import the tree and reports what was created (2.9)', function 
         ->assertSessionHas('org_import', [
             'unitsCreated' => 31,
             'mappingsCreated' => 29,
+            'mappingsDiffering' => 0,
             'skippedTitles' => ['Section Leader 3/2/C/1-7'],
         ]);
 
@@ -330,4 +332,17 @@ it('shows the Admin a clear error and writes nothing when Cav is down (2.9)', fu
 
 it('requires authentication to import', function () {
     $this->post('/settings/org-structure/import')->assertRedirect(route('login'));
+});
+
+it('turns a blocked delete of a mapped section into errors.delete, not a 500 (2.9)', function () {
+    $section = app(UnitRepository::class)->create(UnitType::Section, '1st Section', '1/1/A/1-7', null);
+    UnitBilletMapping::factory()->create(['unit_id' => $section->id]);
+
+    $this->actingAs(User::factory()->admin()->create())
+        ->from('/settings/org-structure')
+        ->delete("/settings/org-structure/{$section->id}")
+        ->assertRedirect('/settings/org-structure')
+        ->assertSessionHasErrors('delete');
+
+    expect(Unit::find($section->id))->not->toBeNull();
 });

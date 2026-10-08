@@ -123,6 +123,21 @@ final readonly class CavDesignation
     }
 
     /**
+     * The identity a node is matched on across imports: type + callsign. The one definition both
+     * sides of the match use — a designation via {@see key()}, an existing unit via
+     * {@see keyFor()} — so the two can never drift into "every import duplicates the tree".
+     */
+    public function key(): string
+    {
+        return self::keyFor($this->type, $this->callsign());
+    }
+
+    public static function keyFor(UnitType $type, string $callsign): string
+    {
+        return "{$type->value}|{$callsign}";
+    }
+
+    /**
      * The display name a newly imported node gets. Only ever used on create — an Admin's rename
      * of an existing node is kept on every later import.
      */

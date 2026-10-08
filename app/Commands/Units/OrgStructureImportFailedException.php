@@ -7,7 +7,8 @@ use Throwable;
 
 /**
  * The org-structure import could not run (story 2.9) — the Cav API was unreachable, answered
- * with an error, or published nothing that looks like a line company. Lives in the
+ * with an error or an unusable payload, no `CAV_API_KEY` is configured, or Cav published nothing
+ * that looks like a line company. Lives in the
  * CommandHandler layer so the controller can catch it (Controller → Integration is forbidden).
  * Thrown before any write, so a failed import never leaves a partial tree behind.
  */

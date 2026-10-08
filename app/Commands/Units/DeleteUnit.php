@@ -4,6 +4,7 @@ namespace App\Commands\Units;
 
 use App\Models\Unit;
 use App\Models\User;
+use App\Repositories\UnitBilletMappingRepository;
 use App\Repositories\UnitRepository;
 use App\Support\Audit\AuditEnvelope;
 
@@ -24,16 +25,23 @@ class DeleteUnit
 {
     public function __construct(
         private readonly UnitRepository $units,
+        private readonly UnitBilletMappingRepository $mappings,
         private readonly AuditEnvelope $audit,
     ) {}
 
     /**
-     * @throws UnitHasDependentsException when the unit still has child units.
+     * @throws UnitHasDependentsException when the unit still has child units or billet mappings.
      */
     public function handle(User $actor, Unit $unit): Unit
     {
         if ($this->units->hasChildren($unit)) {
             throw UnitHasDependentsException::hasChildren($unit->name);
+        }
+
+        // Every section the Cav import (2.9) creates carries billet mappings, and
+        // `unit_billet_mappings.unit_id` restricts the delete — refuse with a reason instead.
+        if ($this->mappings->hasMappings($unit)) {
+            throw UnitHasDependentsException::hasBilletMappings($unit->name);
         }
 
         return $this->audit->record(

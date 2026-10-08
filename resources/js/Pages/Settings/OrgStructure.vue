@@ -8,7 +8,8 @@ import OrgTreeNode from './OrgTreeNode.vue';
 const props = defineProps({
     units: { type: Array, required: true },
     isAdmin: { type: Boolean, required: true },
-    // Flashed once by the import action (Story 2.9): `{ unitsCreated, mappingsCreated, skippedTitles }`.
+    // Flashed once by the import action (Story 2.9):
+    // `{ unitsCreated, mappingsCreated, mappingsDiffering, skippedTitles }`.
     importResult: { type: Object, default: null },
 });
 
@@ -142,7 +143,8 @@ function runImport() {
         {
             preserveScroll: true,
             onError: (errors) => {
-                importError.value = errors.import ?? 'Import failed — see server response.';
+                importError.value =
+                    errors.import ?? Object.values(errors)[0] ?? 'The import failed. Reload the page and try again; if it persists, check the server logs.';
             },
             onFinish: () => {
                 importing.value = false;
@@ -214,6 +216,10 @@ function requestDelete(id) {
         <div v-else-if="importResult" data-testid="import-result" role="status" class="mb-4 rounded border border-border bg-panel px-3 py-2 text-sm text-gray-300">
             Imported from the Cav roster: {{ importResult.unitsCreated }} {{ importResult.unitsCreated === 1 ? 'node' : 'nodes' }} and
             {{ importResult.mappingsCreated }} section {{ importResult.mappingsCreated === 1 ? 'mapping' : 'mappings' }} created.
+            <template v-if="importResult.mappingsDiffering">
+                {{ importResult.mappingsDiffering }} existing {{ importResult.mappingsDiffering === 1 ? 'mapping points' : 'mappings point' }}
+                at a different section than Cav now lists — kept as they are.
+            </template>
             <template v-if="importResult.skippedTitles.length">
                 {{ importResult.skippedTitles.length }} position {{ importResult.skippedTitles.length === 1 ? 'title' : 'titles' }} skipped
                 (designation not recognised):

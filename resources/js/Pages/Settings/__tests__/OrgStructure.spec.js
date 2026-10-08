@@ -284,12 +284,33 @@ describe('Settings/OrgStructure', () => {
             expect(text).toContain('Section Leader 3/2/C/1-7');
         });
 
+        it('reports existing mappings that now disagree with Cav', () => {
+            const wrapper = mount(OrgStructure, {
+                props: { units: UNITS, isAdmin: true, importResult: { unitsCreated: 0, mappingsCreated: 0, mappingsDiffering: 2, skippedTitles: [] } },
+            });
+
+            expect(wrapper.find('[data-testid="import-result"]').text()).toContain('2 existing mappings point at a different section');
+        });
+
+        it('falls back to the first server error when there is no import key', async () => {
+            postSpy = vi.fn((url, data, { onError, onFinish }) => {
+                onError({ other: 'Something else went wrong.' });
+                onFinish();
+            });
+            const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+
+            await wrapper.find('[data-testid="import-from-cav"]').trigger('click');
+
+            expect(wrapper.find('[data-testid="import-error"]').text()).toBe('Something else went wrong.');
+        });
+
         it('omits the skipped line when nothing was skipped', () => {
             const wrapper = mount(OrgStructure, {
-                props: { units: UNITS, isAdmin: true, importResult: { unitsCreated: 0, mappingsCreated: 0, skippedTitles: [] } },
+                props: { units: UNITS, isAdmin: true, importResult: { unitsCreated: 0, mappingsCreated: 0, mappingsDiffering: 0, skippedTitles: [] } },
             });
 
             expect(wrapper.find('[data-testid="import-result"]').text()).not.toContain('skipped');
+            expect(wrapper.find('[data-testid="import-result"]').text()).not.toContain('different section');
         });
     });
 });

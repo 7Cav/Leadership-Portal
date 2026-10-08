@@ -272,6 +272,14 @@ class CavApi
                 throw CavRequestException::malformedPositionGroups('a group was not an object');
             }
 
+            // Named in the error, since a group with no usable id has nothing else to name it by.
+            if (CavPositionGroup::positiveInteger($group['groupId'] ?? null) === null) {
+                throw CavRequestException::malformedPositionGroups(sprintf(
+                    "group '%s' carried no usable `groupId`",
+                    is_string($group['groupTitle'] ?? null) ? $group['groupTitle'] : '(untitled)',
+                ));
+            }
+
             return CavPositionGroup::fromPayload($group);
         }, $groups);
 

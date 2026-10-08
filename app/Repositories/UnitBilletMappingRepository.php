@@ -2,12 +2,14 @@
 
 namespace App\Repositories;
 
+use App\Models\Unit;
 use App\Models\UnitBilletMapping;
 use Illuminate\Support\Collection;
 
 /**
  * Sole DB access for the curated billet → section mapping (AD-2, 2.5). `Sync\SyncRosterHandler`
- * reads it; the org-structure import (2.9) is its only writer so far, and only ever adds rows.
+ * reads it; the org-structure import (2.9) is its only application writer so far, and only ever
+ * adds rows (a correction today is a direct DB edit, which the import then leaves alone).
  */
 interface UnitBilletMappingRepository
 {
@@ -23,12 +25,19 @@ interface UnitBilletMappingRepository
     public function sectionIdsByPositionId(): Collection;
 
     /**
-     * Every `cav_position_id` that already has a mapping, whatever unit it points at — the import
-     * (2.9) skips these so an Admin's hand-corrected mapping is never overwritten.
+     * Every mapping as `cav_position_id => unit_id`, whatever unit type it points at. The import
+     * (2.9) never repoints an existing row — not even one it wrote itself that Cav has since moved
+     * — so it uses this to skip mapped billets and to report the ones that now disagree with Cav.
      *
      * @return Collection<int, int>
      */
-    public function mappedPositionIds(): Collection;
+    public function unitIdsByPositionId(): Collection;
+
+    /**
+     * Whether any billet maps to `$unit` — `unit_billet_mappings.unit_id` restricts deletes, so
+     * `DeleteUnit` checks this first to refuse with a reason instead of a raw constraint error.
+     */
+    public function hasMappings(Unit $unit): bool;
 
     public function create(int $unitId, int $cavPositionId): UnitBilletMapping;
 }

@@ -145,9 +145,9 @@ class OrgStructureController extends Controller
 
     /**
      * Import the chain of command and the billet → section mapping from the Cav position groups
-     * (story 2.9). Admin-only, server-side (AD-6). A Cav failure surfaces as an `errors.import`
-     * message on the page; nothing was written in that case (the Command fetches before it
-     * writes).
+     * (story 2.9). Admin-only, server-side (AD-6). A failed import (Cav unreachable or unusable,
+     * or no line companies) surfaces as an `errors.import` message on the page; nothing was
+     * written in that case (the Command fetches and parses before it writes).
      */
     public function import(Request $request, ImportOrgStructure $command): RedirectResponse
     {
@@ -164,6 +164,7 @@ class OrgStructureController extends Controller
         return redirect()->route('settings.org-structure')->with('org_import', [
             'unitsCreated' => $result->unitsCreated,
             'mappingsCreated' => $result->mappingsCreated,
+            'mappingsDiffering' => $result->mappingsDiffering,
             'skippedTitles' => $result->skippedTitles,
         ]);
     }

@@ -124,3 +124,7 @@ it('fails before sending when no key is configured', function () {
 
     expect(fn () => $cav->fetchPositionGroups())->toThrow(CavRequestException::class, 'CAV_API_KEY');
 });
+
+it('names a group with no usable id by its title', function () {
+    pgExpectMalformed(['groups' => [['groupTitle' => 'A/1-7', 'positions' => []]]], "group 'A/1-7' carried no usable `groupId`");
+});

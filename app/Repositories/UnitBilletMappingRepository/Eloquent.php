@@ -2,6 +2,7 @@
 
 namespace App\Repositories\UnitBilletMappingRepository;
 
+use App\Models\Unit;
 use App\Models\UnitBilletMapping;
 use App\Models\UnitType;
 use App\Repositories\UnitBilletMappingRepository;
@@ -16,9 +17,14 @@ class Eloquent implements UnitBilletMappingRepository
             ->pluck('unit_id', 'cav_position_id');
     }
 
-    public function mappedPositionIds(): Collection
+    public function unitIdsByPositionId(): Collection
     {
-        return UnitBilletMapping::query()->pluck('cav_position_id');
+        return UnitBilletMapping::query()->pluck('unit_id', 'cav_position_id');
+    }
+
+    public function hasMappings(Unit $unit): bool
+    {
+        return UnitBilletMapping::query()->where('unit_id', $unit->id)->exists();
     }
 
     public function create(int $unitId, int $cavPositionId): UnitBilletMapping
