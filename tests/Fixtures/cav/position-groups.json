@@ -1,0 +1,510 @@
+{
+  "groups": [
+    {
+      "groupId": "1",
+      "groupTitle": "Regimental HQ",
+      "groupDisplayOrder": 10,
+      "positions": [
+        {
+          "positionTitle": "Regimental Commanding Officer",
+          "positionId": "1",
+          "positionDisplayOrder": 10,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Regimental Executive Officer",
+          "positionId": "2",
+          "positionDisplayOrder": 15,
+          "positionPossibleSecondary": false
+        }
+      ]
+    },
+    {
+      "groupId": "2",
+      "groupTitle": "Support Attachment",
+      "groupDisplayOrder": 20,
+      "positions": [
+        {
+          "positionTitle": "S1 1IC",
+          "positionId": "8",
+          "positionDisplayOrder": 100,
+          "positionPossibleSecondary": true
+        },
+        {
+          "positionTitle": "S1 2IC",
+          "positionId": "17",
+          "positionDisplayOrder": 200,
+          "positionPossibleSecondary": true
+        }
+      ]
+    },
+    {
+      "groupId": "4",
+      "groupTitle": "1-7 Command",
+      "groupDisplayOrder": 30,
+      "positions": [
+        {
+          "positionTitle": "1-7 Commanding Officer",
+          "positionId": "178",
+          "positionDisplayOrder": 10,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "1-7 Executive Officer",
+          "positionId": "179",
+          "positionDisplayOrder": 20,
+          "positionPossibleSecondary": false
+        }
+      ]
+    },
+    {
+      "groupId": "5",
+      "groupTitle": "A/1-7",
+      "groupDisplayOrder": 40,
+      "positions": [
+        {
+          "positionTitle": "Commander A/1-7",
+          "positionId": "196",
+          "positionDisplayOrder": 10,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Executive Officer A/1-7",
+          "positionId": "197",
+          "positionDisplayOrder": 20,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "First Sergeant A/1-7",
+          "positionId": "198",
+          "positionDisplayOrder": 30,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Platoon Leader 1/A/1-7",
+          "positionId": "199",
+          "positionDisplayOrder": 40,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Platoon Sergeant 1/A/1-7",
+          "positionId": "200",
+          "positionDisplayOrder": 50,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Section Leader 1/1/A/1-7",
+          "positionId": "201",
+          "positionDisplayOrder": 60,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Assistant Section Leader 1/1/A/1-7",
+          "positionId": "202",
+          "positionDisplayOrder": 70,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Trooper 1/1/A/1-7",
+          "positionId": "203",
+          "positionDisplayOrder": 80,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Section Leader 2/1/A/1-7",
+          "positionId": "204",
+          "positionDisplayOrder": 90,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Assistant Section Leader 2/1/A/1-7",
+          "positionId": "205",
+          "positionDisplayOrder": 100,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Trooper 2/1/A/1-7",
+          "positionId": "206",
+          "positionDisplayOrder": 110,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Platoon Leader 2/A/1-7",
+          "positionId": "213",
+          "positionDisplayOrder": 200,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Platoon Sergeant 2/A/1-7",
+          "positionId": "214",
+          "positionDisplayOrder": 205,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Section Leader 1/2/A/1-7",
+          "positionId": "215",
+          "positionDisplayOrder": 206,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Assistant Section Leader 1/2/A/1-7",
+          "positionId": "216",
+          "positionDisplayOrder": 207,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Trooper 1/2/A/1-7",
+          "positionId": "217",
+          "positionDisplayOrder": 220,
+          "positionPossibleSecondary": false
+        }
+      ]
+    },
+    {
+      "groupId": "6",
+      "groupTitle": "B/1-7",
+      "groupDisplayOrder": 50,
+      "positions": [
+        {
+          "positionTitle": "Commander B/1-7",
+          "positionId": "227",
+          "positionDisplayOrder": 10,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Section Leader 1/1/B/1-7",
+          "positionId": "232",
+          "positionDisplayOrder": 60,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Assistant Section Leader 1/1/B/1-7",
+          "positionId": "233",
+          "positionDisplayOrder": 70,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Trooper 1/1/B/1-7",
+          "positionId": "234",
+          "positionDisplayOrder": 80,
+          "positionPossibleSecondary": false
+        }
+      ]
+    },
+    {
+      "groupId": "32",
+      "groupTitle": "D/1-7",
+      "groupDisplayOrder": 70,
+      "positions": [
+        {
+          "positionTitle": "Section Leader 1/2/D/1-7",
+          "positionId": "1079",
+          "positionDisplayOrder": 200,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Assistant Section Leader 1/2/D/1-7",
+          "positionId": "1081",
+          "positionDisplayOrder": 210,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Trooper 1/2/D/1-7",
+          "positionId": "1082",
+          "positionDisplayOrder": 220,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Section Leader 3/2/C/1-7",
+          "positionId": "1086",
+          "positionDisplayOrder": 260,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Assistant Section Leader 3/2/D/1-7",
+          "positionId": "1087",
+          "positionDisplayOrder": 270,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Trooper 3/2/D/1-7",
+          "positionId": "1088",
+          "positionDisplayOrder": 280,
+          "positionPossibleSecondary": false
+        }
+      ]
+    },
+    {
+      "groupId": "8",
+      "groupTitle": "2-7 Command",
+      "groupDisplayOrder": 75,
+      "positions": [
+        {
+          "positionTitle": "2-7 Commanding Officer",
+          "positionId": "182",
+          "positionDisplayOrder": 10,
+          "positionPossibleSecondary": false
+        }
+      ]
+    },
+    {
+      "groupId": "9",
+      "groupTitle": "A/2-7",
+      "groupDisplayOrder": 80,
+      "positions": [
+        {
+          "positionTitle": "Section Leader 1/1/A/2-7",
+          "positionId": "350",
+          "positionDisplayOrder": 60,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Assistant Section Leader 1/1/A/2-7",
+          "positionId": "351",
+          "positionDisplayOrder": 70,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Trooper 1/1/A/2-7",
+          "positionId": "352",
+          "positionDisplayOrder": 80,
+          "positionPossibleSecondary": false
+        }
+      ]
+    },
+    {
+      "groupId": "29",
+      "groupTitle": "A/3-7",
+      "groupDisplayOrder": 132,
+      "positions": [
+        {
+          "positionTitle": "Section Leader 1/1/A/3-7",
+          "positionId": "804",
+          "positionDisplayOrder": 60,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Assistant Section Leader 1/1/A/3-7",
+          "positionId": "805",
+          "positionDisplayOrder": 70,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Trooper 1/1/A/3-7",
+          "positionId": "806",
+          "positionDisplayOrder": 80,
+          "positionPossibleSecondary": true
+        }
+      ]
+    },
+    {
+      "groupId": "23",
+      "groupTitle": "ACD Command",
+      "groupDisplayOrder": 135,
+      "positions": [
+        {
+          "positionTitle": "Auxiliary Commander",
+          "positionId": "552",
+          "positionDisplayOrder": 2,
+          "positionPossibleSecondary": true
+        },
+        {
+          "positionTitle": "Auxiliary Executive Officer",
+          "positionId": "627",
+          "positionDisplayOrder": 3,
+          "positionPossibleSecondary": true
+        }
+      ]
+    },
+    {
+      "groupId": "25",
+      "groupTitle": "B/ACD",
+      "groupDisplayOrder": 150,
+      "positions": [
+        {
+          "positionTitle": "Commander B/ACD",
+          "positionId": "590",
+          "positionDisplayOrder": 101,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Platoon Leader 1/B/ACD",
+          "positionId": "593",
+          "positionDisplayOrder": 104,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Platoon Sergeant 1/B/ACD",
+          "positionId": "595",
+          "positionDisplayOrder": 106,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Section Leader 1/1/B/ACD",
+          "positionId": "597",
+          "positionDisplayOrder": 108,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Assistant Section Leader 1/1/B/ACD",
+          "positionId": "598",
+          "positionDisplayOrder": 109,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Trooper 1/1/B/ACD",
+          "positionId": "599",
+          "positionDisplayOrder": 110,
+          "positionPossibleSecondary": false
+        }
+      ]
+    },
+    {
+      "groupId": "27",
+      "groupTitle": "D/DEVCOM",
+      "groupDisplayOrder": 170,
+      "positions": [
+        {
+          "positionTitle": "Section Leader 1/1/D/DEVCOM",
+          "positionId": "704",
+          "positionDisplayOrder": 612,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Assistant Section Leader 1/1/D/DEVCOM",
+          "positionId": "705",
+          "positionDisplayOrder": 613,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Trooper 1/1/D/DEVCOM",
+          "positionId": "706",
+          "positionDisplayOrder": 614,
+          "positionPossibleSecondary": false
+        }
+      ]
+    },
+    {
+      "groupId": "18",
+      "groupTitle": "Start-Up Games",
+      "groupDisplayOrder": 180,
+      "positions": [
+        {
+          "positionTitle": "War of Rights Start-Up",
+          "positionId": "952",
+          "positionDisplayOrder": 0,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Section Leader Star Citizen Start-Up",
+          "positionId": "780",
+          "positionDisplayOrder": 110,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Assistant Section Leader Star Citizen Start-Up",
+          "positionId": "781",
+          "positionDisplayOrder": 111,
+          "positionPossibleSecondary": false
+        }
+      ]
+    },
+    {
+      "groupId": "13",
+      "groupTitle": "New Recruits",
+      "groupDisplayOrder": 200,
+      "positions": [
+        {
+          "positionTitle": "New Recruit",
+          "positionId": "193",
+          "positionDisplayOrder": 1,
+          "positionPossibleSecondary": false
+        }
+      ]
+    },
+    {
+      "groupId": "14",
+      "groupTitle": "Extended Leave of Absence",
+      "groupDisplayOrder": 1000,
+      "positions": [
+        {
+          "positionTitle": "ELOA",
+          "positionId": "194",
+          "positionDisplayOrder": 10,
+          "positionPossibleSecondary": true
+        }
+      ]
+    },
+    {
+      "groupId": "15",
+      "groupTitle": "7th Cavalry Reservists",
+      "groupDisplayOrder": 1100,
+      "positions": [
+        {
+          "positionTitle": "Reservist",
+          "positionId": "195",
+          "positionDisplayOrder": 10,
+          "positionPossibleSecondary": false
+        }
+      ]
+    },
+    {
+      "groupId": "17",
+      "groupTitle": "Retired",
+      "groupDisplayOrder": 1200,
+      "positions": [
+        {
+          "positionTitle": "Retired",
+          "positionId": "525",
+          "positionDisplayOrder": 0,
+          "positionPossibleSecondary": false
+        }
+      ]
+    },
+    {
+      "groupId": "22",
+      "groupTitle": "Wall of Honor",
+      "groupDisplayOrder": 1250,
+      "positions": [
+        {
+          "positionTitle": "Wall of Honor",
+          "positionId": "758",
+          "positionDisplayOrder": 100,
+          "positionPossibleSecondary": false
+        }
+      ]
+    },
+    {
+      "groupId": "16",
+      "groupTitle": "Rest in Peace",
+      "groupDisplayOrder": 1300,
+      "positions": [
+        {
+          "positionTitle": "Rest In Peace",
+          "positionId": "757",
+          "positionDisplayOrder": 100,
+          "positionPossibleSecondary": false
+        }
+      ]
+    },
+    {
+      "groupId": "19",
+      "groupTitle": "Discharged",
+      "groupDisplayOrder": 1500,
+      "positions": [
+        {
+          "positionTitle": "Discharged",
+          "positionId": "528",
+          "positionDisplayOrder": 1500,
+          "positionPossibleSecondary": false
+        },
+        {
+          "positionTitle": "Dishonorably Discharged",
+          "positionId": "529",
+          "positionDisplayOrder": 1501,
+          "positionPossibleSecondary": false
+        }
+      ]
+    }
+  ]
+}

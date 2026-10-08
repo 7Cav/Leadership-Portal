@@ -2,13 +2,16 @@
 
 namespace App\Integration\Cav;
 
+use App\Integration\Cav\Data\CavPositionGroup;
 use App\Integration\Cav\Data\CavRosterEntry;
 use App\Integration\Cav\Data\CavRosterProfile;
 use App\Integration\Cav\Data\MilpacId;
+use App\Integration\Cav\Data\PositionGroupsFetchResult;
 use App\Integration\Cav\Data\RosterFetchResult;
 use App\Integration\Cav\Data\RosterRowError;
 use App\Integration\Cav\Data\RosterType;
 use App\Integration\Cav\Requests\FetchMilpacProfileRequest;
+use App\Integration\Cav\Requests\FetchPositionGroupsRequest;
 use App\Integration\Cav\Requests\FetchRosterRequest;
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
@@ -235,6 +238,46 @@ class CavApi
         }
 
         return new RosterFetchResult($troopers, $errors);
+    }
+
+    /**
+     * Fetch every milpac position group with its positions (story 2.9), sorted into Cav's own
+     * display order.
+     *
+     * All-or-nothing, unlike {@see fetchRoster}'s per-row tolerance: the caller builds the chain
+     * of command from this, and an org tree imported from a silently partial structure would be
+     * wrong in ways nobody would notice — so any unusable group or position fails the whole
+     * fetch. An empty `groups` list is treated as unusable too: Cav always publishes its
+     * holding groups, so an empty list means the payload is broken, not that the regiment is.
+     *
+     * @throws CavRequestException when the call fails or the payload is unusable
+     */
+    public function fetchPositionGroups(): PositionGroupsFetchResult
+    {
+        $fetchedAt = $this->now();
+
+        $payload = $this->sendForJson(
+            new FetchPositionGroupsRequest,
+            fn (int $status) => CavRequestException::positionGroupsFetchFailed($status),
+        );
+
+        $groups = $payload['groups'] ?? null;
+
+        if (! is_array($groups) || ! array_is_list($groups) || $groups === []) {
+            throw CavRequestException::malformedPositionGroups('it carried no `groups` list');
+        }
+
+        $parsed = array_map(function (mixed $group) {
+            if (! is_array($group)) {
+                throw CavRequestException::malformedPositionGroups('a group was not an object');
+            }
+
+            return CavPositionGroup::fromPayload($group);
+        }, $groups);
+
+        usort($parsed, fn (CavPositionGroup $a, CavPositionGroup $b) => $a->displayOrder <=> $b->displayOrder);
+
+        return new PositionGroupsFetchResult($parsed, $fetchedAt);
     }
 
     /**

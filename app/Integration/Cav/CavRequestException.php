@@ -50,6 +50,20 @@ class CavRequestException extends RuntimeException
         );
     }
 
+    public static function positionGroupsFetchFailed(int $status): self
+    {
+        return new self(
+            CavFailureReason::HttpError,
+            "Cav position groups fetch failed (HTTP {$status}).",
+            status: $status,
+        );
+    }
+
+    public static function malformedPositionGroups(string $detail): self
+    {
+        return new self(CavFailureReason::Malformed, "Cav position groups response was unusable: {$detail}.");
+    }
+
     /**
      * Whether this failure is evidence that a *stored* milpac link no longer resolves — the
      * record is gone, as opposed to the API being unwilling or unable to answer.
