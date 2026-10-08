@@ -6,11 +6,13 @@ import Home from '../Home.vue';
 // ran degraded. Identity, rank, provenance and Sign out moved to the app shell in Story 1.15 and
 // are covered by Layouts/__tests__/AppLayout.spec.js.
 let mockProfileUnavailable = null;
+const reload = vi.fn();
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
     // `<Head>` needs a real Inertia app instance; this unit test does not stand one up.
     Head: { template: '<head></head>' },
+    router: { reload: (...args) => reload(...args) },
     usePage: () => ({
         props: { auth: { user: { username: 'Hale.S' }, profile: null, profileUnavailable: mockProfileUnavailable } },
     }),
@@ -28,6 +30,7 @@ describe('Home page', () => {
     };
 
     beforeEach(() => {
+        reload.mockReset();
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-10-08T16:20:30Z'));
     });
@@ -70,10 +73,22 @@ describe('Home page', () => {
             expect(wrapper.find('[data-testid="countdown"]').text()).toBe('2d 06h 38m left');
         });
 
-        it('says the report is due now once the deadline passes, never a negative time', async () => {
+        it('says the deadline has passed, never a negative time', () => {
             vi.setSystemTime(new Date('2026-10-11T00:00:30Z'));
 
-            expect(factory().find('[data-testid="countdown"]').text()).toBe('Due now');
+            expect(factory().find('[data-testid="countdown"]').text()).toBe('Deadline passed');
+        });
+
+        it('fetches the next cycle once when the deadline passes in an open tab', async () => {
+            vi.setSystemTime(new Date('2026-10-10T23:58:00Z'));
+            factory();
+
+            await vi.advanceTimersByTimeAsync(30_000);
+            expect(reload).not.toHaveBeenCalled();
+
+            await vi.advanceTimersByTimeAsync(90_000);
+            expect(reload).toHaveBeenCalledTimes(1);
+            expect(reload.mock.calls[0][0]).toMatchObject({ only: ['week'] });
         });
     });
 

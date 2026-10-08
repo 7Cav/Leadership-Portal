@@ -10,6 +10,11 @@ test('`/` sends a guest to the login screen, which renders end-to-end', async ({
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Continue with 7Cav' })).toBeVisible();
+
+    // Login stays outside the app shell (resolveLayout): no sidebar, skip link or sign-out.
+    await expect(page.locator('[data-slot="sidebar"]')).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Skip to content' })).toHaveCount(0);
+    await expect(page.getByRole('navigation', { name: 'Primary' })).toHaveCount(0);
 });
 
 test('a saved dark theme is applied before the page paints', async ({ page }) => {

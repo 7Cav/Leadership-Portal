@@ -1,5 +1,4 @@
 <script setup>
-import { watch } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { PhCaretUpDown, PhCheck } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
@@ -32,23 +31,20 @@ const page = usePage();
 const { isAdmin } = useIdentity();
 const { isMobile, setOpenMobile } = useSidebar();
 
-// The mobile sidebar is a sheet over the page: close it once a nav link has taken the viewer
-// somewhere, or it would sit on top of the page they just opened.
-watch(
-    () => page.url,
-    () => {
-        if (isMobile.value) setOpenMobile(false);
-    },
-);
+// The mobile sidebar is a sheet over the page: close it when a nav link is followed (including
+// the page already open), or it would sit on top of the page the viewer asked for.
+function closeOnMobile() {
+    if (isMobile.value) setOpenMobile(false);
+}
 </script>
 
 <template>
-    <Sidebar collapsible="icon" aria-label="Primary">
+    <Sidebar collapsible="icon">
         <SidebarHeader class="border-b border-sidebar-border p-2">
             <!--
               Scope switcher (shell-f.html `#unitSwitcher`). Only the regiment exists as a scope
-              until unit scopes and view-as land (Story 1.13), so the menu says so rather than
-              offering choices that do nothing.
+              until unit scopes (Story 1.16) and view-as (Story 1.13) land, so the menu says so
+              rather than offering choices that do nothing.
             -->
             <SidebarMenu>
                 <SidebarMenuItem>
@@ -82,51 +78,55 @@ watch(
             </SidebarMenu>
         </SidebarHeader>
 
-        <SidebarContent class="gap-2 py-2">
-            <SidebarGroup v-for="group in visibleGroups(isAdmin)" :key="group.id" :data-testid="`nav-group-${group.id}`" class="py-0">
-                <SidebarGroupLabel class="h-7 text-xs font-normal text-muted-foreground">{{ group.label }}</SidebarGroupLabel>
-                <SidebarMenu class="gap-0.5">
-                    <SidebarMenuItem v-for="item in group.items" :key="item.label">
-                        <SidebarMenuButton
-                            v-if="item.href"
-                            as-child
-                            :is-active="isActive(page.url, item.href)"
-                            :tooltip="item.label"
-                        >
-                            <Link
-                                :href="item.href"
-                                :aria-current="isActive(page.url, item.href) ? 'page' : undefined"
-                                :data-testid="`nav-${item.label}`"
+        <SidebarContent class="py-2">
+            <!-- The primary-navigation landmark (the sidebar itself renders plain divs). -->
+            <nav aria-label="Primary" class="flex flex-col gap-2">
+                <SidebarGroup v-for="group in visibleGroups(isAdmin)" :key="group.id" :data-testid="`nav-group-${group.id}`" class="py-0">
+                    <SidebarGroupLabel class="h-7 text-xs font-normal text-muted-foreground">{{ group.label }}</SidebarGroupLabel>
+                    <SidebarMenu class="gap-0.5">
+                        <SidebarMenuItem v-for="item in group.items" :key="item.label">
+                            <SidebarMenuButton
+                                v-if="item.href"
+                                as-child
+                                :is-active="isActive(page.url, item.href)"
+                                :tooltip="item.label"
                             >
-                                <component :is="item.icon" />
-                                <span>{{ item.label }}</span>
-                            </Link>
-                        </SidebarMenuButton>
-
-                        <!--
-                          No screen yet: a disabled control, not a dead link. It stays focusable
-                          (aria-disabled, not `disabled`) so keyboard users reach the tooltip, and
-                          carries a visible "Soon" for touch, where tooltips never open.
-                        -->
-                        <Tooltip v-else>
-                            <TooltipTrigger as-child>
-                                <SidebarMenuButton
-                                    type="button"
-                                    aria-disabled="true"
+                                <Link
+                                    :href="item.href"
+                                    :aria-current="isActive(page.url, item.href) ? 'page' : undefined"
                                     :data-testid="`nav-${item.label}`"
-                                    class="cursor-not-allowed aria-disabled:pointer-events-auto hover:bg-transparent"
-                                    @click.prevent
+                                    @click="closeOnMobile"
                                 >
                                     <component :is="item.icon" />
-                                    <span class="flex-1">{{ item.label }}</span>
-                                    <Badge variant="outline" class="group-data-[collapsible=icon]:hidden">Soon</Badge>
-                                </SidebarMenuButton>
-                            </TooltipTrigger>
-                            <TooltipContent side="right">{{ item.label }}: coming soon</TooltipContent>
-                        </Tooltip>
-                    </SidebarMenuItem>
-                </SidebarMenu>
-            </SidebarGroup>
+                                    <span>{{ item.label }}</span>
+                                </Link>
+                            </SidebarMenuButton>
+
+                            <!--
+                              No screen yet: a disabled control, not a dead link. It stays focusable
+                              (aria-disabled, not `disabled`) so keyboard users reach the tooltip, and
+                              carries a visible "Soon" for touch, where tooltips never open.
+                            -->
+                            <Tooltip v-else>
+                                <TooltipTrigger as-child>
+                                    <SidebarMenuButton
+                                        type="button"
+                                        aria-disabled="true"
+                                        :data-testid="`nav-${item.label}`"
+                                        class="cursor-not-allowed aria-disabled:pointer-events-auto hover:bg-transparent"
+                                        @click.prevent
+                                    >
+                                        <component :is="item.icon" />
+                                        <span class="flex-1">{{ item.label }}</span>
+                                        <Badge variant="outline" class="group-data-[collapsible=icon]:hidden">Soon</Badge>
+                                    </SidebarMenuButton>
+                                </TooltipTrigger>
+                                <TooltipContent side="right">{{ item.label }}: coming soon</TooltipContent>
+                            </Tooltip>
+                        </SidebarMenuItem>
+                    </SidebarMenu>
+                </SidebarGroup>
+            </nav>
         </SidebarContent>
 
         <SidebarFooter class="border-t border-sidebar-border p-2">

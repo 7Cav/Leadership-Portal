@@ -75,16 +75,17 @@ defineProps({
  | Layout ported from the pixel contract (_bmad-output/planning-artifacts/mockups/login.html),
  | colours restyled onto the portal tokens in resources/css/app.css (Story 1.15) so the login
  | screen follows the same light/dark theme and gold accent as the app shell. The local names
- | below are aliases only; change a colour in app.css, not here.
+ | below are aliases only (change a colour in app.css, not here) and must not reuse an app.css
+ | token name, or they would shadow that token for the whole page.
  */
 .login-page {
     --bg: var(--background);
     --panel: var(--card);
-    --panel-2: var(--muted);
     --text: var(--foreground);
-    --muted: var(--muted-foreground);
-    --muted-2: var(--muted-foreground);
+    --text-muted: var(--muted-foreground);
     --gold: var(--primary);
+    /* Gold as text on a surface: the deeper shade in light mode, where full primary fails contrast. */
+    --gold-text: var(--nav-active-icon);
     --gold-soft: color-mix(in oklab, var(--primary) 55%, var(--border));
     --gold-bg: color-mix(in oklab, var(--primary) 12%, transparent);
     --bad: var(--destructive);
@@ -141,7 +142,6 @@ defineProps({
     height: 520px;
     opacity: 0.05;
     pointer-events: none;
-    
 }
 .hero .watermark img {
     width: 100%;
@@ -172,7 +172,7 @@ defineProps({
 }
 .hero .brand-mark .name span {
     display: block;
-    color: var(--muted);
+    color: var(--text-muted);
     font-size: 12px;
     font-weight: 400;
     letter-spacing: 0.3px;
@@ -183,7 +183,7 @@ defineProps({
     max-width: 540px;
 }
 .hero .pitch .eyebrow {
-    color: var(--gold);
+    color: var(--gold-text);
     text-transform: uppercase;
     letter-spacing: 2px;
     font-size: 11px;
@@ -199,10 +199,10 @@ defineProps({
 }
 .hero .pitch h1 em {
     font-style: normal;
-    color: var(--muted);
+    color: var(--text-muted);
 }
 .hero .pitch p {
-    color: var(--muted);
+    color: var(--text-muted);
     font-size: 14.5px;
     line-height: 1.65;
     margin: 0 0 28px;
@@ -228,7 +228,7 @@ defineProps({
     height: 26px;
     border-radius: 4px;
     background: var(--gold-bg);
-    color: var(--gold);
+    color: var(--gold-text);
     display: grid;
     place-items: center;
     font-weight: 800;
@@ -238,7 +238,7 @@ defineProps({
 .hero .footer-row {
     display: flex;
     gap: 16px;
-    color: var(--muted-2);
+    color: var(--text-muted);
     font-size: 11px;
     letter-spacing: 0.4px;
     position: relative;
@@ -278,7 +278,7 @@ defineProps({
     font-weight: 600;
 }
 .login-inner .lead {
-    color: var(--muted);
+    color: var(--text-muted);
     font-size: 13.5px;
     margin-bottom: 28px;
 }
@@ -322,7 +322,6 @@ defineProps({
 .sso-btn .ico-shield {
     width: 24px;
     height: 24px;
-    
 }
 .sso-btn .ico-shield img {
     width: 100%;
@@ -339,7 +338,7 @@ defineProps({
     padding: 11px 14px;
     margin-top: 10px;
     background: transparent;
-    color: var(--muted);
+    color: var(--text-muted);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     font-size: 13px;
@@ -349,7 +348,7 @@ defineProps({
 }
 .secondary-btn:hover {
     color: var(--text);
-    border-color: var(--muted-2);
+    border-color: var(--text-muted);
 }
 .notice {
     margin-top: 22px;
@@ -359,7 +358,7 @@ defineProps({
     border-left: 3px solid var(--gold);
     border-radius: var(--radius);
     font-size: 12.5px;
-    color: var(--muted);
+    color: var(--text-muted);
     line-height: 1.55;
 }
 .notice-em {
@@ -369,12 +368,12 @@ defineProps({
     margin-top: 28px;
     padding-top: 20px;
     border-top: 1px solid var(--border);
-    color: var(--muted-2);
+    color: var(--text-muted);
     font-size: 12px;
     line-height: 1.6;
 }
 .help-row a {
-    color: var(--muted);
+    color: var(--text-muted);
 }
 .help-row a:hover {
     color: var(--text);

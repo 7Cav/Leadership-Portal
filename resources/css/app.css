@@ -7,7 +7,8 @@
 @source '../js/**/*.vue';
 
 /* `dark:` follows a `.dark` class on <html> (set pre-paint in app.blade.php, toggled by
-   AppLayout), not the OS setting alone, so the in-app theme toggle wins. */
+   useTheme from the header toggle and the user menu), not the OS setting alone, so the in-app
+   choice wins. */
 @custom-variant dark (&:is(.dark *));
 
 /*
@@ -162,7 +163,7 @@
     --color-sidebar-ring: var(--sidebar-ring);
 
     /* Fixed steps, not multiples of --radius: the mockup's rule is 4 / 6 / 10. `xl` is pinned
-       to the panel radius too, because shadcn-vue's Card and Sheet reach for `rounded-xl`. */
+       to the panel radius too, because shadcn-vue's Card (and SidebarInset) reach for `rounded-xl`. */
     --radius-sm: 4px;
     --radius-md: var(--radius);
     --radius-lg: 10px;

@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { Head, usePage } from '@inertiajs/vue3';
+import { Head, router, usePage } from '@inertiajs/vue3';
 import { PhChartLine, PhClockCountdown, PhTray, PhUsersThree, PhWarning } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -33,8 +33,21 @@ const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 // Ticks the countdown and the "today" marker. Thirty seconds is plenty for a minutes display.
 const now = ref(Date.now());
 let timer = null;
+let reloading = false;
+
+// `week` is fixed at page load. Once its deadline passes, the server has moved on to the next
+// cycle, so fetch it (once, until that visit finishes) instead of counting down a stale week.
+function tick() {
+    now.value = Date.now();
+
+    if (!reloading && now.value >= new Date(props.week.reportDue).getTime()) {
+        reloading = true;
+        router.reload({ only: ['week'], onFinish: () => (reloading = false) });
+    }
+}
+
 onMounted(() => {
-    timer = setInterval(() => (now.value = Date.now()), 30_000);
+    timer = setInterval(tick, 30_000);
 });
 onBeforeUnmount(() => clearInterval(timer));
 
@@ -61,7 +74,7 @@ const dueLabel = computed(() => {
 
 const countdown = computed(() => {
     let seconds = Math.floor((new Date(props.week.reportDue).getTime() - now.value) / 1000);
-    if (seconds <= 0) return 'Due now';
+    if (seconds <= 0) return 'Deadline passed';
 
     const d = Math.floor(seconds / 86400);
     seconds -= d * 86400;

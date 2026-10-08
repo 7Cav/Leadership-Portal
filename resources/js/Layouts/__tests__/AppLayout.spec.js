@@ -87,7 +87,8 @@ describe('AppLayout', () => {
             expect(settings.find('a[href="/settings/audit-log"]').exists()).toBe(true);
         });
 
-        it('treats a missing or non-boolean is_admin as not an Admin', () => {
+        // The full table of is_admin values lives in composables/__tests__/useIdentity.spec.js.
+        it('treats a truthy but non-boolean is_admin as not an Admin', () => {
             wrapper = mountLayout({ user: { id: 1, username: 'Hale.S', is_admin: 1 } });
 
             expect(wrapper.find('[data-testid="nav-group-settings"]').exists()).toBe(false);
@@ -133,12 +134,21 @@ describe('AppLayout', () => {
         });
 
         it('navigates with Inertia links, not full page loads', () => {
-            wrapper = mountLayout();
+            wrapper = mountLayout({ user: { id: 1, username: 'Hale.S', is_admin: true } });
 
             // Inertia's <Link> renders an anchor and intercepts the click; a plain <a> would not
-            // carry the component. Asserting the component is what proves "no full reload".
-            const links = wrapper.findAllComponents({ name: 'Link' });
-            expect(links.map((link) => link.props('href'))).toContain('/home');
+            // carry the component. Every nav anchor must be one.
+            const linkHrefs = wrapper.findAllComponents({ name: 'Link' }).map((link) => link.props('href'));
+            const navHrefs = wrapper.findAll('nav[aria-label="Primary"] a').map((a) => a.attributes('href'));
+
+            expect(navHrefs).toEqual(['/home', '/settings/org-structure', '/settings/staff-grants', '/settings/audit-log']);
+            for (const href of navHrefs) expect(linkHrefs).toContain(href);
+        });
+
+        it('exposes the menu as a labelled navigation landmark', () => {
+            wrapper = mountLayout();
+
+            expect(wrapper.find('nav[aria-label="Primary"] a[href="/home"]').exists()).toBe(true);
         });
 
         it('shows the current page in the breadcrumb', () => {
@@ -185,12 +195,15 @@ describe('AppLayout', () => {
             const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
                 throw new Error('blocked');
             });
-            wrapper = mountLayout();
+            try {
+                wrapper = mountLayout();
 
-            await wrapper.find('[data-testid="theme-toggle"]').trigger('click');
+                await wrapper.find('[data-testid="theme-toggle"]').trigger('click');
 
-            expect(document.documentElement.classList.contains('dark')).toBe(true);
-            setItem.mockRestore();
+                expect(document.documentElement.classList.contains('dark')).toBe(true);
+            } finally {
+                setItem.mockRestore();
+            }
         });
 
         it('switches theme from the user menu as well', async () => {
@@ -202,6 +215,54 @@ describe('AppLayout', () => {
 
             expect(document.documentElement.classList.contains('dark')).toBe(true);
             expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('dark');
+        });
+    });
+
+    // Below lg (1024px, covering the AC's <= 880px) the sidebar becomes an off-canvas sheet.
+    describe('mobile menu', () => {
+        let originalMatchMedia;
+
+        beforeEach(() => {
+            originalMatchMedia = window.matchMedia;
+            window.matchMedia = (query) => ({
+                matches: query === '(max-width: 1023px)',
+                media: query,
+                addEventListener() {},
+                removeEventListener() {},
+                addListener() {},
+                removeListener() {},
+            });
+        });
+
+        afterEach(() => {
+            window.matchMedia = originalMatchMedia;
+        });
+
+        const sheet = () => inBody('[data-mobile="true"]');
+
+        it('keeps the menu closed until the trigger opens it as a sheet', async () => {
+            wrapper = mountLayout();
+            await flushPromises();
+            expect(sheet()).toBeNull();
+
+            await wrapper.find('[data-sidebar="trigger"]').trigger('click');
+            await flushPromises();
+
+            expect(sheet()).not.toBeNull();
+            expect(sheet().querySelector('nav[aria-label="Primary"] a[href="/home"]')).not.toBeNull();
+        });
+
+        it('closes the sheet once a nav link is followed, even to the page already open', async () => {
+            wrapper = mountLayout();
+            await wrapper.find('[data-sidebar="trigger"]').trigger('click');
+            await flushPromises();
+
+            // A modified click: Inertia's Link leaves it alone (no visit in a unit test), while the
+            // shell's own click handler still runs.
+            sheet().querySelector('a[href="/home"]').dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }));
+            await flushPromises();
+
+            expect(sheet()).toBeNull();
         });
     });
 
