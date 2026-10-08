@@ -46,7 +46,7 @@ class Eloquent implements AttendanceRepository
             ->get();
     }
 
-    public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
+    public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection
     {
         // A practice is held once any row on it carries a leader's SP mark. Signatures alone do
         // not hold it, and neither does `loa` — derived from LOA data, it says nothing about
@@ -57,8 +57,11 @@ class Eloquent implements AttendanceRepository
             ->where('status', '!=', AttendanceStatus::Loa->value)
             ->groupBy('section_practice_id');
 
-        return Trooper::query()
-            ->assignedWithin($unit)
+        $population = $includeDeparted
+            ? Trooper::query()->whereIn('troopers.primary_section_id', Unit::query()->select('id')->where('path', 'like', "{$unit->path}%"))
+            : Trooper::query()->assignedWithin($unit);
+
+        return $population
             ->join('section_practices', 'section_practices.section_id', '=', 'troopers.primary_section_id')
             ->leftJoinSub($held, 'held', 'held.section_practice_id', '=', 'section_practices.id')
             ->leftJoin('attendance', function ($join) {
@@ -77,6 +80,7 @@ class Eloquent implements AttendanceRepository
                 'section_practices.week_start',
                 'attendance.status',
                 'attendance.rollcall',
+                'attendance.source',
                 DB::raw('held.section_practice_id is not null as held'),
             ])
             ->map(fn (object $row) => new CountingMark(
@@ -86,6 +90,7 @@ class Eloquent implements AttendanceRepository
                 // Null only when the left join found no attendance row: nobody signed for them.
                 rollcall: $row->rollcall === null ? RollcallSignature::Unsigned : RollcallSignature::from($row->rollcall),
                 held: (bool) $row->held,
+                source: $row->source === null ? null : AttendanceSource::from($row->source),
             ));
     }
 

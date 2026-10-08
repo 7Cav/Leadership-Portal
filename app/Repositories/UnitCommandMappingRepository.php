@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitCommandMapping;
 use App\Models\User;
@@ -57,4 +58,14 @@ interface UnitCommandMappingRepository
      * @return Collection<int, Unit>
      */
     public function commandedUnitsByCavId(array $cavIds): Collection;
+
+    /**
+     * The serving trooper holding each unit's command billet, keyed by unit id — the leader a
+     * roster's platoon and section headers name (2.8). A unit with no mapping, or whose billet no
+     * serving trooper holds, is absent. One query for any number of units.
+     *
+     * @param  list<int>  $unitIds
+     * @return Collection<int, Trooper>
+     */
+    public function commandersOf(array $unitIds): Collection;
 }

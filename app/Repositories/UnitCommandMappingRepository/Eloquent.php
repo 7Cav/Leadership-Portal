@@ -2,6 +2,7 @@
 
 namespace App\Repositories\UnitCommandMappingRepository;
 
+use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitCommandMapping;
@@ -68,5 +69,21 @@ class Eloquent implements UnitCommandMappingRepository
                 TrooperStatus::Reserve->value,
                 TrooperStatus::Eloa->value,
             ]);
+    }
+
+    public function commandersOf(array $unitIds): Collection
+    {
+        if ($unitIds === []) {
+            return collect();
+        }
+
+        return Trooper::query()
+            ->select('troopers.*', 'unit_command_mappings.unit_id as commands_unit_id')
+            ->join('unit_command_mappings', 'unit_command_mappings.cav_position_id', '=', 'troopers.cav_position_id')
+            ->whereIn('unit_command_mappings.unit_id', $unitIds)
+            ->where('troopers.status', '!=', TrooperStatus::Inactive->value)
+            ->orderBy('troopers.id')
+            ->get()
+            ->keyBy(fn (Trooper $trooper) => (int) $trooper->getAttribute('commands_unit_id'));
     }
 }

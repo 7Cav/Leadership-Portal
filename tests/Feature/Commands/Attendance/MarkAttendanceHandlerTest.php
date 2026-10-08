@@ -243,9 +243,9 @@ it('rolls the whole batch back — practice, marks and audit — when a write fa
             return $this->inner->forPractice($practice);
         }
 
-        public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
+        public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection
         {
-            return $this->inner->countingMarks($unit, $firstWeek, $lastWeek);
+            return $this->inner->countingMarks($unit, $firstWeek, $lastWeek, $includeDeparted);
         }
     });
 

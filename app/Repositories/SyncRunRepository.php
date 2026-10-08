@@ -39,4 +39,12 @@ interface SyncRunRepository
      * second-precision `created_at` column.
      */
     public function latestSuccessful(string $source): ?SyncRun;
+
+    /**
+     * The most recent *closed* run for a source, whatever its outcome — the roster view (2.8)
+     * compares it with {@see latestSuccessful()} to flag a cache whose last attempt failed or
+     * was partial (AD-4: the last good cache is shown, visibly stale). A run still
+     * `in_progress` has no outcome yet and is skipped. Same `id` tiebreaker.
+     */
+    public function latestFinished(string $source): ?SyncRun;
 }
