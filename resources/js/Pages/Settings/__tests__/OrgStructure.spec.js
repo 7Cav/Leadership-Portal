@@ -292,6 +292,38 @@ describe('Settings/OrgStructure', () => {
             expect(wrapper.find('[data-testid="import-result"]').text()).toContain('2 existing mappings point at a different section');
         });
 
+        // Story 1.16 adds command-billet mapping counts to the same flash. They appear only when
+        // the server sends them, so this page works on either side of that change.
+        it('reports command-billet mappings created, repointed and removed when the server sends them', () => {
+            const wrapper = mount(OrgStructure, {
+                props: {
+                    units: UNITS,
+                    isAdmin: true,
+                    importResult: {
+                        unitsCreated: 0,
+                        mappingsCreated: 0,
+                        skippedTitles: [],
+                        commandMappingsCreated: 4,
+                        commandMappingsRepointed: 1,
+                        commandMappingsRemoved: 2,
+                    },
+                },
+            });
+
+            const text = wrapper.find('[data-testid="import-result"]').text();
+            expect(text).toContain('4 command mappings created');
+            expect(text).toContain('1 repointed');
+            expect(text).toContain('2 removed');
+        });
+
+        it('says nothing about command mappings when the server does not send them', () => {
+            const wrapper = mount(OrgStructure, {
+                props: { units: UNITS, isAdmin: true, importResult: { unitsCreated: 1, mappingsCreated: 1, skippedTitles: [] } },
+            });
+
+            expect(wrapper.find('[data-testid="import-result"]').text()).not.toContain('command');
+        });
+
         it('falls back to the first server error when there is no import key', async () => {
             postSpy = vi.fn((url, data, { onError, onFinish }) => {
                 onError({ other: 'Something else went wrong.' });

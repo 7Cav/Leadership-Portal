@@ -63,10 +63,10 @@ describe('Settings/AuditLog', () => {
         expect(wrapper.text()).toContain('No audit entries match these filters.');
     });
 
-    it('shows a dash for a null reason', () => {
+    it('says no reason was given for a null reason, rather than leaving the cell blank', () => {
         const wrapper = makeWrapper({ entries: { ...ENTRIES, data: [{ ...ENTRY, reason: null }] } });
 
-        expect(wrapper.find('[data-testid="entry-row-1"]').text()).toContain('—');
+        expect(wrapper.find('[data-testid="entry-row-1"]').text()).toContain('None given');
     });
 
     it('submits the filter form as a GET to the audit-log route', async () => {

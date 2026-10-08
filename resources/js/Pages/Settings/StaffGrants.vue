@@ -1,6 +1,15 @@
 <script setup>
 import { ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
+import { PhKey, PhLockSimple, PhPlus } from '@phosphor-icons/vue';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { NativeSelect } from '@/components/ui/native-select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Textarea } from '@/components/ui/textarea';
+import EmptyState from '@/components/EmptyState.vue';
 
 // Flat grants/units/users lists (mirrors `OrgStructure.vue`'s flat-props pattern) — the target
 // user and node pickers are plain `<select>`s (no roster/Trooper model exists yet for a live
@@ -32,7 +41,7 @@ const revokeError = ref(null);
 function requestRevoke(grant) {
     const reason = window.prompt(`Reason for revoking ${grant.username}'s grant at ${grant.unit_name}?`);
     if (reason === null) {
-        return; // Cancelled — a deliberate no-op, not an error.
+        return; // Cancelled: a deliberate no-op, not an error.
     }
     if (reason.trim() === '') {
         revokeError.value = 'A reason is required to revoke a grant.';
@@ -44,7 +53,7 @@ function requestRevoke(grant) {
         data: { reason },
         preserveScroll: true,
         onError: (errors) => {
-            revokeError.value = errors.reason ?? 'Revoke failed — see server response.';
+            revokeError.value = errors.reason ?? 'The revoke failed. Reload the page and try again; if it persists, check the server logs.';
         },
     });
 }
@@ -53,111 +62,88 @@ function requestRevoke(grant) {
 <template>
     <Head title="Settings · Staff grants · 7Cav Leadership Portal" />
 
-    <div class="min-h-screen bg-bg p-6 text-white">
-        <div class="mb-4 flex items-center justify-between">
-            <div>
-                <h1 class="text-xl font-semibold text-gold">Settings · Staff grants</h1>
-                <p class="mt-1 text-sm text-gray-400">
-                    Attach non-admin staff to a node for scope the roster can't imply — S-shop staff, dual-hats.
+    <div class="space-y-5">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0">
+                <h1 class="text-xl font-semibold tracking-tight">Staff grants</h1>
+                <p class="mt-1 text-[13px] text-muted-foreground">
+                    Give staff scope over a unit when their billet alone does not, such as S-shop staff and dual-hatted leaders.
                 </p>
             </div>
-            <span
-                v-if="isAdmin"
-                class="inline-flex items-center gap-1.5 rounded border border-gold-soft bg-panel px-2.5 py-1 text-xs text-gold"
-            >
-                🔒 Admin
-            </span>
+            <Badge v-if="isAdmin" variant="outline" class="gap-1"><PhLockSimple aria-hidden="true" />Admin</Badge>
         </div>
 
-        <div class="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
-            <div class="rounded-lg border border-border bg-panel p-3">
-                <h2 class="mb-2 px-2 text-sm font-medium text-gray-300">Current grants</h2>
-                <p v-if="revokeError" data-testid="revoke-error" class="mb-2 px-2 text-[11px] text-bad">{{ revokeError }}</p>
+        <div class="grid items-start gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+            <Card class="min-w-0 gap-0 py-0">
+                <div class="px-4 pt-3.5 pb-2">
+                    <h2 class="text-[15px] font-semibold">Current grants</h2>
+                </div>
+                <p v-if="revokeError" data-testid="revoke-error" role="alert" class="px-4 pb-2 text-xs text-destructive">{{ revokeError }}</p>
 
-                <table class="w-full text-left text-sm">
-                    <thead>
-                        <tr class="text-xs text-gray-500">
-                            <th class="px-2 py-1 font-normal">User</th>
-                            <th class="px-2 py-1 font-normal">Node</th>
-                            <th class="px-2 py-1 font-normal"></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="grant in grants" :key="grant.id" :data-testid="`grant-row-${grant.id}`" class="border-t border-border">
-                            <td class="px-2 py-2">{{ grant.username }}</td>
-                            <td class="px-2 py-2">
-                                <span class="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg px-2.5 py-0.5 text-xs">
-                                    {{ grant.unit_name }}
-                                </span>
-                            </td>
-                            <td class="px-2 py-2 text-right">
-                                <button
+                <Table v-if="grants.length" class="text-[13px]">
+                    <TableHeader>
+                        <TableRow class="hover:bg-transparent">
+                            <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">User</TableHead>
+                            <TableHead class="h-8 text-xs font-medium text-muted-foreground">Unit</TableHead>
+                            <TableHead class="h-8 px-4"><span class="sr-only">Actions</span></TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        <TableRow v-for="grant in grants" :key="grant.id" :data-testid="`grant-row-${grant.id}`">
+                            <TableCell class="px-4 font-medium">{{ grant.username }}</TableCell>
+                            <TableCell><Badge variant="outline">{{ grant.unit_name }}</Badge></TableCell>
+                            <TableCell class="px-4 text-right">
+                                <Button
                                     v-if="isAdmin"
-                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
                                     :data-testid="`revoke-${grant.id}`"
-                                    class="text-xs text-bad"
+                                    class="text-destructive hover:text-destructive"
                                     @click="requestRevoke(grant)"
                                 >
                                     Revoke
-                                </button>
-                            </td>
-                        </tr>
-                        <tr v-if="grants.length === 0">
-                            <td colspan="3" class="px-2 py-4 text-center text-sm text-gray-500">No staff grants yet.</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+                                </Button>
+                            </TableCell>
+                        </TableRow>
+                    </TableBody>
+                </Table>
+                <EmptyState v-else :icon="PhKey" title="No staff grants yet." class="border-t border-border py-10">
+                    {{ isAdmin ? 'Grant a user scope over a unit with the form alongside.' : 'An Admin can grant staff scope over a unit here.' }}
+                </EmptyState>
+            </Card>
 
-            <div v-if="isAdmin" class="rounded-lg border border-border bg-panel p-4">
+            <Card v-if="isAdmin" class="min-w-0 gap-0 p-4">
                 <form data-testid="grant-form" class="space-y-3" @submit.prevent="submitGrant">
-                    <h3 class="text-sm font-medium text-gray-300">+ Grant scope</h3>
+                    <h2 class="flex items-center gap-1.5 text-[15px] font-semibold"><PhPlus aria-hidden="true" />Grant scope</h2>
 
-                    <label class="block text-xs text-gray-400">
-                        User
-                        <select v-model="form.user_id" data-testid="grant-user_id" class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm">
-                            <option :value="null">— choose a user —</option>
+                    <div class="grid gap-1.5">
+                        <Label for="grant-user">User</Label>
+                        <NativeSelect id="grant-user" v-model="form.user_id" data-testid="grant-user_id" :aria-invalid="!!form.errors.user_id">
+                            <option :value="null">Choose a user</option>
                             <option v-for="user in users" :key="user.id" :value="user.id">{{ user.username }}</option>
-                        </select>
-                        <p v-if="form.errors.user_id" class="mt-1 text-[11px] text-bad" data-testid="error-user_id">
-                            {{ form.errors.user_id }}
-                        </p>
-                    </label>
+                        </NativeSelect>
+                        <p v-if="form.errors.user_id" class="text-xs text-destructive" data-testid="error-user_id">{{ form.errors.user_id }}</p>
+                    </div>
 
-                    <label class="block text-xs text-gray-400">
-                        Node
-                        <select v-model="form.unit_id" data-testid="grant-unit_id" class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm">
-                            <option :value="null">— choose a node —</option>
+                    <div class="grid gap-1.5">
+                        <Label for="grant-unit">Unit</Label>
+                        <NativeSelect id="grant-unit" v-model="form.unit_id" data-testid="grant-unit_id" :aria-invalid="!!form.errors.unit_id">
+                            <option :value="null">Choose a unit</option>
                             <option v-for="unit in units" :key="unit.id" :value="unit.id">{{ unit.name }}</option>
-                        </select>
-                        <p v-if="form.errors.unit_id" class="mt-1 text-[11px] text-bad" data-testid="error-unit_id">
-                            {{ form.errors.unit_id }}
-                        </p>
-                    </label>
+                        </NativeSelect>
+                        <p v-if="form.errors.unit_id" class="text-xs text-destructive" data-testid="error-unit_id">{{ form.errors.unit_id }}</p>
+                    </div>
 
-                    <label class="block text-xs text-gray-400">
-                        Reason
-                        <textarea
-                            v-model="form.reason"
-                            data-testid="grant-reason"
-                            rows="2"
-                            class="mt-1 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm"
-                        ></textarea>
-                        <p v-if="form.errors.reason" class="mt-1 text-[11px] text-bad" data-testid="error-reason">
-                            {{ form.errors.reason }}
-                        </p>
-                    </label>
+                    <div class="grid gap-1.5">
+                        <Label for="grant-reason">Reason</Label>
+                        <Textarea id="grant-reason" v-model="form.reason" data-testid="grant-reason" rows="2" :aria-invalid="!!form.errors.reason" />
+                        <p class="text-xs text-muted-foreground">Recorded in the audit log with the grant.</p>
+                        <p v-if="form.errors.reason" class="text-xs text-destructive" data-testid="error-reason">{{ form.errors.reason }}</p>
+                    </div>
 
-                    <button
-                        type="submit"
-                        data-testid="submit-grant"
-                        :disabled="form.processing"
-                        class="rounded bg-gold px-3 py-1.5 text-sm font-medium text-bg disabled:opacity-50"
-                    >
-                        Grant scope
-                    </button>
+                    <Button type="submit" data-testid="submit-grant" :disabled="form.processing">Grant scope</Button>
                 </form>
-            </div>
+            </Card>
         </div>
     </div>
 </template>

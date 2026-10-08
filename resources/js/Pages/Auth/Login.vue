@@ -25,7 +25,7 @@ defineProps({
                 <div class="pitch">
                     <div class="eyebrow">Command tools</div>
                     <h1>Run your platoon, <em>not your spreadsheet.</em></h1>
-                    <p>One portal for section overviews, weekly rollcalls, promotion proposals, medal write-ups and counseling — all wired straight into the 7cav.us forum.</p>
+                    <p>One portal for section overviews, weekly rollcalls, promotion proposals, medal write-ups and counseling, all wired straight into the 7cav.us forum.</p>
                     <ul class="feature-list">
                         <li><span class="dot">RC</span>Weekly rollcall, one click to forum</li>
                         <li><span class="dot">SP</span>Live SP attendance from servers</li>
@@ -57,7 +57,7 @@ defineProps({
                     <a class="secondary-btn" href="https://7cav.us/help/">Trouble signing in?</a>
 
                     <div class="notice">
-                        You'll be redirected to <strong class="notice-em">7cav.us</strong> to authorize. We only read your forum identity — never your password.
+                        You'll be redirected to <strong class="notice-em">7cav.us</strong> to authorize. We only read your forum identity, never your password.
                     </div>
 
                     <div class="help-row">
@@ -72,24 +72,24 @@ defineProps({
 
 <style scoped>
 /*
- | Ported verbatim from the pixel contract:
- | _bmad-output/planning-artifacts/mockups/login.html + assets/styles.css :root.
- | Scoped to the page so the dark+gold login look is self-contained.
+ | Layout ported from the pixel contract (_bmad-output/planning-artifacts/mockups/login.html),
+ | colours restyled onto the portal tokens in resources/css/app.css (Story 1.15) so the login
+ | screen follows the same light/dark theme and gold accent as the app shell. The local names
+ | below are aliases only; change a colour in app.css, not here.
  */
 .login-page {
-    --bg: #1a1d20;
-    --panel: #23272b;
-    --panel-2: #2c3137;
-    --border: #353a40;
-    --text: #e6e8ea;
-    --muted: #8a9099;
-    --muted-2: #5f656d;
-    --gold: #f0b929;
-    --gold-soft: #b88e1f;
-    --gold-bg: rgba(240, 185, 41, 0.1);
-    --bad: #d9534f;
-    --bad-bg: rgba(217, 83, 79, 0.12);
-    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --bg: var(--background);
+    --panel: var(--card);
+    --panel-2: var(--muted);
+    --text: var(--foreground);
+    --muted: var(--muted-foreground);
+    --muted-2: var(--muted-foreground);
+    --gold: var(--primary);
+    --gold-soft: color-mix(in oklab, var(--primary) 55%, var(--border));
+    --gold-bg: color-mix(in oklab, var(--primary) 12%, transparent);
+    --bad: var(--destructive);
+    --bad-bg: color-mix(in oklab, var(--destructive) 8%, transparent);
+    --font: inherit;
 
     min-height: 100vh;
     background: var(--bg);
@@ -112,9 +112,9 @@ defineProps({
 .hero {
     position: relative;
     background:
-        radial-gradient(circle at 18% 25%, rgba(240, 185, 41, 0.1), transparent 55%),
-        radial-gradient(circle at 80% 80%, rgba(180, 40, 30, 0.18), transparent 50%),
-        linear-gradient(180deg, #15191c 0%, #0d1013 100%);
+        radial-gradient(circle at 18% 25%, color-mix(in oklab, var(--primary) 12%, transparent), transparent 55%),
+        var(--sidebar);
+    border-right: 1px solid var(--sidebar-border);
     padding: 48px 56px 40px;
     display: flex;
     flex-direction: column;
@@ -126,8 +126,8 @@ defineProps({
     position: absolute;
     inset: 0;
     background-image:
-        linear-gradient(rgba(240, 185, 41, 0.04) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(240, 185, 41, 0.04) 1px, transparent 1px);
+        linear-gradient(color-mix(in oklab, var(--primary) 6%, transparent) 1px, transparent 1px),
+        linear-gradient(90deg, color-mix(in oklab, var(--primary) 6%, transparent) 1px, transparent 1px);
     background-size: 56px 56px;
     -webkit-mask-image: radial-gradient(ellipse at top left, black, transparent 75%);
     mask-image: radial-gradient(ellipse at top left, black, transparent 75%);
@@ -141,7 +141,7 @@ defineProps({
     height: 520px;
     opacity: 0.05;
     pointer-events: none;
-    filter: drop-shadow(0 0 40px rgba(240, 185, 41, 0.3));
+    
 }
 .hero .watermark img {
     width: 100%;
@@ -199,7 +199,7 @@ defineProps({
 }
 .hero .pitch h1 em {
     font-style: normal;
-    color: var(--gold);
+    color: var(--muted);
 }
 .hero .pitch p {
     color: var(--muted);
@@ -226,7 +226,7 @@ defineProps({
     flex: 0 0 26px;
     width: 26px;
     height: 26px;
-    border-radius: 6px;
+    border-radius: 4px;
     background: var(--gold-bg);
     color: var(--gold);
     display: grid;
@@ -287,7 +287,7 @@ defineProps({
     padding: 12px 14px;
     background: var(--bad-bg);
     border: 1px solid var(--bad);
-    border-radius: 6px;
+    border-radius: var(--radius);
     color: var(--bad);
     font-size: 13px;
     line-height: 1.5;
@@ -300,11 +300,11 @@ defineProps({
     width: 100%;
     padding: 14px 18px;
     background: var(--gold);
-    color: #1a1300;
+    color: var(--primary-foreground);
     border: none;
-    border-radius: 8px;
+    border-radius: var(--radius);
     font-size: 15px;
-    font-weight: 700;
+    font-weight: 600;
     font-family: var(--font);
     cursor: pointer;
     text-decoration: none;
@@ -312,20 +312,17 @@ defineProps({
         transform 0.12s ease,
         box-shadow 0.15s ease,
         background 0.12s ease;
-    box-shadow: 0 4px 16px rgba(240, 185, 41, 0.25);
 }
 .sso-btn:hover {
-    background: #ffc833;
-    transform: translateY(-1px);
-    box-shadow: 0 8px 22px rgba(240, 185, 41, 0.35);
+    background: color-mix(in oklab, var(--primary) 88%, var(--background));
 }
 .sso-btn:active {
-    transform: translateY(0);
+    transform: translateY(1px);
 }
 .sso-btn .ico-shield {
     width: 24px;
     height: 24px;
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+    
 }
 .sso-btn .ico-shield img {
     width: 100%;
@@ -344,7 +341,7 @@ defineProps({
     background: transparent;
     color: var(--muted);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius);
     font-size: 13px;
     font-family: var(--font);
     cursor: pointer;
@@ -360,13 +357,13 @@ defineProps({
     background: var(--panel);
     border: 1px solid var(--border);
     border-left: 3px solid var(--gold);
-    border-radius: 6px;
+    border-radius: var(--radius);
     font-size: 12.5px;
     color: var(--muted);
     line-height: 1.55;
 }
 .notice-em {
-    color: var(--gold);
+    color: var(--text);
 }
 .help-row {
     margin-top: 28px;
@@ -380,6 +377,6 @@ defineProps({
     color: var(--muted);
 }
 .help-row a:hover {
-    color: var(--gold);
+    color: var(--text);
 }
 </style>

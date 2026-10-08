@@ -1,217 +1,132 @@
-import { describe, it, expect, vi } from 'vitest';
-import { shallowMount } from '@vue/test-utils';
-import { Link } from '@inertiajs/vue3';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mount } from '@vue/test-utils';
 import Home from '../Home.vue';
 
-// The page reads the shared `auth` prop through usePage(), which needs a real Inertia app —
-// stub just that, keeping the rest of the adapter (Head, Link) intact for shallowMount.
-// `mockUser` is reassigned per test so the fallback paths are reachable.
-let mockUser = { username: 'Gryspeert.J' };
-// The Cav roster snapshot the server shares (Story 1.6); null for an unenriched session.
-let mockProfile = null;
-// Why enrichment produced nothing this login (Story 1.7); null when enrichment succeeded
-// or never ran degraded.
+// Why enrichment produced nothing this login (Story 1.7); null when enrichment succeeded or never
+// ran degraded. Identity, rank, provenance and Sign out moved to the app shell in Story 1.15 and
+// are covered by Layouts/__tests__/AppLayout.spec.js.
 let mockProfileUnavailable = null;
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
+    // `<Head>` needs a real Inertia app instance; this unit test does not stand one up.
+    Head: { template: '<head></head>' },
     usePage: () => ({
-        props: {
-            auth: { user: mockUser, profile: mockProfile, profileUnavailable: mockProfileUnavailable },
-        },
+        props: { auth: { user: { username: 'Hale.S' }, profile: null, profileUnavailable: mockProfileUnavailable } },
     }),
 }));
 
-// Vitest unit test (Story 1.5). The sign-out control is the only way a leader ends a
-// session, so its method matters as much as its presence: a GET would slip CSRF protection.
+// The week HomeController sends for Thu 08Oct26: it opened Sat 03Oct26 00:00Z and its report is
+// due Sat 10Oct26 23:59Z (HomeWeekTest pins the server side).
+const WEEK = { start: '2026-10-03T00:00:00+00:00', reportDue: '2026-10-10T23:59:00+00:00' };
+
 describe('Home page', () => {
-    // renderStubDefaultSlot keeps <Link>'s label in the output while still stubbing the
-    // component itself, so the control's text and its props can be asserted together.
-    const factory = (user = { username: 'Gryspeert.J' }, profile = null, profileUnavailable = null) => {
-        mockUser = user;
-        mockProfile = profile;
+    const factory = (profileUnavailable = null) => {
         mockProfileUnavailable = profileUnavailable;
 
-        return shallowMount(Home, { global: { renderStubDefaultSlot: true } });
+        return mount(Home, { props: { week: WEEK } });
     };
 
-    const signOutLinks = (wrapper) =>
-        wrapper.findAllComponents(Link).filter((link) => link.props('href') === '/logout');
-
-    it('offers exactly one sign-out control, posting to the logout route (AC #1)', () => {
-        const signOut = signOutLinks(factory());
-
-        expect(signOut).toHaveLength(1);
-        expect(signOut[0].props('method')).toBe('post');
-        expect(signOut[0].text()).toContain('Sign out');
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-10-08T16:20:30Z'));
     });
 
-    it('renders sign-out as a button, not an anchor (AC #1)', () => {
-        // An anchor would be prefetchable and would issue a GET — the pairing for the
-        // server-side "not reachable by GET" assertion in LogoutTest.
-        const signOut = signOutLinks(factory())[0];
+    afterEach(() => vi.useRealTimers());
 
-        expect(signOut.props('as')).toBe('button');
-        expect(signOut.attributes('type')).toBe('button');
-    });
-
-    it('shows who is signed in, mirroring the mockup top-nav user cluster', () => {
-        expect(factory().find('.user').text()).toContain('Gryspeert.J');
-    });
-
-    it.each([
-        ['Gryspeert.J', 'GJ'],
-        ['Hale.S', 'HS'],
-        ['Trooper', 'T'],
-        ['some_long_user_name', 'SL'],
-    ])('builds the avatar monogram from %s as %s', (username, expected) => {
-        expect(factory({ username }).find('[aria-hidden="true"]').text()).toBe(expected);
-    });
-
-    it.each([
-        ['a missing user', null],
-        ['a user with no username', {}],
-        ['an empty username', { username: '' }],
-    ])('falls back to a placeholder identity for %s', (_label, user) => {
-        const wrapper = factory(user);
-
-        expect(wrapper.find('.user').text()).toContain('Trooper');
-        expect(wrapper.find('[aria-hidden="true"]').text()).toBe('T');
-    });
-
-    // Story 1.6 — Cav roster context. The rule these pin is AD-20 rule 1 / NFR7: a synced
-    // value never appears without its source and age, so a stale rank cannot pass for a fact
-    // the portal is sure of.
-    describe('Cav roster enrichment', () => {
-        const enriched = (overrides = {}) => ({
-            rank_short: 'WO1',
-            rank_full: 'Warrant Officer 1',
-            billet: 'S1 Personnel NCO',
-            mos: '42A',
-            roster: 'Combat',
-            source: 'Cav roster (api.7cav.us)',
-            fetched_at: '2026-08-03T09:14:00+00:00',
-            ...overrides,
+    describe('week bar (real dates, no mock data)', () => {
+        it('titles the week by its Saturday in forum date convention', () => {
+            expect(factory().find('h1').text()).toBe('Week of 03Oct26');
         });
 
-        it('renders rank, identity and billet as the mockup top-nav does', () => {
-            const identity = factory({ username: 'Hale.S' }, enriched()).find('.identity');
+        it('lays out Saturday to Friday plus the Saturday the report is due', () => {
+            const days = factory().findAll('ol[aria-label="Days of the week"] li');
 
-            expect(identity.text()).toBe('WO1 Hale.S · S1 Personnel NCO');
+            expect(days.map((day) => day.find('span').text())).toEqual(['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']);
+            expect(days[7].text()).toContain('10');
         });
 
-        it('shows the MOS, source and fetch time alongside the enriched values', () => {
-            const provenance = factory({ username: 'Hale.S' }, enriched()).find('.provenance');
+        it('marks today, and only today', () => {
+            const wrapper = factory();
+            const todays = wrapper.findAll('ol[aria-label="Days of the week"] [aria-current="date"]');
 
-            expect(provenance.text()).toContain('MOS 42A');
-            expect(provenance.text()).toContain('Cav roster (api.7cav.us)');
-            // Rendered in the viewer's locale, so assert the parts rather than a format.
-            expect(provenance.text()).toMatch(/\d{1,2}:\d{2}/);
+            expect(todays).toHaveLength(1);
+            expect(todays[0].text()).toContain('Thu');
+            expect(wrapper.find('[data-testid="week-bar"]').text()).toContain('Today');
         });
 
-        it('puts the full rank title and exact timestamp in the tooltip, not the source', () => {
-            const provenance = factory({ username: 'Hale.S' }, enriched()).find('.provenance');
+        it('counts down to the report deadline in UTC', () => {
+            const wrapper = factory();
 
-            // The tooltip only *adds* detail: removing it must not hide the attribution.
-            expect(provenance.attributes('title')).toContain('Warrant Officer 1');
-            expect(provenance.attributes('title')).toContain('fetched');
-            expect(provenance.text()).toContain('Cav roster (api.7cav.us)');
+            expect(wrapper.text()).toContain('Report due Sat 10Oct26 23:59Z');
+            expect(wrapper.find('[data-testid="countdown"]').text()).toBe('2d 07h 38m left');
         });
 
-        it('degrades to the bare username, with no provenance line, when unenriched', () => {
-            const wrapper = factory({ username: 'Hale.S' }, null);
+        it('keeps the countdown ticking', async () => {
+            const wrapper = factory();
 
-            expect(wrapper.find('.identity').text()).toBe('Hale.S');
-            expect(wrapper.find('.provenance').exists()).toBe(false);
+            await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+
+            expect(wrapper.find('[data-testid="countdown"]').text()).toBe('2d 06h 38m left');
         });
 
-        it.each([
-            ['no billet (mid-transfer)', { billet: null }, 'WO1 Hale.S'],
-            ['no rank', { rank_short: null }, 'Hale.S · S1 Personnel NCO'],
-            ['neither rank nor billet', { rank_short: null, billet: null }, 'Hale.S'],
-        ])('renders a partial roster record with %s', (_label, overrides, expected) => {
-            // Each field is independently optional: one missing value must not suppress the
-            // others, and must not leave a dangling separator.
-            expect(factory({ username: 'Hale.S' }, enriched(overrides)).find('.identity').text()).toBe(expected);
-        });
+        it('says the report is due now once the deadline passes, never a negative time', async () => {
+            vi.setSystemTime(new Date('2026-10-11T00:00:30Z'));
 
-        it.each([
-            ['today', new Date(), false],
-            ['a day ago', new Date(Date.now() - 26 * 60 * 60 * 1000), true],
-        ])('shows the date in the visible line only when the fetch was not %s', (_label, at, expectsDate) => {
-            // The snapshot is per-login and the session lasts 24h (SESSION_LIFETIME=1440), so a
-            // time-only stamp would let a day-old rank read as an hour old — hiding the very
-            // staleness AD-20 exists to expose.
-            const text = factory({ username: 'Hale.S' }, enriched({ fetched_at: at.toISOString() })).find(
-                '.provenance',
-            ).text();
-            const month = at.toLocaleDateString(undefined, { month: 'short' });
-
-            expect(text.includes(month)).toBe(expectsDate);
-        });
-
-        it('omits the MOS from the provenance line when the roster has none', () => {
-            const provenance = factory({ username: 'Hale.S' }, enriched({ mos: null })).find('.provenance');
-
-            expect(provenance.text()).not.toContain('MOS');
-            expect(provenance.text()).toContain('Cav roster (api.7cav.us)');
-        });
-
-        it('still attributes the source when the fetch time is unusable', () => {
-            const provenance = factory({ username: 'Hale.S' }, enriched({ fetched_at: 'not-a-date' })).find(
-                '.provenance',
-            );
-
-            // Better to show the source with no time than to drop the attribution entirely.
-            expect(provenance.text()).toContain('Cav roster (api.7cav.us)');
-            expect(provenance.text()).not.toContain('NaN');
-            expect(provenance.attributes('title')).not.toContain('Invalid');
+            expect(factory().find('[data-testid="countdown"]').text()).toBe('Due now');
         });
     });
 
-    // Story 1.7 — degraded-safe login. AD-20/NFR8: a Cav outage must never look like silence,
-    // so an unenriched session says so rather than just quietly showing the bare username.
+    describe('weekly-cycle areas without data yet', () => {
+        it('renders the step lanes, inbox, section progress and trends as empty states', () => {
+            const text = factory().text();
+
+            expect(text).toContain('Step tracking starts with rollcalls');
+            expect(text).toContain('Nothing needs you yet');
+            expect(text).toContain('No sections reporting yet');
+            expect(text).toContain('Trends need a few weeks of attendance');
+        });
+
+        it('shows no invented figures: the only numbers on the page are dates and the countdown', () => {
+            const wrapper = factory();
+            const emptyStates = wrapper.findAll('[data-slot="empty-state"]');
+
+            expect(emptyStates).toHaveLength(4);
+            for (const state of emptyStates) {
+                expect(state.text()).not.toMatch(/\d/);
+            }
+        });
+
+        it('keeps the section-progress columns so the empty table reads as the real one will', () => {
+            const headers = factory().findAll('th').map((th) => th.text());
+
+            expect(headers).toEqual(['Unit', 'Rollcall posted', 'Rollcall signed', 'SP held', 'Attendance marked', 'Report sent']);
+        });
+    });
+
+    // Story 1.7: a Cav outage must never look like silence (AD-20/NFR8).
     describe('degraded roster enrichment', () => {
         it('shows no warning when enrichment succeeded or never ran degraded (AC #2)', () => {
-            expect(factory({ username: 'Hale.S' }, null, null).find('[role="alert"]').exists()).toBe(false);
+            expect(factory(null).find('[role="alert"]').exists()).toBe(false);
         });
 
         it('shows no warning for a trooper who simply holds no milpac', () => {
-            // `not_on_roster` is a normal, expected population, not a Cav outage — warning on
-            // every one of their logins would bury the case this banner exists for.
-            expect(factory({ username: 'Hale.S' }, null, 'not_on_roster').find('[role="alert"]').exists()).toBe(
-                false,
-            );
+            expect(factory('not_on_roster').find('[role="alert"]').exists()).toBe(false);
         });
 
         it('warns when the Cav roster is unavailable, without a dismiss control (AC #2)', () => {
-            const banner = factory({ username: 'Hale.S' }, null, 'unreachable').find('[role="alert"]');
+            const banner = factory('unreachable').find('[role="alert"]');
 
             expect(banner.exists()).toBe(true);
             expect(banner.text().toLowerCase()).toContain('roster');
-            // Non-dismissable-until-resolved: nothing on the banner can hide it.
             expect(banner.find('button').exists()).toBe(false);
         });
 
         it.each(['record_unusable', 'http_error', 'malformed', 'missing_credential', 'link_failed', 'unexpected'])(
             'warns for every fault reason the server can report (%s)',
             (reason) => {
-                expect(factory({ username: 'Hale.S' }, null, reason).find('[role="alert"]').exists()).toBe(true);
+                expect(factory(reason).find('[role="alert"]').exists()).toBe(true);
             },
         );
-
-        it('does not fabricate roster fields alongside the warning (AD-5)', () => {
-            const wrapper = factory({ username: 'Hale.S' }, null, 'unreachable');
-
-            expect(wrapper.find('.identity').text()).toBe('Hale.S');
-            expect(wrapper.find('.provenance').exists()).toBe(false);
-        });
-
-        it('clears once enrichment succeeds again, even with a stale-looking prior reason', () => {
-            const wrapper = factory({ username: 'Hale.S' }, { rank_short: 'WO1' }, null);
-
-            expect(wrapper.find('[role="alert"]').exists()).toBe(false);
-            expect(wrapper.find('.identity').text()).toContain('Hale.S');
-        });
     });
 });
