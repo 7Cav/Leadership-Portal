@@ -367,7 +367,7 @@ describe('Settings/OrgStructure', () => {
             expect(row.text()).toContain('Hollis.D');
             expect(row.text()).toContain('11B');
             expect(row.text()).toContain('Rifleman, 2nd Platoon');
-            expect(wrapper.find('[data-testid="unplaced-count"]').text()).toContain('1 synced trooper without a section');
+            expect(wrapper.find('[data-testid="unplaced-count"]').text()).toContain('1 synced trooper not yet placed');
         });
 
         it('counts several troopers in the plural', () => {
@@ -376,7 +376,7 @@ describe('Settings/OrgStructure', () => {
             });
 
             expect(wrapper.findAll('[data-testid="unplaced-trooper"]')).toHaveLength(2);
-            expect(wrapper.find('[data-testid="unplaced-count"]').text()).toContain('2 synced troopers without a section');
+            expect(wrapper.find('[data-testid="unplaced-count"]').text()).toContain('2 synced troopers not yet placed');
         });
 
         it('falls back to the Cav id and the billet id when a name or title was not reported', () => {
@@ -384,7 +384,7 @@ describe('Settings/OrgStructure', () => {
                 props: { units: UNITS, isAdmin: true, unplacedTroopers: [trooper({ username: null, billet: null })] },
             });
 
-            expect(wrapper.find('[data-testid="unplaced-trooper"]').text()).toContain('Cav #3099');
+            expect(wrapper.find('[data-testid="unplaced-trooper"]').text()).toContain('Unknown (Cav #3099)');
             expect(wrapper.find('[data-testid="unplaced-trooper"]').text()).toContain('Billet 412');
         });
 

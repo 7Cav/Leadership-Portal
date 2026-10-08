@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { PhCheckCircle, PhCloudArrowDown, PhLockSimple, PhPlus, PhTreeStructure, PhUsers, PhWarningCircle } from '@phosphor-icons/vue';
+import { PhCheckCircle, PhCloudArrowDown, PhLockSimple, PhPlus, PhTreeStructure, PhWarningCircle } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -252,51 +252,6 @@ function requestDelete(id) {
             </p>
         </div>
 
-        <!--
-          Troopers the sync could not place (Story 2.6). Shown only when the server sent the list, which
-          it does for an Admin alone. Read-only here: placing one is Story 2.7.
-        -->
-        <Card v-if="unplacedTroopers !== null" data-testid="unplaced-panel" class="gap-0 py-0">
-            <div class="flex items-center gap-2 px-4 pt-3.5 pb-2">
-                <h2 class="text-[15px] font-semibold">Not yet placed</h2>
-                <span v-if="unplacedTroopers.length" class="truncate text-xs text-muted-foreground" data-testid="unplaced-count">
-                    {{ unplacedTroopers.length }} synced {{ unplacedTroopers.length === 1 ? 'trooper' : 'troopers' }} without a section
-                </span>
-            </div>
-            <!--
-              With no chain of command yet nothing can be mapped, so the whole roster lands here. Say why,
-              instead of leaving an Admin to assume the sync is broken.
-            -->
-            <p v-if="unplacedTroopers.length && !units.length" data-testid="unplaced-hint" class="px-4 pb-2 text-xs text-muted-foreground">
-                The chain of command is empty, so no trooper can be mapped yet. Import it from the Cav roster first.
-            </p>
-            <!-- Scrolls inside the card: right after a fresh install the list can hold the whole roster. -->
-            <ul
-                v-if="unplacedTroopers.length"
-                aria-label="Troopers not yet placed"
-                class="max-h-80 divide-y divide-border overflow-y-auto border-t border-border"
-            >
-                <li
-                    v-for="trooper in unplacedTroopers"
-                    :key="trooper.id"
-                    data-testid="unplaced-trooper"
-                    class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-4 py-2 text-[13px]"
-                >
-                    <span class="font-medium">
-                        <span v-if="trooper.rank" class="text-muted-foreground">{{ trooper.rank }}</span>
-                        {{ trooper.username ?? `Cav #${trooper.cav_id}` }}
-                    </span>
-                    <span v-if="trooper.mos" class="font-mono text-xs text-muted-foreground">{{ trooper.mos }}</span>
-                    <span class="min-w-0 truncate text-xs text-muted-foreground">
-                        {{ trooper.billet ?? (trooper.position_id !== null ? `Billet ${trooper.position_id}` : 'No billet reported') }}
-                    </span>
-                </li>
-            </ul>
-            <EmptyState v-else :icon="PhUsers" title="All synced troopers are placed" class="border-t border-border py-8">
-                Troopers the sync cannot map to a section will be listed here.
-            </EmptyState>
-        </Card>
-
         <div class="grid items-start gap-5 lg:grid-cols-[1.1fr_0.9fr]">
             <Card class="min-w-0 gap-0 py-0">
                 <div class="flex items-center gap-2 px-4 pt-3.5 pb-2">
@@ -416,6 +371,56 @@ function requestDelete(id) {
                     </dl>
                 </div>
                 <p v-else class="text-[13px] text-muted-foreground">Select a unit to see its details.</p>
+
+                <!--
+                  Troopers the sync could not place (Story 2.6): a dashed panel in the detail card, one chip
+                  per trooper. Shown only when the server sent the list, which it does for an Admin alone.
+                  Read-only here; the "assign" action on each chip is Story 2.7.
+                -->
+                <section
+                    v-if="unplacedTroopers !== null"
+                    data-testid="unplaced-panel"
+                    aria-labelledby="unplaced-heading"
+                    class="mt-4 rounded-lg border border-dashed border-border p-3"
+                >
+                    <h3 id="unplaced-heading" class="text-[13px] font-semibold">
+                        <template v-if="unplacedTroopers.length">
+                            <span data-testid="unplaced-count">
+                                {{ unplacedTroopers.length }} synced {{ unplacedTroopers.length === 1 ? 'trooper' : 'troopers' }} not yet placed
+                            </span>
+                        </template>
+                        <template v-else>All synced troopers are placed</template>
+                    </h3>
+                    <p v-if="!unplacedTroopers.length" class="mt-1 text-xs text-muted-foreground">
+                        Troopers the sync cannot map to a section will be listed here.
+                    </p>
+                    <!--
+                      With no chain of command yet nothing can be mapped, so the whole roster lands here. Say why,
+                      instead of leaving an Admin to assume the sync is broken.
+                    -->
+                    <p v-if="unplacedTroopers.length && !units.length" data-testid="unplaced-hint" class="mt-1 text-xs text-muted-foreground">
+                        The chain of command is empty, so no trooper can be mapped yet. Import it from the Cav roster first.
+                    </p>
+                    <!-- Scrolls inside the card: right after a fresh install the list can hold the whole roster. -->
+                    <ul v-if="unplacedTroopers.length" aria-label="Troopers not yet placed" class="mt-2.5 flex max-h-72 flex-wrap gap-2 overflow-y-auto">
+                        <li
+                            v-for="trooper in unplacedTroopers"
+                            :key="trooper.id"
+                            data-testid="unplaced-trooper"
+                            class="min-w-0 rounded-md border border-border px-2.5 py-1.5 text-[13px]"
+                        >
+                            <span class="font-medium">
+                                <span v-if="trooper.rank" class="text-muted-foreground">{{ trooper.rank }}</span>
+                                {{ trooper.username ?? `Unknown (Cav #${trooper.cav_id})` }}
+                            </span>
+                            <span class="block max-w-[28ch] truncate text-xs text-muted-foreground">
+                                <span v-if="trooper.mos" class="font-mono">{{ trooper.mos }} · </span>{{
+                                    trooper.billet ?? (trooper.position_id !== null ? `Billet ${trooper.position_id}` : 'No billet reported')
+                                }}
+                            </span>
+                        </li>
+                    </ul>
+                </section>
 
                 <!--
                   Add-node control, Admin-only (AC #2). Hidden for a non-Admin per the mockup; the
