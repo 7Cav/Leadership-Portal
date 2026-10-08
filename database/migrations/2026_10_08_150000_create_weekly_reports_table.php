@@ -12,9 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         // Portal-owned (AD-5/AD-22): a sent report is the canonical in-portal weekly record
-        // (AD-12) and is not re-fetchable from anywhere, so this table must be backed up. One
-        // creating writer — 5.6's audited send Command, through `WeeklyReportRepository`; no
-        // `Sync/` handler ever writes it.
+        // (AD-12) and is not re-fetchable from anywhere, so this table must be backed up. Its one
+        // writer is `WeeklyReportRepository` — the send path driven by 5.6's audited send Command;
+        // no `Sync/` handler ever writes it.
         //
         // The `status` value list mirrors `App\Models\WeeklyReportStatus` — kept as literals so
         // this migration stays a frozen record of the schema it created, and enforced by the DB
@@ -40,9 +40,9 @@ return new class extends Migration
             // `restrictOnDelete`: the sender is part of the record of what was reported.
             $table->foreignId('sent_by')->nullable()->constrained('users')->restrictOnDelete();
             $table->string('content_digest')->nullable();
-            // The AD-17 template version resolved at send. No foreign key yet: BBCode template
-            // versioning (3.5) is deferred for the MVP, so `template_versions` does not exist. The
-            // constraint is added when that table lands; until then this is null or a bare id.
+            // The AD-17 report-layout template version resolved at send. No foreign key yet:
+            // `template_versions` (story 3.5, deferred for the MVP) does not exist. The constraint
+            // is added when that table lands; until then this is null or a bare id.
             $table->unsignedBigInteger('template_version_id')->nullable()
                 ->comment('template_versions.id resolved at send (AD-17); FK deferred until 3.5 lands');
             $table->timestamps();

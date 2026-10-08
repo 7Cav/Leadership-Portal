@@ -7,9 +7,10 @@ use Carbon\CarbonInterface;
 use InvalidArgumentException;
 
 /**
- * Sole DB access for `weekly_reports` (AD-2, AD-12, AD-22). Portal-owned: 5.6's audited send
- * Command is its one creating writer; no `Sync/` handler ever writes it. One row per
- * `(unit_id, week_start)` — the UNIQUE key — so every write below updates that row in place.
+ * Sole DB access for `weekly_reports` (AD-2, AD-12, AD-22). Portal-owned: this repository is the
+ * table's only writer — `send()` driven by 5.6's audited send Command, `saveDraft()` for a draft —
+ * and no `Sync/` handler ever writes it. One row per `(unit_id, week_start)` — the UNIQUE key — so
+ * every write below creates that row if absent or updates it in place, never adding a second.
  *
  * Storage-shaped by design: `$kpis` goes in and comes back (`WeeklyReport::$kpis`) as the plain
  * array that is stored — the six KPIs with numerators/denominators and deltas. Mapping 5.1's typed
@@ -51,8 +52,8 @@ interface WeeklyReportRepository
      *
      * @param  array<string, mixed>  $kpis
      *
-     * @throws InvalidArgumentException when `$unitId` is not a `units` row, or `$weekStart` is
-     *                                  not a Saturday 00:00 UTC.
+     * @throws InvalidArgumentException when `$unitId` is not a `units` row, `$sentBy` is not a
+     *                                  `users` row, or `$weekStart` is not a Saturday 00:00 UTC.
      * @throws WeeklyReportAlreadySentException when the unit-week is already sent.
      */
     public function send(

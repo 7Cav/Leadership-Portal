@@ -30,6 +30,18 @@ function sixKpiSnapshot(): array
     ];
 }
 
+/**
+ * MySQL's JSON type normalizes object key order on storage (SQLite keeps it), so a snapshot comes
+ * back with the same keys and values but not necessarily in the order written. Compare with keys
+ * sorted at every level — still strict on values and their types (`0.0` stays a float).
+ */
+function sortedKeys(array $value): array
+{
+    ksort($value);
+
+    return array_map(fn ($item) => is_array($item) ? sortedKeys($item) : $item, $value);
+}
+
 beforeEach(function () {
     $this->repo = app(WeeklyReportRepository::class);
     $this->unit = Unit::factory()->create(['type' => UnitType::Platoon]);
@@ -48,7 +60,7 @@ it('saves a draft with its kpis and notes', function () {
         ->and($report->status)->toBe(WeeklyReportStatus::Draft)
         ->and($report->unit_id)->toBe($this->unit->id)
         ->and($report->week_start->equalTo($this->saturday))->toBeTrue()
-        ->and($report->kpis)->toBe(sixKpiSnapshot())
+        ->and(sortedKeys($report->kpis))->toBe(sortedKeys(sixKpiSnapshot()))
         ->and($report->notes)->toBe('Quiet week.')
         ->and($report->sent_at)->toBeNull()
         ->and($report->sent_by)->toBeNull()
@@ -59,7 +71,7 @@ it('saves a draft with its kpis and notes', function () {
 it('round-trips the six-KPI snapshot through the database unchanged', function () {
     $this->repo->saveDraft($this->unit->id, $this->saturday, sixKpiSnapshot(), null);
 
-    expect($this->repo->find($this->unit->id, $this->saturday)->kpis)->toBe(sixKpiSnapshot());
+    expect(sortedKeys($this->repo->find($this->unit->id, $this->saturday)->kpis))->toBe(sortedKeys(sixKpiSnapshot()));
 });
 
 it('updates the one draft row on a repeat save rather than adding a second', function () {
@@ -69,7 +81,7 @@ it('updates the one draft row on a repeat save rather than adding a second', fun
     expect($second->id)->toBe($first->id)
         ->and(WeeklyReport::query()->count())->toBe(1)
         ->and($this->repo->find($this->unit->id, $this->saturday))
-        ->kpis->toBe(sixKpiSnapshot())
+        ->kpis->toEqual(sixKpiSnapshot())
         ->notes->toBe('v2');
 });
 
@@ -84,7 +96,7 @@ it('sends a unit-week with no prior draft, recording the frozen snapshot and sen
 
     expect($report->id)->toBe($stored->id)
         ->and($stored->status)->toBe(WeeklyReportStatus::Sent)
-        ->and($stored->kpis)->toBe(sixKpiSnapshot())
+        ->and(sortedKeys($stored->kpis))->toBe(sortedKeys(sixKpiSnapshot()))
         ->and($stored->notes)->toBe('All good.')
         ->and($stored->sent_by)->toBe($this->sender->id)
         ->and($stored->sent_at->equalTo(CarbonImmutable::parse('2026-10-09 21:15:00', 'UTC')))->toBeTrue()
@@ -102,7 +114,7 @@ it('sends an existing draft in place, replacing its kpis and notes with the sent
     expect($sent->id)->toBe($draft->id)
         ->and(WeeklyReport::query()->count())->toBe(1)
         ->and($sent->status)->toBe(WeeklyReportStatus::Sent)
-        ->and($sent->kpis)->toBe(sixKpiSnapshot())
+        ->and(sortedKeys($sent->kpis))->toBe(sortedKeys(sixKpiSnapshot()))
         ->and($sent->notes)->toBe('final')
         ->and($sent->template_version_id)->toBeNull();
 });
@@ -115,7 +127,7 @@ it('refuses a draft save over a sent report and leaves the snapshot untouched', 
 
     expect($this->repo->find($this->unit->id, $this->saturday))
         ->status->toBe(WeeklyReportStatus::Sent)
-        ->kpis->toBe(sixKpiSnapshot())
+        ->kpis->toEqual(sixKpiSnapshot())
         ->notes->toBe('final');
 });
 
@@ -132,20 +144,52 @@ it('refuses a second send and leaves the first snapshot and metadata untouched',
     $stored = $this->repo->find($this->unit->id, $this->saturday);
 
     expect($stored->notes)->toBe('first')
-        ->and($stored->kpis)->toBe(sixKpiSnapshot())
+        ->and(sortedKeys($stored->kpis))->toBe(sortedKeys(sixKpiSnapshot()))
         ->and($stored->sent_by)->toBe($this->sender->id)
         ->and($stored->content_digest)->toBe('digest-1')
         ->and($stored->template_version_id)->toBe(3)
         ->and($stored->sent_at->equalTo(CarbonImmutable::parse('2026-10-09 21:15:00', 'UTC')))->toBeTrue();
 });
 
-it('names the unit and week in the already-sent refusal', function () {
+it('carries the unit and week on the already-sent refusal', function () {
     $this->repo->send($this->unit->id, $this->saturday, [], null, $this->sender->id, 'digest', null);
 
-    expect(fn () => $this->repo->send($this->unit->id, $this->saturday, [], null, $this->sender->id, 'digest', null))
-        ->toThrow(WeeklyReportAlreadySentException::class, "unit {$this->unit->id}")
-        ->and(fn () => $this->repo->send($this->unit->id, $this->saturday, [], null, $this->sender->id, 'digest', null))
-        ->toThrow(WeeklyReportAlreadySentException::class, '2026-10-03');
+    try {
+        $this->repo->send($this->unit->id, $this->saturday, [], null, $this->sender->id, 'digest', null);
+        $this->fail('Expected WeeklyReportAlreadySentException.');
+    } catch (WeeklyReportAlreadySentException $e) {
+        expect($e->unitId)->toBe($this->unit->id)
+            ->and($e->weekStart->equalTo($this->saturday))->toBeTrue()
+            ->and($e->getMessage())->toContain("unit {$this->unit->id}")
+            ->toContain('2026-10-03');
+    }
+});
+
+it('refuses a send recorded against a user id that does not exist', function () {
+    expect(fn () => $this->repo->send($this->unit->id, $this->saturday, sixKpiSnapshot(), null, 999999, 'd', null))
+        ->toThrow(InvalidArgumentException::class)
+        ->and(WeeklyReport::query()->count())->toBe(0);
+});
+
+it('takes over a row a concurrent first write already inserted rather than adding a second', function () {
+    // Stands in for the loser of a race: the winner's draft row is already there when this write
+    // runs, so the insert-or-ignore is skipped and the write lands on that row.
+    $existing = WeeklyReport::factory()->create(['unit_id' => $this->unit->id, 'week_start' => $this->saturday]);
+
+    $report = $this->repo->saveDraft($this->unit->id, $this->saturday, sixKpiSnapshot(), 'mine');
+
+    expect($report->id)->toBe($existing->id)
+        ->and(WeeklyReport::query()->count())->toBe(1)
+        ->and(sortedKeys($report->fresh()->kpis))->toBe(sortedKeys(sixKpiSnapshot()));
+});
+
+it('eager-loads the unit and the sender off a sent report', function () {
+    $this->repo->send($this->unit->id, $this->saturday, sixKpiSnapshot(), null, $this->sender->id, 'd', null);
+
+    $report = WeeklyReport::query()->with(['unit', 'sender'])->sole();
+
+    expect($report->unit->id)->toBe($this->unit->id)
+        ->and($report->sender->id)->toBe($this->sender->id);
 });
 
 it('keeps separate reports per unit and per week', function () {

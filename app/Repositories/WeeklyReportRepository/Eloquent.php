@@ -3,6 +3,7 @@
 namespace App\Repositories\WeeklyReportRepository;
 
 use App\Models\Unit;
+use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Models\WeeklyReportStatus;
 use App\Repositories\WeeklyReportAlreadySentException;
@@ -10,7 +11,6 @@ use App\Repositories\WeeklyReportRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
-use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -41,6 +41,10 @@ class Eloquent implements WeeklyReportRepository
         string $contentDigest,
         ?int $templateVersionId,
     ): WeeklyReport {
+        if (! User::query()->whereKey($sentBy)->exists()) {
+            throw new InvalidArgumentException("User {$sentBy} does not exist; a sent report records its sender.");
+        }
+
         return $this->write($unitId, $weekStart, [
             'status' => WeeklyReportStatus::Sent,
             'kpis' => $kpis,
@@ -53,46 +57,50 @@ class Eloquent implements WeeklyReportRepository
     }
 
     /**
-     * Update-or-create the unit-week's row under a row lock, refusing a sent one. Two concurrent
-     * first writes for the same unit-week can both find no row and both insert; the UNIQUE key
-     * rejects the loser, which then retries once and takes the update path against the winner's
-     * row — or is refused, if the winner sent it.
+     * Update-or-create the unit-week's row, refusing a sent one, in one transaction:
      *
-     * @param  array<string, mixed>  $values
+     * 1. Share-lock the `units` row, so the unit cannot be deleted mid-write and a missing unit is
+     *    an `InvalidArgumentException` rather than a raw foreign-key error.
+     * 2. Insert-or-ignore the `(unit_id, week_start)` row, so a row always exists before it is
+     *    locked. A `SELECT ... FOR UPDATE` on a missing key would take only a gap lock on MySQL,
+     *    and two first writes holding the same gap deadlock when both insert; insert-or-ignore
+     *    instead makes a concurrent first write of the same key wait for this one to commit and
+     *    then skip. The placeholder values never outlive the transaction.
+     * 3. Lock that row, refuse it if sent, and write `$values` over it.
+     *
+     * @param  array<string, mixed>  $values  built only by this class, so they are force-filled
      */
     private function write(int $unitId, CarbonInterface $weekStart, array $values): WeeklyReport
     {
         $weekStart = $this->assertWeekStart($weekStart);
 
-        if (! Unit::query()->whereKey($unitId)->exists()) {
-            throw new InvalidArgumentException("Unit {$unitId} does not exist; a weekly report belongs to a unit.");
-        }
-
-        try {
-            return $this->writeOnce($unitId, $weekStart, $values);
-        } catch (UniqueConstraintViolationException) {
-            return $this->writeOnce($unitId, $weekStart, $values);
-        }
-    }
-
-    /**
-     * @param  array<string, mixed>  $values
-     */
-    private function writeOnce(int $unitId, CarbonImmutable $weekStart, array $values): WeeklyReport
-    {
         return DB::transaction(function () use ($unitId, $weekStart, $values) {
+            if (Unit::query()->whereKey($unitId)->sharedLock()->first() === null) {
+                throw new InvalidArgumentException("Unit {$unitId} does not exist; a weekly report belongs to a unit.");
+            }
+
+            $now = CarbonImmutable::now('UTC');
+
+            WeeklyReport::query()->insertOrIgnore([
+                'unit_id' => $unitId,
+                'week_start' => $weekStart,
+                'status' => WeeklyReportStatus::Draft->value,
+                'kpis' => '[]',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+
             $report = WeeklyReport::query()
                 ->where('unit_id', $unitId)
                 ->where('week_start', $weekStart)
                 ->lockForUpdate()
-                ->first()
-                ?? new WeeklyReport(['unit_id' => $unitId, 'week_start' => $weekStart]);
+                ->sole();
 
             if ($report->status === WeeklyReportStatus::Sent) {
                 throw WeeklyReportAlreadySentException::for($unitId, $weekStart);
             }
 
-            $report->fill($values)->save();
+            $report->forceFill($values)->save();
 
             return $report;
         });

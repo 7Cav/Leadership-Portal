@@ -103,6 +103,10 @@ it('accepts a template_version_id that references nothing — no foreign key unt
     expect(DB::table('weekly_reports')->sole()->template_version_id)->toBe(424242);
 });
 
+it('keeps status and send metadata out of mass assignment — only the repository send path sets them', function () {
+    expect((new WeeklyReport)->getFillable())->toBe(['unit_id', 'week_start', 'kpis', 'notes']);
+});
+
 it('prevents deleting a unit that still has weekly reports', function () {
     $report = WeeklyReport::factory()->create();
 
