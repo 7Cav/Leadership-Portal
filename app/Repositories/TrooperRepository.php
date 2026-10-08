@@ -2,7 +2,9 @@
 
 namespace App\Repositories;
 
+use App\Models\Trooper;
 use App\Models\Unit;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 
 /**
@@ -20,11 +22,11 @@ interface TrooperRepository
      * not a write-time one. Returns the row counts the sync handler reports to `sync_runs`
      * (Story 2.3).
      *
-     * @param  list<array{cav_id: int, rank: ?string, mos: ?string, tis: mixed, tig: mixed, status: string, cav_position_id?: ?int}>  $rows
-     *                                                                                                                                       `$unreadableCavIds` are troopers Cav listed but whose row could not be parsed: they stay
-     *                                                                                                                                       active (they are in `$activeCavIds`) but their billet is cleared in the same transaction —
-     *                                                                                                                                       their current billet is unknown, and a stale one must not keep conferring command scope
-     *                                                                                                                                       (1.16, deny-by-default).
+     * @param  list<array{cav_id: int, rank: ?string, mos: ?string, tis: mixed, tig: mixed, status: string, cav_position_id?: ?int, username?: ?string, cav_billet?: ?string}>  $rows
+     *                                                                                                                                                                                 `$unreadableCavIds` are troopers Cav listed but whose row could not be parsed: they stay
+     *                                                                                                                                                                                 active (they are in `$activeCavIds`) but their billet is cleared in the same transaction —
+     *                                                                                                                                                                                 their current billet is unknown, and a stale one must not keep conferring command scope
+     *                                                                                                                                                                                 (1.16, deny-by-default).
      * @param  list<int>  $activeCavIds
      * @param  list<int>  $unreadableCavIds
      * @return array{inserted: int, updated: int, inactivated: int}
@@ -40,7 +42,7 @@ interface TrooperRepository
      * included: a billet Cav no longer reports must not keep conferring command scope. A row
      * without the key is written as null.
      *
-     * @param  list<array{cav_id: int, rank: ?string, mos: ?string, tis: mixed, tig: mixed, status: string, cav_position_id?: ?int}>  $rows
+     * @param  list<array{cav_id: int, rank: ?string, mos: ?string, tis: mixed, tig: mixed, status: string, cav_position_id?: ?int, username?: ?string, cav_billet?: ?string}>  $rows
      * @return array{inserted: int, updated: int}
      */
     public function upsertActive(array $rows): array;
@@ -83,6 +85,17 @@ interface TrooperRepository
      * @return Collection<int, int>
      */
     public function assignedWithin(Unit $unit): Collection;
+
+    /**
+     * Every active trooper the sync could not place into a section (`primary_section_id` null), for the
+     * Settings panel that surfaces them for manual placement (2.6). Departed troopers are left out:
+     * nobody needs to place someone no longer on a Cav roster. Ordered by username (troopers with no
+     * username last), then `cav_id`, so the list never reshuffles between requests. Reads the cache,
+     * so a failed last sync still shows the last good set.
+     *
+     * @return EloquentCollection<int, Trooper>
+     */
+    public function unplaced(): EloquentCollection;
 
     /**
      * The synced rank of each trooper in `$cavIds`, keyed by `cav_id` — the label the view-as

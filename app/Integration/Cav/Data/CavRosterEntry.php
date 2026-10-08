@@ -25,6 +25,9 @@ use Throwable;
  * `positionId` is the primary billet's numeric id (2.5): Cav's API names a trooper's role, never
  * their section — `positionId` is the only stable key a portal-owned mapping (billet → section)
  * can be keyed on, since `billet`/`positionTitle` is free text a reorg could rename.
+ *
+ * `username` is the milpac name, for display only (2.6): like `CavRosterProfile`'s, it is never used
+ * to match or identify a trooper. It is null for a trooper with no forum account linked.
  */
 readonly class CavRosterEntry
 {
@@ -39,6 +42,7 @@ readonly class CavRosterEntry
         public ?DateTimeImmutable $tis = null,
         public ?DateTimeImmutable $tig = null,
         public ?RosterType $status = null,
+        public ?string $username = null,
     ) {
         if ($cavId <= 0) {
             throw CavRequestException::malformedProfile("cav id {$cavId} is not a positive integer");
@@ -63,6 +67,8 @@ readonly class CavRosterEntry
 
         $rank = is_array($payload['rank'] ?? null) ? $payload['rank'] : [];
         $primary = is_array($payload['primary'] ?? null) ? $payload['primary'] : [];
+        // `user` is null for a trooper with no forum account linked, hence the same lenient read.
+        $user = is_array($payload['user'] ?? null) ? $payload['user'] : [];
 
         return new self(
             cavId: $cavId,
@@ -77,6 +83,7 @@ readonly class CavRosterEntry
             // An unrecognised roster type — including the API's explicit `*_UNSPECIFIED`
             // member, and any roster added later — carries no more than null does.
             status: RosterType::tryFrom((string) self::text($payload['roster'] ?? null)),
+            username: self::text($user['username'] ?? null),
         );
     }
 

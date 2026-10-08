@@ -18,6 +18,7 @@ class TrooperFactory extends Factory
     {
         return [
             'cav_id' => fake()->unique()->numberBetween(1, 100000),
+            'username' => fake()->unique()->userName(),
             'rank' => fake()->randomElement(['Private', 'Corporal', 'Sergeant']),
             'mos' => fake()->bothify('##?'),
             'tis' => fake()->date(),
