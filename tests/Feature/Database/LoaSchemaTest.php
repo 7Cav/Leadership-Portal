@@ -135,3 +135,24 @@ it('gives every leave type a label', function () {
 
     expect(LoaType::Eloa->label())->toBe('ELOA');
 });
+
+it('has a return_thread_id that is unique, so one return ends one ELOA, and a review_reason', function () {
+    expect(Schema::hasColumns('loas', ['return_thread_id', 'review_reason']))->toBeTrue();
+
+    $uniques = collect(Schema::getIndexes('loas'))
+        ->filter(fn (array $index) => $index['unique'] && ! $index['primary'])
+        ->map(fn (array $index) => $index['columns'])
+        ->all();
+    expect($uniques)->toContain(['return_thread_id']);
+
+    DB::table('loas')->insert(rawLoaRow(['forum_thread_id' => 1, 'return_thread_id' => 900]));
+
+    expect(fn () => DB::table('loas')->insert(rawLoaRow(['forum_thread_id' => 2, 'return_thread_id' => 900])))->toThrow(QueryException::class);
+});
+
+it('lets many rows have no return thread', function () {
+    DB::table('loas')->insert(rawLoaRow(['forum_thread_id' => 1]));
+    DB::table('loas')->insert(rawLoaRow(['forum_thread_id' => 2]));
+
+    expect(Loa::whereNull('return_thread_id')->count())->toBe(2);
+});

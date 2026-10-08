@@ -18,7 +18,7 @@ class Eloquent implements SyncRunRepository
         ]);
     }
 
-    public function complete(SyncRun $run, int $inserted, int $updated, int $inactivated, int $errored, ?string $error = null): void
+    public function complete(SyncRun $run, int $inserted, int $updated, int $inactivated, int $errored, ?string $error = null, int $needsReview = 0): void
     {
         $run->forceFill([
             'finished_at' => now(),
@@ -27,6 +27,7 @@ class Eloquent implements SyncRunRepository
             'updated' => $updated,
             'inactivated' => $inactivated,
             'errored' => $errored,
+            'needs_review' => $needsReview,
             'error' => $error,
         ])->save();
     }

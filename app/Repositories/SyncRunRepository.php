@@ -20,9 +20,10 @@ interface SyncRunRepository
     /**
      * Close a run that finished processing. `errored > 0` means some rows were bad but the run
      * otherwise completed — recorded `partial`, not `failure`, since the good rows were still
-     * committed. `$error` carries the per-row detail behind a partial run's `errored` count.
+     * committed. `$needsReview` counts rows left for a person to look at (the LOA sync, 4.2); it is
+     * deliberately not part of `$errored`, so an unreadable post does not make the run `partial`. `$error` carries the per-row detail behind a partial run's `errored` count.
      */
-    public function complete(SyncRun $run, int $inserted, int $updated, int $inactivated, int $errored, ?string $error = null): void;
+    public function complete(SyncRun $run, int $inserted, int $updated, int $inactivated, int $errored, ?string $error = null, int $needsReview = 0): void;
 
     /**
      * Close a run that aborted before completing. Counts are left at their opened-run default of

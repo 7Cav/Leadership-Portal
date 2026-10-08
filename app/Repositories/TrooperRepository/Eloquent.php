@@ -105,4 +105,21 @@ class Eloquent implements TrooperRepository
     {
         return Trooper::query()->whereIn('cav_id', $cavIds)->whereNotNull('rank')->pluck('rank', 'cav_id');
     }
+
+    public function idsByUsername(array $usernames): array
+    {
+        $wanted = array_values(array_unique(array_map(fn (string $name) => mb_strtolower($name), $usernames)));
+
+        if ($wanted === []) {
+            return [];
+        }
+
+        $found = [];
+
+        foreach (Trooper::query()->whereIn(DB::raw('lower(username)'), $wanted)->orderBy('id')->get(['id', 'username']) as $trooper) {
+            $found[mb_strtolower($trooper->username)][] = $trooper->id;
+        }
+
+        return $found;
+    }
 }

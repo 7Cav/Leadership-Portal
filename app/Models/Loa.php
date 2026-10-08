@@ -23,8 +23,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * gives them no row of their own.
  */
 #[Fillable([
-    'trooper_id', 'forum_thread_id', 'forum_node_id', 'type', 'starts_at', 'ends_at', 'parse_status',
-    'source_thread', 'raw_username', 'raw_start_date', 'raw_end_date', 'raw_excerpt',
+    'trooper_id', 'forum_thread_id', 'return_thread_id', 'forum_node_id', 'type', 'starts_at', 'ends_at', 'parse_status',
+    'review_reason', 'source_thread', 'raw_username', 'raw_start_date', 'raw_end_date', 'raw_excerpt',
 ])]
 class Loa extends Model
 {
@@ -35,6 +35,7 @@ class Loa extends Model
     {
         return [
             'forum_thread_id' => 'integer',
+            'return_thread_id' => 'integer',
             'forum_node_id' => 'integer',
             'type' => LoaType::class,
             'starts_at' => 'date',

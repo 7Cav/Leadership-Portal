@@ -106,4 +106,15 @@ interface TrooperRepository
      * @return Collection<int, string>
      */
     public function ranksByCavId(array $cavIds): Collection;
+
+    /**
+     * The troopers whose username is exactly each of `$usernames`, compared whole and ignoring case, keyed
+     * by the lower-cased username. Never a prefix match: `Perry.J` and `Perry.JW` are different people.
+     * A username with no trooper is simply absent, and one with more than one (which the Cav does not
+     * allow, but the cache does not enforce) lists them all, so the caller can refuse to guess.
+     *
+     * @param  list<string>  $usernames
+     * @return array<string, list<int>> lower-cased username => trooper ids
+     */
+    public function idsByUsername(array $usernames): array;
 }
