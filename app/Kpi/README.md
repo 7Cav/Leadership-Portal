@@ -12,6 +12,13 @@ threshold) is the divergence AD-21 exists to prevent. The precise definitions ar
   not-applicable (`value()` null → "—"), never 0%.
 - `trooperAttendance($unit, $weekStart)` → `TrooperAttendance` per assigned trooper: the rows
   `forUnit()` sums, for a roster or at-risk flag to reuse instead of recomputing.
+- `WeeklyReportKpis::snapshot($unit, $weekStart)` → `ReportSnapshot`: what a weekly report
+  freezes on send (5.6) — the KPIs from the echelon's `ReportKpiSource` plus the `KpiDelta`
+  against the unit's prior-week **sent** snapshot (null on a first report, 5.4). A sent report
+  is read back with `ReportSnapshot::fromArray($report->kpis)`, never recomputed (AD-12).
+  `ReportKpiSource` is the leaf/non-leaf seam: only the section half exists
+  (`SectionReportKpiSource`); a non-leaf is refused until 5.7's roll-up of children's sent
+  snapshots is bound in its place.
 
 **May depend on:** `Repositories/` (the facts — never the DB directly, AD-2), `Models/` (enums,
 the `Unit` it is handed), `Support/Time/` (the week window, AD-11).
