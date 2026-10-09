@@ -58,24 +58,52 @@ beforeEach(function () {
     ];
 });
 
+// What a page request and an Inertia (XHR) request each send, so a refusal is checked in both shapes.
+function gateRequestShapes(): array
+{
+    return [
+        'page' => [],
+        'inertia' => ['X-Inertia' => 'true', 'X-Inertia-Version' => (string) app(HandleInertiaRequests::class)->version(request()), 'X-Requested-With' => 'XMLHttpRequest'],
+    ];
+}
+
 it('withholds an out-of-scope trooper\'s data from the response, not just the page', function () {
     $secret = $this->troopers['other platoon'];
     $course = Course::factory()->create(['name' => 'Hidden Qualification Course']);
     TrooperCourse::factory()->create(['trooper_id' => $secret->id, 'course_id' => $course->id, 'status' => CourseStatus::Qualified]);
+    $private = ['Other.Platoon', 'Rifleman Charlie', 'Hidden Qualification Course'];
 
-    foreach ([[], ['X-Inertia' => 'true', 'X-Inertia-Version' => (string) app(HandleInertiaRequests::class)->version(request()), 'X-Requested-With' => 'XMLHttpRequest']] as $headers) {
+    // The control: a viewer who may look does receive these strings, so the refusals below could have leaked them.
+    $allowed = $this->actingAs($this->viewers['admin'])->withHeaders(gateRequestShapes()['inertia'])->get(route('troopers.show', $secret))->assertOk()->getContent();
+
+    foreach ($private as $value) {
+        expect($allowed)->toContain($value);
+    }
+
+    foreach (gateRequestShapes() as $shape => $headers) {
         $body = $this->actingAs($this->viewers['section leader'])->withHeaders($headers)->get(route('troopers.show', $secret))->assertForbidden()->getContent();
 
-        foreach (['Other.Platoon', 'Rifleman Charlie', 'Hidden Qualification Course'] as $leaked) {
-            expect($body)->not->toContain($leaked);
+        foreach ($private as $value) {
+            expect($body)->not->toContain($value, "the {$shape} refusal leaked {$value}");
         }
     }
 });
 
 it('withholds an out-of-scope unit\'s troopers from the readiness matrix response', function () {
-    $body = $this->actingAs($this->viewers['section leader'])->get(route('readiness.matrix', $this->section3->id))->assertForbidden()->getContent();
+    $private = ['Other.Platoon', 'Rifleman Charlie'];
+    $allowed = $this->actingAs($this->viewers['admin'])->withHeaders(gateRequestShapes()['inertia'])->get(route('readiness.matrix', $this->section3->id))->assertOk()->getContent();
 
-    expect($body)->not->toContain('Other.Platoon')->not->toContain('Rifleman Charlie');
+    foreach ($private as $value) {
+        expect($allowed)->toContain($value);
+    }
+
+    foreach (gateRequestShapes() as $shape => $headers) {
+        $body = $this->actingAs($this->viewers['section leader'])->withHeaders($headers)->get(route('readiness.matrix', $this->section3->id))->assertForbidden()->getContent();
+
+        foreach ($private as $value) {
+            expect($body)->not->toContain($value, "the {$shape} refusal leaked {$value}");
+        }
+    }
 });
 
 it('sends a signed-out visitor to sign in from every Epic 6 route', function () {
