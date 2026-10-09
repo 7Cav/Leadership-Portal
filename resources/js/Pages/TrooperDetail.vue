@@ -6,11 +6,13 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { forumDate, forumDateTime } from '@/lib/forumDate';
 
-// One trooper's milpac (Story 6.3): the ID block from the cached Cav roster. Everything is shaped on the server (`Milpac\TrooperMilpac`) and drawn here; the
+// One trooper's milpac (Stories 6.3, 6.4): the ID block from the cached Cav roster and the courses and
+// qualifications panel. Everything is shaped on the server (`Milpac\TrooperMilpac`) and drawn here; the
 // page decides nothing about who may look, the controller has already gated it. The service record that
 // completes the mockup's second column arrives with 6.6.
 const props = defineProps({
     trooper: { type: Object, required: true },
+    courses: { type: Object, required: true },
     sync: { type: Object, required: true },
 });
 
@@ -48,6 +50,8 @@ function duration(months) {
 
     return [years ? `${years}y` : null, rest ? `${rest}m` : null].filter(Boolean).join(' ');
 }
+
+const GROUP_DOT = { qualified: 'bg-success', in_progress: 'bg-info', required: 'bg-destructive' };
 
 // Why the ID block may not be current: a run since the last good one did not succeed.
 const staleNotice = computed(() => {
@@ -146,6 +150,42 @@ const staleNotice = computed(() => {
                             </dd>
                         </div>
                     </dl>
+                </Card>
+
+                <Card class="gap-0 py-0" data-testid="courses-panel">
+                    <div class="flex items-center justify-between border-b border-border px-4 py-3">
+                        <h2 class="text-[15px] font-semibold">Courses &amp; qualifications</h2>
+                        <Badge v-if="courses.total" variant="warning" class="rounded-full tabular-nums" data-testid="courses-count">
+                            {{ courses.qualified }} / {{ courses.total }}
+                        </Badge>
+                    </div>
+
+                    <p v-if="!courses.groups.length" class="px-4 py-6 text-center text-[13px] text-muted-foreground" data-testid="courses-empty">
+                        No courses on record.
+                    </p>
+
+                    <section v-for="group in courses.groups" :key="group.status" :data-testid="`group-${group.status}`">
+                        <h3 class="border-b border-border bg-muted/30 px-4 py-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                            {{ group.label }}
+                        </h3>
+                        <ul>
+                            <li
+                                v-for="course in group.courses"
+                                :key="course.code"
+                                class="flex items-center gap-3 border-b border-border px-4 py-2.5 text-[13px] last:border-b-0"
+                                data-testid="course"
+                            >
+                                <span class="size-2 shrink-0 rounded-full" :class="GROUP_DOT[group.status]" aria-hidden="true" />
+                                <span class="min-w-0 flex-1">
+                                    {{ course.name }}
+                                    <span class="ml-1 font-mono text-xs text-muted-foreground">{{ course.code }}</span>
+                                </span>
+                                <span v-if="course.awardedAt" class="font-mono text-xs text-muted-foreground" data-testid="awarded">
+                                    {{ forumDate(course.awardedAt) }}
+                                </span>
+                            </li>
+                        </ul>
+                    </section>
                 </Card>
             </div>
         </div>

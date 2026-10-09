@@ -39,7 +39,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/roster/troopers/{trooper}', [RosterController::class, 'trooper'])->whereNumber('trooper')->name('roster.trooper');
     Route::get('/roster/{unit?}', [RosterController::class, 'index'])->whereNumber('unit')->name('roster.index');
 
-    // One trooper's milpac (Story 6.3): the page every entry point to a trooper opens. Scope-gated
+    // One trooper's milpac (Stories 6.3, 6.4): the page every entry point to a trooper opens. Scope-gated
     // in the controller through the ScopeResolver (AD-8).
     Route::get('/troopers/{trooper}', [TrooperDetailController::class, 'show'])->whereNumber('trooper')->name('troopers.show');
 

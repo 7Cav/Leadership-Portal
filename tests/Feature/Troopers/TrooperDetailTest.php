@@ -1,9 +1,12 @@
 <?php
 
+use App\Models\Course;
+use App\Models\CourseStatus;
 use App\Models\PortalRoleGrant;
 use App\Models\SyncRun;
 use App\Models\SyncRunStatus;
 use App\Models\Trooper;
+use App\Models\TrooperCourse;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitCommandMapping;
@@ -13,7 +16,7 @@ use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
-// Story 6.3: one trooper's milpac, the ID block, gated by the ScopeResolver.
+// Stories 6.3 and 6.4: one trooper's milpac, the ID block and the courses panel, gated by the ScopeResolver.
 // Fixture tree: 7CAV ─ 1-7 ─ A/1-7 ─ 1/A ─┬─ 1/1/A (section, led by the viewer)
 //                                          └─ 2/1/A
 // "Now" is Thursday 2026-10-08.
@@ -221,5 +224,101 @@ describe('where it came from (AD-20)', function () {
         milpacOpen($this->actingAs($this->leader), milpacTrooper($this->section1))->assertInertia(fn ($page) => $page
             ->where('sync.lastSuccessAt', null)
             ->where('sync.stale', false));
+    });
+});
+
+describe('the courses panel (6.4)', function () {
+    function milpacCourse(Trooper $trooper, string $code, int $sort, CourseStatus $status, ?string $awardedAt = null): void
+    {
+        $course = Course::factory()->create(['code' => $code, 'name' => "Course {$code}", 'sort_order' => $sort]);
+        TrooperCourse::factory()->create(['trooper_id' => $trooper->id, 'course_id' => $course->id, 'status' => $status, 'awarded_at' => $awardedAt]);
+    }
+
+    it('groups the trooper\'s courses as qualified, in progress and required, in that order', function () {
+        $trooper = milpacTrooper($this->section1);
+        milpacCourse($trooper, 'REQ', 10, CourseStatus::Required);
+        milpacCourse($trooper, 'QUA', 20, CourseStatus::Qualified, '2025-02-02');
+        milpacCourse($trooper, 'PRO', 30, CourseStatus::InProgress);
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page
+            ->has('courses.groups', 3)
+            ->where('courses.groups.0.status', 'qualified')
+            ->where('courses.groups.0.label', 'Qualified')
+            ->where('courses.groups.1.status', 'in_progress')
+            ->where('courses.groups.2.status', 'required')
+            ->where('courses.qualified', 1)
+            ->where('courses.total', 3));
+    });
+
+    it('shows each course with its name and code, and a qualified one with its award date', function () {
+        $trooper = milpacTrooper($this->section1);
+        milpacCourse($trooper, 'BCT', 10, CourseStatus::Qualified, '2025-02-02');
+        milpacCourse($trooper, 'NCOA', 20, CourseStatus::Qualified);
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page
+            ->where('courses.groups.0.courses.0', ['code' => 'BCT', 'name' => 'Course BCT', 'awardedAt' => '2025-02-02'])
+            ->where('courses.groups.0.courses.1', ['code' => 'NCOA', 'name' => 'Course NCOA', 'awardedAt' => null]));
+    });
+
+    it('orders courses within a group by the catalog\'s sort order', function () {
+        $trooper = milpacTrooper($this->section1);
+        milpacCourse($trooper, 'ZZZ', 10, CourseStatus::Qualified);
+        milpacCourse($trooper, 'AAA', 30, CourseStatus::Qualified);
+        milpacCourse($trooper, 'MMM', 20, CourseStatus::Qualified);
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page
+            ->where('courses.groups.0.courses.0.code', 'ZZZ')
+            ->where('courses.groups.0.courses.1.code', 'MMM')
+            ->where('courses.groups.0.courses.2.code', 'AAA'));
+    });
+
+    it('leaves out none rows, and a group with nothing in it', function () {
+        $trooper = milpacTrooper($this->section1);
+        milpacCourse($trooper, 'ONE', 10, CourseStatus::Qualified);
+        milpacCourse($trooper, 'NIL', 20, CourseStatus::None);
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page
+            ->has('courses.groups', 1)
+            ->where('courses.groups.0.status', 'qualified')
+            ->has('courses.groups.0.courses', 1)
+            ->where('courses.total', 1));
+    });
+
+    it('has no groups for a trooper with no courses on record', function () {
+        milpacOpen($this->actingAs($this->leader), milpacTrooper($this->section1))->assertInertia(fn ($page) => $page
+            ->where('courses.groups', [])
+            ->where('courses.qualified', 0)
+            ->where('courses.total', 0));
+    });
+
+    it('never shows another trooper\'s courses', function () {
+        $trooper = milpacTrooper($this->section1);
+        milpacCourse(milpacTrooper($this->section1), 'OTH', 10, CourseStatus::Qualified);
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page->where('courses.total', 0));
+    });
+
+    it('reads in a constant number of queries however many courses there are', function () {
+        $trooper = milpacTrooper($this->section1);
+        foreach (range(1, 12) as $i) {
+            milpacCourse($trooper, sprintf('C%02d', $i), $i, CourseStatus::Qualified);
+        }
+        $this->actingAs($this->leader);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        milpacOpen($this, $trooper)->assertOk();
+        $queries = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $one = milpacTrooper($this->section1);
+        milpacCourse($one, 'SOLO', 100, CourseStatus::Qualified);
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        milpacOpen($this, $one)->assertOk();
+        $baseline = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        expect($queries)->toBe($baseline);
     });
 });
