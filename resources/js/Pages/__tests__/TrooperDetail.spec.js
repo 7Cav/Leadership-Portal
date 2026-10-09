@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import TrooperDetail from '../TrooperDetail.vue';
 
-// Stories 6.3 to 6.5: the milpac draws what the server shaped; it decides nothing about who may look.
+// Stories 6.3 to 6.6: the milpac draws what the server shaped; it decides nothing about who may look.
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
@@ -43,9 +43,11 @@ const courses = (overrides = {}) => ({
 
 const awards = (items = []) => ({ items });
 
+const timeline = (entries = [], legend = []) => ({ entries, legend });
+
 const sync = (overrides = {}) => ({ source: 'Cav roster', lastSuccessAt: '2026-10-08T09:30:00+00:00', stale: false, lastAttempt: null, ...overrides });
 
-const page = (props = {}) => mount(TrooperDetail, { props: { trooper: trooper(), courses: courses(), awards: awards(), sync: sync(), ...props } });
+const page = (props = {}) => mount(TrooperDetail, { props: { trooper: trooper(), courses: courses(), awards: awards(), timeline: timeline(), sync: sync(), ...props } });
 
 describe('TrooperDetail', () => {
     describe('ID block (6.3)', () => {
@@ -243,6 +245,64 @@ describe('TrooperDetail', () => {
             const wrapper = page({ sync: sync({ lastSuccessAt: null }) });
 
             expect(wrapper.get('[data-testid="awards-source"]').text()).toContain('never synced');
+        });
+    });
+
+    describe('service record timeline (6.6)', () => {
+        const entries = [
+            { type: 'course', date: '2026-03-04', title: 'Squad Advanced Course', detail: 'SAC' },
+            { type: 'promotion', date: '2025-11-22', title: 'Promoted to Specialist', detail: null },
+        ];
+        const legend = [
+            { type: 'promotion', label: 'Promotion' },
+            { type: 'course', label: 'Course' },
+        ];
+
+        it('draws each event in the order it was given, with a forum-convention date', () => {
+            const wrapper = page({ timeline: timeline(entries, legend) });
+            const rows = wrapper.findAll('li[data-testid^="event-"]');
+
+            expect(rows).toHaveLength(2);
+            expect(rows[0].get('[data-testid="event-date"]').text()).toBe('04Mar26');
+            expect(rows[0].get('[data-testid="event-title"]').text()).toBe('Squad Advanced Course');
+            expect(rows[0].get('[data-testid="event-detail"]').text()).toBe('SAC');
+            expect(rows[1].get('[data-testid="event-date"]').text()).toBe('22Nov25');
+        });
+
+        it('gives each event type its own colour, matching the legend', () => {
+            const wrapper = page({ timeline: timeline(entries, legend) });
+
+            expect(wrapper.get('li[data-testid="event-course"] span.rounded-full').classes()).toContain('bg-info');
+            expect(wrapper.get('li[data-testid="event-promotion"] span.rounded-full').classes()).toContain('bg-warning');
+            expect(wrapper.get('[data-testid="legend-course"] span').classes()).toContain('bg-info');
+            expect(wrapper.get('[data-testid="legend-promotion"] span').classes()).toContain('bg-warning');
+        });
+
+        it('lists only the types present in the legend', () => {
+            const wrapper = page({ timeline: timeline(entries, legend) });
+
+            expect(wrapper.findAll('[data-testid="timeline-legend"] li')).toHaveLength(2);
+            expect(wrapper.find('[data-testid="legend-award"]').exists()).toBe(false);
+        });
+
+        it('leaves out the detail line an event does not have', () => {
+            const wrapper = page({ timeline: timeline(entries, legend) });
+
+            expect(wrapper.get('li[data-testid="event-promotion"]').find('[data-testid="event-detail"]').exists()).toBe(false);
+        });
+
+        it('says plainly when there is nothing to show, with no legend', () => {
+            const wrapper = page();
+
+            expect(wrapper.get('[data-testid="timeline-empty"]').text()).toBe('No service record events on file.');
+            expect(wrapper.find('[data-testid="timeline-legend"]').exists()).toBe(false);
+        });
+
+        it('names the Cav roster and its last sync, and offers nothing to change', () => {
+            const panel = page({ timeline: timeline(entries, legend) }).get('[data-testid="timeline-panel"]');
+
+            expect(panel.get('[data-testid="timeline-source"]').text()).toContain('Source: Cav roster');
+            expect(panel.findAll('button, input, select, textarea, form, a[href]')).toHaveLength(0);
         });
     });
 });

@@ -13,8 +13,8 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 /**
- * What the trooper detail page (the milpac) shows for one trooper (Stories 6.3 to 6.5): the ID block, the
- * courses and qualifications panel and the earned-awards history, read through the repositories and shaped as page props. Read-only, and it
+ * What the trooper detail page (the milpac) shows for one trooper (Stories 6.3 to 6.6): the ID block, the
+ * courses and qualifications panel, the earned-awards history and the service-record timeline, read through the repositories and shaped as page props. Read-only, and it
  * never decides who may look: the caller gates that with the ScopeResolver (AD-8) before asking.
  *
  * The ID block is the cached Cav roster, so the page can show where it came from and how fresh it is (AD-20).
@@ -28,6 +28,12 @@ final class TrooperMilpac
     /** The order the course groups are shown in. `none` is left out: it means the trooper has nothing on the course. */
     private const GROUPS = [CourseStatus::Qualified, CourseStatus::InProgress, CourseStatus::Required];
 
+    /**
+     * The timeline's event types, in the order that settles two events on the same date (Story 6.6), with the
+     * legend's wording. A type with nothing to show is left out of the legend as well as the list.
+     */
+    private const TIMELINE_TYPES = ['promotion' => 'Promotion', 'award' => 'Award', 'course' => 'Course'];
+
     public function __construct(
         private readonly UnitRepository $units,
         private readonly TrooperCourseRepository $trooperCourses,
@@ -35,14 +41,18 @@ final class TrooperMilpac
     ) {}
 
     /**
-     * @return array{trooper: array<string, mixed>, courses: array<string, mixed>, awards: array<string, mixed>, sync: array<string, mixed>}
+     * @return array{trooper: array<string, mixed>, courses: array<string, mixed>, awards: array<string, mixed>, timeline: array<string, mixed>, sync: array<string, mixed>}
      */
     public function for(Trooper $trooper): array
     {
+        $rows = $this->trooperCourses->forTrooper($trooper->id);
+        $awards = $this->awards($trooper);
+
         return [
             'trooper' => $this->idBlock($trooper),
-            'courses' => $this->courses($trooper),
-            'awards' => $this->awards($trooper),
+            'courses' => $this->courses($rows),
+            'awards' => $awards,
+            'timeline' => $this->timeline($trooper, $rows, $awards['items']),
             'sync' => $this->sync(),
         ];
     }
@@ -99,12 +109,13 @@ final class TrooperMilpac
      * the catalog's order. `none` rows and absent rows are the same thing and are not listed, and a group
      * with nothing in it is not returned.
      *
+     * @param  Collection<int, TrooperCourse>  $all
      * @return array{groups: list<array<string, mixed>>, qualified: int, total: int}
      */
-    private function courses(Trooper $trooper): array
+    private function courses(Collection $all): array
     {
         /** @var Collection<int, TrooperCourse> $rows */
-        $rows = $this->trooperCourses->forTrooper($trooper->id)->reject(fn (TrooperCourse $row) => $row->status === CourseStatus::None);
+        $rows = $all->reject(fn (TrooperCourse $row) => $row->status === CourseStatus::None);
 
         $groups = collect(self::GROUPS)
             ->map(fn (CourseStatus $status) => [
@@ -143,6 +154,60 @@ final class TrooperMilpac
     private function awards(Trooper $trooper): array
     {
         return ['items' => []];
+    }
+
+    /**
+     * The service-record timeline (Story 6.6): what the milpac already holds, newest first. Three kinds of
+     * event exist today: the last promotion (the roster's date in grade and current rank, so earlier ones are
+     * not known), earned awards and qualified courses that carry a date. A course with no award date cannot be
+     * placed in time and is left to the courses panel; operations and discipline have no source yet, so they
+     * have no type here until one exists. A trooper whose grade date is their join date has not been
+     * promoted, so no promotion is shown.
+     *
+     * Two events on one day keep a fixed order: promotion, then award, then course, then the row's own id, so
+     * a reload never reshuffles them.
+     *
+     * @param  Collection<int, TrooperCourse>  $courseRows
+     * @param  list<array{name: string, awardedAt: ?string, citation: ?string}>  $awards
+     * @return array{entries: list<array<string, mixed>>, legend: list<array{type: string, label: string}>}
+     */
+    private function timeline(Trooper $trooper, Collection $courseRows, array $awards): array
+    {
+        $events = [];
+        $tig = $trooper->tig?->toDateString();
+
+        if ($tig !== null && $trooper->rank !== null && $tig !== $trooper->tis?->toDateString()) {
+            $events[] = ['type' => 'promotion', 'date' => $tig, 'title' => "Promoted to {$trooper->rank}", 'detail' => null, 'order' => 0];
+        }
+
+        foreach ($awards as $index => $award) {
+            if ($award['awardedAt'] !== null) {
+                $events[] = ['type' => 'award', 'date' => $award['awardedAt'], 'title' => $award['name'], 'detail' => $award['citation'], 'order' => $index];
+            }
+        }
+
+        foreach ($courseRows as $row) {
+            if ($row->status === CourseStatus::Qualified && $row->awarded_at !== null) {
+                $events[] = ['type' => 'course', 'date' => $row->awarded_at->toDateString(), 'title' => $row->course->name, 'detail' => $row->course->code, 'order' => $row->id];
+            }
+        }
+
+        $priority = array_flip(array_keys(self::TIMELINE_TYPES));
+
+        usort($events, fn (array $a, array $b) => $b['date'] <=> $a['date']
+            ?: $priority[$a['type']] <=> $priority[$b['type']]
+            ?: $a['order'] <=> $b['order']);
+
+        $present = array_unique(array_column($events, 'type'));
+
+        return [
+            'entries' => array_map(fn (array $event) => array_diff_key($event, ['order' => 0]), $events),
+            'legend' => collect(self::TIMELINE_TYPES)
+                ->filter(fn (string $label, string $type) => in_array($type, $present, true))
+                ->map(fn (string $label, string $type) => ['type' => $type, 'label' => $label])
+                ->values()
+                ->all(),
+        ];
     }
 
     /**
