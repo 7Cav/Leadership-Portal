@@ -20,7 +20,7 @@ class Eloquent implements TrooperRepository
             $inactivated = $this->markDepartedExcept($activeCavIds);
 
             if ($unreadableCavIds !== []) {
-                Trooper::query()->whereIn('cav_id', $unreadableCavIds)->update(['cav_position_id' => null, 'cav_billet' => null]);
+                Trooper::query()->whereIn('cav_id', $unreadableCavIds)->update(['cav_position_id' => null, 'billet' => null]);
             }
 
             return [...$upserted, 'inactivated' => $inactivated];
@@ -36,14 +36,16 @@ class Eloquent implements TrooperRepository
             $trooper = Trooper::updateOrCreate(
                 ['cav_id' => $row['cav_id']],
                 [
-                    'username' => $row['username'] ?? null,
                     'rank' => $row['rank'],
+                    'rank_short' => $row['rank_short'] ?? null,
+                    'username' => $row['username'] ?? null,
+                    'forum_user_id' => $row['forum_user_id'] ?? null,
+                    'billet' => $row['billet'] ?? null,
                     'mos' => $row['mos'],
                     'tis' => $row['tis'],
                     'tig' => $row['tig'],
                     'status' => $row['status'],
                     'cav_position_id' => $row['cav_position_id'] ?? null,
-                    'cav_billet' => $row['cav_billet'] ?? null,
                 ],
             );
 
@@ -146,5 +148,12 @@ class Eloquent implements TrooperRepository
     public function ranksByCavId(array $cavIds): Collection
     {
         return Trooper::query()->whereIn('cav_id', $cavIds)->whereNotNull('rank')->pluck('rank', 'cav_id');
+    }
+
+    public function sectionsOfAssignedWithin(Unit $unit): Collection
+    {
+        return Trooper::query()->assignedWithin($unit)->orderBy('id')
+            ->pluck('primary_section_id', 'id')
+            ->map(fn ($sectionId) => (int) $sectionId);
     }
 }

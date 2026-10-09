@@ -43,13 +43,13 @@ it('writes only the placement columns, never a synced roster field', function ()
     $admin = User::factory()->admin()->create();
     $trooper = Trooper::factory()->create([
         'primary_section_id' => null, 'username' => 'Hollis.D', 'rank' => 'Private', 'mos' => '11B',
-        'cav_position_id' => 412, 'cav_billet' => 'Rifleman', 'status' => TrooperStatus::Reserve,
+        'cav_position_id' => 412, 'billet' => 'Rifleman', 'status' => TrooperStatus::Reserve,
     ]);
-    $before = $trooper->fresh()->only(['cav_id', 'username', 'rank', 'mos', 'tis', 'tig', 'status', 'cav_position_id', 'cav_billet']);
+    $before = $trooper->fresh()->only(['cav_id', 'username', 'rank', 'mos', 'tis', 'tig', 'status', 'cav_position_id', 'billet']);
 
     placeTrooper($admin, $trooper, placementSection());
 
-    expect($trooper->fresh()->only(['cav_id', 'username', 'rank', 'mos', 'tis', 'tig', 'status', 'cav_position_id', 'cav_billet']))->toEqual($before);
+    expect($trooper->fresh()->only(['cav_id', 'username', 'rank', 'mos', 'tis', 'tig', 'status', 'cav_position_id', 'billet']))->toEqual($before);
 });
 
 it('puts the trooper in that section\'s roster and leaves the unplaced list', function () {

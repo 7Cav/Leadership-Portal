@@ -9,13 +9,13 @@ use App\Repositories\TrooperRepository;
 
 it('writes the username and billet title with the other synced columns, and clears them when Cav stops reporting them', function () {
     $repo = app(TrooperRepository::class);
-    $row = ['cav_id' => 1, 'username' => 'Hollis.D', 'rank' => 'Private', 'mos' => '11B', 'tis' => '2020-01-01', 'tig' => '2022-01-01', 'status' => TrooperStatus::Combat->value, 'cav_billet' => 'Rifleman'];
+    $row = ['cav_id' => 1, 'username' => 'Hollis.D', 'rank' => 'Private', 'mos' => '11B', 'tis' => '2020-01-01', 'tig' => '2022-01-01', 'status' => TrooperStatus::Combat->value, 'billet' => 'Rifleman'];
 
     $repo->upsertActive([$row]);
-    expect(Trooper::where('cav_id', 1)->sole()->only(['username', 'cav_billet']))->toBe(['username' => 'Hollis.D', 'cav_billet' => 'Rifleman']);
+    expect(Trooper::where('cav_id', 1)->sole()->only(['username', 'billet']))->toBe(['username' => 'Hollis.D', 'billet' => 'Rifleman']);
 
-    $repo->upsertActive([[...$row, 'username' => null, 'cav_billet' => null]]);
-    expect(Trooper::where('cav_id', 1)->sole()->only(['username', 'cav_billet']))->toBe(['username' => null, 'cav_billet' => null]);
+    $repo->upsertActive([[...$row, 'username' => null, 'billet' => null]]);
+    expect(Trooper::where('cav_id', 1)->sole()->only(['username', 'billet']))->toBe(['username' => null, 'billet' => null]);
 });
 
 it('lists active troopers with no primary section', function () {
