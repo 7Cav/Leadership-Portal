@@ -112,3 +112,20 @@ it('finds no week-boundary computation in app/ or database/ outside WeekOf', fun
 
     expect($offenders)->toBe([], 'Derive week_start through App\Support\Time\WeekOf::start() (AD-11), not inline.');
 });
+
+// 5.8: the reporting week and its deadline, shared by the home page and the report screens.
+it('keeps the closing week as the reporting week until its report deadline passes', function (string $now, string $week) {
+    expect(WeekOf::reporting(CarbonImmutable::parse($now))->toIso8601String())->toBe($week);
+})->with([
+    'mid-week Thursday' => ['2026-10-08 16:20:30', '2026-10-03T00:00:00+00:00'],
+    'due Saturday, 00:00Z' => ['2026-10-10 00:00:00', '2026-10-03T00:00:00+00:00'],
+    'one second before the deadline' => ['2026-10-10 23:58:59', '2026-10-03T00:00:00+00:00'],
+    'at the deadline' => ['2026-10-10 23:59:00', '2026-10-10T00:00:00+00:00'],
+    'an offset still before the deadline in UTC' => ['2026-10-11 01:30:00+02:00', '2026-10-03T00:00:00+00:00'],
+]);
+
+it('puts a week\'s report due at 23:59Z on the Saturday after it ends, and refuses a non-week', function () {
+    expect(WeekOf::reportDue(CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC'))->toIso8601String())->toBe('2026-10-10T23:59:00+00:00');
+
+    WeekOf::reportDue(CarbonImmutable::parse('2026-10-04 00:00:00', 'UTC'));
+})->throws(InvalidArgumentException::class);
