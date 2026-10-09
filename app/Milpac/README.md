@@ -1,6 +1,6 @@
 # `Milpac/` — what the trooper detail page shows (Epic 6)
 
-`TrooperMilpac::for($trooper)` returns the props of the one `TrooperDetail` page, whichever way a
+`TrooperMilpac::for($trooper, $scope)` returns the props of the one `TrooperDetail` page, whichever way a
 leader reached the trooper:
 
 - `trooper`: the ID block from the cached Cav roster (rank, billet, MOS, time in service and in grade, primary
@@ -17,6 +17,11 @@ leader reached the trooper:
   the join date or in the future, or the rank or date is unknown), earned awards and qualified courses that have an award date. A
   course with no date is left to the courses panel, and operations and discipline have no source yet. Two events on
   one day order by type (promotion, award, course) and then by row, so a reload never reshuffles them.
+- `actions`: the leadership quick actions, `{key, label, href}`, derived from the viewer's scope (the controller passes the
+  ScopeResolver's unit ids in). Open section roster needs the trooper's section; open in rollcall needs the section too
+  and its route; the platoon readiness matrix needs the platoon above the section. Each is shown only when the scope
+  holds that unit and its route is registered, so nothing links to a 404 (rollcall arrives with 3.7, the matrix with
+  6.9). Hiding is cosmetic (AD-6): every target authorizes its own request. Nothing here changes a trooper.
 - `sync`: where the ID block came from and how current it is (AD-20): the last successful roster sync, and a stale
   flag when a later run did not succeed.
 

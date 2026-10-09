@@ -6,15 +6,17 @@ use App\Models\CourseStatus;
 use App\Models\Trooper;
 use App\Models\TrooperCourse;
 use App\Models\TrooperStatus;
+use App\Models\UnitType;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperCourseRepository;
 use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Route;
 
 /**
- * What the trooper detail page (the milpac) shows for one trooper (Stories 6.3 to 6.6): the ID block, the
- * courses and qualifications panel, the earned-awards history and the service-record timeline, read through the
+ * What the trooper detail page (the milpac) shows for one trooper (Stories 6.3 to 6.7): the ID block, the
+ * courses and qualifications panel, the earned-awards history, the service-record timeline and the leadership quick actions, read through the
  * repositories and shaped as page props. Read-only, and it never decides who may look: the caller gates that with
  * the ScopeResolver (AD-8) before asking.
  *
@@ -42,9 +44,10 @@ final class TrooperMilpac
     ) {}
 
     /**
-     * @return array{trooper: array<string, mixed>, courses: array<string, mixed>, awards: array<string, mixed>, timeline: array<string, mixed>, sync: array<string, mixed>}
+     * @param  Collection<int, int>  $scope  the unit ids the viewer may read, from the ScopeResolver (AD-8)
+     * @return array{trooper: array<string, mixed>, courses: array<string, mixed>, awards: array<string, mixed>, timeline: array<string, mixed>, actions: list<array{key: string, label: string, href: string}>, sync: array<string, mixed>}
      */
-    public function for(Trooper $trooper): array
+    public function for(Trooper $trooper, Collection $scope): array
     {
         $rows = $this->trooperCourses->forTrooper($trooper->id);
         $awards = $this->awards($trooper);
@@ -54,6 +57,7 @@ final class TrooperMilpac
             'courses' => $this->courses($rows),
             'awards' => $awards,
             'timeline' => $this->timeline($trooper, $rows, $awards['items']),
+            'actions' => $this->actions($trooper, $scope),
             'sync' => $this->sync(),
         ];
     }
@@ -211,6 +215,46 @@ final class TrooperMilpac
                 ->values()
                 ->all(),
         ];
+    }
+
+    /**
+     * The leadership quick actions (Story 6.7): links from the milpac to the rest of the portal, shown only to a
+     * viewer whose scope holds the unit each one acts on. Hiding is cosmetic (AD-6): every target route authorizes
+     * the request itself, so a link typed by hand is refused the same way.
+     *
+     * An action whose route is not registered yet is left out rather than linked to a 404, the same rule the roster
+     * Sheet follows for rollcall (3.7); the readiness matrix arrives with 6.9. Nothing here changes a trooper:
+     * messaging, leave on someone's behalf, medal recommendations and promotions are not read-only and are not
+     * offered. A trooper the sync has not placed in a section has no unit to act on, so has no actions.
+     *
+     * @param  Collection<int, int>  $scope
+     * @return list<array{key: string, label: string, href: string}>
+     */
+    private function actions(Trooper $trooper, Collection $scope): array
+    {
+        $section = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
+
+        if ($section === null) {
+            return [];
+        }
+
+        $platoon = $section->parent_id === null ? null : $this->units->find($section->parent_id);
+        $platoon = $platoon?->type === UnitType::Platoon ? $platoon : null;
+        $actions = [];
+
+        if ($scope->contains($section->id)) {
+            $actions[] = ['key' => 'section-roster', 'label' => 'Open section roster', 'href' => route('roster.index', $section->id, absolute: false)];
+
+            if (Route::has('rollcall.show')) {
+                $actions[] = ['key' => 'rollcall', 'label' => 'Open in rollcall', 'href' => '/rollcall/'.$section->id];
+            }
+        }
+
+        if ($platoon !== null && $scope->contains($platoon->id) && Route::has('readiness.matrix')) {
+            $actions[] = ['key' => 'readiness-matrix', 'label' => 'View platoon readiness matrix', 'href' => route('readiness.matrix', $platoon->id, absolute: false)];
+        }
+
+        return $actions;
     }
 
     /**

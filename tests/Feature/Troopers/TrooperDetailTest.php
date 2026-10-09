@@ -16,9 +16,10 @@ use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 
-// Stories 6.3 to 6.6: one trooper's milpac, the ID block, the courses panel, the awards history and the service-record timeline, gated by the ScopeResolver.
+// Stories 6.3 to 6.7: one trooper's milpac, the ID block, the courses panel, the awards history, the service-record timeline and the quick actions, gated by the ScopeResolver.
 // Fixture tree: 7CAV ─ 1-7 ─ A/1-7 ─ 1/A ─┬─ 1/1/A (section, led by the viewer)
 //                                          └─ 2/1/A
 // "Now" is Thursday 2026-10-08.
@@ -446,5 +447,82 @@ describe('the service-record timeline (6.6)', function () {
         }
 
         expect($count())->toBe($few);
+    });
+});
+
+describe('the leadership quick actions (6.7)', function () {
+    function registerRoute(string $uri, string $name): void
+    {
+        Route::middleware(['web', 'auth'])->get($uri, fn () => 'ok')->name($name);
+        app('router')->getRoutes()->refreshNameLookups();
+    }
+
+    function actionKeys($test, Trooper $trooper): array
+    {
+        return collect(milpacOpen($test, $trooper)->viewData('page')['props']['actions'])->pluck('key')->all();
+    }
+
+    it('offers the trooper\'s section roster to a viewer who holds that section', function () {
+        $trooper = milpacTrooper($this->section1);
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page
+            ->where('actions', [['key' => 'section-roster', 'label' => 'Open section roster', 'href' => "/roster/{$this->section1->id}"]]));
+    });
+
+    it('leaves out rollcall and the readiness matrix until their routes exist, rather than link to a 404', function () {
+        expect(actionKeys($this->actingAs($this->leader), milpacTrooper($this->section1)))->toBe(['section-roster']);
+    });
+
+    it('adds rollcall when its route is registered', function () {
+        registerRoute('/rollcall/{unit}', 'rollcall.show');
+
+        milpacOpen($this->actingAs($this->leader), milpacTrooper($this->section1))->assertInertia(fn ($page) => $page
+            ->where('actions.1', ['key' => 'rollcall', 'label' => 'Open in rollcall', 'href' => "/rollcall/{$this->section1->id}"]));
+    });
+
+    it('hides the platoon readiness matrix from a section leader, whose scope does not hold the platoon', function () {
+        registerRoute('/readiness/{unit}', 'readiness.matrix');
+
+        expect(actionKeys($this->actingAs($this->leader), milpacTrooper($this->section1)))->not->toContain('readiness-matrix');
+    });
+
+    it('links the platoon readiness matrix for a viewer who holds the platoon', function () {
+        registerRoute('/readiness/{unit}', 'readiness.matrix');
+        $platoonId = $this->section1->parent_id;
+        $staff = User::factory()->create();
+        PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $platoonId]);
+
+        milpacOpen($this->actingAs($staff), milpacTrooper($this->section2))->assertInertia(fn ($page) => $page
+            ->where('actions.1', ['key' => 'readiness-matrix', 'label' => 'View platoon readiness matrix', 'href' => "/readiness/{$platoonId}"]));
+    });
+
+    it('offers no action for a trooper the sync has not placed, even to an Admin', function () {
+        $admin = User::factory()->admin()->create();
+        $unplaced = Trooper::factory()->create();
+
+        milpacOpen($this->actingAs($admin), $unplaced)->assertInertia(fn ($page) => $page->where('actions', []));
+    });
+
+    it('follows a view-as preview: the matrix is hidden when previewing a section leader', function () {
+        registerRoute('/readiness/{unit}', 'readiness.matrix');
+        $admin = User::factory()->admin()->create();
+
+        expect(actionKeys($this->actingAs($admin), milpacTrooper($this->section1)))->toContain('readiness-matrix');
+
+        $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->section1->id])->assertSessionHasNoErrors();
+
+        expect(actionKeys($this, milpacTrooper($this->section1)))->not->toContain('readiness-matrix');
+    });
+
+    it('is not the security boundary: the roster of a section outside scope is refused when its URL is typed by hand', function () {
+        $this->actingAs($this->leader)->get(route('roster.index', $this->section2->id))->assertForbidden();
+    });
+
+    it('offers no action that changes a trooper', function () {
+        registerRoute('/rollcall/{unit}', 'rollcall.show');
+        registerRoute('/readiness/{unit}', 'readiness.matrix');
+        $admin = User::factory()->admin()->create();
+
+        expect(actionKeys($this->actingAs($admin), milpacTrooper($this->section1)))->toBe(['section-roster', 'rollcall', 'readiness-matrix']);
     });
 });

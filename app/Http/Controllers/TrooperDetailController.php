@@ -10,7 +10,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * One trooper's milpac (Stories 6.3 to 6.6): the page every entry point to a trooper opens. It orchestrates
+ * One trooper's milpac (Stories 6.3 to 6.7): the page every entry point to a trooper opens. It orchestrates
  * only; what the page shows comes from {@see TrooperMilpac}.
  *
  * Who may see it is decided here, by the single ScopeResolver (AD-8, AD-6): a trooper placed in a section
@@ -29,12 +29,13 @@ class TrooperDetailController extends Controller
     {
         $user = $request->user();
 
+        $scope = $this->scope->resolve($user);
         $allowed = $trooper->primary_section_id === null
             ? $this->scope->actsAsAdmin($user)
-            : $this->scope->resolve($user)->contains($trooper->primary_section_id);
+            : $scope->contains($trooper->primary_section_id);
 
         abort_unless($allowed, 403, 'That trooper is outside your scope.');
 
-        return Inertia::render('TrooperDetail', $this->milpac->for($trooper));
+        return Inertia::render('TrooperDetail', $this->milpac->for($trooper, $scope));
     }
 }

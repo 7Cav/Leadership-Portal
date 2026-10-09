@@ -1,13 +1,14 @@
 <script setup>
 import { computed } from 'vue';
-import { Head } from '@inertiajs/vue3';
-import { PhArrowSquareOut, PhWarning } from '@phosphor-icons/vue';
+import { Head, Link } from '@inertiajs/vue3';
+import { PhArrowSquareOut, PhLightning, PhWarning } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { forumDate, forumDateTime } from '@/lib/forumDate';
 
-// One trooper's milpac (Stories 6.3 to 6.6): the ID block from the cached Cav roster, the courses and
-// qualifications panel, the earned-awards history and the service-record timeline. Everything is shaped on the
+// One trooper's milpac (Stories 6.3 to 6.7): the ID block from the cached Cav roster, the courses and
+// qualifications panel, the earned-awards history, the service-record timeline and the leadership quick actions. Everything is shaped on the
 // server (`Milpac\TrooperMilpac`) and drawn here; the page decides nothing about who may look, the controller
 // has already gated it.
 const props = defineProps({
@@ -15,6 +16,7 @@ const props = defineProps({
     courses: { type: Object, required: true },
     awards: { type: Object, required: true },
     timeline: { type: Object, required: true },
+    actions: { type: Array, required: true },
     sync: { type: Object, required: true },
 });
 
@@ -113,6 +115,19 @@ const staleNotice = computed(() => {
             <PhWarning class="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
             <span>{{ staleNotice }}</span>
         </p>
+
+        <!-- Links the server already limited to this viewer's scope. Hiding one is cosmetic (AD-6): its route authorizes the request itself. -->
+        <nav
+            v-if="actions.length"
+            aria-label="Leadership actions"
+            class="flex flex-wrap items-center gap-2 rounded-lg border border-warning/35 bg-warning/8 px-3.5 py-2.5"
+            data-testid="quick-actions"
+        >
+            <span class="mr-1 flex items-center gap-1.5 text-[13px] font-medium text-warning"><PhLightning class="size-4" aria-hidden="true" />Leadership actions</span>
+            <Button v-for="action in actions" :key="action.key" as-child variant="outline" size="sm">
+                <Link :href="action.href" :data-testid="`action-${action.key}`">{{ action.label }}</Link>
+            </Button>
+        </nav>
 
         <div class="grid items-start gap-5 lg:grid-cols-[20rem_1fr]">
             <div class="flex flex-col gap-5">
