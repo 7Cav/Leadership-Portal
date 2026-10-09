@@ -13,7 +13,7 @@ const present = { rollcall: 'will_attend', status: 'present', source: 'manual', 
 const missed = { rollcall: 'unsigned', status: 'missed', source: 'manual', held: true };
 
 export function trooper(id, sectionId, over = {}) {
-    return {
+    const t = {
         id,
         cavId: 4000 + id,
         name: `Trooper${id}.T`,
@@ -29,13 +29,15 @@ export function trooper(id, sectionId, over = {}) {
         weeks: WEEKS.map(() => present),
         ...over,
     };
+
+    return { displayName: `${t.rank} ${t.name}`, ...t };
 }
 
 export function roster() {
     return {
         units: [
-            { id: 1, type: 'platoon', name: '1st Platoon', callsign: '1/A/1-7', parentId: 9, leader: { id: 50, rank: '1LT', name: 'Brennan.J' }, kpis: kpis({ strength: 4, atRisk: 1 }) },
-            { id: 2, type: 'section', name: '1st Section', callsign: '1/1/A/1-7', parentId: 1, leader: { id: 10, rank: 'SGT', name: 'Abernathy.L' }, kpis: kpis({ strength: 2 }) },
+            { id: 1, type: 'platoon', name: '1st Platoon', callsign: '1/A/1-7', parentId: 9, leader: { id: 50, cavId: 50, rank: '1LT', name: 'Brennan.J', displayName: '1LT Brennan.J' }, kpis: kpis({ strength: 4, atRisk: 1 }) },
+            { id: 2, type: 'section', name: '1st Section', callsign: '1/1/A/1-7', parentId: 1, leader: { id: 10, cavId: 10, rank: 'SGT', name: 'Abernathy.L', displayName: 'SGT Abernathy.L' }, kpis: kpis({ strength: 2 }) },
             { id: 3, type: 'section', name: '2nd Section', callsign: '2/1/A/1-7', parentId: 1, leader: null, kpis: kpis({ strength: 2, atRisk: 1 }) },
         ],
         troopers: [

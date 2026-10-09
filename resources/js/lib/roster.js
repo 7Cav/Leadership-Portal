@@ -119,8 +119,9 @@ function endOfWeek(weekStart) {
 }
 
 /**
- * The trooper's name, or their milpac id when Cav links no forum account to them (the username is
- * the only name the roster carries).
+ * The name half of a row whose rank sits in its own badge: the username, or the milpac id when Cav
+ * links no forum account. Anywhere rank and name read as one, use the server's `displayName`
+ * (`Trooper::display_name`, 2.10) instead.
  */
 export function displayName(trooper) {
     return trooper?.name || (trooper?.cavId ? `#${trooper.cavId}` : 'Unknown');

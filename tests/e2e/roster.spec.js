@@ -14,7 +14,7 @@ test('a section leader reads their section in both views and opens a trooper', a
     const rows = page.locator('tr[data-member]');
     await expect(rows).toHaveCount(8);
 
-    // Keyboard: the first trooper row opens the Sheet with Enter.
+    // Keyboard: arrow keys move between trooper rows.
     await rows.first().focus();
     await page.keyboard.press('ArrowDown');
     await expect(rows.nth(1)).toBeFocused();

@@ -151,7 +151,7 @@ function resolveTip(key) {
         const c = cell(trooper, index);
 
         return {
-            title: `${trooper.rank} ${displayName(trooper)}, week of ${weekLabel(week)}${current ? ' (this week)' : ''}`,
+            title: `${trooper.displayName}, week of ${weekLabel(week)}${current ? ' (this week)' : ''}`,
             rows: [
                 ['Rollcall', RC_STATES[c.rc], c.rc === 'open' ? 'Rollcall still open' : null],
                 ['SP', SP_STATES[c.sp], sourceLabel(mark)],
@@ -316,7 +316,7 @@ function clearAll() {
                         <tr v-if="row.kind === 'label'" class="tr-label">
                             <td class="sl">
                                 <span class="font-medium text-foreground">{{ row.unit.callsign ?? row.unit.name }}</span>
-                                <span v-if="row.unit.leader" class="hidden sm:inline">{{ ' ' }}{{ row.unit.leader.rank }} {{ displayName(row.unit.leader) }}</span>
+                                <span v-if="row.unit.leader" class="hidden sm:inline">{{ ' ' }}{{ row.unit.leader.displayName }}</span>
                             </td>
                             <td :colspan="range.length + 3">{{ row.unit.kpis.strength }} troopers</td>
                         </tr>
@@ -341,7 +341,7 @@ function clearAll() {
                                             <span class="font-medium">{{ row.unit.callsign ?? row.unit.name }}</span>
                                         </span>
                                         <span class="block truncate pl-5 text-xs text-muted-foreground">
-                                            <template v-if="row.unit.leader">{{ row.unit.leader.rank }} {{ displayName(row.unit.leader) }}, </template>{{ row.members.length }} troopers
+                                            <template v-if="row.unit.leader">{{ row.unit.leader.displayName }}, </template>{{ row.members.length }} troopers
                                         </span>
                                     </button>
                                     <span v-else class="nm-btn" data-nav :data-r="row.r" data-c="0" :tabindex="tabFor(row.r, 0)">
