@@ -25,6 +25,11 @@ use Throwable;
  * `positionId` is the primary billet's numeric id (2.5): Cav's API names a trooper's role, never
  * their section — `positionId` is the only stable key a portal-owned mapping (billet → section)
  * can be keyed on, since `billet`/`positionTitle` is free text a reorg could rename.
+ *
+ * `username`/`forumUserId` are the linked forum account (2.10), how 7Cav names a member
+ * (`SGT Vasquez.R`). Both degrade to null independently — a roster row with no forum account
+ * (`"user": null`) is still a trooper. The payload's `realName` is deliberately never read: the
+ * portal has no use for it (data minimisation).
  */
 readonly class CavRosterEntry
 {
@@ -33,6 +38,8 @@ readonly class CavRosterEntry
         public DateTimeImmutable $fetchedAt,
         public ?string $rankShort = null,
         public ?string $rankFull = null,
+        public ?string $username = null,
+        public ?int $forumUserId = null,
         public ?string $mos = null,
         public ?string $billet = null,
         public ?int $positionId = null,
@@ -63,12 +70,17 @@ readonly class CavRosterEntry
 
         $rank = is_array($payload['rank'] ?? null) ? $payload['rank'] : [];
         $primary = is_array($payload['primary'] ?? null) ? $payload['primary'] : [];
+        $user = is_array($payload['user']) ? $payload['user'] : [];
+        $forumUserId = self::integer($user['userId'] ?? null);
 
         return new self(
             cavId: $cavId,
             fetchedAt: $fetchedAt,
             rankShort: self::text($rank['rankShort'] ?? null),
             rankFull: self::text($rank['rankFull'] ?? null),
+            username: self::text($user['username'] ?? null),
+            // A non-positive id names no forum account; treat it like a missing one.
+            forumUserId: $forumUserId !== null && $forumUserId > 0 ? $forumUserId : null,
             mos: self::text($payload['mos'] ?? null),
             billet: self::text($primary['positionTitle'] ?? null),
             positionId: self::integer($primary['positionId'] ?? null),
@@ -90,10 +102,10 @@ readonly class CavRosterEntry
     }
 
     /**
-     * `positionId` arrives as a numeric string; accepts a bare int too in case that ever changes,
-     * since a JSON-encoding drift there must not silently stop every trooper from resolving a
-     * section (2.5). A drift to something genuinely non-numeric costs this trooper their section
-     * mapping, not their whole record.
+     * `positionId`/`userId` arrive as numeric strings; accepts a bare int too in case that ever
+     * changes, since a JSON-encoding drift there must not silently stop every trooper from
+     * resolving a section (2.5) or a forum identity (2.10). A drift to something genuinely
+     * non-numeric costs this trooper that one field, not their whole record.
      */
     private static function integer(mixed $value): ?int
     {

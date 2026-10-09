@@ -32,7 +32,9 @@ use Throwable;
  * scheduled sync rather than needing its own recovery path.
  *
  * The primary billet itself (`cav_position_id`) is written with the synced columns, so the
- * roster-derived command scope (1.16) follows a billet change on the very next sync.
+ * roster-derived command scope (1.16) follows a billet change on the very next sync. The forum
+ * identity (`username`, `forum_user_id`) and short rank are written the same way (2.10), so a
+ * forum rename follows on the next sync too.
  */
 class SyncRosterHandler
 {
@@ -54,6 +56,9 @@ class SyncRosterHandler
                 fn (CavRosterEntry $entry) => [
                     'cav_id' => $entry->cavId,
                     'rank' => $entry->rankFull,
+                    'rank_short' => $entry->rankShort,
+                    'username' => $entry->username,
+                    'forum_user_id' => $entry->forumUserId,
                     'mos' => $entry->mos,
                     'tis' => $entry->tis,
                     'tig' => $entry->tig,

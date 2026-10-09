@@ -45,6 +45,28 @@ it('updates an existing row in place, leaving the internal PK unchanged, reporti
         ->and($counts)->toBe(['inserted' => 0, 'updated' => 1]);
 });
 
+it('writes the forum identity and short rank, overwriting stale values and nulling an absent key', function () {
+    $repo = app(TrooperRepository::class);
+
+    $repo->upsertActive([
+        ['cav_id' => 42, 'rank' => 'Sergeant', 'rank_short' => 'SGT', 'username' => 'Vasquez.R', 'forum_user_id' => 1204, 'mos' => '11B', 'tis' => null, 'tig' => null, 'status' => TrooperStatus::Combat->value],
+    ]);
+    $trooper = Trooper::where('cav_id', 42)->sole();
+
+    expect($trooper->username)->toBe('Vasquez.R')
+        ->and($trooper->forum_user_id)->toBe(1204)
+        ->and($trooper->rank_short)->toBe('SGT');
+
+    $repo->upsertActive([
+        ['cav_id' => 42, 'rank' => 'Sergeant', 'mos' => '11B', 'tis' => null, 'tig' => null, 'status' => TrooperStatus::Combat->value],
+    ]);
+    $trooper->refresh();
+
+    expect($trooper->username)->toBeNull()
+        ->and($trooper->forum_user_id)->toBeNull()
+        ->and($trooper->rank_short)->toBeNull();
+});
+
 it('counts several inserts and updates independently in one batch', function () {
     $repo = app(TrooperRepository::class);
     Trooper::factory()->create(['cav_id' => 1, 'status' => TrooperStatus::Combat]);
@@ -219,6 +241,29 @@ it('lists the active troopers placed anywhere in a unit\'s subtree, by id', func
     Trooper::factory()->create();
 
     expect(app(TrooperRepository::class)->assignedWithin($platoon)->all())->toBe([$a, $b]);
+});
+
+// 5.8: the same population split by section, so one query feeds a whole roll-up.
+it('maps the troopers assigned in a subtree to their section, by trooper id', function () {
+    $platoon = Unit::factory()->create(['path' => '800/']);
+    $first = Unit::factory()->create(['path' => '800/801/']);
+    $second = Unit::factory()->create(['path' => '800/802/']);
+    $outside = Unit::factory()->create(['path' => '8000/']);
+
+    $place = function (Unit $unit, TrooperStatus $status = TrooperStatus::Combat) {
+        $trooper = Trooper::factory()->create(['status' => $status]);
+        $trooper->forceFill(['primary_section_id' => $unit->id])->save();
+
+        return $trooper->id;
+    };
+
+    $a = $place($second);
+    $b = $place($first, TrooperStatus::Eloa);
+    $place($first, TrooperStatus::Inactive);
+    $place($outside);
+
+    expect(app(TrooperRepository::class)->sectionsOfAssignedWithin($platoon)->all())
+        ->toBe([$a => $second->id, $b => $first->id]);
 });
 
 it('writes the primary billet id with the synced columns, overwriting the previous one (1.16)', function () {

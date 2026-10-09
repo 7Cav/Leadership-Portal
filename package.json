@@ -32,7 +32,8 @@
         "clsx": "^2.1.1",
         "reka-ui": "^2.10.5",
         "tailwind-merge": "^3.7.0",
-        "vue": "^3.5.43"
+        "vue": "^3.5.43",
+        "vue-sonner": "^2.0.9"
     },
     "overrides": {
         "shell-quote": "1.11.0"
