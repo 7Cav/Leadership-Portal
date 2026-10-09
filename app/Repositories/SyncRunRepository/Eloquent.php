@@ -40,6 +40,17 @@ class Eloquent implements SyncRunRepository
         ])->save();
     }
 
+    public function latestFinished(string $source): ?SyncRun
+    {
+        return SyncRun::query()
+            ->where('source', $source)
+            ->whereNotNull('finished_at')
+            ->where('status', '!=', SyncRunStatus::InProgress)
+            ->orderByDesc('finished_at')
+            ->orderByDesc('id')
+            ->first();
+    }
+
     public function latestSuccessful(string $source): ?SyncRun
     {
         return SyncRun::query()
