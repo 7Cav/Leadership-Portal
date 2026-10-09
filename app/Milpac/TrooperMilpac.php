@@ -13,8 +13,8 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 /**
- * What the trooper detail page (the milpac) shows for one trooper (Stories 6.3, 6.4): the ID block and the
- * courses and qualifications panel, read through the repositories and shaped as page props. Read-only, and it
+ * What the trooper detail page (the milpac) shows for one trooper (Stories 6.3 to 6.5): the ID block, the
+ * courses and qualifications panel and the earned-awards history, read through the repositories and shaped as page props. Read-only, and it
  * never decides who may look: the caller gates that with the ScopeResolver (AD-8) before asking.
  *
  * The ID block is the cached Cav roster, so the page can show where it came from and how fresh it is (AD-20).
@@ -35,13 +35,14 @@ final class TrooperMilpac
     ) {}
 
     /**
-     * @return array{trooper: array<string, mixed>, courses: array<string, mixed>, sync: array<string, mixed>}
+     * @return array{trooper: array<string, mixed>, courses: array<string, mixed>, awards: array<string, mixed>, sync: array<string, mixed>}
      */
     public function for(Trooper $trooper): array
     {
         return [
             'trooper' => $this->idBlock($trooper),
             'courses' => $this->courses($trooper),
+            'awards' => $this->awards($trooper),
             'sync' => $this->sync(),
         ];
     }
@@ -128,6 +129,20 @@ final class TrooperMilpac
             'qualified' => $rows->filter(fn (TrooperCourse $row) => $row->status === CourseStatus::Qualified)->count(),
             'total' => $rows->count(),
         ];
+    }
+
+    /**
+     * The earned-awards history (Story 6.5): read-only, from the Cav-authoritative roster (AD-5), never a
+     * recommendation workflow (FR17). The roster sync stores no awards today (`/lite` carries none and AD-3 rules
+     * out a new outbound read for them), so every trooper gets the empty list and the page shows its empty state.
+     * When the roster cache starts holding awards, they are returned here as `{name, awardedAt, citation}`, newest
+     * first; the page already draws them.
+     *
+     * @return array{items: list<array{name: string, awardedAt: ?string, citation: ?string}>}
+     */
+    private function awards(Trooper $trooper): array
+    {
+        return ['items' => []];
     }
 
     /**

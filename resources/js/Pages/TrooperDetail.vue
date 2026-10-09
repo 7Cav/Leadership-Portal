@@ -6,13 +6,14 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { forumDate, forumDateTime } from '@/lib/forumDate';
 
-// One trooper's milpac (Stories 6.3, 6.4): the ID block from the cached Cav roster and the courses and
-// qualifications panel. Everything is shaped on the server (`Milpac\TrooperMilpac`) and drawn here; the
+// One trooper's milpac (Stories 6.3 to 6.5): the ID block from the cached Cav roster, the courses and
+// qualifications panel and the earned-awards history. Everything is shaped on the server (`Milpac\TrooperMilpac`) and drawn here; the
 // page decides nothing about who may look, the controller has already gated it. The service record that
 // completes the mockup's second column arrives with 6.6.
 const props = defineProps({
     trooper: { type: Object, required: true },
     courses: { type: Object, required: true },
+    awards: { type: Object, required: true },
     sync: { type: Object, required: true },
 });
 
@@ -186,6 +187,46 @@ const staleNotice = computed(() => {
                             </li>
                         </ul>
                     </section>
+                </Card>
+            </div>
+
+            <div class="flex flex-col gap-5">
+                <!-- Read-only history from the Cav roster (AD-5): there is deliberately no way to add, edit or recommend an award here (FR17). -->
+                <Card class="gap-0 py-0" data-testid="awards-panel">
+                    <div class="flex items-center justify-between border-b border-border px-4 py-3">
+                        <h2 class="text-[15px] font-semibold">Awards</h2>
+                        <Badge v-if="awards.items.length" variant="warning" class="rounded-full tabular-nums" data-testid="awards-count">
+                            {{ awards.items.length }}
+                        </Badge>
+                    </div>
+
+                    <p v-if="!awards.items.length" class="px-4 py-6 text-center text-[13px] text-muted-foreground" data-testid="awards-empty">
+                        No awards on record.
+                    </p>
+
+                    <ul v-else>
+                        <li
+                            v-for="award in awards.items"
+                            :key="`${award.awardedAt}-${award.name}`"
+                            class="flex items-start gap-3 border-b border-border px-4 py-2.5 text-[13px] last:border-b-0"
+                            data-testid="award"
+                        >
+                            <span class="mt-1.5 size-2 shrink-0 rounded-full bg-success" aria-hidden="true" />
+                            <span class="min-w-0 flex-1">
+                                {{ award.name }}
+                                <span v-if="award.citation" class="block text-xs text-muted-foreground" data-testid="award-citation">{{ award.citation }}</span>
+                            </span>
+                            <span v-if="award.awardedAt" class="font-mono text-xs text-muted-foreground" data-testid="award-date">
+                                {{ forumDate(award.awardedAt) }}
+                            </span>
+                        </li>
+                    </ul>
+
+                    <p class="border-t border-border px-4 py-2 text-xs text-muted-foreground" data-testid="awards-source">
+                        Source: {{ sync.source }}
+                        <template v-if="sync.lastSuccessAt"> · last synced {{ forumDateTime(sync.lastSuccessAt) }} UTC</template>
+                        <template v-else> · never synced</template>
+                    </p>
                 </Card>
             </div>
         </div>
