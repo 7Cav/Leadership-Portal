@@ -28,6 +28,12 @@ is excluded and named by `missingChildren()` (holding up the chain); `isComplete
 pre-send check. Two queries however many children; a leaf unit is refused. 5.6's send command
 freezes `RollupResult::$kpis` for a non-leaf unit, and 5.8's navigator renders `$children`.
 
+`ReportChain` (5.8) is the navigator's read model: `build($root, $weekStart)` → a `ChainNode`
+tree of every unit under `$root`, each with its report status, its KPIs (the frozen snapshot once
+sent; otherwise live — a leaf from `KpiService::forSectionsWithin()`, a non-leaf from
+`RollupKpis::fromReports()`) and the delta against last week's sent snapshot. Five queries
+whatever the size of the chain; nothing in it is derived outside the pieces above.
+
 **May depend on:** `Repositories/` (the facts — never the DB directly, AD-2), `Models/` (enums,
 the `Unit` it is handed), `Support/Time/` (the week window, AD-11), `Loa/` (LOA coverage, 4.8).
 **Reached from:** `Http/Controllers/` and `Commands/`. Read-only; it never writes. Callers pass

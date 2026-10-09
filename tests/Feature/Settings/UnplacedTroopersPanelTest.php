@@ -16,7 +16,7 @@ it('gives an Admin the troopers the sync could not place, with what is needed to
     $section = Unit::factory()->create();
     Trooper::factory()->create([
         'cav_id' => 3099, 'username' => 'Hollis.D', 'rank' => 'Private', 'mos' => '11B',
-        'cav_position_id' => 412, 'cav_billet' => 'Rifleman, 2nd Platoon', 'primary_section_id' => null,
+        'cav_position_id' => 412, 'billet' => 'Rifleman, 2nd Platoon', 'primary_section_id' => null,
     ]);
     Trooper::factory()->create(['primary_section_id' => $section->id]);
 

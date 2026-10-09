@@ -100,9 +100,8 @@ jobs:
   e2e:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
-    # The sample page touches no DB, so the app serves on SQLite with array session/
-    # cache drivers — no MySQL service is needed yet. Add one here (and switch these
-    # back to database drivers) once an E2E flow exercises persisted data.
+    # No MySQL service: Playwright's global setup migrates and seeds a throwaway SQLite
+    # file and serves the app on it as APP_ENV=e2e (tests/e2e/env.js overrides these).
     env:
       DB_CONNECTION: sqlite
       DB_DATABASE: ':memory:'

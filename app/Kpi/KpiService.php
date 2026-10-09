@@ -71,8 +71,41 @@ final class KpiService
      */
     public function forUnit(Unit $unit, CarbonInterface $weekStart): UnitKpis
     {
-        $byTrooper = $this->trooperAttendance($unit, $weekStart);
+        return $this->sum($this->trooperAttendance($unit, $weekStart));
+    }
 
+    /**
+     * `forUnit()` for every section under `$unit` at once, keyed by section id — the same
+     * per-trooper rows, split by the section each trooper is placed in, in three queries however
+     * many sections (5.8's roll-up of a whole battalion): marks, placement and LOA coverage (4.8). A section with no
+     * assigned trooper is absent; its KPIs are `UnitKpis::none()`. Equal, section by section, to `forUnit()`: a
+     * trooper's marks only ever count against their own section's practice.
+     *
+     * @return Collection<int, UnitKpis>
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function forSectionsWithin(Unit $unit, CarbonInterface $weekStart): Collection
+    {
+        $weekStart = WeekOf::requireStart($weekStart);
+        $marks = $this->marksByTrooper($unit, $weekStart);
+        $sections = $this->troopers->sectionsOfAssignedWithin($unit);
+        $covers = $this->coversFor($sections->keys(), $weekStart);
+
+        return $sections
+            ->map(fn (int $sectionId, int $trooperId) => [
+                'section' => $sectionId,
+                'row' => $this->forTrooper($trooperId, $marks->get($trooperId, collect()), $weekStart, $covers[$trooperId]),
+            ])
+            ->groupBy('section')
+            ->map(fn (Collection $rows) => $this->sum($rows->pluck('row')));
+    }
+
+    /**
+     * @param  Collection<int, TrooperAttendance>  $byTrooper
+     */
+    private function sum(Collection $byTrooper): UnitKpis
+    {
         return new UnitKpis(
             strength: $byTrooper->count(),
             rc30d: $byTrooper->reduce(fn (Ratio $sum, TrooperAttendance $t) => $sum->plus($t->rollcall), new Ratio(0, 0)),
@@ -85,7 +118,7 @@ final class KpiService
 
     /**
      * Every trooper assigned within the unit's subtree, keyed and ordered by trooper id — the
-     * per-trooper rows `forUnit()` sums, for a roster or at-risk flag to reuse. Two queries
+     * per-trooper rows `forUnit()` sums, for a roster or at-risk flag to reuse. Three queries
      * regardless of subtree size.
      *
      * @return Collection<int, TrooperAttendance>
@@ -95,17 +128,39 @@ final class KpiService
     public function trooperAttendance(Unit $unit, CarbonInterface $weekStart): Collection
     {
         $weekStart = WeekOf::requireStart($weekStart);
-        $firstWeek = $weekStart->subWeeks(self::WINDOW_WEEKS - 1);
-        $marks = $this->attendance
-            ->countingMarks($unit, $firstWeek, $weekStart)
-            ->groupBy(fn (CountingMark $mark) => $mark->trooperId);
+        $marks = $this->marksByTrooper($unit, $weekStart);
 
         $troopers = $this->troopers->assignedWithin($unit);
-        $covers = $this->loa->forTroopersOverWeeks($troopers, $firstWeek, self::WINDOW_WEEKS);
+        $covers = $this->coversFor($troopers, $weekStart);
 
         return $troopers->mapWithKeys(fn (int $trooperId) => [
             $trooperId => $this->forTrooper($trooperId, $marks->get($trooperId, collect()), $weekStart, $covers[$trooperId]),
         ]);
+    }
+
+    /**
+     * The window's counting marks of every trooper assigned within `$unit`, grouped by trooper.
+     *
+     * @return Collection<int, Collection<int, CountingMark>>
+     */
+    private function marksByTrooper(Unit $unit, CarbonImmutable $weekStart): Collection
+    {
+        return $this->attendance
+            ->countingMarks($unit, $weekStart->subWeeks(self::WINDOW_WEEKS - 1), $weekStart)
+            ->groupBy(fn (CountingMark $mark) => $mark->trooperId);
+    }
+
+    /**
+     * The LOA coverage of these troopers for each week of the window ending with `$weekStart`, in one query: the
+     * single definition (4.4) every per-trooper row is built from, so `forUnit()` and `forSectionsWithin()` can
+     * never disagree about who is on leave.
+     *
+     * @param  iterable<int>  $trooperIds
+     * @return array<int, array<string, LoaCover>>
+     */
+    private function coversFor(iterable $trooperIds, CarbonImmutable $weekStart): array
+    {
+        return $this->loa->forTroopersOverWeeks($trooperIds, $weekStart->subWeeks(self::WINDOW_WEEKS - 1), self::WINDOW_WEEKS);
     }
 
     /**

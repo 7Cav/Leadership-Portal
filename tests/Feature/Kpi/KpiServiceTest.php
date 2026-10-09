@@ -532,3 +532,48 @@ it('computes a regiment-sized subtree in a constant number of queries', function
     // Attendance marks, the placed troopers, and the LOA rows that bear on the window (4.8): three, however many troopers.
     expect($queries)->toBeLessThanOrEqual(3);
 });
+
+// 5.8: a whole chain's section KPIs in one pass, each equal to that section's forUnit().
+it('computes every section under a unit at once, each equal to its own forUnit(), in three queries', function () {
+    $a1 = kpiTrooper($this->sectionA);
+    $a2 = kpiTrooper($this->sectionA);
+    $b1 = kpiTrooper($this->sectionB);
+    kpiMark($a1, $this->sectionA, 0, AttendanceStatus::Present, RollcallSignature::WillAttend);
+    kpiMark($a2, $this->sectionA, 1, AttendanceStatus::Missed);
+    kpiMark($a2, $this->sectionA, 0, AttendanceStatus::Missed, RollcallSignature::CannotAttend);
+    kpiMark($b1, $this->sectionB, 0, AttendanceStatus::Makeup, RollcallSignature::WillAttend);
+
+    DB::enableQueryLog();
+    $bySection = $this->kpis->forSectionsWithin($this->regiment, kpiWeek());
+    $queries = count(DB::getQueryLog());
+    DB::disableQueryLog();
+
+    // The marks, where everyone is placed, and the LOA coverage of the window (4.8).
+    expect($queries)->toBe(3)
+        ->and($bySection->keys()->sort()->values()->all())->toBe([$this->sectionA->id, $this->sectionB->id])
+        ->and($bySection[$this->sectionA->id])->toEqual($this->kpis->forUnit($this->sectionA, kpiWeek()))
+        ->and($bySection[$this->sectionB->id])->toEqual($this->kpis->forUnit($this->sectionB, kpiWeek()))
+        ->and($bySection[$this->sectionA->id]->atRisk)->toBe(1);
+});
+
+it('counts leave in the batch the same as forUnit() does, so the roll-up never disagrees with a section (4.8)', function () {
+    $away = kpiTrooper($this->sectionA);
+    $unclear = kpiTrooper($this->sectionA);
+    kpiMark($away, $this->sectionA, 3, AttendanceStatus::Missed);
+    kpiMark($away, $this->sectionA, 2, AttendanceStatus::Missed);
+    kpiMark($unclear, $this->sectionA, 1, AttendanceStatus::Missed);
+    kpiMark($unclear, $this->sectionA, 0, AttendanceStatus::Missed);
+    kpiLeave($away, '2026-06-13', '2026-06-19');
+    Loa::factory()->needsReview()->create(['trooper_id' => $unclear->id, 'created_at' => '2026-06-14 09:00:00']);
+
+    $bySection = $this->kpis->forSectionsWithin($this->regiment, kpiWeek());
+
+    expect($bySection[$this->sectionA->id])->toEqual($this->kpis->forUnit($this->sectionA, kpiWeek()))
+        ->and($bySection[$this->sectionA->id]->atRisk)->toBe(0);
+});
+
+it('leaves a section with nobody assigned out of the batch', function () {
+    kpiTrooper($this->sectionA);
+
+    expect($this->kpis->forSectionsWithin($this->battalion, kpiWeek())->keys()->all())->toBe([$this->sectionA->id]);
+});

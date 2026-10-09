@@ -16,22 +16,15 @@ class HomeController extends Controller
 {
     public function show(): Response
     {
-        $now = CarbonImmutable::now();
-        $weekStart = WeekOf::start($now);
-
-        // A week's report is due at 23:59Z on the Saturday after it ends, which is day one of the
-        // next Cav week. Until that deadline passes, the cycle still running is the week that just
-        // closed, so the home page keeps showing it (with the deadline as "today") rather than a
-        // fresh week that hides the report due in a few hours.
-        if ($now->lessThan($weekStart->setTime(23, 59))) {
-            $weekStart = $weekStart->subWeek();
-        }
+        // The week whose report cycle is running: the closing week stays current until its report
+        // deadline passes, so the deadline counted down is never one that already went by.
+        $weekStart = WeekOf::reporting(CarbonImmutable::now());
 
         return Inertia::render('Home', [
             'week' => [
                 // Saturday 00:00 UTC (AD-11). The page draws Sat → Fri plus the due Saturday.
                 'start' => $weekStart->toIso8601String(),
-                'reportDue' => $weekStart->addWeek()->setTime(23, 59)->toIso8601String(),
+                'reportDue' => WeekOf::reportDue($weekStart)->toIso8601String(),
             ],
         ]);
     }
