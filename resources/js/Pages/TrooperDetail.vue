@@ -83,7 +83,7 @@ const staleNotice = computed(() => {
                         class="inline-flex items-center gap-1 text-primary hover:underline"
                         data-testid="milpac-link"
                     >
-                        view on 7cav.us <PhArrowSquareOut class="size-3" aria-hidden="true" />
+                        view on 7cav.us <PhArrowSquareOut class="size-3" aria-hidden="true" /><span class="sr-only">(opens in a new tab)</span>
                     </a>
                 </p>
                 <p data-testid="source-line" class="mt-1 text-[13px] text-muted-foreground">
