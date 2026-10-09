@@ -56,6 +56,7 @@ describe('TrooperDetail', () => {
             expect(wrapper.get('[data-testid="trooper-subtitle"]').text()).toContain('Profile #4374');
             expect(wrapper.get('[data-testid="milpac-link"]').attributes('href')).toBe('https://7cav.us/rosters/profile?uniqueid=4374');
             expect(wrapper.get('[data-testid="milpac-link"]').attributes('rel')).toContain('noopener');
+            expect(wrapper.get('[data-testid="milpac-link"]').text()).toContain('opens in a new tab');
         });
 
         it('shows rank, MOS, join date in forum convention and the status', () => {
