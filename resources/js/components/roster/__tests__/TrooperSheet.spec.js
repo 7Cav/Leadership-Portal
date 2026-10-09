@@ -26,7 +26,7 @@ function detail(over = {}) {
             mos: '11B',
             tig: '2026-02-01',
             section: { id: 3, type: 'section', name: '2nd Section', callsign: '2/1/A/1-7' },
-            sectionLeader: { id: 10, rank: 'SGT', name: 'Vasquez.R' },
+            sectionLeader: { id: 10, rank: 'SGT', name: 'Vasquez.R', displayName: 'SGT Vasquez.R' },
             milpacUrl: 'https://7cav.us/rosters/profile?uniqueid=4012',
             ...over,
         },

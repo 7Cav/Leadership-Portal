@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { forumDate } from '@/lib/forumDate';
-import { displayName, percentLabel, percentTone, RC_STATES, sourceLabel, SP_STATES, weekCell, weekLabel } from '@/lib/roster';
+import { percentLabel, percentTone, RC_STATES, sourceLabel, SP_STATES, weekCell, weekLabel } from '@/lib/roster';
 import RankBadge from './RankBadge.vue';
 import WeekCell from './WeekCell.vue';
 
@@ -88,7 +88,7 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                         <SheetDescription class="text-xs">
                             {{ trooper.billet ?? 'No billet' }}, {{ trooper.section.callsign ?? trooper.section.name }}
                         </SheetDescription>
-                        <SheetTitle class="text-base leading-snug">{{ trooper.rank }} {{ displayName(trooper) }}</SheetTitle>
+                        <SheetTitle class="text-base leading-snug">{{ trooper.displayName }}</SheetTitle>
                     </div>
                 </SheetHeader>
 
@@ -160,7 +160,7 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                         <dd>{{ trooper.mos ?? 'None reported' }}</dd>
                         <dt class="text-muted-foreground">Section</dt>
                         <dd>
-                            {{ trooper.section.callsign ?? trooper.section.name }}<template v-if="trooper.sectionLeader && trooper.role !== 'SL'">, led by {{ trooper.sectionLeader.rank }} {{ displayName(trooper.sectionLeader) }}</template>
+                            {{ trooper.section.callsign ?? trooper.section.name }}<template v-if="trooper.sectionLeader && trooper.role !== 'SL'">, led by {{ trooper.sectionLeader.displayName }}</template>
                             <template v-else-if="trooper.role === 'SL'">, leads this section</template>
                         </dd>
                         <dt class="text-muted-foreground">Joined 7Cav</dt>

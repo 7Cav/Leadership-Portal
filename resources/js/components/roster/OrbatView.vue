@@ -333,7 +333,7 @@ function clearAll() {
                                                 {{ row.unit.name }} <span class="font-normal text-muted-foreground">{{ row.unit.callsign }}</span>
                                             </span>
                                             <span class="mt-0.5 block text-xs leading-tight text-muted-foreground">
-                                                {{ row.unit.leader ? `${row.unit.leader.rank} ${displayName(row.unit.leader)}` : 'No leader on the roster' }}
+                                                {{ row.unit.leader ? `${row.unit.leader.displayName}` : 'No leader on the roster' }}
                                             </span>
                                         </span>
                                     </div>
@@ -369,7 +369,7 @@ function clearAll() {
                                             <template v-for="(part, i) in highlightParts(row.unit.callsign ?? row.unit.name, query)" :key="i"><mark v-if="part.hit" class="hl">{{ part.text }}</mark><template v-else>{{ part.text }}</template></template>
                                         </span>
                                         <span class="mt-0.5 block text-xs leading-tight text-muted-foreground">
-                                            {{ row.unit.name }}<template v-if="row.unit.leader">, {{ row.unit.leader.rank }} {{ displayName(row.unit.leader) }}</template>
+                                            {{ row.unit.name }}<template v-if="row.unit.leader">, {{ row.unit.leader.displayName }}</template>
                                         </span>
                                     </span>
                                 </button>
@@ -401,7 +401,7 @@ function clearAll() {
                             tabindex="0"
                             data-member
                             :data-testid="`trooper-${row.trooper.id}`"
-                            :aria-label="`${row.trooper.rank} ${displayName(row.trooper)}, ${row.trooper.billet ?? 'no billet'}${row.trooper.kpis?.atRisk ? ', at risk' : ''}. Open details.`"
+                            :aria-label="`${row.trooper.displayName}, ${row.trooper.billet ?? 'no billet'}${row.trooper.kpis?.atRisk ? ', at risk' : ''}. Open details.`"
                             @click="emit('open', row.trooper.id)"
                             @keydown="onRowKey($event, row.trooper)"
                         >
