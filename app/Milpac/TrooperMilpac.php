@@ -6,6 +6,7 @@ use App\Models\CourseStatus;
 use App\Models\Trooper;
 use App\Models\TrooperCourse;
 use App\Models\TrooperStatus;
+use App\Models\Unit;
 use App\Models\UnitType;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperCourseRepository;
@@ -51,13 +52,14 @@ final class TrooperMilpac
     {
         $rows = $this->trooperCourses->forTrooper($trooper->id);
         $awards = $this->awards($trooper);
+        $section = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
 
         return [
-            'trooper' => $this->idBlock($trooper),
+            'trooper' => $this->idBlock($trooper, $section),
             'courses' => $this->courses($rows),
             'awards' => $awards,
             'timeline' => $this->timeline($trooper, $rows, $awards['items']),
-            'actions' => $this->actions($trooper, $scope),
+            'actions' => $this->actions($section, $scope),
             'sync' => $this->sync(),
         ];
     }
@@ -69,9 +71,8 @@ final class TrooperMilpac
      *
      * @return array<string, mixed>
      */
-    private function idBlock(Trooper $trooper): array
+    private function idBlock(Trooper $trooper, ?Unit $section): array
     {
-        $section = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
         $today = CarbonImmutable::now('UTC');
 
         return [
@@ -230,10 +231,8 @@ final class TrooperMilpac
      * @param  Collection<int, int>  $scope
      * @return list<array{key: string, label: string, href: string}>
      */
-    private function actions(Trooper $trooper, Collection $scope): array
+    private function actions(?Unit $section, Collection $scope): array
     {
-        $section = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
-
         if ($section === null) {
             return [];
         }
@@ -246,7 +245,7 @@ final class TrooperMilpac
             $actions[] = ['key' => 'section-roster', 'label' => 'Open section roster', 'href' => route('roster.index', $section->id, absolute: false)];
 
             if (Route::has('rollcall.show')) {
-                $actions[] = ['key' => 'rollcall', 'label' => 'Open in rollcall', 'href' => '/rollcall/'.$section->id];
+                $actions[] = ['key' => 'rollcall', 'label' => 'Open in rollcall', 'href' => route('rollcall.show', $section->id, absolute: false)];
             }
         }
 
