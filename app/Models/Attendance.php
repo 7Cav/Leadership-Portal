@@ -38,6 +38,8 @@ class Attendance extends Model
             'status' => AttendanceStatus::class,
             'source' => AttendanceSource::class,
             'rollcall' => RollcallSignature::class,
+            // Demo history (#115): set only by the demo writer, never mass-assigned.
+            'is_demo' => 'boolean',
         ];
     }
 

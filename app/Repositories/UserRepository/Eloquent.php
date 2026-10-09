@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Repositories\IdentityLinkException;
 use App\Repositories\UserRepository;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as ScalarCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -71,6 +72,16 @@ class Eloquent implements UserRepository
     public function withUsername(string $username): Collection
     {
         return User::query()->where('username', $username)->orderBy('id')->get();
+    }
+
+    public function firstAdmin(): ?User
+    {
+        return User::query()->where('is_admin', true)->orderBy('id')->first();
+    }
+
+    public function usernamesByIds(array $ids): ScalarCollection
+    {
+        return $ids === [] ? collect() : User::query()->whereIn('id', $ids)->pluck('username', 'id');
     }
 
     public function setAdmin(User $user, bool $isAdmin): User
