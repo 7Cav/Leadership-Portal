@@ -30,3 +30,19 @@ Durations count on the server's UTC day (AD-11).
 **May depend on:** `Repositories/` (never the DB directly, AD-2) and `Models/`.
 **Reached from:** `Http/Controllers/TrooperDetailController`. Read-only. It never decides who may look: the
 controller gates every request with the ScopeResolver (AD-8) before asking.
+
+## The readiness matrix (Story 6.9)
+
+`ReadinessMatrix::for($unit)` returns the props of the `TrainingReadinessMatrix` page for one unit:
+
+- `troopers`: the active troopers (Combat, Reserve and ELOA, never Inactive) placed anywhere in the unit's subtree,
+  each with a status per course. A trooper with no row for a course reads `none`, the same as a stored `none`.
+- `courses`: the whole catalog in its one order (`sort_order`, then `code`). Every course is a column even when
+  nobody holds or needs it, so a bottleneck cannot disappear.
+- `coverage`: per course, qualified over every trooper shown, as a whole percent. A plain ratio, not a canonical
+  KPI, so it does not go through the KPI service (AD-21). `null` when the unit has no troopers, never 0 of 0.
+
+The controller gates the unit with the ScopeResolver (AD-8): a unit outside the viewer's effective scope is a 403
+whatever link led there, and view-as narrows it (AD-9). The milpac's quick action (6.7) links to the trooper's
+platoon; that link is convenience, this gate is the boundary. Reads are constant in the number of troopers and
+courses.

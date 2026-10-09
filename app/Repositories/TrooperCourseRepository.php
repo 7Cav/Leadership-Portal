@@ -22,6 +22,15 @@ interface TrooperCourseRepository
     public function forTrooper(int $trooperId): Collection;
 
     /**
+     * Every status row for a set of troopers, each with its course, in one query: what the readiness matrix
+     * (6.9) reads for a whole unit. Troopers with no row simply have none here. Ordered like `forTrooper()`.
+     *
+     * @param  list<int>  $trooperIds
+     * @return Collection<int, TrooperCourse>
+     */
+    public function forTroopers(array $trooperIds): Collection;
+
+    /**
      * The trooper's row for one course, with the course loaded, or null when they have none (which reads the
      * same as `none`).
      */

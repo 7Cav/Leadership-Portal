@@ -13,7 +13,7 @@
 #   Controller     → CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi, Milpac  # writes via Commands; reads direct
 #   CommandHandler → Repository, Model, Integration, Support\Audit, Authorization, Support\Time, Kpi  # write-side business logic
 #   Kpi            → Repository, Model, Support\Time       # the one shared KPI service (AD-21)
-#   Milpac         → Repository, Model                     # what the trooper detail page shows (Epic 6)
+#   Milpac         → Repository, Model                     # what the Epic 6 pages show: the milpac and the readiness matrix
 #   Job            → Sync                                  # queued jobs invoke a Sync handler (Story 2.4)
 #   Sync           → Repository, Model, Integration        # one-writer cache sync handlers (AD-4)
 #   Authorization  → Repository, Model                     # ScopeResolver, the single scope gate (AD-8)
@@ -146,9 +146,9 @@ deptrac:
       - Repository
       - Model
       - Support\Time
-    # What the trooper detail page (the milpac) shows for one trooper (Epic 6): the ID block, the courses
-    # panel and later the service record, read through Repositories and shaped as page props. Read-only;
-    # who may look is the Controller's ScopeResolver gate (AD-8), not decided here.
+    # What the Epic 6 pages show, read through Repositories and shaped as page props: the trooper detail page (the
+    # milpac: ID block, courses, awards, service record, quick actions) and the training-readiness matrix of a unit.
+    # Read-only; who may look is the Controller's ScopeResolver gate (AD-8), not decided here.
     Milpac:
       - Repository
       - Model
