@@ -10,9 +10,10 @@
 #           composer deptrac:unassigned (list app/ classes that match no layer)
 #
 # The graph (arrows = "may depend on"):
-#   Controller     → CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi  # writes via Commands; reads direct
+#   Controller     → CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi, Milpac  # writes via Commands; reads direct
 #   CommandHandler → Repository, Model, Integration, Support\Audit, Authorization, Support\Time, Kpi  # write-side business logic
 #   Kpi            → Repository, Model, Support\Time       # the one shared KPI service (AD-21)
+#   Milpac         → Repository, Model                     # what the trooper detail page shows (Epic 6)
 #   Job            → Sync                                  # queued jobs invoke a Sync handler (Story 2.4)
 #   Sync           → Repository, Model, Integration        # one-writer cache sync handlers (AD-4)
 #   Authorization  → Repository, Model                     # ScopeResolver, the single scope gate (AD-8)
@@ -71,6 +72,10 @@ deptrac:
       collectors:
         - type: directory
           value: app/Kpi/.*
+    - name: Milpac
+      collectors:
+        - type: directory
+          value: app/Milpac/.*
     # Queued jobs (Story 2.4): the scheduler and a manual-trigger controller both dispatch a
     # Job, which does nothing but invoke a Sync handler — the async wrapper AD-23 requires
     # around a slow external sync, kept out of the request path.
@@ -123,6 +128,8 @@ deptrac:
       - Support\Time
       # Dashboard and report pages read the six KPIs from the shared service (AD-21, Story 5.1).
       - Kpi
+      # The trooper detail page reads its props from the Milpac layer (Epic 6).
+      - Milpac
     CommandHandler:
       - Repository
       - Model
@@ -139,6 +146,12 @@ deptrac:
       - Repository
       - Model
       - Support\Time
+    # What the trooper detail page (the milpac) shows for one trooper (Epic 6): the ID block, the courses
+    # panel and later the service record, read through Repositories and shaped as page props. Read-only;
+    # who may look is the Controller's ScopeResolver gate (AD-8), not decided here.
+    Milpac:
+      - Repository
+      - Model
     # One-writer cache sync handler (AD-4, AD-22): reads the source of truth through
     # Integration and persists only through its Repository — the same write-side shape
     # as CommandHandler, minus Support\Audit (sync runs record to sync_runs instead, AD-16).

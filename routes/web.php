@@ -9,6 +9,7 @@ use App\Http\Controllers\Settings\DemoDataController;
 use App\Http\Controllers\Settings\OrgStructureController;
 use App\Http\Controllers\Settings\RosterSyncController;
 use App\Http\Controllers\Settings\StaffGrantsController;
+use App\Http\Controllers\TrooperDetailController;
 use App\Http\Controllers\ViewAsController;
 use App\Repositories\UserRepository;
 use Illuminate\Support\Facades\Route;
@@ -37,6 +38,10 @@ Route::middleware('auth')->group(function () {
     // detail as JSON; that route is declared first so `troopers` is never taken for a unit id.
     Route::get('/roster/troopers/{trooper}', [RosterController::class, 'trooper'])->whereNumber('trooper')->name('roster.trooper');
     Route::get('/roster/{unit?}', [RosterController::class, 'index'])->whereNumber('unit')->name('roster.index');
+
+    // One trooper's milpac (Story 6.3): the page every entry point to a trooper opens. Scope-gated
+    // in the controller through the ScopeResolver (AD-8).
+    Route::get('/troopers/{trooper}', [TrooperDetailController::class, 'show'])->whereNumber('trooper')->name('troopers.show');
 
     // Logout (Story 1.5). POST, so it carries CSRF protection and can't be triggered by a
     // prefetched link or a cross-site <img>.

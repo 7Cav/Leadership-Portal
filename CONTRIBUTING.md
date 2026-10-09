@@ -43,7 +43,7 @@ Route → Controller ─┬─ (write) Command → CommandHandler ─┐
 
 | Layer | Directory | May depend on | Role |
 | --- | --- | --- | --- |
-| Controller | `app/Http/Controllers/` | CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi | Orchestrate a request. **No business logic.** Reads repositories directly; writes via Commands. |
+| Controller | `app/Http/Controllers/` | CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi, Milpac | Orchestrate a request. **No business logic.** Reads repositories directly; writes via Commands. |
 | Command / Handler | `app/Commands/` | Repository, Model, Integration, Support\Audit, Authorization, Support\Time, Kpi | Write-side business logic; the **only** caller of the outbound seam. |
 | Repository | `app/Repositories/` | Model, DB, Support\Time | **Sole** DB access (AD-2) |
 | Model | `app/Models/` | DB | Eloquent entities |
@@ -52,6 +52,7 @@ Route → Controller ─┬─ (write) Command → CommandHandler ─┐
 | Support\Audit | `app/Support/Audit/` | Repository | The audited-action envelope every state-changing Command routes through (AD-16) |
 | Support\Time | `app/Support/Time/` | — | `WeekOf::start()`, the **only** time → `week_start` mapping (AD-11): Saturday 00:00 UTC |
 | Kpi | `app/Kpi/` | Repository, Model, Support\Time | `KpiService`, the **one** place the six canonical KPIs are defined and computed (AD-21) — read-only, over facts read through Repositories |
+| Milpac | `app/Milpac/` | Repository, Model | Read-only props for the trooper detail page: the ID block (Epic 6) |
 | Sync | `app/Sync/` | Repository, Model, Integration | One-writer cache sync handlers (AD-4, AD-22) — `Sync{Thing}Handler` |
 | Provider | `app/Providers/` | (wires every layer) | DI composition root — bootstrap, not business logic |
 | Middleware | `app/Http/Middleware/` | — | Request glue (e.g. Inertia shared props) |
