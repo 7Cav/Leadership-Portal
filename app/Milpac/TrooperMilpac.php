@@ -14,8 +14,9 @@ use Illuminate\Support\Collection;
 
 /**
  * What the trooper detail page (the milpac) shows for one trooper (Stories 6.3 to 6.6): the ID block, the
- * courses and qualifications panel, the earned-awards history and the service-record timeline, read through the repositories and shaped as page props. Read-only, and it
- * never decides who may look: the caller gates that with the ScopeResolver (AD-8) before asking.
+ * courses and qualifications panel, the earned-awards history and the service-record timeline, read through the
+ * repositories and shaped as page props. Read-only, and it never decides who may look: the caller gates that with
+ * the ScopeResolver (AD-8) before asking.
  *
  * The ID block is the cached Cav roster, so the page can show where it came from and how fresh it is (AD-20).
  * Durations are counted on the server's UTC day (AD-11) so every viewer reads the same figure.
@@ -162,7 +163,7 @@ final class TrooperMilpac
      * not known), earned awards and qualified courses that carry a date. A course with no award date cannot be
      * placed in time and is left to the courses panel; operations and discipline have no source yet, so they
      * have no type here until one exists. A trooper whose grade date is their join date has not been
-     * promoted, so no promotion is shown.
+     * promoted, and a grade date in the future is a bad sync value, so neither shows a promotion.
      *
      * Two events on one day keep a fixed order: promotion, then award, then course, then the row's own id, so
      * a reload never reshuffles them.
@@ -176,7 +177,9 @@ final class TrooperMilpac
         $events = [];
         $tig = $trooper->tig?->toDateString();
 
-        if ($tig !== null && $trooper->rank !== null && $tig !== $trooper->tis?->toDateString()) {
+        // A grade date after today is a bad sync value; the ID block already treats it as unknown, so no promotion is
+        // drawn from it either.
+        if ($tig !== null && $tig <= CarbonImmutable::now('UTC')->toDateString() && $trooper->rank !== null && $tig !== $trooper->tis?->toDateString()) {
             $events[] = ['type' => 'promotion', 'date' => $tig, 'title' => "Promoted to {$trooper->rank}", 'detail' => null, 'order' => 0];
         }
 

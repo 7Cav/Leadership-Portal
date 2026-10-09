@@ -14,7 +14,7 @@ leader reached the trooper:
   the roster cache holds awards, they are returned as `{name, awardedAt, citation}` and the page already draws them.
 - `timeline`: the service record, newest first, each entry `{type, date, title, detail}` with a legend of the types
   present. Today that is the last promotion (the roster's date in grade and current rank; none when the grade date is
-  the join date, or the rank or date is unknown), earned awards and qualified courses that have an award date. A
+  the join date or in the future, or the rank or date is unknown), earned awards and qualified courses that have an award date. A
   course with no date is left to the courses panel, and operations and discipline have no source yet. Two events on
   one day order by type (promotion, award, course) and then by row, so a reload never reshuffles them.
 - `sync`: where the ID block came from and how current it is (AD-20): the last successful roster sync, and a stale

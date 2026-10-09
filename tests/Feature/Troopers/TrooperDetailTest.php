@@ -392,6 +392,14 @@ describe('the service-record timeline (6.6)', function () {
         milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page->where('timeline.entries', []));
     });
 
+    it('shows no promotion for a grade date in the future, as the ID block reads it as unknown', function () {
+        $trooper = milpacTrooper($this->section1, ['rank' => 'Specialist', 'tis' => '2025-01-14', 'tig' => '2026-12-01']);
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page
+            ->where('trooper.tigMonths', null)
+            ->where('timeline.entries', []));
+    });
+
     it('shows no promotion when the rank or the grade date is not known', function () {
         $noRank = milpacTrooper($this->section1, ['rank' => null, 'tig' => '2026-04-08']);
         $noDate = milpacTrooper($this->section1, ['rank' => 'Specialist', 'tig' => null]);
