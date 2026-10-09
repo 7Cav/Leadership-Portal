@@ -403,6 +403,8 @@ class ReportController extends Controller
             return [
                 'id' => $trooper->id,
                 'name' => $this->trooperLabel($trooper),
+                'username' => $trooper->username,
+                'rankShort' => $trooper->rank_short,
                 'rollcall' => $mark?->rollcall->value ?? 'unsigned',
                 'status' => $mark?->status?->value,
                 'source' => $mark?->source?->value,
@@ -476,8 +478,8 @@ class ReportController extends Controller
     }
 
     /**
-     * `RANK Name` for each sender: their forum username, with the rank of the trooper their
-     * account is linked to when the roster has one.
+     * `RANK Name` for each sender: the roster name of the trooper their account is linked to, or
+     * their forum username when the roster has none.
      *
      * @param  Collection<int, WeeklyReport>  $sent
      * @return Collection<int, string> user id => label
@@ -487,16 +489,16 @@ class ReportController extends Controller
         $users = $sent->map(fn (WeeklyReport $r) => $r->relationLoaded('sender') ? $r->sender : $this->users->find($r->sent_by))
             ->filter()
             ->unique('id');
-        $ranks = $this->troopers->ranksByCavId($users->pluck('cav_id')->filter()->values()->all());
+        $troopers = $this->troopers->byCavId($users->pluck('cav_id')->filter()->values()->all());
 
         return $users->mapWithKeys(fn (User $user) => [
-            $user->id => trim(($ranks->get($user->cav_id) ?? '').' '.$user->username),
+            $user->id => $troopers->get($user->cav_id)?->display_name ?? $user->username,
         ]);
     }
 
-    /** `SGT Vasquez.R`, or the milpac id when no portal user is linked to the trooper. */
+    /** `SGT Vasquez.R` — the roster's own rendering of a trooper (2.10). */
     private function trooperLabel(Trooper $trooper): string
     {
-        return trim(($trooper->rank ?? '').' '.($trooper->getAttribute('username') ?? "#{$trooper->cav_id}"));
+        return $trooper->display_name;
     }
 }

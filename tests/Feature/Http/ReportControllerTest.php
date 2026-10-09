@@ -37,10 +37,10 @@ beforeEach(function () {
     $this->sibling = Unit::factory()->create(['type' => UnitType::Section, 'callsign' => '3/1/A/1-7', 'parent_id' => $this->platoon->id, 'path' => '700/702/']);
 
     $this->leader = User::factory()->create(['username' => 'Vasquez.R', 'cav_id' => 501]);
-    Trooper::factory()->create(['cav_id' => 501, 'rank' => 'SGT', 'primary_section_id' => $this->section->id]);
+    Trooper::factory()->create(['cav_id' => 501, 'rank_short' => 'SGT', 'username' => 'Vasquez.R', 'primary_section_id' => $this->section->id]);
     PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
 
-    $this->trooper = Trooper::factory()->create(['rank' => 'PFC', 'primary_section_id' => $this->section->id]);
+    $this->trooper = Trooper::factory()->create(['rank_short' => 'PFC', 'username' => null, 'primary_section_id' => $this->section->id]);
 });
 
 afterEach(fn () => CarbonImmutable::setTestNow());
@@ -81,6 +81,8 @@ it('renders a section\'s live draft with its KPIs, troopers and a first-report b
             ->where('troopers.1.rollcall', 'will_attend')
             ->where('troopers.1.source', 'manual')
             ->where('troopers.0.name', 'SGT Vasquez.R')
+            ->where('troopers.0.username', 'Vasquez.R')
+            ->where('troopers.0.rankShort', 'SGT')
             ->where('troopers.0.status', null)
             ->has('trend', 8)
             ->has('reasons', 5)

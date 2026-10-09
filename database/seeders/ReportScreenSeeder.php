@@ -60,7 +60,7 @@ class ReportScreenSeeder extends Seeder
             User::factory()->create(['username' => $person[1], 'cav_id' => $cavId]);
 
             return Trooper::factory()->create([
-                'cav_id' => $cavId, 'rank' => $person[0], 'status' => TrooperStatus::Combat, 'primary_section_id' => $this->section->id,
+                'cav_id' => $cavId, 'rank_short' => $person[0], 'username' => $person[1], 'status' => TrooperStatus::Combat, 'primary_section_id' => $this->section->id,
             ]);
         });
         $this->sectionLeader = User::query()->where('cav_id', $troopers[0]->cav_id)->sole();
@@ -70,7 +70,7 @@ class ReportScreenSeeder extends Seeder
         PortalRoleGrant::factory()->create(['user_id' => $this->platoonLeader->id, 'unit_id' => $this->platoon->id]);
 
         foreach ([$first, $third] as $other) {
-            Trooper::factory()->count(5)->create(['primary_section_id' => $other->id, 'rank' => 'PFC']);
+            Trooper::factory()->count(5)->create(['primary_section_id' => $other->id, 'rank_short' => 'PFC']);
         }
 
         // Six past weeks, each marked and sent by the section leader.

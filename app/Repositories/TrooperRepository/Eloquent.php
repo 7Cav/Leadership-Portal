@@ -92,13 +92,12 @@ class Eloquent implements TrooperRepository
 
     public function rosterOf(Unit $unit): Collection
     {
-        return Trooper::query()
-            ->assignedWithin($unit)
-            ->leftJoin('users', 'users.cav_id', '=', 'troopers.cav_id')
-            ->select('troopers.*', 'users.username')
-            ->orderBy('troopers.id')
-            ->get()
-            ->toBase();
+        return Trooper::query()->assignedWithin($unit)->orderBy('id')->get()->toBase();
+    }
+
+    public function byCavId(array $cavIds): Collection
+    {
+        return $cavIds === [] ? collect() : Trooper::query()->whereIn('cav_id', $cavIds)->get()->keyBy('cav_id')->toBase();
     }
 
     public function ranksByCavId(array $cavIds): Collection

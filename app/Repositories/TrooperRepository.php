@@ -88,14 +88,21 @@ interface TrooperRepository
     public function assignedWithin(Unit $unit): Collection;
 
     /**
-     * The troopers currently assigned within `$unit`'s subtree (as `assignedWithin()`), ordered
-     * by id, each carrying a `username` attribute: the forum username of the portal user linked
-     * to them by `cav_id`, or null when none has signed in. The roster caches no names, so that
-     * link is the only name the portal knows for a trooper.
+     * The troopers currently assigned within `$unit`'s subtree (as `assignedWithin()`), as models
+     * ordered by id — a report's roster, rendered through `display_name`.
      *
      * @return Collection<int, Trooper>
      */
     public function rosterOf(Unit $unit): Collection;
+
+    /**
+     * The cached troopers with these `cav_id`s, keyed by `cav_id` — how a portal user is shown by
+     * their roster name (e.g. a report's sender). Unknown ids are simply absent.
+     *
+     * @param  list<int>  $cavIds
+     * @return Collection<int, Trooper>
+     */
+    public function byCavId(array $cavIds): Collection;
 
     /**
      * The synced rank of each trooper in `$cavIds`, keyed by `cav_id` — the label the view-as

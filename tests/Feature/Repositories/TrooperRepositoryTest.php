@@ -3,7 +3,6 @@
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
-use App\Models\User;
 use App\Repositories\TrooperRepository;
 
 // AD-4: the cache is upserted keyed by `cav_id` onto a stable internal PK, never
@@ -282,18 +281,22 @@ it('writes the primary billet id with the synced columns, overwriting the previo
     expect(Trooper::where('cav_id', 1)->sole()->cav_position_id)->toBeNull();
 });
 
-it('lists a unit\'s assigned troopers with the username linked to each, if any (5.3)', function () {
+it('lists a unit\'s assigned troopers as models, by id (5.3)', function () {
     $section = Unit::factory()->create(['path' => '900/']);
-    $linked = Trooper::factory()->create(['cav_id' => 4242, 'primary_section_id' => $section->id]);
-    $unlinked = Trooper::factory()->create(['primary_section_id' => $section->id]);
+    $first = Trooper::factory()->create(['primary_section_id' => $section->id]);
+    $second = Trooper::factory()->create(['primary_section_id' => $section->id]);
     Trooper::factory()->create(['primary_section_id' => $section->id, 'status' => TrooperStatus::Inactive]);
     Trooper::factory()->create();
-    User::factory()->create(['cav_id' => 4242, 'username' => 'Hale.S']);
 
-    $roster = app(TrooperRepository::class)->rosterOf($section);
+    expect(app(TrooperRepository::class)->rosterOf($section)->pluck('id')->all())->toBe([$first->id, $second->id]);
+});
 
-    expect($roster->pluck('id')->all())->toBe([$linked->id, $unlinked->id])
-        ->and($roster->pluck('username')->all())->toBe(['Hale.S', null]);
+it('finds troopers by cav id, keyed by it, leaving out unknown ids', function () {
+    $trooper = Trooper::factory()->create(['cav_id' => 4242]);
+
+    expect(app(TrooperRepository::class)->byCavId([4242, 4343])->keys()->all())->toBe([4242])
+        ->and(app(TrooperRepository::class)->byCavId([4242])->first()->id)->toBe($trooper->id)
+        ->and(app(TrooperRepository::class)->byCavId([]))->toBeEmpty();
 });
 
 it('reads troopers\' ranks by cav id, leaving out unknown ids and unranked troopers', function () {
