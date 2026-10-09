@@ -1,4 +1,4 @@
-# `Milpac/` — what the trooper detail page shows (Epic 6)
+# `Milpac/` — what the Epic 6 pages show: the milpac and the readiness matrix
 
 `TrooperMilpac::for($trooper, $scope)` returns the props of the one `TrooperDetail` page, whichever way a
 leader reached the trooper:
@@ -28,7 +28,8 @@ leader reached the trooper:
 Durations count on the server's UTC day (AD-11).
 
 **May depend on:** `Repositories/` (never the DB directly, AD-2) and `Models/`.
-**Reached from:** `Http/Controllers/TrooperDetailController`. Read-only. It never decides who may look: the
+**Reached from:** `Http/Controllers/TrooperDetailController` (the milpac) and `TrainingReadinessMatrixController` (the
+matrix, below). Read-only. It never decides who may look: the
 controller gates every request with the ScopeResolver (AD-8) before asking.
 
 ## The readiness matrix (Story 6.9)

@@ -147,8 +147,8 @@ describe('the grid', function () {
     });
 
     it('lists the active troopers anywhere under the unit, and nobody else', function () {
-        $inSection = readinessTrooper($this->section1, ['username' => 'In.Section', 'rank_short' => 'PVT']);
-        $inSibling = readinessTrooper($this->section2, ['username' => 'In.Sibling', 'rank_short' => 'PVT']);
+        readinessTrooper($this->section1, ['username' => 'In.Section', 'rank_short' => 'PVT']);
+        readinessTrooper($this->section2, ['username' => 'In.Sibling', 'rank_short' => 'PVT']);
         readinessTrooper($this->section2, ['username' => 'Gone.Away', 'rank_short' => 'PVT', 'status' => TrooperStatus::Inactive]);
         readinessTrooper($this->section3, ['username' => 'Other.Platoon', 'rank_short' => 'PVT']);
         Trooper::factory()->create(['username' => 'Not.Placed', 'rank_short' => 'PVT']);
@@ -156,8 +156,7 @@ describe('the grid', function () {
         $names = fn ($unit, $test) => collect(readinessOpen($test, $unit)->viewData('page')['props']['troopers'])->pluck('displayName')->sort()->values()->all();
 
         expect($names($this->platoon1, $this->actingAs($this->platoonStaff)))->toBe(['PVT In.Section', 'PVT In.Sibling', 'PVT Lead.Er'])
-            ->and($names($this->section2, $this))->toBe(['PVT In.Sibling'])
-            ->and($inSection->id)->not->toBe($inSibling->id);
+            ->and($names($this->section2, $this))->toBe(['PVT In.Sibling']);
     });
 
     it('keeps Reserve and ELOA troopers, which are still serving', function () {
