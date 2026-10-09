@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as ScalarCollection;
 
 /**
  * Sole DB access for the portal-owned identity link (AD-2).
@@ -75,6 +76,21 @@ interface UserRepository
      * @return Collection<int, User>
      */
     public function withUsername(string $username): Collection;
+
+    /**
+     * The earliest-created Admin, or null when there is none — the actor the console's demo
+     * history command records when no `--as` user is named (#115).
+     */
+    public function firstAdmin(): ?User;
+
+    /**
+     * `id => username` for the given user ids, in one query — how a screen names the senders of
+     * many reports at once (5.8). Unknown ids are simply absent.
+     *
+     * @param  list<int>  $ids
+     * @return ScalarCollection<int, string>
+     */
+    public function usernamesByIds(array $ids): ScalarCollection;
 
     /**
      * Set or clear the Admin flag (AD-7). `is_admin` is deliberately not mass-assignable, so this
