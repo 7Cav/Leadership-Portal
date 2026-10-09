@@ -318,8 +318,12 @@ class RollcallController extends Controller
             'troopers' => $roster->map(fn (Trooper $trooper) => [
                 'id' => $trooper->id,
                 'cavId' => $trooper->cav_id,
+                // The synced forum identity (2.10): `rankShort` + `name` render as `displayName`
+                // ("SGT Vasquez.R", "SGT #1234" until the username syncs).
                 'rank' => $trooper->rank,
-                'name' => $trooper->user?->username,
+                'rankShort' => $trooper->rank_short,
+                'name' => $trooper->username,
+                'displayName' => $trooper->display_name,
                 'rollcall' => $marks->get($trooper->id)?->rollcall->value ?? 'unsigned',
                 'status' => $marks->get($trooper->id)?->status?->value,
                 'source' => $marks->get($trooper->id)?->source?->value,

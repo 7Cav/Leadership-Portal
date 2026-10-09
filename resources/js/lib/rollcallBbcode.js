@@ -1,5 +1,5 @@
 import { forumDate } from './forumDate';
-import { countsOf, displayName, isLocked, practiceLabel, signatureLabel } from './rollcall';
+import { countsOf, displayName, isLocked, practiceLabel, rankOf, signatureLabel } from './rollcall';
 
 // The rollcall forum post (Story 3.10): one fixed default template — template versions (3.5, 3.6,
 // 3.11) are not built yet, so there is always exactly one, and it is always active. The portal
@@ -15,7 +15,7 @@ export function rollcallPost({ designation, weekStart, troopers }) {
     const counts = countsOf(troopers);
     const rows = troopers.map((trooper) => ({
         id: trooper.id,
-        rank: plain(trooper.rank ?? ''),
+        rank: plain(rankOf(trooper) ?? ''),
         name: plain(displayName(trooper)),
         signature: isLocked(trooper) ? 'LOA' : signatureLabel(trooper.rollcall),
         practice: practiceLabel(trooper.status),

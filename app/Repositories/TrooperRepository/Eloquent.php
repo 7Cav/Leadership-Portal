@@ -130,7 +130,6 @@ class Eloquent implements TrooperRepository
     public function placedIn(int $sectionId): EloquentCollection
     {
         return Trooper::query()
-            ->with('user')
             ->where('primary_section_id', $sectionId)
             ->where('status', '!=', TrooperStatus::Inactive->value)
             ->orderBy('id')

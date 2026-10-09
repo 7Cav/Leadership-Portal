@@ -4,11 +4,13 @@ import { countsOf, displayName, fullName, initials, practiceGroups, signatureGro
 const t = (id, rollcall, status, extra = {}) => ({ id, cavId: 1000 + id, rank: 'PFC', name: `Trooper${id}.A`, rollcall, status, source: null, priorStatus: null, ...extra });
 
 describe('rollcall vocabulary', () => {
-    it('names a trooper without a portal account by milpac id, never an invented name', () => {
+    it('names a trooper whose username has not synced by milpac id, never an invented name', () => {
         const nameless = t(1, 'unsigned', null, { name: null, rank: null });
 
-        expect(displayName(nameless)).toBe('Milpac #1001');
-        expect(fullName(nameless)).toBe('Milpac #1001');
+        expect(displayName(nameless)).toBe('#1001');
+        expect(fullName(nameless)).toBe('#1001');
+        expect(fullName(t(3, 'unsigned', null, { name: 'Okafor.T', rank: 'Private First Class', rankShort: 'PFC' }))).toBe('PFC Okafor.T');
+        expect(fullName(t(3, 'unsigned', null, { displayName: 'PFC Okafor.T' }))).toBe('PFC Okafor.T');
         expect(initials(nameless)).toBe('#');
         expect(fullName(t(2, 'unsigned', null, { name: 'Vasquez.R', rank: 'Sergeant' }))).toBe('Sergeant Vasquez.R');
         expect(initials(t(2, 'unsigned', null, { name: 'Vasquez.R' }))).toBe('VR');

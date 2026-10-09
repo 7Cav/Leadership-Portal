@@ -41,10 +41,9 @@ function rollcallTrooper(Unit $section, array $attributes = []): Trooper
     return $trooper;
 }
 
-it('lists the troopers placed in the section, each exactly once, named from their portal account', function () {
-    $named = rollcallTrooper($this->section, ['rank' => 'Sergeant']);
-    User::factory()->create(['cav_id' => $named->cav_id, 'username' => 'Vasquez.R']);
-    $unnamed = rollcallTrooper($this->section);
+it('lists the troopers placed in the section, each exactly once, by their synced forum identity', function () {
+    $named = rollcallTrooper($this->section, ['rank' => 'Sergeant', 'rank_short' => 'SGT', 'username' => 'Vasquez.R']);
+    $unnamed = rollcallTrooper($this->section, ['rank_short' => 'PVT', 'username' => null]);
     rollcallTrooper($this->sibling);
     rollcallTrooper($this->section, ['status' => TrooperStatus::Inactive]);
 
@@ -58,8 +57,11 @@ it('lists the troopers placed in the section, each exactly once, named from thei
             ->where('troopers.0.id', $named->id)
             ->where('troopers.0.name', 'Vasquez.R')
             ->where('troopers.0.rank', 'Sergeant')
+            ->where('troopers.0.rankShort', 'SGT')
+            ->where('troopers.0.displayName', 'SGT Vasquez.R')
             ->where('troopers.1.id', $unnamed->id)
             ->where('troopers.1.name', null)
+            ->where('troopers.1.displayName', "PVT #{$unnamed->cav_id}")
             ->where('troopers.1.rollcall', 'unsigned')
             ->where('troopers.1.status', null));
 });

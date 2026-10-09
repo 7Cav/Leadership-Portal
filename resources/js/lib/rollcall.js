@@ -44,14 +44,20 @@ export function isLocked(trooper) {
     return trooper.status === 'loa';
 }
 
-// The roster cache stores no names (only the milpac id), so a trooper who never signed in to the
-// portal shows by milpac id rather than an invented name.
+// A trooper's forum username, synced from the roster (2.10); until it syncs, their milpac id —
+// never an invented name. Matches the server's `Trooper::display_name` fallback.
 export function displayName(trooper) {
-    return trooper.name ?? `Milpac #${trooper.cavId}`;
+    return trooper.name ?? `#${trooper.cavId}`;
 }
 
+// The short rank the forum uses ("SGT"), falling back to the full one.
+export function rankOf(trooper) {
+    return trooper.rankShort ?? trooper.rank ?? null;
+}
+
+// "SGT Vasquez.R" — the server's `display_name` when it sent one.
 export function fullName(trooper) {
-    return [trooper.rank, displayName(trooper)].filter(Boolean).join(' ');
+    return trooper.displayName ?? [rankOf(trooper), displayName(trooper)].filter(Boolean).join(' ');
 }
 
 export function initials(trooper) {

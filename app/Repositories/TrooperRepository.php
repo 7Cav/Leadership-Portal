@@ -138,8 +138,7 @@ interface TrooperRepository
 
     /**
      * The troopers currently placed in the section — `primary_section_id` is the section, not
-     * inactive (LOA still counts) — each with their linked portal `user` loaded (null when they
-     * have never signed in), in id order. The cache holds only the current placement, so this is
+     * inactive (LOA still counts) — in id order. The cache holds only the current placement, so this is
      * "placed now": a trooper appears in exactly one section's list (AD-14).
      *
      * @return EloquentCollection<int, Trooper>

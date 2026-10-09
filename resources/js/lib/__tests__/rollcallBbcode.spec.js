@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { rollcallBbcode, rollcallPost } from '../rollcallBbcode';
 
-const t = (id, name, rollcall, status, rank = 'PFC') => ({ id, cavId: 1000 + id, rank, name, rollcall, status, source: null, priorStatus: null });
+const t = (id, name, rollcall, status, rankShort = 'PFC') => ({ id, cavId: 1000 + id, rank: 'Long Rank Title', rankShort, name, rollcall, status, source: null, priorStatus: null });
 const WEEK = '2026-10-03T00:00:00+00:00';
 
 describe('rollcall BBCode (3.10)', () => {
@@ -44,14 +44,14 @@ describe('rollcall BBCode (3.10)', () => {
         );
     });
 
-    it('names a trooper with no portal account by milpac id and keeps forum markup out of the cells', () => {
+    it('names a trooper whose username has not synced by milpac id and keeps forum markup out of the cells', () => {
         const post = rollcallPost({
             designation: '2/1/A/1-7',
             weekStart: WEEK,
-            troopers: [t(1, null, 'will_attend', 'present', null), t(2, 'Evil[/td][url]x[/url]', 'will_attend', 'present')],
+            troopers: [{ ...t(1, null, 'will_attend', 'present', null), rank: null }, t(2, 'Evil[/td][url]x[/url]', 'will_attend', 'present')],
         });
 
-        expect(post.rows[0]).toMatchObject({ rank: '', name: 'Milpac #1001' });
+        expect(post.rows[0]).toMatchObject({ rank: '', name: '#1001' });
         expect(post.rows[1].name).toBe('Evil(/td)(url)x(/url)');
     });
 
