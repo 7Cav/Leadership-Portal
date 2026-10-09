@@ -2,12 +2,15 @@
 
 use App\Http\Controllers\Auth\ForumAuthController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\ReportRollupController;
 use App\Http\Controllers\Settings\AuditLogController;
+use App\Http\Controllers\Settings\DemoDataController;
 use App\Http\Controllers\Settings\LoaSyncController;
 use App\Http\Controllers\Settings\OrgStructureController;
 use App\Http\Controllers\Settings\RosterSyncController;
 use App\Http\Controllers\Settings\StaffGrantsController;
 use App\Http\Controllers\ViewAsController;
+use App\Repositories\UserRepository;
 use Illuminate\Support\Facades\Route;
 
 // `/` is only a doorway (Story 1.15 retired the Story 1.1 sample page): signed-in users land on
@@ -40,6 +43,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/view-as', [ViewAsController::class, 'store'])->name('view-as.store');
     Route::delete('/view-as', [ViewAsController::class, 'destroy'])->name('view-as.destroy');
 
+    // Report roll-up workspace (Story 5.8): the chain of the viewer's scope for one week
+    // (`?week=YYYY-MM-DD`), scope-gated in the controller (AD-8). Read-only; each unit's own
+    // report is `reports.show` at `/reports/{unit}/{week}`.
+    Route::get('/reports/{unit?}', [ReportRollupController::class, 'index'])->whereNumber('unit')->name('reports.index');
+
     // Chain of command (Story 1.8, edit/delete in 1.9). Viewing is open to any authenticated
     // user (AC #3); the Admin gate on every write is enforced in the controller, not by route
     // middleware — there is no `can:` policy for it yet (Authorization/ScopeResolver lands in
@@ -69,4 +77,24 @@ Route::middleware('auth')->group(function () {
 
     // Manual leave-sync trigger (Story 4.2): the same queued job the scheduler runs. Admin gate in the controller (AD-6).
     Route::post('/settings/loa-sync', [LoaSyncController::class, 'store'])->name('settings.loa-sync.store');
+
+    // Demo history for the real roster (#115). Admin-only; every route 404s unless
+    // `portal.demo_tools` is on (DEMO_TOOLS=true) — both gates are enforced in the controller.
+    Route::get('/settings/demo-data', [DemoDataController::class, 'index'])->name('settings.demo-data');
+    Route::post('/settings/demo-data', [DemoDataController::class, 'store'])->name('settings.demo-data.store');
+    Route::delete('/settings/demo-data', [DemoDataController::class, 'destroy'])->name('settings.demo-data.destroy');
 });
+
+// Browser-test sign-in (Story 5.8). The real login is a 7cav.us OAuth round-trip a test cannot
+// drive, so the Playwright server — and only it, running as APP_ENV=e2e against its own throwaway
+// SQLite database — signs a seeded user in by username. Never registered in any other environment.
+if (app()->environment('e2e')) {
+    Route::get('/__e2e/login/{username}', function (string $username) {
+        $user = app(UserRepository::class)->withUsername($username)->sole();
+        auth()->login($user);
+        request()->session()->regenerate();
+
+        // A path on this app only: `to=//evil.example` must not become an off-site redirect.
+        return redirect('/'.ltrim((string) request()->query('to', 'home'), '/'));
+    });
+}

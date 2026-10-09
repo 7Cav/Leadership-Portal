@@ -1,8 +1,13 @@
 <?php
 
+use App\Commands\Demo\GenerateDemoHistory;
+use App\Commands\Demo\GenerateDemoHistoryHandler;
+use App\Commands\Demo\PurgeDemoHistory;
+use App\Commands\Demo\PurgeDemoHistoryHandler;
 use App\Commands\Users\SetAdminFlag;
 use App\Jobs\SyncLoasJob;
 use App\Jobs\SyncRosterJob;
+use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -57,3 +62,69 @@ Artisan::command('portal:admin {username} {--revoke : Clear the Admin flag inste
 
     return 0;
 })->purpose('Grant (or with --revoke, remove) the portal Admin flag for an existing user');
+
+// Demo attendance history for the real roster (#115). Off unless DEMO_TOOLS=true. The console has
+// no portal identity, so the audited actor (and the reports' sender) is the `--as` user or, by
+// default, the earliest Admin — bootstrap one with `portal:admin` first. `{unit}` is a 7Cav
+// designation (`A/1-7`) or a unit id; the whole subtree is generated or purged.
+Artisan::command('portal:demo-history {unit : A unit designation (A/1-7) or id}
+    {--weeks='.GenerateDemoHistory::DEFAULT_WEEKS.' : Completed Cav weeks to generate (1-'.GenerateDemoHistory::MAX_WEEKS.')}
+    {--purge : Delete the subtree\'s demo history instead of generating it}
+    {--as= : Username of the Admin to record as the actor (default: the earliest Admin)}', function (
+    UnitRepository $units,
+    UserRepository $users,
+    GenerateDemoHistoryHandler $generator,
+    PurgeDemoHistoryHandler $purger,
+) {
+    if (! config('portal.demo_tools')) {
+        $this->error('Demo tools are disabled. Set DEMO_TOOLS=true in .env to use them.');
+
+        return 1;
+    }
+
+    $designation = trim((string) $this->argument('unit'));
+    $matches = ctype_digit($designation)
+        ? collect([$units->find((int) $designation)])->filter()
+        : $units->withCallsign($designation);
+
+    if ($matches->count() !== 1) {
+        $this->error($matches->isEmpty()
+            ? "No unit is designated '{$designation}'. Import the org structure first (Settings → Org structure)."
+            : "{$matches->count()} units are designated '{$designation}'; pass the unit id instead.");
+
+        return 1;
+    }
+
+    $as = $this->option('as');
+    $actors = $as === null ? collect([$users->firstAdmin()])->filter() : $users->withUsername((string) $as);
+    $actor = $actors->count() === 1 ? $actors->first() : null;
+
+    if ($actor === null || ! $actor->is_admin) {
+        $this->error($as === null
+            ? 'There is no Admin to record as the actor. Run php artisan portal:admin <username> first.'
+            : "'{$as}' is not exactly one Admin user.");
+
+        return 1;
+    }
+
+    $this->line("Recording as {$actor->username}".($as === null ? ' (the earliest Admin; pass --as to choose).' : '.'));
+
+    if ($this->option('purge')) {
+        $this->info($purger->handle($actor, new PurgeDemoHistory($matches->first()->id))->summary());
+
+        return 0;
+    }
+
+    $weeks = filter_var($this->option('weeks'), FILTER_VALIDATE_INT);
+
+    if ($weeks === false || $weeks < 1 || $weeks > GenerateDemoHistory::MAX_WEEKS) {
+        $this->error('--weeks must be a whole number from 1 to '.GenerateDemoHistory::MAX_WEEKS.'.');
+
+        return 1;
+    }
+
+    $result = $generator->handle($actor, new GenerateDemoHistory($matches->first()->id, $weeks));
+    $result->hasNoTroopers() || $result->generatedWeeks === [] ? $this->warn($result->summary()) : $this->info($result->summary());
+
+    return 0;
+})->purpose('Generate (or with --purge, remove) demo attendance history for a unit\'s real troopers');

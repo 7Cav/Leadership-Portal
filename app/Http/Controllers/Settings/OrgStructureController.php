@@ -81,7 +81,7 @@ class OrgStructureController extends Controller
             'username' => $trooper->username,
             'rank' => $trooper->rank,
             'mos' => $trooper->mos,
-            'billet' => $trooper->cav_billet,
+            'billet' => $trooper->billet,
             'position_id' => $trooper->cav_position_id,
         ])->values()->all();
     }
