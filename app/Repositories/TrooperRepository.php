@@ -22,11 +22,12 @@ interface TrooperRepository
      * not a write-time one. Returns the row counts the sync handler reports to `sync_runs`
      * (Story 2.3).
      *
-     * @param  list<array{cav_id: int, rank: ?string, mos: ?string, tis: mixed, tig: mixed, status: string, cav_position_id?: ?int, username?: ?string, cav_billet?: ?string}>  $rows
-     *                                                                                                                                                                                 `$unreadableCavIds` are troopers Cav listed but whose row could not be parsed: they stay
-     *                                                                                                                                                                                 active (they are in `$activeCavIds`) but their billet is cleared in the same transaction —
-     *                                                                                                                                                                                 their current billet is unknown, and a stale one must not keep conferring command scope
-     *                                                                                                                                                                                 (1.16, deny-by-default).
+     * `$unreadableCavIds` are troopers Cav listed but whose row could not be parsed: they stay
+     * active (they are in `$activeCavIds`) but their billet is cleared in the same transaction —
+     * their current billet is unknown, and a stale one must not keep conferring command scope
+     * (1.16, deny-by-default).
+     *
+     * @param  list<array{cav_id: int, rank: ?string, rank_short?: ?string, username?: ?string, forum_user_id?: ?int, billet?: ?string, mos: ?string, tis: mixed, tig: mixed, status: string, cav_position_id?: ?int}>  $rows
      * @param  list<int>  $activeCavIds
      * @param  list<int>  $unreadableCavIds
      * @return array{inserted: int, updated: int, inactivated: int}
@@ -39,10 +40,11 @@ interface TrooperRepository
      * `primary_section_id` — that column belongs to 2.5/2.7, not the sync handler.
      *
      * `cav_position_id` (the primary billet, 1.16) is overwritten like any synced column, null
-     * included: a billet Cav no longer reports must not keep conferring command scope. A row
-     * without the key is written as null.
+     * included: a billet Cav no longer reports must not keep conferring command scope. The same
+     * goes for the forum identity and short rank (`username`, `forum_user_id`, `rank_short`,
+     * 2.10), so a forum rename follows. A row without one of these optional keys writes null.
      *
-     * @param  list<array{cav_id: int, rank: ?string, mos: ?string, tis: mixed, tig: mixed, status: string, cav_position_id?: ?int, username?: ?string, cav_billet?: ?string}>  $rows
+     * @param  list<array{cav_id: int, rank: ?string, rank_short?: ?string, username?: ?string, forum_user_id?: ?int, billet?: ?string, mos: ?string, tis: mixed, tig: mixed, status: string, cav_position_id?: ?int}>  $rows
      * @return array{inserted: int, updated: int}
      */
     public function upsertActive(array $rows): array;
@@ -117,4 +119,13 @@ interface TrooperRepository
      * @return array<string, list<int>> lower-cased username => trooper ids
      */
     public function idsByUsername(array $usernames): array;
+
+    /**
+     * The same population as {@see assignedWithin()}, each trooper with the section they are
+     * placed in: `trooper_id => primary_section_id`, ascending by trooper — so one query can split
+     * a whole subtree's troopers by section (5.8's batched roll-up).
+     *
+     * @return Collection<int, int>
+     */
+    public function sectionsOfAssignedWithin(Unit $unit): Collection;
 }

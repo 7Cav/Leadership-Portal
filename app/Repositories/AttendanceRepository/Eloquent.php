@@ -97,15 +97,22 @@ class Eloquent implements AttendanceRepository
         $key = ['trooper_id' => $trooperId, 'section_practice_id' => $practice->id];
 
         try {
-            return Attendance::query()->updateOrCreate($key, $values);
+            $row = Attendance::query()->updateOrCreate($key, $values);
         } catch (UniqueConstraintViolationException $e) {
             // A racing submit inserted the row after this transaction's snapshot: a plain re-read
             // cannot see it under MySQL REPEATABLE READ, a locking read can (see
             // SectionPracticeRepository's findOrCreate). Update it in place, last writer wins.
             $row = Attendance::query()->where($key)->lockForUpdate()->first() ?? throw $e;
             $row->fill($values)->save();
-
-            return $row;
         }
+
+        // A real write over a generated demo row (#115) makes the row real, so a demo purge or
+        // regeneration never deletes or overwrites what a leader recorded. `is_demo` is not
+        // mass-assignable, hence the separate forced write.
+        if ($row->is_demo) {
+            $row->forceFill(['is_demo' => false])->save();
+        }
+
+        return $row;
     }
 }

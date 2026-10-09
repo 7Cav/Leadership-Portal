@@ -432,3 +432,31 @@ it('computes a regiment-sized subtree in a constant number of queries', function
 
     expect($queries)->toBeLessThanOrEqual(2);
 });
+
+// 5.8: a whole chain's section KPIs in one pass, each equal to that section's forUnit().
+it('computes every section under a unit at once, each equal to its own forUnit(), in two queries', function () {
+    $a1 = kpiTrooper($this->sectionA);
+    $a2 = kpiTrooper($this->sectionA);
+    $b1 = kpiTrooper($this->sectionB);
+    kpiMark($a1, $this->sectionA, 0, AttendanceStatus::Present, RollcallSignature::WillAttend);
+    kpiMark($a2, $this->sectionA, 1, AttendanceStatus::Missed);
+    kpiMark($a2, $this->sectionA, 0, AttendanceStatus::Missed, RollcallSignature::CannotAttend);
+    kpiMark($b1, $this->sectionB, 0, AttendanceStatus::Makeup, RollcallSignature::WillAttend);
+
+    DB::enableQueryLog();
+    $bySection = $this->kpis->forSectionsWithin($this->regiment, kpiWeek());
+    $queries = count(DB::getQueryLog());
+    DB::disableQueryLog();
+
+    expect($queries)->toBe(2)
+        ->and($bySection->keys()->sort()->values()->all())->toBe([$this->sectionA->id, $this->sectionB->id])
+        ->and($bySection[$this->sectionA->id])->toEqual($this->kpis->forUnit($this->sectionA, kpiWeek()))
+        ->and($bySection[$this->sectionB->id])->toEqual($this->kpis->forUnit($this->sectionB, kpiWeek()))
+        ->and($bySection[$this->sectionA->id]->atRisk)->toBe(1);
+});
+
+it('leaves a section with nobody assigned out of the batch', function () {
+    kpiTrooper($this->sectionA);
+
+    expect($this->kpis->forSectionsWithin($this->battalion, kpiWeek())->keys()->all())->toBe([$this->sectionA->id]);
+});

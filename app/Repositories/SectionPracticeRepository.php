@@ -25,6 +25,9 @@ interface SectionPracticeRepository
      * plain re-read misses the racing row, a locking read finds it — it sees a racing submit's
      * committed row even where a MySQL REPEATABLE READ snapshot would not.
      *
+     * Finding a generated demo practice (#115) clears its `is_demo` tag: only real writers call
+     * this, and the practice becomes the anchor of a real mark.
+     *
      * Practices are per section (AD-14) — a practice keyed to a platoon or company would split a
      * trooper-week's count across two echelons — so a unit of any other type is refused.
      *
