@@ -24,14 +24,22 @@ class Eloquent implements SectionPracticeRepository
         $key = ['section_id' => $sectionId, 'week_start' => $weekStart];
 
         try {
-            return SectionPractice::query()->createOrFirst($key);
+            $practice = SectionPractice::query()->createOrFirst($key);
         } catch (UniqueConstraintViolationException $e) {
             // createOrFirst's own re-read is a plain (snapshot) read: inside a MySQL REPEATABLE
             // READ transaction that has already read, it cannot see a row a racing submit committed
             // after that snapshot, so it rethrows. A locking read always sees the latest committed
             // row, so the insert-or-find holds inside the audited transaction too.
-            return SectionPractice::query()->where($key)->sharedLock()->first() ?? throw $e;
+            $practice = SectionPractice::query()->where($key)->sharedLock()->first() ?? throw $e;
         }
+
+        // Found a generated demo practice (#115): a real mark is about to hang off it, so it is
+        // real from now on — a demo purge or regeneration must leave it and that week alone.
+        if ($practice->is_demo) {
+            $practice->forceFill(['is_demo' => false])->save();
+        }
+
+        return $practice;
     }
 
     public function find(int $sectionId, CarbonInterface $weekStart): ?SectionPractice

@@ -170,3 +170,11 @@ it('reads any number of children in a constant number of queries', function () {
         ->and($result->kpis->strength)->toBe(12)
         ->and($queries)->toBeLessThanOrEqual(2);
 });
+
+// 5.8: fromReports trusts the caller's collections only as far as it can check them.
+it('refuses a report that is not the child\'s own for the week', function (string $case) {
+    $other = ($this->send)($this->second, rollupKpis(1, [1, 1], [1, 1]), $case === 'week' ? rollupWeek()->subWeek() : null);
+    $reports = collect([$this->first->id => $other]);
+
+    RollupKpis::fromReports(collect([$this->first]), $reports, rollupWeek());
+})->with(['another unit\'s report' => 'unit', 'another week\'s report' => 'week'])->throws(InvalidArgumentException::class);

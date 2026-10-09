@@ -29,6 +29,8 @@ class SectionPractice extends Model
         return [
             'week_start' => 'immutable_datetime',
             'captured_at' => 'immutable_datetime',
+            // Demo history (#115): set only by the demo writer, never mass-assigned.
+            'is_demo' => 'boolean',
         ];
     }
 

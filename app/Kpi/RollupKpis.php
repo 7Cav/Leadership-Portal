@@ -11,6 +11,7 @@ use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use ErrorException;
+use Illuminate\Support\Collection;
 use InvalidArgumentException;
 use TypeError;
 use UnexpectedValueException;
@@ -52,20 +53,46 @@ final class RollupKpis
             throw new InvalidArgumentException("Unit {$unit->id} has no children; a leaf report computes from attendance, not a roll-up.");
         }
 
-        $reports = $this->reports->forUnits($children->modelKeys(), $weekStart);
+        return self::fromReports($children, $this->reports->forUnits($children->modelKeys(), $weekStart), $weekStart);
+    }
+
+    /**
+     * The same roll-up from children and reports the caller already loaded — how 5.8's navigator
+     * rolls up every non-leaf node of a battalion from one `forUnits()` read instead of two
+     * queries per node. `$reports` is keyed by `unit_id` and may hold other units' reports too;
+     * a child without one is not started.
+     *
+     * @param  Collection<int, Unit>  $children  the unit's direct children, in order
+     * @param  Collection<int, WeeklyReport>  $reports  the week's reports, keyed by `unit_id`
+     *
+     * @throws InvalidArgumentException when `$children` is empty, `$weekStart` is not a
+     *                                  Saturday 00:00 UTC, or a report is not the child's own for
+     *                                  that week. That `$children` are one unit's direct children
+     *                                  is the caller's to ensure.
+     * @throws UnexpectedValueException when a child's sent snapshot cannot be read as `UnitKpis`.
+     */
+    public static function fromReports(Collection $children, Collection $reports, CarbonInterface $weekStart): RollupResult
+    {
+        $weekStart = WeekOf::requireStart($weekStart);
 
         return new RollupResult($children
-            ->map(fn (Unit $child) => $this->childReport($child, $reports->get($child->id), $weekStart))
+            ->map(fn (Unit $child) => self::childReport($child, $reports->get($child->id), $weekStart))
             ->values()
             ->all());
     }
 
-    private function childReport(Unit $child, ?WeeklyReport $report, CarbonImmutable $weekStart): ChildReport
+    private static function childReport(Unit $child, ?WeeklyReport $report, CarbonImmutable $weekStart): ChildReport
     {
+        // Handed in by the caller since 5.8: a report keyed to the wrong unit or week would roll
+        // up silently as this child's, so it is refused instead.
+        if ($report !== null && ($report->unit_id !== $child->id || ! $report->week_start->equalTo($weekStart))) {
+            throw new InvalidArgumentException("The report given for unit {$child->id} belongs to unit {$report->unit_id}, week {$report->week_start->toDateString()}; expected week {$weekStart->toDateString()}.");
+        }
+
         return match ($report?->status) {
             null => new ChildReport($child, ChildReportStatus::NotStarted, null),
             WeeklyReportStatus::Draft => new ChildReport($child, ChildReportStatus::Draft, null),
-            WeeklyReportStatus::Sent => new ChildReport($child, ChildReportStatus::Sent, $this->snapshot($report, $weekStart)),
+            WeeklyReportStatus::Sent => new ChildReport($child, ChildReportStatus::Sent, self::snapshot($report, $weekStart)),
         };
     }
 
@@ -73,7 +100,7 @@ final class RollupKpis
      * A sent snapshot that does not read back as `UnitKpis` is a corrupt record, not a zero: it
      * fails loudly with the unit-week named rather than quietly shrinking the parent's numbers.
      */
-    private function snapshot(WeeklyReport $report, CarbonImmutable $weekStart): UnitKpis
+    private static function snapshot(WeeklyReport $report, CarbonImmutable $weekStart): UnitKpis
     {
         try {
             return UnitKpis::fromArray($report->kpis);

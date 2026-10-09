@@ -34,10 +34,26 @@ describe('navigation', () => {
         expect(visibleGroups(false).map((group) => group.id)).toEqual(['leadership']);
         expect(visibleGroups(true).map((group) => group.id)).toEqual(NAV_GROUPS.map((group) => group.id));
     });
+
+    it('shows Demo data only while the demoTools feature is on (#115)', () => {
+        const settingsItems = (features) =>
+            visibleGroups(true, features)
+                .find((group) => group.id === 'settings')
+                .items.map((item) => item.label);
+
+        expect(settingsItems(undefined)).not.toContain('Demo data');
+        expect(settingsItems({ demoTools: false })).not.toContain('Demo data');
+        expect(settingsItems({ demoTools: true })).toContain('Demo data');
+        expect(visibleGroups(false, { demoTools: true }).map((group) => group.id)).toEqual(['leadership']);
+    });
+
+    it('locates the Demo data page for its breadcrumb', () => {
+        expect(locate('/settings/demo-data').item.label).toBe('Demo data');
+    });
 });
 
 describe('resolveLayout', () => {
-    it.each(['Home', 'Settings/OrgStructure', 'Settings/StaffGrants', 'Settings/AuditLog'])('wraps %s in the app shell', (name) => {
+    it.each(['Home', 'Settings/OrgStructure', 'Settings/StaffGrants', 'Settings/AuditLog', 'Settings/DemoData'])('wraps %s in the app shell', (name) => {
         expect(resolveLayout(name)).toBe(AppLayout);
     });
 

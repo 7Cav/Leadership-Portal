@@ -41,6 +41,8 @@ class WeeklyReport extends Model
             'status' => WeeklyReportStatus::class,
             'kpis' => 'array',
             'sent_at' => 'immutable_datetime',
+            // Demo history (#115): set only by the demo writer, never mass-assigned.
+            'is_demo' => 'boolean',
         ];
     }
 
