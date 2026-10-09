@@ -126,7 +126,7 @@ describe('AppLayout', () => {
         it('renders screens that do not exist yet as disabled controls, not links', () => {
             wrapper = mountLayout();
 
-            for (const label of ['Roster', 'Rollcall', 'Reports']) {
+            for (const label of ['Roster', 'Rollcall']) {
                 const item = wrapper.find(`[data-testid="nav-${label}"]`);
                 expect(item.element.tagName).toBe('BUTTON');
                 expect(item.attributes('aria-disabled')).toBe('true');
@@ -143,7 +143,7 @@ describe('AppLayout', () => {
             const linkHrefs = wrapper.findAllComponents({ name: 'Link' }).map((link) => link.props('href'));
             const navHrefs = wrapper.findAll('nav[aria-label="Primary"] a').map((a) => a.attributes('href'));
 
-            expect(navHrefs).toEqual(['/home', '/settings/org-structure', '/settings/staff-grants', '/settings/audit-log']);
+            expect(navHrefs).toEqual(['/home', '/reports', '/settings/org-structure', '/settings/staff-grants', '/settings/audit-log']);
             for (const href of navHrefs) expect(linkHrefs).toContain(href);
         });
 

@@ -35,6 +35,9 @@ class Eloquent implements TrooperRepository
                 ['cav_id' => $row['cav_id']],
                 [
                     'rank' => $row['rank'],
+                    'rank_short' => $row['rank_short'] ?? null,
+                    'username' => $row['username'] ?? null,
+                    'forum_user_id' => $row['forum_user_id'] ?? null,
                     'mos' => $row['mos'],
                     'tis' => $row['tis'],
                     'tig' => $row['tig'],
@@ -90,5 +93,12 @@ class Eloquent implements TrooperRepository
     public function ranksByCavId(array $cavIds): Collection
     {
         return Trooper::query()->whereIn('cav_id', $cavIds)->whereNotNull('rank')->pluck('rank', 'cav_id');
+    }
+
+    public function sectionsOfAssignedWithin(Unit $unit): Collection
+    {
+        return Trooper::query()->assignedWithin($unit)->orderBy('id')
+            ->pluck('primary_section_id', 'id')
+            ->map(fn ($sectionId) => (int) $sectionId);
     }
 }

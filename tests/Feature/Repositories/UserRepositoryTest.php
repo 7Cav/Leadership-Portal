@@ -102,16 +102,24 @@ it('sets and clears the Admin flag despite it not being mass-assignable (2.9)', 
     expect($user->fresh()->is_admin)->toBeFalse();
 });
 
-it('returns the earliest-created Admin as the first Admin', function () {
+it('finds the earliest-created Admin, or none (#115)', function () {
+    $repository = app(UserRepository::class);
     User::factory()->create();
+
+    expect($repository->firstAdmin())->toBeNull();
+
     $first = User::factory()->admin()->create();
     User::factory()->admin()->create();
 
-    expect(app(UserRepository::class)->firstAdmin()?->id)->toBe($first->id);
+    expect($repository->firstAdmin()->id)->toBe($first->id);
 });
 
-it('returns null as the first Admin when no Admin exists', function () {
-    User::factory()->create();
+// 5.8: names the senders of a whole chain's reports in one query.
+it('maps user ids to usernames, skipping unknown ids', function () {
+    $a = User::factory()->create(['username' => 'Hale.S']);
+    $b = User::factory()->create(['username' => 'Brennan.J']);
 
-    expect(app(UserRepository::class)->firstAdmin())->toBeNull();
+    expect(app(UserRepository::class)->usernamesByIds([$b->id, $a->id, 999])->sortKeys()->all())
+        ->toBe([$a->id => 'Hale.S', $b->id => 'Brennan.J'])
+        ->and(app(UserRepository::class)->usernamesByIds([])->all())->toBe([]);
 });

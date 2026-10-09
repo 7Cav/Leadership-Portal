@@ -16,9 +16,14 @@ class TrooperFactory extends Factory
      */
     public function definition(): array
     {
+        [$rankShort, $rank] = fake()->randomElement([['PVT', 'Private'], ['CPL', 'Corporal'], ['SGT', 'Sergeant']]);
+
         return [
             'cav_id' => fake()->unique()->numberBetween(1, 100000),
-            'rank' => fake()->randomElement(['Private', 'Corporal', 'Sergeant']),
+            'username' => fake()->lastName().'.'.strtoupper(fake()->randomLetter()),
+            'forum_user_id' => fake()->unique()->numberBetween(1, 100000),
+            'rank' => $rank,
+            'rank_short' => $rankShort,
             'mos' => fake()->bothify('##?'),
             'tis' => fake()->date(),
             'tig' => fake()->date(),

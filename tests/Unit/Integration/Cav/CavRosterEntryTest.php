@@ -46,6 +46,8 @@ describe('CavRosterEntry::fromPayload', function () use ($fetchedAt) {
         expect($trooper->cavId)->toBe(1)
             ->and($trooper->rankShort)->toBe('MG')
             ->and($trooper->rankFull)->toBe('Major General')
+            ->and($trooper->username)->toBe('Jarvis.A')
+            ->and($trooper->forumUserId)->toBe(3)
             ->and($trooper->billet)->toBe('Regimental Technical Aide')
             ->and($trooper->positionId)->toBe(773)
             ->and($trooper->mos)->toBe('255N')
@@ -60,7 +62,50 @@ describe('CavRosterEntry::fromPayload', function () use ($fetchedAt) {
         // punish that with a thrown exception the way the identity-focused DTO does.
         $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload(['user' => null]), $fetchedAt);
 
-        expect($trooper->cavId)->toBe(1);
+        expect($trooper->cavId)->toBe(1)
+            ->and($trooper->username)->toBeNull()
+            ->and($trooper->forumUserId)->toBeNull();
+    });
+
+    it('reads the forum identity (user id and username) from the profile', function () use ($fetchedAt) {
+        $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload(), $fetchedAt);
+
+        expect($trooper->forumUserId)->toBe(3)
+            ->and($trooper->username)->toBe('Jarvis.A');
+    });
+
+    it('keeps the username when the user id is missing, and vice versa', function () use ($fetchedAt) {
+        $noId = CavRosterEntry::fromPayload(1, rosterEntryPayload(['user' => ['username' => 'Jarvis.A']]), $fetchedAt);
+        $noName = CavRosterEntry::fromPayload(1, rosterEntryPayload(['user' => ['userId' => '3', 'username' => '']]), $fetchedAt);
+
+        expect($noId->username)->toBe('Jarvis.A')
+            ->and($noId->forumUserId)->toBeNull()
+            ->and($noName->username)->toBeNull()
+            ->and($noName->forumUserId)->toBe(3);
+    });
+
+    it('reads the user id when the API sends it as a bare int rather than a numeric string', function () use ($fetchedAt) {
+        $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload(['user' => ['userId' => 3, 'username' => 'Jarvis.A']]), $fetchedAt);
+
+        expect($trooper->forumUserId)->toBe(3);
+    });
+
+    it('leaves forumUserId null on a non-numeric or non-positive user id rather than throwing', function () use ($fetchedAt) {
+        $garbage = CavRosterEntry::fromPayload(1, rosterEntryPayload(['user' => ['userId' => 'abc', 'username' => 'Jarvis.A']]), $fetchedAt);
+        $zero = CavRosterEntry::fromPayload(1, rosterEntryPayload(['user' => ['userId' => '0', 'username' => 'Jarvis.A']]), $fetchedAt);
+
+        expect($garbage->forumUserId)->toBeNull()
+            ->and($garbage->username)->toBe('Jarvis.A')
+            ->and($zero->forumUserId)->toBeNull();
+    });
+
+    it('never carries the real name', function () use ($fetchedAt) {
+        // Data minimisation (2.10): the portal never needs a trooper's real name, so the DTO has
+        // nowhere to put it and nothing downstream can store it by accident.
+        $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload(), $fetchedAt);
+
+        expect(get_object_vars($trooper))->not->toHaveKey('realName')
+            ->and(serialize($trooper))->not->toContain('Adam Jarvis');
     });
 
     it('normalizes the API\'s "unset object is null" convention to null fields', function () use ($fetchedAt) {
