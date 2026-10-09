@@ -2,8 +2,8 @@
 
 use App\Http\Controllers\Auth\ForumAuthController;
 use App\Http\Controllers\HomeController;
-use App\Http\Controllers\ReportRollupController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ReportRollupController;
 use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\DemoDataController;
 use App\Http\Controllers\Settings\OrgStructureController;
