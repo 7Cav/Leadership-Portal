@@ -10,7 +10,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * composite primary key `(company_id, artifact_type)` is what keeps exactly one version active, since moving the
  * pointer rewrites this one row. Kept apart from {@see TemplateVersion} so activating never touches a version.
  *
- * Portal-owned (AD-22), written only by `TemplateVersionRepository` under the audited template Commands.
+ * Portal-owned (AD-22), written only by `TemplateVersionRepository` under the audited template Commands, with an upsert
+ * on the key rather than through the model, so nothing on it is mass-assignable.
  */
 class ActiveTemplateVersion extends Model
 {
@@ -18,9 +19,6 @@ class ActiveTemplateVersion extends Model
     protected $primaryKey = ['company_id', 'artifact_type'];
 
     public $incrementing = false;
-
-    /** @var list<string> */
-    protected $guarded = [];
 
     protected function casts(): array
     {
