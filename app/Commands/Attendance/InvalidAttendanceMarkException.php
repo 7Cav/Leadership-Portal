@@ -21,6 +21,17 @@ class InvalidAttendanceMarkException extends RuntimeException
         return new self("Trooper {$trooperId} cannot be marked loa by hand — LOA status is derived from LOA data, never entered.");
     }
 
+    /**
+     * @param  list<int>  $trooperIds
+     */
+    public static function loaCovered(array $trooperIds): self
+    {
+        return new self(sprintf(
+            'Troopers %s are on leave for this week, so their practice mark is derived from the LOA data and cannot be set by hand.',
+            implode(', ', $trooperIds),
+        ));
+    }
+
     public static function notASection(int $unitId): self
     {
         return new self("Unit {$unitId} is not a section; attendance is marked against a section's practice.");

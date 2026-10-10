@@ -20,9 +20,14 @@ Everything the portal needs to *read* about leave lives here, so no screen re-de
   - A cleanly read leave that covers the week wins over one that needs review.
   - `toArray()` is the badge's prop shape.
 
+- `LoaCover::derivedAttendanceStatus()` (3.4, AD-14): the attendance status a cover derives for the week, `Loa`
+  when a cleanly read leave covers it and nothing otherwise. A needs-review leave derives none, so it never reads as
+  an absence nor as away. The status is derived here and never stored; `MarkAttendanceHandler` reads it through
+  `LoaCoverage` to refuse a hand-entered practice mark for a covered trooper.
+
 **May depend on:** `Repositories/` (the facts, never the DB directly, AD-2), `Models/`,
 `Support/Time/` (the week window, AD-11).
-**Reached from:** `Http/Controllers/` and `Kpi/`. Read-only: the LOA sync (`Sync/SyncLoasHandler`) is the one
+**Reached from:** `Http/Controllers/`, `Kpi/` and `Commands/Attendance/MarkAttendanceHandler`. Read-only: the LOA sync (`Sync/SyncLoasHandler`) is the one
 writer of `loas` and `sync_runs`.
 
 `forTroopersOverWeeks($ids, $firstWeek, $weeks)` resolves a window the same way, in one query. The KPI service
