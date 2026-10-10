@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { PhArrowLeft, PhCheck, PhWarning } from '@phosphor-icons/vue';
 import { Card } from '@/components/ui/card';
-import { rankIndex } from '@/lib/roster';
+import { compareByBillet } from '@/lib/ranks';
 
 // The training-readiness matrix (Story 6.9): troopers down the side, the course catalog across the top, one mark
 // per cell. The server (`Milpac\ReadinessMatrix`) shapes everything and the controller has already gated the unit;
@@ -16,10 +16,8 @@ const props = defineProps({
 });
 
 const unitLabel = computed(() => (props.unit.callsign ? `${props.unit.callsign} ${props.unit.name}` : props.unit.name));
-// Senior first, then by name, as the roster lists a unit.
-const rows = computed(() =>
-    [...props.troopers].sort((a, b) => rankIndex(b.rankShort) - rankIndex(a.rankShort) || a.displayName.localeCompare(b.displayName)),
-);
+// The leader, then the assistant leader, then everyone by rank and name, as the mockup lists a unit.
+const rows = computed(() => [...props.troopers].sort(compareByBillet));
 const coverageByCourse = computed(() => Object.fromEntries(props.coverage.map((entry) => [entry.courseId, entry])));
 
 // The mark for each status, with the words a screen reader gets in place of the glyph.
@@ -45,7 +43,8 @@ const MARKS = {
         </div>
 
         <Card class="gap-0 overflow-hidden py-0" data-testid="matrix">
-            <div class="overflow-x-auto">
+            <!-- A thin, theme-coloured scrollbar: the browser's default is a bright bar that does not belong on the dark theme. -->
+            <div class="overflow-x-auto [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]">
                 <table class="w-full border-collapse text-[13px]">
                     <thead>
                         <tr class="border-b border-border bg-muted/30">

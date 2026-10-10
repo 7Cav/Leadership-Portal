@@ -42,6 +42,19 @@ describe('TrainingReadinessMatrix', () => {
         expect(columns[1].attributes('title')).toBe('NCOA Phase I');
     });
 
+    it('lists the leader first, then the assistant leader, then everyone by rank, as the mockup does', () => {
+        const wrapper = page({
+            troopers: [
+                trooper(1, 'PFC Svensson.A', 'PFC', { 1: 'none', 2: 'none', 3: 'none' }),
+                trooper(2, 'SPC Milkovic.D', 'SPC', { 1: 'none', 2: 'none', 3: 'none' }, 'Asst. Section Leader'),
+                trooper(3, 'CPL Flanagan.L', 'CPL', { 1: 'none', 2: 'none', 3: 'none' }),
+                trooper(4, 'SGT Jay.JH', 'SGT', { 1: 'none', 2: 'none', 3: 'none' }, 'Section Leader'),
+            ],
+        });
+
+        expect(wrapper.findAll('[data-testid="trooper-link"]').map((a) => a.text())).toEqual(['SGT Jay.JH', 'SPC Milkovic.D', 'CPL Flanagan.L', 'PFC Svensson.A']);
+    });
+
     it('lists the troopers senior first, then by name', () => {
         const names = page().findAll('[data-testid="trooper-link"]').map((a) => a.text());
 
