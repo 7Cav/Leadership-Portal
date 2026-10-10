@@ -193,6 +193,32 @@ describe('Rollcall', () => {
             expect(row.get('th [data-testid="loa-badge"]').text()).toContain('needs review');
         });
 
+        it('shows where a stored mark came from with a dot: manual, auto, or makeup by its status', () => {
+            const wrapper = page({
+                troopers: [
+                    trooper(1, 'SGT Jay.JH', 'SGT', { value: 'present', origin: 'saved', source: 'manual' }),
+                    trooper(2, 'SPC Adams.P', 'SPC', { value: 'missed', origin: 'saved', source: 'auto' }),
+                    trooper(3, 'SPC Crooks.A', 'SPC', { value: 'makeup', origin: 'saved', source: 'manual' }),
+                ],
+            });
+            const kind = (name) => rowOf(wrapper, name).get('[data-testid="source-dot"]').attributes('data-source-kind');
+
+            expect([kind('SGT Jay.JH'), kind('SPC Adams.P'), kind('SPC Crooks.A')]).toEqual(['manual', 'auto', 'makeup']);
+        });
+
+        it('shows no dot for a value that is not stored: carried, unmarked or on leave', () => {
+            const wrapper = page();
+
+            for (const name of ['PFC Svensson.A', 'SPC Crooks.A', 'SPC Adams.P']) {
+                expect(rowOf(wrapper, name).find('[data-testid="source-dot"]').exists()).toBe(false);
+            }
+            expect(rowOf(wrapper, 'SGT Jay.JH').find('[data-testid="source-dot"]').exists()).toBe(true);
+        });
+
+        it('draws the shared legend in the banner', () => {
+            expect(page().get('[data-testid="prefill-banner"] [data-testid="source-legend"]').text()).toBe('automanualmakeup');
+        });
+
         it('gives a trooper on leave no practice toggle, but still their signature', () => {
             const row = rowOf(page(), 'SPC Adams.P');
 
@@ -205,6 +231,15 @@ describe('Rollcall', () => {
         const click = (row, cell, value) => row.get(`[data-testid="${cell}"] [data-value="${value}"]`).trigger('click');
         const spOf = (wrapper, name) => rowOf(wrapper, name).get('[data-testid="sp-cell"]');
         const lastPost = () => routerPost.mock.calls.at(-1);
+
+        it('takes a saved mark\'s dot away once the leader edits it, since the value is no longer the stored one', async () => {
+            const wrapper = page();
+
+            expect(spOf(wrapper, 'SGT Jay.JH').find('[data-testid="source-dot"]').exists()).toBe(true);
+            await click(rowOf(wrapper, 'SGT Jay.JH'), 'sp-cell', 'missed');
+
+            expect(spOf(wrapper, 'SGT Jay.JH').find('[data-testid="source-dot"]').exists()).toBe(false);
+        });
 
         it('turns the toggles into buttons', () => {
             const cell = spOf(page(), 'SPC Crooks.A');

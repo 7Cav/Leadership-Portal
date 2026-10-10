@@ -10,6 +10,8 @@ import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import EmptyState from '@/components/EmptyState.vue';
 import LoaBadge from '@/components/LoaBadge.vue';
+import SourceDot from '@/components/SourceDot.vue';
+import SourceLegend from '@/components/SourceLegend.vue';
 import StatusSegments from '@/components/StatusSegments.vue';
 import { forumDate, forumDateTime } from '@/lib/forumDate';
 import { compareSeniorFirst } from '@/lib/ranks';
@@ -233,11 +235,7 @@ const weekHref = (start) => `/rollcall/${props.section.id}?week=${start}`;
             >
                 <component :is="prefilled ? PhCheckCircle : PhInfo" class="mt-0.5 size-4 shrink-0" :class="prefilled ? 'text-success' : 'text-muted-foreground'" aria-hidden="true" />
                 <span class="flex-1">{{ bannerText }}</span>
-                <span class="flex shrink-0 items-center gap-3 text-xs text-muted-foreground" data-testid="source-legend" aria-label="Source legend">
-                    <span class="flex items-center gap-1"><span class="size-2 rounded-full bg-success" aria-hidden="true" />auto</span>
-                    <span class="flex items-center gap-1"><span class="size-2 rounded-full bg-warning" aria-hidden="true" />manual</span>
-                    <span class="flex items-center gap-1"><span class="size-2 rounded-full bg-info" aria-hidden="true" />makeup</span>
-                </span>
+                <SourceLegend />
             </p>
 
             <p v-if="previewing" data-testid="preview-notice" role="status" class="flex items-start gap-2 rounded-lg border border-warning/35 bg-warning/8 px-3.5 py-2.5 text-[13px]">
@@ -288,6 +286,8 @@ const weekHref = (start) => `/rollcall/${props.section.id}?week=${start}`;
                                 <td class="px-3 py-2.5" data-testid="sp-cell" :data-origin="originOf(row) ?? 'none'">
                                     <LoaBadge v-if="onLeave(row)" :cover="row.loa" :sync="sync.loa" />
                                     <template v-else>
+                                        <!-- The dot says where a stored mark came from. A carried or unsaved value is not stored, so it has none. -->
+                                        <SourceDot v-if="originOf(row) === 'saved'" :source="row.practice.source" :status="row.practice.value" class="mr-2" />
                                         <StatusSegments
                                             :options="SP_OPTIONS"
                                             :model-value="draft[row.id]?.sp ?? null"
