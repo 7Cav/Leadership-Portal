@@ -62,6 +62,34 @@ describe('authoring', function () {
             ->and(TemplateVersion::query()->count())->toBe(0);
     });
 
+    it('refuses a template whose tags are unknown or unbalanced, naming the problem, and stores nothing', function (string $body, string $problem) {
+        expect(fn () => $this->author->handle($this->admin, $this->company, $this->type, $body, 'why'))->toThrow(InvalidTemplateException::class, $problem);
+
+        expect(TemplateVersion::query()->count())->toBe(0)->and(AuditLogEntry::query()->count())->toBe(0);
+    })->with([
+        'an unknown name' => ['[B]{{colour}}[/B]', 'Unknown name "colour".'],
+        'an unclosed section' => ['{{#troopers}}{{name}}', 'is never closed'],
+        'a row value outside the loop' => ['{{name}}', 'can only be used inside'],
+        'a stray brace pair' => ['{{ oops', 'no matching'],
+    ]);
+
+    it('blames the body for a syntax problem and the company for a wrong unit', function () {
+        $platoon = Unit::factory()->create(['type' => UnitType::Platoon]);
+
+        expect(fn () => $this->author->handle($this->admin, $this->company, $this->type, '{{x}}', 'why'))->toThrow(fn (InvalidTemplateException $e) => $e->field === 'body')
+            ->and(fn () => $this->author->handle($this->admin, $platoon, $this->type, 'ok', 'why'))->toThrow(fn (InvalidTemplateException $e) => $e->field === 'company_id');
+    });
+
+    it('accepts every well-formed template in the shared cases', function () {
+        $cases = json_decode(file_get_contents(__DIR__.'/../../../Fixtures/bbcode-templates.json'), true);
+
+        foreach ($cases['valid'] as $case) {
+            $this->author->handle($this->admin, $this->company, $this->type, $case['template'], 'seed');
+        }
+
+        expect(TemplateVersion::query()->count())->toBe(count($cases['valid']));
+    });
+
     it('refuses an empty or whitespace-only body', function (string $body) {
         expect(fn () => $this->author->handle($this->admin, $this->company, $this->type, $body, 'why'))->toThrow(InvalidTemplateException::class, 'needs some text');
     })->with(['', '   ', "\n\t\n"]);

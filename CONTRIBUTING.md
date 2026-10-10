@@ -44,7 +44,7 @@ Route → Controller ─┬─ (write) Command → CommandHandler ─┐
 | Layer | Directory | May depend on | Role |
 | --- | --- | --- | --- |
 | Controller | `app/Http/Controllers/` | CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi, Loa, Rollcall | Orchestrate a request. **No business logic.** Reads repositories directly; writes via Commands. |
-| Command / Handler | `app/Commands/` | Repository, Model, Integration, Support\Audit, Authorization, Support\Time, Kpi, Loa | Write-side business logic; the **only** caller of the outbound seam. |
+| Command / Handler | `app/Commands/` | Repository, Model, Integration, Support\Audit, Authorization, Support\Time, Kpi, Loa, Rollcall | Write-side business logic; the **only** caller of the outbound seam. |
 | Repository | `app/Repositories/` | Model, DB, Support\Time | **Sole** DB access (AD-2) |
 | Model | `app/Models/` | DB | Eloquent entities |
 | Integration | `app/Integration/` | External (Saloon/HTTP) | **Sole** path to external systems (AD-3) — Saloon connectors, requests, DTOs, and a `{Target}Api` seam class |

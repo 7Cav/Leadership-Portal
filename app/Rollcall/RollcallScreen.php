@@ -37,7 +37,9 @@ use Illuminate\Support\Collection;
  *  - nothing: the row loads unmarked.
  * A carried value is a suggestion shown on the screen, not a stored mark; it becomes one only when a leader submits.
  *
- * Every synced value is returned with its source and last-sync time (AD-20).
+ * `template` is the BBCode template the section's company has active, resolved on every request (Story 3.6), with its
+ * version id; the browser renders the BBCode from it as the leader marks (3.10). Every synced value is returned with its
+ * source and last-sync time (AD-20).
  */
 final class RollcallScreen
 {
@@ -51,6 +53,7 @@ final class RollcallScreen
         private readonly LoaCoverage $loaCoverage,
         private readonly LoaProvenance $loaProvenance,
         private readonly SyncRunRepository $syncRuns,
+        private readonly TemplateResolver $templates,
     ) {}
 
     /**
@@ -78,6 +81,7 @@ final class RollcallScreen
         return [
             'section' => ['id' => $section->id, 'name' => $section->name, 'callsign' => $section->callsign],
             'week' => $this->week($weekStart),
+            'template' => $this->templates->forUnit($section)->toArray(),
             'troopers' => $rows,
             'banner' => [
                 'eligible' => $eligible,
@@ -122,6 +126,8 @@ final class RollcallScreen
         return [
             'id' => $trooper->id,
             'displayName' => $trooper->display_name,
+            'username' => $trooper->username,
+            'rank' => $trooper->rank,
             'rankShort' => $trooper->rank_short,
             'billet' => $trooper->billet,
             'status' => $trooper->status->value,

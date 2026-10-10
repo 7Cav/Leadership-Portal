@@ -87,7 +87,7 @@ class TemplatesController extends Controller
         try {
             $command->handle($request->user(), $company, self::TYPE, $data['body'], $data['reason']);
         } catch (InvalidTemplateException $e) {
-            throw ValidationException::withMessages(['company_id' => $e->getMessage()]);
+            throw ValidationException::withMessages([$e->field => $e->getMessage()]);
         }
 
         return redirect()->route('settings.templates', ['company' => $company->id]);

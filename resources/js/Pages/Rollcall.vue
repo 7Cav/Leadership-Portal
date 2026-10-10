@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { PhCaretLeft, PhCaretRight, PhCheckCircle, PhClipboardText, PhInfo, PhUsersThree, PhWarning } from '@phosphor-icons/vue';
+import { PhCaretLeft, PhCaretRight, PhCheckCircle, PhClipboardText, PhCopy, PhInfo, PhUsersThree, PhWarning } from '@phosphor-icons/vue';
 import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,18 +13,23 @@ import LoaBadge from '@/components/LoaBadge.vue';
 import SourceDot from '@/components/SourceDot.vue';
 import SourceLegend from '@/components/SourceLegend.vue';
 import StatusSegments from '@/components/StatusSegments.vue';
+import { Textarea } from '@/components/ui/textarea';
+import { render, rollcallContext } from '@/lib/bbcode';
 import { forumDate, forumDateTime } from '@/lib/forumDate';
 import { compareSeniorFirst } from '@/lib/ranks';
 
-// The weekly rollcall of one section (Stories 3.7, 3.8). The server (`Rollcall\RollcallScreen`) shapes everything and the
+// The weekly rollcall of one section (Stories 3.7 to 3.10). The server (`Rollcall\RollcallScreen`) shapes everything and the
 // controller has already gated the section; this page draws it and lets a leader mark the week. Nothing is saved until
 // "Save rollcall": the toggles change a draft, and a value carried over from last week is only a suggestion until then.
 // A trooper on leave has no practice toggle (their status is derived, never entered), and while viewing as someone else
 // every control is off, since a preview is read-only. The server enforces both whatever this page shows (AD-6).
+// The BBCode beside the table is rendered here from the company's active template and the draft, so it follows every
+// toggle with no round trip. It is only ever copied: the portal makes no call to the forum (AD-20).
 const props = defineProps({
     section: { type: Object, default: null },
     sections: { type: Array, default: () => [] },
     week: { type: Object, default: null },
+    template: { type: Object, default: null },
     troopers: { type: Array, default: () => [] },
     banner: { type: Object, default: null },
     sync: { type: Object, default: null },
@@ -118,6 +123,34 @@ const originOf = (row) => {
     return draft[row.id]?.sp === startingSp(row) ? row.practice.origin : 'edited';
 };
 
+// ---- The forum BBCode (Story 3.10).
+// What the leader sees is the template the company has active, filled from the draft. A section with no template, or a
+// template that cannot be rendered, says so instead of showing broken BBCode.
+const NO_TEMPLATE = {
+    no_active_template: 'This section\'s company has no rollcall template yet. Ask an Admin to write one in Settings, Templates.',
+    no_owning_company: 'This section is not under a company, so it has no template to render from.',
+};
+
+const bbcode = computed(() => {
+    if (!props.template || props.template.state !== 'resolved') {
+        return { ok: false, message: NO_TEMPLATE[props.template?.state] ?? NO_TEMPLATE.no_active_template, missing: true };
+    }
+
+    const result = render(props.template.body, rollcallContext(props, draft, compareSeniorFirst));
+
+    return result.ok ? { ok: true, text: result.text } : { ok: false, message: `The template could not be rendered: ${result.error} Ask an Admin to fix it.` };
+});
+
+// A copy is the browser's clipboard and nothing else: no request is made.
+async function copyBbcode() {
+    try {
+        await navigator.clipboard.writeText(bbcode.value.text);
+        toast.success('BBCode copied. Paste it into the forum thread.');
+    } catch {
+        toast.error('Could not copy. Select the BBCode and copy it yourself.');
+    }
+}
+
 // ---- Saving.
 const processing = ref(false);
 const errors = ref({});
@@ -188,7 +221,7 @@ const weekHref = (start) => `/rollcall/${props.section.id}?week=${start}`;
 <template>
     <Head :title="section ? `Rollcall · ${sectionLabel}` : 'Rollcall'" />
 
-    <div class="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-6 sm:px-6">
+    <div class="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-6 sm:px-6">
         <EmptyState v-if="!section" :icon="PhClipboardText" title="No sections in your scope." data-testid="no-section">
             A rollcall is kept per section. Once you hold a section, it opens here.
         </EmptyState>
@@ -249,6 +282,7 @@ const weekHref = (start) => `/rollcall/${props.section.id}?week=${start}`;
                 <span v-if="line.stale" class="text-warning" data-testid="stale">(the latest sync did not succeed, so this is the last good copy)</span>
             </p>
 
+            <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_26rem]">
             <Card class="gap-0 overflow-hidden py-0">
                 <EmptyState v-if="!rows.length" :icon="PhUsersThree" title="No troopers are placed in this section." class="py-10" data-testid="roster-empty">
                     When the roster sync places troopers here, they appear with the week's attendance.
@@ -321,6 +355,27 @@ const weekHref = (start) => `/rollcall/${props.section.id}?week=${start}`;
                     </div>
                 </div>
             </Card>
+
+            <Card class="gap-0 py-0" data-testid="bbcode-panel">
+                <div class="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+                    <h2 class="text-[13px] font-semibold tracking-wide uppercase">Forum BBCode</h2>
+                    <Badge v-if="template?.version" variant="outline" data-testid="template-version">Template v{{ template.version }}</Badge>
+                </div>
+
+                <div class="space-y-3 p-4">
+                    <p v-if="!bbcode.ok" class="text-[13px] text-muted-foreground" :data-testid="bbcode.missing ? 'bbcode-missing' : 'bbcode-error'" role="status">{{ bbcode.message }}</p>
+
+                    <template v-else>
+                        <Textarea :model-value="bbcode.text" readonly rows="18" class="font-mono text-xs" aria-label="Rollcall BBCode, ready to copy" data-testid="bbcode-text" />
+                        <Button size="sm" class="w-full" data-testid="copy-bbcode" @click="copyBbcode"><PhCopy aria-hidden="true" />Copy BBCode</Button>
+                    </template>
+
+                    <p class="text-xs text-muted-foreground" data-testid="bbcode-note">
+                        Review it, copy it and post it in the weekly thread yourself. The portal never posts to the forum.
+                    </p>
+                </div>
+            </Card>
+            </div>
         </template>
     </div>
 </template>

@@ -148,6 +148,16 @@ describe('saving a new version', function () {
         'body too long' => [['body' => str_repeat('b', AuthorTemplateVersion::MAX_BODY_LENGTH + 1)], 'body'],
     ]);
 
+    it('refuses a template whose tags are unknown or unbalanced, with the problem on the body field', function (string $body, string $problem) {
+        $this->actingAs($this->admin)->post('/settings/templates', ['company_id' => $this->company->id, 'body' => $body, 'reason' => 'why'])
+            ->assertSessionHasErrors(['body' => $problem]);
+
+        expect(TemplateVersion::query()->count())->toBe(0);
+    })->with([
+        'an unknown name' => ['{{colour}}', 'Unknown name "colour".'],
+        'an unclosed section' => ['{{#troopers}}{{name}}', 'The section "{{#troopers}}" is never closed.'],
+    ]);
+
     it('refuses a unit that is not a company with a form error on the company', function () {
         $platoon = Unit::factory()->create(['type' => UnitType::Platoon]);
 

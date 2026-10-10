@@ -2,12 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import Rollcall from '../Rollcall.vue';
 
-// Stories 3.7 and 3.8: the rollcall draws what the server shaped, decides nothing about who may look, and sends only what a
+// Stories 3.7 to 3.10: the rollcall draws what the server shaped, decides nothing about who may look, and sends only what a
 // leader changed or accepted.
 
 const routerGet = vi.fn();
 const routerPost = vi.fn();
 const toastSuccess = vi.fn();
+const toastError = vi.fn();
 let previewing = false;
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
@@ -18,12 +19,14 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     usePage: () => ({ props: { viewAs: previewing ? { kind: 'unit', id: 9 } : null } }),
 }));
 
-vi.mock('vue-sonner', () => ({ toast: { success: (...args) => toastSuccess(...args) } }));
+vi.mock('vue-sonner', () => ({ toast: { success: (...args) => toastSuccess(...args), error: (...args) => toastError(...args) } }));
 
 afterEach(() => {
     routerGet.mockReset();
     routerPost.mockReset();
     toastSuccess.mockReset();
+    toastError.mockReset();
+    vi.unstubAllGlobals();
     previewing = false;
 });
 
@@ -36,6 +39,8 @@ const REVIEW = { ...NO_LOA, state: 'needs_review', type: 'loa', typeLabel: 'LOA'
 const trooper = (id, displayName, rankShort, practice, overrides = {}) => ({
     id,
     displayName,
+    username: displayName.split(' ')[1],
+    rank: rankShort,
     rankShort,
     billet: 'Rifleman',
     status: 'combat',
@@ -57,7 +62,11 @@ const SYNC = {
     loa: { source: 'Forum thread', lastSyncedAt: '2026-10-08T10:00:00+00:00', stale: false, neverSynced: false, latestStatus: 'success', latestFinishedAt: '2026-10-08T10:00:00+00:00' },
 };
 
+const TEMPLATE_BODY = '[B]{{unit}} ROLL CALL | {{week}}[/B]\n{{#troopers}}{{n}}. {{name}}: {{#sp_loa}}LOA ends {{loa_ends}}{{/sp_loa}}{{^sp_loa}}{{sp}}{{/sp_loa}} / {{rc}}\n{{/troopers}}{{^troopers}}No troopers this week.{{/troopers}}';
+const RESOLVED = { state: 'resolved', companyId: 2, versionId: 31, version: 3, body: TEMPLATE_BODY };
+
 const props = (overrides = {}) => ({
+    template: RESOLVED,
     section: SECTION,
     sections: [SECTION],
     week: WEEK,
@@ -399,6 +408,141 @@ describe('Rollcall', () => {
 
             expect(wrapper.find('[data-testid="preview-notice"]').exists()).toBe(false);
             expect(wrapper.get('[data-testid="save"]').attributes('disabled')).toBeUndefined();
+        });
+    });
+
+    describe('the forum BBCode (3.10)', () => {
+        const text = (wrapper) => wrapper.get('[data-testid="bbcode-text"]').element.value;
+        const click = (row, cell, value) => row.get(`[data-testid="${cell}"] [data-value="${value}"]`).trigger('click');
+        const stubClipboard = (writeText) => vi.stubGlobal('navigator', { clipboard: { writeText } });
+
+        it('renders the company\'s active template with the week and each trooper, senior first', () => {
+            expect(text(page())).toBe(
+                '[B]1/1/A/1-7 ROLL CALL | 03Oct26 – 09Oct26[/B]\n'
+                + '1. Jay.JH: Yes / Yes\n'
+                + '2. Adams.P: LOA ends 30Oct26 / \n'
+                + '3. Crooks.A:  / No\n'
+                + '4. Svensson.A: Yes / \n',
+            );
+        });
+
+        it('says which template version it rendered from', () => {
+            expect(page().get('[data-testid="template-version"]').text()).toBe('Template v3');
+        });
+
+        it('updates as a toggle changes, with no request and no reload', async () => {
+            const wrapper = page();
+
+            await click(rowOf(wrapper, 'SPC Crooks.A'), 'sp-cell', 'makeup');
+
+            expect(text(wrapper)).toContain('3. Crooks.A: MU / No');
+            expect(routerGet).not.toHaveBeenCalled();
+            expect(routerPost).not.toHaveBeenCalled();
+        });
+
+        it('follows a carried suggestion being taken back, and "Mark all present"', async () => {
+            const wrapper = page();
+
+            await click(rowOf(wrapper, 'PFC Svensson.A'), 'sp-cell', 'present');
+            expect(text(wrapper)).toContain('4. Svensson.A:  / ');
+
+            await wrapper.get('[data-testid="mark-all-present"]').trigger('click');
+            expect(text(wrapper)).toContain('4. Svensson.A: Yes / ');
+            expect(text(wrapper)).toContain('3. Crooks.A: Yes / No');
+            expect(text(wrapper)).toContain('2. Adams.P: LOA ends 30Oct26');
+        });
+
+        it('follows a signature change', async () => {
+            const wrapper = page();
+
+            await click(rowOf(wrapper, 'PFC Svensson.A'), 'rc-cell', 'will_attend');
+
+            expect(text(wrapper)).toContain('4. Svensson.A: Yes / Yes');
+        });
+
+        it('copies exactly the BBCode shown, and makes no request to anyone', async () => {
+            const writeText = vi.fn().mockResolvedValue();
+            stubClipboard(writeText);
+            const fetchSpy = vi.fn();
+            vi.stubGlobal('fetch', fetchSpy);
+            const wrapper = page();
+
+            await wrapper.get('[data-testid="copy-bbcode"]').trigger('click');
+            await Promise.resolve();
+
+            expect(writeText).toHaveBeenCalledWith(text(wrapper));
+            expect(toastSuccess).toHaveBeenCalled();
+            expect(fetchSpy).not.toHaveBeenCalled();
+            expect(routerGet).not.toHaveBeenCalled();
+            expect(routerPost).not.toHaveBeenCalled();
+        });
+
+        it('copies what is shown after a change, not the first render', async () => {
+            const writeText = vi.fn().mockResolvedValue();
+            stubClipboard(writeText);
+            const wrapper = page();
+
+            await click(rowOf(wrapper, 'SPC Crooks.A'), 'sp-cell', 'attached');
+            await wrapper.get('[data-testid="copy-bbcode"]').trigger('click');
+
+            expect(writeText.mock.calls[0][0]).toContain('3. Crooks.A: Att / No');
+        });
+
+        it('says so when the browser will not copy, and leaves the text to select by hand', async () => {
+            stubClipboard(vi.fn().mockRejectedValue(new Error('denied')));
+            const wrapper = page();
+
+            await wrapper.get('[data-testid="copy-bbcode"]').trigger('click');
+            await Promise.resolve();
+            await Promise.resolve();
+
+            expect(toastError).toHaveBeenCalledWith('Could not copy. Select the BBCode and copy it yourself.');
+            expect(wrapper.get('[data-testid="bbcode-text"]').attributes('readonly')).toBeDefined();
+        });
+
+        it('says the company has no template, and offers nothing to copy', () => {
+            const wrapper = page({ template: { state: 'no_active_template', companyId: 2, versionId: null, version: null, body: null } });
+
+            expect(wrapper.get('[data-testid="bbcode-missing"]').text()).toContain('has no rollcall template yet');
+            expect(wrapper.find('[data-testid="bbcode-text"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="copy-bbcode"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="template-version"]').exists()).toBe(false);
+        });
+
+        it('says a section outside every company has no template', () => {
+            const wrapper = page({ template: { state: 'no_owning_company', companyId: null, versionId: null, version: null, body: null } });
+
+            expect(wrapper.get('[data-testid="bbcode-missing"]').text()).toContain('not under a company');
+        });
+
+        it('says so rather than showing broken BBCode when the template cannot be rendered', () => {
+            const wrapper = page({ template: { ...RESOLVED, body: '{{#troopers}}{{name}}' } });
+
+            expect(wrapper.get('[data-testid="bbcode-error"]').text()).toContain('is never closed');
+            expect(wrapper.find('[data-testid="copy-bbcode"]').exists()).toBe(false);
+        });
+
+        it('renders an empty roster as the template\'s skeleton, not a crash', () => {
+            const wrapper = page({ troopers: [], banner: { eligible: 0, saved: 0, carried: 0, fromWeek: null } });
+
+            expect(text(wrapper)).toBe('[B]1/1/A/1-7 ROLL CALL | 03Oct26 – 09Oct26[/B]\nNo troopers this week.');
+        });
+
+        it('keeps a username that looks like BBCode from becoming BBCode', () => {
+            const wrapper = page({ troopers: [trooper(1, 'PFC [b]Evil', 'PFC', UNMARKED, { username: '[b]Evil' })] });
+
+            expect(text(wrapper)).toContain('1. [\u200Bb]Evil');
+        });
+
+        it('says it never posts, and what to do instead', () => {
+            expect(page().get('[data-testid="bbcode-note"]').text()).toContain('The portal never posts to the forum.');
+        });
+
+        it('has no way to edit the template here', () => {
+            const panel = page().get('[data-testid="bbcode-panel"]');
+
+            expect(panel.findAll('input, select, form, a[href]')).toHaveLength(0);
+            expect(panel.findAll('textarea').every((t) => t.attributes('readonly') !== undefined)).toBe(true);
         });
     });
 

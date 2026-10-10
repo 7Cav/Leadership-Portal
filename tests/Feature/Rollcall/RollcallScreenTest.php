@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\ArtifactType;
 use App\Models\Attendance;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
@@ -15,6 +16,7 @@ use App\Models\Unit;
 use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\TemplateVersionRepository;
 use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -394,6 +396,36 @@ describe('source and last sync (AD-20)', function () {
         rollcallOpen($this->actingAs($this->leader), $this->section)->assertInertia(fn ($page) => $page
             ->where('sync.roster.lastSyncedAt', null)
             ->where('sync.loa.neverSynced', false));
+    });
+});
+
+describe('the template (3.6, 3.10)', function () {
+    it('carries the company\'s active template, with its version id, for the browser to render from', function () {
+        $version = app(TemplateVersionRepository::class)->author(
+            Unit::query()->where('type', UnitType::Company->value)->value('id'),
+            ArtifactType::RollcallBbcode,
+            '[B]{{unit}}[/B]',
+            User::factory()->create()->id,
+        );
+
+        rollcallOpen($this->actingAs($this->leader), $this->section)->assertInertia(fn ($page) => $page
+            ->where('template.state', 'resolved')
+            ->where('template.versionId', $version->id)
+            ->where('template.body', '[B]{{unit}}[/B]')
+            ->where('template.version', 1));
+    });
+
+    it('says plainly when the company has no active template, with no body', function () {
+        rollcallOpen($this->actingAs($this->leader), $this->section)->assertInertia(fn ($page) => $page
+            ->where('template.state', 'no_active_template')
+            ->where('template.body', null)
+            ->where('template.versionId', null));
+    });
+
+    it('carries each trooper\'s username and full rank for the template to print', function () {
+        $trooper = rollcallTrooper($this->section, ['username' => 'Hollis.D', 'rank' => 'Specialist', 'rank_short' => 'SPC']);
+
+        expect(rollcallRow($this->actingAs($this->leader), $this->section, $trooper))->toMatchArray(['username' => 'Hollis.D', 'rank' => 'Specialist', 'rankShort' => 'SPC']);
     });
 });
 
