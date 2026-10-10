@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Database\Factories\TemplateVersionFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,6 +17,7 @@ use LogicException;
  * Portal-owned (AD-22). Which version is current lives in {@see ActiveTemplateVersion}, not on this row, so
  * activating a version never changes it.
  */
+#[Fillable(['company_id', 'artifact_type', 'version', 'body', 'created_by'])]
 class TemplateVersion extends Model
 {
     /** @use HasFactory<TemplateVersionFactory> */
@@ -23,9 +25,6 @@ class TemplateVersion extends Model
 
     /** Created once and never updated, so the table has no `updated_at`. */
     public const UPDATED_AT = null;
-
-    /** @var list<string> */
-    protected $guarded = [];
 
     protected static function booted(): void
     {
