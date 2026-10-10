@@ -16,7 +16,7 @@ import StatusSegments from '@/components/StatusSegments.vue';
 import { Textarea } from '@/components/ui/textarea';
 import { render, rollcallContext } from '@/lib/bbcode';
 import { forumDate, forumDateTime } from '@/lib/forumDate';
-import { compareSeniorFirst } from '@/lib/ranks';
+import { compareByBillet } from '@/lib/ranks';
 
 // The weekly rollcall of one section (Stories 3.7 to 3.10). The server (`Rollcall\RollcallScreen`) shapes everything and the
 // controller has already gated the section; this page draws it and lets a leader mark the week. Nothing is saved until
@@ -30,6 +30,7 @@ const props = defineProps({
     sections: { type: Array, default: () => [] },
     week: { type: Object, default: null },
     template: { type: Object, default: null },
+    links: { type: Object, default: () => ({ milpac: null }) },
     troopers: { type: Array, default: () => [] },
     banner: { type: Object, default: null },
     sync: { type: Object, default: null },
@@ -41,7 +42,7 @@ const previewing = computed(() => Boolean(page.props.viewAs));
 const sectionLabel = computed(() => (props.section?.callsign ? `${props.section.callsign} ${props.section.name}` : props.section?.name));
 const optionLabel = (section) => (section.callsign ? `${section.callsign} ${section.name}` : section.name);
 
-const rows = computed(() => [...props.troopers].sort(compareSeniorFirst));
+const rows = computed(() => [...props.troopers].sort(compareByBillet));
 
 const RC_OPTIONS = [
     { value: 'will_attend', label: 'Yes', title: 'Signed the rollcall thread: will attend' },
@@ -91,6 +92,11 @@ function chooseSp(row, value) {
 function chooseRc(row, value) {
     const d = draft[row.id];
     d.rc = d.rc === value ? null : value;
+}
+
+// "Mark all RC = Yes" does the same for the rollcall signatures: it sets the draft, nothing is written until Save.
+function markAllSigned() {
+    for (const row of props.troopers) draft[row.id].rc = 'will_attend';
 }
 
 // "Mark all present" is the same as choosing it row by row: it sets the draft, never a second write path.
@@ -143,6 +149,12 @@ onBeforeUnmount(() => {
     window.removeEventListener('beforeunload', warnOnUnload);
 });
 
+// The three tiles above the table, counted from the draft so they follow every toggle. Attendance reads "pending" until anyone
+// is marked, as the mockup does.
+const signedCount = computed(() => props.troopers.filter((row) => draft[row.id]?.rc === 'will_attend').length);
+const attendedCount = computed(() => props.troopers.filter((row) => ['present', 'makeup', 'attached'].includes(draft[row.id]?.sp)).length);
+const anyMarked = computed(() => props.troopers.some((row) => draft[row.id]?.sp || onLeave(row)));
+
 const originOf = (row) => {
     if (onLeave(row)) return 'leave';
 
@@ -162,7 +174,7 @@ const bbcode = computed(() => {
         return { ok: false, message: NO_TEMPLATE[props.template?.state] ?? NO_TEMPLATE.no_active_template, missing: true };
     }
 
-    const result = render(props.template.body, rollcallContext(props, draft, compareSeniorFirst));
+    const result = render(props.template.body, rollcallContext(props, draft, compareByBillet));
 
     return result.ok ? { ok: true, text: result.text } : { ok: false, message: `The template could not be rendered: ${result.error} Ask an Admin to fix it.` };
 });
@@ -285,6 +297,31 @@ const weekHref = (start) => `/rollcall/${props.section.id}?week=${start}`;
                 </div>
             </div>
 
+            <p class="-mt-3 text-[13px] text-muted-foreground" data-testid="subtitle">
+                Attendance is pre-filled where it can be; toggle any trooper by hand. The BBCode beside the table updates live and copies in one click.
+            </p>
+
+            <div class="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="tiles">
+                <Card class="gap-1 px-4 py-3" data-testid="tile-week">
+                    <p class="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Week</p>
+                    <p class="font-mono text-lg font-semibold text-primary tabular-nums">{{ forumDate(week.start) }} – {{ forumDate(week.end) }}</p>
+                </Card>
+                <Card class="gap-1 px-4 py-3" data-testid="tile-signed">
+                    <p class="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Signed RC</p>
+                    <p class="text-lg font-semibold text-success tabular-nums">{{ signedCount }} <span class="text-sm font-normal text-muted-foreground">/ {{ rows.length }}</span></p>
+                </Card>
+                <Card class="gap-1 px-4 py-3" data-testid="tile-attended">
+                    <p class="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Attended SP</p>
+                    <p v-if="anyMarked" class="text-lg font-semibold tabular-nums">{{ attendedCount }} <span class="text-sm font-normal text-muted-foreground">/ {{ rows.length }}</span></p>
+                    <p v-else class="text-lg font-semibold text-muted-foreground">pending</p>
+                </Card>
+                <Card class="gap-1 px-4 py-3" data-testid="tile-bbcode">
+                    <p class="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">BBCode</p>
+                    <p v-if="bbcode.ok" class="text-lg font-semibold text-primary">ready to copy</p>
+                    <p v-else class="text-lg font-semibold text-muted-foreground">no template</p>
+                </Card>
+            </div>
+
             <p
                 v-if="banner"
                 data-testid="prefill-banner"
@@ -328,7 +365,8 @@ const weekHref = (start) => `/rollcall/${props.section.id}?week=${start}`;
                             <tr v-for="(row, index) in rows" :key="row.id" class="border-b border-border last:border-b-0" data-testid="trooper-row">
                                 <td class="px-3 py-2.5 font-mono text-xs text-muted-foreground">{{ index + 1 }}</td>
                                 <th scope="row" class="px-3 py-2.5 text-left font-normal">
-                                    <span class="font-medium" data-testid="trooper-name">{{ row.displayName }}</span>
+                                    <a v-if="links.milpac" :href="`${links.milpac}${row.id}`" class="font-medium text-primary hover:underline" data-testid="trooper-name">{{ row.displayName }}</a>
+                                    <span v-else class="font-medium" data-testid="trooper-name">{{ row.displayName }}</span>
                                     <LoaBadge v-if="row.loa.state === 'needs_review'" :cover="row.loa" :sync="sync.loa" class="ml-2" />
                                     <span class="block text-xs text-muted-foreground">{{ row.billet ?? 'No billet on record' }}</span>
                                 </th>
@@ -370,12 +408,13 @@ const weekHref = (start) => `/rollcall/${props.section.id}?week=${start}`;
                 <div class="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/20 px-4 py-3" data-testid="actions">
                     <p v-if="errorText" role="alert" class="text-xs text-destructive" data-testid="save-error">{{ errorText }}</p>
                     <p v-else class="text-xs text-muted-foreground" data-testid="save-summary">
-                        {{ marks.length ? `${marks.length} to save` : 'Nothing to save.' }}
+                        {{ marks.length ? `${marks.length} to save.` : 'Nothing to save.' }}
                         <template v-if="prefilled"> Saving accepts what was carried over.</template>
                     </p>
 
                     <div class="flex flex-wrap items-center gap-2">
                         <Button variant="outline" size="sm" :disabled="previewing || !rows.length" data-testid="mark-all-present" @click="markAllPresent">Mark all present</Button>
+                        <Button variant="outline" size="sm" :disabled="previewing || !rows.length" data-testid="mark-all-signed" @click="markAllSigned">Mark all RC = Yes</Button>
                         <Button variant="outline" size="sm" :disabled="previewing || processing" data-testid="reset" @click="resetDraft">Reset</Button>
                         <Button size="sm" :disabled="previewing || processing" data-testid="save" @click="save">Save rollcall</Button>
                     </div>
@@ -385,15 +424,17 @@ const weekHref = (start) => `/rollcall/${props.section.id}?week=${start}`;
             <Card class="gap-0 py-0" data-testid="bbcode-panel">
                 <div class="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
                     <h2 class="text-[13px] font-semibold tracking-wide uppercase">Forum BBCode</h2>
-                    <Badge v-if="template?.version" variant="outline" data-testid="template-version">Template v{{ template.version }}</Badge>
+                    <div class="flex items-center gap-2">
+                        <Badge v-if="template?.version" variant="outline" data-testid="template-version">Template v{{ template.version }}</Badge>
+                        <Button v-if="bbcode.ok" size="sm" data-testid="copy-bbcode" @click="copyBbcode"><PhCopy aria-hidden="true" />Copy BBCode</Button>
+                    </div>
                 </div>
 
                 <div class="space-y-3 p-4">
                     <p v-if="!bbcode.ok" class="text-[13px] text-muted-foreground" :data-testid="bbcode.missing ? 'bbcode-missing' : 'bbcode-error'" role="status">{{ bbcode.message }}</p>
 
                     <template v-else>
-                        <Textarea :model-value="bbcode.text" readonly rows="18" class="font-mono text-xs" aria-label="Rollcall BBCode, ready to copy" data-testid="bbcode-text" />
-                        <Button size="sm" class="w-full" data-testid="copy-bbcode" @click="copyBbcode"><PhCopy aria-hidden="true" />Copy BBCode</Button>
+                        <Textarea :model-value="bbcode.text" readonly rows="18" class="min-h-96 font-mono text-xs" aria-label="Rollcall BBCode, ready to copy" data-testid="bbcode-text" />
                     </template>
 
                     <p class="text-xs text-muted-foreground" data-testid="bbcode-note">

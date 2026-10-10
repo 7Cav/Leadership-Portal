@@ -142,7 +142,63 @@ describe('Rollcall', () => {
         });
     });
 
+    describe('the tiles, as the mockup draws them', () => {
+        it('shows the week, who signed and who attended, counted from the draft', async () => {
+            const wrapper = page();
+
+            expect(wrapper.get('[data-testid="tile-week"]').text()).toContain('03Oct26 – 09Oct26');
+            expect(wrapper.get('[data-testid="tile-signed"]').text()).toContain('1 / 4');
+            expect(wrapper.get('[data-testid="tile-attended"]').text()).toContain('2 / 4');
+
+            await rowOf(wrapper, 'SPC Crooks.A').get('[data-testid="rc-cell"] [data-value="will_attend"]').trigger('click');
+            await rowOf(wrapper, 'SPC Crooks.A').get('[data-testid="sp-cell"] [data-value="makeup"]').trigger('click');
+
+            expect(wrapper.get('[data-testid="tile-signed"]').text()).toContain('2 / 4');
+            expect(wrapper.get('[data-testid="tile-attended"]').text()).toContain('3 / 4');
+        });
+
+        it('says attendance is pending until anyone is marked, and counts a trooper on leave as marked', () => {
+            const unmarked = page({ troopers: [trooper(1, 'PFC Svensson.A', 'PFC', UNMARKED), trooper(2, 'SPC Crooks.A', 'SPC', UNMARKED)] });
+            const onLeave = page({ troopers: [trooper(1, 'PFC Svensson.A', 'PFC', UNMARKED), trooper(3, 'SPC Adams.P', 'SPC', { value: 'loa', origin: 'leave', source: null }, { loa: COVERED })] });
+
+            expect(unmarked.get('[data-testid="tile-attended"]').text()).toContain('pending');
+            expect(onLeave.get('[data-testid="tile-attended"]').text()).toContain('0 / 2');
+        });
+
+        it('says whether the BBCode is ready, and that there is no template when there is not', () => {
+            expect(page().get('[data-testid="tile-bbcode"]').text()).toContain('ready to copy');
+            expect(page({ template: { state: 'no_active_template', companyId: 2, versionId: null, version: null, body: null } }).get('[data-testid="tile-bbcode"]').text()).toContain('no template');
+        });
+
+        it('explains the screen in a line under the title', () => {
+            expect(page().get('[data-testid="subtitle"]').text()).toContain('copies in one click');
+        });
+    });
+
     describe('the roster', () => {
+        it('lists the leader first, then the assistant leader, then everyone by rank, as the mockups do', () => {
+            const wrapper = page({
+                troopers: [
+                    trooper(1, 'PFC Svensson.A', 'PFC', UNMARKED),
+                    trooper(2, 'SPC Milkovic.D', 'SPC', UNMARKED, { billet: 'Asst. Section Leader' }),
+                    trooper(3, 'CPL Flanagan.L', 'CPL', UNMARKED),
+                    trooper(4, 'SGT Jay.JH', 'SGT', UNMARKED, { billet: 'Section Leader' }),
+                    trooper(5, 'SPC Crooks.A', 'SPC', UNMARKED),
+                ],
+            });
+
+            expect(wrapper.findAll('[data-testid="trooper-name"]').map((n) => n.text())).toEqual(['SGT Jay.JH', 'SPC Milkovic.D', 'CPL Flanagan.L', 'SPC Crooks.A', 'PFC Svensson.A']);
+        });
+
+        it('opens a trooper\'s milpac from their name once that page exists, and is plain text until then', () => {
+            const linked = page({ links: { milpac: '/troopers/' } });
+            const plain = page();
+
+            expect(linked.get('[data-testid="trooper-name"]').element.tagName).toBe('A');
+            expect(linked.findAll('[data-testid="trooper-name"]')[0].attributes('href')).toBe('/troopers/2');
+            expect(plain.get('[data-testid="trooper-name"]').element.tagName).toBe('SPAN');
+        });
+
         it('lists the troopers senior first, then by name, numbered', () => {
             const names = page().findAll('[data-testid="trooper-name"]').map((n) => n.text());
 
@@ -323,6 +379,35 @@ describe('Rollcall', () => {
             expect(spOf(wrapper, 'SGT Jay.JH').get('[data-value="present"]').attributes('aria-pressed')).toBe('true');
         });
 
+        it('sets every signature to Yes with "Mark all RC = Yes", on leave or not, and counts them', async () => {
+            const wrapper = page();
+
+            await wrapper.get('[data-testid="mark-all-signed"]').trigger('click');
+
+            for (const name of ['SGT Jay.JH', 'SPC Adams.P', 'SPC Crooks.A', 'PFC Svensson.A']) {
+                expect(rowOf(wrapper, name).get('[data-testid="rc-cell"] [data-value="will_attend"]').attributes('aria-pressed')).toBe('true');
+            }
+            expect(wrapper.get('[data-testid="tile-signed"]').text()).toContain('4 / 4');
+        });
+
+        it('sends "Mark all RC = Yes" as signatures only for the troopers it changed', async () => {
+            const wrapper = page();
+
+            await wrapper.get('[data-testid="mark-all-signed"]').trigger('click');
+            await wrapper.get('[data-testid="save"]').trigger('click');
+
+            const sent = lastPost()[1].marks;
+
+            // Jay already signed Yes, so he is not sent for it; the other three changed.
+            expect(sent.filter((m) => m.rollcall === 'will_attend').map((m) => m.trooper_id).sort()).toEqual([1, 3, 4]);
+        });
+
+        it('turns "Mark all RC = Yes" off while viewing as someone else', () => {
+            previewing = true;
+
+            expect(page().get('[data-testid="mark-all-signed"]').attributes('disabled')).toBeDefined();
+        });
+
         it('sets every trooper not on leave to present with "Mark all present", and leaves the leave row alone', async () => {
             const wrapper = page();
 
@@ -479,6 +564,13 @@ describe('Rollcall', () => {
             await click(rowOf(wrapper, 'PFC Svensson.A'), 'rc-cell', 'will_attend');
 
             expect(text(wrapper)).toContain('4. Svensson.A: Yes / Yes');
+        });
+
+        it('puts the Copy button in the panel header, beside the template version, as the mockup does', () => {
+            const header = page().get('[data-testid="bbcode-panel"] > div');
+
+            expect(header.get('[data-testid="copy-bbcode"]').exists()).toBe(true);
+            expect(header.get('[data-testid="template-version"]').exists()).toBe(true);
         });
 
         it('copies exactly the BBCode shown, and makes no request to anyone', async () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import cases from '../../../../tests/Fixtures/bbcode-templates.json';
 import { FILTERS, LISTS, ROW_FLAGS, ROW_STRINGS, TOP_STRINGS, inert, parse, render, rollcallContext } from '../bbcode';
-import { compareSeniorFirst } from '../ranks';
+import { compareByBillet } from '../ranks';
 
 // Story 3.10. The grammar cases are shared with the server's TemplateSyntax (tests/Fixtures/bbcode-templates.json), so the
 // browser and the server accept and refuse the same templates with the same messages.
@@ -229,14 +229,14 @@ describe('rollcallContext', () => {
         ],
     };
     const draft = { 1: { sp: 'missed', rc: null }, 2: { sp: 'present', rc: 'will_attend' }, 3: { sp: null, rc: 'cannot_attend' }, 4: { sp: 'makeup', rc: null } };
-    const built = rollcallContext(screen, draft, compareSeniorFirst);
+    const built = rollcallContext(screen, draft, compareByBillet);
 
     it('describes the section and the week in forum convention', () => {
         expect(built).toMatchObject({ unit: '1/E/2-7', unit_name: 'Jaegers', week: '16May26 – 22May26', week_start: '16May26', week_end: '22May26' });
     });
 
     it('falls back to the section name when it has no callsign', () => {
-        expect(rollcallContext({ ...screen, section: { id: 5, name: 'Jaegers', callsign: null } }, draft, compareSeniorFirst).unit).toBe('Jaegers');
+        expect(rollcallContext({ ...screen, section: { id: 5, name: 'Jaegers', callsign: null } }, draft, compareByBillet).unit).toBe('Jaegers');
     });
 
     it('lists the troopers senior first and numbers them', () => {
@@ -276,14 +276,14 @@ describe('rollcallContext', () => {
     });
 
     it('marks a trooper nobody has marked as unmarked', () => {
-        const unmarked = rollcallContext(screen, { 1: { sp: null, rc: null }, 2: { sp: null, rc: null }, 3: { sp: null, rc: null }, 4: { sp: null, rc: null } }, compareSeniorFirst);
+        const unmarked = rollcallContext(screen, { 1: { sp: null, rc: null }, 2: { sp: null, rc: null }, 3: { sp: null, rc: null }, 4: { sp: null, rc: null } }, compareByBillet);
 
         expect(unmarked.troopers.find((t) => t.name === 'Jay.JH')).toMatchObject({ sp: '', sp_unmarked: true });
         expect(unmarked.attended).toBe('0');
     });
 
     it('prints a trooper with no billet as an empty role, and one with no username by display name', () => {
-        const custom = rollcallContext({ ...screen, troopers: [{ ...screen.troopers[0], username: null, billet: null }] }, draft, compareSeniorFirst);
+        const custom = rollcallContext({ ...screen, troopers: [{ ...screen.troopers[0], username: null, billet: null }] }, draft, compareByBillet);
 
         expect(custom.troopers[0]).toMatchObject({ role: '', name: 'PFC Svensson.A' });
     });

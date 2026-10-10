@@ -21,6 +21,7 @@ use Carbon\Exceptions\InvalidFormatException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -76,6 +77,9 @@ class RollcallController extends Controller
         }
 
         return Inertia::render('Rollcall', $this->screen->for($unit, $week) + [
+            // A trooper's name opens their milpac once that page exists (Epic 6); until then it is plain text, as the
+            // roster Sheet does for rollcall (Story 3.7), rather than a link to a 404.
+            'links' => ['milpac' => Route::has('troopers.show') ? '/troopers/' : null],
             'sections' => $this->sections($request)->map(fn (Unit $section) => [
                 'id' => $section->id,
                 'name' => $section->name,

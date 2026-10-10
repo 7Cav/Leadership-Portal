@@ -20,6 +20,7 @@ use App\Repositories\TemplateVersionRepository;
 use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 
 // Story 3.7: the weekly rollcall of one section, scope-gated by the ScopeResolver and pre-filled from the roster, the
 // leave data and the prior week. "Now" is Thursday 2026-10-08, so the current Cav week opens Saturday 2026-10-03 and the
@@ -396,6 +397,19 @@ describe('source and last sync (AD-20)', function () {
         rollcallOpen($this->actingAs($this->leader), $this->section)->assertInertia(fn ($page) => $page
             ->where('sync.roster.lastSyncedAt', null)
             ->where('sync.loa.neverSynced', false));
+    });
+});
+
+describe('the milpac link (Epic 6)', function () {
+    it('gives no link base while the milpac page does not exist, so a name is never a link to a 404', function () {
+        rollcallOpen($this->actingAs($this->leader), $this->section)->assertInertia(fn ($page) => $page->where('links.milpac', null));
+    });
+
+    it('gives the milpac link base once that route is registered', function () {
+        Route::middleware(['web', 'auth'])->get('/troopers/{trooper}', fn () => 'ok')->name('troopers.show');
+        app('router')->getRoutes()->refreshNameLookups();
+
+        rollcallOpen($this->actingAs($this->leader), $this->section)->assertInertia(fn ($page) => $page->where('links.milpac', '/troopers/'));
     });
 });
 

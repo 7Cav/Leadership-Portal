@@ -132,7 +132,7 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                                 v-model="form.body"
                                 data-testid="template-body"
                                 rows="16"
-                                class="font-mono text-xs"
+                                class="min-h-80 font-mono text-xs"
                                 :maxlength="maxBodyLength"
                                 :aria-invalid="!!form.errors.body"
                             />
@@ -142,7 +142,7 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
 
                         <div class="grid gap-1.5">
                             <Label for="template-reason">Reason</Label>
-                            <Textarea id="template-reason" v-model="form.reason" data-testid="template-reason" rows="2" :aria-invalid="!!form.errors.reason" />
+                            <Textarea id="template-reason" v-model="form.reason" data-testid="template-reason" rows="2" class="min-h-16" :aria-invalid="!!form.errors.reason" />
                             <p class="text-xs text-muted-foreground">Recorded in the audit log with the new version.</p>
                             <p v-if="form.errors.reason" class="text-xs text-destructive" data-testid="error-reason">{{ form.errors.reason }}</p>
                         </div>
