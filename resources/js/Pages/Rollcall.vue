@@ -1,7 +1,8 @@
 <script setup>
-import { computed } from 'vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { computed, reactive, ref, watch } from 'vue';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { PhCaretLeft, PhCaretRight, PhCheckCircle, PhClipboardText, PhInfo, PhUsersThree, PhWarning } from '@phosphor-icons/vue';
+import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -13,9 +14,11 @@ import StatusSegments from '@/components/StatusSegments.vue';
 import { forumDate, forumDateTime } from '@/lib/forumDate';
 import { compareSeniorFirst } from '@/lib/ranks';
 
-// The weekly rollcall of one section (Story 3.7). The server (`Rollcall\RollcallScreen`) shapes everything and the
-// controller has already gated the section; this page draws it. Marking is Story 3.8: until then every control is
-// read-only, so the screen shows what is there and what was carried over, and offers nothing to press.
+// The weekly rollcall of one section (Stories 3.7, 3.8). The server (`Rollcall\RollcallScreen`) shapes everything and the
+// controller has already gated the section; this page draws it and lets a leader mark the week. Nothing is saved until
+// "Save rollcall": the toggles change a draft, and a value carried over from last week is only a suggestion until then.
+// A trooper on leave has no practice toggle (their status is derived, never entered), and while viewing as someone else
+// every control is off, since a preview is read-only. The server enforces both whatever this page shows (AD-6).
 const props = defineProps({
     section: { type: Object, default: null },
     sections: { type: Array, default: () => [] },
@@ -24,6 +27,9 @@ const props = defineProps({
     banner: { type: Object, default: null },
     sync: { type: Object, default: null },
 });
+
+const page = usePage();
+const previewing = computed(() => Boolean(page.props.viewAs));
 
 const sectionLabel = computed(() => (props.section?.callsign ? `${props.section.callsign} ${props.section.name}` : props.section?.name));
 const optionLabel = (section) => (section.callsign ? `${section.callsign} ${section.name}` : section.name);
@@ -49,7 +55,93 @@ const TONES = {
     attached: 'bg-warning/25',
 };
 
-// The pre-fill banner, said in words so a leader knows what is a suggestion and what is saved.
+// ---- The draft: what the leader has chosen so far, row by row.
+const onLeave = (row) => row.practice.origin === 'leave';
+const startingSp = (row) => (onLeave(row) ? null : row.practice.value);
+const startingRc = (row) => (row.rollcall === 'unsigned' ? null : row.rollcall);
+
+const draft = reactive({});
+function resetDraft() {
+    for (const key of Object.keys(draft)) delete draft[key];
+    for (const row of props.troopers) draft[row.id] = { sp: startingSp(row), rc: startingRc(row) };
+}
+// A new week, section or save arrives as new props, so the draft starts again from them.
+watch(() => props.troopers, resetDraft, { immediate: true });
+
+// A saved mark cannot be cleared (a correction is another status), but a choice nobody has saved can be taken back.
+function chooseSp(row, value) {
+    const d = draft[row.id];
+
+    if (d.sp === value) {
+        if (row.practice.origin !== 'saved') d.sp = null;
+
+        return;
+    }
+
+    d.sp = value;
+}
+
+function chooseRc(row, value) {
+    const d = draft[row.id];
+    d.rc = d.rc === value ? null : value;
+}
+
+// "Mark all present" is the same as choosing it row by row: it sets the draft, never a second write path.
+function markAllPresent() {
+    for (const row of props.troopers) {
+        if (!onLeave(row)) draft[row.id].sp = 'present';
+    }
+}
+
+// What is sent: a practice status the leader changed, or a carried suggestion they left in place (submitting accepts it),
+// and a signature they changed. A saved mark they did not touch is not sent, so re-saving never rewrites someone else's.
+const marks = computed(() =>
+    props.troopers.flatMap((row) => {
+        const d = draft[row.id];
+        if (!d) return [];
+
+        const mark = { trooper_id: row.id };
+        const changed = d.sp !== startingSp(row);
+        const accepted = row.practice.origin === 'carried' && d.sp === row.practice.value;
+        if (!onLeave(row) && d.sp !== null && (changed || accepted)) mark.status = d.sp;
+        if (d.rc !== startingRc(row)) mark.rollcall = d.rc ?? 'unsigned';
+
+        return mark.status || mark.rollcall ? [mark] : [];
+    }),
+);
+
+const originOf = (row) => {
+    if (onLeave(row)) return 'leave';
+
+    return draft[row.id]?.sp === startingSp(row) ? row.practice.origin : 'edited';
+};
+
+// ---- Saving.
+const processing = ref(false);
+const errors = ref({});
+const errorText = computed(() => Object.values(errors.value)[0] ?? null);
+
+function save() {
+    processing.value = true;
+    errors.value = {};
+
+    router.post(
+        `/rollcall/${props.section.id}`,
+        { week: props.week.start, marks: marks.value },
+        {
+            preserveScroll: true,
+            onSuccess: () => toast.success('Rollcall saved'),
+            onError: (e) => {
+                errors.value = e;
+            },
+            onFinish: () => {
+                processing.value = false;
+            },
+        },
+    );
+}
+
+// ---- The pre-fill banner, said in words so a leader knows what is a suggestion and what is saved.
 const bannerText = computed(() => {
     const b = props.banner;
     if (!b) return '';
@@ -148,6 +240,11 @@ const weekHref = (start) => `/rollcall/${props.section.id}?week=${start}`;
                 </span>
             </p>
 
+            <p v-if="previewing" data-testid="preview-notice" role="status" class="flex items-start gap-2 rounded-lg border border-warning/35 bg-warning/8 px-3.5 py-2.5 text-[13px]">
+                <PhWarning class="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
+                <span>You are viewing as someone else. A preview is read-only, so nothing here can be saved. Exit view as to mark the rollcall.</span>
+            </p>
+
             <p v-for="line in syncLines" :key="line.name" class="-mt-3 flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="sync-line">
                 <PhWarning v-if="line.stale" class="size-3.5 text-warning" aria-hidden="true" />
                 <span>{{ line.name }}: {{ line.text }}</span>
@@ -177,27 +274,51 @@ const weekHref = (start) => `/rollcall/${props.section.id}?week=${start}`;
                                     <LoaBadge v-if="row.loa.state === 'needs_review'" :cover="row.loa" :sync="sync.loa" class="ml-2" />
                                     <span class="block text-xs text-muted-foreground">{{ row.billet ?? 'No billet on record' }}</span>
                                 </th>
-                                <td class="px-3 py-2.5">
-                                    <StatusSegments :options="RC_OPTIONS" :model-value="row.rollcall === 'unsigned' ? null : row.rollcall" :tones="TONES" :label="`Signed rollcall, ${row.displayName}`" />
-                                    <span v-if="row.rollcall === 'unsigned'" class="ml-1.5 text-xs text-muted-foreground" data-testid="unsigned">not signed</span>
+                                <td class="px-3 py-2.5" data-testid="rc-cell">
+                                    <StatusSegments
+                                        :options="RC_OPTIONS"
+                                        :model-value="draft[row.id]?.rc ?? null"
+                                        :tones="TONES"
+                                        :readonly="previewing"
+                                        :label="`Signed rollcall, ${row.displayName}`"
+                                        @update:model-value="(value) => chooseRc(row, value)"
+                                    />
+                                    <span v-if="!draft[row.id]?.rc" class="ml-1.5 text-xs text-muted-foreground" data-testid="unsigned">not signed</span>
                                 </td>
-                                <td class="px-3 py-2.5" data-testid="sp-cell" :data-origin="row.practice.origin ?? 'none'">
-                                    <LoaBadge v-if="row.practice.origin === 'leave'" :cover="row.loa" :sync="sync.loa" />
+                                <td class="px-3 py-2.5" data-testid="sp-cell" :data-origin="originOf(row) ?? 'none'">
+                                    <LoaBadge v-if="onLeave(row)" :cover="row.loa" :sync="sync.loa" />
                                     <template v-else>
                                         <StatusSegments
                                             :options="SP_OPTIONS"
-                                            :model-value="row.practice.value"
+                                            :model-value="draft[row.id]?.sp ?? null"
                                             :tones="TONES"
-                                            :dashed="row.practice.origin === 'carried'"
+                                            :dashed="originOf(row) === 'carried'"
+                                            :readonly="previewing"
                                             :label="`Attended Section Practice, ${row.displayName}`"
+                                            @update:model-value="(value) => chooseSp(row, value)"
                                         />
-                                        <span v-if="row.practice.origin === 'carried'" class="ml-1.5 text-xs text-muted-foreground" data-testid="carried">from last week</span>
-                                        <span v-else-if="!row.practice.value" class="ml-1.5 text-xs text-muted-foreground" data-testid="unmarked">not marked</span>
+                                        <span v-if="originOf(row) === 'carried'" class="ml-1.5 text-xs text-muted-foreground" data-testid="carried">from last week</span>
+                                        <span v-else-if="originOf(row) === 'edited'" class="ml-1.5 text-xs text-muted-foreground" data-testid="edited">unsaved</span>
+                                        <span v-else-if="!draft[row.id]?.sp" class="ml-1.5 text-xs text-muted-foreground" data-testid="unmarked">not marked</span>
                                     </template>
                                 </td>
                             </tr>
                         </tbody>
                     </table>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/20 px-4 py-3" data-testid="actions">
+                    <p v-if="errorText" role="alert" class="text-xs text-destructive" data-testid="save-error">{{ errorText }}</p>
+                    <p v-else class="text-xs text-muted-foreground" data-testid="save-summary">
+                        {{ marks.length ? `${marks.length} to save` : 'Nothing to save.' }}
+                        <template v-if="prefilled"> Saving accepts what was carried over.</template>
+                    </p>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <Button variant="outline" size="sm" :disabled="previewing || !rows.length" data-testid="mark-all-present" @click="markAllPresent">Mark all present</Button>
+                        <Button variant="outline" size="sm" :disabled="previewing || processing" data-testid="reset" @click="resetDraft">Reset</Button>
+                        <Button size="sm" :disabled="previewing || processing" data-testid="save" @click="save">Save rollcall</Button>
+                    </div>
                 </div>
             </Card>
         </template>

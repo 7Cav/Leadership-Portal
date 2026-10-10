@@ -39,6 +39,8 @@ Route::middleware('auth')->group(function () {
     // ScopeResolver (AD-8). The name is the one the roster Sheet and the milpac quick actions link to.
     Route::get('/rollcall', [RollcallController::class, 'index'])->name('rollcall.index');
     Route::get('/rollcall/{unit}', [RollcallController::class, 'show'])->whereNumber('unit')->name('rollcall.show');
+    // Saving a week's marks (Story 3.8): audited, scope-gated, and refused while viewing as someone else.
+    Route::post('/rollcall/{unit}', [RollcallController::class, 'store'])->whereNumber('unit')->name('rollcall.store');
 
     // Logout (Story 1.5). POST, so it carries CSRF protection and can't be triggered by a
     // prefetched link or a cross-site <img>.

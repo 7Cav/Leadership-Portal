@@ -2,18 +2,30 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import Rollcall from '../Rollcall.vue';
 
-// Story 3.7: the rollcall draws what the server shaped; it decides nothing about who may look and marks nothing yet.
+// Stories 3.7 and 3.8: the rollcall draws what the server shaped, decides nothing about who may look, and sends only what a
+// leader changed or accepted.
 
 const routerGet = vi.fn();
+const routerPost = vi.fn();
+const toastSuccess = vi.fn();
+let previewing = false;
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
     // `<Head>` needs a real Inertia app instance; this unit test does not stand one up.
     Head: { template: '<head></head>' },
-    router: { get: (...args) => routerGet(...args) },
+    router: { get: (...args) => routerGet(...args), post: (...args) => routerPost(...args) },
+    usePage: () => ({ props: { viewAs: previewing ? { kind: 'unit', id: 9 } : null } }),
 }));
 
-afterEach(() => routerGet.mockReset());
+vi.mock('vue-sonner', () => ({ toast: { success: (...args) => toastSuccess(...args) } }));
+
+afterEach(() => {
+    routerGet.mockReset();
+    routerPost.mockReset();
+    toastSuccess.mockReset();
+    previewing = false;
+});
 
 const SECTION = { id: 5, name: '1st Section', callsign: '1/1/A/1-7' };
 const WEEK = { start: '2026-10-03', end: '2026-10-09', isCurrent: true, previous: '2026-09-26', next: null };
@@ -181,8 +193,177 @@ describe('Rollcall', () => {
             expect(row.get('th [data-testid="loa-badge"]').text()).toContain('needs review');
         });
 
-        it('has no control anywhere: marking is the next story', () => {
-            expect(page().findAll('button, input, select, textarea, form').filter((el) => !el.attributes('data-testid')?.startsWith('next-week-disabled'))).toHaveLength(0);
+        it('gives a trooper on leave no practice toggle, but still their signature', () => {
+            const row = rowOf(page(), 'SPC Adams.P');
+
+            expect(row.get('[data-testid="sp-cell"]').findAll('button')).toHaveLength(0);
+            expect(row.get('[data-testid="rc-cell"]').findAll('button')).toHaveLength(2);
+        });
+    });
+
+    describe('marking (3.8)', () => {
+        const click = (row, cell, value) => row.get(`[data-testid="${cell}"] [data-value="${value}"]`).trigger('click');
+        const spOf = (wrapper, name) => rowOf(wrapper, name).get('[data-testid="sp-cell"]');
+        const lastPost = () => routerPost.mock.calls.at(-1);
+
+        it('turns the toggles into buttons', () => {
+            const cell = spOf(page(), 'SPC Crooks.A');
+
+            expect(cell.findAll('button')).toHaveLength(4);
+            expect(cell.get('[data-value="present"]').attributes('aria-pressed')).toBe('false');
+        });
+
+        it('selects what is pressed, says it is unsaved, and counts it', async () => {
+            const wrapper = page();
+
+            await click(rowOf(wrapper, 'SPC Crooks.A'), 'sp-cell', 'missed');
+
+            expect(spOf(wrapper, 'SPC Crooks.A').get('[data-value="missed"]').attributes('aria-pressed')).toBe('true');
+            expect(spOf(wrapper, 'SPC Crooks.A').get('[data-testid="edited"]').text()).toBe('unsaved');
+            expect(wrapper.get('[data-testid="save-summary"]').text()).toContain('2 to save');
+        });
+
+        it('sends only what changed or was accepted: a carried present and an edit, never an untouched saved mark', async () => {
+            const wrapper = page();
+
+            await click(rowOf(wrapper, 'SPC Crooks.A'), 'sp-cell', 'makeup');
+            await wrapper.get('[data-testid="save"]').trigger('click');
+
+            expect(routerPost).toHaveBeenCalledOnce();
+            expect(lastPost()[0]).toBe('/rollcall/5');
+            expect(lastPost()[1]).toEqual({
+                week: '2026-10-03',
+                marks: [{ trooper_id: 1, status: 'present' }, { trooper_id: 4, status: 'makeup', rollcall: undefined }].map((m) => JSON.parse(JSON.stringify(m))),
+            });
+        });
+
+        it('says what saving does to a carried value', () => {
+            expect(page().get('[data-testid="save-summary"]').text()).toContain('Saving accepts what was carried over.');
+        });
+
+        it('lets a leader take back a carried suggestion, and then sends nothing for it', async () => {
+            const wrapper = page();
+
+            await click(rowOf(wrapper, 'PFC Svensson.A'), 'sp-cell', 'present');
+
+            expect(spOf(wrapper, 'PFC Svensson.A').findAll('[data-selected="true"]')).toHaveLength(0);
+            expect(wrapper.get('[data-testid="save-summary"]').text()).toContain('Nothing to save.');
+        });
+
+        it('does not let a saved mark be cleared by pressing it again', async () => {
+            const wrapper = page();
+
+            await click(rowOf(wrapper, 'SGT Jay.JH'), 'sp-cell', 'present');
+
+            expect(spOf(wrapper, 'SGT Jay.JH').get('[data-value="present"]').attributes('aria-pressed')).toBe('true');
+        });
+
+        it('sets every trooper not on leave to present with "Mark all present", and leaves the leave row alone', async () => {
+            const wrapper = page();
+
+            await wrapper.get('[data-testid="mark-all-present"]').trigger('click');
+
+            for (const name of ['SGT Jay.JH', 'SPC Crooks.A', 'PFC Svensson.A']) {
+                expect(spOf(wrapper, name).get('[data-value="present"]').attributes('aria-pressed')).toBe('true');
+            }
+            expect(spOf(wrapper, 'SPC Adams.P').findAll('button')).toHaveLength(0);
+            expect(spOf(wrapper, 'SPC Adams.P').find('[data-testid="loa-badge"]').exists()).toBe(true);
+        });
+
+        it('sends "Mark all present" as the same marks a leader would have set row by row, leave rows excluded', async () => {
+            const wrapper = page();
+
+            await wrapper.get('[data-testid="mark-all-present"]').trigger('click');
+            await wrapper.get('[data-testid="save"]').trigger('click');
+
+            const sent = lastPost()[1].marks.map((m) => m.trooper_id).sort();
+
+            // Jay's present is already saved and unchanged, Adams is on leave: only Svensson (accepted) and Crooks (new).
+            expect(sent).toEqual([1, 4]);
+            expect(lastPost()[1].marks.every((m) => m.status === 'present')).toBe(true);
+        });
+
+        it('sets a signature, and takes it back on a second press', async () => {
+            const wrapper = page({ troopers: [trooper(7, 'SPC Hollis.D', 'SPC', UNMARKED)] });
+            const pressed = () => rowOf(wrapper, 'SPC Hollis.D').get('[data-testid="rc-cell"] [data-value="will_attend"]').attributes('aria-pressed');
+
+            await click(rowOf(wrapper, 'SPC Hollis.D'), 'rc-cell', 'will_attend');
+            expect(pressed()).toBe('true');
+            expect(wrapper.get('[data-testid="save-summary"]').text()).toContain('1 to save');
+
+            await click(rowOf(wrapper, 'SPC Hollis.D'), 'rc-cell', 'will_attend');
+            expect(pressed()).toBe('false');
+            expect(wrapper.get('[data-testid="save-summary"]').text()).toContain('Nothing to save.');
+        });
+
+        it('sends a signature set back to unsigned', async () => {
+            const wrapper = page();
+
+            await click(rowOf(wrapper, 'SPC Crooks.A'), 'rc-cell', 'cannot_attend');
+            await wrapper.get('[data-testid="save"]').trigger('click');
+
+            expect(lastPost()[1].marks).toContainEqual({ trooper_id: 4, rollcall: 'unsigned' });
+        });
+
+        it('sends a new signature for a trooper who had none', async () => {
+            const wrapper = page({ troopers: [trooper(7, 'SPC Hollis.D', 'SPC', UNMARKED)] });
+
+            await click(rowOf(wrapper, 'SPC Hollis.D'), 'rc-cell', 'will_attend');
+            await wrapper.get('[data-testid="save"]').trigger('click');
+
+            expect(lastPost()[1].marks).toEqual([{ trooper_id: 7, rollcall: 'will_attend' }]);
+        });
+
+        it('puts everything back with Reset', async () => {
+            const wrapper = page();
+
+            await click(rowOf(wrapper, 'SPC Crooks.A'), 'sp-cell', 'missed');
+            await wrapper.get('[data-testid="reset"]').trigger('click');
+
+            expect(spOf(wrapper, 'SPC Crooks.A').findAll('[data-selected="true"]')).toHaveLength(0);
+            expect(wrapper.get('[data-testid="save-summary"]').text()).toContain('1 to save');
+        });
+
+        it('saves an empty roster as an empty list of marks, which only records the practice', async () => {
+            const wrapper = page({ troopers: [], banner: { eligible: 0, saved: 0, carried: 0, fromWeek: null } });
+
+            await wrapper.get('[data-testid="save"]').trigger('click');
+
+            expect(lastPost()[1]).toEqual({ week: '2026-10-03', marks: [] });
+            expect(wrapper.get('[data-testid="mark-all-present"]').attributes('disabled')).toBeDefined();
+        });
+
+        it('says it saved, and shows the server\'s refusal beside the buttons', async () => {
+            const wrapper = page();
+            await wrapper.get('[data-testid="save"]').trigger('click');
+
+            const options = lastPost()[2];
+            options.onSuccess();
+            options.onFinish();
+            expect(toastSuccess).toHaveBeenCalledWith('Rollcall saved');
+
+            await wrapper.get('[data-testid="save"]').trigger('click');
+            lastPost()[2].onError({ marks: 'Troopers 4 are on leave for this week.' });
+            await wrapper.vm.$nextTick();
+
+            expect(wrapper.get('[data-testid="save-error"]').text()).toBe('Troopers 4 are on leave for this week.');
+        });
+
+        it('turns every control off while viewing as someone else, and says why', () => {
+            previewing = true;
+            const wrapper = page();
+
+            expect(wrapper.get('[data-testid="preview-notice"]').text()).toContain('read-only');
+            expect(spOf(wrapper, 'SPC Crooks.A').findAll('button')).toHaveLength(0);
+            expect(wrapper.get('[data-testid="save"]').attributes('disabled')).toBeDefined();
+            expect(wrapper.get('[data-testid="mark-all-present"]').attributes('disabled')).toBeDefined();
+        });
+
+        it('shows no preview notice, and live controls, otherwise', () => {
+            const wrapper = page();
+
+            expect(wrapper.find('[data-testid="preview-notice"]').exists()).toBe(false);
+            expect(wrapper.get('[data-testid="save"]').attributes('disabled')).toBeUndefined();
         });
     });
 
