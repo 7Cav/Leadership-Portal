@@ -8,6 +8,7 @@ use App\Loa\LoaProvenance;
 use App\Models\Attendance;
 use App\Models\AttendanceStatus;
 use App\Models\RollcallSignature;
+use App\Models\SectionPractice;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
@@ -68,9 +69,10 @@ final class RollcallScreen
             ->values();
 
         $covers = $this->loaCoverage->forTroopers($roster->pluck('id')->all(), $weekStart);
-        $saved = $this->marksOf($section, $weekStart);
-        $prior = $this->marksOf($section, $weekStart->subWeek());
-        $hasPriorWeek = $this->practices->find($section->id, $weekStart->subWeek()) !== null;
+        $priorPractice = $this->practices->find($section->id, $weekStart->subWeek());
+        $saved = $this->marksOf($this->practices->find($section->id, $weekStart));
+        $prior = $this->marksOf($priorPractice);
+        $hasPriorWeek = $priorPractice !== null;
 
         $rows = $roster->map(fn (Trooper $trooper) => $this->row($trooper, $covers[$trooper->id], $saved->get($trooper->id), $prior->get($trooper->id)))->all();
 
@@ -97,12 +99,10 @@ final class RollcallScreen
     }
 
     /**
-     * @return Collection<int, Attendance> the week's rows keyed by trooper id, none when the section has no practice yet
+     * @return Collection<int, Attendance> the practice's rows keyed by trooper id, none when the section has no practice yet
      */
-    private function marksOf(Unit $section, CarbonImmutable $weekStart): Collection
+    private function marksOf(?SectionPractice $practice): Collection
     {
-        $practice = $this->practices->find($section->id, $weekStart);
-
         return $practice === null ? collect() : $this->attendance->forPractice($practice)->keyBy('trooper_id');
     }
 

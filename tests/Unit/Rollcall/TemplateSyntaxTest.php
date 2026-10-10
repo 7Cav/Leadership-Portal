@@ -48,6 +48,14 @@ it('knows exactly one list and two filters', function () {
     expect(TemplateSyntax::LISTS)->toBe(['troopers'])->and(TemplateSyntax::FILTERS)->toBe(['upper', 'lower']);
 });
 
+it('checks a very long run of spaces inside a tag quickly, and never reads a failed match as valid', function () {
+    $started = microtime(true);
+    $error = TemplateSyntax::check('{{'.str_repeat(' ', 19000).'!');
+
+    expect($error)->not->toBeNull()->and(microtime(true) - $started)->toBeLessThan(0.5);
+    expect(TemplateSyntax::check('{{'.str_repeat(' ', 19000).'#troopers}}x'))->toContain('is never closed');
+});
+
 it('cannot be made to run code: nothing but its fixed names is accepted', function (string $attack) {
     expect(TemplateSyntax::check($attack))->not->toBeNull();
 })->with([

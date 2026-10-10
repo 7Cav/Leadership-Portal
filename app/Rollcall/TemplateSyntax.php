@@ -47,14 +47,18 @@ final class TemplateSyntax
 {{/troopers}}[/TABLE]
 BBCODE;
 
-    private const TAG = '/\{\{\s*([#^\/]?)\s*([a-z_]+)\s*(?:\|\s*([a-z]+)\s*)?\}\}/';
+    /** One run of whitespace in each place, so a long run of spaces inside "{{ ... }}" cannot make the match slow. */
+    private const TAG = '/\{\{\s*(?:([#^\/])\s*)?([a-z_]+)\s*(?:\|\s*([a-z]+)\s*)?\}\}/';
 
     /**
      * Null when the template is well formed, otherwise a sentence saying what is wrong.
      */
     public static function check(string $source): ?string
     {
-        preg_match_all(self::TAG, $source, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
+        // A regex that fails (a backtrack or JIT limit) must never read as a valid template.
+        if (preg_match_all(self::TAG, $source, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) === false) {
+            return 'This template could not be checked.';
+        }
 
         /** @var list<array{name: string, inverted: bool}> $stack */
         $stack = [];

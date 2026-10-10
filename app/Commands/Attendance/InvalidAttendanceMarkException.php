@@ -24,12 +24,9 @@ class InvalidAttendanceMarkException extends RuntimeException
     /**
      * @param  list<int>  $trooperIds
      */
-    public static function loaCovered(array $trooperIds): self
+    public static function loaCovered(array $trooperIds): LeaveCoversWeekException
     {
-        return new self(sprintf(
-            'Troopers %s are on leave for this week, so their practice mark is derived from the LOA data and cannot be set by hand.',
-            implode(', ', $trooperIds),
-        ));
+        return new LeaveCoversWeekException($trooperIds);
     }
 
     public static function notASection(int $unitId): self

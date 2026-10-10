@@ -160,6 +160,38 @@ describe('render', () => {
     });
 });
 
+describe('an adversarial template', () => {
+    it('is parsed in linear time: a long run of spaces inside a tag is not slow', () => {
+        const started = performance.now();
+        const result = parse('{{' + ' '.repeat(19000) + '!');
+        const elapsed = performance.now() - started;
+
+        expect(result.ok).toBe(false);
+        expect(elapsed).toBeLessThan(150);
+    });
+
+    it('is not slow for thousands of tags either', () => {
+        const template = '{{#troopers}}' + '{{name}}'.repeat(2400) + '{{/troopers}}';
+        const started = performance.now();
+
+        expect(parse(template).ok).toBe(true);
+        expect(performance.now() - started).toBeLessThan(150);
+    });
+
+    it('treats a name that merely looks like an object property as unknown', () => {
+        expect(parse('{{__proto__}}')).toEqual({ ok: false, error: 'Unknown name "__proto__".' });
+        expect(parse('{{#troopers}}{{constructor}}{{/troopers}}').ok).toBe(false);
+    });
+
+    it('renders the same template again without parsing it again', () => {
+        const first = render('[{{unit}}]', context());
+        const second = render('[{{unit}}]', context({ unit: 'other' }));
+
+        expect(first.text).toBe('[1/E/2-7]');
+        expect(second.text).toBe('[other]');
+    });
+});
+
 describe('a value cannot become BBCode', () => {
     it('writes an opening bracket with a zero-width space after it, so a forum will not read a tag', () => {
         expect(inert('[b]x[/b]')).toBe('[\u200Bb]x[\u200B/b]');

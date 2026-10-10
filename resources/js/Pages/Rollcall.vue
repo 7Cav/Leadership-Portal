@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { PhCaretLeft, PhCaretRight, PhCheckCircle, PhClipboardText, PhCopy, PhInfo, PhUsersThree, PhWarning } from '@phosphor-icons/vue';
 import { toast } from 'vue-sonner';
@@ -116,6 +116,32 @@ const marks = computed(() =>
         return mark.status || mark.rollcall ? [mark] : [];
     }),
 );
+
+// Something the leader changed and has not saved. A carried suggestion they left alone is not a change.
+const unsaved = computed(() => props.troopers.some((row) => draft[row.id] && (draft[row.id].sp !== startingSp(row) || draft[row.id].rc !== startingRc(row))));
+
+// Leaving with unsaved marks (another week, another section, closing the tab) asks first, so a stray click cannot lose them.
+// Saving is itself a visit but not a GET, so it is let through.
+let stopGuard = null;
+const warnOnUnload = (event) => {
+    if (!unsaved.value) return;
+
+    event.preventDefault();
+    event.returnValue = '';
+};
+
+onMounted(() => {
+    stopGuard = router.on('before', (event) => {
+        if (event.detail.visit.method !== 'get' || !unsaved.value) return;
+        if (!window.confirm('You have unsaved changes to this rollcall. Leave without saving?')) event.preventDefault();
+    });
+    window.addEventListener('beforeunload', warnOnUnload);
+});
+
+onBeforeUnmount(() => {
+    stopGuard?.();
+    window.removeEventListener('beforeunload', warnOnUnload);
+});
 
 const originOf = (row) => {
     if (onLeave(row)) return 'leave';

@@ -164,6 +164,33 @@ describe('what is refused', function () {
         expect(Attendance::query()->sole()->rollcall)->toBe(RollcallSignature::CannotAttend);
     });
 
+    it('names the troopers on leave, not their ids, so the leader knows who to look at', function () {
+        $away = $this->troopers[1];
+        Loa::factory()->create(['trooper_id' => $away->id, 'starts_at' => '2026-10-01', 'ends_at' => '2026-10-30']);
+
+        markSave($this->actingAs($this->leader), $this->section, [['trooper_id' => $away->id, 'status' => 'present']])
+            ->assertSessionHasErrors(['marks' => "{$away->display_name} is on leave this week and cannot be marked by hand. Reload the page to see them as LOA."]);
+    });
+
+    it('says "are" when several are on leave', function () {
+        foreach ([$this->troopers[0], $this->troopers[1]] as $trooper) {
+            Loa::factory()->create(['trooper_id' => $trooper->id, 'starts_at' => '2026-10-01', 'ends_at' => '2026-10-30']);
+        }
+
+        markSave($this->actingAs($this->leader), $this->section, [
+            ['trooper_id' => $this->troopers[0]->id, 'status' => 'present'],
+            ['trooper_id' => $this->troopers[1]->id, 'status' => 'present'],
+        ])->assertSessionHasErrors(['marks' => "{$this->troopers[0]->display_name}, {$this->troopers[1]->display_name} are on leave this week and cannot be marked by hand. Reload the page to see them as LOA."]);
+    });
+
+    it('bounds the size of a save, so a malformed request cannot carry thousands of marks', function () {
+        $marks = array_fill(0, 501, ['trooper_id' => $this->troopers[0]->id, 'status' => 'present']);
+
+        markSave($this->actingAs($this->leader), $this->section, $marks)->assertSessionHasErrors('marks');
+
+        expect(Attendance::query()->count())->toBe(0);
+    });
+
     it('refuses a trooper placed in another section', function () {
         $stranger = markTrooper($this->sibling);
 

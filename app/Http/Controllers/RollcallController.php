@@ -5,12 +5,14 @@ namespace App\Http\Controllers;
 use App\Authorization\ScopeResolver;
 use App\Commands\Attendance\AttendanceMark;
 use App\Commands\Attendance\InvalidAttendanceMarkException;
+use App\Commands\Attendance\LeaveCoversWeekException;
 use App\Commands\Attendance\MarkAttendance;
 use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Models\AttendanceStatus;
 use App\Models\RollcallSignature;
 use App\Models\Unit;
 use App\Models\UnitType;
+use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Rollcall\RollcallScreen;
 use App\Support\Time\WeekOf;
@@ -35,9 +37,13 @@ use Inertia\Response;
  */
 class RollcallController extends Controller
 {
+    /** The most marks one save may carry. A section holds a few dozen troopers; this only bounds a malformed request. */
+    private const MAX_MARKS = 500;
+
     public function __construct(
         private readonly ScopeResolver $scope,
         private readonly UnitRepository $units,
+        private readonly TrooperRepository $troopers,
         private readonly RollcallScreen $screen,
         private readonly MarkAttendanceHandler $handler,
     ) {}
@@ -94,7 +100,7 @@ class RollcallController extends Controller
 
         $data = $request->validate([
             'week' => ['required', 'date_format:Y-m-d'],
-            'marks' => ['present', 'array'],
+            'marks' => ['present', 'array', 'max:'.self::MAX_MARKS],
             'marks.*.trooper_id' => ['required', 'integer'],
             'marks.*.status' => ['nullable', Rule::in(array_map(fn (AttendanceStatus $status) => $status->value, array_filter(AttendanceStatus::cases(), fn (AttendanceStatus $status) => $status !== AttendanceStatus::Loa)))],
             'marks.*.rollcall' => ['nullable', Rule::enum(RollcallSignature::class)],
@@ -114,6 +120,15 @@ class RollcallController extends Controller
             ), $data['marks']);
 
             $this->handler->handle($request->user(), new MarkAttendance($unit->id, $week, ...$marks));
+        } catch (LeaveCoversWeekException $e) {
+            // The leave synced after the page loaded, so say who it is by name rather than by id.
+            $names = $this->troopers->placedWithin($unit)->whereIn('id', $e->trooperIds)->pluck('display_name')->all();
+
+            throw ValidationException::withMessages(['marks' => sprintf(
+                '%s %s on leave this week and cannot be marked by hand. Reload the page to see them as LOA.',
+                implode(', ', $names),
+                count($names) === 1 ? 'is' : 'are',
+            )]);
         } catch (InvalidAttendanceMarkException $e) {
             throw ValidationException::withMessages(['marks' => $e->getMessage()]);
         }

@@ -24,7 +24,8 @@ export const ROW_STRINGS = ['n', 'rank', 'rank_short', 'name', 'display_name', '
 export const ROW_FLAGS = ['sp_present', 'sp_missed', 'sp_makeup', 'sp_attached', 'sp_loa', 'sp_unmarked', 'rc_yes', 'rc_no', 'rc_unsigned', 'loa_review'];
 export const FILTERS = ['upper', 'lower'];
 
-const TAG = /\{\{\s*([#^/]?)\s*([a-z_]+)\s*(?:\|\s*([a-z]+)\s*)?\}\}/g;
+// One run of whitespace in each place, so a long run of spaces inside "{{ ... }}" cannot make the match slow.
+const TAG = /\{\{\s*(?:([#^/])\s*)?([a-z_]+)\s*(?:\|\s*([a-z]+)\s*)?\}\}/g;
 
 /**
  * Parse a template into a tree, or say what is wrong with it.
@@ -46,7 +47,8 @@ export function parse(source) {
     };
 
     for (const match of source.matchAll(TAG)) {
-        const [whole, mark, name, filter] = match;
+        const [whole, name, filter] = [match[0], match[2], match[3]];
+        const mark = match[1] ?? '';
         const bad = text(match.index);
         if (bad) return bad;
         last = match.index + whole.length;
@@ -137,6 +139,15 @@ function renderNodes(nodes, scopes) {
     return out;
 }
 
+// A toggle renders again with the same template, so the last parse is kept rather than redone.
+let lastParse = { source: null, result: null };
+
+function parseOnce(source) {
+    if (lastParse.source !== source) lastParse = { source, result: parse(source) };
+
+    return lastParse.result;
+}
+
 /**
  * Render a template with the week's data.
  *
@@ -145,7 +156,7 @@ function renderNodes(nodes, scopes) {
  * @returns {{ok: true, text: string} | {ok: false, error: string}}
  */
 export function render(source, context) {
-    const parsed = parse(source);
+    const parsed = parseOnce(source);
     if (!parsed.ok) return parsed;
 
     return { ok: true, text: renderNodes(parsed.tree, [context]) };

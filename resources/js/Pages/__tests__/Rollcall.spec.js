@@ -7,6 +7,8 @@ import Rollcall from '../Rollcall.vue';
 
 const routerGet = vi.fn();
 const routerPost = vi.fn();
+let beforeVisit = null;
+const stopBefore = vi.fn();
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
 let previewing = false;
@@ -15,17 +17,31 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
     // `<Head>` needs a real Inertia app instance; this unit test does not stand one up.
     Head: { template: '<head></head>' },
-    router: { get: (...args) => routerGet(...args), post: (...args) => routerPost(...args) },
+    router: {
+        get: (...args) => routerGet(...args),
+        post: (...args) => routerPost(...args),
+        on: (event, handler) => {
+            if (event === 'before') beforeVisit = handler;
+
+            return stopBefore;
+        },
+    },
     usePage: () => ({ props: { viewAs: previewing ? { kind: 'unit', id: 9 } : null } }),
 }));
 
 vi.mock('vue-sonner', () => ({ toast: { success: (...args) => toastSuccess(...args), error: (...args) => toastError(...args) } }));
 
+// Every page a test mounts is unmounted after it, so its window listeners never leak into the next test.
+const mounted = [];
+
 afterEach(() => {
+    mounted.splice(0).forEach((wrapper) => wrapper.unmount());
     routerGet.mockReset();
     routerPost.mockReset();
     toastSuccess.mockReset();
     toastError.mockReset();
+    stopBefore.mockReset();
+    beforeVisit = null;
     vi.unstubAllGlobals();
     previewing = false;
 });
@@ -76,7 +92,12 @@ const props = (overrides = {}) => ({
     ...overrides,
 });
 
-const page = (overrides = {}) => mount(Rollcall, { props: props(overrides) });
+const page = (overrides = {}) => {
+    const wrapper = mount(Rollcall, { props: props(overrides) });
+    mounted.push(wrapper);
+
+    return wrapper;
+};
 const rowOf = (wrapper, name) => wrapper.findAll('[data-testid="trooper-row"]').find((row) => row.get('[data-testid="trooper-name"]').text() === name);
 
 describe('Rollcall', () => {
@@ -543,6 +564,96 @@ describe('Rollcall', () => {
 
             expect(panel.findAll('input, select, form, a[href]')).toHaveLength(0);
             expect(panel.findAll('textarea').every((t) => t.attributes('readonly') !== undefined)).toBe(true);
+        });
+    });
+
+    describe('leaving with unsaved marks', () => {
+        const click = (row, cell, value) => row.get(`[data-testid="${cell}"] [data-value="${value}"]`).trigger('click');
+        const visit = (method = 'get') => ({ detail: { visit: { method } }, preventDefault: vi.fn() });
+
+        it('lets a leader leave when nothing was changed, even with a carried suggestion on screen', () => {
+            const confirm = vi.fn(() => false);
+            vi.stubGlobal('confirm', confirm);
+            page();
+            const event = visit();
+
+            beforeVisit(event);
+
+            expect(confirm).not.toHaveBeenCalled();
+            expect(event.preventDefault).not.toHaveBeenCalled();
+        });
+
+        it('asks before leaving with a changed mark, and stays when the leader says no', async () => {
+            const confirm = vi.fn(() => false);
+            vi.stubGlobal('confirm', confirm);
+            const wrapper = page();
+            await click(rowOf(wrapper, 'SPC Crooks.A'), 'sp-cell', 'missed');
+            const event = visit();
+
+            beforeVisit(event);
+
+            expect(confirm).toHaveBeenCalledOnce();
+            expect(event.preventDefault).toHaveBeenCalledOnce();
+        });
+
+        it('leaves when the leader agrees', async () => {
+            vi.stubGlobal('confirm', vi.fn(() => true));
+            const wrapper = page();
+            await click(rowOf(wrapper, 'SPC Crooks.A'), 'sp-cell', 'missed');
+            const event = visit();
+
+            beforeVisit(event);
+
+            expect(event.preventDefault).not.toHaveBeenCalled();
+        });
+
+        it('asks about a changed signature too, and about a suggestion that was taken back', async () => {
+            const confirm = vi.fn(() => true);
+            vi.stubGlobal('confirm', confirm);
+            const wrapper = page();
+
+            await click(rowOf(wrapper, 'SPC Crooks.A'), 'rc-cell', 'will_attend');
+            beforeVisit(visit());
+            expect(confirm).toHaveBeenCalledTimes(1);
+
+            await wrapper.get('[data-testid="reset"]').trigger('click');
+            await click(rowOf(wrapper, 'PFC Svensson.A'), 'sp-cell', 'present');
+            beforeVisit(visit());
+            expect(confirm).toHaveBeenCalledTimes(2);
+        });
+
+        it('does not stop saving, which is a POST, and stops asking once the changes are reset', async () => {
+            const confirm = vi.fn(() => false);
+            vi.stubGlobal('confirm', confirm);
+            const wrapper = page();
+            await click(rowOf(wrapper, 'SPC Crooks.A'), 'sp-cell', 'missed');
+
+            const post = visit('post');
+            beforeVisit(post);
+            expect(post.preventDefault).not.toHaveBeenCalled();
+
+            await wrapper.get('[data-testid="reset"]').trigger('click');
+            beforeVisit(visit());
+            expect(confirm).not.toHaveBeenCalled();
+        });
+
+        it('warns before the tab closes with unsaved marks, and not otherwise', async () => {
+            const wrapper = page();
+            const closing = () => {
+                const event = new Event('beforeunload', { cancelable: true });
+                window.dispatchEvent(event);
+
+                return event.defaultPrevented;
+            };
+
+            expect(closing()).toBe(false);
+            await click(rowOf(wrapper, 'SPC Crooks.A'), 'sp-cell', 'missed');
+            expect(closing()).toBe(true);
+
+            wrapper.unmount();
+            mounted.splice(mounted.indexOf(wrapper), 1);
+            expect(closing()).toBe(false);
+            expect(stopBefore).toHaveBeenCalledOnce();
         });
     });
 
