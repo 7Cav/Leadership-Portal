@@ -13,6 +13,7 @@ use App\Models\Unit;
 use App\Models\UnitType;
 use App\Repositories\TemplateVersionRepository;
 use App\Repositories\UnitRepository;
+use App\Rollcall\TemplateSyntax;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -63,6 +64,14 @@ class TemplatesController extends Controller
                 ->values()
                 ->all(),
             'maxBodyLength' => AuthorTemplateVersion::MAX_BODY_LENGTH,
+            // What an Admin may write, so the screen can list it (Story 3.10), and a template to start from.
+            'syntax' => [
+                'values' => TemplateSyntax::TOP_STRINGS,
+                'rowValues' => TemplateSyntax::ROW_STRINGS,
+                'rowFlags' => TemplateSyntax::ROW_FLAGS,
+                'filters' => TemplateSyntax::FILTERS,
+            ],
+            'starter' => TemplateSyntax::STARTER,
             // Follows a view-as preview, so authoring controls hide as they would for the previewed leader. The
             // write gates below read the real flag.
             'isAdmin' => $scope->actsAsAdmin($request->user()),

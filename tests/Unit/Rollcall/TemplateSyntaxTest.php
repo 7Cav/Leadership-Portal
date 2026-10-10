@@ -34,6 +34,16 @@ it('has a case for every name it lets a template use, so the lists cannot drift 
     }
 });
 
+it('ships a starter template that follows its own grammar and uses every status', function () {
+    expect(TemplateSyntax::check(TemplateSyntax::STARTER))->toBeNull();
+
+    foreach (['sp_present', 'sp_missed', 'sp_makeup', 'sp_attached', 'sp_loa', 'sp_unmarked', 'rc_yes', 'rc_no', 'rc_unsigned'] as $flag) {
+        expect(TemplateSyntax::STARTER)->toContain("{{#{$flag}}}");
+    }
+
+    expect(TemplateSyntax::STARTER)->toContain('{{^troopers}}');
+});
+
 it('knows exactly one list and two filters', function () {
     expect(TemplateSyntax::LISTS)->toBe(['troopers'])->and(TemplateSyntax::FILTERS)->toBe(['upper', 'lower']);
 });

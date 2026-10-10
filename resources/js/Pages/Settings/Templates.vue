@@ -22,12 +22,14 @@ const props = defineProps({
     active: { type: Object, default: null },
     history: { type: Array, required: true },
     maxBodyLength: { type: Number, required: true },
+    syntax: { type: Object, required: true },
+    starter: { type: String, required: true },
     isAdmin: { type: Boolean, required: true },
 });
 
 const form = useForm({
     company_id: props.company,
-    body: props.active?.body ?? '',
+    body: props.active?.body ?? props.starter,
     reason: '',
 });
 
@@ -36,7 +38,7 @@ watch(
     () => [props.company, props.active?.id],
     () => {
         form.company_id = props.company;
-        form.body = props.active?.body ?? '';
+        form.body = props.active?.body ?? props.starter;
         form.reset('reason');
         form.clearErrors();
     },
@@ -72,6 +74,13 @@ function requestActivate(version) {
         },
     });
 }
+
+// The placeholders as an Admin types them. They are built here because Vue's own template syntax would read the double
+// braces inside a template string as the end of an interpolation.
+const tag = (name) => `{{${name}}}`;
+const flagBlock = (name) => `{{#${name}}}...{{/${name}}}`;
+const filterTag = (filter) => `{{name|${filter}}}`;
+const EXAMPLES = { print: tag('name'), loop: '{{#troopers}} ... {{/troopers}}', inverted: '{{^name}}...{{/name}}', empty: '{{^troopers}}' };
 
 const companyLabel = (company) => (company.callsign ? `${company.callsign} ${company.name}` : company.name);
 </script>
@@ -140,8 +149,36 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
 
                         <Button type="submit" data-testid="save-template" :disabled="form.processing">Save as a new version</Button>
                     </form>
-
                     <pre v-else-if="active" class="overflow-x-auto rounded-md border border-border bg-muted/30 p-3 font-mono text-xs whitespace-pre-wrap" data-testid="template-readonly">{{ active.body }}</pre>
+
+                    <details class="mt-4 rounded-md border border-border bg-muted/20 p-3 text-xs" data-testid="syntax-help">
+                        <summary class="cursor-pointer font-medium">Placeholders you can use</summary>
+                        <div class="mt-2 space-y-2 text-muted-foreground">
+                            <p>
+                                Write the BBCode as normal. <code class="font-mono">{{ EXAMPLES.print }}</code> prints a value, and
+                                <code class="font-mono">{{ EXAMPLES.loop }}</code> repeats for each trooper. A name that is not on these lists is refused when
+                                you save.
+                            </p>
+                            <p data-testid="syntax-values">
+                                <span class="font-medium text-foreground">Anywhere:</span>
+                                <code v-for="name in syntax.values" :key="name" class="mr-1.5 font-mono">{{ tag(name) }}</code>
+                            </p>
+                            <p data-testid="syntax-row-values">
+                                <span class="font-medium text-foreground">Inside a trooper block, print:</span>
+                                <code v-for="name in syntax.rowValues" :key="name" class="mr-1.5 font-mono">{{ tag(name) }}</code>
+                            </p>
+                            <p data-testid="syntax-row-flags">
+                                <span class="font-medium text-foreground">Inside a trooper block, show only when set:</span>
+                                <code v-for="name in syntax.rowFlags" :key="name" class="mr-1.5 font-mono">{{ flagBlock(name) }}</code>
+                            </p>
+                            <p>
+                                <code class="font-mono">{{ EXAMPLES.inverted }}</code> shows when it is not set, for example
+                                <code class="font-mono">{{ EXAMPLES.empty }}</code> for an empty section. Filters:
+                                <code v-for="filter in syntax.filters" :key="filter" class="mr-1.5 font-mono">{{ filterTag(filter) }}</code>
+                            </p>
+                        </div>
+                    </details>
+
                 </Card>
 
                 <Card class="min-w-0 gap-0 py-0">

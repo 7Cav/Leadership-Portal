@@ -8,6 +8,7 @@ use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\TemplateVersionRepository;
+use App\Rollcall\TemplateSyntax;
 
 // Story 3.5: the Admin template screen. Viewing is open; every write is Admin-only on the server (AD-6, AD-16, AD-17).
 
@@ -41,6 +42,15 @@ describe('viewing', function () {
             ->has('history', 2)
             ->where('history.0.isActive', true)
             ->where('history.1.isActive', false));
+    });
+
+    it('tells the screen what an Admin may write, and a template to start from', function () {
+        $this->actingAs($this->admin)->get('/settings/templates')->assertInertia(fn ($page) => $page
+            ->where('syntax.values', TemplateSyntax::TOP_STRINGS)
+            ->where('syntax.rowValues', TemplateSyntax::ROW_STRINGS)
+            ->where('syntax.rowFlags', TemplateSyntax::ROW_FLAGS)
+            ->where('syntax.filters', ['upper', 'lower'])
+            ->where('starter', TemplateSyntax::STARTER));
     });
 
     it('lists the history newest first, with who saved each version', function () {

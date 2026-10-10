@@ -33,6 +33,14 @@ const COMPANIES = [
 const VERSION_2 = { id: 22, version: 2, body: '[B]second[/B]', createdAt: '2026-10-08T09:30:00+00:00', createdBy: 'Pike.S' };
 const VERSION_1 = { id: 21, version: 1, body: '[B]first[/B]', createdAt: '2026-10-01T09:30:00+00:00', createdBy: 'Pike.S' };
 
+const SYNTAX = {
+    values: ['unit', 'week'],
+    rowValues: ['n', 'name'],
+    rowFlags: ['sp_present', 'rc_yes'],
+    filters: ['upper', 'lower'],
+};
+const STARTER = '[B]{{unit}}[/B]{{#troopers}}{{name}}{{/troopers}}';
+
 const props = (overrides = {}) => ({
     artifactType: { value: 'rollcall_bbcode', label: 'Rollcall BBCode' },
     companies: COMPANIES,
@@ -40,6 +48,8 @@ const props = (overrides = {}) => ({
     active: VERSION_2,
     history: [{ ...VERSION_2, isActive: true }, { ...VERSION_1, isActive: false }],
     maxBodyLength: 20000,
+    syntax: SYNTAX,
+    starter: STARTER,
     isAdmin: true,
     ...overrides,
 });
@@ -139,7 +149,7 @@ describe('Settings/Templates', () => {
         expect(wrapper.get('[data-testid="no-active"]').text()).toContain('no template yet');
         expect(wrapper.get('[data-testid="no-active"]').text()).toContain('Write the first one');
         expect(wrapper.get('[data-testid="no-versions"]').exists()).toBe(true);
-        expect(formState.body).toBe('');
+        expect(formState.body).toBe(STARTER);
     });
 
     it('tells a non-Admin an Admin can write one', () => {
@@ -170,5 +180,25 @@ describe('Settings/Templates', () => {
 
     it('caps the editor at the server\'s limit', () => {
         expect(page().get('[data-testid="template-body"]').attributes('maxlength')).toBe('20000');
+    });
+
+    it('starts an Admin with no template from the starter template, not a blank box', () => {
+        const wrapper = page({ active: null, history: [] });
+
+        expect(wrapper.get('[data-testid="template-body"]').element.value).toBe(STARTER);
+    });
+
+    it('lists every placeholder the server accepts, so an Admin does not have to guess', () => {
+        const wrapper = page();
+
+        expect(wrapper.get('[data-testid="syntax-values"]').text()).toContain('{{unit}}');
+        expect(wrapper.get('[data-testid="syntax-values"]').text()).toContain('{{week}}');
+        expect(wrapper.get('[data-testid="syntax-row-values"]').text()).toContain('{{name}}');
+        expect(wrapper.get('[data-testid="syntax-row-flags"]').text()).toContain('{{#sp_present}}...{{/sp_present}}');
+        expect(wrapper.get('[data-testid="syntax-help"]').text()).toContain('{{name|upper}}');
+    });
+
+    it('shows the placeholder reference to a non-Admin too, since they read the template', () => {
+        expect(page({ isAdmin: false }).find('[data-testid="syntax-help"]').exists()).toBe(true);
     });
 });

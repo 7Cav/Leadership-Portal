@@ -30,6 +30,23 @@ final class TemplateSyntax
 
     public const FILTERS = ['upper', 'lower'];
 
+    /**
+     * A template an Admin can start from when a company has none: the mockup's post, with a table of troopers and a
+     * mark for each status. It follows the grammar, which a test checks.
+     */
+    public const STARTER = <<<'BBCODE'
+[CENTER]
+[B]{{unit}} ROLL CALL | {{week|upper}}[/B]
+[/CENTER]
+
+[B]Roll Call Accountability[/B]
+[TABLE]
+[TR][TH]#[/TH][TH]Name[/TH][TH]Role[/TH][TH]Signed RC[/TH][TH]Attended SP[/TH][/TR]
+{{#troopers}}[TR][TD]{{n}}[/TD][TD]{{rank}} {{name}}[/TD][TD]{{role}}[/TD][TD]{{#rc_yes}}✓{{/rc_yes}}{{#rc_no}}✗{{/rc_no}}{{#rc_unsigned}}-{{/rc_unsigned}}[/TD][TD]{{#sp_present}}✓{{/sp_present}}{{#sp_missed}}✗{{/sp_missed}}{{#sp_makeup}}MU{{/sp_makeup}}{{#sp_attached}}ATT{{/sp_attached}}{{#sp_loa}}LOA{{#loa_ends}} · ends {{loa_ends}}{{/loa_ends}}{{/sp_loa}}{{#sp_unmarked}}-{{/sp_unmarked}}[/TD][/TR]
+{{/troopers}}{{^troopers}}[TR][TD]No troopers are placed in this section.[/TD][/TR]
+{{/troopers}}[/TABLE]
+BBCODE;
+
     private const TAG = '/\{\{\s*([#^\/]?)\s*([a-z_]+)\s*(?:\|\s*([a-z]+)\s*)?\}\}/';
 
     /**
