@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\ForumAuthController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ReportRollupController;
+use App\Http\Controllers\RollcallController;
 use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\DemoDataController;
 use App\Http\Controllers\Settings\LoaSyncController;
@@ -32,6 +33,12 @@ Route::get('/oauth/callback/7cav', [ForumAuthController::class, 'callback'])->na
 // middleware. Named `home` — the target Laravel's guest middleware bounces to.
 Route::middleware('auth')->group(function () {
     Route::get('/home', [HomeController::class, 'show'])->name('home');
+
+    // The weekly rollcall of one section (Story 3.7), `?week=YYYY-MM-DD` for any day in the Cav week. `/rollcall` is the
+    // nav entry: it opens the first section in the viewer's scope. Scope-gated in the controller through the
+    // ScopeResolver (AD-8). The name is the one the roster Sheet and the milpac quick actions link to.
+    Route::get('/rollcall', [RollcallController::class, 'index'])->name('rollcall.index');
+    Route::get('/rollcall/{unit}', [RollcallController::class, 'show'])->whereNumber('unit')->name('rollcall.show');
 
     // Logout (Story 1.5). POST, so it carries CSRF protection and can't be triggered by a
     // prefetched link or a cross-site <img>.

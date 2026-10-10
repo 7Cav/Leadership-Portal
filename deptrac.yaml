@@ -162,6 +162,9 @@ deptrac:
     Rollcall:
       - Repository
       - Model
+      # A row's leave comes from the one LOA coverage definition (3.4), and the week from WeekOf (AD-11).
+      - Loa
+      - Support\Time
     # LOA reads over the `loas` and `sync_runs` caches (Epic 4): the single definition of LOA coverage
     # (4.4) and the source/last-sync every LOA value renders with (4.3, AD-20). Read-only; the LOA
     # sync stays the one writer.

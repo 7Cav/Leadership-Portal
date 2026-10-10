@@ -10,6 +10,13 @@ Read-only logic behind the weekly rollcall, so no screen re-derives it.
   `no_owning_company` (the unit sits above every company). Both "none" cases are explicit states, never a blank body.
   Resolution happens on every call, never from a cached copy, so an Admin's activation shows on the next render.
 
-**May depend on:** `Repositories/` (never the DB directly, AD-2) and `Models/`.
+- `RollcallScreen::for($section, $weekStart)` (3.7, AD-14, AD-20): the props of the rollcall page for one section and Cav
+  week. Rows are the active troopers whose primary section it is, so a trooper with a billet elsewhere appears once. Each
+  row's practice value is, in order: `loa`, derived from the leave data and never stored (3.4); the mark already saved
+  for the week; `present` carried from the prior week when nothing is saved; or nothing. Only `present` carries, so no
+  one is pre-marked absent. A carried value is shown, not stored. The banner counts what was saved and what was carried,
+  and says when there was no prior week. Roster and LOA values come with their source and last-sync time.
+
+**May depend on:** `Repositories/` (never the DB directly, AD-2), `Models/`, `Loa/` (a row's leave) and `Support/Time/`
 **Reached from:** `Http/Controllers/`. Read-only: templates are written only by the audited
 `Commands/Templates` Commands. Who may look is the Controller's ScopeResolver gate (AD-8), not decided here.

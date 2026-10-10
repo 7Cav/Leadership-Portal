@@ -128,4 +128,14 @@ interface TrooperRepository
      * @return Collection<int, int>
      */
     public function sectionsOfAssignedWithin(Unit $unit): Collection;
+
+    /**
+     * Every trooper placed within `$unit`'s subtree — departed (`inactive`) troopers included, so
+     * a roster can show them as departed rather than silently drop them (2.8, AD-21) — ordered by
+     * id. One query, however large the subtree. Unplaced troopers (no `primary_section_id`) never
+     * appear: they are surfaced for placement elsewhere (AD-18).
+     *
+     * @return EloquentCollection<int, Trooper>
+     */
+    public function placedWithin(Unit $unit): EloquentCollection;
 }

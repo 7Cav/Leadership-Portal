@@ -131,4 +131,12 @@ class Eloquent implements TrooperRepository
             ->pluck('primary_section_id', 'id')
             ->map(fn ($sectionId) => (int) $sectionId);
     }
+
+    public function placedWithin(Unit $unit): EloquentCollection
+    {
+        return Trooper::query()
+            ->whereIn('primary_section_id', Unit::query()->select('id')->where('path', 'like', "{$unit->path}%"))
+            ->orderBy('id')
+            ->get();
+    }
 }

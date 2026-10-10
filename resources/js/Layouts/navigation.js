@@ -21,7 +21,7 @@ export const NAV_GROUPS = [
         items: [
             { label: 'Home', href: '/home', icon: PhHouse },
             { label: 'Roster', href: null, icon: PhUsersThree },
-            { label: 'Rollcall', href: null, icon: PhClipboardText },
+            { label: 'Rollcall', href: '/rollcall', icon: PhClipboardText },
             { label: 'Reports', href: '/reports', icon: PhFileText },
         ],
     },
