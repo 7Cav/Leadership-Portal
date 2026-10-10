@@ -48,6 +48,14 @@ interface UnitRepository
     public function subtreeIds(Unit $unit): ScalarCollection;
 
     /**
+     * The company that owns `$unit`: the unit itself when it is a company, otherwise its nearest ancestor that is one,
+     * or null for a unit above every company (the regiment, a battalion). Found from the materialized path (AD-18)
+     * in one query, so it is cheap however deep the unit sits. The echelon rules put at most one company on any
+     * unit's chain, so the answer is unique.
+     */
+    public function owningCompany(Unit $unit): ?Unit;
+
+    /**
      * Update a unit's own attributes. `name`/`callsign` are mass-assignable (unlike
      * `parent_id`/`path`), so this never needs `forceFill`.
      */

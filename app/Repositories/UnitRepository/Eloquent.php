@@ -59,6 +59,21 @@ class Eloquent implements UnitRepository
         return Unit::query()->where('path', 'like', "{$unit->path}%")->orderBy('id')->get();
     }
 
+    public function owningCompany(Unit $unit): ?Unit
+    {
+        // `path` is "1/5/9/": the ids from the root down to this unit, itself last.
+        $chain = array_filter(explode('/', $unit->path), fn (string $id) => $id !== '');
+
+        if ($chain === []) {
+            return null;
+        }
+
+        return Unit::query()
+            ->whereIn('id', $chain)
+            ->where('type', UnitType::Company->value)
+            ->first();
+    }
+
     public function rename(Unit $unit, string $name, ?string $callsign): Unit
     {
         $unit->update(['name' => $name, 'callsign' => $callsign]);
