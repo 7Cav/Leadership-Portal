@@ -25,7 +25,8 @@ return new class extends Migration
             $table->string('artifact_type', 40);
             // 1, 2, 3 ... per (company, artifact type). Assigned by the repository inside its transaction.
             $table->unsignedInteger('version');
-            $table->text('body');
+            // `mediumText`: the length limit is in characters, and 20,000 four-byte characters would not fit a `text` column's 64KB.
+            $table->mediumText('body');
             $table->foreignId('created_by')->constrained('users')->restrictOnDelete();
             // Created once and never updated, so there is no `updated_at`.
             $table->timestamp('created_at')->useCurrent();

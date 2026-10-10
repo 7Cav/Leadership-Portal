@@ -168,3 +168,18 @@ it('refuses a duplicate version number for one company and kind at the data laye
         'created_at' => now(),
     ]))->toThrow(UniqueConstraintViolationException::class);
 });
+
+it('stores a body at the length limit made of four-byte characters, which a 64KB text column could not hold', function () {
+    $body = str_repeat('😀', 20000);
+
+    $version = $this->repo->author($this->company->id, $this->type, $body, $this->author->id);
+
+    expect(mb_strlen($this->repo->find($version->id)->body))->toBe(20000)
+        ->and(strlen($body))->toBeGreaterThan(65535);
+});
+
+it('names what may be mass-assigned on a version, so nothing else can be set through the model', function () {
+    $version = new TemplateVersion(['company_id' => 1, 'version' => 9, 'body' => 'x', 'created_by' => 1, 'id' => 77, 'created_at' => '2000-01-01']);
+
+    expect($version->id)->toBeNull()->and($version->getAttribute('created_at'))->toBeNull()->and($version->version)->toBe(9);
+});
