@@ -9,6 +9,7 @@ use App\Http\Controllers\Settings\LoaSyncController;
 use App\Http\Controllers\Settings\OrgStructureController;
 use App\Http\Controllers\Settings\RosterSyncController;
 use App\Http\Controllers\Settings\StaffGrantsController;
+use App\Http\Controllers\Settings\TemplatesController;
 use App\Http\Controllers\ViewAsController;
 use App\Repositories\UserRepository;
 use Illuminate\Support\Facades\Route;
@@ -65,6 +66,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/settings/staff-grants', [StaffGrantsController::class, 'index'])->name('settings.staff-grants');
     Route::post('/settings/staff-grants', [StaffGrantsController::class, 'store'])->name('settings.staff-grants.store');
     Route::delete('/settings/staff-grants/{grant}', [StaffGrantsController::class, 'destroy'])->name('settings.staff-grants.destroy');
+
+    // Rollcall template authoring (Story 3.5, AD-17). Viewing is open to any authenticated user; the Admin gate on
+    // every write is enforced in the controller (AD-6). A save is always a new immutable version.
+    Route::get('/settings/templates', [TemplatesController::class, 'index'])->name('settings.templates');
+    Route::post('/settings/templates', [TemplatesController::class, 'store'])->name('settings.templates.store');
+    Route::post('/settings/templates/{version}/activate', [TemplatesController::class, 'activate'])->whereNumber('version')->name('settings.templates.activate');
 
     // Audit-log review (Story 1.14). The whole screen is Admin-only (AC #4) — the gate is
     // enforced in the controller, not route middleware, matching every other Admin gate here.
