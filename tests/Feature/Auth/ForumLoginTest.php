@@ -35,9 +35,10 @@ function mockForum(
             $profileStatus,
         ),
         // A successful callback also enriches from the Cav roster (Story 1.6). These tests are
-        // about the forum handshake, so the roster answers empty: enrichment degrades, login
-        // does not. Without a mock here Saloon throws NoMockResponseFound and the callback
-        // 500s — which is itself the useful signal that the login path now calls Cav.
+        // about the forum handshake, so the roster answers empty: enrichment degrades, and only a
+        // user the roster cache already knows as serving gets a session (the sign-in gate is
+        // ServingMemberSignInTest's). Without a mock here Saloon throws NoMockResponseFound and
+        // the callback 500s — which is itself the useful signal that the login path calls Cav.
         'api.7cav.us/*' => MockResponse::make(['profiles' => []]),
     ]);
 }
@@ -81,6 +82,9 @@ it('redirect action stashes a state nonce and sends the browser to the forum aut
 });
 
 it('establishes an authenticated session, regenerates the session id, and lands home (AC #2)', function () {
+    // A returning trooper linked to a serving milpac: the sign-in gate admits them from the local
+    // roster cache, so the empty Cav world below does not get in the way of the handshake.
+    User::factory()->serving()->create(['forum_user_id' => 4]);
     mockForum();
 
     $this->withSession(['forum_oauth_state' => 'valid-state']);
