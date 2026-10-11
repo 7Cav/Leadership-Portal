@@ -22,8 +22,10 @@ use InvalidArgumentException;
  * Fail-safe in both directions (AD-4). A leave that needs review is not read as an absence, and it is not
  * ignored either: it resolves to {@see LoaCoverageState::NeedsReview}, which suppresses an at-risk or AWOL
  * attribution without asserting the trooper is away. The parser keeps no dates for such a row, so it applies
- * to every week from the one in which it was first cached, until a person fixes the post and the next sync
- * reads it cleanly. A cleanly read leave that covers the week wins over one that needs review.
+ * for the Cav week in which the thread was posted on the forum (`posted_at`) and the week after, then stops:
+ * long enough for a person to fix the post and the next sync to read it cleanly, and short enough that a
+ * broken post cannot drop a trooper out of the KPIs for good. `created_at` stands in only for a row that has
+ * no `posted_at` yet. A cleanly read leave that covers the week wins over one that needs review.
  */
 final class LoaCoverage
 {
