@@ -7,6 +7,7 @@ use App\Commands\Attendance\AttendanceMark;
 use App\Commands\Attendance\InvalidAttendanceMarkException;
 use App\Commands\Attendance\MarkAttendance;
 use App\Commands\Attendance\MarkAttendanceHandler;
+use App\Commands\Attendance\RollcallWeekLockedException;
 use App\Models\AttendanceStatus;
 use App\Models\RollcallSignature;
 use App\Models\Unit;
@@ -30,8 +31,9 @@ use Inertia\Response;
  *
  * Who may open a section is decided here by the single ScopeResolver (AD-8, AD-6): a section outside the viewer's
  * effective scope is a 403 whatever link led there, and a view-as preview narrows it as it would for that leader
- * (AD-9), and a write is gated again by the section's scope inside {@see MarkAttendanceHandler} (AD-8). The week is `?week=YYYY-MM-DD`, any day in the Cav week; a week that is not a date, or lies in the future, falls
- * back to the current one, since a rollcall is never kept ahead of time.
+ * (AD-9), and a write is gated again by the section's scope inside {@see MarkAttendanceHandler} (AD-8). The week is
+ * `?week=YYYY-MM-DD`, any day in the Cav week; a week that is not a date (an array included), or lies in the future,
+ * falls back to the current one, since a rollcall is never kept ahead of time.
  */
 class RollcallController extends Controller
 {
@@ -85,7 +87,8 @@ class RollcallController extends Controller
      * week is refused by the handler, so neither can be written by hand. A submission with no marks is valid: it only
      * records that the section's practice exists.
      *
-     * A week still to come is refused. A past week may be corrected, since the audit log records the change.
+     * A week still to come is refused. A past week may be corrected, since the audit log records the change, until the
+     * section's weekly report for it is sent: from then the week is locked and the handler refuses the whole save.
      */
     public function store(Request $request, Unit $unit): RedirectResponse
     {
@@ -116,6 +119,10 @@ class RollcallController extends Controller
             $this->handler->handle($request->user(), new MarkAttendance($unit->id, $week, ...$marks));
         } catch (InvalidAttendanceMarkException $e) {
             throw ValidationException::withMessages(['marks' => $e->getMessage()]);
+        } catch (RollcallWeekLockedException $e) {
+            // The page already shows a locked week with its controls off; this is the answer for a save that raced the
+            // send, or came from a page opened before it.
+            throw ValidationException::withMessages(['week' => $e->getMessage()]);
         }
 
         return redirect()->route('rollcall.show', ['unit' => $unit->id, 'week' => $week->toDateString()]);
@@ -133,8 +140,15 @@ class RollcallController extends Controller
             return $current;
         }
 
+        // `?week[]=x` reaches here as an array, and casting that to a string is a PHP error, not a parse failure: a
+        // week that is not a single string is as unreadable as `?week=banana` and is dropped the same way (the guard
+        // ReportRollupController keeps for its own week).
+        if (! is_string($raw)) {
+            return null;
+        }
+
         try {
-            $week = WeekOf::start(CarbonImmutable::parse((string) $raw, 'UTC'));
+            $week = WeekOf::start(CarbonImmutable::parse($raw, 'UTC'));
         } catch (InvalidFormatException) {
             return null;
         }

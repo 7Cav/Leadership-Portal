@@ -35,6 +35,22 @@ interface WeeklyReportRepository
     public function find(int $unitId, CarbonInterface $weekStart): ?WeeklyReport;
 
     /**
+     * Whether the unit's report for the week has been sent, and so frozen (AD-12). A unit-week with no report, or only a
+     * draft, is not sent; nor is one holding only a generated demo report (#115, `is_demo`), which is history for show
+     * rather than a record anyone froze, and which a leader's real marks are meant to replace. Never creates a row.
+     *
+     * A locking read, for a writer whose change must not land after the freeze (the rollcall's marks, Story 3.8): it
+     * share-locks the unit-week's row, or on MySQL the gap where that row would go when there is none. Inside the
+     * caller's transaction that makes it a current read rather than a snapshot one, so a send committed a moment ago is
+     * seen; and a send still to come waits for the caller to commit, since `send()` takes that row exclusively (its
+     * upsert, then FOR UPDATE). Either the caller sees the week sent and refuses, or its write commits before the send
+     * does. Outside a transaction it is an ordinary read.
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function isSent(int $unitId, CarbonInterface $weekStart): bool;
+
+    /**
      * The week's reports — draft or sent — of every unit in `$unitIds` that has one, keyed by
      * `unit_id`, in one query: a roll-up reads all its children's reports at once (5.7, AD-13).
      * A unit with no report is simply absent. Never creates a row.
