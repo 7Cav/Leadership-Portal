@@ -37,8 +37,12 @@ use Throwable;
  * PAF was filed, found by following the PAF link and reading that thread's creation date, falling back to
  * the day the report was posted when the link is missing or the PAF cannot be read. An ELOA return does
  * not get a row; it ends the trooper's open ELOA, on the day its own PAF was filed. A thread that cannot
- * be read cleanly, or whose username matches no one (or more than one), is stored as `needs_review` with
- * no dates, never guessed. The trooper is matched on the whole username, ignoring case, never a prefix.
+ * be read cleanly (one whose title names a different trooper from its `Username` among them), or whose
+ * username matches no one (or more than one), is stored as `needs_review` with no dates, never guessed. The
+ * trooper is matched on the whole username, ignoring case, never a prefix. Raw text longer than its column
+ * (a username, or a date line someone wrote a paragraph into) is cut to fit, and the row is sent to review,
+ * so one over-long post cannot fail the run for every other post in it. Every row keeps the moment its
+ * thread was posted (`posted_at`), the one date a `needs_review` row has.
  *
  * The run is recorded in `sync_runs` (AD-16's carve-out for system jobs). A thread that failed to fetch
  * makes it `partial` (and is retried next run, since the cutoff only moves after a clean run). Rows left
@@ -59,6 +63,13 @@ class SyncLoasHandler
 
     /** A full run does not re-read a thread whose leave ended longer ago than this. */
     private const SETTLED_AFTER_DAYS = 14;
+
+    /**
+     * The length of the `loas` string columns the raw text goes into (`raw_username`, `raw_start_date`,
+     * `raw_end_date`, `source_thread`: Laravel's default `string`, `varchar(255)`). A strict MySQL refuses a
+     * longer value outright, which would fail the whole run's transaction, so nothing longer is ever sent.
+     */
+    private const RAW_LENGTH = 255;
 
     /** A runaway guard on one section's listing. */
     private const MAX_PAGES = 40;
@@ -92,7 +103,9 @@ class SyncLoasHandler
 
             $items = $this->read($wanted, $now, $problems);
 
-            $troopers = $this->troopers->idsByUsername(array_values(array_filter(array_map(fn (array $item) => $item['parsed']->username, $items))));
+            // Asked for by the same bounded name build() matches on (see fit()).
+            $usernames = array_map(fn (array $item) => $item['parsed']->username === null ? null : mb_substr($item['parsed']->username, 0, self::RAW_LENGTH), $items);
+            $troopers = $this->troopers->idsByUsername(array_values(array_filter($usernames)));
 
             [$writes, $returns, $needsReview] = $this->build($items, $troopers);
 
@@ -285,15 +298,26 @@ class SyncLoasHandler
 
         foreach ($items as ['summary' => $summary, 'type' => $type, 'parsed' => $parsed, 'eventOn' => $eventOn, 'eventNote' => $eventNote]) {
             $reasons = $parsed->reasons;
-            $matches = $parsed->username === null ? [] : ($troopers[mb_strtolower($parsed->username)] ?? []);
+            $isReport = $parsed->kind === LoaThreadKind::EloaReport;
+            $isReturn = $parsed->kind === LoaThreadKind::EloaReturn;
 
-            if ($parsed->username !== null && count($matches) !== 1) {
-                $reasons[] = $matches === [] ? "No trooper is named {$parsed->username}." : count($matches)." troopers are named {$parsed->username}.";
+            // Each raw field is cut to what its column holds before anything is done with it, so one over-long
+            // line cannot fail the whole run on a strict database. A field that had to be cut is no longer what
+            // the trooper wrote, so the row goes to a person. A return stores no row, so only its name counts.
+            $username = $this->fit($parsed->username, 'Username', $reasons);
+            $rawStart = $isReturn ? null : $this->fit($isReport ? $eventNote : $parsed->rawStart, 'Start Date', $reasons);
+            $rawEnd = $isReturn ? null : $this->fit($parsed->rawEnd, $isReport ? 'Expected return date' : 'End Date', $reasons);
+
+            $matches = $username === null ? [] : ($troopers[mb_strtolower($username)] ?? []);
+
+            if ($username !== null && count($matches) !== 1) {
+                $shown = mb_substr($username, 0, 40);
+                $reasons[] = $matches === [] ? "No trooper is named {$shown}." : count($matches)." troopers are named {$shown}.";
             }
 
             $trooperId = count($matches) === 1 ? $matches[0] : null;
 
-            if ($parsed->kind === LoaThreadKind::EloaReturn) {
+            if ($isReturn) {
                 if ($reasons === [] && $trooperId !== null && $eventOn !== null) {
                     $returns[] = new LoaReturn($summary->threadId, $trooperId, $eventOn);
                 } else {
@@ -303,8 +327,8 @@ class SyncLoasHandler
                 continue;
             }
 
-            $startsAt = $parsed->kind === LoaThreadKind::EloaReport ? $eventOn : $parsed->startsAt;
-            $endsAt = $parsed->kind === LoaThreadKind::EloaReport ? null : $parsed->endsAt;
+            $startsAt = $isReport ? $eventOn : $parsed->startsAt;
+            $endsAt = $isReport ? null : $parsed->endsAt;
             $clean = $reasons === [] && $startsAt !== null;
 
             if (! $clean) {
@@ -320,16 +344,46 @@ class SyncLoasHandler
                 endsAt: $clean ? $endsAt : null,
                 parseStatus: $clean ? LoaParseStatus::Ok : LoaParseStatus::NeedsReview,
                 reviewReason: $clean ? null : mb_substr(implode(' ', $reasons ?: ['The start date could not be worked out.']), 0, 250),
-                sourceThread: $summary->url ?? $this->forum->threadUrl($summary->threadId),
-                rawUsername: $parsed->username,
-                rawStartDate: $parsed->kind === LoaThreadKind::EloaReport ? $eventNote : $parsed->rawStart,
-                rawEndDate: $parsed->rawEnd,
+                sourceThread: $this->sourceThread($summary),
+                postedAt: $summary->postedAt,
+                rawUsername: $username,
+                rawStartDate: $rawStart,
+                rawEndDate: $rawEnd,
                 rawExcerpt: $parsed->excerpt === '' ? null : $parsed->excerpt,
                 expectedReturnAt: $clean ? $parsed->expectedReturnAt : null,
             );
         }
 
         return [$writes, $returns, $needsReview];
+    }
+
+    /**
+     * A raw field cut to what its `loas` column holds (and what the username lookup is asked for), with a
+     * reason added when it had to be cut. Counted in characters, as the column is.
+     *
+     * @param  list<string>  $reasons
+     */
+    private function fit(?string $value, string $label, array &$reasons): ?string
+    {
+        if ($value === null || mb_strlen($value) <= self::RAW_LENGTH) {
+            return $value;
+        }
+
+        $reasons[] = "The {$label} is longer than the portal keeps.";
+
+        return mb_substr($value, 0, self::RAW_LENGTH);
+    }
+
+    /**
+     * Where the thread is, for `source_thread`. The forum's own address for it, unless that would not fit the
+     * column, in which case the plain address built from the thread id: it reaches the same thread, and a
+     * cut address would not.
+     */
+    private function sourceThread(ForumThreadSummary $summary): string
+    {
+        $url = $summary->url;
+
+        return $url !== null && mb_strlen($url) <= self::RAW_LENGTH ? $url : $this->forum->threadUrl($summary->threadId);
     }
 
     /** A pause between requests to the forum, so a first backfill does not arrive as a burst. */

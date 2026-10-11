@@ -150,6 +150,14 @@ it('has a return_thread_id that is unique, so one return ends one ELOA, and a re
     expect(fn () => DB::table('loas')->insert(rawLoaRow(['forum_thread_id' => 2, 'return_thread_id' => 900])))->toThrow(QueryException::class);
 });
 
+it('has a nullable posted_at, so rows stored before it existed stay valid until they are read again', function () {
+    expect(Schema::hasColumn('loas', 'posted_at'))->toBeTrue();
+
+    DB::table('loas')->insert(rawLoaRow(['forum_thread_id' => 1]));
+
+    expect(Loa::sole()->posted_at)->toBeNull();
+});
+
 it('lets many rows have no return thread', function () {
     DB::table('loas')->insert(rawLoaRow(['forum_thread_id' => 1]));
     DB::table('loas')->insert(rawLoaRow(['forum_thread_id' => 2]));
