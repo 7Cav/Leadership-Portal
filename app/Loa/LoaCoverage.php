@@ -22,8 +22,10 @@ use InvalidArgumentException;
  * Fail-safe in both directions (AD-4). A leave that needs review is not read as an absence, and it is not
  * ignored either: it resolves to {@see LoaCoverageState::NeedsReview}, which suppresses an at-risk or AWOL
  * attribution without asserting the trooper is away. The parser keeps no dates for such a row, so it applies
- * to every week from the one in which it was first cached, until a person fixes the post and the next sync
- * reads it cleanly. A cleanly read leave that covers the week wins over one that needs review.
+ * for the Cav week in which the thread was posted on the forum (`posted_at`) and the week after, then stops:
+ * long enough for a person to fix the post and the next sync to read it cleanly, and short enough that a
+ * broken post cannot drop a trooper out of the KPIs for good. `created_at` stands in only for a row that has
+ * no `posted_at` yet. A cleanly read leave that covers the week wins over one that needs review.
  */
 final class LoaCoverage
 {
@@ -102,14 +104,17 @@ final class LoaCoverage
 
     /**
      * Whether a row bears on one Cav week: a cleanly read leave whose days include any of the week's seven, or a
-     * row with no usable dates (needs review, or no start) that had been cached by the week's end.
+     * row with no usable dates (needs review, or no start) posted in this week or the one before, so it shields
+     * the week it was posted in and the next, then stops. `created_at` stands in for a row with no `posted_at`.
      */
     private function touches(Loa $loa, CarbonImmutable $weekStart): bool
     {
         $nextWeek = $weekStart->addDays(7);
 
         if ($loa->parse_status !== LoaParseStatus::Ok || $loa->starts_at === null) {
-            return $loa->created_at !== null && $loa->created_at->lessThan($nextWeek);
+            $posted = $loa->posted_at ?? $loa->created_at;
+
+            return $posted !== null && ! $posted->lessThan($weekStart->subDays(7)) && $posted->lessThan($nextWeek);
         }
 
         return $loa->starts_at->toDateString() <= $weekStart->addDays(6)->toDateString()

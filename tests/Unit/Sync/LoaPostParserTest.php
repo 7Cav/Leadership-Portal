@@ -182,6 +182,58 @@ Oct 20, 2026
         expect(parseLoa('[LOA Request] - PVT.Smith.J', loaFixture('loa-on-behalf'))->status())->toBe(LoaParseStatus::Ok);
     });
 
+    it('flags a title that names someone other than the post\'s Username', function () {
+        $parsed = parseLoa('[LOA Request] - PVT.Evil.X | Oct 3, 2026 - Oct 17, 2026', loaFixture('loa-self'));
+
+        expect($parsed->status())->toBe(LoaParseStatus::NeedsReview)
+            ->and($parsed->reason())->toBe('The title names PVT.Evil.X but the post names Hart.A.')
+            ->and($parsed->username)->toBe('Hart.A')
+            ->and($parsed->startsAt)->toBeNull();
+    });
+
+    it('reads the title\'s name as the same person when only the rank, case or spacing differs', function (string $title) {
+        expect(parseLoa($title, loaFixture('loa-on-behalf'))->status())->toBe(LoaParseStatus::Ok);
+    })->with([
+        'rank and name' => [LOA_TITLE],
+        'another rank' => ['[LOA Request] - PFC.Smith.J | Oct 6, 2026 - Oct 20, 2026'],
+        'no rank' => ['[LOA Request] - Smith.J | Oct 6, 2026 - Oct 20, 2026'],
+        'other case' => ['[LOA Request] - pvt.SMITH.j | Oct 6, 2026 - Oct 20, 2026'],
+        'spaces around the dots' => ['[LOA Request] -  PVT. Smith . J  | Oct 6, 2026 - Oct 20, 2026'],
+        'a space after the rank' => ['[LOA Request] - PVT Smith.J | Oct 6, 2026 - Oct 20, 2026'],
+    ]);
+
+    it('reads an on-behalf post clean when the title names its subject, not its submitter', function () {
+        $parsed = parseLoa(LOA_TITLE, loaFixture('loa-on-behalf'));
+        $submitter = parseLoa('[LOA Request] - SGT.Jones.B | Oct 6, 2026 - Oct 20, 2026', loaFixture('loa-on-behalf'));
+
+        expect($parsed->status())->toBe(LoaParseStatus::Ok)
+            ->and($submitter->status())->toBe(LoaParseStatus::NeedsReview)
+            ->and($submitter->reason())->toContain('The title names SGT.Jones.B but the post names Smith.J.');
+    });
+
+    it('does not compare names when the title has none it can read', function (string $title) {
+        expect(parseLoa($title, loaFixture('loa-on-behalf'))->status())->toBe(LoaParseStatus::Ok);
+    })->with([
+        'tag only' => ['[LOA Request]'],
+        'tag and dash' => ['[LOA Request] - '],
+        'dates only' => ['[LOA Request] - | Oct 6, 2026 - Oct 20, 2026'],
+        'free text' => ['[LOA Request] - going on holiday'],
+    ]);
+
+    it('compares the name in an ELOA report or return title as well', function () {
+        $report = parseLoa('[ELOA Report] - PFC.Lane.M', loaFixture('eloa-report'), LoaType::Eloa);
+        $wrongReport = parseLoa('[ELOA Report] - PFC.Reed.D', loaFixture('eloa-report'), LoaType::Eloa);
+        $return = parseLoa('[ELOA Return] - 1SG.Fox.R', loaFixture('eloa-return'), LoaType::Eloa);
+        $wrongReturn = parseLoa('[ELOA Return] - 1SG.Cole.CJ', loaFixture('eloa-return'), LoaType::Eloa);
+
+        expect($report->status())->toBe(LoaParseStatus::Ok)
+            ->and($wrongReport->status())->toBe(LoaParseStatus::NeedsReview)
+            ->and($wrongReport->reason())->toBe('The title names PFC.Reed.D but the post names Lane.M.')
+            ->and($return->status())->toBe(LoaParseStatus::Ok)
+            ->and($wrongReturn->status())->toBe(LoaParseStatus::NeedsReview)
+            ->and($wrongReturn->reason())->toBe('The title names 1SG.Cole.CJ but the post names Fox.R.');
+    });
+
     it('flags a title tag it does not know, and one in the wrong section', function () {
         $unknown = parseLoa('[LOA Cancel] - PVT.Smith.J', loaFixture('loa-on-behalf'));
         $wrongSection = parseLoa(LOA_TITLE, loaFixture('loa-on-behalf'), LoaType::Eloa);
