@@ -12,6 +12,14 @@ use App\Http\Controllers\ViewAsController;
 use App\Repositories\UserRepository;
 use Illuminate\Support\Facades\Route;
 
+// Every id in a path is a positive integer of at most 18 digits, for every route that names it.
+// `whereNumber` alone (`[0-9]+`) let `/reports/99999999999999999999` through to an `int`
+// parameter, which PHP cannot hold, so the request died in a TypeError and a 500 instead of a
+// 404. 18 digits always fit in a signed 64-bit int. Set as global patterns so a new route
+// taking `{unit}` or `{grant}` cannot forget the constraint.
+Route::pattern('unit', '[0-9]{1,18}');
+Route::pattern('grant', '[0-9]{1,18}');
+
 // `/` is only a doorway (Story 1.15 retired the Story 1.1 sample page): signed-in users land on
 // home, everyone else on the login screen, in one hop either way.
 Route::get('/', fn () => redirect()->route(auth()->check() ? 'home' : 'login'));
@@ -46,7 +54,7 @@ Route::middleware('auth')->group(function () {
     // Report roll-up workspace (Story 5.8): the chain of the viewer's scope for one week
     // (`?week=YYYY-MM-DD`), scope-gated in the controller (AD-8). Read-only; each unit's own
     // report is `reports.show` at `/reports/{unit}/{week}`.
-    Route::get('/reports/{unit?}', [ReportRollupController::class, 'index'])->whereNumber('unit')->name('reports.index');
+    Route::get('/reports/{unit?}', [ReportRollupController::class, 'index'])->name('reports.index');
 
     // Chain of command (Story 1.8, edit/delete in 1.9). Viewing is open to any authenticated
     // user (AC #3); the Admin gate on every write is enforced in the controller, not by route
