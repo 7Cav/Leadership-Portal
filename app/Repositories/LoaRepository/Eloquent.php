@@ -93,6 +93,7 @@ class Eloquent implements LoaRepository
                     'parse_status' => $write->parseStatus,
                     'review_reason' => $write->reviewReason,
                     'source_thread' => $write->sourceThread,
+                    'posted_at' => $write->postedAt,
                     'raw_username' => $write->rawUsername,
                     'raw_start_date' => $write->rawStartDate,
                     'raw_end_date' => $write->rawEndDate,
