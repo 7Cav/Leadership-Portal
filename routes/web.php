@@ -37,12 +37,14 @@ Route::middleware('auth')->group(function () {
     // The roster (Stories 2.8, 4.6, 4.7, 4.9): the selected unit's subtree, `?view=orbat|matrix`.
     // Scope-gated in the controller through the ScopeResolver (AD-8). The trooper Sheet reads its
     // detail as JSON; that route is declared first so `troopers` is never taken for a unit id.
-    Route::get('/roster/troopers/{trooper}', [RosterController::class, 'trooper'])->whereNumber('trooper')->name('roster.trooper');
-    Route::get('/roster/{unit?}', [RosterController::class, 'index'])->whereNumber('unit')->name('roster.index');
+    // Numeric ids are capped at 18 digits rather than `whereNumber()`: a longer one overflows the
+    // controller's `int` parameter and would answer 500 instead of 404.
+    Route::get('/roster/troopers/{trooper}', [RosterController::class, 'trooper'])->where('trooper', '[0-9]{1,18}')->name('roster.trooper');
+    Route::get('/roster/{unit?}', [RosterController::class, 'index'])->where('unit', '[0-9]{1,18}')->name('roster.index');
 
     // One trooper's milpac (Stories 6.3, 6.4): the page every entry point to a trooper opens. Scope-gated
-    // in the controller through the ScopeResolver (AD-8).
-    Route::get('/troopers/{trooper}', [TrooperDetailController::class, 'show'])->whereNumber('trooper')->name('troopers.show');
+    // in the controller through the ScopeResolver (AD-8). Capped at 18 digits like the roster's ids.
+    Route::get('/troopers/{trooper}', [TrooperDetailController::class, 'show'])->where('trooper', '[0-9]{1,18}')->name('troopers.show');
 
     // The training-readiness matrix of one unit (Story 6.9): troopers by courses, scope-gated in the controller
     // through the ScopeResolver (AD-8). The milpac's quick action links to the trooper's platoon (6.7).
