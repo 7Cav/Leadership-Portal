@@ -162,7 +162,14 @@ describe('the week', function () {
 
     it('drops a week that is not a date, and a week still to come, back to the current one', function (string $query) {
         rollcallOpen($this->actingAs($this->leader), $this->section, $query)->assertRedirect(route('rollcall.show', $this->section->id));
-    })->with(['not a date' => ['?week=banana'], 'next week' => ['?week=2026-10-10'], 'far future' => ['?week=2030-01-01']]);
+    })->with([
+        'not a date' => ['?week=banana'],
+        'next week' => ['?week=2026-10-10'],
+        'far future' => ['?week=2030-01-01'],
+        // An array is not a week either: it was a PHP "Array to string conversion" error (a 500), not a fallback.
+        'an array' => ['?week[]=2026-09-26'],
+        'a keyed array' => ['?week[start]=2026-09-26'],
+    ]);
 
     it('counts the last Friday of a week as that week and the next Saturday as the next', function () {
         rollcallOpen($this->actingAs($this->leader), $this->section, '?week=2026-09-25')->assertInertia(fn ($page) => $page->where('week.start', '2026-09-19'));
