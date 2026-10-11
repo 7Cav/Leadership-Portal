@@ -224,6 +224,32 @@ it('guards the authenticated landing — unauthenticated hits redirect to login 
     $this->get('/home')->assertRedirect(route('login'));
 });
 
+it('throttles starting the handshake: the 11th redirect from one IP in a minute gets 429', function () {
+    // Every hit mints a state nonce and writes it to the session store, with no session needed.
+    for ($i = 1; $i <= 10; $i++) {
+        $this->get('/auth/redirect')->assertRedirect();
+    }
+
+    $this->get('/auth/redirect')->assertStatus(429);
+
+    // Another client is unaffected: the budget is per IP.
+    $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.9'])->get('/auth/redirect')->assertRedirect();
+});
+
+it('throttles the callback too, on a budget of its own', function () {
+    // Each callback can spend a forum token exchange. A cancelled consent is the cheapest
+    // callback to replay, and it must still count.
+    for ($i = 1; $i <= 10; $i++) {
+        $this->get('/oauth/callback/7cav?error=access_denied')->assertRedirect(route('login'));
+    }
+
+    $this->get('/oauth/callback/7cav?error=access_denied')->assertStatus(429);
+
+    // Spending the callback budget leaves starting a fresh sign-in alone: one real sign-in is
+    // one hit on each route, so they are counted apart.
+    $this->get('/auth/redirect')->assertRedirect();
+});
+
 it('sets the session cookie HttpOnly + SameSite=Lax (AC #6)', function () {
     $response = $this->get('/login');
 

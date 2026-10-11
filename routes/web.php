@@ -18,13 +18,14 @@ Route::get('/', fn () => redirect()->route(auth()->check() ? 'home' : 'login'));
 
 // 7Cav SSO (Story 1.4). `login` is the name Laravel's auth middleware redirects to.
 // Login screen + starting the handshake are guest-only; the callback stays public so
-// it can always complete the OAuth2 round-trip.
+// it can always complete the OAuth2 round-trip. Both handshake routes run under the `login`
+// rate limiter (AppServiceProvider): each hit costs a session write or a forum token exchange.
 Route::middleware('guest')->group(function () {
     Route::get('/login', [ForumAuthController::class, 'show'])->name('login');
-    Route::get('/auth/redirect', [ForumAuthController::class, 'redirect'])->name('auth.redirect');
+    Route::get('/auth/redirect', [ForumAuthController::class, 'redirect'])->middleware('throttle:login')->name('auth.redirect');
 });
 // Path matches the redirect URI registered for the forum OAuth client (confirmed in 1.4).
-Route::get('/oauth/callback/7cav', [ForumAuthController::class, 'callback'])->name('auth.callback');
+Route::get('/oauth/callback/7cav', [ForumAuthController::class, 'callback'])->middleware('throttle:login')->name('auth.callback');
 
 // Authenticated landing. Unauthenticated hits redirect to `login` via the auth
 // middleware. Named `home` — the target Laravel's guest middleware bounces to.
@@ -71,8 +72,9 @@ Route::middleware('auth')->group(function () {
 
     // Manual roster sync trigger (Story 2.4). No GET view yet — the roster screen that will
     // host this control is Story 2.8's. The Admin gate is enforced in the controller (AD-6),
-    // matching every other admin-gated write here.
-    Route::post('/settings/roster-sync', [RosterSyncController::class, 'store'])->name('settings.roster-sync.store');
+    // matching every other admin-gated write here. Throttled per Admin by the `roster-sync`
+    // limiter; the job itself is unique, so extra clicks never stack up queued syncs.
+    Route::post('/settings/roster-sync', [RosterSyncController::class, 'store'])->middleware('throttle:roster-sync')->name('settings.roster-sync.store');
 
     // Demo history for the real roster (#115). Admin-only; every route 404s unless
     // `portal.demo_tools` is on (DEMO_TOOLS=true) — both gates are enforced in the controller.

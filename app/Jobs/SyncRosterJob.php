@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Sync\SyncRosterHandler;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
@@ -23,8 +24,16 @@ use Throwable;
  * outright on its first release — turning "deferred" into "dropped." `$timeout` bounds a hung
  * external call well under the lock's hour-long expiry, so the lock is freed long before it would
  * otherwise wedge every scheduled tick behind a crashed worker.
+ *
+ * {@see ShouldBeUnique} guards the queue itself, which the overlap lock above cannot: that lock
+ * only decides what a worker does with a job it has already picked up, so ten Admin clicks used
+ * to mean ten queued syncs, each deferred and retried in turn. With one `uniqueId` for every
+ * dispatch, a second dispatch while a sync is queued, deferred or running is simply not queued.
+ * The pending one fetches the whole roster anyway, so nothing is lost. The unique lock is held
+ * until the job finishes or fails, and `$uniqueFor` matches the overlap lock's hour so a crashed
+ * worker cannot block every later dispatch for good.
  */
-class SyncRosterJob implements ShouldQueue
+class SyncRosterJob implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
@@ -32,11 +41,23 @@ class SyncRosterJob implements ShouldQueue
 
     public int $timeout = 120;
 
+    /** Seconds before the unique lock expires on its own, matching the overlap lock's expiry. */
+    public int $uniqueFor = 3600;
+
     public function __construct(public readonly int|string $triggeredBy = 'system') {}
 
     public function handle(SyncRosterHandler $handler): void
     {
         $handler->handle($this->triggeredBy);
+    }
+
+    /**
+     * One id for every dispatch, whoever triggered it: there is only one roster to sync, so a
+     * scheduled tick and a manual click are the same job for uniqueness purposes.
+     */
+    public function uniqueId(): string
+    {
+        return 'roster';
     }
 
     /**
