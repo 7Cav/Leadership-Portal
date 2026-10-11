@@ -62,8 +62,9 @@ Route::middleware('auth')->group(function () {
 
     // Place a trooper the sync could not map into a section (Story 2.7). The Admin gate is checked in the
     // controller first and again in the Command's handler; the required reason and the audited write live
-    // in the handler (AD-6, AD-16), not in the route.
-    Route::post('/settings/org-structure/troopers/{trooper}/placement', [TrooperPlacementController::class, 'store'])->whereNumber('trooper')->name('settings.trooper-placement.store');
+    // in the handler (AD-6, AD-16), not in the route. The id is capped at 18 digits rather than
+    // `whereNumber()`: a longer one overflows the controller's `int` parameter and would answer 500, not 404.
+    Route::post('/settings/org-structure/troopers/{trooper}/placement', [TrooperPlacementController::class, 'store'])->where('trooper', '[0-9]{1,18}')->name('settings.trooper-placement.store');
 
     // Staff grants (Story 1.12). Viewing is open to any authenticated user, matching
     // org-structure; the Admin gate on every write is enforced in the controller (AD-6).
