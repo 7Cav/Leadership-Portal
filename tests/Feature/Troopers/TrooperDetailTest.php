@@ -108,6 +108,10 @@ describe('who may open it', function () {
     it('answers a trooper that does not exist with 404', function () {
         $this->actingAs($this->leader)->get('/troopers/999999')->assertNotFound();
     });
+
+    it('answers an id too long for an integer with 404 rather than erroring', function () {
+        $this->actingAs($this->leader)->get('/troopers/99999999999999999999')->assertNotFound();
+    });
 });
 
 describe('the ID block (6.3)', function () {
