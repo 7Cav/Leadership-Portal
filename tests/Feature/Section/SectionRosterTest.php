@@ -130,6 +130,19 @@ describe('access', function () {
         $this->actingAs($admin)->get("/roster/{$tree['platoon']->id}")->assertNotFound();
         $this->get('/roster/999999')->assertNotFound();
         $this->get('/roster/abc')->assertNotFound();
+        $this->get('/roster/99999999999999999999')->assertNotFound();
+    });
+
+    it('refuses an out-of-scope unit with 403 whatever its type, so the answer never says it is not a section', function () {
+        $tree = rosterTree();
+        $leader = leaderOf($tree['sectionOne']);
+
+        // A section and a non-section outside scope get the same answer; only an in-scope platoon gets the 404.
+        $this->actingAs($leader)->get("/roster/{$tree['otherSection']->id}")->assertForbidden();
+        $this->get("/roster/{$tree['company']->id}")->assertForbidden();
+        $this->get("/roster/{$tree['otherBattalion']->id}")->assertForbidden();
+
+        $this->actingAs(leaderOf($tree['platoon']))->get("/roster/{$tree['platoon']->id}")->assertNotFound();
     });
 
     it('narrows to the previewed unit while an Admin is viewing as one (AD-9)', function () {

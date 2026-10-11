@@ -36,7 +36,8 @@ Route::middleware('auth')->group(function () {
     // Section roster (Story 2.8). `/roster` opens the viewer's first section in scope; `/roster/{unit}`
     // shows one. Visibility is decided by the ScopeResolver in the controller, never by the route (AD-8).
     Route::get('/roster', [SectionRosterController::class, 'index'])->name('roster.index');
-    Route::get('/roster/{unit}', [SectionRosterController::class, 'show'])->whereNumber('unit')->name('roster.show');
+    // The id is capped at 18 digits rather than `whereNumber()`, so an id too long for an integer answers 404.
+    Route::get('/roster/{unit}', [SectionRosterController::class, 'show'])->where('unit', '[0-9]{1,18}')->name('roster.show');
 
     // Logout (Story 1.5). POST, so it carries CSRF protection and can't be triggered by a
     // prefetched link or a cross-site <img>.

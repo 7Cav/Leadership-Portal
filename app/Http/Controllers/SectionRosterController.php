@@ -47,13 +47,18 @@ class SectionRosterController extends Controller
         return redirect()->route('roster.show', $sections->first()['id']);
     }
 
+    /**
+     * The scope check runs before the section-type check, so a unit outside the viewer's scope is
+     * refused with 403 whatever it is: answering 404 for a non-section first would tell an out-of-scope
+     * viewer that unit's type.
+     */
     public function show(Request $request, Unit $unit, ScopeResolver $scope): Response
     {
-        abort_unless($unit->type === UnitType::Section, 404);
-
         // Resolved once: it re-queries grants, command mappings and subtrees, and re-evaluates view-as.
         $inScope = $this->scopeSet($request->user(), $scope);
-        abort_unless($inScope->has($unit->id), 403, 'That section is outside your scope.');
+        abort_unless($inScope->has($unit->id), 403, 'That unit is outside your scope.');
+
+        abort_unless($unit->type === UnitType::Section, 404);
 
         return Inertia::render('Section/Roster', [
             'section' => ['id' => $unit->id, 'name' => $unit->name, 'callsign' => $unit->callsign],
