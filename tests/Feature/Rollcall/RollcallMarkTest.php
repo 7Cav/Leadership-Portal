@@ -223,6 +223,12 @@ describe('what is refused', function () {
         markSave($this->actingAs($this->leader), $platoon, [])->assertNotFound();
     });
 
+    it('answers an id too long for any unit with 404, not an integer overflow', function () {
+        $this->actingAs($this->leader)->post('/rollcall/12345678901234567890', ['week' => MARK_WEEK, 'marks' => []])->assertNotFound();
+
+        expect(SectionPractice::query()->count())->toBe(0);
+    });
+
     it('is refused while viewing as someone else, since a preview is read-only (1.13)', function () {
         $admin = User::factory()->admin()->create();
         $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->section->id])->assertSessionHasNoErrors();
