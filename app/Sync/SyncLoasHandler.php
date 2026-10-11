@@ -41,7 +41,8 @@ use Throwable;
  * username matches no one (or more than one), is stored as `needs_review` with no dates, never guessed. The
  * trooper is matched on the whole username, ignoring case, never a prefix. Raw text longer than its column
  * (a username, or a date line someone wrote a paragraph into) is cut to fit, and the row is sent to review,
- * so one over-long post cannot fail the run for every other post in it.
+ * so one over-long post cannot fail the run for every other post in it. Every row keeps the moment its
+ * thread was posted (`posted_at`), the one date a `needs_review` row has.
  *
  * The run is recorded in `sync_runs` (AD-16's carve-out for system jobs). A thread that failed to fetch
  * makes it `partial` (and is retried next run, since the cutoff only moves after a clean run). Rows left
@@ -344,6 +345,7 @@ class SyncLoasHandler
                 parseStatus: $clean ? LoaParseStatus::Ok : LoaParseStatus::NeedsReview,
                 reviewReason: $clean ? null : mb_substr(implode(' ', $reasons ?: ['The start date could not be worked out.']), 0, 250),
                 sourceThread: $this->sourceThread($summary),
+                postedAt: $summary->postedAt,
                 rawUsername: $username,
                 rawStartDate: $rawStart,
                 rawEndDate: $rawEnd,
