@@ -3,6 +3,7 @@
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PreventCachingAuthenticatedResponses;
 use App\Http\Middleware\ReadOnlyWhileViewingAs;
+use App\Http\Middleware\SetSecurityHeaders;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -15,6 +16,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Global rather than `web`-only, so error pages outside the group carry the headers too
+        // (see the class docblock).
+        $middleware->append(SetSecurityHeaders::class);
+
         // Prepended, so it wraps the whole group: appended it would be the innermost pipe and
         // any response produced further out — a 419 CSRF rejection, Inertia's 409 version
         // bounce — would slip past uncached-unmarked. With APP_DEBUG on, that 419 is a debug
