@@ -201,8 +201,11 @@ class ForumAuthController extends Controller
      * and sending `no-store` govern what the *server* answers and what the *HTTP cache*
      * keeps — but pressing "back" in an Inertia SPA fires `popstate`, and the client
      * re-renders the stored page object without issuing a request at all. Clearing the
-     * history tells it to discard that stored state, so "back" has to hit the server and
-     * gets bounced to login. It runs last because the flag lives in the new session.
+     * history discards the key those stored pages were encrypted with, so they can no longer
+     * be decrypted and "back" has to hit the server, which bounces to login. That only holds
+     * because `history.encrypt` is on in config/inertia.php: with it off there is no key to
+     * discard and the plaintext pages repaint. It runs last because the flag lives in the
+     * new session.
      */
     public function logout(Request $request): RedirectResponse
     {
