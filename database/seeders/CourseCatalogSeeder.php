@@ -12,7 +12,8 @@ use RuntimeException;
 /**
  * Seeds the portal-owned course catalog (AD-5, AD-22): no external source publishes it, so the
  * list lives here. Every row goes through the audited `CreateCourse` Command — the seeder never
- * writes the table itself — so the audit trail needs an actor, and the first Admin is used.
+ * writes the table itself — so the audit trail needs an actor, and the first Admin is used (the
+ * Command refuses anyone else).
  * Re-running is safe: a code already in the catalog is skipped, never updated or duplicated.
  *
  * `php artisan db:seed --class=CourseCatalogSeeder`
