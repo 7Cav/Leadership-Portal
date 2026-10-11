@@ -172,7 +172,7 @@ it('422s a revoke with no reason (AD-16)', function () {
 
 it('reflects a revoke in the target\'s effective scope on the very next request (AC #2)', function () {
     $admin = User::factory()->admin()->create();
-    $target = User::factory()->create();
+    $target = User::factory()->serving()->create();
     $unit = Unit::factory()->create();
     $grant = PortalRoleGrant::factory()->create(['user_id' => $target->id, 'unit_id' => $unit->id]);
 

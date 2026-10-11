@@ -63,7 +63,7 @@ it('is a silent no-op when no grant exists, logging nothing (no work, no log ent
 
 it('reflects the revoke in the target\'s effective scope on the very next resolution (AC #2, no cache to invalidate)', function () {
     $actor = User::factory()->admin()->create();
-    $target = User::factory()->create();
+    $target = User::factory()->serving()->create();
     $unit = Unit::factory()->create();
     app(GrantStaffScope::class)->handle($actor, $target, $unit, 'grant');
 

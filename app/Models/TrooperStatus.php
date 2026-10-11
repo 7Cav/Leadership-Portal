@@ -17,4 +17,32 @@ enum TrooperStatus: string
     case Reserve = 'reserve';
     case Eloa = 'eloa';
     case Inactive = 'inactive';
+
+    /**
+     * The standings that count as still in the Cav — an allow-list, so `Inactive`, or any
+     * standing added later, confers nothing until someone decides it should. The one definition
+     * every "is this person serving" question reads: roster-derived command scope (1.16), whether
+     * a staff grant still counts, and who may sign in at all.
+     *
+     * @return list<self>
+     */
+    public static function serving(): array
+    {
+        return [self::Combat, self::Reserve, self::Eloa];
+    }
+
+    /**
+     * {@see serving()} as the stored column values, for a `whereIn`.
+     *
+     * @return list<string>
+     */
+    public static function servingValues(): array
+    {
+        return array_map(fn (self $status) => $status->value, self::serving());
+    }
+
+    public function isServing(): bool
+    {
+        return in_array($this, self::serving(), true);
+    }
 }

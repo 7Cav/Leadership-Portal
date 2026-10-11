@@ -95,6 +95,25 @@ class Eloquent implements TrooperRepository
         return Trooper::query()->whereIn('cav_id', $cavIds)->whereNotNull('rank')->pluck('rank', 'cav_id');
     }
 
+    public function statusOf(int $cavId): ?TrooperStatus
+    {
+        return Trooper::query()->where('cav_id', $cavId)->first(['status'])?->status;
+    }
+
+    public function servingCavIds(array $cavIds): Collection
+    {
+        if ($cavIds === []) {
+            return collect();
+        }
+
+        return Trooper::query()
+            ->whereIn('cav_id', $cavIds)
+            ->whereIn('status', TrooperStatus::servingValues())
+            ->orderBy('cav_id')
+            ->pluck('cav_id')
+            ->map(fn ($cavId) => (int) $cavId);
+    }
+
     public function sectionsOfAssignedWithin(Unit $unit): Collection
     {
         return Trooper::query()->assignedWithin($unit)->orderBy('id')

@@ -103,7 +103,7 @@ it('refuses a unit id that does not exist', function () {
 
 it('re-checks a stored target against current authority on every call (AC #4)', function () {
     $tree = vaTree();
-    $staff = User::factory()->create();
+    $staff = User::factory()->serving()->create();
     $grant = PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $tree['platoon']->id]);
     vaViewAs($staff, ViewAsKind::Unit, $tree['section2']->id);
     $resolver = app(ScopeResolver::class);
