@@ -151,6 +151,7 @@ describe('a normal LOA', function () {
             ->and($loa->starts_at->toDateString())->toBe('2026-10-06')
             ->and($loa->ends_at->toDateString())->toBe('2026-10-20')
             ->and($loa->source_thread)->toBe('https://7cav.us/threads/4001/')
+            ->and($loa->posted_at->toDateTimeString())->toBe('2026-10-05 08:00:00')
             ->and($loa->raw_username)->toBe('Smith.J')
             ->and($loa->raw_start_date)->toBe('Oct 6, 2026')
             ->and($loa->raw_end_date)->toBe('Oct 20, 2026')
@@ -202,6 +203,7 @@ describe('a normal LOA', function () {
         expect($loa->parse_status)->toBe(LoaParseStatus::NeedsReview)
             ->and($loa->starts_at)->toBeNull()
             ->and($loa->ends_at)->toBeNull()
+            ->and($loa->posted_at->toDateTimeString())->toBe('2026-10-05 08:00:00')
             ->and($loa->raw_end_date)->toBe('whenever I am back')
             ->and($loa->review_reason)->toContain('End Date')
             ->and($loa->trooper_id)->not->toBeNull()
@@ -285,6 +287,23 @@ describe('finding the trooper by username', function () {
             ->and(latestLoaRun()->needs_review)->toBe(1);
     });
 
+    it('keeps a thread whose title names someone other than its Username as needs_review, with no dates', function () {
+        $hart = Trooper::factory()->create(['username' => 'Hart.A']);
+        Trooper::factory()->create(['username' => 'Evil.X']);
+        $thread = loaThread(4001, '[LOA Request] - PVT.Evil.X | Oct 3, 2026 - Oct 17, 2026', loaBody('loa-self'), '2026-10-05 08:00');
+        forumWith([180 => [[$thread]]], [4001 => $thread]);
+
+        runLoaSync();
+
+        $loa = Loa::sole();
+        expect($loa->parse_status)->toBe(LoaParseStatus::NeedsReview)
+            ->and($loa->review_reason)->toBe('The title names PVT.Evil.X but the post names Hart.A.')
+            ->and($loa->trooper_id)->toBe($hart->id)
+            ->and($loa->starts_at)->toBeNull()
+            ->and($loa->ends_at)->toBeNull()
+            ->and(latestLoaRun()->needs_review)->toBe(1);
+    });
+
     it('refuses to pick between two troopers who carry the same name', function () {
         Trooper::factory()->create(['username' => 'Smith.J']);
         Trooper::factory()->create(['username' => 'smith.j']);
@@ -295,6 +314,75 @@ describe('finding the trooper by username', function () {
 
         expect(Loa::sole()->trooper_id)->toBeNull()
             ->and(Loa::sole()->review_reason)->toContain('2 troopers are named Smith.J');
+    });
+});
+
+describe('raw text longer than the portal keeps', function () {
+    it('cuts an over-long Start Date line to its column and sends the row to review, and the rest of the run is stored', function () {
+        Trooper::factory()->create(['username' => 'Smith.J']);
+        $hart = Trooper::factory()->create(['username' => 'Hart.A']);
+        $long = str_repeat('a', 300);
+        $rambling = loaThread(4001, '[LOA Request] - PVT.Smith.J', "Username: Smith.J\nStart Date\n{$long}\nEnd Date\nOct 20, 2026\n", '2026-10-05 08:00');
+        $good = loaThread(4002, '[LOA Request] - MAJ.Hart.A | Oct 3, 2026 - Oct 17, 2026', loaBody('loa-self'), '2026-10-05 09:00');
+        forumWith([180 => [[$good, $rambling]]], [4001 => $rambling, 4002 => $good]);
+
+        runLoaSync();
+
+        $cut = Loa::where('forum_thread_id', 4001)->sole();
+        $stored = Loa::where('forum_thread_id', 4002)->sole();
+        expect($cut->parse_status)->toBe(LoaParseStatus::NeedsReview)
+            ->and($cut->raw_start_date)->toBe(str_repeat('a', 255))
+            ->and($cut->review_reason)->toContain('The Start Date is longer than the portal keeps.')
+            ->and($cut->starts_at)->toBeNull()
+            ->and($stored->parse_status)->toBe(LoaParseStatus::Ok)
+            ->and($stored->trooper_id)->toBe($hart->id)
+            ->and(latestLoaRun()->status)->toBe(SyncRunStatus::Success)
+            ->and(latestLoaRun()->needs_review)->toBe(1);
+    });
+
+    it('cuts an over-long End Date or Username the same way, and looks the trooper up by the cut name', function () {
+        $long = str_repeat('b', 300);
+        $longEnd = loaThread(4001, '[LOA Request] - PVT.Smith.J', "Username: Smith.J\nStart Date\nOct 6, 2026\nEnd Date\n{$long}\n", '2026-10-05 08:00');
+        $longName = loaThread(4002, '[LOA Request] - PVT.Smith.J', "Username: {$long}\nStart Date\nOct 6, 2026\nEnd Date\nOct 20, 2026\n", '2026-10-05 09:00');
+        Trooper::factory()->create(['username' => 'Smith.J']);
+        forumWith([180 => [[$longName, $longEnd]]], [4001 => $longEnd, 4002 => $longName]);
+
+        runLoaSync();
+
+        $end = Loa::where('forum_thread_id', 4001)->sole();
+        $name = Loa::where('forum_thread_id', 4002)->sole();
+        expect($end->raw_end_date)->toBe(str_repeat('b', 255))
+            ->and($end->parse_status)->toBe(LoaParseStatus::NeedsReview)
+            ->and($end->review_reason)->toContain('The End Date is longer than the portal keeps.')
+            ->and($name->raw_username)->toBe(str_repeat('b', 255))
+            ->and($name->trooper_id)->toBeNull()
+            ->and($name->parse_status)->toBe(LoaParseStatus::NeedsReview)
+            ->and($name->review_reason)->toContain('The Username is longer than the portal keeps.')
+            ->and(mb_strlen($name->review_reason))->toBeLessThanOrEqual(250);
+    });
+
+    it('counts the limit in characters, so a long line of accented letters is kept whole up to it', function () {
+        Trooper::factory()->create(['username' => 'Smith.J']);
+        $fits = str_repeat('é', 255);
+        $thread = loaThread(4001, '[LOA Request] - PVT.Smith.J', "Username: Smith.J\nStart Date\nOct 6, 2026\nEnd Date\n{$fits}\n", '2026-10-05 08:00');
+        forumWith([180 => [[$thread]]], [4001 => $thread]);
+
+        runLoaSync();
+
+        expect(Loa::sole()->raw_end_date)->toBe($fits)
+            ->and(Loa::sole()->review_reason)->not->toContain('longer than the portal keeps');
+    });
+
+    it('stores the plain thread address when the forum\'s own is too long for the column', function () {
+        Trooper::factory()->create(['username' => 'Smith.J']);
+        $thread = loaThread(4001, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-05 08:00');
+        $thread['summary']['view_url'] = 'https://7cav.us/threads/'.str_repeat('a-very-long-slug-', 20).'4001/';
+        forumWith([180 => [[$thread]]], [4001 => $thread]);
+
+        runLoaSync();
+
+        expect(Loa::sole()->source_thread)->toBe('https://7cav.us/threads/4001/')
+            ->and(Loa::sole()->parse_status)->toBe(LoaParseStatus::Ok);
     });
 });
 

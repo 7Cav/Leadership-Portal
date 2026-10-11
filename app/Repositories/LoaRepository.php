@@ -5,6 +5,7 @@ namespace App\Repositories;
 use App\Models\Loa;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
+use InvalidArgumentException;
 
 /**
  * Sole DB access for the `loas` cache (AD-2, AD-22). The LOA sync (4.2) is its one writer, through
@@ -31,13 +32,19 @@ interface LoaRepository
      *
      * - A cleanly read row whose window touches any day of the week: it starts on or before the Friday and
      *   ends on or after the Saturday, or has no end at all.
-     * - A row that needs review, or a row with no start date, that had been cached by the end of the week.
-     *   The parser keeps no dates for it, so it can only be placed from when it was first seen.
+     * - A row that needs review, or a row with no start date, posted on the forum in this Cav week or the
+     *   one before (`WeekOf`, AD-11). The parser keeps no dates for it, so the post date is the only date it
+     *   has, and it shields the trooper for the week it was posted in and the next, then stops: a broken post
+     *   cannot keep someone out of the KPIs for good, and the first sync's backfill of old malformed posts
+     *   does not cover anyone from that sync on. A row with no `posted_at` (stored before the column existed,
+     *   and not read again since) is placed by `created_at` instead.
      *
      * Rows with no trooper never match. Read-only; the resolver decides what the rows mean.
      *
      * @param  list<int>  $trooperIds
      * @return Collection<int, Loa>
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
      */
     public function touchingWeek(array $trooperIds, CarbonImmutable $weekStart): Collection;
 
