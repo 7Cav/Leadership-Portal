@@ -90,7 +90,21 @@ function requestRevoke(grant) {
                     </TableHeader>
                     <TableBody>
                         <TableRow v-for="grant in grants" :key="grant.id" :data-testid="`grant-row-${grant.id}`">
-                            <TableCell class="px-4 font-medium">{{ grant.username }}</TableCell>
+                            <TableCell class="px-4 font-medium">
+                                <span class="flex flex-wrap items-center gap-1.5">
+                                    {{ grant.username }}
+                                    <!-- A grant only counts while its holder serves; a lapsed one stays listed
+                                         so an Admin can see it and revoke it on the record. -->
+                                    <Badge
+                                        v-if="!grant.holder_serving"
+                                        variant="warning"
+                                        :data-testid="`lapsed-${grant.id}`"
+                                        title="This grant gives no scope while its holder is not on a serving Cav roster."
+                                    >
+                                        Lapsed: not serving
+                                    </Badge>
+                                </span>
+                            </TableCell>
                             <TableCell><Badge variant="outline">{{ grant.unit_name }}</Badge></TableCell>
                             <TableCell class="px-4 text-right">
                                 <Button

@@ -2,6 +2,8 @@
 
 use App\Authorization\ScopeResolver;
 use App\Models\PortalRoleGrant;
+use App\Models\Trooper;
+use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\User;
 
@@ -17,6 +19,26 @@ it('renders the grants list for any authenticated user', function () {
             ->component('Settings/StaffGrants')
             ->has('grants', 1)
             ->where('isAdmin', false));
+});
+
+it('marks each grant by whether its holder is still serving, keeping a lapsed one listed', function () {
+    $unit = Unit::factory()->create();
+    $serving = User::factory()->serving()->create(['username' => 'Vasquez.R']);
+    $departed = User::factory()->create(['username' => 'Doyle.K', 'cav_id' => Trooper::factory()->create(['status' => TrooperStatus::Inactive])->cav_id]);
+    $unlinked = User::factory()->create(['username' => 'Hale.S']);
+    foreach ([$serving, $departed, $unlinked] as $holder) {
+        PortalRoleGrant::factory()->create(['user_id' => $holder->id, 'unit_id' => $unit->id]);
+    }
+
+    $this->actingAs(User::factory()->admin()->create())->get('/settings/staff-grants')
+        ->assertInertia(fn ($page) => $page
+            // Still listed, so an Admin can see the lapse and revoke the row on the record.
+            ->has('grants', 3)
+            ->where('grants', fn ($grants) => collect($grants)->pluck('holder_serving', 'username')->all() === [
+                'Vasquez.R' => true,
+                'Doyle.K' => false,
+                'Hale.S' => false,
+            ]));
 });
 
 it('excludes Admins from the target-user picker (AD-7 — a grant to an Admin is meaningless)', function () {
