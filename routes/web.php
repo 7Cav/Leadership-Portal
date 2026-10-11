@@ -47,8 +47,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/troopers/{trooper}', [TrooperDetailController::class, 'show'])->where('trooper', '[0-9]{1,18}')->name('troopers.show');
 
     // The training-readiness matrix of one unit (Story 6.9): troopers by courses, scope-gated in the controller
-    // through the ScopeResolver (AD-8). The milpac's quick action links to the trooper's platoon (6.7).
-    Route::get('/readiness/{unit}', [TrainingReadinessMatrixController::class, 'show'])->whereNumber('unit')->name('readiness.matrix');
+    // through the ScopeResolver (AD-8). The milpac's quick action links to the trooper's platoon (6.7). Capped
+    // at 18 digits like the roster's ids.
+    Route::get('/readiness/{unit}', [TrainingReadinessMatrixController::class, 'show'])->where('unit', '[0-9]{1,18}')->name('readiness.matrix');
 
     // Logout (Story 1.5). POST, so it carries CSRF protection and can't be triggered by a
     // prefetched link or a cross-site <img>.

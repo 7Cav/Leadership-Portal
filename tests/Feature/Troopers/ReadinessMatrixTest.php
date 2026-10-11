@@ -105,6 +105,10 @@ describe('who may open it', function () {
     it('answers a unit that does not exist with 404', function () {
         $this->actingAs($this->leader)->get('/readiness/999999')->assertNotFound();
     });
+
+    it('answers a unit id too long for an integer with 404 rather than erroring', function () {
+        $this->actingAs($this->leader)->get('/readiness/99999999999999999999')->assertNotFound();
+    });
 });
 
 describe('the grid', function () {
