@@ -1,5 +1,6 @@
 <?php
 
+use App\Commands\Courses\CourseWriteForbiddenException;
 use App\Commands\Courses\SetTrooperCourseStatus;
 use App\Models\AuditLogEntry;
 use App\Models\Course;
@@ -106,6 +107,46 @@ it('needs no reason', function () {
     setCourseStatus($actor, Trooper::factory()->create(), Course::factory()->create(), CourseStatus::Required);
 
     expect(AuditLogEntry::first()->reason)->toBeNull();
+});
+
+it('refuses a non-Admin before writing anything, leaving no row and no audit entry', function () {
+    $actor = User::factory()->create();
+
+    expect(fn () => setCourseStatus($actor, Trooper::factory()->create(), Course::factory()->create(), CourseStatus::Required))
+        ->toThrow(CourseWriteForbiddenException::class);
+
+    expect(TrooperCourse::count())->toBe(0)->and(AuditLogEntry::count())->toBe(0);
+});
+
+it('refuses a non-Admin even when the row already exists, leaving it as it was', function () {
+    $trooper = Trooper::factory()->create();
+    $course = Course::factory()->create();
+    setCourseStatus(User::factory()->admin()->create(), $trooper, $course, CourseStatus::Required);
+
+    expect(fn () => setCourseStatus(User::factory()->create(), $trooper, $course, CourseStatus::Qualified, '2026-09-14'))
+        ->toThrow(CourseWriteForbiddenException::class);
+
+    expect(TrooperCourse::first()->status)->toBe(CourseStatus::Required)
+        ->and(AuditLogEntry::count())->toBe(1);
+});
+
+it('refuses a reason over the length bound, leaving no row and no audit entry', function () {
+    $actor = User::factory()->admin()->create();
+    $reason = str_repeat('a', SetTrooperCourseStatus::MAX_REASON_LENGTH + 1);
+
+    expect(fn () => setCourseStatus($actor, Trooper::factory()->create(), Course::factory()->create(), CourseStatus::Required, null, $reason))
+        ->toThrow(InvalidArgumentException::class);
+
+    expect(TrooperCourse::count())->toBe(0)->and(AuditLogEntry::count())->toBe(0);
+});
+
+it('accepts a reason exactly at the length bound', function () {
+    $actor = User::factory()->admin()->create();
+    $reason = str_repeat('é', SetTrooperCourseStatus::MAX_REASON_LENGTH);
+
+    setCourseStatus($actor, Trooper::factory()->create(), Course::factory()->create(), CourseStatus::Required, null, $reason);
+
+    expect(AuditLogEntry::first()->reason)->toBe($reason);
 });
 
 it('refuses a trooper that does not exist, leaving no row and no audit entry', function () {
