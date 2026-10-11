@@ -39,6 +39,7 @@ class EnrichCavProfile
      * @throws CavEnrichmentException when no profile could be resolved or linked — the caller
      *                                carries on unenriched; whether the user is let in at all is
      *                                {@see AdmitServingMember}'s call, from the local roster cache
+     *                                when Cav could not answer
      */
     public function handle(User $user): CavRosterProfile
     {

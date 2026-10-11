@@ -118,12 +118,12 @@ class ForumAuthController extends Controller
             return $this->backToLogin('We could not complete sign-in with 7Cav. Please try again.');
         }
 
-        // Enrich before deciding anything: it is what links (or re-confirms, or drops) the milpac id
-        // the admission check reads. The portal identity row exists by now whatever the outcome —
-        // only the session is withheld.
+        // Enrich before deciding anything: it is what links (or re-confirms, or drops) the milpac id,
+        // and what may confirm the trooper's roster live — both inputs to the admission check. The
+        // portal identity row exists by now whatever the outcome; only the session is withheld.
         $cav = $this->enrichCavProfile($user, $enrich);
 
-        $admission = $admit->handle($user, rosterUnavailable: $cav['roster_unavailable']);
+        $admission = $admit->handle($user, rosterUnavailable: $cav['roster_unavailable'], live: $cav['live']);
 
         if ($admission !== Admission::Admitted) {
             Log::info('Sign-in refused: the forum identity is not a confirmed serving 7th Cavalry member.', [
@@ -150,9 +150,10 @@ class ForumAuthController extends Controller
      * {@see attachCavProfile()} stores, or the reason there is none.
      *
      * Runs *before* `Auth::login()`: the admission check that follows reads the milpac link this
-     * discovers. It still cannot break the callback — every failure becomes a reason, never an
-     * exception — and a failure on its own refuses nobody: a trooper whose stored link the local
-     * roster cache confirms as serving signs in unenriched while Cav is down (Story 1.7).
+     * discovers and the roster Cav reports. It still cannot break the callback — every failure
+     * becomes a reason, never an exception — and a failure on its own refuses nobody: a trooper
+     * whose stored link the local roster cache confirms as serving signs in unenriched while Cav is
+     * down (Story 1.7).
      *
      * The values are Cav's, not the portal's (AD-5), so they are stored with their source
      * and fetch time and never persisted as portal facts — whatever renders them can show
@@ -163,9 +164,11 @@ class ForumAuthController extends Controller
      * bury the case that matters — an actual outage — in noise operators learn to ignore.
      *
      * `unavailable` is the failure reason's string value (Story 1.7's input); `roster_unavailable`
-     * is whether that failure says nothing about the user — anything but "holds no milpac".
+     * is whether that failure says nothing about the user — anything but "holds no milpac"; `live`
+     * is the profile Cav returned, for the admission check (deliberately untyped here: the
+     * controller must not name an `Integration/` type).
      *
-     * @return array{profile: ?array<string, mixed>, unavailable: ?string, roster_unavailable: bool}
+     * @return array{profile: ?array<string, mixed>, unavailable: ?string, roster_unavailable: bool, live: mixed}
      */
     private function enrichCavProfile(User $user, EnrichCavProfile $enrich): array
     {
@@ -181,7 +184,7 @@ class ForumAuthController extends Controller
                 ]);
             }
 
-            return ['profile' => null, 'unavailable' => $e->reason->value, 'roster_unavailable' => $e->reason->isFault()];
+            return ['profile' => null, 'unavailable' => $e->reason->value, 'roster_unavailable' => $e->reason->isFault(), 'live' => null];
         } catch (Throwable $e) {
             // The one place in this codebase where a bare `Throwable` catch is the correct call.
             // Everything below promises that enrichment cannot break a login, but that promise
@@ -192,7 +195,7 @@ class ForumAuthController extends Controller
             // so it counts as the roster being unavailable.
             report($e);
 
-            return ['profile' => null, 'unavailable' => 'unexpected', 'roster_unavailable' => true];
+            return ['profile' => null, 'unavailable' => 'unexpected', 'roster_unavailable' => true, 'live' => null];
         }
 
         return [
@@ -208,6 +211,9 @@ class ForumAuthController extends Controller
             ],
             'unavailable' => null,
             'roster_unavailable' => false,
+            // Handed to the admission check as is: Cav's live answer on which roster the trooper
+            // stands, which outranks the cache when there is one. Never stored in the session.
+            'live' => $profile,
         ];
     }
 
@@ -216,7 +222,7 @@ class ForumAuthController extends Controller
      * *user* is told about a missing one; the reason is stashed alongside so that story is a view
      * change rather than a re-plumbing of this callback.
      *
-     * @param  array{profile: ?array<string, mixed>, unavailable: ?string, roster_unavailable: bool}  $cav
+     * @param  array{profile: ?array<string, mixed>, unavailable: ?string, roster_unavailable: bool, live: mixed}  $cav
      */
     private function attachCavProfile(Request $request, array $cav): void
     {

@@ -10,7 +10,8 @@ use Saloon\Http\Faking\MockResponse;
 
 /**
  * The sign-in gate: any 7cav.us forum account completes the OAuth handshake, so a session starts
- * only for an Admin or a user linked to a serving trooper in the local roster cache. Cav is faked
+ * only for an Admin or a serving trooper — as Cav reports them live during the login, or, when Cav
+ * cannot answer, as the local roster cache holds their stored link. Cav is faked
  * at the AD-3 seam as in CavEnrichmentTest; the helpers are prefixed so the two files can share a
  * Pest process.
  */
@@ -92,16 +93,30 @@ it('refuses a forum account that holds no milpac, and says why on the login scre
     $this->get('/login')->assertInertia(fn ($page) => $page->component('Auth/Login')->where('error', GATE_NOT_SERVING));
 });
 
-it('signs in a trooper linked to a serving milpac', function (TrooperStatus $status) {
+it('signs in a trooper linked to a serving milpac, on any serving roster', function (TrooperStatus $status, string $roster) {
     Trooper::factory()->create(['cav_id' => 77, 'status' => $status]);
 
     gateSignIn([
         ...gateRosters(MockResponse::make(['profiles' => []])),
-        'api.7cav.us/api/v1/roster/ROSTER_TYPE_COMBAT/lite' => MockResponse::make(['profiles' => ['77' => gateRosterEntry(4)]]),
+        "api.7cav.us/api/v1/roster/{$roster}/lite" => MockResponse::make(['profiles' => ['77' => gateRosterEntry(4, $roster)]]),
     ])->assertRedirect(route('home'));
 
     $this->assertAuthenticated();
     expect(auth()->user()->cav_id)->toBe(77);
+})->with([
+    'combat' => [TrooperStatus::Combat, 'ROSTER_TYPE_COMBAT'],
+    'reserve' => [TrooperStatus::Reserve, 'ROSTER_TYPE_RESERVE'],
+    'ELOA' => [TrooperStatus::Eloa, 'ROSTER_TYPE_ELOA'],
+]);
+
+it('signs in on the cache alone while Cav is down, on any serving standing', function (TrooperStatus $status) {
+    User::create(['forum_user_id' => 4, 'cav_id' => 77, 'username' => 'Hale.S']);
+    Trooper::factory()->create(['cav_id' => 77, 'status' => $status]);
+
+    gateSignIn(['api.7cav.us/api/v1/milpacs/profile/id/77' => MockResponse::make([], 503)])
+        ->assertRedirect(route('home'));
+
+    $this->assertAuthenticated();
 })->with([
     'combat' => [TrooperStatus::Combat],
     'reserve' => [TrooperStatus::Reserve],
@@ -127,6 +142,33 @@ it('refuses a trooper whose milpac the roster cache shows departed, Cav up or do
         'api.7cav.us/api/v1/milpacs/profile/id/77' => MockResponse::make([], 503),
     ]],
 ]);
+
+it('refuses a trooper Cav lists live on a non-serving roster, even while the cache still shows them serving', function (string $roster) {
+    // The cache trails Cav by up to one sync; a live answer is the fresher fact.
+    User::create(['forum_user_id' => 4, 'cav_id' => 77, 'username' => 'Hale.S']);
+    Trooper::factory()->create(['cav_id' => 77, 'status' => TrooperStatus::Combat]);
+
+    gateSignIn(['api.7cav.us/api/v1/milpacs/profile/id/77' => MockResponse::make(gateRosterEntry(4, $roster))])
+        ->assertRedirect(route('login'))
+        ->assertSessionHas('error', GATE_NOT_SERVING);
+
+    $this->assertGuest();
+})->with([
+    'Past Members' => ['ROSTER_TYPE_PAST_MEMBERS'],
+    'Wall of Honor' => ['ROSTER_TYPE_WALL_OF_HONOR'],
+    'an unrecognized roster' => ['ROSTER_TYPE_UNSPECIFIED'],
+]);
+
+it('signs in a trooper Cav lists live on a serving roster whom the cache still shows departed', function () {
+    // Back from a discharge since the last sync: Cav's live answer admits them.
+    User::create(['forum_user_id' => 4, 'cav_id' => 77, 'username' => 'Hale.S']);
+    Trooper::factory()->create(['cav_id' => 77, 'status' => TrooperStatus::Inactive]);
+
+    gateSignIn(['api.7cav.us/api/v1/milpacs/profile/id/77' => MockResponse::make(gateRosterEntry(4, 'ROSTER_TYPE_RESERVE'))])
+        ->assertRedirect(route('home'));
+
+    $this->assertAuthenticated();
+});
 
 it('signs in an Admin who holds no milpac — Admins are never locked out by roster data', function () {
     User::factory()->admin()->create(['forum_user_id' => 4]);
@@ -160,22 +202,16 @@ it('refuses someone with no stored link while Cav is down, telling them to try a
     $this->assertGuest();
 });
 
-it('refuses a trooper Cav finds but the roster cache does not hold yet, until the next roster sync', function () {
-    // Pinned so the trade-off is visible: the gate reads the local cache only, so a brand-new
-    // trooper waits for the sync that caches them. The link is kept, so that sync is all it takes.
+it('signs in a trooper Cav finds live on a serving roster before the roster cache holds them', function () {
+    // A brand-new trooper the next sync has not cached yet: Cav's live answer during this login is
+    // enough, with no wait for the sync.
+    expect(Trooper::query()->where('cav_id', 77)->exists())->toBeFalse();
+
     gateSignIn([
         ...gateRosters(MockResponse::make(['profiles' => []])),
         'api.7cav.us/api/v1/roster/ROSTER_TYPE_COMBAT/lite' => MockResponse::make(['profiles' => ['77' => gateRosterEntry(4)]]),
-    ])->assertRedirect(route('login'));
-
-    $this->assertGuest();
-    expect(User::firstWhere('forum_user_id', 4)->cav_id)->toBe(77);
-
-    Trooper::factory()->create(['cav_id' => 77]);
-
-    gateSignIn([
-        'api.7cav.us/api/v1/milpacs/profile/id/77' => MockResponse::make(gateRosterEntry(4)),
     ])->assertRedirect(route('home'));
 
     $this->assertAuthenticated();
+    expect(User::firstWhere('forum_user_id', 4)->cav_id)->toBe(77);
 });

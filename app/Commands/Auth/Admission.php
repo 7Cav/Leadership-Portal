@@ -12,7 +12,10 @@ enum Admission
     /** An Admin, or linked to a serving trooper — sign them in. */
     case Admitted;
 
-    /** Known not to be serving: no milpac link, or one to a trooper the roster cache shows departed. */
+    /**
+     * Known not to be serving: Cav lists them on a non-serving roster, or holds no milpac for them,
+     * or — with Cav unable to answer — the roster cache shows their trooper departed.
+     */
     case NotServing;
 
     /**
