@@ -110,6 +110,12 @@ describe('who may open it', function () {
         $this->actingAs($this->staff)->get(route('rollcall.show', $this->platoon->id))->assertNotFound();
     });
 
+    it('answers an id too long for any unit with 404, not an integer overflow', function () {
+        // Twenty digits is past the signed 64-bit range: under whereNumber it reached the binding and failed there (a 500).
+        $this->actingAs($this->staff)->get('/rollcall/12345678901234567890')->assertNotFound();
+        $this->get('/rollcall/'.str_repeat('9', 19))->assertNotFound();
+    });
+
     it('never widens a view-as preview past the previewed leader\'s scope (1.13, AD-9)', function () {
         $admin = User::factory()->admin()->create();
         $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->section->id])->assertSessionHasNoErrors();
@@ -162,7 +168,14 @@ describe('the week', function () {
 
     it('drops a week that is not a date, and a week still to come, back to the current one', function (string $query) {
         rollcallOpen($this->actingAs($this->leader), $this->section, $query)->assertRedirect(route('rollcall.show', $this->section->id));
-    })->with(['not a date' => ['?week=banana'], 'next week' => ['?week=2026-10-10'], 'far future' => ['?week=2030-01-01']]);
+    })->with([
+        'not a date' => ['?week=banana'],
+        'next week' => ['?week=2026-10-10'],
+        'far future' => ['?week=2030-01-01'],
+        // An array is not a week either: it was a PHP "Array to string conversion" error (a 500), not a fallback.
+        'an array' => ['?week[]=2026-09-26'],
+        'a keyed array' => ['?week[start]=2026-09-26'],
+    ]);
 
     it('counts the last Friday of a week as that week and the next Saturday as the next', function () {
         rollcallOpen($this->actingAs($this->leader), $this->section, '?week=2026-09-25')->assertInertia(fn ($page) => $page->where('week.start', '2026-09-19'));

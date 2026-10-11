@@ -30,8 +30,9 @@ use Inertia\Response;
  *
  * Who may open a section is decided here by the single ScopeResolver (AD-8, AD-6): a section outside the viewer's
  * effective scope is a 403 whatever link led there, and a view-as preview narrows it as it would for that leader
- * (AD-9), and a write is gated again by the section's scope inside {@see MarkAttendanceHandler} (AD-8). The week is `?week=YYYY-MM-DD`, any day in the Cav week; a week that is not a date, or lies in the future, falls
- * back to the current one, since a rollcall is never kept ahead of time.
+ * (AD-9), and a write is gated again by the section's scope inside {@see MarkAttendanceHandler} (AD-8). The week is
+ * `?week=YYYY-MM-DD`, any day in the Cav week; a week that is not a date (an array included), or lies in the future,
+ * falls back to the current one, since a rollcall is never kept ahead of time.
  */
 class RollcallController extends Controller
 {
@@ -133,8 +134,15 @@ class RollcallController extends Controller
             return $current;
         }
 
+        // `?week[]=x` reaches here as an array, and casting that to a string is a PHP error, not a parse failure: a
+        // week that is not a single string is as unreadable as `?week=banana` and is dropped the same way (the guard
+        // ReportRollupController keeps for its own week).
+        if (! is_string($raw)) {
+            return null;
+        }
+
         try {
-            $week = WeekOf::start(CarbonImmutable::parse((string) $raw, 'UTC'));
+            $week = WeekOf::start(CarbonImmutable::parse($raw, 'UTC'));
         } catch (InvalidFormatException) {
             return null;
         }
