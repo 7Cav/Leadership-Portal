@@ -110,6 +110,12 @@ describe('who may open it', function () {
         $this->actingAs($this->staff)->get(route('rollcall.show', $this->platoon->id))->assertNotFound();
     });
 
+    it('answers an id too long for any unit with 404, not an integer overflow', function () {
+        // Twenty digits is past the signed 64-bit range: under whereNumber it reached the binding and failed there (a 500).
+        $this->actingAs($this->staff)->get('/rollcall/12345678901234567890')->assertNotFound();
+        $this->get('/rollcall/'.str_repeat('9', 19))->assertNotFound();
+    });
+
     it('never widens a view-as preview past the previewed leader\'s scope (1.13, AD-9)', function () {
         $admin = User::factory()->admin()->create();
         $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->section->id])->assertSessionHasNoErrors();

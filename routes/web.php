@@ -36,9 +36,11 @@ Route::middleware('auth')->group(function () {
 
     // The weekly rollcall of one section (Story 3.7), `?week=YYYY-MM-DD` for any day in the Cav week. `/rollcall` is the
     // nav entry: it opens the first section in the viewer's scope. Scope-gated in the controller through the
-    // ScopeResolver (AD-8). The name is the one the roster Sheet and the milpac quick actions link to.
+    // ScopeResolver (AD-8). The name is the one the roster Sheet and the milpac quick actions link to. `{unit}` is at most
+    // 18 digits, so every id it admits fits a signed 64-bit integer: a longer run of digits overflows the bound and
+    // turned into a 500 under whereNumber, where it is just a section that does not exist (404).
     Route::get('/rollcall', [RollcallController::class, 'index'])->name('rollcall.index');
-    Route::get('/rollcall/{unit}', [RollcallController::class, 'show'])->whereNumber('unit')->name('rollcall.show');
+    Route::get('/rollcall/{unit}', [RollcallController::class, 'show'])->where('unit', '[0-9]{1,18}')->name('rollcall.show');
 
     // Logout (Story 1.5). POST, so it carries CSRF protection and can't be triggered by a
     // prefetched link or a cross-site <img>.
