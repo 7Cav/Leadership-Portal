@@ -15,8 +15,10 @@ Everything the portal needs to *read* about leave lives here, so no screen re-de
   - `Covered` excuses the absence and carries the dates.
   - `NeedsReview` is the fail-safe (AD-4). It suppresses an at-risk or AWOL attribution
     (`suppressesAtRisk()`) but is neither "covered" nor "absent", and carries no dates. The parser
-    keeps none for such a row, so it applies from the week the row was first cached until the post
-    is fixed and the next sync reads it cleanly.
+    keeps none for such a row, so it applies for the Cav week the thread was posted on the forum
+    (`posted_at`) and the week after, then stops: a broken post cannot keep a trooper out of the
+    KPIs for good, and the first sync's backfill of old malformed posts shields no one from that sync on. A row with
+    no `posted_at` yet (stored before the column existed) is placed by `created_at` instead.
   - A cleanly read leave that covers the week wins over one that needs review.
   - `toArray()` is the badge's prop shape.
 

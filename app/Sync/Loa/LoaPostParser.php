@@ -18,6 +18,8 @@ use DateTimeZone;
  *  - The `Username` of an LOA is a forum mention, `[USER=12563]Name[/USER]`, which carries the forum user
  *    id. An ELOA post has two `Username` labels, the submitter first, so the subject is the LAST one
  *    (the bot's ADR 0010). An LOA has one; the submitter is under `Submitter Name`.
+ *  - The title names the trooper as well, after the tag (`[LOA Request] - PVT.Smith.J | ...`). When it names
+ *    someone other than the `Username`, the thread is not read cleanly.
  *  - Dates read `Oct 6, 2026`, `October 6, 2026`, `Oct 6 2026` or `October 6 2026`. A date that is not
  *    a real calendar day (`Feb 30`) is not accepted, rather than rolled over.
  */
@@ -54,6 +56,10 @@ final class LoaPostParser
         $text = $this->clean($body);
 
         [$username, $forumUserId] = $this->subject($text, $reasons);
+
+        if ($kind !== LoaThreadKind::Unknown && $username !== null) {
+            $this->checkTitleName($title, $username, $reasons);
+        }
 
         $startsAt = $endsAt = $rawStart = $rawEnd = $expectedReturnAt = $pafThreadId = null;
 
@@ -185,6 +191,42 @@ final class LoaPostParser
         }
 
         return [$name, $forumUserId];
+    }
+
+    /**
+     * The title names the trooper too (`[LOA Request] - PVT.Smith.J | ...`, `[ELOA Report] - PFC.Lane.M`), and
+     * it must be the same person as the post's `Username`. They are filled in from the same form, so two
+     * different names mean the post was edited afterwards, or written to put leave on someone else: which
+     * one the leave is for is not for us to decide, so the thread goes to a person.
+     *
+     * Only the name part is compared, ignoring case: the rank in front of it (`PVT.`) is dropped, and spaces
+     * around the dots, or one in place of the dot after the rank, are tolerated. A title with no name in the
+     * forum's `Name.Initial` shape (none at all, or free text) is not read as a name and not compared: the
+     * title is a second witness here, never the source of who the leave is for.
+     *
+     * @param  list<string>  $reasons
+     */
+    private function checkTitleName(string $title, string $username, array &$reasons): void
+    {
+        if (preg_match('/^\s*\[[^\]]*\]\s*-?\s*([^|]*)/', $title, $match) !== 1) {
+            return;
+        }
+
+        // `PVT. Smith . J` and `PVT Smith.J` are both `PVT.Smith.J`; any other space means free text, not a name.
+        $name = ltrim(preg_replace('/\s*\.\s*/', '.', trim($match[1])) ?? '', '@');
+        $name = preg_replace('/^([A-Za-z0-9]{1,5})\s+(?=\S+$)/', '$1.', $name) ?? $name;
+
+        if (preg_match("/^[\\w'-]+(?:\\.[\\w'-]+)+$/u", $name) !== 1) {
+            return;
+        }
+
+        // With the rank, or without the first segment, which is the rank when there is one.
+        $withoutRank = substr($name, strpos($name, '.') + 1);
+        $wanted = mb_strtolower($username);
+
+        if ($wanted !== mb_strtolower($name) && $wanted !== mb_strtolower($withoutRank)) {
+            $reasons[] = 'The title names '.mb_substr($name, 0, 40).' but the post names '.mb_substr($username, 0, 40).'.';
+        }
     }
 
     /**
