@@ -1,5 +1,6 @@
 <?php
 
+use App\Commands\Courses\CourseWriteForbiddenException;
 use App\Commands\Courses\CreateCourse;
 use App\Models\AreaOfOperation;
 use App\Models\AuditLogEntry;
@@ -7,6 +8,7 @@ use App\Models\Course;
 use App\Models\User;
 use App\Repositories\CourseRepository;
 use Database\Seeders\CourseCatalogSeeder;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\UniqueConstraintViolationException;
 
 it('creates the course through the repository', function () {
@@ -56,6 +58,20 @@ it('refuses a duplicate code and leaves no second course or audit entry behind',
 
     expect(Course::count())->toBe(1)
         ->and(AuditLogEntry::count())->toBe(1);
+});
+
+it('refuses a non-Admin before writing anything, leaving no course and no audit entry', function () {
+    $actor = User::factory()->create();
+
+    expect(fn () => app(CreateCourse::class)->handle($actor, 'ODS', 'Officer Development School', AreaOfOperation::General, 10))
+        ->toThrow(CourseWriteForbiddenException::class);
+
+    expect(Course::count())->toBe(0)
+        ->and(AuditLogEntry::count())->toBe(0);
+});
+
+it('refuses a non-Admin with an authorization error, so an HTTP caller answers 403', function () {
+    expect(CourseWriteForbiddenException::createCourse())->toBeInstanceOf(AuthorizationException::class);
 });
 
 describe('the seeded catalog', function () {
