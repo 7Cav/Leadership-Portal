@@ -115,6 +115,10 @@ it('denies a unit outside the leader\'s scope server-side (2.8, 4.6, AD-8)', fun
     $this->actingAs($this->leader)->get("/roster/{$this->company->id}")->assertForbidden();
 });
 
+it('404s a unit id too long for an integer rather than erroring', function () {
+    $this->actingAs($this->leader)->get('/roster/99999999999999999999')->assertNotFound();
+});
+
 it('shows a granted unit\'s whole subtree, grouped with per-unit KPIs from the shared service (4.6)', function () {
     $staff = User::factory()->create();
     PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $this->platoon1->id]);
@@ -366,5 +370,9 @@ describe('trooper detail (Sheet)', function () {
         $this->actingAs($this->leader)->getJson("/roster/troopers/{$outside->id}")->assertForbidden();
         $this->actingAs($this->leader)->getJson("/roster/troopers/{$unplaced->id}")->assertNotFound();
         $this->actingAs($this->leader)->getJson('/roster/troopers/999999')->assertNotFound();
+    });
+
+    it('404s a trooper id too long for an integer rather than erroring', function () {
+        $this->actingAs($this->leader)->getJson('/roster/troopers/99999999999999999999')->assertNotFound();
     });
 });
