@@ -74,6 +74,15 @@ it('does not route a non-numeric trooper id', function () {
         ->assertNotFound();
 });
 
+it('does not route a trooper id too long for an integer, rather than erroring', function () {
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin)->post('/settings/org-structure/troopers/99999999999999999999/placement', ['section_id' => placementSectionUnit()->id, 'reason' => 'Because.'])
+        ->assertNotFound();
+
+    expect(AuditLogEntry::count())->toBe(0);
+});
+
 it('422s a missing or empty reason, and places nothing', function (array $payload) {
     $admin = User::factory()->admin()->create();
     $section = placementSectionUnit();
