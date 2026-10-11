@@ -54,6 +54,28 @@ it('returns null for a unit-week with no report', function () {
     expect($this->repo->find($this->unit->id, $this->saturday))->toBeNull();
 });
 
+it('says a unit-week is sent only once its report is sent: not with no report, nor with a draft', function () {
+    expect($this->repo->isSent($this->unit->id, $this->saturday))->toBeFalse();
+
+    $this->repo->saveDraft($this->unit->id, $this->saturday, sixKpiSnapshot(), null);
+    expect($this->repo->isSent($this->unit->id, $this->saturday))->toBeFalse();
+
+    $this->repo->send($this->unit->id, $this->saturday, sixKpiSnapshot(), null, $this->sender->id, str_repeat('a', 64), null);
+    expect($this->repo->isSent($this->unit->id, $this->saturday))->toBeTrue()
+        ->and($this->repo->isSent($this->unit->id, $this->saturday->subWeek()))->toBeFalse()
+        ->and(WeeklyReport::query()->count())->toBe(1);
+});
+
+it('does not count a generated demo report as sent (#115)', function () {
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->unit->id, 'week_start' => $this->saturday, 'is_demo' => true]);
+
+    expect($this->repo->isSent($this->unit->id, $this->saturday))->toBeFalse();
+});
+
+it('refuses to say whether a non-week is sent', function () {
+    $this->repo->isSent($this->unit->id, $this->saturday->addDay());
+})->throws(InvalidArgumentException::class);
+
 it('saves a draft with its kpis and notes', function () {
     $report = $this->repo->saveDraft($this->unit->id, $this->saturday, sixKpiSnapshot(), 'Quiet week.');
 

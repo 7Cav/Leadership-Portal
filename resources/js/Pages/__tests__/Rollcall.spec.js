@@ -513,7 +513,29 @@ describe('Rollcall', () => {
             const wrapper = page();
 
             expect(wrapper.find('[data-testid="preview-notice"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="locked-notice"]').exists()).toBe(false);
             expect(wrapper.get('[data-testid="save"]').attributes('disabled')).toBeUndefined();
+            expect(wrapper.get('[data-testid="reset"]').attributes('disabled')).toBeUndefined();
+            expect(wrapper.get('[data-testid="mark-all-present"]').attributes('disabled')).toBeUndefined();
+        });
+
+        it('turns every control off once the week\'s report has been sent, and says the rollcall is locked', () => {
+            const wrapper = page({ locked: true });
+
+            expect(wrapper.get('[data-testid="locked-notice"]').text()).toContain('The report for this week has been sent, so its rollcall is locked.');
+            expect(wrapper.get('[data-testid="save"]').attributes('disabled')).toBeDefined();
+            expect(wrapper.get('[data-testid="reset"]').attributes('disabled')).toBeDefined();
+            expect(wrapper.get('[data-testid="mark-all-present"]').attributes('disabled')).toBeDefined();
+            expect(wrapper.get('[data-testid="save-summary"]').text()).toContain('Locked');
+            expect(wrapper.findAll('[data-testid="sp-cell"] button')).toHaveLength(0);
+            expect(wrapper.findAll('[data-testid="rc-cell"] button')).toHaveLength(0);
+        });
+
+        it('still shows what a locked week holds, read-only', () => {
+            const cell = spOf(page({ locked: true }), 'SGT Jay.JH');
+
+            expect(cell.get('[data-value="present"]').attributes('data-selected')).toBe('true');
+            expect(cell.find('button').exists()).toBe(false);
         });
     });
 

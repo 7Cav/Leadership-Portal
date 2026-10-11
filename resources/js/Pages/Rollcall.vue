@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { PhCaretLeft, PhCaretRight, PhCheckCircle, PhClipboardText, PhCopy, PhInfo, PhUsersThree, PhWarning } from '@phosphor-icons/vue';
+import { PhCaretLeft, PhCaretRight, PhCheckCircle, PhClipboardText, PhCopy, PhInfo, PhLock, PhUsersThree, PhWarning } from '@phosphor-icons/vue';
 import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,9 @@ import { compareByBillet } from '@/lib/ranks';
 // controller has already gated the section; this page draws it and lets a leader mark the week. Nothing is saved until
 // "Save rollcall": the toggles change a draft, and a value carried over from last week is only a suggestion until then.
 // A trooper on leave has no practice toggle (their status is derived, never entered), and while viewing as someone else
-// every control is off, since a preview is read-only. The server enforces both whatever this page shows (AD-6).
+// every control is off, since a preview is read-only. So is every control once the section's weekly report for the week
+// has been sent (`locked`): the report is frozen, and so is the rollcall it was built from. The server enforces all of
+// it whatever this page shows (AD-6); the page only says so before a leader tries.
 // The BBCode beside the table is rendered here from the company's active template and the draft, so it follows every
 // toggle with no round trip. It is only ever copied: the portal makes no call to the forum (AD-20).
 const props = defineProps({
@@ -30,6 +32,7 @@ const props = defineProps({
     sections: { type: Array, default: () => [] },
     week: { type: Object, default: null },
     template: { type: Object, default: null },
+    locked: { type: Boolean, default: false },
     links: { type: Object, default: () => ({ milpac: null }) },
     troopers: { type: Array, default: () => [] },
     banner: { type: Object, default: null },
@@ -38,6 +41,8 @@ const props = defineProps({
 
 const page = usePage();
 const previewing = computed(() => Boolean(page.props.viewAs));
+// Nothing on the page can change the week: a preview, or a week whose report has been sent.
+const readOnly = computed(() => previewing.value || props.locked);
 
 const sectionLabel = computed(() => (props.section?.callsign ? `${props.section.callsign} ${props.section.name}` : props.section?.name));
 const optionLabel = (section) => (section.callsign ? `${section.callsign} ${section.name}` : section.name);
@@ -339,6 +344,11 @@ const weekHref = (start) => `/rollcall/${props.section.id}?week=${start}`;
                 <span>You are viewing as someone else. A preview is read-only, so nothing here can be saved. Exit view as to mark the rollcall.</span>
             </p>
 
+            <p v-if="locked" data-testid="locked-notice" role="status" class="flex items-start gap-2 rounded-lg border border-warning/35 bg-warning/8 px-3.5 py-2.5 text-[13px]">
+                <PhLock class="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
+                <span>The report for this week has been sent, so its rollcall is locked. The marks below are what the report was built from.</span>
+            </p>
+
             <p v-for="line in syncLines" :key="line.name" class="-mt-3 flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="sync-line">
                 <PhWarning v-if="line.stale" class="size-3.5 text-warning" aria-hidden="true" />
                 <span>{{ line.name }}: {{ line.text }}</span>
@@ -375,7 +385,7 @@ const weekHref = (start) => `/rollcall/${props.section.id}?week=${start}`;
                                         :options="RC_OPTIONS"
                                         :model-value="draft[row.id]?.rc ?? null"
                                         :tones="TONES"
-                                        :readonly="previewing"
+                                        :readonly="readOnly"
                                         :label="`Signed rollcall, ${row.displayName}`"
                                         @update:model-value="(value) => chooseRc(row, value)"
                                     />
@@ -391,7 +401,7 @@ const weekHref = (start) => `/rollcall/${props.section.id}?week=${start}`;
                                             :model-value="draft[row.id]?.sp ?? null"
                                             :tones="TONES"
                                             :dashed="originOf(row) === 'carried'"
-                                            :readonly="previewing"
+                                            :readonly="readOnly"
                                             :label="`Attended Section Practice, ${row.displayName}`"
                                             @update:model-value="(value) => chooseSp(row, value)"
                                         />
@@ -407,16 +417,17 @@ const weekHref = (start) => `/rollcall/${props.section.id}?week=${start}`;
 
                 <div class="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/20 px-4 py-3" data-testid="actions">
                     <p v-if="errorText" role="alert" class="text-xs text-destructive" data-testid="save-error">{{ errorText }}</p>
+                    <p v-else-if="locked" class="text-xs text-muted-foreground" data-testid="save-summary">Locked: the report for this week has been sent.</p>
                     <p v-else class="text-xs text-muted-foreground" data-testid="save-summary">
                         {{ marks.length ? `${marks.length} to save.` : 'Nothing to save.' }}
                         <template v-if="prefilled"> Saving accepts what was carried over.</template>
                     </p>
 
                     <div class="flex flex-wrap items-center gap-2">
-                        <Button variant="outline" size="sm" :disabled="previewing || !rows.length" data-testid="mark-all-present" @click="markAllPresent">Mark all present</Button>
-                        <Button variant="outline" size="sm" :disabled="previewing || !rows.length" data-testid="mark-all-signed" @click="markAllSigned">Mark all RC = Yes</Button>
-                        <Button variant="outline" size="sm" :disabled="previewing || processing" data-testid="reset" @click="resetDraft">Reset</Button>
-                        <Button size="sm" :disabled="previewing || processing" data-testid="save" @click="save">Save rollcall</Button>
+                        <Button variant="outline" size="sm" :disabled="readOnly || !rows.length" data-testid="mark-all-present" @click="markAllPresent">Mark all present</Button>
+                        <Button variant="outline" size="sm" :disabled="readOnly || !rows.length" data-testid="mark-all-signed" @click="markAllSigned">Mark all RC = Yes</Button>
+                        <Button variant="outline" size="sm" :disabled="readOnly || processing" data-testid="reset" @click="resetDraft">Reset</Button>
+                        <Button size="sm" :disabled="readOnly || processing" data-testid="save" @click="save">Save rollcall</Button>
                     </div>
                 </div>
             </Card>
