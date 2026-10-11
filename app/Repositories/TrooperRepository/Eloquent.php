@@ -60,6 +60,14 @@ class Eloquent implements TrooperRepository
             ->update(['status' => TrooperStatus::Inactive->value]);
     }
 
+    public function countDepartingWithStatus(TrooperStatus $status, array $activeCavIds): int
+    {
+        return Trooper::query()
+            ->where('status', $status->value)
+            ->whereNotIn('cav_id', $activeCavIds)
+            ->count();
+    }
+
     public function updatePrimarySections(array $cavIdToSectionId): int
     {
         $updated = 0;

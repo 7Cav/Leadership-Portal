@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Models\TrooperStatus;
 use App\Models\Unit;
 use Illuminate\Support\Collection;
 
@@ -56,6 +57,16 @@ interface TrooperRepository
      * @param  list<int>  $activeCavIds
      */
     public function markDepartedExcept(array $activeCavIds): int;
+
+    /**
+     * How many cached troopers holding `$status` are missing from `$activeCavIds`, i.e. how many
+     * of them {@see markDepartedExcept()} would flip to inactive. The sync handler asks this
+     * before believing an empty serving roster: an empty roster that would depart everyone the
+     * cache last saw on it reads as a broken response, not a real exodus.
+     *
+     * @param  list<int>  $activeCavIds
+     */
+    public function countDepartingWithStatus(TrooperStatus $status, array $activeCavIds): int;
 
     /**
      * Set `primary_section_id` for exactly the troopers present in `$cavIdToSectionId` (2.5) — a
