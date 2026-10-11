@@ -41,6 +41,11 @@ class Eloquent implements WeeklyReportRepository
             ->toBase();
     }
 
+    public function hasReportsFor(Unit $unit): bool
+    {
+        return WeeklyReport::query()->where('unit_id', $unit->getKey())->exists();
+    }
+
     public function saveDraft(int $unitId, CarbonInterface $weekStart, array $kpis, ?string $notes): WeeklyReport
     {
         return $this->write($unitId, $weekStart, [

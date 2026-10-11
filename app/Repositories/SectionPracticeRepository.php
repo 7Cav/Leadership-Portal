@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\SectionPractice;
+use App\Models\Unit;
 use Carbon\CarbonInterface;
 use InvalidArgumentException;
 
@@ -43,4 +44,11 @@ interface SectionPracticeRepository
      * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
      */
     public function find(int $sectionId, CarbonInterface $weekStart): ?SectionPractice;
+
+    /**
+     * Whether any practice, demo or real, has been recorded for `$unit` —
+     * `section_practices.section_id` restricts deletes, so `DeleteUnit` checks this first to
+     * refuse with a reason instead of a raw constraint error.
+     */
+    public function hasPracticesFor(Unit $unit): bool;
 }

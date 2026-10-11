@@ -250,6 +250,11 @@ it('no-ops cleanly when a concurrent send freezes the report first', function ()
         {
             return $this->inner->forUnits($unitIds, $weekStart);
         }
+
+        public function hasReportsFor(Unit $unit): bool
+        {
+            return $this->inner->hasReportsFor($unit);
+        }
     });
 
     $result = sendReport($this->leader, $this->section->id, $this->moment);
@@ -289,6 +294,11 @@ it('rethrows rather than pass off a draft as the sent report when the race re-re
         public function forUnits(array $unitIds, CarbonInterface $weekStart): Collection
         {
             return $this->inner->forUnits($unitIds, $weekStart);
+        }
+
+        public function hasReportsFor(Unit $unit): bool
+        {
+            return $this->inner->hasReportsFor($unit);
         }
     });
 

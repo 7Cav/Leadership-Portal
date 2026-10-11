@@ -49,4 +49,9 @@ class Eloquent implements SectionPracticeRepository
             ->where('week_start', WeekOf::requireStart($weekStart))
             ->first();
     }
+
+    public function hasPracticesFor(Unit $unit): bool
+    {
+        return SectionPractice::query()->where('section_id', $unit->getKey())->exists();
+    }
 }
