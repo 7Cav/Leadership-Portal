@@ -1,5 +1,9 @@
 <?php
 
+use App\Commands\Attendance\AttendanceMark;
+use App\Commands\Attendance\MarkAttendance;
+use App\Commands\Attendance\MarkAttendanceHandler;
+use App\Commands\Attendance\RollcallWeekLockedException;
 use App\Models\Attendance;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
@@ -13,6 +17,7 @@ use App\Models\Unit;
 use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Models\WeeklyReport;
 use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
 
@@ -218,6 +223,12 @@ describe('what is refused', function () {
         markSave($this->actingAs($this->leader), $platoon, [])->assertNotFound();
     });
 
+    it('answers an id too long for any unit with 404, not an integer overflow', function () {
+        $this->actingAs($this->leader)->post('/rollcall/12345678901234567890', ['week' => MARK_WEEK, 'marks' => []])->assertNotFound();
+
+        expect(SectionPractice::query()->count())->toBe(0);
+    });
+
     it('is refused while viewing as someone else, since a preview is read-only (1.13)', function () {
         $admin = User::factory()->admin()->create();
         $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->section->id])->assertSessionHasNoErrors();
@@ -235,6 +246,88 @@ describe('what is refused', function () {
         markSave($this->actingAs($staff), $this->sibling, [['trooper_id' => $stranger->id, 'status' => 'present']])->assertRedirect();
 
         expect(Attendance::query()->sole()->trooper_id)->toBe($stranger->id);
+    });
+});
+
+describe('a week whose report has been sent', function () {
+    // Product decision on 3.8: marks may change until the section's weekly report for that week is sent (frozen, AD-12),
+    // then the week is locked. The report is keyed by the section itself and the week.
+    $sendReport = function (Unit $unit, string $week, bool $sent = true): void {
+        $factory = WeeklyReport::factory()->state(['unit_id' => $unit->id, 'week_start' => CarbonImmutable::parse($week, 'UTC')]);
+        ($sent ? $factory->sent() : $factory)->create();
+    };
+
+    it('refuses any save for it with a plain message, and writes nothing for anyone', function () use ($sendReport) {
+        $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => MARK_WEEK]);
+        Attendance::factory()->create(['trooper_id' => $this->troopers[0]->id, 'section_practice_id' => $practice->id, 'status' => AttendanceStatus::Present, 'source' => AttendanceSource::Manual, 'rollcall' => RollcallSignature::Unsigned]);
+        $sendReport($this->section, MARK_WEEK);
+        $audited = AuditLogEntry::query()->count();
+
+        markSave($this->actingAs($this->leader), $this->section, [
+            ['trooper_id' => $this->troopers[0]->id, 'status' => 'missed'],
+            ['trooper_id' => $this->troopers[1]->id, 'status' => 'present', 'rollcall' => 'will_attend'],
+        ])->assertSessionHasErrors(['week' => 'The report for this week has been sent, so its rollcall is locked.']);
+
+        expect(Attendance::query()->count())->toBe(1)
+            ->and(Attendance::query()->sole()->status)->toBe(AttendanceStatus::Present)
+            ->and(SectionPractice::query()->count())->toBe(1)
+            ->and(AuditLogEntry::query()->count())->toBe($audited);
+    });
+
+    it('refuses a signature-only save and an empty one too, so not even the practice row is written', function () use ($sendReport) {
+        $sendReport($this->section, MARK_WEEK);
+
+        markSave($this->actingAs($this->leader), $this->section, [['trooper_id' => $this->troopers[0]->id, 'rollcall' => 'cannot_attend']])->assertSessionHasErrors('week');
+        markSave($this, $this->section, [])->assertSessionHasErrors('week');
+
+        expect(Attendance::query()->count())->toBe(0)->and(SectionPractice::query()->count())->toBe(0);
+    });
+
+    it('locks a past week whose report was sent, by any day in it', function () use ($sendReport) {
+        $sendReport($this->section, '2026-09-19');
+
+        markSave($this->actingAs($this->leader), $this->section, [['trooper_id' => $this->troopers[0]->id, 'status' => 'present']], '2026-09-23')->assertSessionHasErrors('week');
+
+        expect(Attendance::query()->count())->toBe(0);
+    });
+
+    it('keeps an earlier week open while its report was never sent, a draft included', function () use ($sendReport) {
+        $sendReport($this->section, '2026-09-19', sent: false);
+
+        markSave($this->actingAs($this->leader), $this->section, [['trooper_id' => $this->troopers[0]->id, 'status' => 'missed']], '2026-09-19')->assertSessionHasNoErrors()->assertRedirect();
+        markSave($this, $this->section, [['trooper_id' => $this->troopers[1]->id, 'status' => 'present']], '2026-09-12')->assertSessionHasNoErrors()->assertRedirect();
+
+        expect(Attendance::query()->count())->toBe(2);
+    });
+
+    it('does not lock a week for another section\'s sent report, nor another week for this one\'s', function () use ($sendReport) {
+        $sendReport($this->sibling, MARK_WEEK);
+        $sendReport($this->section, '2026-09-26');
+
+        markSave($this->actingAs($this->leader), $this->section, [['trooper_id' => $this->troopers[0]->id, 'status' => 'present']])->assertSessionHasNoErrors()->assertRedirect();
+
+        expect(Attendance::query()->sole()->status)->toBe(AttendanceStatus::Present);
+    });
+
+    it('is refused in the handler itself, whatever the controller let through', function () use ($sendReport) {
+        $sendReport($this->section, MARK_WEEK);
+
+        app(MarkAttendanceHandler::class)->handle($this->leader, new MarkAttendance(
+            $this->section->id,
+            CarbonImmutable::parse(MARK_WEEK, 'UTC'),
+            new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present, null),
+        ));
+    })->throws(RollcallWeekLockedException::class, 'The report for this week has been sent, so its rollcall is locked.');
+
+    it('tells the page the week is locked, and only that week', function () use ($sendReport) {
+        $sendReport($this->section, '2026-09-26');
+        $locked = fn (string $query = '') => $this->get(route('rollcall.show', $this->section->id).$query)->viewData('page')['props']['locked'];
+
+        $this->actingAs($this->leader);
+
+        expect($locked('?week=2026-09-26'))->toBeTrue()
+            ->and($locked())->toBeFalse()
+            ->and($locked('?week=2026-09-19'))->toBeFalse();
     });
 });
 

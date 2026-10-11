@@ -15,7 +15,9 @@ Read-only logic behind the weekly rollcall, so no screen re-derives it.
   row's practice value is, in order: `loa`, derived from the leave data and never stored (3.4); the mark already saved
   for the week; `present` carried from the prior week when nothing is saved; or nothing. Only `present` carries, so no
   one is pre-marked absent. A carried value is shown, not stored. The banner counts what was saved and what was carried,
-  and says when there was no prior week. Roster and LOA values come with their source and last-sync time.
+  and says when there was no prior week. Roster and LOA values come with their source and last-sync time. `locked` is
+  true once the section's weekly report for the week has been sent (AD-12): the page then shows the week read-only, and
+  the write path (`MarkAttendanceHandler`) refuses any save for it on its own.
 
 **May depend on:** `Repositories/` (never the DB directly, AD-2), `Models/`, `Loa/` (a row's leave) and `Support/Time/`
 **Reached from:** `Http/Controllers/`. Read-only: templates are written only by the audited

@@ -248,9 +248,10 @@ function kpiLeave(Trooper $trooper, ?string $start, ?string $end, array $state =
 
 it('suppresses at-risk for a trooper with a needs_review LOA (AD-4)', function () {
     $trooper = kpiTrooper($this->sectionA);
-    kpiMark($trooper, $this->sectionA, 3, AttendanceStatus::Missed);
+    kpiMark($trooper, $this->sectionA, 1, AttendanceStatus::Missed);
     kpiMark($trooper, $this->sectionA, 0, AttendanceStatus::Missed);
-    Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'created_at' => '2026-05-01 09:00:00']);
+    // Posted in the week before this one, so it shields that week and this one.
+    Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'posted_at' => '2026-06-22 09:00:00']);
 
     $attendance = $this->kpis->trooperAttendance($this->sectionA, kpiWeek())[$trooper->id];
 
@@ -260,12 +261,24 @@ it('suppresses at-risk for a trooper with a needs_review LOA (AD-4)', function (
         ->and($this->kpis->forUnit($this->sectionA, kpiWeek())->atRisk)->toBe(0);
 });
 
-it('does not suppress misses from before a needs_review LOA was first seen', function () {
+it('stops shielding a trooper two weeks after a needs_review LOA was posted, so a broken post cannot hide misses for good', function () {
+    $trooper = kpiTrooper($this->sectionA);
+    kpiMark($trooper, $this->sectionA, 3, AttendanceStatus::Missed);
+    kpiMark($trooper, $this->sectionA, 0, AttendanceStatus::Missed);
+    Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'posted_at' => '2026-05-01 09:00:00']);
+
+    $attendance = $this->kpis->trooperAttendance($this->sectionA, kpiWeek())[$trooper->id];
+
+    expect($attendance->missed)->toBe(2)
+        ->and($attendance->atRisk())->toBeTrue();
+});
+
+it('does not suppress misses from before a needs_review LOA was posted', function () {
     $trooper = kpiTrooper($this->sectionA);
     kpiMark($trooper, $this->sectionA, 3, AttendanceStatus::Missed);
     kpiMark($trooper, $this->sectionA, 2, AttendanceStatus::Missed);
     kpiMark($trooper, $this->sectionA, 0, AttendanceStatus::Missed);
-    Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'created_at' => '2026-06-22 09:00:00']);
+    Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'posted_at' => '2026-06-22 09:00:00']);
 
     $attendance = $this->kpis->trooperAttendance($this->sectionA, kpiWeek())[$trooper->id];
 
@@ -277,12 +290,14 @@ it('leaves a week a needs_review LOA may apply to out of both denominators, not 
     $trooper = kpiTrooper($this->sectionA);
     kpiMark($trooper, $this->sectionA, 3, AttendanceStatus::Present, RollcallSignature::WillAttend);
     kpiMark($trooper, $this->sectionA, 0, AttendanceStatus::Present, RollcallSignature::WillAttend);
-    Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'created_at' => '2026-06-14 09:00:00']);
+    Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'posted_at' => '2026-06-22 09:00:00']);
 
     $kpis = $this->kpis->forUnit($this->sectionA, kpiWeek());
 
+    // Posted in the week before this one, it may apply to that week and this one. SP drops this week's practice
+    // (1 of 1 left); RC counts every window week, so it drops those two of the four (1 of 2 left).
     expect([$kpis->sp30d->numerator, $kpis->sp30d->denominator])->toBe([1, 1])
-        ->and([$kpis->rc30d->numerator, $kpis->rc30d->denominator])->toBe([1, 1])
+        ->and([$kpis->rc30d->numerator, $kpis->rc30d->denominator])->toBe([1, 2])
         ->and($kpis->onLoa)->toBe(0);
 });
 

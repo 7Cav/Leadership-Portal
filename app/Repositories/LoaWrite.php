@@ -8,7 +8,8 @@ use Carbon\CarbonImmutable;
 
 /**
  * One leave thread as the sync wants it stored: everything a `loas` row holds, so the repository is the
- * only place that knows the columns. Immutable. The dates are calendar days.
+ * only place that knows the columns. Immutable. The dates are calendar days; `postedAt` is the moment the
+ * thread was posted on the forum.
  */
 final readonly class LoaWrite
 {
@@ -27,5 +28,6 @@ final readonly class LoaWrite
         public ?string $rawEndDate,
         public ?string $rawExcerpt,
         public ?CarbonImmutable $expectedReturnAt = null,
+        public ?CarbonImmutable $postedAt = null,
     ) {}
 }

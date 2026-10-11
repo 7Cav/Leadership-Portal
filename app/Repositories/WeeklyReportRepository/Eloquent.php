@@ -25,6 +25,20 @@ class Eloquent implements WeeklyReportRepository
             ->first();
     }
 
+    public function isSent(int $unitId, CarbonInterface $weekStart): bool
+    {
+        // The row is selected by its UNIQUE key alone and its status checked here, not in the WHERE: the lock then
+        // covers the unit-week whatever its status, so a draft being promoted to sent waits on it just as a first
+        // send does.
+        $report = WeeklyReport::query()
+            ->where('unit_id', $unitId)
+            ->where('week_start', $this->assertWeekStart($weekStart))
+            ->sharedLock()
+            ->first(['id', 'status', 'is_demo']);
+
+        return $report?->status === WeeklyReportStatus::Sent && ! $report->is_demo;
+    }
+
     public function forUnits(array $unitIds, CarbonInterface $weekStart): Collection
     {
         $weekStart = $this->assertWeekStart($weekStart);

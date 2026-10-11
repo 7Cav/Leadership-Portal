@@ -201,21 +201,62 @@ describe('a leave that needs review', function () {
             ->and($cover->type)->toBe(LoaType::Eloa);
     });
 
-    it('applies from the week it was first cached, not to weeks before it', function () {
+    it('shields the trooper in the Cav week it was posted and the week after, then stops', function () {
         $trooper = Trooper::factory()->create();
-        Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'created_at' => '2026-10-06 09:00:00']);
+        Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'posted_at' => '2026-10-06 09:00:00', 'created_at' => '2026-10-06 09:05:00']);
+
+        $twoWeeksLater = coverageOf($trooper, coverageWeek('2026-10-17'));
+
+        expect(coverageOf($trooper, coverageWeek('2026-09-26'))->state)->toBe(LoaCoverageState::None)
+            ->and(coverageOf($trooper, coverageWeek('2026-10-03'))->suppressesAtRisk())->toBeTrue()
+            ->and(coverageOf($trooper, coverageWeek('2026-10-10'))->state)->toBe(LoaCoverageState::NeedsReview)
+            ->and(coverageOf($trooper, coverageWeek('2026-10-10'))->suppressesAtRisk())->toBeTrue()
+            ->and($twoWeeksLater->state)->toBe(LoaCoverageState::None)
+            ->and($twoWeeksLater->suppressesAtRisk())->toBeFalse()
+            ->and(coverageOf($trooper, coverageWeek('2026-11-14'))->state)->toBe(LoaCoverageState::None);
+    });
+
+    it('is placed by the forum post date, so an old broken post the first sync backfills shields no one', function () {
+        $trooper = Trooper::factory()->create();
+        Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'posted_at' => '2026-03-02 09:00:00', 'created_at' => '2026-10-04 12:00:00']);
+
+        expect(coverageOf($trooper, coverageWeek('2026-10-03'))->state)->toBe(LoaCoverageState::None)
+            ->and(coverageOf($trooper, coverageWeek('2026-10-10'))->state)->toBe(LoaCoverageState::None)
+            ->and(coverageOf($trooper, coverageWeek('2026-02-28'))->state)->toBe(LoaCoverageState::NeedsReview)
+            ->and(coverageOf($trooper, coverageWeek('2026-03-07'))->state)->toBe(LoaCoverageState::NeedsReview);
+    });
+
+    it('counts a post on the closing Friday into that week, and one the next Saturday into the next', function () {
+        $friday = Trooper::factory()->create();
+        $saturday = Trooper::factory()->create();
+        Loa::factory()->needsReview()->create(['trooper_id' => $friday->id, 'posted_at' => '2026-10-09 23:59:59']);
+        Loa::factory()->needsReview()->create(['trooper_id' => $saturday->id, 'posted_at' => '2026-10-10 00:00:00']);
+
+        expect(coverageOf($friday, coverageWeek('2026-10-03'))->state)->toBe(LoaCoverageState::NeedsReview)
+            ->and(coverageOf($friday, coverageWeek('2026-10-10'))->state)->toBe(LoaCoverageState::NeedsReview)
+            ->and(coverageOf($friday, coverageWeek('2026-10-17'))->state)->toBe(LoaCoverageState::None)
+            ->and(coverageOf($saturday, coverageWeek('2026-10-03'))->state)->toBe(LoaCoverageState::None)
+            ->and(coverageOf($saturday, coverageWeek('2026-10-10'))->state)->toBe(LoaCoverageState::NeedsReview)
+            ->and(coverageOf($saturday, coverageWeek('2026-10-17'))->state)->toBe(LoaCoverageState::NeedsReview)
+            ->and(coverageOf($saturday, coverageWeek('2026-10-24'))->state)->toBe(LoaCoverageState::None);
+    });
+
+    it('falls back to when it was first stored, for the same two weeks, while it has no post date', function () {
+        $trooper = Trooper::factory()->create();
+        Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'posted_at' => null, 'created_at' => '2026-10-06 09:00:00']);
 
         expect(coverageOf($trooper, coverageWeek('2026-09-26'))->state)->toBe(LoaCoverageState::None)
             ->and(coverageOf($trooper, coverageWeek('2026-10-03'))->state)->toBe(LoaCoverageState::NeedsReview)
-            ->and(coverageOf($trooper, coverageWeek('2026-11-14'))->state)->toBe(LoaCoverageState::NeedsReview);
+            ->and(coverageOf($trooper, coverageWeek('2026-10-10'))->state)->toBe(LoaCoverageState::NeedsReview)
+            ->and(coverageOf($trooper, coverageWeek('2026-10-17'))->state)->toBe(LoaCoverageState::None);
     });
 
-    it('counts a row cached on the closing Friday into that week, and one cached the next Saturday into the next', function () {
+    it('bounds a clean row with no start date the same way', function () {
         $trooper = Trooper::factory()->create();
-        Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'created_at' => '2026-10-10 00:00:00']);
+        Loa::factory()->create(['trooper_id' => $trooper->id, 'starts_at' => null, 'ends_at' => null, 'posted_at' => '2026-10-06 09:00:00']);
 
-        expect(coverageOf($trooper, coverageWeek('2026-10-03'))->state)->toBe(LoaCoverageState::None)
-            ->and(coverageOf($trooper, coverageWeek('2026-10-10'))->state)->toBe(LoaCoverageState::NeedsReview);
+        expect(coverageOf($trooper, coverageWeek('2026-10-10'))->state)->toBe(LoaCoverageState::NeedsReview)
+            ->and(coverageOf($trooper, coverageWeek('2026-10-17'))->state)->toBe(LoaCoverageState::None);
     });
 
     it('yields to a cleanly read leave that covers the week', function () {
