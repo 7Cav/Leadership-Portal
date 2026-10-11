@@ -7,6 +7,7 @@ use App\Commands\Attendance\AttendanceMark;
 use App\Commands\Attendance\InvalidAttendanceMarkException;
 use App\Commands\Attendance\MarkAttendance;
 use App\Commands\Attendance\MarkAttendanceHandler;
+use App\Commands\Attendance\RollcallWeekLockedException;
 use App\Models\AttendanceStatus;
 use App\Models\RollcallSignature;
 use App\Models\Unit;
@@ -86,7 +87,8 @@ class RollcallController extends Controller
      * week is refused by the handler, so neither can be written by hand. A submission with no marks is valid: it only
      * records that the section's practice exists.
      *
-     * A week still to come is refused. A past week may be corrected, since the audit log records the change.
+     * A week still to come is refused. A past week may be corrected, since the audit log records the change, until the
+     * section's weekly report for it is sent: from then the week is locked and the handler refuses the whole save.
      */
     public function store(Request $request, Unit $unit): RedirectResponse
     {
@@ -117,6 +119,10 @@ class RollcallController extends Controller
             $this->handler->handle($request->user(), new MarkAttendance($unit->id, $week, ...$marks));
         } catch (InvalidAttendanceMarkException $e) {
             throw ValidationException::withMessages(['marks' => $e->getMessage()]);
+        } catch (RollcallWeekLockedException $e) {
+            // The page already shows a locked week with its controls off; this is the answer for a save that raced the
+            // send, or came from a page opened before it.
+            throw ValidationException::withMessages(['week' => $e->getMessage()]);
         }
 
         return redirect()->route('rollcall.show', ['unit' => $unit->id, 'week' => $week->toDateString()]);

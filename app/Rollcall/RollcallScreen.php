@@ -15,6 +15,7 @@ use App\Repositories\AttendanceRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
+use App\Repositories\WeeklyReportRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -38,6 +39,10 @@ use Illuminate\Support\Collection;
  * A carried value is a suggestion shown on the screen, not a stored mark; it becomes one only when a leader submits.
  *
  * Every synced value is returned with its source and last-sync time (AD-20).
+ *
+ * `locked` is true once the section's weekly report for the week has been sent (AD-12): the rollcall it was built from
+ * may no longer change, so the page shows the week read-only. The write path (`Commands/Attendance`'s
+ * MarkAttendanceHandler) enforces the same rule on its own; this flag only says so before a leader tries.
  */
 final class RollcallScreen
 {
@@ -51,6 +56,7 @@ final class RollcallScreen
         private readonly LoaCoverage $loaCoverage,
         private readonly LoaProvenance $loaProvenance,
         private readonly SyncRunRepository $syncRuns,
+        private readonly WeeklyReportRepository $reports,
     ) {}
 
     /**
@@ -78,6 +84,8 @@ final class RollcallScreen
         return [
             'section' => ['id' => $section->id, 'name' => $section->name, 'callsign' => $section->callsign],
             'week' => $this->week($weekStart),
+            // Shown up front so a leader is not surprised on save; MarkAttendanceHandler refuses the save regardless.
+            'locked' => $this->reports->isSent($section->id, $weekStart),
             'troopers' => $rows,
             'banner' => [
                 'eligible' => $eligible,
