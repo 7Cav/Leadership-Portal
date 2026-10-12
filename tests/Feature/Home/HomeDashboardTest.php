@@ -258,3 +258,73 @@ describe('Needs attention (Story 5.10)', function () {
             ->has('attention.items', 2 + 10));
     });
 });
+
+describe('Subordinate units (Story 5.11)', function () {
+    it('lists each direct subordinate of the viewer\'s scope with its KPIs and send status', function () {
+        $kpis = new UnitKpis(4, new Ratio(3, 4), new Ratio(2, 4), 1, 0, 1);
+        sentWeek($this->s11, $this->week, $kpis);
+        app(WeeklyReportRepository::class)->saveDraft($this->s21->id, $this->week, [], null);
+
+        // Alpha's direct subordinate is 1st Platoon, which is holding because 2/1/A is a draft.
+        dashboard($this->commander)(fn ($page) => $page
+            ->has('units', 1)
+            ->where('units.0.id', $this->p1->id)
+            ->where('units.0.designation', '1/A/1-7')
+            ->where('units.0.type', 'platoon')
+            ->where('units.0.status', 'not_started')
+            ->where('units.0.holding', true)
+            ->where('units.0.coverage', ['sent' => 1, 'of' => 2])
+            ->where('units.0.live', true)
+            ->where('units.0.href', route('reports.show', ['unit' => $this->p1->id, 'week' => '2026-10-03'])));
+    });
+
+    it('shows a non-leaf unit live for its whole subtree, not the partial sum of the sections that sent', function () {
+        sentWeek($this->s11, $this->week, new UnitKpis(4, new Ratio(3, 4), new Ratio(2, 4), 1, 0, 1));
+
+        $live = app(KpiService::class)->forUnit($this->p1, $this->week);
+        dashboard($this->commander)(fn ($page) => $page
+            ->where('units.0.kpis.strength', $live->strength)
+            ->where('units.0.kpis.strength', 7));
+    });
+
+    it('shows a sent unit as its frozen snapshot, and a leaf-only viewer their own section', function () {
+        $frozen = new UnitKpis(9, new Ratio(5, 9), new Ratio(1, 2), 2, 1, 3);
+        sentWeek($this->s11, $this->week, $frozen);
+
+        dashboard($this->sectionLeader)(fn ($page) => $page
+            ->has('units', 1)
+            ->where('units.0.id', $this->s11->id)
+            ->where('units.0.status', 'sent')
+            ->where('units.0.live', false)
+            ->where('units.0.holding', false)
+            ->where('units.0.coverage', null)
+            ->where('units.0.kpis', ['strength' => 9, 'rc' => ['numerator' => 5, 'denominator' => 9], 'sp' => ['numerator' => 1, 'denominator' => 2], 'atRisk' => 2, 'onLoa' => 1, 'makeups' => 3]));
+    });
+
+    it('agrees with the report roll-up on status and holding', function () {
+        sentWeek($this->s11, $this->week, new UnitKpis(4, new Ratio(1, 2), new Ratio(1, 2), 0, 0, 0));
+
+        $rollup = test()->actingAs($this->commander)->get('/reports')->viewData('page')['props']['roots'][0]['children'][0];
+        dashboard($this->commander)(fn ($page) => $page
+            ->where('units.0.status', $rollup['status'])
+            ->where('units.0.holding', $rollup['holding'])
+            ->where('units.0.coverage', ['sent' => $rollup['coverage']['sent'], 'of' => $rollup['coverage']['of']]));
+    });
+
+    it('lists the children of every root when the scope has several, and never another company\'s units', function () {
+        $multi = User::factory()->create();
+        PortalRoleGrant::factory()->create(['user_id' => $multi->id, 'unit_id' => $this->p1->id]);
+        PortalRoleGrant::factory()->create(['user_id' => $multi->id, 'unit_id' => $this->sb->id]);
+
+        dashboard($multi)(fn ($page) => $page
+            ->has('units', 3)
+            ->where('units.0.id', $this->s11->id)
+            ->where('units.1.id', $this->s21->id)
+            ->where('units.2.id', $this->sb->id));
+        dashboard($this->commander)(fn ($page) => $page->where('units.0.id', $this->p1->id)->has('units', 1));
+    });
+
+    it('has no rows for a viewer with no scope', function () {
+        dashboard(User::factory()->create())(fn ($page) => $page->where('units', []));
+    });
+});

@@ -8,6 +8,7 @@ import { Table, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { forumDate } from '@/lib/forumDate';
 import EmptyState from '@/components/EmptyState.vue';
 import KpiTiles from '@/components/home/KpiTiles.vue';
+import SubordinateUnits from '@/components/home/SubordinateUnits.vue';
 import NeedsAttention from '@/components/home/NeedsAttention.vue';
 
 // The weekly-cycle home (Story 1.15, mockups/v2/shell-f.html). The week bar is real: it is only
@@ -21,6 +22,8 @@ const props = defineProps({
     kpis: { type: Object, default: null },
     // What needs the viewer's attention (Story 5.10): `{ items, totals }`; null without a scope.
     attention: { type: Object, default: null },
+    // The direct subordinate units of the viewer's scope with KPIs and report status (Story 5.11).
+    units: { type: Array, default: () => [] },
 });
 
 const page = usePage();
@@ -220,5 +223,7 @@ const STEPS = ['Rollcall posted', 'Rollcall signed', 'SP held', 'Attendance mark
                 </EmptyState>
             </Card>
         </section>
+
+        <SubordinateUnits :units="units" />
     </div>
 </template>

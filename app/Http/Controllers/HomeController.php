@@ -76,6 +76,10 @@ class HomeController extends Controller
             ],
             'kpis' => $roots->isEmpty() ? null : $this->kpiProps($roots, $scope, $weekStart),
             'attention' => $roots->isEmpty() ? null : $this->attentionProps($roots, $chains, $scope, $weekStart),
+            'units' => $chains->flatMap(fn (ChainNode $chain) => $this->subordinates($chain))
+                ->map(fn (ChainNode $node) => $this->unitRow($node, $weekStart))
+                ->values()
+                ->all(),
         ]);
     }
 
@@ -286,6 +290,47 @@ class HomeController extends Controller
         }
 
         return $blockers;
+    }
+
+    /**
+     * The units the table compares: each direct subordinate of a root of the scope, or the root
+     * itself when it has none (a section leader's own section), so a leaf-only viewer sees their
+     * section rather than a broken table.
+     *
+     * @return list<ChainNode>
+     */
+    private function subordinates(ChainNode $root): array
+    {
+        return $root->children === [] ? [$root] : $root->children;
+    }
+
+    /**
+     * One table row. A sent report is its frozen snapshot, a leaf is live attendance, and an unsent
+     * non-leaf is live for its whole subtree, never the partial sum of the children that happen to
+     * have sent: the roll-up semantics (status, holding) stay the chain's own, so the table and the
+     * navigator never disagree (AD-13).
+     *
+     * @return array<string, mixed>
+     */
+    private function unitRow(ChainNode $node, CarbonImmutable $weekStart): array
+    {
+        $unit = $node->unit;
+        $kpis = $node->live && $node->rollup !== null ? $this->kpis->forUnit($unit, $weekStart) : $node->kpis;
+        $date = $weekStart->toDateString();
+
+        return [
+            ...self::unitProps($unit),
+            'type' => $unit->type->value,
+            'status' => $node->status->value,
+            'holding' => $node->isHolding(),
+            'live' => $node->live,
+            'kpis' => self::kpiShape($kpis),
+            'coverage' => $node->rollup === null ? null : [
+                'sent' => count($node->rollup->children) - count($node->rollup->missingChildren()),
+                'of' => count($node->rollup->children),
+            ],
+            'href' => route('reports.show', ['unit' => $unit->id, 'week' => $date]),
+        ];
     }
 
     /** @return array{id: int, designation: string, name: string} */
