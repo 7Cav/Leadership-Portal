@@ -3,8 +3,13 @@
 namespace App\Repositories\LoaRepository;
 
 use App\Models\Loa;
+use App\Models\LoaParseStatus;
+use App\Models\LoaType;
 use App\Repositories\LoaRepository;
+use App\Repositories\LoaReturn;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 
 class Eloquent implements LoaRepository
 {
@@ -21,5 +26,118 @@ class Eloquent implements LoaRepository
             ->orderByDesc('starts_at')
             ->orderByDesc('id')
             ->get();
+    }
+
+    public function settledThreadIds(array $forumThreadIds, CarbonImmutable $endedBefore): array
+    {
+        if ($forumThreadIds === []) {
+            return [];
+        }
+
+        return Loa::query()
+            ->whereIn('forum_thread_id', $forumThreadIds)
+            ->where('parse_status', LoaParseStatus::Ok->value)
+            ->whereNotNull('ends_at')
+            ->where('ends_at', '<', $endedBefore->toDateString())
+            ->pluck('forum_thread_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    public function sync(array $writes, array $returns): array
+    {
+        return DB::transaction(function () use ($writes, $returns) {
+            $created = 0;
+            $updated = 0;
+
+            // One read for every row this run touches, not one per thread; only a row that changed is written.
+            $existing = [];
+
+            foreach (array_chunk(array_map(fn ($write) => $write->forumThreadId, $writes), 500) as $threadIds) {
+                foreach (Loa::query()->whereIn('forum_thread_id', $threadIds)->get() as $row) {
+                    $existing[$row->forum_thread_id] = $row;
+                }
+            }
+
+            foreach ($writes as $write) {
+                $loa = $existing[$write->forumThreadId] ?? null;
+                $isNew = $loa === null;
+                $loa ??= new Loa;
+
+                $attributes = [
+                    'trooper_id' => $write->trooperId,
+                    'forum_thread_id' => $write->forumThreadId,
+                    'forum_node_id' => $write->forumNodeId,
+                    'type' => $write->type,
+                    'starts_at' => $write->startsAt,
+                    'ends_at' => $write->endsAt,
+                    'expected_return_at' => $write->expectedReturnAt,
+                    'parse_status' => $write->parseStatus,
+                    'review_reason' => $write->reviewReason,
+                    'source_thread' => $write->sourceThread,
+                    'posted_at' => $write->postedAt,
+                    'raw_username' => $write->rawUsername,
+                    'raw_start_date' => $write->rawStartDate,
+                    'raw_end_date' => $write->rawEndDate,
+                    'raw_excerpt' => $write->rawExcerpt,
+                ];
+
+                // An ELOA already ended by a return keeps the end the return gave it: the thread itself
+                // never says so, and would otherwise reopen the leave on every re-read.
+                if (! $isNew && $loa->return_thread_id !== null && $write->parseStatus === LoaParseStatus::Ok) {
+                    unset($attributes['ends_at']);
+                }
+
+                $loa->fill($attributes)->save();
+
+                if ($isNew) {
+                    $created++;
+                } elseif ($loa->wasChanged()) {
+                    $updated++;
+                }
+            }
+
+            [$closed, $unmatched] = $this->applyReturns($returns);
+
+            return ['created' => $created, 'updated' => $updated, 'closed' => $closed, 'unmatchedReturns' => $unmatched];
+        });
+    }
+
+    /**
+     * @param  list<LoaReturn>  $returns
+     * @return array{0: int, 1: int} ended, unmatched
+     */
+    private function applyReturns(array $returns): array
+    {
+        $closed = 0;
+        $unmatched = 0;
+
+        foreach ($returns as $return) {
+            if (Loa::query()->where('return_thread_id', $return->returnThreadId)->exists()) {
+                continue;
+            }
+
+            $open = Loa::query()
+                ->where('trooper_id', $return->trooperId)
+                ->where('type', LoaType::Eloa->value)
+                ->where('parse_status', LoaParseStatus::Ok->value)
+                ->whereNull('return_thread_id')
+                ->whereNull('ends_at')
+                ->where(fn ($query) => $query->whereNull('starts_at')->orWhere('starts_at', '<=', $return->returnedOn->toDateString()))
+                ->orderByDesc('starts_at')
+                ->orderByDesc('id')
+                ->first();
+
+            if ($open === null) {
+                $unmatched++;
+
+                continue;
+            }
+
+            $open->forceFill(['ends_at' => $return->returnedOn, 'return_thread_id' => $return->returnThreadId])->save();
+            $closed++;
+        }
+
+        return [$closed, $unmatched];
     }
 }

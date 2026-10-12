@@ -69,3 +69,20 @@ it('rejects a duplicate code at the database instead of coalescing it', function
     expect(Course::count())->toBe(1)
         ->and(Course::first()->name)->toBe('Boot Camp');
 });
+
+it('groups the catalog by area of operation before sort_order, so a late General course stays with General', function () {
+    Course::factory()->create(['code' => 'F1', 'category' => AreaOfOperation::Foxhole, 'sort_order' => 10]);
+    Course::factory()->create(['code' => 'G-LATE', 'category' => AreaOfOperation::General, 'sort_order' => 9999]);
+    Course::factory()->create(['code' => 'A3', 'category' => AreaOfOperation::Arma3, 'sort_order' => 5]);
+    Course::factory()->create(['code' => 'G-EARLY', 'category' => AreaOfOperation::General, 'sort_order' => 1]);
+
+    expect(app(CourseRepository::class)->all()->pluck('code')->all())->toBe(['G-EARLY', 'G-LATE', 'A3', 'F1']);
+});
+
+it('accepts every AreaOfOperation case in the category column, so the migration list cannot drift from the enum', function () {
+    foreach (AreaOfOperation::cases() as $i => $area) {
+        DB::table('courses')->insert(['code' => "C{$i}", 'name' => 'X', 'category' => $area->value, 'sort_order' => $i]);
+    }
+
+    expect(DB::table('courses')->count())->toBe(count(AreaOfOperation::cases()));
+});

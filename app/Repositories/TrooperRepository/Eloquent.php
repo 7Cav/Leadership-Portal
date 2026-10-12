@@ -19,7 +19,7 @@ class Eloquent implements TrooperRepository
             $inactivated = $this->markDepartedExcept($activeCavIds);
 
             if ($unreadableCavIds !== []) {
-                Trooper::query()->whereIn('cav_id', $unreadableCavIds)->update(['cav_position_id' => null]);
+                Trooper::query()->whereIn('cav_id', $unreadableCavIds)->update(['cav_position_id' => null, 'billet' => null]);
             }
 
             return [...$upserted, 'inactivated' => $inactivated];
@@ -92,6 +92,17 @@ class Eloquent implements TrooperRepository
         return Trooper::query()->assignedWithin($unit)->orderBy('id')->pluck('id');
     }
 
+    public function unplaced(): EloquentCollection
+    {
+        return Trooper::query()
+            ->whereNull('primary_section_id')
+            ->where('status', '!=', TrooperStatus::Inactive->value)
+            ->orderByRaw('username is null')
+            ->orderBy('username')
+            ->orderBy('cav_id')
+            ->get();
+    }
+
     public function rosterOf(Unit $unit): Collection
     {
         return Trooper::query()->assignedWithin($unit)->orderBy('id')->get()->toBase();
@@ -105,6 +116,40 @@ class Eloquent implements TrooperRepository
     public function ranksByCavId(array $cavIds): Collection
     {
         return Trooper::query()->whereIn('cav_id', $cavIds)->whereNotNull('rank')->pluck('rank', 'cav_id');
+    }
+
+    public function idsByUsername(array $usernames): array
+    {
+        $wanted = array_values(array_unique(array_map(fn (string $name) => mb_strtolower($name), $usernames)));
+
+        if ($wanted === []) {
+            return [];
+        }
+
+        $found = [];
+
+        foreach (Trooper::query()->whereIn(DB::raw('lower(username)'), $wanted)->orderBy('id')->get(['id', 'username']) as $trooper) {
+            $found[mb_strtolower($trooper->username)][] = $trooper->id;
+        }
+
+        return $found;
+    }
+
+    public function idsByForumUserId(array $forumUserIds): array
+    {
+        $wanted = array_values(array_unique($forumUserIds));
+
+        if ($wanted === []) {
+            return [];
+        }
+
+        $found = [];
+
+        foreach (Trooper::query()->whereIn('forum_user_id', $wanted)->orderBy('id')->get(['id', 'forum_user_id']) as $trooper) {
+            $found[(int) $trooper->forum_user_id][] = $trooper->id;
+        }
+
+        return $found;
     }
 
     public function sectionsOfAssignedWithin(Unit $unit): Collection
