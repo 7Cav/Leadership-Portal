@@ -56,6 +56,28 @@ return [
             'trim',
             explode(',', (string) env('SEVENCAV_OAUTH_SCOPES', 'user:read')),
         ))),
+        // Reading leave threads (Story 4.1) uses a forum API key, a machine credential created in the
+        // forum's admin panel, not a user's OAuth token. Env only (AD-23); empty means the forum
+        // cannot be read for leave.
+        'api_key' => env('SEVENCAV_FORUM_API_KEY'),
+        // The forum sections (node ids) that hold leave threads, as `id:type` pairs, comma separated,
+        // e.g. `180:loa,341:eloa`. The type is loa or eloa. The 7Cav forum keeps one LOA
+        // section per battalion (plus HHQ and non-battalion) and one section for ELOA. Only these are
+        // ever read; none configured means no leave section is read. A malformed pair throws, so a typo
+        // fails at boot instead of silently leaving a section unread.
+        'loa_nodes' => collect(explode(',', (string) env('SEVENCAV_FORUM_LOA_NODES', '')))
+            ->map(fn (string $pair) => trim($pair))
+            ->filter(fn (string $pair) => $pair !== '')
+            ->mapWithKeys(function (string $pair) {
+                [$id, $type] = array_pad(array_map('trim', explode(':', $pair)), 2, null);
+
+                if (! ctype_digit((string) $id) || (int) $id < 1 || ! in_array($type, ['loa', 'eloa'], true)) {
+                    throw new InvalidArgumentException("SEVENCAV_FORUM_LOA_NODES: bad entry '{$pair}', expected id:loa|eloa");
+                }
+
+                return [(int) $id => $type];
+            })
+            ->all(),
     ],
 
     /*
