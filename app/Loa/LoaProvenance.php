@@ -19,6 +19,13 @@ final class LoaProvenance
     /** What a value is labelled with when it came from the cache. */
     public const SOURCE_LABEL = 'Forum thread';
 
+    /**
+     * How old the last good sync may be before the cache is called stale even though nothing failed: the
+     * sync runs hourly, so this allows several missed runs. Without it a scheduler that stopped, an
+     * unconfigured sync or a dead worker would leave the last run `success`, and the page fresh, for days.
+     */
+    public const STALE_AFTER_HOURS = 6;
+
     public function __construct(private readonly SyncRunRepository $syncRuns) {}
 
     public function current(): LoaSyncState
@@ -26,10 +33,13 @@ final class LoaProvenance
         $latest = $this->syncRuns->latestFinished(SyncRun::SOURCE_LOA);
         $lastGood = $this->syncRuns->latestSuccessful(SyncRun::SOURCE_LOA);
 
+        $lastSyncedAt = $lastGood?->finished_at ? CarbonImmutable::instance($lastGood->finished_at) : null;
+        $tooOld = $lastSyncedAt !== null && $lastSyncedAt->lessThan(CarbonImmutable::now()->subHours(self::STALE_AFTER_HOURS));
+
         return new LoaSyncState(
             source: self::SOURCE_LABEL,
-            lastSyncedAt: $lastGood?->finished_at ? CarbonImmutable::instance($lastGood->finished_at) : null,
-            stale: $latest !== null && $latest->status !== SyncRunStatus::Success,
+            lastSyncedAt: $lastSyncedAt,
+            stale: $tooOld || ($latest !== null && $latest->status !== SyncRunStatus::Success),
             latestStatus: $latest?->status->value,
             latestFinishedAt: $latest?->finished_at ? CarbonImmutable::instance($latest->finished_at) : null,
         );

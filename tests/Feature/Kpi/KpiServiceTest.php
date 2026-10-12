@@ -312,6 +312,19 @@ it('does not count a miss in a week a cleanly read LOA covers, even with no loa 
     expect($attendance->missed)->toBe(1)->and($attendance->atRisk())->toBeFalse();
 });
 
+it('keeps a week out of the window when the practice is marked loa even if the resolver says there is no leave (deliberate exception)', function () {
+    $trooper = kpiTrooper($this->sectionA);
+    kpiMark($trooper, $this->sectionA, 1, AttendanceStatus::Loa);
+    kpiMark($trooper, $this->sectionA, 0, AttendanceStatus::Missed);
+    // The leave the mark came from is gone: no row at all, so coverage says None for every week.
+
+    $attendance = $this->kpis->trooperAttendance($this->sectionA, kpiWeek())[$trooper->id];
+
+    expect($attendance->rollcall->denominator)->toBe(3)
+        ->and($attendance->missed)->toBe(1)
+        ->and($attendance->atRisk())->toBeFalse();
+});
+
 it('takes an LOA week with no practice row out of the rollcall denominator, and counts the trooper on LOA that week', function () {
     $trooper = kpiTrooper($this->sectionA);
     kpiMark($trooper, $this->sectionA, 1, AttendanceStatus::Present, RollcallSignature::WillAttend);
@@ -591,4 +604,48 @@ it('leaves a section with nobody assigned out of the batch', function () {
     kpiTrooper($this->sectionA);
 
     expect($this->kpis->forSectionsWithin($this->battalion, kpiWeek())->keys()->all())->toBe([$this->sectionA->id]);
+});
+
+// 4.8: at-risk is this one definition, read per trooper by the roster — the roster never
+// re-derives it. These pin the parts of AD-21's definition the roster's flag leans on.
+it('still flags 2 misses when LOA leaves fewer than 4 eligible weeks, without inventing misses (4.8)', function () {
+    $mostlyLoa = kpiTrooper($this->sectionA);
+    kpiMark($mostlyLoa, $this->sectionA, 3, AttendanceStatus::Loa);
+    kpiMark($mostlyLoa, $this->sectionA, 2, AttendanceStatus::Loa);
+    kpiMark($mostlyLoa, $this->sectionA, 1, AttendanceStatus::Missed);
+    kpiMark($mostlyLoa, $this->sectionA, 0, AttendanceStatus::Missed);
+
+    $newRecruit = kpiTrooper($this->sectionA);
+    kpiMark($newRecruit, $this->sectionA, 0, AttendanceStatus::Missed);
+
+    $byTrooper = $this->kpis->trooperAttendance($this->sectionA, kpiWeek());
+
+    expect($byTrooper[$mostlyLoa->id]->atRisk())->toBeTrue()
+        ->and($byTrooper[$mostlyLoa->id]->practice->denominator)->toBe(2)
+        ->and($byTrooper[$newRecruit->id]->atRisk())->toBeFalse()
+        ->and($byTrooper[$newRecruit->id]->missed)->toBe(1);
+});
+
+it('never reads an unmarked trooper in a held practice as a miss (4.8, AD-4)', function () {
+    $marked = kpiTrooper($this->sectionA);
+    $unmarked = kpiTrooper($this->sectionA);
+    foreach ([0, 1, 2, 3] as $weeksBack) {
+        kpiMark($marked, $this->sectionA, $weeksBack, AttendanceStatus::Present);
+    }
+
+    expect($this->kpis->trooperAttendance($this->sectionA, kpiWeek())[$unmarked->id]->atRisk())->toBeFalse();
+});
+
+it('sums a set of trooper rows exactly as forUnit composes its subtree (2.8)', function () {
+    $a = kpiTrooper($this->sectionA);
+    $b = kpiTrooper($this->sectionB);
+    kpiMark($a, $this->sectionA, 0, AttendanceStatus::Missed, RollcallSignature::WillAttend);
+    kpiMark($a, $this->sectionA, 1, AttendanceStatus::Missed);
+    kpiMark($b, $this->sectionB, 0, AttendanceStatus::Makeup, RollcallSignature::CannotAttend);
+
+    $rows = $this->kpis->trooperAttendance($this->battalion, kpiWeek());
+
+    expect($this->kpis->sum($rows))->toEqual($this->kpis->forUnit($this->battalion, kpiWeek()))
+        ->and($this->kpis->sum($rows->only([$a->id]))->atRisk)->toBe(1)
+        ->and($this->kpis->sum(collect()))->toEqual(UnitKpis::none());
 });

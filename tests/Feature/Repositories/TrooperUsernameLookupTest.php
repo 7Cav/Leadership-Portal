@@ -60,3 +60,13 @@ it('ignores a trooper with no username, and an empty request', function () {
     expect(app(TrooperRepository::class)->idsByUsername(['x']))->toBe([])
         ->and(app(TrooperRepository::class)->idsByUsername([]))->toBe([]);
 });
+
+it('finds troopers by forum user id, listing every one that shares an id and leaving unknown ids out', function () {
+    $one = Trooper::factory()->create(['forum_user_id' => 501]);
+    $twinA = Trooper::factory()->create(['forum_user_id' => 502]);
+    $twinB = Trooper::factory()->create(['forum_user_id' => 502]);
+
+    expect(app(TrooperRepository::class)->idsByForumUserId([501, 502, 503, 501]))
+        ->toBe([501 => [$one->id], 502 => [$twinA->id, $twinB->id]])
+        ->and(app(TrooperRepository::class)->idsByForumUserId([]))->toBe([]);
+});

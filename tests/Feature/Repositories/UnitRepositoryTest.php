@@ -219,3 +219,18 @@ it('lists a unit\'s whole subtree, itself included, in id order and nothing outs
     expect($repo->subtree($company)->modelKeys())->toBe([$company->id, $platoon->id, $section->id])
         ->and($repo->subtree($section)->modelKeys())->toBe([$section->id]);
 });
+
+it('picks the sections out of a set of unit ids, with their parent loaded, in path order (3.7)', function () {
+    $repo = app(UnitRepository::class);
+    $platoon = $repo->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', null);
+    $second = $repo->create(UnitType::Section, '2nd Section', '2/1/A/1-7', $platoon->id);
+    $first = $repo->create(UnitType::Section, '1st Section', '1/1/A/1-7', $platoon->id);
+    $outside = $repo->create(UnitType::Section, 'Elsewhere', null, null);
+
+    $sections = $repo->sectionsAmong(collect([$platoon->id, $second->id, $first->id]));
+
+    expect($sections->pluck('id')->all())->toBe([$second->id, $first->id])
+        ->and($sections->first()->relationLoaded('parent'))->toBeTrue()
+        ->and($sections->first()->parent->id)->toBe($platoon->id)
+        ->and($sections->pluck('id'))->not->toContain($outside->id);
+});
