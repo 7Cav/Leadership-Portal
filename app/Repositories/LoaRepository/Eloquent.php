@@ -7,6 +7,7 @@ use App\Models\LoaParseStatus;
 use App\Models\LoaType;
 use App\Repositories\LoaRepository;
 use App\Repositories\LoaReturn;
+use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +26,43 @@ class Eloquent implements LoaRepository
             ->orderByRaw('starts_at is null')
             ->orderByDesc('starts_at')
             ->orderByDesc('id')
+            ->get();
+    }
+
+    public function touchingWeek(array $trooperIds, CarbonImmutable $weekStart): Collection
+    {
+        if ($trooperIds === []) {
+            return new Collection;
+        }
+
+        $week = WeekOf::requireStart($weekStart);
+        $firstDay = $week->toDateString();
+        $nextWeek = WeekOf::next($week);
+        $nextDay = $nextWeek->toDateString();
+        // An undated row shields the Cav week it was posted in and the one after: it touches this week when
+        // it was posted from the start of last week up to the start of next week.
+        $postedFrom = WeekOf::previous($week);
+
+        return Loa::query()
+            ->whereIn('trooper_id', $trooperIds)
+            ->where(function ($query) use ($firstDay, $nextDay, $postedFrom, $nextWeek) {
+                $query->where(function ($dated) use ($firstDay, $nextDay) {
+                    $dated->where('parse_status', LoaParseStatus::Ok->value)
+                        ->whereNotNull('starts_at')
+                        // `starts_at` and `ends_at` are DATE columns: plain comparisons, so an index on them stays usable.
+                        // Starting before the next week's first day is the same as on or before this Friday,
+                        // and holds whether the driver keeps a bare date or a midnight timestamp.
+                        ->where('starts_at', '<', $nextDay)
+                        ->where(fn ($end) => $end->whereNull('ends_at')->orWhere('ends_at', '>=', $firstDay));
+                })->orWhere(function ($undated) use ($postedFrom, $nextWeek) {
+                    $undated->where(fn ($unread) => $unread->where('parse_status', LoaParseStatus::NeedsReview->value)->orWhereNull('starts_at'))
+                        ->where(fn ($posted) => $posted
+                            ->where(fn ($forum) => $forum->whereNotNull('posted_at')->where('posted_at', '>=', $postedFrom)->where('posted_at', '<', $nextWeek))
+                            // A row stored before `posted_at` existed, until the sync reads its thread again.
+                            ->orWhere(fn ($cached) => $cached->whereNull('posted_at')->where('created_at', '>=', $postedFrom)->where('created_at', '<', $nextWeek)));
+                });
+            })
+            ->orderBy('id')
             ->get();
     }
 
