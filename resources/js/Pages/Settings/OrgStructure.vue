@@ -20,6 +20,10 @@ const props = defineProps({
     // Flashed once by the import action (Story 2.9):
     // `{ unitsCreated, mappingsCreated, mappingsDiffering, skippedTitles }`.
     importResult: { type: Object, default: null },
+    // Troopers the roster sync could not place into a section (Story 2.6), as
+    // `{ id, cav_id, username, rank, mos, billet, position_id }`. Null when the server withholds
+    // the list (anyone but an Admin), which is different from an empty array (nobody unplaced).
+    unplacedTroopers: { type: Array, default: null },
 });
 
 const tree = computed(() => {
@@ -367,6 +371,56 @@ function requestDelete(id) {
                     </dl>
                 </div>
                 <p v-else class="text-[13px] text-muted-foreground">Select a unit to see its details.</p>
+
+                <!--
+                  Troopers the sync could not place (Story 2.6): a dashed panel in the detail card, one chip
+                  per trooper. Shown only when the server sent the list, which it does for an Admin alone.
+                  Read-only here; the "assign" action on each chip is Story 2.7.
+                -->
+                <section
+                    v-if="unplacedTroopers !== null"
+                    data-testid="unplaced-panel"
+                    aria-labelledby="unplaced-heading"
+                    class="mt-4 rounded-lg border border-dashed border-border p-3"
+                >
+                    <h3 id="unplaced-heading" class="text-[13px] font-semibold">
+                        <template v-if="unplacedTroopers.length">
+                            <span data-testid="unplaced-count">
+                                {{ unplacedTroopers.length }} synced {{ unplacedTroopers.length === 1 ? 'trooper' : 'troopers' }} not yet placed
+                            </span>
+                        </template>
+                        <template v-else>All synced troopers are placed</template>
+                    </h3>
+                    <p v-if="!unplacedTroopers.length" class="mt-1 text-xs text-muted-foreground">
+                        Troopers the sync cannot map to a section will be listed here.
+                    </p>
+                    <!--
+                      With no chain of command yet nothing can be mapped, so the whole roster lands here. Say why,
+                      instead of leaving an Admin to assume the sync is broken.
+                    -->
+                    <p v-if="unplacedTroopers.length && !units.length" data-testid="unplaced-hint" class="mt-1 text-xs text-muted-foreground">
+                        The chain of command is empty, so no trooper can be mapped yet. Import it from the Cav roster first.
+                    </p>
+                    <!-- Scrolls inside the card: right after a fresh install the list can hold the whole roster. -->
+                    <ul v-if="unplacedTroopers.length" aria-label="Troopers not yet placed" class="mt-2.5 flex max-h-72 flex-wrap gap-2 overflow-y-auto">
+                        <li
+                            v-for="trooper in unplacedTroopers"
+                            :key="trooper.id"
+                            data-testid="unplaced-trooper"
+                            class="min-w-0 rounded-md border border-border px-2.5 py-1.5 text-[13px]"
+                        >
+                            <span class="font-medium">
+                                <span v-if="trooper.rank" class="text-muted-foreground">{{ trooper.rank }}</span>
+                                {{ trooper.username ?? `Unknown (Cav #${trooper.cav_id})` }}
+                            </span>
+                            <span class="block max-w-[28ch] truncate text-xs text-muted-foreground">
+                                <span v-if="trooper.mos" class="font-mono">{{ trooper.mos }} · </span>{{
+                                    trooper.billet ?? (trooper.position_id !== null ? `Billet ${trooper.position_id}` : 'No billet reported')
+                                }}
+                            </span>
+                        </li>
+                    </ul>
+                </section>
 
                 <!--
                   Add-node control, Admin-only (AC #2). Hidden for a non-Admin per the mockup; the

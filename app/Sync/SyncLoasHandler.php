@@ -1,0 +1,434 @@
+<?php
+
+namespace App\Sync;
+
+use App\Integration\Forum\Data\ForumThreadSummary;
+use App\Integration\Forum\ForumApi;
+use App\Integration\Forum\ForumRequestException;
+use App\Models\LoaParseStatus;
+use App\Models\LoaType;
+use App\Models\SyncRun;
+use App\Repositories\LoaRepository;
+use App\Repositories\LoaReturn;
+use App\Repositories\LoaWrite;
+use App\Repositories\SyncRunRepository;
+use App\Repositories\TrooperRepository;
+use App\Sync\Loa\LoaPostParser;
+use App\Sync\Loa\LoaThreadKind;
+use App\Sync\Loa\ParsedLoaThread;
+use Carbon\CarbonImmutable;
+use Throwable;
+
+/**
+ * The sole writer of the `loas` cache (AD-4, AD-22). It reads leave threads through {@see ForumApi}, reads
+ * each with {@see LoaPostParser}, and applies it one section at a time through {@see LoaRepository::sync()},
+ * each section as one transaction: nothing of a section is written until all of its threads have been
+ * fetched, so a failure part-way leaves that section's cache as it was (no truncation at all: rows are
+ * upserted by `forum_thread_id`), while the sections already done stay saved. That matters for the first
+ * backfill: a year of threads is about 0.5s each with the request pause, so even a thousand threads in a
+ * section is minutes, and the job's 15 minute timeout can only cost the section it was in, not the whole
+ * run. A run that dies without recording itself (a killed worker) is closed as failed by the next run.
+ *
+ * Which threads it reads: the forum lists a section newest first by creation date, so a run walks each
+ * section only until it reaches a thread older than the last good run (less three hours of overlap), which
+ * keeps an hourly run to a page or two. The first run, and a run with `$full`, go back a year instead; a full
+ * run skips threads whose leave ended more than two weeks ago, so it stays cheap, and exists to pick up a post
+ * that was edited after the incremental runs had passed it. One is scheduled daily.
+ * Threads that are not visible, and the pinned notices the forum lists separately, are not read.
+ *
+ * What it stores: a normal LOA has its dates in the post. An ELOA report has none: it starts the day its
+ * PAF was filed, found by following the PAF link and reading that thread's creation date, falling back to
+ * the day the report was posted when the link is missing or the PAF cannot be read. An ELOA return does
+ * not get a row; it ends the trooper's open ELOA, on the day its own PAF was filed. A thread that cannot
+ * be read cleanly (one whose title names a different trooper from its `Username` among them), or whose
+ * username matches no one (or more than one), is stored as `needs_review` with no dates, never guessed. The
+ * trooper is matched on the whole username, ignoring case, never a prefix. Raw text longer than its column
+ * (a username, or a date line someone wrote a paragraph into) is cut to fit, and the row is sent to review,
+ * so one over-long post cannot fail the run for every other post in it. Every row keeps the moment its
+ * thread was posted (`posted_at`), the one date a `needs_review` row has.
+ *
+ * The run is recorded in `sync_runs` (AD-16's carve-out for system jobs). A thread that failed to fetch
+ * makes it `partial` (and is retried next run, since the cutoff only moves after a clean run). A thread the
+ * forum says is gone for good (deleted, moved out of reach, forbidden) is skipped without that: it can never
+ * be read, so counting it would keep every later run partial and the cutoff stuck. Rows left
+ * for a person are counted in `needs_review`, which does not make a run partial. `inactivated` is the roster
+ * sync's count of troopers marked departed and has no meaning here, so it stays 0.
+ */
+class SyncLoasHandler
+{
+    /** How far back the first run, and a full run, look. */
+    private const HISTORY_DAYS = 365;
+
+    /**
+     * Added back onto the last good run's start, so a thread posted while it ran (or a little clock skew) is
+     * not missed. Kept short on purpose: every thread inside the window is fetched again, so a long overlap
+     * is a forum request per recent thread every run. The daily full run is what catches a later edit.
+     */
+    private const OVERLAP_HOURS = 3;
+
+    /** A full run does not re-read a thread whose leave ended longer ago than this. */
+    private const SETTLED_AFTER_DAYS = 14;
+
+    /**
+     * The length of the `loas` string columns the raw text goes into (`raw_username`, `raw_start_date`,
+     * `raw_end_date`, `source_thread`: Laravel's default `string`, `varchar(255)`). A strict MySQL refuses a
+     * longer value outright, which would fail the whole run's transaction, so nothing longer is ever sent.
+     */
+    private const RAW_LENGTH = 255;
+
+    /** A runaway guard on one section's listing. */
+    private const MAX_PAGES = 40;
+
+    public function __construct(
+        private readonly ForumApi $forum,
+        private readonly LoaRepository $loas,
+        private readonly TrooperRepository $troopers,
+        private readonly SyncRunRepository $syncRuns,
+        private readonly LoaPostParser $parser,
+    ) {}
+
+    /**
+     * @throws Throwable the failure that stopped the run, after it has been recorded
+     */
+    public function handle(int|string $triggeredBy = 'system', bool $full = false): void
+    {
+        // Runs are serialized by the job's lock, so any run still `in_progress` now was killed before it could
+        // record itself. Closing it keeps the sync's state honest instead of showing it running for ever.
+        $this->syncRuns->failOrphaned(SyncRun::SOURCE_LOA);
+
+        $run = $this->syncRuns->open(SyncRun::SOURCE_LOA, $triggeredBy);
+
+        try {
+            $now = CarbonImmutable::now();
+            $horizon = $now->subDays(self::HISTORY_DAYS)->startOfDay();
+            $cutoff = $full ? $horizon : $this->cutoff($horizon);
+            $problems = [];
+            $created = $updated = $needsReview = 0;
+
+            foreach ($this->forum->loaNodes() as $nodeId => $typeValue) {
+                $wanted = $this->wanted($nodeId, LoaType::from($typeValue), $cutoff, $problems);
+
+                if ($full) {
+                    $wanted = array_diff_key($wanted, array_flip($this->loas->settledThreadIds(array_keys($wanted), $now->subDays(self::SETTLED_AFTER_DAYS)->startOfDay())));
+                }
+
+                $items = $this->read($wanted, $now, $problems);
+
+                [$writes, $returns, $review] = $this->build($items, $this->match($items));
+
+                $counts = $this->loas->sync($writes, $returns);
+
+                $created += $counts['created'];
+                $updated += $counts['updated'];
+                $needsReview += $review + $counts['unmatchedReturns'];
+            }
+
+            $this->syncRuns->complete(
+                $run,
+                inserted: $created,
+                updated: $updated,
+                inactivated: 0,
+                errored: count($problems),
+                error: $problems === [] ? null : mb_substr(implode('; ', $problems), 0, 2000),
+                needsReview: $needsReview,
+            );
+        } catch (Throwable $e) {
+            $this->syncRuns->fail($run, $e->getMessage());
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Threads newer than this are read. The last good run's start less the overlap, but never further back
+     * than the history horizon.
+     */
+    private function cutoff(CarbonImmutable $horizon): CarbonImmutable
+    {
+        $lastGood = $this->syncRuns->latestSuccessful(SyncRun::SOURCE_LOA);
+
+        if ($lastGood === null) {
+            return $horizon;
+        }
+
+        return CarbonImmutable::instance($lastGood->started_at)->subHours(self::OVERLAP_HOURS)->max($horizon);
+    }
+
+    /**
+     * The threads to read in one section: newest first, until a thread older than the cutoff. A failure
+     * listing the section is not caught: the run fails, with the sections before it already saved.
+     *
+     * @param  list<string>  $problems
+     * @return array<int, array{summary: ForumThreadSummary, type: LoaType}> keyed by thread id
+     */
+    private function wanted(int $nodeId, LoaType $type, CarbonImmutable $cutoff, array &$problems): array
+    {
+        $wanted = [];
+
+        for ($page = 1; ; $page++) {
+            $this->pause();
+            $listing = $this->forum->listLoaThreads($nodeId, $page);
+            $reachedOlder = false;
+
+            foreach ($listing->threads as $thread) {
+                if ($thread->postedAt->lessThan($cutoff)) {
+                    $reachedOlder = true;
+
+                    break;
+                }
+
+                if ($thread->isVisible()) {
+                    $wanted[$thread->threadId] = ['summary' => $thread, 'type' => $type];
+                }
+            }
+
+            if ($reachedOlder || ! $listing->hasMore()) {
+                break;
+            }
+
+            if ($page >= self::MAX_PAGES) {
+                $problems[] = "Section {$nodeId}: stopped at the {$page}-page limit before reaching the cutoff";
+
+                break;
+            }
+        }
+
+        return $wanted;
+    }
+
+    /**
+     * The troopers each read thread could be for: by forum user id where the post carries one, by the
+     * username otherwise. The username is asked for as the same bounded name build() matches on (see fit()).
+     *
+     * @param  list<array{summary: ForumThreadSummary, type: LoaType, parsed: ParsedLoaThread, eventOn: ?CarbonImmutable, eventNote: ?string}>  $items
+     * @return array{byForumId: array<int, list<int>>, byName: array<string, list<int>>}
+     */
+    private function match(array $items): array
+    {
+        $usernames = array_map(fn (array $item) => $item['parsed']->username === null ? null : mb_substr($item['parsed']->username, 0, self::RAW_LENGTH), $items);
+        $forumIds = array_map(fn (array $item) => $item['parsed']->forumUserId, $items);
+
+        return [
+            'byForumId' => $this->troopers->idsByForumUserId(array_values(array_filter($forumIds))),
+            'byName' => $this->troopers->idsByUsername(array_values(array_filter($usernames))),
+        ];
+    }
+
+    /**
+     * Fetch and read each wanted thread. One that fails to fetch for now is noted and left for the next run;
+     * one that is permanently unreadable is skipped.
+     *
+     * @param  array<int, array{summary: ForumThreadSummary, type: LoaType}>  $wanted
+     * @param  list<string>  $problems
+     * @return list<array{summary: ForumThreadSummary, type: LoaType, parsed: ParsedLoaThread, eventOn: ?CarbonImmutable, eventNote: ?string}>
+     */
+    private function read(array $wanted, CarbonImmutable $now, array &$problems): array
+    {
+        $items = [];
+        $pafDates = [];
+
+        foreach ($wanted as $threadId => $want) {
+            $this->pause();
+
+            try {
+                $thread = $this->forum->fetchLoaThread($threadId);
+            } catch (ForumRequestException $e) {
+                // Gone for good: nothing a later run could read, so it is not a problem to retry.
+                if (! $e->isPermanent()) {
+                    $problems[] = "Thread {$threadId}: {$e->getMessage()}";
+                }
+
+                continue;
+            }
+
+            if (! $thread->summary->isVisible()) {
+                continue;
+            }
+
+            $parsed = $this->parser->parse($thread->summary->title, $thread->firstPostBody, $want['type'], $now);
+            $eventOn = null;
+            $eventNote = null;
+
+            if (in_array($parsed->kind, [LoaThreadKind::EloaReport, LoaThreadKind::EloaReturn], true) && $parsed->reasons === []) {
+                $event = $this->eventDate($parsed, $thread->summary, $pafDates, $problems);
+
+                if ($event === null) {
+                    continue;
+                }
+
+                [$eventOn, $eventNote] = $event;
+            }
+
+            $items[] = ['summary' => $thread->summary, 'type' => $want['type'], 'parsed' => $parsed, 'eventOn' => $eventOn, 'eventNote' => $eventNote];
+        }
+
+        return $items;
+    }
+
+    /**
+     * The day an ELOA report or return takes effect: the day its PAF was filed, from the creation date of
+     * the PAF thread it links to. When there is no link, no PAF section is configured, or the forum says no
+     * (forbidden, not found, not a PAF thread), the day the post itself was made, with a note saying so. A
+     * temporary failure returns null, so the thread is skipped and retried next run rather than dated by
+     * the fallback on a bad day.
+     *
+     * @param  array<int, CarbonImmutable|false>  $pafDates  PAF dates already looked up this run
+     * @param  list<string>  $problems
+     * @return array{0: CarbonImmutable, 1: string}|null the date and a note on where it came from
+     */
+    private function eventDate(ParsedLoaThread $parsed, ForumThreadSummary $summary, array &$pafDates, array &$problems): ?array
+    {
+        $posted = $summary->postedAt->startOfDay();
+        $fallback = fn (string $why) => [$posted, "posted {$posted->toDateString()} ({$why})"];
+
+        if ($parsed->pafThreadId === null) {
+            return $fallback('no PAF link');
+        }
+
+        if ($this->forum->pafNode() === null) {
+            return $fallback('PAF section not configured');
+        }
+
+        $pafId = $parsed->pafThreadId;
+
+        if (! array_key_exists($pafId, $pafDates)) {
+            $this->pause();
+
+            try {
+                $pafDates[$pafId] = $this->forum->fetchPafThreadPostedAt($pafId);
+            } catch (ForumRequestException $e) {
+                if (! $e->isPermanent()) {
+                    $problems[] = "Thread {$summary->threadId}: PAF {$pafId}: {$e->getMessage()}";
+
+                    return null;
+                }
+
+                $pafDates[$pafId] = false;
+            }
+        }
+
+        $filed = $pafDates[$pafId];
+
+        return $filed === false ? $fallback("PAF {$pafId} not readable") : [$filed->startOfDay(), "PAF {$pafId} filed {$filed->toDateString()}"];
+    }
+
+    /**
+     * Turn what was read into rows to store and returns to apply. A thread that cannot be tied to exactly
+     * one trooper is kept as `needs_review`, and so is one the parser could not read.
+     *
+     * @param  list<array{summary: ForumThreadSummary, type: LoaType, parsed: ParsedLoaThread, eventOn: ?CarbonImmutable, eventNote: ?string}>  $items
+     * @param  array{byForumId: array<int, list<int>>, byName: array<string, list<int>>}  $troopers  trooper ids by forum user id, and by lower-cased username
+     * @return array{0: list<LoaWrite>, 1: list<LoaReturn>, 2: int} writes, returns, how many need a person
+     */
+    private function build(array $items, array $troopers): array
+    {
+        $writes = [];
+        $returns = [];
+        $needsReview = 0;
+
+        foreach ($items as ['summary' => $summary, 'type' => $type, 'parsed' => $parsed, 'eventOn' => $eventOn, 'eventNote' => $eventNote]) {
+            $reasons = $parsed->reasons;
+            $isReport = $parsed->kind === LoaThreadKind::EloaReport;
+            $isReturn = $parsed->kind === LoaThreadKind::EloaReturn;
+
+            // Each raw field is cut to what its column holds before anything is done with it, so one over-long
+            // line cannot fail the whole run on a strict database. A field that had to be cut is no longer what
+            // the trooper wrote, so the row goes to a person. A return stores no row, so only its name counts.
+            $username = $this->fit($parsed->username, 'Username', $reasons);
+            $rawStart = $isReturn ? null : $this->fit($isReport ? $eventNote : $parsed->rawStart, 'Start Date', $reasons);
+            $rawEnd = $isReturn ? null : $this->fit($parsed->rawEnd, $isReport ? 'Expected return date' : 'End Date', $reasons);
+
+            // The forum identity first: a rename or a same-name collision cannot send leave to the wrong person.
+            // Only when it names exactly one trooper; otherwise the typed name decides, as before.
+            $matches = $parsed->forumUserId === null ? [] : ($troopers['byForumId'][$parsed->forumUserId] ?? []);
+
+            if (count($matches) !== 1) {
+                $matches = $username === null ? [] : ($troopers['byName'][mb_strtolower($username)] ?? []);
+            }
+
+            if ($username !== null && count($matches) !== 1) {
+                $shown = mb_substr($username, 0, 40);
+                $reasons[] = $matches === [] ? "No trooper is named {$shown}." : count($matches)." troopers are named {$shown}.";
+            }
+
+            $trooperId = count($matches) === 1 ? $matches[0] : null;
+
+            if ($isReturn) {
+                if ($reasons === [] && $trooperId !== null && $eventOn !== null) {
+                    $returns[] = new LoaReturn($summary->threadId, $trooperId, $eventOn);
+                } else {
+                    $needsReview++;
+                }
+
+                continue;
+            }
+
+            $startsAt = $isReport ? $eventOn : $parsed->startsAt;
+            $endsAt = $isReport ? null : $parsed->endsAt;
+            $clean = $reasons === [] && $startsAt !== null;
+
+            if (! $clean) {
+                $needsReview++;
+            }
+
+            $writes[] = new LoaWrite(
+                forumThreadId: $summary->threadId,
+                forumNodeId: $summary->nodeId,
+                trooperId: $trooperId,
+                type: $type,
+                startsAt: $clean ? $startsAt : null,
+                endsAt: $clean ? $endsAt : null,
+                parseStatus: $clean ? LoaParseStatus::Ok : LoaParseStatus::NeedsReview,
+                reviewReason: $clean ? null : mb_substr(implode(' ', $reasons ?: ['The start date could not be worked out.']), 0, 250),
+                sourceThread: $this->sourceThread($summary),
+                postedAt: $summary->postedAt,
+                rawUsername: $username,
+                rawStartDate: $rawStart,
+                rawEndDate: $rawEnd,
+                rawExcerpt: $parsed->excerpt === '' ? null : $parsed->excerpt,
+                expectedReturnAt: $clean ? $parsed->expectedReturnAt : null,
+            );
+        }
+
+        return [$writes, $returns, $needsReview];
+    }
+
+    /**
+     * A raw field cut to what its `loas` column holds (and what the username lookup is asked for), with a
+     * reason added when it had to be cut. Counted in characters, as the column is.
+     *
+     * @param  list<string>  $reasons
+     */
+    private function fit(?string $value, string $label, array &$reasons): ?string
+    {
+        if ($value === null || mb_strlen($value) <= self::RAW_LENGTH) {
+            return $value;
+        }
+
+        $reasons[] = "The {$label} is longer than the portal keeps.";
+
+        return mb_substr($value, 0, self::RAW_LENGTH);
+    }
+
+    /**
+     * Where the thread is, for `source_thread`. The forum's own address for it, unless that would not fit the
+     * column, in which case the plain address built from the thread id: it reaches the same thread, and a
+     * cut address would not.
+     */
+    private function sourceThread(ForumThreadSummary $summary): string
+    {
+        $url = $summary->url;
+
+        return $url !== null && mb_strlen($url) <= self::RAW_LENGTH ? $url : $this->forum->threadUrl($summary->threadId);
+    }
+
+    /** A pause between requests to the forum, so a first backfill does not arrive as a burst. */
+    private function pause(): void
+    {
+        $milliseconds = (int) config('sync.loa_request_delay_ms', 0);
+
+        if ($milliseconds > 0) {
+            usleep($milliseconds * 1000);
+        }
+    }
+}
