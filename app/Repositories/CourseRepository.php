@@ -19,6 +19,8 @@ interface CourseRepository
      */
     public function all(): Collection;
 
+    public function find(int $id): ?Course;
+
     public function findByCode(string $code): ?Course;
 
     /**
