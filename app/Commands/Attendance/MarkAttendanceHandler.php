@@ -41,7 +41,8 @@ use Carbon\CarbonImmutable;
  * with `RollcallWeekLockedException`. Earlier weeks whose report was never sent stay editable.
  * The check is the first thing inside the transaction and holds a shared lock on the report row
  * (`WeeklyReportRepository::isSentFor()`), so a send landing mid-save either waits for the save
- * to commit or is seen by it — never a save written over a week that was frozen under it.
+ * to commit or is seen by it — never a save written over a week that was frozen under it. The
+ * capture pre-mark ({@see preMark()}) respects the same lock, answering `weekLocked` instead.
  *
  * Then, as one audited transaction (AD-16): find-or-create the section's practice for the week
  * `WeekOf` resolves (AD-11), then write each entry's facts in trooper-id order (a fixed lock order,
@@ -187,12 +188,28 @@ class MarkAttendanceHandler
      * a `'system'` run is covered by its `sync_runs` row (AD-16's carve-out for system jobs).
      * Writes go in trooper-id order, the same lock order as {@see handle()}.
      *
+     * A capture is a change to the week's attendance like any other, so it respects the same lock
+     * as {@see handle()}: once the section's weekly report for the practice's week has been really
+     * sent (not a demo report, #115), nothing is written and the result says `weekLocked` — an
+     * outcome for the capture run to record, not an exception that would fail and retry a queued
+     * job. It is checked before the 7.8 confirmation, so a sent week wins over a confirmed practice,
+     * and again first in the mutation. A user-triggered run holds its shared lock on the
+     * report row for the whole audited transaction, as a manual save does, and a locked one rolls
+     * back without an audit entry. A `'system'` run writes outside one transaction (there is no
+     * actor to audit it under), so its check only stops a run whose week was sent before it began.
+     *
      * @param  list<int>  $trooperIds
      */
     public function preMark(SectionPractice $practice, array $trooperIds, int|string $triggeredBy = 'system'): AutoMarkResult
     {
         $trooperIds = array_values(array_unique($trooperIds));
         sort($trooperIds);
+
+        // A sent week (AD-12) is locked for everything, so it is answered before the confirmation: a
+        // practice that is both reads as `weekLocked`. Checked again first inside the mutation below.
+        if ($this->reports->isSentFor($practice->section_id, $practice->week_start)) {
+            return AutoMarkResult::weekLocked();
+        }
 
         // A confirmed practice (7.8) is locked for reporting: capture re-runs and links leave its
         // marks exactly as the leader confirmed them. A hand edit unlocks it.
@@ -208,6 +225,10 @@ class MarkAttendanceHandler
         $notPlaced = 0;
         $confirmed = false;
         $mutation = function () use ($practice, $trooperIds, $locked, &$written, &$notPlaced, &$confirmed) {
+            if ($this->reports->isSentFor($practice->section_id, $practice->week_start)) {
+                throw RollcallWeekLockedException::for($practice->section_id, $practice->week_start);
+            }
+
             $written = [];
 
             if ($confirmed = $locked($this->practices->lockById($practice->id))) {
@@ -233,10 +254,14 @@ class MarkAttendanceHandler
             return new AuditedBatch($practice, ...$written);
         };
 
-        if (is_int($triggeredBy) && $trooperIds !== []) {
-            $this->audit->recordBatch($triggeredBy, 'attendance.auto_marked', null, false, $mutation);
-        } else {
-            $mutation();
+        try {
+            if (is_int($triggeredBy) && $trooperIds !== []) {
+                $this->audit->recordBatch($triggeredBy, 'attendance.auto_marked', null, false, $mutation);
+            } else {
+                $mutation();
+            }
+        } catch (RollcallWeekLockedException) {
+            return AutoMarkResult::weekLocked();
         }
 
         if ($confirmed) {

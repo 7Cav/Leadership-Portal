@@ -9,6 +9,9 @@ use App\Integration\Crcon\Data\CrconPlayer;
  * `unavailable` means the practice was left un-captured because no source could answer — never
  * zero attendance; `captured` with empty lists means a source answered and the window was empty.
  * `notConfigured` means no source's keys are set, so nothing was attempted (7.9).
+ * `weekLocked` means the practice was left un-captured because the section's weekly report for
+ * its week has been really sent (AD-12): that week's attendance is frozen, so no auto mark is
+ * written and the practice is not stamped.
  */
 final readonly class CaptureResult
 {
@@ -26,7 +29,14 @@ final readonly class CaptureResult
         public array $unmatched,
         public array $unavailableReasons,
         public bool $attempted = true,
+        public bool $weekLocked = false,
     ) {}
+
+    /** The week's report has been sent: nothing captured, nothing written. */
+    public static function weekLocked(): self
+    {
+        return new self(false, null, [], [], [], [], weekLocked: true);
+    }
 
     /**
      * @param  list<array{player: CrconPlayer, trooperId: int}>  $matched

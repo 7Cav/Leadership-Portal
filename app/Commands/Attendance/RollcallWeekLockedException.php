@@ -16,7 +16,9 @@ use RuntimeException;
  *
  * Its own type, apart from `InvalidAttendanceMarkException`, because the refusal is about the
  * week rather than the marks: the rollcall controller (3.8) answers it as a conflict the screen
- * stops retrying, not as troopers to drop from the batch.
+ * stops retrying, not as troopers to drop from the batch. The capture pre-mark (7.6) throws it
+ * inside its own mutation only to roll that back, and turns it into `AutoMarkResult::weekLocked()`
+ * rather than letting it fail a queued capture job.
  */
 class RollcallWeekLockedException extends RuntimeException
 {

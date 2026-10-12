@@ -6,12 +6,15 @@ use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Integration\Crcon\Data\CrconPlayer;
 use App\Integration\Crcon\Data\CrconPresence;
 use App\Models\GamePlatform;
+use App\Models\SectionPractice;
+use App\Models\SyncRun;
 use App\Repositories\GamePlayerDismissalRepository;
 use App\Repositories\PracticeCapturePlayerRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
+use App\Repositories\WeeklyReportRepository;
 use App\Support\Audit\AuditEnvelope;
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
@@ -40,6 +43,14 @@ use Throwable;
  * jobs). No authorization here: callers (scheduler, a later leader trigger) decide who may run it.
  * Re-running re-stamps the same row and re-resolves. The unmatched and other-section players are
  * stored per practice (replaced each run, dismissed ones excluded) for the leader's review (7.7).
+ *
+ * A practice whose week is locked — the section's weekly report for it has been really sent, not
+ * a demo report (#115) — is not captured at all (AD-12: a sent report froze the week's attendance,
+ * and an automatic mark is a change like any other). No source is read, nothing is stamped or
+ * marked, the run is closed `success` with zero counts and a "week locked" summary, and the result
+ * is `CaptureResult::weekLocked()`: an outcome, not an exception, so the queued job neither fails
+ * nor retries. A send landing between that check and the pre-mark is caught by the pre-mark's own
+ * check and ends the same way.
  */
 class CaptureSectionPracticeHandler
 {
@@ -52,6 +63,7 @@ class CaptureSectionPracticeHandler
         private readonly PracticeCapturePlayerRepository $capturePlayers,
         private readonly GamePlayerDismissalRepository $dismissals,
         private readonly SyncRunRepository $syncRuns,
+        private readonly WeeklyReportRepository $reports,
         private readonly AuditEnvelope $audit,
     ) {}
 
@@ -88,6 +100,12 @@ class CaptureSectionPracticeHandler
         $run = $this->syncRuns->open('capture', $command->triggeredBy, $practice->id);
 
         try {
+            // A week whose report was sent is frozen (AD-12): no source is read and nothing is
+            // written. Checked again by the pre-mark itself, for a send landing mid-run.
+            if ($this->reports->isSentFor($practice->section_id, $practice->week_start)) {
+                return $this->weekLocked($run, $practice);
+            }
+
             $reasons = [];
 
             foreach ($configured as $source) {
@@ -107,6 +125,10 @@ class CaptureSectionPracticeHandler
                 // Pre-mark before stamping, so a captured practice implies its marks were written;
                 // a failure here retries the whole run, and every write is idempotent.
                 $marks = $this->attendance->preMark($practice, array_column($result->matched, 'trooperId'), $command->triggeredBy);
+
+                if ($marks->weekLocked) {
+                    return $this->weekLocked($run, $practice);
+                }
 
                 $stamp = fn () => $this->practices->stampCapture($practice, $source->serverRef, $presence->fetchedAt, $source->name);
                 is_int($command->triggeredBy)
@@ -161,6 +183,28 @@ class CaptureSectionPracticeHandler
             ...array_map(fn (array $row) => ['platform_id' => $row['player']->platformId, 'player_name' => $row['player']->playerName, 'trooper_id' => $row['trooperId']],
                 $result->otherSection),
         ]);
+    }
+
+    /**
+     * Close the run on a locked week: completed with zero counts, not failed — nothing went wrong,
+     * the week is simply frozen, and a failed run would read as telemetry trouble. The summary says
+     * why, and the practice is left un-stamped, since no marks were written for it.
+     */
+    private function weekLocked(SyncRun $run, SectionPractice $practice): CaptureResult
+    {
+        $this->syncRuns->complete(
+            $run,
+            inserted: 0,
+            updated: 0,
+            inactivated: 0,
+            errored: 0,
+            error: sprintf(
+                'practice %d: week locked, the weekly report for the week of %s has been sent; nothing captured, no auto marks written',
+                $practice->id, $practice->week_start->toDateString(),
+            ),
+        );
+
+        return CaptureResult::weekLocked();
     }
 
     private function resolve(CrconPresence $presence, string $source, CaptureSectionPractice $command, int $sectionId): CaptureResult

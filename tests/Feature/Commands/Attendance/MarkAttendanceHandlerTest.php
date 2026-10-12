@@ -445,3 +445,24 @@ it('writes no audit entry for an empty pre-mark even when a user triggered it', 
 
     expect($result->marked)->toBe(0)->and(AuditLogEntry::query()->count())->toBe(0);
 });
+
+it('pre-marks nothing for a week whose report has been sent, answering week locked rather than throwing', function (bool $byUser) {
+    $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->weekStart]);
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->weekStart]);
+
+    $result = app(MarkAttendanceHandler::class)->preMark($practice, [$this->troopers[0]->id], $byUser ? $this->leader->id : 'system');
+
+    expect($result->weekLocked)->toBeTrue()
+        ->and([$result->marked, $result->keptManual, $result->notPlaced])->toBe([0, 0, 0])
+        ->and(Attendance::query()->count())->toBe(0)
+        ->and(AuditLogEntry::query()->count())->toBe(0);
+})->with(['a system run' => [false], 'a user-triggered run' => [true]]);
+
+it('still pre-marks a week whose only sent report is a demo report (#115)', function () {
+    $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->weekStart]);
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->weekStart, 'is_demo' => true]);
+
+    $result = app(MarkAttendanceHandler::class)->preMark($practice, [$this->troopers[0]->id]);
+
+    expect($result->weekLocked)->toBeFalse()->and($result->marked)->toBe(1);
+});
