@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Sync\SyncLoasHandler;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
@@ -19,14 +20,21 @@ use Throwable;
  * request each, paced by a pause between requests. It still sits well under the lock's hour-long expiry, so
  * a crashed worker cannot wedge every later run. `$tries` must exceed 1 for the same reason as the roster
  * job: a deferral counts as an attempt.
+ *
+ * {@see ShouldBeUnique}: a click (or several) while a sync of the same kind is already queued or running adds
+ * nothing, so repeated triggers cannot stack up jobs that wait on the lock and burn their tries. An
+ * incremental and a full sync are separate kinds.
  */
-class SyncLoasJob implements ShouldQueue
+class SyncLoasJob implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
     public int $tries = 5;
 
     public int $timeout = 900;
+
+    /** Releases the uniqueness lock even if a worker is killed mid-run. */
+    public int $uniqueFor = 3600;
 
     public function __construct(
         public readonly int|string $triggeredBy = 'system',
@@ -41,6 +49,11 @@ class SyncLoasJob implements ShouldQueue
     public static function isConfigured(): bool
     {
         return filled(config('services.sevencav.api_key')) && config('services.sevencav.loa_nodes', []) !== [];
+    }
+
+    public function uniqueId(): string
+    {
+        return $this->full ? 'loa-full' : 'loa';
     }
 
     public function handle(SyncLoasHandler $handler): void

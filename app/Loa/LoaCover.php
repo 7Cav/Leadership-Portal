@@ -20,7 +20,11 @@ use Carbon\CarbonInterface;
  */
 final readonly class LoaCover
 {
-    public function __construct(
+    /**
+     * Private: the named constructors are the only way in, so a `Covered` with no type or a `NeedsReview`
+     * with dates cannot be built.
+     */
+    private function __construct(
         public LoaCoverageState $state,
         public ?LoaType $type = null,
         public ?CarbonImmutable $startsAt = null,
@@ -38,16 +42,17 @@ final readonly class LoaCover
     }
 
     /**
-     * `$today` is the server's UTC day (AD-11). An ELOA still open after its expected return date is overdue:
-     * it runs until a return is posted, so it is flagged for a leader to chase, never ended. A leave that ends
-     * today or later says in how many days (`endsInDays`), for the "LOA, ends in 2d" pill; one that ended earlier
-     * in the week has none.
+     * `$today` is the server's UTC day (AD-11), or null when the week asked about does not contain it. An
+     * ELOA still open after its expected return date is overdue: it runs until a return is posted, so it is
+     * flagged for a leader to chase, never ended. A leave that ends today or later says in how many days
+     * (`endsInDays`), for the "LOA, ends in 2d" pill; one that ended earlier in the week has none. Both are
+     * statements about today, so with no `$today` (a past or future week) they are `false` and null.
      */
-    public static function covered(Loa $loa, CarbonInterface $today): self
+    public static function covered(Loa $loa, ?CarbonInterface $today = null): self
     {
         $expected = $loa->expected_return_at ? CarbonImmutable::instance($loa->expected_return_at) : null;
         $ends = $loa->ends_at ? CarbonImmutable::instance($loa->ends_at) : null;
-        $endsInDays = $ends !== null && $ends->toDateString() >= $today->toDateString()
+        $endsInDays = $today !== null && $ends !== null && $ends->toDateString() >= $today->toDateString()
             ? (int) CarbonImmutable::parse($today->toDateString(), 'UTC')->diffInDays($ends->startOfDay())
             : null;
 
@@ -58,7 +63,7 @@ final readonly class LoaCover
             $ends,
             $loa->source_thread,
             expectedReturnAt: $expected,
-            overdue: $loa->ends_at === null && $expected !== null && $expected->toDateString() < $today->toDateString(),
+            overdue: $today !== null && $loa->ends_at === null && $expected !== null && $expected->toDateString() < $today->toDateString(),
             endsInDays: $endsInDays,
         );
     }

@@ -10,11 +10,11 @@
 #           composer deptrac:unassigned (list app/ classes that match no layer)
 #
 # The graph (arrows = "may depend on"):
-#   Controller     → CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi, Loa  # writes via Commands; reads direct
+#   Controller     → CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi  # writes via Commands; reads direct
 #   CommandHandler → Repository, Model, Integration, Support\Audit, Authorization, Support\Time, Kpi  # write-side business logic
 #   Kpi            → Repository, Model, Support\Time       # the one shared KPI service (AD-21)
-#   Loa            → Repository, Model, Support\Time       # LOA coverage + source/staleness readers (Epic 4)
-#   Job            → Sync                                  # queued jobs invoke a Sync handler (Story 2.4)
+#   Loa            → Repository, Model, Support\Time       # LOA source/staleness reader and week coverage (Epic 4)
+#   Job            → Sync, CommandHandler                  # queued jobs invoke a Sync handler (Story 2.4) or a capture Command (Story 7.5)
 #   Sync           → Repository, Model, Integration        # one-writer cache sync handlers (AD-4)
 #   Authorization  → Repository, Model                     # ScopeResolver, the single scope gate (AD-8)
 #   Support\Audit  → Repository                             # audited-action envelope (AD-16)
@@ -128,8 +128,6 @@ deptrac:
       - Support\Time
       # Dashboard and report pages read the six KPIs from the shared service (AD-21, Story 5.1).
       - Kpi
-      # Roster and overview pages read LOA coverage and its source/staleness from the Loa layer (Epic 4).
-      - Loa
     CommandHandler:
       - Repository
       - Model
@@ -146,9 +144,10 @@ deptrac:
       - Repository
       - Model
       - Support\Time
-    # LOA reads over the `loas` and `sync_runs` caches (Epic 4): the single definition of LOA coverage
-    # (4.4) and the source/last-sync every LOA value renders with (4.3, AD-20). Read-only; the LOA
-    # sync stays the one writer.
+    # LOA reads over the `sync_runs` cache (Epic 4): the source/last-sync every LOA value renders with
+    # (4.3, AD-20) and whether a trooper is covered in a Cav week (4.4, AD-21). Read-only; the LOA sync
+    # stays the one writer. Support\Time because coverage is judged in whole Cav weeks (`WeekOf`, AD-11).
+    # An edge from Controller is added by the story that first renders it.
     Loa:
       - Repository
       - Model
@@ -164,6 +163,8 @@ deptrac:
     # off the request path (AD-23). No DB/external access of its own.
     Job:
       - Sync
+      # The capture run (7.5) is a Command, queued per AD-23: the job only invokes its handler.
+      - CommandHandler
     # Reaches AuditLogRepository to write the audit_log row — the one place outside
     # Repositories/ that needs a DB-writing path, so it goes through the Repository layer
     # rather than touching DB itself (AD-2 unchanged).
