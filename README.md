@@ -36,5 +36,9 @@ during the demo. The current week is never touched. Re-running replaces the earl
 with the same deterministic pattern. The audit actor and report sender is the earliest Admin, or
 pass `--as=<username>`.
 
+A generated section report does not lock its week's rollcall. A real sent report does: once a
+section's weekly report for a week is sent, that week's rollcall is read-only. Marking over a demo
+week is how a leader makes it real.
+
 The same tools are on **Settings → Demo data** (Admin only, shown only while `DEMO_TOOLS=true`):
 pick a unit, choose 1–12 weeks, then Generate or Purge.
