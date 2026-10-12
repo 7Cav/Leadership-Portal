@@ -14,7 +14,10 @@ class FetchThreadRequest extends Request
 {
     protected Method $method = Method::GET;
 
-    public function __construct(private readonly int $threadId) {}
+    public function __construct(
+        private readonly int $threadId,
+        private readonly bool $withFirstPost = true,
+    ) {}
 
     public function resolveEndpoint(): string
     {
@@ -26,6 +29,6 @@ class FetchThreadRequest extends Request
      */
     protected function defaultQuery(): array
     {
-        return ['with_first_post' => 1];
+        return $this->withFirstPost ? ['with_first_post' => 1] : [];
     }
 }

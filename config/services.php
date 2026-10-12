@@ -78,6 +78,10 @@ return [
                 return [(int) $id => $type];
             })
             ->all(),
+        // The forum section where personnel action forms (PAFs) are filed. Only the creation date of a thread
+        // there is read, to date an ELOA, never its contents. Unset means PAFs are not followed and an ELOA
+        // starts on the day its report was posted.
+        'paf_node' => filter_var(env('SEVENCAV_FORUM_PAF_NODE'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: null,
     ],
 
     /*
