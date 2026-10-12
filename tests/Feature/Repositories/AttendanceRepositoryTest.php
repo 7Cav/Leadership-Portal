@@ -7,8 +7,11 @@ use App\Models\RollcallSignature;
 use App\Models\SectionPractice;
 use App\Models\Trooper;
 use App\Models\Unit;
+use App\Models\UnitType;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\CountingMark;
+use App\Repositories\SectionPracticeRepository;
+use App\Repositories\SectionWeekProgress;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -197,3 +200,25 @@ it('refuses a counting-mark span that does not start and end on week boundaries'
 
     $this->repo->countingMarks($section, $week, $week->addHour());
 })->throws(InvalidArgumentException::class);
+
+it('counts each section\'s week progress in one pass: strength, signed, marked and held', function () {
+    $week = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');
+    [$busy, $quiet, $empty] = Unit::factory()->count(3)->create(['type' => UnitType::Section]);
+    $busyTroopers = Trooper::factory()->count(3)->create(['primary_section_id' => $busy->id]);
+    Trooper::factory()->count(2)->create(['primary_section_id' => $quiet->id]);
+    $practices = app(SectionPracticeRepository::class);
+    $repo = app(AttendanceRepository::class);
+
+    $practice = $practices->findOrCreate($busy->id, $week);
+    $repo->signRollcall($practice, $busyTroopers[0]->id, RollcallSignature::WillAttend);
+    $repo->signRollcall($practice, $busyTroopers[1]->id, RollcallSignature::Unsigned);
+    $repo->markPractice($practice, $busyTroopers[0]->id, AttendanceStatus::Present, AttendanceSource::Manual);
+    $repo->markPractice($practice, $busyTroopers[1]->id, AttendanceStatus::Loa, AttendanceSource::Auto);
+
+    $progress = $repo->weekProgress([$busy->id, $quiet->id, $empty->id], $week);
+
+    expect($progress->keys()->all())->toEqualCanonicalizing([$busy->id, $quiet->id])
+        ->and($progress->get($busy->id))->toEqual(new SectionWeekProgress($busy->id, 3, 1, 2, true))
+        ->and($progress->get($quiet->id))->toEqual(new SectionWeekProgress($quiet->id, 2, 0, 0, false))
+        ->and($repo->weekProgress([], $week))->toBeEmpty();
+});

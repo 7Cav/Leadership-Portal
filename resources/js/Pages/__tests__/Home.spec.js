@@ -130,7 +130,7 @@ describe('Home page', () => {
         it('renders the tiles and worklist instead of the empty states when the viewer has a scope', () => {
             const attention = { items: [], totals: { holding: 0, atRisk: 0 } };
             const units = [{ id: 1, designation: '1/A/1-7', name: '1st Platoon', type: 'platoon', status: 'sent', holding: false, live: false, coverage: null, href: '/reports/1/2026-10-03', kpis: { strength: 7, rc: { numerator: 9, denominator: 12 }, sp: { numerator: 0, denominator: 0 }, atRisk: 1, onLoa: 0, makeups: 2 } }];
-            const wrapper = mount(Home, { props: { week: WEEK, kpis, attention, units } });
+            const wrapper = mount(Home, { props: { week: WEEK, kpis, attention, units, steps: [] } });
 
             expect(wrapper.find('[data-testid="kpi-tiles"]').exists()).toBe(true);
             expect(wrapper.find('[data-testid="all-clear"]').exists()).toBe(true);

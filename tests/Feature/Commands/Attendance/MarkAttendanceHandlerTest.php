@@ -247,6 +247,11 @@ it('rolls the whole batch back — practice, marks and audit — when a write fa
         {
             return $this->inner->countingMarks($unit, $firstWeek, $lastWeek, $includeDeparted);
         }
+
+        public function weekProgress(array $sectionIds, CarbonInterface $weekStart): Collection
+        {
+            return $this->inner->weekProgress($sectionIds, $weekStart);
+        }
     });
 
     expect(fn () => mark($this->leader, $this->section->id, $this->moment, [

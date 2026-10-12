@@ -8,9 +8,11 @@ use App\Models\AttendanceStatus;
 use App\Models\RollcallSignature;
 use App\Models\SectionPractice;
 use App\Models\Trooper;
+use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\CountingMark;
+use App\Repositories\SectionWeekProgress;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -97,6 +99,46 @@ class Eloquent implements AttendanceRepository
     /**
      * @param  array<string, mixed>  $values  only the columns this write owns
      */
+    public function weekProgress(array $sectionIds, CarbonInterface $weekStart): Collection
+    {
+        $weekStart = WeekOf::requireStart($weekStart);
+
+        if ($sectionIds === []) {
+            return collect();
+        }
+
+        $unsigned = RollcallSignature::Unsigned->value;
+        $loa = AttendanceStatus::Loa->value;
+
+        return Trooper::query()
+            ->where('troopers.status', '!=', TrooperStatus::Inactive->value)
+            ->whereIn('troopers.primary_section_id', $sectionIds)
+            ->leftJoin('section_practices', function ($join) use ($weekStart) {
+                $join->on('section_practices.section_id', '=', 'troopers.primary_section_id')
+                    ->where('section_practices.week_start', '=', $weekStart);
+            })
+            ->leftJoin('attendance', function ($join) {
+                $join->on('attendance.section_practice_id', '=', 'section_practices.id')
+                    ->on('attendance.trooper_id', '=', 'troopers.id');
+            })
+            ->groupBy('troopers.primary_section_id')
+            ->toBase()
+            ->get([
+                'troopers.primary_section_id as section_id',
+                DB::raw('count(troopers.id) as strength'),
+                DB::raw("coalesce(sum(case when attendance.rollcall is not null and attendance.rollcall != '{$unsigned}' then 1 else 0 end), 0) as signed"),
+                DB::raw('coalesce(sum(case when attendance.status is not null then 1 else 0 end), 0) as marked'),
+                DB::raw("coalesce(sum(case when attendance.status is not null and attendance.status != '{$loa}' then 1 else 0 end), 0) as held_marks"),
+            ])
+            ->mapWithKeys(fn (object $row) => [(int) $row->section_id => new SectionWeekProgress(
+                sectionId: (int) $row->section_id,
+                strength: (int) $row->strength,
+                signed: (int) $row->signed,
+                marked: (int) $row->marked,
+                held: (int) $row->held_marks > 0,
+            )]);
+    }
+
     private function upsert(SectionPractice $practice, int $trooperId, array $values): Attendance
     {
         $key = ['trooper_id' => $trooperId, 'section_practice_id' => $practice->id];

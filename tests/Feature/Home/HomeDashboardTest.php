@@ -9,6 +9,7 @@ use App\Models\AttendanceStatus;
 use App\Models\PortalRoleGrant;
 use App\Models\RollcallSignature;
 use App\Models\Trooper;
+use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
@@ -326,5 +327,62 @@ describe('Subordinate units (Story 5.11)', function () {
 
     it('has no rows for a viewer with no scope', function () {
         dashboard(User::factory()->create())(fn ($page) => $page->where('units', []));
+    });
+});
+
+describe('Week step matrix', function () {
+    it('lists every section in scope with its five steps and the screens that do them', function () {
+        $practice = app(SectionPracticeRepository::class)->findOrCreate($this->s11->id, $this->week);
+        app(SectionPracticeRepository::class)->markRollcallPosted($practice, $this->sectionLeader->id);
+        markWeek($this->s11, $this->s11Troopers[0], $this->week, AttendanceStatus::Present);
+        markWeek($this->s11, $this->s11Troopers[1], $this->week, null, RollcallSignature::Unsigned);
+        markWeek($this->s11, $this->s11Troopers[2], $this->week, AttendanceStatus::Loa);
+        app(WeeklyReportRepository::class)->saveDraft($this->s21->id, $this->week, [], null);
+
+        dashboard($this->commander)(fn ($page) => $page
+            ->has('steps', 2)
+            ->where('steps.0.id', $this->s11->id)
+            ->where('steps.0.designation', '1/1/A/1-7')
+            ->where('steps.0.platoon', '1/A/1-7')
+            ->where('steps.0.strength', 4)
+            ->whereType('steps.0.postedAt', 'string')
+            ->where('steps.0.signed', 2)
+            ->where('steps.0.marked', 2)
+            ->where('steps.0.held', true)
+            ->where('steps.0.report', 'not_started')
+            ->where('steps.0.links.rollcall', route('rollcall.show', ['unit' => $this->s11->id, 'week' => '2026-10-03']))
+            ->where('steps.0.links.report', route('reports.show', ['unit' => $this->s11->id, 'week' => '2026-10-03']))
+            ->where('steps.1.id', $this->s21->id)
+            ->where('steps.1.postedAt', null)
+            ->where('steps.1.signed', 0)
+            ->where('steps.1.held', false)
+            ->where('steps.1.report', 'draft'));
+    });
+
+    it('counts a practice with only LOA marks as not held, and only this week\'s marks', function () {
+        markWeek($this->s11, $this->s11Troopers[0], $this->week, AttendanceStatus::Loa);
+        markWeek($this->s11, $this->s11Troopers[1], $this->week->subWeek(), AttendanceStatus::Present);
+
+        dashboard($this->sectionLeader)(fn ($page) => $page
+            ->where('steps.0.held', false)
+            ->where('steps.0.signed', 1)
+            ->where('steps.0.marked', 1));
+    });
+
+    it('marks a sent report and leaves out sections beyond the viewer\'s scope', function () {
+        sentWeek($this->s11, $this->week, new UnitKpis(4, new Ratio(1, 2), new Ratio(1, 2), 0, 0, 0));
+
+        dashboard($this->sectionLeader)(fn ($page) => $page
+            ->has('steps', 1)
+            ->where('steps.0.report', 'sent')
+            ->whereType('steps.0.sentAt', 'string'));
+        dashboard($this->commander)(fn ($page) => $page->has('steps', 2));
+        dashboard(User::factory()->create())(fn ($page) => $page->where('steps', []));
+    });
+
+    it('does not count departed troopers', function () {
+        $this->s11Troopers[3]->forceFill(['status' => TrooperStatus::Inactive])->save();
+
+        dashboard($this->sectionLeader)(fn ($page) => $page->where('steps.0.strength', 3));
     });
 });

@@ -1,19 +1,22 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { PhChartLine, PhClockCountdown, PhTray, PhUsersThree, PhWarning } from '@phosphor-icons/vue';
+import { PhChartLine, PhTray, PhWarning } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { Table, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { forumDate } from '@/lib/forumDate';
 import EmptyState from '@/components/EmptyState.vue';
 import KpiTiles from '@/components/home/KpiTiles.vue';
+import StepLanes from '@/components/home/StepLanes.vue';
+import StepMatrix from '@/components/home/StepMatrix.vue';
 import SubordinateUnits from '@/components/home/SubordinateUnits.vue';
 import NeedsAttention from '@/components/home/NeedsAttention.vue';
 
-// The weekly-cycle home (Story 1.15, mockups/v2/shell-f.html). The week bar is real: it is only
-// the calendar, from HomeController via WeekOf (AD-11). Every other area is an honest empty state
-// until its story feeds it data; nothing here shows a number the portal does not have.
+// The weekly-cycle home (Story 1.15, mockups/v2/shell-f.html) and the leader's dashboard (Stories
+// 5.9 to 5.11). The week bar's calendar comes from HomeController via WeekOf (AD-11); the step
+// lanes and matrix, worklist, KPI tiles and unit table are the viewer's scope as the server read
+// it. Where the scope or the data is missing each area is an honest empty state; nothing here
+// shows a number the portal does not have.
 const props = defineProps({
     // `{ start, reportDue }`, ISO-8601 UTC. `start` is the Saturday 00:00Z that opens the week.
     week: { type: Object, required: true },
@@ -24,6 +27,8 @@ const props = defineProps({
     attention: { type: Object, default: null },
     // The direct subordinate units of the viewer's scope with KPIs and report status (Story 5.11).
     units: { type: Array, default: () => [] },
+    // The week's five steps per section in scope (the step lanes and matrix).
+    steps: { type: Array, default: () => [] },
 });
 
 const page = usePage();
@@ -95,7 +100,6 @@ const countdown = computed(() => {
     return `${d}d ${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m left`;
 });
 
-const STEPS = ['Rollcall posted', 'Rollcall signed', 'SP held', 'Attendance marked', 'Report sent'];
 </script>
 
 <template>
@@ -170,14 +174,7 @@ const STEPS = ['Rollcall posted', 'Rollcall signed', 'SP held', 'Attendance mark
                 </div>
             </div>
 
-            <EmptyState
-                :icon="PhClockCountdown"
-                title="Step tracking starts with rollcalls"
-                class="border-t border-border py-6"
-            >
-                Rollcall posting and signing, section practice, attendance and report sending will track across these
-                days once rollcalls run in the portal.
-            </EmptyState>
+            <StepLanes :steps="steps" />
         </Card>
 
         <div class="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,0.62fr)_minmax(0,1fr)]">
@@ -191,27 +188,7 @@ const STEPS = ['Rollcall posted', 'Rollcall signed', 'SP held', 'Attendance mark
                 </EmptyState>
             </Card>
 
-            <Card role="region" class="min-w-0 gap-0 py-0" aria-labelledby="progress-title">
-                <div class="px-4 pt-3.5">
-                    <h2 id="progress-title" class="text-[15px] font-semibold">Section progress</h2>
-                </div>
-                <div class="mt-2 overflow-x-auto border-t border-border">
-                    <Table class="text-[13px]">
-                        <TableHeader>
-                            <TableRow class="hover:bg-transparent">
-                                <TableHead class="h-auto min-w-[8.5rem] py-2 text-xs font-medium text-muted-foreground">Unit</TableHead>
-                                <TableHead v-for="step in STEPS" :key="step" class="h-auto py-2 text-xs font-medium text-muted-foreground">
-                                    {{ step }}
-                                </TableHead>
-                            </TableRow>
-                        </TableHeader>
-                    </Table>
-                </div>
-                <!-- Outside the scrolling table, so it stays centred on a phone. -->
-                <EmptyState :icon="PhUsersThree" title="No sections reporting yet" class="py-10">
-                    Each section's steps for the week show here once troopers are mapped to sections and rollcalls go out.
-                </EmptyState>
-            </Card>
+            <StepMatrix :steps="steps" />
         </div>
 
         <section aria-labelledby="trends-title">

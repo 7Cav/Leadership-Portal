@@ -46,3 +46,54 @@ export function tileChange(kpi, series) {
         unit: kpi.rate ? 'points' : '',
     };
 }
+
+// The week's step matrix and lanes. Every state here is "done" or "not yet": the portal defines no
+// per-step deadline, so a step is never shown as overdue on a guess.
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+export const STEPS = ['Rollcall posted', 'Rollcall signed', 'SP held', 'Attendance marked', 'Report sent'];
+
+const weekday = (value) => WEEKDAYS[new Date(value).getUTCDay()];
+
+// One section's five cells: `{ state: ok | wait | none, text }`, and for the signed step a
+// `percent` (null when the section has no troopers, so there is nothing to sign).
+export function stepCells(step) {
+    const hasTroopers = step.strength > 0;
+
+    return {
+        posted: step.postedAt ? { state: 'ok', text: weekday(step.postedAt) } : { state: 'wait', text: 'Not posted' },
+        signed: {
+            state: !hasTroopers ? 'none' : step.signed === step.strength ? 'ok' : 'wait',
+            text: !hasTroopers ? 'No troopers' : `${step.signed} of ${step.strength} signed`,
+            percent: hasTroopers ? Math.round((step.signed / step.strength) * 100) : null,
+        },
+        held: step.held ? { state: 'ok', text: 'Held' } : { state: 'wait', text: 'Not held' },
+        marked: !hasTroopers
+            ? { state: 'none', text: 'No troopers' }
+            : { state: step.marked === step.strength ? 'ok' : 'wait', text: `${step.marked} of ${step.strength} marked` },
+        report: {
+            sent: { state: 'ok', text: step.sentAt ? `Sent ${weekday(step.sentAt)}` : 'Sent' },
+            draft: { state: 'warn', text: 'Draft' },
+            not_started: { state: 'wait', text: 'Not started' },
+        }[step.report],
+    };
+}
+
+// The week bar's five lanes: the same steps added up across every section in scope.
+export function laneTotals(steps) {
+    const count = (predicate) => steps.filter(predicate).length;
+    const sum = (key) => steps.reduce((total, step) => total + step[key], 0);
+    const lane = (label, done, of, text) => ({ label, done, of, text, fill: of ? done / of : 0, complete: of > 0 && done === of });
+
+    const sent = count((step) => step.report === 'sent');
+    const draft = count((step) => step.report === 'draft');
+
+    return [
+        lane('Rollcall posted', count((step) => step.postedAt), steps.length, `${count((step) => step.postedAt)} of ${steps.length} posted`),
+        lane('Rollcall signed', sum('signed'), sum('strength'), `${sum('signed')} of ${sum('strength')} signed`),
+        lane('SP held', count((step) => step.held), steps.length, `${count((step) => step.held)} of ${steps.length} held`),
+        lane('Attendance marked', sum('marked'), sum('strength'), `${sum('marked')} of ${sum('strength')} marked`),
+        lane('Report sent', sent, steps.length, `${sent} sent, ${draft} draft, ${steps.length - sent - draft} not started`),
+    ];
+}

@@ -13,6 +13,9 @@ use App\Kpi\UnitKpis;
 use App\Models\SyncRunStatus;
 use App\Models\Unit;
 use App\Models\WeeklyReport;
+use App\Models\WeeklyReportStatus;
+use App\Repositories\AttendanceRepository;
+use App\Repositories\SectionPracticeRepository;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
@@ -55,6 +58,8 @@ class HomeController extends Controller
         private readonly WeeklyReportRepository $reports,
         private readonly SyncRunRepository $syncRuns,
         private readonly TrooperRepository $troopers,
+        private readonly SectionPracticeRepository $practices,
+        private readonly AttendanceRepository $attendance,
         private readonly KpiService $kpis,
         private readonly ReportChain $chain,
     ) {}
@@ -76,6 +81,7 @@ class HomeController extends Controller
             ],
             'kpis' => $roots->isEmpty() ? null : $this->kpiProps($roots, $scope, $weekStart),
             'attention' => $roots->isEmpty() ? null : $this->attentionProps($roots, $chains, $scope, $weekStart),
+            'steps' => $this->stepProps($scope, $weekStart),
             'units' => $chains->flatMap(fn (ChainNode $chain) => $this->subordinates($chain))
                 ->map(fn (ChainNode $node) => $this->unitRow($node, $weekStart))
                 ->values()
@@ -290,6 +296,50 @@ class HomeController extends Controller
         }
 
         return $blockers;
+    }
+
+    /**
+     * The week's five steps for every section in scope (the step matrix): rollcall posted, signed,
+     * practice held, attendance marked and report sent, each with the screen that does it. Counts
+     * are over the troopers currently assigned to the section; a step nobody has started is simply
+     * not done, never an invented deadline miss.
+     *
+     * @param  Collection<int, int>  $scope
+     * @return list<array<string, mixed>>
+     */
+    private function stepProps(Collection $scope, CarbonImmutable $weekStart): array
+    {
+        $sections = $this->units->sectionsAmong($scope);
+        $ids = $sections->modelKeys();
+        $practices = $this->practices->forSections($ids, $weekStart);
+        $progress = $this->attendance->weekProgress($ids, $weekStart);
+        $reports = $this->reports->forUnits($ids, $weekStart);
+        $date = $weekStart->toDateString();
+
+        return $sections->map(function (Unit $section) use ($practices, $progress, $reports, $date) {
+            $week = $progress->get($section->id);
+            $report = $reports->get($section->id);
+
+            return [
+                ...self::unitProps($section),
+                'platoon' => $section->parent ? ($section->parent->callsign ?? $section->parent->name) : null,
+                'strength' => $week?->strength ?? 0,
+                'postedAt' => $practices->get($section->id)?->rollcall_posted_at?->toIso8601String(),
+                'signed' => $week?->signed ?? 0,
+                'held' => $week?->held ?? false,
+                'marked' => $week?->marked ?? 0,
+                'report' => match ($report?->status) {
+                    WeeklyReportStatus::Sent => 'sent',
+                    WeeklyReportStatus::Draft => 'draft',
+                    null => 'not_started',
+                },
+                'sentAt' => $report?->sent_at?->toIso8601String(),
+                'links' => [
+                    'rollcall' => route('rollcall.show', ['unit' => $section->id, 'week' => $date]),
+                    'report' => route('reports.show', ['unit' => $section->id, 'week' => $date]),
+                ],
+            ];
+        })->values()->all();
     }
 
     /**
