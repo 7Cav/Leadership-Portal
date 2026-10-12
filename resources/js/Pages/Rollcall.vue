@@ -4,6 +4,7 @@ import { toast } from 'vue-sonner';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import {
     PhArrowsClockwise,
+    PhBroadcast,
     PhCaretLeft,
     PhCaretRight,
     PhCaretUpDown,
@@ -23,6 +24,7 @@ import {
     PhUserCircleDashed,
     PhWarning,
 } from '@phosphor-icons/vue';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -68,8 +70,8 @@ const props = defineProps({
     // `{ source, syncedAt }` (AD-20).
     roster: { type: Object, default: null },
     practice: { type: Object, default: null },
-    // `{ source, capturedAt }` once a capture run stamped this practice, else null (7.7). The seam
-    // the capture banner and override (7.8) and the telemetry-unavailable state (7.9) hang on.
+    // `{ source, capturedAt }` once a capture run stamped this practice, else null (7.7). Drives the
+    // capture banner and the confirm action (7.8); the telemetry-unavailable state (7.9) hangs on it too.
     capture: { type: Object, default: null },
     // `[{ platform, platformLabel, playerName, platformId }]`: players the capture saw that no
     // trooper is linked to (7.7).
@@ -120,7 +122,11 @@ function set(trooper, kind, value, options = {}) {
     if (trooper[field] === value) return;
 
     trooper[field] = value;
-    if (field === 'status') trooper.source = 'manual';
+    if (field === 'status') {
+        trooper.source = 'manual';
+        // A hand edit of a mark makes an earlier confirmation stale; the server clears it too.
+        confirmation.value = null;
+    }
     if (posted.value) editedSincePost.value = true;
     autosave.queue(trooper.id, field, value, options);
 }
@@ -178,6 +184,7 @@ function onLinked({ player, marked, trooper, atRisk }) {
     liveAtRisk.value = atRisk ?? liveAtRisk.value;
     const name = row ? displayName(row) : `trooper ${trooper.id}`;
     if (marked) toast.success(`Linked ${player.playerName} to ${name}`, { description: 'Marked present for this practice.' });
+    else if (confirmation.value) toast.success(`Linked ${player.playerName} to ${name}`, { description: 'The practice is confirmed, so its marks were not changed.' });
     else toast.success(`Linked ${player.playerName} to ${name}`, { description: 'Their existing mark was kept.' });
 }
 
@@ -284,6 +291,39 @@ async function markPosted() {
     }
 }
 
+// Capture review (7.8): where the marks came from and when (AD-20), and the leader's confirmation
+// of them. Confirming is its own audited save, so held and pending marks are saved first.
+const CAPTURE_SOURCES = { crcon: 'CRCON', battlemetrics: 'BattleMetrics', nightwatch: 'Nightwatch' };
+const captureLabel = computed(() => (props.capture ? (CAPTURE_SOURCES[props.capture.source] ?? props.capture.source) : null));
+const capturedLabel = computed(() => (props.capture ? `${forumDateTime(props.capture.capturedAt)}Z` : null));
+const confirmation = ref(props.practice?.confirmation ?? null);
+const confirming = ref(false);
+const confirmationLabel = computed(() =>
+    confirmation.value ? `Confirmed ${forumDateTime(confirmation.value.at)}Z${confirmation.value.by ? ` by ${confirmation.value.by}` : ''}` : null,
+);
+
+async function confirmPractice() {
+    confirming.value = true;
+    try {
+        for (const id of undoToasts) toast.dismiss(id);
+        undoToasts.clear();
+        if (!(await autosave.flush({ includeHeld: true }))) {
+            toast.error('Changes are not saved yet', { description: autosave.error.value });
+
+            return;
+        }
+        const result = await postJson(`/rollcall/${props.section.id}/confirm`, { week: props.week.date }).catch(unreachable);
+        if (result.ok && result.data?.confirmation) {
+            confirmation.value = result.data.confirmation;
+            toast.success('Practice confirmed', { description: `${props.section.designation}, week of ${weekLabel.value}` });
+        } else {
+            toast.error('Could not confirm the practice', { description: messageFor(result) });
+        }
+    } finally {
+        confirming.value = false;
+    }
+}
+
 const postedLabel = computed(() =>
     posted.value ? `${forumDateTime(posted.value.at)}Z${posted.value.by ? ` by ${posted.value.by}` : ''}` : null,
 );
@@ -387,7 +427,26 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                     <span class="sr-only">Switch section</span>
                 </Button>
             </div>
-            <div class="flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground sm:ml-auto sm:w-auto">
+            <div v-if="capture" class="flex items-center gap-2 sm:ml-auto" data-testid="confirm-cluster">
+                <Badge
+                    :variant="confirmation ? 'secondary' : 'outline'"
+                    :class="cn('font-normal', confirmation && 'border-success/35 bg-success/8 text-success')"
+                    data-testid="confirm-badge"
+                >
+                    <PhCheckCircle v-if="confirmation" aria-hidden="true" />{{ confirmation ? 'Confirmed' : 'Not confirmed' }}
+                </Badge>
+                <Button
+                    size="sm"
+                    :variant="confirmation ? 'outline' : 'default'"
+                    :disabled="!editable || confirming"
+                    :title="readOnlyReason ?? confirmationLabel ?? undefined"
+                    data-testid="confirm-practice"
+                    @click="confirmPractice"
+                >
+                    <PhCheck />{{ confirmation ? 'Confirm again' : 'Confirm practice' }}
+                </Button>
+            </div>
+            <div :class="cn('flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground sm:w-auto', capture ? 'sm:ml-0' : 'sm:ml-auto')">
                 <span class="inline-flex items-center gap-1.5" data-testid="roster-provenance">
                     <PhArrowsClockwise class="size-4" aria-hidden="true" />
                     <template v-if="syncedLabel">Roster from {{ roster.source }}, synced {{ syncedLabel }}</template>
@@ -570,16 +629,21 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                     </div>
 
                     <div
-                        v-if="showUnmatched"
+                        v-if="capture"
                         role="status"
-                        class="mt-3 flex items-start gap-2.5 rounded-lg border border-info/35 bg-info/7 px-3.5 py-2.5 text-[13px]"
-                        data-testid="unmatched-banner"
+                        class="mt-3 flex flex-wrap items-start gap-x-2.5 gap-y-2 rounded-lg border border-info/35 bg-info/7 px-3.5 py-2.5 text-[13px]"
+                        data-testid="capture-banner"
                     >
-                        <PhUserCircleDashed class="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
-                        <p>
-                            <b class="font-semibold">{{ unmatchedPlayers.length }} {{ unmatchedPlayers.length === 1 ? 'player needs' : 'players need' }} a trooper.</b>
-                            Link or dismiss them in the panel.
+                        <PhBroadcast class="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
+                        <p class="min-w-[14rem] flex-1">
+                            Marks filled from {{ captureLabel }}, read {{ capturedLabel }}.
+                            <template v-if="showUnmatched">
+                                <b class="font-semibold" data-testid="unmatched-banner">{{ unmatchedPlayers.length }} {{ unmatchedPlayers.length === 1 ? 'player needs' : 'players need' }} a trooper.</b>
+                                Link or dismiss them in the panel.
+                            </template>
+                            <template v-else>Check them, fix any that are wrong, then confirm.</template>
                         </p>
+                        <AttendanceSourceLegend class="w-full sm:w-auto" />
                     </div>
 
                     <div
@@ -592,7 +656,7 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                             Pre-filled from last week: each trooper still to mark shows last week's practice mark as a suggestion.
                         </p>
                         <p v-else class="min-w-[14rem] flex-1 text-muted-foreground">Nothing pre-filled: no practice marks were recorded last week.</p>
-                        <AttendanceSourceLegend class="w-full sm:w-auto" />
+                        <AttendanceSourceLegend v-if="!capture" class="w-full sm:w-auto" />
                         <Button v-if="editable && prefillable.length" variant="outline" size="sm" data-testid="use-last-week" @click="useLastWeek">
                             Use last week's marks ({{ prefillable.length }})
                         </Button>

@@ -19,6 +19,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * that work lands, so they are deliberately not mass-assignable. `rollcall_posted_at`/`_by` record
  * the leader marking the week's rollcall posted to the forum (3.10) — written only by the
  * Repository layer for the audited `MarkRollcallPosted` Command, so not mass-assignable either.
+ * `confirmed_at`/`_by` record the leader confirming the practice's marks as reviewed (7.8), likewise
+ * written only for the audited `ConfirmSectionPractice` Command.
  */
 #[Fillable(['section_id', 'week_start'])]
 class SectionPractice extends Model
@@ -34,6 +36,7 @@ class SectionPractice extends Model
             // Demo history (#115): set only by the demo writer, never mass-assigned.
             'is_demo' => 'boolean',
             'rollcall_posted_at' => 'immutable_datetime',
+            'confirmed_at' => 'immutable_datetime',
         ];
     }
 
@@ -45,6 +48,11 @@ class SectionPractice extends Model
     public function rollcallPostedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'rollcall_posted_by');
+    }
+
+    public function confirmedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'confirmed_by');
     }
 
     public function attendance(): HasMany
