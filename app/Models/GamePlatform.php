@@ -10,4 +10,5 @@ enum GamePlatform: string
 {
     case Hll = 'hll';
     case Arma = 'arma';
+    case Wardogs = 'wardogs';
 }

@@ -6,6 +6,7 @@ use App\Integration\BattleMetrics\BattleMetricsApi;
 use App\Integration\Cav\CavApi;
 use App\Integration\Crcon\CrconApi;
 use App\Integration\Forum\ForumApi;
+use App\Integration\Nightwatch\NightwatchApi;
 use App\Kpi\EchelonReportKpiSource;
 use App\Kpi\ReportKpiSource;
 use Illuminate\Database\Eloquent\Model;
@@ -31,6 +32,9 @@ class AppServiceProvider extends ServiceProvider
 
         // The BattleMetrics presence seam (AD-3, Story 7.4). Key and server id come from config (env only, AD-23).
         $this->app->singleton(BattleMetricsApi::class, fn () => new BattleMetricsApi(config('services.battlemetrics')));
+
+        // The Nightwatch WARDOGS presence seam (AD-3, Story 7.10). Key and server ids come from config (env only, AD-23).
+        $this->app->singleton(NightwatchApi::class, fn () => new NightwatchApi(config('services.nightwatch')));
 
         // Repository contracts (AD-2), each with exactly one implementation registered today,
         // bound by convention — see RepositoryServiceBinder.

@@ -45,6 +45,14 @@ it('allows the same platform_id on a different platform', function () {
     expect(DB::table('trooper_game_identities')->count())->toBe(2);
 });
 
+it('accepts a wardogs identity alongside the same steam id linked for hll', function () {
+    DB::table('trooper_game_identities')->insert(tgiRaw());
+    DB::table('trooper_game_identities')->insert(tgiRaw(['platform' => 'wardogs']));
+
+    expect(DB::table('trooper_game_identities')->count())->toBe(2)
+        ->and(GamePlatform::Wardogs->value)->toBe('wardogs');
+});
+
 it('refuses a second identity for one trooper on one platform at the database', function () {
     $trooper = Trooper::factory()->create();
     DB::table('trooper_game_identities')->insert(tgiRaw(['trooper_id' => $trooper->id]));

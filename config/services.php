@@ -93,4 +93,14 @@ return [
         'server_id' => env('BATTLEMETRICS_SERVER_ID'),
     ],
 
+    /*
+    | Nightwatch — the read-only WARDOGS presence seam (Story 7.10, AD-3). Machine credential
+    | read from env only (AD-23). `server_ids` is a comma list of the workspace's server ids.
+    */
+    'nightwatch' => [
+        'base_url' => env('NIGHTWATCH_BASE_URL', 'https://nightwatch.to/api/public/stats'),
+        'api_key' => env('NIGHTWATCH_API_KEY'),
+        'server_ids' => env('NIGHTWATCH_SERVER_IDS'),
+    ],
+
 ];
