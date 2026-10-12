@@ -16,6 +16,11 @@ on:
     branches: [develop]
   pull_request:
     branches: [develop]
+  # A new advisory can land against code that has not changed. The weekly run (audit job
+  # only) tells a maintainer when the world moves, instead of an unrelated PR turning red.
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
 
 # Cancel superseded runs on the same ref to save minutes.
 concurrency:
@@ -30,8 +35,11 @@ jobs:
   backend:
     name: Backend (Pint · Deptrac · Pest)
     runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up PHP 8.4
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
@@ -67,8 +75,11 @@ jobs:
   frontend:
     name: Frontend (Vitest)
     runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up Node 22
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -88,6 +99,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up Node 22
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -111,14 +124,16 @@ jobs:
 
       # The same check for the PHP side. It reads composer.lock against Packagist's advisory
       # database, so no install is needed. Unlike npm audit it fails on an advisory of any
-      # severity: the PHP tree is small and every advisory so far had a patch release.
+      # severity: the PHP tree is small and every advisory so far had a patch release. Abandoned
+      # packages are reported but do not block a merge.
       - name: composer audit
-        run: composer audit --locked --no-interaction
+        run: composer audit --locked --no-interaction --abandoned=report
 
   # ── Browser E2E gate: Playwright drives the real app ──
   e2e:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
     # No MySQL service: Playwright's global setup migrates and seeds a throwaway SQLite
     # file and serves the app on it as APP_ENV=e2e (tests/e2e/env.js overrides these).
     env:
@@ -129,6 +144,8 @@ jobs:
       QUEUE_CONNECTION: sync
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up PHP 8.4
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
