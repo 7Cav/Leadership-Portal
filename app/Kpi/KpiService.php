@@ -209,10 +209,10 @@ final class KpiService
      * A mark of `loa` is kept as a second way a week leaves the window, and that is a deliberate, documented
      * exception, not a second definition: such a mark is a recorded fact about that practice (the rollcall
      * stamps it, and leaders have entered it by hand), so a week already marked `loa` is never counted against
-     * the trooper even if the resolver later says `None` (a leave edited or removed on the forum). The
-     * resolver, not this mark, still decides `on_loa`'s source of truth for the badge and the heatmap. The
-     * rollcall (3.4) derives its `loa` marks from {@see LoaCoverage}, which is what keeps the two in step.
-     * A test pins "mark says loa, resolver says none".
+     * the trooper even if the resolver later says `None` (a leave edited or removed on the forum). Since 3.4 no
+     * new `loa` mark can be entered by hand: the rollcall refuses a status for a trooper the resolver covers, so
+     * only older marks remain, and the resolver is what decides coverage from now on. A test pins "mark says
+     * loa, resolver says none".
      */
     private function isLoaCovered(CountingMark $mark): bool
     {

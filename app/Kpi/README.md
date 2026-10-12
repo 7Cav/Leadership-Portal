@@ -44,8 +44,8 @@ LOA coverage is `Loa\LoaCoverage` (4.4), the one definition (4.8): for each week
 covered, needs review or none, whether or not a practice row exists. A covered week, and a week a
 leave that needs review may apply to, leaves the window: no miss, out of both denominators. Only a
 covered week counts as `on_loa`. A practice mark of `loa` also takes a week out, as a deliberate exception:
-it is a recorded fact about that practice (the rollcall derives it from `LoaCoverage`, 3.4, and leaders have
-entered it by hand), so a week already marked is never held against the trooper even if the resolver later says
+it is a recorded fact about that practice (leaders entered it by hand before 3.4; since then the rollcall refuses a status
+for a trooper `LoaCoverage` covers, so no new one can be entered), so a week already marked is never held against the trooper even if the resolver later says
 there is no leave. The two sources never disagree to the trooper's cost. A leave that needs review drops its
 weeks even when the trooper has an explicit `missed` mark in them: that miss is ignored for those weeks (the
 AD-4 fail-safe), so a trooper with a recorded miss and no at-risk flag may simply be in a shielded week. At-risk is still `missed >= 2` explicit

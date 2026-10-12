@@ -382,6 +382,20 @@ it('excludes an LOA-covered week from both denominators rather than counting it 
         ->and($kpis->atRisk)->toBe(0);
 });
 
+it('lets a leave that syncs after a practice mark was stored win: the covered week leaves the window and the stored mark counts for nothing (3.4)', function () {
+    $trooper = kpiTrooper($this->sectionA);
+    // `present` was stored before the leave synced; the derived status is never stored, so the row is still there.
+    kpiMark($trooper, $this->sectionA, 0, AttendanceStatus::Present, RollcallSignature::WillAttend);
+    kpiMark($trooper, $this->sectionA, 1, AttendanceStatus::Present, RollcallSignature::WillAttend);
+    kpiLeave($trooper, '2026-06-27', '2026-07-02');
+
+    $kpis = $this->kpis->forUnit($this->sectionA, kpiWeek());
+
+    expect([$kpis->sp30d->numerator, $kpis->sp30d->denominator])->toBe([1, 1])
+        ->and([$kpis->rc30d->numerator, $kpis->rc30d->denominator])->toBe([1, 3])
+        ->and($kpis->onLoa)->toBe(1);
+});
+
 it('does not credit a rollcall signed during an LOA-covered week', function () {
     $trooper = kpiTrooper($this->sectionA);
     kpiMark($trooper, $this->sectionA, 0, AttendanceStatus::Loa, RollcallSignature::CannotAttend);
