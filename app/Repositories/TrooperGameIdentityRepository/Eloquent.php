@@ -25,6 +25,13 @@ class Eloquent implements TrooperGameIdentityRepository
         return TrooperGameIdentity::query()->where('trooper_id', $trooperId)->orderBy('id')->get();
     }
 
+    public function forTroopers(array $trooperIds): Collection
+    {
+        return $trooperIds === []
+            ? new Collection
+            : TrooperGameIdentity::query()->whereIn('trooper_id', $trooperIds)->orderBy('id')->get();
+    }
+
     public function link(int $trooperId, GamePlatform $platform, string $playerName, string $platformId): TrooperGameIdentity
     {
         $owner = $this->findByPlatformId($platform, $platformId);

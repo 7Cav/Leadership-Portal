@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\ForumAuthController;
+use App\Http\Controllers\GameIdentityController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReportRollupController;
@@ -54,6 +55,15 @@ Route::middleware('auth')->group(function () {
     Route::get('/rollcall/{unit?}', [RollcallController::class, 'show'])->whereNumber('unit')->name('rollcall.show');
     Route::post('/rollcall/{unit}', [RollcallController::class, 'store'])->whereNumber('unit')->name('rollcall.store');
     Route::post('/rollcall/{unit}/posted', [RollcallController::class, 'posted'])->whereNumber('unit')->name('rollcall.posted');
+
+    // Game identities (Story 7.2): link troopers in scope to their in-game identity, one per
+    // platform. The controller reads repositories; each write is an audited Command whose handler
+    // checks the trooper against the viewer's scope (AD-8) — outside it is a 403.
+    Route::get('/game-identities', [GameIdentityController::class, 'index'])->name('game-identities.index');
+    Route::put('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'update'])
+        ->whereNumber('trooper')->name('game-identities.update');
+    Route::delete('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'destroy'])
+        ->whereNumber('trooper')->name('game-identities.destroy');
 
     // Logout (Story 1.5). POST, so it carries CSRF protection and can't be triggered by a
     // prefetched link or a cross-site <img>.
