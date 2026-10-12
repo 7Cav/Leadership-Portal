@@ -56,21 +56,76 @@ final class LoaCoverage
     public function forTroopers(iterable $trooperIds, CarbonInterface $weekStart, ?CarbonInterface $today = null): array
     {
         $week = WeekOf::requireStart($weekStart);
-        $asOf = CarbonImmutable::instance($today ?? CarbonImmutable::now('UTC'))->utc();
-        $today = WeekOf::start($asOf)->equalTo($week) ? $asOf : null;
+
+        return array_map(
+            fn (array $weeks) => $weeks[$week->toDateString()],
+            $this->forTroopersOverWeeks($trooperIds, $week, 1, $today),
+        );
+    }
+
+    /**
+     * Every given trooper's coverage for each of `$weeks` consecutive Cav weeks from `$firstWeekStart`, in one
+     * query however many troopers and weeks: `[trooperId => [weekStart 'Y-m-d' => LoaCover]]`. Every trooper and
+     * every week has an entry. This is what a window (the KPI service's trailing four weeks, the heatmap's
+     * twenty) reads, so it resolves each week by the same rule as {@see forTroopers()}, `$today` included.
+     *
+     * @param  iterable<int>  $trooperIds
+     * @return array<int, array<string, LoaCover>>
+     *
+     * @throws InvalidArgumentException when `$firstWeekStart` is not a Saturday 00:00 UTC, or `$weeks` is below 1.
+     */
+    public function forTroopersOverWeeks(iterable $trooperIds, CarbonInterface $firstWeekStart, int $weeks, ?CarbonInterface $today = null): array
+    {
+        if ($weeks < 1) {
+            throw new InvalidArgumentException("A window needs at least one week; got {$weeks}.");
+        }
+
+        $first = WeekOf::requireStart($firstWeekStart);
+        $starts = array_map(fn (int $offset) => $first->addDays($offset * 7), range(0, $weeks - 1));
 
         $ids = collect($trooperIds)->map(fn ($id) => (int) $id)->unique()->values()->all();
-        $covers = array_fill_keys($ids, LoaCover::none());
+        $covers = [];
+
+        foreach ($ids as $id) {
+            foreach ($starts as $start) {
+                $covers[$id][$start->toDateString()] = LoaCover::none();
+            }
+        }
 
         if ($ids === []) {
             return $covers;
         }
 
-        foreach ($this->loas->touchingWeek($ids, $week)->groupBy('trooper_id') as $trooperId => $rows) {
-            $covers[(int) $trooperId] = $this->resolve($rows, $today, $asOf);
+        $asOf = CarbonImmutable::instance($today ?? CarbonImmutable::now('UTC'))->utc();
+
+        foreach ($this->loas->touchingWeeks($ids, $first, $weeks)->groupBy('trooper_id') as $trooperId => $rows) {
+            foreach ($starts as $start) {
+                // The reference day only describes the week that contains it (overdue, days left).
+                $current = WeekOf::start($asOf)->equalTo($start) ? $asOf : null;
+                $covers[(int) $trooperId][$start->toDateString()] = $this->resolve($rows->filter(fn (Loa $loa) => self::touchesWeek($loa, $start)), $current, $asOf);
+            }
         }
 
         return $covers;
+    }
+
+    /**
+     * The one rule for whether a row bears on one Cav week: a cleanly read leave whose days include any of the
+     * week's seven, or a row with no usable dates (needs review, or no start) posted in this week or the one
+     * before, so it shields the week it was posted in and the next, then stops. `created_at` stands in for a row
+     * with no `posted_at`. {@see LoaRepository::touchingWeeks()} only prefilters, in SQL, to a superset of what
+     * this accepts across a range; a test pins that, so the two cannot drift apart.
+     */
+    public static function touchesWeek(Loa $loa, CarbonImmutable $weekStart): bool
+    {
+        if ($loa->parse_status !== LoaParseStatus::Ok || $loa->starts_at === null) {
+            $posted = $loa->posted_at ?? $loa->created_at;
+
+            return $posted !== null && ! $posted->lessThan(WeekOf::previous($weekStart)) && $posted->lessThan(WeekOf::next($weekStart));
+        }
+
+        return $loa->starts_at->toDateString() < WeekOf::next($weekStart)->toDateString()
+            && ($loa->ends_at === null || $loa->ends_at->toDateString() >= $weekStart->toDateString());
     }
 
     /**

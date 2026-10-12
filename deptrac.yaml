@@ -14,6 +14,9 @@
 #   CommandHandler → Repository, Model, Integration, Support\Audit, Authorization, Support\Time, Kpi  # write-side business logic
 #   Kpi            → Repository, Model, Support\Time       # the one shared KPI service (AD-21)
 #   Milpac         → Repository, Model                     # what the trooper detail page shows; shared by the milpac panels of 6.4–6.6, so it is a layer of its own
+#   Controller     → CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi  # writes via Commands; reads direct
+#   CommandHandler → Repository, Model, Integration, Support\Audit, Authorization, Support\Time, Kpi, Loa  # write-side business logic
+#   Kpi            → Repository, Model, Support\Time, Loa  # the one shared KPI service (AD-21)
 #   Loa            → Repository, Model, Support\Time       # LOA source/staleness reader and week coverage (Epic 4)
 #   Job            → Sync, CommandHandler                  # queued jobs invoke a Sync handler (Story 2.4) or a capture Command (Story 7.5)
 #   Sync           → Repository, Model, Integration        # one-writer cache sync handlers (AD-4)
@@ -144,6 +147,9 @@ deptrac:
       - Support\Time
       # Sending a weekly report freezes the KPI snapshot computed by the shared service (AD-21).
       - Kpi
+      # A practice mark is refused for a trooper whose leave covers the week: that status is derived from the
+      # one LOA coverage definition, never hand-entered (Story 3.4).
+      - Loa
     # The one shared KPI service (AD-21, Story 5.1): read-only domain logic over facts read
     # through Repositories — the six definitions live here so no Controller, Command or
     # Repository re-derives one. Never touches the DB itself (AD-2).
@@ -151,6 +157,8 @@ deptrac:
       - Repository
       - Model
       - Support\Time
+      # LOA coverage is read from its one definition, never re-derived (AD-21, Story 4.8).
+      - Loa
     # What the trooper detail page (the milpac) shows for one trooper (Epic 6): the ID block, the courses
     # panel and later the service record, read through Repositories and shaped as page props. Read-only;
     # who may look is the Controller's ScopeResolver gate (AD-8), not decided here.

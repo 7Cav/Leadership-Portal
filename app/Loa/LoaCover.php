@@ -2,6 +2,7 @@
 
 namespace App\Loa;
 
+use App\Models\AttendanceStatus;
 use App\Models\Loa;
 use App\Models\LoaType;
 use Carbon\CarbonImmutable;
@@ -86,6 +87,17 @@ final readonly class LoaCover
             sourceThread: $loa->source_thread,
             reviewReason: $loa->review_reason,
         );
+    }
+
+    /**
+     * The attendance status this cover derives for the week (Story 3.4, AD-14): `Loa` when a cleanly read leave
+     * covers it, and nothing otherwise. A leave that needs review derives no status: it asserts neither that the
+     * trooper is away nor that they are absent (AD-4), so the row stays an ordinary one a leader may mark. The
+     * status is only ever derived here; it is never stored, and no hand-entered mark may carry it.
+     */
+    public function derivedAttendanceStatus(): ?AttendanceStatus
+    {
+        return $this->isCovered() ? AttendanceStatus::Loa : null;
     }
 
     /** The trooper is on a cleanly read leave this week: their absence is excused. */
