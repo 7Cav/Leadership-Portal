@@ -86,3 +86,16 @@ it('breaks a tie on finished_at by the most recent id', function () {
 
     expect(syncRunRepository()->latestSuccessful('roster')->id)->toBe($latest->id);
 });
+
+it('finds the latest closed run of any outcome, skipping one still in progress (2.8)', function () {
+    SyncRun::factory()->create(['source' => 'roster', 'finished_at' => now()->subDay()]);
+    $failed = SyncRun::factory()->create(['source' => 'roster', 'status' => SyncRunStatus::Failure, 'finished_at' => now()]);
+    SyncRun::factory()->create(['source' => 'roster', 'status' => SyncRunStatus::InProgress, 'finished_at' => null]);
+    SyncRun::factory()->create(['source' => 'loa', 'finished_at' => now()->addDay()]);
+
+    expect(syncRunRepository()->latestFinished('roster')->id)->toBe($failed->id);
+});
+
+it('returns null when a source has never finished a run', function () {
+    expect(syncRunRepository()->latestFinished('roster'))->toBeNull();
+});

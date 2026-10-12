@@ -16,7 +16,7 @@ use TypeError;
  * and the delta against the same unit's prior-week **sent** snapshot (5.4). A prior week that is
  * missing or still a draft gives no delta — the report reads as a first report.
  *
- * The send Command freezes this; the report screen (5.4/5.8) is to render it live for a draft. A
+ * The send Command freezes this; the report screen (5.3/5.4) renders it live for a draft. A
  * *sent* report is read back from its stored snapshot (`ReportSnapshot::fromArray()`), never
  * through here (AD-12).
  */
@@ -35,11 +35,12 @@ final class WeeklyReportKpis
     public function snapshot(Unit $unit, CarbonInterface $weekStart): ReportSnapshot
     {
         $weekStart = WeekOf::requireStart($weekStart);
-        $kpis = $this->source->kpisFor($unit, $weekStart);
+        $sourced = $this->source->kpisFor($unit, $weekStart);
+        $kpis = $sourced->kpis;
         $prior = $this->reports->find($unit->id, $weekStart->subWeek());
 
         if ($prior?->status !== WeeklyReportStatus::Sent) {
-            return new ReportSnapshot($kpis, null);
+            return new ReportSnapshot($kpis, null, $sourced->missingChildren);
         }
 
         try {
@@ -49,6 +50,6 @@ final class WeeklyReportKpis
             throw ReportKpisUnavailableException::unreadablePrior($unit, $weekStart->subWeek(), $unreadable);
         }
 
-        return new ReportSnapshot($kpis, KpiDelta::between($kpis, $priorKpis));
+        return new ReportSnapshot($kpis, KpiDelta::between($kpis, $priorKpis), $sourced->missingChildren);
     }
 }

@@ -6,6 +6,7 @@ use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Repositories\TrooperRepository;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -92,15 +93,49 @@ class Eloquent implements TrooperRepository
         return Trooper::query()->assignedWithin($unit)->orderBy('id')->pluck('id');
     }
 
-    public function unplaced(): EloquentCollection
+    public function unplaced(int $limit): Collection
     {
-        return Trooper::query()
-            ->whereNull('primary_section_id')
-            ->where('status', '!=', TrooperStatus::Inactive->value)
+        return $this->unplacedQuery()
             ->orderByRaw('username is null')
             ->orderBy('username')
             ->orderBy('cav_id')
-            ->get();
+            ->limit($limit)
+            ->get()
+            ->map(fn (Trooper $trooper) => [
+                'id' => $trooper->id,
+                'cav_id' => $trooper->cav_id,
+                'username' => $trooper->username,
+                'rank' => $trooper->rank,
+                'mos' => $trooper->mos,
+                'billet' => $trooper->billet,
+                'position_id' => $trooper->cav_position_id,
+            ])
+            ->toBase();
+    }
+
+    public function unplacedCount(): int
+    {
+        return $this->unplacedQuery()->count();
+    }
+
+    /**
+     * @return Builder<Trooper>
+     */
+    private function unplacedQuery(): Builder
+    {
+        return Trooper::query()
+            ->whereNull('primary_section_id')
+            ->where('status', '!=', TrooperStatus::Inactive->value);
+    }
+
+    public function rosterOf(Unit $unit): Collection
+    {
+        return Trooper::query()->assignedWithin($unit)->orderBy('id')->get()->toBase();
+    }
+
+    public function byCavId(array $cavIds): Collection
+    {
+        return $cavIds === [] ? collect() : Trooper::query()->whereIn('cav_id', $cavIds)->get()->keyBy('cav_id')->toBase();
     }
 
     public function ranksByCavId(array $cavIds): Collection
@@ -113,5 +148,41 @@ class Eloquent implements TrooperRepository
         return Trooper::query()->assignedWithin($unit)->orderBy('id')
             ->pluck('primary_section_id', 'id')
             ->map(fn ($sectionId) => (int) $sectionId);
+    }
+
+    public function placedWithin(Unit $unit): EloquentCollection
+    {
+        return Trooper::query()
+            ->whereIn('primary_section_id', Unit::query()->select('id')->where('path', 'like', "{$unit->path}%"))
+            ->orderBy('id')
+            ->get();
+    }
+
+    public function find(int $id): ?Trooper
+    {
+        return Trooper::query()->find($id);
+    }
+
+    public function byIds(array $ids): Collection
+    {
+        return $ids === [] ? collect() : Trooper::query()->whereIn('id', $ids)->get()->keyBy('id')->toBase();
+    }
+
+    public function placedIn(int $sectionId): EloquentCollection
+    {
+        return Trooper::query()
+            ->where('primary_section_id', $sectionId)
+            ->where('status', '!=', TrooperStatus::Inactive->value)
+            ->orderBy('id')
+            ->get();
+    }
+
+    public function placedInAny(iterable $sectionIds): EloquentCollection
+    {
+        return Trooper::query()
+            ->whereIn('primary_section_id', collect($sectionIds)->all())
+            ->where('status', '!=', TrooperStatus::Inactive->value)
+            ->orderBy('id')
+            ->get();
     }
 }

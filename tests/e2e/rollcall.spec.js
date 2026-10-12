@@ -1,0 +1,61 @@
+import { test, expect } from '@playwright/test';
+
+// Stories 3.7–3.10 happy path, against the shared E2E seed (Database\Seeders\ReportRollupSeeder):
+// Vasquez.R leads 2/1/A/1-7, whose troopers carry four weeks of rollcalls and practice marks.
+
+const saved = (page) =>
+    page.waitForResponse((response) => response.request().method() === 'POST' && /\/rollcall\/\d+$/.test(response.url()), { timeout: 15_000 });
+
+test('a section leader lands on their section\'s rollcall', async ({ page }) => {
+    await page.goto('/__e2e/login/Vasquez.R?to=/rollcall');
+
+    await expect(page).toHaveURL(/\/rollcall\/\d+$/);
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Rollcall, week of');
+    await expect(page.getByText('2/1/A/1-7 weekly cycle')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Signatures' })).toBeVisible();
+
+    await page.getByRole('button', { name: /^Step 2, Section practice/ }).click();
+    await expect(page).toHaveURL(/step=2/);
+    await expect(page.getByTestId('prefill-banner')).toBeVisible();
+});
+
+test('a section leader signs and marks practice, and finds both saved after a reload', async ({ page }) => {
+    await page.goto('/__e2e/login/Vasquez.R?to=/rollcall');
+    await expect(page).toHaveURL(/\/rollcall\/\d+$/);
+
+    const id = await page.locator('[data-trooper]').first().getAttribute('data-trooper');
+    const card = () => page.locator(`[data-trooper="${id}"]`);
+
+    const signed = saved(page);
+    await card().getByRole('button', { name: /^Cannot attend/ }).click();
+    expect((await signed).status()).toBe(200);
+    await expect(page.getByTestId('save-state')).toContainText('Saved');
+
+    await page.getByRole('button', { name: /^Step 2, Section practice/ }).click();
+    const marked = saved(page);
+    await card().getByRole('button', { name: /^Attached/ }).click();
+    expect((await marked).status()).toBe(200);
+
+    await page.reload();
+    await expect(card().getByRole('button', { name: /^Attached/ })).toHaveAttribute('aria-pressed', 'true');
+    await page.getByRole('button', { name: /^Step 1, Signatures/ }).click();
+    await expect(card().getByRole('button', { name: /^Cannot attend/ })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('a section leader copies the forum post and marks the rollcall posted', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.goto('/__e2e/login/Vasquez.R?to=/rollcall');
+    await page.getByRole('button', { name: /^Step 3, Review and post/ }).click();
+
+    await expect(page.getByTestId('forum-preview')).toBeVisible();
+    await page.getByTestId('copy-bbcode').click();
+    await expect(page.getByTestId('copy-bbcode')).toHaveText('Copy again');
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+    expect(copied).toMatch(/^\[b\]2\/1\/A\/1-7 Rollcall, week of \d{2}[A-Z][a-z]{2}\d{2}\[\/b\]/);
+    expect(copied).toContain('[table]');
+
+    await page.getByTestId('mark-posted').click();
+    await expect(page.getByTestId('posted-state')).toContainText('Rollcall posted');
+    await page.reload();
+    await expect(page.getByTestId('posted-state')).toContainText('by Vasquez.R');
+});
