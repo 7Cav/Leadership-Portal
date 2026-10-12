@@ -383,3 +383,93 @@ it('keeps the earlier stored players when a later re-run finds every source down
 
     expect(PracticeCapturePlayer::query()->count())->toBe(1);
 });
+
+// 7.9 / AD-23, AD-20, AD-22: telemetry unavailable falls back to manual, and recovery keeps manual marks.
+
+function unconfiguredSource(string $name, array &$calls): CaptureSource
+{
+    return new CaptureSource($name, "{$name}-server-1", function () use (&$calls, $name) {
+        $calls[] = $name;
+        throw new CaptureSourceUnavailable("{$name}: should not be called");
+    }, configured: false);
+}
+
+it('attempts nothing and records no run when no source has its keys set', function () {
+    $calls = [];
+    $result = runCapture($this, [unconfiguredSource('crcon', $calls), unconfiguredSource('battlemetrics', $calls)]);
+
+    $practice = $this->practice->fresh();
+    expect($result->captured)->toBeFalse()
+        ->and($result->attempted)->toBeFalse()
+        ->and($calls)->toBe([])
+        ->and(SyncRun::query()->count())->toBe(0)
+        ->and(Attendance::query()->count())->toBe(0)
+        ->and($practice->capture_source)->toBeNull()
+        ->and($practice->captured_at)->toBeNull();
+});
+
+it('skips an unconfigured source without calling it and reads the configured fallback', function () {
+    $calls = [];
+    $result = runCapture($this, [unconfiguredSource('crcon', $calls), answeringSource('battlemetrics', [])]);
+
+    expect($result->captured)->toBeTrue()
+        ->and($calls)->toBe([])
+        ->and($this->practice->fresh()->capture_source)->toBe('battlemetrics')
+        ->and(SyncRun::query()->sole()->status)->toBe(SyncRunStatus::Success);
+});
+
+it('is not telemetry down when the primary source fails but the fallback answers', function () {
+    $mine = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
+    linkIdentity($mine, '1');
+
+    $result = runCapture($this, [failingSource('crcon'), answeringSource('battlemetrics', [new CrconPlayer('A', '1')])]);
+
+    $run = SyncRun::query()->sole();
+    expect($result->captured)->toBeTrue()
+        ->and($run->status)->toBe(SyncRunStatus::Success)
+        ->and($run->section_practice_id)->toBe($this->practice->id)
+        ->and(Attendance::query()->sole()->source)->toBe(AttendanceSource::Auto);
+});
+
+it('names the practice on a failed run, writes no auto rows and leaves capture_source null', function () {
+    $mine = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
+    Attendance::factory()->create([
+        'trooper_id' => $mine->id, 'section_practice_id' => $this->practice->id,
+        'status' => AttendanceStatus::Missed, 'source' => AttendanceSource::Manual,
+    ]);
+
+    runCapture($this, [failingSource('crcon')]);
+
+    $run = SyncRun::query()->sole();
+    expect($run->status)->toBe(SyncRunStatus::Failure)
+        ->and($run->section_practice_id)->toBe($this->practice->id)
+        ->and($this->practice->fresh()->capture_source)->toBeNull()
+        ->and(Attendance::query()->where('source', AttendanceSource::Auto->value)->count())->toBe(0)
+        ->and(Attendance::query()->sole()->status)->toBe(AttendanceStatus::Missed);
+});
+
+it('applies auto pre-marks on recovery and keeps the manual marks entered while it was down', function () {
+    $manual = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
+    $seen = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
+    linkIdentity($manual, '1');
+    linkIdentity($seen, '2');
+
+    runCapture($this, [failingSource('crcon')]);
+    expect(Attendance::query()->count())->toBe(0);
+
+    // The leader marks by hand while the server is down; then it comes back.
+    Attendance::factory()->create([
+        'trooper_id' => $manual->id, 'section_practice_id' => $this->practice->id,
+        'status' => AttendanceStatus::Missed, 'source' => AttendanceSource::Manual,
+    ]);
+
+    $result = runCapture($this, [answeringSource('crcon', [new CrconPlayer('A', '1'), new CrconPlayer('B', '2')])]);
+
+    $byTrooper = Attendance::query()->get()->keyBy('trooper_id');
+    expect($result->captured)->toBeTrue()
+        ->and($byTrooper[$manual->id]->status)->toBe(AttendanceStatus::Missed)
+        ->and($byTrooper[$manual->id]->source)->toBe(AttendanceSource::Manual)
+        ->and($byTrooper[$seen->id]->status)->toBe(AttendanceStatus::Present)
+        ->and($byTrooper[$seen->id]->source)->toBe(AttendanceSource::Auto)
+        ->and($this->practice->fresh()->capture_source)->toBe('crcon');
+});

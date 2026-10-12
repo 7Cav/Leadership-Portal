@@ -13,9 +13,10 @@ interface SyncRunRepository
     /**
      * Open a run: `status = in_progress`, `started_at = now()`. The caller closes it with
      * {@see complete()} on success or {@see fail()} on a thrown error — a run left `in_progress`
-     * is itself evidence of a crash that never reached either.
+     * is itself evidence of a crash that never reached either. A capture run (7.5) names the
+     * practice it runs for in `$sectionPracticeId` (7.9).
      */
-    public function open(string $source, int|string $triggeredBy): SyncRun;
+    public function open(string $source, int|string $triggeredBy, ?int $sectionPracticeId = null): SyncRun;
 
     /**
      * Close a run that finished processing. `errored > 0` means some rows were bad but the run
@@ -47,4 +48,11 @@ interface SyncRunRepository
      * `in_progress` has no outcome yet and is skipped. Same `id` tiebreaker.
      */
     public function latestFinished(string $source): ?SyncRun;
+
+    /**
+     * The most recent run of `$source` for one practice, whatever its state — the rollcall screen's
+     * "last tried" and failed/in-progress state for a practice's capture (7.9, AD-20). Newest start
+     * first, `id` as the tiebreaker (timestamps are second-precision).
+     */
+    public function latestForPractice(string $source, int $sectionPracticeId): ?SyncRun;
 }

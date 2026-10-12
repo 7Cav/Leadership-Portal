@@ -25,7 +25,9 @@ use Throwable;
  * - A player linked to a trooper whose primary section is not this practice's is surfaced as
  *   **other-section**, never credited (AD-14: attendance counts in the primary section).
  * - If every source raises a typed failure the practice is **left un-captured** and the run is
- *   recorded failed as telemetry-unavailable — never interpreted as zero attendance.
+ *   recorded failed as telemetry-unavailable — never interpreted as zero attendance. The run carries
+ *   the practice id, so the rollcall screen can show when it was last tried (7.9). A source whose env
+ *   keys are unset is skipped; when none is set nothing is attempted and no run is recorded.
  *
  * The matched troopers are then pre-marked `present`/`auto` through the one attendance writer
  * ({@see MarkAttendanceHandler::preMark()}, 7.6): manual marks win, nothing is ever written as `loa`,
@@ -67,12 +69,22 @@ class CaptureSectionPracticeHandler
             throw new InvalidArgumentException("The capture window is not within the week of section practice {$practice->id}.");
         }
 
-        $run = $this->syncRuns->open('capture', $command->triggeredBy);
+        // Sources whose env keys are unset are skipped, not failed (AD-23): with none set there is
+        // nothing to attempt, so no run is opened and the practice stays fully manual (7.9). A source
+        // that is set but down is the other case, and is recorded below.
+        $all = $this->sources->for($command->platform);
+        $configured = array_values(array_filter($all, fn (CaptureSource $source) => $source->configured));
+
+        if ($all !== [] && $configured === []) {
+            return CaptureResult::notConfigured();
+        }
+
+        $run = $this->syncRuns->open('capture', $command->triggeredBy, $practice->id);
 
         try {
             $reasons = [];
 
-            foreach ($this->sources->for($command->platform) as $source) {
+            foreach ($configured as $source) {
                 try {
                     $presence = ($source->fetch)($command->windowStart, $command->windowEnd);
                 } catch (CaptureSourceUnavailable $e) {

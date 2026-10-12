@@ -14,12 +14,20 @@ use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Commands\Attendance\MarkRollcallPosted;
 use App\Commands\Attendance\MarkRollcallPostedForbiddenException;
 use App\Commands\Attendance\MarkRollcallPostedHandler;
+use App\Commands\Capture\CaptureRetryForbiddenException;
+use App\Commands\Capture\CaptureRetryRefusedException;
+use App\Commands\Capture\CaptureRetryThrottledException;
+use App\Commands\Capture\CaptureTelemetry;
+use App\Commands\Capture\PracticeTelemetry;
+use App\Commands\Capture\RequestPracticeCapture;
+use App\Commands\Capture\RequestPracticeCaptureHandler;
 use App\Commands\GameIdentities\DismissUnmatchedPlayer;
 use App\Commands\GameIdentities\DismissUnmatchedPlayerHandler;
 use App\Commands\GameIdentities\GameIdentityForbiddenException;
 use App\Commands\GameIdentities\LinkUnmatchedPlayer;
 use App\Commands\GameIdentities\LinkUnmatchedPlayerHandler;
 use App\Commands\GameIdentities\UnmatchedPlayerResolutionException;
+use App\Jobs\CaptureSectionPracticeJob;
 use App\Kpi\KpiService;
 use App\Kpi\TrooperAttendance;
 use App\Models\Attendance;
@@ -74,6 +82,7 @@ class RollcallController extends Controller
         private readonly KpiService $kpis,
         private readonly PracticeCapturePlayerRepository $capturePlayers,
         private readonly TrooperGameIdentityRepository $identities,
+        private readonly PracticeTelemetry $telemetry,
     ) {}
 
     /**
@@ -268,6 +277,53 @@ class RollcallController extends Controller
         }
 
         return response()->json(['confirmation' => $this->confirmationProps($practice)]);
+    }
+
+    /**
+     * "Try again" on the telemetry-unavailable banner (Story 7.9): queue a fresh capture of the
+     * practice, as the leader, through {@see RequestPracticeCaptureHandler}. Answers 202 once it is
+     * queued — the run is asynchronous (AD-23), so the screen polls the practice's state. A refusal
+     * is spoken, never swallowed: 403 outside scope, 422 when nothing could be attempted (with the
+     * reason), 429 with `retryAfter` when it was asked a moment ago.
+     */
+    public function retryCapture(Request $request, int $unit, RequestPracticeCaptureHandler $handler): JsonResponse
+    {
+        $validator = Validator::make($request->all(), ['week' => ['required', 'date_format:Y-m-d']]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => $validator->errors()->first()], 422);
+        }
+
+        $currentWeek = WeekOf::start(CarbonImmutable::now());
+        $weekStart = $this->requestedWeek($request->input('week'), $currentWeek);
+
+        if ($weekStart->greaterThan($currentWeek)) {
+            return response()->json(['message' => 'A future week cannot be captured yet.'], 422);
+        }
+
+        try {
+            $capture = $handler->handle($request->user(), new RequestPracticeCapture($unit, $weekStart));
+        } catch (CaptureRetryForbiddenException $e) {
+            return response()->json(['message' => $e->getMessage()], 403);
+        } catch (CaptureRetryThrottledException $e) {
+            return response()->json(['message' => $e->getMessage(), 'retryAfter' => $e->retryAfter], 429);
+        } catch (CaptureRetryRefusedException|InvalidAttendanceMarkException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'The portal hit an error requesting the capture.'], 500);
+        }
+
+        try {
+            CaptureSectionPracticeJob::dispatch($capture);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'The capture could not be queued. Try again in a moment, or mark attendance by hand.'], 500);
+        }
+
+        return response()->json(['queued' => true], 202);
     }
 
     /**
@@ -515,6 +571,7 @@ class RollcallController extends Controller
                 'syncedAt' => $lastSync?->finished_at?->toIso8601String(),
             ],
             ...$this->captureProps($practice),
+            'telemetry' => $this->telemetryProps($section->id, $practice),
             'practice' => [
                 'lastMarkedAt' => $marks->max(fn (Attendance $row) => $row->updated_at)?->toIso8601String(),
                 'posted' => $this->postedProps($practice),
@@ -525,8 +582,8 @@ class RollcallController extends Controller
 
     /**
      * What the capture run left for the leader (7.7): the players no trooper is linked to, once the
-     * practice has been captured. `capture` drives the capture banner (7.8) and is the seam the
-     * telemetry-unavailable state (7.9) builds on; the drawer renders only when there are players.
+     * practice has been captured. `capture` drives the capture banner (7.8); the drawer renders only
+     * when there are players. A practice with no capture gets `telemetry` instead (7.9).
      *
      * @return array{capture: ?array{source: string, capturedAt: string}, unmatched: list<array<string, string>>}
      */
@@ -545,6 +602,26 @@ class RollcallController extends Controller
                 'platformId' => $player->platform_id,
             ])->values()->all(),
         ];
+    }
+
+    /**
+     * Why the practice has no server data, when it has none (7.9, AD-20): `state` is `not_configured`
+     * (the game's env keys are unset, nothing was attempted) or `failed` (the last capture found no
+     * source that could answer, at `lastAttemptAt`). Null when the practice was captured or never
+     * attempted. The failure is never read as an empty practice: the marks stay the manual ones.
+     *
+     * @return array{state: string, platformLabel: ?string, lastAttemptAt: ?string, canRetry: bool}|null
+     */
+    private function telemetryProps(int $sectionId, ?SectionPractice $practice): ?array
+    {
+        $state = $this->telemetry->stateFor($sectionId, $practice);
+
+        return $state instanceof CaptureTelemetry ? [
+            'state' => $state->state->value,
+            'platformLabel' => $state->platform?->label(),
+            'lastAttemptAt' => $state->lastAttemptAt?->format(DATE_ATOM),
+            'canRetry' => $state->canRetry,
+        ] : null;
     }
 
     /**

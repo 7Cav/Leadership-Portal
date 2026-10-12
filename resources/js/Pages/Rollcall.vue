@@ -31,6 +31,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import EmptyState from '@/components/EmptyState.vue';
 import AttendanceSourceLegend from '@/components/attendance/AttendanceSourceLegend.vue';
 import SectionPicker from '@/components/rollcall/SectionPicker.vue';
+import TelemetryBanner from '@/components/rollcall/TelemetryBanner.vue';
 import StepReview from '@/components/rollcall/StepReview.vue';
 import TrooperCard from '@/components/rollcall/TrooperCard.vue';
 import UnmatchedDrawer from '@/components/rollcall/UnmatchedDrawer.vue';
@@ -71,8 +72,11 @@ const props = defineProps({
     roster: { type: Object, default: null },
     practice: { type: Object, default: null },
     // `{ source, capturedAt }` once a capture run stamped this practice, else null (7.7). Drives the
-    // capture banner and the confirm action (7.8); the telemetry-unavailable state (7.9) hangs on it too.
+    // capture banner and the confirm action (7.8).
     capture: { type: Object, default: null },
+    // Why there is no capture, when the server could not be read or is not set up (7.9):
+    // `{ state: 'failed' | 'not_configured', platformLabel, lastAttemptAt, canRetry }`, else null.
+    telemetry: { type: Object, default: null },
     // `[{ platform, platformLabel, playerName, platformId }]`: players the capture saw that no
     // trooper is linked to (7.7).
     unmatched: { type: Array, default: () => [] },
@@ -326,6 +330,56 @@ async function confirmPractice() {
     }
 }
 
+// "Try again" on the telemetry banner (7.9): queue a fresh capture, then poll the practice's state
+// until the run reports back. The run is asynchronous, so a failure is said out loud when it arrives
+// and a success reloads the page to show the pre-filled marks; the leader can mark by hand throughout.
+const RETRY_POLL_MS = 2500;
+const RETRY_POLLS = 24;
+const retrying = ref(false);
+
+const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const refreshTelemetry = () =>
+    new Promise((resolve) => router.reload({ only: ['telemetry', 'capture'], preserveState: true, preserveScroll: true, onFinish: resolve }));
+
+async function retryCapture() {
+    retrying.value = true;
+    try {
+        const before = props.telemetry?.lastAttemptAt ?? null;
+        const result = await postJson(`/rollcall/${props.section.id}/capture`, { week: props.week.date }).catch(unreachable);
+        if (!result.ok) {
+            toast.error('Could not try again', { description: messageFor(result) });
+
+            return;
+        }
+
+        for (let poll = 0; poll < RETRY_POLLS; poll++) {
+            await pause(RETRY_POLL_MS);
+            await refreshTelemetry();
+
+            if (props.capture) {
+                // Marks were pre-filled on the server: save what is pending, then show them.
+                if (!(await autosave.flush({ includeHeld: true }))) {
+                    toast.error('Changes are not saved yet', { description: autosave.error.value });
+
+                    return;
+                }
+                toast.success(`Read ${CAPTURE_SOURCES[props.capture.source] ?? props.capture.source}`, { description: 'Marks were filled in. Check them, then confirm.' });
+                router.reload({ preserveScroll: true });
+
+                return;
+            }
+            if ((props.telemetry?.lastAttemptAt ?? null) !== before) {
+                toast.error('Game server still could not be read', { description: 'Nothing was pre-filled. Mark attendance by hand.' });
+
+                return;
+            }
+        }
+        toast.warning('Still waiting for the game server', { description: 'The check is queued. Reload in a moment to see the result.' });
+    } finally {
+        retrying.value = false;
+    }
+}
+
 const postedLabel = computed(() =>
     posted.value ? `${forumDateTime(posted.value.at)}Z${posted.value.by ? ` by ${posted.value.by}` : ''}` : null,
 );
@@ -429,7 +483,7 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                     <span class="sr-only">Switch section</span>
                 </Button>
             </div>
-            <div v-if="capture" class="flex items-center gap-2 sm:ml-auto" data-testid="confirm-cluster">
+            <div v-if="capture || telemetry" class="flex items-center gap-2 sm:ml-auto" data-testid="confirm-cluster">
                 <Badge
                     :variant="confirmation ? 'secondary' : 'outline'"
                     :class="cn('font-normal', confirmation && 'border-success/35 bg-success/8 text-success')"
@@ -448,7 +502,7 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                     <PhCheck />{{ confirmation ? 'Confirm again' : 'Confirm practice' }}
                 </Button>
             </div>
-            <div :class="cn('flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground sm:w-auto', capture ? 'sm:ml-0' : 'sm:ml-auto')">
+            <div :class="cn('flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground sm:w-auto', capture || telemetry ? 'sm:ml-0' : 'sm:ml-auto')">
                 <span class="inline-flex items-center gap-1.5" data-testid="roster-provenance">
                     <PhArrowsClockwise class="size-4" aria-hidden="true" />
                     <template v-if="syncedLabel">Roster from {{ roster.source }}, synced {{ syncedLabel }}</template>
@@ -648,6 +702,8 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                         <AttendanceSourceLegend class="w-full sm:w-auto" />
                     </div>
 
+                    <TelemetryBanner v-if="telemetry" :telemetry="telemetry" :retrying="retrying" :editable="editable" @retry="retryCapture" />
+
                     <div
                         role="status"
                         class="mt-3 flex flex-wrap items-start gap-x-2.5 gap-y-2 rounded-lg border border-border px-3.5 py-2.5 text-[13px]"
@@ -658,7 +714,7 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                             Pre-filled from last week: each trooper still to mark shows last week's practice mark as a suggestion.
                         </p>
                         <p v-else class="min-w-[14rem] flex-1 text-muted-foreground">Nothing pre-filled: no practice marks were recorded last week.</p>
-                        <AttendanceSourceLegend v-if="!capture" class="w-full sm:w-auto" />
+                        <AttendanceSourceLegend v-if="!capture && !telemetry" class="w-full sm:w-auto" />
                         <Button v-if="editable && prefillable.length" variant="outline" size="sm" data-testid="use-last-week" @click="useLastWeek">
                             Use last week's marks ({{ prefillable.length }})
                         </Button>
