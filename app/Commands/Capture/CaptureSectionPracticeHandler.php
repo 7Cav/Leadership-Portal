@@ -92,7 +92,7 @@ class CaptureSectionPracticeHandler
                     inactivated: 0,
                     errored: $result->unmatchedCount(),
                     error: sprintf(
-                        'practice %d, source %s: seen %d, matched %d (%d in another section), unmatched %d; pre-marked %d, kept %d manual',
+                        'practice %d, source %s: seen %d, matched %d (%d in another section), unmatched %d; pre-marked %d, left %d untouched (manual/loa)',
                         $practice->id, $source->name, $result->seen(), $result->matchedCount(), count($result->otherSection), $result->unmatchedCount(),
                         $marks->marked, $marks->keptManual,
                     ),

@@ -1,5 +1,6 @@
 <?php
 
+use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Commands\Capture\CaptureSectionPractice;
 use App\Commands\Capture\CaptureSectionPracticeHandler;
 use App\Commands\Capture\CaptureSource;
@@ -188,7 +189,7 @@ it('records the counts and who triggered the run', function () {
         ->and($run->inserted)->toBe(1)
         ->and($run->errored)->toBe(1)
         ->and($run->status)->toBe(SyncRunStatus::Partial)
-        ->and($run->error)->toBe('practice '.$this->practice->id.', source crcon: seen 2, matched 1 (0 in another section), unmatched 1; pre-marked 1, kept 0 manual');
+        ->and($run->error)->toBe('practice '.$this->practice->id.', source crcon: seen 2, matched 1 (0 in another section), unmatched 1; pre-marked 1, left 0 untouched (manual/loa)');
 });
 
 it('audits the stamp when a user triggered the run, and not for the system', function () {
@@ -272,7 +273,7 @@ it('leaves a manual mark of any status untouched, including its timestamps', fun
             ->and($row->source)->toBe(AttendanceSource::Manual)
             ->and($row->updated_at->toDateTimeString())->toBe('2026-10-05 12:00:00');
     }
-    expect(SyncRun::query()->sole()->error)->toContain('pre-marked 0, kept 3 manual');
+    expect(SyncRun::query()->sole()->error)->toContain('pre-marked 0, left 3 untouched (manual/loa)');
 });
 
 it('updates a prior auto row in place on a re-run instead of duplicating it', function () {
@@ -333,4 +334,15 @@ it('audits the pre-mark as one batch when a user triggered the run', function ()
     runCapture($this, [answeringSource('crcon', [new CrconPlayer('A', '1')])], $user->id);
 
     expect(AuditLogEntry::query()->where('action', 'attendance.auto_marked')->sole()->actor_id)->toBe($user->id);
+});
+
+it('does not stamp the practice and records the run failed when the pre-mark throws', function () {
+    $mine = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
+    linkIdentity($mine, '1');
+    $this->mock(MarkAttendanceHandler::class)->shouldReceive('preMark')->andThrow(new RuntimeException('db down'));
+
+    expect(fn () => runCapture($this, [answeringSource('crcon', [new CrconPlayer('A', '1')])]))->toThrow(RuntimeException::class);
+
+    expect($this->practice->fresh()->capture_source)->toBeNull()
+        ->and(SyncRun::query()->sole()->status)->toBe(SyncRunStatus::Failure);
 });
