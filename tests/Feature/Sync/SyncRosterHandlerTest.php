@@ -115,7 +115,8 @@ it('caches each trooper\'s forum identity and short rank, but never their real n
     syncRosterHandler()->handle();
 
     $trooper = Trooper::where('cav_id', 1)->sole();
-    expect($trooper->username)->toBe('Okafor.T')
+    expect($trooper->billet)->toBe('Rifleman')
+        ->and($trooper->username)->toBe('Okafor.T')
         ->and($trooper->forum_user_id)->toBe(1204)
         ->and($trooper->rank_short)->toBe('SGT')
         ->and($trooper->display_name)->toBe('SGT Okafor.T')

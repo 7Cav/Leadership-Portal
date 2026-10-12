@@ -1,14 +1,19 @@
 <?php
 
 use App\Http\Controllers\Auth\ForumAuthController;
+use App\Http\Controllers\GameIdentityController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReportRollupController;
+use App\Http\Controllers\RollcallController;
+use App\Http\Controllers\RosterController;
 use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\DemoDataController;
 use App\Http\Controllers\Settings\OrgStructureController;
 use App\Http\Controllers\Settings\RosterSyncController;
 use App\Http\Controllers\Settings\StaffGrantsController;
 use App\Http\Controllers\ViewAsController;
+use App\Http\Middleware\EnsureServingMember;
 use App\Repositories\UserRepository;
 use Illuminate\Support\Facades\Route;
 
@@ -28,8 +33,42 @@ Route::get('/oauth/callback/7cav', [ForumAuthController::class, 'callback'])->na
 
 // Authenticated landing. Unauthenticated hits redirect to `login` via the auth
 // middleware. Named `home` — the target Laravel's guest middleware bounces to.
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/home', [HomeController::class, 'show'])->name('home');
+
+    // The weekly report for one unit-week (Stories 5.3–5.5): compose a section's draft, or a
+    // non-leaf unit's roll-up; save the draft; freeze and send it. Scope is checked in the
+    // controller (403 outside it); `{week}` is the Saturday that opens the Cav week.
+    Route::get('/reports/{unit}/{week}', [ReportController::class, 'show'])
+        ->whereNumber('unit')->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.show');
+    Route::put('/reports/{unit}/{week}', [ReportController::class, 'draft'])
+        ->whereNumber('unit')->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.draft');
+    Route::post('/reports/{unit}/{week}/send', [ReportController::class, 'send'])
+        ->whereNumber('unit')->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.send');
+
+    // The roster (Stories 2.8, 4.6, 4.7, 4.9): the selected unit's subtree, `?view=orbat|matrix`.
+    // Scope-gated in the controller through the ScopeResolver (AD-8). The trooper Sheet reads its
+    // detail as JSON; that route is declared first so `troopers` is never taken for a unit id.
+    Route::get('/roster/troopers/{trooper}', [RosterController::class, 'trooper'])->whereNumber('trooper')->name('roster.trooper');
+    Route::get('/roster/{unit?}', [RosterController::class, 'index'])->whereNumber('unit')->name('roster.index');
+    // Weekly rollcall of one section (Stories 3.7–3.10). Scope is enforced in the controller
+    // through the ScopeResolver (AD-8): an out-of-scope section is a 403, not a hidden link.
+    Route::get('/rollcall/{unit?}', [RollcallController::class, 'show'])->whereNumber('unit')->name('rollcall.show');
+    Route::post('/rollcall/{unit}', [RollcallController::class, 'store'])->whereNumber('unit')->name('rollcall.store');
+    Route::post('/rollcall/{unit}/unmatched/link', [RollcallController::class, 'linkUnmatched'])->whereNumber('unit')->name('rollcall.unmatched.link');
+    Route::post('/rollcall/{unit}/unmatched/dismiss', [RollcallController::class, 'dismissUnmatched'])->whereNumber('unit')->name('rollcall.unmatched.dismiss');
+    Route::post('/rollcall/{unit}/capture', [RollcallController::class, 'retryCapture'])->whereNumber('unit')->name('rollcall.capture');
+    Route::post('/rollcall/{unit}/confirm', [RollcallController::class, 'confirm'])->whereNumber('unit')->name('rollcall.confirm');
+    Route::post('/rollcall/{unit}/posted', [RollcallController::class, 'posted'])->whereNumber('unit')->name('rollcall.posted');
+
+    // Game identities (Story 7.2): link troopers in scope to their in-game identity, one per
+    // platform. The controller reads repositories; each write is an audited Command whose handler
+    // checks the trooper against the viewer's scope (AD-8) — outside it is a 403.
+    Route::get('/game-identities', [GameIdentityController::class, 'index'])->name('game-identities.index');
+    Route::put('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'update'])
+        ->whereNumber('trooper')->name('game-identities.update');
+    Route::delete('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'destroy'])
+        ->whereNumber('trooper')->name('game-identities.destroy');
 
     // Logout (Story 1.5). POST, so it carries CSRF protection and can't be triggered by a
     // prefetched link or a cross-site <img>.

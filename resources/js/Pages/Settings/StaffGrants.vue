@@ -99,9 +99,9 @@ function requestRevoke(grant) {
                                         v-if="!grant.holder_serving"
                                         variant="warning"
                                         :data-testid="`lapsed-${grant.id}`"
-                                        title="This grant gives no scope while its holder is not on a serving Cav roster."
                                     >
                                         Lapsed: not serving
+                                        <span class="sr-only">. This grant gives no scope while its holder is not on a serving Cav roster.</span>
                                     </Badge>
                                 </span>
                             </TableCell>

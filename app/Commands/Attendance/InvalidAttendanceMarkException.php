@@ -11,6 +11,14 @@ use RuntimeException;
  */
 class InvalidAttendanceMarkException extends RuntimeException
 {
+    /**
+     * The troopers the batch was refused for, when the refusal is about specific troopers
+     * (`notPlacedInSection`) — so a caller can say which marks cannot be saved. Empty otherwise.
+     *
+     * @var list<int>
+     */
+    public array $trooperIds = [];
+
     public static function nothingToRecord(int $trooperId): self
     {
         return new self("Trooper {$trooperId}'s mark carries neither a practice status nor a rollcall signature.");
@@ -36,10 +44,13 @@ class InvalidAttendanceMarkException extends RuntimeException
      */
     public static function notPlacedInSection(array $trooperIds, int $sectionId): self
     {
-        return new self(sprintf(
+        $exception = new self(sprintf(
             'Troopers %s are not placed in section %d; a trooper is marked only against their own section\'s practice.',
             implode(', ', $trooperIds),
             $sectionId,
         ));
+        $exception->trooperIds = $trooperIds;
+
+        return $exception;
     }
 }

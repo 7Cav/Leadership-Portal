@@ -38,7 +38,8 @@ describe('Settings/StaffGrants', () => {
         const wrapper = mount(StaffGrants, { props: { grants: [...GRANTS, lapsed], units: UNITS, users: USERS, isAdmin: true } });
 
         expect(wrapper.find('[data-testid="grant-row-101"]').text()).toContain('gone.k');
-        expect(wrapper.find('[data-testid="lapsed-101"]').text()).toBe('Lapsed: not serving');
+        expect(wrapper.find('[data-testid="lapsed-101"]').text()).toContain('Lapsed: not serving');
+        expect(wrapper.find('[data-testid="lapsed-101"] .sr-only').text()).toContain('gives no scope while its holder is not on a serving Cav roster');
         expect(wrapper.find('[data-testid="lapsed-100"]').exists()).toBe(false);
         expect(wrapper.find('[data-testid="revoke-101"]').exists()).toBe(true);
     });

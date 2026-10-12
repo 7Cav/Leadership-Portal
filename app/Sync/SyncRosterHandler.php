@@ -59,6 +59,7 @@ class SyncRosterHandler
                     'rank_short' => $entry->rankShort,
                     'username' => $entry->username,
                     'forum_user_id' => $entry->forumUserId,
+                    'billet' => $entry->billet,
                     'mos' => $entry->mos,
                     'tis' => $entry->tis,
                     'tig' => $entry->tig,

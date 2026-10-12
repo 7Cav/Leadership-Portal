@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\RollcallSignature;
 use Carbon\CarbonImmutable;
@@ -22,5 +23,7 @@ final readonly class CountingMark
         public ?AttendanceStatus $status,
         public RollcallSignature $rollcall,
         public bool $held,
+        /** Who recorded the SP mark — `manual` or `auto` — null while unmarked (2.8's cell source). */
+        public ?AttendanceSource $source = null,
     ) {}
 }

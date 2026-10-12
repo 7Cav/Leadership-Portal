@@ -81,6 +81,24 @@ class ScopeResolver
     }
 
     /**
+     * Whether the roster cache shows the user's linked trooper as departed — a standing off
+     * {@see TrooperStatus::serving()}. Deliberately not the inverse of "is serving": an Admin, a
+     * user with no link, and one the cache holds no trooper for (admitted live at sign-in ahead of
+     * the next sync) are not known to have left, so the session check only ends a session on a
+     * departed record.
+     */
+    public function hasDeparted(User $user): bool
+    {
+        if ($user->is_admin || $user->cav_id === null) {
+            return false;
+        }
+
+        $status = $this->troopers->statusOf((int) $user->cav_id);
+
+        return $status !== null && ! $status->isServing();
+    }
+
+    /**
      * The user's granted units, but only while they are a serving trooper: `users.cav_id` linked to
      * a cached trooper whose standing is on {@see TrooperStatus::serving()}. A grant is staff scope
      * for a *member* of the unit — once the holder leaves (the roster sync flips them `inactive`),

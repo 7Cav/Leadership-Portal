@@ -126,7 +126,7 @@ class ForumAuthController extends Controller
         $admission = $admit->handle($user, rosterUnavailable: $cav['roster_unavailable'], live: $cav['live']);
 
         if ($admission !== Admission::Admitted) {
-            Log::info('Sign-in refused: the forum identity is not a confirmed serving 7th Cavalry member.', [
+            Log::log($admission === Admission::Unverifiable ? 'warning' : 'info', 'Sign-in refused: the forum identity is not a confirmed serving 7th Cavalry member.', [
                 'user_id' => $user->getKey(),
                 'forum_user_id' => $user->forum_user_id,
                 'admission' => $admission->name,

@@ -1,13 +1,16 @@
 <?php
 
+use App\Commands\WeeklyReports\InvalidReportContentException;
 use App\Commands\WeeklyReports\SendWeeklyReport;
 use App\Commands\WeeklyReports\SendWeeklyReportForbiddenException;
 use App\Commands\WeeklyReports\SendWeeklyReportHandler;
 use App\Commands\WeeklyReports\SentWeeklyReport;
 use App\Kpi\KpiDelta;
 use App\Kpi\KpiService;
+use App\Kpi\Ratio;
 use App\Kpi\ReportKpisUnavailableException;
 use App\Kpi\ReportSnapshot;
+use App\Kpi\UnitKpis;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
@@ -22,11 +25,11 @@ use App\Repositories\AttendanceRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\WeeklyReportAlreadySentException;
 use App\Repositories\WeeklyReportRepository;
+use App\Repositories\WeeklyReportRepository\Eloquent as EloquentWeeklyReportRepository;
 use App\Support\Audit\ReasonRequiredException;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Saloon\Http\Faking\MockClient;
 
@@ -73,6 +76,7 @@ function digestOfStored(WeeklyReport $report): string
 
     return SendWeeklyReportHandler::contentDigest(
         $report->unit_id, $report->week_start, $reverse($report->kpis), $report->notes, $report->template_version_id,
+        $report->training_subject, $report->unaccounted ?? [],
     );
 }
 
@@ -216,39 +220,23 @@ it('still requires a reason on a re-send', function () {
 
 it('no-ops cleanly when a concurrent send freezes the report first', function () {
     $racer = User::factory()->create();
-    $real = app(WeeklyReportRepository::class);
     // The racer's send commits between this send's "already sent?" check and its own freeze.
-    app()->instance(WeeklyReportRepository::class, new class($real, $racer->id) implements WeeklyReportRepository
+    app()->instance(WeeklyReportRepository::class, new class($racer->id) extends EloquentWeeklyReportRepository
     {
         private bool $raced = false;
 
-        public function __construct(private readonly WeeklyReportRepository $inner, private readonly int $racerId) {}
+        public function __construct(private readonly int $racerId) {}
 
         public function find(int $unitId, CarbonInterface $weekStart): ?WeeklyReport
         {
-            $found = $this->inner->find($unitId, $weekStart);
+            $found = parent::find($unitId, $weekStart);
 
             if (! $this->raced && $found === null) {
                 $this->raced = true;
-                $this->inner->send($unitId, $weekStart, ['racer' => true], 'racer notes', $this->racerId, 'racer-digest', null);
+                parent::send($unitId, $weekStart, ['racer' => true], 'racer notes', $this->racerId, 'racer-digest', null);
             }
 
             return $found;
-        }
-
-        public function saveDraft(int $unitId, CarbonInterface $weekStart, array $kpis, ?string $notes): WeeklyReport
-        {
-            return $this->inner->saveDraft($unitId, $weekStart, $kpis, $notes);
-        }
-
-        public function send(int $unitId, CarbonInterface $weekStart, array $kpis, ?string $notes, int $sentBy, string $contentDigest, ?int $templateVersionId): WeeklyReport
-        {
-            return $this->inner->send($unitId, $weekStart, $kpis, $notes, $sentBy, $contentDigest, $templateVersionId);
-        }
-
-        public function forUnits(array $unitIds, CarbonInterface $weekStart): Collection
-        {
-            return $this->inner->forUnits($unitIds, $weekStart);
         }
     });
 
@@ -267,28 +255,11 @@ it('rethrows rather than pass off a draft as the sent report when the race re-re
     // A re-read that cannot see the winner (a stale snapshot inside a caller's transaction) comes
     // back as the old draft; the handler must not report that as "already sent".
     $real->saveDraft($this->section->id, $this->weekStart, ['draft' => true], 'draft');
-    app()->instance(WeeklyReportRepository::class, new class($real) implements WeeklyReportRepository
+    app()->instance(WeeklyReportRepository::class, new class extends EloquentWeeklyReportRepository
     {
-        public function __construct(private readonly WeeklyReportRepository $inner) {}
-
-        public function find(int $unitId, CarbonInterface $weekStart): ?WeeklyReport
-        {
-            return $this->inner->find($unitId, $weekStart);
-        }
-
-        public function saveDraft(int $unitId, CarbonInterface $weekStart, array $kpis, ?string $notes): WeeklyReport
-        {
-            return $this->inner->saveDraft($unitId, $weekStart, $kpis, $notes);
-        }
-
-        public function send(int $unitId, CarbonInterface $weekStart, array $kpis, ?string $notes, int $sentBy, string $contentDigest, ?int $templateVersionId): WeeklyReport
+        public function send(int $unitId, CarbonInterface $weekStart, array $kpis, ?string $notes, int $sentBy, string $contentDigest, ?int $templateVersionId, ?string $trainingSubject = null, array $unaccounted = []): WeeklyReport
         {
             throw WeeklyReportAlreadySentException::for($unitId, $weekStart);
-        }
-
-        public function forUnits(array $unitIds, CarbonInterface $weekStart): Collection
-        {
-            return $this->inner->forUnits($unitIds, $weekStart);
         }
     });
 
@@ -337,14 +308,54 @@ it('refuses a unit that does not exist, even for an admin (no unit is in anyone\
     sendReport(User::factory()->admin()->create(), 999999, $this->moment);
 })->throws(SendWeeklyReportForbiddenException::class);
 
-it('refuses a non-leaf report until the roll-up lands, never substituting live child data (5.7)', function () {
+it('sends a non-leaf report as the roll-up of its sent children, freezing the ones it went without (5.7)', function () {
     $platoonLeader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
+    $sent = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => '700/702/']);
+    $sentKpis = new UnitKpis(4, new Ratio(12, 16), new Ratio(3, 4), 1, 0, 1);
+    app(WeeklyReportRepository::class)->send($sent->id, $this->weekStart, (new ReportSnapshot($sentKpis, null))->toArray(), null, $platoonLeader->id, 'd', null);
     app(WeeklyReportRepository::class)->saveDraft($this->section->id, $this->weekStart, [], null); // a still-draft child
 
-    expect(fn () => sendReport($platoonLeader, $this->platoon->id, $this->moment))
+    $result = sendReport($platoonLeader, $this->platoon->id, $this->moment);
+
+    $frozen = ReportSnapshot::fromArray($result->report->kpis);
+    expect($frozen->kpis)->toEqual($sentKpis) // the draft child's live numbers are never substituted
+        ->and($frozen->missingChildren)->toBe([$this->section->id])
+        ->and($result->report->status)->toBe(WeeklyReportStatus::Sent);
+});
+
+it('refuses a non-leaf unit with no children to roll up, writing nothing', function () {
+    $company = Unit::factory()->create(['type' => UnitType::Company, 'path' => '800/']);
+
+    expect(fn () => sendReport(User::factory()->admin()->create(), $company->id, $this->moment))
         ->toThrow(ReportKpisUnavailableException::class);
 
-    expect(WeeklyReport::query()->where('unit_id', $this->platoon->id)->exists())->toBeFalse()
+    expect(WeeklyReport::query()->exists())->toBeFalse()
         ->and(AuditLogEntry::query()->count())->toBe(0);
 });
+
+it('freezes the training subject and the unaccounted reasons, and digests them', function () {
+    $result = app(SendWeeklyReportHandler::class)->handle($this->leader, new SendWeeklyReport(
+        $this->section->id, $this->moment, 'Weekly report', 'Notes.', '  Room clearing  ',
+        [['trooper_id' => $this->troopers[1]->id, 'reason' => 'sick']],
+    ));
+
+    $report = $result->report->fresh();
+    expect($report->training_subject)->toBe('Room clearing')
+        ->and($report->unaccounted)->toBe([['trooper_id' => $this->troopers[1]->id, 'reason' => 'sick']])
+        ->and($report->content_digest)->toBe(digestOfStored($report))
+        ->and($report->content_digest)->not->toBe(SendWeeklyReportHandler::contentDigest(
+            $report->unit_id, $report->week_start, $report->kpis, $report->notes, null,
+        ));
+});
+
+it('refuses a reason for a trooper outside the section, or an unknown reason, writing nothing', function (Closure $row) {
+    expect(fn () => app(SendWeeklyReportHandler::class)->handle($this->leader, new SendWeeklyReport(
+        $this->section->id, $this->moment, 'Weekly report', null, null, [$row($this)],
+    )))->toThrow(InvalidReportContentException::class);
+
+    expect(WeeklyReport::query()->exists())->toBeFalse();
+})->with([
+    'trooper elsewhere' => [fn ($test) => ['trooper_id' => Trooper::factory()->create()->id, 'reason' => 'sick']],
+    'unknown reason' => [fn ($test) => ['trooper_id' => $test->troopers[0]->id, 'reason' => 'bored']],
+]);
