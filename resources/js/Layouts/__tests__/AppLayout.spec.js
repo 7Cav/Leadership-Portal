@@ -24,9 +24,9 @@ const ENRICHED = {
     fetched_at: '2026-08-03T09:14:00+00:00',
 };
 
-function mountLayout({ url = '/home', user = { id: 1, username: 'Hale.S', is_admin: false }, profile = null, viewAs = null } = {}) {
+function mountLayout({ url = '/home', user = { id: 1, username: 'Hale.S', is_admin: false }, profile = null, viewAs = null, crumb = undefined } = {}) {
     mockPage.url = url;
-    mockPage.props = { auth: { user, profile }, viewAs };
+    mockPage.props = { auth: { user, profile }, viewAs, crumb };
 
     return mount(AppLayout, {
         slots: { default: '<p data-testid="page-body">Page body</p>' },
@@ -146,6 +146,14 @@ describe('AppLayout', () => {
 
             expect(wrapper.find('[data-testid="breadcrumb-current"]').text()).toBe('Staff grants');
             expect(wrapper.find('nav[aria-label="breadcrumb"]').text()).toContain('Settings');
+        });
+
+        it('reads a trooper page as a child of Roster: Roster / name, with Roster active in the sidebar', () => {
+            wrapper = mountLayout({ url: '/troopers/12', crumb: 'SPC Milkovic.D' });
+
+            expect(wrapper.find('[data-testid="breadcrumb-current"]').text()).toBe('SPC Milkovic.D');
+            expect(wrapper.find('nav[aria-label="breadcrumb"]').text()).toContain('Roster');
+            expect(wrapper.find('[data-testid="nav-Roster"]').attributes('aria-current')).toBe('page');
         });
     });
 

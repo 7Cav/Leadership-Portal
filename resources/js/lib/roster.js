@@ -261,3 +261,16 @@ export function aggregateWeek(members, index, weekStart, current) {
         sp: level(attended, marked) ?? (pending ? 'open' : loa && anyMark ? 'loa' : 'nil'),
     };
 }
+
+// How a trooper's roster status reads everywhere a person is shown (the order of battle, the milpac): one label
+// and one badge variant per status. Leaving the unit is not an error, so a departed trooper is outlined, not red.
+export const TROOPER_STATUS = {
+    combat: { label: 'Active', variant: 'success' },
+    reserve: { label: 'Reserve', variant: 'info' },
+    eloa: { label: 'ELOA', variant: 'warning' },
+    inactive: { label: 'Departed', variant: 'outline' },
+};
+
+export function trooperStatusOf(status) {
+    return TROOPER_STATUS[status] ?? { label: status, variant: 'outline' };
+}

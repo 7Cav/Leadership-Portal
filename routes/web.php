@@ -13,9 +13,15 @@ use App\Http\Controllers\Settings\LoaSyncController;
 use App\Http\Controllers\Settings\OrgStructureController;
 use App\Http\Controllers\Settings\RosterSyncController;
 use App\Http\Controllers\Settings\StaffGrantsController;
+use App\Http\Controllers\TrooperDetailController;
 use App\Http\Controllers\ViewAsController;
 use App\Repositories\UserRepository;
 use Illuminate\Support\Facades\Route;
+
+// Numeric ids are capped at 18 digits rather than `whereNumber()`: a longer one overflows a controller's
+// `int` parameter and would answer 500 instead of 404. Declared once so the next route cannot forget it.
+Route::pattern('trooper', '[0-9]{1,18}');
+Route::pattern('unit', '[0-9]{1,18}');
 
 // `/` is only a doorway (Story 1.15 retired the Story 1.1 sample page): signed-in users land on
 // home, everyone else on the login screen, in one hop either way.
@@ -49,8 +55,12 @@ Route::middleware('auth')->group(function () {
     // The roster (Stories 2.8, 4.6, 4.7, 4.9): the selected unit's subtree, `?view=orbat|matrix`.
     // Scope-gated in the controller through the ScopeResolver (AD-8). The trooper Sheet reads its
     // detail as JSON; that route is declared first so `troopers` is never taken for a unit id.
-    Route::get('/roster/troopers/{trooper}', [RosterController::class, 'trooper'])->whereNumber('trooper')->name('roster.trooper');
-    Route::get('/roster/{unit?}', [RosterController::class, 'index'])->whereNumber('unit')->name('roster.index');
+    Route::get('/roster/troopers/{trooper}', [RosterController::class, 'trooper'])->name('roster.trooper');
+    Route::get('/roster/{unit?}', [RosterController::class, 'index'])->name('roster.index');
+    // One trooper's milpac (Story 6.3): the page every entry point to a trooper opens. Scope-gated
+    // in the controller through the ScopeResolver (AD-8).
+    Route::get('/troopers/{trooper}', [TrooperDetailController::class, 'show'])->name('troopers.show');
+
     // Weekly rollcall of one section (Stories 3.7–3.10). Scope is enforced in the controller
     // through the ScopeResolver (AD-8): an out-of-scope section is a 403, not a hidden link.
     Route::get('/rollcall/{unit?}', [RollcallController::class, 'show'])->whereNumber('unit')->name('rollcall.show');
