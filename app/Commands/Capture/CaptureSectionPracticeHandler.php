@@ -49,6 +49,13 @@ class CaptureSectionPracticeHandler
         $practice = $this->practices->findById($command->sectionPracticeId)
             ?? throw new InvalidArgumentException("Section practice {$command->sectionPracticeId} does not exist.");
 
+        // The window must fall inside the practice's own Cav week: a capture is bounded to the
+        // practice, never an arbitrary span stamped onto it.
+        if ($command->windowStart < $practice->week_start || $command->windowEnd > $practice->week_start->addWeek()
+            || $command->windowEnd < $command->windowStart) {
+            throw new InvalidArgumentException("The capture window is not within the week of section practice {$practice->id}.");
+        }
+
         $run = $this->syncRuns->open('capture', $command->triggeredBy);
 
         try {
@@ -77,8 +84,8 @@ class CaptureSectionPracticeHandler
                     inactivated: 0,
                     errored: $result->unmatchedCount(),
                     error: sprintf(
-                        'source %s: seen %d, matched %d (%d in another section), unmatched %d',
-                        $source->name, $result->seen(), $result->matchedCount(), count($result->otherSection), $result->unmatchedCount(),
+                        'practice %d, source %s: seen %d, matched %d (%d in another section), unmatched %d',
+                        $practice->id, $source->name, $result->seen(), $result->matchedCount(), count($result->otherSection), $result->unmatchedCount(),
                     ),
                 );
 
@@ -86,12 +93,12 @@ class CaptureSectionPracticeHandler
             }
 
             $reasons = $reasons === [] ? ['no source is configured for this game'] : $reasons;
-            $this->syncRuns->fail($run, 'telemetry unavailable: '.implode('; ', $reasons));
+            $this->syncRuns->fail($run, "telemetry unavailable (practice {$practice->id}): ".implode('; ', $reasons));
 
             return CaptureResult::unavailable($reasons);
         } catch (Throwable $e) {
             // Not a typed seam failure (e.g. a DB error): close the run as failed, then let the
-            // job retry — the practice stays as it was.
+            // job retry — a retry re-stamps and re-resolves, so a stamp that landed first is harmless.
             $this->syncRuns->fail($run, $e->getMessage());
 
             throw $e;

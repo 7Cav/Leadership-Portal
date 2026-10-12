@@ -8,6 +8,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
 use Throwable;
 
 /**
@@ -30,7 +31,12 @@ class CaptureSectionPracticeJob implements ShouldQueue
 
     public function handle(CaptureSectionPracticeHandler $handler): void
     {
-        $handler->handle($this->command);
+        try {
+            $handler->handle($this->command);
+        } catch (InvalidArgumentException $e) {
+            // A missing practice or an out-of-week window will not fix itself: fail, don't retry.
+            $this->fail($e);
+        }
     }
 
     /**

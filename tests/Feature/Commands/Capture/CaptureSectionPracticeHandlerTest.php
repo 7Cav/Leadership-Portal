@@ -25,7 +25,7 @@ use Illuminate\Support\Carbon;
 beforeEach(function () {
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-08 20:00:00', 'UTC'));
     $this->section = Unit::factory()->create(['type' => UnitType::Section]);
-    $this->practice = SectionPractice::factory()->create(['section_id' => $this->section->id]);
+    $this->practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => '2026-10-03 00:00:00']);
     $this->start = CarbonImmutable::parse('2026-10-08 18:00:00', 'UTC')->toDateTimeImmutable();
     $this->end = CarbonImmutable::parse('2026-10-08 19:30:00', 'UTC')->toDateTimeImmutable();
 });
@@ -185,7 +185,7 @@ it('records the counts and who triggered the run', function () {
         ->and($run->inserted)->toBe(1)
         ->and($run->errored)->toBe(1)
         ->and($run->status)->toBe(SyncRunStatus::Partial)
-        ->and($run->error)->toBe('source crcon: seen 2, matched 1 (0 in another section), unmatched 1');
+        ->and($run->error)->toBe('practice '.$this->practice->id.', source crcon: seen 2, matched 1 (0 in another section), unmatched 1');
 });
 
 it('audits the stamp when a user triggered the run, and not for the system', function () {
@@ -218,4 +218,13 @@ it('refuses a practice that does not exist', function () {
         new CaptureSectionPractice(999999, GamePlatform::Hll, $this->start, $this->end),
     ))->toThrow(InvalidArgumentException::class)
         ->and(SyncRun::query()->count())->toBe(0);
+});
+
+it('refuses a window outside the practice week', function () {
+    app()->instance(CaptureSources::class, new CaptureSources([]));
+    $outside = CarbonImmutable::parse('2027-01-01 00:00:00', 'UTC')->toDateTimeImmutable();
+
+    expect(fn () => app(CaptureSectionPracticeHandler::class)->handle(
+        new CaptureSectionPractice($this->practice->id, GamePlatform::Hll, $outside, $outside),
+    ))->toThrow(InvalidArgumentException::class);
 });
