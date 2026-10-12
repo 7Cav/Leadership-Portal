@@ -1,6 +1,8 @@
 import {
     PhClipboardText,
     PhFileText,
+    PhFlask,
+    PhGameController,
     PhHouse,
     PhKey,
     PhListMagnifyingGlass,
@@ -18,9 +20,10 @@ export const NAV_GROUPS = [
         adminOnly: false,
         items: [
             { label: 'Home', href: '/home', icon: PhHouse },
-            { label: 'Roster', href: null, icon: PhUsersThree },
-            { label: 'Rollcall', href: null, icon: PhClipboardText },
-            { label: 'Reports', href: null, icon: PhFileText },
+            { label: 'Roster', href: '/roster', icon: PhUsersThree },
+            { label: 'Rollcall', href: '/rollcall', icon: PhClipboardText },
+            { label: 'Reports', href: '/reports', icon: PhFileText },
+            { label: 'Game identities', href: '/game-identities', icon: PhGameController },
         ],
     },
     {
@@ -33,12 +36,18 @@ export const NAV_GROUPS = [
             { label: 'Org structure', href: '/settings/org-structure', icon: PhTreeStructure },
             { label: 'Staff grants', href: '/settings/staff-grants', icon: PhKey },
             { label: 'Audit log', href: '/settings/audit-log', icon: PhListMagnifyingGlass },
+            // Only while DEMO_TOOLS is on (#115): `feature` names the shared `features` flag it needs.
+            { label: 'Demo data', href: '/settings/demo-data', icon: PhFlask, feature: 'demoTools' },
         ],
     },
 ];
 
-export function visibleGroups(isAdmin) {
-    return NAV_GROUPS.filter((group) => isAdmin || !group.adminOnly);
+// The groups and items this viewer sees: admin-only groups for an Admin, and an item that needs an
+// optional feature only while the shared `features` prop switches it on.
+export function visibleGroups(isAdmin, features = {}) {
+    return NAV_GROUPS.filter((group) => isAdmin || !group.adminOnly)
+        .map((group) => ({ ...group, items: group.items.filter((item) => !item.feature || features[item.feature] === true) }))
+        .filter((group) => group.items.length);
 }
 
 function pathOf(url) {

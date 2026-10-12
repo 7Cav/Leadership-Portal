@@ -3,6 +3,7 @@
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
+use App\Models\UnitType;
 use App\Repositories\TrooperRepository;
 
 // AD-4: the cache is upserted keyed by `cav_id` onto a stable internal PK, never
@@ -43,6 +44,28 @@ it('updates an existing row in place, leaving the internal PK unchanged, reporti
         ->and($trooper->rank)->toBe('Corporal')
         ->and($trooper->status)->toBe(TrooperStatus::Reserve)
         ->and($counts)->toBe(['inserted' => 0, 'updated' => 1]);
+});
+
+it('writes the forum identity and short rank, overwriting stale values and nulling an absent key', function () {
+    $repo = app(TrooperRepository::class);
+
+    $repo->upsertActive([
+        ['cav_id' => 42, 'rank' => 'Sergeant', 'rank_short' => 'SGT', 'username' => 'Vasquez.R', 'forum_user_id' => 1204, 'mos' => '11B', 'tis' => null, 'tig' => null, 'status' => TrooperStatus::Combat->value],
+    ]);
+    $trooper = Trooper::where('cav_id', 42)->sole();
+
+    expect($trooper->username)->toBe('Vasquez.R')
+        ->and($trooper->forum_user_id)->toBe(1204)
+        ->and($trooper->rank_short)->toBe('SGT');
+
+    $repo->upsertActive([
+        ['cav_id' => 42, 'rank' => 'Sergeant', 'mos' => '11B', 'tis' => null, 'tig' => null, 'status' => TrooperStatus::Combat->value],
+    ]);
+    $trooper->refresh();
+
+    expect($trooper->username)->toBeNull()
+        ->and($trooper->forum_user_id)->toBeNull()
+        ->and($trooper->rank_short)->toBeNull();
 });
 
 it('counts several inserts and updates independently in one batch', function () {
@@ -221,6 +244,29 @@ it('lists the active troopers placed anywhere in a unit\'s subtree, by id', func
     expect(app(TrooperRepository::class)->assignedWithin($platoon)->all())->toBe([$a, $b]);
 });
 
+// 5.8: the same population split by section, so one query feeds a whole roll-up.
+it('maps the troopers assigned in a subtree to their section, by trooper id', function () {
+    $platoon = Unit::factory()->create(['path' => '800/']);
+    $first = Unit::factory()->create(['path' => '800/801/']);
+    $second = Unit::factory()->create(['path' => '800/802/']);
+    $outside = Unit::factory()->create(['path' => '8000/']);
+
+    $place = function (Unit $unit, TrooperStatus $status = TrooperStatus::Combat) {
+        $trooper = Trooper::factory()->create(['status' => $status]);
+        $trooper->forceFill(['primary_section_id' => $unit->id])->save();
+
+        return $trooper->id;
+    };
+
+    $a = $place($second);
+    $b = $place($first, TrooperStatus::Eloa);
+    $place($first, TrooperStatus::Inactive);
+    $place($outside);
+
+    expect(app(TrooperRepository::class)->sectionsOfAssignedWithin($platoon)->all())
+        ->toBe([$a => $second->id, $b => $first->id]);
+});
+
 it('writes the primary billet id with the synced columns, overwriting the previous one (1.16)', function () {
     $repo = app(TrooperRepository::class);
     $row = ['cav_id' => 1, 'rank' => 'Corporal', 'mos' => '11B', 'tis' => null, 'tig' => null, 'status' => TrooperStatus::Combat->value];
@@ -234,4 +280,109 @@ it('writes the primary billet id with the synced columns, overwriting the previo
     // Cav reported no usable billet this time: the stale one is cleared, never kept.
     $repo->upsertActive([[...$row, 'cav_position_id' => null]]);
     expect(Trooper::where('cav_id', 1)->sole()->cav_position_id)->toBeNull();
+});
+
+it('lists a unit\'s assigned troopers as models, by id (5.3)', function () {
+    $section = Unit::factory()->create(['path' => '900/']);
+    $first = Trooper::factory()->create(['primary_section_id' => $section->id]);
+    $second = Trooper::factory()->create(['primary_section_id' => $section->id]);
+    Trooper::factory()->create(['primary_section_id' => $section->id, 'status' => TrooperStatus::Inactive]);
+    Trooper::factory()->create();
+
+    expect(app(TrooperRepository::class)->rosterOf($section)->pluck('id')->all())->toBe([$first->id, $second->id]);
+});
+
+it('finds troopers by cav id, keyed by it, leaving out unknown ids', function () {
+    $trooper = Trooper::factory()->create(['cav_id' => 4242]);
+
+    expect(app(TrooperRepository::class)->byCavId([4242, 4343])->keys()->all())->toBe([4242])
+        ->and(app(TrooperRepository::class)->byCavId([4242])->first()->id)->toBe($trooper->id)
+        ->and(app(TrooperRepository::class)->byCavId([]))->toBeEmpty();
+});
+
+it('reads troopers\' ranks by cav id, leaving out unknown ids and unranked troopers', function () {
+    Trooper::factory()->create(['cav_id' => 11, 'rank' => 'Sergeant']);
+    Trooper::factory()->create(['cav_id' => 12, 'rank' => null]);
+
+    expect(app(TrooperRepository::class)->ranksByCavId([11, 12, 13])->all())->toBe([11 => 'Sergeant'])
+        ->and(app(TrooperRepository::class)->ranksByCavId([])->all())->toBe([]);
+});
+
+// 2.8: the roster's population — every trooper placed in the subtree, departed ones included so
+// the screen can show them as departed rather than drop them.
+it('lists every trooper placed in a unit\'s subtree, departed included, by id', function () {
+    $platoon = Unit::factory()->create(['path' => '700/']);
+    $inside = Unit::factory()->create(['path' => '700/701/']);
+    $sibling = Unit::factory()->create(['path' => '7000/']);
+
+    $place = function (Unit $unit, TrooperStatus $status = TrooperStatus::Combat) {
+        $trooper = Trooper::factory()->create(['status' => $status]);
+        $trooper->forceFill(['primary_section_id' => $unit->id])->save();
+
+        return $trooper->id;
+    };
+
+    $a = $place($inside);
+    $b = $place($inside, TrooperStatus::Inactive);
+    $c = $place($platoon);
+    $place($sibling);
+    Trooper::factory()->create(); // unplaced
+
+    expect(app(TrooperRepository::class)->placedWithin($platoon)->modelKeys())->toBe([$a, $b, $c]);
+});
+
+it('finds a trooper by id, or null', function () {
+    $trooper = Trooper::factory()->create();
+
+    expect(app(TrooperRepository::class)->find($trooper->id)->is($trooper))->toBeTrue()
+        ->and(app(TrooperRepository::class)->find($trooper->id + 1))->toBeNull();
+});
+
+it('lists the troopers placed in a section now, active only, in id order (3.7)', function () {
+    $section = Unit::factory()->create(['type' => UnitType::Section]);
+    $other = Unit::factory()->create(['type' => UnitType::Section]);
+    $place = function (Unit $unit, array $attributes = []) {
+        $trooper = Trooper::factory()->create($attributes);
+        $trooper->forceFill(['primary_section_id' => $unit->id])->save();
+
+        return $trooper;
+    };
+    $a = $place($section);
+    $b = $place($section, ['status' => TrooperStatus::Eloa]);
+    $place($section, ['status' => TrooperStatus::Inactive]);
+    $place($other);
+
+    expect(app(TrooperRepository::class)->placedIn($section->id)->pluck('id')->all())->toBe([$a->id, $b->id]);
+});
+
+it('finds troopers by id in one keyed set, leaving unknown ids out', function () {
+    $troopers = Trooper::factory()->count(3)->create();
+    $repo = app(TrooperRepository::class);
+
+    $found = $repo->byIds([$troopers[0]->id, $troopers[2]->id, 999999]);
+
+    expect($found->keys()->all())->toBe([$troopers[0]->id, $troopers[2]->id])
+        ->and($repo->byIds([]))->toBeEmpty();
+});
+
+it('lists the active troopers placed in any of several sections in one read (7.2)', function () {
+    $one = Unit::factory()->create(['type' => UnitType::Section]);
+    $two = Unit::factory()->create(['type' => UnitType::Section]);
+    $elsewhere = Unit::factory()->create(['type' => UnitType::Section]);
+    $place = function (Unit $unit, array $attributes = []) {
+        $trooper = Trooper::factory()->create($attributes);
+        $trooper->forceFill(['primary_section_id' => $unit->id])->save();
+
+        return $trooper;
+    };
+    $a = $place($one);
+    $b = $place($two, ['status' => TrooperStatus::Eloa]);
+    $place($one, ['status' => TrooperStatus::Inactive]);
+    $place($elsewhere);
+    Trooper::factory()->create();
+
+    $repo = app(TrooperRepository::class);
+
+    expect($repo->placedInAny([$one->id, $two->id])->pluck('id')->all())->toBe([$a->id, $b->id])
+        ->and($repo->placedInAny([])->all())->toBe([]);
 });

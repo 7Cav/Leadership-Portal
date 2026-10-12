@@ -54,6 +54,11 @@ class Eloquent implements UnitRepository
         return Unit::query()->where('path', 'like', "{$unit->path}%")->pluck('id');
     }
 
+    public function subtree(Unit $unit): Collection
+    {
+        return Unit::query()->where('path', 'like', "{$unit->path}%")->orderBy('id')->get();
+    }
+
     public function rename(Unit $unit, string $name, ?string $callsign): Unit
     {
         $unit->update(['name' => $name, 'callsign' => $callsign]);
@@ -104,8 +109,25 @@ class Eloquent implements UnitRepository
         return Unit::query()->where('parent_id', $unit->id)->orderBy('id')->get();
     }
 
+    public function sectionsAmong(iterable $unitIds): Collection
+    {
+        $ids = collect($unitIds)->values()->all();
+
+        return Unit::query()
+            ->with('parent')
+            ->where('type', UnitType::Section->value)
+            ->whereIn('id', $ids)
+            ->orderBy('path')
+            ->get();
+    }
+
     public function delete(Unit $unit): void
     {
         $unit->delete();
+    }
+
+    public function withCallsign(string $callsign): Collection
+    {
+        return Unit::query()->where('callsign', $callsign)->orderBy('id')->get();
     }
 }

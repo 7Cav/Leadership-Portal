@@ -64,8 +64,43 @@ final class KpiService
      */
     public function forUnit(Unit $unit, CarbonInterface $weekStart): UnitKpis
     {
-        $byTrooper = $this->trooperAttendance($unit, $weekStart);
+        return $this->sum($this->trooperAttendance($unit, $weekStart));
+    }
 
+    /**
+     * `forUnit()` for every section under `$unit` at once, keyed by section id — the same
+     * per-trooper rows, split by the section each trooper is placed in, in two queries however
+     * many sections (5.8's roll-up of a whole battalion). A section with no assigned trooper is
+     * absent; its KPIs are `UnitKpis::none()`. Equal, section by section, to `forUnit()`: a
+     * trooper's marks only ever count against their own section's practice.
+     *
+     * @return Collection<int, UnitKpis>
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function forSectionsWithin(Unit $unit, CarbonInterface $weekStart): Collection
+    {
+        $weekStart = WeekOf::requireStart($weekStart);
+        $marks = $this->marksByTrooper($unit, $weekStart);
+
+        return $this->troopers->sectionsOfAssignedWithin($unit)
+            ->map(fn (int $sectionId, int $trooperId) => [
+                'section' => $sectionId,
+                'row' => $this->forTrooper($trooperId, $marks->get($trooperId, collect()), $weekStart),
+            ])
+            ->groupBy('section')
+            ->map(fn (Collection $rows) => $this->sum($rows->pluck('row')));
+    }
+
+    /**
+     * The unit KPIs of a set of troopers' rows from {@see trooperAttendance()} — how `forUnit()`
+     * composes its subtree, exposed so a screen holding one subtree's rows (the roster, 2.8) can
+     * total each platoon and section without a query per group or a second definition of the sum.
+     *
+     * @param  Collection<int, TrooperAttendance>  $byTrooper
+     */
+    public function sum(Collection $byTrooper): UnitKpis
+    {
         return new UnitKpis(
             strength: $byTrooper->count(),
             rc30d: $byTrooper->reduce(fn (Ratio $sum, TrooperAttendance $t) => $sum->plus($t->rollcall), new Ratio(0, 0)),
@@ -88,13 +123,23 @@ final class KpiService
     public function trooperAttendance(Unit $unit, CarbonInterface $weekStart): Collection
     {
         $weekStart = WeekOf::requireStart($weekStart);
-        $marks = $this->attendance
-            ->countingMarks($unit, $weekStart->subWeeks(self::WINDOW_WEEKS - 1), $weekStart)
-            ->groupBy(fn (CountingMark $mark) => $mark->trooperId);
+        $marks = $this->marksByTrooper($unit, $weekStart);
 
         return $this->troopers->assignedWithin($unit)->mapWithKeys(fn (int $trooperId) => [
             $trooperId => $this->forTrooper($trooperId, $marks->get($trooperId, collect()), $weekStart),
         ]);
+    }
+
+    /**
+     * The window's counting marks of every trooper assigned within `$unit`, grouped by trooper.
+     *
+     * @return Collection<int, Collection<int, CountingMark>>
+     */
+    private function marksByTrooper(Unit $unit, CarbonImmutable $weekStart): Collection
+    {
+        return $this->attendance
+            ->countingMarks($unit, $weekStart->subWeeks(self::WINDOW_WEEKS - 1), $weekStart)
+            ->groupBy(fn (CountingMark $mark) => $mark->trooperId);
     }
 
     /**

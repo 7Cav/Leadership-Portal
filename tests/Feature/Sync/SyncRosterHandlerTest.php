@@ -105,6 +105,63 @@ it('updates an existing trooper in place rather than duplicating the row', funct
     expect($existing->rank)->toBe('Sergeant');
 });
 
+it('caches each trooper\'s forum identity and short rank, but never their real name', function () {
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT', ['user' => ['userId' => '1204', 'username' => 'Okafor.T']])]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    $trooper = Trooper::where('cav_id', 1)->sole();
+    expect($trooper->billet)->toBe('Rifleman')
+        ->and($trooper->username)->toBe('Okafor.T')
+        ->and($trooper->forum_user_id)->toBe(1204)
+        ->and($trooper->rank_short)->toBe('SGT')
+        ->and($trooper->display_name)->toBe('SGT Okafor.T')
+        ->and(json_encode(Trooper::query()->toBase()->get()))->not->toContain('Adam Jarvis');
+});
+
+it('follows a forum rename on the next sync, overwriting the stale username', function () {
+    $existing = Trooper::factory()->create(['cav_id' => 1, 'username' => 'Vasquez.R', 'forum_user_id' => 3, 'status' => TrooperStatus::Combat]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT', ['user' => ['userId' => '3', 'username' => 'Vasquez-Hale.R']])]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    expect($existing->refresh()->username)->toBe('Vasquez-Hale.R')
+        ->and($existing->forum_user_id)->toBe(3);
+});
+
+it('still syncs and counts a trooper with no forum account linked, nulling a stale identity', function () {
+    $existing = Trooper::factory()->create(['cav_id' => 1, 'username' => 'Gone.X', 'forum_user_id' => 77, 'status' => TrooperStatus::Combat]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => [
+            '1' => srRosterRow('ROSTER_TYPE_COMBAT', ['user' => null]),
+            '2' => srRosterRow('ROSTER_TYPE_COMBAT', ['user' => null]),
+        ]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    $new = Trooper::where('cav_id', 2)->sole();
+    expect($existing->refresh()->username)->toBeNull()
+        ->and($existing->forum_user_id)->toBeNull()
+        ->and($new->username)->toBeNull()
+        ->and($new->display_name)->toBe('SGT #2')
+        ->and(SyncRun::sole()->inserted)->toBe(1)
+        ->and(SyncRun::sole()->updated)->toBe(1)
+        ->and(SyncRun::sole()->errored)->toBe(0);
+});
+
 it('marks a trooper missing from every roster as inactive without deleting the row', function () {
     $departed = Trooper::factory()->create(['cav_id' => 99, 'status' => TrooperStatus::Combat]);
 
@@ -139,7 +196,7 @@ it('does not mark a trooper departed just because their row failed to parse', fu
     // No `user` key: CavRosterEntry::fromPayload treats this as an error envelope and the row
     // is collected in RosterFetchResult::$errors rather than turned into a CavRosterEntry — but
     // cav id 5 is still the roster's own key, so the trooper is known to be present.
-    $stillPresent = Trooper::factory()->create(['cav_id' => 5, 'rank' => 'Sergeant', 'status' => TrooperStatus::Combat]);
+    $stillPresent = Trooper::factory()->create(['cav_id' => 5, 'rank' => 'Sergeant', 'username' => 'Okafor.T', 'status' => TrooperStatus::Combat]);
 
     MockClient::global([
         SR_COMBAT_URL => MockResponse::make(['profiles' => ['5' => ['code' => 1, 'message' => 'unavailable']]]),
@@ -151,7 +208,9 @@ it('does not mark a trooper departed just because their row failed to parse', fu
 
     expect(Trooper::count())->toBe(1)
         ->and($stillPresent->refresh()->status)->toBe(TrooperStatus::Combat)
-        ->and($stillPresent->rank)->toBe('Sergeant');
+        ->and($stillPresent->rank)->toBe('Sergeant')
+        // Unlike the billet, a last-known name confers nothing, so it is kept for display (2.10).
+        ->and($stillPresent->username)->toBe('Okafor.T');
 });
 
 it('aborts before writing anything when the Cav seam fails, leaving the last good cache intact', function () {

@@ -65,6 +65,15 @@ interface UnitRepository
      */
     public function move(Unit $unit, int $newParentId): Unit;
 
+    /**
+     * The subtree rooted at `$unit` as models, itself included, in id order — one `path LIKE`
+     * query (AD-18) for a reader that walks the whole chain under a unit at once (5.8's roll-up)
+     * and rebuilds the tree from `parent_id` rather than asking {@see children()} once per node.
+     *
+     * @return Collection<int, Unit>
+     */
+    public function subtree(Unit $unit): Collection;
+
     public function hasChildren(Unit $unit): bool;
 
     /**
@@ -77,9 +86,27 @@ interface UnitRepository
     public function children(Unit $unit): Collection;
 
     /**
+     * The sections among `$unitIds` — e.g. a user's resolved scope — each with its `parent`
+     * loaded (the platoon a picker groups them under), ordered by `path` so siblings sit together.
+     *
+     * @param  iterable<int>  $unitIds
+     * @return Collection<int, Unit>
+     */
+    public function sectionsAmong(iterable $unitIds): Collection;
+
+    /**
      * The FK on `parent_id` (`restrictOnDelete`) would refuse this at the DB level anyway if
      * children exist, but the CommandHandler layer checks {@see hasChildren()} first so an
      * Admin gets a clear reason instead of a raw constraint-violation exception.
      */
     public function delete(Unit $unit): void;
+
+    /**
+     * Every unit whose 7Cav designation (`callsign`, e.g. `A/1-7`) is exactly `$callsign`, in id
+     * order — a collection, because callsigns are not unique, so a caller resolving one sees an
+     * ambiguous match rather than silently picking a node.
+     *
+     * @return Collection<int, Unit>
+     */
+    public function withCallsign(string $callsign): Collection;
 }

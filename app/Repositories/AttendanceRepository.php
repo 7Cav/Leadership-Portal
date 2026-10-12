@@ -24,6 +24,9 @@ use InvalidArgumentException;
  * that touches only its own columns. Recording one fact can never overwrite the other, and a
  * repeat write updates the one row rather than adding a second counting mark.
  *
+ * Every write here is a real one: it clears `is_demo` on the row it touches, so a leader marking
+ * over generated demo history (#115) turns that row real and a demo purge leaves it alone.
+ *
  * Like `SectionPracticeRepository::findOrCreate()`, each write holds inside an open transaction:
  * a racing insert of the same key is found by a locking re-read and updated rather than crashing
  * on the duplicate key. Locks are still taken, so a caller writing several rows in one
@@ -41,6 +44,17 @@ interface AttendanceRepository
         AttendanceStatus $status,
         AttendanceSource $source,
     ): Attendance;
+
+    /**
+     * Auto-capture's write (7.6): `status = present`, `source = auto` — unless the row already
+     * carries a leader's say, which manual-wins-over-auto (AD-14, AD-22) leaves untouched: a
+     * `manual` mark of any status, or an `loa` mark (derived from LOA data, never overwritten by
+     * capture). The guard is evaluated against a locking read inside this write's own
+     * transaction, so a manual mark landing mid-capture is either seen and kept, or lands after
+     * and overwrites the auto mark. An existing `auto` (or rollcall-only) row is updated in place.
+     * Returns the row written, or null when it was left alone.
+     */
+    public function markPracticeAuto(SectionPractice $practice, int $trooperId): ?Attendance;
 
     /**
      * Record the trooper's signature on the week's rollcall thread. Leaves `status`/`source` as
@@ -72,9 +86,26 @@ interface AttendanceRepository
      * row against any other section's practice is not a counting mark and is left out. Ordered by
      * trooper id, then week. One query, however large the subtree.
      *
+     * `$includeDeparted` widens the population to departed (`inactive`) troopers still placed in
+     * the subtree, so the roster (2.8) can show a departed trooper's history. The KPI service
+     * never passes it: departed troopers are not measured (AD-21).
+     *
      * @return Collection<int, CountingMark>
      *
      * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
      */
-    public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection;
+    public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection;
+
+    /**
+     * Where each of `$sectionIds` stands for the week `$weekStart` (the home step matrix, AD-14):
+     * troopers assigned, rollcalls signed, practice marks recorded and whether the practice was
+     * held. Keyed by section id; a section with no assigned trooper is absent. A section with no
+     * practice row yet counts as nothing signed or marked. One query, however many sections.
+     *
+     * @param  list<int>  $sectionIds
+     * @return Collection<int, SectionWeekProgress>
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function weekProgress(array $sectionIds, CarbonInterface $weekStart): Collection;
 }

@@ -12,9 +12,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { Toaster } from '@/components/ui/sonner';
 import { useTheme } from '@/composables/useTheme';
 import { useViewAs } from '@/composables/useViewAs';
 import { locate } from './navigation';
+import 'vue-sonner/style.css';
 import AppSidebar from './partials/AppSidebar.vue';
 import ViewAsBanner from './partials/ViewAsBanner.vue';
 import ViewAsPicker from './partials/ViewAsPicker.vue';
@@ -110,4 +112,8 @@ onMounted(syncFromDocument);
     </SidebarProvider>
 
     <ViewAsPicker />
+
+    <!-- The one toast region for every page, following the theme toggle: a page calls vue-sonner's
+         `toast()`, never mounts its own. -->
+    <Toaster :theme="theme" position="bottom-right" close-button />
 </template>

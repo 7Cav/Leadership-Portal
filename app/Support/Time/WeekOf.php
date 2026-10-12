@@ -31,6 +31,31 @@ final class WeekOf
     }
 
     /**
+     * The week whose report cycle is running at `$now`. A week's report falls due at 23:59Z on the
+     * Saturday after it ends — day one of the next week — so until that deadline passes the
+     * closing week is still the current one, not the fresh week that would hide a report due in a
+     * few hours.
+     */
+    public static function reporting(DateTimeInterface $now): CarbonImmutable
+    {
+        $moment = CarbonImmutable::instance($now)->utc();
+        $weekStart = self::start($moment);
+
+        return $moment->lessThan(self::reportDue($weekStart->subWeek())) ? $weekStart->subWeek() : $weekStart;
+    }
+
+    /**
+     * When the report for the week opening at `$weekStart` falls due: 23:59Z on the Saturday after
+     * the week ends.
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public static function reportDue(CarbonInterface $weekStart): CarbonImmutable
+    {
+        return self::requireStart($weekStart)->addWeek()->setTime(23, 59);
+    }
+
+    /**
      * `$weekStart` itself, as its UTC instant, when it already is a week boundary — the guard for
      * a caller *handed* a `week_start` rather than deriving one. Validates rather than derives, so
      * a wrong date is refused instead of silently snapped to some other week.
