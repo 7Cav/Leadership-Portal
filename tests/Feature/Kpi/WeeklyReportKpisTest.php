@@ -77,8 +77,17 @@ it('ignores a sent report two weeks back — the delta is week over week', funct
     expect($this->snapshots->snapshot($this->section, $this->week)->delta)->toBeNull();
 });
 
-it('refuses a non-leaf unit until the roll-up of its children\'s sent snapshots lands (5.7)', function () {
-    $this->snapshots->snapshot($this->platoon, $this->week);
+it('rolls a non-leaf unit up from its children\'s sent snapshots, naming the children that have not sent (5.7)', function () {
+    $snapshot = $this->snapshots->snapshot($this->platoon, $this->week);
+
+    expect($snapshot->kpis)->toEqual(UnitKpis::none()) // the section's live numbers are never substituted
+        ->and($snapshot->missingChildren)->toBe([$this->section->id]);
+});
+
+it('refuses a non-leaf unit with no children to roll up', function () {
+    $company = app(UnitRepository::class)->create(UnitType::Company, 'A Company', 'A/1-7', null);
+
+    $this->snapshots->snapshot($company, $this->week);
 })->throws(ReportKpisUnavailableException::class);
 
 it('refuses a week_start that is not a Saturday 00:00 UTC', function () {

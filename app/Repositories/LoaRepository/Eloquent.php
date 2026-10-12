@@ -50,8 +50,17 @@ class Eloquent implements LoaRepository
             $created = 0;
             $updated = 0;
 
+            // One read for every row this run touches, not one per thread; only a row that changed is written.
+            $existing = [];
+
+            foreach (array_chunk(array_map(fn ($write) => $write->forumThreadId, $writes), 500) as $threadIds) {
+                foreach (Loa::query()->whereIn('forum_thread_id', $threadIds)->get() as $row) {
+                    $existing[$row->forum_thread_id] = $row;
+                }
+            }
+
             foreach ($writes as $write) {
-                $loa = Loa::query()->where('forum_thread_id', $write->forumThreadId)->first();
+                $loa = $existing[$write->forumThreadId] ?? null;
                 $isNew = $loa === null;
                 $loa ??= new Loa;
 
