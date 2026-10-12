@@ -185,6 +185,10 @@ it('raises a typed failure for every way BattleMetrics can be unavailable', func
     'no data list' => [['meta' => 1], 200, 'malformed'],
     'session without player' => [['data' => [['attributes' => ['start' => '2026-10-10T19:10:00Z', 'stop' => null]]]], 200, 'malformed'],
     'session without start' => [['data' => [['attributes' => ['stop' => null], 'relationships' => ['player' => ['data' => ['id' => '1']]]]]], 200, 'malformed'],
+    'session not an object' => [['data' => ['x']], 200, 'malformed'],
+    'session without attributes' => [['data' => [['relationships' => []]]], 200, 'malformed'],
+    'unparseable start' => [['data' => [['attributes' => ['start' => 'garbage', 'stop' => null], 'relationships' => ['player' => ['data' => ['id' => '1']]]]]], 200, 'malformed'],
+    'links not an object' => [['data' => [], 'links' => 'x'], 200, 'malformed'],
     'unparseable stop' => [['data' => [['attributes' => ['start' => '2026-10-10T19:10:00Z', 'stop' => 'garbage'], 'relationships' => ['player' => ['data' => ['id' => '1']]]]]], 200, 'malformed'],
 ]);
 
@@ -236,4 +240,38 @@ it('resolves from the container with the battlemetrics config', function () {
 
     expect(app(BattleMetricsApi::class))->toBe(app(BattleMetricsApi::class))
         ->and(app(BattleMetricsApi::class)->fetchPresence($start, $end)->players)->toBe([]);
+});
+
+it('fails rather than return a partial list when paging never ends', function () {
+    $mock = MockClient::global([BM_URL => bmBody([], [], 'https://bm.test/servers/42/relationships/sessions?page%5Boffset%5D=1')]);
+
+    [$start, $end] = bmWindow();
+
+    try {
+        bm()->fetchPresence($start, $end);
+        $this->fail('Expected a BattleMetricsUnavailable.');
+    } catch (BattleMetricsUnavailable $e) {
+        expect($e->reason)->toBe(BattleMetricsFailureReason::Malformed);
+    }
+
+    $mock->assertSentCount(50);
+});
+
+it('queries the window in UTC and treats the window edges as inclusive', function () {
+    $mock = MockClient::global([BM_URL => bmBody([
+        bmSession('1', 'EndsAtStart', '2026-10-10T18:00:00Z', '2026-10-10T19:00:00Z'),
+        bmSession('2', 'StartsAtEnd', '2026-10-10T21:00:00Z', '2026-10-10T22:00:00Z'),
+    ])]);
+
+    $start = new DateTimeImmutable('2026-10-10 21:00:00', new DateTimeZone('Europe/Brussels'));
+    $end = new DateTimeImmutable('2026-10-10 23:00:00', new DateTimeZone('Europe/Brussels'));
+    $ids = array_map(fn ($p) => $p->platformId, bm()->fetchPresence($start, $end)->players);
+
+    expect($ids)->toBe(['1', '2']);
+    $mock->assertSent(function (Request $request, Response $response) {
+        $query = $response->getPendingRequest()->query()->all();
+
+        return $query['start'] === '2026-10-10T19:00:00Z' && $query['stop'] === '2026-10-10T21:00:00Z'
+            && $query['include'] === 'identifier' && $query['page[size]'] === 100;
+    });
 });
