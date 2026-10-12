@@ -27,8 +27,9 @@ Everything the portal needs to *read* about leave lives here, so no screen re-de
 
 **May depend on:** `Repositories/` (the facts, never the DB directly, AD-2), `Models/`,
 `Support/Time/` (the week window, AD-11).
-**Reached from:** the screens that show leave. Read-only: the LOA sync (`Sync/SyncLoasHandler`) is the one
+**Reached from:** the screens that show leave, and `Kpi/`. Read-only: the LOA sync (`Sync/SyncLoasHandler`) is the one
 writer of `loas` and `sync_runs`.
 
-The KPI service's `on_loa` and LOA-excluded denominators still read `attendance.status = loa`
-(`KpiService::isLoaCovered()`); Epic 5 swaps that predicate for `LoaCoverage` so both agree.
+`forTroopersOverWeeks($ids, $firstWeek, $weeks)` resolves a window the same way, in one query. The KPI service
+(`Kpi/KpiService`, 4.8) reads its trailing four weeks from it for `on_loa`, the LOA-excluded denominators
+and at-risk, so the badge and the KPIs share one definition.

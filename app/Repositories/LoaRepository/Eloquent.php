@@ -29,19 +29,20 @@ class Eloquent implements LoaRepository
             ->get();
     }
 
-    public function touchingWeek(array $trooperIds, CarbonImmutable $weekStart): Collection
+    public function touchingWeeks(array $trooperIds, CarbonImmutable $firstWeekStart, int $weeks): Collection
     {
-        if ($trooperIds === []) {
+        if ($trooperIds === [] || $weeks < 1) {
             return new Collection;
         }
 
-        $week = WeekOf::requireStart($weekStart);
-        $firstDay = $week->toDateString();
-        $nextWeek = WeekOf::next($week);
+        $first = WeekOf::requireStart($firstWeekStart);
+        $firstDay = $first->toDateString();
+        $nextWeek = WeekOf::next($first, $weeks);
         $nextDay = $nextWeek->toDateString();
-        // An undated row shields the Cav week it was posted in and the one after: it touches this week when
-        // it was posted from the start of last week up to the start of next week.
-        $postedFrom = WeekOf::previous($week);
+        // An undated row shields the Cav week it was posted in and the one after: it can touch the range when
+        // it was posted from the start of the week before the range up to the range's end. The resolver then
+        // places it week by week.
+        $postedFrom = WeekOf::previous($first);
 
         return Loa::query()
             ->whereIn('trooper_id', $trooperIds)

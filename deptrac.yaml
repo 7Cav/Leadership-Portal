@@ -12,7 +12,7 @@
 # The graph (arrows = "may depend on"):
 #   Controller     → CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi  # writes via Commands; reads direct
 #   CommandHandler → Repository, Model, Integration, Support\Audit, Authorization, Support\Time, Kpi  # write-side business logic
-#   Kpi            → Repository, Model, Support\Time       # the one shared KPI service (AD-21)
+#   Kpi            → Repository, Model, Support\Time, Loa  # the one shared KPI service (AD-21)
 #   Loa            → Repository, Model, Support\Time       # LOA source/staleness reader and week coverage (Epic 4)
 #   Job            → Sync, CommandHandler                  # queued jobs invoke a Sync handler (Story 2.4) or a capture Command (Story 7.5)
 #   Sync           → Repository, Model, Integration        # one-writer cache sync handlers (AD-4)
@@ -144,6 +144,8 @@ deptrac:
       - Repository
       - Model
       - Support\Time
+      # LOA coverage is read from its one definition, never re-derived (AD-21, Story 4.8).
+      - Loa
     # LOA reads over the `sync_runs` cache (Epic 4): the source/last-sync every LOA value renders with
     # (4.3, AD-20) and whether a trooper is covered in a Cav week (4.4, AD-21). Read-only; the LOA sync
     # stays the one writer. Support\Time because coverage is judged in whole Cav weeks (`WeekOf`, AD-11).
