@@ -15,6 +15,7 @@ use App\Models\Unit;
 use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Models\WeeklyReport;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 
@@ -321,4 +322,20 @@ it('gives a user with no sections in scope an empty picker', function () {
 
 it('requires authentication', function () {
     $this->get('/rollcall')->assertRedirect(route('login'));
+});
+
+it('marks the week locked only when the section\'s real report for that week has been sent (AD-12)', function () {
+    rollcallTrooper($this->section);
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->week]);
+    WeeklyReport::factory()->create(['unit_id' => $this->section->id, 'week_start' => $this->week->subWeek()]);
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->week->subWeeks(2), 'is_demo' => true]);
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->sibling->id, 'week_start' => $this->week->subWeeks(3)]);
+    $locked = fn (string $week, bool $expected) => $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}?week={$week}")
+        ->assertOk()->assertInertia(fn ($page) => $page->where('locked', $expected));
+
+    $locked('2026-10-03', true);   // sent
+    $locked('2026-09-26', false);  // a draft
+    $locked('2026-09-19', false);  // a demo sent report (#115)
+    $locked('2026-09-12', false);  // another section's sent report
+    $locked('2026-09-05', false);  // no report at all
 });

@@ -11,6 +11,7 @@ use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Models\WeeklyReport;
 use App\Repositories\AttendanceRepository;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -251,4 +252,56 @@ it('refuses every rollcall write during a view-as preview, and the page sees the
     $this->actingAs($admin)->postJson("/rollcall/{$this->section->id}/posted", ['week' => '2026-10-03'])->assertForbidden();
 
     expect(SectionPractice::query()->count())->toBe(0);
+});
+
+// AD-12: once the section's weekly report for a week is sent, that week's rollcall is locked.
+
+it('refuses any save for a week whose report has been sent, with a 409 the screen stops retrying, writing nothing', function (Closure $marks) {
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->week]);
+
+    saveRollcall($this->leader, $this->section->id, $marks($this->trooper))
+        ->assertStatus(409)
+        ->assertExactJson(['message' => 'The report for this week has been sent, so its rollcall is locked.', 'locked' => true]);
+
+    expect(SectionPractice::query()->count())->toBe(0)
+        ->and(Attendance::query()->count())->toBe(0)
+        ->and(AuditLogEntry::query()->count())->toBe(0);
+})->with([
+    'a practice mark' => [fn ($trooper) => [['trooper_id' => $trooper->id, 'status' => 'present']]],
+    'a signature only' => [fn ($trooper) => [['trooper_id' => $trooper->id, 'rollcall' => 'will_attend']]],
+    'an empty batch' => [fn () => []],
+]);
+
+it('keeps an unsent past week editable, with a draft report or with none', function (bool $draft) {
+    if ($draft) {
+        WeeklyReport::factory()->create(['unit_id' => $this->section->id, 'week_start' => $this->week->subWeeks(2)]);
+    }
+
+    saveRollcall($this->leader, $this->section->id, [['trooper_id' => $this->trooper->id, 'status' => 'present']], '2026-09-19')->assertOk();
+
+    expect(SectionPractice::query()->sole()->week_start->toDateString())->toBe('2026-09-19');
+})->with(['a draft report' => [true], 'no report' => [false]]);
+
+it('keeps a week open whose only sent report is a generated demo report (#115)', function () {
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->week, 'is_demo' => true]);
+
+    saveRollcall($this->leader, $this->section->id, [['trooper_id' => $this->trooper->id, 'status' => 'present']])->assertOk();
+
+    expect(Attendance::query()->count())->toBe(1);
+});
+
+it('locks only the sent unit-week: another section\'s sent report, or another week\'s, leaves this one open', function () {
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->sibling->id, 'week_start' => $this->week]);
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->week->subWeek()]);
+
+    saveRollcall($this->leader, $this->section->id, [['trooper_id' => $this->trooper->id, 'status' => 'present']])->assertOk();
+
+    expect(Attendance::query()->count())->toBe(1);
+});
+
+it('still lets a locked week\'s rollcall be marked posted', function () {
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->week]);
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted", ['week' => '2026-10-03'])
+        ->assertOk()->assertJsonPath('posted.by', $this->leader->username);
 });
