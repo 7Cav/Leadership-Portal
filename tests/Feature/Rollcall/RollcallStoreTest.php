@@ -189,6 +189,11 @@ it('still answers saved when only the at-risk refresh fails, so the screen never
         {
             throw new RuntimeException('kpi read failed');
         }
+
+        public function weekProgress(array $sectionIds, CarbonInterface $weekStart): Collection
+        {
+            return $this->inner->weekProgress($sectionIds, $weekStart);
+        }
     });
 
     saveRollcall($this->leader, $this->section->id, [['trooper_id' => $this->trooper->id, 'status' => 'present']])

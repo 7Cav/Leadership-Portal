@@ -137,6 +137,15 @@ interface TrooperRepository
     public function find(int $id): ?Trooper;
 
     /**
+     * The troopers with these ids, keyed by id; an unknown id is simply absent. One query, for a
+     * worklist that names a few troopers out of a whole roster (5.10).
+     *
+     * @param  list<int>  $ids
+     * @return Collection<int, Trooper>
+     */
+    public function byIds(array $ids): Collection;
+
+    /**
      * The troopers currently placed in the section — `primary_section_id` is the section, not
      * inactive (LOA still counts) — in id order. The cache holds only the current placement, so this is
      * "placed now": a trooper appears in exactly one section's list (AD-14).

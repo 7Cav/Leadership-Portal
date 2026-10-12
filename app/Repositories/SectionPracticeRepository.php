@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Models\SectionPractice;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
 use InvalidArgumentException;
 
 /**
@@ -49,5 +50,16 @@ interface SectionPracticeRepository
      * now, `rollcall_posted_by` = `$userId`, overwriting any earlier mark — the latest post wins.
      * Returns the row with `rollcallPostedBy` loaded. Callers route it through the audit envelope.
      */
+    /**
+     * The week's practice rows of `$sectionIds`, keyed by section id; a section with none yet is
+     * absent. One query, however many sections. Never creates a row.
+     *
+     * @param  list<int>  $sectionIds
+     * @return Collection<int, SectionPractice>
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function forSections(array $sectionIds, CarbonInterface $weekStart): Collection;
+
     public function markRollcallPosted(SectionPractice $practice, int $userId): SectionPractice;
 }

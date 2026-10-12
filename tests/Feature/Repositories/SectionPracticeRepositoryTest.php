@@ -132,3 +132,18 @@ it('stamps a practice posted by a user, overwriting an earlier stamp, and find()
     expect($found->relationLoaded('rollcallPostedBy'))->toBeTrue()
         ->and($found->rollcallPostedBy->id)->toBe($second->id);
 });
+
+it('finds the week\'s practices of several sections keyed by section, leaving out sections and weeks without one', function () {
+    [$a, $b, $c] = Unit::factory()->count(3)->create(['type' => UnitType::Section]);
+    $week = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');
+    $repo = app(SectionPracticeRepository::class);
+    $practiceA = $repo->findOrCreate($a->id, $week);
+    $repo->findOrCreate($a->id, $week->subWeek());
+    $repo->findOrCreate($b->id, $week->subWeek());
+
+    $found = $repo->forSections([$a->id, $b->id, $c->id], $week);
+
+    expect($found->keys()->all())->toBe([$a->id])
+        ->and($found->get($a->id)->id)->toBe($practiceA->id)
+        ->and($repo->forSections([], $week))->toBeEmpty();
+});

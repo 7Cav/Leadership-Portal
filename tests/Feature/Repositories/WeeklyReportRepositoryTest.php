@@ -318,3 +318,31 @@ it('lists a unit\'s earlier sent reports newest first, with their sender, skippi
         ->and($history->first()->relationLoaded('sender'))->toBeTrue()
         ->and($history->first()->sender->id)->toBe($sender->id);
 });
+
+it('lists the sent reports of several units across a week range, oldest first, never drafts or other units', function () {
+    [$a, $b, $other] = Unit::factory()->count(3)->create();
+    $sender = User::factory()->create();
+    $week = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');
+    $repo = app(WeeklyReportRepository::class);
+
+    $repo->send($a->id, $week->subWeeks(2), [], null, $sender->id, 'd', null);
+    $repo->send($b->id, $week->subWeeks(2), [], null, $sender->id, 'd', null);
+    $repo->send($a->id, $week->subWeek(), [], null, $sender->id, 'd', null);
+    $repo->saveDraft($b->id, $week->subWeek(), [], null);
+    $repo->send($a->id, $week->subWeeks(6), [], null, $sender->id, 'd', null); // before the range
+    $repo->send($a->id, $week, [], null, $sender->id, 'd', null); // after it
+    $repo->send($other->id, $week->subWeek(), [], null, $sender->id, 'd', null);
+
+    $rows = $repo->sentWithin([$a->id, $b->id], $week->subWeeks(3), $week->subWeek());
+
+    expect($rows->map(fn (WeeklyReport $r) => "{$r->week_start->toDateString()}:{$r->unit_id}")->all())
+        ->toBe(["2026-09-19:{$a->id}", "2026-09-19:{$b->id}", "2026-09-26:{$a->id}"])
+        ->and($repo->sentWithin([], $week->subWeeks(3), $week->subWeek()))->toBeEmpty();
+});
+
+it('refuses a range that is not on week boundaries', function () {
+    $week = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');
+
+    expect(fn () => app(WeeklyReportRepository::class)->sentWithin([1], $week->addDay(), $week))
+        ->toThrow(InvalidArgumentException::class);
+});

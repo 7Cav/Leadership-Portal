@@ -84,4 +84,17 @@ interface AttendanceRepository
      * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
      */
     public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection;
+
+    /**
+     * Where each of `$sectionIds` stands for the week `$weekStart` (the home step matrix, AD-14):
+     * troopers assigned, rollcalls signed, practice marks recorded and whether the practice was
+     * held. Keyed by section id; a section with no assigned trooper is absent. A section with no
+     * practice row yet counts as nothing signed or marked. One query, however many sections.
+     *
+     * @param  list<int>  $sectionIds
+     * @return Collection<int, SectionWeekProgress>
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function weekProgress(array $sectionIds, CarbonInterface $weekStart): Collection;
 }

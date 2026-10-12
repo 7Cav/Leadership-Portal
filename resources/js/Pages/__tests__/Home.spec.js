@@ -93,20 +93,20 @@ describe('Home page', () => {
     });
 
     describe('weekly-cycle areas without data yet', () => {
-        it('renders the step lanes, inbox, section progress and trends as empty states', () => {
+        it('renders the step lanes, worklist, section progress and KPIs as empty states', () => {
             const text = factory().text();
 
             expect(text).toContain('Step tracking starts with rollcalls');
-            expect(text).toContain('Nothing needs you yet');
+            expect(text).toContain('Needs attention');
             expect(text).toContain('No sections reporting yet');
-            expect(text).toContain('Trends need a few weeks of attendance');
+            expect(text).toContain('No units in your scope yet');
         });
 
         it('shows no invented figures: the only numbers on the page are dates and the countdown', () => {
             const wrapper = factory();
             const emptyStates = wrapper.findAll('[data-slot="empty-state"]');
 
-            expect(emptyStates).toHaveLength(4);
+            expect(emptyStates).toHaveLength(5);
             for (const state of emptyStates) {
                 expect(state.text()).not.toMatch(/\d/);
             }
@@ -120,6 +120,25 @@ describe('Home page', () => {
     });
 
     // Story 1.7: a Cav outage must never look like silence (AD-20/NFR8).
+    describe('KPI tiles (Story 5.9)', () => {
+        const kpis = {
+            current: { strength: 7, rc: { numerator: 9, denominator: 12 }, sp: { numerator: 0, denominator: 0 }, atRisk: 1, onLoa: 0, makeups: 2 },
+            history: [{ week: '2026-09-26', kpis: null }],
+            roster: { source: 'milpac', syncedAt: null, state: 'never' },
+        };
+
+        it('renders the tiles and worklist instead of the empty states when the viewer has a scope', () => {
+            const attention = { items: [], totals: { holding: 0, atRisk: 0 } };
+            const units = [{ id: 1, designation: '1/A/1-7', name: '1st Platoon', type: 'platoon', status: 'sent', holding: false, live: false, coverage: null, href: '/reports/1/2026-10-03', kpis: { strength: 7, rc: { numerator: 9, denominator: 12 }, sp: { numerator: 0, denominator: 0 }, atRisk: 1, onLoa: 0, makeups: 2 } }];
+            const wrapper = mount(Home, { props: { week: WEEK, kpis, attention, units, steps: [] } });
+
+            expect(wrapper.find('[data-testid="kpi-tiles"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="all-clear"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="subordinate-units"] tbody tr').exists()).toBe(true);
+            expect(wrapper.text()).not.toContain('No units in your scope yet');
+        });
+    });
+
     describe('degraded roster enrichment', () => {
         it('shows no warning when enrichment succeeded or never ran degraded (AC #2)', () => {
             expect(factory(null).find('[role="alert"]').exists()).toBe(false);

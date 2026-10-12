@@ -127,6 +127,11 @@ class Eloquent implements TrooperRepository
         return Trooper::query()->find($id);
     }
 
+    public function byIds(array $ids): Collection
+    {
+        return $ids === [] ? collect() : Trooper::query()->whereIn('id', $ids)->get()->keyBy('id')->toBase();
+    }
+
     public function placedIn(int $sectionId): EloquentCollection
     {
         return Trooper::query()

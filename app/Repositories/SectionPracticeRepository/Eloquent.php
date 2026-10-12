@@ -9,6 +9,7 @@ use App\Repositories\SectionPracticeRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Collection;
 use InvalidArgumentException;
 
 class Eloquent implements SectionPracticeRepository
@@ -49,6 +50,22 @@ class Eloquent implements SectionPracticeRepository
             ->where('section_id', $sectionId)
             ->where('week_start', WeekOf::requireStart($weekStart))
             ->first();
+    }
+
+    public function forSections(array $sectionIds, CarbonInterface $weekStart): Collection
+    {
+        $weekStart = WeekOf::requireStart($weekStart);
+
+        if ($sectionIds === []) {
+            return collect();
+        }
+
+        return SectionPractice::query()
+            ->whereIn('section_id', $sectionIds)
+            ->where('week_start', $weekStart)
+            ->get()
+            ->keyBy('section_id')
+            ->toBase();
     }
 
     public function markRollcallPosted(SectionPractice $practice, int $userId): SectionPractice
