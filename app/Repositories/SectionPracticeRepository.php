@@ -62,4 +62,16 @@ interface SectionPracticeRepository
     public function forSections(array $sectionIds, CarbonInterface $weekStart): Collection;
 
     public function markRollcallPosted(SectionPractice $practice, int $userId): SectionPractice;
+
+    /**
+     * The practice row with this id, or null — the capture run's lookup (7.5). Never creates.
+     */
+    public function findById(int $id): ?SectionPractice;
+
+    /**
+     * Stamp the practice with where a capture read from and when (7.5, AD-19): `server_ref`,
+     * `captured_at` and `capture_source`. Re-stamping overwrites — a re-run is idempotent on the
+     * same row. The caller routes it through the audit envelope where an actor exists.
+     */
+    public function stampCapture(SectionPractice $practice, string $serverRef, \DateTimeInterface $capturedAt, string $captureSource): SectionPractice;
 }

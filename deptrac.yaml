@@ -13,7 +13,7 @@
 #   Controller     → CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi  # writes via Commands; reads direct
 #   CommandHandler → Repository, Model, Integration, Support\Audit, Authorization, Support\Time, Kpi  # write-side business logic
 #   Kpi            → Repository, Model, Support\Time       # the one shared KPI service (AD-21)
-#   Job            → Sync                                  # queued jobs invoke a Sync handler (Story 2.4)
+#   Job            → Sync, CommandHandler                  # queued jobs invoke a Sync handler (Story 2.4) or a capture Command (Story 7.5)
 #   Sync           → Repository, Model, Integration        # one-writer cache sync handlers (AD-4)
 #   Authorization  → Repository, Model                     # ScopeResolver, the single scope gate (AD-8)
 #   Support\Audit  → Repository                             # audited-action envelope (AD-16)
@@ -150,6 +150,8 @@ deptrac:
     # off the request path (AD-23). No DB/external access of its own.
     Job:
       - Sync
+      # The capture run (7.5) is a Command, queued per AD-23: the job only invokes its handler.
+      - CommandHandler
     # Reaches AuditLogRepository to write the audit_log row — the one place outside
     # Repositories/ that needs a DB-writing path, so it goes through the Repository layer
     # rather than touching DB itself (AD-2 unchanged).
