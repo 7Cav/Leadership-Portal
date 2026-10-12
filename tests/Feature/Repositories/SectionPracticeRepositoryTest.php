@@ -3,6 +3,7 @@
 use App\Models\SectionPractice;
 use App\Models\Unit;
 use App\Models\UnitType;
+use App\Models\User;
 use App\Repositories\SectionPracticeRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -113,4 +114,36 @@ it('finds the existing practice row when called inside an already-open transacti
 
     expect($found->id)->toBe($existing->id)
         ->and(SectionPractice::query()->count())->toBe(1);
+});
+
+it('stamps a practice posted by a user, overwriting an earlier stamp, and find() loads who (3.10)', function () {
+    $repo = app(SectionPracticeRepository::class);
+    $practice = $repo->findOrCreate($this->section->id, $this->saturday);
+    $first = User::factory()->create();
+    $second = User::factory()->create();
+
+    $repo->markRollcallPosted($practice, $first->id);
+    $stamped = $repo->markRollcallPosted($practice, $second->id);
+
+    expect($stamped->rollcall_posted_by)->toBe($second->id)
+        ->and($stamped->rollcall_posted_at)->not->toBeNull();
+
+    $found = $repo->find($this->section->id, $this->saturday);
+    expect($found->relationLoaded('rollcallPostedBy'))->toBeTrue()
+        ->and($found->rollcallPostedBy->id)->toBe($second->id);
+});
+
+it('finds the week\'s practices of several sections keyed by section, leaving out sections and weeks without one', function () {
+    [$a, $b, $c] = Unit::factory()->count(3)->create(['type' => UnitType::Section]);
+    $week = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');
+    $repo = app(SectionPracticeRepository::class);
+    $practiceA = $repo->findOrCreate($a->id, $week);
+    $repo->findOrCreate($a->id, $week->subWeek());
+    $repo->findOrCreate($b->id, $week->subWeek());
+
+    $found = $repo->forSections([$a->id, $b->id, $c->id], $week);
+
+    expect($found->keys()->all())->toBe([$a->id])
+        ->and($found->get($a->id)->id)->toBe($practiceA->id)
+        ->and($repo->forSections([], $week))->toBeEmpty();
 });

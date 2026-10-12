@@ -13,9 +13,10 @@ interface SyncRunRepository
     /**
      * Open a run: `status = in_progress`, `started_at = now()`. The caller closes it with
      * {@see complete()} on success or {@see fail()} on a thrown error — a run left `in_progress`
-     * is itself evidence of a crash that never reached either.
+     * is itself evidence of a crash that never reached either. A capture run (7.5) names the
+     * practice it runs for in `$sectionPracticeId` (7.9).
      */
-    public function open(string $source, int|string $triggeredBy): SyncRun;
+    public function open(string $source, int|string $triggeredBy, ?int $sectionPracticeId = null): SyncRun;
 
     /**
      * Close a run that finished processing. `errored > 0` means some rows were bad but the run
@@ -40,4 +41,20 @@ interface SyncRunRepository
      * second-precision `created_at` column.
      */
     public function latestSuccessful(string $source): ?SyncRun;
+
+    /**
+     * The most recent *closed* run for a source, whatever its outcome — the roster view (2.8)
+     * compares it with {@see latestSuccessful()} to flag a cache whose last attempt failed or
+     * was partial (AD-4: the last good cache is shown, visibly stale). A run still
+     * `in_progress` has no outcome yet and is skipped. Same `id` tiebreaker.
+     */
+    public function latestFinished(string $source): ?SyncRun;
+
+    /**
+     * The most recent *closed* run of `$source` for one practice, whatever its outcome — the rollcall
+     * screen's "last tried" and failed state for a practice's capture (7.9, AD-20). A run still
+     * `in_progress` (or left so by a crash) has no outcome and is skipped, so a retry in flight does
+     * not hide the earlier failure. Newest start first, `id` as the tiebreaker.
+     */
+    public function latestForPractice(string $source, int $sectionPracticeId): ?SyncRun;
 }
