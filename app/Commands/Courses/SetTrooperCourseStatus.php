@@ -5,7 +5,9 @@ namespace App\Commands\Courses;
 use App\Models\CourseStatus;
 use App\Models\TrooperCourse;
 use App\Models\User;
+use App\Repositories\CourseRepository;
 use App\Repositories\TrooperCourseRepository;
+use App\Repositories\TrooperRepository;
 use App\Support\Audit\AuditEnvelope;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -27,8 +29,10 @@ use InvalidArgumentException;
  * `in_progress` never keeps the date they once qualified, and one qualified without a date has none rather
  * than a guess. A date that has not happened yet is refused, since a trooper cannot have qualified on it.
  *
- * Setting the status a row already has is recorded like any other change. Two first-time sets for the same
- * trooper and course at once cannot both create the row: the second meets the UNIQUE constraint and throws.
+ * Setting the status a row already has is recorded like any other change. The write is one atomic upsert on
+ * the trooper and course, so two first-time sets at once (two admins, a double click) both succeed and the
+ * last one wins, rather than the loser hitting the UNIQUE constraint. A trooper or course id that does not
+ * exist is refused up front with a {@see CourseTargetNotFoundException}, not left to a foreign-key error.
  */
 class SetTrooperCourseStatus
 {
@@ -36,11 +40,14 @@ class SetTrooperCourseStatus
 
     public function __construct(
         private readonly TrooperCourseRepository $trooperCourses,
+        private readonly TrooperRepository $troopers,
+        private readonly CourseRepository $courses,
         private readonly AuditEnvelope $audit,
     ) {}
 
     /**
      * @throws CourseWriteForbiddenException when the actor is not an Admin.
+     * @throws CourseTargetNotFoundException when the trooper or the course does not exist.
      * @throws InvalidArgumentException when the award date is in the future, or the reason is too long.
      */
     public function handle(
@@ -55,12 +62,24 @@ class SetTrooperCourseStatus
             throw CourseWriteForbiddenException::setTrooperCourseStatus();
         }
 
+        if ($this->troopers->find($trooperId) === null) {
+            throw CourseTargetNotFoundException::trooper($trooperId);
+        }
+
+        if ($this->courses->find($courseId) === null) {
+            throw CourseTargetNotFoundException::course($courseId);
+        }
+
+        // A blank reason is no reason: store null, never an empty string that reads as one.
+        $reason = $reason === null || trim($reason) === '' ? null : trim($reason);
+
         if ($reason !== null && mb_strlen($reason) > self::MAX_REASON_LENGTH) {
             throw new InvalidArgumentException('A reason may be at most '.self::MAX_REASON_LENGTH.' characters.');
         }
 
         $awardedAt = $status->holds() && $awardedAt !== null ? CarbonImmutable::instance($awardedAt)->startOfDay() : null;
 
+        // Deliberately the UTC day (AD-11): admins in US time zones are never blocked by it. Do not switch to local time.
         if ($awardedAt !== null && $awardedAt->toDateString() > CarbonImmutable::now('UTC')->toDateString()) {
             throw new InvalidArgumentException('A course cannot be awarded on a date that has not happened yet.');
         }
@@ -70,13 +89,7 @@ class SetTrooperCourseStatus
             action: 'trooper_course.status_set',
             reason: $reason,
             reasonRequired: false,
-            mutation: function () use ($trooperId, $courseId, $status, $awardedAt, $actor) {
-                $existing = $this->trooperCourses->find($trooperId, $courseId);
-
-                return $existing === null
-                    ? $this->trooperCourses->create($trooperId, $courseId, $status, $awardedAt, $actor->id)
-                    : $this->trooperCourses->update($existing, $status, $awardedAt, $actor->id);
-            },
+            mutation: fn () => $this->trooperCourses->set($trooperId, $courseId, $status, $awardedAt, $actor->id),
         );
     }
 }

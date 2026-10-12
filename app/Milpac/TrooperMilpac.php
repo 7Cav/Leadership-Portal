@@ -18,20 +18,19 @@ use Carbon\CarbonImmutable;
  */
 final class TrooperMilpac
 {
-    /** The Cav milpac page for a trooper, keyed by their milpac id. */
-    public const MILPAC_PROFILE_URL = 'https://7cav.us/rosters/profile?uniqueid=';
-
     public function __construct(
         private readonly UnitRepository $units,
         private readonly SyncRunRepository $syncRuns,
     ) {}
 
     /**
-     * @return array{trooper: array<string, mixed>, sync: array<string, mixed>}
+     * @return array{crumb: string, trooper: array<string, mixed>, sync: array<string, mixed>}
      */
     public function for(Trooper $trooper): array
     {
         return [
+            // The page's last breadcrumb crumb (the shell reads `crumb` for a page nested under a nav item).
+            'crumb' => $trooper->display_name,
             'trooper' => $this->idBlock($trooper),
             'sync' => $this->sync(),
         ];
@@ -48,6 +47,7 @@ final class TrooperMilpac
     {
         $section = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
         $today = CarbonImmutable::now('UTC');
+        $departed = $trooper->status === TrooperStatus::Inactive;
 
         return [
             'id' => $trooper->id,
@@ -59,13 +59,15 @@ final class TrooperMilpac
             'billet' => $trooper->billet,
             'mos' => $trooper->mos,
             'status' => $trooper->status->value,
-            'departed' => $trooper->status === TrooperStatus::Inactive,
+            'departed' => $departed,
             'tis' => $trooper->tis?->toDateString(),
-            'tisMonths' => $this->monthsSince($trooper->tis?->toDateString(), $today),
+            // The roster records no departure date, so a departed trooper's tenure to today would be wrong
+            // and ever-growing: leave it unknown rather than show that figure.
+            'tisMonths' => $departed ? null : $this->monthsSince($trooper->tis?->toDateString(), $today),
             'tig' => $trooper->tig?->toDateString(),
-            'tigMonths' => $this->monthsSince($trooper->tig?->toDateString(), $today),
+            'tigMonths' => $departed ? null : $this->monthsSince($trooper->tig?->toDateString(), $today),
             'section' => $section === null ? null : ['id' => $section->id, 'name' => $section->name, 'callsign' => $section->callsign],
-            'milpacUrl' => self::MILPAC_PROFILE_URL.$trooper->cav_id,
+            'milpacUrl' => Trooper::MILPAC_PROFILE_URL.$trooper->cav_id,
         ];
     }
 

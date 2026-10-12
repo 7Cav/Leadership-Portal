@@ -53,17 +53,19 @@ it('finds the row for a pair, with the course loaded, or null', function () {
         ->and(app(TrooperCourseRepository::class)->find(999999, $row->course_id))->toBeNull();
 });
 
-it('creates and updates a row', function () {
+it('sets a row with an atomic upsert: the first call inserts, the second moves the same row', function () {
     $trooper = Trooper::factory()->create();
     $course = Course::factory()->create();
     $user = User::factory()->create();
     $repository = app(TrooperCourseRepository::class);
 
-    $row = $repository->create($trooper->id, $course->id, CourseStatus::Required, null, $user->id);
+    $row = $repository->set($trooper->id, $course->id, CourseStatus::Required, null, $user->id);
     expect($row->status)->toBe(CourseStatus::Required)->and($row->course->id)->toBe($course->id);
 
-    $updated = $repository->update($row, CourseStatus::Qualified, CarbonImmutable::parse('2026-09-14', 'UTC'), $user->id);
+    $updated = $repository->set($trooper->id, $course->id, CourseStatus::Qualified, CarbonImmutable::parse('2026-09-14', 'UTC'), $user->id);
 
-    expect($updated->fresh()->status)->toBe(CourseStatus::Qualified)
-        ->and($updated->fresh()->awarded_at->toDateString())->toBe('2026-09-14');
+    expect($updated->id)->toBe($row->id)
+        ->and(TrooperCourse::count())->toBe(1)
+        ->and($updated->status)->toBe(CourseStatus::Qualified)
+        ->and($updated->awarded_at->toDateString())->toBe('2026-09-14');
 });
