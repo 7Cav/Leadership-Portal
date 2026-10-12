@@ -93,9 +93,13 @@ final class KpiService
     }
 
     /**
+     * The unit KPIs of a set of troopers' rows from {@see trooperAttendance()} — how `forUnit()`
+     * composes its subtree, exposed so a screen holding one subtree's rows (the roster, 2.8) can
+     * total each platoon and section without a query per group or a second definition of the sum.
+     *
      * @param  Collection<int, TrooperAttendance>  $byTrooper
      */
-    private function sum(Collection $byTrooper): UnitKpis
+    public function sum(Collection $byTrooper): UnitKpis
     {
         return new UnitKpis(
             strength: $byTrooper->count(),
