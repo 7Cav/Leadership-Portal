@@ -54,6 +54,8 @@ class CrconApi
         /** @var array<string, CrconPlayer> $byPlatformId */
         $byPlatformId = [];
 
+        $seen = 0;
+
         for ($page = 1; $page <= self::MAX_PAGES; $page++) {
             $result = $this->fetchPage($windowStart, $page);
             $rows = $result['players'];
@@ -72,11 +74,25 @@ class CrconApi
                 $byPlatformId[$platformId] ??= new CrconPlayer($this->playerName($row, $platformId), $platformId);
             }
 
+            $seen += count($rows);
             $total = $result['total'];
-            $last = $rows === [] || count($rows) < FetchPlayersHistoryRequest::PAGE_SIZE
-                || ($total !== null && $page * FetchPlayersHistoryRequest::PAGE_SIZE >= $total);
 
-            if ($last) {
+            // `total` is authoritative when CRCON supplies it: a server that caps the page size
+            // below ours returns short pages that are not the last one, and stopping on those
+            // would under-report attendance. Only without a total do we trust a short page.
+            if ($total !== null) {
+                if ($seen >= $total) {
+                    return new CrconPresence(array_values($byPlatformId), $windowStart, $windowEnd, new DateTimeImmutable);
+                }
+
+                if ($rows === []) {
+                    throw CrconUnavailable::malformed("the player history ended at {$seen} of {$total} entries");
+                }
+
+                continue;
+            }
+
+            if (count($rows) < FetchPlayersHistoryRequest::PAGE_SIZE) {
                 return new CrconPresence(array_values($byPlatformId), $windowStart, $windowEnd, new DateTimeImmutable);
             }
         }
@@ -134,7 +150,7 @@ class CrconApi
 
         return [
             'players' => $result['players'],
-            'total' => is_int($result['total'] ?? null) ? $result['total'] : null,
+            'total' => is_numeric($result['total'] ?? null) ? (int) $result['total'] : null,
         ];
     }
 
@@ -187,6 +203,10 @@ class CrconApi
                 $from = $this->moment($session['start'] ?? null);
                 // An open session (no end) is still running, so it overlaps anything after its start.
                 $till = ($session['end'] ?? null) === null ? null : $this->moment($session['end']);
+
+                if (($session['end'] ?? null) !== null && $till === null) {
+                    throw CrconUnavailable::malformed('a session carried an unusable `end`');
+                }
 
                 if ($from === null) {
                     throw CrconUnavailable::malformed('a session carried no usable `start`');

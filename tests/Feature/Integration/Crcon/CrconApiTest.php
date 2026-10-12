@@ -201,3 +201,34 @@ it('resolves from the container with the crcon config', function () {
 
     expect(app(CrconApi::class)->fetchPresence($start, $end)->players)->toBe([]);
 });
+
+it('keeps paging on short pages while the reported total is not yet reached', function () {
+    $row = fn ($i) => crconPlayer((string) $i, "P{$i}", [['start' => '2026-10-10T19:10:00', 'end' => '2026-10-10T20:00:00']]);
+
+    $mock = MockClient::global([CRCON_URL => function (PendingRequest $request) use ($row) {
+        return $request->body()->all()['page'] === 1
+            ? crconResult([$row(1), $row(2)], ['total' => 3])
+            : crconResult([$row(3)], ['total' => 3]);
+    }]);
+
+    [$start, $end] = crconWindow();
+
+    expect(crcon()->fetchPresence($start, $end)->players)->toHaveCount(3);
+    $mock->assertSentCount(2);
+});
+
+it('fails rather than return a short list when the history ends before its total', function () {
+    MockClient::global([CRCON_URL => crconResult([], ['total' => 5])]);
+
+    [$start, $end] = crconWindow();
+
+    expect(fn () => crcon()->fetchPresence($start, $end))->toThrow(CrconUnavailable::class);
+});
+
+it('fails on a session with an unparseable end instead of treating it as still running', function () {
+    MockClient::global([CRCON_URL => crconResult([crconPlayer('1', 'A', [['start' => '2026-10-10T19:10:00', 'end' => 'garbage']])])]);
+
+    [$start, $end] = crconWindow();
+
+    expect(fn () => crcon()->fetchPresence($start, $end))->toThrow(CrconUnavailable::class);
+});
