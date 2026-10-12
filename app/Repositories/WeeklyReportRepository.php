@@ -36,6 +36,23 @@ interface WeeklyReportRepository
     public function find(int $unitId, CarbonInterface $weekStart): ?WeeklyReport;
 
     /**
+     * Whether the unit's report for the week has been **really** sent: status sent and not a
+     * generated demo report (`is_demo`, #115). A sent report freezes its week's facts (AD-12), so
+     * the rollcall of that unit-week is locked from then on; a draft, no report at all, or a demo
+     * report leaves it open — the demo design relies on a leader marking over a demo week to make
+     * it real. A read that never creates a row.
+     *
+     * Takes a shared lock on the unit-week's row (or, when there is none yet, on the gap its key
+     * would go into), so called inside a write transaction it holds until that transaction ends: a
+     * concurrent `send()` — which locks the same row for update before flipping it to sent — waits
+     * for the write to commit, and a write that starts after a send waits for the send and then
+     * sees it. A save and a send of one unit-week therefore never interleave.
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function isSentFor(int $unitId, CarbonInterface $weekStart): bool;
+
+    /**
      * The week's reports — draft or sent — of every unit in `$unitIds` that has one, keyed by
      * `unit_id`, in one query: a roll-up reads all its children's reports at once (5.7, AD-13).
      * A unit with no report is simply absent. Never creates a row.

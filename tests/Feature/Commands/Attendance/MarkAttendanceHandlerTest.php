@@ -5,6 +5,7 @@ use App\Commands\Attendance\InvalidAttendanceMarkException;
 use App\Commands\Attendance\MarkAttendance;
 use App\Commands\Attendance\MarkAttendanceForbiddenException;
 use App\Commands\Attendance\MarkAttendanceHandler;
+use App\Commands\Attendance\RollcallWeekLockedException;
 use App\Models\Attendance;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
@@ -16,6 +17,7 @@ use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Models\WeeklyReport;
 use App\Repositories\AttendanceRepository;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -356,6 +358,56 @@ it('refuses a section id that does not exist, even for an admin (no unit is in a
         ->toThrow(MarkAttendanceForbiddenException::class);
 
     expect(SectionPractice::query()->count())->toBe(0);
+});
+
+// AD-12: a week whose report has been sent is locked; the whole batch is refused before any write.
+
+it('refuses every batch for a week whose report has been sent, writing nothing and auditing nothing', function (Closure $marks) {
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->weekStart]);
+
+    expect(fn () => mark($this->leader, $this->section->id, $this->moment, $marks($this->troopers)))
+        ->toThrow(RollcallWeekLockedException::class, 'The report for this week has been sent, so its rollcall is locked.');
+
+    expect(SectionPractice::query()->count())->toBe(0)
+        ->and(Attendance::query()->count())->toBe(0)
+        ->and(AuditLogEntry::query()->count())->toBe(0);
+})->with([
+    'a practice mark' => [fn ($troopers) => [new AttendanceMark($troopers[0]->id, AttendanceStatus::Present)]],
+    'a signature only' => [fn ($troopers) => [new AttendanceMark($troopers[0]->id, rollcall: RollcallSignature::WillAttend)]],
+    'an empty batch' => [fn ($troopers) => []],
+]);
+
+it('leaves an existing practice and its marks exactly as they were when the week is locked', function () {
+    $practice = mark($this->leader, $this->section->id, $this->moment, [new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present)]);
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->weekStart]);
+
+    expect(fn () => mark($this->leader, $this->section->id, $this->moment, [new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Missed)]))
+        ->toThrow(RollcallWeekLockedException::class);
+
+    expect(Attendance::query()->sole()->status)->toBe(AttendanceStatus::Present)
+        ->and(SectionPractice::query()->sole()->id)->toBe($practice->id)
+        ->and(AuditLogEntry::query()->count())->toBe(1);
+});
+
+it('keeps a week open whose report is a draft, or a generated demo report, or absent', function (Closure $report) {
+    $report($this->section, $this->weekStart);
+
+    mark($this->leader, $this->section->id, $this->moment, [new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present)]);
+
+    expect(Attendance::query()->sole()->status)->toBe(AttendanceStatus::Present);
+})->with([
+    'a draft' => [fn (Unit $section, CarbonImmutable $week) => WeeklyReport::factory()->create(['unit_id' => $section->id, 'week_start' => $week])],
+    'a demo sent report (#115)' => [fn (Unit $section, CarbonImmutable $week) => WeeklyReport::factory()->sent()->create(['unit_id' => $section->id, 'week_start' => $week, 'is_demo' => true])],
+    'no report' => [fn () => null],
+]);
+
+it('locks only the sent unit-week: another section\'s sent report, or another week\'s, leaves this one open', function () {
+    WeeklyReport::factory()->sent()->create(['unit_id' => Unit::factory()->create(['type' => UnitType::Section])->id, 'week_start' => $this->weekStart]);
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->weekStart->subWeek()]);
+
+    mark($this->leader, $this->section->id, $this->moment, [new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present)]);
+
+    expect(Attendance::query()->count())->toBe(1);
 });
 
 // 7.6 / AD-14, AD-22: preMark — capture as a second source through this same writer.

@@ -13,6 +13,7 @@ use App\Repositories\AuditedBatch;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
+use App\Repositories\WeeklyReportRepository;
 use App\Support\Audit\AuditEnvelope;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
@@ -34,6 +35,14 @@ use Carbon\CarbonImmutable;
  * trooper is marked as usual (AD-4). A rollcall signature is a separate fact and is not refused. With no
  * leave cached at all nobody is covered and every trooper is markable.
  *
+ * It also refuses a locked week: once the section's weekly report for the week has been really
+ * sent (not a generated demo report, #115), its facts are frozen (AD-12) and the rollcall of that
+ * week may no longer change — the whole batch, signature-only and empty ones included, is refused
+ * with `RollcallWeekLockedException`. Earlier weeks whose report was never sent stay editable.
+ * The check is the first thing inside the transaction and holds a shared lock on the report row
+ * (`WeeklyReportRepository::isSentFor()`), so a send landing mid-save either waits for the save
+ * to commit or is seen by it — never a save written over a week that was frozen under it.
+ *
  * Then, as one audited transaction (AD-16): find-or-create the section's practice for the week
  * `WeekOf` resolves (AD-11), then write each entry's facts in trooper-id order (a fixed lock order,
  * so two overlapping submits cannot deadlock each other). Every practice mark is written with
@@ -51,6 +60,7 @@ class MarkAttendanceHandler
         private readonly TrooperRepository $troopers,
         private readonly SectionPracticeRepository $practices,
         private readonly AttendanceRepository $attendance,
+        private readonly WeeklyReportRepository $reports,
         private readonly AuditEnvelope $audit,
         private readonly LoaCoverage $loaCoverage,
     ) {}
@@ -60,6 +70,7 @@ class MarkAttendanceHandler
      * @throws InvalidAttendanceMarkException when the unit is not a section, a trooper is not placed in it,
      *                                        a trooper's leave covers the week and so derives their status,
      *                                        or the week is before `WeekOf::floor()`.
+     * @throws RollcallWeekLockedException when the section's report for the week has been sent.
      */
     public function handle(User $actor, MarkAttendance $command): SectionPractice
     {
@@ -86,6 +97,13 @@ class MarkAttendanceHandler
             reason: null,
             reasonRequired: false,
             mutation: function () use ($command, $weekStart, $marks) {
+                // First, before any write: a sent report freezes the week (AD-12). The shared lock
+                // it takes holds until this transaction ends, so a concurrent send cannot freeze
+                // the week between this check and the marks below.
+                if ($this->reports->isSentFor($command->sectionId, $weekStart)) {
+                    throw RollcallWeekLockedException::for($command->sectionId, $weekStart);
+                }
+
                 $trooperIds = $command->trooperIds();
                 $unplaced = array_values(array_diff($trooperIds, $this->troopers->idsPlacedIn($command->sectionId, $trooperIds)->all()));
 
