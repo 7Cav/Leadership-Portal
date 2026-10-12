@@ -26,7 +26,7 @@ use Illuminate\Support\Facades\DB;
 
 beforeEach(function () {
     $this->section = Unit::factory()->create(['type' => UnitType::Section]);
-    $this->leader = User::factory()->create();
+    $this->leader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
 
     $this->moment = CarbonImmutable::parse('2026-10-07 18:00:00', 'UTC');
