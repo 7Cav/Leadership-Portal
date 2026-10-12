@@ -175,6 +175,11 @@ it('still answers saved when only the at-risk refresh fails, so the screen never
             return $this->inner->markPractice($practice, $trooperId, $status, $source);
         }
 
+        public function markPracticeAuto(SectionPractice $practice, int $trooperId): ?Attendance
+        {
+            return $this->inner->markPracticeAuto($practice, $trooperId);
+        }
+
         public function signRollcall(SectionPractice $practice, int $trooperId, RollcallSignature $rollcall): Attendance
         {
             return $this->inner->signRollcall($practice, $trooperId, $rollcall);

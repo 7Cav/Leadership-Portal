@@ -46,6 +46,17 @@ interface AttendanceRepository
     ): Attendance;
 
     /**
+     * Auto-capture's write (7.6): `status = present`, `source = auto` — unless the row already
+     * carries a leader's say, which manual-wins-over-auto (AD-14, AD-22) leaves untouched: a
+     * `manual` mark of any status, or an `loa` mark (derived from LOA data, never overwritten by
+     * capture). The guard is evaluated against a locking read inside this write's own
+     * transaction, so a manual mark landing mid-capture is either seen and kept, or lands after
+     * and overwrites the auto mark. An existing `auto` (or rollcall-only) row is updated in place.
+     * Returns the row written, or null when it was left alone.
+     */
+    public function markPracticeAuto(SectionPractice $practice, int $trooperId): ?Attendance;
+
+    /**
      * Record the trooper's signature on the week's rollcall thread. Leaves `status`/`source` as
      * they were (both null on a new row — signed, practice not yet marked).
      */

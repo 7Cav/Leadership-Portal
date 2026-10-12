@@ -31,7 +31,7 @@ use App\Support\Time\WeekOf;
  * so two overlapping submits cannot deadlock each other). Every practice mark is written with
  * `source = manual`, overwriting whatever was there — including an `auto` mark, since manual wins
  * on conflict (AD-22); the future auto-capture path (Epic 7), whatever writes `source = auto`, is
- * the one that must not overwrite a manual mark. A failure anywhere rolls back the practice row,
+ * the one that must not overwrite a manual mark — which is {@see preMark()}, below. A failure anywhere rolls back the practice row,
  * every mark and the log entry together; the log records the batch once, targeting the practice,
  * with a digest over every row written.
  */
@@ -98,5 +98,58 @@ class MarkAttendanceHandler
         );
 
         return $batch->target;
+    }
+
+    /**
+     * Capture's pre-mark (7.6, AD-14/AD-22): `present` with `source = auto` for each trooper the
+     * capture resolved to this practice's section — the same writer as a manual mark, a second
+     * *source* rather than a second writer. Manual wins: a trooper whose row already carries a
+     * `manual` mark (or `loa`) is left exactly as it is, decided per row at write time by the
+     * repository. Re-running updates auto rows in place. Never writes `loa`, and skips a trooper
+     * no longer placed in the practice's section.
+     *
+     * No actor authorization: capture is system-triggered, like the roster sync (the caller
+     * decides who may start a run). A user-triggered run is audited as one batch on the practice;
+     * a `'system'` run is covered by its `sync_runs` row (AD-16's carve-out for system jobs).
+     * Writes go in trooper-id order, the same lock order as {@see handle()}.
+     *
+     * @param  list<int>  $trooperIds
+     */
+    public function preMark(SectionPractice $practice, array $trooperIds, int|string $triggeredBy = 'system'): AutoMarkResult
+    {
+        $trooperIds = array_values(array_unique($trooperIds));
+        sort($trooperIds);
+
+        $written = [];
+        $notPlaced = 0;
+        $mutation = function () use ($practice, $trooperIds, &$written, &$notPlaced) {
+            $written = [];
+            $placed = $this->troopers->idsPlacedIn($practice->section_id, $trooperIds)->all();
+            $notPlaced = count($trooperIds) - count($placed);
+
+            foreach ($trooperIds as $trooperId) {
+                if (! in_array($trooperId, $placed, true)) {
+                    continue;
+                }
+
+                $row = $this->attendance->markPracticeAuto($practice, $trooperId);
+
+                if ($row !== null) {
+                    $written[] = $row;
+                }
+            }
+
+            return new AuditedBatch($practice, ...$written);
+        };
+
+        if (is_int($triggeredBy) && $trooperIds !== []) {
+            $this->audit->recordBatch($triggeredBy, 'attendance.auto_marked', null, false, $mutation);
+        } else {
+            $mutation();
+        }
+
+        $marked = count($written);
+
+        return new AutoMarkResult(marked: $marked, keptManual: count($trooperIds) - $notPlaced - $marked, notPlaced: $notPlaced);
     }
 }

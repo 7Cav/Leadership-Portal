@@ -31,6 +31,33 @@ class Eloquent implements AttendanceRepository
         return $this->upsert($practice, $trooperId, ['status' => $status, 'source' => $source]);
     }
 
+    public function markPracticeAuto(SectionPractice $practice, int $trooperId): ?Attendance
+    {
+        $key = ['trooper_id' => $trooperId, 'section_practice_id' => $practice->id];
+        $values = ['status' => AttendanceStatus::Present, 'source' => AttendanceSource::Auto];
+
+        return DB::transaction(function () use ($key, $values) {
+            $row = Attendance::query()->where($key)->lockForUpdate()->first();
+
+            if ($row === null) {
+                try {
+                    return $this->realise(Attendance::query()->create($key + $values));
+                } catch (UniqueConstraintViolationException $e) {
+                    // A racing writer inserted the row first; a locking read sees it (cf. upsert()).
+                    $row = Attendance::query()->where($key)->lockForUpdate()->first() ?? throw $e;
+                }
+            }
+
+            if ($row->source === AttendanceSource::Manual || $row->status === AttendanceStatus::Loa) {
+                return null;
+            }
+
+            $row->fill($values)->save();
+
+            return $this->realise($row);
+        });
+    }
+
     public function signRollcall(
         SectionPractice $practice,
         int $trooperId,
@@ -153,9 +180,16 @@ class Eloquent implements AttendanceRepository
             $row->fill($values)->save();
         }
 
-        // A real write over a generated demo row (#115) makes the row real, so a demo purge or
-        // regeneration never deletes or overwrites what a leader recorded. `is_demo` is not
-        // mass-assignable, hence the separate forced write.
+        return $this->realise($row);
+    }
+
+    /**
+     * A real write over a generated demo row (#115) makes the row real, so a demo purge or
+     * regeneration never deletes or overwrites what a leader recorded. `is_demo` is not
+     * mass-assignable, hence the separate forced write.
+     */
+    private function realise(Attendance $row): Attendance
+    {
         if ($row->is_demo) {
             $row->forceFill(['is_demo' => false])->save();
         }

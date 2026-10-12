@@ -1,5 +1,6 @@
 <?php
 
+use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Commands\Capture\CaptureSectionPractice;
 use App\Commands\Capture\CaptureSectionPracticeHandler;
 use App\Commands\Capture\CaptureSource;
@@ -7,6 +8,9 @@ use App\Commands\Capture\CaptureSources;
 use App\Commands\Capture\CaptureSourceUnavailable;
 use App\Integration\Crcon\Data\CrconPlayer;
 use App\Integration\Crcon\Data\CrconPresence;
+use App\Models\Attendance;
+use App\Models\AttendanceSource;
+use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
 use App\Models\GamePlatform;
 use App\Models\SectionPractice;
@@ -185,7 +189,7 @@ it('records the counts and who triggered the run', function () {
         ->and($run->inserted)->toBe(1)
         ->and($run->errored)->toBe(1)
         ->and($run->status)->toBe(SyncRunStatus::Partial)
-        ->and($run->error)->toBe('practice '.$this->practice->id.', source crcon: seen 2, matched 1 (0 in another section), unmatched 1');
+        ->and($run->error)->toBe('practice '.$this->practice->id.', source crcon: seen 2, matched 1 (0 in another section), unmatched 1; pre-marked 1, left 0 untouched (manual/loa)');
 });
 
 it('audits the stamp when a user triggered the run, and not for the system', function () {
@@ -227,4 +231,118 @@ it('refuses a window outside the practice week', function () {
     expect(fn () => app(CaptureSectionPracticeHandler::class)->handle(
         new CaptureSectionPractice($this->practice->id, GamePlatform::Hll, $outside, $outside),
     ))->toThrow(InvalidArgumentException::class);
+});
+
+// 7.6 / AD-14, AD-22: matched troopers are pre-marked present/auto; manual wins; never loa.
+
+it('pre-marks a matched trooper present with source auto and nobody else', function () {
+    $mine = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
+    $elsewhere = Trooper::factory()->create(['primary_section_id' => Unit::factory()->create(['type' => UnitType::Section])->id]);
+    linkIdentity($mine, '1');
+    linkIdentity($elsewhere, '2');
+
+    runCapture($this, [answeringSource('crcon', [new CrconPlayer('A', '1'), new CrconPlayer('B', '2'), new CrconPlayer('C', '3')])]);
+
+    $row = Attendance::query()->sole();
+    expect($row->trooper_id)->toBe($mine->id)
+        ->and($row->section_practice_id)->toBe($this->practice->id)
+        ->and($row->status)->toBe(AttendanceStatus::Present)
+        ->and($row->source)->toBe(AttendanceSource::Auto);
+});
+
+it('leaves a manual mark of any status untouched, including its timestamps', function () {
+    $troopers = Trooper::factory()->count(3)->create(['primary_section_id' => $this->section->id]);
+    foreach ($troopers as $i => $trooper) {
+        linkIdentity($trooper, (string) $i);
+    }
+    $statuses = [AttendanceStatus::Missed, AttendanceStatus::Attached, AttendanceStatus::Makeup];
+    foreach ($troopers as $i => $trooper) {
+        Attendance::factory()->create([
+            'trooper_id' => $trooper->id, 'section_practice_id' => $this->practice->id,
+            'status' => $statuses[$i], 'source' => AttendanceSource::Manual,
+            'updated_at' => '2026-10-05 12:00:00',
+        ]);
+    }
+
+    runCapture($this, [answeringSource('crcon', [new CrconPlayer('A', '0'), new CrconPlayer('B', '1'), new CrconPlayer('C', '2')])]);
+
+    $rows = Attendance::query()->orderBy('trooper_id')->get();
+    expect($rows)->toHaveCount(3);
+    foreach ($rows as $i => $row) {
+        expect($row->status)->toBe($statuses[$i])
+            ->and($row->source)->toBe(AttendanceSource::Manual)
+            ->and($row->updated_at->toDateTimeString())->toBe('2026-10-05 12:00:00');
+    }
+    expect(SyncRun::query()->sole()->error)->toContain('pre-marked 0, left 3 untouched (manual/loa)');
+});
+
+it('updates a prior auto row in place on a re-run instead of duplicating it', function () {
+    $mine = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
+    linkIdentity($mine, '1');
+    Attendance::factory()->create([
+        'trooper_id' => $mine->id, 'section_practice_id' => $this->practice->id,
+        'status' => AttendanceStatus::Missed, 'source' => AttendanceSource::Auto,
+    ]);
+    $players = [new CrconPlayer('A', '1')];
+
+    runCapture($this, [answeringSource('crcon', $players)]);
+    runCapture($this, [answeringSource('crcon', $players)]);
+
+    $row = Attendance::query()->sole();
+    expect($row->status)->toBe(AttendanceStatus::Present)->and($row->source)->toBe(AttendanceSource::Auto);
+});
+
+it('keeps a rollcall signature when it pre-marks the row', function () {
+    $mine = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
+    linkIdentity($mine, '1');
+    Attendance::factory()->create([
+        'trooper_id' => $mine->id, 'section_practice_id' => $this->practice->id,
+        'status' => null, 'source' => null, 'rollcall' => 'will_attend',
+    ]);
+
+    runCapture($this, [answeringSource('crcon', [new CrconPlayer('A', '1')])]);
+
+    $row = Attendance::query()->sole();
+    expect($row->status)->toBe(AttendanceStatus::Present)->and($row->rollcall->value)->toBe('will_attend');
+});
+
+it('never overwrites an loa row and never writes loa itself', function () {
+    $mine = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
+    linkIdentity($mine, '1');
+    Attendance::factory()->create([
+        'trooper_id' => $mine->id, 'section_practice_id' => $this->practice->id,
+        'status' => AttendanceStatus::Loa, 'source' => AttendanceSource::Auto,
+    ]);
+
+    runCapture($this, [answeringSource('crcon', [new CrconPlayer('A', '1')])]);
+
+    expect(Attendance::query()->sole()->status)->toBe(AttendanceStatus::Loa)
+        ->and(Attendance::query()->where('status', AttendanceStatus::Loa->value)->count())->toBe(1);
+});
+
+it('writes no marks when no source answers', function () {
+    runCapture($this, [failingSource('crcon')]);
+
+    expect(Attendance::query()->count())->toBe(0);
+});
+
+it('audits the pre-mark as one batch when a user triggered the run', function () {
+    $user = User::factory()->create();
+    $mine = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
+    linkIdentity($mine, '1');
+
+    runCapture($this, [answeringSource('crcon', [new CrconPlayer('A', '1')])], $user->id);
+
+    expect(AuditLogEntry::query()->where('action', 'attendance.auto_marked')->sole()->actor_id)->toBe($user->id);
+});
+
+it('does not stamp the practice and records the run failed when the pre-mark throws', function () {
+    $mine = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
+    linkIdentity($mine, '1');
+    $this->mock(MarkAttendanceHandler::class)->shouldReceive('preMark')->andThrow(new RuntimeException('db down'));
+
+    expect(fn () => runCapture($this, [answeringSource('crcon', [new CrconPlayer('A', '1')])]))->toThrow(RuntimeException::class);
+
+    expect($this->practice->fresh()->capture_source)->toBeNull()
+        ->and(SyncRun::query()->sole()->status)->toBe(SyncRunStatus::Failure);
 });
