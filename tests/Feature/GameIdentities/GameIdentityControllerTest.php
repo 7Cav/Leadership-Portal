@@ -156,3 +156,48 @@ it('requires a signed-in user', function () {
     $this->get('/game-identities')->assertRedirect('/login');
     $this->put(identityUrl($this->mine), [])->assertRedirect('/login');
 });
+
+it('refuses writes during a view-as preview, and the index narrows to the previewed scope', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->section->id]);
+
+    $this->get('/game-identities')->assertInertia(fn (Assert $page) => $page->has('troopers', 1));
+    $this->put(identityUrl($this->mine), ['player_name' => 'X', 'platform_id' => '1'])->assertForbidden();
+    $this->delete(identityUrl($this->mine))->assertForbidden();
+
+    expect(TrooperGameIdentity::query()->count())->toBe(0);
+});
+
+it('denies writes to a user holding no scope at all', function () {
+    $nobody = User::factory()->create();
+
+    $this->actingAs($nobody)->put(identityUrl($this->mine), ['player_name' => 'X', 'platform_id' => '1'])->assertForbidden();
+    $this->actingAs($nobody)->delete(identityUrl($this->mine))->assertForbidden();
+
+    expect(TrooperGameIdentity::query()->count())->toBe(0);
+});
+
+it('corrects a platform id in place, freeing the old one', function () {
+    $this->actingAs($this->leader)->put(identityUrl($this->mine), ['player_name' => 'A', 'platform_id' => '7656']);
+    $this->actingAs($this->leader)->put(identityUrl($this->mine), ['player_name' => 'A', 'platform_id' => '7657'])->assertRedirect();
+    $this->actingAs($this->leader)->put(identityUrl(placedTrooper($this->section)), ['player_name' => 'B', 'platform_id' => '7656'])->assertRedirect();
+
+    expect(TrooperGameIdentity::query()->count())->toBe(2)
+        ->and(TrooperGameIdentity::query()->where('trooper_id', $this->mine->id)->sole()->platform_id)->toBe('7657');
+});
+
+it('names the owner of a collision even when they are outside the leader\'s scope', function () {
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->theirs->id, 'platform_id' => '7656']);
+
+    $this->actingAs($this->leader)->from('/game-identities')
+        ->put(identityUrl($this->mine), ['player_name' => 'A', 'platform_id' => '7656'])
+        ->assertSessionHasErrors(['platform_id' => 'Already linked to '.$this->theirs->display_name.' on Hell Let Loose.']);
+});
+
+it('shows a platoon leader the troopers of every section beneath', function () {
+    $platoonLeader = User::factory()->create();
+    PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
+
+    $this->actingAs($platoonLeader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page->has('troopers', 2));
+    $this->actingAs($platoonLeader)->put(identityUrl($this->theirs), ['player_name' => 'N', 'platform_id' => '5'])->assertRedirect();
+});

@@ -33,6 +33,8 @@ const view = ref('needs');
 const selectedId = ref(null);
 const platform = ref(props.platforms[0]?.value ?? '');
 const removing = ref(null);
+const removeProcessing = ref(false);
+const notice = ref(null);
 
 const form = useForm({ player_name: '', platform_id: '' });
 
@@ -71,6 +73,7 @@ function open(trooper) {
 }
 
 function close() {
+    notice.value = null;
     selectedId.value = null;
     removing.value = null;
     form.reset();
@@ -81,6 +84,12 @@ function setView(value) {
     view.value = value;
 }
 
+// The trooper left the list while the panel was open (moved or departed since the page loaded).
+function gone() {
+    close();
+    notice.value = 'That trooper is no longer in your scope.';
+}
+
 function save() {
     const trooper = selected.value;
     if (!trooper || !editable.value) return;
@@ -89,11 +98,18 @@ function save() {
         preserveScroll: true,
         onSuccess: () => {
             // The props are fresh: carry on to the next missing game, or finish with this trooper.
+            notice.value = null;
             const fresh = props.troopers.find((t) => t.id === trooper.id);
-            const next = fresh ? missingOf(fresh)[0] : null;
+            if (!fresh) return gone();
+            const next = missingOf(fresh)[0];
             if (next) fill(fresh, next.value);
             else if (view.value === 'needs') close();
-            else if (fresh) fill(fresh, platform.value);
+            else fill(fresh, platform.value);
+        },
+        onError: (errors) => {
+            // Validation and collisions show on their fields; anything else (a refused or expired
+            // request) gets a message of its own rather than a silent form.
+            if (!errors.player_name && !errors.platform_id) notice.value = 'This could not be saved. Reload the page and try again.';
         },
     });
 }
@@ -102,13 +118,20 @@ function remove(value) {
     const trooper = selected.value;
     if (!trooper || !editable.value) return;
 
+    if (removeProcessing.value) return;
+    removeProcessing.value = true;
+
     router.delete(`/game-identities/${trooper.id}/${value}`, {
         preserveScroll: true,
         onSuccess: () => {
+            notice.value = null;
             removing.value = null;
             const fresh = props.troopers.find((t) => t.id === trooper.id);
             if (fresh) fill(fresh, value);
+            else gone();
         },
+        onError: () => (notice.value = 'This could not be removed. Reload the page and try again.'),
+        onFinish: () => (removeProcessing.value = false),
     });
 }
 </script>
@@ -128,6 +151,8 @@ function remove(value) {
                 <PhUsersThree aria-hidden="true" />{{ troopers.length }} {{ troopers.length === 1 ? 'trooper' : 'troopers' }} in your scope
             </Badge>
         </div>
+
+        <p v-if="notice" role="alert" class="rounded-md bg-destructive/10 px-3 py-2 text-[13px] text-destructive" data-testid="notice">{{ notice }}</p>
 
         <EmptyState v-if="!troopers.length" :icon="PhGameController" title="No troopers in your scope." class="rounded-lg border border-border py-10">
             Troopers placed in the units you command appear here, ready to link to their game identities.
@@ -246,7 +271,7 @@ function remove(value) {
                                 </div>
                                 <div v-if="removing === p.value" class="mt-2 flex flex-wrap items-center gap-2 text-xs" data-testid="remove-confirm">
                                     <span class="text-muted-foreground">Remove this link? Past attendance is unchanged.</span>
-                                    <Button variant="destructive" size="xs" :data-testid="`confirm-remove-${p.value}`" @click="remove(p.value)">Remove</Button>
+                                    <Button variant="destructive" size="xs" :data-testid="`confirm-remove-${p.value}`" :disabled="removeProcessing" @click="remove(p.value)">Remove</Button>
                                     <Button variant="outline" size="xs" @click="removing = null">Keep</Button>
                                 </div>
                             </li>
