@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Table, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { forumDate } from '@/lib/forumDate';
 import EmptyState from '@/components/EmptyState.vue';
+import KpiTiles from '@/components/home/KpiTiles.vue';
 
 // The weekly-cycle home (Story 1.15, mockups/v2/shell-f.html). The week bar is real: it is only
 // the calendar, from HomeController via WeekOf (AD-11). Every other area is an honest empty state
@@ -14,6 +15,9 @@ import EmptyState from '@/components/EmptyState.vue';
 const props = defineProps({
     // `{ start, reportDue }`, ISO-8601 UTC. `start` is the Saturday 00:00Z that opens the week.
     week: { type: Object, required: true },
+    // The six KPIs for the viewer's scope with their sent-snapshot history (Story 5.9); null when
+    // the viewer's scope holds no units.
+    kpis: { type: Object, default: null },
 });
 
 const page = usePage();
@@ -206,9 +210,10 @@ const STEPS = ['Rollcall posted', 'Rollcall signed', 'SP held', 'Attendance mark
 
         <section aria-labelledby="trends-title">
             <h2 id="trends-title" class="mb-2 text-[15px] font-semibold">Last 30 days</h2>
-            <Card class="gap-0 py-0">
-                <EmptyState :icon="PhChartLine" title="Trends need a few weeks of attendance" class="py-10">
-                    Rollcall sign rates and section practice attendance chart here once attendance has been recorded.
+            <KpiTiles v-if="kpis" :kpis="kpis" />
+            <Card v-else class="gap-0 py-0">
+                <EmptyState :icon="PhChartLine" title="No units in your scope yet" class="py-10">
+                    KPIs for your command appear here once a unit is assigned to you.
                 </EmptyState>
             </Card>
         </section>

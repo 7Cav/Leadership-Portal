@@ -58,6 +58,18 @@ interface WeeklyReportRepository
     public function sentBefore(int $unitId, CarbonInterface $weekStart, int $limit): Collection;
 
     /**
+     * The **sent** reports of any of `$unitIds` for the weeks `$firstWeek` to `$lastWeek`
+     * inclusive, oldest week first — the dashboard's sparkline history (5.9). Drafts are never
+     * history. One query however many units. Never creates a row.
+     *
+     * @param  list<int>  $unitIds
+     * @return Collection<int, WeeklyReport>
+     *
+     * @throws InvalidArgumentException when either week is not a Saturday 00:00 UTC.
+     */
+    public function sentWithin(array $unitIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection;
+
+    /**
      * Save the unit-week's draft — `kpis`, `notes`, the training subject and the unaccounted
      * troopers' reasons as given — creating the row if absent.
      *

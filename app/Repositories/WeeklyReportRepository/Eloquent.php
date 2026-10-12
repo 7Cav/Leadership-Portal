@@ -54,6 +54,25 @@ class Eloquent implements WeeklyReportRepository
             ->toBase();
     }
 
+    public function sentWithin(array $unitIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
+    {
+        $firstWeek = $this->assertWeekStart($firstWeek);
+        $lastWeek = $this->assertWeekStart($lastWeek);
+
+        if ($unitIds === []) {
+            return collect();
+        }
+
+        return WeeklyReport::query()
+            ->whereIn('unit_id', $unitIds)
+            ->where('status', WeeklyReportStatus::Sent)
+            ->whereBetween('week_start', [$firstWeek, $lastWeek])
+            ->orderBy('week_start')
+            ->orderBy('unit_id')
+            ->get()
+            ->toBase();
+    }
+
     public function saveDraft(
         int $unitId,
         CarbonInterface $weekStart,
