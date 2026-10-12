@@ -233,6 +233,11 @@ it('rolls the whole batch back — practice, marks and audit — when a write fa
             return $this->inner->markPractice($practice, $trooperId, $status, $source);
         }
 
+        public function markPracticeAuto(SectionPractice $practice, int $trooperId): ?Attendance
+        {
+            return $this->inner->markPracticeAuto($practice, $trooperId);
+        }
+
         public function signRollcall(SectionPractice $practice, int $trooperId, RollcallSignature $rollcall): Attendance
         {
             return $this->inner->signRollcall($practice, $trooperId, $rollcall);
@@ -243,9 +248,14 @@ it('rolls the whole batch back — practice, marks and audit — when a write fa
             return $this->inner->forPractice($practice);
         }
 
-        public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
+        public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection
         {
-            return $this->inner->countingMarks($unit, $firstWeek, $lastWeek);
+            return $this->inner->countingMarks($unit, $firstWeek, $lastWeek, $includeDeparted);
+        }
+
+        public function weekProgress(array $sectionIds, CarbonInterface $weekStart): Collection
+        {
+            return $this->inner->weekProgress($sectionIds, $weekStart);
         }
     });
 
@@ -346,4 +356,30 @@ it('refuses a section id that does not exist, even for an admin (no unit is in a
         ->toThrow(MarkAttendanceForbiddenException::class);
 
     expect(SectionPractice::query()->count())->toBe(0);
+});
+
+// 7.6 / AD-14, AD-22: preMark — capture as a second source through this same writer.
+
+it('pre-marks only troopers placed in the practice section, counting what it kept and skipped', function () {
+    $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->weekStart]);
+    $stranger = Trooper::factory()->create(['primary_section_id' => Unit::factory()->create(['type' => UnitType::Section])->id]);
+    app(AttendanceRepository::class)->markPractice($practice, $this->troopers[0]->id, AttendanceStatus::Missed, AttendanceSource::Manual);
+
+    $result = app(MarkAttendanceHandler::class)->preMark($practice, [
+        $this->troopers[2]->id, $this->troopers[0]->id, $this->troopers[1]->id, $stranger->id, $this->troopers[1]->id,
+    ]);
+
+    expect([$result->marked, $result->keptManual, $result->notPlaced])->toBe([2, 1, 1])
+        ->and(Attendance::query()->where('source', 'auto')->pluck('trooper_id')->sort()->values()->all())
+        ->toBe([$this->troopers[1]->id, $this->troopers[2]->id])
+        ->and(Attendance::query()->where('trooper_id', $stranger->id)->exists())->toBeFalse()
+        ->and(AuditLogEntry::query()->count())->toBe(0);
+});
+
+it('writes no audit entry for an empty pre-mark even when a user triggered it', function () {
+    $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->weekStart]);
+
+    $result = app(MarkAttendanceHandler::class)->preMark($practice, [], $this->leader->id);
+
+    expect($result->marked)->toBe(0)->and(AuditLogEntry::query()->count())->toBe(0);
 });
