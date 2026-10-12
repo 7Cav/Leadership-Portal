@@ -46,7 +46,7 @@ class Eloquent implements SectionPracticeRepository
     public function find(int $sectionId, CarbonInterface $weekStart): ?SectionPractice
     {
         return SectionPractice::query()
-            ->with('rollcallPostedBy')
+            ->with(['rollcallPostedBy', 'confirmedBy'])
             ->where('section_id', $sectionId)
             ->where('week_start', WeekOf::requireStart($weekStart))
             ->first();
@@ -75,9 +75,30 @@ class Eloquent implements SectionPracticeRepository
         return $practice->load('rollcallPostedBy');
     }
 
+    public function confirm(SectionPractice $practice, int $userId): SectionPractice
+    {
+        $practice->forceFill(['confirmed_at' => now(), 'confirmed_by' => $userId])->save();
+
+        return $practice->load('confirmedBy');
+    }
+
+    public function unconfirm(SectionPractice $practice): SectionPractice
+    {
+        if ($practice->confirmed_at !== null) {
+            $practice->forceFill(['confirmed_at' => null, 'confirmed_by' => null])->save();
+        }
+
+        return $practice;
+    }
+
     public function findById(int $id): ?SectionPractice
     {
         return SectionPractice::query()->find($id);
+    }
+
+    public function lockById(int $id): ?SectionPractice
+    {
+        return SectionPractice::query()->whereKey($id)->lockForUpdate()->first();
     }
 
     public function stampCapture(SectionPractice $practice, string $serverRef, \DateTimeInterface $capturedAt, string $captureSource): SectionPractice

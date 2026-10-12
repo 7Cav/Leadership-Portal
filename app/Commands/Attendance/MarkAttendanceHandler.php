@@ -30,7 +30,7 @@ use App\Support\Time\WeekOf;
  * `WeekOf` resolves (AD-11), then write each entry's facts in trooper-id order (a fixed lock order,
  * so two overlapping submits cannot deadlock each other). Every practice mark is written with
  * `source = manual`, overwriting whatever was there — including an `auto` mark, since manual wins
- * on conflict (AD-22); the future auto-capture path (Epic 7), whatever writes `source = auto`, is
+ * on conflict (AD-22); the auto-capture path (Epic 7), whatever writes `source = auto`, is
  * the one that must not overwrite a manual mark — which is {@see preMark()}, below. A failure anywhere rolls back the practice row,
  * every mark and the log entry together; the log records the batch once, targeting the practice,
  * with a digest over every row written.
@@ -81,6 +81,12 @@ class MarkAttendanceHandler
                 $practice = $this->practices->findOrCreate($command->sectionId, $weekStart);
                 $rows = [];
 
+                // A hand edit of a practice mark makes an earlier confirmation (7.8) stale: the
+                // leader confirms again once they have reviewed the marks as they now stand.
+                if ($command->hasPracticeMarks()) {
+                    $this->practices->unconfirm($practice);
+                }
+
                 foreach ($marks as $mark) {
                     if ($mark->status !== null) {
                         $row = $this->attendance->markPractice($practice, $mark->trooperId, $mark->status, AttendanceSource::Manual);
@@ -120,10 +126,26 @@ class MarkAttendanceHandler
         $trooperIds = array_values(array_unique($trooperIds));
         sort($trooperIds);
 
+        // A confirmed practice (7.8) is locked for reporting: capture re-runs and links leave its
+        // marks exactly as the leader confirmed them. A hand edit unlocks it.
+        // Checked here so a locked practice costs no audit entry, and again under a row lock inside
+        // the audited transaction, so a confirmation cannot land between the check and the writes.
+        $locked = fn (?SectionPractice $current) => $current?->confirmed_at !== null;
+
+        if ($locked($this->practices->findById($practice->id))) {
+            return new AutoMarkResult(marked: 0, keptManual: 0, notPlaced: 0, confirmed: true);
+        }
+
         $written = [];
         $notPlaced = 0;
-        $mutation = function () use ($practice, $trooperIds, &$written, &$notPlaced) {
+        $confirmed = false;
+        $mutation = function () use ($practice, $trooperIds, $locked, &$written, &$notPlaced, &$confirmed) {
             $written = [];
+
+            if ($confirmed = $locked($this->practices->lockById($practice->id))) {
+                return new AuditedBatch($practice);
+            }
+
             $placed = $this->troopers->idsPlacedIn($practice->section_id, $trooperIds)->all();
             $notPlaced = count($trooperIds) - count($placed);
 
@@ -146,6 +168,10 @@ class MarkAttendanceHandler
             $this->audit->recordBatch($triggeredBy, 'attendance.auto_marked', null, false, $mutation);
         } else {
             $mutation();
+        }
+
+        if ($confirmed) {
+            return new AutoMarkResult(marked: 0, keptManual: 0, notPlaced: 0, confirmed: true);
         }
 
         $marked = count($written);

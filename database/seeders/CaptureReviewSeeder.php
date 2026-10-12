@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Models\GamePlatform;
 use App\Models\PortalRoleGrant;
 use App\Models\Trooper;
@@ -18,7 +19,9 @@ use Illuminate\Database\Seeder;
 /**
  * A section whose practice this week was captured with two players no trooper is linked to, for the
  * unmatched-players drawer's browser test (Story 7.7), seeded by the e2e setup beside the other
- * seeders under its own company and usernames (`Hartmann.L` leads 3/2/C/1-7). Never seeded in production.
+ * seeders under its own company and usernames (`Hartmann.L` leads 3/2/C/1-7). A second section
+ * (4/2/C/1-7, led by `Brandt.K`) holds a captured practice with two auto pre-marks and one trooper the
+ * server did not see, for the review-and-confirm test (Story 7.8). Never seeded in production.
  */
 class CaptureReviewSeeder extends Seeder
 {
@@ -46,5 +49,26 @@ class CaptureReviewSeeder extends Seeder
             ['platform_id' => '76561198000009001', 'player_name' => 'Dubes', 'trooper_id' => null],
             ['platform_id' => '76561198000009002', 'player_name' => 'RandoGuy88', 'trooper_id' => null],
         ]);
+
+        $this->seedReviewSection($platoon, $tag, $now);
+    }
+
+    private function seedReviewSection(Unit $platoon, string $tag, CarbonImmutable $now): void
+    {
+        $section = Unit::factory()->create(['type' => UnitType::Section, 'name' => '4th Section', 'callsign' => '4/2/C/1-7', 'parent_id' => $platoon->id, 'path' => "8{$tag}/1/2/"]);
+        $ids = [];
+
+        foreach ([['SGT', 'Brandt.K'], ['SPC', 'Okafor.D'], ['PFC', 'Lindqvist.E'], ['PVT', 'Reyes.J']] as $i => [$rank, $username]) {
+            $cavId = (int) ($tag.'5'.$i);
+            User::factory()->create(['username' => $username, 'cav_id' => $cavId]);
+            $ids[$username] = Trooper::factory()->create([
+                'cav_id' => $cavId, 'rank_short' => $rank, 'username' => $username, 'status' => TrooperStatus::Combat, 'primary_section_id' => $section->id,
+            ])->id;
+        }
+        PortalRoleGrant::factory()->create(['user_id' => User::query()->where('username', 'Brandt.K')->sole()->id, 'unit_id' => $section->id]);
+
+        $practice = app(SectionPracticeRepository::class)->findOrCreate($section->id, WeekOf::start($now));
+        app(MarkAttendanceHandler::class)->preMark($practice, [$ids['Okafor.D'], $ids['Lindqvist.E']]);
+        app(SectionPracticeRepository::class)->stampCapture($practice, 'crcon-e2e-review', $now, 'crcon');
     }
 }

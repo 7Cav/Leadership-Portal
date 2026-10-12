@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
 use App\Commands\Attendance\AttendanceMark;
+use App\Commands\Attendance\ConfirmSectionPractice;
+use App\Commands\Attendance\ConfirmSectionPracticeForbiddenException;
+use App\Commands\Attendance\ConfirmSectionPracticeHandler;
 use App\Commands\Attendance\InvalidAttendanceMarkException;
 use App\Commands\Attendance\MarkAttendance;
 use App\Commands\Attendance\MarkAttendanceForbiddenException;
@@ -182,9 +185,19 @@ class RollcallController extends Controller
             $atRisk = null;
         }
 
+        // A practice-mark save clears the confirmation (7.8); the screen takes the state from here
+        // rather than guessing, so a refused save cannot leave the badge wrong.
+        try {
+            $confirmation = ['confirmation' => $this->confirmationProps($this->practices->find($unit, $weekStart))];
+        } catch (Throwable $e) {
+            report($e);
+            $confirmation = [];
+        }
+
         return response()->json([
             'savedAt' => CarbonImmutable::now()->toIso8601String(),
             'atRisk' => $atRisk,
+            ...$confirmation,
         ]);
     }
 
@@ -221,6 +234,40 @@ class RollcallController extends Controller
         }
 
         return response()->json(['posted' => $this->postedProps($practice)]);
+    }
+
+    /**
+     * The leader confirms the practice's marks as reviewed (Story 7.8): one audited Command,
+     * scope-gated (AD-8). Marking it again re-stamps. Answers the confirmation for the badge.
+     */
+    public function confirm(Request $request, int $unit, ConfirmSectionPracticeHandler $handler): JsonResponse
+    {
+        $validator = Validator::make($request->all(), ['week' => ['required', 'date_format:Y-m-d']]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => $validator->errors()->first()], 422);
+        }
+
+        $currentWeek = WeekOf::start(CarbonImmutable::now());
+        $weekStart = $this->requestedWeek($request->input('week'), $currentWeek);
+
+        if ($weekStart->greaterThan($currentWeek)) {
+            return response()->json(['message' => 'A future week cannot be confirmed yet.'], 422);
+        }
+
+        try {
+            $practice = $handler->handle($request->user(), new ConfirmSectionPractice($unit, $weekStart));
+        } catch (ConfirmSectionPracticeForbiddenException $e) {
+            return response()->json(['message' => $e->getMessage()], 403);
+        } catch (InvalidAttendanceMarkException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'The portal hit an error confirming the practice.'], 500);
+        }
+
+        return response()->json(['confirmation' => $this->confirmationProps($practice)]);
     }
 
     /**
@@ -345,6 +392,18 @@ class RollcallController extends Controller
         ];
     }
 
+    /**
+     * @return array{at: string, by: ?string}|null
+     */
+    private function confirmationProps(?SectionPractice $practice): ?array
+    {
+        if ($practice?->confirmed_at === null) {
+            return null;
+        }
+
+        return ['at' => $practice->confirmed_at->toIso8601String(), 'by' => $practice->confirmedBy?->username];
+    }
+
     private function requestedWeek(?string $week, CarbonImmutable $currentWeek): CarbonImmutable
     {
         return $week === null ? $currentWeek : WeekOf::start(CarbonImmutable::createFromFormat('!Y-m-d', $week, 'UTC'));
@@ -459,14 +518,15 @@ class RollcallController extends Controller
             'practice' => [
                 'lastMarkedAt' => $marks->max(fn (Attendance $row) => $row->updated_at)?->toIso8601String(),
                 'posted' => $this->postedProps($practice),
+                'confirmation' => $this->confirmationProps($practice),
             ],
         ];
     }
 
     /**
      * What the capture run left for the leader (7.7): the players no trooper is linked to, once the
-     * practice has been captured. `capture` is the seam the capture banner and override (7.8) and
-     * the telemetry-unavailable state (7.9) build on; the drawer renders only when there are players.
+     * practice has been captured. `capture` drives the capture banner (7.8) and is the seam the
+     * telemetry-unavailable state (7.9) builds on; the drawer renders only when there are players.
      *
      * @return array{capture: ?array{source: string, capturedAt: string}, unmatched: list<array<string, string>>}
      */

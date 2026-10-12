@@ -39,7 +39,7 @@ interface SectionPracticeRepository
 
     /**
      * The section's practice row for the week, or null when none has been recorded — a read that
-     * never creates one. Its `rollcallPostedBy` user is loaded (null until marked posted).
+     * never creates one. Its `rollcallPostedBy` and `confirmedBy` users are loaded (null until set).
      *
      * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
      */
@@ -64,9 +64,30 @@ interface SectionPracticeRepository
     public function markRollcallPosted(SectionPractice $practice, int $userId): SectionPractice;
 
     /**
+     * Record that a leader reviewed and confirmed the practice's marks (7.8): `confirmed_at` = now,
+     * `confirmed_by` = `$userId`; confirming again re-stamps. Returns the row with `confirmedBy`
+     * loaded. Callers route it through the audit envelope.
+     */
+    public function confirm(SectionPractice $practice, int $userId): SectionPractice;
+
+    /**
+     * Clear the confirmation, because a mark changed after it (7.8). A no-op on an unconfirmed
+     * practice. Runs inside the audited mark write that changed the mark.
+     */
+    public function unconfirm(SectionPractice $practice): SectionPractice;
+
+    /**
      * The practice row with this id, or null — the capture run's lookup (7.5). Never creates.
      */
     public function findById(int $id): ?SectionPractice;
+
+    /**
+     * The practice row with this id, read with a row lock (`FOR UPDATE`), or null. Called inside an
+     * open transaction to decide on the practice's current state atomically with the writes that
+     * follow (7.8: a confirmation commits before or after a pre-mark, never between its check and
+     * its writes). Outside a transaction the lock is released at once.
+     */
+    public function lockById(int $id): ?SectionPractice;
 
     /**
      * Stamp the practice with where a capture read from and when (7.5, AD-19): `server_ref`,

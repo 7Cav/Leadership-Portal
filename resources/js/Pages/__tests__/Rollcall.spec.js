@@ -501,4 +501,67 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-trooper="3"]').text()).toContain('Present');
         });
     });
+
+    describe('capture review and confirm (7.8)', () => {
+        const CAPTURE = { source: 'battlemetrics', capturedAt: '2026-10-08T12:00:00+00:00' };
+
+        beforeEach(() => (page.url = '/rollcall/12?step=2'));
+
+        it('shows the capture source and time with the legend, and the confirm action', () => {
+            const wrapper = factory({ capture: CAPTURE });
+
+            expect(wrapper.find('[data-testid="capture-banner"]').text()).toContain('Marks filled from BattleMetrics, read 08Oct26 12:00Z.');
+            expect(wrapper.find('[data-testid="capture-banner"]').text()).toContain('Auto');
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Not confirmed');
+            expect(wrapper.find('[data-testid="confirm-practice"]').text()).toContain('Confirm practice');
+        });
+
+        it('renders the unchanged manual screen, with no banner or confirm action, when nothing was captured', () => {
+            const wrapper = factory({ capture: null });
+
+            expect(wrapper.find('[data-testid="capture-banner"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="confirm-cluster"]').exists()).toBe(false);
+        });
+
+        it('confirms through the server and shows the badge', async () => {
+            post.mockResolvedValue({ ok: true, status: 200, data: { confirmation: { at: '2026-10-08T16:20:00+00:00', by: 'Vasquez.R' } } });
+            const wrapper = factory({ capture: CAPTURE });
+
+            await wrapper.find('[data-testid="confirm-practice"]').trigger('click');
+            await flushPromises();
+
+            expect(post).toHaveBeenCalledWith('/rollcall/12/confirm', { week: '2026-10-03' });
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed');
+        });
+
+        it('stays not confirmed and says so when the server refuses the confirmation', async () => {
+            post.mockResolvedValue({ ok: false, status: 403, data: { message: 'Outside your scope.' } });
+            const wrapper = factory({ capture: CAPTURE });
+
+            await wrapper.find('[data-testid="confirm-practice"]').trigger('click');
+            await flushPromises();
+
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Not confirmed');
+            expect(toastError).toHaveBeenCalledWith('Could not confirm the practice', expect.anything());
+            expect(wrapper.find('[data-testid="confirm-practice"]').attributes('disabled')).toBeUndefined();
+        });
+
+        it('starts confirmed from the server, and drops the badge once a saved hand edit clears it', async () => {
+            vi.useFakeTimers();
+            post.mockResolvedValue({ ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00', atRisk: [], confirmation: null } });
+            const wrapper = factory({
+                capture: CAPTURE,
+                practice: { lastMarkedAt: null, confirmation: { at: '2026-10-08T16:20:00+00:00', by: 'Vasquez.R' } },
+            });
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed');
+
+            const missed = wrapper.findAll('[data-trooper="1"] button').find((b) => b.text().startsWith('Missed'));
+            await missed.trigger('click');
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed');
+            await vi.advanceTimersByTimeAsync(1000);
+
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Not confirmed');
+            vi.useRealTimers();
+        });
+    });
 });
