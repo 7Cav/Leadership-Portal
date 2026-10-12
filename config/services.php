@@ -72,4 +72,35 @@ return [
         'sweep_budget_seconds' => env('CAV_API_SWEEP_BUDGET_SECONDS', 12.0),
     ],
 
+    /*
+    | CRCON (Hell Let Loose community RCON) — the read-only HLL presence seam (Story 7.3, AD-3).
+    | Machine credential read from env only (AD-23). No default base URL: it is the unit's own
+    | server, so an unset value is a misconfiguration the seam reports as such.
+    */
+    'crcon' => [
+        'base_url' => env('CRCON_BASE_URL'),
+        'api_key' => env('CRCON_API_KEY'),
+    ],
+
+    /*
+    | BattleMetrics — the read-only Arma Reforger presence seam, and HLL fallback (Story 7.4, AD-3).
+    | Machine credential read from env only (AD-23). The base URL defaults to the public API;
+    | the server id names the unit's own game server, so unset values are reported as misconfigured.
+    */
+    'battlemetrics' => [
+        'base_url' => env('BATTLEMETRICS_BASE_URL', 'https://api.battlemetrics.com'),
+        'api_key' => env('BATTLEMETRICS_API_KEY'),
+        'server_id' => env('BATTLEMETRICS_SERVER_ID'),
+    ],
+
+    /*
+    | Nightwatch — the read-only WARDOGS presence seam (Story 7.10, AD-3). Machine credential
+    | read from env only (AD-23). `server_ids` is a comma list of the workspace's server ids.
+    */
+    'nightwatch' => [
+        'base_url' => env('NIGHTWATCH_BASE_URL', 'https://nightwatch.to/api/public/stats'),
+        'api_key' => env('NIGHTWATCH_API_KEY'),
+        'server_ids' => env('NIGHTWATCH_SERVER_IDS'),
+    ],
+
 ];
