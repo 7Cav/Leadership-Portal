@@ -6,6 +6,7 @@ import Rollcall from '../Rollcall.vue';
 const page = reactive({ url: '/rollcall/12', props: { auth: { user: { username: 'Vasquez.R', is_admin: false } }, viewAs: null } });
 const push = vi.fn((visit) => (page.url = visit.url));
 const visit = vi.fn();
+const reload = vi.fn();
 
 enableAutoUnmount(afterEach);
 const post = vi.fn();
@@ -27,7 +28,7 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
     Head: { template: '<head></head>' },
     Link: { props: ['href'], template: '<a :href="href"><slot /></a>' },
-    router: { push: (...args) => push(...args), visit: (...args) => visit(...args), on: () => () => {} },
+    router: { push: (...args) => push(...args), visit: (...args) => visit(...args), reload: (...args) => reload(...args), on: () => () => {} },
     usePage: () => page,
 }));
 
@@ -562,6 +563,116 @@ describe('Rollcall page', () => {
 
             expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Not confirmed');
             vi.useRealTimers();
+        });
+    });
+
+    describe('telemetry unavailable (7.9)', () => {
+        const FAILED = { state: 'failed', platformLabel: 'Hell Let Loose', lastAttemptAt: '2026-10-08T15:42:00+00:00', canRetry: true };
+        const NOT_CONFIGURED = { state: 'not_configured', platformLabel: 'Hell Let Loose', lastAttemptAt: null, canRetry: false };
+        let wrapper;
+        const click = async () => {
+            await wrapper.find('[data-testid="telemetry-retry"]').trigger('click');
+            await vi.advanceTimersByTimeAsync(2600);
+        };
+
+        beforeEach(() => {
+            page.url = '/rollcall/12?step=2';
+            reload.mockReset();
+            toastError.mockClear();
+            toastWarning.mockClear();
+            vi.useFakeTimers();
+        });
+        afterEach(() => vi.useRealTimers());
+
+        it('shows when the server was last tried, says nothing was pre-filled, and leaves the manual flow as it was', () => {
+            wrapper = factory({ telemetry: FAILED });
+
+            expect(wrapper.find('[data-testid="telemetry-banner"]').text()).toContain(
+                'Game server could not be read (last tried 08Oct26 15:42 UTC). Nothing was pre-filled. Mark attendance by hand.',
+            );
+            expect(wrapper.find('[data-testid="capture-banner"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="unmatched-drawer"]').exists()).toBe(false);
+            expect(wrapper.find('[data-provenance="auto"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="mark-all-present"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="use-last-week"]').exists()).toBe(true);
+            // Manual marks are confirmed the same way (mockup C).
+            expect(wrapper.find('[data-testid="confirm-practice"]').exists()).toBe(true);
+        });
+
+        it('says telemetry is not configured, with no retry to offer', () => {
+            wrapper = factory({ telemetry: NOT_CONFIGURED });
+
+            expect(wrapper.find('[data-testid="telemetry-banner"]').text()).toContain('Telemetry is not configured for Hell Let Loose, so nothing was pre-filled. Mark attendance by hand.');
+            expect(wrapper.find('[data-testid="telemetry-retry"]').exists()).toBe(false);
+        });
+
+        it('shows no banner for a practice that was never attempted', () => {
+            expect(factory({ telemetry: null }).find('[data-testid="telemetry-banner"]').exists()).toBe(false);
+        });
+
+        it('asks the server to try again and says out loud when the server is still down', async () => {
+            post.mockResolvedValue({ ok: true, status: 202, data: { queued: true } });
+            wrapper = factory({ telemetry: FAILED });
+            reload.mockImplementation(async (options) => {
+                await wrapper.setProps({ telemetry: { ...FAILED, lastAttemptAt: '2026-10-08T16:20:00+00:00' } });
+                options.onFinish();
+            });
+
+            await click();
+            await flushPromises();
+
+            expect(post).toHaveBeenCalledWith('/rollcall/12/capture', { week: '2026-10-03' });
+            expect(reload).toHaveBeenCalledWith(expect.objectContaining({ only: ['telemetry', 'capture'] }));
+            expect(toastError).toHaveBeenCalledWith('Game server still could not be read', expect.anything());
+            expect(wrapper.find('[data-testid="telemetry-retry"]').text()).toBe('Try again');
+        });
+
+        it('reloads to show the pre-filled marks once a capture succeeds', async () => {
+            post.mockResolvedValue({ ok: true, status: 202, data: { queued: true } });
+            wrapper = factory({ telemetry: FAILED });
+            reload.mockImplementation(async (options) => {
+                if (options.only) await wrapper.setProps({ telemetry: null, capture: { source: 'crcon', capturedAt: '2026-10-08T16:20:00+00:00' } });
+                options.onFinish?.();
+            });
+
+            await click();
+            await flushPromises();
+
+            expect(toastSuccess).toHaveBeenCalledWith('Read CRCON', expect.anything());
+            expect(reload).toHaveBeenLastCalledWith({ preserveScroll: true });
+            expect(wrapper.find('[data-testid="telemetry-banner"]').exists()).toBe(false);
+        });
+
+        it('keeps waiting visibly, then tells the leader to reload, when no result arrives', async () => {
+            post.mockResolvedValue({ ok: true, status: 202, data: { queued: true } });
+            wrapper = factory({ telemetry: FAILED });
+            reload.mockImplementation(async (options) => options.onFinish());
+
+            await click();
+            expect(wrapper.find('[data-testid="telemetry-retry"]').text()).toBe('Trying...');
+            await vi.advanceTimersByTimeAsync(2500 * 30);
+            await flushPromises();
+
+            expect(toastWarning).toHaveBeenCalledWith('Still waiting for the game server', expect.anything());
+        });
+
+        it('surfaces a refusal and does not poll', async () => {
+            post.mockResolvedValue({ ok: false, status: 429, data: { message: 'The game server was just tried. Try again in 41 seconds.' } });
+            wrapper = factory({ telemetry: FAILED });
+
+            await click();
+            await flushPromises();
+
+            expect(toastError).toHaveBeenCalledWith('Could not try again', { description: 'The game server was just tried. Try again in 41 seconds.' });
+            expect(reload).not.toHaveBeenCalled();
+            expect(wrapper.find('[data-testid="telemetry-banner"]').exists()).toBe(true);
+        });
+
+        it('disables the retry in a read-only view-as preview', () => {
+            page.props.viewAs = { label: 'SGT Ortega' };
+            wrapper = factory({ telemetry: FAILED });
+
+            expect(wrapper.find('[data-testid="telemetry-retry"]').attributes('disabled')).toBeDefined();
         });
     });
 });

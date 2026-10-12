@@ -44,6 +44,7 @@ final class CaptureSources
                     throw new CaptureSourceUnavailable("crcon: {$e->reason->value}", previous: $e);
                 }
             },
+            self::filled($crconConfig, 'base_url', 'api_key'),
         );
 
         $battleMetricsSource = new CaptureSource(
@@ -56,6 +57,7 @@ final class CaptureSources
                     throw new CaptureSourceUnavailable("battlemetrics: {$e->reason->value}", previous: $e);
                 }
             },
+            self::filled($battleMetricsConfig, 'base_url', 'api_key', 'server_id'),
         );
 
         // A window past Nightwatch's retention is as unanswerable as an outage: same typed failure.
@@ -71,6 +73,7 @@ final class CaptureSources
                     throw new CaptureSourceUnavailable("nightwatch: window expired ({$e->retentionHours}h retention)", previous: $e);
                 }
             },
+            self::filled($nightwatchConfig, 'base_url', 'api_key', 'server_ids'),
         );
 
         return new self([
@@ -78,6 +81,27 @@ final class CaptureSources
             GamePlatform::Arma->value => [$battleMetricsSource],
             GamePlatform::Wardogs->value => [$nightwatchSource],
         ]);
+    }
+
+    /** True when every named key is set — the same test each seam applies before it will call out. */
+    private static function filled(?array $config, string ...$keys): bool
+    {
+        foreach ($keys as $key) {
+            if (blank($config[$key] ?? null)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Whether any source of the platform has its keys set (AD-23). False means a capture would not
+     * be attempted at all. A platform with no source at all is not configured either.
+     */
+    public function isConfigured(GamePlatform $platform): bool
+    {
+        return array_filter($this->for($platform), fn (CaptureSource $source) => $source->configured) !== [];
     }
 
     /**

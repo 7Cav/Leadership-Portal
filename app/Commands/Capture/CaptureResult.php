@@ -8,6 +8,7 @@ use App\Integration\Crcon\Data\CrconPlayer;
  * What one capture run found, for leader review and for 7.6 (pre-mark) / 7.7 (resolve unmatched).
  * `unavailable` means the practice was left un-captured because no source could answer — never
  * zero attendance; `captured` with empty lists means a source answered and the window was empty.
+ * `notConfigured` means no source's keys are set, so nothing was attempted (7.9).
  */
 final readonly class CaptureResult
 {
@@ -24,6 +25,7 @@ final readonly class CaptureResult
         public array $otherSection,
         public array $unmatched,
         public array $unavailableReasons,
+        public bool $attempted = true,
     ) {}
 
     /**
@@ -42,6 +44,12 @@ final readonly class CaptureResult
     public static function unavailable(array $reasons): self
     {
         return new self(false, null, [], [], [], $reasons);
+    }
+
+    /** No source has its env keys set: nothing was read and nothing recorded (7.9, AD-23). */
+    public static function notConfigured(): self
+    {
+        return new self(false, null, [], [], [], ['no source is configured for this game'], attempted: false);
     }
 
     /** Players observed: every resolved or unresolved one. */

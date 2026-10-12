@@ -8,13 +8,14 @@ use App\Repositories\SyncRunRepository;
 
 class Eloquent implements SyncRunRepository
 {
-    public function open(string $source, int|string $triggeredBy): SyncRun
+    public function open(string $source, int|string $triggeredBy, ?int $sectionPracticeId = null): SyncRun
     {
         return SyncRun::query()->forceCreate([
             'source' => $source,
             'started_at' => now(),
             'status' => SyncRunStatus::InProgress,
             'triggered_by' => (string) $triggeredBy,
+            'section_practice_id' => $sectionPracticeId,
         ]);
     }
 
@@ -57,6 +58,18 @@ class Eloquent implements SyncRunRepository
             ->where('source', $source)
             ->where('status', SyncRunStatus::Success)
             ->orderByDesc('finished_at')
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    public function latestForPractice(string $source, int $sectionPracticeId): ?SyncRun
+    {
+        return SyncRun::query()
+            ->where('source', $source)
+            ->where('section_practice_id', $sectionPracticeId)
+            ->whereNotNull('finished_at')
+            ->where('status', '!=', SyncRunStatus::InProgress)
+            ->orderByDesc('started_at')
             ->orderByDesc('id')
             ->first();
     }
