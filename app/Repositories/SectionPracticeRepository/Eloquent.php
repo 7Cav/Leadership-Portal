@@ -74,4 +74,20 @@ class Eloquent implements SectionPracticeRepository
 
         return $practice->load('rollcallPostedBy');
     }
+
+    public function findById(int $id): ?SectionPractice
+    {
+        return SectionPractice::query()->find($id);
+    }
+
+    public function stampCapture(SectionPractice $practice, string $serverRef, \DateTimeInterface $capturedAt, string $captureSource): SectionPractice
+    {
+        $practice->forceFill([
+            'server_ref' => $serverRef,
+            'captured_at' => $capturedAt,
+            'capture_source' => $captureSource,
+        ])->save();
+
+        return $practice;
+    }
 }
