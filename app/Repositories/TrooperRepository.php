@@ -89,15 +89,21 @@ interface TrooperRepository
     public function assignedWithin(Unit $unit): Collection;
 
     /**
-     * Every active trooper the sync could not place into a section (`primary_section_id` null), for the
-     * Settings panel that surfaces them for manual placement (2.6). Departed troopers are left out:
-     * nobody needs to place someone no longer on a Cav roster. Ordered by username (troopers with no
-     * username last), then `cav_id`, so the list never reshuffles between requests. Reads the cache,
-     * so a failed last sync still shows the last good set.
+     * The first `$limit` active troopers the sync could not place into a section (`primary_section_id`
+     * null), as plain rows for the Settings panel that surfaces them for manual placement (2.6).
+     * Departed troopers are left out: nobody needs to place someone no longer on a Cav roster.
+     * Ordered by username (troopers with no username last), then `cav_id`, so the list never
+     * reshuffles between requests. Reads the cache, so a failed last sync still shows the last good
+     * set. Pair with `unplacedCount()` for the true total when the list is capped.
      *
-     * @return EloquentCollection<int, Trooper>
+     * @return Collection<int, array{id: int, cav_id: int, username: ?string, rank: ?string, mos: ?string, billet: ?string, position_id: ?int}>
      */
-    public function unplaced(): EloquentCollection;
+    public function unplaced(int $limit): Collection;
+
+    /**
+     * How many troopers `unplaced()` would return without a limit.
+     */
+    public function unplacedCount(): int;
 
     /**
      * The troopers currently assigned within `$unit`'s subtree (as `assignedWithin()`), as models
