@@ -10,7 +10,7 @@ test('a section leader links their troopers, hits a collision, then edits and re
     await expect(page).toHaveURL(/\/game-identities$/);
     await expect(page.getByRole('heading', { name: 'Game identities' })).toBeVisible();
     await expect(page.getByTestId('coverage-linked')).toHaveText('0');
-    await expect(page.getByTestId('coverage-slots')).toHaveText('16');
+    await expect(page.getByTestId('coverage-slots')).toHaveText('24');
     await expect(page.getByTestId('view-needs')).toHaveAttribute('aria-pressed', 'true');
 
     const rows = page.locator('[data-testid^="row-"]');
