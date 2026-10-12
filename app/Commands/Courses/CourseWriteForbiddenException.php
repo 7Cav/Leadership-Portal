@@ -15,4 +15,9 @@ class CourseWriteForbiddenException extends AuthorizationException
     {
         return new self('Only an Admin may add a course to the catalog.');
     }
+
+    public static function setTrooperCourseStatus(): self
+    {
+        return new self("Only an Admin may set a trooper's course status.");
+    }
 }

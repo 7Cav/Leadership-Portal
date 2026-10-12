@@ -22,6 +22,11 @@ class Eloquent implements CourseRepository
         ])->values();
     }
 
+    public function find(int $id): ?Course
+    {
+        return Course::query()->find($id);
+    }
+
     public function findByCode(string $code): ?Course
     {
         return Course::query()->where('code', $code)->first();
