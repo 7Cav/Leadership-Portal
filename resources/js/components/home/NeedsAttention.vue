@@ -30,7 +30,7 @@ const groups = computed(() =>
     <Card role="region" class="min-w-0 gap-0 py-0" aria-labelledby="attention-title" data-testid="needs-attention">
         <div class="flex items-center gap-2 px-4 pt-3.5">
             <h2 id="attention-title" class="text-[15px] font-semibold">Needs attention</h2>
-            <span class="truncate text-xs text-muted-foreground">Calls to make before the report goes up</span>
+            <span class="hidden truncate text-xs text-muted-foreground sm:inline">Calls to make before the report goes up</span>
         </div>
 
         <EmptyState v-if="!groups.length" :icon="PhCheckCircle" title="All clear" class="py-12" data-testid="all-clear">

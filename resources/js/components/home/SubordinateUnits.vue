@@ -83,7 +83,7 @@ const own = computed(() => props.units.length === 1 && props.units[0].type === '
     <Card role="region" class="min-w-0 gap-0 py-0" aria-labelledby="units-title" data-testid="subordinate-units">
         <div class="flex items-baseline gap-2 px-4 pt-3.5">
             <h2 id="units-title" class="text-[15px] font-semibold">{{ own ? 'Your section' : 'Subordinate units' }}</h2>
-            <span class="truncate text-xs text-muted-foreground">{{ own ? 'This week, your report' : 'This week, each unit against its report' }}</span>
+            <span class="hidden truncate text-xs text-muted-foreground sm:inline">{{ own ? 'This week, your report' : 'This week, each unit against its report' }}</span>
         </div>
 
         <EmptyState v-if="!units.length" :icon="PhUsersThree" title="No units in your scope yet" class="py-10" data-testid="no-units">
