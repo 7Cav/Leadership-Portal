@@ -43,7 +43,7 @@ Route → Controller ─┬─ (write) Command → CommandHandler ─┐
 
 | Layer | Directory | May depend on | Role |
 | --- | --- | --- | --- |
-| Controller | `app/Http/Controllers/` | CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi, Loa | Orchestrate a request. **No business logic.** Reads repositories directly; writes via Commands. |
+| Controller | `app/Http/Controllers/` | CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi | Orchestrate a request. **No business logic.** Reads repositories directly; writes via Commands. |
 | Command / Handler | `app/Commands/` | Repository, Model, Integration, Support\Audit, Authorization, Support\Time, Kpi, Loa | Write-side business logic; the **only** caller of the outbound seam. |
 | Repository | `app/Repositories/` | Model, DB, Support\Time | **Sole** DB access (AD-2) |
 | Model | `app/Models/` | DB | Eloquent entities |

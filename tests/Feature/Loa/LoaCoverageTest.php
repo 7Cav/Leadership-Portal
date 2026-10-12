@@ -1,11 +1,13 @@
 <?php
 
+use App\Loa\LoaCover;
 use App\Loa\LoaCoverage;
 use App\Loa\LoaCoverageState;
 use App\Models\Loa;
 use App\Models\LoaParseStatus;
 use App\Models\LoaType;
 use App\Models\Trooper;
+use App\Repositories\LoaRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -122,6 +124,46 @@ describe('a cleanly read leave', function () {
         'the expected day, late in the day' => ['2026-10-08 23:59:59', false],
         'the next UTC day, just after midnight' => ['2026-10-09 00:00:01', true],
     ]);
+
+    it('does not describe today for a week that does not contain it, so a past week never reads as overdue', function () {
+        $this->travelTo(CarbonImmutable::parse('2026-10-20 12:00:00', 'UTC'));
+        $trooper = Trooper::factory()->create();
+        coverageLeave($trooper, '2026-09-20', null, ['type' => LoaType::Eloa, 'expected_return_at' => '2026-10-08']);
+        $ending = Trooper::factory()->create();
+        coverageLeave($ending, '2026-10-01', '2026-10-08');
+
+        // The week of Oct 3 is long past: the ELOA is covered there and was not overdue then; Oct 20 is today.
+        expect(coverageOf($trooper, coverageWeek('2026-10-03'))->overdue)->toBeFalse()
+            ->and(coverageOf($trooper, coverageWeek('2026-10-17'))->overdue)->toBeTrue()
+            ->and(coverageOf($ending, coverageWeek('2026-10-03'))->endsInDays)->toBeNull();
+    });
+
+    it('takes the reference day as a parameter, so a past week can be judged as of a given day', function () {
+        $trooper = Trooper::factory()->create();
+        coverageLeave($trooper, '2026-09-20', null, ['type' => LoaType::Eloa, 'expected_return_at' => '2026-10-08']);
+        $coverage = app(LoaCoverage::class);
+
+        expect($coverage->forTrooper($trooper->id, coverageWeek(), CarbonImmutable::parse('2026-10-09 08:00:00', 'UTC'))->overdue)->toBeTrue()
+            ->and($coverage->forTrooper($trooper->id, coverageWeek(), CarbonImmutable::parse('2026-10-07 08:00:00', 'UTC'))->overdue)->toBeFalse()
+            ->and($coverage->forTrooper($trooper->id, coverageWeek(), CarbonImmutable::parse('2026-10-20 08:00:00', 'UTC'))->overdue)->toBeFalse();
+    });
+
+    it('says a leave has ended once its last day is before the reference day, for any week asked about', function () {
+        $this->travelTo(CarbonImmutable::parse('2026-10-20 12:00:00', 'UTC'));
+        $trooper = Trooper::factory()->create();
+        coverageLeave($trooper, '2026-10-01', '2026-10-06');
+        $open = Trooper::factory()->create();
+        coverageLeave($open, '2026-10-01', '2026-10-30');
+
+        expect(coverageOf($trooper, coverageWeek('2026-10-03'))->ended)->toBeTrue()
+            ->and(coverageOf($trooper, coverageWeek('2026-10-03'))->toArray()['ended'])->toBeTrue()
+            ->and(coverageOf($open, coverageWeek('2026-10-17'))->ended)->toBeFalse()
+            ->and(app(LoaCoverage::class)->forTrooper($trooper->id, coverageWeek('2026-10-03'), CarbonImmutable::parse('2026-10-06 08:00:00', 'UTC'))->ended)->toBeFalse();
+    });
+
+    it('cannot be built into an impossible state: only the named constructors are public', function () {
+        expect((new ReflectionClass(LoaCover::class))->getConstructor()->isPrivate())->toBeTrue();
+    });
 
     it('is not overdue once a return has ended the ELOA, or when no return date was given', function () {
         $this->travelTo(CarbonImmutable::parse('2026-11-30 12:00:00', 'UTC'));
@@ -391,6 +433,7 @@ it('never writes while it resolves', function () {
 });
 
 it('gives the badge its props: a covering leave with dates, a review with none', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-10-06 12:00:00', 'UTC'));
     $away = Trooper::factory()->create();
     $unclear = Trooper::factory()->create();
     coverageLeave($away, '2026-10-05', '2026-10-07', ['type' => LoaType::Loa, 'source_thread' => 'https://7cav.us/threads/a.1/']);
@@ -411,7 +454,8 @@ it('gives the badge its props: a covering leave with dates, a review with none',
         'expectedReturnAt' => null,
         'ongoing' => false,
         'overdue' => false,
-        'endsInDays' => null,
+        'endsInDays' => 1,
+        'ended' => false,
         'sourceThread' => 'https://7cav.us/threads/a.1/',
         'reviewReason' => null,
     ])->and(coverageOf($unclear)->toArray())->toBe([
@@ -424,6 +468,7 @@ it('gives the badge its props: a covering leave with dates, a review with none',
         'ongoing' => false,
         'overdue' => false,
         'endsInDays' => null,
+        'ended' => false,
         'sourceThread' => 'https://7cav.us/threads/b.2/',
         'reviewReason' => 'No end date.',
     ]);
@@ -470,4 +515,36 @@ describe('a window of weeks (Story 4.8)', function () {
         expect(fn () => $coverage->forTroopersOverWeeks([1], coverageWeek(), 0))->toThrow(InvalidArgumentException::class)
             ->and(fn () => $coverage->forTroopersOverWeeks([1], coverageWeek()->addDay(), 2))->toThrow(InvalidArgumentException::class);
     });
+});
+
+it('prefilters in SQL to a superset of what the one week rule accepts, so the two cannot drift apart', function () {
+    $trooper = Trooper::factory()->create();
+    $first = coverageWeek('2026-10-03');
+    $weeks = 3;
+
+    foreach ([
+        ['2026-09-01', '2026-09-25'], ['2026-09-20', '2026-10-03'], ['2026-10-09', '2026-10-09'], ['2026-10-17', '2026-10-24'],
+        ['2026-10-23', '2026-11-01'], ['2026-10-24', '2026-10-24'], ['2026-10-25', null], ['2026-12-01', null], ['2026-08-01', null],
+    ] as [$start, $end]) {
+        coverageLeave($trooper, $start, $end);
+    }
+
+    foreach (['2026-09-18 23:59:59', '2026-09-26 00:00:00', '2026-10-03 00:00:00', '2026-10-23 23:59:59', '2026-10-24 00:00:00', '2026-11-30 00:00:00'] as $posted) {
+        Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'posted_at' => $posted]);
+        Loa::factory()->create(['trooper_id' => $trooper->id, 'starts_at' => null, 'ends_at' => null, 'posted_at' => $posted]);
+        Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'posted_at' => null, 'created_at' => $posted]);
+    }
+
+    $returned = app(LoaRepository::class)->touchingWeeks([$trooper->id], $first, $weeks)->pluck('id')->all();
+    $starts = array_map(fn (int $i) => $first->addWeeks($i), range(0, $weeks - 1));
+
+    foreach (Loa::all() as $loa) {
+        $bearsOnAWeek = collect($starts)->contains(fn ($start) => LoaCoverage::touchesWeek($loa, $start));
+
+        if ($bearsOnAWeek) {
+            expect($returned)->toContain($loa->id);
+        }
+    }
+
+    expect(Loa::all()->filter(fn ($loa) => collect($starts)->contains(fn ($start) => LoaCoverage::touchesWeek($loa, $start)))->count())->toBeGreaterThan(5);
 });

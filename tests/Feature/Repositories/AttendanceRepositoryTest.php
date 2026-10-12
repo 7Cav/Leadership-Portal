@@ -7,8 +7,11 @@ use App\Models\RollcallSignature;
 use App\Models\SectionPractice;
 use App\Models\Trooper;
 use App\Models\Unit;
+use App\Models\UnitType;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\CountingMark;
+use App\Repositories\SectionPracticeRepository;
+use App\Repositories\SectionWeekProgress;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -137,7 +140,7 @@ it('reads one counting mark per held practice of the trooper\'s primary section 
 
     expect($marks->all())->toEqual([
         new CountingMark($trooper->id, $week->subWeek(), null, RollcallSignature::Unsigned, held: false),
-        new CountingMark($trooper->id, $week, AttendanceStatus::Makeup, RollcallSignature::Unsigned, held: true),
+        new CountingMark($trooper->id, $week, AttendanceStatus::Makeup, RollcallSignature::Unsigned, held: true, source: AttendanceSource::Manual),
     ]);
 });
 
@@ -161,6 +164,15 @@ it('marks a practice held once anyone in the section has an SP mark, not on sign
     ]);
 });
 
+it('carries who recorded each counting mark, for the roster cell\'s source (2.8)', function () {
+    [$section, $trooper] = countingFixture();
+    $week = CarbonImmutable::parse('2026-06-27 00:00:00', 'UTC');
+    $auto = SectionPractice::factory()->create(['section_id' => $section->id, 'week_start' => $week]);
+    $this->repo->markPractice($auto, $trooper->id, AttendanceStatus::Present, AttendanceSource::Auto);
+
+    expect($this->repo->countingMarks($section, $week, $week)->sole()->source)->toBe(AttendanceSource::Auto);
+});
+
 it('reads no counting marks for an inactive trooper', function () {
     [$section, $trooper] = countingFixture();
     $trooper->update(['status' => 'inactive']);
@@ -171,9 +183,83 @@ it('reads no counting marks for an inactive trooper', function () {
     expect($this->repo->countingMarks($section, $week, $week))->toBeEmpty();
 });
 
+it('reads a departed trooper\'s marks only when asked to include them (2.8)', function () {
+    [$section, $trooper] = countingFixture();
+    $week = CarbonImmutable::parse('2026-06-27 00:00:00', 'UTC');
+    $practice = SectionPractice::factory()->create(['section_id' => $section->id, 'week_start' => $week]);
+    $this->repo->markPractice($practice, $trooper->id, AttendanceStatus::Present, AttendanceSource::Manual);
+    $trooper->update(['status' => 'inactive']);
+
+    expect($this->repo->countingMarks($section, $week, $week))->toBeEmpty()
+        ->and($this->repo->countingMarks($section, $week, $week, includeDeparted: true)->sole()->status)->toBe(AttendanceStatus::Present);
+});
+
 it('refuses a counting-mark span that does not start and end on week boundaries', function () {
     [$section] = countingFixture();
     $week = CarbonImmutable::parse('2026-06-27 00:00:00', 'UTC');
 
     $this->repo->countingMarks($section, $week, $week->addHour());
 })->throws(InvalidArgumentException::class);
+
+it('counts each section\'s week progress in one pass: strength, signed, marked and held', function () {
+    $week = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');
+    [$busy, $quiet, $empty] = Unit::factory()->count(3)->create(['type' => UnitType::Section]);
+    $busyTroopers = Trooper::factory()->count(3)->create(['primary_section_id' => $busy->id]);
+    Trooper::factory()->count(2)->create(['primary_section_id' => $quiet->id]);
+    $practices = app(SectionPracticeRepository::class);
+    $repo = app(AttendanceRepository::class);
+
+    $practice = $practices->findOrCreate($busy->id, $week);
+    $repo->signRollcall($practice, $busyTroopers[0]->id, RollcallSignature::WillAttend);
+    $repo->signRollcall($practice, $busyTroopers[1]->id, RollcallSignature::Unsigned);
+    $repo->markPractice($practice, $busyTroopers[0]->id, AttendanceStatus::Present, AttendanceSource::Manual);
+    $repo->markPractice($practice, $busyTroopers[1]->id, AttendanceStatus::Loa, AttendanceSource::Auto);
+
+    $progress = $repo->weekProgress([$busy->id, $quiet->id, $empty->id], $week);
+
+    expect($progress->keys()->all())->toEqualCanonicalizing([$busy->id, $quiet->id])
+        ->and($progress->get($busy->id))->toEqual(new SectionWeekProgress($busy->id, 3, 1, 2, true))
+        ->and($progress->get($quiet->id))->toEqual(new SectionWeekProgress($quiet->id, 2, 0, 0, false))
+        ->and($repo->weekProgress([], $week))->toBeEmpty();
+});
+
+// 7.6 / AD-14, AD-22: capture's write — present/auto, never over a leader's mark.
+
+it('auto-marks a trooper with no row as present from the auto source', function () {
+    $row = $this->repo->markPracticeAuto($this->practice, $this->trooper->id);
+
+    expect($row->status)->toBe(AttendanceStatus::Present)
+        ->and($row->source)->toBe(AttendanceSource::Auto)
+        ->and(Attendance::query()->count())->toBe(1);
+});
+
+it('returns null and changes nothing when the row is manual', function () {
+    $this->repo->markPractice($this->practice, $this->trooper->id, AttendanceStatus::Missed, AttendanceSource::Manual);
+
+    expect($this->repo->markPracticeAuto($this->practice, $this->trooper->id))->toBeNull();
+
+    $row = Attendance::query()->sole();
+    expect($row->status)->toBe(AttendanceStatus::Missed)->and($row->source)->toBe(AttendanceSource::Manual);
+});
+
+it('refreshes an auto row in place and leaves a loa row alone', function () {
+    $this->repo->markPractice($this->practice, $this->trooper->id, AttendanceStatus::Missed, AttendanceSource::Auto);
+    $this->repo->markPracticeAuto($this->practice, $this->trooper->id);
+
+    expect(Attendance::query()->sole()->status)->toBe(AttendanceStatus::Present);
+
+    $other = Trooper::factory()->create();
+    $this->repo->markPractice($this->practice, $other->id, AttendanceStatus::Loa, AttendanceSource::Auto);
+
+    expect($this->repo->markPracticeAuto($this->practice, $other->id))->toBeNull()
+        ->and(Attendance::query()->where('trooper_id', $other->id)->sole()->status)->toBe(AttendanceStatus::Loa);
+});
+
+it('turns a demo row real when it auto-marks over it', function () {
+    $this->repo->markPractice($this->practice, $this->trooper->id, AttendanceStatus::Missed, AttendanceSource::Auto);
+    Attendance::query()->update(['is_demo' => true]);
+
+    $this->repo->markPracticeAuto($this->practice, $this->trooper->id);
+
+    expect(Attendance::query()->sole()->is_demo)->toBeFalse();
+});

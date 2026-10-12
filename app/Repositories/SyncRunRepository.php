@@ -13,9 +13,10 @@ interface SyncRunRepository
     /**
      * Open a run: `status = in_progress`, `started_at = now()`. The caller closes it with
      * {@see complete()} on success or {@see fail()} on a thrown error — a run left `in_progress`
-     * is itself evidence of a crash that never reached either.
+     * is itself evidence of a crash that never reached either. A capture run (7.5) names the
+     * practice it runs for in `$sectionPracticeId` (7.9).
      */
-    public function open(string $source, int|string $triggeredBy): SyncRun;
+    public function open(string $source, int|string $triggeredBy, ?int $sectionPracticeId = null): SyncRun;
 
     /**
      * Close a run that finished processing. `errored > 0` means some rows were bad but the run
@@ -32,6 +33,14 @@ interface SyncRunRepository
     public function fail(SyncRun $run, string $error): void;
 
     /**
+     * Close every run of `$source` still `in_progress` as failed. For a source whose runs are serialized,
+     * so one still open when a new run starts was killed (a worker timeout) before it could record itself.
+     *
+     * @return int how many were closed
+     */
+    public function failOrphaned(string $source): int;
+
+    /**
      * The most recent successful run for a source, for the roster view's (2.8) "last synced"
      * stamp — a `partial` run did write real data, but only a clean `success` is trustworthy
      * enough to call the cache current. `finished_at` is second-precision, so two runs closing in
@@ -42,10 +51,18 @@ interface SyncRunRepository
     public function latestSuccessful(string $source): ?SyncRun;
 
     /**
-     * The most recent run for a source that has closed, whatever its outcome: what the roster
-     * view (2.8) compares against {@see latestSuccessful()} to tell a current cache from a stale
-     * one. A run still `in_progress` is skipped, since it has not said how it ended. Same
-     * `finished_at` then `id` ordering as {@see latestSuccessful()}.
+     * The most recent *closed* run for a source, whatever its outcome — the roster view (2.8)
+     * compares it with {@see latestSuccessful()} to flag a cache whose last attempt failed or
+     * was partial (AD-4: the last good cache is shown, visibly stale). A run still
+     * `in_progress` has no outcome yet and is skipped. Same `id` tiebreaker.
      */
     public function latestFinished(string $source): ?SyncRun;
+
+    /**
+     * The most recent *closed* run of `$source` for one practice, whatever its outcome — the rollcall
+     * screen's "last tried" and failed state for a practice's capture (7.9, AD-20). A run still
+     * `in_progress` (or left so by a crash) has no outcome and is skipped, so a retry in flight does
+     * not hide the earlier failure. Newest start first, `id` as the tiebreaker.
+     */
+    public function latestForPractice(string $source, int $sectionPracticeId): ?SyncRun;
 }

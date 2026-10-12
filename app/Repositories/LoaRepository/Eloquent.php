@@ -37,21 +37,24 @@ class Eloquent implements LoaRepository
 
         $first = WeekOf::requireStart($firstWeekStart);
         $firstDay = $first->toDateString();
-        $lastDay = $first->addDays($weeks * 7 - 1)->toDateString();
-        $nextWeek = WeekOf::start($first->addWeeks($weeks));
+        $nextWeek = WeekOf::next($first, $weeks);
+        $nextDay = $nextWeek->toDateString();
         // An undated row shields the Cav week it was posted in and the one after: it can touch the range when
         // it was posted from the start of the week before the range up to the range's end. The resolver then
         // places it week by week.
-        $postedFrom = WeekOf::start($first->subWeek());
+        $postedFrom = WeekOf::previous($first);
 
         return Loa::query()
             ->whereIn('trooper_id', $trooperIds)
-            ->where(function ($query) use ($firstDay, $lastDay, $postedFrom, $nextWeek) {
-                $query->where(function ($dated) use ($firstDay, $lastDay) {
+            ->where(function ($query) use ($firstDay, $nextDay, $postedFrom, $nextWeek) {
+                $query->where(function ($dated) use ($firstDay, $nextDay) {
                     $dated->where('parse_status', LoaParseStatus::Ok->value)
                         ->whereNotNull('starts_at')
-                        ->whereDate('starts_at', '<=', $lastDay)
-                        ->where(fn ($end) => $end->whereNull('ends_at')->orWhereDate('ends_at', '>=', $firstDay));
+                        // `starts_at` and `ends_at` are DATE columns: plain comparisons, so an index on them stays usable.
+                        // Starting before the next week's first day is the same as on or before this Friday,
+                        // and holds whether the driver keeps a bare date or a midnight timestamp.
+                        ->where('starts_at', '<', $nextDay)
+                        ->where(fn ($end) => $end->whereNull('ends_at')->orWhere('ends_at', '>=', $firstDay));
                 })->orWhere(function ($undated) use ($postedFrom, $nextWeek) {
                     $undated->where(fn ($unread) => $unread->where('parse_status', LoaParseStatus::NeedsReview->value)->orWhereNull('starts_at'))
                         ->where(fn ($posted) => $posted
@@ -86,8 +89,17 @@ class Eloquent implements LoaRepository
             $created = 0;
             $updated = 0;
 
+            // One read for every row this run touches, not one per thread; only a row that changed is written.
+            $existing = [];
+
+            foreach (array_chunk(array_map(fn ($write) => $write->forumThreadId, $writes), 500) as $threadIds) {
+                foreach (Loa::query()->whereIn('forum_thread_id', $threadIds)->get() as $row) {
+                    $existing[$row->forum_thread_id] = $row;
+                }
+            }
+
             foreach ($writes as $write) {
-                $loa = Loa::query()->where('forum_thread_id', $write->forumThreadId)->first();
+                $loa = $existing[$write->forumThreadId] ?? null;
                 $isNew = $loa === null;
                 $loa ??= new Loa;
 

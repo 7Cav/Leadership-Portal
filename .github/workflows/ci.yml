@@ -1,15 +1,26 @@
 name: CI
 
 # The quality gate (Story 1.3, NFR9). Every push to and PR against the integration
-# branch runs all six gates — Pint, Deptrac, Pest, Vitest, Playwright, npm audit. They
-# run as separate jobs, so the overall pipeline status is failure if ANY single gate
-# fails (AND-combined, not advisory). External API seams are never called from CI.
+# branch runs all seven gates — Pint, Deptrac, Pest, Vitest, Playwright, npm audit and
+# composer audit. They run as separate jobs, so the overall pipeline status is failure if
+# ANY single gate fails (AND-combined, not advisory). External API seams are never called
+# from CI.
+#
+# Third-party actions are pinned to a full commit SHA, with the tag it was taken from in a
+# comment: a tag can be moved to different code after we start trusting it, a SHA cannot.
+# Bump them by looking up the new tag's commit (`git ls-remote https://github.com/<repo>
+# refs/tags/<tag>`, using the `^{}` line for an annotated tag).
 
 on:
   push:
     branches: [develop]
   pull_request:
     branches: [develop]
+  # A new advisory can land against code that has not changed. The weekly run (audit job
+  # only) tells a maintainer when the world moves, instead of an unrelated PR turning red.
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
 
 # Cancel superseded runs on the same ref to save minutes.
 concurrency:
@@ -24,11 +35,14 @@ jobs:
   backend:
     name: Backend (Pint · Deptrac · Pest)
     runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up PHP 8.4
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
           php-version: '8.4'
           extensions: mbstring, dom, curl, pdo_sqlite, sqlite3, bcmath
@@ -61,11 +75,14 @@ jobs:
   frontend:
     name: Frontend (Vitest)
     runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up Node 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: npm
@@ -76,15 +93,17 @@ jobs:
       - name: Vitest (Vue unit tests)
         run: npm run test:unit
 
-  # ── Supply-chain gate: no known high/critical advisory in the npm lockfile ──
+  # ── Supply-chain gate: no known high/critical advisory in the npm lockfile, none in composer.lock ──
   audit:
-    name: Audit (npm)
+    name: Audit (npm · composer)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up Node 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
 
@@ -96,10 +115,25 @@ jobs:
       - name: npm audit (high and above)
         run: npm audit --audit-level=high --package-lock-only
 
+      - name: Set up PHP 8.4
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+
+      # The same check for the PHP side. It reads composer.lock against Packagist's advisory
+      # database, so no install is needed. Unlike npm audit it fails on an advisory of any
+      # severity: the PHP tree is small and every advisory so far had a patch release. Abandoned
+      # packages are reported but do not block a merge.
+      - name: composer audit
+        run: composer audit --locked --no-interaction --abandoned=report
+
   # ── Browser E2E gate: Playwright drives the real app ──
   e2e:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
     # No MySQL service: Playwright's global setup migrates and seeds a throwaway SQLite
     # file and serves the app on it as APP_ENV=e2e (tests/e2e/env.js overrides these).
     env:
@@ -109,10 +143,12 @@ jobs:
       CACHE_STORE: array
       QUEUE_CONNECTION: sync
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up PHP 8.4
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
           php-version: '8.4'
           extensions: mbstring, dom, curl, pdo_sqlite, sqlite3, bcmath
@@ -120,7 +156,7 @@ jobs:
           tools: composer:v2
 
       - name: Set up Node 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: npm
@@ -147,7 +183,7 @@ jobs:
 
       - name: Upload Playwright report on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: playwright-report
           path: playwright-report/
