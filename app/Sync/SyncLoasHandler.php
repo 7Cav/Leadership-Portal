@@ -21,10 +21,13 @@ use Throwable;
 
 /**
  * The sole writer of the `loas` cache (AD-4, AD-22). It reads leave threads through {@see ForumApi}, reads
- * each with {@see LoaPostParser}, and applies the whole run through {@see LoaRepository::sync()} as one
- * transaction: nothing is written until every thread has been fetched, so a failure part-way leaves the
- * last good cache exactly as it was (no partial truncation, and no truncation at all: rows are upserted
- * by `forum_thread_id`).
+ * each with {@see LoaPostParser}, and applies it one section at a time through {@see LoaRepository::sync()},
+ * each section as one transaction: nothing of a section is written until all of its threads have been
+ * fetched, so a failure part-way leaves that section's cache as it was (no truncation at all: rows are
+ * upserted by `forum_thread_id`), while the sections already done stay saved. That matters for the first
+ * backfill: a year of threads is about 0.5s each with the request pause, so even a thousand threads in a
+ * section is minutes, and the job's 15 minute timeout can only cost the section it was in, not the whole
+ * run. A run that dies without recording itself (a killed worker) is closed as failed by the next run.
  *
  * Which threads it reads: the forum lists a section newest first by creation date, so a run walks each
  * section only until it reaches a thread older than the last good run (less three hours of overlap), which
@@ -45,7 +48,9 @@ use Throwable;
  * thread was posted (`posted_at`), the one date a `needs_review` row has.
  *
  * The run is recorded in `sync_runs` (AD-16's carve-out for system jobs). A thread that failed to fetch
- * makes it `partial` (and is retried next run, since the cutoff only moves after a clean run). Rows left
+ * makes it `partial` (and is retried next run, since the cutoff only moves after a clean run). A thread the
+ * forum says is gone for good (deleted, moved out of reach, forbidden) is skipped without that: it can never
+ * be read, so counting it would keep every later run partial and the cutoff stuck. Rows left
  * for a person are counted in `needs_review`, which does not make a run partial. `inactivated` is the roster
  * sync's count of troopers marked departed and has no meaning here, so it stays 0.
  */
@@ -87,6 +92,10 @@ class SyncLoasHandler
      */
     public function handle(int|string $triggeredBy = 'system', bool $full = false): void
     {
+        // Runs are serialized by the job's lock, so any run still `in_progress` now was killed before it could
+        // record itself. Closing it keeps the sync's state honest instead of showing it running for ever.
+        $this->syncRuns->failOrphaned(SyncRun::SOURCE_LOA);
+
         $run = $this->syncRuns->open(SyncRun::SOURCE_LOA, $triggeredBy);
 
         try {
@@ -94,31 +103,34 @@ class SyncLoasHandler
             $horizon = $now->subDays(self::HISTORY_DAYS)->startOfDay();
             $cutoff = $full ? $horizon : $this->cutoff($horizon);
             $problems = [];
+            $created = $updated = $needsReview = 0;
 
-            $wanted = $this->wanted($cutoff, $problems);
+            foreach ($this->forum->loaNodes() as $nodeId => $typeValue) {
+                $wanted = $this->wanted($nodeId, LoaType::from($typeValue), $cutoff, $problems);
 
-            if ($full) {
-                $wanted = array_diff_key($wanted, array_flip($this->loas->settledThreadIds(array_keys($wanted), $now->subDays(self::SETTLED_AFTER_DAYS)->startOfDay())));
+                if ($full) {
+                    $wanted = array_diff_key($wanted, array_flip($this->loas->settledThreadIds(array_keys($wanted), $now->subDays(self::SETTLED_AFTER_DAYS)->startOfDay())));
+                }
+
+                $items = $this->read($wanted, $now, $problems);
+
+                [$writes, $returns, $review] = $this->build($items, $this->match($items));
+
+                $counts = $this->loas->sync($writes, $returns);
+
+                $created += $counts['created'];
+                $updated += $counts['updated'];
+                $needsReview += $review + $counts['unmatchedReturns'];
             }
-
-            $items = $this->read($wanted, $now, $problems);
-
-            // Asked for by the same bounded name build() matches on (see fit()).
-            $usernames = array_map(fn (array $item) => $item['parsed']->username === null ? null : mb_substr($item['parsed']->username, 0, self::RAW_LENGTH), $items);
-            $troopers = $this->troopers->idsByUsername(array_values(array_filter($usernames)));
-
-            [$writes, $returns, $needsReview] = $this->build($items, $troopers);
-
-            $counts = $this->loas->sync($writes, $returns);
 
             $this->syncRuns->complete(
                 $run,
-                inserted: $counts['created'],
-                updated: $counts['updated'],
+                inserted: $created,
+                updated: $updated,
                 inactivated: 0,
                 errored: count($problems),
                 error: $problems === [] ? null : mb_substr(implode('; ', $problems), 0, 2000),
-                needsReview: $needsReview + $counts['unmatchedReturns'],
+                needsReview: $needsReview,
             );
         } catch (Throwable $e) {
             $this->syncRuns->fail($run, $e->getMessage());
@@ -143,45 +155,41 @@ class SyncLoasHandler
     }
 
     /**
-     * The threads to read: each configured section, newest first, until a thread older than the cutoff.
-     * A failure listing a section is not caught: the run fails and writes nothing.
+     * The threads to read in one section: newest first, until a thread older than the cutoff. A failure
+     * listing the section is not caught: the run fails, with the sections before it already saved.
      *
      * @param  list<string>  $problems
      * @return array<int, array{summary: ForumThreadSummary, type: LoaType}> keyed by thread id
      */
-    private function wanted(CarbonImmutable $cutoff, array &$problems): array
+    private function wanted(int $nodeId, LoaType $type, CarbonImmutable $cutoff, array &$problems): array
     {
         $wanted = [];
 
-        foreach ($this->forum->loaNodes() as $nodeId => $typeValue) {
-            $type = LoaType::from($typeValue);
+        for ($page = 1; ; $page++) {
+            $this->pause();
+            $listing = $this->forum->listLoaThreads($nodeId, $page);
+            $reachedOlder = false;
 
-            for ($page = 1; ; $page++) {
-                $this->pause();
-                $listing = $this->forum->listLoaThreads($nodeId, $page);
-                $reachedOlder = false;
-
-                foreach ($listing->threads as $thread) {
-                    if ($thread->postedAt->lessThan($cutoff)) {
-                        $reachedOlder = true;
-
-                        break;
-                    }
-
-                    if ($thread->isVisible()) {
-                        $wanted[$thread->threadId] = ['summary' => $thread, 'type' => $type];
-                    }
-                }
-
-                if ($reachedOlder || ! $listing->hasMore()) {
-                    break;
-                }
-
-                if ($page >= self::MAX_PAGES) {
-                    $problems[] = "Section {$nodeId}: stopped at the {$page}-page limit before reaching the cutoff";
+            foreach ($listing->threads as $thread) {
+                if ($thread->postedAt->lessThan($cutoff)) {
+                    $reachedOlder = true;
 
                     break;
                 }
+
+                if ($thread->isVisible()) {
+                    $wanted[$thread->threadId] = ['summary' => $thread, 'type' => $type];
+                }
+            }
+
+            if ($reachedOlder || ! $listing->hasMore()) {
+                break;
+            }
+
+            if ($page >= self::MAX_PAGES) {
+                $problems[] = "Section {$nodeId}: stopped at the {$page}-page limit before reaching the cutoff";
+
+                break;
             }
         }
 
@@ -189,7 +197,26 @@ class SyncLoasHandler
     }
 
     /**
-     * Fetch and read each wanted thread. One that fails to fetch is noted and left for the next run.
+     * The troopers each read thread could be for: by forum user id where the post carries one, by the
+     * username otherwise. The username is asked for as the same bounded name build() matches on (see fit()).
+     *
+     * @param  list<array{summary: ForumThreadSummary, type: LoaType, parsed: ParsedLoaThread, eventOn: ?CarbonImmutable, eventNote: ?string}>  $items
+     * @return array{byForumId: array<int, list<int>>, byName: array<string, list<int>>}
+     */
+    private function match(array $items): array
+    {
+        $usernames = array_map(fn (array $item) => $item['parsed']->username === null ? null : mb_substr($item['parsed']->username, 0, self::RAW_LENGTH), $items);
+        $forumIds = array_map(fn (array $item) => $item['parsed']->forumUserId, $items);
+
+        return [
+            'byForumId' => $this->troopers->idsByForumUserId(array_values(array_filter($forumIds))),
+            'byName' => $this->troopers->idsByUsername(array_values(array_filter($usernames))),
+        ];
+    }
+
+    /**
+     * Fetch and read each wanted thread. One that fails to fetch for now is noted and left for the next run;
+     * one that is permanently unreadable is skipped.
      *
      * @param  array<int, array{summary: ForumThreadSummary, type: LoaType}>  $wanted
      * @param  list<string>  $problems
@@ -206,7 +233,10 @@ class SyncLoasHandler
             try {
                 $thread = $this->forum->fetchLoaThread($threadId);
             } catch (ForumRequestException $e) {
-                $problems[] = "Thread {$threadId}: {$e->getMessage()}";
+                // Gone for good: nothing a later run could read, so it is not a problem to retry.
+                if (! $e->isPermanent()) {
+                    $problems[] = "Thread {$threadId}: {$e->getMessage()}";
+                }
 
                 continue;
             }
@@ -287,7 +317,7 @@ class SyncLoasHandler
      * one trooper is kept as `needs_review`, and so is one the parser could not read.
      *
      * @param  list<array{summary: ForumThreadSummary, type: LoaType, parsed: ParsedLoaThread, eventOn: ?CarbonImmutable, eventNote: ?string}>  $items
-     * @param  array<string, list<int>>  $troopers  lower-cased username => trooper ids
+     * @param  array{byForumId: array<int, list<int>>, byName: array<string, list<int>>}  $troopers  trooper ids by forum user id, and by lower-cased username
      * @return array{0: list<LoaWrite>, 1: list<LoaReturn>, 2: int} writes, returns, how many need a person
      */
     private function build(array $items, array $troopers): array
@@ -308,7 +338,13 @@ class SyncLoasHandler
             $rawStart = $isReturn ? null : $this->fit($isReport ? $eventNote : $parsed->rawStart, 'Start Date', $reasons);
             $rawEnd = $isReturn ? null : $this->fit($parsed->rawEnd, $isReport ? 'Expected return date' : 'End Date', $reasons);
 
-            $matches = $username === null ? [] : ($troopers[mb_strtolower($username)] ?? []);
+            // The forum identity first: a rename or a same-name collision cannot send leave to the wrong person.
+            // Only when it names exactly one trooper; otherwise the typed name decides, as before.
+            $matches = $parsed->forumUserId === null ? [] : ($troopers['byForumId'][$parsed->forumUserId] ?? []);
+
+            if (count($matches) !== 1) {
+                $matches = $username === null ? [] : ($troopers['byName'][mb_strtolower($username)] ?? []);
+            }
 
             if ($username !== null && count($matches) !== 1) {
                 $shown = mb_substr($username, 0, 40);

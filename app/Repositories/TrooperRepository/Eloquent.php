@@ -135,6 +135,23 @@ class Eloquent implements TrooperRepository
         return $found;
     }
 
+    public function idsByForumUserId(array $forumUserIds): array
+    {
+        $wanted = array_values(array_unique($forumUserIds));
+
+        if ($wanted === []) {
+            return [];
+        }
+
+        $found = [];
+
+        foreach (Trooper::query()->whereIn('forum_user_id', $wanted)->orderBy('id')->get(['id', 'forum_user_id']) as $trooper) {
+            $found[(int) $trooper->forum_user_id][] = $trooper->id;
+        }
+
+        return $found;
+    }
+
     public function sectionsOfAssignedWithin(Unit $unit): Collection
     {
         return Trooper::query()->assignedWithin($unit)->orderBy('id')

@@ -317,6 +317,29 @@ describe('finding the trooper by username', function () {
     });
 });
 
+describe('finding the trooper by forum user id', function () {
+    it('prefers the id in the [USER=id] mention, so a renamed trooper still gets their leave', function () {
+        $renamed = Trooper::factory()->create(['username' => 'Smith.JR', 'forum_user_id' => 11111]);
+        $namesake = Trooper::factory()->create(['username' => 'Smith.J', 'forum_user_id' => 99999]);
+        $thread = loaThread(4001, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-05 08:00');
+        forumWith([180 => [[$thread]]], [4001 => $thread]);
+
+        runLoaSync();
+
+        expect(Loa::sole()->trooper_id)->toBe($renamed->id)->and($namesake->id)->not->toBe($renamed->id);
+    });
+
+    it('falls back to the username when no trooper carries that forum id', function () {
+        $trooper = Trooper::factory()->create(['username' => 'Smith.J', 'forum_user_id' => null]);
+        $thread = loaThread(4001, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-05 08:00');
+        forumWith([180 => [[$thread]]], [4001 => $thread]);
+
+        runLoaSync();
+
+        expect(Loa::sole()->trooper_id)->toBe($trooper->id);
+    });
+});
+
 describe('raw text longer than the portal keeps', function () {
     it('cuts an over-long Start Date line to its column and sends the row to review, and the rest of the run is stored', function () {
         Trooper::factory()->create(['username' => 'Smith.J']);
@@ -818,6 +841,42 @@ describe('when something goes wrong', function () {
             ->and($run->status)->toBe(SyncRunStatus::Partial)
             ->and($run->errored)->toBe(1)
             ->and($run->error)->toContain('Thread 4002');
+    });
+
+    it('skips a thread that is gone for good without making the run partial', function (int $status) {
+        Trooper::factory()->create(['username' => 'Smith.J']);
+        $fine = loaThread(4001, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-06 08:00');
+        $gone = loaThread(4002, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-05 08:00');
+        forumWith([180 => [[$fine, $gone]]], [4001 => $fine, 4002 => MockResponse::make(['errors' => []], $status)]);
+
+        runLoaSync();
+
+        $run = latestLoaRun();
+        expect(Loa::sole()->forum_thread_id)->toBe(4001)
+            ->and($run->status)->toBe(SyncRunStatus::Success)
+            ->and($run->errored)->toBe(0);
+    })->with([403, 404, 410]);
+
+    it('keeps the sections already done when a later section fails, and does not move the cutoff', function () {
+        Trooper::factory()->create(['username' => 'Smith.J']);
+        $first = loaThread(4001, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-06 08:00');
+        forumWith([180 => [[$first]], 341 => MockResponse::make([], 503)], [4001 => $first]);
+
+        expect(fn () => runLoaSync())->toThrow(ForumRequestException::class);
+
+        expect(Loa::sole()->forum_thread_id)->toBe(4001)
+            ->and(latestLoaRun()->status)->toBe(SyncRunStatus::Failure);
+    });
+
+    it('closes a run left in progress by a killed worker as failed, before starting its own', function () {
+        $orphan = SyncRun::query()->forceCreate(['source' => 'loa', 'started_at' => now()->subHours(3), 'status' => SyncRunStatus::InProgress, 'triggered_by' => 'system']);
+        forumWith([180 => [[]]]);
+
+        runLoaSync();
+
+        expect($orphan->fresh()->status)->toBe(SyncRunStatus::Failure)
+            ->and($orphan->fresh()->finished_at)->not->toBeNull()
+            ->and(latestLoaRun()->status)->toBe(SyncRunStatus::Success);
     });
 
     it('retries a thread that failed once the forum answers, since a partial run does not move the cutoff', function () {

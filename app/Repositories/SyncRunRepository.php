@@ -33,6 +33,14 @@ interface SyncRunRepository
     public function fail(SyncRun $run, string $error): void;
 
     /**
+     * Close every run of `$source` still `in_progress` as failed. For a source whose runs are serialized,
+     * so one still open when a new run starts was killed (a worker timeout) before it could record itself.
+     *
+     * @return int how many were closed
+     */
+    public function failOrphaned(string $source): int;
+
+    /**
      * The most recent successful run for a source, for the roster view's (2.8) "last synced"
      * stamp — a `partial` run did write real data, but only a clean `success` is trustworthy
      * enough to call the cache current. `finished_at` is second-precision, so two runs closing in

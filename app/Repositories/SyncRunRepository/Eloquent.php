@@ -42,6 +42,18 @@ class Eloquent implements SyncRunRepository
         ])->save();
     }
 
+    public function failOrphaned(string $source): int
+    {
+        return SyncRun::query()
+            ->where('source', $source)
+            ->where('status', SyncRunStatus::InProgress)
+            ->update([
+                'finished_at' => now(),
+                'status' => SyncRunStatus::Failure,
+                'error' => 'The run stopped before it could record a result (the worker was likely killed).',
+            ]);
+    }
+
     public function latestFinished(string $source): ?SyncRun
     {
         return SyncRun::query()
