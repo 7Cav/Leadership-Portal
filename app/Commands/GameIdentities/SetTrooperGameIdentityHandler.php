@@ -6,6 +6,7 @@ use App\Authorization\ScopeResolver;
 use App\Models\TrooperGameIdentity;
 use App\Models\User;
 use App\Repositories\GameIdentityLinkException;
+use App\Repositories\GamePlayerDismissalRepository;
 use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
 use App\Support\Audit\AuditEnvelope;
@@ -19,7 +20,7 @@ use App\Support\Audit\AuditEnvelope;
  * name) updates the row, never adds one. Saving what is already stored is a no-op that records
  * nothing, so a double-click leaves one audit entry. An identifier already linked to another
  * trooper is refused by the repository and rolls the whole action back, log entry included.
- * Linking never touches `attendance`.
+ * Linking never touches `attendance`, and clears any dismissal of that identifier (7.7).
  */
 class SetTrooperGameIdentityHandler
 {
@@ -29,6 +30,7 @@ class SetTrooperGameIdentityHandler
         private readonly ScopeResolver $scope,
         private readonly TrooperRepository $troopers,
         private readonly TrooperGameIdentityRepository $identities,
+        private readonly GamePlayerDismissalRepository $dismissals,
         private readonly AuditEnvelope $audit,
     ) {}
 
@@ -51,7 +53,13 @@ class SetTrooperGameIdentityHandler
             action: $existing === null ? 'game_identity.linked' : 'game_identity.updated',
             reason: null,
             reasonRequired: false,
-            mutation: fn () => $this->identities->link($command->trooperId, $command->platform, $command->playerName, $command->platformId),
+            mutation: function () use ($command) {
+                $identity = $this->identities->link($command->trooperId, $command->platform, $command->playerName, $command->platformId);
+                // Linking a player a leader once dismissed re-admits them (7.7), in the same transaction.
+                $this->dismissals->forget($command->platform, $command->platformId);
+
+                return $identity;
+            },
         );
     }
 }

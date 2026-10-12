@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { reactive } from 'vue';
-import { enableAutoUnmount, mount } from '@vue/test-utils';
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import Rollcall from '../Rollcall.vue';
 
 const page = reactive({ url: '/rollcall/12', props: { auth: { user: { username: 'Vasquez.R', is_admin: false } }, viewAs: null } });
@@ -467,6 +467,38 @@ describe('Rollcall page', () => {
 
             expect(wrapper.find('[data-testid="save-rejected"]').text()).toContain('Trooper3.A is no longer placed in this section');
             vi.useRealTimers();
+        });
+    });
+
+    describe('unmatched players (7.7)', () => {
+        const CAPTURE = { source: 'crcon', capturedAt: '2026-10-08T12:00:00+00:00' };
+        const UNMATCHED = [{ platform: 'hll', platformLabel: 'Hell Let Loose', playerName: 'Trooper1', platformId: '7656119000000001' }];
+
+        beforeEach(() => (page.url = '/rollcall/12?step=2'));
+
+        it('shows the banner line and the drawer for a captured practice with unmatched players', () => {
+            const wrapper = factory({ capture: CAPTURE, unmatched: UNMATCHED });
+
+            expect(wrapper.find('[data-testid="unmatched-banner"]').text()).toContain('1 player needs a trooper');
+            expect(wrapper.find('[data-testid="unmatched-drawer"]').exists()).toBe(true);
+        });
+
+        it('renders neither when the practice was not captured, or nothing is unmatched', () => {
+            expect(factory({ capture: null, unmatched: UNMATCHED }).find('[data-testid="unmatched-drawer"]').exists()).toBe(false);
+            expect(factory({ capture: CAPTURE, unmatched: [] }).find('[data-testid="unmatched-banner"]').exists()).toBe(false);
+        });
+
+        it('takes a linked player off the list and shows the trooper as present from the server', async () => {
+            post.mockResolvedValue({ ok: true, status: 200, data: { marked: true, trooper: { id: 3, status: 'present', source: 'auto' }, atRisk: [] } });
+            const wrapper = factory({ capture: CAPTURE, unmatched: UNMATCHED });
+
+            await wrapper.find('[data-testid="unmatched-trooper"]').setValue('3');
+            await wrapper.find('[data-testid="unmatched-link"]').trigger('click');
+            await flushPromises();
+
+            expect(wrapper.find('[data-testid="unmatched-drawer"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="unmatched-banner"]').exists()).toBe(false);
+            expect(wrapper.find('[data-trooper="3"]').text()).toContain('Present');
         });
     });
 });
