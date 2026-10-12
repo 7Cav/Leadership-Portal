@@ -29,6 +29,8 @@
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="ROSTER_SYNC_CRON" value="0 * * * *"/>
+        <env name="SEVENCAV_FORUM_API_KEY" value=""/>
+        <env name="SEVENCAV_FORUM_LOA_NODES" value=""/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
