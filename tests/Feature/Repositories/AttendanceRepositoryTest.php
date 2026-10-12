@@ -222,3 +222,44 @@ it('counts each section\'s week progress in one pass: strength, signed, marked a
         ->and($progress->get($quiet->id))->toEqual(new SectionWeekProgress($quiet->id, 2, 0, 0, false))
         ->and($repo->weekProgress([], $week))->toBeEmpty();
 });
+
+// 7.6 / AD-14, AD-22: capture's write — present/auto, never over a leader's mark.
+
+it('auto-marks a trooper with no row as present from the auto source', function () {
+    $row = $this->repo->markPracticeAuto($this->practice, $this->trooper->id);
+
+    expect($row->status)->toBe(AttendanceStatus::Present)
+        ->and($row->source)->toBe(AttendanceSource::Auto)
+        ->and(Attendance::query()->count())->toBe(1);
+});
+
+it('returns null and changes nothing when the row is manual', function () {
+    $this->repo->markPractice($this->practice, $this->trooper->id, AttendanceStatus::Missed, AttendanceSource::Manual);
+
+    expect($this->repo->markPracticeAuto($this->practice, $this->trooper->id))->toBeNull();
+
+    $row = Attendance::query()->sole();
+    expect($row->status)->toBe(AttendanceStatus::Missed)->and($row->source)->toBe(AttendanceSource::Manual);
+});
+
+it('refreshes an auto row in place and leaves a loa row alone', function () {
+    $this->repo->markPractice($this->practice, $this->trooper->id, AttendanceStatus::Missed, AttendanceSource::Auto);
+    $this->repo->markPracticeAuto($this->practice, $this->trooper->id);
+
+    expect(Attendance::query()->sole()->status)->toBe(AttendanceStatus::Present);
+
+    $other = Trooper::factory()->create();
+    $this->repo->markPractice($this->practice, $other->id, AttendanceStatus::Loa, AttendanceSource::Auto);
+
+    expect($this->repo->markPracticeAuto($this->practice, $other->id))->toBeNull()
+        ->and(Attendance::query()->where('trooper_id', $other->id)->sole()->status)->toBe(AttendanceStatus::Loa);
+});
+
+it('turns a demo row real when it auto-marks over it', function () {
+    $this->repo->markPractice($this->practice, $this->trooper->id, AttendanceStatus::Missed, AttendanceSource::Auto);
+    Attendance::query()->update(['is_demo' => true]);
+
+    $this->repo->markPracticeAuto($this->practice, $this->trooper->id);
+
+    expect(Attendance::query()->sole()->is_demo)->toBeFalse();
+});

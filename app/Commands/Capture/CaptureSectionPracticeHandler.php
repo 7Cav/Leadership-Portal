@@ -2,6 +2,7 @@
 
 namespace App\Commands\Capture;
 
+use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Integration\Crcon\Data\CrconPresence;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\SyncRunRepository;
@@ -22,7 +23,9 @@ use Throwable;
  * - If every source raises a typed failure the practice is **left un-captured** and the run is
  *   recorded failed as telemetry-unavailable — never interpreted as zero attendance.
  *
- * Pre-marking attendance is 7.6; this only stamps and resolves. Every run opens a `sync_runs` row
+ * The matched troopers are then pre-marked `present`/`auto` through the one attendance writer
+ * ({@see MarkAttendanceHandler::preMark()}, 7.6): manual marks win, nothing is ever written as `loa`,
+ * other-section and unmatched players get no row. Every run opens a `sync_runs` row
  * (source `capture`) carrying `triggered_by` and the counts: `inserted` = players linked to a
  * trooper, `errored` = unmatched players (so unmatched ones read `partial`), and the summary text.
  * The stamp goes through the audit envelope when a user triggered the run; the audit log's actor is
@@ -34,6 +37,7 @@ class CaptureSectionPracticeHandler
 {
     public function __construct(
         private readonly CaptureSources $sources,
+        private readonly MarkAttendanceHandler $attendance,
         private readonly SectionPracticeRepository $practices,
         private readonly TrooperGameIdentityRepository $identities,
         private readonly TrooperRepository $troopers,
@@ -72,6 +76,10 @@ class CaptureSectionPracticeHandler
 
                 $result = $this->resolve($presence, $source->name, $command, $practice->section_id);
 
+                // Pre-mark before stamping, so a captured practice implies its marks were written;
+                // a failure here retries the whole run, and every write is idempotent.
+                $marks = $this->attendance->preMark($practice, array_column($result->matched, 'trooperId'), $command->triggeredBy);
+
                 $stamp = fn () => $this->practices->stampCapture($practice, $source->serverRef, $presence->fetchedAt, $source->name);
                 is_int($command->triggeredBy)
                     ? $this->audit->record($command->triggeredBy, 'practice.captured', null, false, $stamp)
@@ -84,8 +92,9 @@ class CaptureSectionPracticeHandler
                     inactivated: 0,
                     errored: $result->unmatchedCount(),
                     error: sprintf(
-                        'practice %d, source %s: seen %d, matched %d (%d in another section), unmatched %d',
+                        'practice %d, source %s: seen %d, matched %d (%d in another section), unmatched %d; pre-marked %d, kept %d manual',
                         $practice->id, $source->name, $result->seen(), $result->matchedCount(), count($result->otherSection), $result->unmatchedCount(),
+                        $marks->marked, $marks->keptManual,
                     ),
                 );
 
