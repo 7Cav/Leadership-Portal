@@ -105,10 +105,40 @@ it('counts overlap strictly and treats a live match as running until now', funct
     expect(array_map(fn ($p) => $p->platformId, nw()->fetchPresence($start, $end)->players))->toBe(['3', '4']);
 });
 
-it('ignores matches from a server other than the requested one', function () {
+it('fails rather than answering empty when a match belongs to another server', function () {
     MockClient::global([NW_URL => nwBody([nwMatch('2026-10-10T19:10:00Z', '2026-10-10T20:00:00Z', ['Other' => '9'], 'srv-other')])]);
 
     [$start, $end] = nwWindow();
+
+    expect(fn () => nw()->fetchPresence($start, $end))->toThrow(NightwatchUnavailable::class);
+});
+
+it('treats a live match with a null end as running until now', function () {
+    MockClient::global([NW_URL => nwBody([nwMatch('2026-10-10T20:30:00Z', null, ['Live' => '4'], live: true)])]);
+
+    [$start, $end] = nwWindow();
+
+    expect(nw()->fetchPresence($start, $end)->players)->toHaveCount(1);
+});
+
+it('fails as truncated when a full page does not reach back past the window start', function () {
+    [$start, $end] = nwWindow();
+
+    MockClient::global([NW_URL => nwBody(array_fill(0, 100, nwMatch('2026-10-10T19:10:00Z', '2026-10-10T19:30:00Z', [])))]);
+
+    try {
+        nw()->fetchPresence($start, $end);
+        $this->fail('expected NightwatchUnavailable');
+    } catch (NightwatchUnavailable $e) {
+        expect($e->reason)->toBe(NightwatchFailureReason::Truncated);
+    }
+
+});
+
+it('accepts a full page that reaches back past the window start', function () {
+    [$start, $end] = nwWindow();
+
+    MockClient::global([NW_URL => nwBody(array_fill(0, 100, nwMatch('2026-10-10T10:00:00Z', '2026-10-10T19:30:00Z', [])))]);
 
     expect(nw()->fetchPresence($start, $end)->players)->toBe([]);
 });
@@ -193,7 +223,6 @@ it('raises a typed failure for malformed bodies', function (mixed $body) {
     'no scoreboard' => [['matches' => [['serverId' => 'srv-1', 'startedAtUtc' => '2026-10-10T19:00:00Z', 'endedAtUtc' => '2026-10-10T20:00:00Z']]]],
     'row without steam id' => [['matches' => [['serverId' => 'srv-1', 'startedAtUtc' => '2026-10-10T19:00:00Z', 'endedAtUtc' => '2026-10-10T20:00:00Z', 'board' => ['scoreboard' => [['name' => 'x']]]]]]],
     'match without server id' => [['matches' => [['startedAtUtc' => '2026-10-10T19:00:00Z', 'endedAtUtc' => '2026-10-10T20:00:00Z', 'board' => ['scoreboard' => []]]]]],
-    'truncated at the limit' => [['matches' => array_fill(0, 100, nwMatch('2026-10-01T00:00:00Z', '2026-10-01T01:00:00Z', []))]],
 ]);
 
 it('falls back to the steam id when a name is blank', function () {

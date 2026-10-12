@@ -20,4 +20,7 @@ enum NightwatchFailureReason: string
 
     /** Nightwatch answered successfully with a body we could not use. */
     case Malformed = 'malformed';
+
+    /** The match list hit its size limit before reaching back past the window start, so it may be incomplete. */
+    case Truncated = 'truncated';
 }

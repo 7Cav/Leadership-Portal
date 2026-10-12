@@ -41,4 +41,9 @@ class NightwatchUnavailable extends RuntimeException
     {
         return new self(NightwatchFailureReason::Malformed, "Nightwatch response was unusable: {$detail}.");
     }
+
+    public static function truncated(): self
+    {
+        return new self(NightwatchFailureReason::Truncated, 'Nightwatch returned a full page of matches that may not cover the whole window.');
+    }
 }

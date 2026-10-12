@@ -88,20 +88,17 @@ class NightwatchApi
         $byPlatformId = [];
 
         foreach ($serverIds as $id) {
-            $matches = $this->fetchMatches($baseUrl, $apiKey, $id);
+            $matches = $this->fetchMatches($baseUrl, $apiKey, $id, $windowStart);
 
             foreach ($matches as $match) {
                 if (! is_array($match)) {
                     throw NightwatchUnavailable::malformed('a match entry was not an object');
                 }
 
+                // The request is already filtered to this server, so a different id means the
+                // contract changed; skipping would turn that into a believable "nobody came".
                 if (($match['serverId'] ?? null) !== $id) {
-                    // The server filter is ours to trust only if the answer agrees with it.
-                    if (! is_string($match['serverId'] ?? null)) {
-                        throw NightwatchUnavailable::malformed('a match carried no serverId');
-                    }
-
-                    continue;
+                    throw NightwatchUnavailable::malformed('a match did not belong to the requested server');
                 }
 
                 if (! $this->overlaps($match, $windowStart, $windowEnd, $now)) {
@@ -163,7 +160,7 @@ class NightwatchApi
     /**
      * @return array<int|string, mixed>
      */
-    private function fetchMatches(string $baseUrl, string $apiKey, string $serverId): array
+    private function fetchMatches(string $baseUrl, string $apiKey, string $serverId, DateTimeImmutable $windowStart): array
     {
         try {
             $response = $this->connector($baseUrl, $apiKey)->send(new FetchMatchesRequest($serverId));
@@ -190,10 +187,20 @@ class NightwatchApi
             throw NightwatchUnavailable::malformed('no `matches` list in the body');
         }
 
-        // A full page may hide older matches inside the window; a truncated list would
-        // under-report attendance, so it is a failure, not a short answer.
+        // A full page may hide older matches inside the window (the order is not documented, so
+        // judge by the earliest start seen). A truncated list would under-report attendance, so it
+        // is a failure, not a short answer; a full page reaching back before the window is fine.
         if (count($payload['matches']) >= FetchMatchesRequest::LIMIT) {
-            throw NightwatchUnavailable::malformed('the match list hit its limit and may be truncated');
+            $earliest = null;
+
+            foreach ($payload['matches'] as $match) {
+                $from = is_array($match) ? $this->moment($match['startedAtUtc'] ?? null) : null;
+                $earliest = $from !== null && ($earliest === null || $from < $earliest) ? $from : $earliest;
+            }
+
+            if ($earliest === null || $earliest >= $windowStart) {
+                throw NightwatchUnavailable::truncated();
+            }
         }
 
         return $payload['matches'];
