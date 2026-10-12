@@ -3,12 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
+use App\Kpi\ChainNode;
+use App\Kpi\ChildReport;
+use App\Kpi\ChildReportStatus;
 use App\Kpi\KpiService;
+use App\Kpi\ReportChain;
+use App\Kpi\TrooperAttendance;
 use App\Kpi\UnitKpis;
 use App\Models\SyncRunStatus;
 use App\Models\Unit;
 use App\Models\WeeklyReport;
 use App\Repositories\SyncRunRepository;
+use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Time\WeekOf;
@@ -40,12 +46,17 @@ class HomeController extends Controller
     /** Hours without a successful roster sync before the dashboard calls the roster stale. */
     private const ROSTER_STALE_AFTER_HOURS = 6;
 
+    /** Most items one worklist group lists; the rest are counted, not drawn. */
+    private const WORKLIST_LIMIT = 10;
+
     public function __construct(
         private readonly ScopeResolver $scope,
         private readonly UnitRepository $units,
         private readonly WeeklyReportRepository $reports,
         private readonly SyncRunRepository $syncRuns,
+        private readonly TrooperRepository $troopers,
         private readonly KpiService $kpis,
+        private readonly ReportChain $chain,
     ) {}
 
     public function show(Request $request): Response
@@ -55,6 +66,7 @@ class HomeController extends Controller
         $weekStart = WeekOf::reporting(CarbonImmutable::now());
         $scope = $this->scope->resolve($request->user());
         $roots = $this->topmost($scope);
+        $chains = $roots->map(fn (Unit $root) => $this->chain->build($root, $weekStart));
 
         return Inertia::render('Home', [
             'week' => [
@@ -63,6 +75,7 @@ class HomeController extends Controller
                 'reportDue' => WeekOf::reportDue($weekStart)->toIso8601String(),
             ],
             'kpis' => $roots->isEmpty() ? null : $this->kpiProps($roots, $scope, $weekStart),
+            'attention' => $roots->isEmpty() ? null : $this->attentionProps($roots, $chains, $scope, $weekStart),
         ]);
     }
 
@@ -176,6 +189,109 @@ class HomeController extends Controller
             'syncedAt' => $success?->finished_at?->toIso8601String(),
             'state' => $state,
         ];
+    }
+
+    /**
+     * What a leader can act on today (Story 5.10): reports holding up the chain and at-risk
+     * troopers, each with the screen to act on it. Both come from the shared pieces: the at-risk
+     * definition is `TrooperAttendance::atRisk()` (AD-21) and a holding report is the roll-up's own
+     * `isHolding()` (AD-13), so the list never disagrees with the tiles or the navigator.
+     *
+     * LOA is not modelled yet (Epic 4): an expiring LOA joins here as another `kind` once it is,
+     * and a `needs_review` LOA must then never produce an at-risk item (AD-4).
+     *
+     * @param  Collection<int, Unit>  $roots
+     * @param  Collection<int, ChainNode>  $chains
+     * @param  Collection<int, int>  $scope
+     * @return array{items: list<array<string, mixed>>, totals: array{holding: int, atRisk: int}}
+     */
+    private function attentionProps(Collection $roots, Collection $chains, Collection $scope, CarbonImmutable $weekStart): array
+    {
+        $holding = $chains
+            ->flatMap(fn (ChainNode $chain) => $this->holdingBlockers($chain))
+            ->sortBy(fn (array $blocker) => [$blocker['child']->status === ChildReportStatus::Draft ? 0 : 1, $blocker['child']->unit->id])
+            ->values();
+
+        $atRisk = $roots
+            ->flatMap(fn (Unit $root) => $this->kpis->trooperAttendance($root, $weekStart)
+                ->filter(fn (TrooperAttendance $row) => $row->atRisk())
+                ->map(fn (TrooperAttendance $row) => ['trooperId' => $row->trooperId, 'missed' => $row->missed]))
+            ->values();
+
+        $troopers = $this->troopers->byIds($atRisk->pluck('trooperId')->all());
+        $sections = $this->units->sectionsAmong($scope)->keyBy('id');
+        $atRisk = $atRisk
+            ->filter(fn (array $row) => $troopers->has($row['trooperId']))
+            ->sortBy(fn (array $row) => [-$row['missed'], mb_strtolower($troopers->get($row['trooperId'])->display_name)])
+            ->values();
+
+        $date = $weekStart->toDateString();
+
+        return [
+            'items' => [
+                ...$holding->take(self::WORKLIST_LIMIT)->map(fn (array $blocker) => [
+                    'kind' => 'holding',
+                    'id' => "holding-{$blocker['child']->unit->id}",
+                    'unit' => self::unitProps($blocker['child']->unit),
+                    'status' => $blocker['child']->status->value,
+                    'holds' => self::unitProps($blocker['holds']),
+                    'href' => route('reports.show', ['unit' => $blocker['child']->unit->id, 'week' => $date]),
+                ])->all(),
+                ...$atRisk->take(self::WORKLIST_LIMIT)->map(function (array $row) use ($troopers, $sections) {
+                    $trooper = $troopers->get($row['trooperId']);
+                    $section = $sections->get($trooper->primary_section_id);
+
+                    return [
+                        'kind' => 'at_risk',
+                        'id' => "at-risk-{$trooper->id}",
+                        'trooper' => [
+                            'id' => $trooper->id,
+                            'displayName' => $trooper->display_name,
+                            'rankShort' => $trooper->rank_short,
+                            'username' => $trooper->username,
+                        ],
+                        'section' => $section ? self::unitProps($section) : null,
+                        'missed' => $row['missed'],
+                        'windowWeeks' => KpiService::WINDOW_WEEKS,
+                        'href' => route('roster.index', array_filter(['unit' => $trooper->primary_section_id, 'trooper' => $trooper->id])),
+                    ];
+                })->all(),
+            ],
+            'totals' => ['holding' => $holding->count(), 'atRisk' => $atRisk->count()],
+        ];
+    }
+
+    /**
+     * The reports actually holding the chain up: each unsent child of a holding unit, except one
+     * that is itself held up by its own children, since the blame sits deeper (AD-13).
+     *
+     * @return list<array{child: ChildReport, holds: Unit}>
+     */
+    private function holdingBlockers(ChainNode $node): array
+    {
+        $blockers = [];
+
+        if ($node->isHolding()) {
+            $nodes = collect($node->children)->keyBy(fn (ChainNode $child) => $child->unit->id);
+
+            foreach ($node->rollup->missingChildren() as $child) {
+                if (! $nodes->get($child->unit->id)?->isHolding()) {
+                    $blockers[] = ['child' => $child, 'holds' => $node->unit];
+                }
+            }
+        }
+
+        foreach ($node->children as $child) {
+            array_push($blockers, ...$this->holdingBlockers($child));
+        }
+
+        return $blockers;
+    }
+
+    /** @return array{id: int, designation: string, name: string} */
+    private static function unitProps(Unit $unit): array
+    {
+        return ['id' => $unit->id, 'designation' => $unit->callsign ?? $unit->name, 'name' => $unit->name];
     }
 
     /** @return array<string, mixed> */

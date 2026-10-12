@@ -354,3 +354,13 @@ it('lists the troopers placed in a section now, active only, in id order (3.7)',
 
     expect(app(TrooperRepository::class)->placedIn($section->id)->pluck('id')->all())->toBe([$a->id, $b->id]);
 });
+
+it('finds troopers by id in one keyed set, leaving unknown ids out', function () {
+    $troopers = Trooper::factory()->count(3)->create();
+    $repo = app(TrooperRepository::class);
+
+    $found = $repo->byIds([$troopers[0]->id, $troopers[2]->id, 999999]);
+
+    expect($found->keys()->all())->toBe([$troopers[0]->id, $troopers[2]->id])
+        ->and($repo->byIds([]))->toBeEmpty();
+});

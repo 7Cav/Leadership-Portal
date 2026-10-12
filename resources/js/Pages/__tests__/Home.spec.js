@@ -93,11 +93,11 @@ describe('Home page', () => {
     });
 
     describe('weekly-cycle areas without data yet', () => {
-        it('renders the step lanes, inbox, section progress and KPIs as empty states', () => {
+        it('renders the step lanes, worklist, section progress and KPIs as empty states', () => {
             const text = factory().text();
 
             expect(text).toContain('Step tracking starts with rollcalls');
-            expect(text).toContain('Nothing needs you yet');
+            expect(text).toContain('Needs attention');
             expect(text).toContain('No sections reporting yet');
             expect(text).toContain('No units in your scope yet');
         });
@@ -127,10 +127,12 @@ describe('Home page', () => {
             roster: { source: 'milpac', syncedAt: null, state: 'never' },
         };
 
-        it('renders the tiles instead of the empty state when the viewer has a scope', () => {
-            const wrapper = mount(Home, { props: { week: WEEK, kpis } });
+        it('renders the tiles and worklist instead of the empty states when the viewer has a scope', () => {
+            const attention = { items: [], totals: { holding: 0, atRisk: 0 } };
+            const wrapper = mount(Home, { props: { week: WEEK, kpis, attention } });
 
             expect(wrapper.find('[data-testid="kpi-tiles"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="all-clear"]').exists()).toBe(true);
             expect(wrapper.text()).not.toContain('No units in your scope yet');
         });
     });

@@ -148,9 +148,9 @@ describe('KPI tiles (Story 5.9)', function () {
     });
 
     it('treats an unreadable snapshot as a gap instead of failing the page', function () {
-        app(WeeklyReportRepository::class)->send($this->s11->id, $this->week->subWeek(), ['strength' => 'nope'], null, User::factory()->create()->id, 'd', null);
+        app(WeeklyReportRepository::class)->send($this->s11->id, $this->week->subWeeks(2), ['strength' => 'nope'], null, User::factory()->create()->id, 'd', null);
 
-        dashboard($this->sectionLeader)(fn ($page) => $page->where('kpis.history.3.kpis', null));
+        dashboard($this->sectionLeader)(fn ($page) => $page->where('kpis.history.2.kpis', null));
     });
 
     it('reports the roster source and when it last synced, surfacing a failed or overdue sync', function () {
@@ -167,5 +167,94 @@ describe('KPI tiles (Story 5.9)', function () {
 
         $syncs->fail($syncs->open('roster', 'system'), 'cav api down');
         dashboard($this->commander)(fn ($page) => $page->where('kpis.roster.state', 'failed'));
+    });
+});
+
+describe('Needs attention (Story 5.10)', function () {
+    $sendAll = function (array $sections, $test) {
+        $kpis = new UnitKpis(3, new Ratio(1, 2), new Ratio(1, 2), 0, 0, 0);
+        foreach ($sections as $section) {
+            sentWeek($section, $test->week, $kpis);
+        }
+    };
+
+    it('lists the draft and unstarted section reports holding the chain, drafts first, each linking to its report', function () {
+        app(WeeklyReportRepository::class)->saveDraft($this->s21->id, $this->week, [], null);
+
+        dashboard($this->commander)(fn ($page) => $page
+            ->where('attention.totals', ['holding' => 2, 'atRisk' => 0])
+            ->where('attention.items.0.kind', 'holding')
+            ->where('attention.items.0.unit.designation', '2/1/A/1-7')
+            ->where('attention.items.0.status', 'draft')
+            ->where('attention.items.0.holds.designation', '1/A/1-7')
+            ->where('attention.items.0.href', route('reports.show', ['unit' => $this->s21->id, 'week' => '2026-10-03']))
+            ->where('attention.items.1.unit.designation', '1/1/A/1-7')
+            ->where('attention.items.1.status', 'not_started'));
+    });
+
+    it('blames the platoon only once its own sections are all in', function () use ($sendAll) {
+        $sendAll([$this->s11, $this->s21], $this);
+
+        dashboard($this->commander)(fn ($page) => $page
+            ->where('attention.totals.holding', 1)
+            ->where('attention.items.0.unit.designation', '1/A/1-7')
+            ->where('attention.items.0.status', 'not_started')
+            ->where('attention.items.0.holds.designation', 'A/1-7'));
+    });
+
+    it('lists at-risk troopers by the shared definition, with their section and a roster link', function () {
+        [$risky, $fine] = [$this->s11Troopers[0], $this->s11Troopers[1]];
+        foreach ([0, 1] as $back) {
+            markWeek($this->s11, $risky, $this->week->subWeeks($back), AttendanceStatus::Missed);
+        }
+        markWeek($this->s11, $fine, $this->week, AttendanceStatus::Missed);
+
+        dashboard($this->commander)(fn ($page) => $page
+            ->where('attention.totals.atRisk', 1)
+            ->where('attention.items.2.kind', 'at_risk')
+            ->where('attention.items.2.trooper.id', $risky->id)
+            ->where('attention.items.2.trooper.displayName', $risky->display_name)
+            ->where('attention.items.2.section.designation', '1/1/A/1-7')
+            ->where('attention.items.2.missed', 2)
+            ->where('attention.items.2.windowWeeks', 4)
+            ->where('attention.items.2.href', route('roster.index', ['unit' => $this->s11->id, 'trooper' => $risky->id])));
+    });
+
+    it('only shows what is in the viewer\'s scope', function () {
+        foreach ([0, 1] as $back) {
+            markWeek($this->sb, $this->sbTroopers[0], $this->week->subWeeks($back), AttendanceStatus::Missed);
+        }
+        app(WeeklyReportRepository::class)->saveDraft($this->sb->id, $this->week, [], null);
+
+        // Bravo's draft and at-risk trooper are invisible to Alpha's commander and to a section
+        // leader; only 1/1/A's own (unstarted) report is the leader's, and it holds nothing up.
+        dashboard($this->commander)(fn ($page) => $page->where('attention.totals.atRisk', 0)->where('attention.totals.holding', 2)->where('attention.items.0.unit.designation', '1/1/A/1-7'));
+        dashboard($this->sectionLeader)(fn ($page) => $page->where('attention.totals', ['holding' => 0, 'atRisk' => 0]));
+        dashboard(User::factory()->create(['is_admin' => true]))(fn ($page) => $page->where('attention.totals.atRisk', 1));
+    });
+
+    it('is an explicit empty list, not missing, when nothing needs attention', function () use ($sendAll) {
+        $sendAll([$this->s11, $this->s21], $this);
+        $kpis = new UnitKpis(7, new Ratio(1, 2), new Ratio(1, 2), 0, 0, 0);
+        app(WeeklyReportRepository::class)->send($this->p1->id, $this->week, (new ReportSnapshot($kpis, null))->toArray(), null, User::factory()->create()->id, 'd', null);
+
+        dashboard($this->commander)(fn ($page) => $page->where('attention.items', [])->where('attention.totals', ['holding' => 0, 'atRisk' => 0]));
+    });
+
+    it('has no worklist for a viewer with no scope', function () {
+        dashboard(User::factory()->create())(fn ($page) => $page->where('attention', null));
+    });
+
+    it('caps each group but counts them all', function () {
+        $section = $this->s11;
+        Trooper::factory()->count(12)->create(['primary_section_id' => $section->id])->each(function ($trooper) use ($section) {
+            foreach ([0, 1] as $back) {
+                markWeek($section, $trooper, $this->week->subWeeks($back), AttendanceStatus::Missed);
+            }
+        });
+
+        dashboard($this->commander)(fn ($page) => $page
+            ->where('attention.totals.atRisk', 12)
+            ->has('attention.items', 2 + 10));
     });
 });

@@ -8,6 +8,7 @@ import { Table, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { forumDate } from '@/lib/forumDate';
 import EmptyState from '@/components/EmptyState.vue';
 import KpiTiles from '@/components/home/KpiTiles.vue';
+import NeedsAttention from '@/components/home/NeedsAttention.vue';
 
 // The weekly-cycle home (Story 1.15, mockups/v2/shell-f.html). The week bar is real: it is only
 // the calendar, from HomeController via WeekOf (AD-11). Every other area is an honest empty state
@@ -18,6 +19,8 @@ const props = defineProps({
     // The six KPIs for the viewer's scope with their sent-snapshot history (Story 5.9); null when
     // the viewer's scope holds no units.
     kpis: { type: Object, default: null },
+    // What needs the viewer's attention (Story 5.10): `{ items, totals }`; null without a scope.
+    attention: { type: Object, default: null },
 });
 
 const page = usePage();
@@ -175,13 +178,13 @@ const STEPS = ['Rollcall posted', 'Rollcall signed', 'SP held', 'Attendance mark
         </Card>
 
         <div class="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,0.62fr)_minmax(0,1fr)]">
-            <Card role="region" class="min-w-0 gap-0 py-0" aria-labelledby="inbox-title">
+            <NeedsAttention v-if="attention" :attention="attention" />
+            <Card v-else role="region" class="min-w-0 gap-0 py-0" aria-labelledby="attention-title">
                 <div class="flex items-center gap-2 px-4 pt-3.5">
-                    <h2 id="inbox-title" class="text-[15px] font-semibold">Inbox</h2>
-                    <span class="truncate text-xs text-muted-foreground">Needs you before the report goes up</span>
+                    <h2 id="attention-title" class="text-[15px] font-semibold">Needs attention</h2>
                 </div>
-                <EmptyState :icon="PhTray" title="Nothing needs you yet" class="py-12">
-                    Overdue rollcalls, unmarked attendance and report drafts waiting on your sign-off will collect here.
+                <EmptyState :icon="PhTray" title="No units in your scope yet" class="py-12">
+                    Draft reports holding the chain and at-risk troopers collect here once a unit is assigned to you.
                 </EmptyState>
             </Card>
 
