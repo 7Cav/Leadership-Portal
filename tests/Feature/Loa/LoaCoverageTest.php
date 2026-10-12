@@ -147,6 +147,19 @@ describe('a cleanly read leave', function () {
             ->and($coverage->forTrooper($trooper->id, coverageWeek(), CarbonImmutable::parse('2026-10-20 08:00:00', 'UTC'))->overdue)->toBeFalse();
     });
 
+    it('says a leave has ended once its last day is before the reference day, for any week asked about', function () {
+        $this->travelTo(CarbonImmutable::parse('2026-10-20 12:00:00', 'UTC'));
+        $trooper = Trooper::factory()->create();
+        coverageLeave($trooper, '2026-10-01', '2026-10-06');
+        $open = Trooper::factory()->create();
+        coverageLeave($open, '2026-10-01', '2026-10-30');
+
+        expect(coverageOf($trooper, coverageWeek('2026-10-03'))->ended)->toBeTrue()
+            ->and(coverageOf($trooper, coverageWeek('2026-10-03'))->toArray()['ended'])->toBeTrue()
+            ->and(coverageOf($open, coverageWeek('2026-10-17'))->ended)->toBeFalse()
+            ->and(app(LoaCoverage::class)->forTrooper($trooper->id, coverageWeek('2026-10-03'), CarbonImmutable::parse('2026-10-06 08:00:00', 'UTC'))->ended)->toBeFalse();
+    });
+
     it('cannot be built into an impossible state: only the named constructors are public', function () {
         expect((new ReflectionClass(LoaCover::class))->getConstructor()->isPrivate())->toBeTrue();
     });
@@ -419,6 +432,7 @@ it('never writes while it resolves', function () {
 });
 
 it('gives the badge its props: a covering leave with dates, a review with none', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-10-06 12:00:00', 'UTC'));
     $away = Trooper::factory()->create();
     $unclear = Trooper::factory()->create();
     coverageLeave($away, '2026-10-05', '2026-10-07', ['type' => LoaType::Loa, 'source_thread' => 'https://7cav.us/threads/a.1/']);
@@ -439,7 +453,8 @@ it('gives the badge its props: a covering leave with dates, a review with none',
         'expectedReturnAt' => null,
         'ongoing' => false,
         'overdue' => false,
-        'endsInDays' => null,
+        'endsInDays' => 1,
+        'ended' => false,
         'sourceThread' => 'https://7cav.us/threads/a.1/',
         'reviewReason' => null,
     ])->and(coverageOf($unclear)->toArray())->toBe([
@@ -452,6 +467,7 @@ it('gives the badge its props: a covering leave with dates, a review with none',
         'ongoing' => false,
         'overdue' => false,
         'endsInDays' => null,
+        'ended' => false,
         'sourceThread' => 'https://7cav.us/threads/b.2/',
         'reviewReason' => 'No end date.',
     ]);
