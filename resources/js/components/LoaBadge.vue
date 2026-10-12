@@ -1,7 +1,8 @@
 <script setup>
 import { computed, useId } from 'vue';
 import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { PhWarning } from '@phosphor-icons/vue';
 import { forumDate, forumDateTime } from '@/lib/forumDate';
 
 // The one inline LOA badge (Story 4.5): rollcall, the section overview and the trooper page all render it, so
@@ -10,8 +11,13 @@ import { forumDate, forumDateTime } from '@/lib/forumDate';
 // on leave. A trooper with no leave that week shows nothing at all.
 //
 // A leave that needs review never shows a date or says the trooper is away: the parser could not establish
-// either, so the badge says only that someone must look (AD-4). The source and last-sync time (AD-20) are on
-// hover and focus, and for screen readers.
+// either, so the badge says only that someone must look (AD-4). The source and last-sync time (AD-20), the dates
+// and the review reason open in a popover on tap, click or keyboard (a tooltip never opens on touch), and are
+// always there for screen readers.
+//
+// It is the stock Badge, unrestyled. The three states differ by more than hue: a covered leave is the plain
+// warning badge, a leave that needs review is outlined, dashed and muted with a warning icon, and an overdue
+// ELOA, the one a leader must chase, is the danger badge with the icon.
 const props = defineProps({
     cover: { type: Object, default: null },
     sync: { type: Object, default: null },
@@ -37,6 +43,8 @@ const COUNTDOWN_DAYS = 7;
 
 const label = computed(() => {
     if (needsReview.value) return `${typeLabel.value} needs review`;
+    // A leave that is already over says so, in the past tense: the server knows the day, this device does not.
+    if (props.cover.ended === true && props.cover.endsAt) return `${typeLabel.value} ended ${forumDate(props.cover.endsAt)}`;
     if (overdue.value) return `${typeLabel.value} overdue ${forumDate(props.cover.expectedReturnAt)}`;
 
     const days = props.cover.endsInDays;
@@ -81,33 +89,39 @@ const details = computed(() => {
     return lines;
 });
 
-// The pill shape the mockups draw for every status: fully rounded, no outline, a tinted fill.
-const PILL = 'h-[22px] rounded-full px-2.5 text-xs font-medium';
+const variant = computed(() => {
+    if (needsReview.value) return 'outline';
+
+    return overdue.value ? 'danger' : 'warning';
+});
+
+// An icon on the two states that need a person, so colour is not the only cue.
+const needsAction = computed(() => needsReview.value || overdue.value);
 
 const detailId = useId();
 </script>
 
 <template>
     <span v-if="visible" class="inline-flex">
-        <TooltipProvider :delay-duration="150">
-            <Tooltip>
-                <TooltipTrigger as-child>
-                    <Badge
-                        :variant="covered ? 'warning' : 'outline'"
-                        :class="needsReview ? PILL + ' border-dashed border-warning/45 bg-transparent text-warning' : PILL + ' border-transparent bg-warning/15'"
-                        :data-state-kind="cover.state"
-                        :aria-describedby="detailId"
-                        tabindex="0"
-                        data-testid="loa-badge"
-                    >
-                        {{ label }}
-                    </Badge>
-                </TooltipTrigger>
-                <TooltipContent class="max-w-72 space-y-0.5">
-                    <p v-for="(line, index) in details" :key="index">{{ line }}</p>
-                </TooltipContent>
-            </Tooltip>
-        </TooltipProvider>
+        <Popover>
+            <PopoverTrigger as-child>
+                <Badge
+                    as="button"
+                    type="button"
+                    :variant="variant"
+                    :class="needsReview ? 'cursor-pointer border-dashed' : 'cursor-pointer'"
+                    :data-state-kind="cover.state"
+                    :aria-describedby="detailId"
+                    data-testid="loa-badge"
+                >
+                    <PhWarning v-if="needsAction" weight="bold" aria-hidden="true" />
+                    {{ label }}
+                </Badge>
+            </PopoverTrigger>
+            <PopoverContent class="space-y-0.5 text-xs" data-testid="loa-popover">
+                <p v-for="(line, index) in details" :key="index">{{ line }}</p>
+            </PopoverContent>
+        </Popover>
         <span :id="detailId" class="sr-only" data-testid="loa-details">{{ details.join('. ') }}</span>
     </span>
 </template>

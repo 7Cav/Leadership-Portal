@@ -45,7 +45,8 @@ final class LoaCoverage
      *
      * The result is a function of the trooper and the week, with one exception that is explicit: `overdue`
      * and `endsInDays` describe `$today` (default now, UTC), so they are only derived when `$weekStart`'s
-     * week contains it. For any other week (the heatmap, an old report) they are `false` and null.
+     * week contains it. For any other week (the heatmap, an old report) they are `false` and null. `ended`
+     * (the leave's last day is before `$today`) is set for any week.
      *
      * @param  iterable<int>  $trooperIds
      * @return array<int, LoaCover>
@@ -55,8 +56,8 @@ final class LoaCoverage
     public function forTroopers(iterable $trooperIds, CarbonInterface $weekStart, ?CarbonInterface $today = null): array
     {
         $week = WeekOf::requireStart($weekStart);
-        $today = CarbonImmutable::instance($today ?? CarbonImmutable::now('UTC'))->utc();
-        $today = WeekOf::start($today)->equalTo($week) ? $today : null;
+        $asOf = CarbonImmutable::instance($today ?? CarbonImmutable::now('UTC'))->utc();
+        $today = WeekOf::start($asOf)->equalTo($week) ? $asOf : null;
 
         $ids = collect($trooperIds)->map(fn ($id) => (int) $id)->unique()->values()->all();
         $covers = array_fill_keys($ids, LoaCover::none());
@@ -66,7 +67,7 @@ final class LoaCoverage
         }
 
         foreach ($this->loas->touchingWeek($ids, $week)->groupBy('trooper_id') as $trooperId => $rows) {
-            $covers[(int) $trooperId] = $this->resolve($rows, $today);
+            $covers[(int) $trooperId] = $this->resolve($rows, $today, $asOf);
         }
 
         return $covers;
@@ -75,8 +76,9 @@ final class LoaCoverage
     /**
      * @param  iterable<int, Loa>  $rows  one trooper's rows that touch the week
      * @param  ?CarbonImmutable  $today  the reference day when the week contains it, else null
+     * @param  CarbonImmutable  $asOf  the reference day, whichever week is asked about
      */
-    private function resolve(iterable $rows, ?CarbonImmutable $today): LoaCover
+    private function resolve(iterable $rows, ?CarbonImmutable $today, CarbonImmutable $asOf): LoaCover
     {
         $rows = collect($rows);
 
@@ -90,7 +92,7 @@ final class LoaCoverage
             ->first();
 
         if ($covering !== null) {
-            return LoaCover::covered($covering, $today);
+            return LoaCover::covered($covering, $today, $asOf);
         }
 
         $review = $rows->sortByDesc('id')->first();

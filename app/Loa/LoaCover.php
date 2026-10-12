@@ -34,6 +34,7 @@ final readonly class LoaCover
         public ?CarbonImmutable $expectedReturnAt = null,
         public bool $overdue = false,
         public ?int $endsInDays = null,
+        public bool $ended = false,
     ) {}
 
     public static function none(): self
@@ -47,14 +48,18 @@ final readonly class LoaCover
      * flagged for a leader to chase, never ended. A leave that ends today or later says in how many days
      * (`endsInDays`), for the "LOA, ends in 2d" pill; one that ended earlier in the week has none. Both are
      * statements about today, so with no `$today` (a past or future week) they are `false` and null.
+     * `$asOf` is the reference day for `ended` (default `$today`): the leave's last day is before it, so a screen
+     * says "ended", not "ends", for a leave already over. It holds for any week asked about.
      */
-    public static function covered(Loa $loa, ?CarbonInterface $today = null): self
+    public static function covered(Loa $loa, ?CarbonInterface $today = null, ?CarbonInterface $asOf = null): self
     {
         $expected = $loa->expected_return_at ? CarbonImmutable::instance($loa->expected_return_at) : null;
         $ends = $loa->ends_at ? CarbonImmutable::instance($loa->ends_at) : null;
         $endsInDays = $today !== null && $ends !== null && $ends->toDateString() >= $today->toDateString()
             ? (int) CarbonImmutable::parse($today->toDateString(), 'UTC')->diffInDays($ends->startOfDay())
             : null;
+
+        $asOf ??= $today;
 
         return new self(
             LoaCoverageState::Covered,
@@ -65,6 +70,7 @@ final readonly class LoaCover
             expectedReturnAt: $expected,
             overdue: $today !== null && $loa->ends_at === null && $expected !== null && $expected->toDateString() < $today->toDateString(),
             endsInDays: $endsInDays,
+            ended: $asOf !== null && $ends !== null && $ends->toDateString() < $asOf->toDateString(),
         );
     }
 
@@ -109,7 +115,7 @@ final readonly class LoaCover
      * The Inertia prop shape the badge reads. Dates are `Y-m-d` calendar days; a needs-review cover has none.
      * `expectedReturnAt` is an ELOA report's expected return: shown, but it never ends the leave.
      *
-     * @return array{state: string, type: ?string, typeLabel: ?string, startsAt: ?string, endsAt: ?string, expectedReturnAt: ?string, ongoing: bool, overdue: bool, endsInDays: ?int, sourceThread: ?string, reviewReason: ?string}
+     * @return array{state: string, type: ?string, typeLabel: ?string, startsAt: ?string, endsAt: ?string, expectedReturnAt: ?string, ongoing: bool, overdue: bool, endsInDays: ?int, ended: bool, sourceThread: ?string, reviewReason: ?string}
      */
     public function toArray(): array
     {
@@ -123,6 +129,7 @@ final readonly class LoaCover
             'ongoing' => $this->ongoing(),
             'overdue' => $this->overdue,
             'endsInDays' => $this->endsInDays,
+            'ended' => $this->ended,
             'sourceThread' => $this->sourceThread,
             'reviewReason' => $this->reviewReason,
         ];

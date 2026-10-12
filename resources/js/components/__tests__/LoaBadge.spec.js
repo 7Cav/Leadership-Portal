@@ -15,6 +15,7 @@ const covered = (overrides = {}) => ({
     ongoing: false,
     overdue: false,
     endsInDays: null,
+    ended: false,
     sourceThread: 'https://7cav.us/threads/loa-request.1/',
     reviewReason: null,
     ...overrides,
@@ -68,13 +69,16 @@ describe('LoaBadge', () => {
             expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('LOA ends 30Oct26');
         });
 
-        it('draws a pill: fully rounded, no outline, a tinted amber fill', () => {
-            const classes = badge({ cover: covered(), sync: synced() }).get('[data-testid="loa-badge"]').classes();
+        it('says ended, not ends, for a leave the server marks as already over', () => {
+            const wrapper = badge({ cover: covered({ endsAt: '2026-10-03', endsInDays: null, ended: true }), sync: synced() });
 
-            expect(classes).toContain('rounded-full');
-            expect(classes).toContain('border-transparent');
-            expect(classes).toContain('bg-warning/15');
-            expect(classes).toContain('text-warning');
+            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('LOA ended 03Oct26');
+        });
+
+        it('says ended for an ELOA a return has closed', () => {
+            const wrapper = badge({ cover: covered({ type: 'eloa', typeLabel: 'ELOA', endsAt: '2026-10-06', expectedReturnAt: '2026-10-20', ended: true }), sync: synced() });
+
+            expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('ELOA ended 06Oct26');
         });
 
         it('shows the type and ongoing when an open-ended leave has no expected return either', () => {
@@ -83,11 +87,13 @@ describe('LoaBadge', () => {
             expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('ELOA ongoing');
         });
 
-        it('uses the amber warning style of the mockup pill', () => {
+        it('is the stock warning badge, with no icon', () => {
             const wrapper = badge({ cover: covered(), sync: synced() });
+            const trigger = wrapper.get('[data-testid="loa-badge"]');
 
-            expect(wrapper.get('[data-testid="loa-badge"]').classes()).toContain('text-warning');
-            expect(wrapper.get('[data-testid="loa-badge"]').attributes('data-state-kind')).toBe('covered');
+            expect(trigger.attributes('data-state-kind')).toBe('covered');
+            expect(trigger.classes()).toContain('text-warning');
+            expect(trigger.find('svg').exists()).toBe(false);
         });
 
         it('shows the expected return of an ELOA as its end date, and says it can be extended', () => {
@@ -103,6 +109,16 @@ describe('LoaBadge', () => {
 
             expect(wrapper.get('[data-testid="loa-badge"]').text()).toBe('ELOA overdue 07Oct26');
             expect(wrapper.get('[data-testid="loa-details"]').text()).toContain('no return has been posted');
+        });
+
+        it('draws overdue as the danger badge with an icon, so it does not read like an ordinary leave', () => {
+            const overdue = badge({ cover: covered({ type: 'eloa', typeLabel: 'ELOA', endsAt: null, expectedReturnAt: '2026-10-07', ongoing: true, overdue: true }), sync: synced() }).get('[data-testid="loa-badge"]');
+            const ordinary = badge({ cover: covered(), sync: synced() }).get('[data-testid="loa-badge"]');
+
+            expect(overdue.classes()).toContain('text-destructive');
+            expect(overdue.classes()).not.toContain('text-warning');
+            expect(overdue.find('svg').exists()).toBe(true);
+            expect(ordinary.classes()).not.toContain('text-destructive');
         });
 
         it('follows the server on whether it is overdue, never the local clock', () => {
@@ -147,10 +163,13 @@ describe('LoaBadge', () => {
             expect(wrapper.get('[data-testid="loa-badge"]').attributes('data-state-kind')).toBe('needs_review');
         });
 
-        it('is not styled like a confirmed leave', () => {
-            const wrapper = badge({ cover: needsReview(), sync: synced() });
+        it('is not styled like a confirmed leave: outlined, dashed, with a warning icon', () => {
+            const trigger = badge({ cover: needsReview(), sync: synced() }).get('[data-testid="loa-badge"]');
 
-            expect(wrapper.get('[data-testid="loa-badge"]').classes()).toContain('border-dashed');
+            expect(trigger.classes()).toContain('border-dashed');
+            expect(trigger.classes()).not.toContain('text-warning');
+            expect(trigger.classes()).not.toContain('text-destructive');
+            expect(trigger.find('svg').exists()).toBe(true);
         });
 
         it('explains in the details that no dates are shown, with the reason', () => {
@@ -219,12 +238,28 @@ describe('LoaBadge', () => {
         }
     });
 
-    it('is reachable by keyboard and described for screen readers', () => {
+    it('opens the details on tap or click, which a hover tooltip cannot do on a phone', async () => {
+        const wrapper = mount(LoaBadge, { props: { cover: needsReview(), sync: synced({ stale: true }) }, attachTo: document.body });
+
+        expect(document.body.querySelector('[data-testid="loa-popover"]')).toBeNull();
+
+        await wrapper.get('[data-testid="loa-badge"]').trigger('click');
+
+        const popover = document.body.querySelector('[data-testid="loa-popover"]');
+        expect(popover).not.toBeNull();
+        expect(popover.textContent).toContain('The end date could not be read.');
+        expect(popover.textContent).toContain('Source: Forum thread');
+        expect(popover.textContent).toContain('last good data');
+
+        wrapper.unmount();
+    });
+
+    it('is a real button, reachable by keyboard, and described for screen readers', () => {
         const wrapper = badge({ cover: covered(), sync: synced() });
         const trigger = wrapper.get('[data-testid="loa-badge"]');
         const details = wrapper.get('[data-testid="loa-details"]');
 
-        expect(trigger.attributes('tabindex')).toBe('0');
+        expect(trigger.element.tagName).toBe('BUTTON');
         expect(trigger.attributes('aria-describedby')).toBe(details.attributes('id'));
         expect(details.classes()).toContain('sr-only');
     });
