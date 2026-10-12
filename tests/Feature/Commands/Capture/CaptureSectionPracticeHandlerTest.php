@@ -13,6 +13,8 @@ use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
 use App\Models\GamePlatform;
+use App\Models\GamePlayerDismissal;
+use App\Models\PracticeCapturePlayer;
 use App\Models\SectionPractice;
 use App\Models\SyncRun;
 use App\Models\SyncRunStatus;
@@ -345,4 +347,39 @@ it('does not stamp the practice and records the run failed when the pre-mark thr
 
     expect($this->practice->fresh()->capture_source)->toBeNull()
         ->and(SyncRun::query()->sole()->status)->toBe(SyncRunStatus::Failure);
+});
+
+// 7.7: the unmatched / other-section players are kept for the leader's review.
+
+it('stores the unmatched and other-section players of the practice, replaced on every run', function () {
+    $elsewhere = Trooper::factory()->create(['primary_section_id' => Unit::factory()->create(['type' => UnitType::Section])->id]);
+    linkIdentity($elsewhere, '76561190000000010');
+    $players = [new CrconPlayer('Stranger', '76561190000000002'), new CrconPlayer('Visitor', '76561190000000010')];
+
+    runCapture($this, [answeringSource('crcon', $players)]);
+    runCapture($this, [answeringSource('crcon', $players)]);
+
+    $stored = PracticeCapturePlayer::query()->where('section_practice_id', $this->practice->id)->orderBy('platform_id')->get();
+    expect($stored)->toHaveCount(2)
+        ->and($stored[0]->only(['player_name', 'platform_id', 'trooper_id']))->toBe(['player_name' => 'Stranger', 'platform_id' => '76561190000000002', 'trooper_id' => null])
+        ->and($stored[0]->platform)->toBe(GamePlatform::Hll)
+        ->and($stored[1]->trooper_id)->toBe($elsewhere->id);
+
+    runCapture($this, [answeringSource('crcon', [])]);
+    expect(PracticeCapturePlayer::query()->count())->toBe(0);
+});
+
+it('leaves out a player a leader already dismissed', function () {
+    GamePlayerDismissal::query()->create(['platform' => GamePlatform::Hll, 'platform_id' => '76561190000000002', 'player_name' => 'Rando', 'dismissed_by' => User::factory()->create()->id]);
+
+    runCapture($this, [answeringSource('crcon', [new CrconPlayer('Rando', '76561190000000002'), new CrconPlayer('Other', '76561190000000003')])]);
+
+    expect(PracticeCapturePlayer::query()->pluck('platform_id')->all())->toBe(['76561190000000003']);
+});
+
+it('keeps the earlier stored players when a later re-run finds every source down', function () {
+    runCapture($this, [answeringSource('crcon', [new CrconPlayer('Stranger', '76561190000000002')])]);
+    runCapture($this, [failingSource('crcon')]);
+
+    expect(PracticeCapturePlayer::query()->count())->toBe(1);
 });

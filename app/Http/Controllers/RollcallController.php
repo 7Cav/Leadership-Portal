@@ -11,10 +11,18 @@ use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Commands\Attendance\MarkRollcallPosted;
 use App\Commands\Attendance\MarkRollcallPostedForbiddenException;
 use App\Commands\Attendance\MarkRollcallPostedHandler;
+use App\Commands\GameIdentities\DismissUnmatchedPlayer;
+use App\Commands\GameIdentities\DismissUnmatchedPlayerHandler;
+use App\Commands\GameIdentities\GameIdentityForbiddenException;
+use App\Commands\GameIdentities\LinkUnmatchedPlayer;
+use App\Commands\GameIdentities\LinkUnmatchedPlayerHandler;
+use App\Commands\GameIdentities\UnmatchedPlayerResolutionException;
 use App\Kpi\KpiService;
 use App\Kpi\TrooperAttendance;
 use App\Models\Attendance;
 use App\Models\AttendanceStatus;
+use App\Models\GamePlatform;
+use App\Models\PracticeCapturePlayer;
 use App\Models\RollcallSignature;
 use App\Models\SectionPractice;
 use App\Models\Trooper;
@@ -22,8 +30,11 @@ use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\AttendanceRepository;
+use App\Repositories\GameIdentityLinkException;
+use App\Repositories\PracticeCapturePlayerRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\SyncRunRepository;
+use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitRepository;
@@ -58,6 +69,8 @@ class RollcallController extends Controller
         private readonly AttendanceRepository $attendance,
         private readonly SyncRunRepository $syncRuns,
         private readonly KpiService $kpis,
+        private readonly PracticeCapturePlayerRepository $capturePlayers,
+        private readonly TrooperGameIdentityRepository $identities,
     ) {}
 
     /**
@@ -211,6 +224,113 @@ class RollcallController extends Controller
     }
 
     /**
+     * A leader links an unmatched player to the trooper they chose (Story 7.7, AD-19): the identity
+     * is written and the trooper pre-marked present through audited Commands, scope-gated inside
+     * the handler (AD-8). Answers JSON for the drawer: the trooper's resulting mark (a manual one is
+     * kept, so `marked` can be false) and the refreshed at-risk flags. 422 carries the readable
+     * reason inline — including "Already linked to <trooper> on <game>".
+     */
+    public function linkUnmatched(Request $request, int $unit, LinkUnmatchedPlayerHandler $handler): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'week' => ['required', 'date_format:Y-m-d'],
+            'platform' => ['required', Rule::enum(GamePlatform::class)],
+            'platform_id' => ['required', 'string', 'max:255'],
+            'trooper_id' => ['required', 'integer'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => $validator->errors()->first(), 'errors' => $validator->errors()], 422);
+        }
+
+        $weekStart = $this->requestedWeek($request->input('week'), WeekOf::start(CarbonImmutable::now()));
+        $platform = GamePlatform::from($request->input('platform'));
+        $trooperId = (int) $request->input('trooper_id');
+
+        try {
+            $result = $handler->handle($request->user(), new LinkUnmatchedPlayer($unit, $weekStart, $platform, $request->input('platform_id'), $trooperId));
+        } catch (GameIdentityForbiddenException $e) {
+            return response()->json(['message' => $e->getMessage()], 403);
+        } catch (UnmatchedPlayerResolutionException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (GameIdentityLinkException) {
+            return response()->json(['message' => $this->collisionMessage($platform, $request->input('platform_id'))], 422);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'The portal hit an error linking this player. Reload to see whether the link was saved, and check their mark.'], 500);
+        }
+
+        // The link and the mark are committed; what follows only refreshes the screen, so a failure
+        // here is reported and answered as saved, never as a failed link the leader would repeat.
+        try {
+            $practice = $this->practices->find($unit, $weekStart);
+            $mark = $practice ? $this->attendance->forPractice($practice)->firstWhere('trooper_id', $trooperId) : null;
+        } catch (Throwable $e) {
+            report($e);
+            $mark = null;
+        }
+
+        try {
+            $atRisk = $this->atRisk($this->units->find($unit), $weekStart);
+        } catch (Throwable $e) {
+            report($e);
+            $atRisk = null;
+        }
+
+        return response()->json([
+            'marked' => $result->marked > 0,
+            'trooper' => ['id' => $trooperId, 'status' => $mark?->status?->value, 'source' => $mark?->source?->value],
+            'atRisk' => $atRisk,
+        ]);
+    }
+
+    /**
+     * A leader dismisses an unmatched player as not-a-member (Story 7.7): one audited Command,
+     * scope-gated (AD-8). The player stays off this and later unmatched lists until linked.
+     */
+    public function dismissUnmatched(Request $request, int $unit, DismissUnmatchedPlayerHandler $handler): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'week' => ['required', 'date_format:Y-m-d'],
+            'platform' => ['required', Rule::enum(GamePlatform::class)],
+            'platform_id' => ['required', 'string', 'max:255'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => $validator->errors()->first(), 'errors' => $validator->errors()], 422);
+        }
+
+        $weekStart = $this->requestedWeek($request->input('week'), WeekOf::start(CarbonImmutable::now()));
+
+        try {
+            $handler->handle($request->user(), new DismissUnmatchedPlayer($unit, $weekStart, GamePlatform::from($request->input('platform')), $request->input('platform_id')));
+        } catch (GameIdentityForbiddenException $e) {
+            return response()->json(['message' => $e->getMessage()], 403);
+        } catch (UnmatchedPlayerResolutionException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'The portal hit an error dismissing this player.'], 500);
+        }
+
+        return response()->json(['dismissed' => true]);
+    }
+
+    /**
+     * "Already linked to SGT Ortega.M on Hell Let Loose." — the owner is named so the leader knows
+     * whose row to fix (as on the link-identity screen, 7.2).
+     */
+    private function collisionMessage(GamePlatform $platform, string $platformId): string
+    {
+        $owner = $this->identities->findByPlatformId($platform, trim($platformId));
+        $name = $owner === null ? null : $this->troopers->find($owner->trooper_id)?->display_name;
+
+        return 'Already linked to '.($name ?? 'another trooper')." on {$platform->label()}.";
+    }
+
+    /**
      * @return array{at: string, by: ?string}|null
      */
     private function postedProps(?SectionPractice $practice): ?array
@@ -335,10 +455,35 @@ class RollcallController extends Controller
                 'source' => 'milpac',
                 'syncedAt' => $lastSync?->finished_at?->toIso8601String(),
             ],
+            ...$this->captureProps($practice),
             'practice' => [
                 'lastMarkedAt' => $marks->max(fn (Attendance $row) => $row->updated_at)?->toIso8601String(),
                 'posted' => $this->postedProps($practice),
             ],
+        ];
+    }
+
+    /**
+     * What the capture run left for the leader (7.7): the players no trooper is linked to, once the
+     * practice has been captured. `capture` is the seam the capture banner and override (7.8) and
+     * the telemetry-unavailable state (7.9) build on; the drawer renders only when there are players.
+     *
+     * @return array{capture: ?array{source: string, capturedAt: string}, unmatched: list<array<string, string>>}
+     */
+    private function captureProps(?SectionPractice $practice): array
+    {
+        if ($practice?->captured_at === null) {
+            return ['capture' => null, 'unmatched' => []];
+        }
+
+        return [
+            'capture' => ['source' => $practice->capture_source, 'capturedAt' => $practice->captured_at->toIso8601String()],
+            'unmatched' => $this->capturePlayers->unmatchedFor($practice->id)->map(fn (PracticeCapturePlayer $player) => [
+                'platform' => $player->platform->value,
+                'platformLabel' => $player->platform->label(),
+                'playerName' => $player->player_name,
+                'platformId' => $player->platform_id,
+            ])->values()->all(),
         ];
     }
 

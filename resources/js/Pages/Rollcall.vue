@@ -20,6 +20,7 @@ import {
     PhCopy,
     PhEye,
     PhUsersThree,
+    PhUserCircleDashed,
     PhWarning,
 } from '@phosphor-icons/vue';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,7 @@ import AttendanceSourceLegend from '@/components/attendance/AttendanceSourceLege
 import SectionPicker from '@/components/rollcall/SectionPicker.vue';
 import StepReview from '@/components/rollcall/StepReview.vue';
 import TrooperCard from '@/components/rollcall/TrooperCard.vue';
+import UnmatchedDrawer from '@/components/rollcall/UnmatchedDrawer.vue';
 import { forumDate, forumDateTime } from '@/lib/forumDate';
 import ForumPost from '@/components/rollcall/ForumPost.vue';
 import { messageFor, unreachable, useRollcallAutosave } from '@/composables/useRollcallAutosave';
@@ -66,6 +68,12 @@ const props = defineProps({
     // `{ source, syncedAt }` (AD-20).
     roster: { type: Object, default: null },
     practice: { type: Object, default: null },
+    // `{ source, capturedAt }` once a capture run stamped this practice, else null (7.7). The seam
+    // the capture banner and override (7.8) and the telemetry-unavailable state (7.9) hang on.
+    capture: { type: Object, default: null },
+    // `[{ platform, platformLabel, playerName, platformId }]`: players the capture saw that no
+    // trooper is linked to (7.7).
+    unmatched: { type: Array, default: () => [] },
 });
 
 const page = usePage();
@@ -82,6 +90,11 @@ watch(
     },
     { immediate: true },
 );
+
+// The players still waiting for a trooper: leaves the list as the leader links or dismisses them.
+const unmatchedPlayers = ref(props.unmatched);
+watch(() => props.unmatched, (unmatched) => (unmatchedPlayers.value = unmatched));
+const showUnmatched = computed(() => Boolean(props.capture) && unmatchedPlayers.value.length > 0);
 
 const liveAtRisk = ref(props.atRisk);
 watch(() => props.atRisk, (atRisk) => (liveAtRisk.value = atRisk));
@@ -148,6 +161,29 @@ function applyMany(entries, title) {
         onAutoClose: () => undoToasts.delete(id),
     });
     undoToasts.add(id);
+}
+
+const sameUnmatched = (a, b) => a.platform === b.platform && a.platformId === b.platformId;
+
+// The server linked the player and pre-marked the trooper (a manual mark is kept, so the row takes
+// what the server says it now holds).
+function onLinked({ player, marked, trooper, atRisk }) {
+    unmatchedPlayers.value = unmatchedPlayers.value.filter((p) => !sameUnmatched(p, player));
+    const row = rows.value.find((t) => t.id === trooper.id);
+    if (row && trooper.status) {
+        Object.assign(row, { status: trooper.status, source: trooper.source });
+        // A mark written after the forum post makes that post stale, as a hand edit does.
+        if (marked && posted.value) editedSincePost.value = true;
+    }
+    liveAtRisk.value = atRisk ?? liveAtRisk.value;
+    const name = row ? displayName(row) : `trooper ${trooper.id}`;
+    if (marked) toast.success(`Linked ${player.playerName} to ${name}`, { description: 'Marked present for this practice.' });
+    else toast.success(`Linked ${player.playerName} to ${name}`, { description: 'Their existing mark was kept.' });
+}
+
+function onDismissed(player) {
+    unmatchedPlayers.value = unmatchedPlayers.value.filter((p) => !sameUnmatched(p, player));
+    toast.success(`Dismissed ${player.playerName}`, { description: 'They stay off the unmatched lists until linked to a trooper.' });
 }
 
 const unmarked = computed(() => rows.value.filter((t) => !isLocked(t) && t.status === null));
@@ -534,6 +570,19 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                     </div>
 
                     <div
+                        v-if="showUnmatched"
+                        role="status"
+                        class="mt-3 flex items-start gap-2.5 rounded-lg border border-info/35 bg-info/7 px-3.5 py-2.5 text-[13px]"
+                        data-testid="unmatched-banner"
+                    >
+                        <PhUserCircleDashed class="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
+                        <p>
+                            <b class="font-semibold">{{ unmatchedPlayers.length }} {{ unmatchedPlayers.length === 1 ? 'player needs' : 'players need' }} a trooper.</b>
+                            Link or dismiss them in the panel.
+                        </p>
+                    </div>
+
+                    <div
                         role="status"
                         class="mt-3 flex flex-wrap items-start gap-x-2.5 gap-y-2 rounded-lg border border-border px-3.5 py-2.5 text-[13px]"
                         data-testid="prefill-banner"
@@ -660,63 +709,77 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
             </section>
 
             <!-- Aside: the step's tallies -->
-            <aside class="sticky top-[8.5rem] hidden space-y-4 lg:block" aria-label="Step details">
-                <Card v-if="step === 1" class="gap-0 p-4 text-[13px]">
-                    <p class="mb-1 font-semibold">This week's thread</p>
-                    <p class="text-xs text-muted-foreground">Signatures close {{ closesLabel }}.</p>
-                    <dl class="mt-3 divide-y divide-border">
-                        <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Will attend</dt><dd class="font-medium tabular-nums">{{ counts.willAttend }}</dd></div>
-                        <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Cannot attend</dt><dd class="font-medium tabular-nums">{{ counts.cannotAttend }}</dd></div>
-                        <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Unsigned</dt><dd :class="cn('font-medium tabular-nums', counts.unsigned && 'text-warning')">{{ counts.unsigned }}</dd></div>
-                        <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">On LOA</dt><dd class="font-medium text-muted-foreground tabular-nums">{{ counts.loa }}</dd></div>
-                    </dl>
-                </Card>
-                <Card v-else-if="step === 2" class="gap-0 p-4 text-[13px]">
-                    <p class="mb-1 font-semibold">Section practice</p>
-                    <p class="text-xs text-muted-foreground">Week of {{ weekLabel }}.</p>
-                    <dl class="mt-3 divide-y divide-border">
-                        <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Present</dt><dd class="font-medium tabular-nums">{{ counts.present }}</dd></div>
-                        <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Missed</dt><dd :class="cn('font-medium tabular-nums', counts.missed && 'text-destructive')">{{ counts.missed }}</dd></div>
-                        <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Makeup</dt><dd class="font-medium tabular-nums">{{ counts.makeup }}</dd></div>
-                        <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Attached</dt><dd class="font-medium tabular-nums">{{ counts.attached }}</dd></div>
-                        <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Not marked</dt><dd :class="cn('font-medium tabular-nums', counts.unmarked && 'text-warning')">{{ counts.unmarked }}</dd></div>
-                        <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">On LOA</dt><dd class="font-medium text-muted-foreground tabular-nums">{{ counts.loa }}</dd></div>
-                    </dl>
-                </Card>
-                <Card v-if="step === 3" class="gap-0 p-4 text-[13px]">
-                    <p class="mb-2 font-semibold">To finish</p>
-                    <ol class="space-y-2.5">
-                        <li
-                            v-for="(item, index) in [
-                                { label: 'Copy the BBCode', done: copied },
-                                { label: 'Paste it as a reply in the rollcall thread', done: copied && !!posted && !editedSincePost },
-                                { label: 'Mark the rollcall posted', done: !!posted && !editedSincePost },
-                            ]"
-                            :key="item.label"
-                            class="flex items-center gap-2.5"
-                        >
-                            <span
-                                :class="
-                                    cn(
-                                        'grid size-6 place-items-center rounded-full border border-border bg-card text-xs font-semibold text-muted-foreground',
-                                        item.done && 'border-success/35 bg-success/8 text-success',
-                                    )
-                                "
-                                aria-hidden="true"
+            <aside :class="cn('space-y-4 lg:sticky lg:top-[8.5rem]', !(step === 2 && showUnmatched) && 'hidden lg:block')" aria-label="Step details">
+                <!-- Under the marks list on a phone, beside it on a wide screen (capture-review.html C). -->
+                <UnmatchedDrawer
+                    v-if="step === 2 && showUnmatched"
+                    :section-id="section.id"
+                    :week="week.date"
+                    :players="unmatchedPlayers"
+                    :troopers="rows"
+                    :editable="editable"
+                    :disabled-reason="readOnlyReason"
+                    @linked="onLinked"
+                    @dismissed="onDismissed"
+                />
+                <div class="hidden space-y-4 lg:block">
+                    <Card v-if="step === 1" class="gap-0 p-4 text-[13px]">
+                        <p class="mb-1 font-semibold">This week's thread</p>
+                        <p class="text-xs text-muted-foreground">Signatures close {{ closesLabel }}.</p>
+                        <dl class="mt-3 divide-y divide-border">
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Will attend</dt><dd class="font-medium tabular-nums">{{ counts.willAttend }}</dd></div>
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Cannot attend</dt><dd class="font-medium tabular-nums">{{ counts.cannotAttend }}</dd></div>
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Unsigned</dt><dd :class="cn('font-medium tabular-nums', counts.unsigned && 'text-warning')">{{ counts.unsigned }}</dd></div>
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">On LOA</dt><dd class="font-medium text-muted-foreground tabular-nums">{{ counts.loa }}</dd></div>
+                        </dl>
+                    </Card>
+                    <Card v-else-if="step === 2" class="gap-0 p-4 text-[13px]">
+                        <p class="mb-1 font-semibold">Section practice</p>
+                        <p class="text-xs text-muted-foreground">Week of {{ weekLabel }}.</p>
+                        <dl class="mt-3 divide-y divide-border">
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Present</dt><dd class="font-medium tabular-nums">{{ counts.present }}</dd></div>
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Missed</dt><dd :class="cn('font-medium tabular-nums', counts.missed && 'text-destructive')">{{ counts.missed }}</dd></div>
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Makeup</dt><dd class="font-medium tabular-nums">{{ counts.makeup }}</dd></div>
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Attached</dt><dd class="font-medium tabular-nums">{{ counts.attached }}</dd></div>
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Not marked</dt><dd :class="cn('font-medium tabular-nums', counts.unmarked && 'text-warning')">{{ counts.unmarked }}</dd></div>
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">On LOA</dt><dd class="font-medium text-muted-foreground tabular-nums">{{ counts.loa }}</dd></div>
+                        </dl>
+                    </Card>
+                    <Card v-if="step === 3" class="gap-0 p-4 text-[13px]">
+                        <p class="mb-2 font-semibold">To finish</p>
+                        <ol class="space-y-2.5">
+                            <li
+                                v-for="(item, index) in [
+                                    { label: 'Copy the BBCode', done: copied },
+                                    { label: 'Paste it as a reply in the rollcall thread', done: copied && !!posted && !editedSincePost },
+                                    { label: 'Mark the rollcall posted', done: !!posted && !editedSincePost },
+                                ]"
+                                :key="item.label"
+                                class="flex items-center gap-2.5"
                             >
-                                <PhCheck v-if="item.done" /><template v-else>{{ index + 1 }}</template>
-                            </span>
-                            <span :class="item.done && 'text-muted-foreground'">{{ item.label }}</span>
-                        </li>
-                    </ol>
-                </Card>
-                <Card v-if="editable && step < 3" class="gap-1.5 p-4 text-xs text-muted-foreground pointer-coarse:hidden">
-                    <p class="mb-1 text-[13px] font-semibold text-foreground">Keyboard</p>
-                    <p class="flex justify-between"><span>Next or previous trooper</span><span><kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">J</kbd> <kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">K</kbd></span></p>
-                    <p class="flex justify-between">
-                        <span>Set status on focused card</span><span><kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">1</kbd> to <kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">{{ step === 1 ? 3 : 4 }}</kbd></span>
-                    </p>
-                </Card>
+                                <span
+                                    :class="
+                                        cn(
+                                            'grid size-6 place-items-center rounded-full border border-border bg-card text-xs font-semibold text-muted-foreground',
+                                            item.done && 'border-success/35 bg-success/8 text-success',
+                                        )
+                                    "
+                                    aria-hidden="true"
+                                >
+                                    <PhCheck v-if="item.done" /><template v-else>{{ index + 1 }}</template>
+                                </span>
+                                <span :class="item.done && 'text-muted-foreground'">{{ item.label }}</span>
+                            </li>
+                        </ol>
+                    </Card>
+                    <Card v-if="editable && step < 3" class="gap-1.5 p-4 text-xs text-muted-foreground pointer-coarse:hidden">
+                        <p class="mb-1 text-[13px] font-semibold text-foreground">Keyboard</p>
+                        <p class="flex justify-between"><span>Next or previous trooper</span><span><kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">J</kbd> <kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">K</kbd></span></p>
+                        <p class="flex justify-between">
+                            <span>Set status on focused card</span><span><kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">1</kbd> to <kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">{{ step === 1 ? 3 : 4 }}</kbd></span>
+                        </p>
+                    </Card>
+                </div>
             </aside>
         </div>
 

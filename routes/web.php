@@ -54,6 +54,8 @@ Route::middleware('auth')->group(function () {
     // through the ScopeResolver (AD-8): an out-of-scope section is a 403, not a hidden link.
     Route::get('/rollcall/{unit?}', [RollcallController::class, 'show'])->whereNumber('unit')->name('rollcall.show');
     Route::post('/rollcall/{unit}', [RollcallController::class, 'store'])->whereNumber('unit')->name('rollcall.store');
+    Route::post('/rollcall/{unit}/unmatched/link', [RollcallController::class, 'linkUnmatched'])->whereNumber('unit')->name('rollcall.unmatched.link');
+    Route::post('/rollcall/{unit}/unmatched/dismiss', [RollcallController::class, 'dismissUnmatched'])->whereNumber('unit')->name('rollcall.unmatched.dismiss');
     Route::post('/rollcall/{unit}/posted', [RollcallController::class, 'posted'])->whereNumber('unit')->name('rollcall.posted');
 
     // Game identities (Story 7.2): link troopers in scope to their in-game identity, one per

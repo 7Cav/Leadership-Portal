@@ -3,7 +3,11 @@
 namespace App\Commands\Capture;
 
 use App\Commands\Attendance\MarkAttendanceHandler;
+use App\Integration\Crcon\Data\CrconPlayer;
 use App\Integration\Crcon\Data\CrconPresence;
+use App\Models\GamePlatform;
+use App\Repositories\GamePlayerDismissalRepository;
+use App\Repositories\PracticeCapturePlayerRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperGameIdentityRepository;
@@ -31,7 +35,8 @@ use Throwable;
  * The stamp goes through the audit envelope when a user triggered the run; the audit log's actor is
  * a `users` FK, so a `'system'` run is covered by its `sync_runs` row (AD-16's carve-out for system
  * jobs). No authorization here: callers (scheduler, a later leader trigger) decide who may run it.
- * Re-running re-stamps the same row and re-resolves.
+ * Re-running re-stamps the same row and re-resolves. The unmatched and other-section players are
+ * stored per practice (replaced each run, dismissed ones excluded) for the leader's review (7.7).
  */
 class CaptureSectionPracticeHandler
 {
@@ -41,6 +46,8 @@ class CaptureSectionPracticeHandler
         private readonly SectionPracticeRepository $practices,
         private readonly TrooperGameIdentityRepository $identities,
         private readonly TrooperRepository $troopers,
+        private readonly PracticeCapturePlayerRepository $capturePlayers,
+        private readonly GamePlayerDismissalRepository $dismissals,
         private readonly SyncRunRepository $syncRuns,
         private readonly AuditEnvelope $audit,
     ) {}
@@ -75,6 +82,7 @@ class CaptureSectionPracticeHandler
                 }
 
                 $result = $this->resolve($presence, $source->name, $command, $practice->section_id);
+                $this->persistUnresolved($practice->id, $command->platform, $result);
 
                 // Pre-mark before stamping, so a captured practice implies its marks were written;
                 // a failure here retries the whole run, and every write is idempotent.
@@ -112,6 +120,22 @@ class CaptureSectionPracticeHandler
 
             throw $e;
         }
+    }
+
+    /**
+     * Keep what the leader must review (7.7): the unmatched and other-section players, replacing
+     * the earlier run's. A player a leader already dismissed is left out (AD-19).
+     */
+    private function persistUnresolved(int $practiceId, GamePlatform $platform, CaptureResult $result): void
+    {
+        $dismissed = array_flip($this->dismissals->dismissedAmong($platform, array_map(fn (CrconPlayer $p) => $p->platformId, $result->unmatched)));
+
+        $this->capturePlayers->replaceForPractice($practiceId, $platform, [
+            ...array_map(fn (CrconPlayer $p) => ['platform_id' => $p->platformId, 'player_name' => $p->playerName, 'trooper_id' => null],
+                array_values(array_filter($result->unmatched, fn (CrconPlayer $p) => ! isset($dismissed[$p->platformId])))),
+            ...array_map(fn (array $row) => ['platform_id' => $row['player']->platformId, 'player_name' => $row['player']->playerName, 'trooper_id' => $row['trooperId']],
+                $result->otherSection),
+        ]);
     }
 
     private function resolve(CrconPresence $presence, string $source, CaptureSectionPractice $command, int $sectionId): CaptureResult
