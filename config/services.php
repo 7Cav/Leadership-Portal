@@ -72,4 +72,14 @@ return [
         'sweep_budget_seconds' => env('CAV_API_SWEEP_BUDGET_SECONDS', 12.0),
     ],
 
+    /*
+    | CRCON (Hell Let Loose community RCON) — the read-only HLL presence seam (Story 7.3, AD-3).
+    | Machine credential read from env only (AD-23). No default base URL: it is the unit's own
+    | server, so an unset value is a misconfiguration the seam reports as such.
+    */
+    'crcon' => [
+        'base_url' => env('CRCON_BASE_URL'),
+        'api_key' => env('CRCON_API_KEY'),
+    ],
+
 ];
