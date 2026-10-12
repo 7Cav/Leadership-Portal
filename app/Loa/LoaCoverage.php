@@ -34,23 +34,29 @@ final class LoaCoverage
     /**
      * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
      */
-    public function forTrooper(int $trooperId, CarbonInterface $weekStart): LoaCover
+    public function forTrooper(int $trooperId, CarbonInterface $weekStart, ?CarbonInterface $today = null): LoaCover
     {
-        return $this->forTroopers([$trooperId], $weekStart)[$trooperId];
+        return $this->forTroopers([$trooperId], $weekStart, $today)[$trooperId];
     }
 
     /**
      * Every given trooper's coverage for the week, keyed by trooper id, one query however many troopers.
      * A trooper with no leave still has an entry (`None`), so a caller can always index by id.
      *
+     * The result is a function of the trooper and the week, with one exception that is explicit: `overdue`
+     * and `endsInDays` describe `$today` (default now, UTC), so they are only derived when `$weekStart`'s
+     * week contains it. For any other week (the heatmap, an old report) they are `false` and null.
+     *
      * @param  iterable<int>  $trooperIds
      * @return array<int, LoaCover>
      *
      * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
      */
-    public function forTroopers(iterable $trooperIds, CarbonInterface $weekStart): array
+    public function forTroopers(iterable $trooperIds, CarbonInterface $weekStart, ?CarbonInterface $today = null): array
     {
         $week = WeekOf::requireStart($weekStart);
+        $today = CarbonImmutable::instance($today ?? CarbonImmutable::now('UTC'))->utc();
+        $today = WeekOf::start($today)->equalTo($week) ? $today : null;
 
         $ids = collect($trooperIds)->map(fn ($id) => (int) $id)->unique()->values()->all();
         $covers = array_fill_keys($ids, LoaCover::none());
@@ -60,7 +66,7 @@ final class LoaCoverage
         }
 
         foreach ($this->loas->touchingWeek($ids, $week)->groupBy('trooper_id') as $trooperId => $rows) {
-            $covers[(int) $trooperId] = $this->resolve($rows);
+            $covers[(int) $trooperId] = $this->resolve($rows, $today);
         }
 
         return $covers;
@@ -68,8 +74,9 @@ final class LoaCoverage
 
     /**
      * @param  iterable<int, Loa>  $rows  one trooper's rows that touch the week
+     * @param  ?CarbonImmutable  $today  the reference day when the week contains it, else null
      */
-    private function resolve(iterable $rows): LoaCover
+    private function resolve(iterable $rows, ?CarbonImmutable $today): LoaCover
     {
         $rows = collect($rows);
 
@@ -83,7 +90,7 @@ final class LoaCoverage
             ->first();
 
         if ($covering !== null) {
-            return LoaCover::covered($covering, CarbonImmutable::now('UTC'));
+            return LoaCover::covered($covering, $today);
         }
 
         $review = $rows->sortByDesc('id')->first();

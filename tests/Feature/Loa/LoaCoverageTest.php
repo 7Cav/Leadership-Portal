@@ -1,5 +1,6 @@
 <?php
 
+use App\Loa\LoaCover;
 use App\Loa\LoaCoverage;
 use App\Loa\LoaCoverageState;
 use App\Models\Loa;
@@ -122,6 +123,33 @@ describe('a cleanly read leave', function () {
         'the expected day, late in the day' => ['2026-10-08 23:59:59', false],
         'the next UTC day, just after midnight' => ['2026-10-09 00:00:01', true],
     ]);
+
+    it('does not describe today for a week that does not contain it, so a past week never reads as overdue', function () {
+        $this->travelTo(CarbonImmutable::parse('2026-10-20 12:00:00', 'UTC'));
+        $trooper = Trooper::factory()->create();
+        coverageLeave($trooper, '2026-09-20', null, ['type' => LoaType::Eloa, 'expected_return_at' => '2026-10-08']);
+        $ending = Trooper::factory()->create();
+        coverageLeave($ending, '2026-10-01', '2026-10-08');
+
+        // The week of Oct 3 is long past: the ELOA is covered there and was not overdue then; Oct 20 is today.
+        expect(coverageOf($trooper, coverageWeek('2026-10-03'))->overdue)->toBeFalse()
+            ->and(coverageOf($trooper, coverageWeek('2026-10-17'))->overdue)->toBeTrue()
+            ->and(coverageOf($ending, coverageWeek('2026-10-03'))->endsInDays)->toBeNull();
+    });
+
+    it('takes the reference day as a parameter, so a past week can be judged as of a given day', function () {
+        $trooper = Trooper::factory()->create();
+        coverageLeave($trooper, '2026-09-20', null, ['type' => LoaType::Eloa, 'expected_return_at' => '2026-10-08']);
+        $coverage = app(LoaCoverage::class);
+
+        expect($coverage->forTrooper($trooper->id, coverageWeek(), CarbonImmutable::parse('2026-10-09 08:00:00', 'UTC'))->overdue)->toBeTrue()
+            ->and($coverage->forTrooper($trooper->id, coverageWeek(), CarbonImmutable::parse('2026-10-07 08:00:00', 'UTC'))->overdue)->toBeFalse()
+            ->and($coverage->forTrooper($trooper->id, coverageWeek(), CarbonImmutable::parse('2026-10-20 08:00:00', 'UTC'))->overdue)->toBeFalse();
+    });
+
+    it('cannot be built into an impossible state: only the named constructors are public', function () {
+        expect((new ReflectionClass(LoaCover::class))->getConstructor()->isPrivate())->toBeTrue();
+    });
 
     it('is not overdue once a return has ended the ELOA, or when no return date was given', function () {
         $this->travelTo(CarbonImmutable::parse('2026-11-30 12:00:00', 'UTC'));

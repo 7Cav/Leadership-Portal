@@ -14,6 +14,8 @@ function loaRun(SyncRunStatus $status, $finishedAt, string $source = 'loa'): Syn
     return SyncRun::factory()->create(['source' => $source, 'status' => $status, 'finished_at' => $finishedAt]);
 }
 
+beforeEach(fn () => $this->travelTo(CarbonImmutable::parse('2026-10-08 13:00:00', 'UTC')));
+
 it('labels the source as the forum thread', function () {
     expect(app(LoaProvenance::class)->current()->source)->toBe('Forum thread');
 });
@@ -73,8 +75,24 @@ it('is never-synced, and stale, when every run so far failed', function () {
         ->and($state->latestStatus)->toBe('failure');
 });
 
+it('calls a success stale once it is older than the threshold, because syncs that stopped must not look fresh', function () {
+    loaRun(SyncRunStatus::Success, CarbonImmutable::parse('2026-10-08 13:00:00')->subHours(LoaProvenance::STALE_AFTER_HOURS)->subMinute());
+
+    $state = app(LoaProvenance::class)->current();
+
+    expect($state->stale)->toBeTrue()
+        ->and($state->latestStatus)->toBe('success')
+        ->and($state->neverSynced())->toBeFalse();
+});
+
+it('keeps a success inside the threshold fresh', function () {
+    loaRun(SyncRunStatus::Success, CarbonImmutable::parse('2026-10-08 13:00:00')->subHours(LoaProvenance::STALE_AFTER_HOURS)->addMinute());
+
+    expect(app(LoaProvenance::class)->current()->stale)->toBeFalse();
+});
+
 it('ignores a run that is still in progress', function () {
-    loaRun(SyncRunStatus::Success, CarbonImmutable::parse('2026-10-01 12:00:00'));
+    loaRun(SyncRunStatus::Success, CarbonImmutable::parse('2026-10-08 10:00:00'));
     SyncRun::factory()->create(['source' => 'loa', 'status' => SyncRunStatus::InProgress, 'finished_at' => null]);
 
     $state = app(LoaProvenance::class)->current();
@@ -89,7 +107,7 @@ it('reads only the LOA source, not the roster sync', function () {
     expect(app(LoaProvenance::class)->current()->neverSynced())->toBeTrue();
 
     loaRun(SyncRunStatus::Failure, CarbonImmutable::parse('2026-10-09 12:00:00'), 'roster');
-    loaRun(SyncRunStatus::Success, CarbonImmutable::parse('2026-10-05 12:00:00'));
+    loaRun(SyncRunStatus::Success, CarbonImmutable::parse('2026-10-08 11:00:00'));
 
     expect(app(LoaProvenance::class)->current()->stale)->toBeFalse();
 });

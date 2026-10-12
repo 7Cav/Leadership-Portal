@@ -48,4 +48,18 @@ final readonly class MarkAttendance
     {
         return array_map(fn (AttendanceMark $mark) => $mark->trooperId, $this->marks);
     }
+
+    /**
+     * Whether any entry sets a practice status (as opposed to only recording a rollcall signature).
+     */
+    public function hasPracticeMarks(): bool
+    {
+        foreach ($this->marks as $mark) {
+            if ($mark->status !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

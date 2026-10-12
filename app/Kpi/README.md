@@ -16,9 +16,10 @@ threshold) is the divergence AD-21 exists to prevent. The precise definitions ar
   freezes on send (5.6) — the KPIs from the echelon's `ReportKpiSource` plus the `KpiDelta`
   against the unit's prior-week **sent** snapshot (null when that week has no sent report, 5.4). A sent report
   is read back with `ReportSnapshot::fromArray($report->kpis)`, never recomputed (AD-12).
-  `ReportKpiSource` is the leaf/non-leaf seam, bound in `AppServiceProvider`: only the section
-  half exists (`SectionReportKpiSource`); a non-leaf is refused until 5.7's roll-up of
-  children's sent snapshots is bound in its place. Rate deltas are integer basis points.
+  `ReportKpiSource` is the leaf/non-leaf seam, bound in `AppServiceProvider` to
+  `EchelonReportKpiSource`: a section's live KPIs, or a non-leaf unit's `RollupKpis` sum with
+  the children that had not sent frozen as `missing_children`. Rate deltas are integer basis
+  points.
 
 `RollupKpis` (5.7) is the non-leaf side (AD-13): `forUnit($unit, $weekStart)` →
 `RollupResult`, the sum (`UnitKpis::plus()`) of the unit's **direct** children's **sent**

@@ -1,0 +1,160 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { nextTick, reactive } from 'vue';
+import { mount } from '@vue/test-utils';
+import GameIdentities from '../GameIdentities.vue';
+
+const page = reactive({ url: '/game-identities', props: { viewAs: null } });
+const put = vi.fn();
+const del = vi.fn();
+const formState = reactive({ errors: {}, processing: false });
+
+vi.mock('@inertiajs/vue3', async (importOriginal) => {
+    const { reactive } = await import('vue');
+
+    return {
+        ...(await importOriginal()),
+        Head: { template: '<head></head>' },
+        router: { delete: (...args) => del(...args) },
+        usePage: () => page,
+        useForm: (data) =>
+            reactive({
+                ...data,
+                get errors() {
+                    return formState.errors;
+                },
+                processing: false,
+                put: (...args) => put(...args),
+                clearErrors() {
+                    formState.errors = {};
+                },
+                reset() {
+                    Object.assign(this, data);
+                },
+            }),
+    };
+});
+
+const PLATFORMS = [
+    { value: 'hll', label: 'Hell Let Loose', idLabel: 'Steam ID' },
+    { value: 'arma', label: 'Arma Reforger', idLabel: 'Player ID' },
+];
+const trooper = (id, name, identities = {}) => ({ id, displayName: name, billet: 'Rifleman', section: '1/A', identities });
+const TROOPERS = [
+    trooper(1, 'SGT Ortega.M', { hll: { playerName: 'OrtegaCav', platformId: '7656' } }),
+    trooper(2, 'PFC Dube.R'),
+    trooper(3, 'SPC Halvorsen.K', { hll: { playerName: 'Halvy', platformId: '8765' }, arma: { playerName: 'Halvy_7Cav', platformId: 'a41f' } }),
+];
+
+const factory = (troopers = TROOPERS) => mount(GameIdentities, { props: { platforms: PLATFORMS, troopers } });
+
+describe('GameIdentities page', () => {
+    beforeEach(() => {
+        put.mockReset();
+        del.mockReset();
+        formState.errors = {};
+        page.props.viewAs = null;
+    });
+
+    it('summarises coverage from the platforms the server sends', () => {
+        const wrapper = factory();
+
+        expect(wrapper.get('[data-testid="coverage-linked"]').text()).toBe('3');
+        expect(wrapper.get('[data-testid="coverage-slots"]').text()).toBe('6');
+        expect(wrapper.get('[role="progressbar"]').attributes('aria-valuenow')).toBe('50');
+    });
+
+    it('queues only troopers missing a game, saying which, and defaults to that view', () => {
+        const wrapper = factory();
+
+        expect(wrapper.get('[data-testid="view-needs"]').attributes('aria-pressed')).toBe('true');
+        expect(wrapper.find('[data-testid="row-3"]').exists()).toBe(false);
+        expect(wrapper.get('[data-testid="row-1"]').text()).toContain('Missing Arma Reforger');
+        expect(wrapper.get('[data-testid="row-2"]').text()).toContain('Missing Hell Let Loose and Arma Reforger');
+    });
+
+    it('lists everyone, linked or not, in the Everyone view', async () => {
+        const wrapper = factory();
+        await wrapper.get('[data-testid="view-everyone"]').trigger('click');
+
+        expect(wrapper.findAll('[data-testid^="row-"]')).toHaveLength(3);
+        expect(wrapper.get('[data-testid="open-3"]').text()).toBe('Edit identities');
+    });
+
+    it('celebrates an empty queue', () => {
+        const wrapper = factory([TROOPERS[2]]);
+
+        expect(wrapper.find('[data-testid="queue-empty"]').exists()).toBe(true);
+    });
+
+    it('opens the panel on the first missing game and saves to that platform', async () => {
+        const wrapper = factory();
+        await wrapper.get('[data-testid="open-1"]').trigger('click');
+
+        expect(wrapper.get('[data-testid="panel-name"]').text()).toBe('SGT Ortega.M');
+        expect(wrapper.get('[data-testid="identity-game"]').element.value).toBe('arma');
+        expect(wrapper.get('label[for="identity-id"]').text()).toBe('Player ID');
+
+        await wrapper.get('[data-testid="identity-name"]').setValue('Ortega_7Cav');
+        await wrapper.get('[data-testid="identity-id"]').setValue('b2c3');
+        await wrapper.get('[data-testid="identity-form"]').trigger('submit');
+
+        expect(put).toHaveBeenCalledWith('/game-identities/1/arma', expect.objectContaining({ preserveScroll: true }));
+    });
+
+    it('shows the collision error next to the platform id', async () => {
+        const wrapper = factory();
+        await wrapper.get('[data-testid="open-2"]').trigger('click');
+        formState.errors = { platform_id: 'Already linked to SGT Ortega.M on Hell Let Loose.' };
+        await nextTick();
+
+        expect(wrapper.get('[data-testid="error-platform_id"]').text()).toBe('Already linked to SGT Ortega.M on Hell Let Loose.');
+        expect(wrapper.get('[data-testid="identity-id"]').attributes('aria-invalid')).toBe('true');
+    });
+
+    it('prefills an existing identity for editing', async () => {
+        const wrapper = factory();
+        await wrapper.get('[data-testid="view-everyone"]').trigger('click');
+        await wrapper.get('[data-testid="open-3"]').trigger('click');
+        await wrapper.get('[data-testid="edit-hll"]').trigger('click');
+
+        expect(wrapper.get('[data-testid="identity-name"]').element.value).toBe('Halvy');
+        expect(wrapper.get('[data-testid="identity-id"]').element.value).toBe('8765');
+        expect(wrapper.get('[data-testid="identity-save"]').text()).toBe('Save changes');
+    });
+
+    it('asks before removing, then deletes the platform link', async () => {
+        const wrapper = factory();
+        await wrapper.get('[data-testid="view-everyone"]').trigger('click');
+        await wrapper.get('[data-testid="open-3"]').trigger('click');
+        await wrapper.get('[data-testid="remove-arma"]').trigger('click');
+
+        expect(del).not.toHaveBeenCalled();
+        await wrapper.get('[data-testid="confirm-remove-arma"]').trigger('click');
+
+        expect(del).toHaveBeenCalledWith('/game-identities/3/arma', expect.objectContaining({ preserveScroll: true }));
+    });
+
+    it('closes the panel on Cancel', async () => {
+        const wrapper = factory();
+        await wrapper.get('[data-testid="open-2"]').trigger('click');
+        await wrapper.get('[data-testid="identity-cancel"]').trigger('click');
+
+        expect(wrapper.find('[data-testid="identity-form"]').exists()).toBe(false);
+    });
+
+    it('is read-only while viewing as someone else', async () => {
+        page.props.viewAs = { label: 'Vasquez.R' };
+        const wrapper = factory();
+        await wrapper.get('[data-testid="open-2"]').trigger('click');
+
+        expect(wrapper.get('[data-testid="read-only"]').text()).toContain('Vasquez.R');
+        expect(wrapper.get('[data-testid="identity-save"]').attributes('disabled')).toBeDefined();
+    });
+
+    it('shows an empty state when nobody is in scope', () => {
+        const wrapper = factory([]);
+
+        expect(wrapper.text()).toContain('No troopers in your scope.');
+        expect(wrapper.find('[data-testid="coverage"]').exists()).toBe(false);
+    });
+});

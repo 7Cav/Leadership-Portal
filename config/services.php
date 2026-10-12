@@ -63,16 +63,25 @@ return [
         // The forum sections (node ids) that hold leave threads, as `id:type` pairs, comma separated,
         // e.g. `180:loa,341:eloa`. The type is loa or eloa. The 7Cav forum keeps one LOA
         // section per battalion (plus HHQ and non-battalion) and one section for ELOA. Only these are
-        // ever read; none configured means no leave section is read. A malformed pair is dropped.
+        // ever read; none configured means no leave section is read. A malformed pair throws, so a typo
+        // fails at boot instead of silently leaving a section unread.
+        'loa_nodes' => collect(explode(',', (string) env('SEVENCAV_FORUM_LOA_NODES', '')))
+            ->map(fn (string $pair) => trim($pair))
+            ->filter(fn (string $pair) => $pair !== '')
+            ->mapWithKeys(function (string $pair) {
+                [$id, $type] = array_pad(array_map('trim', explode(':', $pair)), 2, null);
+
+                if (! ctype_digit((string) $id) || (int) $id < 1 || ! in_array($type, ['loa', 'eloa'], true)) {
+                    throw new InvalidArgumentException("SEVENCAV_FORUM_LOA_NODES: bad entry '{$pair}', expected id:loa|eloa");
+                }
+
+                return [(int) $id => $type];
+            })
+            ->all(),
         // The forum section where personnel action forms (PAFs) are filed. Only the creation date of a thread
         // there is read, to date an ELOA, never its contents. Unset means PAFs are not followed and an ELOA
         // starts on the day its report was posted.
         'paf_node' => filter_var(env('SEVENCAV_FORUM_PAF_NODE'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: null,
-        'loa_nodes' => collect(explode(',', (string) env('SEVENCAV_FORUM_LOA_NODES', '')))
-            ->map(fn (string $pair) => array_map('trim', explode(':', $pair)))
-            ->filter(fn (array $pair) => count($pair) === 2 && ctype_digit($pair[0]) && (int) $pair[0] > 0 && in_array($pair[1], ['loa', 'eloa'], true))
-            ->mapWithKeys(fn (array $pair) => [(int) $pair[0] => $pair[1]])
-            ->all(),
     ],
 
     /*
@@ -87,6 +96,37 @@ return [
         // Wall-clock ceiling for a first-login roster sweep, which makes up to three calls on the
         // synchronous login path. Configurable so the safety valve can be exercised in a test.
         'sweep_budget_seconds' => env('CAV_API_SWEEP_BUDGET_SECONDS', 12.0),
+    ],
+
+    /*
+    | CRCON (Hell Let Loose community RCON) — the read-only HLL presence seam (Story 7.3, AD-3).
+    | Machine credential read from env only (AD-23). No default base URL: it is the unit's own
+    | server, so an unset value is a misconfiguration the seam reports as such.
+    */
+    'crcon' => [
+        'base_url' => env('CRCON_BASE_URL'),
+        'api_key' => env('CRCON_API_KEY'),
+    ],
+
+    /*
+    | BattleMetrics — the read-only Arma Reforger presence seam, and HLL fallback (Story 7.4, AD-3).
+    | Machine credential read from env only (AD-23). The base URL defaults to the public API;
+    | the server id names the unit's own game server, so unset values are reported as misconfigured.
+    */
+    'battlemetrics' => [
+        'base_url' => env('BATTLEMETRICS_BASE_URL', 'https://api.battlemetrics.com'),
+        'api_key' => env('BATTLEMETRICS_API_KEY'),
+        'server_id' => env('BATTLEMETRICS_SERVER_ID'),
+    ],
+
+    /*
+    | Nightwatch — the read-only WARDOGS presence seam (Story 7.10, AD-3). Machine credential
+    | read from env only (AD-23). `server_ids` is a comma list of the workspace's server ids.
+    */
+    'nightwatch' => [
+        'base_url' => env('NIGHTWATCH_BASE_URL', 'https://nightwatch.to/api/public/stats'),
+        'api_key' => env('NIGHTWATCH_API_KEY'),
+        'server_ids' => env('NIGHTWATCH_SERVER_IDS'),
     ],
 
 ];

@@ -32,7 +32,14 @@ readonly class ForumThreadPage
             throw ForumRequestException::malformedThread();
         }
 
-        $pagination = is_array($data['pagination'] ?? null) ? $data['pagination'] : [];
+        // A missing pagination block would quietly turn "walk every page" into "read page 1", so it is
+        // treated as an unusable payload like any other missing field.
+        $pagination = $data['pagination'] ?? null;
+
+        if (! is_array($pagination)) {
+            throw ForumRequestException::malformedThread();
+        }
+
         $page = $pagination['current_page'] ?? 1;
         $lastPage = $pagination['last_page'] ?? $page;
 

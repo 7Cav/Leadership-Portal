@@ -4,6 +4,7 @@ use App\Jobs\SyncLoasJob;
 use App\Jobs\SyncRosterJob;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Queue\Job as QueueJobContract;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
@@ -144,4 +145,10 @@ describe('on the schedule', function () {
 
         Queue::assertPushed(SyncLoasJob::class, fn (SyncLoasJob $job) => $job->triggeredBy === 'system' && $job->full === false);
     });
+});
+
+it('is unique per kind, so repeated triggers do not stack, while a full run is its own kind', function () {
+    expect((new SyncLoasJob(1))->uniqueId())->toBe((new SyncLoasJob('system'))->uniqueId())
+        ->and((new SyncLoasJob(1, true))->uniqueId())->not->toBe((new SyncLoasJob(1))->uniqueId())
+        ->and(new SyncLoasJob)->toBeInstanceOf(ShouldBeUnique::class);
 });
