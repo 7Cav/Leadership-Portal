@@ -96,6 +96,11 @@ class Eloquent implements SectionPracticeRepository
         return SectionPractice::query()->find($id);
     }
 
+    public function lockById(int $id): ?SectionPractice
+    {
+        return SectionPractice::query()->whereKey($id)->lockForUpdate()->first();
+    }
+
     public function stampCapture(SectionPractice $practice, string $serverRef, \DateTimeInterface $capturedAt, string $captureSource): SectionPractice
     {
         $practice->forceFill([

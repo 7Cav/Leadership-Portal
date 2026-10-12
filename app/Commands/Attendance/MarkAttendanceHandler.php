@@ -128,14 +128,24 @@ class MarkAttendanceHandler
 
         // A confirmed practice (7.8) is locked for reporting: capture re-runs and links leave its
         // marks exactly as the leader confirmed them. A hand edit unlocks it.
-        if ($this->practices->findById($practice->id)?->confirmed_at !== null) {
-            return new AutoMarkResult(marked: 0, keptManual: count($trooperIds), notPlaced: 0);
+        // Checked here so a locked practice costs no audit entry, and again under a row lock inside
+        // the audited transaction, so a confirmation cannot land between the check and the writes.
+        $locked = fn (?SectionPractice $current) => $current?->confirmed_at !== null;
+
+        if ($locked($this->practices->findById($practice->id))) {
+            return new AutoMarkResult(marked: 0, keptManual: 0, notPlaced: 0, confirmed: true);
         }
 
         $written = [];
         $notPlaced = 0;
-        $mutation = function () use ($practice, $trooperIds, &$written, &$notPlaced) {
+        $confirmed = false;
+        $mutation = function () use ($practice, $trooperIds, $locked, &$written, &$notPlaced, &$confirmed) {
             $written = [];
+
+            if ($confirmed = $locked($this->practices->lockById($practice->id))) {
+                return new AuditedBatch($practice);
+            }
+
             $placed = $this->troopers->idsPlacedIn($practice->section_id, $trooperIds)->all();
             $notPlaced = count($trooperIds) - count($placed);
 
@@ -158,6 +168,10 @@ class MarkAttendanceHandler
             $this->audit->recordBatch($triggeredBy, 'attendance.auto_marked', null, false, $mutation);
         } else {
             $mutation();
+        }
+
+        if ($confirmed) {
+            return new AutoMarkResult(marked: 0, keptManual: 0, notPlaced: 0, confirmed: true);
         }
 
         $marked = count($written);

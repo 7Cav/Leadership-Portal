@@ -119,3 +119,33 @@ it('locks a confirmed practice against capture pre-marks until a hand edit', fun
     expect($result->marked)->toBe(0)
         ->and(Attendance::query()->where('trooper_id', $extra->id)->exists())->toBeFalse();
 });
+
+it('lets capture pre-mark again once a hand edit has unlocked the practice', function () {
+    $extra = Trooper::factory()->create();
+    $extra->forceFill(['primary_section_id' => $this->section->id])->save();
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => '2026-10-03'])->assertOk();
+    markByHand($this, $this->dube->id, 'missed')->assertOk();
+
+    $result = app(MarkAttendanceHandler::class)->preMark($this->practice, [$extra->id]);
+
+    expect($result->marked)->toBe(1)
+        ->and(Attendance::query()->where('trooper_id', $extra->id)->sole()->source)->toBe(AttendanceSource::Auto);
+});
+
+it('leaves existing marks untouched when a confirmed practice is pre-marked', function () {
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => '2026-10-03'])->assertOk();
+
+    $result = app(MarkAttendanceHandler::class)->preMark($this->practice, [$this->ortega->id, $this->dube->id], $this->leader->id);
+
+    expect($result->marked)->toBe(0)->and($result->confirmed)->toBeTrue()
+        ->and(AuditLogEntry::query()->where('action', 'attendance.auto_marked')->count())->toBe(0);
+});
+
+it('re-stamps on a second confirmation and audits each one', function () {
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => '2026-10-03'])->assertOk();
+    Carbon::setTestNow(CarbonImmutable::parse('2026-10-09 08:00:00', 'UTC'));
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => '2026-10-03'])
+        ->assertOk()->assertJsonPath('confirmation.at', '2026-10-09T08:00:00+00:00');
+
+    expect(AuditLogEntry::query()->where('action', 'practice.confirmed')->count())->toBe(2);
+});

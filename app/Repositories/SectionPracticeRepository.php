@@ -82,6 +82,14 @@ interface SectionPracticeRepository
     public function findById(int $id): ?SectionPractice;
 
     /**
+     * The practice row with this id, read with a row lock (`FOR UPDATE`), or null. Called inside an
+     * open transaction to decide on the practice's current state atomically with the writes that
+     * follow (7.8: a confirmation commits before or after a pre-mark, never between its check and
+     * its writes). Outside a transaction the lock is released at once.
+     */
+    public function lockById(int $id): ?SectionPractice;
+
+    /**
      * Stamp the practice with where a capture read from and when (7.5, AD-19): `server_ref`,
      * `captured_at` and `capture_source`. Re-stamping overwrites — a re-run is idempotent on the
      * same row. The caller routes it through the audit envelope where an actor exists.

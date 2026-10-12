@@ -534,7 +534,21 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed');
         });
 
-        it('starts confirmed from the server, and a hand edit of a mark makes it not confirmed again', async () => {
+        it('stays not confirmed and says so when the server refuses the confirmation', async () => {
+            post.mockResolvedValue({ ok: false, status: 403, data: { message: 'Outside your scope.' } });
+            const wrapper = factory({ capture: CAPTURE });
+
+            await wrapper.find('[data-testid="confirm-practice"]').trigger('click');
+            await flushPromises();
+
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Not confirmed');
+            expect(toastError).toHaveBeenCalledWith('Could not confirm the practice', expect.anything());
+            expect(wrapper.find('[data-testid="confirm-practice"]').attributes('disabled')).toBeUndefined();
+        });
+
+        it('starts confirmed from the server, and drops the badge once a saved hand edit clears it', async () => {
+            vi.useFakeTimers();
+            post.mockResolvedValue({ ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00', atRisk: [], confirmation: null } });
             const wrapper = factory({
                 capture: CAPTURE,
                 practice: { lastMarkedAt: null, confirmation: { at: '2026-10-08T16:20:00+00:00', by: 'Vasquez.R' } },
@@ -543,8 +557,11 @@ describe('Rollcall page', () => {
 
             const missed = wrapper.findAll('[data-trooper="1"] button').find((b) => b.text().startsWith('Missed'));
             await missed.trigger('click');
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed');
+            await vi.advanceTimersByTimeAsync(1000);
 
             expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Not confirmed');
+            vi.useRealTimers();
         });
     });
 });

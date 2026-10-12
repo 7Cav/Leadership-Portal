@@ -111,7 +111,11 @@ const autosave = props.section
     ? useRollcallAutosave({
           url: `/rollcall/${props.section.id}`,
           week: props.week.date,
-          onSaved: (data) => (liveAtRisk.value = data.atRisk ?? liveAtRisk.value),
+          onSaved: (data) => {
+              liveAtRisk.value = data.atRisk ?? liveAtRisk.value;
+              // A hand edit of a mark clears an earlier confirmation on the server (7.8).
+              if ('confirmation' in data) confirmation.value = data.confirmation;
+          },
           nameOf: (id) => displayName(rows.value.find((t) => t.id === id) ?? { cavId: id }),
       })
     : null;
@@ -124,8 +128,6 @@ function set(trooper, kind, value, options = {}) {
     trooper[field] = value;
     if (field === 'status') {
         trooper.source = 'manual';
-        // A hand edit of a mark makes an earlier confirmation stale; the server clears it too.
-        confirmation.value = null;
     }
     if (posted.value) editedSincePost.value = true;
     autosave.queue(trooper.id, field, value, options);

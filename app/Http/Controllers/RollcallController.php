@@ -185,9 +185,19 @@ class RollcallController extends Controller
             $atRisk = null;
         }
 
+        // A practice-mark save clears the confirmation (7.8); the screen takes the state from here
+        // rather than guessing, so a refused save cannot leave the badge wrong.
+        try {
+            $confirmation = ['confirmation' => $this->confirmationProps($this->practices->find($unit, $weekStart))];
+        } catch (Throwable $e) {
+            report($e);
+            $confirmation = [];
+        }
+
         return response()->json([
             'savedAt' => CarbonImmutable::now()->toIso8601String(),
             'atRisk' => $atRisk,
+            ...$confirmation,
         ]);
     }
 
