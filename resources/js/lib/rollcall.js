@@ -5,6 +5,7 @@ import {
     PhMinus,
     PhX,
 } from '@phosphor-icons/vue';
+import { initialsOf } from './initials';
 
 // The vocabulary of the rollcall screen (Stories 3.7–3.10, mockups/v2/rollcall-r3.html). Values are
 // the `attendance.rollcall` / `attendance.status` enums; the order is the order of the buttons on a
@@ -61,14 +62,7 @@ export function fullName(trooper) {
 }
 
 export function initials(trooper) {
-    if (!trooper.name) return '#';
-
-    return trooper.name
-        .split(/[.\s_-]+/)
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((part) => part[0].toUpperCase())
-        .join('');
+    return initialsOf(trooper.name) || '#';
 }
 
 // Totals over the section, LOA rows counted on their own (they are neither expected to sign nor

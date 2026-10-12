@@ -1,5 +1,6 @@
 import { computed } from 'vue';
 import { usePage } from '@inertiajs/vue3';
+import { initialsOf } from '@/lib/initials';
 
 // The signed-in identity as the shell shows it (moved out of Home.vue in Story 1.15; the rules
 // below are Story 1.5–1.7's). Reads the shared `auth` prop from HandleInertiaRequests.
@@ -77,14 +78,7 @@ export function useIdentity() {
     );
 
     // Avatar monogram: two letters from the username (`HS` for Hale.S).
-    const initials = computed(() =>
-        username.value
-            .split(/[.\s_-]+/)
-            .filter(Boolean)
-            .slice(0, 2)
-            .map((part) => part[0].toUpperCase())
-            .join(''),
-    );
+    const initials = computed(() => initialsOf(username.value));
 
     return { username, isAdmin, isRealAdmin, name, billet, identity, provenance, provenanceDetail, initials };
 }

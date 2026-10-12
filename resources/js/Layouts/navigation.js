@@ -54,21 +54,33 @@ function pathOf(url) {
     return (url ?? '').split(/[?#]/)[0].replace(/\/+$/, '') || '/';
 }
 
+// Pages that belong under a nav item without being one of its links: a trooper's milpac (`/troopers/12`) is
+// reached from the roster and reads as a child of it, so the Roster item stays active and the breadcrumb trail
+// continues past it.
+const CHILD_PAGES = [{ prefix: '/troopers/', parent: '/roster' }];
+
+function childOf(url, href) {
+    const path = pathOf(url);
+
+    return CHILD_PAGES.some((child) => child.parent === href && path.startsWith(child.prefix));
+}
+
 // Active when the page is the item itself or sits beneath it (`/settings/audit-log?page=2`).
 export function isActive(url, href) {
     if (!href) return false;
 
     const path = pathOf(url);
 
-    return path === href || path.startsWith(`${href}/`);
+    return path === href || path.startsWith(`${href}/`) || childOf(url, href);
 }
 
 // The group and item the current page belongs to, regardless of whether the viewer can see
-// that group in the sidebar (a non-Admin may still open Org structure directly).
+// that group in the sidebar (a non-Admin may still open Org structure directly). `nested` is true for a
+// child page, which adds its own last crumb after the item's.
 export function locate(url) {
     for (const group of NAV_GROUPS) {
         const item = group.items.find((candidate) => isActive(url, candidate.href));
-        if (item) return { group, item };
+        if (item) return { group, item, nested: childOf(url, item.href) };
     }
 
     return null;
