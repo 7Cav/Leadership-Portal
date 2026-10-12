@@ -42,7 +42,7 @@ it('lists only the troopers in scope with their identities and every platform sl
 
     $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
         ->component('GameIdentities')
-        ->has('platforms', 2)
+        ->has('platforms', 3)
         ->where('platforms.0', ['value' => 'hll', 'label' => 'Hell Let Loose', 'idLabel' => 'Steam ID'])
         ->has('troopers', 1)
         ->where('troopers.0.id', $this->mine->id)
@@ -113,7 +113,7 @@ it('allows the same identifier on a different platform', function () {
 it('validates the fields and the platform', function () {
     $this->actingAs($this->leader)->put(identityUrl($this->mine), ['player_name' => '', 'platform_id' => ''])
         ->assertSessionHasErrors(['player_name', 'platform_id']);
-    $this->actingAs($this->leader)->put(identityUrl($this->mine, 'wardogs'), ['player_name' => 'A', 'platform_id' => 'B'])->assertNotFound();
+    $this->actingAs($this->leader)->put(identityUrl($this->mine, 'quake'), ['player_name' => 'A', 'platform_id' => 'B'])->assertNotFound();
 });
 
 it('removes an identity, audited, leaving attendance untouched', function () {
