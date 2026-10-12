@@ -185,7 +185,7 @@ it('still answers saved when only the at-risk refresh fails, so the screen never
             return $this->inner->forPractice($practice);
         }
 
-        public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
+        public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection
         {
             throw new RuntimeException('kpi read failed');
         }
