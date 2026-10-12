@@ -11,7 +11,15 @@ class Eloquent implements CourseRepository
 {
     public function all(): Collection
     {
-        return Course::query()->orderBy('sort_order')->orderBy('code')->get();
+        $position = array_flip(array_column(AreaOfOperation::cases(), 'value'));
+
+        // Grouped here, in one place, so a course added later cannot interleave areas: AO in enum
+        // order first, then `sort_order`, then `code`.
+        return Course::query()->get()->sortBy([
+            fn (Course $a, Course $b) => $position[$a->category->value] <=> $position[$b->category->value],
+            ['sort_order', 'asc'],
+            ['code', 'asc'],
+        ])->values();
     }
 
     public function findByCode(string $code): ?Course
