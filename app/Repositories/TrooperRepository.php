@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Models\Trooper;
 use App\Models\Unit;
 use Illuminate\Support\Collection;
 
@@ -85,6 +86,23 @@ interface TrooperRepository
      * @return Collection<int, int>
      */
     public function assignedWithin(Unit $unit): Collection;
+
+    /**
+     * The troopers currently assigned within `$unit`'s subtree (as `assignedWithin()`), as models
+     * ordered by id — a report's roster, rendered through `display_name`.
+     *
+     * @return Collection<int, Trooper>
+     */
+    public function rosterOf(Unit $unit): Collection;
+
+    /**
+     * The cached troopers with these `cav_id`s, keyed by `cav_id` — how a portal user is shown by
+     * their roster name (e.g. a report's sender). Unknown ids are simply absent.
+     *
+     * @param  list<int>  $cavIds
+     * @return Collection<int, Trooper>
+     */
+    public function byCavId(array $cavIds): Collection;
 
     /**
      * The synced rank of each trooper in `$cavIds`, keyed by `cav_id` — the label the view-as

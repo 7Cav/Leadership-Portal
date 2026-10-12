@@ -47,23 +47,44 @@ interface WeeklyReportRepository
     public function forUnits(array $unitIds, CarbonInterface $weekStart): Collection;
 
     /**
-     * Save the unit-week's draft — `kpis` and `notes` as given — creating the row if absent.
+     * The unit's **sent** reports for weeks before `$weekStart`, newest first, at most `$limit`,
+     * each with its `sender` loaded — the report screen's history, trend and delta baseline
+     * (5.4). Never creates a row.
+     *
+     * @return Collection<int, WeeklyReport>
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function sentBefore(int $unitId, CarbonInterface $weekStart, int $limit): Collection;
+
+    /**
+     * Save the unit-week's draft — `kpis`, `notes`, the training subject and the unaccounted
+     * troopers' reasons as given — creating the row if absent.
      *
      * @param  array<string, mixed>  $kpis
+     * @param  list<array{trooper_id: int, reason: string}>  $unaccounted
      *
      * @throws InvalidArgumentException when `$unitId` is not a `units` row, or `$weekStart` is
      *                                  not a Saturday 00:00 UTC.
      * @throws WeeklyReportAlreadySentException when the unit-week is already sent.
      */
-    public function saveDraft(int $unitId, CarbonInterface $weekStart, array $kpis, ?string $notes): WeeklyReport;
+    public function saveDraft(
+        int $unitId,
+        CarbonInterface $weekStart,
+        array $kpis,
+        ?string $notes,
+        ?string $trainingSubject = null,
+        array $unaccounted = [],
+    ): WeeklyReport;
 
     /**
-     * Freeze the unit-week: write the final `kpis`/`notes` snapshot, flip `status` to sent and
+     * Freeze the unit-week: write the final `kpis`/`notes`/training subject/unaccounted snapshot, flip `status` to sent and
      * record `sent_at` (now), `sent_by`, `content_digest` and the template version resolved at
      * send — creating the row if no draft was saved, promoting the draft in place otherwise.
      * `$templateVersionId` is null until template versioning (3.5) lands.
      *
      * @param  array<string, mixed>  $kpis
+     * @param  list<array{trooper_id: int, reason: string}>  $unaccounted
      *
      * @throws InvalidArgumentException when `$unitId` is not a `units` row, `$sentBy` is not a
      *                                  `users` row, or `$weekStart` is not a Saturday 00:00 UTC.
@@ -77,5 +98,7 @@ interface WeeklyReportRepository
         int $sentBy,
         string $contentDigest,
         ?int $templateVersionId,
+        ?string $trainingSubject = null,
+        array $unaccounted = [],
     ): WeeklyReport;
 }

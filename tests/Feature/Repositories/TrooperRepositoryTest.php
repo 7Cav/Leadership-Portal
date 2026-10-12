@@ -280,3 +280,29 @@ it('writes the primary billet id with the synced columns, overwriting the previo
     $repo->upsertActive([[...$row, 'cav_position_id' => null]]);
     expect(Trooper::where('cav_id', 1)->sole()->cav_position_id)->toBeNull();
 });
+
+it('lists a unit\'s assigned troopers as models, by id (5.3)', function () {
+    $section = Unit::factory()->create(['path' => '900/']);
+    $first = Trooper::factory()->create(['primary_section_id' => $section->id]);
+    $second = Trooper::factory()->create(['primary_section_id' => $section->id]);
+    Trooper::factory()->create(['primary_section_id' => $section->id, 'status' => TrooperStatus::Inactive]);
+    Trooper::factory()->create();
+
+    expect(app(TrooperRepository::class)->rosterOf($section)->pluck('id')->all())->toBe([$first->id, $second->id]);
+});
+
+it('finds troopers by cav id, keyed by it, leaving out unknown ids', function () {
+    $trooper = Trooper::factory()->create(['cav_id' => 4242]);
+
+    expect(app(TrooperRepository::class)->byCavId([4242, 4343])->keys()->all())->toBe([4242])
+        ->and(app(TrooperRepository::class)->byCavId([4242])->first()->id)->toBe($trooper->id)
+        ->and(app(TrooperRepository::class)->byCavId([]))->toBeEmpty();
+});
+
+it('reads troopers\' ranks by cav id, leaving out unknown ids and unranked troopers', function () {
+    Trooper::factory()->create(['cav_id' => 11, 'rank' => 'Sergeant']);
+    Trooper::factory()->create(['cav_id' => 12, 'rank' => null]);
+
+    expect(app(TrooperRepository::class)->ranksByCavId([11, 12, 13])->all())->toBe([11 => 'Sergeant'])
+        ->and(app(TrooperRepository::class)->ranksByCavId([])->all())->toBe([]);
+});

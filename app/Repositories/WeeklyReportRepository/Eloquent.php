@@ -41,11 +41,32 @@ class Eloquent implements WeeklyReportRepository
             ->toBase();
     }
 
-    public function saveDraft(int $unitId, CarbonInterface $weekStart, array $kpis, ?string $notes): WeeklyReport
+    public function sentBefore(int $unitId, CarbonInterface $weekStart, int $limit): Collection
     {
+        return WeeklyReport::query()
+            ->with('sender')
+            ->where('unit_id', $unitId)
+            ->where('status', WeeklyReportStatus::Sent)
+            ->where('week_start', '<', $this->assertWeekStart($weekStart))
+            ->orderByDesc('week_start')
+            ->limit($limit)
+            ->get()
+            ->toBase();
+    }
+
+    public function saveDraft(
+        int $unitId,
+        CarbonInterface $weekStart,
+        array $kpis,
+        ?string $notes,
+        ?string $trainingSubject = null,
+        array $unaccounted = [],
+    ): WeeklyReport {
         return $this->write($unitId, $weekStart, [
             'kpis' => $kpis,
             'notes' => $notes,
+            'training_subject' => $trainingSubject,
+            'unaccounted' => $unaccounted,
         ]);
     }
 
@@ -57,6 +78,8 @@ class Eloquent implements WeeklyReportRepository
         int $sentBy,
         string $contentDigest,
         ?int $templateVersionId,
+        ?string $trainingSubject = null,
+        array $unaccounted = [],
     ): WeeklyReport {
         if (! User::query()->whereKey($sentBy)->exists()) {
             throw new InvalidArgumentException("User {$sentBy} does not exist; a sent report records its sender.");
@@ -66,6 +89,8 @@ class Eloquent implements WeeklyReportRepository
             'status' => WeeklyReportStatus::Sent,
             'kpis' => $kpis,
             'notes' => $notes,
+            'training_subject' => $trainingSubject,
+            'unaccounted' => $unaccounted,
             'sent_at' => CarbonImmutable::now('UTC'),
             'sent_by' => $sentBy,
             'content_digest' => $contentDigest,
