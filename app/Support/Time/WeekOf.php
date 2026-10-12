@@ -41,13 +41,14 @@ final class WeekOf
     }
 
     /**
-     * The start of the Cav week after the one opening at `$weekStart`.
+     * The start of the Cav week `$weeks` weeks after the one opening at `$weekStart` (the next one by default),
+     * which is also the first instant after a range of `$weeks` weeks that begins at `$weekStart`.
      *
      * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
      */
-    public static function next(CarbonInterface $weekStart): CarbonImmutable
+    public static function next(CarbonInterface $weekStart, int $weeks = 1): CarbonImmutable
     {
-        return self::requireStart($weekStart)->addWeek();
+        return self::requireStart($weekStart)->addWeeks($weeks);
     }
 
     /**

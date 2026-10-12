@@ -7,6 +7,7 @@ use App\Models\Loa;
 use App\Models\LoaParseStatus;
 use App\Models\LoaType;
 use App\Models\Trooper;
+use App\Repositories\LoaRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -471,4 +472,79 @@ it('gives the badge its props: a covering leave with dates, a review with none',
         'sourceThread' => 'https://7cav.us/threads/b.2/',
         'reviewReason' => 'No end date.',
     ]);
+});
+
+describe('a window of weeks (Story 4.8)', function () {
+    it('resolves each week by the same rule as a single week, in one query', function () {
+        $trooper = Trooper::factory()->create();
+        $other = Trooper::factory()->create();
+        coverageLeave($trooper, '2026-10-12', '2026-10-14');
+        Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'created_at' => '2026-10-20 09:00:00']);
+
+        $queries = 0;
+        DB::listen(function () use (&$queries) {
+            $queries++;
+        });
+
+        $covers = app(LoaCoverage::class)->forTroopersOverWeeks([$trooper->id, $other->id], coverageWeek('2026-10-03'), 4);
+
+        expect($queries)->toBe(1)
+            ->and(array_keys($covers[$trooper->id]))->toBe(['2026-10-03', '2026-10-10', '2026-10-17', '2026-10-24'])
+            ->and($covers[$trooper->id]['2026-10-03']->state)->toBe(LoaCoverageState::None)
+            ->and($covers[$trooper->id]['2026-10-10']->state)->toBe(LoaCoverageState::Covered)
+            ->and($covers[$trooper->id]['2026-10-17']->state)->toBe(LoaCoverageState::NeedsReview)
+            ->and($covers[$trooper->id]['2026-10-24']->state)->toBe(LoaCoverageState::NeedsReview)
+            ->and(collect($covers[$other->id])->every(fn ($cover) => $cover->state === LoaCoverageState::None))->toBeTrue();
+    });
+
+    it('agrees, week for week, with asking one week at a time', function () {
+        $trooper = Trooper::factory()->create();
+        coverageLeave($trooper, '2026-10-09', '2026-10-17');
+        coverageLeave($trooper, '2026-11-01', null, ['type' => LoaType::Eloa, 'expected_return_at' => '2026-11-20']);
+
+        $window = app(LoaCoverage::class)->forTroopersOverWeeks([$trooper->id], coverageWeek('2026-10-03'), 8)[$trooper->id];
+
+        foreach ($window as $weekStart => $cover) {
+            expect($cover)->toEqual(coverageOf($trooper, coverageWeek($weekStart)));
+        }
+    });
+
+    it('refuses a window of no weeks, or one that does not start on a Saturday', function () {
+        $coverage = app(LoaCoverage::class);
+
+        expect(fn () => $coverage->forTroopersOverWeeks([1], coverageWeek(), 0))->toThrow(InvalidArgumentException::class)
+            ->and(fn () => $coverage->forTroopersOverWeeks([1], coverageWeek()->addDay(), 2))->toThrow(InvalidArgumentException::class);
+    });
+});
+
+it('prefilters in SQL to a superset of what the one week rule accepts, so the two cannot drift apart', function () {
+    $trooper = Trooper::factory()->create();
+    $first = coverageWeek('2026-10-03');
+    $weeks = 3;
+
+    foreach ([
+        ['2026-09-01', '2026-09-25'], ['2026-09-20', '2026-10-03'], ['2026-10-09', '2026-10-09'], ['2026-10-17', '2026-10-24'],
+        ['2026-10-23', '2026-11-01'], ['2026-10-24', '2026-10-24'], ['2026-10-25', null], ['2026-12-01', null], ['2026-08-01', null],
+    ] as [$start, $end]) {
+        coverageLeave($trooper, $start, $end);
+    }
+
+    foreach (['2026-09-18 23:59:59', '2026-09-26 00:00:00', '2026-10-03 00:00:00', '2026-10-23 23:59:59', '2026-10-24 00:00:00', '2026-11-30 00:00:00'] as $posted) {
+        Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'posted_at' => $posted]);
+        Loa::factory()->create(['trooper_id' => $trooper->id, 'starts_at' => null, 'ends_at' => null, 'posted_at' => $posted]);
+        Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'posted_at' => null, 'created_at' => $posted]);
+    }
+
+    $returned = app(LoaRepository::class)->touchingWeeks([$trooper->id], $first, $weeks)->pluck('id')->all();
+    $starts = array_map(fn (int $i) => $first->addWeeks($i), range(0, $weeks - 1));
+
+    foreach (Loa::all() as $loa) {
+        $bearsOnAWeek = collect($starts)->contains(fn ($start) => LoaCoverage::touchesWeek($loa, $start));
+
+        if ($bearsOnAWeek) {
+            expect($returned)->toContain($loa->id);
+        }
+    }
+
+    expect(Loa::all()->filter(fn ($loa) => collect($starts)->contains(fn ($start) => LoaCoverage::touchesWeek($loa, $start)))->count())->toBeGreaterThan(5);
 });

@@ -13,7 +13,7 @@ class InvalidAttendanceMarkException extends RuntimeException
 {
     /**
      * The troopers the batch was refused for, when the refusal is about specific troopers
-     * (`notPlacedInSection`) — so a caller can say which marks cannot be saved. Empty otherwise.
+     * (`notPlacedInSection`, `loaCovered`) — so a caller can say which marks cannot be saved. Empty otherwise.
      *
      * @var list<int>
      */
@@ -27,6 +27,20 @@ class InvalidAttendanceMarkException extends RuntimeException
     public static function loaIsDerived(int $trooperId): self
     {
         return new self("Trooper {$trooperId} cannot be marked loa by hand — LOA status is derived from LOA data, never entered.");
+    }
+
+    /**
+     * The troopers are named in `$trooperIds`, not in the message, which stays in plain words for a toast or a
+     * log: the caller (the rollcall screen's autosave) drops just these and keeps saving the rest.
+     *
+     * @param  list<int>  $trooperIds
+     */
+    public static function loaCovered(array $trooperIds): self
+    {
+        $exception = new self('These troopers are on leave this week, so their status comes from their leave and cannot be set by hand.');
+        $exception->trooperIds = $trooperIds;
+
+        return $exception;
     }
 
     public static function notASection(int $unitId): self

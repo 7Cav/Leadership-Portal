@@ -207,6 +207,10 @@ it('reads a whole battalion in a constant number of queries', function () {
         return $queries;
     };
 
+    // One trooper is placed first, so the baseline already includes the LOA coverage read (4.8), which only
+    // runs when someone is assigned.
+    Trooper::factory()->create()->forceFill(['primary_section_id' => $this->s11->id])->save();
+
     $small = $count();
 
     foreach (['C', 'D'] as $letter) {

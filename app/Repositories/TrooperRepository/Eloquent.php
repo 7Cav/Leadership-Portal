@@ -6,6 +6,7 @@ use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Repositories\TrooperRepository;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -92,15 +93,39 @@ class Eloquent implements TrooperRepository
         return Trooper::query()->assignedWithin($unit)->orderBy('id')->pluck('id');
     }
 
-    public function unplaced(): EloquentCollection
+    public function unplaced(int $limit): Collection
     {
-        return Trooper::query()
-            ->whereNull('primary_section_id')
-            ->where('status', '!=', TrooperStatus::Inactive->value)
+        return $this->unplacedQuery()
             ->orderByRaw('username is null')
             ->orderBy('username')
             ->orderBy('cav_id')
-            ->get();
+            ->limit($limit)
+            ->get()
+            ->map(fn (Trooper $trooper) => [
+                'id' => $trooper->id,
+                'cav_id' => $trooper->cav_id,
+                'username' => $trooper->username,
+                'rank' => $trooper->rank,
+                'mos' => $trooper->mos,
+                'billet' => $trooper->billet,
+                'position_id' => $trooper->cav_position_id,
+            ])
+            ->toBase();
+    }
+
+    public function unplacedCount(): int
+    {
+        return $this->unplacedQuery()->count();
+    }
+
+    /**
+     * @return Builder<Trooper>
+     */
+    private function unplacedQuery(): Builder
+    {
+        return Trooper::query()
+            ->whereNull('primary_section_id')
+            ->where('status', '!=', TrooperStatus::Inactive->value);
     }
 
     public function rosterOf(Unit $unit): Collection
