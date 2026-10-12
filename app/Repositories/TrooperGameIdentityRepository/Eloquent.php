@@ -39,8 +39,15 @@ class Eloquent implements TrooperGameIdentityRepository
                 ['player_name' => $playerName, 'platform_id' => $platformId],
             ));
         } catch (UniqueConstraintViolationException $e) {
-            // A concurrent link claimed the same `(platform, platform_id)` between the check and the write.
-            throw GameIdentityLinkException::alreadyLinked($platform, $platformId, $e);
+            // Only a concurrent claim by a *different* trooper is a rejected link; any other
+            // collision (e.g. the same trooper double-submitting) is not ours to relabel.
+            $owner = $this->findByPlatformId($platform, $platformId);
+
+            if ($owner !== null && $owner->trooper_id !== $trooperId) {
+                throw GameIdentityLinkException::alreadyLinked($platform, $platformId, $e);
+            }
+
+            throw $e;
         }
     }
 

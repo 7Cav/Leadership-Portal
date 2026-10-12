@@ -6,7 +6,9 @@ use App\Models\Trooper;
 use App\Models\TrooperGameIdentity;
 use App\Repositories\GameIdentityLinkException;
 use App\Repositories\TrooperGameIdentityRepository;
+use App\Repositories\TrooperGameIdentityRepository\Eloquent as TrooperGameIdentityEloquent;
 use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -137,5 +139,48 @@ it('unlinks without touching attendance rows', function () {
     expect($repo->unlink($trooper->id, GamePlatform::Hll))->toBeTrue()
         ->and($repo->unlink($trooper->id, GamePlatform::Hll))->toBeFalse()
         ->and(TrooperGameIdentity::query()->count())->toBe(0)
+        ->and($attendance->fresh()->only(['status', 'source', 'rollcall']))->toBe($attendance->only(['status', 'source', 'rollcall']));
+});
+
+it('translates a concurrent claim by another trooper into the domain exception', function () {
+    $a = Trooper::factory()->create();
+    $b = Trooper::factory()->create();
+    TrooperGameIdentity::factory()->create(['trooper_id' => $a->id, 'platform_id' => '1']);
+
+    // The pre-check misses the row, as it would when the other claim commits just after it.
+    $repo = new class extends TrooperGameIdentityEloquent
+    {
+        private bool $checked = false;
+
+        public function findByPlatformId(GamePlatform $platform, string $platformId): ?TrooperGameIdentity
+        {
+            if (! $this->checked) {
+                $this->checked = true;
+
+                return null;
+            }
+
+            return parent::findByPlatformId($platform, $platformId);
+        }
+    };
+
+    try {
+        $repo->link($b->id, GamePlatform::Hll, 'Thief', '1');
+        $this->fail('expected GameIdentityLinkException');
+    } catch (GameIdentityLinkException $e) {
+        expect($e->getPrevious())->toBeInstanceOf(UniqueConstraintViolationException::class);
+    }
+
+    expect(TrooperGameIdentity::query()->sole()->trooper_id)->toBe($a->id);
+});
+
+it('replacing a link leaves attendance rows alone', function () {
+    $trooper = Trooper::factory()->create();
+    $attendance = Attendance::factory()->create(['trooper_id' => $trooper->id]);
+    $repo = app(TrooperGameIdentityRepository::class);
+    $repo->link($trooper->id, GamePlatform::Hll, 'Maverick', '1');
+    $repo->link($trooper->id, GamePlatform::Hll, 'Maverick2', '2');
+
+    expect(Attendance::query()->count())->toBe(1)
         ->and($attendance->fresh()->only(['status', 'source', 'rollcall']))->toBe($attendance->only(['status', 'source', 'rollcall']));
 });
