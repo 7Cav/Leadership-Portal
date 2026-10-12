@@ -73,6 +73,13 @@ it('reads the latest run of this practice only', function () {
     telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry', null));
 });
 
+it('keeps showing the earlier failure while a retry is still running', function () {
+    captureRun($this, SyncRunStatus::Failure);
+    SyncRun::factory()->create(['source' => 'capture', 'status' => SyncRunStatus::InProgress, 'finished_at' => null, 'started_at' => '2026-10-08 16:19:00', 'section_practice_id' => $this->practice->id]);
+
+    telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.state', 'failed')->where('telemetry.lastAttemptAt', '2026-10-08T15:42:00+00:00'));
+});
+
 it('says telemetry is not configured when the game has no source with keys set, even after an old failure', function () {
     config(['services.crcon' => ['base_url' => null, 'api_key' => null]]);
     app()->forgetInstance(CaptureSources::class);

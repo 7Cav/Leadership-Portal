@@ -473,3 +473,14 @@ it('applies auto pre-marks on recovery and keeps the manual marks entered while 
         ->and($byTrooper[$seen->id]->source)->toBe(AttendanceSource::Auto)
         ->and($this->practice->fresh()->capture_source)->toBe('crcon');
 });
+
+it('records a failed run naming only the configured source when the unconfigured primary is skipped', function () {
+    $calls = [];
+    $result = runCapture($this, [unconfiguredSource('crcon', $calls), failingSource('battlemetrics')]);
+
+    $run = SyncRun::query()->sole();
+    expect($result->captured)->toBeFalse()
+        ->and($calls)->toBe([])
+        ->and($run->status)->toBe(SyncRunStatus::Failure)
+        ->and($run->error)->toContain('battlemetrics: unreachable')->not->toContain('crcon');
+});

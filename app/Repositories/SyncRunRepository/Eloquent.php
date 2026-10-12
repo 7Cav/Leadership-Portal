@@ -67,6 +67,8 @@ class Eloquent implements SyncRunRepository
         return SyncRun::query()
             ->where('source', $source)
             ->where('section_practice_id', $sectionPracticeId)
+            ->whereNotNull('finished_at')
+            ->where('status', '!=', SyncRunStatus::InProgress)
             ->orderByDesc('started_at')
             ->orderByDesc('id')
             ->first();

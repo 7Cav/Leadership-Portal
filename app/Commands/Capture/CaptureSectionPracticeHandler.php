@@ -13,6 +13,7 @@ use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
 use App\Support\Audit\AuditEnvelope;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 use Throwable;
 
@@ -75,7 +76,7 @@ class CaptureSectionPracticeHandler
         $all = $this->sources->for($command->platform);
         $configured = array_values(array_filter($all, fn (CaptureSource $source) => $source->configured));
 
-        if ($all !== [] && $configured === []) {
+        if ($configured === []) {
             return CaptureResult::notConfigured();
         }
 
@@ -89,6 +90,8 @@ class CaptureSectionPracticeHandler
                     $presence = ($source->fetch)($command->windowStart, $command->windowEnd);
                 } catch (CaptureSourceUnavailable $e) {
                     $reasons[] = $e->getMessage();
+                    // A source that is down while a fallback answers must not go unnoticed (7.9).
+                    Log::warning('Capture source unavailable.', ['sectionPracticeId' => $practice->id, 'source' => $source->name, 'reason' => $e->getMessage()]);
 
                     continue;
                 }

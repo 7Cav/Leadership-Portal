@@ -50,9 +50,10 @@ interface SyncRunRepository
     public function latestFinished(string $source): ?SyncRun;
 
     /**
-     * The most recent run of `$source` for one practice, whatever its state — the rollcall screen's
-     * "last tried" and failed/in-progress state for a practice's capture (7.9, AD-20). Newest start
-     * first, `id` as the tiebreaker (timestamps are second-precision).
+     * The most recent *closed* run of `$source` for one practice, whatever its outcome — the rollcall
+     * screen's "last tried" and failed state for a practice's capture (7.9, AD-20). A run still
+     * `in_progress` (or left so by a crash) has no outcome and is skipped, so a retry in flight does
+     * not hide the earlier failure. Newest start first, `id` as the tiebreaker.
      */
     public function latestForPractice(string $source, int $sectionPracticeId): ?SyncRun;
 }
