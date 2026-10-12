@@ -80,11 +80,6 @@ class Eloquent implements TrooperRepository
         return $updated;
     }
 
-    public function find(int $id): ?Trooper
-    {
-        return Trooper::find($id);
-    }
-
     public function countsBySection(): Collection
     {
         return Trooper::query()

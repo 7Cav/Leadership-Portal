@@ -1,9 +1,11 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, nextTick, reactive, ref, watch } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { PhCaretDown, PhCheckCircle, PhCloudArrowDown, PhLockSimple, PhPlus, PhTreeStructure, PhWarningCircle } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { toast } from 'vue-sonner';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -161,8 +163,22 @@ const sections = computed(() =>
     props.units
         .filter((unit) => unit.type === 'section')
         .sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }))
-        .map((unit) => ({ id: unit.id, label: unit.callsign ? `${unit.callsign} · ${unit.name}` : unit.name })),
+        .map((unit) => ({ id: unit.id, label: sectionLabel(unit) })),
 );
+
+// Squads and sections share names across platoons ("1st Squad"), and this is an audited personnel
+// action, so each option names the units above it (the root regiment left out as noise).
+function sectionLabel(unit) {
+    const own = unit.callsign ? `${unit.callsign} · ${unit.name}` : unit.name;
+    const above = unit.path
+        .split('/')
+        .filter(Boolean)
+        .slice(1, -1)
+        .map((id) => props.units.find((candidate) => candidate.id === Number(id))?.name)
+        .filter(Boolean);
+
+    return above.length ? `${own} (${above.join(' / ')})` : own;
+}
 const assigningId = ref(null);
 const assignSection = ref(null);
 const assignReason = ref('');
@@ -174,11 +190,22 @@ function openAssign(trooper) {
     assignSection.value = null;
     assignReason.value = '';
     assignError.value = null;
+    // Keyboard and screen-reader users keep their place: focus moves into the form it opened.
+    nextTick(() => document.getElementById(`assign-section-${trooper.id}`)?.focus());
 }
 
 function cancelAssign() {
+    const trooperId = assigningId.value;
     assigningId.value = null;
     assignError.value = null;
+    nextTick(() => document.getElementById(`assign-button-${trooperId}`)?.focus());
+}
+
+// A placed trooper's chip leaves the list, so focus goes to the panel instead of falling to the page.
+function finishAssign() {
+    assigningId.value = null;
+    toast.success('Trooper placed');
+    nextTick(() => document.querySelector('[data-testid="unplaced-panel"]')?.focus());
 }
 
 function submitAssign(trooper) {
@@ -189,7 +216,19 @@ function submitAssign(trooper) {
         { section_id: assignSection.value, reason: assignReason.value.trim() },
         {
             preserveScroll: true,
-            onSuccess: cancelAssign,
+            onSuccess: finishAssign,
+            // A 403 or an expired session is an HTTP exception, not a validation error: say so here
+            // instead of Inertia's raw error dialog (returning false).
+            onHttpException: (response) => {
+                assignError.value =
+                    response.status === 403
+                        ? 'Only an Admin can place a trooper.'
+                        : response.status === 419
+                          ? 'Your session expired. Reload the page and try again.'
+                          : `The placement failed (error ${response.status}). Try again.`;
+
+                return false;
+            },
             onError: (errors) => {
                 assignError.value =
                     errors.placement ?? errors.section_id ?? errors.reason ?? Object.values(errors)[0] ?? 'The placement failed. Reload the page and try again.';
@@ -437,6 +476,7 @@ function requestDelete(id) {
                 <section
                     v-if="unplacedTroopers !== null"
                     data-testid="unplaced-panel"
+                    tabindex="-1"
                     aria-label="Troopers not yet placed"
                     class="mt-4 rounded-lg border border-dashed border-border p-3"
                 >
@@ -478,22 +518,39 @@ function requestDelete(id) {
                               Place this trooper into a section by hand (Story 2.7). The server is the boundary:
                               Admin only, a required reason, and an audited write. This is the convenience layer.
                             -->
-                            <button
-                                v-if="assigningId !== trooper.id"
-                                type="button"
-                                data-testid="assign-trooper"
-                                class="mt-1 inline-flex items-center gap-0.5 text-xs font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
-                                :disabled="!sections.length"
-                                :title="sections.length ? undefined : 'There are no sections to place into yet'"
-                                @click="openAssign(trooper)"
-                            >
-                                Assign <PhCaretDown class="size-3" aria-hidden="true" />
-                            </button>
+                            <template v-if="assigningId !== trooper.id">
+                                <Button
+                                    v-if="sections.length"
+                                    :id="`assign-button-${trooper.id}`"
+                                    type="button"
+                                    variant="link"
+                                    size="sm"
+                                    class="mt-1 h-auto p-0 text-xs"
+                                    data-testid="assign-trooper"
+                                    @click="openAssign(trooper)"
+                                >
+                                    Assign <PhCaretDown class="size-3" aria-hidden="true" />
+                                </Button>
+                                <!-- A disabled button takes no hover or focus, so the focusable wrapper carries the reason. -->
+                                <TooltipProvider v-else :delay-duration="200">
+                                    <Tooltip>
+                                        <TooltipTrigger as-child>
+                                            <span tabindex="0" class="mt-1 inline-flex items-center gap-0.5 text-xs font-medium text-muted-foreground">
+                                                <Button type="button" variant="link" size="sm" class="h-auto p-0 text-xs" data-testid="assign-trooper" disabled>
+                                                    Assign <PhCaretDown class="size-3" aria-hidden="true" />
+                                                </Button>
+                                                <span class="sr-only" data-testid="assign-disabled-reason">There are no sections to place into yet</span>
+                                            </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>There are no sections to place into yet</TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            </template>
                             <form v-else data-testid="assign-form" class="mt-2 space-y-2.5 border-t border-border pt-2.5" @submit.prevent="submitAssign(trooper)">
                                 <div class="grid gap-1">
                                     <Label :for="`assign-section-${trooper.id}`">Section</Label>
                                     <NativeSelect :id="`assign-section-${trooper.id}`" v-model="assignSection" data-testid="assign-section">
-                                        <option :value="null">Choose a section</option>
+                                        <option :value="null">Select a section</option>
                                         <option v-for="section in sections" :key="section.id" :value="section.id">{{ section.label }}</option>
                                     </NativeSelect>
                                 </div>

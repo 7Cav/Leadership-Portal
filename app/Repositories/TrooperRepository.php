@@ -74,8 +74,6 @@ interface TrooperRepository
      */
     public function updatePrimarySections(array $cavIdToSectionId): int;
 
-    public function find(int $id): ?Trooper;
-
     /**
      * How many troopers are currently assigned to each section, keyed by section id: not inactive
      * (LOA still counts, as in strength), and only sections that have at least one. The Settings tree
@@ -90,7 +88,8 @@ interface TrooperRepository
      * Touches only the two placement columns, never a synced roster field. One conditional write: it
      * applies only while the trooper is still unplaced and still on a roster, and returns the placed
      * trooper, or null when it did not apply (already placed, departed, or no such trooper), so two
-     * concurrent placements cannot both win.
+     * concurrent placements cannot both win. The returned model is the post-update row, and what the
+     * audit envelope's digest is computed from.
      */
     public function place(int $trooperId, int $sectionId): ?Trooper;
 

@@ -57,11 +57,11 @@ it('puts the trooper in that section\'s roster and leaves the unplaced list', fu
     $section = placementSection();
     $trooper = Trooper::factory()->create(['primary_section_id' => null]);
     $repo = app(TrooperRepository::class);
-    expect($repo->unplaced())->toHaveCount(1);
+    expect($repo->unplaced(100))->toHaveCount(1);
 
     placeTrooper($admin, $trooper, $section);
 
-    expect($repo->unplaced())->toHaveCount(0)
+    expect($repo->unplaced(100))->toHaveCount(0)
         ->and($repo->assignedWithin($section)->all())->toBe([$trooper->id]);
 });
 

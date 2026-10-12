@@ -13,6 +13,9 @@ let postSpy = vi.fn();
 let addFormState = { type: 'battalion', name: '', callsign: '', parent_id: null, processing: false, errors: {} };
 let editFormState = { name: '', callsign: '', parent_id: null, processing: false, errors: {} };
 
+const toastSuccess = vi.fn();
+vi.mock('vue-sonner', () => ({ toast: { success: (...a) => toastSuccess(...a), error: vi.fn() } }));
+
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
     // `<Head>` needs a real Inertia app instance (it injects the head-manager on setup),
@@ -478,7 +481,7 @@ describe('Settings/OrgStructure', () => {
 
                 const button = wrapper.find('[data-testid="assign-trooper"]');
                 expect(button.attributes('disabled')).toBeDefined();
-                expect(button.attributes('title')).toContain('no sections');
+                expect(wrapper.find('[data-testid="assign-disabled-reason"]').text()).toContain('no sections');
             });
 
             it('opens a form that lists only sections, in chain-of-command order', async () => {
@@ -486,7 +489,7 @@ describe('Settings/OrgStructure', () => {
                 await open(wrapper);
 
                 const options = wrapper.findAll('[data-testid="assign-section"] option').map((option) => option.text());
-                expect(options).toEqual(['Choose a section', '1/1/A/2-7 · 1st Section', '2/1/A/2-7 · 2nd Section']);
+                expect(options).toEqual(['Select a section', '1/1/A/2-7 · 1st Section (2nd Battalion / Alpha Company)', '2/1/A/2-7 · 2nd Section (2nd Battalion / Alpha Company)']);
             });
 
             it('keeps only one form open at a time', async () => {
@@ -544,6 +547,24 @@ describe('Settings/OrgStructure', () => {
                 await wrapper.find('[data-testid="assign-form"]').trigger('submit');
 
                 expect(wrapper.find('[data-testid="assign-form"]').exists()).toBe(false);
+                expect(toastSuccess).toHaveBeenCalledWith('Trooper placed');
+            });
+
+            it('says so, inside the form, when the server answers 403 rather than a validation error', async () => {
+                let onHttpException;
+                postSpy = vi.fn((url, data, options) => {
+                    onHttpException = options.onHttpException;
+                });
+                const wrapper = mountAdmin();
+                await open(wrapper);
+                await wrapper.find('[data-testid="assign-section"]').setValue('4');
+                await wrapper.find('[data-testid="assign-reason"]').setValue('Confirmed');
+                await wrapper.find('[data-testid="assign-form"]').trigger('submit');
+
+                expect(onHttpException({ status: 403 })).toBe(false);
+                await wrapper.vm.$nextTick();
+
+                expect(wrapper.find('[data-testid="assign-error"]').text()).toBe('Only an Admin can place a trooper.');
             });
 
             it('shows the server error and keeps the form open when the placement is refused', async () => {

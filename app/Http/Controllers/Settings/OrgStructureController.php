@@ -47,7 +47,9 @@ class OrgStructureController extends Controller
     {
         $tree = $this->units->tree();
         // Troopers assigned to each section, rolled up every branch: a unit's count is the troopers in
-        // any section under its path (the same subtree rule strength uses, AD-18, AD-21).
+        // any section under its path (the same subtree rule strength uses, AD-18, AD-21). The prefix
+        // test relies on the AD-18 convention that every `path` ends in "/", so "1/2/" can never match
+        // "1/20/".
         $bySection = $this->troopers->countsBySection();
         $sectionPaths = $tree->whereIn('id', $bySection->keys()->all())->pluck('path', 'id');
 
