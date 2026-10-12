@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Integration\Cav\CavApi;
+use App\Integration\Crcon\CrconApi;
 use App\Integration\Forum\ForumApi;
 use App\Kpi\EchelonReportKpiSource;
 use App\Kpi\ReportKpiSource;
@@ -23,6 +24,9 @@ class AppServiceProvider extends ServiceProvider
         // The Cav roster seam (AD-3). Same reasoning: the bearer key is read from config
         // (env only, AD-23) here in the composition root, not inside the seam.
         $this->app->singleton(CavApi::class, fn () => new CavApi(config('services.cav')));
+
+        // The CRCON presence seam (AD-3, Story 7.3). Key and URL come from config (env only, AD-23).
+        $this->app->singleton(CrconApi::class, fn () => new CrconApi(config('services.crcon')));
 
         // Repository contracts (AD-2), each with exactly one implementation registered today,
         // bound by convention — see RepositoryServiceBinder.
