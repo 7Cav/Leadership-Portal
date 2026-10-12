@@ -82,4 +82,15 @@ return [
         'api_key' => env('CRCON_API_KEY'),
     ],
 
+    /*
+    | BattleMetrics — the read-only Arma Reforger presence seam, and HLL fallback (Story 7.4, AD-3).
+    | Machine credential read from env only (AD-23). The base URL defaults to the public API;
+    | the server id names the unit's own game server, so unset values are reported as misconfigured.
+    */
+    'battlemetrics' => [
+        'base_url' => env('BATTLEMETRICS_BASE_URL', 'https://api.battlemetrics.com'),
+        'api_key' => env('BATTLEMETRICS_API_KEY'),
+        'server_id' => env('BATTLEMETRICS_SERVER_ID'),
+    ],
+
 ];

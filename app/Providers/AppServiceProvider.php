@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Integration\BattleMetrics\BattleMetricsApi;
 use App\Integration\Cav\CavApi;
 use App\Integration\Crcon\CrconApi;
 use App\Integration\Forum\ForumApi;
@@ -27,6 +28,9 @@ class AppServiceProvider extends ServiceProvider
 
         // The CRCON presence seam (AD-3, Story 7.3). Key and URL come from config (env only, AD-23).
         $this->app->singleton(CrconApi::class, fn () => new CrconApi(config('services.crcon')));
+
+        // The BattleMetrics presence seam (AD-3, Story 7.4). Key and server id come from config (env only, AD-23).
+        $this->app->singleton(BattleMetricsApi::class, fn () => new BattleMetricsApi(config('services.battlemetrics')));
 
         // Repository contracts (AD-2), each with exactly one implementation registered today,
         // bound by convention — see RepositoryServiceBinder.
