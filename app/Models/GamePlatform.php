@@ -10,6 +10,7 @@ enum GamePlatform: string
 {
     case Hll = 'hll';
     case Arma = 'arma';
+    case Wardogs = 'wardogs';
 
     /** How the game is named on screen. */
     public function label(): string
@@ -17,6 +18,7 @@ enum GamePlatform: string
         return match ($this) {
             self::Hll => 'Hell Let Loose',
             self::Arma => 'Arma Reforger',
+            self::Wardogs => 'WARDOGS',
         };
     }
 
@@ -26,6 +28,7 @@ enum GamePlatform: string
         return match ($this) {
             self::Hll => 'Steam ID',
             self::Arma => 'Player ID',
+            self::Wardogs => 'Steam ID',
         };
     }
 }
