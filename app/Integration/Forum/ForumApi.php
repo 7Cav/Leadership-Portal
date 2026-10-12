@@ -5,11 +5,13 @@ namespace App\Integration\Forum;
 use App\Integration\Forum\Data\ForumProfile;
 use App\Integration\Forum\Data\ForumThread;
 use App\Integration\Forum\Data\ForumThreadPage;
+use App\Integration\Forum\Data\ForumThreadSummary;
 use App\Integration\Forum\Data\ForumToken;
 use App\Integration\Forum\Requests\ExchangeCodeRequest;
 use App\Integration\Forum\Requests\FetchProfileRequest;
 use App\Integration\Forum\Requests\FetchThreadRequest;
 use App\Integration\Forum\Requests\ListForumThreadsRequest;
+use Carbon\CarbonImmutable;
 use JsonException;
 use Saloon\Exceptions\Request\FatalRequestException;
 use Saloon\Http\Auth\TokenAuthenticator;
@@ -39,7 +41,7 @@ class ForumApi
      * `api_key` and `loa_nodes` are only needed for reading leave threads: `loa_nodes` maps each forum
      * section id that holds them to the kind of leave posted there (`loa` or `eloa`).
      *
-     * @param  array{client_id: string, client_secret: string, redirect_uri: string, base_url: string, authorize_url: string, scopes: list<string>, api_key?: ?string, loa_nodes?: array<int, string>}  $config
+     * @param  array{client_id: string, client_secret: string, redirect_uri: string, base_url: string, authorize_url: string, scopes: list<string>, api_key?: ?string, loa_nodes?: array<int, string>, paf_node?: ?int}  $config
      */
     public function __construct(private readonly array $config) {}
 
@@ -91,6 +93,54 @@ class ForumApi
         }
 
         return $thread;
+    }
+
+    /**
+     * The forum section where personnel action forms (PAFs) are filed, or null when it is not configured.
+     */
+    public function pafNode(): ?int
+    {
+        $node = $this->config['paf_node'] ?? null;
+
+        return is_int($node) && $node > 0 ? $node : null;
+    }
+
+    /**
+     * When a PAF thread was created, which is the day the personnel action was filed and so the day an
+     * ELOA, or its return, takes effect (a leave report can be posted a day after the PAF). Only the
+     * thread's own date is read, never its contents, and only from the configured PAF section.
+     *
+     * @throws ForumRequestException when no PAF section or key is configured, the forum fails or returns an
+     *                               unusable payload, the thread is not visible, or it is not a PAF thread
+     */
+    public function fetchPafThreadPostedAt(int $threadId): CarbonImmutable
+    {
+        $pafNode = $this->pafNode() ?? throw ForumRequestException::pafNotConfigured();
+
+        $data = $this->sendForJson(
+            $this->withApiKey(new FetchThreadRequest($threadId, withFirstPost: false)),
+            ForumRequestException::threadFetchFailed(...),
+        );
+
+        $thread = is_array($data['thread'] ?? null) ? ForumThreadSummary::fromArray($data['thread']) : throw ForumRequestException::malformedThread();
+
+        if ($thread->nodeId !== $pafNode) {
+            throw ForumRequestException::notAPafThread($thread->nodeId);
+        }
+
+        if (! $thread->isVisible()) {
+            throw ForumRequestException::threadNotVisible();
+        }
+
+        return $thread->postedAt;
+    }
+
+    /**
+     * The forum's address for a thread, for a row's `source_thread` when the forum did not send one.
+     */
+    public function threadUrl(int $threadId): string
+    {
+        return rtrim($this->config['base_url'], '/')."/threads/{$threadId}/";
     }
 
     /**

@@ -19,7 +19,7 @@ class Eloquent implements SyncRunRepository
         ]);
     }
 
-    public function complete(SyncRun $run, int $inserted, int $updated, int $inactivated, int $errored, ?string $error = null): void
+    public function complete(SyncRun $run, int $inserted, int $updated, int $inactivated, int $errored, ?string $error = null, int $needsReview = 0): void
     {
         $run->forceFill([
             'finished_at' => now(),
@@ -28,6 +28,7 @@ class Eloquent implements SyncRunRepository
             'updated' => $updated,
             'inactivated' => $inactivated,
             'errored' => $errored,
+            'needs_review' => $needsReview,
             'error' => $error,
         ])->save();
     }
@@ -39,6 +40,18 @@ class Eloquent implements SyncRunRepository
             'status' => SyncRunStatus::Failure,
             'error' => $error,
         ])->save();
+    }
+
+    public function failOrphaned(string $source): int
+    {
+        return SyncRun::query()
+            ->where('source', $source)
+            ->where('status', SyncRunStatus::InProgress)
+            ->update([
+                'finished_at' => now(),
+                'status' => SyncRunStatus::Failure,
+                'error' => 'The run stopped before it could record a result (the worker was likely killed).',
+            ]);
     }
 
     public function latestFinished(string $source): ?SyncRun

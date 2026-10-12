@@ -17,14 +17,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * `starts_at` and `ends_at` are calendar days, inclusive at both ends. Either can be null: an open
  * ended ELOA thread has no end, and a `needs_review` row asserts no dates. `trooper_id` is
  * null while the thread's username matches no trooper, so an unmatched request stays visible.
+ * `posted_at` is when the thread was posted on the forum (null on a row not re-read since the column
+ * was added), which is not `created_at`, the day the portal first stored it.
  *
  * One row is one leave thread. The ELOA section also holds '[ELOA Return]' threads: those are not leave
  * periods, they end the trooper's open ELOA, so the sync (4.2) uses them to set that row's end and
  * gives them no row of their own.
  */
 #[Fillable([
-    'trooper_id', 'forum_thread_id', 'forum_node_id', 'type', 'starts_at', 'ends_at', 'parse_status',
-    'source_thread', 'raw_username', 'raw_start_date', 'raw_end_date', 'raw_excerpt',
+    'trooper_id', 'forum_thread_id', 'return_thread_id', 'forum_node_id', 'type', 'starts_at', 'ends_at', 'expected_return_at', 'parse_status',
+    'review_reason', 'source_thread', 'posted_at', 'raw_username', 'raw_start_date', 'raw_end_date', 'raw_excerpt',
 ])]
 class Loa extends Model
 {
@@ -35,10 +37,13 @@ class Loa extends Model
     {
         return [
             'forum_thread_id' => 'integer',
+            'return_thread_id' => 'integer',
             'forum_node_id' => 'integer',
             'type' => LoaType::class,
             'starts_at' => 'date',
             'ends_at' => 'date',
+            'expected_return_at' => 'date',
+            'posted_at' => 'datetime',
             'parse_status' => LoaParseStatus::class,
         ];
     }
