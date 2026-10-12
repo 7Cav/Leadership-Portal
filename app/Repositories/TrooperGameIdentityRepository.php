@@ -27,6 +27,14 @@ interface TrooperGameIdentityRepository
     public function forTrooper(int $trooperId): Collection;
 
     /**
+     * The identities of all `$trooperIds`, in one query — the link screen's batched read.
+     *
+     * @param  list<int>  $trooperIds
+     * @return Collection<int, TrooperGameIdentity>
+     */
+    public function forTroopers(array $trooperIds): Collection;
+
+    /**
      * Link `$trooperId` to a player on `$platform`, replacing the trooper's own existing identity
      * for that platform (one per platform) rather than adding a second.
      *

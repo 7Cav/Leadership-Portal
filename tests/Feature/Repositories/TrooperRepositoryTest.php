@@ -364,3 +364,25 @@ it('finds troopers by id in one keyed set, leaving unknown ids out', function ()
     expect($found->keys()->all())->toBe([$troopers[0]->id, $troopers[2]->id])
         ->and($repo->byIds([]))->toBeEmpty();
 });
+
+it('lists the active troopers placed in any of several sections in one read (7.2)', function () {
+    $one = Unit::factory()->create(['type' => UnitType::Section]);
+    $two = Unit::factory()->create(['type' => UnitType::Section]);
+    $elsewhere = Unit::factory()->create(['type' => UnitType::Section]);
+    $place = function (Unit $unit, array $attributes = []) {
+        $trooper = Trooper::factory()->create($attributes);
+        $trooper->forceFill(['primary_section_id' => $unit->id])->save();
+
+        return $trooper;
+    };
+    $a = $place($one);
+    $b = $place($two, ['status' => TrooperStatus::Eloa]);
+    $place($one, ['status' => TrooperStatus::Inactive]);
+    $place($elsewhere);
+    Trooper::factory()->create();
+
+    $repo = app(TrooperRepository::class);
+
+    expect($repo->placedInAny([$one->id, $two->id])->pluck('id')->all())->toBe([$a->id, $b->id])
+        ->and($repo->placedInAny([])->all())->toBe([]);
+});

@@ -140,4 +140,13 @@ class Eloquent implements TrooperRepository
             ->orderBy('id')
             ->get();
     }
+
+    public function placedInAny(iterable $sectionIds): EloquentCollection
+    {
+        return Trooper::query()
+            ->whereIn('primary_section_id', collect($sectionIds)->all())
+            ->where('status', '!=', TrooperStatus::Inactive->value)
+            ->orderBy('id')
+            ->get();
+    }
 }

@@ -192,3 +192,17 @@ it('replacing a link leaves attendance rows alone', function () {
     expect(Attendance::query()->count())->toBe(1)
         ->and($attendance->fresh()->only(['status', 'source', 'rollcall']))->toBe($attendance->only(['status', 'source', 'rollcall']));
 });
+
+it('reads the identities of several troopers in one query, none for an empty list (7.2)', function () {
+    $a = TrooperGameIdentity::factory()->create(['platform' => GamePlatform::Hll]);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $a->trooper_id, 'platform' => GamePlatform::Arma]);
+    $b = TrooperGameIdentity::factory()->create();
+    TrooperGameIdentity::factory()->create();
+    $repo = app(TrooperGameIdentityRepository::class);
+
+    DB::enableQueryLog();
+    $found = $repo->forTroopers([$a->trooper_id, $b->trooper_id]);
+
+    expect($found)->toHaveCount(3)->and(DB::getQueryLog())->toHaveCount(1)
+        ->and($repo->forTroopers([]))->toHaveCount(0);
+});

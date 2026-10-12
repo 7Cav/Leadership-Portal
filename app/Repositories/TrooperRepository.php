@@ -153,4 +153,15 @@ interface TrooperRepository
      * @return EloquentCollection<int, Trooper>
      */
     public function placedIn(int $sectionId): EloquentCollection;
+
+    /**
+     * The troopers currently placed in any of `$sectionIds` — `primary_section_id` is one of them,
+     * not inactive (LOA still counts) — ordered by id, in one query however many sections. A
+     * scope-wide worklist (7.2); the caller passes the viewer's scope, so scope stays the
+     * ScopeResolver's to decide (AD-8).
+     *
+     * @param  iterable<int>  $sectionIds
+     * @return EloquentCollection<int, Trooper>
+     */
+    public function placedInAny(iterable $sectionIds): EloquentCollection;
 }
