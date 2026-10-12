@@ -5,6 +5,7 @@ namespace App\Integration\Crcon;
 use App\Integration\Crcon\Data\CrconPlayer;
 use App\Integration\Crcon\Data\CrconPresence;
 use App\Integration\Crcon\Requests\FetchPlayersHistoryRequest;
+use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
@@ -82,7 +83,7 @@ class CrconApi
             // would under-report attendance. Only without a total do we trust a short page.
             if ($total !== null) {
                 if ($seen >= $total) {
-                    return new CrconPresence(array_values($byPlatformId), $windowStart, $windowEnd, new DateTimeImmutable);
+                    return new CrconPresence(array_values($byPlatformId), $windowStart, $windowEnd, CarbonImmutable::now()->toDateTimeImmutable());
                 }
 
                 if ($rows === []) {
@@ -93,7 +94,7 @@ class CrconApi
             }
 
             if (count($rows) < FetchPlayersHistoryRequest::PAGE_SIZE) {
-                return new CrconPresence(array_values($byPlatformId), $windowStart, $windowEnd, new DateTimeImmutable);
+                return new CrconPresence(array_values($byPlatformId), $windowStart, $windowEnd, CarbonImmutable::now()->toDateTimeImmutable());
             }
         }
 
