@@ -29,7 +29,9 @@ use Saloon\Http\Response;
  * It is also the only read path to the forum's leave threads (Story 4.1): {@see listLoaThreads()} and
  * {@see fetchLoaThread()}. Those use a forum API key (`api_key`, env only, AD-23) rather than a user's
  * OAuth token, are read-only, and only ever read the sections named in `loa_nodes`, so the key cannot be
- * used through this seam to read any other part of the forum.
+ * used through this seam to read the body of any other part of the forum. A thread id alone cannot be
+ * checked against a section before the request, so {@see fetchLoaThread()} compares the section after
+ * the fetch and discards the thread if it is outside the configured sections.
  */
 class ForumApi
 {
@@ -72,8 +74,8 @@ class ForumApi
 
     /**
      * One thread with the body of its first post. A thread outside the configured leave sections is
-     * refused even though the key could read it, so this stays the one door to leave threads and
-     * not a general forum reader.
+     * refused once the forum answers (an id alone does not say which section it is in) and is never
+     * returned, so this stays the one door to leave threads and not a general forum reader.
      *
      * @throws ForumRequestException when no API key is set, the forum fails or returns an unusable
      *                               payload, or the thread is not in a configured leave section

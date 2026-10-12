@@ -59,9 +59,12 @@ it('reads nothing when unset even if the environment already carries the example
     }
 });
 
-it('drops a malformed pair: a bad id, an unknown kind (reserve is not a leave type), or no kind at all', function () {
-    expect(loaNodesFor('abc:loa,12x:loa,0:loa,-3:loa,1.5:loa,180:vacation,400,,:eloa,541:reserve,341:eloa'))
-        ->toBe([341 => 'eloa']);
+it('fails loudly on a malformed pair: a bad id, an unknown kind (reserve is not a leave type), or no kind at all', function (string $value) {
+    expect(fn () => loaNodesFor($value))->toThrow(InvalidArgumentException::class, 'SEVENCAV_FORUM_LOA_NODES');
+})->with(['abc:loa', '12x:loa', '0:loa', '-3:loa', '1.5:loa', '180:vacation', '400', ':eloa', '541:reserve', '180:loa,400:LOA', '180;loa']);
+
+it('still skips empty entries', function () {
+    expect(loaNodesFor('180:loa,,341:eloa,'))->toBe([180 => 'loa', 341 => 'eloa']);
 });
 
 it('puts the environment back the way it found it', function () {

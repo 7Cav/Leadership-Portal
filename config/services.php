@@ -63,11 +63,20 @@ return [
         // The forum sections (node ids) that hold leave threads, as `id:type` pairs, comma separated,
         // e.g. `180:loa,341:eloa`. The type is loa or eloa. The 7Cav forum keeps one LOA
         // section per battalion (plus HHQ and non-battalion) and one section for ELOA. Only these are
-        // ever read; none configured means no leave section is read. A malformed pair is dropped.
+        // ever read; none configured means no leave section is read. A malformed pair throws, so a typo
+        // fails at boot instead of silently leaving a section unread.
         'loa_nodes' => collect(explode(',', (string) env('SEVENCAV_FORUM_LOA_NODES', '')))
-            ->map(fn (string $pair) => array_map('trim', explode(':', $pair)))
-            ->filter(fn (array $pair) => count($pair) === 2 && ctype_digit($pair[0]) && (int) $pair[0] > 0 && in_array($pair[1], ['loa', 'eloa'], true))
-            ->mapWithKeys(fn (array $pair) => [(int) $pair[0] => $pair[1]])
+            ->map(fn (string $pair) => trim($pair))
+            ->filter(fn (string $pair) => $pair !== '')
+            ->mapWithKeys(function (string $pair) {
+                [$id, $type] = array_pad(array_map('trim', explode(':', $pair)), 2, null);
+
+                if (! ctype_digit((string) $id) || (int) $id < 1 || ! in_array($type, ['loa', 'eloa'], true)) {
+                    throw new InvalidArgumentException("SEVENCAV_FORUM_LOA_NODES: bad entry '{$pair}', expected id:loa|eloa");
+                }
+
+                return [(int) $id => $type];
+            })
             ->all(),
     ],
 
