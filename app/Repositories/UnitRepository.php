@@ -88,6 +88,15 @@ interface UnitRepository
     public function children(Unit $unit): Collection;
 
     /**
+     * The sections among `$unitIds` — e.g. a user's resolved scope — each with its `parent`
+     * loaded (the platoon a picker groups them under), ordered by `path` so siblings sit together.
+     *
+     * @param  iterable<int>  $unitIds
+     * @return Collection<int, Unit>
+     */
+    public function sectionsAmong(iterable $unitIds): Collection;
+
+    /**
      * The FK on `parent_id` (`restrictOnDelete`) would refuse this at the DB level anyway if
      * children exist, but the CommandHandler layer checks {@see hasChildren()} first so an
      * Admin gets a clear reason instead of a raw constraint-violation exception.

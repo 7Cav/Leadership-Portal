@@ -135,6 +135,18 @@ class Eloquent implements UnitRepository
         return Unit::query()->where('parent_id', $unit->id)->orderBy('id')->get();
     }
 
+    public function sectionsAmong(iterable $unitIds): Collection
+    {
+        $ids = collect($unitIds)->values()->all();
+
+        return Unit::query()
+            ->with('parent')
+            ->where('type', UnitType::Section->value)
+            ->whereIn('id', $ids)
+            ->orderBy('path')
+            ->get();
+    }
+
     public function delete(Unit $unit): void
     {
         $unit->delete();

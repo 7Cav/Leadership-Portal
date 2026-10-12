@@ -398,7 +398,7 @@ describe('Settings/OrgStructure', () => {
             });
 
             expect(wrapper.find('[data-testid="unplaced-trooper"]').text()).toContain('Unknown (Cav #3099)');
-            expect(wrapper.find('[data-testid="unplaced-trooper"]').text()).toContain('Billet 412');
+            expect(wrapper.find('[data-testid="unplaced-trooper"]').text()).toContain('Billet not mapped (position 412)');
         });
 
         it('says so when no billet was reported at all', () => {
@@ -433,7 +433,22 @@ describe('Settings/OrgStructure', () => {
                 props: { units: UNITS, isAdmin: true, unplacedTroopers: [trooper({ billet: null, position_id: 0 })] },
             });
 
-            expect(wrapper.find('[data-testid="unplaced-trooper"]').text()).toContain('Billet 0');
+            expect(wrapper.find('[data-testid="unplaced-trooper"]').text()).toContain('Billet not mapped (position 0)');
+        });
+
+        it('reports the true total and that the list is capped when more exist than were sent', () => {
+            const wrapper = mount(OrgStructure, {
+                props: { units: UNITS, isAdmin: true, unplacedTroopers: [trooper()], unplacedTotal: 250 },
+            });
+
+            expect(wrapper.find('[data-testid="unplaced-count"]').text()).toContain('250 synced troopers not yet placed');
+            expect(wrapper.find('[data-testid="unplaced-capped"]').text()).toContain('Showing the first 1');
+        });
+
+        it('shows the full billet on hover through a title', () => {
+            const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true, unplacedTroopers: [trooper()] } });
+
+            expect(wrapper.find('[data-testid="unplaced-trooper"] [title]').attributes('title')).toBe('Rifleman, 2nd Platoon');
         });
 
         // Story 2.7: placing an unplaced trooper into a section from their chip.

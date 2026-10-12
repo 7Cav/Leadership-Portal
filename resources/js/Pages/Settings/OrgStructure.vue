@@ -24,7 +24,18 @@ const props = defineProps({
     // `{ id, cav_id, username, rank, mos, billet, position_id }`. Null when the server withholds
     // the list (anyone but an Admin), which is different from an empty array (nobody unplaced).
     unplacedTroopers: { type: Array, default: null },
+    // The true count of unplaced troopers; the list above is capped, so this can be larger.
+    unplacedTotal: { type: Number, default: null },
 });
+
+const unplacedCount = computed(() => props.unplacedTotal ?? props.unplacedTroopers?.length ?? 0);
+
+// A trooper with no reported billet title falls back to the position id: it is why they are here,
+// the sync found no section mapped to it.
+function billetLabel(trooper) {
+    if (trooper.billet) return trooper.billet;
+    return trooper.position_id !== null ? `Billet not mapped (position ${trooper.position_id})` : 'No billet reported';
+}
 
 const tree = computed(() => {
     const byId = new Map(props.units.map((unit) => [unit.id, { ...unit, children: [] }]));
@@ -426,19 +437,19 @@ function requestDelete(id) {
                 <section
                     v-if="unplacedTroopers !== null"
                     data-testid="unplaced-panel"
-                    aria-labelledby="unplaced-heading"
+                    aria-label="Troopers not yet placed"
                     class="mt-4 rounded-lg border border-dashed border-border p-3"
                 >
-                    <h3 id="unplaced-heading" class="text-[13px] font-semibold">
-                        <template v-if="unplacedTroopers.length">
-                            <span data-testid="unplaced-count">
-                                {{ unplacedTroopers.length }} synced {{ unplacedTroopers.length === 1 ? 'trooper' : 'troopers' }} not yet placed
-                            </span>
-                        </template>
-                        <template v-else>All synced troopers are placed</template>
+                    <h3 v-if="unplacedTroopers.length" class="text-[13px] font-semibold">
+                        <span data-testid="unplaced-count">
+                            {{ unplacedCount }} synced {{ unplacedCount === 1 ? 'trooper' : 'troopers' }} not yet placed
+                        </span>
                     </h3>
-                    <p v-if="!unplacedTroopers.length" class="mt-1 text-xs text-muted-foreground">
+                    <EmptyState v-if="!unplacedTroopers.length" :icon="PhCheckCircle" title="All synced troopers are placed" class="py-4">
                         Troopers the sync cannot map to a section will be listed here.
+                    </EmptyState>
+                    <p v-else-if="unplacedCount > unplacedTroopers.length" data-testid="unplaced-capped" class="mt-1 text-xs text-muted-foreground">
+                        Showing the first {{ unplacedTroopers.length }}.
                     </p>
                     <!--
                       With no chain of command yet nothing can be mapped, so the whole roster lands here. Say why,
@@ -459,10 +470,8 @@ function requestDelete(id) {
                                 <span v-if="trooper.rank" class="text-muted-foreground">{{ trooper.rank }}</span>
                                 {{ trooper.username ?? `Unknown (Cav #${trooper.cav_id})` }}
                             </span>
-                            <span class="block max-w-[28ch] truncate text-xs text-muted-foreground">
-                                <span v-if="trooper.mos" class="font-mono">{{ trooper.mos }} · </span>{{
-                                    trooper.billet ?? (trooper.position_id !== null ? `Billet ${trooper.position_id}` : 'No billet reported')
-                                }}
+                            <span class="block max-w-[28ch] truncate text-xs text-muted-foreground" :title="billetLabel(trooper)">
+                                <span v-if="trooper.mos" class="font-mono">{{ trooper.mos }} · </span>{{ billetLabel(trooper) }}
                             </span>
 
                             <!--
