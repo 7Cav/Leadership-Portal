@@ -39,16 +39,14 @@ class FetchServerSessionsRequest extends Request
      */
     protected function defaultQuery(): array
     {
-        // A `links.next` URL already carries the whole query.
-        if ($this->nextQuery !== null) {
-            return $this->nextQuery;
-        }
-
+        // The `links.next` query (the cursor) is layered over the window filters, so a link that
+        // carries only a cursor can never widen the read beyond the window.
         return [
             'start' => $this->start->format('Y-m-d\TH:i:s\Z'),
             'stop' => $this->end->format('Y-m-d\TH:i:s\Z'),
             'include' => 'identifier',
             'page[size]' => self::PAGE_SIZE,
+            ...($this->nextQuery ?? []),
         ];
     }
 }

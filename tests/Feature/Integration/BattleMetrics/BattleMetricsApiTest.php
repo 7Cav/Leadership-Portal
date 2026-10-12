@@ -243,7 +243,11 @@ it('resolves from the container with the battlemetrics config', function () {
 });
 
 it('fails rather than return a partial list when paging never ends', function () {
-    $mock = MockClient::global([BM_URL => bmBody([], [], 'https://bm.test/servers/42/relationships/sessions?page%5Boffset%5D=1')]);
+    $mock = MockClient::global([BM_URL => function (PendingRequest $request) {
+        static $n = 0;
+
+        return bmBody([], [], 'https://bm.test/servers/42/relationships/sessions?page%5Boffset%5D='.++$n);
+    }]);
 
     [$start, $end] = bmWindow();
 
@@ -274,4 +278,37 @@ it('queries the window in UTC and treats the window edges as inclusive', functio
         return $query['start'] === '2026-10-10T19:00:00Z' && $query['stop'] === '2026-10-10T21:00:00Z'
             && $query['include'] === 'identifier' && $query['page[size]'] === 100;
     });
+});
+
+it('fails when the next-page link does not advance', function () {
+    $mock = MockClient::global([BM_URL => bmBody([], [], 'https://bm.test/servers/42/relationships/sessions?page%5Boffset%5D=1')]);
+
+    [$start, $end] = bmWindow();
+
+    expect(fn () => bm()->fetchPresence($start, $end))->toThrow(BattleMetricsUnavailable::class);
+    $mock->assertSentCount(2);
+});
+
+it('keeps the window filters on later pages and resolves identifiers across pages', function () {
+    $mock = MockClient::global([
+        BM_URL => function (PendingRequest $request) {
+            return str_contains($request->getUri()->getQuery(), 'cursor')
+                ? bmBody([], [bmIdentifier('1', 'steamID', '7656119000000001')])
+                : bmBody([bmSession('1', 'Alpha', '2026-10-10T19:10:00Z', '2026-10-10T19:20:00Z')], [], 'https://bm.test/servers/42/relationships/sessions?cursor=abc');
+        },
+    ]);
+
+    [$start, $end] = bmWindow();
+    $players = bm()->fetchPresence($start, $end)->players;
+
+    expect($players)->toHaveCount(1)->and($players[0]->platformId)->toBe('7656119000000001');
+    $mock->assertSent(fn (Request $r, Response $res) => str_contains($res->getPendingRequest()->getUri()->getQuery(), 'cursor') && str_contains($res->getPendingRequest()->getUri()->getQuery(), 'stop='));
+});
+
+it('rejects loosely formatted timestamps', function () {
+    MockClient::global([BM_URL => MockResponse::make(['data' => [['attributes' => ['start' => 'now', 'stop' => null], 'relationships' => ['player' => ['data' => ['id' => '1']]]]]])]);
+
+    [$start, $end] = bmWindow();
+
+    expect(fn () => bm()->fetchPresence($start, $end))->toThrow(BattleMetricsUnavailable::class);
 });

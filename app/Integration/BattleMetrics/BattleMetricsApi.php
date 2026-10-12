@@ -65,14 +65,21 @@ class BattleMetricsApi
         [$baseUrl, $apiKey, $serverId] = $this->settings();
         $baseHost = parse_url($baseUrl, PHP_URL_HOST);
 
-        /** @var array<string, CrconPlayer> $byPlatformId */
-        $byPlatformId = [];
+        // Resolved only after paging: a player's identifier may arrive on a different page than
+        // their session, and resolving early would split one player across two ids.
+        /** @var array<string, string> $names player id => first name seen */
+        $names = [];
+        /** @var array<string, array<string, string>> $identifiers */
+        $identifiers = [];
         $nextQuery = null;
+        $complete = false;
 
         for ($page = 1; $page <= self::MAX_PAGES; $page++) {
             $payload = $this->fetchPage($baseUrl, $apiKey, new FetchServerSessionsRequest($serverId, $windowStart, $windowEnd, $nextQuery));
 
-            $identifiers = $this->identifiersByPlayer($payload['included'] ?? []);
+            foreach ($this->identifiersByPlayer($payload['included'] ?? []) as $playerId => $found) {
+                $identifiers[$playerId] = [...($identifiers[$playerId] ?? []), ...$found];
+            }
 
             foreach ($payload['data'] as $session) {
                 if (! is_array($session)) {
@@ -95,18 +102,15 @@ class BattleMetricsApi
                     throw BattleMetricsUnavailable::malformed('a session carried no player');
                 }
 
-                $playerId = (string) $playerId;
-                $platformId = $this->platformId($identifiers[$playerId] ?? [], $playerId);
                 $name = $attributes['name'] ?? null;
-                $name = is_string($name) && trim($name) !== '' ? trim($name) : $platformId;
-
-                $byPlatformId[$platformId] ??= new CrconPlayer($name, $platformId);
+                $names[(string) $playerId] ??= is_string($name) ? trim($name) : '';
             }
 
             $next = $payload['links']['next'] ?? null;
 
             if ($next === null || $next === '') {
-                return new CrconPresence(array_values($byPlatformId), $windowStart, $windowEnd, CarbonImmutable::now()->toDateTimeImmutable());
+                $complete = true;
+                break;
             }
 
             // The key rides every request, so never follow a pagination link off the API host.
@@ -114,11 +118,29 @@ class BattleMetricsApi
                 throw BattleMetricsUnavailable::malformed('the next-page link left the BattleMetrics host');
             }
 
-            parse_str((string) parse_url($next, PHP_URL_QUERY), $nextQuery);
+            parse_str((string) parse_url($next, PHP_URL_QUERY), $query);
+
+            if ($query === $nextQuery) {
+                throw BattleMetricsUnavailable::malformed('the next-page link did not advance');
+            }
+
+            $nextQuery = $query;
         }
 
         // A truncated list would under-report attendance, so it is a failure, not a short answer.
-        throw BattleMetricsUnavailable::malformed('the session history did not finish paging');
+        if (! $complete) {
+            throw BattleMetricsUnavailable::malformed('the session history did not finish paging');
+        }
+
+        /** @var array<string, CrconPlayer> $byPlatformId */
+        $byPlatformId = [];
+
+        foreach ($names as $playerId => $name) {
+            $platformId = $this->platformId($identifiers[$playerId] ?? [], (string) $playerId);
+            $byPlatformId[$platformId] ??= new CrconPlayer($name !== '' ? $name : $platformId, $platformId);
+        }
+
+        return new CrconPresence(array_values($byPlatformId), $windowStart, $windowEnd, CarbonImmutable::now()->toDateTimeImmutable());
     }
 
     /**
@@ -256,7 +278,8 @@ class BattleMetricsApi
 
     private function moment(mixed $value): ?DateTimeImmutable
     {
-        if (! is_string($value) || trim($value) === '') {
+        // BattleMetrics emits ISO-8601; DateTimeImmutable alone would also accept "now" or "2024".
+        if (! is_string($value) || ! preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/', trim($value))) {
             return null;
         }
 
