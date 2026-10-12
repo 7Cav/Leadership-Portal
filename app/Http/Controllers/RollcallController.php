@@ -258,11 +258,18 @@ class RollcallController extends Controller
         } catch (Throwable $e) {
             report($e);
 
-            return response()->json(['message' => 'The portal hit an error linking this player.'], 500);
+            return response()->json(['message' => 'The portal hit an error linking this player. Reload to see whether the link was saved, and check their mark.'], 500);
         }
 
-        $practice = $this->practices->find($unit, $weekStart);
-        $mark = $practice ? $this->attendance->forPractice($practice)->firstWhere('trooper_id', $trooperId) : null;
+        // The link and the mark are committed; what follows only refreshes the screen, so a failure
+        // here is reported and answered as saved, never as a failed link the leader would repeat.
+        try {
+            $practice = $this->practices->find($unit, $weekStart);
+            $mark = $practice ? $this->attendance->forPractice($practice)->firstWhere('trooper_id', $trooperId) : null;
+        } catch (Throwable $e) {
+            report($e);
+            $mark = null;
+        }
 
         try {
             $atRisk = $this->atRisk($this->units->find($unit), $weekStart);

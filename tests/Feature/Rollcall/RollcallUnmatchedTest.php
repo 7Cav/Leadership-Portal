@@ -203,3 +203,43 @@ it('does not dismiss a player who has been linked since the capture', function (
 
     expect(GamePlayerDismissal::query()->count())->toBe(0);
 });
+
+it('is idempotent when the same link is submitted twice', function () {
+    $url = "/rollcall/{$this->section->id}/unmatched/link";
+    $this->actingAs($this->leader)->postJson($url, linkBody($this))->assertOk()->assertJsonPath('marked', true);
+    $this->actingAs($this->leader)->postJson($url, linkBody($this))->assertOk()->assertJsonPath('marked', true);
+
+    expect(TrooperGameIdentity::query()->count())->toBe(1)
+        ->and(AuditLogEntry::query()->where('action', 'game_identity.linked')->count())->toBe(1)
+        ->and(Attendance::query()->count())->toBe(1);
+});
+
+it('refuses to link or dismiss a player the capture stored as linked to another section', function () {
+    $elsewhere = unmatchedTrooper(Unit::factory()->create(['type' => UnitType::Section, 'path' => '933/']));
+    capturedPlayer($this->practice, 'Visitor', '7656119000000050', $elsewhere->id);
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this, ['platform_id' => '7656119000000050']))->assertStatus(422);
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/dismiss", linkBody($this, ['platform_id' => '7656119000000050']))->assertStatus(422);
+
+    expect(TrooperGameIdentity::query()->count())->toBe(0)->and(GamePlayerDismissal::query()->count())->toBe(0);
+});
+
+it('keeps an existing LOA mark when linking', function () {
+    Attendance::factory()->create([
+        'trooper_id' => $this->ortega->id, 'section_practice_id' => $this->practice->id,
+        'status' => AttendanceStatus::Loa, 'source' => AttendanceSource::Manual,
+    ]);
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this))
+        ->assertOk()->assertJsonPath('marked', false)->assertJsonPath('trooper.status', 'loa');
+});
+
+it('leaves no audit trail behind a refused collision, and nothing is consumed by a denied link', function () {
+    $owner = unmatchedTrooper($this->section);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $owner->id, 'platform' => GamePlatform::Hll, 'platform_id' => '7656119000000001']);
+    $before = AuditLogEntry::query()->count();
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this))->assertStatus(422);
+
+    expect(AuditLogEntry::query()->count())->toBe($before);
+});

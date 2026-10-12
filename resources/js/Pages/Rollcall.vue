@@ -170,7 +170,11 @@ const sameUnmatched = (a, b) => a.platform === b.platform && a.platformId === b.
 function onLinked({ player, marked, trooper, atRisk }) {
     unmatchedPlayers.value = unmatchedPlayers.value.filter((p) => !sameUnmatched(p, player));
     const row = rows.value.find((t) => t.id === trooper.id);
-    if (row && trooper.status) Object.assign(row, { status: trooper.status, source: trooper.source });
+    if (row && trooper.status) {
+        Object.assign(row, { status: trooper.status, source: trooper.source });
+        // A mark written after the forum post makes that post stale, as a hand edit does.
+        if (marked && posted.value) editedSincePost.value = true;
+    }
     liveAtRisk.value = atRisk ?? liveAtRisk.value;
     const name = row ? displayName(row) : `trooper ${trooper.id}`;
     if (marked) toast.success(`Linked ${player.playerName} to ${name}`, { description: 'Marked present for this practice.' });
