@@ -135,4 +135,13 @@ interface TrooperRepository
     public function placedWithin(Unit $unit): EloquentCollection;
 
     public function find(int $id): ?Trooper;
+
+    /**
+     * The troopers currently placed in the section — `primary_section_id` is the section, not
+     * inactive (LOA still counts) — in id order. The cache holds only the current placement, so this is
+     * "placed now": a trooper appears in exactly one section's list (AD-14).
+     *
+     * @return EloquentCollection<int, Trooper>
+     */
+    public function placedIn(int $sectionId): EloquentCollection;
 }

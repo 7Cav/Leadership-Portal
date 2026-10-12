@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\ForumAuthController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReportRollupController;
+use App\Http\Controllers\RollcallController;
 use App\Http\Controllers\RosterController;
 use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\DemoDataController;
@@ -48,6 +49,11 @@ Route::middleware('auth')->group(function () {
     // detail as JSON; that route is declared first so `troopers` is never taken for a unit id.
     Route::get('/roster/troopers/{trooper}', [RosterController::class, 'trooper'])->whereNumber('trooper')->name('roster.trooper');
     Route::get('/roster/{unit?}', [RosterController::class, 'index'])->whereNumber('unit')->name('roster.index');
+    // Weekly rollcall of one section (Stories 3.7–3.10). Scope is enforced in the controller
+    // through the ScopeResolver (AD-8): an out-of-scope section is a 403, not a hidden link.
+    Route::get('/rollcall/{unit?}', [RollcallController::class, 'show'])->whereNumber('unit')->name('rollcall.show');
+    Route::post('/rollcall/{unit}', [RollcallController::class, 'store'])->whereNumber('unit')->name('rollcall.store');
+    Route::post('/rollcall/{unit}/posted', [RollcallController::class, 'posted'])->whereNumber('unit')->name('rollcall.posted');
 
     // Logout (Story 1.5). POST, so it carries CSRF protection and can't be triggered by a
     // prefetched link or a cross-site <img>.

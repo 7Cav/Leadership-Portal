@@ -3,6 +3,7 @@
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
+use App\Models\UnitType;
 use App\Repositories\TrooperRepository;
 
 // AD-4: the cache is upserted keyed by `cav_id` onto a stable internal PK, never
@@ -335,4 +336,21 @@ it('finds a trooper by id, or null', function () {
 
     expect(app(TrooperRepository::class)->find($trooper->id)->is($trooper))->toBeTrue()
         ->and(app(TrooperRepository::class)->find($trooper->id + 1))->toBeNull();
+});
+
+it('lists the troopers placed in a section now, active only, in id order (3.7)', function () {
+    $section = Unit::factory()->create(['type' => UnitType::Section]);
+    $other = Unit::factory()->create(['type' => UnitType::Section]);
+    $place = function (Unit $unit, array $attributes = []) {
+        $trooper = Trooper::factory()->create($attributes);
+        $trooper->forceFill(['primary_section_id' => $unit->id])->save();
+
+        return $trooper;
+    };
+    $a = $place($section);
+    $b = $place($section, ['status' => TrooperStatus::Eloa]);
+    $place($section, ['status' => TrooperStatus::Inactive]);
+    $place($other);
+
+    expect(app(TrooperRepository::class)->placedIn($section->id)->pluck('id')->all())->toBe([$a->id, $b->id]);
 });
