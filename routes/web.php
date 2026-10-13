@@ -74,7 +74,9 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/troopers/{trooper}', [TrooperDetailController::class, 'show'])->name('troopers.show');
 
     // The training-readiness matrix of one unit (Story 6.9): troopers by courses, scope-gated in the controller
-    // through the ScopeResolver (AD-8). The milpac's quick action links to the trooper's platoon.
+    // through the ScopeResolver (AD-8). The milpac's quick action links to the trooper's platoon. Like the roster's
+    // `{unit?}` and the settings writes' ids below, the id is looked up in the controller after its gate, not by route
+    // model binding, so a missing id and a forbidden one get the same answer.
     Route::get('/readiness/{unit}', [TrainingReadinessMatrixController::class, 'show'])->name('readiness.matrix');
 
     // Weekly rollcall of one section (Stories 3.7–3.10). Scope is enforced in the controller

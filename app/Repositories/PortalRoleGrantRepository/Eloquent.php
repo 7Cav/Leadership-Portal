@@ -34,6 +34,11 @@ class Eloquent implements PortalRoleGrantRepository
             ->first();
     }
 
+    public function findById(int $id): ?PortalRoleGrant
+    {
+        return PortalRoleGrant::query()->find($id);
+    }
+
     public function grant(User $user, Unit $unit): PortalRoleGrant
     {
         $key = ['user_id' => $user->getKey(), 'unit_id' => $unit->getKey()];

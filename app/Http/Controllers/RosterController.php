@@ -51,32 +51,33 @@ class RosterController extends Controller
         private readonly KpiService $kpis,
     ) {}
 
-    public function index(Request $request, ?Unit $unit = null): Response
+    public function index(Request $request, ?int $unit = null): Response
     {
         $user = $request->user();
         $scope = $this->scope->resolve($user);
         $tree = $this->units->tree();
 
-        if ($unit !== null && ! $scope->contains($unit->id)) {
-            abort(403, 'That unit is outside your scope.');
-        }
+        // One answer for "no such unit" and "outside your scope" (AD-8), so unit ids cannot be probed.
+        $selected = $unit === null
+            ? $this->defaultUnit($user, $tree, $scope)
+            : ($scope->contains($unit) ? $tree->firstWhere('id', $unit) : null);
+        abort_if($unit !== null && $selected === null, 403, 'That unit is outside your scope.');
 
-        $unit ??= $this->defaultUnit($user, $tree, $scope);
         $week = WeekOf::start(CarbonImmutable::now());
 
         return Inertia::render('Roster', [
-            'unit' => $unit ? $this->unitSummary($unit) : null,
-            'trail' => $unit ? $this->trail($unit, $tree, $scope) : [],
+            'unit' => $selected ? $this->unitSummary($selected) : null,
+            'trail' => $selected ? $this->trail($selected, $tree, $scope) : [],
             'scopeOptions' => $this->scopeOptions($tree, $scope),
             'weeks' => $this->weeks($week),
             'currentWeek' => $week->toDateString(),
-            ...($unit ? $this->roster($unit, $week) : ['units' => [], 'troopers' => []]),
-            'sync' => $this->syncStatus($unit, $user),
+            ...($selected ? $this->roster($selected, $week) : ['units' => [], 'troopers' => []]),
+            'sync' => $this->syncStatus($selected, $user),
             'can' => [
                 // Follows view-as: a preview of a non-Admin never offers an Admin action (1.13).
                 'sync' => $this->scope->actsAsAdmin($user),
                 // A leader refreshing their own echelon (the whole roster stays Admin-only).
-                'syncUnit' => $unit !== null && $this->scope->commandsUnit($user, $unit),
+                'syncUnit' => $selected !== null && $this->scope->commandsUnit($user, $selected),
             ],
             'links' => [
                 'milpac' => Trooper::MILPAC_PROFILE_URL,
