@@ -19,6 +19,13 @@ class InvalidAttendanceMarkException extends RuntimeException
      */
     public array $trooperIds = [];
 
+    /**
+     * Why those troopers were refused, when `$trooperIds` is set: `not_placed` (moved out of the section) or
+     * `loa_covered` (their leave covers the week). A caller drops a moved trooper for good, but keeps a covered
+     * trooper's signature, which is a separate fact the handler accepts. Null otherwise.
+     */
+    public ?string $reason = null;
+
     public static function nothingToRecord(int $trooperId): self
     {
         return new self("Trooper {$trooperId}'s mark carries neither a practice status nor a rollcall signature.");
@@ -39,6 +46,7 @@ class InvalidAttendanceMarkException extends RuntimeException
     {
         $exception = new self('These troopers are on leave this week, so their status comes from their leave and cannot be set by hand.');
         $exception->trooperIds = $trooperIds;
+        $exception->reason = 'loa_covered';
 
         return $exception;
     }
@@ -64,6 +72,7 @@ class InvalidAttendanceMarkException extends RuntimeException
             $sectionId,
         ));
         $exception->trooperIds = $trooperIds;
+        $exception->reason = 'not_placed';
 
         return $exception;
     }
