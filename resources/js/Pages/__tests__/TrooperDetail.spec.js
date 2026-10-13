@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import TrooperDetail from '../TrooperDetail.vue';
 
-// Stories 6.3 to 6.5: the milpac draws what the server shaped; it decides nothing about who may look.
+// Stories 6.3 to 6.7: the milpac draws what the server shaped; it decides nothing about who may look.
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
@@ -43,9 +43,11 @@ const courses = (overrides = {}) => ({
 
 const awards = (items = [], available = true) => ({ available, items });
 
+const timeline = (entries = [], legend = []) => ({ entries, legend });
+
 const sync = (overrides = {}) => ({ source: 'Cav roster', lastSuccessAt: '2026-10-08T09:30:00+00:00', stale: false, lastAttempt: null, ...overrides });
 
-const page = (props = {}) => mount(TrooperDetail, { props: { trooper: trooper(), courses: courses(), awards: awards(), sync: sync(), ...props } });
+const page = (props = {}) => mount(TrooperDetail, { props: { trooper: trooper(), courses: courses(), awards: awards(), timeline: timeline(), actions: [], sync: sync(), ...props } });
 
 describe('TrooperDetail', () => {
     describe('ID block (6.3)', () => {
@@ -281,6 +283,120 @@ describe('TrooperDetail', () => {
 
             expect(panel.get('[data-testid="awards-count"]').attributes('aria-label')).toBe('2 awards');
             expect(panel.findAll('button, input, select, textarea, form, a[href]')).toHaveLength(0);
+        });
+    });
+
+    describe('service record timeline (6.6)', () => {
+        const entries = [
+            { type: 'course', date: '2026-03-04', title: 'Squad Advanced Course', detail: 'SAC' },
+            { type: 'promotion', date: '2025-11-22', title: 'Current rank: Specialist', detail: null },
+        ];
+        const legend = [
+            { type: 'promotion', label: 'Rank' },
+            { type: 'course', label: 'Course' },
+        ];
+
+        it('draws each event in the order it was given, with a forum-convention date', () => {
+            const wrapper = page({ timeline: timeline(entries, legend) });
+            const rows = wrapper.findAll('li[data-testid^="event-"]');
+
+            expect(rows).toHaveLength(2);
+            expect(rows[0].get('[data-testid="event-date"]').text()).toBe('04Mar26');
+            expect(rows[0].get('[data-testid="event-title"]').text()).toBe('Course: Squad Advanced Course');
+            expect(rows[0].get('[data-testid="event-detail"]').text()).toBe('SAC');
+            expect(rows[1].get('[data-testid="event-date"]').text()).toBe('22Nov25');
+        });
+
+        it('gives each event type its own colour, matching the legend', () => {
+            const wrapper = page({ timeline: timeline(entries, legend) });
+
+            expect(wrapper.get('li[data-testid="event-course"] span.rounded-full').classes()).toContain('bg-info');
+            expect(wrapper.get('li[data-testid="event-promotion"] span.rounded-full').classes()).toContain('bg-primary');
+            expect(wrapper.get('[data-testid="legend-course"] span').classes()).toContain('bg-info');
+            expect(wrapper.get('[data-testid="legend-promotion"] span').classes()).toContain('bg-primary');
+        });
+
+        it('lists only the types present in the legend', () => {
+            const wrapper = page({ timeline: timeline(entries, legend) });
+
+            expect(wrapper.findAll('[data-testid="timeline-legend"] li')).toHaveLength(2);
+            expect(wrapper.find('[data-testid="legend-award"]').exists()).toBe(false);
+        });
+
+        it('leaves out the detail line an event does not have', () => {
+            const wrapper = page({ timeline: timeline(entries, legend) });
+
+            expect(wrapper.get('li[data-testid="event-promotion"]').find('[data-testid="event-detail"]').exists()).toBe(false);
+        });
+
+        it('says plainly when there is nothing to show, with no legend', () => {
+            const wrapper = page();
+
+            expect(wrapper.get('[data-testid="timeline-empty"]').text()).toBe('No service record events on file.');
+            expect(wrapper.find('[data-testid="timeline-legend"]').exists()).toBe(false);
+        });
+
+        it('labels each event with its type for screen readers, since colour alone does not say', () => {
+            const rows = page({ timeline: timeline(entries, legend) }).findAll('li[data-testid^="event-"]');
+
+            expect(rows[0].get('[data-testid="event-type"]').classes()).toContain('sr-only');
+            expect(rows[0].get('[data-testid="event-type"]').text()).toBe('Course:');
+            expect(rows[1].get('[data-testid="event-type"]').text()).toBe('Rank:');
+        });
+
+        it('gives a type it does not know a neutral dot and its own name, not a missing colour', () => {
+            const odd = [{ type: 'operation', date: '2026-01-01', title: 'Operation Dawn', detail: null }];
+            const row = page({ timeline: timeline(odd, []) }).get('li[data-testid="event-operation"]');
+
+            expect(row.get('span.rounded-full').classes()).toContain('bg-muted-foreground');
+            expect(row.get('[data-testid="event-type"]').text()).toBe('operation:');
+        });
+
+        it('writes each date as a time element with its ISO value, in a keyboard-reachable scroll region', () => {
+            const wrapper = page({ timeline: timeline(entries, legend) });
+
+            expect(wrapper.get('[data-testid="event-date"]').element.tagName).toBe('TIME');
+            expect(wrapper.get('[data-testid="event-date"]').attributes('datetime')).toBe('2026-03-04');
+            expect(wrapper.get('[data-testid="timeline-list"]').attributes('tabindex')).toBe('0');
+        });
+
+        it('offers nothing to change in the timeline', () => {
+            const panel = page({ timeline: timeline(entries, legend) }).get('[data-testid="timeline-panel"]');
+
+            expect(panel.findAll('button, input, select, textarea, form, a[href]')).toHaveLength(0);
+        });
+    });
+
+    describe('leadership quick actions (6.7)', () => {
+        const actions = [
+            { key: 'section-roster', label: 'Open section roster', href: '/roster/3' },
+            { key: 'rollcall', label: 'Open in rollcall', href: '/rollcall/3' },
+        ];
+
+        it('draws each action the server sent as a link, in order', () => {
+            const wrapper = page({ actions });
+            const links = wrapper.findAll('[data-testid="quick-actions"] a');
+
+            expect(links.map((a) => a.text())).toEqual(['Open section roster', 'Open in rollcall']);
+            expect(links[0].attributes('href')).toBe('/roster/3');
+            expect(wrapper.get('[data-testid="action-rollcall"]').attributes('href')).toBe('/rollcall/3');
+        });
+
+        it('draws no row at all when the server sent no actions', () => {
+            expect(page().find('[data-testid="quick-actions"]').exists()).toBe(false);
+        });
+
+        it('is a plain row, not an amber warning bar: warning keeps its meaning for the stale notice', () => {
+            const row = page({ actions }).get('[data-testid="quick-actions"]');
+
+            expect(row.classes().join(' ')).not.toContain('warning');
+        });
+
+        it('offers nothing that changes a trooper', () => {
+            const row = page({ actions }).get('[data-testid="quick-actions"]');
+
+            expect(row.findAll('button, input, select, textarea, form')).toHaveLength(0);
+            expect(row.text()).not.toMatch(/promot|medal|recommend|makeup|submit/i);
         });
     });
 });

@@ -10,7 +10,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * One trooper's milpac (Stories 6.3, 6.4): the page every entry point to a trooper opens. It orchestrates
+ * One trooper's milpac (Stories 6.3 to 6.7): the page every entry point to a trooper opens. It orchestrates
  * only; what the page shows comes from {@see TrooperMilpac}.
  *
  * Who may see it is decided by the single ScopeResolver (AD-8, AD-6), the same `canSee` gate the roster Sheet
@@ -27,8 +27,10 @@ class TrooperDetailController extends Controller
 
     public function show(Request $request, Trooper $trooper): Response
     {
-        abort_unless($this->scope->canSee($request->user(), $trooper), 404);
+        $user = $request->user();
 
-        return Inertia::render('TrooperDetail', $this->milpac->for($trooper));
+        abort_unless($this->scope->canSee($user, $trooper), 404);
+
+        return Inertia::render('TrooperDetail', $this->milpac->for($trooper, $this->scope->resolve($user)));
     }
 }

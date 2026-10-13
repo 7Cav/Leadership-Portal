@@ -14,10 +14,11 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
-// Stories 6.3 to 6.5: one trooper's milpac, the ID block, the courses panel and the awards history, gated by the ScopeResolver.
+// Stories 6.3 to 6.6: one trooper's milpac, the ID block, the courses panel, the awards history and the service-record timeline, gated by the ScopeResolver.
 // Fixture tree: 7CAV ─ 1-7 ─ A/1-7 ─ 1/A ─┬─ 1/1/A (section, led by the viewer)
 //                                          └─ 2/1/A
 // "Now" is Thursday 2026-10-08.
@@ -372,5 +373,160 @@ describe('the awards history (6.5)', function () {
 
         Http::assertNothingSent();
         expect(DB::table('sync_runs')->count())->toBe($before);
+    });
+});
+
+describe('the service-record timeline (6.6)', function () {
+    function timelineCourse(Trooper $trooper, string $code, CourseStatus $status, ?string $awardedAt): TrooperCourse
+    {
+        $course = Course::factory()->create(['code' => $code, 'name' => "Course {$code}"]);
+
+        return TrooperCourse::factory()->create(['trooper_id' => $trooper->id, 'course_id' => $course->id, 'status' => $status, 'awarded_at' => $awardedAt]);
+    }
+
+    it('shows the current rank with its date in grade and the dated qualified courses, newest first', function () {
+        $trooper = milpacTrooper($this->section1, ['rank' => 'Specialist', 'tis' => '2025-01-14', 'tig' => '2026-04-08']);
+        timelineCourse($trooper, 'BCT', CourseStatus::Qualified, '2025-02-02');
+        timelineCourse($trooper, 'SAC', CourseStatus::Qualified, '2026-06-01');
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page
+            ->where('timeline.entries', [
+                ['type' => 'course', 'date' => '2026-06-01', 'title' => 'Course SAC', 'detail' => 'SAC'],
+                ['type' => 'promotion', 'date' => '2026-04-08', 'title' => 'Current rank: Specialist', 'detail' => null],
+                ['type' => 'course', 'date' => '2025-02-02', 'title' => 'Course BCT', 'detail' => 'BCT'],
+            ])
+            ->where('timeline.legend', [['type' => 'promotion', 'label' => 'Rank'], ['type' => 'course', 'label' => 'Course']]));
+    });
+
+    it('leaves out a type with no data, and its legend entry with it', function () {
+        $trooper = milpacTrooper($this->section1, ['rank' => 'Specialist', 'tis' => '2025-01-14', 'tig' => '2026-04-08']);
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page
+            ->has('timeline.entries', 1)
+            ->where('timeline.legend', [['type' => 'promotion', 'label' => 'Rank']]));
+    });
+
+    it('does not place a course that has no date, or one that is not qualified', function () {
+        $trooper = milpacTrooper($this->section1, ['tig' => null]);
+        timelineCourse($trooper, 'UND', CourseStatus::Qualified, null);
+        timelineCourse($trooper, 'PRO', CourseStatus::InProgress, '2026-01-01');
+        timelineCourse($trooper, 'REQ', CourseStatus::Required, null);
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page
+            ->where('timeline', ['entries' => [], 'legend' => []]));
+    });
+
+    it('shows no promotion for a trooper whose grade date is the day they joined', function () {
+        $trooper = milpacTrooper($this->section1, ['rank' => 'Private', 'tis' => '2026-02-02', 'tig' => '2026-02-02']);
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page->where('timeline.entries', []));
+    });
+
+    it('shows no promotion for a grade date in the future, as the ID block reads it as unknown', function () {
+        $trooper = milpacTrooper($this->section1, ['rank' => 'Specialist', 'tis' => '2025-01-14', 'tig' => '2026-12-01']);
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page
+            ->where('trooper.tigMonths', null)
+            ->where('timeline.entries', []));
+    });
+
+    it('shows no promotion when the rank or the grade date is not known', function () {
+        $noRank = milpacTrooper($this->section1, ['rank' => null, 'tig' => '2026-04-08']);
+        $noDate = milpacTrooper($this->section1, ['rank' => 'Specialist', 'tig' => null]);
+
+        foreach ([$noRank, $noDate] as $trooper) {
+            milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page->where('timeline.entries', []));
+        }
+    });
+
+    it('orders two events on the same day by type, then by the row, the same on every load', function () {
+        $trooper = milpacTrooper($this->section1, ['rank' => 'Specialist', 'tis' => '2025-01-14', 'tig' => '2026-04-08']);
+        $first = timelineCourse($trooper, 'AAA', CourseStatus::Qualified, '2026-04-08');
+        $second = timelineCourse($trooper, 'BBB', CourseStatus::Qualified, '2026-04-08');
+        $titles = fn () => collect(milpacOpen($this->actingAs($this->leader), $trooper)->viewData('page')['props']['timeline']['entries'])->pluck('title')->all();
+
+        expect($first->id)->toBeLessThan($second->id)
+            ->and($titles())->toBe(['Current rank: Specialist', 'Course AAA', 'Course BBB'])
+            ->and($titles())->toBe(['Current rank: Specialist', 'Course AAA', 'Course BBB']);
+    });
+
+    it('never shows another trooper\'s events', function () {
+        $trooper = milpacTrooper($this->section1, ['tig' => null]);
+        $other = milpacTrooper($this->section1, ['tig' => null]);
+        timelineCourse($other, 'OTH', CourseStatus::Qualified, '2026-01-01');
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page->where('timeline.entries', []));
+    });
+
+    it('reads in a constant number of queries however many events there are', function () {
+        $trooper = milpacTrooper($this->section1, ['tig' => null]);
+        $count = function () use ($trooper) {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            milpacOpen($this->actingAs($this->leader), $trooper)->assertOk();
+
+            return count(DB::getQueryLog());
+        };
+
+        timelineCourse($trooper, 'C01', CourseStatus::Qualified, '2026-01-01');
+        $few = $count();
+
+        foreach (range(2, 12) as $n) {
+            timelineCourse($trooper, sprintf('C%02d', $n), CourseStatus::Qualified, '2026-01-0'.min($n, 9));
+        }
+
+        expect($count())->toBe($few);
+    });
+});
+
+describe('the leadership quick actions (6.7)', function () {
+    function milpacActions($test, Trooper $trooper): array
+    {
+        return milpacOpen($test, $trooper)->viewData('page')['props']['actions'];
+    }
+
+    it('offers the section roster and rollcall to a viewer who holds the trooper\'s section', function () {
+        $trooper = milpacTrooper($this->section1);
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page
+            ->where('actions', [
+                ['key' => 'section-roster', 'label' => 'Open section roster', 'href' => "/roster/{$this->section1->id}"],
+                ['key' => 'rollcall', 'label' => 'Open in rollcall', 'href' => "/rollcall/{$this->section1->id}"],
+            ]));
+    });
+
+    it('offers no readiness matrix here: that action arrives with the matrix route (6.9)', function () {
+        expect(collect(milpacActions($this->actingAs($this->leader), milpacTrooper($this->section1)))->pluck('key')->all())
+            ->toBe(['section-roster', 'rollcall']);
+    });
+
+    it('offers an Admin the same section actions, and none for a trooper the sync has not placed', function () {
+        $admin = User::factory()->admin()->create();
+        $this->actingAs($admin);
+
+        expect(collect(milpacActions($this, milpacTrooper($this->section1)))->pluck('key')->all())->toBe(['section-roster', 'rollcall'])
+            ->and(milpacActions($this, Trooper::factory()->create()))->toBe([]);
+    });
+
+    it('follows a view-as preview: previewing a leader of another section removes the actions', function () {
+        $admin = User::factory()->admin()->create();
+        $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->section2->id])->assertSessionHasNoErrors();
+
+        // The trooper is then out of the previewed scope: the page itself answers 404, so no action is ever offered.
+        milpacOpen($this, milpacTrooper($this->section1))->assertNotFound();
+    });
+
+    it('is not the security boundary: the roster of a section outside scope is refused when its URL is typed by hand', function () {
+        $this->actingAs($this->leader)->get(route('roster.index', $this->section2->id))->assertForbidden();
+    });
+
+    it('offers only plain GET links to existing routes, so no action can change a trooper', function () {
+        $admin = User::factory()->admin()->create();
+
+        foreach (milpacActions($this->actingAs($admin), milpacTrooper($this->section1)) as $action) {
+            $route = app('router')->getRoutes()->match(Request::create($action['href'], 'GET'));
+
+            expect($route->methods())->toContain('GET')->not->toContain('POST')->not->toContain('PUT')->not->toContain('DELETE');
+        }
     });
 });
