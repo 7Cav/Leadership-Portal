@@ -138,8 +138,9 @@ const syncing = ref(false);
 function syncNow() {
     if (viewAs.value || syncing.value) return;
     syncing.value = true;
+    // An Admin refreshes the whole roster; a leader refreshes only the echelon on screen.
     router.post(
-        '/settings/roster-sync',
+        props.can.sync ? '/settings/roster-sync' : `/units/${props.unit.id}/roster-sync`,
         {},
         {
             preserveScroll: true,
@@ -150,7 +151,7 @@ function syncNow() {
             onHttpException: (response) => {
                 toast.error(
                     response.status === 403
-                        ? 'Only an Admin can start a roster sync.'
+                        ? 'Only an Admin or this unit\'s leader can start a roster sync.'
                         : response.status === 419
                           ? 'Your session expired. Reload the page and try again.'
                           : `The sync could not be started (error ${response.status}). Try again.`,
@@ -241,7 +242,7 @@ function syncNow() {
                     <TooltipContent class="max-w-72">{{ syncDetail }}</TooltipContent>
                 </Tooltip>
 
-                <template v-if="can.sync">
+                <template v-if="can.sync || can.syncUnit">
                     <Tooltip v-if="viewAs">
                         <TooltipTrigger as-child>
                             <Button variant="outline" size="sm" aria-disabled="true" class="cursor-not-allowed opacity-60" @click.prevent>
@@ -251,7 +252,7 @@ function syncNow() {
                         <TooltipContent>Read-only while viewing as {{ viewAsSubject }}</TooltipContent>
                     </Tooltip>
                     <Button v-else variant="outline" size="sm" :disabled="syncing" data-testid="roster-sync-now" @click="syncNow">
-                        <PhArrowsClockwise :class="syncing && 'motion-safe:animate-spin'" />{{ syncing ? 'Starting sync' : 'Sync now' }}
+                        <PhArrowsClockwise :class="syncing && 'motion-safe:animate-spin'" />{{ syncing ? 'Starting sync' : can.sync ? 'Sync now' : 'Sync this unit' }}
                     </Button>
                 </template>
             </div>

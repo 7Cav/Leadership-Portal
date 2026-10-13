@@ -11,6 +11,8 @@ use App\Models\TrooperStatus;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitBilletMappingRepository;
+use App\Repositories\UnitRepository;
+use InvalidArgumentException;
 use Throwable;
 
 /**
@@ -39,6 +41,11 @@ use Throwable;
  * A serving roster that comes back empty while the cache still holds troopers on it is refused
  * the same way a fetch failure is: the run is recorded as failed and nothing is written (see
  * {@see refuseEmptyRosterExodus()}).
+ *
+ * An echelon leader's manual sync passes `$unitId`: Cav only serves whole rosters, so the fetch is the same, but
+ * the write is cut down to that unit's subtree — troopers placed in it, plus any whose billet now maps into it.
+ * Departures are only considered among troopers placed in the subtree, and the run is recorded under its own
+ * source so the global "last synced" stamp never claims a roster-wide refresh an echelon sync did not do.
  */
 class SyncRosterHandler
 {
@@ -50,14 +57,23 @@ class SyncRosterHandler
         private readonly TrooperRepository $troopers,
         private readonly SyncRunRepository $syncRuns,
         private readonly UnitBilletMappingRepository $billetMappings,
+        private readonly UnitRepository $units,
     ) {}
 
-    public function handle(int|string $triggeredBy = 'system'): void
+    public function handle(int|string $triggeredBy = 'system', ?int $unitId = null): void
     {
-        $run = $this->syncRuns->open('roster', $triggeredBy);
+        $run = $this->syncRuns->open($unitId === null ? 'roster' : 'roster-unit', $triggeredBy);
 
         try {
+            $sectionIds = $unitId === null ? null : $this->subtreeSectionIds($unitId);
+
             $result = $this->cavApi->fetchRoster();
+            $sections = $this->resolveSections($result->troopers);
+            $inScope = $sectionIds === null ? null : $this->cavIdsInScope($sectionIds, $sections);
+
+            $entries = $inScope === null
+                ? $result->troopers
+                : array_values(array_filter($result->troopers, fn (CavRosterEntry $entry) => isset($inScope[$entry->cavId])));
 
             $rows = array_map(
                 fn (CavRosterEntry $entry) => [
@@ -73,7 +89,7 @@ class SyncRosterHandler
                     'status' => $this->statusFor($entry->status)->value,
                     'cav_position_id' => $entry->positionId,
                 ],
-                $result->troopers,
+                $entries,
             );
 
             // A row Cav reported but the seam could not parse (2.1, AC #6) is a trooper who is
@@ -93,13 +109,16 @@ class SyncRosterHandler
             // An unreadable row's billet is unknown, so it is cleared rather than left conferring
             // the last-known command scope (1.16) — unless the same trooper also parsed on another
             // roster this run, whose billet is then current and kept.
+            $unreadableToClear = array_values(array_diff(array_unique($unreadableCavIds), $parsedCavIds));
+
             $counts = $this->troopers->sync(
                 $rows,
                 array_values(array_unique($activeCavIds)),
-                array_values(array_diff(array_unique($unreadableCavIds), $parsedCavIds)),
+                $inScope === null ? $unreadableToClear : array_values(array_filter($unreadableToClear, fn (int $cavId) => isset($inScope[$cavId]))),
+                $sectionIds,
             );
 
-            $this->troopers->updatePrimarySections($this->resolveSections($result->troopers));
+            $this->troopers->updatePrimarySections($inScope === null ? $sections : array_intersect_key($sections, $inScope));
 
             $this->syncRuns->complete(
                 $run,
@@ -114,6 +133,47 @@ class SyncRosterHandler
 
             throw $e;
         }
+    }
+
+    /**
+     * The unit's subtree, the sections an echelon sync may write to.
+     *
+     * @return list<int>
+     */
+    private function subtreeSectionIds(int $unitId): array
+    {
+        $unit = $this->units->find($unitId);
+
+        if ($unit === null) {
+            throw new InvalidArgumentException("Unit {$unitId} no longer exists; nothing to sync.");
+        }
+
+        return $this->units->subtreeIds($unit)->values()->all();
+    }
+
+    /**
+     * Who an echelon sync may touch, as a set keyed by `cav_id`: troopers already placed in the echelon, and
+     * anyone whose billet now resolves into it (a transfer in).
+     *
+     * @param  list<int>  $sectionIds
+     * @param  array<int, int>  $sections  cav_id => section unit id, from {@see resolveSections()}
+     * @return array<int, true>
+     */
+    private function cavIdsInScope(array $sectionIds, array $sections): array
+    {
+        $inScope = [];
+
+        foreach ($this->troopers->placedInAny($sectionIds) as $trooper) {
+            $inScope[$trooper->cav_id] = true;
+        }
+
+        foreach ($sections as $cavId => $sectionId) {
+            if (in_array($sectionId, $sectionIds, true)) {
+                $inScope[$cavId] = true;
+            }
+        }
+
+        return $inScope;
     }
 
     /**

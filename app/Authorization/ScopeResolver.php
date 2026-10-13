@@ -82,6 +82,23 @@ class ScopeResolver
     }
 
     /**
+     * Whether the user may refresh this unit's troopers from Cav: an Admin for any unit, otherwise the leader whose
+     * synced command billet covers it (the unit they command or anything beneath it). Deliberately narrower than
+     * {@see realScope()}: a staff grant lets someone read an echelon, not trigger writes to it. Real authority, not
+     * the view-as preview: writes never follow a preview (AD-9).
+     */
+    public function commands(User $user, Unit $unit): bool
+    {
+        if ($user->is_admin) {
+            return true;
+        }
+
+        $commanded = $this->commands->commandedUnitFor($user);
+
+        return $commanded !== null && $this->units->subtreeIds($commanded)->contains($unit->id);
+    }
+
+    /**
      * Whether the roster cache shows the user's linked trooper as departed — a standing off
      * {@see TrooperStatus::serving()}. Deliberately not the inverse of "is serving": an Admin, a
      * user with no link, and one the cache holds no trooper for (admitted live at sign-in ahead of

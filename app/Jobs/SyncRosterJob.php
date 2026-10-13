@@ -44,20 +44,27 @@ class SyncRosterJob implements ShouldBeUnique, ShouldQueue
     /** Seconds before the unique lock expires on its own, matching the overlap lock's expiry. */
     public int $uniqueFor = 3600;
 
-    public function __construct(public readonly int|string $triggeredBy = 'system') {}
+    /**
+     * `$unitId` narrows the run to one echelon (a leader's manual sync); null is the whole roster.
+     */
+    public function __construct(
+        public readonly int|string $triggeredBy = 'system',
+        public readonly ?int $unitId = null,
+    ) {}
 
     public function handle(SyncRosterHandler $handler): void
     {
-        $handler->handle($this->triggeredBy);
+        $handler->handle($this->triggeredBy, $this->unitId);
     }
 
     /**
-     * One id for every dispatch, whoever triggered it: there is only one roster to sync, so a
-     * scheduled tick and a manual click are the same job for uniqueness purposes.
+     * One id per scope, whoever triggered it: a scheduled tick and a manual click on the whole roster are the same
+     * job, and so are two clicks on one echelon. Different echelons queue separately; the overlap lock below still
+     * serialises them with the full sync, which keeps the single-writer guarantee.
      */
     public function uniqueId(): string
     {
-        return 'roster';
+        return $this->unitId === null ? 'roster' : "roster:unit:{$this->unitId}";
     }
 
     /**

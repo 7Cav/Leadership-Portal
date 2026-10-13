@@ -76,6 +76,8 @@ class RosterController extends Controller
             'can' => [
                 // Follows view-as: a preview of a non-Admin never offers an Admin action (1.13).
                 'sync' => $this->scope->actsAsAdmin($user),
+                // A leader refreshing their own echelon (the whole roster stays Admin-only).
+                'syncUnit' => $unit !== null && $this->scope->commands($user, $unit),
             ],
             'links' => [
                 'milpac' => Trooper::MILPAC_PROFILE_URL,

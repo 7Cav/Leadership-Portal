@@ -10,14 +10,14 @@ use Illuminate\Queue\Middleware\WithoutOverlapping;
  */
 it('delegates straight to SyncRosterHandler with the given triggeredBy', function () {
     $handler = Mockery::mock(SyncRosterHandler::class);
-    $handler->shouldReceive('handle')->once()->with(42);
+    $handler->shouldReceive('handle')->once()->with(42, null);
 
     (new SyncRosterJob(42))->handle($handler);
 });
 
 it('defaults triggeredBy to system for the scheduler path', function () {
     $handler = Mockery::mock(SyncRosterHandler::class);
-    $handler->shouldReceive('handle')->once()->with('system');
+    $handler->shouldReceive('handle')->once()->with('system', null);
 
     (new SyncRosterJob)->handle($handler);
 });
@@ -31,4 +31,15 @@ it('carries a WithoutOverlapping lock keyed on the roster source', function () {
     // A manual trigger fired mid-run must defer rather than vanish (AC: "skipped or
     // deferred, never overlapping") — a null releaseAfter would silently drop it instead.
     expect($middleware[0]->releaseAfter)->not->toBeNull();
+});
+
+it('hands an echelon sync\'s unit id to the handler and keeps its uniqueness apart from the whole roster', function () {
+    $handler = Mockery::mock(SyncRosterHandler::class);
+    $handler->shouldReceive('handle')->once()->with(42, 7);
+
+    $job = new SyncRosterJob(42, 7);
+    $job->handle($handler);
+
+    expect($job->uniqueId())->toBe('roster:unit:7')
+        ->and((new SyncRosterJob)->uniqueId())->toBe('roster');
 });

@@ -31,9 +31,10 @@ interface TrooperRepository
      * @param  list<array{cav_id: int, rank: ?string, rank_short?: ?string, username?: ?string, forum_user_id?: ?int, billet?: ?string, mos: ?string, tis: mixed, tig: mixed, status: string, cav_position_id?: ?int}>  $rows
      * @param  list<int>  $activeCavIds
      * @param  list<int>  $unreadableCavIds
+     * @param  list<int>|null  $withinSectionIds  an echelon-scoped sync (departures only among troopers placed in these sections); null is the whole roster
      * @return array{inserted: int, updated: int, inactivated: int}
      */
-    public function sync(array $rows, array $activeCavIds, array $unreadableCavIds = []): array;
+    public function sync(array $rows, array $activeCavIds, array $unreadableCavIds = [], ?array $withinSectionIds = null): array;
 
     /**
      * Upsert every row keyed by `cav_id`, updating an existing trooper's synced columns in place
@@ -56,9 +57,13 @@ interface TrooperRepository
      * departure (AD-4, AD-5). Already-inactive rows are left alone rather than re-touched.
      * Returns the number of rows actually flipped.
      *
+     * With `$withinSectionIds` only troopers placed in those sections are considered, so an echelon-scoped
+     * sync never departs anyone outside its echelon.
+     *
      * @param  list<int>  $activeCavIds
+     * @param  list<int>|null  $withinSectionIds
      */
-    public function markDepartedExcept(array $activeCavIds): int;
+    public function markDepartedExcept(array $activeCavIds, ?array $withinSectionIds = null): int;
 
     /**
      * Set `primary_section_id` for exactly the troopers present in `$cavIdToSectionId` (2.5) — a

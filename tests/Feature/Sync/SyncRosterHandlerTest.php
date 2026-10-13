@@ -69,6 +69,7 @@ function syncRosterHandler(): SyncRosterHandler
         app(TrooperRepository::class),
         app(SyncRunRepository::class),
         app(UnitBilletMappingRepository::class),
+        app(UnitRepository::class),
     );
 }
 
