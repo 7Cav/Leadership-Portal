@@ -155,7 +155,8 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::post('/units/{unit}/roster-sync', [UnitRosterSyncController::class, 'store'])->middleware('throttle:unit-roster-sync')->name('units.roster-sync.store');
 
     // Manual leave-sync trigger (Story 4.2): the same queued job the scheduler runs. Admin gate in the controller (AD-6).
-    Route::post('/settings/loa-sync', [LoaSyncController::class, 'store'])->name('settings.loa-sync.store');
+    // Throttled per Admin by the `loa-sync` limiter, like the roster trigger.
+    Route::post('/settings/loa-sync', [LoaSyncController::class, 'store'])->middleware('throttle:loa-sync')->name('settings.loa-sync.store');
 
     // Demo history for the real roster (#115). Admin-only; every route 404s unless
     // `portal.demo_tools` is on (DEMO_TOOLS=true) — both gates are enforced in the controller.

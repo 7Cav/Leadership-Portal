@@ -26,6 +26,18 @@ it('lets an Admin ask for a full run', function () {
     Queue::assertPushed(SyncLoasJob::class, fn (SyncLoasJob $job) => $job->full === true);
 });
 
+it('throttles the manual trigger: the 6th request from one Admin in a minute gets 429', function () {
+    Queue::fake();
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin);
+
+    for ($i = 1; $i <= 5; $i++) {
+        $this->post('/settings/loa-sync')->assertRedirect();
+    }
+
+    $this->post('/settings/loa-sync')->assertStatus(429);
+});
+
 it('refuses a non-Admin with 403 and dispatches nothing (AD-6)', function () {
     Queue::fake();
 
