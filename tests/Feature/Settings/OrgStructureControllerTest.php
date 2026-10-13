@@ -2,11 +2,16 @@
 
 use App\Integration\Cav\CavApi;
 use App\Models\AuditLogEntry;
+use App\Models\PortalRoleGrant;
 use App\Models\Unit;
 use App\Models\UnitBilletMapping;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\SectionPracticeRepository;
 use App\Repositories\UnitRepository;
+use App\Repositories\WeeklyReportRepository;
+use App\Support\Time\WeekOf;
+use Carbon\CarbonImmutable;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
 
@@ -349,3 +354,29 @@ it('turns a blocked delete of a mapped section into errors.delete, not a 500 (2.
 
     expect(Unit::find($section->id))->not->toBeNull();
 });
+
+it('turns a delete blocked by a staff grant or report history into errors.delete, not a 500', function (Closure $attach, string $reason) {
+    $section = app(UnitRepository::class)->create(UnitType::Section, '1st Section', '1/1/A/1-7', null);
+    $attach($section);
+
+    $this->actingAs(User::factory()->admin()->create())
+        ->from('/settings/org-structure')
+        ->delete("/settings/org-structure/{$section->id}")
+        ->assertRedirect('/settings/org-structure')
+        ->assertSessionHasErrors(['delete' => "Cannot delete \"1st Section\" — {$reason}"]);
+
+    expect(Unit::find($section->id))->not->toBeNull();
+})->with([
+    'a staff grant' => [
+        fn (Unit $unit) => PortalRoleGrant::factory()->create(['unit_id' => $unit->id]),
+        'staff grants still give users scope over it. Revoke them in Staff grants first.',
+    ],
+    'a recorded practice' => [
+        fn (Unit $unit) => app(SectionPracticeRepository::class)->findOrCreate($unit->id, WeekOf::start(CarbonImmutable::now())),
+        'attendance has been recorded for it, and that history must not be orphaned.',
+    ],
+    'a weekly report' => [
+        fn (Unit $unit) => app(WeeklyReportRepository::class)->saveDraft($unit->id, WeekOf::start(CarbonImmutable::now()), [], null),
+        'it has weekly reports, and that report history must not be orphaned.',
+    ],
+]);

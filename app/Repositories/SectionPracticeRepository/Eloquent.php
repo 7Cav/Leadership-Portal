@@ -111,4 +111,9 @@ class Eloquent implements SectionPracticeRepository
 
         return $practice;
     }
+
+    public function hasPracticesFor(Unit $unit): bool
+    {
+        return SectionPractice::query()->where('section_id', $unit->getKey())->exists();
+    }
 }

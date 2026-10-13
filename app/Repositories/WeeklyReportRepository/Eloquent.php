@@ -191,4 +191,9 @@ class Eloquent implements WeeklyReportRepository
 
         return $boundary;
     }
+
+    public function hasReportsFor(Unit $unit): bool
+    {
+        return WeeklyReport::query()->where('unit_id', $unit->getKey())->exists();
+    }
 }

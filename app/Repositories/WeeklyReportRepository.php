@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Models\Unit;
 use App\Models\WeeklyReport;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -113,4 +114,11 @@ interface WeeklyReportRepository
         ?string $trainingSubject = null,
         array $unaccounted = [],
     ): WeeklyReport;
+
+    /**
+     * Whether `$unit` has any report, draft or sent, in any week — `weekly_reports.unit_id`
+     * restricts deletes, so `DeleteUnit` checks this first to refuse with a reason instead of a
+     * raw constraint error.
+     */
+    public function hasReportsFor(Unit $unit): bool;
 }

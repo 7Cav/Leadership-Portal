@@ -17,6 +17,7 @@ use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
+use Database\Seeders\Concerns\RefusesOutsideDevEnvironments;
 use Illuminate\Database\Seeder;
 
 /**
@@ -24,10 +25,13 @@ use Illuminate\Database\Seeder;
  * screenshots run against it. Builds 7CAV ─ 1-7 ─ A/1-7 with two platoons of four sections, four
  * weeks of attendance, last week sent everywhere, and this week five of eight sections sent, two
  * drafts and one not started. `Hale.S` holds a staff grant over the company; `Vasquez.R` over one
- * section. Run against an empty database only (the e2e setup migrates fresh first).
+ * section. Run against an empty database only (the e2e setup migrates fresh first). Refuses to run
+ * outside local, testing and e2e: those two users hold real scope wherever they are created.
  */
 class ReportRollupSeeder extends Seeder
 {
+    use RefusesOutsideDevEnvironments;
+
     /** Section callsign => [leader, troopers, this week's state, notes]. */
     private const SECTIONS = [
         '1/1/A/1-7' => ['Haddad.Y', 6, 'sent', 'Full house for the AT drill.'],
@@ -42,6 +46,8 @@ class ReportRollupSeeder extends Seeder
 
     public function run(): void
     {
+        $this->refuseOutsideDevEnvironments();
+
         $units = app(UnitRepository::class);
         $reports = app(WeeklyReportRepository::class);
         $snapshots = app(WeeklyReportKpis::class);

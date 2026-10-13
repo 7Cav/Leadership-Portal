@@ -9,6 +9,14 @@ export default function globalSetup() {
     writeFileSync(E2E_DATABASE, '');
     const env = { ...process.env, ...E2E_ENV };
     execFileSync('php', ['artisan', 'config:clear'], { env, stdio: 'inherit' });
+    // Fail closed before anything destructive: blanking known variables (DB_URL) is not enough, since
+    // DB_HOST, DATABASE_URL, DB_SOCKET and whatever comes next could also redirect the connection.
+    // Abort unless the connection the app will actually use is the throwaway SQLite file.
+    const target = JSON.parse(execFileSync('php', ['artisan', 'db:show', '--json'], { env, encoding: 'utf8' }));
+    const config = target.platform?.config;
+    if (config?.driver !== 'sqlite' || config?.database !== E2E_DATABASE) {
+        throw new Error(`Refusing to run E2E setup: the app resolves its database to ${config?.database} (${config?.driver}), not ${E2E_DATABASE}.`);
+    }
     execFileSync('php', ['artisan', 'migrate:fresh', '--force', '--seeder=Database\\Seeders\\ReportRollupSeeder', '--seed'], { env, stdio: 'inherit' });
     // The compose screen's own platoon (Story 5.3), apart from the roll-up's so its send cannot
     // change what the roll-up spec counts.
