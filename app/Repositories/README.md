@@ -4,7 +4,8 @@
 `DB::` call lives anywhere else in `app/` — Deptrac fails the build if it does.
 Every read and write goes through a Repository method.
 
-**May depend on:** `Models/` and the database (Eloquent / query builder / `DB`).
+**May depend on:** `Models/`, the database (Eloquent / query builder / `DB`), and
+`Support\Time` (`WeekOf`, to bucket rows into Cav weeks, AD-11).
 Repositories return fully-loaded models or DTOs; `preventLazyLoading()` is on in
 dev so a query escaping this layer via lazy-loading throws loudly.
 
