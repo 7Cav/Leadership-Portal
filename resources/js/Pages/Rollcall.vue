@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import {
@@ -413,15 +413,37 @@ const RETRY_POLL_MS = 2500;
 const RETRY_POLLS = 24;
 const retrying = ref(false);
 
-const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// The poll belongs to this screen: leaving it (another week, another page) ends it at once, so it
+// never reloads or toasts over whatever is shown next.
+let left = false;
+let leave;
+const leaving = new Promise((resolve) => (leave = resolve));
+onBeforeUnmount(() => {
+    left = true;
+    leave();
+});
+
+const pause = (ms) =>
+    new Promise((resolve) => {
+        const timer = setTimeout(resolve, ms);
+        leaving.then(() => {
+            clearTimeout(timer);
+            resolve();
+        });
+    });
+// A partial reload of this page: the autosave's leave guard lets it through (it is not leaving).
 const refreshTelemetry = () =>
-    new Promise((resolve) => router.reload({ only: ['telemetry', 'capture'], preserveState: true, preserveScroll: true, onFinish: resolve }));
+    Promise.race([
+        new Promise((resolve) => router.reload({ only: ['telemetry', 'capture'], preserveState: true, preserveScroll: true, onFinish: resolve })),
+        leaving,
+    ]);
 
 async function retryCapture() {
     retrying.value = true;
     try {
         const before = props.telemetry?.lastAttemptAt ?? null;
         const result = await postJson(`/rollcall/${props.section.id}/capture`, { week: props.week.date }).catch(unreachable);
+        if (left) return;
         if (!result.ok) {
             toast.error('Could not try again', { description: messageFor(result) });
             if (result.status === 409 && result.data?.locked) router.reload();
@@ -431,11 +453,15 @@ async function retryCapture() {
 
         for (let poll = 0; poll < RETRY_POLLS; poll++) {
             await pause(RETRY_POLL_MS);
+            if (left) return;
             await refreshTelemetry();
+            if (left) return;
 
             if (props.capture) {
                 // Marks were pre-filled on the server: save what is pending, then show them.
-                if (!(await autosave.flush({ includeHeld: true }))) {
+                const saved = await autosave.flush({ includeHeld: true });
+                if (left) return;
+                if (!saved) {
                     toast.error('Changes are not saved yet', { description: autosave.error.value ?? autosave.lockedMessage.value });
 
                     return;

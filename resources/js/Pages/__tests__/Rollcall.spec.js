@@ -7,6 +7,10 @@ const page = reactive({ url: '/rollcall/12', props: { auth: { user: { username: 
 const push = vi.fn((visit) => (page.url = visit.url));
 const visit = vi.fn();
 const reload = vi.fn();
+// Global router listeners (the autosave's leave guard registers `before`).
+const listeners = {};
+// Runs a visit the way Inertia does: the `before` listeners can refuse it, and then nothing follows.
+const visitThroughGuard = (options, run) => (listeners.before?.({ detail: { visit: { method: 'get', only: [], except: [], ...options } } }) === false ? undefined : run());
 
 enableAutoUnmount(afterEach);
 const post = vi.fn();
@@ -28,7 +32,7 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
     Head: { template: '<head></head>' },
     Link: { props: ['href'], template: '<a :href="href"><slot /></a>' },
-    router: { push: (...args) => push(...args), visit: (...args) => visit(...args), reload: (...args) => reload(...args), on: () => () => {} },
+    router: { push: (...args) => push(...args), visit: (...args) => visit(...args), reload: (...args) => reload(...args), on: (event, callback) => ((listeners[event] = callback), () => listeners[event] === callback && delete listeners[event]) },
     usePage: () => page,
 }));
 
@@ -969,6 +973,45 @@ describe('Rollcall page', () => {
             await flushPromises();
 
             expect(toastWarning).toHaveBeenCalledWith('Still waiting for the game server', expect.anything());
+        });
+
+        it('polls through the leave guard without asking while marks are still held', async () => {
+            const confirm = vi.fn().mockReturnValue(false);
+            vi.stubGlobal('confirm', confirm);
+            post.mockResolvedValue({ ok: true, status: 202, data: { queued: true } });
+            wrapper = factory({ telemetry: FAILED });
+            reload.mockImplementation((options) =>
+                visitThroughGuard(options, async () => {
+                    await wrapper.setProps({ telemetry: { ...FAILED, lastAttemptAt: '2026-10-08T16:20:00+00:00' } });
+                    options.onFinish();
+                }),
+            );
+
+            // Held for the undo window, so still unsaved while the poll runs.
+            await wrapper.find('[data-testid="mark-all-present"]').trigger('click');
+            await click();
+            await flushPromises();
+
+            expect(confirm).not.toHaveBeenCalled();
+            expect(toastError).toHaveBeenCalledWith('Game server still could not be read', expect.anything());
+            expect(wrapper.find('[data-testid="telemetry-retry"]').text()).toBe('Try again');
+            vi.unstubAllGlobals();
+        });
+
+        it('stops polling once the leader leaves the screen', async () => {
+            post.mockResolvedValue({ ok: true, status: 202, data: { queued: true } });
+            wrapper = factory({ telemetry: FAILED });
+            reload.mockImplementation(async (options) => options.onFinish?.());
+
+            await click();
+            expect(reload).toHaveBeenCalledTimes(1);
+            wrapper.unmount();
+            await vi.advanceTimersByTimeAsync(2500 * 30);
+            await flushPromises();
+
+            expect(reload).toHaveBeenCalledTimes(1);
+            expect(toastWarning).not.toHaveBeenCalled();
+            expect(vi.getTimerCount()).toBe(0);
         });
 
         it('surfaces a refusal and does not poll', async () => {
