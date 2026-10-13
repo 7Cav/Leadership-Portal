@@ -63,12 +63,16 @@ const typeLabel = computed(() => Object.fromEntries(props.timeline.legend.map((i
 
 const GROUP_DOT = { qualified: 'bg-success', in_progress: 'bg-info', required: 'bg-destructive' };
 
-// Why the ID block may not be current: a run since the last good one did not succeed.
+// Why the ID block may not be current: a run since the last good one did not succeed, or no run has
+// succeeded for longer than the server allows (stale with no failed attempt to name).
 const staleNotice = computed(() => {
     if (props.sync.lastSuccessAt === null) {
         return 'No Cav roster sync has succeeded yet, so this record may be empty or out of date.';
     }
     if (!props.sync.stale) return null;
+    if (!props.sync.lastAttempt) {
+        return 'The Cav roster has not synced recently. This is the record from the last successful sync.';
+    }
 
     const outcome = props.sync.lastAttempt?.status === 'partial' ? 'was only partly applied' : 'failed';
     const at = props.sync.lastAttempt?.at ? ` on ${forumDateTime(props.sync.lastAttempt.at)} UTC` : '';

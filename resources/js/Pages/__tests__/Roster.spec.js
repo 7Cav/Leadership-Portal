@@ -86,6 +86,11 @@ describe('Roster page', () => {
 
         const partial = factory({ sync: { source: 'milpac', lastSuccessAt: '2026-10-08T09:14:00+00:00', stale: true, lastAttempt: { status: 'partial', at: '2026-10-08T10:14:00+00:00' } } });
         expect(partial.find('[data-testid="roster-sync-stamp"]').text()).toContain('last attempt incomplete');
+
+        // Stale only by age: the latest run succeeded, so there is no failed attempt to name.
+        const overdue = factory({ sync: { source: 'milpac', lastSuccessAt: '2026-10-08T03:14:00+00:00', stale: true, lastAttempt: null } });
+        expect(overdue.find('[data-testid="roster-sync-stamp"]').text()).toContain('overdue');
+        expect(overdue.find('[data-testid="roster-sync-stamp"]').text()).not.toContain('failed');
     });
 
     it('offers Sync now only to an Admin, posting to the roster sync route', async () => {
