@@ -35,8 +35,17 @@ export function unreachable(error) {
 }
 
 // `post` is injectable for tests; it resolves `{ ok, status, data }` like `postJson`. `nameOf`
-// turns a trooper id into a name for messages.
-export function useRollcallAutosave({ url, week, onSaved = () => {}, nameOf = (id) => `#${id}`, post = postJson, now = () => Date.now() }) {
+// turns a trooper id into a name for messages. `onLeave` hears the troopers the server says are on
+// leave this week (a leave synced after the page loaded), so the page can lock their rows.
+export function useRollcallAutosave({
+    url,
+    week,
+    onSaved = () => {},
+    onLeave = () => {},
+    nameOf = (id) => `#${id}`,
+    post = postJson,
+    now = () => Date.now(),
+}) {
     // trooperId → { status?, rollcall?, notBefore }
     const pending = new Map();
     const state = ref('idle'); // idle | saving | saved | error
@@ -46,6 +55,9 @@ export function useRollcallAutosave({ url, week, onSaved = () => {}, nameOf = (i
     // Troopers whose marks the server refused for good (moved out of the section since the page
     // loaded): kept out of later batches, so they cannot block everyone else's saves.
     const rejected = ref([]);
+    // Troopers the server says are on leave this week (3.4): their practice status comes from the
+    // leave, so a practice mark for them is never sent again. Their signature still saves.
+    const onLeaveIds = ref([]);
     let timer = null;
     let inFlight = null;
 
@@ -58,6 +70,7 @@ export function useRollcallAutosave({ url, week, onSaved = () => {}, nameOf = (i
 
     function queue(trooperId, field, value, { holdMs = 0 } = {}) {
         if (rejected.value.includes(trooperId)) return;
+        if (field === 'status' && onLeaveIds.value.includes(trooperId)) return;
         const entry = pending.get(trooperId) ?? { notBefore: 0 };
         entry[field] = value;
         // A fresh change by hand releases any hold: the leader has decided.
@@ -113,6 +126,7 @@ export function useRollcallAutosave({ url, week, onSaved = () => {}, nameOf = (i
             .catch(unreachable)
             .then((result) => {
                 const refused = result.status === 422 && Array.isArray(result.data?.rejected) ? new Set(result.data.rejected) : null;
+                const leaveCovered = refused && result.data.reason === 'loa_covered';
 
                 if (result.ok && result.data?.savedAt) {
                     state.value = 'saved';
@@ -122,6 +136,23 @@ export function useRollcallAutosave({ url, week, onSaved = () => {}, nameOf = (i
                         onSaved(result.data);
                     } catch (e) {
                         console.error('Rollcall onSaved handler failed', e);
+                    }
+                } else if (leaveCovered && refused.size) {
+                    // On leave this week: drop just their practice marks, keep their signatures, and
+                    // send the batch again at once. The Command refuses only the practice mark.
+                    onLeaveIds.value = [...new Set([...onLeaveIds.value, ...refused])];
+                    for (const [id, entry] of ready) {
+                        const merged = { ...entry, notBefore: 0, ...(pending.get(id) ?? {}) };
+                        if (refused.has(id)) delete merged.status;
+                        if (merged.status === undefined && merged.rollcall === undefined) pending.delete(id);
+                        else pending.set(id, merged);
+                    }
+                    sync();
+                    state.value = 'idle';
+                    try {
+                        onLeave([...refused]);
+                    } catch (e) {
+                        console.error('Rollcall onLeave handler failed', e);
                     }
                 } else if (refused?.size) {
                     // Drop the refused troopers for good and send everyone else again at once.
@@ -166,6 +197,11 @@ export function useRollcallAutosave({ url, week, onSaved = () => {}, nameOf = (i
             ? `${rejected.value.map(nameOf).join(', ')} ${rejected.value.length === 1 ? 'is' : 'are'} no longer placed in this section, so ${rejected.value.length === 1 ? 'that mark was' : 'those marks were'} not saved. Reload to refresh the roster.`
             : null,
     );
+    const onLeaveMessage = computed(() =>
+        onLeaveIds.value.length
+            ? `${onLeaveIds.value.map(nameOf).join(', ')} ${onLeaveIds.value.length === 1 ? 'is' : 'are'} on leave this week, so ${onLeaveIds.value.length === 1 ? 'their practice mark comes' : 'their practice marks come'} from the leave and the one entered here was not saved. Signatures still save.`
+            : null,
+    );
     const hasUnsaved = computed(() => pendingCount.value > 0 || state.value === 'saving');
 
     // Leaving with unsaved changes asks first, for a reload or tab close and for an in-app visit.
@@ -196,5 +232,5 @@ export function useRollcallAutosave({ url, week, onSaved = () => {}, nameOf = (i
         removeVisitGuard();
     });
 
-    return { queue, cancel, flush, retry, state, savedAt, error, hasUnsaved, pendingCount, rejected, rejectedMessage };
+    return { queue, cancel, flush, retry, state, savedAt, error, hasUnsaved, pendingCount, rejected, rejectedMessage, onLeaveIds, onLeaveMessage };
 }
