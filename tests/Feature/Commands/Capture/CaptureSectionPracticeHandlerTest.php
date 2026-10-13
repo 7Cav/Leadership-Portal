@@ -217,6 +217,38 @@ it('closes the run failed and rethrows on an unexpected error, leaving the pract
         ->and($this->practice->fresh()->capture_source)->toBeNull();
 });
 
+it('closes a run of this practice left in progress by a killed worker, and not one for another practice', function () {
+    $orphan = SyncRun::query()->forceCreate(['source' => 'capture', 'started_at' => now()->subHour(), 'status' => SyncRunStatus::InProgress, 'triggered_by' => 'system', 'section_practice_id' => $this->practice->id]);
+    $running = SyncRun::query()->forceCreate(['source' => 'capture', 'started_at' => now()->subMinute(), 'status' => SyncRunStatus::InProgress, 'triggered_by' => 'system', 'section_practice_id' => SectionPractice::factory()->create()->id]);
+
+    runCapture($this, [answeringSource('crcon', [])]);
+
+    expect($orphan->fresh()->status)->toBe(SyncRunStatus::Failure)
+        ->and($orphan->fresh()->finished_at)->not->toBeNull()
+        ->and($running->fresh()->status)->toBe(SyncRunStatus::InProgress);
+});
+
+// A name past the column once failed the whole run on MySQL, and the raw SQL error (with the
+// player data in it) became the run's stored error.
+it('stores a player name longer than its column cut to fit, keyed on the platform id', function () {
+    $long = str_repeat('Ä', 300);
+
+    runCapture($this, [answeringSource('crcon', [new CrconPlayer($long, '76561198000000001')])]);
+
+    $stored = PracticeCapturePlayer::query()->sole();
+    expect($stored->player_name)->toBe(str_repeat('Ä', 255))
+        ->and($stored->platform_id)->toBe('76561198000000001')
+        ->and(SyncRun::query()->sole()->status)->toBe(SyncRunStatus::Partial);
+});
+
+it('records a plain sentence, not the exception text, when the run fails unexpectedly', function () {
+    $source = new CaptureSource('crcon', 'x', fn () => throw new RuntimeException("SQLSTATE[22001]: Data too long for column 'player_name' (insert ... 'Smith')"));
+
+    expect(fn () => runCapture($this, [$source]))->toThrow(RuntimeException::class);
+
+    expect(SyncRun::query()->sole()->error)->toBe("the capture hit an unexpected error (practice {$this->practice->id}, RuntimeException)");
+});
+
 it('refuses a practice that does not exist', function () {
     app()->instance(CaptureSources::class, new CaptureSources([]));
 
