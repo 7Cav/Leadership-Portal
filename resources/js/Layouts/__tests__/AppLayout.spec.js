@@ -373,6 +373,19 @@ describe('AppLayout', () => {
             expect(bar.querySelector('header')).not.toBeNull();
         });
 
+        // Sticky page parts (the rollcall stepper, the report asides) offset from --shell-top, so
+        // the bar's height has to grow with the banner or they slide under it.
+        it('sets the sticky bar height for the page, taller while the banner shows', () => {
+            const shellTop = () => wrapper.find('main#main').element.parentElement.style.getPropertyValue('--shell-top');
+
+            wrapper = mountLayout();
+            expect(shellTop()).toBe('3rem');
+            wrapper.unmount();
+
+            wrapper = mountLayout({ viewAs: AS_PERSON });
+            expect(shellTop()).toBe('5.25rem');
+        });
+
         it('exits view-as from the banner with a DELETE', async () => {
             wrapper = mountLayout({ viewAs: AS_PERSON });
 

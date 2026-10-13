@@ -614,7 +614,7 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
 
         <!-- Stepper -->
         <div
-            class="sticky top-12 z-20 -mx-4 mt-3 border-b border-border bg-background/95 px-4 pt-3 pb-2 backdrop-blur sm:-mx-6 sm:px-6"
+            class="sticky top-[var(--shell-top,3rem)] z-20 -mx-4 mt-3 border-b border-border bg-background/95 px-4 pt-3 pb-2 backdrop-blur sm:-mx-6 sm:px-6"
         >
             <nav aria-label="Rollcall steps">
                 <ol class="grid grid-cols-3 gap-1.5">
@@ -878,7 +878,7 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
             </section>
 
             <!-- Aside: the step's tallies -->
-            <aside :class="cn('space-y-4 lg:sticky lg:top-[8.5rem]', !(step === 2 && showUnmatched) && 'hidden lg:block')" aria-label="Step details">
+            <aside :class="cn('space-y-4 lg:sticky lg:top-[calc(var(--shell-top,3rem)+5.5rem)]', !(step === 2 && showUnmatched) && 'hidden lg:block')" aria-label="Step details">
                 <!-- Under the marks list on a phone, beside it on a wide screen (capture-review.html C). -->
                 <UnmatchedDrawer
                     v-if="step === 2 && showUnmatched"

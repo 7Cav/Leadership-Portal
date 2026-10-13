@@ -533,7 +533,7 @@ const subjectInvalid = computed(() => props.unit.isLeaf && subjectTouched.value 
                         </section>
                     </div>
 
-                    <div class="min-w-0 lg:sticky lg:top-16">
+                    <div class="min-w-0 lg:sticky lg:top-[calc(var(--shell-top,3rem)+1rem)]">
                         <ReportPreview
                             :unit="unit"
                             :week="week"
