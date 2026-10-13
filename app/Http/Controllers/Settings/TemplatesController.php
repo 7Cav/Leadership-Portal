@@ -63,8 +63,8 @@ class TemplatesController extends Controller
                 ->values()
                 ->all(),
             'maxBodyLength' => AuthorTemplateVersion::MAX_BODY_LENGTH,
-            // Follows a view-as preview, so authoring controls hide as they would for the previewed leader. The
-            // write gates below read the real flag.
+            // Follows a view-as preview: the page then shows its authoring controls disabled, as read-only for the
+            // previewed leader. The write gates below read the real flag.
             'isAdmin' => $scope->actsAsAdmin($request->user()),
         ]);
     }

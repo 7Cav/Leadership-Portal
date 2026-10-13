@@ -64,10 +64,10 @@ describe('AppLayout', () => {
     });
 
     describe('navigation', () => {
-        it('shows Home, Roster, Rollcall and Reports to everyone', () => {
+        it('shows Home, Roster, Rollcall, Reports and Game identities to everyone', () => {
             wrapper = mountLayout();
 
-            for (const label of ['Home', 'Roster', 'Rollcall', 'Reports']) {
+            for (const label of ['Home', 'Roster', 'Rollcall', 'Reports', 'Game identities']) {
                 expect(wrapper.find(`[data-testid="nav-${label}"]`).exists()).toBe(true);
             }
         });
@@ -123,18 +123,6 @@ describe('AppLayout', () => {
             expect(wrapper.find('[data-testid="nav-Home"]').attributes('aria-current')).toBeUndefined();
         });
 
-        it('renders screens that do not exist yet as disabled controls, not links', () => {
-            wrapper = mountLayout();
-
-            for (const label of ['Roster', 'Rollcall']) {
-                const item = wrapper.find(`[data-testid="nav-${label}"]`);
-                expect(item.element.tagName).toBe('BUTTON');
-                expect(item.attributes('aria-disabled')).toBe('true');
-                expect(item.attributes('href')).toBeUndefined();
-                expect(item.text()).toContain('Soon');
-            }
-        });
-
         it('navigates with Inertia links, not full page loads', () => {
             wrapper = mountLayout({ user: { id: 1, username: 'Hale.S', is_admin: true } });
 
@@ -143,7 +131,7 @@ describe('AppLayout', () => {
             const linkHrefs = wrapper.findAllComponents({ name: 'Link' }).map((link) => link.props('href'));
             const navHrefs = wrapper.findAll('nav[aria-label="Primary"] a').map((a) => a.attributes('href'));
 
-            expect(navHrefs).toEqual(['/home', '/reports', '/settings/org-structure', '/settings/staff-grants', '/settings/templates', '/settings/audit-log']);
+            expect(navHrefs).toEqual(['/home', '/roster', '/rollcall', '/reports', '/game-identities', '/settings/org-structure', '/settings/staff-grants', '/settings/templates', '/settings/audit-log']);
             for (const href of navHrefs) expect(linkHrefs).toContain(href);
         });
 

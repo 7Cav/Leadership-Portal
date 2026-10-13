@@ -3,6 +3,7 @@ import {
     PhFileCode,
     PhFileText,
     PhFlask,
+    PhGameController,
     PhHouse,
     PhKey,
     PhListMagnifyingGlass,
@@ -20,9 +21,10 @@ export const NAV_GROUPS = [
         adminOnly: false,
         items: [
             { label: 'Home', href: '/home', icon: PhHouse },
-            { label: 'Roster', href: null, icon: PhUsersThree },
-            { label: 'Rollcall', href: null, icon: PhClipboardText },
+            { label: 'Roster', href: '/roster', icon: PhUsersThree },
+            { label: 'Rollcall', href: '/rollcall', icon: PhClipboardText },
             { label: 'Reports', href: '/reports', icon: PhFileText },
+            { label: 'Game identities', href: '/game-identities', icon: PhGameController },
         ],
     },
     {

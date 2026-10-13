@@ -23,18 +23,18 @@ it('lists active troopers with no primary section', function () {
     $unplaced = Trooper::factory()->create(['primary_section_id' => null]);
     Trooper::factory()->create(['primary_section_id' => $section->id]);
 
-    expect(app(TrooperRepository::class)->unplaced()->pluck('id')->all())->toBe([$unplaced->id]);
+    expect(app(TrooperRepository::class)->unplaced(100)->pluck('id')->all())->toBe([$unplaced->id]);
 });
 
 it('drops a trooper from the list once they are placed', function () {
     $section = Unit::factory()->create();
     $trooper = Trooper::factory()->create(['primary_section_id' => null]);
     $repo = app(TrooperRepository::class);
-    expect($repo->unplaced())->toHaveCount(1);
+    expect($repo->unplaced(100))->toHaveCount(1);
 
     $repo->updatePrimarySections([$trooper->cav_id => $section->id]);
 
-    expect($repo->unplaced())->toHaveCount(0);
+    expect($repo->unplaced(100))->toHaveCount(0);
 });
 
 it('leaves out a departed trooper, since nobody needs to place them', function () {
@@ -42,7 +42,7 @@ it('leaves out a departed trooper, since nobody needs to place them', function (
     $reserve = Trooper::factory()->create(['primary_section_id' => null, 'status' => TrooperStatus::Reserve]);
     $eloa = Trooper::factory()->create(['primary_section_id' => null, 'status' => TrooperStatus::Eloa]);
 
-    expect(app(TrooperRepository::class)->unplaced()->pluck('id')->all())->toEqualCanonicalizing([$reserve->id, $eloa->id]);
+    expect(app(TrooperRepository::class)->unplaced(100)->pluck('id')->all())->toEqualCanonicalizing([$reserve->id, $eloa->id]);
 });
 
 it('orders by username with nameless troopers last, then by cav_id, so the list is stable', function () {
@@ -51,10 +51,19 @@ it('orders by username with nameless troopers last, then by cav_id, so the list 
     $alpha = Trooper::factory()->create(['username' => 'Alpha.A', 'cav_id' => 3]);
     $nameless1 = Trooper::factory()->create(['username' => null, 'cav_id' => 10]);
 
-    expect(app(TrooperRepository::class)->unplaced()->pluck('id')->all())
+    expect(app(TrooperRepository::class)->unplaced(100)->pluck('id')->all())
         ->toBe([$alpha->id, $zed->id, $nameless1->id, $nameless2->id]);
 });
 
 it('returns an empty collection when everyone is placed', function () {
-    expect(app(TrooperRepository::class)->unplaced()->all())->toBe([]);
+    expect(app(TrooperRepository::class)->unplaced(100)->all())->toBe([]);
+});
+
+it('caps the list at the limit while the count stays the true total', function () {
+    Trooper::factory()->count(3)->create(['primary_section_id' => null]);
+    Trooper::factory()->create(['primary_section_id' => null, 'status' => TrooperStatus::Inactive]);
+    $repo = app(TrooperRepository::class);
+
+    expect($repo->unplaced(2))->toHaveCount(2)
+        ->and($repo->unplacedCount())->toBe(3);
 });

@@ -8,6 +8,7 @@ use App\Models\TemplateVersion;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\TemplateUnchangedException;
 use App\Repositories\TemplateVersionRepository;
 use App\Support\Audit\AuditEnvelope;
 
@@ -55,12 +56,19 @@ class AuthorTemplateVersion
             return $active;
         }
 
-        return $this->audit->record(
-            actorId: $actor->id,
-            action: 'template_version.authored',
-            reason: $reason,
-            reasonRequired: true,
-            mutation: fn () => $this->versions->author($company->id, $type, $body, $actor->id),
-        );
+        // The check above is the cheap path. The one that holds is made by the repository under its lock, inside the
+        // audited transaction: a second submit of the same text that raced past this one is refused there, which
+        // rolls the transaction back, so it gets neither a version number nor an audit entry.
+        try {
+            return $this->audit->record(
+                actorId: $actor->id,
+                action: 'template_version.authored',
+                reason: $reason,
+                reasonRequired: true,
+                mutation: fn () => $this->versions->author($company->id, $type, $body, $actor->id),
+            );
+        } catch (TemplateUnchangedException $unchanged) {
+            return $unchanged->version;
+        }
     }
 }

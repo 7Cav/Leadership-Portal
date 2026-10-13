@@ -23,7 +23,11 @@ interface TemplateVersionRepository
      * Two authors racing for the same number cannot both win: the unique index refuses the second, which retries
      * with the next number, so both versions are kept and the pointer ends on the later write.
      *
+     * The company row is locked first, so authors and activations for a company run one at a time and the
+     * same-as-active check is made under that lock.
+     *
      * @throws InvalidArgumentException when `$companyId` is not a `units` row of type company.
+     * @throws TemplateUnchangedException when `$body` is the active version's body already: nothing is written.
      */
     public function author(int $companyId, ArtifactType $type, string $body, int $createdBy): TemplateVersion;
 
@@ -33,6 +37,7 @@ interface TemplateVersionRepository
      * is not touched. Returns the activated version.
      *
      * @throws InvalidArgumentException when the version no longer exists.
+     * @throws TemplateUnchangedException when the version is the active one already: nothing is written.
      */
     public function activate(TemplateVersion $version, int $activatedBy): TemplateVersion;
 

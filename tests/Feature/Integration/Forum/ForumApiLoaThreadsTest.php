@@ -72,7 +72,7 @@ describe('listing a leave section', function () {
     });
 
     it('sends the forum API key as the credential', function () {
-        $client = MockClient::global([LOA_LIST_URL => MockResponse::make(['threads' => []])]);
+        $client = MockClient::global([LOA_LIST_URL => MockResponse::make(['threads' => [], 'pagination' => ['current_page' => 1, 'last_page' => 1]])]);
 
         loaForum()->listLoaThreads(180);
 
@@ -80,7 +80,7 @@ describe('listing a leave section', function () {
     });
 
     it('lists the ELOA section too, which has its own place on the forum', function () {
-        MockClient::global(['7cav.us/api/forums/341/threads*' => MockResponse::make(['threads' => [loaThreadJson(['thread_id' => 5001, 'node_id' => 341, 'title' => '[ELOA Return] - 1SG.Leifried.R'])]])]);
+        MockClient::global(['7cav.us/api/forums/341/threads*' => MockResponse::make(['threads' => [loaThreadJson(['thread_id' => 5001, 'node_id' => 341, 'title' => '[ELOA Return] - 1SG.Leifried.R'])], 'pagination' => ['current_page' => 1, 'last_page' => 1]])]);
 
         $thread = loaForum()->listLoaThreads(341)->threads[0];
 
@@ -100,9 +100,15 @@ describe('listing a leave section', function () {
     });
 
     it('treats a thread that is not visible as such', function () {
-        MockClient::global([LOA_LIST_URL => MockResponse::make(['threads' => [loaThreadJson(['discussion_state' => 'deleted'])]])]);
+        MockClient::global([LOA_LIST_URL => MockResponse::make(['threads' => [loaThreadJson(['discussion_state' => 'deleted'])], 'pagination' => ['current_page' => 1, 'last_page' => 1]])]);
 
         expect(loaForum()->listLoaThreads(180)->threads[0]->isVisible())->toBeFalse();
+    });
+
+    it('treats a missing pagination block as malformed rather than reading only page 1', function () {
+        MockClient::global([LOA_LIST_URL => MockResponse::make(['threads' => []])]);
+
+        expect(fn () => loaForum()->listLoaThreads(180))->toThrow(ForumRequestException::class);
     });
 
     it('refuses a section that is not a configured leave section, and sends nothing', function () {
@@ -218,7 +224,7 @@ describe('when the forum cannot be read', function () {
     });
 
     it('rejects a thread list missing a field the portal needs', function (array $thread) {
-        MockClient::global([LOA_LIST_URL => MockResponse::make(['threads' => [$thread]])]);
+        MockClient::global([LOA_LIST_URL => MockResponse::make(['threads' => [$thread], 'pagination' => ['current_page' => 1, 'last_page' => 1]])]);
 
         expect(fn () => loaForum()->listLoaThreads(180))->toThrow(ForumRequestException::class, 'missing a field');
     })->with([

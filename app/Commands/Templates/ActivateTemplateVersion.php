@@ -5,6 +5,7 @@ namespace App\Commands\Templates;
 use App\Commands\Units\CreateUnit;
 use App\Models\TemplateVersion;
 use App\Models\User;
+use App\Repositories\TemplateUnchangedException;
 use App\Repositories\TemplateVersionRepository;
 use App\Support\Audit\AuditEnvelope;
 
@@ -29,12 +30,18 @@ class ActivateTemplateVersion
             return $version;
         }
 
-        return $this->audit->record(
-            actorId: $actor->id,
-            action: 'template_version.activated',
-            reason: $reason,
-            reasonRequired: true,
-            mutation: fn () => $this->versions->activate($version, $actor->id),
-        );
+        // As in AuthorTemplateVersion: the check above is the cheap path; the repository re-checks under its lock, so
+        // a double-click that raced past it records nothing.
+        try {
+            return $this->audit->record(
+                actorId: $actor->id,
+                action: 'template_version.activated',
+                reason: $reason,
+                reasonRequired: true,
+                mutation: fn () => $this->versions->activate($version, $actor->id),
+            );
+        } catch (TemplateUnchangedException $unchanged) {
+            return $unchanged->version;
+        }
     }
 }
