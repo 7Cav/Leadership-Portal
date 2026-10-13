@@ -1,5 +1,6 @@
 import {
     PhClipboardText,
+    PhFileCode,
     PhFileText,
     PhFlask,
     PhGameController,
@@ -35,6 +36,7 @@ export const NAV_GROUPS = [
         items: [
             { label: 'Org structure', href: '/settings/org-structure', icon: PhTreeStructure },
             { label: 'Staff grants', href: '/settings/staff-grants', icon: PhKey },
+            { label: 'Templates', href: '/settings/templates', icon: PhFileCode },
             { label: 'Audit log', href: '/settings/audit-log', icon: PhListMagnifyingGlass },
             // Only while DEMO_TOOLS is on (#115): `feature` names the shared `features` flag it needs.
             { label: 'Demo data', href: '/settings/demo-data', icon: PhFlask, feature: 'demoTools' },
