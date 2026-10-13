@@ -370,7 +370,7 @@ it('freezes the training subject and the unaccounted reasons, and digests them',
 
     $report = $result->report->fresh();
     expect($report->training_subject)->toBe('Room clearing')
-        ->and($report->unaccounted)->toBe([['trooper_id' => $this->troopers[1]->id, 'reason' => 'sick']])
+        ->and($report->unaccounted)->toBeIgnoringKeyOrder([['trooper_id' => $this->troopers[1]->id, 'reason' => 'sick']])
         ->and($report->content_digest)->toBe(digestOfStored($report))
         ->and($report->content_digest)->not->toBe(SendWeeklyReportHandler::contentDigest(
             $report->unit_id, $report->week_start, $report->kpis, $report->notes, null,

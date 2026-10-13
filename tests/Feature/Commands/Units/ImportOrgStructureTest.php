@@ -336,13 +336,17 @@ it('reuses the oldest of two nodes sharing a type + callsign, every run', functi
     $repo = app(UnitRepository::class);
     $regiment = $repo->create(UnitType::Regiment, '7th Cav', '7CAV', null);
     $battalion = $repo->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
-    // Pad ids so the younger duplicate's path sorts *before* the older one's ("1/10/…" < "1/9/…"
-    // as strings) — `tree()` orders by path, so only the explicit id sort picks the older.
-    foreach (range(1, 6) as $i) {
-        $repo->create(UnitType::Battalion, "Filler {$i}", "F{$i}", $regiment->id);
-    }
-    $older = $repo->create(UnitType::Company, 'Alpha (older)', 'A/1-7', $battalion->id);
-    $younger = $repo->create(UnitType::Company, 'Alpha (younger)', 'A/1-7', $battalion->id);
+    // Give the duplicates ids either side of a digit boundary above every existing id (90 and
+    // 100, or 900 and 1000, ...), so the younger's path sorts *before* the older's as a string
+    // ("…/100/" < "…/90/"): only the explicit id sort then picks the older. The ids are picked,
+    // not padded to, because MySQL keeps its auto-increment counter across rolled-back tests.
+    $digits = strlen((string) Unit::max('id'));
+    $duplicate = fn (int $id, string $name) => Unit::factory()->create([
+        'id' => $id, 'parent_id' => $battalion->id, 'type' => UnitType::Company,
+        'name' => $name, 'callsign' => 'A/1-7', 'path' => "{$battalion->path}{$id}/",
+    ]);
+    $older = $duplicate(9 * 10 ** $digits, 'Alpha (older)');
+    $younger = $duplicate(10 ** ($digits + 1), 'Alpha (younger)');
     expect(strcmp($younger->path, $older->path))->toBeLessThan(0);
 
     iosImport();
