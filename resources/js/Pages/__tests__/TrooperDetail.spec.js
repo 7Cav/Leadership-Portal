@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import TrooperDetail from '../TrooperDetail.vue';
 
-// Story 6.3: the milpac draws what the server shaped; it decides nothing about who may look.
+// Stories 6.3 and 6.4: the milpac draws what the server shaped; it decides nothing about who may look.
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
@@ -30,9 +30,20 @@ const trooper = (overrides = {}) => ({
     ...overrides,
 });
 
+const courses = (overrides = {}) => ({
+    groups: [
+        { status: 'qualified', label: 'Qualified', courses: [{ code: 'BCT', name: 'Basic Combat Training', awardedAt: '2025-02-02' }, { code: 'NCOA-1', name: 'NCOA Phase I', awardedAt: null }] },
+        { status: 'in_progress', label: 'In progress', courses: [{ code: 'NCOA-2', name: 'NCOA Phase II', awardedAt: null }] },
+        { status: 'required', label: 'Required', courses: [{ code: 'ODS', name: 'Officer Development School', awardedAt: null }] },
+    ],
+    qualified: 2,
+    total: 4,
+    ...overrides,
+});
+
 const sync = (overrides = {}) => ({ source: 'Cav roster', lastSuccessAt: '2026-10-08T09:30:00+00:00', stale: false, lastAttempt: null, ...overrides });
 
-const page = (props = {}) => mount(TrooperDetail, { props: { trooper: trooper(), sync: sync(), ...props } });
+const page = (props = {}) => mount(TrooperDetail, { props: { trooper: trooper(), courses: courses(), sync: sync(), ...props } });
 
 describe('TrooperDetail', () => {
     describe('ID block (6.3)', () => {
@@ -164,6 +175,55 @@ describe('TrooperDetail', () => {
 
             expect(wrapper.get('[data-testid="source-line"]').text()).toContain('never synced');
             expect(wrapper.get('[data-testid="stale-notice"]').text()).toContain('No Cav roster sync has succeeded yet');
+        });
+    });
+
+    describe('courses and qualifications (6.4)', () => {
+        it('lists the groups in order, with each course by name and code', () => {
+            const wrapper = page();
+            const groups = wrapper.findAll('section[data-testid^="group-"]');
+
+            expect(groups.map((group) => group.attributes('data-testid'))).toEqual(['group-qualified', 'group-in_progress', 'group-required']);
+            expect(groups[0].text()).toContain('Basic Combat Training');
+            expect(groups[0].text()).toContain('BCT');
+            expect(groups[2].text()).toContain('Officer Development School');
+        });
+
+        it('shows the award date of a qualified course in forum convention, and none when absent', () => {
+            const wrapper = page();
+            const rows = wrapper.get('[data-testid="group-qualified"]').findAll('[data-testid="course"]');
+
+            expect(rows[0].get('[data-testid="awarded"]').text()).toBe('02Feb25');
+            expect(rows[1].find('[data-testid="awarded"]').exists()).toBe(false);
+        });
+
+        it('shows how many courses are qualified out of those on record', () => {
+            expect(page().get('[data-testid="courses-count"]').text()).toBe('2 / 4');
+        });
+
+        it('names the count for screen readers and does not paint progress as a warning', () => {
+            const badge = page().get('[data-testid="courses-count"]');
+
+            expect(badge.attributes('aria-label')).toBe('2 of 4 qualified');
+            expect(badge.classes().join(' ')).not.toContain('warning');
+        });
+
+        it('draws the panel with the shared milpac panel header', () => {
+            expect(page().get('[data-testid="courses-panel"] h2').text()).toBe('Courses & qualifications');
+        });
+
+        it('suppresses a group that has nothing in it', () => {
+            const wrapper = page({ courses: courses({ groups: [courses().groups[0]], total: 2 }) });
+
+            expect(wrapper.find('[data-testid="group-in_progress"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="group-required"]').exists()).toBe(false);
+        });
+
+        it('shows an explicit empty state, not a blank panel, when there are no courses', () => {
+            const wrapper = page({ courses: courses({ groups: [], qualified: 0, total: 0 }) });
+
+            expect(wrapper.get('[data-testid="courses-empty"]').text()).toBe('No courses on record.');
+            expect(wrapper.find('[data-testid="courses-count"]').exists()).toBe(false);
         });
     });
 
