@@ -9,7 +9,6 @@ use App\Kpi\TrooperAttendance;
 use App\Kpi\UnitKpis;
 use App\Models\SyncRun;
 use App\Models\Trooper;
-use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
@@ -215,7 +214,7 @@ class RosterController extends Controller
             'rankFull' => $t->rank,
             'billet' => $t->billet,
             'status' => $t->status->value,
-            'departed' => $t->status === TrooperStatus::Inactive,
+            'departed' => ! $t->status->isServing(),
             'sectionId' => $t->primary_section_id,
             'role' => $t->roleUnder($sectionLeader),
             'joined' => $t->tis?->toDateString(),

@@ -4,7 +4,6 @@ namespace App\Commands\GameIdentities;
 
 use App\Authorization\ScopeResolver;
 use App\Models\Trooper;
-use App\Models\TrooperStatus;
 use App\Models\User;
 use App\Repositories\TrooperRepository;
 
@@ -23,7 +22,7 @@ trait AuthorizesGameIdentityChange
         $trooper = $troopers->find($trooperId);
 
         if ($trooper === null
-            || $trooper->status === TrooperStatus::Inactive
+            || ! $trooper->status->isServing()
             || $trooper->primary_section_id === null
             || ! $scope->resolve($actor)->contains($trooper->primary_section_id)) {
             throw GameIdentityForbiddenException::forTrooper($trooperId);

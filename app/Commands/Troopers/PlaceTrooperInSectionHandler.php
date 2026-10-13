@@ -3,7 +3,6 @@
 namespace App\Commands\Troopers;
 
 use App\Models\Trooper;
-use App\Models\TrooperStatus;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\TrooperRepository;
@@ -55,7 +54,7 @@ class PlaceTrooperInSectionHandler
             throw InvalidTrooperPlacementException::alreadyPlaced($trooper->id);
         }
 
-        if ($trooper->status === TrooperStatus::Inactive) {
+        if (! $trooper->status->isServing()) {
             throw InvalidTrooperPlacementException::departed($trooper->id);
         }
 
