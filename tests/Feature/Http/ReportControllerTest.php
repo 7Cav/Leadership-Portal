@@ -21,6 +21,7 @@ use App\Repositories\AttendanceRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\WeeklyReportRepository;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Exceptions;
 use Inertia\Testing\AssertableInertia;
 
 // 5.3–5.5: the report compose screen — a live draft for a section, the frozen snapshot once sent,
@@ -359,4 +360,30 @@ it('does not claim who was in a sent roll-up whose snapshot is damaged', functio
     $this->actingAs($admin)->get(reportUrl($this->platoon, $this->week))
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page->where('children', null)->whereNot('kpiError', null));
+});
+
+it('renders a roll-up whose child sent an unreadable snapshot as unavailable, naming the child, and refuses the send but not the draft', function () {
+    Exceptions::fake();
+    $platoonLeader = User::factory()->serving()->create();
+    PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
+    app(WeeklyReportRepository::class)->send($this->sibling->id, $this->weekStart, ['corrupt' => true], null, $platoonLeader->id, 'd', null);
+
+    $this->actingAs($platoonLeader)->get(reportUrl($this->platoon, $this->week))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('kpis', null)
+            ->where('kpiError', "3/1/A/1-7's sent report cannot be read, so this roll-up cannot be computed. An admin needs to look at it.")
+            ->where('children.0.id', $this->section->id)
+            ->where('children.0.status', 'not_started')
+            ->where('children.1.id', $this->sibling->id)
+            ->where('children.1.status', 'sent')
+            ->where('children.1.kpis', null));
+    Exceptions::assertReportedCount(1);
+
+    $this->actingAs($platoonLeader)->post(reportUrl($this->platoon, $this->week, '/send'), ['reason' => 'Weekly report'])
+        ->assertSessionHasErrors('report');
+    expect(WeeklyReport::query()->where('unit_id', $this->platoon->id)->exists())->toBeFalse();
+
+    $this->actingAs($platoonLeader)->put(reportUrl($this->platoon, $this->week), ['notes' => 'Kept.'])->assertSessionHasNoErrors();
+    expect(WeeklyReport::query()->where('unit_id', $this->platoon->id)->sole()->notes)->toBe('Kept.');
 });

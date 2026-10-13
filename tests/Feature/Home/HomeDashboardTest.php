@@ -2,6 +2,7 @@
 
 use App\Kpi\KpiService;
 use App\Kpi\Ratio;
+use App\Kpi\ReportKpisUnavailableException;
 use App\Kpi\ReportSnapshot;
 use App\Kpi\UnitKpis;
 use App\Models\AttendanceSource;
@@ -20,6 +21,7 @@ use App\Repositories\SyncRunRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Exceptions;
 
 // Stories 5.9–5.11: the leader's Home dashboard. Scope from the ScopeResolver (AD-8), numbers from
 // the shared KPI pieces (AD-21) and sent snapshots. "Now" is Thu 08Oct26, so the running cycle is
@@ -153,6 +155,23 @@ describe('KPI tiles (Story 5.9)', function () {
         app(WeeklyReportRepository::class)->send($this->s11->id, $this->week->subWeeks(2), ['strength' => 'nope'], null, User::factory()->serving()->create()->id, 'd', null);
 
         dashboard($this->sectionLeader)(fn ($page) => $page->where('kpis.history.2.kpis', null));
+    });
+
+    it('renders when a sent snapshot this week is unreadable, showing that unit as unavailable', function () {
+        Exceptions::fake();
+        app(WeeklyReportRepository::class)->send($this->p1->id, $this->week, ['corrupt' => true], null, User::factory()->serving()->create()->id, 'd', null);
+        app(WeeklyReportRepository::class)->send($this->s11->id, $this->week, ['corrupt' => true], null, User::factory()->serving()->create()->id, 'd', null);
+
+        // The company commander's table lists the platoon, whose own sent snapshot is unreadable.
+        dashboard($this->commander)(fn ($page) => $page
+            ->where('units.0.id', $this->p1->id)
+            ->where('units.0.status', 'sent')
+            ->where('units.0.kpis', null)
+            ->where('kpis.current.strength', 7));
+        // The section leader's own section: sent, unreadable, the page still renders.
+        dashboard($this->sectionLeader)(fn ($page) => $page->where('units.0.id', $this->s11->id)->where('units.0.kpis', null));
+
+        Exceptions::assertReported(ReportKpisUnavailableException::class);
     });
 
     it('reports the roster source and when it last synced, surfacing a failed or overdue sync', function () {

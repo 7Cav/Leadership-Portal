@@ -9,6 +9,7 @@ use App\Commands\WeeklyReports\SaveReportDraftHandler;
 use App\Commands\WeeklyReports\SendWeeklyReport;
 use App\Commands\WeeklyReports\SendWeeklyReportHandler;
 use App\Kpi\ChildReport;
+use App\Kpi\ChildReportStatus;
 use App\Kpi\KpiDelta;
 use App\Kpi\KpiService;
 use App\Kpi\ReportKpisUnavailableException;
@@ -215,8 +216,8 @@ class ReportController extends Controller
     }
 
     /**
-     * Leader-facing wording for why the numbers cannot be computed. A damaged prior snapshot is
-     * corrupt data an operator must hear about, so it is reported as well.
+     * Leader-facing wording for why the numbers cannot be computed. A damaged snapshot, last
+     * week's or a child's, is corrupt data an operator must hear about, so it is reported as well.
      */
     private function unavailableMessage(ReportKpisUnavailableException $e): string
     {
@@ -225,6 +226,13 @@ class ReportController extends Controller
         }
 
         report($e);
+
+        if ($e->unreadable !== null) {
+            $child = $this->units->find($e->unreadable->unit_id);
+            $name = $child === null ? 'A unit under this one' : ($child->callsign ?? $child->name);
+
+            return "{$name}'s sent report cannot be read, so this roll-up cannot be computed. An admin needs to look at it.";
+        }
 
         return "Last week's sent report cannot be read, so this week's numbers cannot be compared with it. An admin needs to look at it.";
     }
@@ -446,14 +454,44 @@ class ReportController extends Controller
 
         $reports = $this->reports->forUnits($children->modelKeys(), $weekStart);
 
-        return collect($this->rollups->forUnit($unit, $weekStart)->children)
-            ->map(fn (ChildReport $child) => [
-                ...$this->unitProps($child->unit),
-                'status' => $child->status->value,
-                'kpis' => $child->kpis === null ? null : $this->kpiProps($child->kpis),
-                'sentAt' => $reports->get($child->unit->id)?->sent_at?->toIso8601String(),
-                'trainingSubject' => $reports->get($child->unit->id)?->training_subject,
-            ])->values()->all();
+        try {
+            $rows = collect($this->rollups->forUnit($unit, $weekStart)->children)
+                ->map(fn (ChildReport $child) => ['unit' => $child->unit, 'status' => $child->status->value, 'kpis' => $child->kpis]);
+        } catch (ReportKpisUnavailableException) {
+            // A child's sent snapshot cannot be read (the page's `kpiError` already says so and
+            // reported it): every child is still listed, the unreadable one with no numbers.
+            $rows = $children->map(fn (Unit $child) => [
+                'unit' => $child,
+                'status' => match ($reports->get($child->id)?->status) {
+                    WeeklyReportStatus::Sent => ChildReportStatus::Sent->value,
+                    WeeklyReportStatus::Draft => ChildReportStatus::Draft->value,
+                    null => ChildReportStatus::NotStarted->value,
+                },
+                'kpis' => $this->readableKpis($reports->get($child->id)),
+            ]);
+        }
+
+        return $rows->map(fn (array $row) => [
+            ...$this->unitProps($row['unit']),
+            'status' => $row['status'],
+            'kpis' => $row['kpis'] === null ? null : $this->kpiProps($row['kpis']),
+            'sentAt' => $reports->get($row['unit']->id)?->sent_at?->toIso8601String(),
+            'trainingSubject' => $reports->get($row['unit']->id)?->training_subject,
+        ])->values()->all();
+    }
+
+    /** A sent report's frozen KPIs, or null when it is not sent or cannot be read (reported by the caller). */
+    private function readableKpis(?WeeklyReport $report): ?UnitKpis
+    {
+        if ($report?->status !== WeeklyReportStatus::Sent) {
+            return null;
+        }
+
+        try {
+            return UnitKpis::fromArray($report->kpis);
+        } catch (InvalidArgumentException|TypeError|ErrorException) {
+            return null;
+        }
     }
 
     /**
