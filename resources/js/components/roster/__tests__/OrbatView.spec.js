@@ -91,6 +91,22 @@ describe('Order of battle (roster-s2)', () => {
         wrapper.unmount();
     });
 
+    it('focuses the search on /, but not while a dialog is open', () => {
+        const wrapper = factory();
+        const search = wrapper.find('[data-testid="roster-search"]').element;
+
+        const dialog = document.createElement('div');
+        dialog.setAttribute('role', 'dialog');
+        document.body.appendChild(dialog);
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true }));
+        expect(document.activeElement).not.toBe(search);
+
+        dialog.remove();
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true }));
+        expect(document.activeElement).toBe(search);
+        wrapper.unmount();
+    });
+
     it('shows a skeleton while another unit loads', () => {
         const wrapper = factory({ loading: true });
 
