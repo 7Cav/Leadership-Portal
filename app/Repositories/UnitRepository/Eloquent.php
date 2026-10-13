@@ -2,6 +2,7 @@
 
 namespace App\Repositories\UnitRepository;
 
+use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Repositories\UnitRepository;
@@ -176,7 +177,15 @@ class Eloquent implements UnitRepository
 
     public function delete(Unit $unit): void
     {
-        $unit->delete();
+        DB::transaction(function () use ($unit) {
+            // The foreign key nulls `primary_section_id` on its own, but `placement_source` would be
+            // left saying who placed a trooper who is now unplaced. Cleared together, first.
+            Trooper::query()
+                ->where('primary_section_id', $unit->id)
+                ->update(['primary_section_id' => null, 'placement_source' => null]);
+
+            $unit->delete();
+        });
     }
 
     public function withCallsign(string $callsign): Collection

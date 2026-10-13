@@ -120,6 +120,9 @@ interface UnitRepository
      * The FK on `parent_id` (`restrictOnDelete`) would refuse this at the DB level anyway if
      * children exist, but the CommandHandler layer checks {@see hasChildren()} first so an
      * Admin gets a clear reason instead of a raw constraint-violation exception.
+     *
+     * Troopers placed in the unit are left unplaced: `primary_section_id` and `placement_source`
+     * are cleared together, so no trooper keeps a placement source without a section.
      */
     public function delete(Unit $unit): void;
 
