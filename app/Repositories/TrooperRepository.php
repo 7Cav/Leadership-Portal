@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\Trooper;
+use App\Models\TrooperStatus;
 use App\Models\Unit;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
@@ -131,6 +132,24 @@ interface TrooperRepository
      * @return Collection<int, string>
      */
     public function ranksByCavId(array $cavIds): Collection;
+
+    /**
+     * The cached roster standing of the trooper at `$cavId`, or null when the cache holds no such
+     * trooper. Read from the local cache only, never a live Cav call — the sign-in gate leans on
+     * this precisely when Cav is unreachable, and a user's grants are re-checked against it on
+     * every scope read.
+     */
+    public function statusOf(int $cavId): ?TrooperStatus;
+
+    /**
+     * Which of `$cavIds` belong to a cached trooper whose standing is serving
+     * (`TrooperStatus::serving()`) — one query for a whole listing, such as the staff grants page
+     * marking each holder who has left. Ids with no cached trooper, or a departed one, are absent.
+     *
+     * @param  list<int>  $cavIds
+     * @return Collection<int, int>
+     */
+    public function servingCavIds(array $cavIds): Collection;
 
     /**
      * The troopers whose username is exactly each of `$usernames`, compared whole and ignoring case, keyed

@@ -15,6 +15,7 @@ use App\Http\Controllers\Settings\RosterSyncController;
 use App\Http\Controllers\Settings\StaffGrantsController;
 use App\Http\Controllers\TrooperDetailController;
 use App\Http\Controllers\ViewAsController;
+use App\Http\Middleware\EnsureServingMember;
 use App\Repositories\UserRepository;
 use Illuminate\Support\Facades\Route;
 
@@ -39,7 +40,7 @@ Route::get('/oauth/callback/7cav', [ForumAuthController::class, 'callback'])->na
 
 // Authenticated landing. Unauthenticated hits redirect to `login` via the auth
 // middleware. Named `home` — the target Laravel's guest middleware bounces to.
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/home', [HomeController::class, 'show'])->name('home');
 
     // The weekly report for one unit-week (Stories 5.3–5.5): compose a section's draft, or a

@@ -27,7 +27,7 @@ beforeEach(function () {
     app()->forgetInstance(CaptureSources::class);
 
     $this->section = Unit::factory()->create(['type' => UnitType::Section, 'path' => '950/']);
-    $this->leader = User::factory()->create(['username' => 'Vasquez.R']);
+    $this->leader = User::factory()->serving()->create(['username' => 'Vasquez.R']);
     PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
     $this->ortega = Trooper::factory()->create(['username' => 'Ortega.M']);
     $this->ortega->forceFill(['primary_section_id' => $this->section->id])->save();
@@ -172,7 +172,7 @@ it('caps the window at the end of a past week', function () {
 
 it('refuses a retry outside the leader scope without queuing anything', function () {
     Queue::fake();
-    $outsider = User::factory()->create();
+    $outsider = User::factory()->serving()->create();
 
     tryAgain($this, as: $outsider)->assertForbidden();
 

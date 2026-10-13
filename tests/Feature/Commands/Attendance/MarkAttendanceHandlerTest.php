@@ -26,7 +26,7 @@ use Illuminate\Support\Collection;
 
 beforeEach(function () {
     $this->section = Unit::factory()->create(['type' => UnitType::Section]);
-    $this->leader = User::factory()->create();
+    $this->leader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
 
     // Wednesday 2026-10-07 18:00 UTC falls in the Cav week opening Saturday 2026-10-03.
@@ -302,7 +302,7 @@ it('lets a leader whose grant sits higher up the tree mark the section', functio
     $platoon = Unit::factory()->create(['type' => UnitType::Platoon, 'path' => '9900/']);
     $section = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $platoon->id, 'path' => '9900/9901/']);
     $trooper = Trooper::factory()->create(['primary_section_id' => $section->id]);
-    $platoonLeader = User::factory()->create();
+    $platoonLeader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $platoon->id]);
 
     mark($platoonLeader, $section->id, $this->moment, [new AttendanceMark($trooper->id, AttendanceStatus::Present)]);

@@ -42,7 +42,7 @@ beforeEach(function () {
     $this->reports->send($this->s11->id, $this->week, $this->snapshot->toArray(), 'Full house.', $this->sender->id, 'digest', null);
     $this->reports->saveDraft($this->s21->id, $this->week, [], 'Still waiting on two.');
 
-    $this->commander = User::factory()->create();
+    $this->commander = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $this->commander->id, 'unit_id' => $this->company->id]);
 });
 
@@ -116,7 +116,7 @@ it('404s a unit that does not exist', function () {
 });
 
 it('sends a section leader straight to their own section\'s report for the current week', function () {
-    $leader = User::factory()->create();
+    $leader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $leader->id, 'unit_id' => $this->s21->id]);
 
     $this->actingAs($leader)->get('/reports')->assertRedirect("/reports/{$this->s21->id}/2026-10-03");
@@ -173,7 +173,7 @@ it('accepts the oldest week the selector offers', function () {
 });
 
 it('shows one tree per separate unit in scope, without redirecting a leader of two sections', function () {
-    $leader = User::factory()->create();
+    $leader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $leader->id, 'unit_id' => $this->s21->id]);
     PortalRoleGrant::factory()->create(['user_id' => $leader->id, 'unit_id' => $this->s11->id]);
 

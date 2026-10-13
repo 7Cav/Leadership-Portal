@@ -66,7 +66,7 @@ class ReportScreenSeeder extends Seeder
         $this->sectionLeader = User::query()->where('cav_id', $troopers[0]->cav_id)->sole();
         PortalRoleGrant::factory()->create(['user_id' => $this->sectionLeader->id, 'unit_id' => $this->section->id]);
 
-        $this->platoonLeader = User::factory()->create(['username' => 'Brennan.J']);
+        $this->platoonLeader = User::factory()->serving()->create(['username' => 'Brennan.J']);
         PortalRoleGrant::factory()->create(['user_id' => $this->platoonLeader->id, 'unit_id' => $this->platoon->id]);
 
         foreach ([$first, $third] as $other) {
