@@ -13,6 +13,7 @@ use App\Http\Controllers\Settings\LoaSyncController;
 use App\Http\Controllers\Settings\OrgStructureController;
 use App\Http\Controllers\Settings\RosterSyncController;
 use App\Http\Controllers\Settings\StaffGrantsController;
+use App\Http\Controllers\Settings\TrooperPlacementController;
 use App\Http\Controllers\TrooperDetailController;
 use App\Http\Controllers\ViewAsController;
 use App\Http\Middleware\EnsureServingMember;
@@ -114,6 +115,12 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::post('/settings/org-structure/import', [OrgStructureController::class, 'import'])->name('settings.org-structure.import');
     Route::patch('/settings/org-structure/{unit}', [OrgStructureController::class, 'update'])->name('settings.org-structure.update');
     Route::delete('/settings/org-structure/{unit}', [OrgStructureController::class, 'destroy'])->name('settings.org-structure.destroy');
+
+    // Place a trooper the sync could not map into a section (Story 2.7). The Admin gate is checked in the
+    // controller first and again in the Command's handler; the required reason and the audited write live
+    // in the handler (AD-6, AD-16), not in the route. The id is capped at 18 digits rather than
+    // `whereNumber()`: a longer one overflows the controller's `int` parameter and would answer 500, not 404.
+    Route::post('/settings/org-structure/troopers/{trooper}/placement', [TrooperPlacementController::class, 'store'])->where('trooper', '[0-9]{1,18}')->name('settings.trooper-placement.store');
 
     // Staff grants (Story 1.12). Viewing is open to any authenticated user, matching
     // org-structure; the Admin gate on every write is enforced in the controller (AD-6).
