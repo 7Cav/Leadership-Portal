@@ -23,10 +23,8 @@ class DatabaseSeeder extends Seeder
     {
         $this->refuseOutsideDevEnvironments();
 
-        // User::factory(10)->create();
-
         User::factory()->create([
-            'name' => 'Test User',
+            'username' => 'Test.User',
             'email' => 'test@example.com',
         ]);
     }
