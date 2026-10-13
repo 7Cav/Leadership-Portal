@@ -141,7 +141,7 @@ class Eloquent implements AttendanceRepository
         $excusedSql = $excused === [] ? '' : ' or troopers.id in ('.implode(', ', array_fill(0, count($excused), '?')).')';
 
         return Trooper::query()
-            ->where('troopers.status', '!=', TrooperStatus::Inactive->value)
+            ->whereIn('troopers.status', TrooperStatus::servingValues())
             ->whereIn('troopers.primary_section_id', $sectionIds)
             ->leftJoin('section_practices', function ($join) use ($weekStart) {
                 $join->on('section_practices.section_id', '=', 'troopers.primary_section_id')

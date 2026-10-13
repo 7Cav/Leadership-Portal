@@ -85,8 +85,8 @@ class Trooper extends Model
 
     /**
      * Troopers currently assigned within `$unit`'s subtree: primary section anywhere under it (the
-     * materialized-path prefix, AD-18) and not `Inactive` (gone from every Cav roster, AD-4). An LOA
-     * or ELOA trooper is still assigned. The cache holds only the current placement, so this is
+     * materialized-path prefix, AD-18) and serving by `TrooperStatus::serving()`, so never `Inactive`
+     * (gone from every Cav roster, AD-4). An LOA or ELOA trooper is still assigned. The cache holds only the current placement, so this is
      * "assigned now", not a history.
      *
      * @param  Builder<self>  $query
@@ -94,7 +94,7 @@ class Trooper extends Model
     #[Scope]
     protected function assignedWithin(Builder $query, Unit $unit): void
     {
-        $query->where('troopers.status', '!=', TrooperStatus::Inactive->value)
+        $query->whereIn('troopers.status', TrooperStatus::servingValues())
             ->whereIn('troopers.primary_section_id', Unit::query()->select('id')->where('path', 'like', "{$unit->path}%"));
     }
 }

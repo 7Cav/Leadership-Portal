@@ -77,7 +77,7 @@ class Eloquent implements UnitCommandMappingRepository
             ->select('troopers.*', 'unit_command_mappings.unit_id as commands_unit_id')
             ->join('unit_command_mappings', 'unit_command_mappings.cav_position_id', '=', 'troopers.cav_position_id')
             ->whereIn('unit_command_mappings.unit_id', $unitIds)
-            ->where('troopers.status', '!=', TrooperStatus::Inactive->value)
+            ->whereIn('troopers.status', TrooperStatus::servingValues())
             ->orderBy('troopers.id')
             ->get()
             ->keyBy(fn (Trooper $trooper) => (int) $trooper->getAttribute('commands_unit_id'));

@@ -42,7 +42,7 @@ class Eloquent implements DemoHistoryRepository
     public function placedCountsBySection(): Collection
     {
         return Trooper::query()
-            ->where('status', '!=', TrooperStatus::Inactive->value)
+            ->whereIn('status', TrooperStatus::servingValues())
             ->whereNotNull('primary_section_id')
             ->groupBy('primary_section_id')
             ->toBase()
