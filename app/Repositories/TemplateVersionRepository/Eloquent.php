@@ -108,6 +108,11 @@ class Eloquent implements TemplateVersionRepository
         return TemplateVersion::query()->find($id);
     }
 
+    public function hasTemplatesFor(Unit $company): bool
+    {
+        return TemplateVersion::query()->where('company_id', $company->getKey())->exists();
+    }
+
     /**
      * Take the company's `units` row for update: one lock that every template write for the company goes through,
      * so authors and activations for it run one at a time. That also replaces a locking read of an empty version

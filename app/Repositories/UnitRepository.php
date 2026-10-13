@@ -5,6 +5,7 @@ namespace App\Repositories;
 use App\Models\Unit;
 use App\Models\UnitType;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Collection as ScalarCollection;
 
 /**
@@ -84,6 +85,16 @@ interface UnitRepository
      * @return Collection<int, Unit>
      */
     public function subtree(Unit $unit): Collection;
+
+    /**
+     * Take a row lock on the unit for the rest of the caller's transaction. A writer that inserts a
+     * row keyed to the unit (a grant, a practice, a report) needs a shared lock on it for its
+     * foreign-key check, so a delete that holds this lock cannot interleave with one: the checks
+     * made after it see every dependent committed before it.
+     *
+     * @throws ModelNotFoundException when the unit is already gone.
+     */
+    public function lockForDelete(Unit $unit): void;
 
     public function hasChildren(Unit $unit): bool;
 
