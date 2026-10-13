@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Kpi\WeeklyReportKpis;
+use App\Models\ArtifactType;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\PortalRoleGrant;
@@ -13,6 +14,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\SectionPracticeRepository;
+use App\Repositories\TemplateVersionRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Time\WeekOf;
@@ -44,6 +46,15 @@ class ReportRollupSeeder extends Seeder
         '4/2/A/1-7' => ['Fournier.L', 6, 'sent', 'New trooper joined from basic.'],
     ];
 
+    private const ROLLCALL_TEMPLATE = <<<'BBCODE'
+[b]{{unit}} Rollcall, week of {{week_start}}[/b]
+
+[table]
+[tr][td][b]Rank[/b][/td][td][b]Name[/b][/td][td][b]Signed[/b][/td][td][b]SP[/b][/td][/tr]
+{{#troopers}}[tr][td]{{rank_short}}[/td][td]{{name}}[/td][td]{{rc}}[/td][td]{{sp}}[/td][/tr]
+{{/troopers}}[/table]
+BBCODE;
+
     public function run(): void
     {
         $this->refuseOutsideDevEnvironments();
@@ -65,6 +76,11 @@ class ReportRollupSeeder extends Seeder
         // Serving, or their grants would lapse (a grant counts only while its holder serves).
         $commander = User::factory()->serving()->create(['username' => 'Hale.S']);
         PortalRoleGrant::factory()->create(['user_id' => $commander->id, 'unit_id' => $company->id]);
+
+        // The company's rollcall template (Story 3.11): every section under it renders its forum post from it, and an
+        // Admin (`Pike.S`) edits it from Settings. A company without one shows no post.
+        $admin = User::factory()->serving()->admin()->create(['username' => 'Pike.S']);
+        app(TemplateVersionRepository::class)->author($company->id, ArtifactType::RollcallBbcode, self::ROLLCALL_TEMPLATE, $admin->id);
 
         $sections = [];
         foreach (self::SECTIONS as $callsign => [$leader, $strength, $state, $notes]) {

@@ -10,7 +10,7 @@
 #           composer deptrac:unassigned (list app/ classes that match no layer)
 #
 # The graph (arrows = "may depend on"):
-#   Controller     → CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi, Milpac  # writes via Commands; reads direct
+#   Controller     → CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi, Milpac, Rollcall  # writes via Commands; reads direct
 #   CommandHandler → Repository, Model, Integration, Support\Audit, Authorization, Support\Time, Kpi  # write-side business logic
 #   Kpi            → Repository, Model, Support\Time       # the one shared KPI service (AD-21)
 #   Milpac         → Repository, Model                     # what the Epic 6 pages show: the milpac and the readiness matrix; shared by the milpac panels, so it is a layer of its own
@@ -143,6 +143,8 @@ deptrac:
       - Kpi
       # The trooper detail page reads its props from the Milpac layer (Epic 6).
       - Milpac
+      # The rollcall page resolves its section's active template through the Rollcall layer (Story 3.11).
+      - Rollcall
     CommandHandler:
       - Repository
       - Model
@@ -155,6 +157,9 @@ deptrac:
       # A practice mark is refused for a trooper whose leave covers the week: that status is derived from the
       # one LOA coverage definition, never hand-entered (Story 3.4).
       - Loa
+      # A template is stored only if it is well formed, checked by the Rollcall layer's grammar, so a typo is
+      # refused at save and never reaches a section's rollcall (Story 3.11).
+      - Rollcall
     # The one shared KPI service (AD-21, Story 5.1): read-only domain logic over facts read
     # through Repositories — the six definitions live here so no Controller, Command or
     # Repository re-derives one. Never touches the DB itself (AD-2).
@@ -179,8 +184,7 @@ deptrac:
       - Model
       - Support\Time
     # What the rollcall screen shows and renders from (Epic 3): the template a unit resolves to, and later the
-    # roster pre-filled for a week and the BBCode. Read-only. An edge from Controller is added by the story that
-    # first renders it.
+    # roster pre-filled for a week and the BBCode. Read-only. Controller reaches it from the rollcall page (Story 3.11).
     Rollcall:
       - Repository
       - Model

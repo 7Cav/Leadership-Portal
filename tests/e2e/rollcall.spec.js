@@ -47,12 +47,13 @@ test('a section leader copies the forum post and marks the rollcall posted', asy
     await page.goto('/__e2e/login/Vasquez.R?to=/rollcall');
     await page.getByRole('button', { name: /^Step 3, Review and post/ }).click();
 
-    await expect(page.getByTestId('forum-preview')).toBeVisible();
+    await expect(page.getByTestId('forum-bbcode')).toContainText('Rollcall, week of');
     await page.getByTestId('copy-bbcode').click();
     await expect(page.getByTestId('copy-bbcode')).toHaveText('Copy again');
     const copied = await page.evaluate(() => navigator.clipboard.readText());
     expect(copied).toMatch(/^\[b\]2\/1\/A\/1-7 Rollcall, week of \d{2}[A-Z][a-z]{2}\d{2}\[\/b\]/);
     expect(copied).toContain('[table]');
+    expect(copied).toContain('[tr]');
 
     await page.getByTestId('mark-posted').click();
     await expect(page.getByTestId('posted-state')).toContainText('Rollcall posted');
