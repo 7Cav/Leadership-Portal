@@ -67,7 +67,7 @@ describe('who may open it', function () {
     });
 
     it('opens a trooper in the union of every subtree the viewer holds', function () {
-        $staff = User::factory()->create();
+        $staff = User::factory()->serving()->create();
         PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $this->section1->id]);
         PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $this->section2->id]);
 
