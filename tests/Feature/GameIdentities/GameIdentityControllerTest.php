@@ -1,7 +1,10 @@
 <?php
 
+use App\Commands\GameIdentities\SetTrooperGameIdentity;
+use App\Commands\GameIdentities\SetTrooperGameIdentityHandler;
 use App\Models\Attendance;
 use App\Models\AuditLogEntry;
+use App\Models\GamePlatform;
 use App\Models\PortalRoleGrant;
 use App\Models\Trooper;
 use App\Models\TrooperGameIdentity;
@@ -9,6 +12,7 @@ use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Inertia\Testing\AssertableInertia as Assert;
 
 // 7.2 / AD-8, AD-16, AD-19, AD-22: the leader's link-identity screen and its audited writes.
@@ -141,6 +145,11 @@ it('denies every write for a trooper outside the scope, whatever the UI offered'
     $this->actingAs($this->leader)->put('/game-identities/999999/hll', ['player_name' => 'X', 'platform_id' => '1'])->assertForbidden();
 
     expect(TrooperGameIdentity::query()->sole()->platform_id)->toBe('9')->and(AuditLogEntry::query()->count())->toBe(0);
+});
+
+it('refuses an out-of-scope write at the Command as an AuthorizationException, like every other forbidden write', function () {
+    expect(fn () => app(SetTrooperGameIdentityHandler::class)->handle($this->leader, new SetTrooperGameIdentity($this->theirs->id, GamePlatform::Hll, 'X', '1')))
+        ->toThrow(AuthorizationException::class, "Trooper {$this->theirs->id} is outside your scope.");
 });
 
 it('denies an unplaced or departed trooper', function () {
