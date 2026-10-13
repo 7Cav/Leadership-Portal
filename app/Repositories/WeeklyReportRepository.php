@@ -94,13 +94,16 @@ interface WeeklyReportRepository
      * Freeze the unit-week: write the final `kpis`/`notes`/training subject/unaccounted snapshot, flip `status` to sent and
      * record `sent_at` (now), `sent_by`, `content_digest` and the template version resolved at
      * send — creating the row if no draft was saved, promoting the draft in place otherwise.
-     * `$templateVersionId` is null until template versioning (3.5) lands.
+     * `$templateVersionId` is a `template_versions` row or null; the send path passes null until
+     * the weekly report has a template of its own (see `SendWeeklyReportHandler`).
      *
      * @param  array<string, mixed>  $kpis
      * @param  list<array{trooper_id: int, reason: string}>  $unaccounted
      *
      * @throws InvalidArgumentException when `$unitId` is not a `units` row, `$sentBy` is not a
-     *                                  `users` row, or `$weekStart` is not a Saturday 00:00 UTC.
+     *                                  `users` row, `$templateVersionId` is not a
+     *                                  `template_versions` row, or `$weekStart` is not a Saturday
+     *                                  00:00 UTC.
      * @throws WeeklyReportAlreadySentException when the unit-week is already sent.
      */
     public function send(
