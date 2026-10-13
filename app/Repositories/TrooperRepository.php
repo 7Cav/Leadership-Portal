@@ -110,6 +110,17 @@ interface TrooperRepository
     public function idsPlacedIn(int $sectionId, array $trooperIds): Collection;
 
     /**
+     * {@see idsPlacedIn()} narrowed to troopers still serving (`TrooperStatus::serving()`). A departed
+     * trooper keeps their last `primary_section_id`, so capture (7.6) reads this one: a player still
+     * on the server after leaving the Cav must not be auto-marked. Manual marks and report rows keep
+     * {@see idsPlacedIn()}, which does not look at standing.
+     *
+     * @param  list<int>  $trooperIds
+     * @return Collection<int, int>
+     */
+    public function servingIdsPlacedIn(int $sectionId, array $trooperIds): Collection;
+
+    /**
      * The ids of the troopers currently assigned within `$unit`'s subtree — primary section
      * anywhere under it, not inactive (LOA still counts) — ascending. Strength's population (5.1).
      *
