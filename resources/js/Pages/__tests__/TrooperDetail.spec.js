@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import TrooperDetail from '../TrooperDetail.vue';
+import { Badge } from '@/components/ui/badge';
 
 // Stories 6.3 to 6.7: the milpac draws what the server shaped; it decides nothing about who may look.
 
@@ -108,11 +109,16 @@ describe('TrooperDetail', () => {
             expect(page({ trooper: trooper({ status: 'inactive', departed: true }) }).get('[data-testid="status"]').text()).toBe('Departed');
         });
 
-        it('shows a departed trooper as an outlined badge, not an error', () => {
-            const badge = page({ trooper: trooper({ status: 'inactive', departed: true }) }).get('[data-testid="status"]');
+        it('shows a departed trooper as an outlined badge with a sign-out icon, not an error', () => {
+            const statusBadge = (wrapper) => wrapper.findAllComponents(Badge).find((badge) => badge.attributes('data-testid') === 'status');
+            const departed = statusBadge(page({ trooper: trooper({ status: 'inactive', departed: true }) }));
+            const serving = statusBadge(page());
 
-            expect(badge.classes().join(' ')).not.toContain('danger');
-            expect(badge.find('svg').exists()).toBe(true);
+            expect(departed.props('variant')).toBe('outline');
+            expect(departed.find('svg').exists()).toBe(true);
+            // The icon marks departure, so a serving trooper's badge has none.
+            expect(serving.props('variant')).toBe('success');
+            expect(serving.find('svg').exists()).toBe(false);
         });
 
         it('shows reserve and ELOA troopers by their roster status', () => {
