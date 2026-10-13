@@ -39,4 +39,27 @@ describe('postJson', () => {
 
         expect(await postJson('/rollcall/12', {})).toEqual({ ok: false, status: 422, data: { message: 'Nope.' } });
     });
+
+    it.each([401, 419])('sends the user to sign in again after a %i, once the caller has the result', async (status) => {
+        vi.useFakeTimers();
+        vi.stubGlobal('fetch', respond(status, { message: 'Unauthenticated.' }));
+        const onSignedOut = vi.fn();
+
+        expect(await postJson('/rollcall/12', {}, { onSignedOut })).toEqual({ ok: false, status, data: { message: 'Unauthenticated.' } });
+        expect(onSignedOut).not.toHaveBeenCalled();
+        vi.runAllTimers();
+        expect(onSignedOut).toHaveBeenCalledOnce();
+        vi.useRealTimers();
+    });
+
+    it.each([403, 422, 500])('stays on the page after a %i', async (status) => {
+        vi.useFakeTimers();
+        vi.stubGlobal('fetch', respond(status, { message: 'Nope.' }));
+        const onSignedOut = vi.fn();
+
+        await postJson('/rollcall/12', {}, { onSignedOut });
+        vi.runAllTimers();
+        expect(onSignedOut).not.toHaveBeenCalled();
+        vi.useRealTimers();
+    });
 });

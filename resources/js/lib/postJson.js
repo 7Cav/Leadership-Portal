@@ -1,14 +1,23 @@
 // A same-origin JSON POST for background saves that must not navigate (the rollcall autosave,
 // 3.8). Laravel's CSRF check reads the `XSRF-TOKEN` cookie back from the `X-XSRF-TOKEN` header.
-// Redirects are not followed: this app answers JSON errors only on api/*, so an expired session
-// comes back as a redirect to the login page, which must read as a failure, not a 200.
+// The `Accept` header makes the server answer errors as JSON, an ended session included (401, or
+// 419 for an expired CSRF token). Redirects are still not followed, so any other redirect reads
+// as a failure rather than a 200 from the page it points at.
 function xsrfToken() {
     const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
 
     return match ? decodeURIComponent(match[1]) : '';
 }
 
-export async function postJson(url, body) {
+// A 401 or 419 means the session behind this page is gone or its token is stale. Reloading lets
+// the server decide: a signed-out user lands on sign-in with this page as the place to return to,
+// and a still-live session just picks up a fresh token. A screen holding unsaved changes asks
+// before the page goes (`beforeunload`), so nothing is dropped without the user's say.
+function reloadPage() {
+    window.location.reload();
+}
+
+export async function postJson(url, body, { onSignedOut = reloadPage } = {}) {
     const response = await fetch(url, {
         method: 'POST',
         credentials: 'same-origin',
@@ -29,6 +38,11 @@ export async function postJson(url, body) {
 
             return null;
         });
+    }
+
+    if (response.status === 401 || response.status === 419) {
+        // After the caller has had the result, so it can keep what it was sending first.
+        setTimeout(onSignedOut, 0);
     }
 
     return { ok: response.ok && data !== null, status: response.status, data };

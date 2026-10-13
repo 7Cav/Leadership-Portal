@@ -45,7 +45,12 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // A background `fetch` (the rollcall autosave, the capture retry, the trooper Sheet) asks for
+        // JSON, and must get its 401/403/419 as JSON rather than an HTML error page or a 302 to the
+        // login screen it cannot follow. An Inertia visit also sends `X-Requested-With`, but wants
+        // Inertia's own handling (a redirect it follows, an error page it renders), so it is left out.
         $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*'),
+            fn (Request $request) => $request->is('api/*')
+                || ($request->expectsJson() && ! $request->header('X-Inertia')),
         );
     })->create();

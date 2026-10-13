@@ -320,6 +320,8 @@ describe('rollcall autosave', () => {
         expect(messageFor({ status: 403, data: null })).toBe('This rollcall is read-only for you right now.');
         expect(messageFor({ status: 419, data: null })).toBe('Your session expired. Reload the page to keep going.');
         expect(messageFor({ status: 0, data: null })).toBe('You were signed out. Sign in again, then retry.');
+        expect(messageFor({ status: 401, data: { message: 'Unauthenticated.' } })).toBe('You were signed out. Sign in again, then retry.');
+        expect(messageFor({ status: 419, data: { message: 'CSRF token mismatch.' } })).toBe('Your session expired. Reload the page to keep going.');
         expect(messageFor({ status: 422, data: { message: 'Nope.' } })).toBe('Nope.');
     });
 });

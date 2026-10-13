@@ -18,9 +18,11 @@ export const DEBOUNCE_MS = 700;
 //
 // What to tell the leader about a failed request (`{ status, data }` as `postJson` resolves).
 export function messageFor(result) {
-    if (result.data?.message) return result.data.message;
-    if (result.status === 0) return 'You were signed out. Sign in again, then retry.';
+    // Session ends first: the framework's own wording for these ("Unauthenticated.", "CSRF token
+    // mismatch.") means nothing to a leader, and `postJson` is already reloading the page.
+    if (result.status === 0 || result.status === 401) return 'You were signed out. Sign in again, then retry.';
     if (result.status === 419) return 'Your session expired. Reload the page to keep going.';
+    if (result.data?.message) return result.data.message;
     if (result.status === 403) return 'This rollcall is read-only for you right now.';
     if (result.status >= 500) return 'The portal hit an error. Your changes are kept; retry in a moment.';
 
