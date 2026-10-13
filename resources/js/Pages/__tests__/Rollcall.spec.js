@@ -841,6 +841,27 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-testid="confirm-practice"]').attributes('disabled')).toBeUndefined();
         });
 
+        it('disables confirming on a locked week, with the reason', () => {
+            const wrapper = factory({ capture: CAPTURE, locked: true });
+            const confirm = wrapper.find('[data-testid="confirm-practice"]');
+
+            expect(confirm.attributes('disabled')).toBeDefined();
+            expect(confirm.attributes('title')).toBe('The report for this week has been sent, so its rollcall is locked.');
+        });
+
+        it('reloads the week when a confirmation is refused because the report was sent since the page loaded', async () => {
+            reload.mockClear();
+            post.mockResolvedValue({ ok: false, status: 409, data: { message: 'The report for this week has been sent, so its rollcall is locked.', locked: true } });
+            const wrapper = factory({ capture: CAPTURE });
+
+            await wrapper.find('[data-testid="confirm-practice"]').trigger('click');
+            await flushPromises();
+
+            expect(toastError).toHaveBeenCalledWith('Could not confirm the practice', { description: 'The report for this week has been sent, so its rollcall is locked.' });
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Not confirmed');
+            expect(reload).toHaveBeenCalledTimes(1);
+        });
+
         it('starts confirmed from the server, and drops the badge once a saved hand edit clears it', async () => {
             vi.useFakeTimers();
             post.mockResolvedValue({ ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00', atRisk: [], confirmation: null } });
@@ -960,6 +981,24 @@ describe('Rollcall page', () => {
             expect(toastError).toHaveBeenCalledWith('Could not try again', { description: 'The game server was just tried. Try again in 41 seconds.' });
             expect(reload).not.toHaveBeenCalled();
             expect(wrapper.find('[data-testid="telemetry-banner"]').exists()).toBe(true);
+        });
+
+        it('reloads instead of polling when the retry is refused because the week is locked', async () => {
+            post.mockResolvedValue({ ok: false, status: 409, data: { message: 'The report for this week has been sent, so its rollcall is locked.', locked: true } });
+            wrapper = factory({ telemetry: FAILED });
+
+            await click();
+            await flushPromises();
+
+            expect(toastError).toHaveBeenCalledWith('Could not try again', { description: 'The report for this week has been sent, so its rollcall is locked.' });
+            expect(reload).toHaveBeenCalledTimes(1);
+            expect(reload).toHaveBeenCalledWith();
+        });
+
+        it('disables the retry on a locked week', () => {
+            wrapper = factory({ telemetry: FAILED, locked: true });
+
+            expect(wrapper.find('[data-testid="telemetry-retry"]').attributes('disabled')).toBeDefined();
         });
 
         it('disables the retry in a read-only view-as preview', () => {

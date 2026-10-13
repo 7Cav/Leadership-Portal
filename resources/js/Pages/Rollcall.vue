@@ -398,6 +398,8 @@ async function confirmPractice() {
             toast.success('Practice confirmed', { description: `${props.section.designation}, week of ${weekLabel.value}` });
         } else {
             toast.error('Could not confirm the practice', { description: messageFor(result) });
+            // The report was sent since the page loaded: show the week as the server now has it.
+            if (result.status === 409 && result.data?.locked) router.reload();
         }
     } finally {
         confirming.value = false;
@@ -422,6 +424,7 @@ async function retryCapture() {
         const result = await postJson(`/rollcall/${props.section.id}/capture`, { week: props.week.date }).catch(unreachable);
         if (!result.ok) {
             toast.error('Could not try again', { description: messageFor(result) });
+            if (result.status === 409 && result.data?.locked) router.reload();
 
             return;
         }
