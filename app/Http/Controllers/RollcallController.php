@@ -259,10 +259,15 @@ class RollcallController extends Controller
     /**
      * The leader confirms the practice's marks as reviewed (Story 7.8): one audited Command,
      * scope-gated (AD-8). Marking it again re-stamps. Answers the confirmation for the badge.
+     * `confirmedAt` is the confirmation the screen showed (null for none): one the leader never
+     * saw is answered back as it is rather than stamped over. Without it, every request re-stamps.
      */
     public function confirm(Request $request, int $unit, ConfirmSectionPracticeHandler $handler): JsonResponse
     {
-        $validator = Validator::make($request->all(), ['week' => ['required', 'date_format:Y-m-d']]);
+        $validator = Validator::make($request->all(), [
+            'week' => ['required', 'date_format:Y-m-d'],
+            'confirmedAt' => ['nullable', 'date'],
+        ]);
 
         if ($validator->fails()) {
             return response()->json(['message' => $validator->errors()->first()], 422);
@@ -276,7 +281,12 @@ class RollcallController extends Controller
         }
 
         try {
-            $practice = $handler->handle($request->user(), new ConfirmSectionPractice($unit, $weekStart));
+            $seen = match (true) {
+                ! $request->exists('confirmedAt') => false,
+                $request->input('confirmedAt') === null => null,
+                default => CarbonImmutable::parse($request->input('confirmedAt'))->toDateTimeImmutable(),
+            };
+            $practice = $handler->handle($request->user(), new ConfirmSectionPractice($unit, $weekStart, $seen));
         } catch (ConfirmSectionPracticeForbiddenException $e) {
             return response()->json(['message' => $e->getMessage()], 403);
         } catch (InvalidAttendanceMarkException $e) {
