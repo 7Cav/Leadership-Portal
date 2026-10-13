@@ -3,6 +3,7 @@
 use App\Models\Attendance;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
+use App\Models\Loa;
 use App\Models\PortalRoleGrant;
 use App\Models\RollcallSignature;
 use App\Models\SectionPractice;
@@ -131,6 +132,47 @@ it('shows the roster source and its last successful sync (AD-20)', function () {
         ->assertInertia(fn ($page) => $page
             ->where('roster.source', 'milpac')
             ->where('roster.syncedAt', '2026-10-08T09:14:00+00:00'));
+});
+
+it('sends each trooper\'s leave for the week from the one coverage definition, with the LOA source (3.4, AD-20)', function () {
+    $covered = rollcallTrooper($this->section, ['username' => 'Alpha.A']);
+    $review = rollcallTrooper($this->section, ['username' => 'Bravo.B']);
+    $clear = rollcallTrooper($this->section, ['username' => 'Charlie.C']);
+    $later = rollcallTrooper($this->section, ['username' => 'Delta.D']);
+    Loa::factory()->create(['trooper_id' => $covered->id, 'starts_at' => '2026-10-01', 'ends_at' => '2026-10-10']);
+    Loa::factory()->needsReview()->create(['trooper_id' => $review->id, 'posted_at' => '2026-10-05 10:00:00', 'review_reason' => 'No end date found.']);
+    // A leave that starts after this week covers nothing in it.
+    Loa::factory()->create(['trooper_id' => $later->id, 'starts_at' => '2026-10-12', 'ends_at' => '2026-10-20']);
+    SyncRun::factory()->create(['source' => SyncRun::SOURCE_LOA, 'status' => SyncRunStatus::Success, 'finished_at' => '2026-10-08 15:00:00']);
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
+        ->assertInertia(fn ($page) => $page
+            ->where('troopers.0.id', $covered->id)
+            ->where('troopers.0.loa.state', 'covered')
+            ->where('troopers.0.loa.startsAt', '2026-10-01')
+            ->where('troopers.0.loa.endsAt', '2026-10-10')
+            ->where('troopers.0.loa.endsInDays', 2)
+            // Nothing is stored for them: the status stays the stored one, and the screen derives `loa` from `loa`.
+            ->where('troopers.0.status', null)
+            ->where('troopers.1.loa.state', 'needs_review')
+            ->where('troopers.1.loa.startsAt', null)
+            ->where('troopers.1.loa.reviewReason', 'No end date found.')
+            ->where('troopers.2.id', $clear->id)
+            ->where('troopers.2.loa', null)
+            ->where('troopers.3.loa', null)
+            ->where('loaSync.source', 'Forum thread')
+            ->where('loaSync.lastSyncedAt', '2026-10-08T15:00:00+00:00')
+            ->where('loaSync.stale', false));
+});
+
+it('sends coverage for the week asked about, not the current one', function () {
+    $trooper = rollcallTrooper($this->section);
+    Loa::factory()->create(['trooper_id' => $trooper->id, 'starts_at' => '2026-09-21', 'ends_at' => '2026-09-25']);
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}?week=2026-09-22")
+        ->assertInertia(fn ($page) => $page->where('troopers.0.loa.state', 'covered')->where('troopers.0.loa.ended', true));
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
+        ->assertInertia(fn ($page) => $page->where('troopers.0.loa', null));
 });
 
 it('opens the week containing the requested date, and knows its neighbours', function () {

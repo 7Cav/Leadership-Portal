@@ -4,6 +4,7 @@ use App\Models\Attendance;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
+use App\Models\Loa;
 use App\Models\PortalRoleGrant;
 use App\Models\RollcallSignature;
 use App\Models\SectionPractice;
@@ -143,7 +144,24 @@ it('names the troopers a batch was refused for, so the screen can save everyone 
     saveRollcall($this->leader, $this->section->id, [
         ['trooper_id' => $this->trooper->id, 'status' => 'present'],
         ['trooper_id' => $moved->id, 'status' => 'present'],
-    ])->assertStatus(422)->assertJsonPath('rejected', [$moved->id]);
+    ])->assertStatus(422)->assertJsonPath('rejected', [$moved->id])->assertJsonPath('reason', 'not_placed');
+});
+
+it('refuses a practice mark for a trooper on leave, saying why, and still saves their signature (3.4)', function () {
+    Loa::factory()->create(['trooper_id' => $this->trooper->id, 'starts_at' => '2026-10-01', 'ends_at' => '2026-10-20']);
+
+    // A leave synced after the page loaded: the screen sent a mark the Command refuses. Nothing is written.
+    saveRollcall($this->leader, $this->section->id, [['trooper_id' => $this->trooper->id, 'status' => 'present', 'rollcall' => 'cannot_attend']])
+        ->assertStatus(422)
+        ->assertJsonPath('rejected', [$this->trooper->id])
+        ->assertJsonPath('reason', 'loa_covered');
+    expect(Attendance::query()->count())->toBe(0);
+
+    // The screen resends the signature on its own, which is a separate fact and is accepted.
+    saveRollcall($this->leader, $this->section->id, [['trooper_id' => $this->trooper->id, 'rollcall' => 'cannot_attend']])->assertOk();
+
+    $row = Attendance::query()->sole();
+    expect($row->rollcall)->toBe(RollcallSignature::CannotAttend)->and($row->status)->toBeNull();
 });
 
 it('rejects a malformed batch', function (array $payload) {

@@ -10,7 +10,7 @@
 #           composer deptrac:unassigned (list app/ classes that match no layer)
 #
 # The graph (arrows = "may depend on"):
-#   Controller     → CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi, Milpac, Rollcall  # writes via Commands; reads direct
+#   Controller     → CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi, Milpac, Rollcall, Loa  # writes via Commands; reads direct
 #   CommandHandler → Repository, Model, Integration, Support\Audit, Authorization, Support\Time, Kpi  # write-side business logic
 #   Kpi            → Repository, Model, Support\Time       # the one shared KPI service (AD-21)
 #   Milpac         → Repository, Model                     # what the Epic 6 pages show: the milpac and the readiness matrix; shared by the milpac panels, so it is a layer of its own
@@ -145,6 +145,8 @@ deptrac:
       - Milpac
       # The rollcall page resolves its section's active template through the Rollcall layer (Story 3.11).
       - Rollcall
+      # The rollcall and home pages read who is on leave from the one LOA coverage definition, and its source (3.4, AD-20/21).
+      - Loa
     CommandHandler:
       - Repository
       - Model
@@ -178,7 +180,7 @@ deptrac:
     # LOA reads over the `sync_runs` cache (Epic 4): the source/last-sync every LOA value renders with
     # (4.3, AD-20) and whether a trooper is covered in a Cav week (4.4, AD-21). Read-only; the LOA sync
     # stays the one writer. Support\Time because coverage is judged in whole Cav weeks (`WeekOf`, AD-11).
-    # An edge from Controller is added by the story that first renders it.
+    # Controller reaches it from the rollcall page, which renders coverage, and home, which counts it (3.4).
     Loa:
       - Repository
       - Model

@@ -30,6 +30,8 @@ use App\Commands\GameIdentities\UnmatchedPlayerResolutionException;
 use App\Jobs\CaptureSectionPracticeJob;
 use App\Kpi\KpiService;
 use App\Kpi\TrooperAttendance;
+use App\Loa\LoaCoverage;
+use App\Loa\LoaProvenance;
 use App\Models\Attendance;
 use App\Models\AttendanceStatus;
 use App\Models\GamePlatform;
@@ -85,6 +87,8 @@ class RollcallController extends Controller
         private readonly TrooperGameIdentityRepository $identities,
         private readonly PracticeTelemetry $telemetry,
         private readonly TemplateResolver $templates,
+        private readonly LoaCoverage $loaCoverage,
+        private readonly LoaProvenance $loaProvenance,
     ) {}
 
     /**
@@ -181,9 +185,11 @@ class RollcallController extends Controller
         } catch (MarkAttendanceForbiddenException $e) {
             return response()->json(['message' => $e->getMessage()], 403);
         } catch (InvalidAttendanceMarkException $e) {
-            // `rejected` names the troopers the batch was refused for (moved out of the section
-            // since the page loaded), so the screen can keep saving everyone else's marks.
-            return response()->json(['message' => $e->getMessage(), 'rejected' => $e->trooperIds], 422);
+            // `rejected` names the troopers the batch was refused for, and `reason` why: moved out of
+            // the section since the page loaded (`not_placed`), or on leave that covers the week
+            // (`loa_covered`, a leave synced after the page loaded). The screen keeps saving everyone
+            // else's marks, and a covered trooper's signature.
+            return response()->json(['message' => $e->getMessage(), 'rejected' => $e->trooperIds, 'reason' => $e->reason], 422);
         } catch (Throwable $e) {
             report($e);
 
@@ -536,8 +542,9 @@ class RollcallController extends Controller
 
     /**
      * The section's troopers with this week's marks, last week's practice marks (the pre-fill
-     * suggestion, 3.7), the at-risk flags from the shared KPI service (AD-21), and when the roster
-     * they come from was last synced (AD-20).
+     * suggestion, 3.7), each trooper's leave for the week from `LoaCoverage` (3.4, 4.4), the at-risk
+     * flags from the shared KPI service (AD-21), and when the roster and the leave data they come
+     * from were last synced (AD-20).
      *
      * @return array<string, mixed>
      */
@@ -553,6 +560,9 @@ class RollcallController extends Controller
 
         $roster = $this->troopers->placedIn($section->id);
         $lastSync = $this->syncRuns->latestSuccessful('roster');
+        // The one LOA definition (4.4, AD-21), the same the Command refuses a practice mark by: a covered trooper's
+        // status is derived as `loa`, so the screen locks the row and never sends one for them (3.4).
+        $covers = $this->loaCoverage->forTroopers($roster->modelKeys(), $weekStart);
 
         return [
             'troopers' => $roster->map(fn (Trooper $trooper) => [
@@ -568,8 +578,13 @@ class RollcallController extends Controller
                 'status' => $marks->get($trooper->id)?->status?->value,
                 'source' => $marks->get($trooper->id)?->source?->value,
                 'priorStatus' => $prior->get($trooper->id)?->status->value,
+                // `LoaCover::toArray()` for a trooper with leave this week (covered or needs review), the badge's
+                // shape; null with none. A leave that needs review derives no status, so that row stays markable.
+                'loa' => $covers[$trooper->id]->suppressesAtRisk() ? $covers[$trooper->id]->toArray() : null,
             ])->sortBy(fn (array $row) => mb_strtolower($row['name'] ?? "~{$row['cavId']}"))->values()->all(),
             'priorWeekMarked' => $prior->isNotEmpty(),
+            // Where the leave data comes from and how fresh it is (4.3, AD-20), shown with every LOA badge.
+            'loaSync' => $this->loaProvenance->current()->toArray(),
             'atRisk' => $this->atRisk($section, $weekStart),
             'roster' => [
                 'source' => 'milpac',
