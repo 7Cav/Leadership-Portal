@@ -1,7 +1,8 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { Link } from '@inertiajs/vue3';
-import { PhArrowsClockwise, PhArrowSquareOut, PhClipboardText, PhLockSimple, PhSignOut, PhWarning } from '@phosphor-icons/vue';
+import { PhArrowsClockwise, PhArrowSquareOut, PhClipboardText, PhIdentificationCard, PhLockSimple, PhSignOut, PhWarning } from '@phosphor-icons/vue';
+import InlineNotice from '@/components/InlineNotice.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -68,7 +69,7 @@ const recent = computed(() => cells.value.slice(-8).reverse());
 
 const FAILURES = {
     forbidden: ['This trooper is outside your scope.', 'You can only open troopers in units you command or were granted.'],
-    missing: ['This trooper is no longer on the roster.', 'They may have left their section since the page loaded. Reload to see the current roster.'],
+    missing: ['This trooper is not available.', 'They may have left their section since the page loaded, or sit outside the units you command or were granted. Reload to see the current roster.'],
     signedOut: ['Your session has expired.', 'Reload the page to sign in again.'],
     error: ['The trooper could not be loaded.', 'Try again in a moment.'],
 };
@@ -93,30 +94,21 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                 </SheetHeader>
 
                 <div class="flex-1 space-y-5 overflow-y-auto p-5 text-[13px]">
-                    <div v-if="trooper.departed" class="flex gap-2.5 rounded-md border border-border bg-muted/50 p-3">
-                        <PhSignOut class="mt-0.5 size-4 text-muted-foreground" aria-hidden="true" />
-                        <div>
-                            <p class="font-medium">Departed</p>
-                            <p class="mt-0.5 text-muted-foreground">No longer on any Cav roster. Kept here with their history; not counted in strength.</p>
-                        </div>
-                    </div>
-                    <div v-if="trooper.kpis?.onLoa" class="flex gap-2.5 rounded-md border border-border bg-muted/50 p-3">
-                        <PhLockSimple class="mt-0.5 size-4 text-muted-foreground" aria-hidden="true" />
-                        <div>
-                            <p class="font-medium">On LOA this week</p>
-                            <p class="mt-0.5 text-muted-foreground">LOA weeks are left out of RC and SP, and never count as a miss.</p>
-                        </div>
-                    </div>
-                    <div v-if="trooper.kpis?.atRisk" class="flex gap-2.5 rounded-md border border-warning/40 bg-warning/7 p-3" data-testid="sheet-at-risk">
-                        <PhWarning class="mt-0.5 size-4 text-warning" aria-hidden="true" />
-                        <div>
-                            <p class="font-medium">At-risk</p>
-                            <p class="mt-0.5 text-muted-foreground">
-                                Missed {{ trooper.kpis.missed }} section practices in the last 4 Cav weeks. A trooper is flagged at 2 missed
-                                practices; LOA weeks never count.
-                            </p>
-                        </div>
-                    </div>
+                    <InlineNotice v-if="trooper.departed" :icon="PhSignOut">
+                        <p class="font-medium">Departed</p>
+                        <p class="mt-0.5 text-muted-foreground">No longer on any Cav roster. Kept here with their history; not counted in strength.</p>
+                    </InlineNotice>
+                    <InlineNotice v-if="trooper.kpis?.onLoa" :icon="PhLockSimple">
+                        <p class="font-medium">On LOA this week</p>
+                        <p class="mt-0.5 text-muted-foreground">LOA weeks are left out of RC and SP, and never count as a miss.</p>
+                    </InlineNotice>
+                    <InlineNotice v-if="trooper.kpis?.atRisk" tone="warning" :icon="PhWarning" data-testid="sheet-at-risk">
+                        <p class="font-medium">At-risk</p>
+                        <p class="mt-0.5 text-muted-foreground">
+                            Missed {{ trooper.kpis.missed }} section practices in the last 4 Cav weeks. A trooper is flagged at 2 missed
+                            practices; LOA weeks never count.
+                        </p>
+                    </InlineNotice>
 
                     <dl v-if="trooper.kpis" class="grid grid-cols-3 gap-px overflow-hidden rounded-md border border-border bg-border">
                         <div class="bg-card p-3">
@@ -200,8 +192,11 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                     <Button v-if="links.rollcall" as-child>
                         <Link :href="`${links.rollcall}${trooper.section.id}`" data-testid="sheet-open-rollcall"><PhClipboardText />Open rollcall</Link>
                     </Button>
-                    <Button as-child :variant="links.rollcall ? 'outline' : 'default'">
-                        <a :href="trooper.milpacUrl" target="_blank" rel="noopener noreferrer" data-testid="sheet-milpac"><PhArrowSquareOut />View milpac</a>
+                    <Button v-if="links.trooper" as-child :variant="links.rollcall ? 'outline' : 'default'">
+                        <Link :href="`${links.trooper}${trooperId}`" data-testid="sheet-open-trooper"><PhIdentificationCard />Open milpac</Link>
+                    </Button>
+                    <Button as-child variant="outline">
+                        <a :href="trooper.milpacUrl" target="_blank" rel="noopener noreferrer" data-testid="sheet-milpac"><PhArrowSquareOut />View on 7cav.us</a>
                     </Button>
                 </SheetFooter>
             </template>
