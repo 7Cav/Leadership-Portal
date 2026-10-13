@@ -58,6 +58,7 @@
         <env name="NIGHTWATCH_SERVER_IDS" value=""/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="TRUSTED_PROXIES" value=""/>
+        <env name="INERTIA_ENSURE_PAGES_EXIST" value="true"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>

@@ -17,11 +17,17 @@ return [
     | overriding `pages` replaces the key outright, so omitting `extensions` or
     | `ensure_pages_exist` here would silently drop them.
     |
+    | `ensure_pages_exist` makes `Inertia::render()` throw when the named page has no
+    | file under `paths`. It is on in the test suite (phpunit.xml), so a renamed or
+    | misspelled page fails every test that renders it, not only the ones that call
+    | `assertInertia()->component()`. Off by default: a server running built assets
+    | need not ship `resources/js`.
+    |
     */
 
     'pages' => [
 
-        'ensure_pages_exist' => false,
+        'ensure_pages_exist' => (bool) env('INERTIA_ENSURE_PAGES_EXIST', false),
 
         'paths' => [
 
