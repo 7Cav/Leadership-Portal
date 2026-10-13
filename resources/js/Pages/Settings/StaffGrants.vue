@@ -39,7 +39,7 @@ function submitGrant() {
 const revokeError = ref(null);
 
 function requestRevoke(grant) {
-    const reason = window.prompt(`Reason for revoking ${grant.username}'s grant at ${grant.unit_name}?`);
+    const reason = window.prompt(`Reason for revoking ${grant.username}'s grant at ${grant.unit_label}?`);
     if (reason === null) {
         return; // Cancelled: a deliberate no-op, not an error.
     }
@@ -105,7 +105,7 @@ function requestRevoke(grant) {
                                     </Badge>
                                 </span>
                             </TableCell>
-                            <TableCell><Badge variant="outline">{{ grant.unit_name }}</Badge></TableCell>
+                            <TableCell><Badge variant="outline">{{ grant.unit_label }}</Badge></TableCell>
                             <TableCell class="px-4 text-right">
                                 <Button
                                     v-if="isAdmin"
@@ -143,7 +143,7 @@ function requestRevoke(grant) {
                         <Label for="grant-unit">Unit</Label>
                         <NativeSelect id="grant-unit" v-model="form.unit_id" data-testid="grant-unit_id" :aria-invalid="!!form.errors.unit_id">
                             <option :value="null">Choose a unit</option>
-                            <option v-for="unit in units" :key="unit.id" :value="unit.id">{{ unit.name }}</option>
+                            <option v-for="unit in units" :key="unit.id" :value="unit.id">{{ unit.label }}</option>
                         </NativeSelect>
                         <p v-if="form.errors.unit_id" class="text-xs text-destructive" data-testid="error-unit_id">{{ form.errors.unit_id }}</p>
                     </div>
