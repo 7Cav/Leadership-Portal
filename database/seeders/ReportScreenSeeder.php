@@ -19,18 +19,21 @@ use App\Repositories\SectionPracticeRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
+use Database\Seeders\Concerns\RefusesOutsideDevEnvironments;
 use Illuminate\Database\Seeder;
 
 /**
  * A platoon with three sections and six weeks of attendance and sent reports, for the report
  * compose screen's browser test (Stories 5.3–5.5), seeded by the e2e setup beside
  * `ReportRollupSeeder` under its own company and usernames (`Mercer.J` leads 2/1/B/1-7,
- * `Brennan.J` the platoon). Never seeded in production. Section 2 is left as this week's draft with open items; section 1 has sent this
- * week; section 3 has a draft. Exposes the users it made through `$sectionLeader` and
- * `$platoonLeader`.
+ * `Brennan.J` the platoon). Section 2 is left as this week's draft with open items; section 1 has
+ * sent this week; section 3 has a draft. Exposes the users it made through `$sectionLeader` and
+ * `$platoonLeader`. Refuses to run outside local, testing and e2e: its users hold staff grants.
  */
 class ReportScreenSeeder extends Seeder
 {
+    use RefusesOutsideDevEnvironments;
+
     public User $sectionLeader;
 
     public User $platoonLeader;
@@ -41,6 +44,8 @@ class ReportScreenSeeder extends Seeder
 
     public function run(): void
     {
+        $this->refuseOutsideDevEnvironments();
+
         $now = CarbonImmutable::now('UTC');
         $week = WeekOf::reporting($now);
         $tag = $now->format('His').random_int(100, 999);
