@@ -2,6 +2,7 @@
 
 namespace App\Authorization;
 
+use App\Models\Trooper;
 use App\Models\User;
 use App\Repositories\PortalRoleGrantRepository;
 use App\Repositories\TrooperRepository;
@@ -106,6 +107,20 @@ class ScopeResolver
     public function actsAsAdmin(User $user): bool
     {
         return $user->is_admin && ($this->activeViewAs($user)?->admin ?? true);
+    }
+
+    /**
+     * Whether the user may see this trooper (AD-8, one gate for every screen that shows one): a trooper placed
+     * in a section is visible when that section is in the user's effective scope, which a view-as preview
+     * narrows (AD-9). A trooper the sync has not placed anywhere belongs to no scope, so only an Admin (as the
+     * view-as preview allows) sees them, the same people who can place them. Callers answer 404 when this is
+     * false, so a viewer cannot tell an out-of-scope trooper from one that does not exist.
+     */
+    public function canSee(User $user, Trooper $trooper): bool
+    {
+        return $trooper->primary_section_id === null
+            ? $this->actsAsAdmin($user)
+            : $this->resolve($user)->contains($trooper->primary_section_id);
     }
 
     /**

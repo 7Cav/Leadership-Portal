@@ -345,4 +345,103 @@ describe('Settings/OrgStructure', () => {
             expect(wrapper.find('[data-testid="import-result"]').text()).not.toContain('different section');
         });
     });
+
+    // Story 2.6: troopers the roster sync could not place into a section.
+    describe('not yet placed panel', () => {
+        const trooper = (overrides = {}) => ({
+            id: 1,
+            cav_id: 3099,
+            username: 'Hollis.D',
+            rank: 'Private',
+            mos: '11B',
+            billet: 'Rifleman, 2nd Platoon',
+            position_id: 412,
+            ...overrides,
+        });
+
+        it('lists each unplaced trooper with name, rank, MOS and the billet Cav reported', () => {
+            const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true, unplacedTroopers: [trooper()] } });
+
+            const row = wrapper.find('[data-testid="unplaced-trooper"]');
+            expect(row.text()).toContain('Private');
+            expect(row.text()).toContain('Hollis.D');
+            expect(row.text()).toContain('11B');
+            expect(row.text()).toContain('Rifleman, 2nd Platoon');
+            expect(wrapper.find('[data-testid="unplaced-count"]').text()).toContain('1 synced trooper not yet placed');
+        });
+
+        it('counts several troopers in the plural', () => {
+            const wrapper = mount(OrgStructure, {
+                props: { units: UNITS, isAdmin: true, unplacedTroopers: [trooper(), trooper({ id: 2, cav_id: 3100, username: 'Vega.R' })] },
+            });
+
+            expect(wrapper.findAll('[data-testid="unplaced-trooper"]')).toHaveLength(2);
+            expect(wrapper.find('[data-testid="unplaced-count"]').text()).toContain('2 synced troopers not yet placed');
+        });
+
+        it('falls back to the Cav id and the billet id when a name or title was not reported', () => {
+            const wrapper = mount(OrgStructure, {
+                props: { units: UNITS, isAdmin: true, unplacedTroopers: [trooper({ username: null, billet: null })] },
+            });
+
+            expect(wrapper.find('[data-testid="unplaced-trooper"]').text()).toContain('Unknown (Cav #3099)');
+            expect(wrapper.find('[data-testid="unplaced-trooper"]').text()).toContain('Billet not mapped (position 412)');
+        });
+
+        it('says so when no billet was reported at all', () => {
+            const wrapper = mount(OrgStructure, {
+                props: { units: UNITS, isAdmin: true, unplacedTroopers: [trooper({ billet: null, position_id: null })] },
+            });
+
+            expect(wrapper.find('[data-testid="unplaced-trooper"]').text()).toContain('No billet reported');
+        });
+
+        it('shows an explicit empty state, not a blank panel, when everyone is placed', () => {
+            const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true, unplacedTroopers: [] } });
+
+            expect(wrapper.find('[data-testid="unplaced-panel"]').text()).toContain('All synced troopers are placed');
+            expect(wrapper.findAll('[data-testid="unplaced-trooper"]')).toHaveLength(0);
+        });
+
+        it('explains why everyone is listed while the chain of command is still empty', () => {
+            const wrapper = mount(OrgStructure, { props: { units: [], isAdmin: true, unplacedTroopers: [trooper()] } });
+
+            expect(wrapper.find('[data-testid="unplaced-hint"]').text()).toContain('Import it from the Cav roster first');
+        });
+
+        it('leaves the hint out once the chain of command exists', () => {
+            const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true, unplacedTroopers: [trooper()] } });
+
+            expect(wrapper.find('[data-testid="unplaced-hint"]').exists()).toBe(false);
+        });
+
+        it('shows a billet id of zero rather than claiming no billet was reported', () => {
+            const wrapper = mount(OrgStructure, {
+                props: { units: UNITS, isAdmin: true, unplacedTroopers: [trooper({ billet: null, position_id: 0 })] },
+            });
+
+            expect(wrapper.find('[data-testid="unplaced-trooper"]').text()).toContain('Billet not mapped (position 0)');
+        });
+
+        it('reports the true total and that the list is capped when more exist than were sent', () => {
+            const wrapper = mount(OrgStructure, {
+                props: { units: UNITS, isAdmin: true, unplacedTroopers: [trooper()], unplacedTotal: 250 },
+            });
+
+            expect(wrapper.find('[data-testid="unplaced-count"]').text()).toContain('250 synced troopers not yet placed');
+            expect(wrapper.find('[data-testid="unplaced-capped"]').text()).toContain('Showing the first 1');
+        });
+
+        it('shows the full billet on hover through a title', () => {
+            const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true, unplacedTroopers: [trooper()] } });
+
+            expect(wrapper.find('[data-testid="unplaced-trooper"] [title]').attributes('title')).toBe('Rifleman, 2nd Platoon');
+        });
+
+        it('is absent when the server withheld the list', () => {
+            const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: false, unplacedTroopers: null } });
+
+            expect(wrapper.find('[data-testid="unplaced-panel"]').exists()).toBe(false);
+        });
+    });
 });

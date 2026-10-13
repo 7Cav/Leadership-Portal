@@ -14,7 +14,9 @@ use RuntimeException;
  * list lives here. Every row goes through the audited `CreateCourse` Command — the seeder never
  * writes the table itself — so the audit trail needs an actor, and the first Admin is used (the
  * Command refuses anyone else).
- * Re-running is safe: a code already in the catalog is skipped, never updated or duplicated.
+ * `sort_order` comes from a course's position in this file, so it is only the source of truth for
+ * order until a course is added by hand (or the list is edited): rows already seeded keep their
+ * number. Re-running is safe: a code already in the catalog is skipped, never updated or duplicated.
  *
  * `php artisan db:seed --class=CourseCatalogSeeder`
  */
@@ -116,13 +118,11 @@ class CourseCatalogSeeder extends Seeder
         $actor = $users->firstAdmin()
             ?? throw new RuntimeException('Seeding the course catalog needs an Admin user to audit the writes against; sign in once and make yourself Admin first.');
 
-        $existing = $courses->all()->pluck('code')->all();
-
         // Spaced by ten so a course can later be slotted between two without renumbering. A course
         // already in the catalog is left exactly as it is, so reordering or renaming the list here
         // does not change rows that were seeded earlier — that is a job for an edit Command.
         foreach (self::catalog() as $index => $course) {
-            if (in_array($course['code'], $existing, true)) {
+            if ($courses->findByCode($course['code']) !== null) {
                 continue;
             }
 

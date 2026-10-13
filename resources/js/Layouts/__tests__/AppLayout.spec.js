@@ -24,9 +24,9 @@ const ENRICHED = {
     fetched_at: '2026-08-03T09:14:00+00:00',
 };
 
-function mountLayout({ url = '/home', user = { id: 1, username: 'Hale.S', is_admin: false }, profile = null, viewAs = null } = {}) {
+function mountLayout({ url = '/home', user = { id: 1, username: 'Hale.S', is_admin: false }, profile = null, viewAs = null, crumb = undefined } = {}) {
     mockPage.url = url;
-    mockPage.props = { auth: { user, profile }, viewAs };
+    mockPage.props = { auth: { user, profile }, viewAs, crumb };
 
     return mount(AppLayout, {
         slots: { default: '<p data-testid="page-body">Page body</p>' },
@@ -64,10 +64,10 @@ describe('AppLayout', () => {
     });
 
     describe('navigation', () => {
-        it('shows Home, Roster, Rollcall and Reports to everyone', () => {
+        it('shows Home, Roster, Rollcall, Reports and Game identities to everyone', () => {
             wrapper = mountLayout();
 
-            for (const label of ['Home', 'Roster', 'Rollcall', 'Reports']) {
+            for (const label of ['Home', 'Roster', 'Rollcall', 'Reports', 'Game identities']) {
                 expect(wrapper.find(`[data-testid="nav-${label}"]`).exists()).toBe(true);
             }
         });
@@ -123,18 +123,6 @@ describe('AppLayout', () => {
             expect(wrapper.find('[data-testid="nav-Home"]').attributes('aria-current')).toBeUndefined();
         });
 
-        it('renders screens that do not exist yet as disabled controls, not links', () => {
-            wrapper = mountLayout();
-
-            for (const label of ['Rollcall']) {
-                const item = wrapper.find(`[data-testid="nav-${label}"]`);
-                expect(item.element.tagName).toBe('BUTTON');
-                expect(item.attributes('aria-disabled')).toBe('true');
-                expect(item.attributes('href')).toBeUndefined();
-                expect(item.text()).toContain('Soon');
-            }
-        });
-
         it('navigates with Inertia links, not full page loads', () => {
             wrapper = mountLayout({ user: { id: 1, username: 'Hale.S', is_admin: true } });
 
@@ -143,7 +131,7 @@ describe('AppLayout', () => {
             const linkHrefs = wrapper.findAllComponents({ name: 'Link' }).map((link) => link.props('href'));
             const navHrefs = wrapper.findAll('nav[aria-label="Primary"] a').map((a) => a.attributes('href'));
 
-            expect(navHrefs).toEqual(['/home', '/roster', '/reports', '/settings/org-structure', '/settings/staff-grants', '/settings/audit-log']);
+            expect(navHrefs).toEqual(['/home', '/roster', '/rollcall', '/reports', '/game-identities', '/settings/org-structure', '/settings/staff-grants', '/settings/audit-log']);
             for (const href of navHrefs) expect(linkHrefs).toContain(href);
         });
 
@@ -158,6 +146,14 @@ describe('AppLayout', () => {
 
             expect(wrapper.find('[data-testid="breadcrumb-current"]').text()).toBe('Staff grants');
             expect(wrapper.find('nav[aria-label="breadcrumb"]').text()).toContain('Settings');
+        });
+
+        it('reads a trooper page as a child of Roster: Roster / name, with Roster active in the sidebar', () => {
+            wrapper = mountLayout({ url: '/troopers/12', crumb: 'SPC Milkovic.D' });
+
+            expect(wrapper.find('[data-testid="breadcrumb-current"]').text()).toBe('SPC Milkovic.D');
+            expect(wrapper.find('nav[aria-label="breadcrumb"]').text()).toContain('Roster');
+            expect(wrapper.find('[data-testid="nav-Roster"]').attributes('aria-current')).toBe('page');
         });
     });
 
