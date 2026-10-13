@@ -10,6 +10,7 @@ use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Models\WeeklyReport;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -172,4 +173,38 @@ it('re-stamps when the leader confirms again over the confirmation on their scre
         ->assertOk()->assertJsonPath('confirmation.at', '2026-10-09T08:00:00+00:00');
 
     expect(AuditLogEntry::query()->where('action', 'practice.confirmed')->count())->toBe(2);
+});
+
+// AD-12 with 7.8: a sent week is locked for everything; a confirmation still blocks capture re-runs.
+
+it('refuses to confirm a week whose report has been sent, as locked, with no stamp and no audit entry', function () {
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => '2026-10-03']);
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => '2026-10-03'])
+        ->assertStatus(409)->assertJson(['locked' => true, 'message' => 'The report for this week has been sent, so its rollcall is locked.']);
+
+    expect($this->practice->fresh()->confirmed_at)->toBeNull()
+        ->and(AuditLogEntry::query()->where('action', 'practice.confirmed')->count())->toBe(0);
+});
+
+it('still confirms a week whose only sent report is a demo report (#115)', function () {
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => '2026-10-03', 'is_demo' => true]);
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => '2026-10-03'])->assertOk();
+
+    expect($this->practice->fresh()->confirmed_at)->not->toBeNull();
+});
+
+it('answers week locked, not confirmed, when a confirmed practice\'s report is then sent', function () {
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => '2026-10-03'])->assertOk();
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => '2026-10-03']);
+
+    $result = app(MarkAttendanceHandler::class)->preMark($this->practice, [$this->ortega->id], $this->leader->id);
+
+    expect($result->weekLocked)->toBeTrue()->and($result->confirmed)->toBeFalse()->and($result->marked)->toBe(0)
+        ->and(AuditLogEntry::query()->where('action', 'attendance.auto_marked')->count())->toBe(0);
+
+    // And the hand edit that would unlock a confirmation does not unlock a sent week.
+    markByHand($this, $this->dube->id, 'missed')->assertStatus(409);
+    expect($this->practice->fresh()->confirmed_at)->not->toBeNull();
 });

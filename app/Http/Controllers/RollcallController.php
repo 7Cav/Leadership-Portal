@@ -77,8 +77,9 @@ use Throwable;
  * `WeekOf::floor()` is still shown, read-only (`week.beforeFloor`): its writes are refused.
  *
  * A week whose section report has been sent is locked (AD-12): `show` says so (`locked`) and the
- * screen turns read-only, and `store` refuses any save for it — the rule itself lives in
- * `MarkAttendanceHandler`. Marking the forum post posted (`posted`) stays open: it records when the
+ * screen turns read-only, and `store`, `confirm` and `retryCapture` refuse it with a 409 and
+ * `locked` (the rule itself lives in their handlers; a capture run and a link's pre-mark skip the
+ * week the same way). Marking the forum post posted (`posted`) stays open: it records when the
  * BBCode went up, not a fact the report froze.
  */
 class RollcallController extends Controller
@@ -300,7 +301,8 @@ class RollcallController extends Controller
 
     /**
      * The leader confirms the practice's marks as reviewed (Story 7.8): one audited Command,
-     * scope-gated (AD-8). Marking it again re-stamps. Answers the confirmation for the badge.
+     * scope-gated (AD-8). Marking it again re-stamps. Answers the confirmation for the badge, or a
+     * 409 with `locked` once the section's report for the week has been sent (AD-12).
      * `confirmedAt` is the confirmation the screen showed (null for none): one the leader never
      * saw is answered back as it is rather than stamped over. Without it, every request re-stamps.
      */
@@ -333,6 +335,8 @@ class RollcallController extends Controller
             return response()->json(['message' => $e->getMessage()], 403);
         } catch (InvalidAttendanceMarkException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
+        } catch (RollcallWeekLockedException $e) {
+            return response()->json(['message' => $e->getMessage(), 'locked' => true], 409);
         } catch (Throwable $e) {
             report($e);
 
