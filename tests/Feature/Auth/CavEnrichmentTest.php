@@ -2,6 +2,7 @@
 
 use App\Commands\Auth\CavEnrichmentException;
 use App\Commands\Auth\EnrichCavProfile;
+use App\Models\Trooper;
 use App\Models\User;
 use App\Repositories\IdentityLinkException;
 use App\Repositories\UserRepository;
@@ -86,6 +87,16 @@ function cavRequestUrls(): Collection
         ->values();
 }
 
+/**
+ * An Admin already on file as forum user `$forumUserId`. Since the sign-in gate, only an Admin or a
+ * serving trooper gets a session, so the tests here about enrichment failing for someone with no
+ * known milpac sign in as an Admin — the one population that still gets in unenriched.
+ */
+function existingAdmin(int $forumUserId = 4, string $username = 'Hale.S'): User
+{
+    return User::factory()->admin()->create(['forum_user_id' => $forumUserId, 'username' => $username]);
+}
+
 /** Drive a full login through the OAuth callback, with the `state` nonce pre-seeded. */
 function login(): TestResponse
 {
@@ -109,6 +120,13 @@ beforeEach(function () {
     ]);
 
     CarbonImmutable::setTestNow('2026-08-03 09:14:00');
+
+    // The roster cache agrees with the mocked Cav world: every milpac id these tests resolve to is a
+    // serving trooper, so the sign-in gate admits whoever links to one and the tests stay about
+    // enrichment.
+    foreach ([77, 81, 31] as $cavId) {
+        Trooper::factory()->create(['cav_id' => $cavId]);
+    }
 });
 
 afterEach(function () {
@@ -226,6 +244,7 @@ it('shares the enriched profile with the front end so it can be rendered (AC #3)
 
 it('shares why enrichment is absent, which is Story 1.7\'s only input (AC #3)', function () {
     Exceptions::fake();
+    existingAdmin();
     mockLogin(cav: [COMBAT_URL => emptyRoster()]);
     login();
 
@@ -250,9 +269,10 @@ it('never writes to Cav — every call the flow makes is a GET (AC #4)', functio
         ->and($cavRequests->every(fn ($pending) => $pending->getMethod()->value === 'GET'))->toBeTrue();
 });
 
-it('signs the user in unenriched when they hold no milpac, recorded at info not error (AC #1)', function () {
+it('signs an Admin who holds no milpac in unenriched, recorded at info not error (AC #1)', function () {
     Exceptions::fake();
     Log::spy();
+    existingAdmin();
 
     mockLogin(cav: [COMBAT_URL => emptyRoster()]);
 
@@ -274,8 +294,12 @@ it('signs the user in unenriched when they hold no milpac, recorded at info not 
 
 it('keeps login working when the roster API returns an error status (AC #1; degraded UX is 1.7)', function () {
     Exceptions::fake();
+    // A trooper the portal already knows: their stored link points at a serving cached trooper, so
+    // the gate admits them from the local cache with Cav answering nothing but errors.
+    User::create(['forum_user_id' => 4, 'cav_id' => 77, 'username' => 'Hale.S']);
 
     mockLogin(cav: [
+        'api.7cav.us/api/v1/milpacs/profile/id/77' => MockResponse::make(['code' => 13, 'message' => 'internal'], 500),
         COMBAT_URL => MockResponse::make(['code' => 13, 'message' => 'internal'], 500),
         RESERVE_URL => MockResponse::make([], 500),
         ELOA_URL => MockResponse::make([], 500),
@@ -294,6 +318,7 @@ it('keeps login working when the roster API returns an error status (AC #1; degr
 it('does not send a Cav request at all when no API key is configured', function () {
     Exceptions::fake();
     config()->set('services.cav.api_key', null);
+    User::create(['forum_user_id' => 4, 'cav_id' => 77, 'username' => 'Hale.S']);
 
     mockLogin();
 
@@ -385,8 +410,11 @@ it('clears a link it has proven wrong, even when re-resolution then fails', func
         COMBAT_URL => emptyRoster(),
     ]);
 
-    login()->assertRedirect(route('home'));
+    // With the link gone and no roster carrying them, nothing ties them to a serving milpac, so
+    // the sign-in gate refuses them — on the link as it now stands, not the one they arrived with.
+    login()->assertRedirect(route('login'));
 
+    $this->assertGuest();
     expect(User::firstWhere('forum_user_id', 4)->cav_id)->toBeNull()
         ->and(session('cav_profile'))->toBeNull();
 });
@@ -401,6 +429,7 @@ it('clears the previous trooper\'s roster context when enrichment fails on a sha
     expect(session('cav_profile')['mos'])->toBe('42A');
 
     Exceptions::fake();
+    existingAdmin(forumUserId: 999, username: 'Other.P');
     mockLogin(cav: [
         COMBAT_URL => MockResponse::make([], 500),
         RESERVE_URL => MockResponse::make([], 500),
@@ -468,6 +497,7 @@ it('degrades rather than 500s when the roster answers 200 with a non-object body
     // Saloon substitutes `[]` only for an EMPTY body; `null`, a number or a bare string decode
     // to a non-array and would hit the seam's `array` return type as a TypeError — which no
     // handler catches, so every login would 500 for as long as the roster answered that way.
+    existingAdmin();
     mockLogin(cav: [
         COMBAT_URL => MockResponse::make('null'),
         RESERVE_URL => MockResponse::make('123'),
@@ -485,6 +515,7 @@ it('does not claim the trooper has no milpac when their own roster entry is unus
     Exceptions::fake();
     // The roster DOES carry forum user 4, but their record is broken. Reporting "no milpac"
     // would assert the opposite of the truth and send whoever debugs it at the wrong system.
+    existingAdmin();
     mockLogin(cav: [
         // Key '77.9' is not a valid milpac id, but the row IS forum user 4's.
         COMBAT_URL => MockResponse::make(['profiles' => ['77.9' => rosterEntry(4, 'Hale.S')]]),
@@ -516,7 +547,7 @@ it('degrades rather than 500s when the identity link cannot be written', functio
     // escaped it would 500 a request whose user is already authenticated.
     $this->mock(UserRepository::class, function ($mock) {
         $mock->shouldReceive('upsertFromForumIdentity')
-            ->andReturn(User::create(['forum_user_id' => 4, 'username' => 'Hale.S']));
+            ->andReturn(existingAdmin());
         $mock->shouldReceive('linkCavId')
             ->andThrow(IdentityLinkException::cavIdNotLinked(1, 77, new RuntimeException('duplicate key')));
     });
@@ -575,6 +606,7 @@ it('does not claim absence when rosters answered but rows in them were unparseab
     Exceptions::fake();
     // A roster carrying this trooper in a broken row cannot be ruled out, so "no milpac" would be
     // an unsupported conclusion — and Story 1.7 would tell them something untrue.
+    existingAdmin();
     mockLogin(cav: [
         COMBAT_URL => MockResponse::make(['profiles' => ['12' => ['user' => ['userId' => 'garbled']]]]),
     ]);
@@ -598,7 +630,9 @@ it('signs the user in even when enrichment fails in a way nobody anticipated', f
     // The backstop. Every other guard is specific to a failure this story knows about; this one
     // exists because the promise "enrichment cannot break a login" otherwise depends on four
     // layers each staying exhaustive forever. A new log handler, container binding or driver quirk
-    // on this path must not cost a leader their session.
+    // on this path must not cost a leader their session — here one the roster cache already knows
+    // as serving, which is all the sign-in gate needs.
+    User::create(['forum_user_id' => 4, 'cav_id' => 77, 'username' => 'Hale.S']);
     $this->mock(EnrichCavProfile::class, fn ($mock) => $mock->shouldReceive('handle')
         ->andThrow(new RuntimeException('something nobody predicted')));
 

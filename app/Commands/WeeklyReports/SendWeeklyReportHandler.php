@@ -7,6 +7,7 @@ use App\Kpi\ReportKpisUnavailableException;
 use App\Kpi\WeeklyReportKpis;
 use App\Models\User;
 use App\Models\WeeklyReportStatus;
+use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportAlreadySentException;
 use App\Repositories\WeeklyReportRepository;
@@ -18,13 +19,16 @@ use Carbon\CarbonInterface;
 
 /**
  * Freezes a unit-week's weekly report (AD-12): the six KPIs and their delta as the unit's
- * {@see WeeklyReportKpis} snapshot computes them now, the leader's notes, and the template
+ * {@see WeeklyReportKpis} snapshot computes them now (for a roll-up, with the children it went
+ * without), the leader's notes, training subject and unaccounted reasons, and the template
  * version, written through `WeeklyReportRepository::send()` — the table's one writer of sent rows
  * (AD-22) — as one audited, reason-required transaction (AD-16). Purely internal: no external
  * system is called (AD-10).
  *
  * Refused before anything is written: a unit outside the actor's scope (AD-8), a blank reason,
- * and a unit whose KPIs cannot be reported yet (a non-leaf until 5.7's roll-up lands).
+ * content that is not the unit's to record, and a unit whose KPIs cannot be reported (a non-leaf
+ * with no children). A roll-up whose children have not all sent **is** sent: their ids are frozen
+ * as `missing_children` and never substituted with live numbers (5.7, AD-13).
  *
  * **Re-send is a clean no-op.** A report already sent for the unit-week is returned as it was
  * frozen, with `alreadySent` set; nothing is rewritten and no second audit entry is recorded —
@@ -49,6 +53,7 @@ class SendWeeklyReportHandler
     public function __construct(
         private readonly ScopeResolver $scope,
         private readonly UnitRepository $units,
+        private readonly TrooperRepository $troopers,
         private readonly WeeklyReportRepository $reports,
         private readonly WeeklyReportKpis $snapshots,
         private readonly AuditEnvelope $audit,
@@ -58,6 +63,7 @@ class SendWeeklyReportHandler
      * @throws SendWeeklyReportForbiddenException when the unit is outside the actor's scope, or
      *                                            does not exist.
      * @throws ReasonRequiredException when no reason is given — on a re-send too.
+     * @throws InvalidReportContentException when the content is not the unit's to record.
      * @throws ReportKpisUnavailableException when the unit's KPIs cannot be reported yet, or the
      *                                        prior week's sent snapshot is unreadable.
      */
@@ -82,6 +88,7 @@ class SendWeeklyReportHandler
             return new SentWeeklyReport($existing, alreadySent: true);
         }
 
+        $content = ReportContent::checked($unit, $command->notes, $command->trainingSubject, $command->unaccounted, $this->troopers);
         $kpis = $this->snapshots->snapshot($unit, $weekStart)->toArray();
         $templateVersionId = null;
 
@@ -95,10 +102,12 @@ class SendWeeklyReportHandler
                     $unit->id,
                     $weekStart,
                     $kpis,
-                    $command->notes,
+                    $content->notes,
                     $actor->id,
-                    self::contentDigest($unit->id, $weekStart, $kpis, $command->notes, $templateVersionId),
+                    self::contentDigest($unit->id, $weekStart, $kpis, $content->notes, $templateVersionId, $content->trainingSubject, $content->unaccounted),
                     $templateVersionId,
+                    $content->trainingSubject,
+                    $content->unaccounted,
                 ),
             );
         } catch (WeeklyReportAlreadySentException $raced) {
@@ -115,20 +124,30 @@ class SendWeeklyReportHandler
     }
 
     /**
-     * SHA-256 over the content a send freezes — the unit-week key, the KPI snapshot, the notes and
-     * the template version — with every object's keys sorted first, so the digest recomputed from
+     * SHA-256 over the content a send freezes — the unit-week key, the KPI snapshot, the notes, the
+     * training subject, the unaccounted reasons and the template version — with every object's keys sorted first, so the digest recomputed from
      * the stored row matches whatever key order the JSON column hands back (MySQL's JSON type
      * reorders keys). Public so a reader can verify a sent report against its `content_digest`.
      *
      * @param  array<string, mixed>  $kpis
+     * @param  list<array{trooper_id: int, reason: string}>  $unaccounted
      */
-    public static function contentDigest(int $unitId, CarbonInterface $weekStart, array $kpis, ?string $notes, ?int $templateVersionId): string
-    {
+    public static function contentDigest(
+        int $unitId,
+        CarbonInterface $weekStart,
+        array $kpis,
+        ?string $notes,
+        ?int $templateVersionId,
+        ?string $trainingSubject = null,
+        array $unaccounted = [],
+    ): string {
         return hash('sha256', json_encode(self::sortKeys([
             'unit_id' => $unitId,
             'week_start' => CarbonImmutable::instance($weekStart)->utc()->toIso8601String(),
             'kpis' => $kpis,
             'notes' => $notes,
+            'training_subject' => $trainingSubject,
+            'unaccounted' => $unaccounted,
             'template_version_id' => $templateVersionId,
         ]), JSON_THROW_ON_ERROR | JSON_PRESERVE_ZERO_FRACTION));
     }

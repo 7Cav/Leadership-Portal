@@ -20,7 +20,22 @@ const props = defineProps({
     // Flashed once by the import action (Story 2.9):
     // `{ unitsCreated, mappingsCreated, mappingsDiffering, skippedTitles }`.
     importResult: { type: Object, default: null },
+    // Troopers the roster sync could not place into a section (Story 2.6), as
+    // `{ id, cav_id, username, rank, mos, billet, position_id }`. Null when the server withholds
+    // the list (anyone but an Admin), which is different from an empty array (nobody unplaced).
+    unplacedTroopers: { type: Array, default: null },
+    // The true count of unplaced troopers; the list above is capped, so this can be larger.
+    unplacedTotal: { type: Number, default: null },
 });
+
+const unplacedCount = computed(() => props.unplacedTotal ?? props.unplacedTroopers?.length ?? 0);
+
+// A trooper with no reported billet title falls back to the position id: it is why they are here,
+// the sync found no section mapped to it.
+function billetLabel(trooper) {
+    if (trooper.billet) return trooper.billet;
+    return trooper.position_id !== null ? `Billet not mapped (position ${trooper.position_id})` : 'No billet reported';
+}
 
 const tree = computed(() => {
     const byId = new Map(props.units.map((unit) => [unit.id, { ...unit, children: [] }]));
@@ -367,6 +382,54 @@ function requestDelete(id) {
                     </dl>
                 </div>
                 <p v-else class="text-[13px] text-muted-foreground">Select a unit to see its details.</p>
+
+                <!--
+                  Troopers the sync could not place (Story 2.6): a dashed panel in the detail card, one chip
+                  per trooper. Shown only when the server sent the list, which it does for an Admin alone.
+                  Read-only here; the "assign" action on each chip is Story 2.7.
+                -->
+                <section
+                    v-if="unplacedTroopers !== null"
+                    data-testid="unplaced-panel"
+                    aria-label="Troopers not yet placed"
+                    class="mt-4 rounded-lg border border-dashed border-border p-3"
+                >
+                    <h3 v-if="unplacedTroopers.length" class="text-[13px] font-semibold">
+                        <span data-testid="unplaced-count">
+                            {{ unplacedCount }} synced {{ unplacedCount === 1 ? 'trooper' : 'troopers' }} not yet placed
+                        </span>
+                    </h3>
+                    <EmptyState v-if="!unplacedTroopers.length" :icon="PhCheckCircle" title="All synced troopers are placed" class="py-4">
+                        Troopers the sync cannot map to a section will be listed here.
+                    </EmptyState>
+                    <p v-else-if="unplacedCount > unplacedTroopers.length" data-testid="unplaced-capped" class="mt-1 text-xs text-muted-foreground">
+                        Showing the first {{ unplacedTroopers.length }}.
+                    </p>
+                    <!--
+                      With no chain of command yet nothing can be mapped, so the whole roster lands here. Say why,
+                      instead of leaving an Admin to assume the sync is broken.
+                    -->
+                    <p v-if="unplacedTroopers.length && !units.length" data-testid="unplaced-hint" class="mt-1 text-xs text-muted-foreground">
+                        The chain of command is empty, so no trooper can be mapped yet. Import it from the Cav roster first.
+                    </p>
+                    <!-- Scrolls inside the card: right after a fresh install the list can hold the whole roster. -->
+                    <ul v-if="unplacedTroopers.length" aria-label="Troopers not yet placed" class="mt-2.5 flex max-h-72 flex-wrap gap-2 overflow-y-auto">
+                        <li
+                            v-for="trooper in unplacedTroopers"
+                            :key="trooper.id"
+                            data-testid="unplaced-trooper"
+                            class="min-w-0 rounded-md border border-border px-2.5 py-1.5 text-[13px]"
+                        >
+                            <span class="font-medium">
+                                <span v-if="trooper.rank" class="text-muted-foreground">{{ trooper.rank }}</span>
+                                {{ trooper.username ?? `Unknown (Cav #${trooper.cav_id})` }}
+                            </span>
+                            <span class="block max-w-[28ch] truncate text-xs text-muted-foreground" :title="billetLabel(trooper)">
+                                <span v-if="trooper.mos" class="font-mono">{{ trooper.mos }} · </span>{{ billetLabel(trooper) }}
+                            </span>
+                        </li>
+                    </ul>
+                </section>
 
                 <!--
                   Add-node control, Admin-only (AC #2). Hidden for a non-Admin per the mockup; the

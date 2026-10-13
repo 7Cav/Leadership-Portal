@@ -9,6 +9,7 @@ use App\Commands\PortalRoleGrants\RevokeStaffScope;
 use App\Http\Controllers\Controller;
 use App\Models\PortalRoleGrant;
 use App\Repositories\PortalRoleGrantRepository;
+use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
 use Illuminate\Http\RedirectResponse;
@@ -21,7 +22,8 @@ use Inertia\Response;
  * Staff grants settings (Story 1.12, AD-16). Admin manages non-admin staff scope
  * (`portal_role_grants`) that the roster can't imply — S-shop staff, dual-hats. Reads
  * `PortalRoleGrantRepository`/`UnitRepository`/`UserRepository` directly per the slim,
- * Laravel-idiomatic layer model (mirrors `OrgStructureController`). Writes stage through
+ * Laravel-idiomatic layer model (mirrors `OrgStructureController`), plus `TrooperRepository` to flag
+ * a grant whose holder is no longer serving. Writes stage through
  * `GrantStaffScope`/`RevokeStaffScope` (AD-16).
  */
 class StaffGrantsController extends Controller
@@ -30,6 +32,7 @@ class StaffGrantsController extends Controller
         private readonly PortalRoleGrantRepository $grants,
         private readonly UnitRepository $units,
         private readonly UserRepository $users,
+        private readonly TrooperRepository $troopers,
     ) {}
 
     /**
@@ -39,10 +42,19 @@ class StaffGrantsController extends Controller
      */
     public function index(Request $request, ScopeResolver $scope): Response
     {
-        $grants = $this->grants->all()->map(fn (PortalRoleGrant $grant) => [
+        $all = $this->grants->all();
+
+        // A grant only counts in scope while its holder serves (ScopeResolver). One that has lapsed
+        // stays listed and flagged rather than hidden: the row still exists, and an Admin needs to
+        // see it to revoke it on the record — or to know it comes back if the holder returns.
+        $holderCavIds = $all->pluck('user.cav_id')->filter()->map(fn ($cavId) => (int) $cavId)->unique()->values()->all();
+        $serving = $this->troopers->servingCavIds($holderCavIds)->flip();
+
+        $grants = $all->map(fn (PortalRoleGrant $grant) => [
             'id' => $grant->id,
             'user_id' => $grant->user_id,
             'username' => $grant->user->username,
+            'holder_serving' => $grant->user->cav_id !== null && $serving->has($grant->user->cav_id),
             'unit_id' => $grant->unit_id,
             'unit_name' => $grant->unit->name,
             'created_at' => $grant->created_at->toIso8601String(),

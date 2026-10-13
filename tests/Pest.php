@@ -2,6 +2,7 @@
 
 use App\Integration\Forum\Requests\ExchangeCodeRequest;
 use App\Integration\Forum\Requests\FetchProfileRequest;
+use App\Models\Trooper;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Env;
 use Saloon\Http\Faking\MockClient;
@@ -148,6 +149,12 @@ function logInThroughTheForum(): string
             ],
         ]]),
     ]);
+
+    // ...and the roster cache holds milpac 77 as serving, as a sync would have left it — the sign-in
+    // gate admits only a user linked to a serving cached trooper (or an Admin).
+    if (! Trooper::query()->where('cav_id', 77)->exists()) {
+        Trooper::factory()->create(['cav_id' => 77]);
+    }
 
     test()->withSession(['forum_oauth_state' => 'valid-state'])
         ->get('/oauth/callback/7cav?code=good-code&state=valid-state')

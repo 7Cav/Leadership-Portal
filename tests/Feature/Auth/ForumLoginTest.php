@@ -35,9 +35,10 @@ function mockForum(
             $profileStatus,
         ),
         // A successful callback also enriches from the Cav roster (Story 1.6). These tests are
-        // about the forum handshake, so the roster answers empty: enrichment degrades, login
-        // does not. Without a mock here Saloon throws NoMockResponseFound and the callback
-        // 500s — which is itself the useful signal that the login path now calls Cav.
+        // about the forum handshake, so the roster answers empty: enrichment degrades, and only a
+        // user the roster cache already knows as serving gets a session (the sign-in gate is
+        // ServingMemberSignInTest's). Without a mock here Saloon throws NoMockResponseFound and
+        // the callback 500s — which is itself the useful signal that the login path calls Cav.
         'api.7cav.us/*' => MockResponse::make(['profiles' => []]),
     ]);
 }
@@ -81,6 +82,9 @@ it('redirect action stashes a state nonce and sends the browser to the forum aut
 });
 
 it('establishes an authenticated session, regenerates the session id, and lands home (AC #2)', function () {
+    // A returning trooper linked to a serving milpac: the sign-in gate admits them from the local
+    // roster cache, so the empty Cav world below does not get in the way of the handshake.
+    User::factory()->serving()->create(['forum_user_id' => 4]);
     mockForum();
 
     $this->withSession(['forum_oauth_state' => 'valid-state']);
@@ -224,13 +228,15 @@ it('guards the authenticated landing — unauthenticated hits redirect to login 
     $this->get('/home')->assertRedirect(route('login'));
 });
 
-it('throttles starting the handshake: the 11th redirect from one IP in a minute gets 429', function () {
+it('throttles starting the handshake: the 11th redirect from one IP in a minute goes back to the login screen', function () {
     // Every hit mints a state nonce and writes it to the session store, with no session needed.
     for ($i = 1; $i <= 10; $i++) {
         $this->get('/auth/redirect')->assertRedirect();
     }
 
-    $this->get('/auth/redirect')->assertStatus(429);
+    $this->get('/auth/redirect')
+        ->assertRedirect(route('login'))
+        ->assertSessionHas('error', 'Too many sign-in attempts. Try again in a minute.');
 
     // Another client is unaffected: the budget is per IP.
     $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.9'])->get('/auth/redirect')->assertRedirect();
@@ -243,7 +249,9 @@ it('throttles the callback too, on a budget of its own', function () {
         $this->get('/oauth/callback/7cav?error=access_denied')->assertRedirect(route('login'));
     }
 
-    $this->get('/oauth/callback/7cav?error=access_denied')->assertStatus(429);
+    $this->get('/oauth/callback/7cav?error=access_denied')
+        ->assertRedirect(route('login'))
+        ->assertSessionHas('error', 'Too many sign-in attempts. Try again in a minute.');
 
     // Spending the callback budget leaves starting a fresh sign-in alone: one real sign-in is
     // one hit on each route, so they are counted apart.

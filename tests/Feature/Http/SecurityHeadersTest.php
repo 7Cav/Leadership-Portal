@@ -13,6 +13,8 @@ function expectBaselineSecurityHeaders($response): void
     expect($response->headers->get('Content-Security-Policy'))->toBe("frame-ancestors 'none'");
     expect($response->headers->get('X-Content-Type-Options'))->toBe('nosniff');
     expect($response->headers->get('Referrer-Policy'))->toBe('strict-origin-when-cross-origin');
+    expect($response->headers->get('Permissions-Policy'))->toBe('camera=(), microphone=(), geolocation=()');
+    expect($response->headers->get('Cross-Origin-Opener-Policy'))->toBe('same-origin');
 }
 
 it('sends the baseline headers on a guest page', function () {

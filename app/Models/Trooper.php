@@ -27,9 +27,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * `username`, `forum_user_id` and `rank_short` are synced too (2.10): the forum identity 7Cav
  * names a member by. Render a trooper through `display_name`, never by hand.
  */
-#[Fillable(['cav_id', 'username', 'forum_user_id', 'rank', 'rank_short', 'mos', 'tis', 'tig', 'status', 'cav_position_id'])]
+#[Fillable(['cav_id', 'username', 'forum_user_id', 'rank', 'rank_short', 'billet', 'mos', 'tis', 'tig', 'status', 'cav_position_id'])]
 class Trooper extends Model
 {
+    /** The Cav milpac page for a trooper, keyed by their milpac id (`cav_id`). The one definition every screen links through. */
+    public const MILPAC_PROFILE_URL = 'https://7cav.us/rosters/profile?uniqueid=';
+
     /** @use HasFactory<TrooperFactory> */
     use HasFactory;
 

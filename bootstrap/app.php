@@ -20,6 +20,18 @@ return Application::configure(basePath: dirname(__DIR__))
         // (see the class docblock).
         $middleware->append(SetSecurityHeaders::class);
 
+        // Behind a load balancer or reverse proxy `$request->ip()` is the proxy's address, which
+        // would put every user in one sign-in throttle bucket and leave HSTS unable to see HTTPS.
+        // Opt-in and explicit: a comma-separated list of proxy IPs/CIDRs in TRUSTED_PROXIES. Never
+        // `*` on an internet-facing host, since any client could then forge its own address.
+        $trusted = array_filter(array_map('trim', explode(',', (string) env('TRUSTED_PROXIES', ''))));
+        if ($trusted !== []) {
+            $middleware->trustProxies(at: $trusted, headers: Request::HEADER_X_FORWARDED_FOR
+                | Request::HEADER_X_FORWARDED_HOST
+                | Request::HEADER_X_FORWARDED_PORT
+                | Request::HEADER_X_FORWARDED_PROTO);
+        }
+
         // Prepended, so it wraps the whole group: appended it would be the innermost pipe and
         // any response produced further out — a 419 CSRF rejection, Inertia's 409 version
         // bounce — would slip past uncached-unmarked. With APP_DEBUG on, that 419 is a debug
