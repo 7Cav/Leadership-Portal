@@ -41,14 +41,15 @@ interface PortalRoleGrantRepository
     /**
      * Attach `$user` to `$unit` (Story 1.12). Idempotent on the unique `[user_id, unit_id]`
      * constraint — re-granting an already-held node returns the existing row rather than
-     * throwing or duplicating it.
+     * throwing or duplicating it, including when a racing grant committed it inside the caller's
+     * transaction. The returned row's `wasRecentlyCreated` says whether this call wrote it.
      */
     public function grant(User $user, Unit $unit): PortalRoleGrant;
 
     /**
      * Detach `$user` from `$unit`, returning the removed row for the audit envelope (its
      * attributes remain readable in memory after `delete()`), or `null` if no such grant
-     * existed.
+     * existed. The row is read with a lock, so a racing revoke that committed first yields `null`.
      */
     public function revoke(User $user, Unit $unit): ?PortalRoleGrant;
 
