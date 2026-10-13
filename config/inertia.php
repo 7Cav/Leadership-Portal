@@ -42,4 +42,38 @@ return [
 
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | History
+    |--------------------------------------------------------------------------
+    |
+    | On, unconditionally, and not left to `INERTIA_ENCRYPT_HISTORY` (the vendor
+    | default reads that key and falls back to off). Story 1.5 AC #2 says "back"
+    | after sign-out must not repaint the last authenticated page. Inertia keeps
+    | every visited page object in `history.state` and re-renders it on popstate
+    | without a request. `Inertia::clearHistory()` in the logout action only
+    | deletes the key that encrypts that state, so with encryption off there is no
+    | key to lose and the plaintext page object survives logout.
+    |
+    | With this on, each page is encrypted under a key held in sessionStorage.
+    | Logout drops that key, the client can no longer decrypt the old entries, and
+    | a popstate onto one falls back to a real request, which the `auth`
+    | middleware bounces to login.
+    |
+    | Set app-wide rather than with the `inertia.encrypt` middleware on the `auth`
+    | group: then no authenticated page can miss it by being registered outside
+    | that group. Encrypting the guest-only login screen costs nothing.
+    |
+    | Web Crypto only exists in a secure context, so production must be served
+    | over HTTPS (localhost counts as secure). Over plain HTTP the client logs a
+    | warning and stores the page unencrypted.
+    |
+    */
+
+    'history' => [
+
+        'encrypt' => true,
+
+    ],
+
 ];

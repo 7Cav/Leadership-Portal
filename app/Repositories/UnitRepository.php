@@ -23,8 +23,10 @@ interface UnitRepository
     public function create(UnitType $type, string $name, ?string $callsign, ?int $parentId): Unit;
 
     /**
-     * Every unit in the tree, ordered by `path` so a caller can render it depth-first without
-     * re-deriving order from `parent_id` walks.
+     * Every unit in the tree, in depth-first path order so a caller can render it without
+     * re-deriving order from `parent_id` walks: each unit follows its parent, and siblings keep id
+     * order (creation order, which the org import sets to Cav's display order). Paths are compared
+     * segment by segment as numbers, so "1/2/" sorts before "1/145/".
      *
      * @return Collection<int, Unit>
      */
@@ -46,6 +48,15 @@ interface UnitRepository
      * @return ScalarCollection<int, int>
      */
     public function subtreeIds(Unit $unit): ScalarCollection;
+
+    /**
+     * The company that owns `$unit`: the unit itself when it is a company, otherwise its nearest ancestor that is one,
+     * or null for a unit above every company (the regiment, a battalion). Found from the materialized path (AD-18)
+     * in one query, so it is cheap however deep the unit sits. The path is read from the stored row, so a stale model
+     * of a unit that has since moved still resolves to its current company. The echelon rules put at most one company on any
+     * unit's chain, so the answer is unique; a chain with two is a broken invariant and fails loudly.
+     */
+    public function owningCompany(Unit $unit): ?Unit;
 
     /**
      * Update a unit's own attributes. `name`/`callsign` are mass-assignable (unlike
@@ -84,6 +95,15 @@ interface UnitRepository
      * @return Collection<int, Unit>
      */
     public function children(Unit $unit): Collection;
+
+    /**
+     * The sections among `$unitIds` — e.g. a user's resolved scope — each with its `parent`
+     * loaded (the platoon a picker groups them under), ordered by `path` so siblings sit together.
+     *
+     * @param  iterable<int>  $unitIds
+     * @return Collection<int, Unit>
+     */
+    public function sectionsAmong(iterable $unitIds): Collection;
 
     /**
      * The FK on `parent_id` (`restrictOnDelete`) would refuse this at the DB level anyway if

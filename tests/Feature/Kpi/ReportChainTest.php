@@ -164,7 +164,8 @@ it('flags a sent unit whose descendant is still open', function () {
         ->and($node->open)->toBeTrue();
 });
 
-it('reads a whole battalion in five queries, however many units it holds', function () {
+// Five reads of its own, plus the LOA coverage of the window (4.8): one more, however many units.
+it('reads a whole battalion in six queries, however many units it holds', function () {
     $units = app(UnitRepository::class);
     $count = function (Unit $root) {
         DB::flushQueryLog();
@@ -175,6 +176,10 @@ it('reads a whole battalion in five queries, however many units it holds', funct
 
         return $queries;
     };
+
+    // One trooper is placed first, so the baseline already includes the LOA coverage read, which only runs
+    // when someone is assigned.
+    Trooper::factory()->create()->forceFill(['primary_section_id' => $this->s11->id])->save();
 
     $small = $count($this->battalion);
 
@@ -192,7 +197,7 @@ it('reads a whole battalion in five queries, however many units it holds', funct
         }
     }
 
-    expect($small)->toBe(5)->and($count($this->battalion))->toBe(5);
+    expect($small)->toBe(6)->and($count($this->battalion))->toBe(6);
 });
 
 it('fails loudly on an unreadable sent snapshot rather than showing a plausible zero', function () {

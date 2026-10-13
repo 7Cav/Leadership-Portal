@@ -62,7 +62,8 @@ class ReportRollupSeeder extends Seeder
             2 => $units->create(UnitType::Platoon, '2nd Platoon', '2/A/1-7', $company->id),
         ];
 
-        $commander = User::factory()->create(['username' => 'Hale.S']);
+        // Serving, or their grants would lapse (a grant counts only while its holder serves).
+        $commander = User::factory()->serving()->create(['username' => 'Hale.S']);
         PortalRoleGrant::factory()->create(['user_id' => $commander->id, 'unit_id' => $company->id]);
 
         $sections = [];
@@ -70,7 +71,7 @@ class ReportRollupSeeder extends Seeder
             [$number, $platoon] = explode('/', $callsign);
             $ordinal = ['1' => '1st', '2' => '2nd', '3' => '3rd', '4' => '4th'][$number];
             $section = $units->create(UnitType::Section, "{$ordinal} Section", $callsign, $platoons[(int) $platoon]->id);
-            $user = User::factory()->create(['username' => $leader]);
+            $user = User::factory()->serving()->create(['username' => $leader]);
             PortalRoleGrant::factory()->create(['user_id' => $user->id, 'unit_id' => $section->id]);
             $this->attendance($section, $strength, $week);
             $sections[] = [$section, $user, $state, $notes];

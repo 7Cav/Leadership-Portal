@@ -44,38 +44,41 @@ class DeleteUnit
      */
     public function handle(User $actor, Unit $unit): Unit
     {
-        if ($this->units->hasChildren($unit)) {
-            throw UnitHasDependentsException::hasChildren($unit->name);
-        }
-
-        // Every section the Cav import (2.9) creates carries billet mappings, and
-        // `unit_billet_mappings.unit_id` restricts the delete — refuse with a reason instead.
-        if ($this->mappings->hasMappings($unit)) {
-            throw UnitHasDependentsException::hasBilletMappings($unit->name);
-        }
-
-        // A grant is the one dependent an Admin can clear from the UI (Staff grants), so the
-        // message says where.
-        if ($this->grants->hasGrantsOn($unit)) {
-            throw UnitHasDependentsException::hasStaffGrants($unit->name);
-        }
-
-        // Attendance and reports are history: there is no UI to remove them, by design, so a
-        // unit that has any stays in the tree.
-        if ($this->practices->hasPracticesFor($unit)) {
-            throw UnitHasDependentsException::hasPractices($unit->name);
-        }
-
-        if ($this->reports->hasReportsFor($unit)) {
-            throw UnitHasDependentsException::hasWeeklyReports($unit->name);
-        }
-
         return $this->audit->record(
             actorId: $actor->id,
             action: 'unit.deleted',
             reason: null,
             reasonRequired: false,
             mutation: function () use ($unit) {
+                // Checked inside the audit envelope's transaction, so the check and the delete are
+                // one atomic step: a grant or report created in between cannot turn the refusal
+                // back into the raw foreign-key 500.
+                if ($this->units->hasChildren($unit)) {
+                    throw UnitHasDependentsException::hasChildren($unit->name);
+                }
+
+                // Every section the Cav import (2.9) creates carries billet mappings, and
+                // `unit_billet_mappings.unit_id` restricts the delete — refuse with a reason instead.
+                if ($this->mappings->hasMappings($unit)) {
+                    throw UnitHasDependentsException::hasBilletMappings($unit->name);
+                }
+
+                // A grant is the one dependent an Admin can clear from the UI (Staff grants), so the
+                // message says where.
+                if ($this->grants->hasGrantsOn($unit)) {
+                    throw UnitHasDependentsException::hasStaffGrants($unit->name);
+                }
+
+                // Attendance and reports are history: there is no UI to remove them, by design, so a
+                // unit that has any stays in the tree.
+                if ($this->practices->hasPracticesFor($unit)) {
+                    throw UnitHasDependentsException::hasPractices($unit->name);
+                }
+
+                if ($this->reports->hasReportsFor($unit)) {
+                    throw UnitHasDependentsException::hasWeeklyReports($unit->name);
+                }
+
                 $this->units->delete($unit);
 
                 return $unit;

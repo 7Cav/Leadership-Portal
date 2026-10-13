@@ -1,6 +1,8 @@
 <?php
 
 use App\Authorization\ScopeResolver;
+use App\Authorization\ViewAsKind;
+use App\Authorization\ViewAsTarget;
 use App\Models\PortalRoleGrant;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
@@ -48,7 +50,7 @@ it('resolves a staff user with no line billet from their grant\'s subtree, never
     $company = $repo->create(UnitType::Company, 'Alpha Company', 'A/2-7', $battalion->id);
     $otherBattalion = $repo->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
 
-    $staff = User::factory()->create();
+    $staff = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $battalion->id]);
 
     $scope = app(ScopeResolver::class)->resolve($staff);
@@ -63,7 +65,7 @@ it('unions the subtrees of every grant a dual-hatted user holds', function () {
     $battalionA = $repo->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
     $battalionB = $repo->create(UnitType::Battalion, '2nd Battalion', '2-7', $regiment->id);
 
-    $staff = User::factory()->create();
+    $staff = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $battalionA->id]);
     PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $battalionB->id]);
 
@@ -79,7 +81,7 @@ it('does not double-count a unit reachable through two overlapping grants', func
     $battalion = $repo->create(UnitType::Battalion, '2nd Battalion', '2-7', $regiment->id);
     $company = $repo->create(UnitType::Company, 'Alpha Company', 'A/2-7', $battalion->id);
 
-    $staff = User::factory()->create();
+    $staff = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $battalion->id]);
     PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $company->id]);
 
@@ -93,8 +95,9 @@ it('never lets one user\'s grant leak into another user\'s scope', function () {
     $regiment = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
     $battalion = $repo->create(UnitType::Battalion, '2nd Battalion', '2-7', $regiment->id);
 
-    $grantee = User::factory()->create();
-    $bystander = User::factory()->create();
+    // Both serving, so the bystander's empty scope can only come from not holding the grant.
+    $grantee = User::factory()->serving()->create();
+    $bystander = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $grantee->id, 'unit_id' => $battalion->id]);
 
     $scope = app(ScopeResolver::class)->resolve($bystander);
@@ -160,16 +163,68 @@ it('unions the roster-derived subtree with explicit grants, without duplicates',
     ]);
 });
 
-it('derives nothing for a plain trooper billet or a user with no synced trooper — grants only', function () {
+it('derives nothing for a plain trooper billet — only their grants count', function () {
     $tree = rdTree();
     UnitCommandMapping::factory()->create(['unit_id' => $tree['section1']->id, 'cav_position_id' => 500]);
 
     $trooper = rdLeader(503);  // no command mapping for this billet
-    $unsynced = User::factory()->create(['cav_id' => 9999]);
-    PortalRoleGrant::factory()->create(['user_id' => $unsynced->id, 'unit_id' => $tree['section2']->id]);
+    expect(app(ScopeResolver::class)->resolve($trooper)->all())->toBe([]);
 
-    expect(app(ScopeResolver::class)->resolve($trooper)->all())->toBe([])
-        ->and(app(ScopeResolver::class)->resolve($unsynced)->all())->toBe([$tree['section2']->id]);
+    PortalRoleGrant::factory()->create(['user_id' => $trooper->id, 'unit_id' => $tree['section2']->id]);
+    expect(app(ScopeResolver::class)->resolve($trooper)->all())->toBe([$tree['section2']->id]);
+});
+
+// A grant is staff scope for a serving member: it counts only while its holder links to a cached
+// trooper on a serving roster, the same allow-list the billet half reads.
+
+it('honors a grant while its holder serves, on any serving roster', function (TrooperStatus $status) {
+    $tree = rdTree();
+    $staff = rdLeader(503, $status);
+    PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $tree['platoon']->id]);
+
+    expect(app(ScopeResolver::class)->resolve($staff)->all())
+        ->toEqualCanonicalizing([$tree['platoon']->id, $tree['section1']->id, $tree['section2']->id]);
+})->with([
+    'combat' => [TrooperStatus::Combat],
+    'reserve' => [TrooperStatus::Reserve],
+    'ELOA' => [TrooperStatus::Eloa],
+]);
+
+it('stops honoring a grant the moment its holder departs, and keeps the row', function () {
+    $tree = rdTree();
+    $staff = rdLeader(503);
+    $grant = PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $tree['platoon']->id]);
+    expect(app(ScopeResolver::class)->resolve($staff)->all())->not->toBe([]);
+
+    // What the roster sync does to a trooper who has dropped off every serving roster.
+    Trooper::query()->where('cav_id', 4242)->update(['status' => TrooperStatus::Inactive->value]);
+
+    expect(app(ScopeResolver::class)->resolve($staff)->all())->toBe([])
+        // Lapsed, not revoked: the row stays for the staff grants page to show and an Admin to
+        // revoke on the record.
+        ->and($grant->fresh())->not->toBeNull();
+});
+
+it('honors no grant for a holder with no serving trooper behind them', function (?int $cavId) {
+    $tree = rdTree();
+    $holder = User::factory()->create(['cav_id' => $cavId]);
+    PortalRoleGrant::factory()->create(['user_id' => $holder->id, 'unit_id' => $tree['section2']->id]);
+
+    expect(app(ScopeResolver::class)->resolve($holder)->all())->toBe([]);
+})->with([
+    'no milpac linked' => [null],
+    'a milpac the roster cache does not hold' => [9999],
+]);
+
+it('takes a lapsed grant out of an Admin\'s person preview too', function () {
+    $tree = rdTree();
+    $admin = User::factory()->admin()->create();
+    $staff = rdLeader(503, TrooperStatus::Inactive);
+    PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $tree['platoon']->id]);
+
+    $preview = app(ScopeResolver::class)->evaluate($admin, new ViewAsTarget(ViewAsKind::User, $staff->id));
+
+    expect($preview?->scope->all())->toBe([]);
 });
 
 it('derives nothing for a departed trooper whose billet is still mapped', function () {
@@ -207,9 +262,10 @@ it('resolves roster-derived scope in a fixed number of queries, however large th
     DB::enableQueryLog();
     $scope = app(ScopeResolver::class)->resolve($leader);
 
-    // Grants, the billet → commanded unit join, and one path-prefix subtree query.
+    // The holder's serving check, grants, the billet → commanded unit join, and one path-prefix
+    // subtree query.
     expect($scope)->toHaveCount(7)
-        ->and(DB::getQueryLog())->toHaveCount(3);
+        ->and(DB::getQueryLog())->toHaveCount(4);
 });
 
 it('adds one subtree query per held grant, never one per unit in a subtree', function () {
@@ -222,6 +278,7 @@ it('adds one subtree query per held grant, never one per unit in a subtree', fun
     DB::enableQueryLog();
     app(ScopeResolver::class)->resolve($leader);
 
-    // Grants (with their units eager-loaded), the commanded-unit join, and 1 + 2 subtree queries.
-    expect(DB::getQueryLog())->toHaveCount(6);
+    // The serving check, grants (with their units eager-loaded), the commanded-unit join, and
+    // 1 + 2 subtree queries.
+    expect(DB::getQueryLog())->toHaveCount(7);
 });

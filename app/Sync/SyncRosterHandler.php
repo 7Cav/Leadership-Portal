@@ -42,6 +42,9 @@ use Throwable;
  */
 class SyncRosterHandler
 {
+    /** How many troopers an empty roster may depart before the run is refused as a broken response. */
+    private const EMPTY_ROSTER_TOLERANCE = 3;
+
     public function __construct(
         private readonly CavApi $cavApi,
         private readonly TrooperRepository $troopers,
@@ -63,6 +66,7 @@ class SyncRosterHandler
                     'rank_short' => $entry->rankShort,
                     'username' => $entry->username,
                     'forum_user_id' => $entry->forumUserId,
+                    'billet' => $entry->billet,
                     'mos' => $entry->mos,
                     'tis' => $entry->tis,
                     'tig' => $entry->tig,
@@ -120,10 +124,14 @@ class SyncRosterHandler
      * restored them. The position-groups fetch refuses an empty list outright for the same
      * reason (2.9).
      *
-     * Narrower than refusing every empty roster on purpose. A small roster such as ELOA could
-     * really empty out, and refusing that outright would wedge the sync for good; an empty roster whose
-     * last members all moved to another roster departs nobody and is let through. What is
-     * refused is the one shape that does damage: an empty roster that would depart people.
+     * Narrower than refusing every empty roster on purpose. A small roster such as ELOA can
+     * really empty out, and a guard with no way through would wedge the sync for good, refusing
+     * every other trooper's departures and billet changes until someone edited the database. So
+     * an empty roster is let through while it would depart at most `EMPTY_ROSTER_TOLERANCE`
+     * troopers (the last member or two being discharged), and so is one whose last members all
+     * moved to another roster this run. What is refused is an empty roster that would depart a
+     * crowd, and any run where every serving roster came back empty, which no real roster change
+     * produces.
      *
      * Thrown before any write, so `handle()` records the run as failed and the cache is untouched.
      *
@@ -134,10 +142,12 @@ class SyncRosterHandler
      */
     private function refuseEmptyRosterExodus(array $emptyRosters, array $activeCavIds): void
     {
+        $everyRosterEmpty = count($emptyRosters) === count(RosterType::serving());
+
         foreach ($emptyRosters as $roster) {
             $departing = $this->troopers->countDepartingWithStatus($this->statusFor($roster), $activeCavIds);
 
-            if ($departing > 0) {
+            if ($departing > ($everyRosterEmpty ? 0 : self::EMPTY_ROSTER_TOLERANCE)) {
                 throw EmptyRosterException::wouldDepart($roster->label(), $departing);
             }
         }

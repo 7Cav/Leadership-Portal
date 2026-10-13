@@ -17,4 +17,8 @@ export const E2E_ENV = {
     SESSION_DRIVER: 'file',
     CACHE_STORE: 'array',
     QUEUE_CONNECTION: 'sync',
+    // Telemetry is set up but its server refuses connections at once, so a capture retry fails fast and
+    // visibly (Story 7.9). The key is a placeholder, never a real credential.
+    CRCON_BASE_URL: 'http://127.0.0.1:9',
+    CRCON_API_KEY: 'e2e-placeholder',
 };
