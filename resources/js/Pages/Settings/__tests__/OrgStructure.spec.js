@@ -13,6 +13,9 @@ let postSpy = vi.fn();
 let addFormState = { type: 'battalion', name: '', callsign: '', parent_id: null, processing: false, errors: {} };
 let editFormState = { name: '', callsign: '', parent_id: null, processing: false, errors: {} };
 
+const toastSuccess = vi.fn();
+vi.mock('vue-sonner', () => ({ toast: { success: (...a) => toastSuccess(...a), error: vi.fn() } }));
+
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
     // `<Head>` needs a real Inertia app instance (it injects the head-manager on setup),
@@ -346,6 +349,19 @@ describe('Settings/OrgStructure', () => {
         });
     });
 
+    it('writes the trooper count in the singular for one trooper and the plural otherwise', () => {
+        const units = [
+            { id: 1, parent_id: null, type: 'regiment', name: '7th Cavalry Regiment', callsign: null, path: '1/', trooper_count: 1 },
+            { id: 2, parent_id: 1, type: 'battalion', name: '2nd Battalion', callsign: '2-7', path: '1/2/', trooper_count: 0 },
+        ];
+
+        const text = mount(OrgStructure, { props: { units, isAdmin: false } }).text();
+
+        expect(text).toContain('1 trooper');
+        expect(text).not.toContain('1 troopers');
+        expect(text).toContain('0 troopers');
+    });
+
     // Story 2.6: troopers the roster sync could not place into a section.
     describe('not yet placed panel', () => {
         const trooper = (overrides = {}) => ({
@@ -385,7 +401,7 @@ describe('Settings/OrgStructure', () => {
             });
 
             expect(wrapper.find('[data-testid="unplaced-trooper"]').text()).toContain('Unknown (Cav #3099)');
-            expect(wrapper.find('[data-testid="unplaced-trooper"]').text()).toContain('Billet 412');
+            expect(wrapper.find('[data-testid="unplaced-trooper"]').text()).toContain('Billet not mapped (position 412)');
         });
 
         it('says so when no billet was reported at all', () => {
@@ -420,7 +436,183 @@ describe('Settings/OrgStructure', () => {
                 props: { units: UNITS, isAdmin: true, unplacedTroopers: [trooper({ billet: null, position_id: 0 })] },
             });
 
-            expect(wrapper.find('[data-testid="unplaced-trooper"]').text()).toContain('Billet 0');
+            expect(wrapper.find('[data-testid="unplaced-trooper"]').text()).toContain('Billet not mapped (position 0)');
+        });
+
+        it('reports the true total and that the list is capped when more exist than were sent', () => {
+            const wrapper = mount(OrgStructure, {
+                props: { units: UNITS, isAdmin: true, unplacedTroopers: [trooper()], unplacedTotal: 250 },
+            });
+
+            expect(wrapper.find('[data-testid="unplaced-count"]').text()).toContain('250 synced troopers not yet placed');
+            expect(wrapper.find('[data-testid="unplaced-capped"]').text()).toContain('Showing the first 1');
+        });
+
+        it('shows the full billet on hover through a title', () => {
+            const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true, unplacedTroopers: [trooper()] } });
+
+            expect(wrapper.find('[data-testid="unplaced-trooper"] [title]').attributes('title')).toBe('Rifleman, 2nd Platoon');
+        });
+
+        // Story 2.7: placing an unplaced trooper into a section from their chip.
+        describe('assigning a trooper', () => {
+            const WITH_SECTIONS = [
+                ...UNITS,
+                { id: 3, parent_id: 2, type: 'company', name: 'Alpha Company', callsign: 'A/2-7', path: '1/2/3/', trooper_count: 0 },
+                { id: 11, parent_id: 3, type: 'section', name: '2nd Section', callsign: '2/1/A/2-7', path: '1/2/3/11/', trooper_count: 0 },
+                { id: 4, parent_id: 3, type: 'section', name: '1st Section', callsign: '1/1/A/2-7', path: '1/2/3/4/', trooper_count: 0 },
+            ];
+
+            const mountAdmin = (props = {}) =>
+                mount(OrgStructure, {
+                    props: { units: WITH_SECTIONS, isAdmin: true, unplacedTroopers: [trooper(), trooper({ id: 2, cav_id: 3100, username: 'Vega.R' })], ...props },
+                });
+
+            const open = async (wrapper, index = 0) => {
+                await wrapper.findAll('[data-testid="assign-trooper"]')[index].trigger('click');
+            };
+
+            it('offers an Assign control on every chip', () => {
+                expect(mountAdmin().findAll('[data-testid="assign-trooper"]')).toHaveLength(2);
+            });
+
+            it('disables Assign, and says why, while the tree has no sections', () => {
+                const wrapper = mountAdmin({ units: UNITS });
+
+                const button = wrapper.find('[data-testid="assign-trooper"]');
+                expect(button.attributes('disabled')).toBeDefined();
+                expect(wrapper.find('[data-testid="assign-disabled-reason"]').text()).toContain('no sections');
+            });
+
+            it('opens a form that lists only sections, in chain-of-command order', async () => {
+                const wrapper = mountAdmin();
+                await open(wrapper);
+
+                const options = wrapper.findAll('[data-testid="assign-section"] option').map((option) => option.text());
+                expect(options).toEqual(['Select a section', '1/1/A/2-7 · 1st Section (2nd Battalion / Alpha Company)', '2/1/A/2-7 · 2nd Section (2nd Battalion / Alpha Company)']);
+            });
+
+            it('keeps only one form open at a time', async () => {
+                const wrapper = mountAdmin();
+                await open(wrapper, 0);
+                // The open chip drops its Assign button, so the only one left belongs to the second chip.
+                await open(wrapper, 0);
+
+                expect(wrapper.findAll('[data-testid="assign-form"]')).toHaveLength(1);
+                expect(wrapper.findAll('[data-testid="assign-trooper"]')).toHaveLength(1);
+            });
+
+            it('cannot be submitted until a section and a reason are given', async () => {
+                const wrapper = mountAdmin();
+                await open(wrapper);
+                const submit = () => wrapper.find('[data-testid="assign-submit"]');
+                expect(submit().attributes('disabled')).toBeDefined();
+
+                await wrapper.find('[data-testid="assign-section"]').setValue('4');
+                expect(submit().attributes('disabled')).toBeDefined();
+
+                await wrapper.find('[data-testid="assign-reason"]').setValue('   ');
+                expect(submit().attributes('disabled')).toBeDefined();
+
+                await wrapper.find('[data-testid="assign-reason"]').setValue('Confirmed by the section leader');
+                expect(submit().attributes('disabled')).toBeUndefined();
+            });
+
+            it('posts the section and the trimmed reason to the placement route', async () => {
+                postSpy = vi.fn();
+                const wrapper = mountAdmin();
+                await open(wrapper);
+                await wrapper.find('[data-testid="assign-section"]').setValue('4');
+                await wrapper.find('[data-testid="assign-reason"]').setValue('  Confirmed by the section leader  ');
+
+                await wrapper.find('[data-testid="assign-form"]').trigger('submit');
+
+                expect(postSpy).toHaveBeenCalledWith(
+                    '/settings/org-structure/troopers/1/placement',
+                    { section_id: 4, reason: 'Confirmed by the section leader' },
+                    expect.objectContaining({ preserveScroll: true }),
+                );
+            });
+
+            it('closes the form once the placement succeeds', async () => {
+                postSpy = vi.fn((url, data, { onSuccess, onFinish }) => {
+                    onSuccess();
+                    onFinish();
+                });
+                const wrapper = mountAdmin();
+                await open(wrapper);
+                await wrapper.find('[data-testid="assign-section"]').setValue('4');
+                await wrapper.find('[data-testid="assign-reason"]').setValue('Confirmed');
+
+                await wrapper.find('[data-testid="assign-form"]').trigger('submit');
+
+                expect(wrapper.find('[data-testid="assign-form"]').exists()).toBe(false);
+                expect(toastSuccess).toHaveBeenCalledWith('Trooper placed');
+            });
+
+            it('says so, inside the form, when the server answers 403 rather than a validation error', async () => {
+                let onHttpException;
+                postSpy = vi.fn((url, data, options) => {
+                    onHttpException = options.onHttpException;
+                });
+                const wrapper = mountAdmin();
+                await open(wrapper);
+                await wrapper.find('[data-testid="assign-section"]').setValue('4');
+                await wrapper.find('[data-testid="assign-reason"]').setValue('Confirmed');
+                await wrapper.find('[data-testid="assign-form"]').trigger('submit');
+
+                expect(onHttpException({ status: 403 })).toBe(false);
+                await wrapper.vm.$nextTick();
+
+                expect(wrapper.find('[data-testid="assign-error"]').text()).toBe('Only an Admin can place a trooper.');
+            });
+
+            it('shows the server error and keeps the form open when the placement is refused', async () => {
+                postSpy = vi.fn((url, data, { onError, onFinish }) => {
+                    onError({ placement: 'Trooper 1 is already placed in a section.' });
+                    onFinish();
+                });
+                const wrapper = mountAdmin();
+                await open(wrapper);
+                await wrapper.find('[data-testid="assign-section"]').setValue('4');
+                await wrapper.find('[data-testid="assign-reason"]').setValue('Confirmed');
+
+                await wrapper.find('[data-testid="assign-form"]').trigger('submit');
+
+                expect(wrapper.find('[data-testid="assign-error"]').text()).toBe('Trooper 1 is already placed in a section.');
+                expect(wrapper.find('[data-testid="assign-form"]').exists()).toBe(true);
+            });
+
+            it('falls back to a field error, then to a generic message', async () => {
+                postSpy = vi.fn((url, data, { onError, onFinish }) => {
+                    onError({ reason: 'The reason field is required.' });
+                    onFinish();
+                });
+                const wrapper = mountAdmin();
+                await open(wrapper);
+                await wrapper.find('[data-testid="assign-section"]').setValue('4');
+                await wrapper.find('[data-testid="assign-reason"]').setValue('Confirmed');
+                await wrapper.find('[data-testid="assign-form"]').trigger('submit');
+                expect(wrapper.find('[data-testid="assign-error"]').text()).toBe('The reason field is required.');
+
+                postSpy = vi.fn((url, data, { onError, onFinish }) => {
+                    onError({});
+                    onFinish();
+                });
+                await wrapper.find('[data-testid="assign-form"]').trigger('submit');
+                expect(wrapper.find('[data-testid="assign-error"]').text()).toContain('The placement failed');
+            });
+
+            it('closes without posting when cancelled', async () => {
+                postSpy = vi.fn();
+                const wrapper = mountAdmin();
+                await open(wrapper);
+
+                await wrapper.find('[data-testid="assign-cancel"]').trigger('click');
+
+                expect(wrapper.find('[data-testid="assign-form"]').exists()).toBe(false);
+                expect(postSpy).not.toHaveBeenCalled();
+            });
         });
 
         it('is absent when the server withheld the list', () => {

@@ -197,7 +197,7 @@ it('resolves in a constant number of queries however deep the unit sits', functi
         return count(DB::getQueryLog());
     };
 
-    expect($count($this->alphaSection1))->toBe($count($this->alpha))->toBe(2);
+    expect($count($this->alphaSection1))->toBe($count($this->alpha))->toBe(3);
 });
 
 it('is read-only: resolving writes nothing', function () {

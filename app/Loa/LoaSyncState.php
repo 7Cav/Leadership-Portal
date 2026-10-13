@@ -11,7 +11,8 @@ use Carbon\CarbonImmutable;
  *
  * `lastSyncedAt` is a clean `success` run only; a `partial` run did write real data but left threads
  * unread, so it does not call the cache current. `stale` is set when the latest finished run did not
- * succeed: the page is then showing the last good cache. `neverSynced()` is the explicit state for a
+ * succeed, or the last good sync is older than {@see LoaProvenance::STALE_AFTER_HOURS}: the page is then
+ * showing the last good cache. `neverSynced()` is the explicit state for a
  * portal that has no successful LOA sync yet, so a screen never shows a blank or an invented time.
  */
 final readonly class LoaSyncState
@@ -30,7 +31,7 @@ final readonly class LoaSyncState
     }
 
     /**
-     * The Inertia prop shape, the same keys the roster page (2.8) reads, plus `neverSynced`.
+     * The Inertia prop shape for the LOA screens.
      *
      * @return array{source: string, lastSyncedAt: ?string, stale: bool, neverSynced: bool, latestStatus: ?string, latestFinishedAt: ?string}
      */

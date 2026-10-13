@@ -24,6 +24,7 @@ it('gives an Admin the troopers the sync could not place, with what is needed to
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->has('unplacedTroopers', 1)
+            ->where('unplacedTotal', 1)
             ->where('unplacedTroopers.0.cav_id', 3099)
             ->where('unplacedTroopers.0.username', 'Hollis.D')
             ->where('unplacedTroopers.0.rank', 'Private')
@@ -45,7 +46,7 @@ it('does not send the list to anyone but an Admin', function () {
 
     $this->actingAs(User::factory()->create())->get('/settings/org-structure')
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->where('unplacedTroopers', null));
+        ->assertInertia(fn ($page) => $page->where('unplacedTroopers', null)->where('unplacedTotal', null));
 });
 
 it('withholds the list from an Admin who is previewing a unit, as it would be for that leader', function () {
@@ -81,4 +82,12 @@ it('drops a trooper from the list once they are placed', function () {
 
     $this->get('/settings/org-structure')
         ->assertInertia(fn ($page) => $page->has('unplacedTroopers', 0));
+});
+
+it('caps the list sent per visit but reports the true total', function () {
+    $admin = User::factory()->admin()->create();
+    Trooper::factory()->count(101)->create(['primary_section_id' => null]);
+
+    $this->actingAs($admin)->get('/settings/org-structure')
+        ->assertInertia(fn ($page) => $page->has('unplacedTroopers', 100)->where('unplacedTotal', 101));
 });

@@ -129,3 +129,14 @@ it('puts a week\'s report due at 23:59Z on the Saturday after it ends, and refus
 
     WeekOf::reportDue(CarbonImmutable::parse('2026-10-04 00:00:00', 'UTC'));
 })->throws(InvalidArgumentException::class);
+
+it('steps a week boundary to the week before and the week after', function () {
+    $week = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');
+
+    expect(WeekOf::previous($week)->toIso8601String())->toBe('2026-09-26T00:00:00+00:00')
+        ->and(WeekOf::next($week)->toIso8601String())->toBe('2026-10-10T00:00:00+00:00');
+});
+
+it('refuses to step from a moment that is not a week boundary', function (string $method) {
+    expect(fn () => WeekOf::$method(CarbonImmutable::parse('2026-10-04 00:00:00', 'UTC')))->toThrow(InvalidArgumentException::class);
+})->with(['previous', 'next']);

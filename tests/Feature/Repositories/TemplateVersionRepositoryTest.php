@@ -5,6 +5,7 @@ use App\Models\TemplateVersion;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\TemplateUnchangedException;
 use App\Repositories\TemplateVersionRepository;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -96,10 +97,12 @@ it('activates a version for its own company only, since the pointer takes both f
     $mine = $this->repo->author($this->company->id, $this->type, 'mine', $this->author->id);
     $other = Unit::factory()->create(['type' => UnitType::Company]);
     $theirs = $this->repo->author($other->id, $this->type, 'theirs', $this->author->id);
+    $this->repo->author($this->company->id, $this->type, 'mine, edited', $this->author->id);
 
     $this->repo->activate($mine, $this->author->id);
 
-    expect($this->repo->activeFor($other->id, $this->type)->id)->toBe($theirs->id);
+    expect($this->repo->activeFor($this->company->id, $this->type)->id)->toBe($mine->id)
+        ->and($this->repo->activeFor($other->id, $this->type)->id)->toBe($theirs->id);
 });
 
 it('refuses to activate a version that no longer exists', function () {
@@ -182,4 +185,17 @@ it('names what may be mass-assigned on a version, so nothing else can be set thr
     $version = new TemplateVersion(['company_id' => 1, 'version' => 9, 'body' => 'x', 'created_by' => 1, 'id' => 77, 'created_at' => '2000-01-01']);
 
     expect($version->id)->toBeNull()->and($version->getAttribute('created_at'))->toBeNull()->and($version->version)->toBe(9);
+});
+
+it('refuses to activate the version that is already active, writing nothing', function () {
+    $version = $this->repo->author($this->company->id, $this->type, 'body', $this->author->id);
+
+    expect(fn () => $this->repo->activate($version, $this->author->id))->toThrow(TemplateUnchangedException::class);
+});
+
+it('never deletes a version through the model', function () {
+    $version = $this->repo->author($this->company->id, $this->type, 'body', $this->author->id);
+
+    expect(fn () => $version->delete())->toThrow(LogicException::class)
+        ->and(TemplateVersion::query()->count())->toBe(1);
 });

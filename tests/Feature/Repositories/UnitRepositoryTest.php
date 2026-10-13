@@ -220,6 +220,20 @@ it('lists a unit\'s whole subtree, itself included, in id order and nothing outs
         ->and($repo->subtree($section)->modelKeys())->toBe([$section->id]);
 });
 
+it('picks the sections out of a set of unit ids, with their parent loaded, in path order (3.7)', function () {
+    $repo = app(UnitRepository::class);
+    $platoon = $repo->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', null);
+    $second = $repo->create(UnitType::Section, '2nd Section', '2/1/A/1-7', $platoon->id);
+    $first = $repo->create(UnitType::Section, '1st Section', '1/1/A/1-7', $platoon->id);
+    $outside = $repo->create(UnitType::Section, 'Elsewhere', null, null);
+
+    $sections = $repo->sectionsAmong(collect([$platoon->id, $second->id, $first->id]));
+
+    expect($sections->pluck('id')->all())->toBe([$second->id, $first->id])
+        ->and($sections->first()->relationLoaded('parent'))->toBeTrue()
+        ->and($sections->first()->parent->id)->toBe($platoon->id)
+        ->and($sections->pluck('id'))->not->toContain($outside->id);
+});
 // 3.6: the owning company is found from the materialized path, in one query, from any echelon below it.
 it('finds the company that owns a unit, from any echelon beneath it and from the company itself', function () {
     $repo = app(UnitRepository::class);
@@ -256,4 +270,18 @@ it('does not mistake a unit whose id merely starts with the same digits for an a
 
     expect($repo->owningCompany($late)->name)->toBe('Late Company')
         ->and($repo->owningCompany($company)->id)->toBe($company->id);
+});
+
+it('resolves from the stored tree, so a model loaded before a move still finds the current company', function () {
+    $repo = app(UnitRepository::class);
+    $alpha = $repo->create(UnitType::Company, 'Alpha Company', 'A/1-7', null);
+    $bravo = $repo->create(UnitType::Company, 'Bravo Company', 'B/1-7', null);
+    $platoon = $repo->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', $alpha->id);
+    $section = $repo->create(UnitType::Section, '1st Section', '1/1/A/1-7', $platoon->id);
+
+    $stale = Unit::query()->findOrFail($section->id);
+    $repo->move($platoon, $bravo->id);
+
+    expect($stale->path)->not->toBe(Unit::query()->findOrFail($section->id)->path)
+        ->and($repo->owningCompany($stale)->id)->toBe($bravo->id);
 });

@@ -10,11 +10,16 @@
 #           composer deptrac:unassigned (list app/ classes that match no layer)
 #
 # The graph (arrows = "may depend on"):
-#   Controller     → CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi, Loa, Rollcall  # writes via Commands; reads direct
+#   Controller     → CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi, Milpac  # writes via Commands; reads direct
+#   CommandHandler → Repository, Model, Integration, Support\Audit, Authorization, Support\Time, Kpi  # write-side business logic
+#   Kpi            → Repository, Model, Support\Time       # the one shared KPI service (AD-21)
+#   Milpac         → Repository, Model                     # what the trooper detail page shows; shared by the milpac panels of 6.4–6.6, so it is a layer of its own
+#   Controller     → CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi  # writes via Commands; reads direct
 #   CommandHandler → Repository, Model, Integration, Support\Audit, Authorization, Support\Time, Kpi, Loa  # write-side business logic
 #   Kpi            → Repository, Model, Support\Time, Loa  # the one shared KPI service (AD-21)
-#   Loa            → Repository, Model, Support\Time       # LOA coverage + source/staleness readers (Epic 4)
-#   Job            → Sync                                  # queued jobs invoke a Sync handler (Story 2.4)
+#   Loa            → Repository, Model, Support\Time       # LOA source/staleness reader and week coverage (Epic 4)
+#   Rollcall       → Repository, Model                     # the template a unit resolves to (Epic 3)
+#   Job            → Sync, CommandHandler                  # queued jobs invoke a Sync handler (Story 2.4) or a capture Command (Story 7.5)
 #   Sync           → Repository, Model, Integration        # one-writer cache sync handlers (AD-4)
 #   Authorization  → Repository, Model                     # ScopeResolver, the single scope gate (AD-8)
 #   Support\Audit  → Repository                             # audited-action envelope (AD-16)
@@ -72,6 +77,10 @@ deptrac:
       collectors:
         - type: directory
           value: app/Kpi/.*
+    - name: Milpac
+      collectors:
+        - type: directory
+          value: app/Milpac/.*
     - name: Loa
       collectors:
         - type: directory
@@ -132,10 +141,8 @@ deptrac:
       - Support\Time
       # Dashboard and report pages read the six KPIs from the shared service (AD-21, Story 5.1).
       - Kpi
-      # Roster and overview pages read LOA coverage and its source/staleness from the Loa layer (Epic 4).
-      - Loa
-      # The rollcall screen reads what it shows from the Rollcall layer (Epic 3).
-      - Rollcall
+      # The trooper detail page reads its props from the Milpac layer (Epic 6).
+      - Milpac
     CommandHandler:
       - Repository
       - Model
@@ -157,18 +164,26 @@ deptrac:
       - Support\Time
       # LOA coverage is read from its one definition, never re-derived (AD-21, Story 4.8).
       - Loa
-    # What the rollcall screen shows and renders from (Epic 3): the template a unit resolves to, and later the roster
-    # pre-filled for a week and the BBCode. Read-only; who may look is the Controller's ScopeResolver gate (AD-8).
-    Rollcall:
+    # What the trooper detail page (the milpac) shows for one trooper (Epic 6): the ID block, the courses
+    # panel and later the service record, read through Repositories and shaped as page props. Read-only;
+    # who may look is the Controller's ScopeResolver gate (AD-8), not decided here.
+    Milpac:
       - Repository
       - Model
-    # LOA reads over the `loas` and `sync_runs` caches (Epic 4): the single definition of LOA coverage
-    # (4.4) and the source/last-sync every LOA value renders with (4.3, AD-20). Read-only; the LOA
-    # sync stays the one writer.
+    # LOA reads over the `sync_runs` cache (Epic 4): the source/last-sync every LOA value renders with
+    # (4.3, AD-20) and whether a trooper is covered in a Cav week (4.4, AD-21). Read-only; the LOA sync
+    # stays the one writer. Support\Time because coverage is judged in whole Cav weeks (`WeekOf`, AD-11).
+    # An edge from Controller is added by the story that first renders it.
     Loa:
       - Repository
       - Model
       - Support\Time
+    # What the rollcall screen shows and renders from (Epic 3): the template a unit resolves to, and later the
+    # roster pre-filled for a week and the BBCode. Read-only. An edge from Controller is added by the story that
+    # first renders it.
+    Rollcall:
+      - Repository
+      - Model
     # One-writer cache sync handler (AD-4, AD-22): reads the source of truth through
     # Integration and persists only through its Repository — the same write-side shape
     # as CommandHandler, minus Support\Audit (sync runs record to sync_runs instead, AD-16).
@@ -180,6 +195,8 @@ deptrac:
     # off the request path (AD-23). No DB/external access of its own.
     Job:
       - Sync
+      # The capture run (7.5) is a Command, queued per AD-23: the job only invokes its handler.
+      - CommandHandler
     # Reaches AuditLogRepository to write the audit_log row — the one place outside
     # Repositories/ that needs a DB-writing path, so it goes through the Repository layer
     # rather than touching DB itself (AD-2 unchanged).

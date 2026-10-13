@@ -7,6 +7,7 @@ use App\Models\ArtifactType;
 use App\Models\TemplateVersion;
 use App\Models\Unit;
 use App\Models\UnitType;
+use App\Repositories\TemplateUnchangedException;
 use App\Repositories\TemplateVersionRepository;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
@@ -20,13 +21,18 @@ class Eloquent implements TemplateVersionRepository
 
     public function author(int $companyId, ArtifactType $type, string $body, int $createdBy): TemplateVersion
     {
-        if (! Unit::query()->whereKey($companyId)->where('type', UnitType::Company->value)->exists()) {
-            throw new InvalidArgumentException("Unit {$companyId} is not a company; templates belong to a company (AD-17).");
-        }
-
         for ($attempt = 1; ; $attempt++) {
             try {
                 return DB::transaction(function () use ($companyId, $type, $body, $createdBy) {
+                    $this->lockCompany($companyId);
+
+                    // Decided under the lock, so two quick submits of the same text cannot both pass it.
+                    $active = $this->activeFor($companyId, $type);
+
+                    if ($active !== null && $active->body === $body) {
+                        throw new TemplateUnchangedException($active);
+                    }
+
                     $version = TemplateVersion::query()->create([
                         'company_id' => $companyId,
                         'artifact_type' => $type,
@@ -58,9 +64,16 @@ class Eloquent implements TemplateVersionRepository
     public function activate(TemplateVersion $version, int $activatedBy): TemplateVersion
     {
         return DB::transaction(function () use ($version, $activatedBy) {
+            $this->lockCompany($version->company_id);
+
             // A locking read, so a version cannot be activated from a stale copy of itself.
             $stored = TemplateVersion::query()->whereKey($version->id)->lockForUpdate()->first()
                 ?? throw new InvalidArgumentException("Template version {$version->id} does not exist.");
+
+            // Decided under the lock, so a double-click cannot record two activations.
+            if ($this->activeFor($stored->company_id, $stored->artifact_type)?->id === $stored->id) {
+                throw new TemplateUnchangedException($stored);
+            }
 
             $this->point($stored, $activatedBy);
 
@@ -93,6 +106,22 @@ class Eloquent implements TemplateVersionRepository
     public function find(int $id): ?TemplateVersion
     {
         return TemplateVersion::query()->find($id);
+    }
+
+    /**
+     * Take the company's `units` row for update: one lock that every template write for the company goes through,
+     * so authors and activations for it run one at a time. That also replaces a locking read of an empty version
+     * set, which takes a gap lock that two first-ever authors can deadlock on.
+     *
+     * @throws InvalidArgumentException when `$companyId` is not a `units` row of type company.
+     */
+    private function lockCompany(int $companyId): void
+    {
+        $company = Unit::query()->whereKey($companyId)->where('type', UnitType::Company->value)->lockForUpdate()->first(['id']);
+
+        if ($company === null) {
+            throw new InvalidArgumentException("Unit {$companyId} is not a company; templates belong to a company (AD-17).");
+        }
     }
 
     /**

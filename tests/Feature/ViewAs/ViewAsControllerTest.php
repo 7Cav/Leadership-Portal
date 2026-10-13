@@ -189,7 +189,7 @@ describe('entering and leaving', function () {
 
     it('drops a stored target that no longer holds, on the next request (AC #4)', function () {
         $tree = vcTree();
-        $staff = User::factory()->create();
+        $staff = User::factory()->serving()->create();
         $grant = PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $tree['company']->id]);
         $this->actingAs($staff)->post('/view-as', ['kind' => 'unit', 'id' => $tree['platoon']->id])->assertSessionHasNoErrors();
 

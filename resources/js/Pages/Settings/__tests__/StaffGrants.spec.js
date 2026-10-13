@@ -20,7 +20,9 @@ const UNITS = [
 
 const USERS = [{ id: 10, username: 'jsmith' }];
 
-const GRANTS = [{ id: 100, user_id: 10, username: 'jsmith', unit_id: 2, unit_name: '2nd Battalion', created_at: '2026-08-11T00:00:00Z' }];
+const GRANTS = [
+    { id: 100, user_id: 10, username: 'jsmith', holder_serving: true, unit_id: 2, unit_name: '2nd Battalion', created_at: '2026-08-11T00:00:00Z' },
+];
 
 describe('Settings/StaffGrants', () => {
     it('renders every current grant', () => {
@@ -28,6 +30,18 @@ describe('Settings/StaffGrants', () => {
 
         expect(wrapper.text()).toContain('jsmith');
         expect(wrapper.text()).toContain('2nd Battalion');
+        expect(wrapper.find('[data-testid="lapsed-100"]').exists()).toBe(false);
+    });
+
+    it('marks a grant whose holder is not serving as lapsed, still listed and revocable', () => {
+        const lapsed = { ...GRANTS[0], id: 101, username: 'gone.k', holder_serving: false };
+        const wrapper = mount(StaffGrants, { props: { grants: [...GRANTS, lapsed], units: UNITS, users: USERS, isAdmin: true } });
+
+        expect(wrapper.find('[data-testid="grant-row-101"]').text()).toContain('gone.k');
+        expect(wrapper.find('[data-testid="lapsed-101"]').text()).toContain('Lapsed: not serving');
+        expect(wrapper.find('[data-testid="lapsed-101"] .sr-only').text()).toContain('gives no scope while its holder is not on a serving Cav roster');
+        expect(wrapper.find('[data-testid="lapsed-100"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="revoke-101"]').exists()).toBe(true);
     });
 
     it('shows an empty state when there are no grants', () => {

@@ -1,17 +1,19 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
-import { reactive } from 'vue';
+import { flushPromises, mount } from '@vue/test-utils';
+import { nextTick, reactive } from 'vue';
 import Templates from '../Templates.vue';
 
 const post = vi.fn();
 const routerGet = vi.fn();
 const routerPost = vi.fn();
 let formState;
+const mockPage = { url: '/settings/templates', props: {} };
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
     Head: { template: '<head></head>' },
     router: { get: (...args) => routerGet(...args), post: (...args) => routerPost(...args) },
+    usePage: () => mockPage,
     useForm: (initial) => {
         formState = reactive({ ...initial, processing: false, errors: {}, post, reset: vi.fn(), clearErrors: vi.fn() });
 
@@ -20,6 +22,8 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
 }));
 
 afterEach(() => {
+    mockPage.props = {};
+    document.body.innerHTML = '';
     vi.unstubAllGlobals();
     post.mockReset();
     routerGet.mockReset();
@@ -44,7 +48,15 @@ const props = (overrides = {}) => ({
     ...overrides,
 });
 
-const page = (overrides = {}) => mount(Templates, { props: props(overrides) });
+const page = (overrides = {}) => mount(Templates, { props: props(overrides), attachTo: document.body });
+const dialog = () => document.body.querySelector('[data-testid="activate-dialog"]');
+const field = (testid) => document.body.querySelector(`[data-testid="${testid}"]`);
+const typeReason = async (text) => {
+    const input = field('activate-reason');
+    input.value = text;
+    input.dispatchEvent(new Event('input'));
+    await nextTick();
+};
 
 describe('Settings/Templates', () => {
     it('lists the companies, labelled with their callsign when they have one', () => {
@@ -95,34 +107,116 @@ describe('Settings/Templates', () => {
         expect(post).toHaveBeenCalledWith('/settings/templates', { preserveScroll: true });
     });
 
-    it('asks for a reason before making an older version active, and cancelling does nothing', () => {
-        const prompt = vi.fn(() => null);
-        vi.stubGlobal('prompt', prompt);
+    it('asks for a reason in a labelled dialog before making an older version active, and cancelling does nothing', async () => {
         const wrapper = page();
 
-        wrapper.get('[data-testid="activate-21"]').trigger('click');
+        expect(dialog()).toBeNull();
 
-        expect(prompt).toHaveBeenCalledOnce();
+        await wrapper.get('[data-testid="activate-21"]').trigger('click');
+        await flushPromises();
+
+        expect(dialog()).not.toBeNull();
+        expect(dialog().textContent).toContain('Make version 1 the active template?');
+        expect(dialog().querySelector('label[for="activate-reason"]').textContent).toContain('Reason for the record');
+
+        [...dialog().querySelectorAll('button')].find((b) => b.textContent.trim() === 'Cancel').click();
+        await flushPromises();
+
         expect(routerPost).not.toHaveBeenCalled();
     });
 
-    it('refuses a blank reason without sending anything', async () => {
-        vi.stubGlobal('prompt', vi.fn(() => '   '));
+    it('keeps the confirm button disabled until there is a reason, so a blank one is never sent', async () => {
         const wrapper = page();
 
         await wrapper.get('[data-testid="activate-21"]').trigger('click');
+        await flushPromises();
 
+        expect(field('activate-confirm').disabled).toBe(true);
+
+        await typeReason('   ');
+        expect(field('activate-confirm').disabled).toBe(true);
+        field('activate-confirm').click();
         expect(routerPost).not.toHaveBeenCalled();
-        expect(wrapper.get('[data-testid="activate-error"]').text()).toContain('A reason is required');
     });
 
-    it('sends the reason when making an older version active', async () => {
-        vi.stubGlobal('prompt', vi.fn(() => 'The second edit broke the table'));
+    it('sends the reason when making an older version active, and shows a pending state that blocks a second click', async () => {
         const wrapper = page();
 
         await wrapper.get('[data-testid="activate-21"]').trigger('click');
+        await flushPromises();
+        await typeReason('The second edit broke the table');
+        field('activate-confirm').click();
+        await nextTick();
 
         expect(routerPost).toHaveBeenCalledWith('/settings/templates/21/activate', { reason: 'The second edit broke the table' }, expect.objectContaining({ preserveScroll: true }));
+
+        const options = routerPost.mock.calls[0][2];
+        options.onStart();
+        await nextTick();
+
+        expect(field('activate-confirm').disabled).toBe(true);
+        expect(field('activate-confirm').textContent).toContain('Activating');
+
+        field('activate-confirm').click();
+        expect(routerPost).toHaveBeenCalledOnce();
+    });
+
+    it('shows the server\'s error for the reason inside the dialog and lets the Admin try again', async () => {
+        const wrapper = page();
+
+        await wrapper.get('[data-testid="activate-21"]').trigger('click');
+        await flushPromises();
+        await typeReason('because');
+        field('activate-confirm').click();
+        const options = routerPost.mock.calls[0][2];
+        options.onStart();
+        options.onError({ reason: 'The reason is too short.' });
+        options.onFinish();
+        await nextTick();
+
+        expect(field('activate-error').textContent).toBe('The reason is too short.');
+        expect(field('activate-confirm').disabled).toBe(false);
+    });
+
+    it('opens the text of a version to read, so a rollback is never blind', async () => {
+        const wrapper = page();
+
+        expect(wrapper.find('[data-testid="version-body-21"]').exists()).toBe(false);
+
+        await wrapper.get('[data-testid="view-21"]').trigger('click');
+
+        expect(wrapper.get('[data-testid="version-body-21"]').text()).toBe('[B]first[/B]');
+        expect(wrapper.get('[data-testid="view-21"]').attributes('aria-expanded')).toBe('true');
+
+        await wrapper.get('[data-testid="view-21"]').trigger('click');
+
+        expect(wrapper.find('[data-testid="version-body-21"]').exists()).toBe(false);
+    });
+
+    it('lets a non-Admin read a version too, since reading changes nothing', async () => {
+        const wrapper = page({ isAdmin: false });
+
+        await wrapper.get('[data-testid="view-21"]').trigger('click');
+
+        expect(wrapper.get('[data-testid="version-body-21"]').text()).toBe('[B]first[/B]');
+    });
+
+    it('keeps the controls, disabled with the reason, while an Admin is viewing as a leader', async () => {
+        mockPage.props = { viewAs: { kind: 'unit', designation: '2/1/A/1-7', label: 'SGT Vasquez.R', admin: true } };
+        const wrapper = page({ isAdmin: false });
+
+        expect(wrapper.find('[data-testid="template-form"]').exists()).toBe(true);
+        expect(wrapper.get('[data-testid="template-body"]').attributes('disabled')).toBeDefined();
+        expect(wrapper.get('[data-testid="template-reason"]').attributes('disabled')).toBeDefined();
+        expect(wrapper.find('[data-testid="save-template"]').exists()).toBe(false);
+        expect(wrapper.get('[data-testid="save-template-readonly"]').attributes('aria-disabled')).toBe('true');
+        expect(wrapper.get('[data-testid="activate-21"]').attributes('aria-disabled')).toBe('true');
+
+        await wrapper.get('[data-testid="activate-21"]').trigger('click');
+        await flushPromises();
+
+        expect(dialog()).toBeNull();
+        expect(routerPost).not.toHaveBeenCalled();
     });
 
     it('hides every editing control from a non-Admin and shows the active text read-only', () => {

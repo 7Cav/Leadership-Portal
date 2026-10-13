@@ -19,6 +19,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * mapped to and from 5.1's typed result by the caller, not here. Keys and values round-trip; object
  * key *order* does not on MySQL, whose JSON type normalizes it, so readers look keys up by name.
  *
+ * `training_subject` and `unaccounted` (`[{trooper_id, reason}]`, an `UnaccountedReason` value
+ * each) are the structured half of the leader's notes (5.5): saved with a draft, frozen with
+ * `notes` on send.
+ *
  * `status` and the send metadata (`sent_at`, `sent_by`, `content_digest`, `template_version_id`)
  * are deliberately not mass-assignable: only the Repository layer's send path sets them, so a
  * stray `update()` can neither reopen a sent report nor mark one sent without its metadata.
@@ -40,6 +44,7 @@ class WeeklyReport extends Model
             'week_start' => 'immutable_datetime',
             'status' => WeeklyReportStatus::class,
             'kpis' => 'array',
+            'unaccounted' => 'array',
             'sent_at' => 'immutable_datetime',
             // Demo history (#115): set only by the demo writer, never mass-assigned.
             'is_demo' => 'boolean',

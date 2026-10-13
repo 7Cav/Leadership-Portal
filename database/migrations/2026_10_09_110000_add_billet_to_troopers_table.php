@@ -11,8 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // The primary billet's title (`Section Leader`, `Combat Medic`), what the roster screen
-        // shows beside a trooper (2.8). A synced display value, overwritten on every roster sync
+        // The primary billet's title (`Section Leader`, `Combat Medic`), what the unplaced-trooper
+        // panel on Settings shows to explain why someone has no section (2.6). A synced display value, overwritten on every roster sync
         // like `rank`/`mos`; nullable because Cav may report a blank field (2.1's per-field
         // degrade). `cav_position_id` stays the key anything is mapped on — titles are free text.
         Schema::table('troopers', function (Blueprint $table) {

@@ -9,8 +9,57 @@ use App\Models\TemplateVersion;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\TemplateUnchangedException;
 use App\Repositories\TemplateVersionRepository;
+use App\Support\Audit\AuditEnvelope;
 use App\Support\Audit\ReasonRequiredException;
+use Illuminate\Support\Collection;
+
+/**
+ * A repository whose first read of the active version still shows what a racing request saw before the other one
+ * committed, so the Commands' cheap pre-check passes and only the repository's own check under its lock can stop
+ * the second write.
+ */
+function staleActiveRepository(TemplateVersionRepository $real, ?TemplateVersion $seen): TemplateVersionRepository
+{
+    return new class($real, $seen) implements TemplateVersionRepository
+    {
+        private bool $firstRead = true;
+
+        public function __construct(private TemplateVersionRepository $real, private ?TemplateVersion $seen) {}
+
+        public function author(int $companyId, ArtifactType $type, string $body, int $createdBy): TemplateVersion
+        {
+            return $this->real->author($companyId, $type, $body, $createdBy);
+        }
+
+        public function activate(TemplateVersion $version, int $activatedBy): TemplateVersion
+        {
+            return $this->real->activate($version, $activatedBy);
+        }
+
+        public function activeFor(int $companyId, ArtifactType $type): ?TemplateVersion
+        {
+            if ($this->firstRead) {
+                $this->firstRead = false;
+
+                return $this->seen;
+            }
+
+            return $this->real->activeFor($companyId, $type);
+        }
+
+        public function history(int $companyId, ArtifactType $type): Collection
+        {
+            return $this->real->history($companyId, $type);
+        }
+
+        public function find(int $id): ?TemplateVersion
+        {
+            return $this->real->find($id);
+        }
+    };
+}
 
 // Story 3.5 / AD-16, AD-17: an edit is a new audited version with a reason, and a rollback only moves the pointer.
 
@@ -83,6 +132,26 @@ describe('authoring', function () {
             ->and(AuditLogEntry::query()->count())->toBe(1);
     });
 
+    it('stops a double submit that raced past the pre-check: the repository decides under its lock, so no second version and no second log entry', function () {
+        $first = $this->author->handle($this->admin, $this->company, $this->type, 'same body', 'one');
+        $racer = new AuthorTemplateVersion(staleActiveRepository($this->repo, null), app(AuditEnvelope::class));
+
+        $again = $racer->handle($this->admin, $this->company, $this->type, 'same body', 'two');
+
+        expect($again->id)->toBe($first->id)
+            ->and(TemplateVersion::query()->count())->toBe(1)
+            ->and(AuditLogEntry::query()->count())->toBe(1);
+    });
+
+    it('refuses, in the repository, to write a version whose body is the active one already', function () {
+        $first = $this->repo->author($this->company->id, $this->type, 'same body', $this->admin->id);
+
+        expect(fn () => $this->repo->author($this->company->id, $this->type, 'same body', $this->admin->id))
+            ->toThrow(TemplateUnchangedException::class);
+
+        expect(TemplateVersion::query()->count())->toBe(1)->and($this->repo->activeFor($this->company->id, $this->type)->id)->toBe($first->id);
+    });
+
     it('does save text that matches an older version but not the active one, as a new version', function () {
         $this->author->handle($this->admin, $this->company, $this->type, 'a', 'one');
         $this->author->handle($this->admin, $this->company, $this->type, 'b', 'two');
@@ -124,6 +193,18 @@ describe('activating', function () {
 
         expect($this->repo->activeFor($this->company->id, $this->type)->id)->toBe($second->id)
             ->and(AuditLogEntry::query()->count())->toBe(2);
+    });
+
+    it('stops a double-click that raced past the pre-check from recording a second activation', function () {
+        $first = $this->author->handle($this->admin, $this->company, $this->type, 'first body', 'one');
+        $this->author->handle($this->admin, $this->company, $this->type, 'second body', 'two');
+        $this->activate->handle($this->admin, $first, 'roll back');
+        $racer = new ActivateTemplateVersion(staleActiveRepository($this->repo, $this->repo->find($first->id + 1)), app(AuditEnvelope::class));
+
+        $racer->handle($this->admin, $first, 'roll back again');
+
+        expect(AuditLogEntry::query()->where('action', 'template_version.activated')->count())->toBe(1)
+            ->and($this->repo->activeFor($this->company->id, $this->type)->id)->toBe($first->id);
     });
 
     it('treats activating the version that is already active as a no-op that is not logged', function () {

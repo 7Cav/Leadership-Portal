@@ -26,7 +26,7 @@ use Illuminate\Support\Facades\DB;
 
 beforeEach(function () {
     $this->section = Unit::factory()->create(['type' => UnitType::Section]);
-    $this->leader = User::factory()->create();
+    $this->leader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
 
     $this->moment = CarbonImmutable::parse('2026-10-07 18:00:00', 'UTC');
@@ -60,7 +60,7 @@ describe('a trooper whose leave covers the week', function () {
         leave($this->troopers[0], '2026-10-01', '2026-10-20');
 
         expect(fn () => markLoa($this->leader, $this->section->id, $this->moment, [new AttendanceMark($this->troopers[0]->id, $status)]))
-            ->toThrow(InvalidAttendanceMarkException::class, "Troopers {$this->troopers[0]->id} are on leave");
+            ->toThrow(InvalidAttendanceMarkException::class, 'on leave this week');
     })->with([
         'present' => AttendanceStatus::Present,
         'missed' => AttendanceStatus::Missed,
@@ -81,15 +81,27 @@ describe('a trooper whose leave covers the week', function () {
             ->and(AuditLogEntry::query()->count())->toBe(0);
     });
 
-    it('names every covered trooper in the refusal', function () {
+    it('carries every covered trooper on the refusal, and names no one in its message', function () {
         leave($this->troopers[0], '2026-10-01', '2026-10-20');
         leave($this->troopers[2], '2026-10-04', '2026-10-05');
 
-        expect(fn () => markLoa($this->leader, $this->section->id, $this->moment, [
-            new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present),
-            new AttendanceMark($this->troopers[1]->id, AttendanceStatus::Present),
-            new AttendanceMark($this->troopers[2]->id, AttendanceStatus::Present),
-        ]))->toThrow(InvalidAttendanceMarkException::class, "Troopers {$this->troopers[0]->id}, {$this->troopers[2]->id} are on leave");
+        try {
+            markLoa($this->leader, $this->section->id, $this->moment, [
+                new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present),
+                new AttendanceMark($this->troopers[1]->id, AttendanceStatus::Present),
+                new AttendanceMark($this->troopers[2]->id, AttendanceStatus::Present),
+            ]);
+        } catch (InvalidAttendanceMarkException $e) {
+            // The ids ride on the exception, like notPlacedInSection, so the autosaving rollcall screen can
+            // drop only the refused troopers and keep saving the others. The message names no one.
+            expect($e->trooperIds)->toBe([$this->troopers[0]->id, $this->troopers[2]->id])
+                ->and($e->getMessage())->toContain('on leave this week')
+                ->and($e->getMessage())->not->toMatch('/\d/');
+
+            return;
+        }
+
+        $this->fail('The batch should have been refused.');
     });
 
     it('may still have their rollcall signature recorded, which is a separate fact', function () {

@@ -114,3 +114,22 @@ it('resolves the commanded unit in a single query', function () {
 
     expect(DB::getQueryLog())->toHaveCount(1);
 });
+
+it('names the serving trooper holding each unit\'s command billet, keyed by unit (2.8)', function () {
+    $platoon = Unit::factory()->create(['type' => UnitType::Platoon]);
+    $section = Unit::factory()->create(['type' => UnitType::Section]);
+    $vacant = Unit::factory()->create(['type' => UnitType::Section]);
+    UnitCommandMapping::factory()->create(['unit_id' => $platoon->id, 'cav_position_id' => 199]);
+    UnitCommandMapping::factory()->create(['unit_id' => $section->id, 'cav_position_id' => 201]);
+    UnitCommandMapping::factory()->create(['unit_id' => $vacant->id, 'cav_position_id' => 202]);
+    $pl = Trooper::factory()->create(['cav_position_id' => 199]);
+    $sl = Trooper::factory()->create(['cav_position_id' => 201]);
+    Trooper::factory()->create(['cav_position_id' => 202, 'status' => TrooperStatus::Inactive]);
+
+    $leaders = app(UnitCommandMappingRepository::class)->commandersOf([$platoon->id, $section->id, $vacant->id]);
+
+    expect($leaders->keys()->sort()->values()->all())->toBe(collect([$platoon->id, $section->id])->sort()->values()->all())
+        ->and($leaders[$platoon->id]->is($pl))->toBeTrue()
+        ->and($leaders[$section->id]->is($sl))->toBeTrue()
+        ->and(app(UnitCommandMappingRepository::class)->commandersOf([])->all())->toBe([]);
+});

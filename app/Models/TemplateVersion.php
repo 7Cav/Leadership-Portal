@@ -31,6 +31,12 @@ class TemplateVersion extends Model
         static::updating(function (): never {
             throw new LogicException('A template version is immutable (AD-17): an edit is a new version, never an update.');
         });
+
+        // Query-builder updates and deletes bypass model events, so these two guards are not the whole defence:
+        // the database's `restrictOnDelete` on the pointer and the unique (company, type, version) index are.
+        static::deleting(function (): never {
+            throw new LogicException('A template version is immutable (AD-17): it is never deleted, only superseded.');
+        });
     }
 
     protected function casts(): array

@@ -31,6 +31,9 @@ use Inertia\Response;
  */
 class OrgStructureController extends Controller
 {
+    /** Most unplaced troopers sent per visit; a fresh install can put the whole roster here. */
+    private const UNPLACED_LIMIT = 100;
+
     public function __construct(
         private readonly UnitRepository $units,
         private readonly TrooperRepository $troopers,
@@ -42,16 +45,24 @@ class OrgStructureController extends Controller
      */
     public function index(Request $request, ScopeResolver $scope): Response
     {
-        $units = $this->units->tree()->map(fn ($unit) => [
+        $tree = $this->units->tree();
+        // Troopers assigned to each section, rolled up every branch: a unit's count is the troopers in
+        // any section under its path (the same subtree rule strength uses, AD-18, AD-21). The prefix
+        // test relies on the AD-18 convention that every `path` ends in "/", so "1/2/" can never match
+        // "1/20/".
+        $bySection = $this->troopers->countsBySection();
+        $sectionPaths = $tree->whereIn('id', $bySection->keys()->all())->pluck('path', 'id');
+
+        $units = $tree->map(fn ($unit) => [
             'id' => $unit->id,
             'parent_id' => $unit->parent_id,
             'type' => $unit->type->value,
             'name' => $unit->name,
             'callsign' => $unit->callsign,
             'path' => $unit->path,
-            // Placeholder until Epic 2's roster sync populates `troopers.primary_section_id`
-            // (per the issue's own Implementation Notes on this story's scope).
-            'trooper_count' => 0,
+            'trooper_count' => $bySection
+                ->filter(fn (int $count, int $sectionId) => str_starts_with($sectionPaths->get($sectionId, ''), $unit->path))
+                ->sum(),
         ])->values();
 
         // Follows a view-as preview (Story 1.13): authoring controls hide as they would for the
@@ -64,26 +75,12 @@ class OrgStructureController extends Controller
             // Troopers the sync could not place (2.6). Admin-tier only: a cached trooper's reported
             // billet is not part of any leader's scope yet, so everyone else gets null and the panel
             // is absent. Sent as props only to an Admin, never merely hidden by the page (AD-8, AD-6).
-            'unplacedTroopers' => $isAdmin ? $this->unplacedTroopers() : null,
+            'unplacedTroopers' => $isAdmin ? $this->troopers->unplaced(self::UNPLACED_LIMIT)->all() : null,
+            // The true total, so the heading stays honest when the list above is capped.
+            'unplacedTotal' => $isAdmin ? $this->troopers->unplacedCount() : null,
             // The outcome of an import just run (story 2.9), flashed by `import()` for one render.
             'importResult' => $request->session()->get('org_import'),
         ]);
-    }
-
-    /**
-     * @return list<array{id: int, cav_id: int, username: ?string, rank: ?string, mos: ?string, billet: ?string, position_id: ?int}>
-     */
-    private function unplacedTroopers(): array
-    {
-        return $this->troopers->unplaced()->map(fn ($trooper) => [
-            'id' => $trooper->id,
-            'cav_id' => $trooper->cav_id,
-            'username' => $trooper->username,
-            'rank' => $trooper->rank,
-            'mos' => $trooper->mos,
-            'billet' => $trooper->billet,
-            'position_id' => $trooper->cav_position_id,
-        ])->values()->all();
     }
 
     /**
