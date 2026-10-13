@@ -56,10 +56,13 @@ function pathOf(url) {
     return (url ?? '').split(/[?#]/)[0].replace(/\/+$/, '') || '/';
 }
 
-// Pages that belong under a nav item without being one of its links: a trooper's milpac (`/troopers/12`) is
-// reached from the roster and reads as a child of it, so the Roster item stays active and the breadcrumb trail
+// Pages that belong under a nav item without being one of its links: a trooper's milpac (`/troopers/12`) and a
+// unit's training-readiness matrix (`/readiness/4`) are reached from the roster and read as children of it, so the Roster item stays active and the breadcrumb trail
 // continues past it.
-const CHILD_PAGES = [{ prefix: '/troopers/', parent: '/roster' }];
+const CHILD_PAGES = [
+    { prefix: '/troopers/', parent: '/roster' },
+    { prefix: '/readiness/', parent: '/roster' },
+];
 
 function childOf(url, href) {
     const path = pathOf(url);

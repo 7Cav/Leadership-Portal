@@ -214,6 +214,15 @@ interface TrooperRepository
      */
     public function placedWithin(Unit $unit): EloquentCollection;
 
+    /**
+     * The troopers currently assigned within `$unit`'s subtree: the same set as {@see self::assignedWithin()}
+     * (primary section anywhere under it, not `Inactive`; LOA and ELOA still count), as models in id order, so
+     * "who counts as active" has one named home next to the query and no departed row is loaded to be dropped.
+     *
+     * @return EloquentCollection<int, Trooper>
+     */
+    public function activePlacedWithin(Unit $unit): EloquentCollection;
+
     public function find(int $id): ?Trooper;
 
     /**

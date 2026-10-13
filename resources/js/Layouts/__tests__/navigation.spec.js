@@ -30,6 +30,8 @@ describe('navigation', () => {
         expect(isActive('/troopers/12', '/roster')).toBe(true);
         expect(isActive('/troopers/12', '/home')).toBe(false);
         expect(isActive('/troopers', '/roster')).toBe(false);
+        expect(isActive('/readiness/4', '/roster')).toBe(true);
+        expect(locate('/readiness/4').nested).toBe(true);
 
         const found = locate('/troopers/12?tab=x');
         expect(found.item.label).toBe('Roster');

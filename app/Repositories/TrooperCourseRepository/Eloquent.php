@@ -22,6 +22,19 @@ class Eloquent implements TrooperCourseRepository
             ->get();
     }
 
+    public function forTroopers(array $trooperIds): Collection
+    {
+        if ($trooperIds === []) {
+            return new Collection;
+        }
+
+        return TrooperCourse::query()
+            ->whereIn('trooper_id', $trooperIds)
+            ->orderBy('trooper_id')
+            ->orderBy('course_id')
+            ->get();
+    }
+
     public function find(int $trooperId, int $courseId): ?TrooperCourse
     {
         return TrooperCourse::query()

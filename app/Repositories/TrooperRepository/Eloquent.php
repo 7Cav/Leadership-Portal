@@ -245,6 +245,11 @@ class Eloquent implements TrooperRepository
             ->get();
     }
 
+    public function activePlacedWithin(Unit $unit): EloquentCollection
+    {
+        return Trooper::query()->assignedWithin($unit)->orderBy('id')->get();
+    }
+
     public function find(int $id): ?Trooper
     {
         return Trooper::query()->find($id);

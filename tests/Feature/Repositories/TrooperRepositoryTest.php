@@ -328,7 +328,8 @@ it('lists every trooper placed in a unit\'s subtree, departed included, by id', 
     $place($sibling);
     Trooper::factory()->create(); // unplaced
 
-    expect(app(TrooperRepository::class)->placedWithin($platoon)->modelKeys())->toBe([$a, $b, $c]);
+    expect(app(TrooperRepository::class)->placedWithin($platoon)->modelKeys())->toBe([$a, $b, $c])
+        ->and(app(TrooperRepository::class)->activePlacedWithin($platoon)->modelKeys())->toBe([$a, $c]);
 });
 
 it('finds a trooper by id, or null', function () {

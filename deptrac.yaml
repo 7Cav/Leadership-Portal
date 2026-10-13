@@ -13,7 +13,7 @@
 #   Controller     → CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi, Milpac  # writes via Commands; reads direct
 #   CommandHandler → Repository, Model, Integration, Support\Audit, Authorization, Support\Time, Kpi  # write-side business logic
 #   Kpi            → Repository, Model, Support\Time       # the one shared KPI service (AD-21)
-#   Milpac         → Repository, Model                     # what the trooper detail page shows; shared by the milpac panels of 6.4–6.6, so it is a layer of its own
+#   Milpac         → Repository, Model                     # what the Epic 6 pages show: the milpac and the readiness matrix; shared by the milpac panels, so it is a layer of its own
 #   Controller     → CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi  # writes via Commands; reads direct
 #   CommandHandler → Repository, Model, Integration, Support\Audit, Authorization, Support\Time, Kpi, Loa  # write-side business logic
 #   Kpi            → Repository, Model, Support\Time, Loa  # the one shared KPI service (AD-21)
@@ -164,9 +164,9 @@ deptrac:
       - Support\Time
       # LOA coverage is read from its one definition, never re-derived (AD-21, Story 4.8).
       - Loa
-    # What the trooper detail page (the milpac) shows for one trooper (Epic 6): the ID block, the courses
-    # panel and later the service record, read through Repositories and shaped as page props. Read-only;
-    # who may look is the Controller's ScopeResolver gate (AD-8), not decided here.
+    # What the Epic 6 pages show, read through Repositories and shaped as page props: the trooper detail page (the
+    # milpac: ID block, courses, awards, service record, quick actions) and the training-readiness matrix of a unit.
+    # Read-only; who may look is the Controller's ScopeResolver gate (AD-8), not decided here.
     Milpac:
       - Repository
       - Model

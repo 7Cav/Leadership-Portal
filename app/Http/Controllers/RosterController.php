@@ -214,7 +214,7 @@ class RosterController extends Controller
             'status' => $t->status->value,
             'departed' => $t->status === TrooperStatus::Inactive,
             'sectionId' => $t->primary_section_id,
-            'role' => $this->role($t, $sectionLeader),
+            'role' => $t->roleUnder($sectionLeader),
             'joined' => $t->tis?->toDateString(),
             // Null for a departed trooper: they are no longer measured (AD-21 strength).
             'kpis' => $kpis ? [
@@ -237,19 +237,6 @@ class RosterController extends Controller
                 ];
             }, $this->weeks($week)),
         ];
-    }
-
-    /**
-     * SL is the trooper holding the section's command billet (1.16's mapping); ASL is read from
-     * the billet title, which is all Cav tells us about the second-in-command.
-     */
-    private function role(Trooper $t, ?Trooper $sectionLeader): ?string
-    {
-        if ($sectionLeader !== null && $sectionLeader->id === $t->id) {
-            return 'SL';
-        }
-
-        return $t->billet !== null && preg_match('/\bassistant section leader\b/i', $t->billet) ? 'ASL' : null;
     }
 
     /**

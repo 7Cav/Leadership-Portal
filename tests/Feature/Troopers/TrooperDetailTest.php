@@ -495,16 +495,25 @@ describe('the leadership quick actions (6.7)', function () {
             ]));
     });
 
-    it('offers no readiness matrix here: that action arrives with the matrix route (6.9)', function () {
+    it('hides the platoon readiness matrix from a section leader, whose scope does not hold the platoon', function () {
         expect(collect(milpacActions($this->actingAs($this->leader), milpacTrooper($this->section1)))->pluck('key')->all())
             ->toBe(['section-roster', 'rollcall']);
+    });
+
+    it('links the platoon readiness matrix for a viewer who holds the platoon', function () {
+        $platoonId = $this->section1->parent_id;
+        $staff = User::factory()->serving()->create();
+        PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $platoonId]);
+
+        milpacOpen($this->actingAs($staff), milpacTrooper($this->section2))->assertInertia(fn ($page) => $page
+            ->where('actions.2', ['key' => 'readiness-matrix', 'label' => 'View platoon readiness matrix', 'href' => "/readiness/{$platoonId}"]));
     });
 
     it('offers an Admin the same section actions, and none for a trooper the sync has not placed', function () {
         $admin = User::factory()->admin()->create();
         $this->actingAs($admin);
 
-        expect(collect(milpacActions($this, milpacTrooper($this->section1)))->pluck('key')->all())->toBe(['section-roster', 'rollcall'])
+        expect(collect(milpacActions($this, milpacTrooper($this->section1)))->pluck('key')->all())->toBe(['section-roster', 'rollcall', 'readiness-matrix'])
             ->and(milpacActions($this, Trooper::factory()->create()))->toBe([]);
     });
 

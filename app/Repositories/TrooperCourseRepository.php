@@ -22,6 +22,17 @@ interface TrooperCourseRepository
     public function forTrooper(int $trooperId): Collection;
 
     /**
+     * Every status row for a set of troopers, in one query: what the readiness matrix (6.9) reads for a whole unit.
+     * Only the row's own columns (`trooper_id`, `course_id`, `status`, ...), with no course loaded: the caller
+     * already has the catalog from `CourseRepository::all()`. Ordered by trooper, then course, so it never
+     * shuffles. Troopers with no row simply have none here.
+     *
+     * @param  list<int>  $trooperIds
+     * @return Collection<int, TrooperCourse>
+     */
+    public function forTroopers(array $trooperIds): Collection;
+
+    /**
      * The trooper's row for one course, with the course loaded, or null when they have none (which reads the
      * same as `none`).
      */

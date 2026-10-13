@@ -15,6 +15,7 @@ use App\Http\Controllers\Settings\RosterSyncController;
 use App\Http\Controllers\Settings\StaffGrantsController;
 use App\Http\Controllers\Settings\TemplatesController;
 use App\Http\Controllers\Settings\TrooperPlacementController;
+use App\Http\Controllers\TrainingReadinessMatrixController;
 use App\Http\Controllers\TrooperDetailController;
 use App\Http\Controllers\ViewAsController;
 use App\Http\Middleware\EnsureServingMember;
@@ -69,6 +70,10 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // One trooper's milpac (Story 6.3): the page every entry point to a trooper opens. Scope-gated
     // in the controller through the ScopeResolver (AD-8).
     Route::get('/troopers/{trooper}', [TrooperDetailController::class, 'show'])->name('troopers.show');
+
+    // The training-readiness matrix of one unit (Story 6.9): troopers by courses, scope-gated in the controller
+    // through the ScopeResolver (AD-8). The milpac's quick action links to the trooper's platoon.
+    Route::get('/readiness/{unit}', [TrainingReadinessMatrixController::class, 'show'])->name('readiness.matrix');
 
     // Weekly rollcall of one section (Stories 3.7–3.10). Scope is enforced in the controller
     // through the ScopeResolver (AD-8): an out-of-scope section is a 403, not a hidden link.

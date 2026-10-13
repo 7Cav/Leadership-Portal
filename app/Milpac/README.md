@@ -1,4 +1,4 @@
-# `Milpac/` — what the trooper detail page shows (Epic 6)
+# `Milpac/` — what the Epic 6 pages show: the milpac and the readiness matrix
 
 `TrooperMilpac::for($trooper, $scope)` returns the props of the one `TrooperDetail` page, whichever way a
 leader reached the trooper:
@@ -22,12 +22,32 @@ leader reached the trooper:
 - `actions`: the leadership quick actions, `{key, label, href}`, derived from the viewer's scope (the controller passes the
   ScopeResolver's unit ids in): open the section roster and open the section in rollcall, only when the scope holds the
   trooper's section. Hiding is cosmetic (AD-6): every target authorizes its own request. Nothing here changes a
-  trooper. A later screen (the platoon readiness matrix, 6.9) adds its own action with its route.
+  trooper. The platoon readiness matrix (6.9) is offered too, but only when the scope holds the platoon above the section.
 - `sync`: where the ID block came from and how current it is (AD-20): the last successful roster sync, and a stale
   flag when a later run did not succeed.
 
 Durations count on the server's UTC day (AD-11).
 
 **May depend on:** `Repositories/` (never the DB directly, AD-2) and `Models/`.
-**Reached from:** `Http/Controllers/TrooperDetailController`. Read-only. It never decides who may look: the
+**Reached from:** `Http/Controllers/TrooperDetailController` (the milpac) and `TrainingReadinessMatrixController` (the
+matrix, below). Read-only. It never decides who may look: the
 controller gates every request with the ScopeResolver (AD-8) before asking.
+
+## The readiness matrix (Story 6.9)
+
+`ReadinessMatrix::for($unit)` returns the props of the `TrainingReadinessMatrix` page for one unit:
+
+- `troopers`: the active troopers (Combat, Reserve and ELOA, never Inactive) placed anywhere in the unit's subtree,
+  each with a status per course and a `role` (`SL`, `ASL` or null) from `Trooper::roleUnder()`, the same rule the
+  roster uses, so the page lists the leader first without guessing from billet text. A trooper with no row for a
+  course reads `none`, the same as a stored `none`. Rows arrive in id order; the page orders them (the roster's
+  `compareBillet`: role, then rank, then name).
+- `courses`: the whole catalog in its one order (`sort_order`, then `code`). Every course is a column even when
+  nobody holds or needs it, so a bottleneck cannot disappear.
+- `coverage`: per course, qualified over every trooper shown, as a whole percent. A plain ratio, not a canonical
+  KPI, so it does not go through the KPI service (AD-21). `null` when the unit has no troopers, never 0 of 0.
+
+The controller gates the unit with the ScopeResolver (AD-8): a unit outside the viewer's effective scope is a 403
+whatever link led there, and view-as narrows it (AD-9). The milpac's quick action (6.7) links to the trooper's
+platoon; that link is convenience, this gate is the boundary. Reads are constant in the number of troopers and
+courses.

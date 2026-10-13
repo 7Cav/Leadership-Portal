@@ -7,6 +7,7 @@ use App\Models\Trooper;
 use App\Models\TrooperCourse;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
+use App\Models\UnitType;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperCourseRepository;
 use App\Repositories\UnitRepository;
@@ -161,22 +162,33 @@ final class TrooperMilpac
      * viewer whose scope holds the trooper's section. Hiding is cosmetic (AD-6): every target route authorizes the
      * request itself, so a link typed by hand is refused the same way. Nothing here changes a trooper: messaging,
      * leave on someone's behalf, medal recommendations and promotions are not read-only and are not offered. A
-     * trooper the sync has not placed in a section has no unit to act on, so has no actions. Each later screen
-     * that should be reachable from here (the platoon readiness matrix, 6.9) adds its own action with its route.
+     * trooper the sync has not placed in a section has no unit to act on, so has no actions. The platoon readiness
+     * matrix (6.9) is offered only to a viewer whose scope holds the platoon above the section, so a section leader
+     * does not see a link that would be refused.
      *
      * @param  Collection<int, int>  $scope
      * @return list<array{key: string, label: string, href: string}>
      */
     private function actions(?Unit $section, Collection $scope): array
     {
-        if ($section === null || ! $scope->contains($section->id)) {
+        if ($section === null) {
             return [];
         }
 
-        return [
-            ['key' => 'section-roster', 'label' => 'Open section roster', 'href' => route('roster.index', $section->id, absolute: false)],
-            ['key' => 'rollcall', 'label' => 'Open in rollcall', 'href' => route('rollcall.show', $section->id, absolute: false)],
-        ];
+        $actions = [];
+
+        if ($scope->contains($section->id)) {
+            $actions[] = ['key' => 'section-roster', 'label' => 'Open section roster', 'href' => route('roster.index', $section->id, absolute: false)];
+            $actions[] = ['key' => 'rollcall', 'label' => 'Open in rollcall', 'href' => route('rollcall.show', $section->id, absolute: false)];
+        }
+
+        $platoon = $section->parent_id === null ? null : $this->units->find($section->parent_id);
+
+        if ($platoon?->type === UnitType::Platoon && $scope->contains($platoon->id)) {
+            $actions[] = ['key' => 'readiness-matrix', 'label' => 'View platoon readiness matrix', 'href' => route('readiness.matrix', $platoon->id, absolute: false)];
+        }
+
+        return $actions;
     }
 
     /**
