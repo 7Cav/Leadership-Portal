@@ -39,8 +39,8 @@ function statusOf(unit) {
 const rows = computed(() =>
     props.units.map((unit) => ({
         unit,
-        rc: percent(unit.kpis.rc),
-        sp: percent(unit.kpis.sp),
+        rc: percent(unit.kpis?.rc),
+        sp: percent(unit.kpis?.sp),
         status: statusOf(unit),
     })),
 );
@@ -52,7 +52,7 @@ function value(row, key) {
     if (key === 'rc' || key === 'sp') return row[key];
     if (key === 'status') return row.status.rank;
 
-    return row.unit.kpis[key];
+    return row.unit.kpis?.[key] ?? null;
 }
 
 // A rate with nothing eligible has no value and sorts last either way, never as 0%.
@@ -122,13 +122,19 @@ const own = computed(() => props.units.length === 1 && props.units[0].type === '
                             </Link>
                             <span class="block text-xs text-muted-foreground">{{ row.unit.name }}</span>
                         </TableCell>
-                        <TableCell class="py-2 text-right tabular-nums">{{ row.unit.kpis.strength }}</TableCell>
-                        <TableCell class="py-2 text-right tabular-nums">{{ row.rc === null ? '—' : `${row.rc}%` }}</TableCell>
-                        <TableCell class="py-2 text-right tabular-nums">{{ row.sp === null ? '—' : `${row.sp}%` }}</TableCell>
-                        <TableCell class="py-2 text-right tabular-nums" :class="row.unit.kpis.atRisk ? 'font-medium text-warning' : 'text-muted-foreground'">
-                            {{ row.unit.kpis.atRisk }}
+                        <!-- A sent snapshot that cannot be read: no numbers, never a plausible zero. -->
+                        <TableCell v-if="!row.unit.kpis" colspan="5" class="py-2 text-right text-warning" data-testid="kpis-unavailable">
+                            Unavailable: the sent snapshot cannot be read
                         </TableCell>
-                        <TableCell class="py-2 text-right tabular-nums" :class="{ 'text-muted-foreground': !row.unit.kpis.onLoa }">{{ row.unit.kpis.onLoa }}</TableCell>
+                        <template v-else>
+                            <TableCell class="py-2 text-right tabular-nums">{{ row.unit.kpis.strength }}</TableCell>
+                            <TableCell class="py-2 text-right tabular-nums">{{ row.rc === null ? '—' : `${row.rc}%` }}</TableCell>
+                            <TableCell class="py-2 text-right tabular-nums">{{ row.sp === null ? '—' : `${row.sp}%` }}</TableCell>
+                            <TableCell class="py-2 text-right tabular-nums" :class="row.unit.kpis.atRisk ? 'font-medium text-warning' : 'text-muted-foreground'">
+                                {{ row.unit.kpis.atRisk }}
+                            </TableCell>
+                            <TableCell class="py-2 text-right tabular-nums" :class="{ 'text-muted-foreground': !row.unit.kpis.onLoa }">{{ row.unit.kpis.onLoa }}</TableCell>
+                        </template>
                         <TableCell class="py-2">
                             <span class="inline-flex items-center gap-2 whitespace-nowrap">
                                 <Badge :variant="row.status.variant" :data-status="row.status.key">{{ row.status.label }}</Badge>

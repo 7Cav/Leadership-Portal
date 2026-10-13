@@ -263,4 +263,20 @@ describe('Reports/Rollup', () => {
 
         expect(document.body.querySelector('[data-testid="report-panel"] h2')?.textContent).toBe('2/1/A/1-7');
     });
-});
+
+    it('shows a unit whose figures cannot be read as unavailable, in the row and the panel, never as zeros', async () => {
+        const tree = roots();
+        const platoon = tree[0].children[0];
+        Object.assign(platoon, { kpis: null, coverage: null, holding: false });
+        Object.assign(platoon.children[0], { kpis: null, delta: null });
+        mountRollup({ roots: tree });
+
+        const row = wrapper.find('[data-row-id="2"]');
+        expect(row.find('[data-testid="kpis-unavailable"]').text()).toBe('Unavailable');
+        expect(wrapper.find('[data-row-id="21"]').find('[data-testid="kpis-unavailable"]').exists()).toBe(false);
+
+        await row.trigger('click');
+        expect(panel().find('[data-testid="kpis-unavailable"]').text()).toContain('cannot be read');
+        expect(panel().find('[data-testid="kpis"]').exists()).toBe(false);
+        expect(panel().text()).toContain('Unavailable');
+    });});
