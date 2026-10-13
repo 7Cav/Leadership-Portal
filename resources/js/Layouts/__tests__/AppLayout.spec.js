@@ -131,7 +131,7 @@ describe('AppLayout', () => {
             const linkHrefs = wrapper.findAllComponents({ name: 'Link' }).map((link) => link.props('href'));
             const navHrefs = wrapper.findAll('nav[aria-label="Primary"] a').map((a) => a.attributes('href'));
 
-            expect(navHrefs).toEqual(['/home', '/roster', '/rollcall', '/reports', '/game-identities', '/settings/org-structure', '/settings/staff-grants', '/settings/audit-log']);
+            expect(navHrefs).toEqual(['/home', '/roster', '/rollcall', '/reports', '/game-identities', '/settings/org-structure', '/settings/staff-grants', '/settings/templates', '/settings/audit-log']);
             for (const href of navHrefs) expect(linkHrefs).toContain(href);
         });
 
