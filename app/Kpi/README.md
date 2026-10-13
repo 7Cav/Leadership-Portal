@@ -35,6 +35,13 @@ sent; otherwise live — a leaf from `KpiService::forSectionsWithin()`, a non-le
 `RollupKpis::fromReports()`) and the delta against last week's sent snapshot. Five queries
 whatever the size of the chain; nothing in it is derived outside the pieces above.
 
+A sent snapshot that does not read back is a corrupt record, never a zero. `RollupKpis` refuses it with
+`ReportKpisUnavailableException::unreadableSnapshot()` (the same exception as a roll-up with no children or an
+unreadable prior week), so the send is refused and the report screen says which child is unreadable.
+`ReportChain` reads each sent snapshot once per build, reports a corrupt one once, and degrades only where it is
+used: that unit's `ChainNode::$kpis` is null, an unsent parent above it has no roll-up and null KPIs, and an unsent
+unit whose prior week is unreadable has no delta. Home and the navigator show such a unit as unavailable while the
+rest of the chain renders.
 **May depend on:** `Repositories/` (the facts — never the DB directly, AD-2), `Models/` (enums,
 the `Unit` it is handed), `Support/Time/` (the week window, AD-11), `Loa/` (LOA coverage, 4.8).
 **Reached from:** `Http/Controllers/` and `Commands/`. Read-only; it never writes. Callers pass

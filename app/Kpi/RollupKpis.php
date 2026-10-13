@@ -14,7 +14,6 @@ use ErrorException;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
 use TypeError;
-use UnexpectedValueException;
 
 /**
  * A non-leaf unit's KPIs for one Cav week, composed from its **direct** children's **sent**
@@ -42,7 +41,7 @@ final class RollupKpis
      * @throws InvalidArgumentException when `$unit` has no children (a leaf reports from
      *                                  attendance, via `KpiService`) or `$weekStart` is not a
      *                                  Saturday 00:00 UTC.
-     * @throws UnexpectedValueException when a child's sent snapshot cannot be read as `UnitKpis`.
+     * @throws ReportKpisUnavailableException when a child's sent snapshot cannot be read as `UnitKpis`.
      */
     public function forUnit(Unit $unit, CarbonInterface $weekStart): RollupResult
     {
@@ -69,7 +68,7 @@ final class RollupKpis
      *                                  Saturday 00:00 UTC, or a report is not the child's own for
      *                                  that week. That `$children` are one unit's direct children
      *                                  is the caller's to ensure.
-     * @throws UnexpectedValueException when a child's sent snapshot cannot be read as `UnitKpis`.
+     * @throws ReportKpisUnavailableException when a child's sent snapshot cannot be read as `UnitKpis`.
      */
     public static function fromReports(Collection $children, Collection $reports, CarbonInterface $weekStart): RollupResult
     {
@@ -92,23 +91,21 @@ final class RollupKpis
         return match ($report?->status) {
             null => new ChildReport($child, ChildReportStatus::NotStarted, null),
             WeeklyReportStatus::Draft => new ChildReport($child, ChildReportStatus::Draft, null),
-            WeeklyReportStatus::Sent => new ChildReport($child, ChildReportStatus::Sent, self::snapshot($report, $weekStart)),
+            WeeklyReportStatus::Sent => new ChildReport($child, ChildReportStatus::Sent, self::snapshot($report)),
         };
     }
 
     /**
      * A sent snapshot that does not read back as `UnitKpis` is a corrupt record, not a zero: it
-     * fails loudly with the unit-week named rather than quietly shrinking the parent's numbers.
+     * fails loudly with the unit-week named rather than quietly shrinking the parent's numbers, as
+     * the unit's KPIs being unavailable, so a send is refused and a page can say so.
      */
-    private static function snapshot(WeeklyReport $report, CarbonImmutable $weekStart): UnitKpis
+    private static function snapshot(WeeklyReport $report): UnitKpis
     {
         try {
             return UnitKpis::fromArray($report->kpis);
         } catch (InvalidArgumentException|TypeError|ErrorException $e) {
-            throw new UnexpectedValueException(
-                "The sent report of unit {$report->unit_id} for {$weekStart->toDateString()} has an unreadable KPI snapshot: {$e->getMessage()}",
-                previous: $e,
-            );
+            throw ReportKpisUnavailableException::unreadableSnapshot($report, $e);
         }
     }
 }

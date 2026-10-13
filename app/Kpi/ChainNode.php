@@ -15,6 +15,10 @@ use InvalidArgumentException;
  * so: a leaf's KPIs from `KpiService`, a non-leaf's roll-up of its children's **sent** snapshots
  * (5.7, AD-13) — the numbers its report would freeze, never a draft child's. `status`, `live` and
  * the open-branch flag are derived here from the report and the children, so they cannot disagree.
+ *
+ * `kpis` is null when they cannot be read: the unit's own sent snapshot is corrupt, or, unsent,
+ * a direct child's is, which also leaves a non-leaf without a `rollup`. The page shows that unit
+ * as unavailable rather than failing for everyone above it.
  */
 final readonly class ChainNode
 {
@@ -33,21 +37,22 @@ final readonly class ChainNode
      *                                     `kpis` here is what a reviewer sees.
      * @param  list<ChainNode>  $children  in creation order
      *
-     * @throws InvalidArgumentException when the roll-up and the children disagree.
+     * @throws InvalidArgumentException when a roll-up is given and it and the children disagree.
      */
     public function __construct(
         public Unit $unit,
         public ?WeeklyReport $report,
-        public UnitKpis $kpis,
-        /** Against the prior week's sent snapshot; null when that week has none (5.4). */
+        /** Null when they cannot be read (see above). */
+        public ?UnitKpis $kpis,
+        /** Against the prior week's sent snapshot; null when that week has none (5.4) or it cannot be read. */
         public ?KpiDelta $delta,
-        /** The roll-up of its direct children; null for a leaf. */
+        /** The roll-up of its direct children; null for a leaf, or when a child's sent snapshot cannot be read. */
         public ?RollupResult $rollup,
         public array $children,
     ) {
         $rolledUp = $rollup === null ? [] : array_map(fn (ChildReport $child) => $child->unit->id, $rollup->children);
 
-        if ($rolledUp !== array_map(fn (ChainNode $child) => $child->unit->id, $children)) {
+        if ($rollup !== null && $rolledUp !== array_map(fn (ChainNode $child) => $child->unit->id, $children)) {
             throw new InvalidArgumentException("The roll-up of unit {$unit->id} does not match its children.");
         }
 

@@ -3,6 +3,7 @@
 use App\Kpi\ChildReport;
 use App\Kpi\ChildReportStatus;
 use App\Kpi\Ratio;
+use App\Kpi\ReportKpisUnavailableException;
 use App\Kpi\RollupKpis;
 use App\Kpi\UnitKpis;
 use App\Models\AttendanceSource;
@@ -136,11 +137,11 @@ it('refuses a week_start that is not a Saturday 00:00 UTC', function () {
     $this->rollup->forUnit($this->company, rollupWeek()->addDay());
 })->throws(InvalidArgumentException::class, 'week_start must be a Saturday');
 
-it('fails loudly on a sent snapshot it cannot read, rather than counting it as zero', function (array $snapshot) {
+it('refuses a sent snapshot it cannot read as unavailable KPIs, rather than counting it as zero', function (array $snapshot) {
     $this->reports->send($this->first->id, rollupWeek(), $snapshot, null, $this->sender->id, 'd', null);
 
     expect(fn () => $this->rollup->forUnit($this->company, rollupWeek()))
-        ->toThrow(UnexpectedValueException::class, "unit {$this->first->id} for 2026-06-27");
+        ->toThrow(ReportKpisUnavailableException::class, "unit {$this->first->id} for 2026-06-27");
 })->with([
     'a wrong type' => [['strength' => ['value' => 4]]],
     'a fractional count' => [[...rollupKpis(4, [1, 2], [1, 2])->toArray(), 'strength' => 10.7]],
