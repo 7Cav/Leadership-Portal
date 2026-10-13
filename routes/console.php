@@ -12,13 +12,8 @@ use App\Models\User;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
-use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
-
-Artisan::command('inspire', function () {
-    $this->comment(Inspiring::quote());
-})->purpose('Display an inspiring quote');
 
 // Roster sync (Story 2.4, AD-23). Cadence is Deferred to an S6 conversation — read from
 // config so changing it needs no code change. `SyncRosterJob` defaults `triggeredBy` to

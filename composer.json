@@ -1,9 +1,9 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "7cav/leadership-portal",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "description": "The 7th Cavalry Regiment's leadership portal: rollcalls, Section Practice attendance and weekly reports.",
+    "keywords": ["7cav", "laravel"],
     "license": "MIT",
     "require": {
         "php": "^8.3",
