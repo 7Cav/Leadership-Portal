@@ -517,9 +517,22 @@ const saveLabel = computed(() => {
 
 // Rollcall posted to the forum (3.10): when and by whom, and whether marks changed since — then
 // the post on the forum is stale and needs reposting.
+const markedSince = (practice) =>
+    Boolean(practice?.posted && practice.lastMarkedAt && new Date(practice.lastMarkedAt) > new Date(practice.posted.at));
 const posted = ref(props.practice?.posted ?? null);
-const editedSincePost = ref(
-    Boolean(posted.value && props.practice?.lastMarkedAt && new Date(props.practice.lastMarkedAt) > new Date(posted.value.at)),
+const editedSincePost = ref(markedSince(props.practice));
+
+// A reload that keeps this screen (the capture retry's, or any preserve-state visit) brings a fresh
+// `practice`: posted and confirmed are re-read from it, not kept from the first load. An edit seen
+// here since the same post stays flagged even before its save reaches the server.
+watch(
+    () => props.practice,
+    (practice) => {
+        const samePost = Boolean(posted.value && practice?.posted && practice.posted.at === posted.value.at);
+        editedSincePost.value = markedSince(practice) || (samePost && editedSincePost.value);
+        posted.value = practice?.posted ?? null;
+        confirmation.value = practice?.confirmation ?? null;
+    },
 );
 
 const counts = computed(() => countsOf(rows.value));

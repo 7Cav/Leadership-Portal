@@ -921,6 +921,41 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Not confirmed');
             vi.useRealTimers();
         });
+
+        it('re-reads confirmed and posted from the practice a reload brings', async () => {
+            const wrapper = factory({ capture: CAPTURE });
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Not confirmed');
+
+            await wrapper.setProps({
+                practice: {
+                    lastMarkedAt: '2026-10-08T16:00:00+00:00',
+                    posted: { at: '2026-10-08T16:20:00+00:00', by: 'Ortega.M' },
+                    confirmation: { at: '2026-10-08T16:30:00+00:00', by: 'Ortega.M' },
+                },
+            });
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed');
+            await wrapper.find('[data-step="3"]').trigger('click');
+            page.url = '/rollcall/12?step=3';
+            await wrapper.vm.$nextTick();
+            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Rollcall posted 08Oct26 16:20Z by Ortega.M');
+            expect(wrapper.find('[data-testid="posted-state"]').text()).not.toContain('Repost');
+
+            await wrapper.setProps({ practice: { lastMarkedAt: '2026-10-08T16:40:00+00:00', posted: null, confirmation: null } });
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Not confirmed');
+            expect(wrapper.find('[data-testid="posted-state"]').exists()).toBe(false);
+        });
+
+        it('keeps a post flagged stale across a reload while the edit since it is still on its way', async () => {
+            const POSTED = { at: '2026-10-08T16:20:00+00:00', by: 'Vasquez.R' };
+            const wrapper = factory({ capture: CAPTURE, practice: { lastMarkedAt: '2026-10-08T16:00:00+00:00', posted: POSTED } });
+
+            await wrapper.find('[data-trooper="3"] button[data-value="missed"]').trigger('click');
+            await wrapper.setProps({ practice: { lastMarkedAt: '2026-10-08T16:00:00+00:00', posted: { ...POSTED } } });
+            page.url = '/rollcall/12?step=3';
+            await wrapper.vm.$nextTick();
+
+            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Repost the updated BBCode');
+        });
     });
 
     describe('telemetry unavailable (7.9)', () => {
