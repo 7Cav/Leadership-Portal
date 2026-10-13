@@ -5,14 +5,28 @@ import Show from '../Show.vue';
 const put = vi.fn();
 const post = vi.fn();
 let pageProps = {};
+// The page's Inertia `before` listener (its leave guard).
+let visitGuard = null;
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
     Head: { template: '<head></head>' },
     Link: { props: ['href'], template: '<a :href="href"><slot /></a>' },
     usePage: () => ({ props: pageProps }),
-    router: { put: (...args) => put(...args), post: (...args) => post(...args) },
+    router: {
+        put: (...args) => put(...args),
+        post: (...args) => post(...args),
+        on: (event, callback) => ((visitGuard = callback), () => (visitGuard = null)),
+    },
 }));
+
+// Whether closing the tab would ask first.
+const closeAsks = () => {
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event);
+
+    return event.defaultPrevented;
+};
 
 vi.mock('vue-sonner', async (importOriginal) => ({
     ...(await importOriginal()),
@@ -46,7 +60,14 @@ function props(overrides = {}) {
     };
 }
 
-const mountShow = (overrides) => mount(Show, { props: props(overrides), attachTo: document.body });
+// Unmounted after each test, so one test's leave guard never answers for the next.
+const mounted = [];
+const mountShow = (overrides) => {
+    const wrapper = mount(Show, { props: props(overrides), attachTo: document.body });
+    mounted.push(wrapper);
+
+    return wrapper;
+};
 
 beforeEach(() => {
     pageProps = {};
@@ -55,6 +76,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+    for (const wrapper of mounted.splice(0)) wrapper.unmount();
     vi.useRealTimers();
     document.body.innerHTML = '';
 });
@@ -91,6 +113,50 @@ describe('Reports/Show', () => {
             { notes: '', training_subject: 'Room clearing', unaccounted: [] },
             expect.objectContaining({ preserveState: true, only: ['report', 'computedAt'] }),
         );
+    });
+
+    it('guards leaving while an edit waits out the debounce, and not once it is saved', async () => {
+        vi.useFakeTimers();
+        const confirm = vi.fn().mockReturnValue(false);
+        vi.stubGlobal('confirm', confirm);
+        const wrapper = mountShow();
+
+        expect(closeAsks()).toBe(false);
+        await wrapper.get('#report-notes').setValue('Comms tighter.');
+        expect(wrapper.get('[data-testid="save-state"]').text()).toContain('Unsaved changes');
+        expect(closeAsks()).toBe(true);
+        expect(visitGuard({ detail: { visit: { method: 'get' } } })).toBe(false);
+        expect(confirm).toHaveBeenCalledWith('Your latest changes to this report are not saved yet. Leave anyway?');
+
+        vi.advanceTimersByTime(900);
+        put.mock.calls[0][2].onSuccess();
+        await flushPromises();
+        expect(closeAsks()).toBe(false);
+        vi.unstubAllGlobals();
+    });
+
+    it('stays unsaved, not "saved", when an edit lands while the previous save is in flight', async () => {
+        vi.useFakeTimers();
+        const wrapper = mountShow();
+
+        await wrapper.get('#report-notes').setValue('Comms tighter.');
+        vi.advanceTimersByTime(900);
+        expect(put).toHaveBeenCalledTimes(1);
+
+        await wrapper.get('#report-notes').setValue('Comms tighter. Breaching drills next week.');
+        put.mock.calls[0][2].onSuccess();
+        await flushPromises();
+
+        expect(wrapper.get('[data-testid="save-state"]').text()).toContain('Unsaved changes');
+        expect(closeAsks()).toBe(true);
+
+        vi.advanceTimersByTime(900);
+        expect(put).toHaveBeenCalledTimes(2);
+        expect(put.mock.calls[1][1].notes).toBe('Comms tighter. Breaching drills next week.');
+        put.mock.calls[1][2].onSuccess();
+        await flushPromises();
+        expect(wrapper.get('[data-testid="save-state"]').text()).toContain('Draft saved');
+        expect(closeAsks()).toBe(false);
     });
 
     it('records a reason for an unaccounted trooper and saves it with the draft', async () => {
