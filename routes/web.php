@@ -21,10 +21,15 @@ use App\Http\Middleware\EnsureServingMember;
 use App\Repositories\UserRepository;
 use Illuminate\Support\Facades\Route;
 
-// Numeric ids are capped at 18 digits rather than `whereNumber()`: a longer one overflows a controller's
-// `int` parameter and would answer 500 instead of 404. Declared once so the next route cannot forget it.
-Route::pattern('trooper', '[0-9]{1,18}');
-Route::pattern('unit', '[0-9]{1,18}');
+// Every id in a path is a positive integer of at most 18 digits, for every route that names it.
+// `whereNumber` alone (`[0-9]+`) let `/reports/99999999999999999999` through to an `int`
+// parameter, which PHP cannot hold, so the request died in a TypeError and a 500 instead of a
+// 404. 18 digits always fit in a signed 64-bit int. Declared once as global patterns so a new
+// route taking one of these ids cannot forget the constraint (RouteIdConstraintTest walks the
+// routes and fails on an id-like parameter missing from this list).
+foreach (['unit', 'grant', 'trooper'] as $id) {
+    Route::pattern($id, '[0-9]{1,18}');
+}
 
 // `/` is only a doorway (Story 1.15 retired the Story 1.1 sample page): signed-in users land on
 // home, everyone else on the login screen, in one hop either way.
@@ -32,13 +37,14 @@ Route::get('/', fn () => redirect()->route(auth()->check() ? 'home' : 'login'));
 
 // 7Cav SSO (Story 1.4). `login` is the name Laravel's auth middleware redirects to.
 // Login screen + starting the handshake are guest-only; the callback stays public so
-// it can always complete the OAuth2 round-trip.
+// it can always complete the OAuth2 round-trip. Both handshake routes run under the `login`
+// rate limiter (AppServiceProvider): each hit costs a session write or a forum token exchange.
 Route::middleware('guest')->group(function () {
     Route::get('/login', [ForumAuthController::class, 'show'])->name('login');
-    Route::get('/auth/redirect', [ForumAuthController::class, 'redirect'])->name('auth.redirect');
+    Route::get('/auth/redirect', [ForumAuthController::class, 'redirect'])->middleware('throttle:login')->name('auth.redirect');
 });
 // Path matches the redirect URI registered for the forum OAuth client (confirmed in 1.4).
-Route::get('/oauth/callback/7cav', [ForumAuthController::class, 'callback'])->name('auth.callback');
+Route::get('/oauth/callback/7cav', [ForumAuthController::class, 'callback'])->middleware('throttle:login')->name('auth.callback');
 
 // Authenticated landing. Unauthenticated hits redirect to `login` via the auth
 // middleware. Named `home` — the target Laravel's guest middleware bounces to.
@@ -97,7 +103,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // Report roll-up workspace (Story 5.8): the chain of the viewer's scope for one week
     // (`?week=YYYY-MM-DD`), scope-gated in the controller (AD-8). Read-only; each unit's own
     // report is `reports.show` at `/reports/{unit}/{week}`.
-    Route::get('/reports/{unit?}', [ReportRollupController::class, 'index'])->whereNumber('unit')->name('reports.index');
+    Route::get('/reports/{unit?}', [ReportRollupController::class, 'index'])->name('reports.index');
 
     // Chain of command (Story 1.8, edit/delete in 1.9). Viewing is open to any authenticated
     // user (AC #3); the Admin gate on every write is enforced in the controller, not by route
@@ -135,8 +141,9 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
 
     // Manual roster sync trigger (Story 2.4). No GET view yet — the roster screen that will
     // host this control is Story 2.8's. The Admin gate is enforced in the controller (AD-6),
-    // matching every other admin-gated write here.
-    Route::post('/settings/roster-sync', [RosterSyncController::class, 'store'])->name('settings.roster-sync.store');
+    // matching every other admin-gated write here. Throttled per Admin by the `roster-sync`
+    // limiter; the job itself is unique, so extra clicks never stack up queued syncs.
+    Route::post('/settings/roster-sync', [RosterSyncController::class, 'store'])->middleware('throttle:roster-sync')->name('settings.roster-sync.store');
 
     // Manual leave-sync trigger (Story 4.2): the same queued job the scheduler runs. Admin gate in the controller (AD-6).
     Route::post('/settings/loa-sync', [LoaSyncController::class, 'store'])->name('settings.loa-sync.store');

@@ -10,7 +10,10 @@ use App\Integration\Forum\ForumApi;
 use App\Integration\Nightwatch\NightwatchApi;
 use App\Kpi\EchelonReportKpiSource;
 use App\Kpi\ReportKpiSource;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -66,5 +69,23 @@ class AppServiceProvider extends ServiceProvider
         // Repository via lazy-loading throws loudly in dev/CI — and never ships a silent
         // N+1. Environment-gated: ON everywhere except production.
         Model::preventLazyLoading(! $this->app->isProduction());
+
+        // Sign-in throttle. Both halves of the OAuth handshake are reachable without a session:
+        // `auth.redirect` mints and stores a state nonce per hit, and the callback spends a
+        // forum token exchange per hit, so unthrottled either one lets a single client hammer
+        // the session store and 7cav.us. Ten a minute per IP, counted separately for each
+        // route so one real sign-in (one hit on each) costs one slot of each budget, which
+        // leaves room for a handful of troopers signing in from behind one NAT.
+        RateLimiter::for('login', fn (Request $request) => Limit::perMinute(10)
+            ->by($request->ip().'|'.$request->route()?->getName())
+            // Both routes are browser navigations: a throttled user goes back to the login screen
+            // with the same flash as every other sign-in failure, not the framework's bare 429.
+            ->response(fn () => redirect()->route('login')
+                ->with('error', 'Too many sign-in attempts. Try again in a minute.')));
+
+        // Manual roster sync (Story 2.4). SyncRosterJob is unique, so extra clicks never queue
+        // a second sync; this caps how often an Admin can even ask, per Admin.
+        RateLimiter::for('roster-sync', fn (Request $request) => Limit::perMinute(5)
+            ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
     }
 }
