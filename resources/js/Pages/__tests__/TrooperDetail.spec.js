@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import TrooperDetail from '../TrooperDetail.vue';
 
-// Stories 6.3 and 6.4: the milpac draws what the server shaped; it decides nothing about who may look.
+// Stories 6.3 to 6.5: the milpac draws what the server shaped; it decides nothing about who may look.
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
@@ -41,9 +41,11 @@ const courses = (overrides = {}) => ({
     ...overrides,
 });
 
+const awards = (items = [], available = true) => ({ available, items });
+
 const sync = (overrides = {}) => ({ source: 'Cav roster', lastSuccessAt: '2026-10-08T09:30:00+00:00', stale: false, lastAttempt: null, ...overrides });
 
-const page = (props = {}) => mount(TrooperDetail, { props: { trooper: trooper(), courses: courses(), sync: sync(), ...props } });
+const page = (props = {}) => mount(TrooperDetail, { props: { trooper: trooper(), courses: courses(), awards: awards(), sync: sync(), ...props } });
 
 describe('TrooperDetail', () => {
     describe('ID block (6.3)', () => {
@@ -231,5 +233,54 @@ describe('TrooperDetail', () => {
         const wrapper = page();
 
         expect(wrapper.findAll('button, input, select, textarea, form')).toHaveLength(0);
+    });
+
+    describe('awards (6.5)', () => {
+        const earned = [
+            { name: 'Army Achievement Medal', awardedAt: '2026-01-18', citation: 'Sustained SP attendance and mentoring.' },
+            { name: 'Good Conduct Medal', awardedAt: null, citation: null },
+        ];
+
+        it('lists the earned awards with their dates and citations', () => {
+            const wrapper = page({ awards: awards(earned) });
+            const rows = wrapper.findAll('[data-testid="award"]');
+
+            expect(rows).toHaveLength(2);
+            expect(rows[0].text()).toContain('Army Achievement Medal');
+            expect(rows[0].get('[data-testid="award-date"]').text()).toBe('18Jan26');
+            expect(rows[0].get('[data-testid="award-citation"]').text()).toBe('Sustained SP attendance and mentoring.');
+            expect(wrapper.get('[data-testid="awards-count"]').text()).toBe('2');
+            expect(wrapper.find('[data-testid="awards-empty"]').exists()).toBe(false);
+        });
+
+        it('leaves out the date and citation an award does not have', () => {
+            const row = page({ awards: awards(earned) }).findAll('[data-testid="award"]')[1];
+
+            expect(row.find('[data-testid="award-date"]').exists()).toBe(false);
+            expect(row.find('[data-testid="award-citation"]').exists()).toBe(false);
+        });
+
+        it('says plainly when a source holds no awards for the trooper', () => {
+            const wrapper = page();
+
+            expect(wrapper.get('[data-testid="awards-empty"]').text()).toBe('No awards on record.');
+            expect(wrapper.find('[data-testid="award"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="awards-count"]').exists()).toBe(false);
+        });
+
+        it('says the awards are not synced, rather than none, when there is no source yet', () => {
+            const wrapper = page({ awards: awards([], false) });
+
+            expect(wrapper.find('[data-testid="awards-empty"]').exists()).toBe(false);
+            expect(wrapper.get('[data-testid="awards-unavailable"]').text()).toContain('not synced from the Cav roster yet');
+            expect(wrapper.get('[data-testid="awards-milpac-link"]').attributes('href')).toBe('https://7cav.us/rosters/profile?uniqueid=4374');
+        });
+
+        it('names the count for screen readers and never offers to change an award', () => {
+            const panel = page({ awards: awards(earned) }).get('[data-testid="awards-panel"]');
+
+            expect(panel.get('[data-testid="awards-count"]').attributes('aria-label')).toBe('2 awards');
+            expect(panel.findAll('button, input, select, textarea, form, a[href]')).toHaveLength(0);
+        });
     });
 });

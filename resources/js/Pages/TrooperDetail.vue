@@ -11,13 +11,14 @@ import { forumDate, forumDateTime } from '@/lib/forumDate';
 import { initialsOf } from '@/lib/initials';
 import { trooperStatusOf } from '@/lib/roster';
 
-// One trooper's milpac (Stories 6.3, 6.4): the ID block from the cached Cav roster and the courses and
-// qualifications panel. Everything is shaped on the server (`Milpac\TrooperMilpac`) and drawn here; the
+// One trooper's milpac (Stories 6.3 to 6.5): the ID block from the cached Cav roster, the courses and
+// qualifications panel and the awards history. Everything is shaped on the server (`Milpac\TrooperMilpac`) and drawn here; the
 // page decides nothing about who may look, the controller has already gated it. The service record that
 // completes the mockup's second column arrives with 6.6.
 const props = defineProps({
     trooper: { type: Object, required: true },
     courses: { type: Object, required: true },
+    awards: { type: Object, required: true },
     sync: { type: Object, required: true },
 });
 
@@ -179,6 +180,49 @@ const staleNotice = computed(() => {
                     </li>
                 </ul>
             </section>
+        </MilpacPanel>
+
+        <!-- Read-only history from the Cav roster (AD-5): there is deliberately no way to add, edit or recommend an award here (FR17). -->
+        <MilpacPanel title="Awards" class="w-full max-w-xl" data-testid="awards-panel">
+            <template v-if="awards.items.length" #count>
+                <Badge
+                    variant="secondary"
+                    class="rounded-full tabular-nums"
+                    :aria-label="`${awards.items.length} awards`"
+                    data-testid="awards-count"
+                >
+                    {{ awards.items.length }}
+                </Badge>
+            </template>
+
+            <p v-if="!awards.available" class="px-4 py-6 text-center text-[13px] text-muted-foreground" data-testid="awards-unavailable">
+                Awards are not synced from the Cav roster yet.
+                <a :href="trooper.milpacUrl" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline" data-testid="awards-milpac-link">
+                    See them on 7cav.us<span class="sr-only"> (opens in a new tab)</span>.
+                </a>
+            </p>
+
+            <p v-else-if="!awards.items.length" class="px-4 py-6 text-center text-[13px] text-muted-foreground" data-testid="awards-empty">
+                No awards on record.
+            </p>
+
+            <ul v-else>
+                <li
+                    v-for="award in awards.items"
+                    :key="`${award.awardedAt}-${award.name}`"
+                    class="flex items-start gap-3 border-b border-border px-4 py-2.5 text-[13px] last:border-b-0"
+                    data-testid="award"
+                >
+                    <span class="mt-1.5 size-2 shrink-0 rounded-full bg-success" aria-hidden="true" />
+                    <span class="min-w-0 flex-1">
+                        {{ award.name }}
+                        <span v-if="award.citation" class="block text-xs text-muted-foreground" data-testid="award-citation">{{ award.citation }}</span>
+                    </span>
+                    <span v-if="award.awardedAt" class="font-mono text-xs text-muted-foreground" data-testid="award-date">
+                        {{ forumDate(award.awardedAt) }}
+                    </span>
+                </li>
+            </ul>
         </MilpacPanel>
     </div>
 </template>

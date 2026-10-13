@@ -13,8 +13,8 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 /**
- * What the trooper detail page (the milpac) shows for one trooper (Stories 6.3, 6.4): the ID block and the
- * courses and qualifications panel, read through the repositories and shaped as page props. Read-only, and it
+ * What the trooper detail page (the milpac) shows for one trooper (Stories 6.3 to 6.5): the ID block, the
+ * courses and qualifications panel and the awards history, read through the repositories and shaped as page props. Read-only, and it
  * never decides who may look: the caller gates that with the ScopeResolver (AD-8) before asking.
  *
  * The ID block is the cached Cav roster, so the page can show where it came from and how fresh it is (AD-20).
@@ -32,7 +32,7 @@ final class TrooperMilpac
     ) {}
 
     /**
-     * @return array{crumb: string, trooper: array<string, mixed>, courses: array{groups: list<array{status: string, label: string, courses: list<array{code: string, name: string, awardedAt: ?string}>}>, qualified: int, total: int}, sync: array<string, mixed>}
+     * @return array{crumb: string, trooper: array<string, mixed>, awards: array{available: bool, items: list<array{name: string, awardedAt: ?string, citation: ?string}>}, courses: array{groups: list<array{status: string, label: string, courses: list<array{code: string, name: string, awardedAt: ?string}>}>, qualified: int, total: int}, sync: array<string, mixed>}
      */
     public function for(Trooper $trooper): array
     {
@@ -41,6 +41,7 @@ final class TrooperMilpac
             'crumb' => $trooper->display_name,
             'trooper' => $this->idBlock($trooper),
             'courses' => $this->courses($trooper),
+            'awards' => $this->awards(),
             'sync' => $this->sync(),
         ];
     }
@@ -130,6 +131,20 @@ final class TrooperMilpac
             'qualified' => count($groups->firstWhere('status', CourseStatus::Qualified->value)['courses'] ?? []),
             'total' => $groups->sum(fn (array $group) => count($group['courses'])),
         ];
+    }
+
+    /**
+     * The earned-awards history (Story 6.5): read-only, from the Cav-authoritative roster (AD-5), never a
+     * recommendation workflow (FR17). The roster cache holds no awards today (`/lite` carries none and AD-3 rules
+     * out a new outbound read for them), so `available` is false and the page says the awards are not synced
+     * rather than claiming the trooper has none: unknown is not the same as none. Once a source exists this is
+     * where it is read, newest first, as `{name, awardedAt, citation}`, with `available` true.
+     *
+     * @return array{available: bool, items: list<array{name: string, awardedAt: ?string, citation: ?string}>}
+     */
+    private function awards(): array
+    {
+        return ['available' => false, 'items' => []];
     }
 
     /**
