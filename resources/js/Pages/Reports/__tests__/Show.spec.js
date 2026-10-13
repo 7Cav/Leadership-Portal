@@ -211,6 +211,16 @@ describe('Reports/Show', () => {
         expect(wrapper.get('#training-subject').attributes('disabled')).toBeDefined();
     });
 
+    it('shows a rate with nothing eligible as a bare dash in the sent panel, not "—%"', () => {
+        const wrapper = mountShow({
+            report: { status: 'sent', notes: '', trainingSubject: '', unaccounted: [], savedAt: null, sentAt: '2026-10-08T16:24:00+00:00', sentBy: null },
+            kpis: { ...KPIS, rc: { numerator: 0, denominator: 0 } },
+            troopers: null,
+        });
+
+        expect(wrapper.get('[data-testid="sent-panel"]').text()).toContain('RC —, SP 75%, 0 at-risk');
+    });
+
     it('is read-only while viewing as someone else, saying so', async () => {
         vi.useFakeTimers();
         pageProps = { viewAs: { label: 'SGT Haddad.N' } };
