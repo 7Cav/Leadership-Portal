@@ -12,14 +12,15 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * The cached Cav roster (AD-5, AD-22): `Sync\SyncRosterHandler` is this table's sole writer,
- * upserting keyed by `cav_id` — the stable internal `id` PK is what `attendance` and
+ * The cached Cav roster (AD-5, AD-22): `Sync\SyncRosterHandler` is this table's sole writer of the
+ * synced columns, upserting keyed by `cav_id` — the stable internal `id` PK is what `attendance` and
  * `weekly_reports` key off, and is never reissued by a resync.
  *
- * `primary_section_id` is deliberately outside the synced columns: it is populated by 2.5's
- * mapping and 2.7's audited manual placement, never by the sync handler, so it is excluded from
- * `#[Fillable]` here to keep a future non-sync writer from being tempted to mass-assign it
- * alongside the synced fields.
+ * `primary_section_id` and `placement_source` are deliberately outside the synced columns: they are
+ * populated by 2.5's mapping and 2.7's audited manual placement (the one audited exception to the
+ * sync being the sole writer, touching only these two columns), so both are excluded from
+ * `#[Fillable]` here to keep a future non-sync writer from being tempted to mass-assign them
+ * alongside the synced fields. `placement_source` says which of the two set the section.
  *
  * `cav_position_id` *is* synced: the trooper's primary Cav billet, overwritten on every run, so
  * the roster-derived command scope (1.16, `unit_command_mappings`) follows a billet change.
@@ -44,6 +45,7 @@ class Trooper extends Model
             'status' => TrooperStatus::class,
             'cav_position_id' => 'integer',
             'forum_user_id' => 'integer',
+            'placement_source' => PlacementSource::class,
         ];
     }
 

@@ -67,9 +67,32 @@ interface TrooperRepository
      * keeps their placement rather than being silently re-nulled by a sync that simply can't
      * resolve them anymore. Returns the number of rows actually updated.
      *
+     * A trooper that *is* in the map is set to that section and marked `placement_source = sync`,
+     * even over a manual placement: once Cav can resolve a billet, the source of truth wins and the
+     * manual placement is retired (2.7). The rule is deterministic, so it cannot flip-flop between runs.
+     *
      * @param  array<int, int>  $cavIdToSectionId  cav_id => units.id
      */
     public function updatePrimarySections(array $cavIdToSectionId): int;
+
+    /**
+     * How many troopers are currently assigned to each section, keyed by section id: not inactive
+     * (LOA still counts, as in strength), and only sections that have at least one. The Settings tree
+     * rolls these up its branches (2.7), so a placement is visible there at once.
+     *
+     * @return Collection<int, int>
+     */
+    public function countsBySection(): Collection;
+
+    /**
+     * Place an unplaced trooper into `$sectionId` by hand (2.7), marking `placement_source = manual`.
+     * Touches only the two placement columns, never a synced roster field. One conditional write: it
+     * applies only while the trooper is still unplaced and still on a roster, and returns the placed
+     * trooper, or null when it did not apply (already placed, departed, or no such trooper), so two
+     * concurrent placements cannot both win. The returned model is the post-update row, and what the
+     * audit envelope's digest is computed from.
+     */
+    public function place(int $trooperId, int $sectionId): ?Trooper;
 
     /**
      * Which of `$trooperIds` have `$sectionId` as their primary section — the attendance writer

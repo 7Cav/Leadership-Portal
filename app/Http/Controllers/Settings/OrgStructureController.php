@@ -45,16 +45,24 @@ class OrgStructureController extends Controller
      */
     public function index(Request $request, ScopeResolver $scope): Response
     {
-        $units = $this->units->tree()->map(fn ($unit) => [
+        $tree = $this->units->tree();
+        // Troopers assigned to each section, rolled up every branch: a unit's count is the troopers in
+        // any section under its path (the same subtree rule strength uses, AD-18, AD-21). The prefix
+        // test relies on the AD-18 convention that every `path` ends in "/", so "1/2/" can never match
+        // "1/20/".
+        $bySection = $this->troopers->countsBySection();
+        $sectionPaths = $tree->whereIn('id', $bySection->keys()->all())->pluck('path', 'id');
+
+        $units = $tree->map(fn ($unit) => [
             'id' => $unit->id,
             'parent_id' => $unit->parent_id,
             'type' => $unit->type->value,
             'name' => $unit->name,
             'callsign' => $unit->callsign,
             'path' => $unit->path,
-            // Placeholder until Epic 2's roster sync populates `troopers.primary_section_id`
-            // (per the issue's own Implementation Notes on this story's scope).
-            'trooper_count' => 0,
+            'trooper_count' => $bySection
+                ->filter(fn (int $count, int $sectionId) => str_starts_with($sectionPaths->get($sectionId, ''), $unit->path))
+                ->sum(),
         ])->values();
 
         // Follows a view-as preview (Story 1.13): authoring controls hide as they would for the

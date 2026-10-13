@@ -23,8 +23,10 @@ interface UnitRepository
     public function create(UnitType $type, string $name, ?string $callsign, ?int $parentId): Unit;
 
     /**
-     * Every unit in the tree, ordered by `path` so a caller can render it depth-first without
-     * re-deriving order from `parent_id` walks.
+     * Every unit in the tree, in depth-first path order so a caller can render it without
+     * re-deriving order from `parent_id` walks: each unit follows its parent, and siblings keep id
+     * order (creation order, which the org import sets to Cav's display order). Paths are compared
+     * segment by segment as numbers, so "1/2/" sorts before "1/145/".
      *
      * @return Collection<int, Unit>
      */
