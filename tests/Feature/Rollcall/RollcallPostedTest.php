@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Http;
 beforeEach(function () {
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-08 16:20:00', 'UTC'));
     $this->section = Unit::factory()->create(['type' => UnitType::Section, 'path' => '920/']);
-    $this->leader = User::factory()->create(['username' => 'Vasquez.R']);
+    $this->leader = User::factory()->serving()->create(['username' => 'Vasquez.R']);
     PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
 });
 
@@ -43,7 +43,7 @@ it('lets a past week be marked posted, but never a future one', function () {
 });
 
 it('refuses a section outside the leader\'s scope (AD-8)', function () {
-    $this->actingAs(User::factory()->create())->postJson("/rollcall/{$this->section->id}/posted", ['week' => '2026-10-03'])
+    $this->actingAs(User::factory()->serving()->create())->postJson("/rollcall/{$this->section->id}/posted", ['week' => '2026-10-03'])
         ->assertForbidden();
 
     expect(SectionPractice::query()->count())->toBe(0);

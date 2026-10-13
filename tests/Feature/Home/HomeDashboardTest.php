@@ -44,9 +44,9 @@ beforeEach(function () {
     $this->s21Troopers = Trooper::factory()->count(3)->create(['primary_section_id' => $this->s21->id]);
     $this->sbTroopers = Trooper::factory()->count(2)->create(['primary_section_id' => $this->sb->id]);
 
-    $this->commander = User::factory()->create();
+    $this->commander = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $this->commander->id, 'unit_id' => $this->alpha->id]);
-    $this->sectionLeader = User::factory()->create();
+    $this->sectionLeader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $this->sectionLeader->id, 'unit_id' => $this->s11->id]);
 });
 
@@ -65,7 +65,7 @@ function markWeek(Unit $section, Trooper $trooper, CarbonImmutable $week, ?Atten
 function sentWeek(Unit $section, CarbonImmutable $week, UnitKpis $kpis): void
 {
     $snapshot = (new ReportSnapshot($kpis, null))->toArray();
-    app(WeeklyReportRepository::class)->send($section->id, $week, $snapshot, null, User::factory()->create()->id, 'digest', null);
+    app(WeeklyReportRepository::class)->send($section->id, $week, $snapshot, null, User::factory()->serving()->create()->id, 'digest', null);
 }
 
 function dashboard(User $user): Closure
@@ -103,11 +103,11 @@ describe('KPI tiles (Story 5.9)', function () {
     });
 
     it('gives a viewer with no scope no tiles rather than zeros', function () {
-        dashboard(User::factory()->create())(fn ($page) => $page->where('kpis', null));
+        dashboard(User::factory()->serving()->create())(fn ($page) => $page->where('kpis', null));
     });
 
     it('lets an admin see every unit', function () {
-        dashboard(User::factory()->create(['is_admin' => true]))(fn ($page) => $page->where('kpis.current.strength', 9));
+        dashboard(User::factory()->serving()->create(['is_admin' => true]))(fn ($page) => $page->where('kpis.current.strength', 9));
     });
 
     it('builds the sparkline history from the trailing four weeks of sent snapshots', function () {
@@ -149,7 +149,7 @@ describe('KPI tiles (Story 5.9)', function () {
     });
 
     it('treats an unreadable snapshot as a gap instead of failing the page', function () {
-        app(WeeklyReportRepository::class)->send($this->s11->id, $this->week->subWeeks(2), ['strength' => 'nope'], null, User::factory()->create()->id, 'd', null);
+        app(WeeklyReportRepository::class)->send($this->s11->id, $this->week->subWeeks(2), ['strength' => 'nope'], null, User::factory()->serving()->create()->id, 'd', null);
 
         dashboard($this->sectionLeader)(fn ($page) => $page->where('kpis.history.2.kpis', null));
     });
@@ -231,19 +231,19 @@ describe('Needs attention (Story 5.10)', function () {
         // leader; only 1/1/A's own (unstarted) report is the leader's, and it holds nothing up.
         dashboard($this->commander)(fn ($page) => $page->where('attention.totals.atRisk', 0)->where('attention.totals.holding', 2)->where('attention.items.0.unit.designation', '1/1/A/1-7'));
         dashboard($this->sectionLeader)(fn ($page) => $page->where('attention.totals', ['holding' => 0, 'atRisk' => 0]));
-        dashboard(User::factory()->create(['is_admin' => true]))(fn ($page) => $page->where('attention.totals.atRisk', 1));
+        dashboard(User::factory()->serving()->create(['is_admin' => true]))(fn ($page) => $page->where('attention.totals.atRisk', 1));
     });
 
     it('is an explicit empty list, not missing, when nothing needs attention', function () use ($sendAll) {
         $sendAll([$this->s11, $this->s21], $this);
         $kpis = new UnitKpis(7, new Ratio(1, 2), new Ratio(1, 2), 0, 0, 0);
-        app(WeeklyReportRepository::class)->send($this->p1->id, $this->week, (new ReportSnapshot($kpis, null))->toArray(), null, User::factory()->create()->id, 'd', null);
+        app(WeeklyReportRepository::class)->send($this->p1->id, $this->week, (new ReportSnapshot($kpis, null))->toArray(), null, User::factory()->serving()->create()->id, 'd', null);
 
         dashboard($this->commander)(fn ($page) => $page->where('attention.items', [])->where('attention.totals', ['holding' => 0, 'atRisk' => 0]));
     });
 
     it('has no worklist for a viewer with no scope', function () {
-        dashboard(User::factory()->create())(fn ($page) => $page->where('attention', null));
+        dashboard(User::factory()->serving()->create())(fn ($page) => $page->where('attention', null));
     });
 
     it('caps each group but counts them all', function () {
@@ -313,7 +313,7 @@ describe('Subordinate units (Story 5.11)', function () {
     });
 
     it('lists the children of every root when the scope has several, and never another company\'s units', function () {
-        $multi = User::factory()->create();
+        $multi = User::factory()->serving()->create();
         PortalRoleGrant::factory()->create(['user_id' => $multi->id, 'unit_id' => $this->p1->id]);
         PortalRoleGrant::factory()->create(['user_id' => $multi->id, 'unit_id' => $this->sb->id]);
 
@@ -326,7 +326,7 @@ describe('Subordinate units (Story 5.11)', function () {
     });
 
     it('has no rows for a viewer with no scope', function () {
-        dashboard(User::factory()->create())(fn ($page) => $page->where('units', []));
+        dashboard(User::factory()->serving()->create())(fn ($page) => $page->where('units', []));
     });
 });
 
@@ -377,7 +377,7 @@ describe('Week step matrix', function () {
             ->where('steps.0.report', 'sent')
             ->whereType('steps.0.sentAt', 'string'));
         dashboard($this->commander)(fn ($page) => $page->has('steps', 2));
-        dashboard(User::factory()->create())(fn ($page) => $page->where('steps', []));
+        dashboard(User::factory()->serving()->create())(fn ($page) => $page->where('steps', []));
     });
 
     it('does not count departed troopers', function () {

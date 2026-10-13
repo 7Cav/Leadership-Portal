@@ -29,7 +29,7 @@ beforeEach(function () {
     $this->section = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'name' => '2nd Section', 'callsign' => '2/1/A/1-7', 'path' => '900/901/']);
     $this->sibling = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'name' => '3rd Section', 'callsign' => '3/1/A/1-7', 'path' => '900/902/']);
 
-    $this->leader = User::factory()->create();
+    $this->leader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
 });
 
@@ -163,7 +163,7 @@ it('rejects a malformed week', function () {
 
 it('refuses a section outside the viewer\'s scope server-side (AD-8)', function () {
     $this->actingAs($this->leader)->get("/rollcall/{$this->sibling->id}")->assertForbidden();
-    $this->actingAs(User::factory()->create())->get("/rollcall/{$this->section->id}")->assertForbidden();
+    $this->actingAs(User::factory()->serving()->create())->get("/rollcall/{$this->section->id}")->assertForbidden();
 });
 
 it('403s a unit nobody can scope (it does not exist) and 404s a unit that is not a section', function () {
@@ -174,7 +174,7 @@ it('403s a unit nobody can scope (it does not exist) and 404s a unit that is not
 });
 
 it('lands a section leader on the section their billet commands', function () {
-    $leader = User::factory()->create(['cav_id' => 4242]);
+    $leader = User::factory()->serving()->create(['cav_id' => 4242]);
     Trooper::factory()->create(['cav_id' => 4242, 'cav_position_id' => 77]);
     UnitCommandMapping::factory()->create(['unit_id' => $this->sibling->id, 'cav_position_id' => 77]);
 
@@ -187,7 +187,7 @@ it('lands a user whose scope holds a single section on it', function () {
 });
 
 it('gives anyone else a picker of the sections in their scope, grouped by platoon', function () {
-    $platoonLeader = User::factory()->create();
+    $platoonLeader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
 
     $this->actingAs($platoonLeader)->get('/rollcall')
@@ -202,7 +202,7 @@ it('gives anyone else a picker of the sections in their scope, grouped by platoo
 });
 
 it('gives a user with no sections in scope an empty picker', function () {
-    $this->actingAs(User::factory()->create())->get('/rollcall')
+    $this->actingAs(User::factory()->serving()->create())->get('/rollcall')
         ->assertOk()
         ->assertInertia(fn ($page) => $page->where('section', null)->where('sections', []));
 });
