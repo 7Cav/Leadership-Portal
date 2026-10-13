@@ -49,11 +49,12 @@ it('bounds the job to a timeout well under the lock\'s hour-long expiry', functi
     expect($job->timeout)->toBeLessThan($lockExpiry);
 });
 
-it('logs when every retry is exhausted, so a failure has a trace beyond sync_runs (Story 2.8 reads that table, nothing does yet)', function () {
+it('logs when the job fails for good, naming its scope, so a failure has a trace beyond sync_runs (Story 2.8 reads that table, nothing does yet)', function () {
+    $e = new Exception('Cav API unreachable');
     Log::shouldReceive('error')->once()->with(
-        'Roster sync exhausted every retry.',
-        ['triggeredBy' => 7, 'exception' => 'Cav API unreachable'],
+        'Roster sync failed for good.',
+        ['triggeredBy' => 7, 'scope' => 'roster:unit:3', 'exception' => $e],
     );
 
-    (new SyncRosterJob(7))->failed(new Exception('Cav API unreachable'));
+    (new SyncRosterJob(7, 3))->failed($e);
 });

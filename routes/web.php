@@ -152,7 +152,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::post('/settings/roster-sync', [RosterSyncController::class, 'store'])->middleware('throttle:roster-sync')->name('settings.roster-sync.store');
 
     // An echelon leader's manual sync: the same queued job, writing only that unit's subtree. The leader gate is in
-    // the controller (ScopeResolver::commands) and the throttle is shared with the Admin trigger above.
+    // the controller (ScopeResolver::commandsUnit) and the throttle is shared with the Admin trigger above.
     Route::post('/units/{unit}/roster-sync', [UnitRosterSyncController::class, 'store'])->middleware('throttle:roster-sync')->name('units.roster-sync.store');
 
     // Manual leave-sync trigger (Story 4.2): the same queued job the scheduler runs. Admin gate in the controller (AD-6).

@@ -278,4 +278,13 @@ class Eloquent implements TrooperRepository
             ->orderBy('id')
             ->get();
     }
+
+    public function cavIdsPlacedIn(array $sectionIds): array
+    {
+        return Trooper::query()
+            ->whereIn('primary_section_id', $sectionIds)
+            ->pluck('cav_id')
+            ->map(fn ($cavId) => (int) $cavId)
+            ->all();
+    }
 }

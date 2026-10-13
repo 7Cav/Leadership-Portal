@@ -3,10 +3,13 @@
 namespace App\Jobs;
 
 use App\Sync\SyncRosterHandler;
+use App\Sync\UnitNoLongerExistsException;
+use Illuminate\Bus\UniqueLock;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -29,7 +32,7 @@ use Throwable;
  * only decides what a worker does with a job it has already picked up, so ten Admin clicks used
  * to mean ten queued syncs, each deferred and retried in turn. With one `uniqueId` for every
  * dispatch, a second dispatch while a sync is queued, deferred or running is simply not queued.
- * The pending one fetches the whole roster anyway, so nothing is lost. The unique lock is held
+ * The pending one covers the same scope, so nothing is lost. The unique lock is held
  * until the job finishes or fails, and `$uniqueFor` matches the overlap lock's hour so a crashed
  * worker cannot block every later dispatch for good.
  */
@@ -54,7 +57,12 @@ class SyncRosterJob implements ShouldBeUnique, ShouldQueue
 
     public function handle(SyncRosterHandler $handler): void
     {
-        $handler->handle($this->triggeredBy, $this->unitId);
+        try {
+            $handler->handle($this->triggeredBy, $this->unitId);
+        } catch (UnitNoLongerExistsException $e) {
+            // Permanent: retrying cannot bring the unit back, and would hold the unique lock for every attempt.
+            $this->fail($e);
+        }
     }
 
     /**
@@ -65,6 +73,24 @@ class SyncRosterJob implements ShouldBeUnique, ShouldQueue
     public function uniqueId(): string
     {
         return $this->unitId === null ? 'roster' : "roster:unit:{$this->unitId}";
+    }
+
+    /**
+     * Whether a sync of this scope is already queued, deferred or running, i.e. whether dispatching it now would be
+     * silently dropped by {@see ShouldBeUnique}. Lets a caller tell the user so instead of reporting a sync that was
+     * never queued. Advisory: it is a check-then-dispatch, and the unique lock still decides.
+     */
+    public function isAlreadyQueued(): bool
+    {
+        $lock = Cache::lock(UniqueLock::getKey($this), 0);
+
+        if ($lock->get()) {
+            $lock->release();
+
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -83,9 +109,10 @@ class SyncRosterJob implements ShouldBeUnique, ShouldQueue
      */
     public function failed(Throwable $e): void
     {
-        Log::error('Roster sync exhausted every retry.', [
+        Log::error('Roster sync failed for good.', [
             'triggeredBy' => $this->triggeredBy,
-            'exception' => $e->getMessage(),
+            'scope' => $this->uniqueId(),
+            'exception' => $e,
         ]);
     }
 }

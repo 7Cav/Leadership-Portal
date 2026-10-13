@@ -1,6 +1,8 @@
 <?php
 
 use App\Jobs\SyncRosterJob;
+use App\Models\SyncRun;
+use App\Models\SyncRunStatus;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
@@ -10,7 +12,9 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\UnitRepository;
+use App\Sync\EmptyRosterException;
 use App\Sync\SyncRosterHandler;
+use App\Sync\UnitNoLongerExistsException;
 use Illuminate\Support\Facades\Queue;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
@@ -105,12 +109,66 @@ it('records an echelon run under its own source so the roster-wide stamp does no
         ->and($runs->latestSuccessful('roster'))->toBeNull();
 });
 
-it('fails the run, writing nothing, when the unit has since been deleted', function () {
+it('refuses a unit that has since been deleted before opening any run, writing nothing', function () {
     echelonFakeRoster(['1' => echelonRow('Mine.A', 101)]);
 
-    expect(fn () => app(SyncRosterHandler::class)->handle(7, 999999))->toThrow(InvalidArgumentException::class)
+    expect(fn () => app(SyncRosterHandler::class)->handle(7, 999999))->toThrow(UnitNoLongerExistsException::class)
         ->and(Trooper::count())->toBe(0)
-        ->and(app(SyncRunRepository::class)->latestFinished('roster-unit')->error)->toContain('999999');
+        ->and(SyncRun::count())->toBe(0);
+});
+
+it('fails the job at once for a deleted unit rather than retrying a permanent error', function () {
+    $job = Mockery::mock(SyncRosterJob::class.'[fail]', [7, 999999]);
+    $job->shouldReceive('fail')->once()->with(Mockery::type(UnitNoLongerExistsException::class));
+
+    $job->handle(app(SyncRosterHandler::class));
+});
+
+it('does not refuse an echelon sync because troopers elsewhere moved rosters', function () {
+    $tree = echelonTree();
+    // Four ELOA troopers in another echelon, all promoted to Combat this run: ELOA comes back empty, which the full
+    // sync accepts because every one of them is still active. The echelon sync must judge it the same way.
+    foreach ([11, 12, 13, 14] as $cavId) {
+        Trooper::factory()->create(['cav_id' => $cavId, 'status' => TrooperStatus::Eloa, 'primary_section_id' => $tree['outside']->id]);
+    }
+    echelonFakeRoster(collect([11, 12, 13, 14])->mapWithKeys(fn ($id) => [(string) $id => echelonRow("Moved.{$id}", 202)])->all());
+
+    app(SyncRosterHandler::class)->handle(7, $tree['platoon']->id);
+
+    expect(app(SyncRunRepository::class)->latestSuccessful('roster-unit'))->not->toBeNull();
+});
+
+it('still refuses an empty roster that would depart a crowd, under an echelon sync too', function () {
+    $tree = echelonTree();
+    foreach (range(21, 26) as $cavId) {
+        Trooper::factory()->create(['cav_id' => $cavId, 'status' => TrooperStatus::Reserve, 'primary_section_id' => $tree['outside']->id]);
+    }
+    echelonFakeRoster(['1' => echelonRow('Mine.A', 101)]);
+
+    expect(fn () => app(SyncRosterHandler::class)->handle(7, $tree['platoon']->id))->toThrow(EmptyRosterException::class)
+        ->and(Trooper::where('status', TrooperStatus::Reserve)->count())->toBe(6)
+        ->and(app(SyncRunRepository::class)->latestFinished('roster-unit')->status)->toBe(SyncRunStatus::Failure);
+});
+
+it('writes a trooper whose billet moved them out of the echelon through to their new section, and does not depart them', function () {
+    $tree = echelonTree();
+    $moved = Trooper::factory()->create(['cav_id' => 1, 'status' => TrooperStatus::Combat, 'primary_section_id' => $tree['inside']->id]);
+    echelonFakeRoster(['1' => echelonRow('Mover.A', 202)]);
+
+    app(SyncRosterHandler::class)->handle(7, $tree['platoon']->id);
+
+    expect($moved->refresh()->primary_section_id)->toBe($tree['outside']->id)
+        ->and($moved->status)->toBe(TrooperStatus::Combat);
+});
+
+it('reactivates a departed trooper placed in the echelon who is back on a roster', function () {
+    $tree = echelonTree();
+    $back = Trooper::factory()->create(['cav_id' => 1, 'status' => TrooperStatus::Inactive, 'primary_section_id' => $tree['inside']->id]);
+    echelonFakeRoster(['1' => echelonRow('Back.A', 999)]);
+
+    app(SyncRosterHandler::class)->handle(7, $tree['platoon']->id);
+
+    expect($back->refresh()->status)->toBe(TrooperStatus::Combat);
 });
 
 function echelonLeader(Unit $commands): User
@@ -167,10 +225,30 @@ it('queues one sync per echelon however often it is clicked, apart from the whol
     $admin = User::factory()->admin()->create();
     $this->actingAs($admin);
 
-    $this->post("/units/{$tree['inside']->id}/roster-sync");
-    $this->post("/units/{$tree['inside']->id}/roster-sync");
-    $this->post("/units/{$tree['outside']->id}/roster-sync");
+    $this->post("/units/{$tree['inside']->id}/roster-sync")->assertRedirect();
+    $this->post("/units/{$tree['inside']->id}/roster-sync")->assertStatus(409);
+    $this->post("/units/{$tree['outside']->id}/roster-sync")->assertRedirect();
     $this->post('/settings/roster-sync');
 
     Queue::assertPushed(SyncRosterJob::class, 3);
+});
+
+it('tells a leader instead of dropping the click when a whole-roster sync already covers their unit', function () {
+    Queue::fake();
+    $tree = echelonTree();
+    SyncRosterJob::dispatch('system');
+
+    $this->actingAs(echelonLeader($tree['platoon']))->post("/units/{$tree['inside']->id}/roster-sync")->assertStatus(409);
+
+    Queue::assertPushed(SyncRosterJob::class, 1);
+});
+
+it('offers the unit sync to the leader of that unit only, following real authority', function () {
+    $tree = echelonTree();
+    $leader = echelonLeader($tree['platoon']);
+
+    $page = fn (User $user, int $unitId) => $this->actingAs($user)->get("/roster/{$unitId}")->assertOk()->viewData('page')['props']['can'];
+
+    expect($page($leader, $tree['inside']->id)['syncUnit'])->toBeTrue()
+        ->and($page(User::factory()->admin()->create(), $tree['inside']->id))->toMatchArray(['sync' => true, 'syncUnit' => true]);
 });

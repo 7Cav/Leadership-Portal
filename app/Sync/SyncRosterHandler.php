@@ -7,12 +7,11 @@ use App\Integration\Cav\Data\CavRosterEntry;
 use App\Integration\Cav\Data\MilpacId;
 use App\Integration\Cav\Data\RosterRowError;
 use App\Integration\Cav\Data\RosterType;
+use App\Models\SyncRun;
 use App\Models\TrooperStatus;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitBilletMappingRepository;
-use App\Repositories\UnitRepository;
-use InvalidArgumentException;
 use Throwable;
 
 /**
@@ -42,10 +41,12 @@ use Throwable;
  * the same way a fetch failure is: the run is recorded as failed and nothing is written (see
  * {@see refuseEmptyRosterExodus()}).
  *
- * An echelon leader's manual sync passes `$unitId`: Cav only serves whole rosters, so the fetch is the same, but
- * the write is cut down to that unit's subtree — troopers placed in it, plus any whose billet now maps into it.
- * Departures are only considered among troopers placed in the subtree, and the run is recorded under its own
- * source so the global "last synced" stamp never claims a roster-wide refresh an echelon sync did not do.
+ * An echelon leader's manual sync passes `$unitId`: Cav only serves whole rosters, so the fetch and the
+ * empty-roster guard are the same, but the write is cut down to that unit's subtree by a {@see RosterSyncScope} —
+ * troopers placed in it, plus any whose billet now maps into it. Departures are only considered among troopers
+ * placed in the subtree, a trooper whose billet moved them out is written through to their new section, and the run
+ * is recorded under its own source so the global "last synced" stamp never claims a roster-wide refresh an
+ * echelon sync did not do.
  */
 class SyncRosterHandler
 {
@@ -57,23 +58,40 @@ class SyncRosterHandler
         private readonly TrooperRepository $troopers,
         private readonly SyncRunRepository $syncRuns,
         private readonly UnitBilletMappingRepository $billetMappings,
-        private readonly UnitRepository $units,
+        private readonly RosterSyncScopeFactory $scopes,
     ) {}
 
+    /**
+     * @throws UnitNoLongerExistsException before any run is opened, when `$unitId` has been deleted
+     */
     public function handle(int|string $triggeredBy = 'system', ?int $unitId = null): void
     {
+        // Looked up before the run is opened: a unit deleted since the click is permanent, not a failed run.
+        $sectionIds = $unitId === null ? null : $this->scopes->sectionIdsOf($unitId);
+
         $run = $this->syncRuns->open($unitId === null ? 'roster' : 'roster-unit', $triggeredBy);
 
         try {
-            $sectionIds = $unitId === null ? null : $this->subtreeSectionIds($unitId);
-
             $result = $this->cavApi->fetchRoster();
-            $sections = $this->resolveSections($result->troopers);
-            $inScope = $sectionIds === null ? null : $this->cavIdsInScope($sectionIds, $sections);
 
-            $entries = $inScope === null
-                ? $result->troopers
-                : array_values(array_filter($result->troopers, fn (CavRosterEntry $entry) => isset($inScope[$entry->cavId])));
+            // A row Cav reported but the seam could not parse (2.1, AC #6) is a trooper who is
+            // still present, just unusably described — it must not read as "disappeared" and be
+            // marked departed alongside troopers genuinely absent from every roster. The row's
+            // *key* is still the milpac id the sweep found them under, so it counts toward the
+            // active set even without the fields to upsert.
+            $unreadableCavIds = array_values(array_filter(array_map(
+                fn ($error) => MilpacId::parse($error->key),
+                $result->errors,
+            )));
+            $parsedCavIds = array_map(fn (CavRosterEntry $entry) => $entry->cavId, $result->troopers);
+            $activeCavIds = array_values(array_unique([...$parsedCavIds, ...$unreadableCavIds]));
+
+            // Judged on the whole response whatever the scope: whether Cav's answer is believable does not depend
+            // on which echelon asked, and counting against an echelon's slice alone would refuse a good sync.
+            $this->refuseEmptyRosterExodus($result->emptyRosters, $activeCavIds);
+
+            $sections = $this->resolveSections($result->troopers);
+            $scope = $this->scopes->build($sectionIds, $sections);
 
             $rows = array_map(
                 fn (CavRosterEntry $entry) => [
@@ -89,36 +107,20 @@ class SyncRosterHandler
                     'status' => $this->statusFor($entry->status)->value,
                     'cav_position_id' => $entry->positionId,
                 ],
-                $entries,
+                $scope->filterEntries($result->troopers),
             );
-
-            // A row Cav reported but the seam could not parse (2.1, AC #6) is a trooper who is
-            // still present, just unusably described — it must not read as "disappeared" and be
-            // marked departed alongside troopers genuinely absent from every roster. The row's
-            // *key* is still the milpac id the sweep found them under, so it counts toward the
-            // active set even without the fields to upsert.
-            $unreadableCavIds = array_values(array_filter(array_map(
-                fn ($error) => MilpacId::parse($error->key),
-                $result->errors,
-            )));
-            $parsedCavIds = array_column($rows, 'cav_id');
-            $activeCavIds = [...$parsedCavIds, ...$unreadableCavIds];
-
-            $this->refuseEmptyRosterExodus($result->emptyRosters, array_values(array_unique($activeCavIds)));
 
             // An unreadable row's billet is unknown, so it is cleared rather than left conferring
             // the last-known command scope (1.16) — unless the same trooper also parsed on another
             // roster this run, whose billet is then current and kept.
-            $unreadableToClear = array_values(array_diff(array_unique($unreadableCavIds), $parsedCavIds));
-
             $counts = $this->troopers->sync(
                 $rows,
-                array_values(array_unique($activeCavIds)),
-                $inScope === null ? $unreadableToClear : array_values(array_filter($unreadableToClear, fn (int $cavId) => isset($inScope[$cavId]))),
-                $sectionIds,
+                $activeCavIds,
+                $scope->filterCavIds(array_values(array_diff(array_unique($unreadableCavIds), $parsedCavIds))),
+                $scope->sectionIds,
             );
 
-            $this->troopers->updatePrimarySections($inScope === null ? $sections : array_intersect_key($sections, $inScope));
+            $this->troopers->updatePrimarySections($scope->filterSections($sections));
 
             $this->syncRuns->complete(
                 $run,
@@ -129,51 +131,23 @@ class SyncRosterHandler
                 error: $this->errorSummary($result->errors),
             );
         } catch (Throwable $e) {
-            $this->syncRuns->fail($run, $e->getMessage());
+            $this->recordFailure($run, $e);
 
             throw $e;
         }
     }
 
     /**
-     * The unit's subtree, the sections an echelon sync may write to.
-     *
-     * @return list<int>
+     * Close the run as failed without letting a second failure (the database that broke the sync is often the one
+     * recording it) replace the exception that is about to be rethrown.
      */
-    private function subtreeSectionIds(int $unitId): array
+    private function recordFailure(SyncRun $run, Throwable $e): void
     {
-        $unit = $this->units->find($unitId);
-
-        if ($unit === null) {
-            throw new InvalidArgumentException("Unit {$unitId} no longer exists; nothing to sync.");
+        try {
+            $this->syncRuns->fail($run, $e::class.': '.$e->getMessage());
+        } catch (Throwable $recording) {
+            report($recording);
         }
-
-        return $this->units->subtreeIds($unit)->values()->all();
-    }
-
-    /**
-     * Who an echelon sync may touch, as a set keyed by `cav_id`: troopers already placed in the echelon, and
-     * anyone whose billet now resolves into it (a transfer in).
-     *
-     * @param  list<int>  $sectionIds
-     * @param  array<int, int>  $sections  cav_id => section unit id, from {@see resolveSections()}
-     * @return array<int, true>
-     */
-    private function cavIdsInScope(array $sectionIds, array $sections): array
-    {
-        $inScope = [];
-
-        foreach ($this->troopers->placedInAny($sectionIds) as $trooper) {
-            $inScope[$trooper->cav_id] = true;
-        }
-
-        foreach ($sections as $cavId => $sectionId) {
-            if (in_array($sectionId, $sectionIds, true)) {
-                $inScope[$cavId] = true;
-            }
-        }
-
-        return $inScope;
     }
 
     /**

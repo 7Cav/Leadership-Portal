@@ -260,6 +260,15 @@ interface TrooperRepository
     public function placedInAny(iterable $sectionIds): EloquentCollection;
 
     /**
+     * The `cav_id`s of every trooper placed in any of these sections, departed ones included: a trooper who left
+     * and has since come back to a roster is still this echelon's to reactivate.
+     *
+     * @param  list<int>  $sectionIds
+     * @return list<int>
+     */
+    public function cavIdsPlacedIn(array $sectionIds): array;
+
+    /**
      * How many cached troopers holding `$status` are missing from `$activeCavIds`, i.e. how many
      * of them {@see markDepartedExcept()} would flip to inactive. The sync handler asks this
      * before believing an empty serving roster: an empty roster that would depart a crowd reads

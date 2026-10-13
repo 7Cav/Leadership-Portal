@@ -87,7 +87,7 @@ class ScopeResolver
      * {@see realScope()}: a staff grant lets someone read an echelon, not trigger writes to it. Real authority, not
      * the view-as preview: writes never follow a preview (AD-9).
      */
-    public function commands(User $user, Unit $unit): bool
+    public function commandsUnit(User $user, Unit $unit): bool
     {
         if ($user->is_admin) {
             return true;

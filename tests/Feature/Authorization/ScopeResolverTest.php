@@ -282,3 +282,49 @@ it('adds one subtree query per held grant, never one per unit in a subtree', fun
     // 1 + 2 subtree queries.
     expect(DB::getQueryLog())->toHaveCount(7);
 });
+
+// ── commandsUnit: who may trigger a sync of a unit (a write, so narrower than reading it) ──
+
+it('lets a leader sync the unit they command and anything beneath it, not above or beside it', function () {
+    $tree = rdTree();
+    UnitCommandMapping::factory()->create(['unit_id' => $tree['platoon']->id, 'cav_position_id' => 500]);
+    $leader = rdLeader(500);
+    $resolver = app(ScopeResolver::class);
+
+    expect($resolver->commandsUnit($leader, $tree['platoon']))->toBeTrue()
+        ->and($resolver->commandsUnit($leader, $tree['section1']))->toBeTrue()
+        ->and($resolver->commandsUnit($leader, $tree['company']))->toBeFalse()
+        ->and($resolver->commandsUnit($leader, $tree['otherBattalion']))->toBeFalse();
+});
+
+it('lets an Admin sync any unit without commanding one', function () {
+    $tree = rdTree();
+
+    expect(app(ScopeResolver::class)->commandsUnit(User::factory()->admin()->create(), $tree['section2']))->toBeTrue();
+});
+
+it('refuses a departed leader, a billet with no command mapping, and a user with no trooper', function () {
+    $tree = rdTree();
+    UnitCommandMapping::factory()->create(['unit_id' => $tree['platoon']->id, 'cav_position_id' => 500]);
+    $resolver = app(ScopeResolver::class);
+
+    expect($resolver->commandsUnit(rdLeader(500, TrooperStatus::Inactive), $tree['platoon']))->toBeFalse();
+
+    Trooper::query()->delete();
+    User::query()->delete();
+
+    expect($resolver->commandsUnit(rdLeader(999), $tree['platoon']))->toBeFalse()
+        ->and($resolver->commandsUnit(User::factory()->create(), $tree['platoon']))->toBeFalse();
+});
+
+it('does not treat a staff grant as the right to sync, however wide the grant', function () {
+    $tree = rdTree();
+    Trooper::factory()->create(['cav_id' => 4242, 'status' => TrooperStatus::Combat]);
+    $staff = User::factory()->create(['cav_id' => 4242]);
+    PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $tree['battalion']->id]);
+
+    $resolver = app(ScopeResolver::class);
+
+    expect($resolver->resolve($staff)->contains($tree['platoon']->id))->toBeTrue()
+        ->and($resolver->commandsUnit($staff, $tree['platoon']))->toBeFalse();
+});
