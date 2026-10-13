@@ -10,7 +10,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * One trooper's milpac (Stories 6.3, 6.4): the page every entry point to a trooper opens. It orchestrates
+ * One trooper's milpac (Stories 6.3 to 6.6): the page every entry point to a trooper opens. It orchestrates
  * only; what the page shows comes from {@see TrooperMilpac}.
  *
  * Who may see it is decided by the single ScopeResolver (AD-8, AD-6), the same `canSee` gate the roster Sheet

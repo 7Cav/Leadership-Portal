@@ -13,8 +13,8 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 /**
- * What the trooper detail page (the milpac) shows for one trooper (Stories 6.3 to 6.5): the ID block, the
- * courses and qualifications panel and the awards history, read through the repositories and shaped as page props. Read-only, and it
+ * What the trooper detail page (the milpac) shows for one trooper (Stories 6.3 to 6.6): the ID block, the
+ * courses and qualifications panel, the awards history and the service-record timeline, read through the repositories and shaped as page props. Read-only, and it
  * never decides who may look: the caller gates that with the ScopeResolver (AD-8) before asking.
  *
  * The ID block is the cached Cav roster, so the page can show where it came from and how fresh it is (AD-20).
@@ -29,19 +29,26 @@ final class TrooperMilpac
         private readonly UnitRepository $units,
         private readonly TrooperCourseRepository $trooperCourses,
         private readonly SyncRunRepository $syncRuns,
+        private readonly ServiceTimeline $timeline,
     ) {}
 
     /**
-     * @return array{crumb: string, trooper: array<string, mixed>, awards: array{available: bool, items: list<array{name: string, awardedAt: ?string, citation: ?string}>}, courses: array{groups: list<array{status: string, label: string, courses: list<array{code: string, name: string, awardedAt: ?string}>}>, qualified: int, total: int}, sync: array<string, mixed>}
+     * @return array{crumb: string, trooper: array<string, mixed>, timeline: array<string, mixed>, awards: array{available: bool, items: list<array{name: string, awardedAt: ?string, citation: ?string}>}, courses: array{groups: list<array{status: string, label: string, courses: list<array{code: string, name: string, awardedAt: ?string}>}>, qualified: int, total: int}, sync: array<string, mixed>}
      */
     public function for(Trooper $trooper): array
     {
+        // One clock for the whole page, so the ID block's durations and the timeline's date rules always agree.
+        $today = CarbonImmutable::now('UTC');
+        $rows = $this->trooperCourses->forTrooper($trooper->id);
+        $awards = $this->awards();
+
         return [
             // The page's last breadcrumb crumb (the shell reads `crumb` for a page nested under a nav item).
             'crumb' => $trooper->display_name,
-            'trooper' => $this->idBlock($trooper),
-            'courses' => $this->courses($trooper),
-            'awards' => $this->awards(),
+            'trooper' => $this->idBlock($trooper, $today),
+            'courses' => $this->courses($rows),
+            'awards' => $awards,
+            'timeline' => $this->timeline->build($trooper, $rows, $awards['items'], $today),
             'sync' => $this->sync(),
         ];
     }
@@ -53,10 +60,9 @@ final class TrooperMilpac
      *
      * @return array<string, mixed>
      */
-    private function idBlock(Trooper $trooper): array
+    private function idBlock(Trooper $trooper, CarbonImmutable $today): array
     {
         $section = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
-        $today = CarbonImmutable::now('UTC');
         $departed = $trooper->status === TrooperStatus::Inactive;
 
         return [
@@ -102,12 +108,11 @@ final class TrooperMilpac
      * with nothing in it is not returned. `qualified` and `total` are counted from the groups returned, so the
      * header count can never disagree with the list under it.
      *
+     * @param  Collection<int, TrooperCourse>  $rows
      * @return array{groups: list<array{status: string, label: string, courses: list<array{code: string, name: string, awardedAt: ?string}>}>, qualified: int, total: int}
      */
-    private function courses(Trooper $trooper): array
+    private function courses(Collection $rows): array
     {
-        /** @var Collection<int, TrooperCourse> $rows */
-        $rows = $this->trooperCourses->forTrooper($trooper->id);
 
         $groups = collect(self::GROUPS)
             ->map(fn (CourseStatus $status) => [

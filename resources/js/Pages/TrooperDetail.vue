@@ -11,14 +11,15 @@ import { forumDate, forumDateTime } from '@/lib/forumDate';
 import { initialsOf } from '@/lib/initials';
 import { trooperStatusOf } from '@/lib/roster';
 
-// One trooper's milpac (Stories 6.3 to 6.5): the ID block from the cached Cav roster, the courses and
-// qualifications panel and the awards history. Everything is shaped on the server (`Milpac\TrooperMilpac`) and drawn here; the
+// One trooper's milpac (Stories 6.3 to 6.6): the ID block from the cached Cav roster, the courses and
+// qualifications panel, the awards history and the service-record timeline. Everything is shaped on the server (`Milpac\TrooperMilpac`) and drawn here; the
 // page decides nothing about who may look, the controller has already gated it. The service record that
 // completes the mockup's second column arrives with 6.6.
 const props = defineProps({
     trooper: { type: Object, required: true },
     courses: { type: Object, required: true },
     awards: { type: Object, required: true },
+    timeline: { type: Object, required: true },
     sync: { type: Object, required: true },
 });
 
@@ -45,6 +46,12 @@ function duration(months) {
 
     return [years ? `${years}y` : null, rest ? `${rest}m` : null].filter(Boolean).join(' ');
 }
+
+// One colour per timeline event type: courses blue, awards green, and the rank milestone in the gold accent. A type
+// this page does not know still gets a neutral dot, and its legend wording and row label come from the server.
+const EVENT_DOT = { course: 'bg-info', promotion: 'bg-primary', award: 'bg-success' };
+const eventDot = (type) => EVENT_DOT[type] ?? 'bg-muted-foreground';
+const typeLabel = computed(() => Object.fromEntries(props.timeline.legend.map((item) => [item.type, item.label])));
 
 const GROUP_DOT = { qualified: 'bg-success', in_progress: 'bg-info', required: 'bg-destructive' };
 
@@ -180,6 +187,40 @@ const staleNotice = computed(() => {
                     </li>
                 </ul>
             </section>
+        </MilpacPanel>
+
+        <MilpacPanel title="Service record" class="w-full max-w-xl" data-testid="timeline-panel">
+            <template v-if="timeline.legend.length" #count>
+                <ul class="flex flex-wrap justify-end gap-3 text-xs text-muted-foreground" data-testid="timeline-legend">
+                    <li v-for="item in timeline.legend" :key="item.type" class="flex items-center gap-1.5" :data-testid="`legend-${item.type}`">
+                        <span class="size-2 rounded-full" :class="eventDot(item.type)" aria-hidden="true" />
+                        {{ item.label }}
+                    </li>
+                </ul>
+            </template>
+
+            <p v-if="!timeline.entries.length" class="px-4 py-6 text-center text-[13px] text-muted-foreground" data-testid="timeline-empty">
+                No service record events on file.
+            </p>
+
+            <!-- Capped so a long record does not stretch the column; a focusable scroll region so the keyboard can reach the rest. -->
+            <ol v-else class="max-h-96 overflow-y-auto" tabindex="0" aria-label="Service record events, newest first" data-testid="timeline-list">
+                <li
+                    v-for="(entry, index) in timeline.entries"
+                    :key="`${entry.type}-${entry.date}-${index}`"
+                    class="flex items-start gap-3 border-b border-border px-4 py-2.5 text-[13px] last:border-b-0"
+                    :data-testid="`event-${entry.type}`"
+                >
+                    <span class="mt-1.5 size-2 shrink-0 rounded-full" :class="eventDot(entry.type)" aria-hidden="true" />
+                    <div class="min-w-0 flex-1">
+                        <time :datetime="entry.date" class="font-mono text-[11px] text-muted-foreground" data-testid="event-date">{{ forumDate(entry.date) }}</time>
+                        <p class="font-medium" data-testid="event-title">
+                            <span class="sr-only" data-testid="event-type">{{ typeLabel[entry.type] ?? entry.type }}: </span>{{ entry.title }}
+                        </p>
+                        <p v-if="entry.detail" class="text-xs text-muted-foreground" data-testid="event-detail">{{ entry.detail }}</p>
+                    </div>
+                </li>
+            </ol>
         </MilpacPanel>
 
         <!-- Read-only history from the Cav roster (AD-5): there is deliberately no way to add, edit or recommend an award here (FR17). -->
