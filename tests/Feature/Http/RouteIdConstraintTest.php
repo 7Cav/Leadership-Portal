@@ -20,6 +20,21 @@ it('answers a 20-digit id with 404, not a 500', function (string $method, string
     'delete a unit' => ['DELETE', '/settings/org-structure/99999999999999999999'],
     'trooper sheet' => ['GET', '/roster/troopers/99999999999999999999'],
     'revoke a grant' => ['DELETE', '/settings/staff-grants/99999999999999999999'],
+    // Routes that once added their own `whereNumber()`, which replaced the global cap with `[0-9]+`.
+    'weekly report' => ['GET', '/reports/99999999999999999999/2026-10-03'],
+    'save a report draft' => ['PUT', '/reports/99999999999999999999/2026-10-03'],
+    'send a report' => ['POST', '/reports/99999999999999999999/2026-10-03/send'],
+    'rollcall' => ['GET', '/rollcall/99999999999999999999'],
+    'mark attendance' => ['POST', '/rollcall/99999999999999999999'],
+    'link an unmatched player' => ['POST', '/rollcall/99999999999999999999/unmatched/link'],
+    'dismiss an unmatched player' => ['POST', '/rollcall/99999999999999999999/unmatched/dismiss'],
+    'retry capture' => ['POST', '/rollcall/99999999999999999999/capture'],
+    'confirm a practice' => ['POST', '/rollcall/99999999999999999999/confirm'],
+    'mark rollcall posted' => ['POST', '/rollcall/99999999999999999999/posted'],
+    'set a game identity' => ['PUT', '/game-identities/99999999999999999999/hll'],
+    'remove a game identity' => ['DELETE', '/game-identities/99999999999999999999/hll'],
+    'place a trooper' => ['POST', '/settings/org-structure/troopers/99999999999999999999/placement'],
+    'activate a template version' => ['POST', '/settings/templates/99999999999999999999/activate'],
 ]);
 
 it('still routes an 18-digit id, which an int can hold', function () {
@@ -37,7 +52,7 @@ it('still routes an 18-digit id, which an int can hold', function () {
 });
 
 it('caps every id-like route parameter at 18 digits, so a new route cannot forget it', function () {
-    $capped = ['unit', 'grant', 'trooper'];
+    $capped = ['unit', 'grant', 'trooper', 'version'];
 
     $uncapped = collect(Route::getRoutes()->getRoutes())
         ->flatMap(fn ($route) => $route->parameterNames())
@@ -50,4 +65,19 @@ it('caps every id-like route parameter at 18 digits, so a new route cannot forge
     foreach ($capped as $name) {
         expect(Route::getPatterns())->toHaveKey($name, '[0-9]{1,18}');
     }
+});
+
+it('keeps the 18-digit cap on every route, so no route-level where() replaces it', function () {
+    // The global patterns are merged into a route when it is created; a later `whereNumber()` or
+    // `where()` on that route overwrites them. Check what each route actually matches with.
+    $capped = ['unit', 'grant', 'trooper', 'version'];
+
+    $loosened = collect(Route::getRoutes()->getRoutes())
+        ->flatMap(fn ($route) => collect($route->parameterNames())
+            ->intersect($capped)
+            ->reject(fn (string $name) => ($route->wheres[$name] ?? null) === '[0-9]{1,18}')
+            ->map(fn (string $name) => $route->uri().' {'.$name.'} '.($route->wheres[$name] ?? '(none)')))
+        ->values();
+
+    expect($loosened->all())->toBe([]);
 });
