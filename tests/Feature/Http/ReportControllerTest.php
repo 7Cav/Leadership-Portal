@@ -239,6 +239,13 @@ it('lets an admin open any unit\'s report', function () {
     $this->actingAs(User::factory()->admin()->create())->get(reportUrl($this->sibling, $this->week))->assertOk();
 });
 
+it('sends the trooper names as a JSON object even when the section has no troopers', function () {
+    $response = $this->actingAs(User::factory()->admin()->create())->get(reportUrl($this->sibling, $this->week))->assertOk();
+
+    // The page declares `names` as an Object; an empty collection would encode as `[]`.
+    expect(json_encode($response->viewData('page')['props']['names']))->toBe('{}');
+});
+
 it('keeps a sent report reading as it froze: its baseline and delta never change later', function () {
     $this->actingAs($this->leader)->post(reportUrl($this->section, $this->week, '/send'), ['reason' => 'Weekly report'])->assertSessionHasNoErrors();
     // The prior week is sent late, after this one froze; a trooper joins after the freeze.
