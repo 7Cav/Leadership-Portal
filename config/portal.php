@@ -16,4 +16,17 @@ return [
 
     'demo_tools' => (bool) env('DEMO_TOOLS', false),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Trusted proxies
+    |--------------------------------------------------------------------------
+    |
+    | Comma-separated IPs/CIDRs of the load balancer or reverse proxy in front of the app, so the
+    | sign-in throttle sees each client's own IP and HSTS sees HTTPS. Empty trusts nothing. Never
+    | `*` on an internet-facing host. Read per request by App\Http\Middleware\TrustProxies.
+    |
+    */
+
+    'trusted_proxies' => env('TRUSTED_PROXIES', ''),
+
 ];
