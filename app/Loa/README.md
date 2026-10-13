@@ -32,7 +32,7 @@ Everything the portal needs to *read* about leave lives here, so no screen re-de
 
 **May depend on:** `Repositories/` (the facts, never the DB directly, AD-2), `Models/`,
 `Support/Time/` (the week window, AD-11).
-**Reached from:** the screens that show leave, `Kpi/` and `Commands/Attendance/MarkAttendanceHandler`. Read-only: the LOA sync (`Sync/SyncLoasHandler`) is the one
+**Reached from:** the screens that show leave (the rollcall page, and Home's step matrix, which counts it), `Kpi/` and `Commands/Attendance/MarkAttendanceHandler`. Read-only: the LOA sync (`Sync/SyncLoasHandler`) is the one
 writer of `loas` and `sync_runs`.
 
 `forTroopersOverWeeks($ids, $firstWeek, $weeks)` resolves a window the same way, in one query. The KPI service
