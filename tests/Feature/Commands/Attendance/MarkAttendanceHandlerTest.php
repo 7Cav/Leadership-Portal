@@ -13,6 +13,7 @@ use App\Models\PortalRoleGrant;
 use App\Models\RollcallSignature;
 use App\Models\SectionPractice;
 use App\Models\Trooper;
+use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
@@ -374,6 +375,16 @@ it('pre-marks only troopers placed in the practice section, counting what it kep
         ->toBe([$this->troopers[1]->id, $this->troopers[2]->id])
         ->and(Attendance::query()->where('trooper_id', $stranger->id)->exists())->toBeFalse()
         ->and(AuditLogEntry::query()->count())->toBe(0);
+});
+
+it('does not pre-mark a departed trooper who keeps their last placement, counting them as not placed', function () {
+    $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->weekStart]);
+    $this->troopers[1]->update(['status' => TrooperStatus::Inactive]);
+
+    $result = app(MarkAttendanceHandler::class)->preMark($practice, [$this->troopers[0]->id, $this->troopers[1]->id]);
+
+    expect([$result->marked, $result->keptManual, $result->notPlaced])->toBe([1, 0, 1])
+        ->and(Attendance::query()->pluck('trooper_id')->all())->toBe([$this->troopers[0]->id]);
 });
 
 it('writes no audit entry for an empty pre-mark even when a user triggered it', function () {
