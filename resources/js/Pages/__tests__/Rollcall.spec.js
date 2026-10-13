@@ -780,6 +780,44 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-testid="unmatched-banner"]').exists()).toBe(false);
             expect(wrapper.find('[data-trooper="3"]').text()).toContain('Present');
         });
+
+        const LINKED = { ok: true, status: 200, data: { marked: true, trooper: { id: 3, status: 'present', source: 'auto' }, atRisk: [] } };
+        const SAVED = { ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00', atRisk: [] } };
+        const pressed = (wrapper, value) => wrapper.find(`[data-trooper="3"] button[data-value="${value}"]`).attributes('aria-pressed');
+
+        it('saves a mark just set before linking, so the server keeps it as manual', async () => {
+            // What the server answers once the manual mark is saved: kept, not pre-marked.
+            const KEPT = { ok: true, status: 200, data: { marked: false, trooper: { id: 3, status: 'missed', source: 'manual' }, atRisk: [] } };
+            post.mockImplementation((url) => Promise.resolve(url.endsWith('/unmatched/link') ? KEPT : SAVED));
+            const wrapper = factory({ capture: CAPTURE, unmatched: UNMATCHED });
+
+            await wrapper.find('[data-trooper="3"] button[data-value="missed"]').trigger('click');
+            await wrapper.find('[data-testid="unmatched-trooper"]').setValue('3');
+            await wrapper.find('[data-testid="unmatched-link"]').trigger('click');
+            await flushPromises();
+
+            expect(post.mock.calls.map(([url]) => url)).toEqual(['/rollcall/12', '/rollcall/12/unmatched/link']);
+            expect(post.mock.calls[0][1]).toEqual({ week: '2026-10-03', marks: [{ trooper_id: 3, status: 'missed' }] });
+            expect(pressed(wrapper, 'missed')).toBe('true');
+            expect(toastSuccess).toHaveBeenLastCalledWith('Linked Trooper1 to Trooper3.A', { description: 'Their existing mark was kept.' });
+        });
+
+        it('keeps a mark the leader sets while the link is in flight', async () => {
+            let answer;
+            post.mockImplementation((url) => (url.endsWith('/unmatched/link') ? new Promise((resolve) => (answer = resolve)) : Promise.resolve(SAVED)));
+            const wrapper = factory({ capture: CAPTURE, unmatched: UNMATCHED });
+
+            await wrapper.find('[data-testid="unmatched-trooper"]').setValue('3');
+            await wrapper.find('[data-testid="unmatched-link"]').trigger('click');
+            await flushPromises();
+            await wrapper.find('[data-trooper="3"] button[data-value="makeup"]').trigger('click');
+            answer(LINKED);
+            await flushPromises();
+
+            expect(pressed(wrapper, 'makeup')).toBe('true');
+            expect(pressed(wrapper, 'present')).toBe('false');
+            expect(toastSuccess).toHaveBeenLastCalledWith('Linked Trooper1 to Trooper3.A', { description: 'The mark you just set stays.' });
+        });
     });
 
     describe('capture review and confirm (7.8)', () => {

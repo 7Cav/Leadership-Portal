@@ -57,6 +57,21 @@ describe('UnmatchedDrawer', () => {
         expect(wrapper.emitted('linked')[0][0]).toMatchObject({ player: PLAYERS[0], marked: true, trooper: { id: 1 } });
     });
 
+    it('runs beforeLink with the chosen trooper first, and holds the link back when it fails', async () => {
+        const beforeLink = vi.fn().mockResolvedValue(false);
+        const wrapper = factory({ beforeLink });
+        const first = card(wrapper, '7656119000000001');
+
+        await first.find('select').setValue('1');
+        await first.find('[data-testid="unmatched-link"]').trigger('click');
+        await flushPromises();
+
+        expect(beforeLink).toHaveBeenCalledWith(1);
+        expect(post).not.toHaveBeenCalled();
+        expect(first.find('[data-testid="unmatched-error"]').text()).toContain('the player was not linked');
+        expect(first.find('[data-testid="unmatched-link"]').attributes('disabled')).toBeUndefined();
+    });
+
     it('shows a collision inline and keeps the player listed', async () => {
         post.mockResolvedValue({ ok: false, status: 422, data: { message: 'Already linked to PFC Dube.R on Hell Let Loose.' } });
         const wrapper = factory();

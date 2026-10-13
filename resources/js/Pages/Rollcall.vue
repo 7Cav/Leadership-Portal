@@ -183,6 +183,7 @@ function set(trooper, kind, value, options = {}) {
     trooper[field] = value;
     if (field === 'status') {
         trooper.source = 'manual';
+        practiceEdits.set(trooper.id, (practiceEdits.get(trooper.id) ?? 0) + 1);
     }
     if (posted.value) editedSincePost.value = true;
     autosave.queue(trooper.id, field, value, options);
@@ -228,19 +229,36 @@ function applyMany(entries, title) {
 
 const sameUnmatched = (a, b) => a.platform === b.platform && a.platformId === b.platformId;
 
+// Practice marks set on this screen, counted per trooper, and the count when each link was sent:
+// a link answer must not overwrite a mark the leader set while it was in flight.
+const practiceEdits = new Map();
+const editsAtLink = new Map();
+
+// Before a link is sent, the marks waiting in the autosave go first, so the server's manual-wins
+// pre-mark sees a mark the leader just set instead of racing it. Held marks (an open Undo) stay held.
+function beforeLink(trooperId) {
+    editsAtLink.set(trooperId, practiceEdits.get(trooperId) ?? 0);
+
+    return autosave.flush();
+}
+
 // The server linked the player and pre-marked the trooper (a manual mark is kept, so the row takes
-// what the server says it now holds).
+// what the server says it now holds), unless the leader's own mark is newer than that answer: still
+// queued or held, or set while the link was in flight. That mark saves as manual and wins.
 function onLinked({ player, marked, trooper, atRisk }) {
     unmatchedPlayers.value = unmatchedPlayers.value.filter((p) => !sameUnmatched(p, player));
     const row = rows.value.find((t) => t.id === trooper.id);
-    if (row && trooper.status) {
+    const newerHere = autosave.isPending(trooper.id, 'status') || (practiceEdits.get(trooper.id) ?? 0) !== (editsAtLink.get(trooper.id) ?? 0);
+    editsAtLink.delete(trooper.id);
+    if (row && trooper.status && !newerHere) {
         Object.assign(row, { status: trooper.status, source: trooper.source });
         // A mark written after the forum post makes that post stale, as a hand edit does.
         if (marked && posted.value) editedSincePost.value = true;
     }
     liveAtRisk.value = atRisk ?? liveAtRisk.value;
     const name = row ? displayName(row) : `trooper ${trooper.id}`;
-    if (marked) toast.success(`Linked ${player.playerName} to ${name}`, { description: 'Marked present for this practice.' });
+    if (newerHere) toast.success(`Linked ${player.playerName} to ${name}`, { description: 'The mark you just set stays.' });
+    else if (marked) toast.success(`Linked ${player.playerName} to ${name}`, { description: 'Marked present for this practice.' });
     else if (confirmation.value) toast.success(`Linked ${player.playerName} to ${name}`, { description: 'The practice is confirmed, so its marks were not changed.' });
     else toast.success(`Linked ${player.playerName} to ${name}`, { description: 'Their existing mark was kept.' });
 }
@@ -986,6 +1004,7 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                     :troopers="rows"
                     :editable="editable"
                     :disabled-reason="readOnlyReason"
+                    :before-link="beforeLink"
                     @linked="onLinked"
                     @dismissed="onDismissed"
                 />
