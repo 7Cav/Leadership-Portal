@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Sync\SyncRosterHandler;
 use App\Sync\UnitNoLongerExistsException;
+use DateTimeInterface;
 use Illuminate\Bus\UniqueLock;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -22,10 +23,10 @@ use Throwable;
  * whichever caller happens to write last. The lock expires after an hour so a crashed worker can
  * never wedge every future run behind a lock nobody will release.
  *
- * `$tries` must exceed 1: a release counts as an attempt, and the worker's own `--tries` (1 by
- * default, e.g. `composer dev`'s `queue:listen --tries=1`) would otherwise fail a *deferred* run
- * outright on its first release — turning "deferred" into "dropped." `$timeout` bounds a hung
- * external call well under the lock's hour-long expiry, so the lock is freed long before it would
+ * A release counts as an attempt, and the worker's own `--tries` (1 by default, e.g. `composer dev`'s
+ * `queue:listen --tries=1`) would otherwise fail a *deferred* run outright on its first release, turning
+ * "deferred" into "dropped." So the job waits by time (`retryUntil`) rather than by count, and `$maxExceptions`
+ * caps genuine failures. `$timeout` bounds a hung external call well under the lock's hour-long expiry, so the lock is freed long before it would
  * otherwise wedge every scheduled tick behind a crashed worker.
  *
  * {@see ShouldBeUnique} guards the queue itself, which the overlap lock above cannot: that lock
@@ -40,7 +41,14 @@ class SyncRosterJob implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
-    public int $tries = 5;
+    /**
+     * Unbounded by count: a deferral (the overlap lock held by another run) is a release, and a release is an
+     * attempt, so a count would drop a sync that was only ever waiting its turn. {@see retryUntil()} bounds the wait
+     * instead, and `$maxExceptions` bounds real failures.
+     */
+    public int $tries = 0;
+
+    public int $maxExceptions = 3;
 
     public int $timeout = 120;
 
@@ -63,6 +71,12 @@ class SyncRosterJob implements ShouldBeUnique, ShouldQueue
             // Permanent: retrying cannot bring the unit back, and would hold the unique lock for every attempt.
             $this->fail($e);
         }
+    }
+
+    /** How long a sync may wait behind other runs before it is given up on. */
+    public function retryUntil(): DateTimeInterface
+    {
+        return now()->addMinutes(30);
     }
 
     /**

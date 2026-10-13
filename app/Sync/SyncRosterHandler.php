@@ -69,7 +69,12 @@ class SyncRosterHandler
         // Looked up before the run is opened: a unit deleted since the click is permanent, not a failed run.
         $sectionIds = $unitId === null ? null : $this->scopes->sectionIdsOf($unitId);
 
-        $run = $this->syncRuns->open($unitId === null ? 'roster' : 'roster-unit', $triggeredBy);
+        // The job's lock serialises every roster run, whole or echelon, so any run still `in_progress` now was killed
+        // before it could record itself. Closing it keeps the sync's state honest.
+        $this->syncRuns->failOrphaned(SyncRun::SOURCE_ROSTER);
+        $this->syncRuns->failOrphaned(SyncRun::SOURCE_ROSTER_UNIT);
+
+        $run = $this->syncRuns->open($unitId === null ? SyncRun::SOURCE_ROSTER : SyncRun::SOURCE_ROSTER_UNIT, $triggeredBy, unitId: $unitId);
 
         try {
             $result = $this->cavApi->fetchRoster();

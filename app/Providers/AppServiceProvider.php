@@ -87,5 +87,12 @@ class AppServiceProvider extends ServiceProvider
         // a second sync; this caps how often an Admin can even ask, per Admin.
         RateLimiter::for('roster-sync', fn (Request $request) => Limit::perMinute(5)
             ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
+
+        // An echelon sync fetches the whole roster from Cav however small its unit, so beyond the per-leader cap there
+        // is a ceiling across every leader: a battalion's worth of unit clicks cannot hammer the Cav API.
+        RateLimiter::for('unit-roster-sync', fn (Request $request) => [
+            Limit::perMinute(3)->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())),
+            Limit::perMinute(20)->by('unit-roster-sync'),
+        ]);
     }
 }

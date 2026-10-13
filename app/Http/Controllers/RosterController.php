@@ -7,6 +7,7 @@ use App\Kpi\KpiService;
 use App\Kpi\Ratio;
 use App\Kpi\TrooperAttendance;
 use App\Kpi\UnitKpis;
+use App\Models\SyncRun;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
@@ -72,7 +73,7 @@ class RosterController extends Controller
             'weeks' => $this->weeks($week),
             'currentWeek' => $week->toDateString(),
             ...($unit ? $this->roster($unit, $week) : ['units' => [], 'troopers' => []]),
-            'sync' => $this->syncStatus(),
+            'sync' => $this->syncStatus($unit, $user),
             'can' => [
                 // Follows view-as: a preview of a non-Admin never offers an Admin action (1.13).
                 'sync' => $this->scope->actsAsAdmin($user),
@@ -271,10 +272,10 @@ class RosterController extends Controller
      *
      * @return array<string, mixed>
      */
-    private function syncStatus(): array
+    private function syncStatus(?Unit $unit, User $user): array
     {
-        $success = $this->syncRuns->latestSuccessful('roster');
-        $latest = $this->syncRuns->latestFinished('roster');
+        $success = $this->syncRuns->latestSuccessful(SyncRun::SOURCE_ROSTER);
+        $latest = $this->syncRuns->latestFinished(SyncRun::SOURCE_ROSTER);
         $stale = $latest !== null && $latest->id !== $success?->id;
 
         return [
@@ -285,7 +286,19 @@ class RosterController extends Controller
                 'status' => $latest->status->value,
                 'at' => $latest->finished_at?->toIso8601String(),
             ] : null,
+            // The unit leader's own last sync of this echelon, kept apart from the roster-wide stamp above.
+            'unit' => $unit !== null && $this->scope->commandsUnit($user, $unit) ? $this->unitSyncStatus($unit) : null,
         ];
+    }
+
+    /**
+     * @return array{status: string, at: ?string}|null
+     */
+    private function unitSyncStatus(Unit $unit): ?array
+    {
+        $run = $this->syncRuns->latestForUnit(SyncRun::SOURCE_ROSTER_UNIT, $unit->id);
+
+        return $run === null ? null : ['status' => $run->status->value, 'at' => $run->finished_at?->toIso8601String()];
     }
 
     /**

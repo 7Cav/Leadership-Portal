@@ -34,11 +34,14 @@ it('releases a job back to the queue, rather than running it, when the roster lo
     }
 });
 
-it('allows more than one attempt, so a deferred run can actually retry (not fail on release)', function () {
+it('waits out a deferral by time rather than by attempt count, so a deferred run is not dropped on release', function () {
     // A release counts as an attempt; a worker's own `--tries=1` (e.g. `composer dev`'s
-    // `queue:listen --tries=1`) would otherwise fail a deferred run outright on its first
-    // release, turning "deferred" into "dropped" (see SyncRosterJob's docblock).
-    expect((new SyncRosterJob)->tries)->toBeGreaterThan(1);
+    // `queue:listen --tries=1`) would otherwise fail a deferred run outright on its first release, turning
+    // "deferred" into "dropped" (see SyncRosterJob's docblock). A job-level retryUntil overrides that.
+    $job = new SyncRosterJob;
+
+    expect($job->retryUntil()->getTimestamp())->toBeGreaterThan(now()->addMinutes(10)->getTimestamp())
+        ->and($job->maxExceptions)->toBeGreaterThan(0);
 });
 
 it('bounds the job to a timeout well under the lock\'s hour-long expiry', function () {

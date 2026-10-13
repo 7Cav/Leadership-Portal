@@ -16,7 +16,7 @@ interface SyncRunRepository
      * is itself evidence of a crash that never reached either. A capture run (7.5) names the
      * practice it runs for in `$sectionPracticeId` (7.9).
      */
-    public function open(string $source, int|string $triggeredBy, ?int $sectionPracticeId = null): SyncRun;
+    public function open(string $source, int|string $triggeredBy, ?int $sectionPracticeId = null, ?int $unitId = null): SyncRun;
 
     /**
      * Close a run that finished processing. `errored > 0` means some rows were bad but the run
@@ -65,4 +65,11 @@ interface SyncRunRepository
      * not hide the earlier failure. Newest start first, `id` as the tiebreaker.
      */
     public function latestForPractice(string $source, int $sectionPracticeId): ?SyncRun;
+
+    /**
+     * The most recent *closed* run of `$source` for one unit, whatever its outcome: the echelon leader's "did my
+     * last sync work". An in-flight or crashed run has no outcome and is skipped. Newest start first, `id` as the
+     * tiebreaker.
+     */
+    public function latestForUnit(string $source, int $unitId): ?SyncRun;
 }

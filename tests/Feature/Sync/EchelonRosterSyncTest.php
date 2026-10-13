@@ -252,3 +252,53 @@ it('offers the unit sync to the leader of that unit only, following real authori
     expect($page($leader, $tree['inside']->id)['syncUnit'])->toBeTrue()
         ->and($page(User::factory()->admin()->create(), $tree['inside']->id))->toMatchArray(['sync' => true, 'syncUnit' => true]);
 });
+
+it('records which unit an echelon run was for, so that unit\'s leader can see how it went', function () {
+    $tree = echelonTree();
+    echelonFakeRoster(['1' => echelonRow('Mine.A', 101)]);
+
+    app(SyncRosterHandler::class)->handle(7, $tree['platoon']->id);
+
+    $runs = app(SyncRunRepository::class);
+    expect($runs->latestForUnit('roster-unit', $tree['platoon']->id)->status)->toBe(SyncRunStatus::Success)
+        ->and($runs->latestForUnit('roster-unit', $tree['outside']->id))->toBeNull();
+});
+
+it('closes a run a killed worker left in progress, for either source, before opening the next', function () {
+    $tree = echelonTree();
+    $runs = app(SyncRunRepository::class);
+    $whole = $runs->open('roster', 'system');
+    $unit = $runs->open('roster-unit', 7, unitId: $tree['platoon']->id);
+    echelonFakeRoster(['1' => echelonRow('Mine.A', 101)]);
+
+    app(SyncRosterHandler::class)->handle(7, $tree['platoon']->id);
+
+    expect($whole->refresh()->status)->toBe(SyncRunStatus::Failure)
+        ->and($unit->refresh()->status)->toBe(SyncRunStatus::Failure);
+});
+
+it('shows a unit leader how their last sync of the unit went, and shows nobody else', function () {
+    $tree = echelonTree();
+    $leader = echelonLeader($tree['platoon']);
+    $runs = app(SyncRunRepository::class);
+    $runs->fail($runs->open('roster-unit', $leader->id, unitId: $tree['inside']->id), 'boom');
+
+    $sync = fn (User $user) => $this->actingAs($user)->get("/roster/{$tree['inside']->id}")->assertOk()->viewData('page')['props']['sync'];
+
+    expect($sync($leader)['unit'])->toMatchArray(['status' => 'failure'])
+        ->and($sync(User::factory()->admin()->create())['unit'])->toMatchArray(['status' => 'failure'])
+        // Never leaks the raw error text, which can carry internals.
+        ->and(json_encode($sync($leader)))->not->toContain('boom');
+});
+
+it('caps how many echelon syncs one leader can ask for in a minute', function () {
+    Queue::fake();
+    $tree = echelonTree();
+    $this->actingAs(echelonLeader($tree['platoon']));
+
+    foreach ([$tree['platoon'], $tree['inside'], $tree['platoon']] as $unit) {
+        $this->post("/units/{$unit->id}/roster-sync");
+    }
+
+    $this->post("/units/{$tree['inside']->id}/roster-sync")->assertStatus(429);
+});

@@ -25,6 +25,11 @@ class SyncRun extends Model
     /** The `source` the LOA sync records its runs under, and the LOA readers look them up by. */
     public const SOURCE_LOA = 'loa';
 
+    public const SOURCE_ROSTER = 'roster';
+
+    /** An echelon leader's sync of one unit; recorded apart so it never moves the roster-wide stamp. */
+    public const SOURCE_ROSTER_UNIT = 'roster-unit';
+
     public $timestamps = false;
 
     protected function casts(): array
