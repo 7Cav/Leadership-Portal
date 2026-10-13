@@ -1,5 +1,7 @@
 <?php
 
+use App\Loa\LoaCoverage;
+use App\Loa\LoaCoverageState;
 use App\Models\Loa;
 use App\Models\LoaParseStatus;
 use App\Models\LoaType;
@@ -39,6 +41,14 @@ function eloaWrite(Trooper $trooper, int $threadId, string $startsAt): LoaWrite
     return loaWrite([
         'forumThreadId' => $threadId, 'forumNodeId' => 341, 'trooperId' => $trooper->id, 'type' => LoaType::Eloa,
         'startsAt' => CarbonImmutable::parse($startsAt, 'UTC'), 'endsAt' => null,
+    ]);
+}
+
+function eloaReviewWrite(Trooper $trooper, int $threadId): LoaWrite
+{
+    return loaWrite([
+        'forumThreadId' => $threadId, 'forumNodeId' => 341, 'trooperId' => $trooper->id, 'type' => LoaType::Eloa,
+        'startsAt' => null, 'endsAt' => null, 'parseStatus' => LoaParseStatus::NeedsReview, 'reviewReason' => 'x',
     ]);
 }
 
@@ -219,16 +229,57 @@ describe('an ELOA return', function () {
             ->and(Loa::sole()->ends_at->toDateString())->toBe('2026-10-02');
     });
 
-    it('lets a thread that now needs review clear even an ended ELOA\'s dates, while keeping the return on record', function () {
+    it('lets a thread that now needs review clear an ended ELOA\'s start, but keeps the end its return gave it', function () {
         $trooper = Trooper::factory()->create();
         $repo = app(LoaRepository::class);
         $repo->sync([eloaWrite($trooper, 6001, '2026-09-22')], [new LoaReturn(6500, $trooper->id, CarbonImmutable::parse('2026-10-02', 'UTC'))]);
 
-        $repo->sync([loaWrite(['forumThreadId' => 6001, 'forumNodeId' => 341, 'trooperId' => $trooper->id, 'type' => LoaType::Eloa, 'startsAt' => null, 'endsAt' => null, 'parseStatus' => LoaParseStatus::NeedsReview, 'reviewReason' => 'x'])], []);
+        $repo->sync([eloaReviewWrite($trooper, 6001)], []);
 
-        expect(Loa::sole()->ends_at)->toBeNull()
-            ->and(Loa::sole()->starts_at)->toBeNull()
-            ->and(Loa::sole()->return_thread_id)->toBe(6500);
+        $loa = Loa::sole();
+        expect($loa->parse_status)->toBe(LoaParseStatus::NeedsReview)
+            ->and($loa->starts_at)->toBeNull()
+            ->and($loa->ends_at->toDateString())->toBe('2026-10-02')
+            ->and($loa->return_thread_id)->toBe(6500)
+            // Months on, the row is no cover at all: neither covered nor the needs-review fail-safe.
+            ->and(app(LoaCoverage::class)->forTrooper($trooper->id, CarbonImmutable::parse('2027-03-06', 'UTC'))->state)->toBe(LoaCoverageState::None);
+    });
+
+    it('keeps an ended ELOA ended when its thread reads cleanly again after a needs_review read', function () {
+        $trooper = Trooper::factory()->create();
+        $repo = app(LoaRepository::class);
+        // The daily run keeps seeing the same return, which is already on record, so it is never applied twice.
+        $return = new LoaReturn(6500, $trooper->id, CarbonImmutable::parse('2026-10-02', 'UTC'));
+        $repo->sync([eloaWrite($trooper, 6001, '2026-09-22')], [$return]);
+
+        $repo->sync([eloaReviewWrite($trooper, 6001)], [$return]);
+        $counts = $repo->sync([eloaWrite($trooper, 6001, '2026-09-22')], [$return]);
+
+        $loa = Loa::sole();
+        $coverage = app(LoaCoverage::class);
+        expect($counts['closed'])->toBe(0)
+            ->and($loa->parse_status)->toBe(LoaParseStatus::Ok)
+            ->and($loa->starts_at->toDateString())->toBe('2026-09-22')
+            ->and($loa->ends_at->toDateString())->toBe('2026-10-02')
+            ->and($loa->return_thread_id)->toBe(6500)
+            ->and($coverage->forTrooper($trooper->id, CarbonImmutable::parse('2026-09-26', 'UTC'))->state)->toBe(LoaCoverageState::Covered)
+            ->and($coverage->forTrooper($trooper->id, CarbonImmutable::parse('2027-03-06', 'UTC'))->state)->toBe(LoaCoverageState::None);
+    });
+
+    it('still takes every date from the thread for an ELOA no return has ended', function () {
+        $trooper = Trooper::factory()->create();
+        $repo = app(LoaRepository::class);
+        $repo->sync([eloaWrite($trooper, 6001, '2026-09-22')], []);
+
+        $repo->sync([eloaReviewWrite($trooper, 6001)], []);
+        expect(Loa::sole()->starts_at)->toBeNull()->and(Loa::sole()->ends_at)->toBeNull();
+
+        $repo->sync([eloaWrite($trooper, 6001, '2026-09-22')], []);
+        expect(Loa::sole()->starts_at->toDateString())->toBe('2026-09-22')->and(Loa::sole()->ends_at)->toBeNull();
+
+        // Still open, so a later return ends it as usual.
+        $counts = $repo->sync([], [new LoaReturn(6500, $trooper->id, CarbonImmutable::parse('2026-10-02', 'UTC'))]);
+        expect($counts['closed'])->toBe(1)->and(Loa::sole()->ends_at->toDateString())->toBe('2026-10-02');
     });
 });
 

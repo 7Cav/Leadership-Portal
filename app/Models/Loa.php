@@ -15,7 +15,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * mass-assignable here and none of them comes from a request.
  *
  * `starts_at` and `ends_at` are calendar days, inclusive at both ends. Either can be null: an open
- * ended ELOA thread has no end, and a `needs_review` row asserts no dates. `trooper_id` is
+ * ended ELOA thread has no end, and a `needs_review` row asserts no dates of its own (an ELOA a return
+ * ended keeps the return's `ends_at`; coverage ignores the dates of a `needs_review` row). `trooper_id` is
  * null while the thread's username matches no trooper, so an unmatched request stays visible.
  * `posted_at` is when the thread was posted on the forum (null on a row not re-read since the column
  * was added), which is not `created_at`, the day the portal first stored it.
