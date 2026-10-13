@@ -1,5 +1,6 @@
 <?php
 
+use App\Commands\Courses\CourseTargetNotFoundException;
 use App\Commands\Courses\CourseWriteForbiddenException;
 use App\Commands\Courses\SetTrooperCourseStatus;
 use App\Models\AuditLogEntry;
@@ -9,7 +10,6 @@ use App\Models\Trooper;
 use App\Models\TrooperCourse;
 use App\Models\User;
 use Carbon\CarbonImmutable;
-use Illuminate\Database\QueryException;
 
 // Story 6.2: the one audited writer of trooper_courses (AD-16, AD-22).
 
@@ -154,7 +154,7 @@ it('refuses a trooper that does not exist, leaving no row and no audit entry', f
     $course = Course::factory()->create();
 
     expect(fn () => app(SetTrooperCourseStatus::class)->handle($actor, 999999, $course->id, CourseStatus::Required))
-        ->toThrow(QueryException::class);
+        ->toThrow(CourseTargetNotFoundException::class);
 
     expect(TrooperCourse::count())->toBe(0)->and(AuditLogEntry::count())->toBe(0);
 });
@@ -164,7 +164,7 @@ it('refuses a course that does not exist, leaving no row and no audit entry', fu
     $trooper = Trooper::factory()->create();
 
     expect(fn () => app(SetTrooperCourseStatus::class)->handle($actor, $trooper->id, 999999, CourseStatus::Required))
-        ->toThrow(QueryException::class);
+        ->toThrow(CourseTargetNotFoundException::class);
 
     expect(TrooperCourse::count())->toBe(0)->and(AuditLogEntry::count())->toBe(0);
 });
@@ -204,4 +204,13 @@ it('accepts today as the award date, and ignores a future date on a status that 
 
     expect($today->awarded_at->toDateString())->toBe(CarbonImmutable::now('UTC')->toDateString())
         ->and($inProgress->awarded_at)->toBeNull();
+});
+
+it('stores a blank or whitespace-only reason as null and trims a real one', function () {
+    $actor = User::factory()->admin()->create();
+
+    setCourseStatus($actor, Trooper::factory()->create(), Course::factory()->create(), CourseStatus::Required, null, "   \n ");
+    setCourseStatus($actor, Trooper::factory()->create(), Course::factory()->create(), CourseStatus::Required, null, '  Passed the exam.  ');
+
+    expect(AuditLogEntry::orderBy('id')->pluck('reason')->all())->toBe([null, 'Passed the exam.']);
 });

@@ -42,9 +42,6 @@ class RosterController extends Controller
     /** Cav weeks the attendance matrix spans, ending with the current one (4.7). */
     public const HISTORY_WEEKS = 20;
 
-    /** The milpac profile a trooper's Sheet links out to, keyed by their milpac id. */
-    private const MILPAC_PROFILE_URL = 'https://7cav.us/rosters/profile?uniqueid=';
-
     public function __construct(
         private readonly ScopeResolver $scope,
         private readonly UnitRepository $units,
@@ -81,7 +78,9 @@ class RosterController extends Controller
                 'sync' => $this->scope->actsAsAdmin($user),
             ],
             'links' => [
-                'milpac' => self::MILPAC_PROFILE_URL,
+                'milpac' => Trooper::MILPAC_PROFILE_URL,
+                // The in-app milpac page (Story 6.3); the Sheet appends the trooper's id.
+                'trooper' => '/troopers/',
                 // `rollcall.show` belongs to the rollcall screen (3.7); until it ships the Sheet
                 // offers no link rather than one that 404s.
                 'rollcall' => Route::has('rollcall.show') ? '/rollcall/' : null,
@@ -96,14 +95,11 @@ class RosterController extends Controller
     public function trooper(Request $request, int $trooper): JsonResponse
     {
         $found = $this->troopers->find($trooper);
-        $scope = $this->scope->resolve($request->user());
 
-        if ($found === null || $found->primary_section_id === null) {
+        // One answer for "no such trooper", "not placed" and "outside your scope" (AD-8): 404, the same gate the
+        // milpac page uses, so ids cannot be enumerated. The Sheet needs a section, so an unplaced trooper has none to show.
+        if ($found === null || $found->primary_section_id === null || ! $this->scope->canSee($request->user(), $found)) {
             abort(404);
-        }
-
-        if (! $scope->contains($found->primary_section_id)) {
-            abort(403, 'That trooper is outside your scope.');
         }
 
         $section = $this->units->find($found->primary_section_id);
@@ -120,7 +116,7 @@ class RosterController extends Controller
                 'tig' => $found->tig?->toDateString(),
                 'section' => $this->unitSummary($section),
                 'sectionLeader' => $leader ? $this->person($leader) : null,
-                'milpacUrl' => self::MILPAC_PROFILE_URL.$found->cav_id,
+                'milpacUrl' => Trooper::MILPAC_PROFILE_URL.$found->cav_id,
             ],
             'weeks' => $this->weeks($week),
             'currentWeek' => $week->toDateString(),
@@ -218,7 +214,7 @@ class RosterController extends Controller
             'status' => $t->status->value,
             'departed' => $t->status === TrooperStatus::Inactive,
             'sectionId' => $t->primary_section_id,
-            'role' => $this->role($t, $sectionLeader),
+            'role' => $t->roleUnder($sectionLeader),
             'joined' => $t->tis?->toDateString(),
             // Null for a departed trooper: they are no longer measured (AD-21 strength).
             'kpis' => $kpis ? [
@@ -241,19 +237,6 @@ class RosterController extends Controller
                 ];
             }, $this->weeks($week)),
         ];
-    }
-
-    /**
-     * SL is the trooper holding the section's command billet (1.16's mapping); ASL is read from
-     * the billet title, which is all Cav tells us about the second-in-command.
-     */
-    private function role(Trooper $t, ?Trooper $sectionLeader): ?string
-    {
-        if ($sectionLeader !== null && $sectionLeader->id === $t->id) {
-            return 'SL';
-        }
-
-        return $t->billet !== null && preg_match('/\bassistant section leader\b/i', $t->billet) ? 'ASL' : null;
     }
 
     /**

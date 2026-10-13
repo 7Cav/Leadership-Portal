@@ -9,6 +9,7 @@ use App\Repositories\SectionPracticeRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Collection;
 use InvalidArgumentException;
 
 class Eloquent implements SectionPracticeRepository
@@ -45,8 +46,74 @@ class Eloquent implements SectionPracticeRepository
     public function find(int $sectionId, CarbonInterface $weekStart): ?SectionPractice
     {
         return SectionPractice::query()
+            ->with(['rollcallPostedBy', 'confirmedBy'])
             ->where('section_id', $sectionId)
             ->where('week_start', WeekOf::requireStart($weekStart))
             ->first();
+    }
+
+    public function forSections(array $sectionIds, CarbonInterface $weekStart): Collection
+    {
+        $weekStart = WeekOf::requireStart($weekStart);
+
+        if ($sectionIds === []) {
+            return collect();
+        }
+
+        return SectionPractice::query()
+            ->whereIn('section_id', $sectionIds)
+            ->where('week_start', $weekStart)
+            ->get()
+            ->keyBy('section_id')
+            ->toBase();
+    }
+
+    public function markRollcallPosted(SectionPractice $practice, int $userId): SectionPractice
+    {
+        $practice->forceFill(['rollcall_posted_at' => now(), 'rollcall_posted_by' => $userId])->save();
+
+        return $practice->load('rollcallPostedBy');
+    }
+
+    public function confirm(SectionPractice $practice, int $userId): SectionPractice
+    {
+        $practice->forceFill(['confirmed_at' => now(), 'confirmed_by' => $userId])->save();
+
+        return $practice->load('confirmedBy');
+    }
+
+    public function unconfirm(SectionPractice $practice): SectionPractice
+    {
+        if ($practice->confirmed_at !== null) {
+            $practice->forceFill(['confirmed_at' => null, 'confirmed_by' => null])->save();
+        }
+
+        return $practice;
+    }
+
+    public function findById(int $id): ?SectionPractice
+    {
+        return SectionPractice::query()->find($id);
+    }
+
+    public function lockById(int $id): ?SectionPractice
+    {
+        return SectionPractice::query()->whereKey($id)->lockForUpdate()->first();
+    }
+
+    public function stampCapture(SectionPractice $practice, string $serverRef, \DateTimeInterface $capturedAt, string $captureSource): SectionPractice
+    {
+        $practice->forceFill([
+            'server_ref' => $serverRef,
+            'captured_at' => $capturedAt,
+            'capture_source' => $captureSource,
+        ])->save();
+
+        return $practice;
+    }
+
+    public function hasPracticesFor(Unit $unit): bool
+    {
+        return SectionPractice::query()->where('section_id', $unit->getKey())->exists();
     }
 }

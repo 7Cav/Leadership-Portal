@@ -94,6 +94,33 @@ it('does not walk past the serving rosters into the memorial/past-member ones', 
     expect($result->troopers)->toBeEmpty()->and($result->errors)->toBeEmpty();
 });
 
+it('names each serving roster that answered with no profiles, for the sync to judge', function () {
+    MockClient::destroyGlobal();
+    MockClient::global([
+        FR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => frRosterRow()]]),
+        FR_RESERVE_URL => frEmptyRoster(),
+        FR_ELOA_URL => frEmptyRoster(),
+    ]);
+
+    $result = fetchRosterCav()->fetchRoster();
+
+    // Reported, not refused: whether an empty roster is believable depends on who the cache last
+    // saw on it, which the seam cannot know.
+    expect($result->emptyRosters)->toBe([RosterType::Reserve, RosterType::Eloa])
+        ->and($result->troopers)->toHaveCount(1);
+});
+
+it('does not count a roster whose every row failed to parse as empty', function () {
+    MockClient::destroyGlobal();
+    MockClient::global([
+        FR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => 'not-an-object']]),
+        FR_RESERVE_URL => MockResponse::make(['profiles' => ['2' => frRosterRow('ROSTER_TYPE_RESERVE')]]),
+        FR_ELOA_URL => MockResponse::make(['profiles' => ['3' => frRosterRow('ROSTER_TYPE_ELOA')]]),
+    ]);
+
+    expect(fetchRosterCav()->fetchRoster()->emptyRosters)->toBe([]);
+});
+
 it('stamps every trooper with the time of this fetch', function () {
     MockClient::destroyGlobal();
     MockClient::global([

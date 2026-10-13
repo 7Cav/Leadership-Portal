@@ -6,6 +6,7 @@ use App\Kpi\TrooperAttendance;
 use App\Kpi\UnitKpis;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
+use App\Models\Loa;
 use App\Models\RollcallSignature;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
@@ -238,8 +239,134 @@ it('measures a trooper who changed section mid-window against their current sect
         ->and($this->kpis->forUnit($this->sectionA, kpiWeek())->strength)->toBe(0);
 });
 
-it('suppresses at-risk for a trooper with a needs_review LOA (AD-4)')
-    ->todo('Epic 4 — no LOA data exists yet; see KpiService::isLoaCovered()');
+// Story 4.8: LOA coverage is the one definition (4.4). The window is 2026-06-06, 06-13, 06-20 and 06-27.
+
+function kpiLeave(Trooper $trooper, ?string $start, ?string $end, array $state = []): Loa
+{
+    return Loa::factory()->create(array_merge(['trooper_id' => $trooper->id, 'starts_at' => $start, 'ends_at' => $end], $state));
+}
+
+it('suppresses at-risk for a trooper with a needs_review LOA (AD-4)', function () {
+    $trooper = kpiTrooper($this->sectionA);
+    kpiMark($trooper, $this->sectionA, 1, AttendanceStatus::Missed);
+    kpiMark($trooper, $this->sectionA, 0, AttendanceStatus::Missed);
+    // Posted in the week before this one, so it shields that week and this one.
+    Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'posted_at' => '2026-06-22 09:00:00']);
+
+    $attendance = $this->kpis->trooperAttendance($this->sectionA, kpiWeek())[$trooper->id];
+
+    expect($attendance->atRisk())->toBeFalse()
+        ->and($attendance->missed)->toBe(0)
+        ->and($attendance->onLoa)->toBeFalse()
+        ->and($this->kpis->forUnit($this->sectionA, kpiWeek())->atRisk)->toBe(0);
+});
+
+it('stops shielding a trooper two weeks after a needs_review LOA was posted, so a broken post cannot hide misses for good', function () {
+    $trooper = kpiTrooper($this->sectionA);
+    kpiMark($trooper, $this->sectionA, 3, AttendanceStatus::Missed);
+    kpiMark($trooper, $this->sectionA, 0, AttendanceStatus::Missed);
+    Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'posted_at' => '2026-05-01 09:00:00']);
+
+    $attendance = $this->kpis->trooperAttendance($this->sectionA, kpiWeek())[$trooper->id];
+
+    expect($attendance->missed)->toBe(2)
+        ->and($attendance->atRisk())->toBeTrue();
+});
+
+it('does not suppress misses from before a needs_review LOA was posted', function () {
+    $trooper = kpiTrooper($this->sectionA);
+    kpiMark($trooper, $this->sectionA, 3, AttendanceStatus::Missed);
+    kpiMark($trooper, $this->sectionA, 2, AttendanceStatus::Missed);
+    kpiMark($trooper, $this->sectionA, 0, AttendanceStatus::Missed);
+    Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'posted_at' => '2026-06-22 09:00:00']);
+
+    $attendance = $this->kpis->trooperAttendance($this->sectionA, kpiWeek())[$trooper->id];
+
+    expect($attendance->missed)->toBe(2)
+        ->and($attendance->atRisk())->toBeTrue();
+});
+
+it('leaves a week a needs_review LOA may apply to out of both denominators, not counting the trooper on LOA', function () {
+    $trooper = kpiTrooper($this->sectionA);
+    kpiMark($trooper, $this->sectionA, 3, AttendanceStatus::Present, RollcallSignature::WillAttend);
+    kpiMark($trooper, $this->sectionA, 0, AttendanceStatus::Present, RollcallSignature::WillAttend);
+    Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'posted_at' => '2026-06-22 09:00:00']);
+
+    $kpis = $this->kpis->forUnit($this->sectionA, kpiWeek());
+
+    // Posted in the week before this one, it may apply to that week and this one. SP drops this week's practice
+    // (1 of 1 left); RC counts every window week, so it drops those two of the four (1 of 2 left).
+    expect([$kpis->sp30d->numerator, $kpis->sp30d->denominator])->toBe([1, 1])
+        ->and([$kpis->rc30d->numerator, $kpis->rc30d->denominator])->toBe([1, 2])
+        ->and($kpis->onLoa)->toBe(0);
+});
+
+it('does not count a miss in a week a cleanly read LOA covers, even with no loa mark on the practice', function () {
+    $trooper = kpiTrooper($this->sectionA);
+    kpiMark($trooper, $this->sectionA, 3, AttendanceStatus::Missed);
+    kpiMark($trooper, $this->sectionA, 2, AttendanceStatus::Missed);
+    kpiLeave($trooper, '2026-06-15', '2026-06-16');
+
+    $attendance = $this->kpis->trooperAttendance($this->sectionA, kpiWeek())[$trooper->id];
+
+    expect($attendance->missed)->toBe(1)->and($attendance->atRisk())->toBeFalse();
+});
+
+it('keeps a week out of the window when the practice is marked loa even if the resolver says there is no leave (deliberate exception)', function () {
+    $trooper = kpiTrooper($this->sectionA);
+    kpiMark($trooper, $this->sectionA, 1, AttendanceStatus::Loa);
+    kpiMark($trooper, $this->sectionA, 0, AttendanceStatus::Missed);
+    // The leave the mark came from is gone: no row at all, so coverage says None for every week.
+
+    $attendance = $this->kpis->trooperAttendance($this->sectionA, kpiWeek())[$trooper->id];
+
+    expect($attendance->rollcall->denominator)->toBe(3)
+        ->and($attendance->missed)->toBe(1)
+        ->and($attendance->atRisk())->toBeFalse();
+});
+
+it('takes an LOA week with no practice row out of the rollcall denominator, and counts the trooper on LOA that week', function () {
+    $trooper = kpiTrooper($this->sectionA);
+    kpiMark($trooper, $this->sectionA, 1, AttendanceStatus::Present, RollcallSignature::WillAttend);
+    kpiLeave($trooper, '2026-06-24', null, ['type' => 'eloa']);
+
+    $weekBefore = $this->kpis->trooperAttendance($this->sectionA, kpiWeek(2))[$trooper->id];
+    $thisWeek = $this->kpis->trooperAttendance($this->sectionA, kpiWeek())[$trooper->id];
+
+    expect($weekBefore->onLoa)->toBeFalse()
+        ->and($thisWeek->onLoa)->toBeTrue()
+        ->and([$thisWeek->rollcall->numerator, $thisWeek->rollcall->denominator])->toBe([0, 2]);
+});
+
+it('applies the two-miss threshold to the weeks that remain, without inventing misses for the rest', function () {
+    $trooper = kpiTrooper($this->sectionA);
+    kpiMark($trooper, $this->sectionA, 0, AttendanceStatus::Missed);
+    kpiLeave($trooper, '2026-06-06', '2026-06-26');
+
+    $attendance = $this->kpis->trooperAttendance($this->sectionA, kpiWeek())[$trooper->id];
+
+    expect($attendance->missed)->toBe(1)->and($attendance->atRisk())->toBeFalse();
+
+    kpiMark($trooper, $this->sectionA, 3, AttendanceStatus::Missed);
+    $trooper->refresh();
+
+    expect($this->kpis->trooperAttendance($this->sectionA, kpiWeek())[$trooper->id]->atRisk())->toBeFalse();
+});
+
+it('never applies one trooper\'s LOA to another', function () {
+    $away = kpiTrooper($this->sectionA);
+    $here = kpiTrooper($this->sectionA);
+    kpiLeave($away, '2026-06-01', null);
+    Loa::factory()->needsReview()->create(['trooper_id' => $away->id, 'created_at' => '2026-05-01 09:00:00']);
+    kpiMark($here, $this->sectionA, 3, AttendanceStatus::Missed);
+    kpiMark($here, $this->sectionA, 0, AttendanceStatus::Missed);
+
+    $byTrooper = $this->kpis->trooperAttendance($this->sectionA, kpiWeek());
+
+    expect($byTrooper[$here->id]->atRisk())->toBeTrue()
+        ->and($byTrooper[$here->id]->onLoa)->toBeFalse()
+        ->and($byTrooper[$away->id]->onLoa)->toBeTrue();
+});
 
 it('excludes an LOA-covered week from both denominators rather than counting it as a miss', function () {
     $trooper = kpiTrooper($this->sectionA);
@@ -253,6 +380,20 @@ it('excludes an LOA-covered week from both denominators rather than counting it 
     expect([$kpis->sp30d->numerator, $kpis->sp30d->denominator])->toBe([3, 3])
         ->and([$kpis->rc30d->numerator, $kpis->rc30d->denominator])->toBe([3, 3])
         ->and($kpis->atRisk)->toBe(0);
+});
+
+it('lets a leave that syncs after a practice mark was stored win: the covered week leaves the window and the stored mark counts for nothing (3.4)', function () {
+    $trooper = kpiTrooper($this->sectionA);
+    // `present` was stored before the leave synced; the derived status is never stored, so the row is still there.
+    kpiMark($trooper, $this->sectionA, 0, AttendanceStatus::Present, RollcallSignature::WillAttend);
+    kpiMark($trooper, $this->sectionA, 1, AttendanceStatus::Present, RollcallSignature::WillAttend);
+    kpiLeave($trooper, '2026-06-27', '2026-07-02');
+
+    $kpis = $this->kpis->forUnit($this->sectionA, kpiWeek());
+
+    expect([$kpis->sp30d->numerator, $kpis->sp30d->denominator])->toBe([1, 1])
+        ->and([$kpis->rc30d->numerator, $kpis->rc30d->denominator])->toBe([1, 3])
+        ->and($kpis->onLoa)->toBe(1);
 });
 
 it('does not credit a rollcall signed during an LOA-covered week', function () {
@@ -430,11 +571,12 @@ it('computes a regiment-sized subtree in a constant number of queries', function
     $queries = count(DB::getQueryLog());
     DB::disableQueryLog();
 
-    expect($queries)->toBeLessThanOrEqual(2);
+    // Attendance marks, the placed troopers, and the LOA rows that bear on the window (4.8): three, however many troopers.
+    expect($queries)->toBeLessThanOrEqual(3);
 });
 
 // 5.8: a whole chain's section KPIs in one pass, each equal to that section's forUnit().
-it('computes every section under a unit at once, each equal to its own forUnit(), in two queries', function () {
+it('computes every section under a unit at once, each equal to its own forUnit(), in three queries', function () {
     $a1 = kpiTrooper($this->sectionA);
     $a2 = kpiTrooper($this->sectionA);
     $b1 = kpiTrooper($this->sectionB);
@@ -448,11 +590,28 @@ it('computes every section under a unit at once, each equal to its own forUnit()
     $queries = count(DB::getQueryLog());
     DB::disableQueryLog();
 
-    expect($queries)->toBe(2)
+    // The marks, where everyone is placed, and the LOA coverage of the window (4.8).
+    expect($queries)->toBe(3)
         ->and($bySection->keys()->sort()->values()->all())->toBe([$this->sectionA->id, $this->sectionB->id])
         ->and($bySection[$this->sectionA->id])->toEqual($this->kpis->forUnit($this->sectionA, kpiWeek()))
         ->and($bySection[$this->sectionB->id])->toEqual($this->kpis->forUnit($this->sectionB, kpiWeek()))
         ->and($bySection[$this->sectionA->id]->atRisk)->toBe(1);
+});
+
+it('counts leave in the batch the same as forUnit() does, so the roll-up never disagrees with a section (4.8)', function () {
+    $away = kpiTrooper($this->sectionA);
+    $unclear = kpiTrooper($this->sectionA);
+    kpiMark($away, $this->sectionA, 3, AttendanceStatus::Missed);
+    kpiMark($away, $this->sectionA, 2, AttendanceStatus::Missed);
+    kpiMark($unclear, $this->sectionA, 1, AttendanceStatus::Missed);
+    kpiMark($unclear, $this->sectionA, 0, AttendanceStatus::Missed);
+    kpiLeave($away, '2026-06-13', '2026-06-19');
+    Loa::factory()->needsReview()->create(['trooper_id' => $unclear->id, 'created_at' => '2026-06-14 09:00:00']);
+
+    $bySection = $this->kpis->forSectionsWithin($this->regiment, kpiWeek());
+
+    expect($bySection[$this->sectionA->id])->toEqual($this->kpis->forUnit($this->sectionA, kpiWeek()))
+        ->and($bySection[$this->sectionA->id]->atRisk)->toBe(0);
 });
 
 it('leaves a section with nobody assigned out of the batch', function () {

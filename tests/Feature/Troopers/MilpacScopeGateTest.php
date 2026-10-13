@@ -41,7 +41,7 @@ beforeEach(function () {
     UnitCommandMapping::factory()->create(['unit_id' => $this->section1->id, 'cav_position_id' => 501]);
     $leaderTrooper = gateTrooper($this->section1, ['cav_position_id' => 501]);
 
-    $staff = User::factory()->create();
+    $staff = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $this->platoon1->id]);
 
     // Every kind of viewer the gate has to treat consistently.
@@ -81,7 +81,7 @@ it('withholds an out-of-scope trooper\'s data from the response, not just the pa
     }
 
     foreach (gateRequestShapes() as $shape => $headers) {
-        $body = $this->actingAs($this->viewers['section leader'])->withHeaders($headers)->get(route('troopers.show', $secret))->assertForbidden()->getContent();
+        $body = $this->actingAs($this->viewers['section leader'])->withHeaders($headers)->get(route('troopers.show', $secret))->assertNotFound()->getContent();
 
         foreach ($private as $value) {
             expect($body)->not->toContain($value, "the {$shape} refusal leaked {$value}");
@@ -111,46 +111,71 @@ it('sends a signed-out visitor to sign in from every Epic 6 route', function () 
     $this->get(route('readiness.matrix', $this->section1->id))->assertRedirect(route('login'));
 });
 
-it('lets the milpac and the matrix agree on who may look, for every viewer and every trooper', function () {
-    $expected = [
-        'section leader' => ['own section' => 200, 'sibling section' => 403, 'other platoon' => 403],
-        'platoon staff' => ['own section' => 200, 'sibling section' => 200, 'other platoon' => 403],
-        'no scope' => ['own section' => 403, 'sibling section' => 403, 'other platoon' => 403],
-        'admin' => ['own section' => 200, 'sibling section' => 200, 'other platoon' => 200],
+// Who may open what, and why. The milpac answers 404 for a trooper out of scope (so ids cannot be enumerated); the
+// matrix answers 403 for a unit out of scope. Both refuse together, whatever the status code.
+function gateExpected(): array
+{
+    return [
+        // A section leader holds only their own section.
+        'section leader' => ['own section' => true, 'sibling section' => false, 'other platoon' => false],
+        // Platoon staff hold the whole platoon (both its sections), not the other platoon.
+        'platoon staff' => ['own section' => true, 'sibling section' => true, 'other platoon' => false],
+        // Someone with no grant and no command billet holds nothing.
+        'no scope' => ['own section' => false, 'sibling section' => false, 'other platoon' => false],
+        // An Admin holds everything.
+        'admin' => ['own section' => true, 'sibling section' => true, 'other platoon' => true],
     ];
+}
 
-    foreach ($this->viewers as $viewerName => $viewer) {
-        foreach ($this->troopers as $trooperName => $trooper) {
-            $milpac = $this->actingAs($viewer)->get(route('troopers.show', $trooper))->getStatusCode();
-            $matrix = $this->actingAs($viewer)->get(route('readiness.matrix', $trooper->primary_section_id))->getStatusCode();
-
-            expect($milpac)->toBe($expected[$viewerName][$trooperName], "{$viewerName} opening {$trooperName} on the milpac")
-                ->and($matrix)->toBe($milpac, "{$viewerName} opening {$trooperName}'s section on the matrix");
+dataset('gate pairs', function () {
+    foreach (gateExpected() as $viewer => $troopers) {
+        foreach ($troopers as $trooper => $allowed) {
+            yield "{$viewer} opening {$trooper}" => [$viewer, $trooper, $allowed];
         }
     }
 });
 
-it('never offers a link the viewer would be refused', function () {
-    foreach ($this->viewers as $viewerName => $viewer) {
-        foreach ($this->troopers as $trooperName => $trooper) {
-            $response = $this->actingAs($viewer)->get(route('troopers.show', $trooper));
+it('lets the milpac and the matrix agree on who may look', function (string $viewer, string $trooper, bool $allowed) {
+    $person = $this->troopers[$trooper];
 
-            if ($response->getStatusCode() !== 200) {
-                continue;
-            }
+    $milpac = $this->actingAs($this->viewers[$viewer])->get(route('troopers.show', $person))->getStatusCode();
+    $matrix = $this->actingAs($this->viewers[$viewer])->get(route('readiness.matrix', $person->primary_section_id))->getStatusCode();
 
-            foreach ($response->viewData('page')['props']['actions'] as $action) {
-                expect($this->actingAs($viewer)->get($action['href'])->getStatusCode())->toBe(200, "{$viewerName} on {$trooperName}: {$action['key']} -> {$action['href']}");
-            }
+    expect($milpac)->toBe($allowed ? 200 : 404, 'the milpac')
+        ->and($matrix)->toBe($allowed ? 200 : 403, "the matrix of {$trooper}'s section");
+})->with('gate pairs');
+
+dataset('viewers with actions', [
+    'section leader' => ['section leader', ['section-roster', 'rollcall']],
+    'platoon staff' => ['platoon staff', ['section-roster', 'rollcall', 'readiness-matrix']],
+    'admin' => ['admin', ['section-roster', 'rollcall', 'readiness-matrix']],
+]);
+
+it('never offers a link the viewer would be refused, and does offer the expected ones', function (string $viewer, array $expectedKeys) {
+    $followed = [];
+
+    foreach ($this->troopers as $trooper) {
+        $response = $this->actingAs($this->viewers[$viewer])->get(route('troopers.show', $trooper));
+
+        if ($response->getStatusCode() !== 200) {
+            continue;
+        }
+
+        foreach ($response->viewData('page')['props']['actions'] as $action) {
+            expect($this->actingAs($this->viewers[$viewer])->get($action['href'])->getStatusCode())->toBe(200, "{$action['key']} -> {$action['href']}");
+            $followed[$action['key']] = true;
         }
     }
-});
+
+    // A loop over nothing proves nothing: every kind of link this viewer is meant to get was actually followed.
+    expect(array_keys($followed))->toEqualCanonicalizing($expectedKeys);
+})->with('viewers with actions');
 
 it('refuses a view-as preview what the previewed leader could not see, on both pages', function () {
     $this->actingAs($this->viewers['admin'])->post('/view-as', ['kind' => 'unit', 'id' => $this->section1->id])->assertSessionHasNoErrors();
 
     $this->get(route('troopers.show', $this->troopers['own section']))->assertOk();
-    $this->get(route('troopers.show', $this->troopers['sibling section']))->assertForbidden();
+    $this->get(route('troopers.show', $this->troopers['sibling section']))->assertNotFound();
     $this->get(route('readiness.matrix', $this->section1->id))->assertOk();
     $this->get(route('readiness.matrix', $this->section2->id))->assertForbidden();
 });
@@ -158,16 +183,16 @@ it('refuses a view-as preview what the previewed leader could not see, on both p
 it('shows a trooper no section holds to an Admin only, on the milpac', function () {
     $unplaced = Trooper::factory()->create(['username' => 'Not.Placed']);
 
-    $this->actingAs($this->viewers['platoon staff'])->get(route('troopers.show', $unplaced))->assertForbidden();
+    $this->actingAs($this->viewers['platoon staff'])->get(route('troopers.show', $unplaced))->assertNotFound();
     $this->actingAs($this->viewers['admin'])->get(route('troopers.show', $unplaced))->assertOk();
 });
 
 it('lets a dual-hatted viewer open a trooper in either subtree they hold', function () {
-    $dual = User::factory()->create();
+    $dual = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $dual->id, 'unit_id' => $this->section1->id]);
     PortalRoleGrant::factory()->create(['user_id' => $dual->id, 'unit_id' => $this->section3->id]);
 
     $this->actingAs($dual)->get(route('troopers.show', $this->troopers['own section']))->assertOk();
     $this->get(route('troopers.show', $this->troopers['other platoon']))->assertOk();
-    $this->get(route('troopers.show', $this->troopers['sibling section']))->assertForbidden();
+    $this->get(route('troopers.show', $this->troopers['sibling section']))->assertNotFound();
 });

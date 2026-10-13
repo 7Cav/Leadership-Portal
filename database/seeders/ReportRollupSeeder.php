@@ -17,6 +17,7 @@ use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
+use Database\Seeders\Concerns\RefusesOutsideDevEnvironments;
 use Illuminate\Database\Seeder;
 
 /**
@@ -24,10 +25,13 @@ use Illuminate\Database\Seeder;
  * screenshots run against it. Builds 7CAV ─ 1-7 ─ A/1-7 with two platoons of four sections, four
  * weeks of attendance, last week sent everywhere, and this week five of eight sections sent, two
  * drafts and one not started. `Hale.S` holds a staff grant over the company; `Vasquez.R` over one
- * section. Run against an empty database only (the e2e setup migrates fresh first).
+ * section. Run against an empty database only (the e2e setup migrates fresh first). Refuses to run
+ * outside local, testing and e2e: those two users hold real scope wherever they are created.
  */
 class ReportRollupSeeder extends Seeder
 {
+    use RefusesOutsideDevEnvironments;
+
     /** Section callsign => [leader, troopers, this week's state, notes]. */
     private const SECTIONS = [
         '1/1/A/1-7' => ['Haddad.Y', 6, 'sent', 'Full house for the AT drill.'],
@@ -42,6 +46,8 @@ class ReportRollupSeeder extends Seeder
 
     public function run(): void
     {
+        $this->refuseOutsideDevEnvironments();
+
         $units = app(UnitRepository::class);
         $reports = app(WeeklyReportRepository::class);
         $snapshots = app(WeeklyReportKpis::class);
@@ -56,7 +62,8 @@ class ReportRollupSeeder extends Seeder
             2 => $units->create(UnitType::Platoon, '2nd Platoon', '2/A/1-7', $company->id),
         ];
 
-        $commander = User::factory()->create(['username' => 'Hale.S']);
+        // Serving, or their grants would lapse (a grant counts only while its holder serves).
+        $commander = User::factory()->serving()->create(['username' => 'Hale.S']);
         PortalRoleGrant::factory()->create(['user_id' => $commander->id, 'unit_id' => $company->id]);
 
         $sections = [];
@@ -64,7 +71,7 @@ class ReportRollupSeeder extends Seeder
             [$number, $platoon] = explode('/', $callsign);
             $ordinal = ['1' => '1st', '2' => '2nd', '3' => '3rd', '4' => '4th'][$number];
             $section = $units->create(UnitType::Section, "{$ordinal} Section", $callsign, $platoons[(int) $platoon]->id);
-            $user = User::factory()->create(['username' => $leader]);
+            $user = User::factory()->serving()->create(['username' => $leader]);
             PortalRoleGrant::factory()->create(['user_id' => $user->id, 'unit_id' => $section->id]);
             $this->attendance($section, $strength, $week);
             $sections[] = [$section, $user, $state, $notes];

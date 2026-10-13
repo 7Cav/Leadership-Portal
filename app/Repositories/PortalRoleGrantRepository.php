@@ -51,4 +51,10 @@ interface PortalRoleGrantRepository
      * existed.
      */
     public function revoke(User $user, Unit $unit): ?PortalRoleGrant;
+
+    /**
+     * Whether anyone holds a grant on `$unit` — `portal_role_grants.unit_id` restricts deletes,
+     * so `DeleteUnit` checks this first to refuse with a reason instead of a raw constraint error.
+     */
+    public function hasGrantsOn(Unit $unit): bool;
 }

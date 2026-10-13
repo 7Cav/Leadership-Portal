@@ -22,6 +22,9 @@ class SyncRun extends Model
     /** @use HasFactory<SyncRunFactory> */
     use HasFactory;
 
+    /** The `source` the LOA sync records its runs under, and the LOA readers look them up by. */
+    public const SOURCE_LOA = 'loa';
+
     public $timestamps = false;
 
     protected function casts(): array

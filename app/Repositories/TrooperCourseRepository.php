@@ -22,8 +22,10 @@ interface TrooperCourseRepository
     public function forTrooper(int $trooperId): Collection;
 
     /**
-     * Every status row for a set of troopers, each with its course, in one query: what the readiness matrix
-     * (6.9) reads for a whole unit. Troopers with no row simply have none here. Ordered like `forTrooper()`.
+     * Every status row for a set of troopers, in one query: what the readiness matrix (6.9) reads for a whole unit.
+     * Only the row's own columns (`trooper_id`, `course_id`, `status`, ...), with no course loaded: the caller
+     * already has the catalog from `CourseRepository::all()`. Ordered by trooper, then course, so it never
+     * shuffles. Troopers with no row simply have none here.
      *
      * @param  list<int>  $trooperIds
      * @return Collection<int, TrooperCourse>
@@ -37,14 +39,10 @@ interface TrooperCourseRepository
     public function find(int $trooperId, int $courseId): ?TrooperCourse;
 
     /**
-     * Insert the row for a trooper and course. A second row for the same pair is rejected by the database's
-     * UNIQUE constraint, not folded into an update, and a trooper or course that does not exist by its foreign
-     * key.
+     * Set a trooper's status on a course in one atomic upsert on the `(trooper_id, course_id)` pair, so two
+     * writers racing on a first-time set cannot trip the UNIQUE constraint: the database arbitrates and the
+     * last one wins. A trooper or course that does not exist is refused by its foreign key; the Command checks
+     * existence first so a caller never sees that driver error. Returns the stored row with its course.
      */
-    public function create(int $trooperId, int $courseId, CourseStatus $status, ?CarbonInterface $awardedAt, int $updatedBy): TrooperCourse;
-
-    /**
-     * Change an existing row's status, award date and who set it.
-     */
-    public function update(TrooperCourse $row, CourseStatus $status, ?CarbonInterface $awardedAt, int $updatedBy): TrooperCourse;
+    public function set(int $trooperId, int $courseId, CourseStatus $status, ?CarbonInterface $awardedAt, int $updatedBy): TrooperCourse;
 }

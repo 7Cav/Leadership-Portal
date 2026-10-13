@@ -9,8 +9,16 @@ export const E2E_DATABASE = fileURLToPath(new URL('../../database/e2e.sqlite', i
 export const E2E_ENV = {
     APP_ENV: 'e2e',
     DB_CONNECTION: 'sqlite',
+    // Blanked because config/database.php's sqlite connection reads `url` from DB_URL ahead of
+    // `database`: a DB_URL in a developer's .env or shell would otherwise point global-setup's
+    // `migrate:fresh --force` at that database and wipe it.
+    DB_URL: '',
     DB_DATABASE: E2E_DATABASE,
     SESSION_DRIVER: 'file',
     CACHE_STORE: 'array',
     QUEUE_CONNECTION: 'sync',
+    // Telemetry is set up but its server refuses connections at once, so a capture retry fails fast and
+    // visibly (Story 7.9). The key is a placeholder, never a real credential.
+    CRCON_BASE_URL: 'http://127.0.0.1:9',
+    CRCON_API_KEY: 'e2e-placeholder',
 };

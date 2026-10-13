@@ -17,8 +17,10 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * Scope, precisely: this closes the HTTP-cache half of AC #2 only. Inertia keeps its own
  * copy of each visited page in history state and restores it on `popstate` without issuing a
- * request at all, which no header can reach — that half is closed by `Inertia::clearHistory()`
- * in the logout action. Both are needed; neither is sufficient.
+ * request at all, which no header can reach. That half is closed by history encryption
+ * (`history.encrypt` in config/inertia.php) together with `Inertia::clearHistory()` in the
+ * logout action: the clear only discards the encryption key, so it does nothing unless the
+ * stored pages were encrypted in the first place. All three are needed; none is sufficient.
  *
  * Prepended to the `web` group (see bootstrap/app.php) so it wraps the group rather than
  * sitting inside it: responses produced further out, such as a 419 CSRF rejection, must be

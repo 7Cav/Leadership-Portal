@@ -56,7 +56,7 @@ beforeEach(function () {
     UnitCommandMapping::factory()->create(['unit_id' => $this->section1->id, 'cav_position_id' => 501]);
     $leaderTrooper = readinessTrooper($this->section1, ['cav_position_id' => 501, 'username' => 'Lead.Er', 'rank_short' => 'PVT']);
     $this->leader = User::factory()->create(['cav_id' => $leaderTrooper->cav_id]);
-    $this->platoonStaff = User::factory()->create();
+    $this->platoonStaff = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $this->platoonStaff->id, 'unit_id' => $this->platoon1->id]);
 });
 
@@ -184,6 +184,31 @@ describe('the grid', function () {
     });
 });
 
+describe('the role', function () {
+    it('names the section leader SL from the command mapping, the assistant ASL from the billet, and others null', function () {
+        $asl = readinessTrooper($this->section1, ['username' => 'Asl.One', 'rank_short' => 'SPC', 'billet' => 'Assistant Section Leader']);
+        $trainingLeader = readinessTrooper($this->section1, ['username' => 'Train.Er', 'rank_short' => 'SPC', 'billet' => 'Training Leader']);
+
+        readinessOpen($this->actingAs($this->leader), $this->section1)->assertInertia(fn ($page) => $page
+            ->where('troopers', function ($troopers) use ($asl, $trainingLeader) {
+                $roles = collect($troopers)->mapWithKeys(fn ($row) => [$row['displayName'] => $row['role']])->all();
+
+                return $roles['PVT Lead.Er'] === 'SL'
+                    && $roles[$asl->display_name] === 'ASL'
+                    && $roles[$trainingLeader->display_name] === null;
+            }));
+    });
+
+    it('finds each section\'s leader on its own when a platoon spans several sections', function () {
+        UnitCommandMapping::factory()->create(['unit_id' => $this->section2->id, 'cav_position_id' => 502]);
+        $second = readinessTrooper($this->section2, ['cav_position_id' => 502, 'username' => 'Second.Lead', 'rank_short' => 'PVT']);
+        readinessTrooper($this->section2, ['username' => 'Plain.Man', 'rank_short' => 'PVT']);
+
+        readinessOpen($this->actingAs($this->platoonStaff), $this->platoon1)->assertInertia(fn ($page) => $page
+            ->where('troopers', fn ($troopers) => collect($troopers)->where('role', 'SL')->pluck('id')->sort()->values()->all() === collect([$second->id, Trooper::where('username', 'Lead.Er')->first()->id])->sort()->values()->all()));
+    });
+});
+
 describe('coverage', function () {
     function readinessSection2(int $count, int $qualified, Course $course): void
     {
@@ -258,6 +283,10 @@ describe('the milpac deep link (6.7)', function () {
 
         $this->get($href)->assertOk()->assertInertia(fn ($page) => $page->where('unit.id', $this->platoon1->id)->where('unit.type', 'platoon'));
     });
+});
+
+it('names the page\'s breadcrumb crumb', function () {
+    readinessOpen($this->actingAs($this->leader), $this->section1)->assertInertia(fn ($page) => $page->where('crumb', 'Training readiness'));
 });
 
 it('reads in a constant number of queries however many troopers and courses there are', function () {

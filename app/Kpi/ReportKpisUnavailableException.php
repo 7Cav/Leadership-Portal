@@ -9,16 +9,15 @@ use Throwable;
 
 /**
  * A unit's weekly-report KPIs cannot be produced, so its report cannot be frozen. Thrown before
- * anything is written. Today: a non-leaf unit, whose report is the roll-up of its children's
- * sent snapshots (5.7) — 5.7 also throws it while a child is still a draft — or a prior-week sent
+ * anything is written: a non-leaf unit with no children to roll up, or a prior-week sent
  * snapshot that cannot be read, so no delta can be computed against it.
  */
 class ReportKpisUnavailableException extends RuntimeException
 {
-    public static function rollupPending(Unit $unit): self
+    public static function noChildren(Unit $unit): self
     {
         return new self(
-            "Unit {$unit->id} is a {$unit->type->value}: its report rolls up its children's sent reports, which is not available yet.",
+            "Unit {$unit->id} is a {$unit->type->value} with no units under it, so it has no reports to roll up.",
         );
     }
 

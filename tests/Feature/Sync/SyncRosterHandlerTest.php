@@ -4,6 +4,7 @@ use App\Authorization\ScopeResolver;
 use App\Integration\Cav\CavApi;
 use App\Integration\Cav\CavRequestException;
 use App\Models\AuditLogEntry;
+use App\Models\PlacementSource;
 use App\Models\SyncRun;
 use App\Models\SyncRunStatus;
 use App\Models\Trooper;
@@ -17,6 +18,7 @@ use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitBilletMappingRepository;
 use App\Repositories\UnitRepository;
+use App\Sync\EmptyRosterException;
 use App\Sync\SyncRosterHandler;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
@@ -165,8 +167,101 @@ it('still syncs and counts a trooper with no forum account linked, nulling a sta
 it('marks a trooper missing from every roster as inactive without deleting the row', function () {
     $departed = Trooper::factory()->create(['cav_id' => 99, 'status' => TrooperStatus::Combat]);
 
+    // The Combat roster still carries someone: an *empty* Combat roster is refused outright (see
+    // the empty-roster tests below), so a departure is only believed alongside a real roster.
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT')]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    expect(Trooper::count())->toBe(2)
+        ->and($departed->refresh()->status)->toBe(TrooperStatus::Inactive);
+});
+
+it('refuses a run in which a serving roster comes back empty while the cache still holds troopers on it', function () {
+    // The failure this guards against: Cav answers one roster with `{}`, and believing it marks
+    // that whole roster departed, so every leader on it loses scope until a later sync.
+    $combat = Trooper::factory()->create(['cav_id' => 1, 'status' => TrooperStatus::Combat]);
+    $reserve = Trooper::factory()->create(['cav_id' => 2, 'status' => TrooperStatus::Reserve]);
+    $reserveToo = Trooper::factory()->create(['cav_id' => 3, 'status' => TrooperStatus::Reserve]);
+    Trooper::factory()->create(['cav_id' => 4, 'status' => TrooperStatus::Reserve]);
+    Trooper::factory()->create(['cav_id' => 5, 'status' => TrooperStatus::Reserve]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT', ['rank' => ['rankShort' => 'SSG', 'rankFull' => 'Staff Sergeant', 'rankImageUrl' => '', 'rankId' => '5']])]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    expect(fn () => syncRosterHandler()->handle())->toThrow(
+        EmptyRosterException::class,
+        'Cav returned an empty Reserve roster, which would mark 4 cached Reserve troopers departed.',
+    );
+
+    // Nothing written: not the departures, and not the Combat row's update either.
+    expect($reserve->refresh()->status)->toBe(TrooperStatus::Reserve)
+        ->and($reserveToo->refresh()->status)->toBe(TrooperStatus::Reserve)
+        ->and($combat->refresh()->rank_short)->not->toBe('SSG');
+
+    $run = SyncRun::query()->sole();
+    expect($run->status)->toBe(SyncRunStatus::Failure)
+        ->and($run->error)->toContain('empty Reserve roster');
+});
+
+it('refuses an all-empty answer from every roster, which would otherwise depart the whole cache', function () {
+    $trooper = Trooper::factory()->create(['cav_id' => 1, 'status' => TrooperStatus::Combat]);
+
     MockClient::global([
         SR_COMBAT_URL => srEmptyRoster(),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    expect(fn () => syncRosterHandler()->handle())->toThrow(EmptyRosterException::class);
+
+    expect($trooper->refresh()->status)->toBe(TrooperStatus::Combat)
+        ->and(SyncRun::query()->sole()->status)->toBe(SyncRunStatus::Failure);
+});
+
+it('lets the last ELOA trooper be discharged, so a real emptying never wedges the sync', function () {
+    $last = Trooper::factory()->create(['cav_id' => 9, 'status' => TrooperStatus::Eloa]);
+    $other = Trooper::factory()->create(['cav_id' => 1, 'status' => TrooperStatus::Combat]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT', ['rank' => ['rankShort' => 'SSG', 'rankFull' => 'Staff Sergeant', 'rankImageUrl' => '', 'rankId' => '5']])]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    expect($last->refresh()->status)->toBe(TrooperStatus::Inactive)
+        ->and($other->refresh()->rank_short)->toBe('SSG')
+        ->and(SyncRun::query()->sole()->status)->toBe(SyncRunStatus::Success);
+});
+
+it('accepts an empty roster whose last members moved to another roster, since it departs nobody', function () {
+    // ELOA really can empty out: its one trooper came back to Combat this run.
+    $returned = Trooper::factory()->create(['cav_id' => 1, 'status' => TrooperStatus::Eloa]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT')]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    expect($returned->refresh()->status)->toBe(TrooperStatus::Combat)
+        ->and(SyncRun::query()->sole()->status)->toBe(SyncRunStatus::Success);
+});
+
+it('accepts an empty roster the cache holds nobody on, as on a first sync', function () {
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT')]]),
         SR_RESERVE_URL => srEmptyRoster(),
         SR_ELOA_URL => srEmptyRoster(),
     ]);
@@ -174,7 +269,22 @@ it('marks a trooper missing from every roster as inactive without deleting the r
     syncRosterHandler()->handle();
 
     expect(Trooper::count())->toBe(1)
-        ->and($departed->refresh()->status)->toBe(TrooperStatus::Inactive);
+        ->and(SyncRun::query()->sole()->status)->toBe(SyncRunStatus::Success);
+});
+
+it('ignores already-departed troopers when judging an empty roster', function () {
+    // Inactive rows are not "on" any roster, so an empty roster departs none of them.
+    Trooper::factory()->create(['cav_id' => 5, 'status' => TrooperStatus::Inactive]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT')]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    expect(SyncRun::query()->sole()->status)->toBe(SyncRunStatus::Success);
 });
 
 it('reactivates a previously-departed trooper who reappears on the roster', function () {
@@ -502,6 +612,92 @@ it('moves a leader\'s derived scope to their new billet on the next sync (1.16)'
         ->toEqualCanonicalizing([$company->id, $platoon->id, $section->id]);
 });
 
+it('keeps a manual placement through a sync that still cannot resolve the billet (2.7)', function () {
+    $manual = Unit::factory()->create(['type' => UnitType::Section, 'path' => '1/']);
+    Trooper::factory()->create(['cav_id' => 1, 'primary_section_id' => null, 'status' => TrooperStatus::Combat]);
+    app(TrooperRepository::class)->place(Trooper::where('cav_id', 1)->sole()->id, $manual->id);
+
+    // Cav reports billet 773, which has no mapping, so the mapping step cannot resolve this trooper.
+    srFakeRoster('773');
+    syncRosterHandler()->handle();
+    syncRosterHandler()->handle();
+
+    $trooper = Trooper::where('cav_id', 1)->sole();
+    expect($trooper->primary_section_id)->toBe($manual->id)
+        ->and($trooper->placement_source)->toBe(PlacementSource::Manual);
+});
+
+it('hands a manual placement over to the mapping once Cav resolves the billet, and holds steady after (2.7)', function () {
+    $manual = Unit::factory()->create(['type' => UnitType::Section, 'path' => '1/']);
+    $mapped = Unit::factory()->create(['type' => UnitType::Section, 'path' => '2/']);
+    Trooper::factory()->create(['cav_id' => 1, 'primary_section_id' => null, 'status' => TrooperStatus::Combat]);
+    app(TrooperRepository::class)->place(Trooper::where('cav_id', 1)->sole()->id, $manual->id);
+    UnitBilletMapping::factory()->create(['unit_id' => $mapped->id, 'cav_position_id' => 773]);
+
+    srFakeRoster('773');
+    syncRosterHandler()->handle();
+
+    $trooper = Trooper::where('cav_id', 1)->sole();
+    expect($trooper->primary_section_id)->toBe($mapped->id)
+        ->and($trooper->placement_source)->toBe(PlacementSource::Sync);
+
+    // The same input again changes nothing: the rule cannot flip-flop from run to run.
+    syncRosterHandler()->handle();
+
+    $trooper->refresh();
+    expect($trooper->primary_section_id)->toBe($mapped->id)
+        ->and($trooper->placement_source)->toBe(PlacementSource::Sync);
+});
+
+it('stores the username and the billet title Cav reports, for the unplaced-trooper list (2.6)', function () {
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT')]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    $trooper = Trooper::where('cav_id', 1)->sole();
+    expect($trooper->username)->toBe('Jarvis.A')
+        ->and($trooper->billet)->toBe('Rifleman');
+});
+
+it('overwrites a stale username and billet title on the next run, null included (2.6)', function () {
+    Trooper::factory()->create(['cav_id' => 1, 'username' => 'Old.Name', 'billet' => 'Old billet', 'status' => TrooperStatus::Combat]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT', ['user' => null, 'primary' => ['positionTitle' => '', 'positionId' => '']])]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    $trooper = Trooper::where('cav_id', 1)->sole();
+    expect($trooper->username)->toBeNull()
+        ->and($trooper->billet)->toBeNull();
+});
+
+it('clears the billet title with the billet id for a row that could not be parsed, keeping the username (2.6)', function () {
+    Trooper::factory()->create([
+        'cav_id' => 5, 'username' => 'Hollis.D', 'cav_position_id' => 196, 'billet' => 'Rifleman', 'status' => TrooperStatus::Combat,
+    ]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['5' => ['code' => 1, 'message' => 'unavailable']]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    $trooper = Trooper::where('cav_id', 5)->sole();
+    expect($trooper->cav_position_id)->toBeNull()
+        ->and($trooper->billet)->toBeNull()
+        ->and($trooper->username)->toBe('Hollis.D');
+});
+
 it('clears the billet of a trooper whose row could not be parsed, keeping them active (1.16)', function () {
     Trooper::factory()->create(['cav_id' => 5, 'cav_position_id' => 196, 'status' => TrooperStatus::Combat]);
 
@@ -528,7 +724,12 @@ it('revokes a leader\'s derived scope once the sync marks them departed (1.16)',
     expect(app(ScopeResolver::class)->resolve($user)->all())->toBe([$company->id]);
 
     MockClient::destroyGlobal();
-    MockClient::global([SR_COMBAT_URL => srEmptyRoster(), SR_RESERVE_URL => srEmptyRoster(), SR_ELOA_URL => srEmptyRoster()]);
+    // Someone else is still on Combat: an empty Combat roster would be refused, not believed.
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['2' => srRosterRow('ROSTER_TYPE_COMBAT')]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
     syncRosterHandler()->handle();
 
     expect(Trooper::where('cav_id', 1)->sole()->status)->toBe(TrooperStatus::Inactive)
