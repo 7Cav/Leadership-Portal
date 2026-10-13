@@ -330,7 +330,8 @@ async function markPosted() {
 // Capture review (7.8): where the marks came from and when (AD-20), and the leader's confirmation
 // of them. Confirming is its own audited save, so held and pending marks are saved first.
 const CAPTURE_SOURCES = { crcon: 'CRCON', battlemetrics: 'BattleMetrics', nightwatch: 'Nightwatch' };
-const captureLabel = computed(() => (props.capture ? (CAPTURE_SOURCES[props.capture.source] ?? props.capture.source) : null));
+// A capture with no source recorded reads as "the game server", never as "null".
+const captureLabel = computed(() => (props.capture ? (CAPTURE_SOURCES[props.capture.source] ?? props.capture.source ?? 'the game server') : null));
 const capturedLabel = computed(() => (props.capture ? `${forumDateTime(props.capture.capturedAt)}Z` : null));
 const confirmation = ref(props.practice?.confirmation ?? null);
 const confirming = ref(false);
@@ -398,7 +399,7 @@ async function retryCapture() {
 
                     return;
                 }
-                toast.success(`Read ${CAPTURE_SOURCES[props.capture.source] ?? props.capture.source}`, { description: 'Marks were filled in. Check them, then confirm.' });
+                toast.success(`Read ${captureLabel.value}`, { description: 'Marks were filled in. Check them, then confirm.' });
                 router.reload({ preserveScroll: true });
 
                 return;
