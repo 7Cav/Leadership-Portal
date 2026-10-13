@@ -261,6 +261,32 @@ describe('rollcall autosave', () => {
         vi.unstubAllGlobals();
     });
 
+    it('lets a partial reload of the page through without asking, even with unsaved changes', () => {
+        const save = setup(vi.fn(() => ok()));
+        const confirm = vi.fn().mockReturnValue(false);
+        vi.stubGlobal('confirm', confirm);
+
+        save.queue(1, 'status', 'present', { holdMs: 6000 });
+        expect(visitGuard({ detail: { visit: { method: 'get', only: ['telemetry', 'capture'], except: [] } } })).toBeUndefined();
+        expect(visitGuard({ detail: { visit: { method: 'get', only: [], except: [] } } })).toBe(false);
+        expect(confirm).toHaveBeenCalledTimes(1);
+        vi.unstubAllGlobals();
+    });
+
+    it('says whether a field still has an unsent change, held or queued', async () => {
+        const save = setup(vi.fn(() => ok()));
+
+        save.queue(1, 'status', 'present', { holdMs: 6000 });
+        save.queue(2, 'rollcall', 'will_attend');
+        expect(save.isPending(1, 'status')).toBe(true);
+        expect(save.isPending(1, 'rollcall')).toBe(false);
+        expect(save.isPending(2, 'rollcall')).toBe(true);
+
+        await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+        expect(save.isPending(2, 'rollcall')).toBe(false);
+        expect(save.isPending(1, 'status')).toBe(true);
+    });
+
     it('explains each kind of failure in words the leader can act on', () => {
         expect(messageFor({ status: 403, data: null })).toBe('This rollcall is read-only for you right now.');
         expect(messageFor({ status: 419, data: null })).toBe('Your session expired. Reload the page to keep going.');

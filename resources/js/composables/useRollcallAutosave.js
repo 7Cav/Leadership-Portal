@@ -108,6 +108,10 @@ export function useRollcallAutosave({
         return cancelled;
     }
 
+    // Whether a change to this field is still queued or held (not yet sent), so the screen knows
+    // the leader's value is newer than anything the server answers in the meantime.
+    const isPending = (trooperId, field) => pending.get(trooperId)?.[field] !== undefined;
+
     async function flush({ includeHeld = false } = {}) {
         clearTimeout(timer);
         if (inFlight) {
@@ -242,9 +246,13 @@ export function useRollcallAutosave({
         event.returnValue = '';
     };
     // Any Inertia visit away — a link, another week, or a form such as Sign out — prompts too.
-    // Saves themselves are fetches, and step changes client-side visits; neither reaches here.
-    const visitGuard = () => {
+    // Saves themselves are fetches, and step changes client-side visits; neither reaches here. A
+    // partial reload (`only`/`except`, such as the capture retry's poll) refreshes props on this
+    // page and keeps the queue, so it is not leaving: asking there would stall the poll.
+    const visitGuard = (event) => {
         if (!hasUnsaved.value) return;
+        const visit = event?.detail?.visit;
+        if (visit?.only?.length || visit?.except?.length) return;
 
         return window.confirm('Some rollcall changes are not saved yet. Leave anyway?');
     };
@@ -263,5 +271,5 @@ export function useRollcallAutosave({
         removeVisitGuard();
     });
 
-    return { queue, cancel, flush, retry, state, savedAt, error, hasUnsaved, pendingCount, rejected, rejectedMessage, onLeaveIds, onLeaveMessage, locked, lockedMessage };
+    return { queue, cancel, isPending, flush, retry, state, savedAt, error, hasUnsaved, pendingCount, rejected, rejectedMessage, onLeaveIds, onLeaveMessage, locked, lockedMessage };
 }
