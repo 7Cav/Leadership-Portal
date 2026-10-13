@@ -15,6 +15,7 @@ import {
     PhCloudCheck,
     PhCloudSlash,
     PhHandSwipeRight,
+    PhLockSimple,
     PhClock,
     PhCheckCircle,
     PhClockCounterClockwise,
@@ -63,8 +64,11 @@ const props = defineProps({
     sections: { type: Array, required: true },
     // `{ start, date, closes, isCurrent, previous, next, current }` (AD-11).
     week: { type: Object, required: true },
-    // `[{ id, cavId, rank, name, rollcall, status, source, priorStatus }]`.
+    // `[{ id, cavId, rank, name, rollcall, status, source, priorStatus, loa }]`. `loa` is the trooper's leave for
+    // the week (`LoaCover::toArray()`, covered or needs review), else null (3.4, 4.4).
     troopers: { type: Array, default: () => [] },
+    // Where the leave data comes from and when it last synced (`LoaSyncState::toArray()`, 4.3, AD-20).
+    loaSync: { type: Object, default: null },
     priorWeekMarked: { type: Boolean, default: false },
     // `[{ trooperId, missed, windowWeeks }]`, from the shared KPI service (AD-21).
     atRisk: { type: Array, default: () => [] },
@@ -95,7 +99,7 @@ watch(
     () => props.troopers,
     (troopers) => {
         rows.value = troopers.map((trooper) => ({ ...trooper }));
-        baseline.value = new Map(troopers.map((trooper) => [trooper.id, { rollcall: trooper.rollcall, status: trooper.status }]));
+        baseline.value = new Map(troopers.map((trooper) => [trooper.id, { rollcall: trooper.rollcall, status: trooper.status, source: trooper.source }]));
     },
     { immediate: true },
 );
@@ -122,6 +126,17 @@ const autosave = props.section
               liveAtRisk.value = data.atRisk ?? liveAtRisk.value;
               // A hand edit of a mark clears an earlier confirmation on the server (7.8).
               if ('confirmation' in data) confirmation.value = data.confirmation;
+          },
+          // A leave synced after the page loaded: the server refused their practice mark (3.4). The row
+          // takes back what it held and locks, as it would have on load; its signature still saves.
+          onLeave: (ids) => {
+              for (const id of ids) {
+                  const row = rows.value.find((t) => t.id === id);
+                  const was = baseline.value.get(id);
+                  if (!row) continue;
+                  if (was) Object.assign(row, { status: was.status, source: was.source });
+                  row.loa ??= { state: 'covered', fromSave: true };
+              }
           },
           nameOf: (id) => displayName(rows.value.find((t) => t.id === id) ?? { cavId: id }),
       })
@@ -552,6 +567,16 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
         </div>
 
         <div
+            v-if="autosave?.onLeaveMessage.value"
+            role="status"
+            class="mt-3 flex items-start gap-2.5 rounded-lg border border-border px-3.5 py-2.5 text-[13px]"
+            data-testid="save-on-leave"
+        >
+            <PhLockSimple class="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <p class="min-w-0 flex-1">{{ autosave.onLeaveMessage.value }} Reload to see their leave dates.</p>
+        </div>
+
+        <div
             v-if="readOnlyReason"
             role="status"
             class="mt-3 flex items-start gap-2.5 rounded-lg border border-info/35 bg-info/7 px-3.5 py-2.5 text-[13px]"
@@ -650,6 +675,7 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                                 v-for="trooper in group.troopers"
                                 :key="trooper.id"
                                 :trooper="trooper"
+                                :loa-sync="loaSync"
                                 kind="signature"
                                 :editable="editable"
                                 :disabled-reason="readOnlyReason"
@@ -747,6 +773,7 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                                     v-for="trooper in group.troopers"
                                     :key="trooper.id"
                                     :trooper="trooper"
+                                    :loa-sync="loaSync"
                                     kind="practice"
                                     :editable="editable"
                                     :disabled-reason="readOnlyReason"

@@ -48,6 +48,13 @@ const trooper = (id, rollcall, status, extra = {}) => ({
     id, cavId: 1000 + id, rank: 'PFC', name: `Trooper${id}.A`, rollcall, status, source: status ? 'manual' : null, priorStatus: null, ...extra,
 });
 
+// One trooper's `LoaCover::toArray()` and the `LoaSyncState::toArray()` the page receives (3.4, 4.3).
+const COVER = {
+    state: 'covered', type: 'loa', typeLabel: 'LOA', startsAt: '2026-10-01', endsAt: '2026-10-20', expectedReturnAt: null,
+    ongoing: false, overdue: false, endsInDays: 12, ended: false, sourceThread: 'https://7cav.us/threads/loa-request.1/', reviewReason: null,
+};
+const LOA_SYNC = { source: 'Forum thread', lastSyncedAt: '2026-10-08T15:00:00+00:00', stale: false, neverSynced: false, latestStatus: 'success', latestFinishedAt: '2026-10-08T15:00:00+00:00' };
+
 const TEMPLATE = {
     state: 'resolved',
     companyId: 1,
@@ -262,6 +269,57 @@ describe('Rollcall page', () => {
 
             expect(button(wrapper, 2, 'missed').attributes('aria-pressed')).toBe('true');
             expect(toastSuccess.mock.calls[0][0]).toBe("Used last week's marks for 1");
+        });
+
+        it('leaves a trooper on leave out of "Mark all present" and last week\'s marks, under On LOA with their badge (3.4)', async () => {
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory({
+                troopers: [
+                    trooper(2, 'cannot_attend', null, { priorStatus: 'missed' }),
+                    trooper(5, 'unsigned', null, { priorStatus: 'present', loa: COVER }),
+                ],
+                loaSync: LOA_SYNC,
+            });
+
+            const onLoa = wrapper.find('[role="group"][aria-label="On LOA"]');
+            expect(onLoa.text()).toContain('Trooper5.A');
+            expect(onLoa.find('[data-testid="loa-badge"]').text()).toBe('LOA ends 20Oct26');
+            expect(onLoa.find('[data-testid="loa-details"]').text()).toContain('Source: Forum thread');
+            expect(wrapper.find('[data-trooper="5"]').findAll('button[data-value]')).toHaveLength(0);
+            expect(wrapper.find('[data-testid="use-last-week"]').text()).toBe("Use last week's marks (1)");
+
+            await wrapper.find('[data-testid="mark-all-present"]').trigger('click');
+            expect(toastSuccess.mock.calls[0][0]).toBe('Marked 1 as present');
+            await vi.advanceTimersByTimeAsync(7000);
+
+            expect(post).toHaveBeenCalledTimes(1);
+            expect(post).toHaveBeenCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 2, status: 'present' }] });
+        });
+
+        it('keeps a trooper whose leave needs review markable, with the badge saying so', () => {
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory({ troopers: [trooper(6, 'unsigned', null, { loa: { ...COVER, state: 'needs_review', startsAt: null, endsAt: null } })] });
+
+            const card = wrapper.find('[data-trooper="6"]');
+            expect(card.find('[data-testid="loa-badge"]').text()).toBe('LOA needs review');
+            expect(card.findAll('button[data-value]')).toHaveLength(4);
+            expect(wrapper.find('[role="group"][aria-label="On LOA"]').exists()).toBe(false);
+        });
+
+        it('locks a trooper the server says went on leave since the page loaded, and says why, not that they moved', async () => {
+            post.mockResolvedValueOnce({ ok: false, status: 422, data: { message: 'on leave', rejected: [3], reason: 'loa_covered' } });
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory();
+
+            await button(wrapper, 3, 'present').trigger('click');
+            await vi.advanceTimersByTimeAsync(1000);
+
+            const card = wrapper.find('[data-trooper="3"]');
+            expect(card.text()).toContain('LOA, nothing to mark');
+            expect(wrapper.find('[role="group"][aria-label="On LOA"]').text()).toContain('Trooper3.A');
+            expect(wrapper.find('[data-testid="save-on-leave"]').text()).toContain('Trooper3.A is on leave this week');
+            expect(wrapper.find('[data-testid="save-rejected"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="save-error"]').exists()).toBe(false);
         });
 
         it('moves between cards with J and K and sets the focused one with 1-4', async () => {
