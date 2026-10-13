@@ -110,7 +110,7 @@ it('refuses a unit that does not exist as a field error', function () {
 });
 
 it('refuses a non-Admin, even a leader with scope over the unit', function () {
-    $leader = User::factory()->create();
+    $leader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $leader->id, 'unit_id' => $this->company->id]);
 
     $this->actingAs($leader)->get('/settings/demo-data')->assertForbidden();

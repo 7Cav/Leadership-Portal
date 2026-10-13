@@ -15,7 +15,7 @@ function homeWeekAt(string $now): Closure
 {
     CarbonImmutable::setTestNow($now);
 
-    return fn (string $start, string $due) => test()->actingAs(User::factory()->create())
+    return fn (string $start, string $due) => test()->actingAs(User::factory()->serving()->create())
         ->get('/home')
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page

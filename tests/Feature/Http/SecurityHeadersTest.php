@@ -24,7 +24,7 @@ it('sends the baseline headers on a guest page', function () {
 });
 
 it('sends them on an authenticated page', function () {
-    $response = $this->actingAs(User::factory()->create())->get('/home')->assertOk();
+    $response = $this->actingAs(User::factory()->serving()->create())->get('/home')->assertOk();
 
     expectBaselineSecurityHeaders($response);
 });
@@ -35,7 +35,7 @@ it('sends them on responses the web group never produces: an unknown path and a 
     expectBaselineSecurityHeaders($this->get('/no-such-page')->assertNotFound());
 
     liftCsrfTestShortCircuit();
-    expectBaselineSecurityHeaders($this->actingAs(User::factory()->create())->post('/logout')->assertStatus(419));
+    expectBaselineSecurityHeaders($this->actingAs(User::factory()->serving()->create())->post('/logout')->assertStatus(419));
 });
 
 it('leaves a header alone when the response already set it', function () {

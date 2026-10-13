@@ -13,7 +13,7 @@ it('renders the grants list for any authenticated user', function () {
     $unit = Unit::factory()->create();
     $target = User::factory()->create();
     PortalRoleGrant::factory()->create(['user_id' => $target->id, 'unit_id' => $unit->id]);
-    $user = User::factory()->create();
+    $user = User::factory()->serving()->create();
 
     $this->actingAs($user)->get('/settings/staff-grants')
         ->assertOk()
@@ -89,7 +89,7 @@ it('lets an Admin grant a non-admin staff user scope at a chosen node (AC #1)', 
 });
 
 it('refuses a non-Admin grant server-side with 403 (AC #4, AD-6)', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->serving()->create();
     $target = User::factory()->create();
     $unit = Unit::factory()->create();
 
@@ -191,7 +191,7 @@ it('lets an Admin revoke a grant (AC #2)', function () {
 });
 
 it('refuses a non-Admin revoke server-side with 403 (AD-6)', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->serving()->create();
     $target = User::factory()->create();
     $unit = Unit::factory()->create();
     $grant = PortalRoleGrant::factory()->create(['user_id' => $target->id, 'unit_id' => $unit->id]);

@@ -85,7 +85,7 @@ describe('who may open it', function () {
     });
 
     it('refuses someone with no scope at all', function () {
-        milpacOpen($this->actingAs(User::factory()->create()), milpacTrooper($this->section1))->assertNotFound();
+        milpacOpen($this->actingAs(User::factory()->serving()->create()), milpacTrooper($this->section1))->assertNotFound();
     });
 
     it('lets an Admin open any placed trooper', function () {

@@ -48,7 +48,7 @@ beforeEach(function () {
     $this->viewers = [
         'section leader' => User::factory()->create(['cav_id' => $leaderTrooper->cav_id]),
         'platoon staff' => $staff,
-        'no scope' => User::factory()->create(),
+        'no scope' => User::factory()->serving()->create(),
         'admin' => User::factory()->admin()->create(),
     ];
     $this->troopers = [

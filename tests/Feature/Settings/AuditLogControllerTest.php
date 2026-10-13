@@ -45,7 +45,7 @@ it('requires authentication to view the audit log', function () {
 });
 
 it('refuses a non-Admin server-side with 403 (AD-6) — the whole screen is Admin-only', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->serving()->create();
 
     $this->actingAs($user)->get('/settings/audit-log')->assertForbidden();
 });

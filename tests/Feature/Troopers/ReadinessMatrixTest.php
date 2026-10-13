@@ -85,7 +85,7 @@ describe('who may open it', function () {
     });
 
     it('refuses someone with no scope at all', function () {
-        readinessOpen($this->actingAs(User::factory()->create()), $this->section1)->assertForbidden();
+        readinessOpen($this->actingAs(User::factory()->serving()->create()), $this->section1)->assertForbidden();
     });
 
     it('lets an Admin open any unit', function () {

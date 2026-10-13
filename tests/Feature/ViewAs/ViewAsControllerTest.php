@@ -74,7 +74,7 @@ describe('options', function () {
     it('offers a user with no scope nothing to view as', function () {
         vcTree();
 
-        $this->actingAs(User::factory()->create())->getJson('/view-as/options')
+        $this->actingAs(User::factory()->serving()->create())->getJson('/view-as/options')
             ->assertJsonCount(0, 'units')
             ->assertJsonPath('people', null);
     });
@@ -129,7 +129,7 @@ describe('entering and leaving', function () {
     });
 
     it('shares no viewAs prop when view-as is off', function () {
-        $this->actingAs(User::factory()->create())->get('/home')
+        $this->actingAs(User::factory()->serving()->create())->get('/home')
             ->assertInertia(fn ($page) => $page->where('viewAs', null));
     });
 

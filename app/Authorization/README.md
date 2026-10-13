@@ -35,3 +35,10 @@ the ceiling. The target is re-checked by `evaluate()` on every call, so one that
 current real authority stops applying at once. While a preview is active, the
 `ReadOnlyWhileViewingAs` middleware refuses every write except leaving view-as and signing out, and
 `writeScope()` is narrowed to the target as well.
+
+**Session standing.** `ServingSession` keeps the sign-in rule (an Admin, or a user linked to a
+trooper not known to have left) true for the whole session; the `EnsureServingMember` middleware asks
+it on every authenticated request. A non-Admin with no milpac link is signed out. A departed cache
+record ends the session, except one admitted on Cav's live roster: that admission is noted in the
+session, bound to the user, and stands until a clean roster sync that started after it, so a trooper
+who re-enlisted since the last sync is not bounced in a loop.

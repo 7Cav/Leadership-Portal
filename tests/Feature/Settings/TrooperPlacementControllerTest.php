@@ -39,7 +39,7 @@ it('refuses a non-Admin server-side, even though the page hides the control (AD-
     $section = placementSectionUnit();
     $trooper = Trooper::factory()->create(['primary_section_id' => null]);
 
-    $this->actingAs(User::factory()->create())->post(placementUrl($trooper), ['section_id' => $section->id, 'reason' => 'Because.'])
+    $this->actingAs(User::factory()->serving()->create())->post(placementUrl($trooper), ['section_id' => $section->id, 'reason' => 'Because.'])
         ->assertForbidden();
 
     expect($trooper->fresh()->primary_section_id)->toBeNull()
@@ -60,7 +60,7 @@ it('422s a trooper that does not exist, as a form error', function () {
 });
 
 it('answers a non-Admin 403 whether or not the trooper exists, so ids cannot be probed', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->serving()->create();
     $trooper = Trooper::factory()->create(['primary_section_id' => null]);
 
     $this->actingAs($user)->post(placementUrl($trooper), [])->assertForbidden();

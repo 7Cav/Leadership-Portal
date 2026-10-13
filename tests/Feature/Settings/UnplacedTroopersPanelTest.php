@@ -44,7 +44,7 @@ it('sends an empty list, not an error, when every trooper is placed', function (
 it('does not send the list to anyone but an Admin', function () {
     Trooper::factory()->create(['primary_section_id' => null]);
 
-    $this->actingAs(User::factory()->create())->get('/settings/org-structure')
+    $this->actingAs(User::factory()->serving()->create())->get('/settings/org-structure')
         ->assertOk()
         ->assertInertia(fn ($page) => $page->where('unplacedTroopers', null)->where('unplacedTotal', null));
 });

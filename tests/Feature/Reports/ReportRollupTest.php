@@ -129,7 +129,7 @@ it('sends a leaf unit\'s workspace to its report, keeping the requested week', f
 });
 
 it('shows an empty workspace to a user with no scope', function () {
-    $this->actingAs(User::factory()->create())->get('/reports')
+    $this->actingAs(User::factory()->serving()->create())->get('/reports')
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page->component('Reports/Rollup')->where('roots', []));
 });

@@ -34,7 +34,7 @@ it('counts the troopers in each section and rolls them up every branch', functio
     Trooper::factory()->create(['primary_section_id' => $tree['sectionB']->id]);
     Trooper::factory()->create(['primary_section_id' => null]);
 
-    $counts = treeCounts($this->actingAs(User::factory()->create())->get('/settings/org-structure'));
+    $counts = treeCounts($this->actingAs(User::factory()->serving()->create())->get('/settings/org-structure'));
 
     expect($counts[$tree['sectionA']->id])->toBe(2)
         ->and($counts[$tree['sectionB']->id])->toBe(1)
@@ -50,7 +50,7 @@ it('leaves out a departed trooper but keeps one on LOA', function () {
     Trooper::factory()->create(['primary_section_id' => $tree['sectionA']->id, 'status' => TrooperStatus::Inactive]);
     Trooper::factory()->create(['primary_section_id' => $tree['sectionA']->id, 'status' => TrooperStatus::Eloa]);
 
-    $counts = treeCounts($this->actingAs(User::factory()->create())->get('/settings/org-structure'));
+    $counts = treeCounts($this->actingAs(User::factory()->serving()->create())->get('/settings/org-structure'));
 
     expect($counts[$tree['sectionA']->id])->toBe(1);
 });
