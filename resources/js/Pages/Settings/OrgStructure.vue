@@ -1,9 +1,11 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, nextTick, reactive, ref, watch } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { PhCheckCircle, PhCloudArrowDown, PhLockSimple, PhPlus, PhTreeStructure, PhWarningCircle } from '@phosphor-icons/vue';
+import { PhCaretDown, PhCheckCircle, PhCloudArrowDown, PhLockSimple, PhPlus, PhTreeStructure, PhWarningCircle } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { toast } from 'vue-sonner';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,7 +22,22 @@ const props = defineProps({
     // Flashed once by the import action (Story 2.9):
     // `{ unitsCreated, mappingsCreated, mappingsDiffering, skippedTitles }`.
     importResult: { type: Object, default: null },
+    // Troopers the roster sync could not place into a section (Story 2.6), as
+    // `{ id, cav_id, username, rank, mos, billet, position_id }`. Null when the server withholds
+    // the list (anyone but an Admin), which is different from an empty array (nobody unplaced).
+    unplacedTroopers: { type: Array, default: null },
+    // The true count of unplaced troopers; the list above is capped, so this can be larger.
+    unplacedTotal: { type: Number, default: null },
 });
+
+const unplacedCount = computed(() => props.unplacedTotal ?? props.unplacedTroopers?.length ?? 0);
+
+// A trooper with no reported billet title falls back to the position id: it is why they are here,
+// the sync found no section mapped to it.
+function billetLabel(trooper) {
+    if (trooper.billet) return trooper.billet;
+    return trooper.position_id !== null ? `Billet not mapped (position ${trooper.position_id})` : 'No billet reported';
+}
 
 const tree = computed(() => {
     const byId = new Map(props.units.map((unit) => [unit.id, { ...unit, children: [] }]));
@@ -140,6 +157,89 @@ defineExpose({ form });
 
 // Import from the Cav position groups (Story 2.9). A plain `router.post()` — there is no form
 // state to carry — so a refused import's `errors.import` is caught here, as `deleteError` is.
+// Manual placement of an unplaced trooper (Story 2.7). One chip is open at a time. The sections are
+// the `section` echelon of the tree, listed by `path` so they read in chain-of-command order.
+const sections = computed(() =>
+    props.units
+        .filter((unit) => unit.type === 'section')
+        .sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }))
+        .map((unit) => ({ id: unit.id, label: sectionLabel(unit) })),
+);
+
+// Squads and sections share names across platoons ("1st Squad"), and this is an audited personnel
+// action, so each option names the units above it (the root regiment left out as noise).
+function sectionLabel(unit) {
+    const own = unit.callsign ? `${unit.callsign} · ${unit.name}` : unit.name;
+    const above = unit.path
+        .split('/')
+        .filter(Boolean)
+        .slice(1, -1)
+        .map((id) => props.units.find((candidate) => candidate.id === Number(id))?.name)
+        .filter(Boolean);
+
+    return above.length ? `${own} (${above.join(' / ')})` : own;
+}
+const assigningId = ref(null);
+const assignSection = ref(null);
+const assignReason = ref('');
+const assignError = ref(null);
+const assigning = ref(false);
+
+function openAssign(trooper) {
+    assigningId.value = trooper.id;
+    assignSection.value = null;
+    assignReason.value = '';
+    assignError.value = null;
+    // Keyboard and screen-reader users keep their place: focus moves into the form it opened.
+    nextTick(() => document.getElementById(`assign-section-${trooper.id}`)?.focus());
+}
+
+function cancelAssign() {
+    const trooperId = assigningId.value;
+    assigningId.value = null;
+    assignError.value = null;
+    nextTick(() => document.getElementById(`assign-button-${trooperId}`)?.focus());
+}
+
+// A placed trooper's chip leaves the list, so focus goes to the panel instead of falling to the page.
+function finishAssign() {
+    assigningId.value = null;
+    toast.success('Trooper placed');
+    nextTick(() => document.querySelector('[data-testid="unplaced-panel"]')?.focus());
+}
+
+function submitAssign(trooper) {
+    assignError.value = null;
+    assigning.value = true;
+    router.post(
+        `/settings/org-structure/troopers/${trooper.id}/placement`,
+        { section_id: assignSection.value, reason: assignReason.value.trim() },
+        {
+            preserveScroll: true,
+            onSuccess: finishAssign,
+            // A 403 or an expired session is an HTTP exception, not a validation error: say so here
+            // instead of Inertia's raw error dialog (returning false).
+            onHttpException: (response) => {
+                assignError.value =
+                    response.status === 403
+                        ? 'Only an Admin can place a trooper.'
+                        : response.status === 419
+                          ? 'Your session expired. Reload the page and try again.'
+                          : `The placement failed (error ${response.status}). Try again.`;
+
+                return false;
+            },
+            onError: (errors) => {
+                assignError.value =
+                    errors.placement ?? errors.section_id ?? errors.reason ?? Object.values(errors)[0] ?? 'The placement failed. Reload the page and try again.';
+            },
+            onFinish: () => {
+                assigning.value = false;
+            },
+        },
+    );
+}
+
 const importing = ref(false);
 const importError = ref(null);
 
@@ -367,6 +467,115 @@ function requestDelete(id) {
                     </dl>
                 </div>
                 <p v-else class="text-[13px] text-muted-foreground">Select a unit to see its details.</p>
+
+                <!--
+                  Troopers the sync could not place (Story 2.6): a dashed panel in the detail card, one chip
+                  per trooper. Shown only when the server sent the list, which it does for an Admin alone.
+                  Read-only here; the "assign" action on each chip is Story 2.7.
+                -->
+                <section
+                    v-if="unplacedTroopers !== null"
+                    data-testid="unplaced-panel"
+                    tabindex="-1"
+                    aria-label="Troopers not yet placed"
+                    class="mt-4 rounded-lg border border-dashed border-border p-3"
+                >
+                    <h3 v-if="unplacedTroopers.length" class="text-[13px] font-semibold">
+                        <span data-testid="unplaced-count">
+                            {{ unplacedCount }} synced {{ unplacedCount === 1 ? 'trooper' : 'troopers' }} not yet placed
+                        </span>
+                    </h3>
+                    <EmptyState v-if="!unplacedTroopers.length" :icon="PhCheckCircle" title="All synced troopers are placed" class="py-4">
+                        Troopers the sync cannot map to a section will be listed here.
+                    </EmptyState>
+                    <p v-else-if="unplacedCount > unplacedTroopers.length" data-testid="unplaced-capped" class="mt-1 text-xs text-muted-foreground">
+                        Showing the first {{ unplacedTroopers.length }}.
+                    </p>
+                    <!--
+                      With no chain of command yet nothing can be mapped, so the whole roster lands here. Say why,
+                      instead of leaving an Admin to assume the sync is broken.
+                    -->
+                    <p v-if="unplacedTroopers.length && !units.length" data-testid="unplaced-hint" class="mt-1 text-xs text-muted-foreground">
+                        The chain of command is empty, so no trooper can be mapped yet. Import it from the Cav roster first.
+                    </p>
+                    <!-- Scrolls inside the card: right after a fresh install the list can hold the whole roster. -->
+                    <ul v-if="unplacedTroopers.length" aria-label="Troopers not yet placed" class="mt-2.5 flex max-h-72 flex-wrap gap-2 overflow-y-auto">
+                        <li
+                            v-for="trooper in unplacedTroopers"
+                            :key="trooper.id"
+                            data-testid="unplaced-trooper"
+                            :class="['min-w-0 rounded-md border border-border px-2.5 py-1.5 text-[13px]', assigningId === trooper.id && 'w-full']"
+                        >
+                            <span class="font-medium">
+                                <span v-if="trooper.rank" class="text-muted-foreground">{{ trooper.rank }}</span>
+                                {{ trooper.username ?? `Unknown (Cav #${trooper.cav_id})` }}
+                            </span>
+                            <span class="block max-w-[28ch] truncate text-xs text-muted-foreground" :title="billetLabel(trooper)">
+                                <span v-if="trooper.mos" class="font-mono">{{ trooper.mos }} · </span>{{ billetLabel(trooper) }}
+                            </span>
+
+                            <!--
+                              Place this trooper into a section by hand (Story 2.7). The server is the boundary:
+                              Admin only, a required reason, and an audited write. This is the convenience layer.
+                            -->
+                            <template v-if="assigningId !== trooper.id">
+                                <Button
+                                    v-if="sections.length"
+                                    :id="`assign-button-${trooper.id}`"
+                                    type="button"
+                                    variant="link"
+                                    size="sm"
+                                    class="mt-1 h-auto p-0 text-xs"
+                                    data-testid="assign-trooper"
+                                    @click="openAssign(trooper)"
+                                >
+                                    Assign <PhCaretDown class="size-3" aria-hidden="true" />
+                                </Button>
+                                <!-- A disabled button takes no hover or focus, so the focusable wrapper carries the reason. -->
+                                <TooltipProvider v-else :delay-duration="200">
+                                    <Tooltip>
+                                        <TooltipTrigger as-child>
+                                            <span tabindex="0" class="mt-1 inline-flex items-center gap-0.5 text-xs font-medium text-muted-foreground">
+                                                <Button type="button" variant="link" size="sm" class="h-auto p-0 text-xs" data-testid="assign-trooper" disabled>
+                                                    Assign <PhCaretDown class="size-3" aria-hidden="true" />
+                                                </Button>
+                                                <span class="sr-only" data-testid="assign-disabled-reason">There are no sections to place into yet</span>
+                                            </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>There are no sections to place into yet</TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            </template>
+                            <form v-else data-testid="assign-form" class="mt-2 space-y-2.5 border-t border-border pt-2.5" @submit.prevent="submitAssign(trooper)">
+                                <div class="grid gap-1">
+                                    <Label :for="`assign-section-${trooper.id}`">Section</Label>
+                                    <NativeSelect :id="`assign-section-${trooper.id}`" v-model="assignSection" data-testid="assign-section">
+                                        <option :value="null">Select a section</option>
+                                        <option v-for="section in sections" :key="section.id" :value="section.id">{{ section.label }}</option>
+                                    </NativeSelect>
+                                </div>
+                                <div class="grid gap-1">
+                                    <Label :for="`assign-reason-${trooper.id}`">Reason</Label>
+                                    <Input
+                                        :id="`assign-reason-${trooper.id}`"
+                                        v-model="assignReason"
+                                        data-testid="assign-reason"
+                                        type="text"
+                                        maxlength="500"
+                                        placeholder="Why this section, e.g. who confirmed it"
+                                    />
+                                </div>
+                                <p v-if="assignError" data-testid="assign-error" role="alert" class="text-xs text-destructive">{{ assignError }}</p>
+                                <div class="flex items-center justify-end gap-2">
+                                    <Button type="button" variant="ghost" size="sm" data-testid="assign-cancel" @click="cancelAssign">Cancel</Button>
+                                    <Button type="submit" size="sm" data-testid="assign-submit" :disabled="assigning || assignSection === null || !assignReason.trim()">
+                                        {{ assigning ? 'Placing…' : 'Place trooper' }}
+                                    </Button>
+                                </div>
+                            </form>
+                        </li>
+                    </ul>
+                </section>
 
                 <!--
                   Add-node control, Admin-only (AC #2). Hidden for a non-Admin per the mockup; the

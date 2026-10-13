@@ -26,7 +26,7 @@ use Illuminate\Support\Collection;
 
 beforeEach(function () {
     $this->section = Unit::factory()->create(['type' => UnitType::Section]);
-    $this->leader = User::factory()->create();
+    $this->leader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
 
     // Wednesday 2026-10-07 18:00 UTC falls in the Cav week opening Saturday 2026-10-03.
@@ -233,6 +233,11 @@ it('rolls the whole batch back — practice, marks and audit — when a write fa
             return $this->inner->markPractice($practice, $trooperId, $status, $source);
         }
 
+        public function markPracticeAuto(SectionPractice $practice, int $trooperId): ?Attendance
+        {
+            return $this->inner->markPracticeAuto($practice, $trooperId);
+        }
+
         public function signRollcall(SectionPractice $practice, int $trooperId, RollcallSignature $rollcall): Attendance
         {
             return $this->inner->signRollcall($practice, $trooperId, $rollcall);
@@ -246,6 +251,11 @@ it('rolls the whole batch back — practice, marks and audit — when a write fa
         public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection
         {
             return $this->inner->countingMarks($unit, $firstWeek, $lastWeek, $includeDeparted);
+        }
+
+        public function weekProgress(array $sectionIds, CarbonInterface $weekStart): Collection
+        {
+            return $this->inner->weekProgress($sectionIds, $weekStart);
         }
     });
 
@@ -292,7 +302,7 @@ it('lets a leader whose grant sits higher up the tree mark the section', functio
     $platoon = Unit::factory()->create(['type' => UnitType::Platoon, 'path' => '9900/']);
     $section = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $platoon->id, 'path' => '9900/9901/']);
     $trooper = Trooper::factory()->create(['primary_section_id' => $section->id]);
-    $platoonLeader = User::factory()->create();
+    $platoonLeader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $platoon->id]);
 
     mark($platoonLeader, $section->id, $this->moment, [new AttendanceMark($trooper->id, AttendanceStatus::Present)]);
@@ -346,4 +356,30 @@ it('refuses a section id that does not exist, even for an admin (no unit is in a
         ->toThrow(MarkAttendanceForbiddenException::class);
 
     expect(SectionPractice::query()->count())->toBe(0);
+});
+
+// 7.6 / AD-14, AD-22: preMark — capture as a second source through this same writer.
+
+it('pre-marks only troopers placed in the practice section, counting what it kept and skipped', function () {
+    $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->weekStart]);
+    $stranger = Trooper::factory()->create(['primary_section_id' => Unit::factory()->create(['type' => UnitType::Section])->id]);
+    app(AttendanceRepository::class)->markPractice($practice, $this->troopers[0]->id, AttendanceStatus::Missed, AttendanceSource::Manual);
+
+    $result = app(MarkAttendanceHandler::class)->preMark($practice, [
+        $this->troopers[2]->id, $this->troopers[0]->id, $this->troopers[1]->id, $stranger->id, $this->troopers[1]->id,
+    ]);
+
+    expect([$result->marked, $result->keptManual, $result->notPlaced])->toBe([2, 1, 1])
+        ->and(Attendance::query()->where('source', 'auto')->pluck('trooper_id')->sort()->values()->all())
+        ->toBe([$this->troopers[1]->id, $this->troopers[2]->id])
+        ->and(Attendance::query()->where('trooper_id', $stranger->id)->exists())->toBeFalse()
+        ->and(AuditLogEntry::query()->count())->toBe(0);
+});
+
+it('writes no audit entry for an empty pre-mark even when a user triggered it', function () {
+    $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->weekStart]);
+
+    $result = app(MarkAttendanceHandler::class)->preMark($practice, [], $this->leader->id);
+
+    expect($result->marked)->toBe(0)->and(AuditLogEntry::query()->count())->toBe(0);
 });

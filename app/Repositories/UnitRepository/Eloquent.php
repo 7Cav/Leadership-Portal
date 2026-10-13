@@ -36,7 +36,33 @@ class Eloquent implements UnitRepository
 
     public function tree(): Collection
     {
-        return Unit::query()->orderBy('path')->get();
+        // Sorted in PHP, not by `orderBy('path')`: `path` is text ("1/145/"), so SQL would put
+        // "1/145/" before "1/2/" and shuffle siblings once ids pass a digit boundary. Comparing the
+        // segments as numbers keeps every unit after its parent and siblings in id order, which is
+        // creation order, and the org import creates units in Cav's display order.
+        return Unit::query()->get()->sort(fn (Unit $a, Unit $b) => $this->comparePaths($a->path, $b->path))->values();
+    }
+
+    /**
+     * Depth-first order over materialized paths: compare segment by segment as numbers, and a path
+     * that is a prefix of another (an ancestor) comes first.
+     */
+    private function comparePaths(string $a, string $b): int
+    {
+        $left = array_map('intval', explode('/', trim($a, '/')));
+        $right = array_map('intval', explode('/', trim($b, '/')));
+
+        foreach ($left as $index => $segment) {
+            if (! isset($right[$index])) {
+                return 1;
+            }
+
+            if ($segment !== $right[$index]) {
+                return $segment <=> $right[$index];
+            }
+        }
+
+        return count($left) <=> count($right);
     }
 
     public function find(int $id): ?Unit
@@ -107,6 +133,18 @@ class Eloquent implements UnitRepository
     public function children(Unit $unit): Collection
     {
         return Unit::query()->where('parent_id', $unit->id)->orderBy('id')->get();
+    }
+
+    public function sectionsAmong(iterable $unitIds): Collection
+    {
+        $ids = collect($unitIds)->values()->all();
+
+        return Unit::query()
+            ->with('parent')
+            ->where('type', UnitType::Section->value)
+            ->whereIn('id', $ids)
+            ->orderBy('path')
+            ->get();
     }
 
     public function delete(Unit $unit): void

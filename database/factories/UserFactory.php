@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Trooper;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -36,6 +37,18 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'is_admin' => true,
+        ]);
+    }
+
+    /**
+     * Link the identity to a serving trooper: a fresh cached `combat` trooper whose `cav_id` the
+     * user carries. That link is what lets a non-admin sign in at all and what keeps their staff
+     * grants counting in scope, so any test that hands a non-admin a grant needs it.
+     */
+    public function serving(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'cav_id' => Trooper::factory()->create()->cav_id,
         ]);
     }
 }

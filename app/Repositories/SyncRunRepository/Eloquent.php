@@ -8,17 +8,18 @@ use App\Repositories\SyncRunRepository;
 
 class Eloquent implements SyncRunRepository
 {
-    public function open(string $source, int|string $triggeredBy): SyncRun
+    public function open(string $source, int|string $triggeredBy, ?int $sectionPracticeId = null): SyncRun
     {
         return SyncRun::query()->forceCreate([
             'source' => $source,
             'started_at' => now(),
             'status' => SyncRunStatus::InProgress,
             'triggered_by' => (string) $triggeredBy,
+            'section_practice_id' => $sectionPracticeId,
         ]);
     }
 
-    public function complete(SyncRun $run, int $inserted, int $updated, int $inactivated, int $errored, ?string $error = null): void
+    public function complete(SyncRun $run, int $inserted, int $updated, int $inactivated, int $errored, ?string $error = null, int $needsReview = 0): void
     {
         $run->forceFill([
             'finished_at' => now(),
@@ -27,6 +28,7 @@ class Eloquent implements SyncRunRepository
             'updated' => $updated,
             'inactivated' => $inactivated,
             'errored' => $errored,
+            'needs_review' => $needsReview,
             'error' => $error,
         ])->save();
     }
@@ -38,6 +40,18 @@ class Eloquent implements SyncRunRepository
             'status' => SyncRunStatus::Failure,
             'error' => $error,
         ])->save();
+    }
+
+    public function failOrphaned(string $source): int
+    {
+        return SyncRun::query()
+            ->where('source', $source)
+            ->where('status', SyncRunStatus::InProgress)
+            ->update([
+                'finished_at' => now(),
+                'status' => SyncRunStatus::Failure,
+                'error' => 'The run stopped before it could record a result (the worker was likely killed).',
+            ]);
     }
 
     public function latestFinished(string $source): ?SyncRun
@@ -57,6 +71,18 @@ class Eloquent implements SyncRunRepository
             ->where('source', $source)
             ->where('status', SyncRunStatus::Success)
             ->orderByDesc('finished_at')
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    public function latestForPractice(string $source, int $sectionPracticeId): ?SyncRun
+    {
+        return SyncRun::query()
+            ->where('source', $source)
+            ->where('section_practice_id', $sectionPracticeId)
+            ->whereNotNull('finished_at')
+            ->where('status', '!=', SyncRunStatus::InProgress)
+            ->orderByDesc('started_at')
             ->orderByDesc('id')
             ->first();
     }

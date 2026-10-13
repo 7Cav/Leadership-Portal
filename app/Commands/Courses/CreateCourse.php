@@ -7,6 +7,7 @@ use App\Models\Course;
 use App\Models\User;
 use App\Repositories\CourseRepository;
 use App\Support\Audit\AuditEnvelope;
+use InvalidArgumentException;
 
 /**
  * Add a course to the portal-owned catalog (AD-22). The one writer of `courses`: the seeder and
@@ -20,6 +21,11 @@ use App\Support\Audit\AuditEnvelope;
  */
 class CreateCourse
 {
+    /** The `courses.code` and `courses.name` columns are plain strings (255). */
+    public const MAX_CODE_LENGTH = 255;
+
+    public const MAX_NAME_LENGTH = 255;
+
     public function __construct(
         private readonly CourseRepository $courses,
         private readonly AuditEnvelope $audit,
@@ -32,6 +38,7 @@ class CreateCourse
      * both, and keeps matrix column headers uniform.
      *
      * @throws CourseWriteForbiddenException when the actor is not an Admin.
+     * @throws InvalidArgumentException when the code or name is empty or too long, or the sort order is negative.
      */
     public function handle(
         User $actor,
@@ -46,13 +53,27 @@ class CreateCourse
         }
 
         $code = strtoupper(trim($code));
+        $name = trim($name);
+        $description = $description === null ? null : trim($description);
+
+        if ($code === '' || mb_strlen($code) > self::MAX_CODE_LENGTH) {
+            throw new InvalidArgumentException('A course code must be 1 to '.self::MAX_CODE_LENGTH.' characters.');
+        }
+
+        if ($name === '' || mb_strlen($name) > self::MAX_NAME_LENGTH) {
+            throw new InvalidArgumentException('A course name must be 1 to '.self::MAX_NAME_LENGTH.' characters.');
+        }
+
+        if ($sortOrder < 0) {
+            throw new InvalidArgumentException('A course sort order cannot be negative.');
+        }
 
         return $this->audit->record(
             actorId: $actor->id,
             action: 'course.created',
             reason: null,
             reasonRequired: false,
-            mutation: fn () => $this->courses->create($code, trim($name), $category, $description, $sortOrder),
+            mutation: fn () => $this->courses->create($code, $name, $category, $description, $sortOrder),
         );
     }
 }

@@ -4,6 +4,7 @@ use App\Authorization\ScopeResolver;
 use App\Integration\Cav\CavApi;
 use App\Integration\Cav\CavRequestException;
 use App\Models\AuditLogEntry;
+use App\Models\PlacementSource;
 use App\Models\SyncRun;
 use App\Models\SyncRunStatus;
 use App\Models\Trooper;
@@ -500,6 +501,92 @@ it('moves a leader\'s derived scope to their new billet on the next sync (1.16)'
     syncRosterHandler()->handle();
     expect(app(ScopeResolver::class)->resolve($user)->all())
         ->toEqualCanonicalizing([$company->id, $platoon->id, $section->id]);
+});
+
+it('keeps a manual placement through a sync that still cannot resolve the billet (2.7)', function () {
+    $manual = Unit::factory()->create(['type' => UnitType::Section, 'path' => '1/']);
+    Trooper::factory()->create(['cav_id' => 1, 'primary_section_id' => null, 'status' => TrooperStatus::Combat]);
+    app(TrooperRepository::class)->place(Trooper::where('cav_id', 1)->sole()->id, $manual->id);
+
+    // Cav reports billet 773, which has no mapping, so the mapping step cannot resolve this trooper.
+    srFakeRoster('773');
+    syncRosterHandler()->handle();
+    syncRosterHandler()->handle();
+
+    $trooper = Trooper::where('cav_id', 1)->sole();
+    expect($trooper->primary_section_id)->toBe($manual->id)
+        ->and($trooper->placement_source)->toBe(PlacementSource::Manual);
+});
+
+it('hands a manual placement over to the mapping once Cav resolves the billet, and holds steady after (2.7)', function () {
+    $manual = Unit::factory()->create(['type' => UnitType::Section, 'path' => '1/']);
+    $mapped = Unit::factory()->create(['type' => UnitType::Section, 'path' => '2/']);
+    Trooper::factory()->create(['cav_id' => 1, 'primary_section_id' => null, 'status' => TrooperStatus::Combat]);
+    app(TrooperRepository::class)->place(Trooper::where('cav_id', 1)->sole()->id, $manual->id);
+    UnitBilletMapping::factory()->create(['unit_id' => $mapped->id, 'cav_position_id' => 773]);
+
+    srFakeRoster('773');
+    syncRosterHandler()->handle();
+
+    $trooper = Trooper::where('cav_id', 1)->sole();
+    expect($trooper->primary_section_id)->toBe($mapped->id)
+        ->and($trooper->placement_source)->toBe(PlacementSource::Sync);
+
+    // The same input again changes nothing: the rule cannot flip-flop from run to run.
+    syncRosterHandler()->handle();
+
+    $trooper->refresh();
+    expect($trooper->primary_section_id)->toBe($mapped->id)
+        ->and($trooper->placement_source)->toBe(PlacementSource::Sync);
+});
+
+it('stores the username and the billet title Cav reports, for the unplaced-trooper list (2.6)', function () {
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT')]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    $trooper = Trooper::where('cav_id', 1)->sole();
+    expect($trooper->username)->toBe('Jarvis.A')
+        ->and($trooper->billet)->toBe('Rifleman');
+});
+
+it('overwrites a stale username and billet title on the next run, null included (2.6)', function () {
+    Trooper::factory()->create(['cav_id' => 1, 'username' => 'Old.Name', 'billet' => 'Old billet', 'status' => TrooperStatus::Combat]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT', ['user' => null, 'primary' => ['positionTitle' => '', 'positionId' => '']])]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    $trooper = Trooper::where('cav_id', 1)->sole();
+    expect($trooper->username)->toBeNull()
+        ->and($trooper->billet)->toBeNull();
+});
+
+it('clears the billet title with the billet id for a row that could not be parsed, keeping the username (2.6)', function () {
+    Trooper::factory()->create([
+        'cav_id' => 5, 'username' => 'Hollis.D', 'cav_position_id' => 196, 'billet' => 'Rifleman', 'status' => TrooperStatus::Combat,
+    ]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['5' => ['code' => 1, 'message' => 'unavailable']]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    $trooper = Trooper::where('cav_id', 5)->sole();
+    expect($trooper->cav_position_id)->toBeNull()
+        ->and($trooper->billet)->toBeNull()
+        ->and($trooper->username)->toBe('Hollis.D');
 });
 
 it('clears the billet of a trooper whose row could not be parsed, keeping them active (1.16)', function () {

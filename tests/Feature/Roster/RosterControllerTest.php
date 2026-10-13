@@ -58,7 +58,7 @@ function rosterLeaderOf(Unit $unit, int $positionId, Unit $placedIn, array $attr
     UnitCommandMapping::factory()->create(['unit_id' => $unit->id, 'cav_position_id' => $positionId]);
     $trooper = rosterTrooper($placedIn, ['cav_position_id' => $positionId, ...$attributes]);
 
-    return [User::factory()->create(['cav_id' => $trooper->cav_id]), $trooper];
+    return [User::factory()->serving()->create(['cav_id' => $trooper->cav_id]), $trooper];
 }
 
 beforeEach(function () {
@@ -120,7 +120,7 @@ it('404s a unit id too long for an integer rather than erroring', function () {
 });
 
 it('shows a granted unit\'s whole subtree, grouped with per-unit KPIs from the shared service (4.6)', function () {
-    $staff = User::factory()->create();
+    $staff = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $this->platoon1->id]);
     $a = rosterTrooper($this->section2);
     rosterMark($a, $this->section2, 0, AttendanceStatus::Missed, RollcallSignature::WillAttend);
@@ -208,7 +208,8 @@ it('keeps a departed trooper\'s past marks in their history (2.8)', function () 
 it('links the trooper Sheet to rollcall only once the rollcall route exists', function () {
     $this->actingAs($this->leader)->get('/roster')->assertInertia(fn ($page) => $page
         ->where('links.rollcall', Route::has('rollcall.show') ? '/rollcall/' : null)
-        ->where('links.milpac', 'https://7cav.us/rosters/profile?uniqueid='));
+        ->where('links.milpac', 'https://7cav.us/rosters/profile?uniqueid=')
+        ->where('links.trooper', '/troopers/'));
 });
 
 it('leaves an unplaced trooper off every section roster (4.6, AD-18)', function () {
@@ -280,7 +281,7 @@ it('narrows an Admin viewing as a section leader to that section, never offering
 });
 
 it('renders an empty roster for a user with no scope at all', function () {
-    $nobody = User::factory()->create();
+    $nobody = User::factory()->serving()->create();
 
     $this->actingAs($nobody)->get('/roster')->assertOk()->assertInertia(fn ($page) => $page
         ->where('unit', null)
@@ -335,7 +336,7 @@ describe('trooper detail (Sheet)', function () {
     });
 
     it('opens a trooper anywhere in a granted subtree', function () {
-        $staff = User::factory()->create();
+        $staff = User::factory()->serving()->create();
         PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $this->platoon1->id]);
         $t = rosterTrooper($this->section2);
 
@@ -347,7 +348,7 @@ describe('trooper detail (Sheet)', function () {
         $outside = rosterTrooper($this->section2);
         $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->section1->id]);
 
-        $this->getJson("/roster/troopers/{$outside->id}")->assertForbidden();
+        $this->getJson("/roster/troopers/{$outside->id}")->assertNotFound();
     });
 
     it('shows a departed trooper as departed and unmeasured', function () {
@@ -363,11 +364,11 @@ describe('trooper detail (Sheet)', function () {
         $this->get('/roster/troopers/1')->assertRedirect(route('login'));
     });
 
-    it('denies a trooper outside scope, and 404s an unknown or unplaced one', function () {
+    it('answers 404 for a trooper outside scope, unknown or unplaced alike, so ids cannot be enumerated', function () {
         $outside = rosterTrooper($this->section2);
         $unplaced = Trooper::factory()->create();
 
-        $this->actingAs($this->leader)->getJson("/roster/troopers/{$outside->id}")->assertForbidden();
+        $this->actingAs($this->leader)->getJson("/roster/troopers/{$outside->id}")->assertNotFound();
         $this->actingAs($this->leader)->getJson("/roster/troopers/{$unplaced->id}")->assertNotFound();
         $this->actingAs($this->leader)->getJson('/roster/troopers/999999')->assertNotFound();
     });

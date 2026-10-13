@@ -1,18 +1,30 @@
 <?php
 
 use App\Http\Controllers\Auth\ForumAuthController;
+use App\Http\Controllers\GameIdentityController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReportRollupController;
+use App\Http\Controllers\RollcallController;
 use App\Http\Controllers\RosterController;
 use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\DemoDataController;
+use App\Http\Controllers\Settings\LoaSyncController;
 use App\Http\Controllers\Settings\OrgStructureController;
 use App\Http\Controllers\Settings\RosterSyncController;
 use App\Http\Controllers\Settings\StaffGrantsController;
+use App\Http\Controllers\Settings\TemplatesController;
+use App\Http\Controllers\Settings\TrooperPlacementController;
 use App\Http\Controllers\TrooperDetailController;
 use App\Http\Controllers\ViewAsController;
+use App\Http\Middleware\EnsureServingMember;
 use App\Repositories\UserRepository;
 use Illuminate\Support\Facades\Route;
+
+// Numeric ids are capped at 18 digits rather than `whereNumber()`: a longer one overflows a controller's
+// `int` parameter and would answer 500 instead of 404. Declared once so the next route cannot forget it.
+Route::pattern('trooper', '[0-9]{1,18}');
+Route::pattern('unit', '[0-9]{1,18}');
 
 // `/` is only a doorway (Story 1.15 retired the Story 1.1 sample page): signed-in users land on
 // home, everyone else on the login screen, in one hop either way.
@@ -30,20 +42,46 @@ Route::get('/oauth/callback/7cav', [ForumAuthController::class, 'callback'])->na
 
 // Authenticated landing. Unauthenticated hits redirect to `login` via the auth
 // middleware. Named `home` — the target Laravel's guest middleware bounces to.
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/home', [HomeController::class, 'show'])->name('home');
+
+    // The weekly report for one unit-week (Stories 5.3–5.5): compose a section's draft, or a
+    // non-leaf unit's roll-up; save the draft; freeze and send it. Scope is checked in the
+    // controller (403 outside it); `{week}` is the Saturday that opens the Cav week.
+    Route::get('/reports/{unit}/{week}', [ReportController::class, 'show'])
+        ->whereNumber('unit')->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.show');
+    Route::put('/reports/{unit}/{week}', [ReportController::class, 'draft'])
+        ->whereNumber('unit')->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.draft');
+    Route::post('/reports/{unit}/{week}/send', [ReportController::class, 'send'])
+        ->whereNumber('unit')->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.send');
 
     // The roster (Stories 2.8, 4.6, 4.7, 4.9): the selected unit's subtree, `?view=orbat|matrix`.
     // Scope-gated in the controller through the ScopeResolver (AD-8). The trooper Sheet reads its
     // detail as JSON; that route is declared first so `troopers` is never taken for a unit id.
-    // Numeric ids are capped at 18 digits rather than `whereNumber()`: a longer one overflows the
-    // controller's `int` parameter and would answer 500 instead of 404.
-    Route::get('/roster/troopers/{trooper}', [RosterController::class, 'trooper'])->where('trooper', '[0-9]{1,18}')->name('roster.trooper');
-    Route::get('/roster/{unit?}', [RosterController::class, 'index'])->where('unit', '[0-9]{1,18}')->name('roster.index');
+    Route::get('/roster/troopers/{trooper}', [RosterController::class, 'trooper'])->name('roster.trooper');
+    Route::get('/roster/{unit?}', [RosterController::class, 'index'])->name('roster.index');
+    // One trooper's milpac (Story 6.3): the page every entry point to a trooper opens. Scope-gated
+    // in the controller through the ScopeResolver (AD-8).
+    Route::get('/troopers/{trooper}', [TrooperDetailController::class, 'show'])->name('troopers.show');
 
-    // One trooper's milpac (Stories 6.3, 6.4): the page every entry point to a trooper opens. Scope-gated
-    // in the controller through the ScopeResolver (AD-8). Capped at 18 digits like the roster's ids.
-    Route::get('/troopers/{trooper}', [TrooperDetailController::class, 'show'])->where('trooper', '[0-9]{1,18}')->name('troopers.show');
+    // Weekly rollcall of one section (Stories 3.7–3.10). Scope is enforced in the controller
+    // through the ScopeResolver (AD-8): an out-of-scope section is a 403, not a hidden link.
+    Route::get('/rollcall/{unit?}', [RollcallController::class, 'show'])->whereNumber('unit')->name('rollcall.show');
+    Route::post('/rollcall/{unit}', [RollcallController::class, 'store'])->whereNumber('unit')->name('rollcall.store');
+    Route::post('/rollcall/{unit}/unmatched/link', [RollcallController::class, 'linkUnmatched'])->whereNumber('unit')->name('rollcall.unmatched.link');
+    Route::post('/rollcall/{unit}/unmatched/dismiss', [RollcallController::class, 'dismissUnmatched'])->whereNumber('unit')->name('rollcall.unmatched.dismiss');
+    Route::post('/rollcall/{unit}/capture', [RollcallController::class, 'retryCapture'])->whereNumber('unit')->name('rollcall.capture');
+    Route::post('/rollcall/{unit}/confirm', [RollcallController::class, 'confirm'])->whereNumber('unit')->name('rollcall.confirm');
+    Route::post('/rollcall/{unit}/posted', [RollcallController::class, 'posted'])->whereNumber('unit')->name('rollcall.posted');
+
+    // Game identities (Story 7.2): link troopers in scope to their in-game identity, one per
+    // platform. The controller reads repositories; each write is an audited Command whose handler
+    // checks the trooper against the viewer's scope (AD-8) — outside it is a 403.
+    Route::get('/game-identities', [GameIdentityController::class, 'index'])->name('game-identities.index');
+    Route::put('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'update'])
+        ->whereNumber('trooper')->name('game-identities.update');
+    Route::delete('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'destroy'])
+        ->whereNumber('trooper')->name('game-identities.destroy');
 
     // Logout (Story 1.5). POST, so it carries CSRF protection and can't be triggered by a
     // prefetched link or a cross-site <img>.
@@ -73,11 +111,23 @@ Route::middleware('auth')->group(function () {
     Route::patch('/settings/org-structure/{unit}', [OrgStructureController::class, 'update'])->name('settings.org-structure.update');
     Route::delete('/settings/org-structure/{unit}', [OrgStructureController::class, 'destroy'])->name('settings.org-structure.destroy');
 
+    // Place a trooper the sync could not map into a section (Story 2.7). The Admin gate is checked in the
+    // controller first and again in the Command's handler; the required reason and the audited write live
+    // in the handler (AD-6, AD-16), not in the route. The id is capped at 18 digits rather than
+    // `whereNumber()`: a longer one overflows the controller's `int` parameter and would answer 500, not 404.
+    Route::post('/settings/org-structure/troopers/{trooper}/placement', [TrooperPlacementController::class, 'store'])->where('trooper', '[0-9]{1,18}')->name('settings.trooper-placement.store');
+
     // Staff grants (Story 1.12). Viewing is open to any authenticated user, matching
     // org-structure; the Admin gate on every write is enforced in the controller (AD-6).
     Route::get('/settings/staff-grants', [StaffGrantsController::class, 'index'])->name('settings.staff-grants');
     Route::post('/settings/staff-grants', [StaffGrantsController::class, 'store'])->name('settings.staff-grants.store');
     Route::delete('/settings/staff-grants/{grant}', [StaffGrantsController::class, 'destroy'])->name('settings.staff-grants.destroy');
+
+    // Rollcall template authoring (Story 3.5, AD-17). Viewing is open to any authenticated user; the Admin gate on
+    // every write is enforced in the controller (AD-6). A save is always a new immutable version.
+    Route::get('/settings/templates', [TemplatesController::class, 'index'])->name('settings.templates');
+    Route::post('/settings/templates', [TemplatesController::class, 'store'])->name('settings.templates.store');
+    Route::post('/settings/templates/{version}/activate', [TemplatesController::class, 'activate'])->whereNumber('version')->name('settings.templates.activate');
 
     // Audit-log review (Story 1.14). The whole screen is Admin-only (AC #4) — the gate is
     // enforced in the controller, not route middleware, matching every other Admin gate here.
@@ -87,6 +137,9 @@ Route::middleware('auth')->group(function () {
     // host this control is Story 2.8's. The Admin gate is enforced in the controller (AD-6),
     // matching every other admin-gated write here.
     Route::post('/settings/roster-sync', [RosterSyncController::class, 'store'])->name('settings.roster-sync.store');
+
+    // Manual leave-sync trigger (Story 4.2): the same queued job the scheduler runs. Admin gate in the controller (AD-6).
+    Route::post('/settings/loa-sync', [LoaSyncController::class, 'store'])->name('settings.loa-sync.store');
 
     // Demo history for the real roster (#115). Admin-only; every route 404s unless
     // `portal.demo_tools` is on (DEMO_TOOLS=true) — both gates are enforced in the controller.
