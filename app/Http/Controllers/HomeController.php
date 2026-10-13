@@ -12,13 +12,12 @@ use App\Kpi\TrooperAttendance;
 use App\Kpi\UnitKpis;
 use App\Loa\LoaCover;
 use App\Loa\LoaCoverage;
-use App\Models\SyncRunStatus;
+use App\Milpac\RosterProvenance;
 use App\Models\Unit;
 use App\Models\WeeklyReport;
 use App\Models\WeeklyReportStatus;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\SectionPracticeRepository;
-use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
@@ -48,9 +47,6 @@ class HomeController extends Controller
     /** Whole past weeks a sparkline spans: the trailing 4 Cav weeks of a "30d" KPI (AD-21). */
     private const SPARKLINE_WEEKS = 4;
 
-    /** Hours without a successful roster sync before the dashboard calls the roster stale. */
-    private const ROSTER_STALE_AFTER_HOURS = 6;
-
     /** Most items one worklist group lists; the rest are counted, not drawn. */
     private const WORKLIST_LIMIT = 10;
 
@@ -58,7 +54,7 @@ class HomeController extends Controller
         private readonly ScopeResolver $scope,
         private readonly UnitRepository $units,
         private readonly WeeklyReportRepository $reports,
-        private readonly SyncRunRepository $syncRuns,
+        private readonly RosterProvenance $rosterSync,
         private readonly TrooperRepository $troopers,
         private readonly SectionPracticeRepository $practices,
         private readonly AttendanceRepository $attendance,
@@ -177,30 +173,20 @@ class HomeController extends Controller
     }
 
     /**
-     * Where strength comes from and how fresh it is (AD-20): the milpac roster sync. A failed or
-     * overdue sync is a visible state, never a silently old number.
+     * Where strength comes from and how fresh it is (AD-20): the roster sync, judged by the one
+     * `RosterProvenance` rule every roster page shares. A failed, partial or overdue sync is a
+     * visible state, never a silently old number.
      *
      * @return array{source: string, syncedAt: string|null, state: string}
      */
     private function rosterProps(): array
     {
-        $success = $this->syncRuns->latestSuccessful('roster');
-        $latest = $this->syncRuns->latestFinished('roster');
-
-        $failed = $latest?->status === SyncRunStatus::Failure
-            && ($success === null || $latest->finished_at->greaterThan($success->finished_at));
-
-        $state = match (true) {
-            $failed => 'failed',
-            $success === null => 'never',
-            $success->finished_at->lt(CarbonImmutable::now()->subHours(self::ROSTER_STALE_AFTER_HOURS)) => 'stale',
-            default => 'ok',
-        };
+        $sync = $this->rosterSync->current();
 
         return [
-            'source' => 'milpac',
-            'syncedAt' => $success?->finished_at?->toIso8601String(),
-            'state' => $state,
+            'source' => $sync->source,
+            'syncedAt' => $sync->lastSyncedAt?->toIso8601String(),
+            'state' => $sync->state(),
         ];
     }
 

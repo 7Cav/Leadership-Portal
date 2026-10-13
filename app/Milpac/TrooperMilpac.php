@@ -7,7 +7,6 @@ use App\Models\Trooper;
 use App\Models\TrooperCourse;
 use App\Models\Unit;
 use App\Models\UnitType;
-use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperCourseRepository;
 use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
@@ -30,7 +29,7 @@ final class TrooperMilpac
     public function __construct(
         private readonly UnitRepository $units,
         private readonly TrooperCourseRepository $trooperCourses,
-        private readonly SyncRunRepository $syncRuns,
+        private readonly RosterProvenance $rosterSync,
         private readonly ServiceTimeline $timeline,
     ) {}
 
@@ -56,7 +55,8 @@ final class TrooperMilpac
             'timeline' => $this->timeline->build($trooper, $rows, $awards['items'], $today),
             'actions' => $this->actions($section, $scope),
             'makeup' => $this->makeup($trooper, $section, $scope, $missedWeeks),
-            'sync' => $this->sync(),
+            // Where the ID block came from and how current it is (AD-20, AD-4), by the one roster rule.
+            'sync' => $this->rosterSync->current()->toArray(),
         ];
     }
 
@@ -211,25 +211,5 @@ final class TrooperMilpac
         }
 
         return ['username' => $trooper->username, 'missedWeeks' => array_values($missedWeeks)];
-    }
-
-    /**
-     * Where the ID block came from and how current it is (AD-20, AD-4): the last successful roster sync, and a
-     * stale flag when a later run did not succeed, so the page says it is showing the last good copy.
-     *
-     * @return array{source: string, lastSuccessAt: ?string, stale: bool, lastAttempt: ?array{status: string, at: ?string}}
-     */
-    private function sync(): array
-    {
-        $success = $this->syncRuns->latestSuccessful('roster');
-        $latest = $this->syncRuns->latestFinished('roster');
-        $stale = $latest !== null && $latest->id !== $success?->id;
-
-        return [
-            'source' => 'Cav roster',
-            'lastSuccessAt' => $success?->finished_at?->toIso8601String(),
-            'stale' => $stale,
-            'lastAttempt' => $stale ? ['status' => $latest->status->value, 'at' => $latest->finished_at?->toIso8601String()] : null,
-        ];
     }
 }

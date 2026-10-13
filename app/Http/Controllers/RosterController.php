@@ -7,6 +7,7 @@ use App\Kpi\KpiService;
 use App\Kpi\Ratio;
 use App\Kpi\TrooperAttendance;
 use App\Kpi\UnitKpis;
+use App\Milpac\RosterProvenance;
 use App\Models\SyncRun;
 use App\Models\Trooper;
 use App\Models\Unit;
@@ -48,6 +49,7 @@ class RosterController extends Controller
         private readonly AttendanceRepository $attendance,
         private readonly UnitCommandMappingRepository $commands,
         private readonly SyncRunRepository $syncRuns,
+        private readonly RosterProvenance $rosterSync,
         private readonly KpiService $kpis,
     ) {}
 
@@ -72,7 +74,12 @@ class RosterController extends Controller
             'weeks' => $this->weeks($week),
             'currentWeek' => $week->toDateString(),
             ...($selected ? $this->roster($selected, $week) : ['units' => [], 'troopers' => []]),
-            'sync' => $this->syncStatus($selected, $user),
+            // Source and freshness of the cached roster (AD-20): the one rule every roster page shares, plus the unit
+            // leader's own last sync of this echelon, kept apart from the roster-wide stamp.
+            'sync' => [
+                ...$this->rosterSync->current()->toArray(),
+                'unit' => $selected !== null && $this->scope->commandsUnit($user, $selected) ? $this->unitSyncStatus($selected) : null,
+            ],
             'can' => [
                 // Follows view-as: a preview of a non-Admin never offers an Admin action (1.13).
                 'sync' => $this->scope->actsAsAdmin($user),
@@ -264,31 +271,6 @@ class RosterController extends Controller
             fn (int $back) => $week->subWeeks($back)->toDateString(),
             range(self::HISTORY_WEEKS - 1, 0),
         );
-    }
-
-    /**
-     * Source and freshness of the cached roster (AD-20): the time shown is always the last
-     * *successful* sync; a later failed or partial run marks the cache stale (AD-4).
-     *
-     * @return array<string, mixed>
-     */
-    private function syncStatus(?Unit $unit, User $user): array
-    {
-        $success = $this->syncRuns->latestSuccessful(SyncRun::SOURCE_ROSTER);
-        $latest = $this->syncRuns->latestFinished(SyncRun::SOURCE_ROSTER);
-        $stale = $latest !== null && $latest->id !== $success?->id;
-
-        return [
-            'source' => 'milpac',
-            'lastSuccessAt' => $success?->finished_at?->toIso8601String(),
-            'stale' => $stale,
-            'lastAttempt' => $stale ? [
-                'status' => $latest->status->value,
-                'at' => $latest->finished_at?->toIso8601String(),
-            ] : null,
-            // The unit leader's own last sync of this echelon, kept apart from the roster-wide stamp above.
-            'unit' => $unit !== null && $this->scope->commandsUnit($user, $unit) ? $this->unitSyncStatus($unit) : null,
-        ];
     }
 
     /**

@@ -33,6 +33,7 @@ use App\Kpi\KpiService;
 use App\Kpi\TrooperAttendance;
 use App\Loa\LoaCoverage;
 use App\Loa\LoaProvenance;
+use App\Milpac\RosterProvenance;
 use App\Models\Attendance;
 use App\Models\AttendanceStatus;
 use App\Models\GamePlatform;
@@ -47,7 +48,6 @@ use App\Repositories\AttendanceRepository;
 use App\Repositories\GameIdentityLinkException;
 use App\Repositories\PracticeCapturePlayerRepository;
 use App\Repositories\SectionPracticeRepository;
-use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitCommandMappingRepository;
@@ -101,7 +101,7 @@ class RollcallController extends Controller
         private readonly TrooperRepository $troopers,
         private readonly SectionPracticeRepository $practices,
         private readonly AttendanceRepository $attendance,
-        private readonly SyncRunRepository $syncRuns,
+        private readonly RosterProvenance $rosterSync,
         private readonly WeeklyReportRepository $reports,
         private readonly KpiService $kpis,
         private readonly PracticeCapturePlayerRepository $capturePlayers,
@@ -638,7 +638,7 @@ class RollcallController extends Controller
             : collect();
 
         $roster = $this->troopers->placedIn($section->id);
-        $lastSync = $this->syncRuns->latestSuccessful('roster');
+        $lastSync = $this->rosterSync->current();
         // The one LOA definition (4.4, AD-21), the same the Command refuses a practice mark by: a covered trooper's
         // status is derived as `loa`, so the screen locks the row and never sends one for them (3.4).
         $covers = $this->loaCoverage->forTroopers($roster->modelKeys(), $weekStart);
@@ -669,8 +669,8 @@ class RollcallController extends Controller
             'locked' => $this->reports->isSentFor($section->id, $weekStart),
             'atRisk' => $this->atRisk($section, $weekStart),
             'roster' => [
-                'source' => 'milpac',
-                'syncedAt' => $lastSync?->finished_at?->toIso8601String(),
+                'source' => $lastSync->source,
+                'syncedAt' => $lastSync->lastSyncedAt?->toIso8601String(),
             ],
             ...$this->captureProps($practice),
             'telemetry' => $this->telemetryProps($section->id, $practice),

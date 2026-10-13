@@ -354,7 +354,7 @@ it('carries the roster source and its last sync time (AD-20)', function () {
 
     $this->actingAs($this->leader)->get(reportUrl($this->section, $this->week))
         ->assertInertia(fn (AssertableInertia $page) => $page
-            ->where('rosterSync.source', 'Cav roster (api.7cav.us)')
+            ->where('rosterSync.source', 'milpac')
             ->where('rosterSync.at', $run->finished_at->toIso8601String()));
 });
 
