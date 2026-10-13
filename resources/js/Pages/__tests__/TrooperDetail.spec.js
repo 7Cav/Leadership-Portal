@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import TrooperDetail from '../TrooperDetail.vue';
 
-// Stories 6.3 to 6.6: the milpac draws what the server shaped; it decides nothing about who may look.
+// Stories 6.3 to 6.7: the milpac draws what the server shaped; it decides nothing about who may look.
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
@@ -47,7 +47,7 @@ const timeline = (entries = [], legend = []) => ({ entries, legend });
 
 const sync = (overrides = {}) => ({ source: 'Cav roster', lastSuccessAt: '2026-10-08T09:30:00+00:00', stale: false, lastAttempt: null, ...overrides });
 
-const page = (props = {}) => mount(TrooperDetail, { props: { trooper: trooper(), courses: courses(), awards: awards(), timeline: timeline(), sync: sync(), ...props } });
+const page = (props = {}) => mount(TrooperDetail, { props: { trooper: trooper(), courses: courses(), awards: awards(), timeline: timeline(), actions: [], sync: sync(), ...props } });
 
 describe('TrooperDetail', () => {
     describe('ID block (6.3)', () => {
@@ -364,6 +364,39 @@ describe('TrooperDetail', () => {
             const panel = page({ timeline: timeline(entries, legend) }).get('[data-testid="timeline-panel"]');
 
             expect(panel.findAll('button, input, select, textarea, form, a[href]')).toHaveLength(0);
+        });
+    });
+
+    describe('leadership quick actions (6.7)', () => {
+        const actions = [
+            { key: 'section-roster', label: 'Open section roster', href: '/roster/3' },
+            { key: 'rollcall', label: 'Open in rollcall', href: '/rollcall/3' },
+        ];
+
+        it('draws each action the server sent as a link, in order', () => {
+            const wrapper = page({ actions });
+            const links = wrapper.findAll('[data-testid="quick-actions"] a');
+
+            expect(links.map((a) => a.text())).toEqual(['Open section roster', 'Open in rollcall']);
+            expect(links[0].attributes('href')).toBe('/roster/3');
+            expect(wrapper.get('[data-testid="action-rollcall"]').attributes('href')).toBe('/rollcall/3');
+        });
+
+        it('draws no row at all when the server sent no actions', () => {
+            expect(page().find('[data-testid="quick-actions"]').exists()).toBe(false);
+        });
+
+        it('is a plain row, not an amber warning bar: warning keeps its meaning for the stale notice', () => {
+            const row = page({ actions }).get('[data-testid="quick-actions"]');
+
+            expect(row.classes().join(' ')).not.toContain('warning');
+        });
+
+        it('offers nothing that changes a trooper', () => {
+            const row = page({ actions }).get('[data-testid="quick-actions"]');
+
+            expect(row.findAll('button, input, select, textarea, form')).toHaveLength(0);
+            expect(row.text()).not.toMatch(/promot|medal|recommend|makeup|submit/i);
         });
     });
 });

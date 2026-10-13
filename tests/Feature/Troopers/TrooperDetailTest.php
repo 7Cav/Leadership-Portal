@@ -14,6 +14,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
@@ -475,5 +476,57 @@ describe('the service-record timeline (6.6)', function () {
         }
 
         expect($count())->toBe($few);
+    });
+});
+
+describe('the leadership quick actions (6.7)', function () {
+    function milpacActions($test, Trooper $trooper): array
+    {
+        return milpacOpen($test, $trooper)->viewData('page')['props']['actions'];
+    }
+
+    it('offers the section roster and rollcall to a viewer who holds the trooper\'s section', function () {
+        $trooper = milpacTrooper($this->section1);
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page
+            ->where('actions', [
+                ['key' => 'section-roster', 'label' => 'Open section roster', 'href' => "/roster/{$this->section1->id}"],
+                ['key' => 'rollcall', 'label' => 'Open in rollcall', 'href' => "/rollcall/{$this->section1->id}"],
+            ]));
+    });
+
+    it('offers no readiness matrix here: that action arrives with the matrix route (6.9)', function () {
+        expect(collect(milpacActions($this->actingAs($this->leader), milpacTrooper($this->section1)))->pluck('key')->all())
+            ->toBe(['section-roster', 'rollcall']);
+    });
+
+    it('offers an Admin the same section actions, and none for a trooper the sync has not placed', function () {
+        $admin = User::factory()->admin()->create();
+        $this->actingAs($admin);
+
+        expect(collect(milpacActions($this, milpacTrooper($this->section1)))->pluck('key')->all())->toBe(['section-roster', 'rollcall'])
+            ->and(milpacActions($this, Trooper::factory()->create()))->toBe([]);
+    });
+
+    it('follows a view-as preview: previewing a leader of another section removes the actions', function () {
+        $admin = User::factory()->admin()->create();
+        $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->section2->id])->assertSessionHasNoErrors();
+
+        // The trooper is then out of the previewed scope: the page itself answers 404, so no action is ever offered.
+        milpacOpen($this, milpacTrooper($this->section1))->assertNotFound();
+    });
+
+    it('is not the security boundary: the roster of a section outside scope is refused when its URL is typed by hand', function () {
+        $this->actingAs($this->leader)->get(route('roster.index', $this->section2->id))->assertForbidden();
+    });
+
+    it('offers only plain GET links to existing routes, so no action can change a trooper', function () {
+        $admin = User::factory()->admin()->create();
+
+        foreach (milpacActions($this->actingAs($admin), milpacTrooper($this->section1)) as $action) {
+            $route = app('router')->getRoutes()->match(Request::create($action['href'], 'GET'));
+
+            expect($route->methods())->toContain('GET')->not->toContain('POST')->not->toContain('PUT')->not->toContain('DELETE');
+        }
     });
 });

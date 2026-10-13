@@ -6,6 +6,7 @@ use App\Models\CourseStatus;
 use App\Models\Trooper;
 use App\Models\TrooperCourse;
 use App\Models\TrooperStatus;
+use App\Models\Unit;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperCourseRepository;
 use App\Repositories\UnitRepository;
@@ -13,8 +14,9 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 /**
- * What the trooper detail page (the milpac) shows for one trooper (Stories 6.3 to 6.6): the ID block, the
- * courses and qualifications panel, the awards history and the service-record timeline, read through the repositories and shaped as page props. Read-only, and it
+ * What the trooper detail page (the milpac) shows for one trooper (Stories 6.3 to 6.7): the ID block, the
+ * courses and qualifications panel, the awards history, the service-record timeline and the leadership quick actions,
+ * read through the repositories and shaped as page props. Read-only, and it
  * never decides who may look: the caller gates that with the ScopeResolver (AD-8) before asking.
  *
  * The ID block is the cached Cav roster, so the page can show where it came from and how fresh it is (AD-20).
@@ -33,22 +35,25 @@ final class TrooperMilpac
     ) {}
 
     /**
-     * @return array{crumb: string, trooper: array<string, mixed>, timeline: array<string, mixed>, awards: array{available: bool, items: list<array{name: string, awardedAt: ?string, citation: ?string}>}, courses: array{groups: list<array{status: string, label: string, courses: list<array{code: string, name: string, awardedAt: ?string}>}>, qualified: int, total: int}, sync: array<string, mixed>}
+     * @param  Collection<int, int>  $scope  the unit ids the viewer may read, from the ScopeResolver (AD-8)
+     * @return array{crumb: string, trooper: array<string, mixed>, actions: list<array{key: string, label: string, href: string}>, timeline: array<string, mixed>, awards: array{available: bool, items: list<array{name: string, awardedAt: ?string, citation: ?string}>}, courses: array{groups: list<array{status: string, label: string, courses: list<array{code: string, name: string, awardedAt: ?string}>}>, qualified: int, total: int}, sync: array<string, mixed>}
      */
-    public function for(Trooper $trooper): array
+    public function for(Trooper $trooper, Collection $scope): array
     {
         // One clock for the whole page, so the ID block's durations and the timeline's date rules always agree.
         $today = CarbonImmutable::now('UTC');
         $rows = $this->trooperCourses->forTrooper($trooper->id);
         $awards = $this->awards();
+        $section = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
 
         return [
             // The page's last breadcrumb crumb (the shell reads `crumb` for a page nested under a nav item).
             'crumb' => $trooper->display_name,
-            'trooper' => $this->idBlock($trooper, $today),
+            'trooper' => $this->idBlock($trooper, $section, $today),
             'courses' => $this->courses($rows),
             'awards' => $awards,
             'timeline' => $this->timeline->build($trooper, $rows, $awards['items'], $today),
+            'actions' => $this->actions($section, $scope),
             'sync' => $this->sync(),
         ];
     }
@@ -60,9 +65,8 @@ final class TrooperMilpac
      *
      * @return array<string, mixed>
      */
-    private function idBlock(Trooper $trooper, CarbonImmutable $today): array
+    private function idBlock(Trooper $trooper, ?Unit $section, CarbonImmutable $today): array
     {
-        $section = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
         $departed = $trooper->status === TrooperStatus::Inactive;
 
         return [
@@ -150,6 +154,29 @@ final class TrooperMilpac
     private function awards(): array
     {
         return ['available' => false, 'items' => []];
+    }
+
+    /**
+     * The leadership quick actions (Story 6.7): links from the milpac to the rest of the portal, shown only to a
+     * viewer whose scope holds the trooper's section. Hiding is cosmetic (AD-6): every target route authorizes the
+     * request itself, so a link typed by hand is refused the same way. Nothing here changes a trooper: messaging,
+     * leave on someone's behalf, medal recommendations and promotions are not read-only and are not offered. A
+     * trooper the sync has not placed in a section has no unit to act on, so has no actions. Each later screen
+     * that should be reachable from here (the platoon readiness matrix, 6.9) adds its own action with its route.
+     *
+     * @param  Collection<int, int>  $scope
+     * @return list<array{key: string, label: string, href: string}>
+     */
+    private function actions(?Unit $section, Collection $scope): array
+    {
+        if ($section === null || ! $scope->contains($section->id)) {
+            return [];
+        }
+
+        return [
+            ['key' => 'section-roster', 'label' => 'Open section roster', 'href' => route('roster.index', $section->id, absolute: false)],
+            ['key' => 'rollcall', 'label' => 'Open in rollcall', 'href' => route('rollcall.show', $section->id, absolute: false)],
+        ];
     }
 
     /**

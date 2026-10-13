@@ -6,12 +6,13 @@ import InlineNotice from '@/components/InlineNotice.vue';
 import MilpacPanel from '@/components/milpac/MilpacPanel.vue';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { forumDate, forumDateTime } from '@/lib/forumDate';
 import { initialsOf } from '@/lib/initials';
 import { trooperStatusOf } from '@/lib/roster';
 
-// One trooper's milpac (Stories 6.3 to 6.6): the ID block from the cached Cav roster, the courses and
+// One trooper's milpac (Stories 6.3 to 6.7): the ID block from the cached Cav roster, the courses and
 // qualifications panel, the awards history and the service-record timeline. Everything is shaped on the server (`Milpac\TrooperMilpac`) and drawn here; the
 // page decides nothing about who may look, the controller has already gated it. The service record that
 // completes the mockup's second column arrives with 6.6.
@@ -20,6 +21,7 @@ const props = defineProps({
     courses: { type: Object, required: true },
     awards: { type: Object, required: true },
     timeline: { type: Object, required: true },
+    actions: { type: Array, required: true },
     sync: { type: Object, required: true },
 });
 
@@ -110,7 +112,13 @@ const staleNotice = computed(() => {
 
         <InlineNotice v-if="staleNotice" tone="warning" :icon="PhWarning" role="status" data-testid="stale-notice">{{ staleNotice }}</InlineNotice>
 
-        <!-- One column until the service record (6.6) arrives to fill a second. -->
+        <!-- Links the server already limited to this viewer's scope. Hiding one is cosmetic (AD-6): its route authorizes the request itself. -->
+        <nav v-if="actions.length" aria-label="Leadership actions" class="flex flex-wrap items-center gap-2" data-testid="quick-actions">
+            <Button v-for="action in actions" :key="action.key" as-child variant="outline" size="sm">
+                <Link :href="action.href" :data-testid="`action-${action.key}`">{{ action.label }}</Link>
+            </Button>
+        </nav>
+        <!-- The panels stack in one column. -->
         <Card class="w-full max-w-xl gap-0 overflow-hidden py-0" data-testid="id-block">
                 <div class="flex flex-col items-center gap-1 px-5 pt-6 pb-5 text-center">
                     <Avatar class="mb-2 size-16 border-2 border-primary">
