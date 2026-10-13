@@ -17,7 +17,6 @@ use App\Repositories\SectionPracticeRepository;
 use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Route;
 
 // Stories 2.8 / 4.6 / 4.7 / 4.9: the scope-gated roster. Fixture tree:
 //   7CAV ─ 1-7 ─ A/1-7 ─┬─ 1/A ─┬─ 1/1/A (section, led by SGT Vasquez.R)
@@ -205,9 +204,9 @@ it('keeps a departed trooper\'s past marks in their history (2.8)', function () 
     $this->getJson("/roster/troopers/{$gone->id}")->assertJsonPath('trooper.weeks.16.status', 'present');
 });
 
-it('links the trooper Sheet to rollcall only once the rollcall route exists', function () {
+it('links the trooper Sheet to rollcall, milpac and the trooper page', function () {
     $this->actingAs($this->leader)->get('/roster')->assertInertia(fn ($page) => $page
-        ->where('links.rollcall', Route::has('rollcall.show') ? '/rollcall/' : null)
+        ->where('links.rollcall', '/rollcall/')
         ->where('links.milpac', 'https://7cav.us/rosters/profile?uniqueid=')
         ->where('links.trooper', '/troopers/'));
 });

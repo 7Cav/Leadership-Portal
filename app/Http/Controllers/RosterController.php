@@ -23,7 +23,6 @@ use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -83,9 +82,8 @@ class RosterController extends Controller
                 'milpac' => Trooper::MILPAC_PROFILE_URL,
                 // The in-app milpac page (Story 6.3); the Sheet appends the trooper's id.
                 'trooper' => '/troopers/',
-                // `rollcall.show` belongs to the rollcall screen (3.7); until it ships the Sheet
-                // offers no link rather than one that 404s.
-                'rollcall' => Route::has('rollcall.show') ? '/rollcall/' : null,
+                // The rollcall screen (3.7); the Sheet appends the trooper's section id.
+                'rollcall' => '/rollcall/',
             ],
         ]);
     }
