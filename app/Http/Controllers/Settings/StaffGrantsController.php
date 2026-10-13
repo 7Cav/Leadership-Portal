@@ -8,12 +8,14 @@ use App\Commands\PortalRoleGrants\GrantTargetIsAdminException;
 use App\Commands\PortalRoleGrants\RevokeStaffScope;
 use App\Http\Controllers\Controller;
 use App\Models\PortalRoleGrant;
+use App\Models\Unit;
 use App\Repositories\PortalRoleGrantRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -43,6 +45,8 @@ class StaffGrantsController extends Controller
     public function index(Request $request, ScopeResolver $scope): Response
     {
         $all = $this->grants->all();
+        $tree = $this->units->tree();
+        $byId = $tree->keyBy('id');
 
         // A grant only counts in scope while its holder serves (ScopeResolver). One that has lapsed
         // stays listed and flagged rather than hidden: the row still exists, and an Admin needs to
@@ -57,12 +61,14 @@ class StaffGrantsController extends Controller
             'holder_serving' => $grant->user->cav_id !== null && $serving->has($grant->user->cav_id),
             'unit_id' => $grant->unit_id,
             'unit_name' => $grant->unit->name,
+            'unit_label' => $this->label($grant->unit, $byId),
             'created_at' => $grant->created_at->toIso8601String(),
         ])->values();
 
-        $units = $this->units->tree()->map(fn ($unit) => [
+        $units = $tree->map(fn (Unit $unit) => [
             'id' => $unit->id,
             'name' => $unit->name,
+            'label' => $this->label($unit, $byId),
         ])->values();
 
         $users = $this->users->nonAdminUsers()->map(fn ($user) => [
@@ -78,6 +84,27 @@ class StaffGrantsController extends Controller
             // previewed leader. The write gates below keep reading the real flag.
             'isAdmin' => $scope->actsAsAdmin($request->user()),
         ]);
+    }
+
+    /**
+     * The unit's chain of names below the top of the tree (`Alpha Company › 1st Platoon`), so two
+     * units with the same name (a "1st Platoon" under Alpha and one under Bravo) read apart in the
+     * picker and the grants list. The root is left off because every option would repeat it; a
+     * root itself shows its own name.
+     *
+     * @param  Collection<int, Unit>  $byId
+     */
+    private function label(Unit $unit, Collection $byId): string
+    {
+        $chain = collect(explode('/', trim($unit->path, '/')))
+            ->map(fn (string $id) => $byId->get((int) $id))
+            ->filter();
+
+        if ($chain->count() > 1) {
+            $chain = $chain->slice(1);
+        }
+
+        return $chain->isEmpty() ? $unit->name : $chain->pluck('name')->implode(' › ');
     }
 
     /**
