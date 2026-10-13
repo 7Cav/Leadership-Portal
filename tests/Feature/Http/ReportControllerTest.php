@@ -36,7 +36,7 @@ beforeEach(function () {
     $this->section = Unit::factory()->create(['type' => UnitType::Section, 'name' => '2nd Section', 'callsign' => '2/1/A/1-7', 'parent_id' => $this->platoon->id, 'path' => '700/701/']);
     $this->sibling = Unit::factory()->create(['type' => UnitType::Section, 'callsign' => '3/1/A/1-7', 'parent_id' => $this->platoon->id, 'path' => '700/702/']);
 
-    $this->leader = User::factory()->create(['username' => 'Vasquez.R', 'cav_id' => 501]);
+    $this->leader = User::factory()->serving()->create(['username' => 'Vasquez.R', 'cav_id' => 501]);
     Trooper::factory()->create(['cav_id' => 501, 'rank_short' => 'SGT', 'username' => 'Vasquez.R', 'primary_section_id' => $this->section->id]);
     PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
 
@@ -206,7 +206,7 @@ it('records the send with its reason in the audit log', function () {
 });
 
 it('renders a non-leaf unit as the roll-up of its children, naming those not sent', function () {
-    $platoonLeader = User::factory()->create();
+    $platoonLeader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
     app(WeeklyReportRepository::class)->send($this->sibling->id, $this->weekStart, frozenSnapshot(4), null, $platoonLeader->id, 'd', null, 'Land navigation');
 
@@ -224,7 +224,7 @@ it('renders a non-leaf unit as the roll-up of its children, naming those not sen
 });
 
 it('lets a platoon leader send with a child missing, freezing who was missing', function () {
-    $platoonLeader = User::factory()->create();
+    $platoonLeader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
 
     $this->actingAs($platoonLeader)->post(reportUrl($this->platoon, $this->week, '/send'), ['reason' => 'Weekly report'])
@@ -316,7 +316,7 @@ it('tells the leader when the report was already sent, leaving the frozen conten
 });
 
 it('shows a sent roll-up\'s children as they froze, not as they stand now', function () {
-    $platoonLeader = User::factory()->create();
+    $platoonLeader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
     $this->actingAs($platoonLeader)->post(reportUrl($this->platoon, $this->week, '/send'), ['reason' => 'Weekly report']);
     app(WeeklyReportRepository::class)->send($this->sibling->id, $this->weekStart, frozenSnapshot(4), null, $platoonLeader->id, 'd', null); // sent late

@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { PhArrowLeft, PhArrowSquareOut, PhSignOut, PhWarning } from '@phosphor-icons/vue';
 import InlineNotice from '@/components/InlineNotice.vue';
+import MilpacPanel from '@/components/milpac/MilpacPanel.vue';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -10,11 +11,13 @@ import { forumDate, forumDateTime } from '@/lib/forumDate';
 import { initialsOf } from '@/lib/initials';
 import { trooperStatusOf } from '@/lib/roster';
 
-// One trooper's milpac (Story 6.3): the ID block from the cached Cav roster. Everything is shaped on the server (`Milpac\TrooperMilpac`) and drawn here; the
+// One trooper's milpac (Stories 6.3, 6.4): the ID block from the cached Cav roster and the courses and
+// qualifications panel. Everything is shaped on the server (`Milpac\TrooperMilpac`) and drawn here; the
 // page decides nothing about who may look, the controller has already gated it. The service record that
 // completes the mockup's second column arrives with 6.6.
 const props = defineProps({
     trooper: { type: Object, required: true },
+    courses: { type: Object, required: true },
     sync: { type: Object, required: true },
 });
 
@@ -42,6 +45,8 @@ function duration(months) {
     return [years ? `${years}y` : null, rest ? `${rest}m` : null].filter(Boolean).join(' ');
 }
 
+const GROUP_DOT = { qualified: 'bg-success', in_progress: 'bg-info', required: 'bg-destructive' };
+
 // Why the ID block may not be current: a run since the last good one did not succeed.
 const staleNotice = computed(() => {
     if (props.sync.lastSuccessAt === null) {
@@ -59,7 +64,8 @@ const staleNotice = computed(() => {
 <template>
     <Head :title="trooper.displayName" />
 
-    <div class="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-6 sm:px-6">
+    <!-- The shell's <main> already supplies the gutters and the max width. -->
+    <div class="flex flex-col gap-5">
         <div class="flex flex-wrap items-end justify-between gap-3">
             <div class="min-w-0">
                 <Link :href="rosterHref" class="mb-2 inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground" data-testid="back-to-roster">
@@ -96,7 +102,7 @@ const staleNotice = computed(() => {
 
         <InlineNotice v-if="staleNotice" tone="warning" :icon="PhWarning" role="status" data-testid="stale-notice">{{ staleNotice }}</InlineNotice>
 
-        <!-- One column until the courses panel (6.4) and the service record (6.6) arrive to fill a second. -->
+        <!-- One column until the service record (6.6) arrives to fill a second. -->
         <Card class="w-full max-w-xl gap-0 overflow-hidden py-0" data-testid="id-block">
                 <div class="flex flex-col items-center gap-1 px-5 pt-6 pb-5 text-center">
                     <Avatar class="mb-2 size-16 border-2 border-primary">
@@ -133,5 +139,46 @@ const staleNotice = computed(() => {
                     </div>
                 </dl>
         </Card>
+
+        <MilpacPanel title="Courses &amp; qualifications" class="w-full max-w-xl" data-testid="courses-panel">
+            <template v-if="courses.total" #count>
+                <!-- A progress count, not a warning: neutral, and named so a screen reader hears what it counts. -->
+                <Badge
+                    variant="secondary"
+                    class="rounded-full tabular-nums"
+                    :aria-label="`${courses.qualified} of ${courses.total} qualified`"
+                    data-testid="courses-count"
+                >
+                    {{ courses.qualified }} / {{ courses.total }}
+                </Badge>
+            </template>
+
+            <p v-if="!courses.groups.length" class="px-4 py-6 text-center text-[13px] text-muted-foreground" data-testid="courses-empty">
+                No courses on record.
+            </p>
+
+            <section v-for="group in courses.groups" :key="group.status" :data-testid="`group-${group.status}`">
+                <h3 class="border-b border-border bg-muted/30 px-4 py-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                    {{ group.label }}
+                </h3>
+                <ul>
+                    <li
+                        v-for="course in group.courses"
+                        :key="course.code"
+                        class="flex items-center gap-3 border-b border-border px-4 py-2.5 text-[13px] last:border-b-0"
+                        data-testid="course"
+                    >
+                        <span class="size-2 shrink-0 rounded-full" :class="GROUP_DOT[group.status]" aria-hidden="true" />
+                        <span class="min-w-0 flex-1">
+                            {{ course.name }}
+                            <span class="ml-1 font-mono text-xs text-muted-foreground">{{ course.code }}</span>
+                        </span>
+                        <span v-if="course.awardedAt" class="font-mono text-xs text-muted-foreground" data-testid="awarded">
+                            {{ forumDate(course.awardedAt) }}
+                        </span>
+                    </li>
+                </ul>
+            </section>
+        </MilpacPanel>
     </div>
 </template>

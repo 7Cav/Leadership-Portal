@@ -39,7 +39,7 @@ use Saloon\Http\Faking\MockClient;
 beforeEach(function () {
     $this->platoon = Unit::factory()->create(['type' => UnitType::Platoon, 'path' => '700/']);
     $this->section = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => '700/701/']);
-    $this->leader = User::factory()->create();
+    $this->leader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
 
     // Wednesday 2026-10-07 18:00 UTC falls in the Cav week opening Saturday 2026-10-03.
@@ -276,7 +276,7 @@ it('rejects a user with no scope over the unit, writing nothing', function () {
 
 it('rejects the leader of a sibling section', function () {
     $sibling = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => '700/702/']);
-    $siblingLeader = User::factory()->create();
+    $siblingLeader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $siblingLeader->id, 'unit_id' => $sibling->id]);
 
     sendReport($siblingLeader, $this->section->id, $this->moment);
@@ -293,7 +293,7 @@ it('rejects an out-of-scope re-send without revealing the sent report', function
 })->throws(SendWeeklyReportForbiddenException::class);
 
 it('lets a leader whose grant sits higher up the tree send the section\'s report', function () {
-    $platoonLeader = User::factory()->create();
+    $platoonLeader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
 
     expect(sendReport($platoonLeader, $this->section->id, $this->moment)->alreadySent)->toBeFalse();
@@ -309,7 +309,7 @@ it('refuses a unit that does not exist, even for an admin (no unit is in anyone\
 })->throws(SendWeeklyReportForbiddenException::class);
 
 it('sends a non-leaf report as the roll-up of its sent children, freezing the ones it went without (5.7)', function () {
-    $platoonLeader = User::factory()->create();
+    $platoonLeader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
     $sent = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => '700/702/']);
     $sentKpis = new UnitKpis(4, new Ratio(12, 16), new Ratio(3, 4), 1, 0, 1);

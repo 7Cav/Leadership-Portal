@@ -17,7 +17,7 @@ beforeEach(function () {
     $this->platoon = Unit::factory()->create(['type' => UnitType::Platoon, 'path' => '910/']);
     $this->section = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => '910/911/', 'callsign' => '1/A']);
     $this->other = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => '910/912/']);
-    $this->leader = User::factory()->create();
+    $this->leader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
     $this->mine = placedTrooper($this->section, ['username' => 'Ortega.M', 'rank_short' => 'SGT']);
     $this->theirs = placedTrooper($this->other, ['username' => 'Nakamura.T']);
@@ -53,10 +53,10 @@ it('lists only the troopers in scope with their identities and every platform sl
 });
 
 it('shows an Admin the whole roster and a user with no scope nobody', function () {
-    $this->actingAs(User::factory()->create(['is_admin' => true]))->get('/game-identities')
+    $this->actingAs(User::factory()->serving()->create(['is_admin' => true]))->get('/game-identities')
         ->assertInertia(fn (Assert $page) => $page->has('troopers', 2));
 
-    $this->actingAs(User::factory()->create())->get('/game-identities')
+    $this->actingAs(User::factory()->serving()->create())->get('/game-identities')
         ->assertInertia(fn (Assert $page) => $page->has('troopers', 0));
 });
 
@@ -147,7 +147,7 @@ it('denies an unplaced or departed trooper', function () {
     $unplaced = Trooper::factory()->create();
     $departed = placedTrooper($this->section, ['status' => TrooperStatus::Inactive]);
 
-    $admin = User::factory()->create(['is_admin' => true]);
+    $admin = User::factory()->serving()->create(['is_admin' => true]);
     $this->actingAs($admin)->put(identityUrl($unplaced), ['player_name' => 'X', 'platform_id' => '1'])->assertForbidden();
     $this->actingAs($admin)->put(identityUrl($departed), ['player_name' => 'X', 'platform_id' => '1'])->assertForbidden();
 });
@@ -158,7 +158,7 @@ it('requires a signed-in user', function () {
 });
 
 it('refuses writes during a view-as preview, and the index narrows to the previewed scope', function () {
-    $admin = User::factory()->create(['is_admin' => true]);
+    $admin = User::factory()->serving()->create(['is_admin' => true]);
     $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->section->id]);
 
     $this->get('/game-identities')->assertInertia(fn (Assert $page) => $page->has('troopers', 1));
@@ -169,7 +169,7 @@ it('refuses writes during a view-as preview, and the index narrows to the previe
 });
 
 it('denies writes to a user holding no scope at all', function () {
-    $nobody = User::factory()->create();
+    $nobody = User::factory()->serving()->create();
 
     $this->actingAs($nobody)->put(identityUrl($this->mine), ['player_name' => 'X', 'platform_id' => '1'])->assertForbidden();
     $this->actingAs($nobody)->delete(identityUrl($this->mine))->assertForbidden();
@@ -195,7 +195,7 @@ it('names the owner of a collision even when they are outside the leader\'s scop
 });
 
 it('shows a platoon leader the troopers of every section beneath', function () {
-    $platoonLeader = User::factory()->create();
+    $platoonLeader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
 
     $this->actingAs($platoonLeader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page->has('troopers', 2));

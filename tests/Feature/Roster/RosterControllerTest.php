@@ -58,7 +58,7 @@ function rosterLeaderOf(Unit $unit, int $positionId, Unit $placedIn, array $attr
     UnitCommandMapping::factory()->create(['unit_id' => $unit->id, 'cav_position_id' => $positionId]);
     $trooper = rosterTrooper($placedIn, ['cav_position_id' => $positionId, ...$attributes]);
 
-    return [User::factory()->create(['cav_id' => $trooper->cav_id]), $trooper];
+    return [User::factory()->serving()->create(['cav_id' => $trooper->cav_id]), $trooper];
 }
 
 beforeEach(function () {
@@ -120,7 +120,7 @@ it('404s a unit id too long for an integer rather than erroring', function () {
 });
 
 it('shows a granted unit\'s whole subtree, grouped with per-unit KPIs from the shared service (4.6)', function () {
-    $staff = User::factory()->create();
+    $staff = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $this->platoon1->id]);
     $a = rosterTrooper($this->section2);
     rosterMark($a, $this->section2, 0, AttendanceStatus::Missed, RollcallSignature::WillAttend);
@@ -281,7 +281,7 @@ it('narrows an Admin viewing as a section leader to that section, never offering
 });
 
 it('renders an empty roster for a user with no scope at all', function () {
-    $nobody = User::factory()->create();
+    $nobody = User::factory()->serving()->create();
 
     $this->actingAs($nobody)->get('/roster')->assertOk()->assertInertia(fn ($page) => $page
         ->where('unit', null)
@@ -336,7 +336,7 @@ describe('trooper detail (Sheet)', function () {
     });
 
     it('opens a trooper anywhere in a granted subtree', function () {
-        $staff = User::factory()->create();
+        $staff = User::factory()->serving()->create();
         PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $this->platoon1->id]);
         $t = rosterTrooper($this->section2);
 

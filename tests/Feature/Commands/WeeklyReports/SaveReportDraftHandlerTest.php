@@ -21,7 +21,7 @@ use Carbon\CarbonImmutable;
 beforeEach(function () {
     $this->platoon = Unit::factory()->create(['type' => UnitType::Platoon, 'path' => '710/']);
     $this->section = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => '710/711/']);
-    $this->leader = User::factory()->create();
+    $this->leader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
     $this->trooper = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
     $this->moment = CarbonImmutable::parse('2026-10-07 18:00:00', 'UTC');
@@ -53,11 +53,11 @@ it('updates the one draft row on a second save', function () {
 });
 
 it('refuses a unit outside the actor\'s scope', function () {
-    saveDraft(User::factory()->create(), $this->section->id, $this->moment);
+    saveDraft(User::factory()->serving()->create(), $this->section->id, $this->moment);
 })->throws(SendWeeklyReportForbiddenException::class);
 
 it('refuses unaccounted troopers on a roll-up, and a trooper listed twice', function (Closure $call) {
-    $platoonLeader = User::factory()->create();
+    $platoonLeader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
 
     expect(fn () => $call($this, $platoonLeader))->toThrow(InvalidReportContentException::class);

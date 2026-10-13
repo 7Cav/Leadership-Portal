@@ -24,7 +24,7 @@ use Inertia\Testing\AssertableInertia as Assert;
 beforeEach(function () {
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-08 16:20:00', 'UTC'));
     $this->section = Unit::factory()->create(['type' => UnitType::Section, 'path' => '930/']);
-    $this->leader = User::factory()->create(['username' => 'Vasquez.R']);
+    $this->leader = User::factory()->serving()->create(['username' => 'Vasquez.R']);
     PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
     $this->ortega = unmatchedTrooper($this->section, ['username' => 'Ortega.M', 'rank_short' => 'SGT']);
     $this->practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => '2026-10-03 00:00:00']);
@@ -120,7 +120,7 @@ it('denies a trooper outside the leader\'s scope server-side (AD-8)', function (
 });
 
 it('denies a section outside the leader\'s scope for link and dismiss', function () {
-    $stranger = User::factory()->create();
+    $stranger = User::factory()->serving()->create();
 
     $this->actingAs($stranger)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this))->assertForbidden();
     $this->actingAs($stranger)->postJson("/rollcall/{$this->section->id}/unmatched/dismiss", linkBody($this))->assertForbidden();

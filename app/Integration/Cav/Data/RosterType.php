@@ -29,6 +29,15 @@ enum RosterType: string
     }
 
     /**
+     * Whether this roster confers serving standing. The one place that answer lives, so the
+     * sign-in gate and the roster sync cannot disagree about it.
+     */
+    public function isServing(): bool
+    {
+        return in_array($this, self::serving(), true);
+    }
+
+    /**
      * Human-readable name for display. The API's `ROSTER_TYPE_UNSPECIFIED` member is
      * deliberately absent from this enum — `tryFrom()` maps it (and any roster type added
      * to the API later) to null, which carries the same information without a magic string.

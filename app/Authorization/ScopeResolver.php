@@ -3,6 +3,8 @@
 namespace App\Authorization;
 
 use App\Models\Trooper;
+use App\Models\TrooperStatus;
+use App\Models\Unit;
 use App\Models\User;
 use App\Repositories\PortalRoleGrantRepository;
 use App\Repositories\TrooperRepository;
@@ -25,7 +27,9 @@ use Illuminate\Support\Collection;
  *    every call, so a roster sync that moves the trooper to another billet moves their scope with
  *    it. A departed trooper, an unmapped billet or a user with no synced trooper derive nothing.
  *  - **`portal_role_grants`** — explicit, audited scope for non-admin staff whose access the
- *    roster can't imply.
+ *    roster can't imply. A grant counts only while its holder is a serving trooper (the same
+ *    allow-list the roster-derived half uses), so a staffer who leaves the Cav loses it at once
+ *    rather than when someone remembers to revoke it.
  *
  * The roster-derived unit and every granted unit are each expanded to their subtree via the
  * materialized `path` (AD-18) and unioned into one set, so a leader who also holds grants — or a
@@ -34,7 +38,7 @@ use Illuminate\Support\Collection;
  * **View-as** (AD-9, Story 1.13) then narrows that set, never widens it: the effective scope
  * {@see resolve()} hands back is `real ∩ target`, and the stored target is re-checked against the
  * user's *current* real authority on every call, so a target that has fallen outside it — a lost
- * billet, a revoked grant, a revoked Admin flag — simply stops applying.
+ * billet, a revoked or lapsed grant, a revoked Admin flag — simply stops applying.
  */
 class ScopeResolver
 {
@@ -69,12 +73,50 @@ class ScopeResolver
             return $this->units->allIds();
         }
 
-        return $this->grants->grantedUnitsFor($user)
+        return $this->grantedUnitsWhileServing($user)
             ->push($this->commands->commandedUnitFor($user))
             ->filter()
             ->flatMap(fn ($unit) => $this->units->subtreeIds($unit))
             ->unique()
             ->values();
+    }
+
+    /**
+     * Whether the roster cache shows the user's linked trooper as departed — a standing off
+     * {@see TrooperStatus::serving()}. Deliberately not the inverse of "is serving": an Admin, a
+     * user with no link, and one the cache holds no trooper for (admitted live at sign-in ahead of
+     * the next sync) are not known to have left, so the session check only ends a session on a
+     * departed record.
+     */
+    public function hasDeparted(User $user): bool
+    {
+        if ($user->is_admin || $user->cav_id === null) {
+            return false;
+        }
+
+        $status = $this->troopers->statusOf((int) $user->cav_id);
+
+        return $status !== null && ! $status->isServing();
+    }
+
+    /**
+     * The user's granted units, but only while they are a serving trooper: `users.cav_id` linked to
+     * a cached trooper whose standing is on {@see TrooperStatus::serving()}. A grant is staff scope
+     * for a *member* of the unit — once the holder leaves (the roster sync flips them `inactive`),
+     * or was never linked to a milpac at all, every grant they hold stops counting on the next
+     * read, with no one having to remember to revoke it. The rows themselves are kept, so the
+     * staff grants page can show them as lapsed and an Admin can revoke them on the record; a
+     * holder who returns to a serving roster gets them back. Admins never reach here.
+     *
+     * @return Collection<int, Unit>
+     */
+    private function grantedUnitsWhileServing(User $user): Collection
+    {
+        if ($user->cav_id === null || ! ($this->troopers->statusOf((int) $user->cav_id)?->isServing() ?? false)) {
+            return collect();
+        }
+
+        return $this->grants->grantedUnitsFor($user);
     }
 
     /**

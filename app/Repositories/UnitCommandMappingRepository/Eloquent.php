@@ -53,8 +53,8 @@ class Eloquent implements UnitCommandMappingRepository
 
     /**
      * Units joined to the serving trooper whose primary billet commands them — an allow-list of
-     * standings, so a departed (`inactive`) trooper's last billet, or any standing added later,
-     * confers nothing.
+     * standings ({@see TrooperStatus::serving()}, shared with the grant and sign-in checks), so a
+     * departed (`inactive`) trooper's last billet, or any standing added later, confers nothing.
      *
      * @return Builder<Unit>
      */
@@ -64,11 +64,7 @@ class Eloquent implements UnitCommandMappingRepository
             ->select('units.*')
             ->join('unit_command_mappings', 'unit_command_mappings.unit_id', '=', 'units.id')
             ->join('troopers', 'troopers.cav_position_id', '=', 'unit_command_mappings.cav_position_id')
-            ->whereIn('troopers.status', [
-                TrooperStatus::Combat->value,
-                TrooperStatus::Reserve->value,
-                TrooperStatus::Eloa->value,
-            ]);
+            ->whereIn('troopers.status', TrooperStatus::servingValues());
     }
 
     public function commandersOf(array $unitIds): Collection

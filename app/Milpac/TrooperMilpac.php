@@ -2,29 +2,37 @@
 
 namespace App\Milpac;
 
+use App\Models\CourseStatus;
 use App\Models\Trooper;
+use App\Models\TrooperCourse;
 use App\Models\TrooperStatus;
 use App\Repositories\SyncRunRepository;
+use App\Repositories\TrooperCourseRepository;
 use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Collection;
 
 /**
- * What the trooper detail page (the milpac) shows for one trooper (Story 6.3): the ID block, read through the
- * repositories and shaped as page props. Read-only, and it never decides who may look: the caller gates that
- * with the ScopeResolver (AD-8) before asking.
+ * What the trooper detail page (the milpac) shows for one trooper (Stories 6.3, 6.4): the ID block and the
+ * courses and qualifications panel, read through the repositories and shaped as page props. Read-only, and it
+ * never decides who may look: the caller gates that with the ScopeResolver (AD-8) before asking.
  *
  * The ID block is the cached Cav roster, so the page can show where it came from and how fresh it is (AD-20).
  * Durations are counted on the server's UTC day (AD-11) so every viewer reads the same figure.
  */
 final class TrooperMilpac
 {
+    /** The order the course groups are shown in. `none` is left out: it means the trooper has nothing on the course. */
+    private const GROUPS = [CourseStatus::Qualified, CourseStatus::InProgress, CourseStatus::Required];
+
     public function __construct(
         private readonly UnitRepository $units,
+        private readonly TrooperCourseRepository $trooperCourses,
         private readonly SyncRunRepository $syncRuns,
     ) {}
 
     /**
-     * @return array{crumb: string, trooper: array<string, mixed>, sync: array<string, mixed>}
+     * @return array{crumb: string, trooper: array<string, mixed>, courses: array{groups: list<array{status: string, label: string, courses: list<array{code: string, name: string, awardedAt: ?string}>}>, qualified: int, total: int}, sync: array<string, mixed>}
      */
     public function for(Trooper $trooper): array
     {
@@ -32,6 +40,7 @@ final class TrooperMilpac
             // The page's last breadcrumb crumb (the shell reads `crumb` for a page nested under a nav item).
             'crumb' => $trooper->display_name,
             'trooper' => $this->idBlock($trooper),
+            'courses' => $this->courses($trooper),
             'sync' => $this->sync(),
         ];
     }
@@ -84,6 +93,43 @@ final class TrooperMilpac
         $interval = CarbonImmutable::parse($date, 'UTC')->diff($today);
 
         return $interval->invert === 1 ? null : $interval->y * 12 + $interval->m;
+    }
+
+    /**
+     * The courses panel: the trooper's courses grouped as qualified, in progress and required, each group in
+     * the catalog's order. `none` rows and absent rows are the same thing and are not listed, and a group
+     * with nothing in it is not returned. `qualified` and `total` are counted from the groups returned, so the
+     * header count can never disagree with the list under it.
+     *
+     * @return array{groups: list<array{status: string, label: string, courses: list<array{code: string, name: string, awardedAt: ?string}>}>, qualified: int, total: int}
+     */
+    private function courses(Trooper $trooper): array
+    {
+        /** @var Collection<int, TrooperCourse> $rows */
+        $rows = $this->trooperCourses->forTrooper($trooper->id);
+
+        $groups = collect(self::GROUPS)
+            ->map(fn (CourseStatus $status) => [
+                'status' => $status->value,
+                'label' => $status->label(),
+                'courses' => $rows
+                    ->filter(fn (TrooperCourse $row) => $row->status === $status)
+                    ->map(fn (TrooperCourse $row) => [
+                        'code' => $row->course->code,
+                        'name' => $row->course->name,
+                        'awardedAt' => $row->awarded_at?->toDateString(),
+                    ])
+                    ->values()
+                    ->all(),
+            ])
+            ->reject(fn (array $group) => $group['courses'] === [])
+            ->values();
+
+        return [
+            'groups' => $groups->all(),
+            'qualified' => count($groups->firstWhere('status', CourseStatus::Qualified->value)['courses'] ?? []),
+            'total' => $groups->sum(fn (array $group) => count($group['courses'])),
+        ];
     }
 
     /**

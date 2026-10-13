@@ -14,7 +14,10 @@ subtree and the `portal_role_grants` subtrees. Roster-derived scope (AD-7, Story
 synced primary Cav billet commands: `users.cav_id` → `troopers.cav_position_id` →
 `unit_command_mappings` (written by the org import, 2.9) → that unit's subtree. It is read on
 every request, so a roster sync that changes the billet changes the scope; a departed trooper
-or an unmapped billet derives nothing (deny-by-default, AD-8).
+or an unmapped billet derives nothing (deny-by-default, AD-8). A grant counts only while its holder
+is a serving trooper (`users.cav_id` → a cached trooper on combat, reserve or ELOA, the same
+`TrooperStatus::serving()` allow-list the billet half uses): a holder who leaves keeps the row, shown
+as lapsed on the staff grants page, but none of its scope.
 
 **View-as** (AD-9, Story 1.13) narrows, never widens. `ViewAs` keeps the viewer's chosen target
 (a unit in their scope, or — Admins only — another user) in the server-side session, bound to the

@@ -26,7 +26,7 @@ beforeEach(function () {
     $this->platoon = Unit::factory()->create(['type' => UnitType::Platoon, 'path' => '910/']);
     $this->section = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => '910/911/']);
     $this->sibling = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => '910/912/']);
-    $this->leader = User::factory()->create();
+    $this->leader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
     $this->trooper = Trooper::factory()->create();
     $this->trooper->forceFill(['primary_section_id' => $this->section->id])->save();
@@ -157,7 +157,7 @@ it('rejects a malformed batch', function (array $payload) {
 ]);
 
 it('lets a leader whose grant sits higher up the tree mark a child section', function () {
-    $platoonLeader = User::factory()->create();
+    $platoonLeader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
 
     saveRollcall($platoonLeader, $this->section->id, [['trooper_id' => $this->trooper->id, 'status' => 'present']])->assertOk();

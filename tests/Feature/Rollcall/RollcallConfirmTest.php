@@ -20,7 +20,7 @@ use Inertia\Testing\AssertableInertia as Assert;
 beforeEach(function () {
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-08 16:20:00', 'UTC'));
     $this->section = Unit::factory()->create(['type' => UnitType::Section, 'path' => '940/']);
-    $this->leader = User::factory()->create(['username' => 'Vasquez.R']);
+    $this->leader = User::factory()->serving()->create(['username' => 'Vasquez.R']);
     PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
     $this->ortega = Trooper::factory()->create(['username' => 'Ortega.M']);
     $this->dube = Trooper::factory()->create(['username' => 'Dube.R']);
@@ -86,7 +86,7 @@ it('confirms a purely manual practice the same way', function () {
 });
 
 it('refuses outside scope, a future week, a missing week and a non-section', function () {
-    $stranger = User::factory()->create();
+    $stranger = User::factory()->serving()->create();
     $this->actingAs($stranger)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => '2026-10-03'])->assertForbidden();
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => '2026-10-10'])->assertStatus(422);
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/confirm", [])->assertStatus(422);

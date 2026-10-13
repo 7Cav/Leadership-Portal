@@ -19,7 +19,7 @@ use Illuminate\Support\Carbon;
 beforeEach(function () {
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-08 16:20:00', 'UTC'));
     $this->section = Unit::factory()->create(['type' => UnitType::Section]);
-    $this->leader = User::factory()->create();
+    $this->leader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
     $this->moment = CarbonImmutable::parse('2026-10-07 18:00:00', 'UTC');
 });
@@ -62,7 +62,7 @@ it('lets a later mark overwrite the earlier one — the latest post wins', funct
 });
 
 it('refuses a section outside the actor\'s scope, writing nothing (AD-8)', function () {
-    expect(fn () => markPosted(User::factory()->create(), $this->section->id, $this->moment))
+    expect(fn () => markPosted(User::factory()->serving()->create(), $this->section->id, $this->moment))
         ->toThrow(MarkRollcallPostedForbiddenException::class);
 
     expect(SectionPractice::query()->count())->toBe(0)->and(AuditLogEntry::query()->count())->toBe(0);
