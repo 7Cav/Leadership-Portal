@@ -650,8 +650,21 @@ describe('Rollcall page', () => {
             await wrapper.find('[data-testid="confirm-practice"]').trigger('click');
             await flushPromises();
 
-            expect(post).toHaveBeenCalledWith('/rollcall/12/confirm', { week: '2026-10-03' });
+            expect(post).toHaveBeenCalledWith('/rollcall/12/confirm', { week: '2026-10-03', confirmedAt: null });
             expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed');
+        });
+
+        it('sends the confirmation it shows when confirming again, so the server can tell a racing one', async () => {
+            post.mockResolvedValue({ ok: true, status: 200, data: { confirmation: { at: '2026-10-09T08:00:00+00:00', by: 'Vasquez.R' } } });
+            const wrapper = factory({
+                capture: CAPTURE,
+                practice: { lastMarkedAt: null, confirmation: { at: '2026-10-08T16:20:00+00:00', by: 'Ortega.M' } },
+            });
+
+            await wrapper.find('[data-testid="confirm-practice"]').trigger('click');
+            await flushPromises();
+
+            expect(post).toHaveBeenCalledWith('/rollcall/12/confirm', { week: '2026-10-03', confirmedAt: '2026-10-08T16:20:00+00:00' });
         });
 
         it('stays not confirmed and says so when the server refuses the confirmation', async () => {
