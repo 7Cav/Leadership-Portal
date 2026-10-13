@@ -234,3 +234,54 @@ it('picks the sections out of a set of unit ids, with their parent loaded, in pa
         ->and($sections->first()->parent->id)->toBe($platoon->id)
         ->and($sections->pluck('id'))->not->toContain($outside->id);
 });
+// 3.6: the owning company is found from the materialized path, in one query, from any echelon below it.
+it('finds the company that owns a unit, from any echelon beneath it and from the company itself', function () {
+    $repo = app(UnitRepository::class);
+    $regiment = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);
+    $battalion = $repo->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
+    $company = $repo->create(UnitType::Company, 'Alpha Company', 'A/1-7', $battalion->id);
+    $platoon = $repo->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', $company->id);
+    $section = $repo->create(UnitType::Section, '1st Section', '1/1/A/1-7', $platoon->id);
+
+    foreach ([$company, $platoon, $section] as $unit) {
+        expect($repo->owningCompany($unit)->id)->toBe($company->id);
+    }
+});
+
+it('finds no owning company for a unit above every company', function () {
+    $repo = app(UnitRepository::class);
+    $regiment = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);
+    $battalion = $repo->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
+    $repo->create(UnitType::Company, 'Alpha Company', 'A/1-7', $battalion->id);
+
+    expect($repo->owningCompany($regiment))->toBeNull()
+        ->and($repo->owningCompany($battalion))->toBeNull();
+});
+
+it('does not mistake a unit whose id merely starts with the same digits for an ancestor', function () {
+    $repo = app(UnitRepository::class);
+    $company = $repo->create(UnitType::Company, 'Alpha Company', 'A/1-7', null);
+
+    // Ids climb past 10, so a path like "1/" and "11/" must never be confused by a prefix match.
+    foreach (range(1, 12) as $n) {
+        $repo->create(UnitType::Company, "Filler {$n}", null, null);
+    }
+    $late = $repo->create(UnitType::Platoon, 'Late platoon', null, $repo->create(UnitType::Company, 'Late Company', null, null)->id);
+
+    expect($repo->owningCompany($late)->name)->toBe('Late Company')
+        ->and($repo->owningCompany($company)->id)->toBe($company->id);
+});
+
+it('resolves from the stored tree, so a model loaded before a move still finds the current company', function () {
+    $repo = app(UnitRepository::class);
+    $alpha = $repo->create(UnitType::Company, 'Alpha Company', 'A/1-7', null);
+    $bravo = $repo->create(UnitType::Company, 'Bravo Company', 'B/1-7', null);
+    $platoon = $repo->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', $alpha->id);
+    $section = $repo->create(UnitType::Section, '1st Section', '1/1/A/1-7', $platoon->id);
+
+    $stale = Unit::query()->findOrFail($section->id);
+    $repo->move($platoon, $bravo->id);
+
+    expect($stale->path)->not->toBe(Unit::query()->findOrFail($section->id)->path)
+        ->and($repo->owningCompany($stale)->id)->toBe($bravo->id);
+});
