@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\SectionPractice;
+use App\Models\Unit;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
@@ -95,4 +96,11 @@ interface SectionPracticeRepository
      * same row. The caller routes it through the audit envelope where an actor exists.
      */
     public function stampCapture(SectionPractice $practice, string $serverRef, \DateTimeInterface $capturedAt, string $captureSource): SectionPractice;
+
+    /**
+     * Whether any practice, demo or real, has been recorded for `$unit` —
+     * `section_practices.section_id` restricts deletes, so `DeleteUnit` checks this first to
+     * refuse with a reason instead of a raw constraint error.
+     */
+    public function hasPracticesFor(Unit $unit): bool;
 }

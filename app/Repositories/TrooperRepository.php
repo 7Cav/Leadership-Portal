@@ -253,4 +253,14 @@ interface TrooperRepository
      * @return EloquentCollection<int, Trooper>
      */
     public function placedInAny(iterable $sectionIds): EloquentCollection;
+
+    /**
+     * How many cached troopers holding `$status` are missing from `$activeCavIds`, i.e. how many
+     * of them {@see markDepartedExcept()} would flip to inactive. The sync handler asks this
+     * before believing an empty serving roster: an empty roster that would depart a crowd reads
+     * as a broken response, not a real exodus.
+     *
+     * @param  list<int>  $activeCavIds
+     */
+    public function countDepartingWithStatus(TrooperStatus $status, array $activeCavIds): int;
 }

@@ -196,6 +196,7 @@ class CavApi
         $fetchedAt = $this->now();
         $troopers = [];
         $errors = [];
+        $emptyRosters = [];
 
         foreach (RosterType::serving() as $roster) {
             $payload = $this->sendForJson(
@@ -214,6 +215,13 @@ class CavApi
             // rationale; the same fabrication risk applies to a full-roster read.
             if ($profiles !== [] && array_is_list($profiles)) {
                 throw CavRequestException::malformedRoster('its `profiles` field was a list, not a map keyed by milpac id');
+            }
+
+            // Reported rather than refused. Unlike an empty position-groups list (always broken),
+            // a serving roster can be empty for real, so whether this one is believable depends
+            // on who the cache last saw on it, which only the sync handler knows.
+            if ($profiles === []) {
+                $emptyRosters[] = $roster;
             }
 
             foreach ($profiles as $key => $entry) {
@@ -237,7 +245,7 @@ class CavApi
             }
         }
 
-        return new RosterFetchResult($troopers, $errors);
+        return new RosterFetchResult($troopers, $errors, $emptyRosters);
     }
 
     /**

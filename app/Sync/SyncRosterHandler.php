@@ -35,9 +35,16 @@ use Throwable;
  * roster-derived command scope (1.16) follows a billet change on the very next sync. The forum
  * identity (`username`, `forum_user_id`) and short rank are written the same way (2.10), so a
  * forum rename follows on the next sync too.
+ *
+ * A serving roster that comes back empty while the cache still holds troopers on it is refused
+ * the same way a fetch failure is: the run is recorded as failed and nothing is written (see
+ * {@see refuseEmptyRosterExodus()}).
  */
 class SyncRosterHandler
 {
+    /** How many troopers an empty roster may depart before the run is refused as a broken response. */
+    private const EMPTY_ROSTER_TOLERANCE = 3;
+
     public function __construct(
         private readonly CavApi $cavApi,
         private readonly TrooperRepository $troopers,
@@ -81,6 +88,8 @@ class SyncRosterHandler
             $parsedCavIds = array_column($rows, 'cav_id');
             $activeCavIds = [...$parsedCavIds, ...$unreadableCavIds];
 
+            $this->refuseEmptyRosterExodus($result->emptyRosters, array_values(array_unique($activeCavIds)));
+
             // An unreadable row's billet is unknown, so it is cleared rather than left conferring
             // the last-known command scope (1.16) — unless the same trooper also parsed on another
             // roster this run, whose billet is then current and kept.
@@ -104,6 +113,43 @@ class SyncRosterHandler
             $this->syncRuns->fail($run, $e->getMessage());
 
             throw $e;
+        }
+    }
+
+    /**
+     * Refuse a run in which a serving roster came back empty while the cache still holds
+     * troopers on it who are on no other roster this run. Cav answering one roster with `{}` is
+     * a well-formed response, so nothing upstream catches it, and believing it would mark that
+     * whole roster departed: every leader on it would lose their scope until a later sync
+     * restored them. The position-groups fetch refuses an empty list outright for the same
+     * reason (2.9).
+     *
+     * Narrower than refusing every empty roster on purpose. A small roster such as ELOA can
+     * really empty out, and a guard with no way through would wedge the sync for good, refusing
+     * every other trooper's departures and billet changes until someone edited the database. So
+     * an empty roster is let through while it would depart at most `EMPTY_ROSTER_TOLERANCE`
+     * troopers (the last member or two being discharged), and so is one whose last members all
+     * moved to another roster this run. What is refused is an empty roster that would depart a
+     * crowd, and any run where every serving roster came back empty, which no real roster change
+     * produces.
+     *
+     * Thrown before any write, so `handle()` records the run as failed and the cache is untouched.
+     *
+     * @param  list<RosterType>  $emptyRosters
+     * @param  list<int>  $activeCavIds
+     *
+     * @throws EmptyRosterException
+     */
+    private function refuseEmptyRosterExodus(array $emptyRosters, array $activeCavIds): void
+    {
+        $everyRosterEmpty = count($emptyRosters) === count(RosterType::serving());
+
+        foreach ($emptyRosters as $roster) {
+            $departing = $this->troopers->countDepartingWithStatus($this->statusFor($roster), $activeCavIds);
+
+            if ($departing > ($everyRosterEmpty ? 0 : self::EMPTY_ROSTER_TOLERANCE)) {
+                throw EmptyRosterException::wouldDepart($roster->label(), $departing);
+            }
         }
     }
 

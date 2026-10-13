@@ -53,4 +53,9 @@ class Eloquent implements PortalRoleGrantRepository
 
         return $grant;
     }
+
+    public function hasGrantsOn(Unit $unit): bool
+    {
+        return PortalRoleGrant::query()->where('unit_id', $unit->getKey())->exists();
+    }
 }
