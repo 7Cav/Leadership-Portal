@@ -257,8 +257,8 @@ const staleNotice = computed(() => {
 
             <ul v-else>
                 <li
-                    v-for="award in awards.items"
-                    :key="`${award.awardedAt}-${award.name}`"
+                    v-for="(award, index) in awards.items"
+                    :key="`${award.awardedAt}-${award.name}-${index}`"
                     class="flex items-start gap-3 border-b border-border px-4 py-2.5 text-[13px] last:border-b-0"
                     data-testid="award"
                 >

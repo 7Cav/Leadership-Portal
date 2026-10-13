@@ -255,6 +255,19 @@ describe('TrooperDetail', () => {
             expect(wrapper.find('[data-testid="awards-empty"]').exists()).toBe(false);
         });
 
+        // The same award can be held more than once, with no date on either (repeat Good Conduct Medals).
+        it('lists a repeated award once per time it was earned, without a duplicate-key warning', async () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const repeat = { name: 'Good Conduct Medal', awardedAt: null, citation: null };
+            const wrapper = page({ awards: awards([{ name: 'Army Achievement Medal', awardedAt: '2026-01-18', citation: null }]) });
+            // Vue checks keys when it patches a list, so update it rather than only mounting.
+            await wrapper.setProps({ awards: awards([repeat, { ...repeat }]) });
+
+            expect(wrapper.findAll('[data-testid="award"]')).toHaveLength(2);
+            expect(warn.mock.calls.flat().join(' ')).not.toContain('Duplicate keys');
+            warn.mockRestore();
+        });
+
         it('leaves out the date and citation an award does not have', () => {
             const row = page({ awards: awards(earned) }).findAll('[data-testid="award"]')[1];
 
