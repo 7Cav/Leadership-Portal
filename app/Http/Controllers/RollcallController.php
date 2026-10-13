@@ -350,8 +350,10 @@ class RollcallController extends Controller
      * "Try again" on the telemetry-unavailable banner (Story 7.9): queue a fresh capture of the
      * practice, as the leader, through {@see RequestPracticeCaptureHandler}. Answers 202 once it is
      * queued — the run is asynchronous (AD-23), so the screen polls the practice's state. A refusal
-     * is spoken, never swallowed: 403 outside scope, 422 when nothing could be attempted (with the
-     * reason), 429 with `retryAfter` when it was asked a moment ago.
+     * is spoken, never swallowed: 403 outside scope, 422 when nothing could be attempted or the
+     * practice has no failed capture to retry (with the reason), 409 with `locked` for a week whose
+     * report was sent, 429 with `retryAfter` when it was asked a moment ago. The route is also
+     * throttled per user (`throttle:practice-capture`), since every queued run reads an external API.
      */
     public function retryCapture(Request $request, int $unit, RequestPracticeCaptureHandler $handler): JsonResponse
     {
@@ -380,6 +382,8 @@ class RollcallController extends Controller
             return response()->json(['message' => $e->getMessage(), 'retryAfter' => $e->retryAfter], 429);
         } catch (CaptureRetryRefusedException|InvalidAttendanceMarkException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
+        } catch (RollcallWeekLockedException $e) {
+            return response()->json(['message' => $e->getMessage(), 'locked' => true], 409);
         } catch (Throwable $e) {
             report($e);
 
