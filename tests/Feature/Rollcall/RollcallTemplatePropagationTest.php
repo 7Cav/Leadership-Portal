@@ -239,6 +239,13 @@ describe('the flow composes within the leader\'s scope', function () {
         expect($versionIds)->toBe([$alpha->id, $alpha->id, $alpha->id, $bravo->id]);
     });
 
+    it('says a section that sits under no company has no template to render from', function () {
+        $orphan = Unit::factory()->create(['type' => UnitType::Section, 'name' => 'Orphan', 'callsign' => 'O/1', 'path' => '990/']);
+        $this->actingAs($this->admin);
+
+        expect(bindTemplate($this, $orphan))->toMatchArray(['state' => 'no_owning_company', 'versionId' => null, 'body' => null]);
+    });
+
     it('sends no template with the section picker', function () {
         $this->actingAs($this->admin);
 

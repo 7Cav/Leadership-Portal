@@ -129,11 +129,15 @@ describe('authoring', function () {
     })->with(['an unknown name' => '{{colour}}', 'an unclosed loop' => '{{#troopers}}{{name}}', 'a row value outside the loop' => '{{name}}']);
 
     it('reports a bad template against the body field', function () {
+        $thrown = null;
+
         try {
             $this->author->handle($this->admin, $this->company, $this->type, '{{colour}}', 'why');
         } catch (InvalidTemplateException $e) {
-            expect($e->field)->toBe('body')->and($e->getMessage())->toBe('Unknown name "colour".');
+            $thrown = $e;
         }
+
+        expect($thrown)->not->toBeNull()->and($thrown->field)->toBe('body')->and($thrown->getMessage())->toBe('Unknown name "colour".');
     });
 
     it('treats saving the active text again as a no-op: no new version, no log entry', function () {
