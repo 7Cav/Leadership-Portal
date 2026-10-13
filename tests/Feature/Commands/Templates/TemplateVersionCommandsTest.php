@@ -123,6 +123,19 @@ describe('authoring', function () {
         expect($this->author->handle($this->admin, $this->company, $this->type, $atLimit, 'why')->version)->toBe(1);
     });
 
+    it('refuses a body whose placeholders are unknown or unbalanced, and writes nothing', function (string $body) {
+        expect(fn () => $this->author->handle($this->admin, $this->company, $this->type, $body, 'why'))->toThrow(InvalidTemplateException::class);
+        expect(TemplateVersion::query()->count())->toBe(0);
+    })->with(['an unknown name' => '{{colour}}', 'an unclosed loop' => '{{#troopers}}{{name}}', 'a row value outside the loop' => '{{name}}']);
+
+    it('reports a bad template against the body field', function () {
+        try {
+            $this->author->handle($this->admin, $this->company, $this->type, '{{colour}}', 'why');
+        } catch (InvalidTemplateException $e) {
+            expect($e->field)->toBe('body')->and($e->getMessage())->toBe('Unknown name "colour".');
+        }
+    });
+
     it('treats saving the active text again as a no-op: no new version, no log entry', function () {
         $first = $this->author->handle($this->admin, $this->company, $this->type, 'same body', 'one');
         $again = $this->author->handle($this->admin, $this->company, $this->type, 'same body', 'two');

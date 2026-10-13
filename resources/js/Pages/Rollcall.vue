@@ -39,7 +39,7 @@ import { forumDate, forumDateTime } from '@/lib/forumDate';
 import ForumPost from '@/components/rollcall/ForumPost.vue';
 import { messageFor, unreachable, useRollcallAutosave } from '@/composables/useRollcallAutosave';
 import { postJson } from '@/lib/postJson';
-import { rollcallBbcode } from '@/lib/rollcallBbcode';
+import { rollcallPost } from '@/lib/rollcallBbcode';
 import {
     countsOf,
     displayName,
@@ -80,6 +80,9 @@ const props = defineProps({
     // `[{ platform, platformLabel, playerName, platformId }]`: players the capture saw that no
     // trooper is linked to (7.7).
     unmatched: { type: Array, default: () => [] },
+    // The company's active rollcall template, resolved on this request (3.6, 3.11):
+    // `{ state, companyId, versionId, version, body }`. Null for the picker.
+    template: { type: Object, default: null },
 });
 
 const page = usePage();
@@ -255,15 +258,18 @@ const changes = computed(() =>
     }),
 );
 
-// The forum post (3.10): generated client-side from the current marks, copied by the leader. The
-// portal makes no outbound call on copy or on marking posted (AD-20).
-const bbcode = computed(() =>
-    props.section ? rollcallBbcode({ designation: props.section.designation, weekStart: props.week.start, troopers: rows.value }) : '',
+// The forum post (3.10, 3.11): the company's active template filled with the current marks, generated
+// client-side and copied by the leader. The portal makes no outbound call on copy or on marking posted (AD-20).
+const post = computed(() =>
+    props.section ? rollcallPost(props.template, { section: props.section, week: props.week, troopers: rows.value }) : null,
 );
+const bbcode = computed(() => (post.value?.state === 'ready' ? post.value.text : ''));
 const copied = ref(false);
 const posting = ref(false);
 
 async function copyBbcode() {
+    if (post.value?.state !== 'ready') return;
+
     try {
         await navigator.clipboard.writeText(bbcode.value);
         copied.value = true;
@@ -809,11 +815,11 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                                 <p v-else class="px-4 pt-1 pb-4 text-xs text-muted-foreground">Nothing changed on this visit.</p>
                             </section>
                         </template>
-                        <ForumPost :designation="section.designation" :week-start="week.start" :troopers="rows" />
+                        <ForumPost :post="post" />
 
                         <div class="mt-5 flex flex-wrap items-center gap-2 py-3">
                             <Button variant="outline" class="hidden h-11 sm:inline-flex sm:h-9" @click="go(2)"><PhCaretLeft />Back</Button>
-                            <Button variant="outline" class="h-11 flex-1 sm:ml-auto sm:h-9 sm:flex-none" data-testid="copy-bbcode" @click="copyBbcode">
+                            <Button variant="outline" class="h-11 flex-1 sm:ml-auto sm:h-9 sm:flex-none" data-testid="copy-bbcode" :disabled="post.state !== 'ready'" @click="copyBbcode">
                                 <PhCopy />{{ copied ? 'Copy again' : 'Copy BBCode' }}
                             </Button>
                             <Button

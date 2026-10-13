@@ -49,6 +49,7 @@ use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitRepository;
+use App\Rollcall\TemplateResolver;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -83,6 +84,7 @@ class RollcallController extends Controller
         private readonly PracticeCapturePlayerRepository $capturePlayers,
         private readonly TrooperGameIdentityRepository $identities,
         private readonly PracticeTelemetry $telemetry,
+        private readonly TemplateResolver $templates,
     ) {}
 
     /**
@@ -129,6 +131,9 @@ class RollcallController extends Controller
             'section' => $this->sectionProps($section, $sections),
             'sections' => $this->pickerOptions($sections),
             'week' => $this->weekProps($weekStart, $currentWeek),
+            // Resolved on every request, never cached, so an Admin's edit or rollback reaches every section under the
+            // company on its next load (3.11, AD-17). Marks are data; the template is only how they are written up.
+            'template' => $this->templates->forUnit($section)->toArray(),
             ...$this->rosterProps($section, $weekStart),
         ]);
     }
