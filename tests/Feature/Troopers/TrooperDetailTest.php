@@ -15,8 +15,9 @@ use App\Models\User;
 use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
-// Stories 6.3 and 6.4: one trooper's milpac, the ID block and the courses panel, gated by the ScopeResolver.
+// Stories 6.3 to 6.5: one trooper's milpac, the ID block, the courses panel and the awards history, gated by the ScopeResolver.
 // Fixture tree: 7CAV ─ 1-7 ─ A/1-7 ─ 1/A ─┬─ 1/1/A (section, led by the viewer)
 //                                          └─ 2/1/A
 // "Now" is Thursday 2026-10-08.
@@ -351,5 +352,25 @@ describe('the courses panel (6.4)', function () {
         DB::disableQueryLog();
 
         expect($queries)->toBe($baseline);
+    });
+});
+
+describe('the awards history (6.5)', function () {
+    it('marks awards as not available, because the roster cache holds none to read', function () {
+        $trooper = milpacTrooper($this->section1);
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page
+            ->where('awards', ['available' => false, 'items' => []]));
+    });
+
+    it('adds no outbound call and no write to render it', function () {
+        $trooper = milpacTrooper($this->section1);
+        Http::fake();
+        $before = DB::table('sync_runs')->count();
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertOk();
+
+        Http::assertNothingSent();
+        expect(DB::table('sync_runs')->count())->toBe($before);
     });
 });
