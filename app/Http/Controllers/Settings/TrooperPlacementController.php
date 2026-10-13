@@ -1,0 +1,43 @@
+<?php
+
+namespace App\Http\Controllers\Settings;
+
+use App\Commands\Troopers\InvalidTrooperPlacementException;
+use App\Commands\Troopers\PlaceTrooperInSection;
+use App\Commands\Troopers\PlaceTrooperInSectionHandler;
+use App\Http\Controllers\Controller;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
+
+/**
+ * Manual placement of an unmapped trooper (Story 2.7). A thin dispatcher: the audited write and the
+ * domain rules live in {@see PlaceTrooperInSectionHandler}, which also re-checks the Admin gate (AD-6).
+ * The gate is checked here first, like every other Settings write, and before anything about the
+ * trooper is looked up, so a non-Admin learns nothing about which trooper ids exist. The trooper id is
+ * taken as a plain number rather than route-model-bound for the same reason: binding would answer 404
+ * before the gate ran. A rule the handler enforces (no such trooper, not a section, already placed,
+ * departed) comes back as a form error, not a 500.
+ */
+class TrooperPlacementController extends Controller
+{
+    public function store(Request $request, int $trooper, PlaceTrooperInSectionHandler $handler): RedirectResponse
+    {
+        if (! $request->user()->is_admin) {
+            abort(403, 'Only an Admin may place a trooper into a section.');
+        }
+
+        $data = $request->validate([
+            'section_id' => ['required', 'integer', 'exists:units,id'],
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        try {
+            $handler->handle($request->user(), new PlaceTrooperInSection($trooper, (int) $data['section_id'], $data['reason']));
+        } catch (InvalidTrooperPlacementException $e) {
+            throw ValidationException::withMessages(['placement' => $e->getMessage()]);
+        }
+
+        return redirect()->route('settings.org-structure');
+    }
+}

@@ -8,7 +8,7 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     Link: { props: ['href'], template: '<a :href="href"><slot /></a>' },
 }));
 
-const LINKS = { milpac: 'https://7cav.us/rosters/profile?uniqueid=', rollcall: '/rollcall/' };
+const LINKS = { milpac: 'https://7cav.us/rosters/profile?uniqueid=', rollcall: '/rollcall/', trooper: '/troopers/' };
 
 function respond(status, body) {
     globalThis.fetch = vi.fn().mockResolvedValue({ ok: status < 400, status, json: async () => body });
@@ -72,6 +72,14 @@ describe('Trooper sheet', () => {
         expect(milpac.getAttribute('rel')).toContain('noopener');
     });
 
+    it('opens the in-app milpac page, beside the link out to 7cav.us', async () => {
+        respond(200, detail());
+        factory();
+        await flushPromises();
+
+        expect(document.body.querySelector('[data-testid="sheet-open-trooper"]').getAttribute('href')).toBe('/troopers/12');
+    });
+
     it('says when a trooper is outside scope rather than showing a blank sheet', async () => {
         respond(403, {});
         factory();
@@ -80,12 +88,12 @@ describe('Trooper sheet', () => {
         expect(document.body.textContent).toContain('This trooper is outside your scope.');
     });
 
-    it('explains a trooper no longer on the roster, without a pointless retry', async () => {
+    it('explains a trooper that is not available (gone, or outside scope: both answer 404), without a pointless retry', async () => {
         respond(404, {});
         factory();
         await flushPromises();
 
-        expect(document.body.textContent).toContain('This trooper is no longer on the roster.');
+        expect(document.body.textContent).toContain('This trooper is not available.');
         expect([...document.body.querySelectorAll('button')].some((b) => b.textContent.includes('Try again'))).toBe(false);
     });
 

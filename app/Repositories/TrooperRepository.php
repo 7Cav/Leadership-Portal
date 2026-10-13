@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\Trooper;
+use App\Models\TrooperStatus;
 use App\Models\Unit;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
@@ -66,9 +67,32 @@ interface TrooperRepository
      * keeps their placement rather than being silently re-nulled by a sync that simply can't
      * resolve them anymore. Returns the number of rows actually updated.
      *
+     * A trooper that *is* in the map is set to that section and marked `placement_source = sync`,
+     * even over a manual placement: once Cav can resolve a billet, the source of truth wins and the
+     * manual placement is retired (2.7). The rule is deterministic, so it cannot flip-flop between runs.
+     *
      * @param  array<int, int>  $cavIdToSectionId  cav_id => units.id
      */
     public function updatePrimarySections(array $cavIdToSectionId): int;
+
+    /**
+     * How many troopers are currently assigned to each section, keyed by section id: not inactive
+     * (LOA still counts, as in strength), and only sections that have at least one. The Settings tree
+     * rolls these up its branches (2.7), so a placement is visible there at once.
+     *
+     * @return Collection<int, int>
+     */
+    public function countsBySection(): Collection;
+
+    /**
+     * Place an unplaced trooper into `$sectionId` by hand (2.7), marking `placement_source = manual`.
+     * Touches only the two placement columns, never a synced roster field. One conditional write: it
+     * applies only while the trooper is still unplaced and still on a roster, and returns the placed
+     * trooper, or null when it did not apply (already placed, departed, or no such trooper), so two
+     * concurrent placements cannot both win. The returned model is the post-update row, and what the
+     * audit envelope's digest is computed from.
+     */
+    public function place(int $trooperId, int $sectionId): ?Trooper;
 
     /**
      * Which of `$trooperIds` have `$sectionId` as their primary section — the attendance writer
@@ -89,6 +113,40 @@ interface TrooperRepository
     public function assignedWithin(Unit $unit): Collection;
 
     /**
+     * The first `$limit` active troopers the sync could not place into a section (`primary_section_id`
+     * null), as plain rows for the Settings panel that surfaces them for manual placement (2.6).
+     * Departed troopers are left out: nobody needs to place someone no longer on a Cav roster.
+     * Ordered by username (troopers with no username last), then `cav_id`, so the list never
+     * reshuffles between requests. Reads the cache, so a failed last sync still shows the last good
+     * set. Pair with `unplacedCount()` for the true total when the list is capped.
+     *
+     * @return Collection<int, array{id: int, cav_id: int, username: ?string, rank: ?string, mos: ?string, billet: ?string, position_id: ?int}>
+     */
+    public function unplaced(int $limit): Collection;
+
+    /**
+     * How many troopers `unplaced()` would return without a limit.
+     */
+    public function unplacedCount(): int;
+
+    /**
+     * The troopers currently assigned within `$unit`'s subtree (as `assignedWithin()`), as models
+     * ordered by id — a report's roster, rendered through `display_name`.
+     *
+     * @return Collection<int, Trooper>
+     */
+    public function rosterOf(Unit $unit): Collection;
+
+    /**
+     * The cached troopers with these `cav_id`s, keyed by `cav_id` — how a portal user is shown by
+     * their roster name (e.g. a report's sender). Unknown ids are simply absent.
+     *
+     * @param  list<int>  $cavIds
+     * @return Collection<int, Trooper>
+     */
+    public function byCavId(array $cavIds): Collection;
+
+    /**
      * The synced rank of each trooper in `$cavIds`, keyed by `cav_id` — the label the view-as
      * picker and banner put in front of a username (Story 1.13). A trooper with no cached row,
      * or no rank, is simply absent.
@@ -97,6 +155,45 @@ interface TrooperRepository
      * @return Collection<int, string>
      */
     public function ranksByCavId(array $cavIds): Collection;
+
+    /**
+     * The cached roster standing of the trooper at `$cavId`, or null when the cache holds no such
+     * trooper. Read from the local cache only, never a live Cav call — the sign-in gate leans on
+     * this precisely when Cav is unreachable, and a user's grants are re-checked against it on
+     * every scope read.
+     */
+    public function statusOf(int $cavId): ?TrooperStatus;
+
+    /**
+     * Which of `$cavIds` belong to a cached trooper whose standing is serving
+     * (`TrooperStatus::serving()`) — one query for a whole listing, such as the staff grants page
+     * marking each holder who has left. Ids with no cached trooper, or a departed one, are absent.
+     *
+     * @param  list<int>  $cavIds
+     * @return Collection<int, int>
+     */
+    public function servingCavIds(array $cavIds): Collection;
+
+    /**
+     * The troopers whose username is exactly each of `$usernames`, compared whole and ignoring case, keyed
+     * by the lower-cased username. Never a prefix match: `Perry.J` and `Perry.JW` are different people.
+     * A username with no trooper is simply absent, and one with more than one (which the Cav does not
+     * allow, but the cache does not enforce) lists them all, so the caller can refuse to guess.
+     *
+     * @param  list<string>  $usernames
+     * @return array<string, list<int>> lower-cased username => trooper ids
+     */
+    public function idsByUsername(array $usernames): array;
+
+    /**
+     * The troopers carrying each of these forum user ids (2.10's cached forum identity), keyed by forum user
+     * id. An id with no trooper is absent; one with more than one lists them all, so the caller can refuse
+     * to guess.
+     *
+     * @param  list<int>  $forumUserIds
+     * @return array<int, list<int>> forum user id => trooper ids
+     */
+    public function idsByForumUserId(array $forumUserIds): array;
 
     /**
      * The same population as {@see assignedWithin()}, each trooper with the section they are
@@ -117,5 +214,43 @@ interface TrooperRepository
      */
     public function placedWithin(Unit $unit): EloquentCollection;
 
+    /**
+     * The troopers currently assigned within `$unit`'s subtree: the same set as {@see self::assignedWithin()}
+     * (primary section anywhere under it, not `Inactive`; LOA and ELOA still count), as models in id order, so
+     * "who counts as active" has one named home next to the query and no departed row is loaded to be dropped.
+     *
+     * @return EloquentCollection<int, Trooper>
+     */
+    public function activePlacedWithin(Unit $unit): EloquentCollection;
+
     public function find(int $id): ?Trooper;
+
+    /**
+     * The troopers with these ids, keyed by id; an unknown id is simply absent. One query, for a
+     * worklist that names a few troopers out of a whole roster (5.10).
+     *
+     * @param  list<int>  $ids
+     * @return Collection<int, Trooper>
+     */
+    public function byIds(array $ids): Collection;
+
+    /**
+     * The troopers currently placed in the section — `primary_section_id` is the section, not
+     * inactive (LOA still counts) — in id order. The cache holds only the current placement, so this is
+     * "placed now": a trooper appears in exactly one section's list (AD-14).
+     *
+     * @return EloquentCollection<int, Trooper>
+     */
+    public function placedIn(int $sectionId): EloquentCollection;
+
+    /**
+     * The troopers currently placed in any of `$sectionIds` — `primary_section_id` is one of them,
+     * not inactive (LOA still counts) — ordered by id, in one query however many sections. A
+     * scope-wide worklist (7.2); the caller passes the viewer's scope, so scope stays the
+     * ScopeResolver's to decide (AD-8).
+     *
+     * @param  iterable<int>  $sectionIds
+     * @return EloquentCollection<int, Trooper>
+     */
+    public function placedInAny(iterable $sectionIds): EloquentCollection;
 }

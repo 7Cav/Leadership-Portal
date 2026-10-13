@@ -54,24 +54,26 @@ it('finds the row for a pair, with the course loaded, or null', function () {
         ->and(app(TrooperCourseRepository::class)->find(999999, $row->course_id))->toBeNull();
 });
 
-it('creates and updates a row', function () {
+it('sets a row with an atomic upsert: the first call inserts, the second moves the same row', function () {
     $trooper = Trooper::factory()->create();
     $course = Course::factory()->create();
     $user = User::factory()->create();
     $repository = app(TrooperCourseRepository::class);
 
-    $row = $repository->create($trooper->id, $course->id, CourseStatus::Required, null, $user->id);
+    $row = $repository->set($trooper->id, $course->id, CourseStatus::Required, null, $user->id);
     expect($row->status)->toBe(CourseStatus::Required)->and($row->course->id)->toBe($course->id);
 
-    $updated = $repository->update($row, CourseStatus::Qualified, CarbonImmutable::parse('2026-09-14', 'UTC'), $user->id);
+    $updated = $repository->set($trooper->id, $course->id, CourseStatus::Qualified, CarbonImmutable::parse('2026-09-14', 'UTC'), $user->id);
 
-    expect($updated->fresh()->status)->toBe(CourseStatus::Qualified)
-        ->and($updated->fresh()->awarded_at->toDateString())->toBe('2026-09-14');
+    expect($updated->id)->toBe($row->id)
+        ->and(TrooperCourse::count())->toBe(1)
+        ->and($updated->status)->toBe(CourseStatus::Qualified)
+        ->and($updated->awarded_at->toDateString())->toBe('2026-09-14');
 });
 
 // Story 6.9: one read for a whole unit's troopers, still fully loaded and in the catalog's order.
 
-it('returns the rows of several troopers in one read, each with its course', function () {
+it('returns the rows of several troopers in one read, and nobody else\'s', function () {
     $a = Trooper::factory()->create();
     $b = Trooper::factory()->create();
     $outsider = Trooper::factory()->create();
@@ -82,24 +84,31 @@ it('returns the rows of several troopers in one read, each with its course', fun
     $rows = app(TrooperCourseRepository::class)->forTroopers([$a->id, $b->id]);
 
     expect($rows)->toHaveCount(2)
-        ->and($rows->pluck('trooper_id')->sort()->values()->all())->toBe([$a->id, $b->id])
-        ->and($rows->every(fn (TrooperCourse $row) => $row->course instanceof Course))->toBeTrue();
+        ->and($rows->pluck('trooper_id')->all())->toBe([$a->id, $b->id]);
 });
 
-it('orders several troopers\' rows by the catalog, then by trooper, so the result never shuffles', function () {
+it('orders several troopers\' rows by trooper, then course, so the result never shuffles', function () {
     $first = Trooper::factory()->create();
     $second = Trooper::factory()->create();
-    $early = Course::factory()->create(['code' => 'ZZZ', 'sort_order' => 1]);
-    $late = Course::factory()->create(['code' => 'AAA', 'sort_order' => 2]);
+    $one = Course::factory()->create();
+    $two = Course::factory()->create();
 
-    foreach ([[$second, $late], [$first, $late], [$second, $early]] as [$trooper, $course]) {
+    foreach ([[$second, $two], [$first, $two], [$second, $one]] as [$trooper, $course]) {
         TrooperCourse::factory()->create(['trooper_id' => $trooper->id, 'course_id' => $course->id]);
     }
 
     $rows = app(TrooperCourseRepository::class)->forTroopers([$first->id, $second->id]);
 
-    expect($rows->map(fn (TrooperCourse $row) => [$row->course->code, $row->trooper_id])->all())
-        ->toBe([['ZZZ', $second->id], ['AAA', $first->id], ['AAA', $second->id]]);
+    expect($rows->map(fn (TrooperCourse $row) => [$row->trooper_id, $row->course_id])->all())
+        ->toBe([[$first->id, $two->id], [$second->id, $one->id], [$second->id, $two->id]]);
+});
+
+it('loads no course with the rows of several troopers', function () {
+    TrooperCourse::factory()->create(['trooper_id' => Trooper::factory()->create()->id]);
+
+    $row = app(TrooperCourseRepository::class)->forTroopers([TrooperCourse::first()->trooper_id])->first();
+
+    expect($row->relationLoaded('course'))->toBeFalse();
 });
 
 it('returns nothing, without a query, for no troopers', function () {

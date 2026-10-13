@@ -94,6 +94,19 @@ it('clears the Inertia history so "back" cannot repaint the authenticated page (
     expect($login->viewData('page')['clearHistory'])->toBeTrue();
 });
 
+it('encrypts the history of an authenticated page, so clearing it on logout has teeth (AC #2)', function (string $path) {
+    $user = User::factory()->create();
+
+    // `clearHistory()` above only deletes the client's encryption key. With history
+    // encryption off the stored page objects are plaintext, losing the key costs them
+    // nothing, and "back" after logout repaints the authenticated page anyway. This pins
+    // `history.encrypt` in config/inertia.php: every authenticated page must arrive flagged.
+    $page = $this->actingAs($user)->get($path)->assertOk()->viewData('page');
+
+    expect($page)->toHaveKey('encryptHistory');
+    expect($page['encryptHistory'])->toBeTrue();
+})->with(['/home', '/reports', '/settings/org-structure', '/settings/staff-grants']);
+
 it('marks authenticated responses no-store so a reload cannot repaint them (AC #2)', function () {
     $user = User::factory()->create();
 

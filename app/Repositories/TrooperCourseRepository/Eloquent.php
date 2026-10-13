@@ -29,13 +29,9 @@ class Eloquent implements TrooperCourseRepository
         }
 
         return TrooperCourse::query()
-            ->with('course')
-            ->join('courses', 'courses.id', '=', 'trooper_courses.course_id')
-            ->whereIn('trooper_courses.trooper_id', $trooperIds)
-            ->orderBy('courses.sort_order')
-            ->orderBy('courses.code')
-            ->orderBy('trooper_courses.trooper_id')
-            ->select('trooper_courses.*')
+            ->whereIn('trooper_id', $trooperIds)
+            ->orderBy('trooper_id')
+            ->orderBy('course_id')
             ->get();
     }
 
@@ -48,23 +44,20 @@ class Eloquent implements TrooperCourseRepository
             ->first();
     }
 
-    public function create(int $trooperId, int $courseId, CourseStatus $status, ?CarbonInterface $awardedAt, int $updatedBy): TrooperCourse
+    public function set(int $trooperId, int $courseId, CourseStatus $status, ?CarbonInterface $awardedAt, int $updatedBy): TrooperCourse
     {
-        $row = TrooperCourse::create([
-            'trooper_id' => $trooperId,
-            'course_id' => $courseId,
-            'status' => $status,
-            'awarded_at' => $awardedAt,
-            'updated_by' => $updatedBy,
-        ]);
+        TrooperCourse::query()->upsert(
+            [[
+                'trooper_id' => $trooperId,
+                'course_id' => $courseId,
+                'status' => $status->value,
+                'awarded_at' => $awardedAt?->toDateString(),
+                'updated_by' => $updatedBy,
+            ]],
+            ['trooper_id', 'course_id'],
+            ['status', 'awarded_at', 'updated_by'],
+        );
 
-        return $row->load('course');
-    }
-
-    public function update(TrooperCourse $row, CourseStatus $status, ?CarbonInterface $awardedAt, int $updatedBy): TrooperCourse
-    {
-        $row->fill(['status' => $status, 'awarded_at' => $awardedAt, 'updated_by' => $updatedBy])->save();
-
-        return $row;
+        return $this->find($trooperId, $courseId);
     }
 }

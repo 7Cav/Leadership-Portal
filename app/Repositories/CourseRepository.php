@@ -12,12 +12,16 @@ use Illuminate\Database\Eloquent\Collection;
 interface CourseRepository
 {
     /**
-     * The whole catalog in its one deterministic order: `sort_order`, then `code` for courses that
-     * share a `sort_order`, so milpac panels and matrix columns never shuffle between requests.
+     * The whole catalog in its one deterministic order: area of operation (the enum's case order),
+     * then `sort_order` within it, then `code` for courses that share a `sort_order`, so milpac
+     * panels and matrix columns stay grouped and never shuffle between requests. `sort_order` is
+     * therefore only meaningful within a category.
      *
      * @return Collection<int, Course>
      */
     public function all(): Collection;
+
+    public function find(int $id): ?Course;
 
     public function findByCode(string $code): ?Course;
 

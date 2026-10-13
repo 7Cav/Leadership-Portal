@@ -127,3 +127,27 @@ describe('the seeded catalog', function () {
         expect(Course::count())->toBe(0);
     });
 });
+
+it('refuses out-of-bounds input with a domain error and writes nothing', function (string $code, string $name, int $sortOrder) {
+    $actor = User::factory()->admin()->create();
+
+    expect(fn () => app(CreateCourse::class)->handle($actor, $code, $name, AreaOfOperation::General, $sortOrder))
+        ->toThrow(InvalidArgumentException::class);
+
+    expect(Course::count())->toBe(0)
+        ->and(AuditLogEntry::count())->toBe(0);
+})->with([
+    'negative sort order' => ['ODS', 'Officer Development School', -1],
+    'blank code' => ['   ', 'Officer Development School', 10],
+    'overlong code' => [str_repeat('A', 256), 'Officer Development School', 10],
+    'blank name' => ['ODS', '  ', 10],
+    'overlong name' => ['ODS', str_repeat('n', 256), 10],
+]);
+
+it('trims the description like the name', function () {
+    $actor = User::factory()->admin()->create();
+
+    $course = app(CreateCourse::class)->handle($actor, 'ODS', 'Officer Development School', AreaOfOperation::General, 10, '  Leadership.  ');
+
+    expect($course->description)->toBe('Leadership.');
+});
