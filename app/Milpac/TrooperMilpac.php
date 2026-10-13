@@ -14,7 +14,7 @@ use Illuminate\Support\Collection;
 
 /**
  * What the trooper detail page (the milpac) shows for one trooper (Stories 6.3 to 6.5): the ID block, the
- * courses and qualifications panel and the earned-awards history, read through the repositories and shaped as page props. Read-only, and it
+ * courses and qualifications panel and the awards history, read through the repositories and shaped as page props. Read-only, and it
  * never decides who may look: the caller gates that with the ScopeResolver (AD-8) before asking.
  *
  * The ID block is the cached Cav roster, so the page can show where it came from and how fresh it is (AD-20).
@@ -22,9 +22,6 @@ use Illuminate\Support\Collection;
  */
 final class TrooperMilpac
 {
-    /** The Cav milpac page for a trooper, keyed by their milpac id. */
-    public const MILPAC_PROFILE_URL = 'https://7cav.us/rosters/profile?uniqueid=';
-
     /** The order the course groups are shown in. `none` is left out: it means the trooper has nothing on the course. */
     private const GROUPS = [CourseStatus::Qualified, CourseStatus::InProgress, CourseStatus::Required];
 
@@ -35,14 +32,16 @@ final class TrooperMilpac
     ) {}
 
     /**
-     * @return array{trooper: array<string, mixed>, courses: array<string, mixed>, awards: array<string, mixed>, sync: array<string, mixed>}
+     * @return array{crumb: string, trooper: array<string, mixed>, awards: array{available: bool, items: list<array{name: string, awardedAt: ?string, citation: ?string}>}, courses: array{groups: list<array{status: string, label: string, courses: list<array{code: string, name: string, awardedAt: ?string}>}>, qualified: int, total: int}, sync: array<string, mixed>}
      */
     public function for(Trooper $trooper): array
     {
         return [
+            // The page's last breadcrumb crumb (the shell reads `crumb` for a page nested under a nav item).
+            'crumb' => $trooper->display_name,
             'trooper' => $this->idBlock($trooper),
             'courses' => $this->courses($trooper),
-            'awards' => $this->awards($trooper),
+            'awards' => $this->awards(),
             'sync' => $this->sync(),
         ];
     }
@@ -58,6 +57,7 @@ final class TrooperMilpac
     {
         $section = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
         $today = CarbonImmutable::now('UTC');
+        $departed = $trooper->status === TrooperStatus::Inactive;
 
         return [
             'id' => $trooper->id,
@@ -69,13 +69,15 @@ final class TrooperMilpac
             'billet' => $trooper->billet,
             'mos' => $trooper->mos,
             'status' => $trooper->status->value,
-            'departed' => $trooper->status === TrooperStatus::Inactive,
+            'departed' => $departed,
             'tis' => $trooper->tis?->toDateString(),
-            'tisMonths' => $this->monthsSince($trooper->tis?->toDateString(), $today),
+            // The roster records no departure date, so a departed trooper's tenure to today would be wrong
+            // and ever-growing: leave it unknown rather than show that figure.
+            'tisMonths' => $departed ? null : $this->monthsSince($trooper->tis?->toDateString(), $today),
             'tig' => $trooper->tig?->toDateString(),
-            'tigMonths' => $this->monthsSince($trooper->tig?->toDateString(), $today),
+            'tigMonths' => $departed ? null : $this->monthsSince($trooper->tig?->toDateString(), $today),
             'section' => $section === null ? null : ['id' => $section->id, 'name' => $section->name, 'callsign' => $section->callsign],
-            'milpacUrl' => self::MILPAC_PROFILE_URL.$trooper->cav_id,
+            'milpacUrl' => Trooper::MILPAC_PROFILE_URL.$trooper->cav_id,
         ];
     }
 
@@ -97,14 +99,15 @@ final class TrooperMilpac
     /**
      * The courses panel: the trooper's courses grouped as qualified, in progress and required, each group in
      * the catalog's order. `none` rows and absent rows are the same thing and are not listed, and a group
-     * with nothing in it is not returned.
+     * with nothing in it is not returned. `qualified` and `total` are counted from the groups returned, so the
+     * header count can never disagree with the list under it.
      *
-     * @return array{groups: list<array<string, mixed>>, qualified: int, total: int}
+     * @return array{groups: list<array{status: string, label: string, courses: list<array{code: string, name: string, awardedAt: ?string}>}>, qualified: int, total: int}
      */
     private function courses(Trooper $trooper): array
     {
         /** @var Collection<int, TrooperCourse> $rows */
-        $rows = $this->trooperCourses->forTrooper($trooper->id)->reject(fn (TrooperCourse $row) => $row->status === CourseStatus::None);
+        $rows = $this->trooperCourses->forTrooper($trooper->id);
 
         $groups = collect(self::GROUPS)
             ->map(fn (CourseStatus $status) => [
@@ -121,28 +124,27 @@ final class TrooperMilpac
                     ->all(),
             ])
             ->reject(fn (array $group) => $group['courses'] === [])
-            ->values()
-            ->all();
+            ->values();
 
         return [
-            'groups' => $groups,
-            'qualified' => $rows->filter(fn (TrooperCourse $row) => $row->status === CourseStatus::Qualified)->count(),
-            'total' => $rows->count(),
+            'groups' => $groups->all(),
+            'qualified' => count($groups->firstWhere('status', CourseStatus::Qualified->value)['courses'] ?? []),
+            'total' => $groups->sum(fn (array $group) => count($group['courses'])),
         ];
     }
 
     /**
      * The earned-awards history (Story 6.5): read-only, from the Cav-authoritative roster (AD-5), never a
-     * recommendation workflow (FR17). The roster sync stores no awards today (`/lite` carries none and AD-3 rules
-     * out a new outbound read for them), so every trooper gets the empty list and the page shows its empty state.
-     * When the roster cache starts holding awards, they are returned here as `{name, awardedAt, citation}`, newest
-     * first; the page already draws them.
+     * recommendation workflow (FR17). The roster cache holds no awards today (`/lite` carries none and AD-3 rules
+     * out a new outbound read for them), so `available` is false and the page says the awards are not synced
+     * rather than claiming the trooper has none: unknown is not the same as none. Once a source exists this is
+     * where it is read, newest first, as `{name, awardedAt, citation}`, with `available` true.
      *
-     * @return array{items: list<array{name: string, awardedAt: ?string, citation: ?string}>}
+     * @return array{available: bool, items: list<array{name: string, awardedAt: ?string, citation: ?string}>}
      */
-    private function awards(Trooper $trooper): array
+    private function awards(): array
     {
-        return ['items' => []];
+        return ['available' => false, 'items' => []];
     }
 
     /**

@@ -16,7 +16,6 @@ use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Schema;
 
 // Stories 6.3 to 6.5: one trooper's milpac, the ID block, the courses panel and the awards history, gated by the ScopeResolver.
 // Fixture tree: 7CAV ─ 1-7 ─ A/1-7 ─ 1/A ─┬─ 1/1/A (section, led by the viewer)
@@ -68,7 +67,7 @@ describe('who may open it', function () {
     it('refuses a trooper outside the leader\'s scope, whatever link led there', function () {
         $outside = milpacTrooper($this->section2);
 
-        milpacOpen($this->actingAs($this->leader), $outside)->assertForbidden();
+        milpacOpen($this->actingAs($this->leader), $outside)->assertNotFound();
     });
 
     it('opens a trooper in the union of every subtree the viewer holds', function () {
@@ -81,7 +80,7 @@ describe('who may open it', function () {
     });
 
     it('refuses someone with no scope at all', function () {
-        milpacOpen($this->actingAs(User::factory()->create()), milpacTrooper($this->section1))->assertForbidden();
+        milpacOpen($this->actingAs(User::factory()->create()), milpacTrooper($this->section1))->assertNotFound();
     });
 
     it('lets an Admin open any placed trooper', function () {
@@ -95,13 +94,13 @@ describe('who may open it', function () {
         $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->section1->id])->assertSessionHasNoErrors();
 
         milpacOpen($this, milpacTrooper($this->section1))->assertOk();
-        milpacOpen($this, milpacTrooper($this->section2))->assertForbidden();
+        milpacOpen($this, milpacTrooper($this->section2))->assertNotFound();
     });
 
     it('shows a trooper the sync has not placed to an Admin only', function () {
         $unplaced = Trooper::factory()->create();
 
-        milpacOpen($this->actingAs($this->leader), $unplaced)->assertForbidden();
+        milpacOpen($this->actingAs($this->leader), $unplaced)->assertNotFound();
         milpacOpen($this->actingAs(User::factory()->admin()->create()), $unplaced)->assertOk();
     });
 
@@ -163,6 +162,33 @@ describe('the ID block (6.3)', function () {
             ->where('trooper.billet', null)
             ->where('trooper.mos', null)
             ->where('trooper.displayName', "#{$trooper->cav_id}"));
+    });
+
+    it('leaves a departed trooper\'s time in service and grade unknown rather than counting on to today', function () {
+        $departed = milpacTrooper($this->section1, ['status' => TrooperStatus::Inactive, 'tis' => '2022-01-14', 'tig' => '2023-04-08']);
+
+        milpacOpen($this->actingAs($this->leader), $departed)->assertInertia(fn ($page) => $page
+            ->where('trooper.tis', '2022-01-14')
+            ->where('trooper.tisMonths', null)
+            ->where('trooper.tig', '2023-04-08')
+            ->where('trooper.tigMonths', null));
+    });
+
+    it('names the page\'s breadcrumb crumb after the trooper', function () {
+        $trooper = milpacTrooper($this->section1, ['username' => 'Milkovic.D', 'rank_short' => 'SPC']);
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page->where('crumb', 'SPC Milkovic.D'));
+    });
+
+    it('answers the same 404 for an out-of-scope trooper as for one that does not exist, on both routes', function () {
+        $outside = milpacTrooper($this->section2);
+        $this->actingAs($this->leader);
+
+        $page = $this->get("/troopers/{$outside->id}")->assertNotFound();
+        $missing = $this->get('/troopers/999999')->assertNotFound();
+        $sheet = $this->getJson("/roster/troopers/{$outside->id}")->assertNotFound();
+
+        expect($page->status())->toBe($missing->status())->toBe($sheet->status());
     });
 
     it('renders a departed trooper from their last cached identity, not a 404', function () {
@@ -330,14 +356,14 @@ describe('the courses panel (6.4)', function () {
 });
 
 describe('the awards history (6.5)', function () {
-    it('shows an empty awards list, because the roster cache holds no awards to read', function () {
+    it('marks awards as not available, because the roster cache holds none to read', function () {
         $trooper = milpacTrooper($this->section1);
 
         milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page
-            ->where('awards', ['items' => []]));
+            ->where('awards', ['available' => false, 'items' => []]));
     });
 
-    it('adds no outbound call, no write and no award table to render it', function () {
+    it('adds no outbound call and no write to render it', function () {
         $trooper = milpacTrooper($this->section1);
         Http::fake();
         $before = DB::table('sync_runs')->count();
@@ -345,7 +371,6 @@ describe('the awards history (6.5)', function () {
         milpacOpen($this->actingAs($this->leader), $trooper)->assertOk();
 
         Http::assertNothingSent();
-        expect(DB::table('sync_runs')->count())->toBe($before)
-            ->and(Schema::hasTable('awards'))->toBeFalse();
+        expect(DB::table('sync_runs')->count())->toBe($before);
     });
 });

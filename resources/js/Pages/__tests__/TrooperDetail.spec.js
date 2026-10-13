@@ -41,7 +41,7 @@ const courses = (overrides = {}) => ({
     ...overrides,
 });
 
-const awards = (items = []) => ({ items });
+const awards = (items = [], available = true) => ({ available, items });
 
 const sync = (overrides = {}) => ({ source: 'Cav roster', lastSuccessAt: '2026-10-08T09:30:00+00:00', stale: false, lastAttempt: null, ...overrides });
 
@@ -89,7 +89,7 @@ describe('TrooperDetail', () => {
         it('says explicitly when the trooper is not placed in a section', () => {
             const wrapper = page({ trooper: trooper({ section: null }) });
 
-            expect(wrapper.get('[data-testid="unmapped"]').text()).toContain('Unmapped');
+            expect(wrapper.get('[data-testid="unmapped"]').text()).toContain('Not placed in a section yet');
             expect(wrapper.get('[data-testid="trooper-subtitle"]').text()).not.toContain('Nightriders');
         });
 
@@ -105,9 +105,35 @@ describe('TrooperDetail', () => {
             expect(page({ trooper: trooper({ status: 'inactive', departed: true }) }).get('[data-testid="status"]').text()).toBe('Departed');
         });
 
+        it('shows a departed trooper as an outlined badge, not an error', () => {
+            const badge = page({ trooper: trooper({ status: 'inactive', departed: true }) }).get('[data-testid="status"]');
+
+            expect(badge.classes().join(' ')).not.toContain('danger');
+            expect(badge.find('svg').exists()).toBe(true);
+        });
+
         it('shows reserve and ELOA troopers by their roster status', () => {
             expect(page({ trooper: trooper({ status: 'reserve' }) }).get('[data-testid="status"]').text()).toBe('Reserve');
             expect(page({ trooper: trooper({ status: 'eloa' }) }).get('[data-testid="status"]').text()).toBe('ELOA');
+        });
+    });
+
+    describe('page structure', () => {
+        it('names the person once: the h1 is the name and the card heading is the billet', () => {
+            const wrapper = page();
+
+            expect(wrapper.findAll('h1')).toHaveLength(1);
+            expect(wrapper.get('h2').text()).toBe('Assistant Section Leader');
+        });
+
+        it('links back to the roster of the trooper\'s section, or to the roster when unplaced', () => {
+            expect(page().get('[data-testid="back-to-roster"]').attributes('href')).toBe('/roster/3');
+            expect(page().get('[data-testid="back-to-roster"]').text()).toContain('Back to 1/1/E/2-7 Nightriders');
+            expect(page({ trooper: trooper({ section: null }) }).get('[data-testid="back-to-roster"]').attributes('href')).toBe('/roster');
+        });
+
+        it('opens the Cav milpac as "View on 7cav.us"', () => {
+            expect(page().get('[data-testid="milpac-link"]').text()).toContain('View on 7cav.us');
         });
     });
 
@@ -115,12 +141,12 @@ describe('TrooperDetail', () => {
         it.each([
             ['Milkovic.D', 'MD'],
             ['Perry.JW', 'PJ'],
-            ['Madonna', 'MA'],
+            ['Madonna', 'M'],
             [null, '?'],
         ])('draws %s as %s', (username, letters) => {
             const wrapper = page({ trooper: trooper({ username }) });
 
-            expect(wrapper.get('[data-testid="id-block"] .rounded-full').text()).toBe(letters);
+            expect(wrapper.get('[data-testid="id-block"] [data-slot="avatar"]').text()).toBe(letters);
         });
     });
 
@@ -177,6 +203,17 @@ describe('TrooperDetail', () => {
             expect(page().get('[data-testid="courses-count"]').text()).toBe('2 / 4');
         });
 
+        it('names the count for screen readers and does not paint progress as a warning', () => {
+            const badge = page().get('[data-testid="courses-count"]');
+
+            expect(badge.attributes('aria-label')).toBe('2 of 4 qualified');
+            expect(badge.classes().join(' ')).not.toContain('warning');
+        });
+
+        it('draws the panel with the shared milpac panel header', () => {
+            expect(page().get('[data-testid="courses-panel"] h2').text()).toBe('Courses & qualifications');
+        });
+
         it('suppresses a group that has nothing in it', () => {
             const wrapper = page({ courses: courses({ groups: [courses().groups[0]], total: 2 }) });
 
@@ -223,7 +260,7 @@ describe('TrooperDetail', () => {
             expect(row.find('[data-testid="award-citation"]').exists()).toBe(false);
         });
 
-        it('says plainly when there are no awards on record', () => {
+        it('says plainly when a source holds no awards for the trooper', () => {
             const wrapper = page();
 
             expect(wrapper.get('[data-testid="awards-empty"]').text()).toBe('No awards on record.');
@@ -231,18 +268,19 @@ describe('TrooperDetail', () => {
             expect(wrapper.find('[data-testid="awards-count"]').exists()).toBe(false);
         });
 
-        it('names the Cav roster and when it last synced, and never offers to change an award', () => {
-            const panel = page({ awards: awards(earned) }).get('[data-testid="awards-panel"]');
+        it('says the awards are not synced, rather than none, when there is no source yet', () => {
+            const wrapper = page({ awards: awards([], false) });
 
-            expect(panel.get('[data-testid="awards-source"]').text()).toContain('Source: Cav roster');
-            expect(panel.get('[data-testid="awards-source"]').text()).toContain('last synced');
-            expect(panel.findAll('button, input, select, textarea, form, a[href]')).toHaveLength(0);
+            expect(wrapper.find('[data-testid="awards-empty"]').exists()).toBe(false);
+            expect(wrapper.get('[data-testid="awards-unavailable"]').text()).toContain('not synced from the Cav roster yet');
+            expect(wrapper.get('[data-testid="awards-milpac-link"]').attributes('href')).toBe('https://7cav.us/rosters/profile?uniqueid=4374');
         });
 
-        it('says never synced when no sync has succeeded', () => {
-            const wrapper = page({ sync: sync({ lastSuccessAt: null }) });
+        it('names the count for screen readers and never offers to change an award', () => {
+            const panel = page({ awards: awards(earned) }).get('[data-testid="awards-panel"]');
 
-            expect(wrapper.get('[data-testid="awards-source"]').text()).toContain('never synced');
+            expect(panel.get('[data-testid="awards-count"]').attributes('aria-label')).toBe('2 awards');
+            expect(panel.findAll('button, input, select, textarea, form, a[href]')).toHaveLength(0);
         });
     });
 });

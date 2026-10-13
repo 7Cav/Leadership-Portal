@@ -10,8 +10,9 @@ leader reached the trooper:
   catalog's order. `none` rows and absent rows are the same thing and are not listed, and an empty group is not
   returned.
 - `awards`: the earned-awards history, read-only (AD-5, FR17: no rec workflow). The roster sync stores no awards
-  today and AD-3 rules out a new read for them, so `items` is empty and the page shows "No awards on record". When
-  the roster cache holds awards, they are returned as `{name, awardedAt, citation}` and the page already draws them.
+  today and AD-3 rules out a new read for them, so `available` is false with no `items`, and the page says awards are
+  not synced from the Cav roster yet (and links to the Cav milpac) instead of "none". When the roster cache holds
+  awards, they are returned as `{name, awardedAt, citation}` with `available` true.
 - `sync`: where the ID block came from and how current it is (AD-20): the last successful roster sync, and a stale
   flag when a later run did not succeed.
 
