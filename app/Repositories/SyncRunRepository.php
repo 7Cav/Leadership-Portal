@@ -23,22 +23,27 @@ interface SyncRunRepository
      * otherwise completed — recorded `partial`, not `failure`, since the good rows were still
      * committed. `$needsReview` counts rows left for a person to look at (the LOA sync, 4.2); it is
      * deliberately not part of `$errored`, so an unreadable post does not make the run `partial`. `$error` carries the per-row detail behind a partial run's `errored` count.
+     * `$error` is cut to its first 2,000 characters, so a summary of many bad rows cannot overflow the column
+     * and leave the run open.
      */
     public function complete(SyncRun $run, int $inserted, int $updated, int $inactivated, int $errored, ?string $error = null, int $needsReview = 0): void;
 
     /**
      * Close a run that aborted before completing. Counts are left at their opened-run default of
-     * zero: a failure means the write never happened, so there is nothing to count.
+     * zero: a failure means the write never happened, so there is nothing to count. `$error` is cut
+     * the same way as {@see complete()}'s, so an over-long message still closes the run.
      */
     public function fail(SyncRun $run, string $error): void;
 
     /**
      * Close every run of `$source` still `in_progress` as failed. For a source whose runs are serialized,
      * so one still open when a new run starts was killed (a worker timeout) before it could record itself.
+     * A source serialized per practice (capture, 7.5) passes `$sectionPracticeId`, so only that practice's
+     * runs are closed and a capture running for another practice is left alone.
      *
      * @return int how many were closed
      */
-    public function failOrphaned(string $source): int;
+    public function failOrphaned(string $source, ?int $sectionPracticeId = null): int;
 
     /**
      * The most recent successful run for a source, for the roster view's (2.8) "last synced"

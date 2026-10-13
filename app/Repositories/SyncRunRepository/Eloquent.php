@@ -8,6 +8,13 @@ use App\Repositories\SyncRunRepository;
 
 class Eloquent implements SyncRunRepository
 {
+    /**
+     * The most of `sync_runs.error` a run keeps. The column is a MySQL `text` (64KB), and a strict MySQL refuses a
+     * longer value outright, so an unbounded summary would fail the close and leave the run `in_progress`. 2,000
+     * characters is the LOA sync's own cap, and at four bytes a character it stays well inside the column.
+     */
+    private const ERROR_LENGTH = 2000;
+
     public function open(string $source, int|string $triggeredBy, ?int $sectionPracticeId = null, ?int $unitId = null): SyncRun
     {
         return SyncRun::query()->forceCreate([
@@ -30,7 +37,7 @@ class Eloquent implements SyncRunRepository
             'inactivated' => $inactivated,
             'errored' => $errored,
             'needs_review' => $needsReview,
-            'error' => $error,
+            'error' => $error === null ? null : mb_substr($error, 0, self::ERROR_LENGTH),
         ])->save();
     }
 
@@ -39,14 +46,15 @@ class Eloquent implements SyncRunRepository
         $run->forceFill([
             'finished_at' => now(),
             'status' => SyncRunStatus::Failure,
-            'error' => $error,
+            'error' => mb_substr($error, 0, self::ERROR_LENGTH),
         ])->save();
     }
 
-    public function failOrphaned(string $source): int
+    public function failOrphaned(string $source, ?int $sectionPracticeId = null): int
     {
         return SyncRun::query()
             ->where('source', $source)
+            ->when($sectionPracticeId !== null, fn ($query) => $query->where('section_practice_id', $sectionPracticeId))
             ->where('status', SyncRunStatus::InProgress)
             ->update([
                 'finished_at' => now(),
