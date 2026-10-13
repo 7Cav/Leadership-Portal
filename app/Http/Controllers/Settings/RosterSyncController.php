@@ -8,15 +8,14 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 /**
- * The manual roster-sync trigger (Story 2.4). No `index` here — the roster view this
- * dispatches from is Story 2.8's; this controller exists only to authorize and dispatch.
+ * The manual roster-sync trigger (Story 2.4), posted by the roster screen's "Sync now" control
+ * (2.8). No `index` here: this controller only authorizes and dispatches.
  */
 class RosterSyncController extends Controller
 {
     /**
      * Dispatch `SyncRosterJob` through the identical queued path the scheduler uses (AC #1,
-     * #3). The Admin gate matches every other admin-gated write in this codebase (org-structure,
-     * staff-grants, audit-log) — roster-derived "leader" scope (AD-7) isn't computed yet.
+     * #3). Admin only, read from the real `is_admin` flag as the org-structure writes do (AD-6).
      */
     public function store(Request $request): RedirectResponse
     {

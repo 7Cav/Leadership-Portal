@@ -84,8 +84,7 @@ class OrgStructureController extends Controller
 
     /**
      * Add a node under a chosen parent (AC #2). The Admin gate is enforced here, server-side,
-     * regardless of what the UI shows (AC #5, AD-6) — `Authorization/`'s ScopeResolver doesn't
-     * land until Story 1.11, so this checks the `is_admin` flag (AD-7) directly.
+     * regardless of what the UI shows (AC #5, AD-6), against the `is_admin` flag (AD-7).
      */
     public function store(Request $request, CreateUnit $command): RedirectResponse
     {

@@ -210,8 +210,8 @@ class HomeController extends Controller
      * definition is `TrooperAttendance::atRisk()` (AD-21) and a holding report is the roll-up's own
      * `isHolding()` (AD-13), so the list never disagrees with the tiles or the navigator.
      *
-     * LOA is not modelled yet (Epic 4): an expiring LOA joins here as another `kind` once it is,
-     * and a `needs_review` LOA must then never produce an at-risk item (AD-4).
+     * Leave (Epic 4) is not listed here: an expiring LOA would join as another `kind`, and a
+     * `needs_review` LOA must then never produce an at-risk item (AD-4).
      *
      * @param  Collection<int, Unit>  $roots
      * @param  Collection<int, ChainNode>  $chains
