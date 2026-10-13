@@ -48,6 +48,14 @@ const trooper = (id, rollcall, status, extra = {}) => ({
     id, cavId: 1000 + id, rank: 'PFC', name: `Trooper${id}.A`, rollcall, status, source: status ? 'manual' : null, priorStatus: null, ...extra,
 });
 
+const TEMPLATE = {
+    state: 'resolved',
+    companyId: 1,
+    versionId: 31,
+    version: 2,
+    body: '[b]{{unit}} Rollcall, week of {{week_start}}[/b]\n{{#troopers}}[tr][td]{{rank}}[/td][td]{{name}}[/td][td]{{#rc_yes}}Will attend{{/rc_yes}}{{#rc_no}}Cannot attend{{/rc_no}}{{#rc_unsigned}}Unsigned{{/rc_unsigned}}[/td][td]{{#sp_missed}}Missed{{/sp_missed}}{{#sp_unmarked}}Not marked{{/sp_unmarked}}{{#sp_present}}Present{{/sp_present}}[/td][/tr]\n{{/troopers}}',
+};
+
 function factory(props = {}) {
     return mount(Rollcall, {
         props: {
@@ -59,6 +67,7 @@ function factory(props = {}) {
             atRisk: [],
             roster: { source: 'milpac', syncedAt: '2026-10-08T09:14:00+00:00' },
             practice: { lastMarkedAt: null },
+            template: TEMPLATE,
             ...props,
         },
         attachTo: document.body,
@@ -315,11 +324,12 @@ describe('Rollcall page', () => {
             toastError.mockClear();
         });
 
-        it('previews the post and keeps the BBCode in step with the marks', async () => {
+        it('shows the post from the active template, with its version, and keeps it in step with the marks', async () => {
             const wrapper = factory();
 
-            expect(wrapper.find('[data-testid="forum-preview"]').text()).toContain('Trooper3.A');
-            expect(wrapper.find('[data-testid="forum-post"]').text()).toContain('2/1/A/1-7 Rollcall, week of 03Oct26');
+            expect(wrapper.find('[data-testid="template-version"]').text()).toBe('Template version 2');
+            expect(wrapper.find('[data-testid="forum-bbcode"]').text()).toContain('[b]2/1/A/1-7 Rollcall, week of 03Oct26[/b]');
+            expect(wrapper.find('[data-testid="forum-bbcode"]').text()).toContain('[tr][td]PFC[/td][td]Trooper3.A[/td][td]Unsigned[/td][td]Not marked[/td][/tr]');
 
             page.url = '/rollcall/12?step=2';
             await wrapper.vm.$nextTick();
@@ -327,8 +337,33 @@ describe('Rollcall page', () => {
             page.url = '/rollcall/12?step=3';
             await wrapper.vm.$nextTick();
 
-            const row = wrapper.findAll('[data-testid="forum-preview"] tbody tr').find((tr) => tr.text().includes('Trooper3.A'));
-            expect(row.text()).toContain('Missed');
+            expect(wrapper.find('[data-testid="forum-bbcode"]').text()).toContain('[td]Trooper3.A[/td][td]Unsigned[/td][td]Missed[/td]');
+        });
+
+        it('renders from whichever template the server sent, so a new version changes the post', () => {
+            const wrapper = factory({ template: { ...TEMPLATE, version: 3, body: 'v3 {{unit}} {{count}}' } });
+
+            expect(wrapper.find('[data-testid="template-version"]').text()).toBe('Template version 3');
+            expect(wrapper.find('[data-testid="forum-bbcode"]').text()).toBe('v3 2/1/A/1-7 3');
+        });
+
+        it.each([
+            ['a company with no active template', { state: 'no_active_template', companyId: 1, versionId: null, version: null, body: null }, 'no rollcall template yet'],
+            ['a section under no company', { state: 'no_owning_company', companyId: null, versionId: null, version: null, body: null }, 'does not sit under a company'],
+            ['a template that no longer renders', { ...TEMPLATE, body: '{{#troopers}}' }, 'does not render'],
+        ])('writes no post for %s, says why, and cannot be copied', (_name, template, message) => {
+            const wrapper = factory({ template });
+
+            expect(wrapper.find('[data-testid="forum-bbcode"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="forum-post-unavailable"]').text()).toContain(message);
+            expect(wrapper.find('[data-testid="copy-bbcode"]').attributes('disabled')).toBeDefined();
+        });
+
+        it('offers no way to edit the template from the rollcall', () => {
+            const wrapper = factory();
+
+            expect(wrapper.find('textarea').exists()).toBe(false);
+            expect(wrapper.find('a[href*="/settings/templates"]').exists()).toBe(false);
         });
 
         it('copies the generated BBCode to the clipboard, with no request to the server (AD-20)', async () => {

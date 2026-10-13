@@ -37,6 +37,14 @@ const COMPANIES = [
 const VERSION_2 = { id: 22, version: 2, body: '[B]second[/B]', createdAt: '2026-10-08T09:30:00+00:00', createdBy: 'Pike.S' };
 const VERSION_1 = { id: 21, version: 1, body: '[B]first[/B]', createdAt: '2026-10-01T09:30:00+00:00', createdBy: 'Pike.S' };
 
+const SYNTAX = {
+    values: ['unit', 'week'],
+    rowValues: ['n', 'name'],
+    rowFlags: ['sp_present', 'rc_yes'],
+    filters: ['upper', 'lower'],
+};
+const STARTER = '[B]{{unit}}[/B]{{#troopers}}{{name}}{{/troopers}}';
+
 const props = (overrides = {}) => ({
     artifactType: { value: 'rollcall_bbcode', label: 'Rollcall BBCode' },
     companies: COMPANIES,
@@ -44,6 +52,8 @@ const props = (overrides = {}) => ({
     active: VERSION_2,
     history: [{ ...VERSION_2, isActive: true }, { ...VERSION_1, isActive: false }],
     maxBodyLength: 20000,
+    syntax: SYNTAX,
+    starter: STARTER,
     isAdmin: true,
     ...overrides,
 });
@@ -264,5 +274,31 @@ describe('Settings/Templates', () => {
 
     it('caps the editor at the server\'s limit', () => {
         expect(page().get('[data-testid="template-body"]').attributes('maxlength')).toBe('20000');
+    });
+
+    it('starts an Admin with no template from a blank editor, and fills the example only on request', async () => {
+        const wrapper = page({ active: null, history: [] });
+
+        expect(wrapper.get('[data-testid="template-body"]').element.value).toBe('');
+        await wrapper.get('[data-testid="use-starter"]').trigger('click');
+        expect(wrapper.get('[data-testid="template-body"]').element.value).toBe(STARTER);
+    });
+
+    it('offers no starter once the company has a template', () => {
+        expect(page().find('[data-testid="use-starter"]').exists()).toBe(false);
+    });
+
+    it('lists every placeholder the server accepts, so an Admin does not have to guess', () => {
+        const wrapper = page();
+
+        expect(wrapper.get('[data-testid="syntax-values"]').text()).toContain('{{unit}}');
+        expect(wrapper.get('[data-testid="syntax-values"]').text()).toContain('{{week}}');
+        expect(wrapper.get('[data-testid="syntax-row-values"]').text()).toContain('{{name}}');
+        expect(wrapper.get('[data-testid="syntax-row-flags"]').text()).toContain('{{#sp_present}}...{{/sp_present}}');
+        expect(wrapper.get('[data-testid="syntax-help"]').text()).toContain('{{name|upper}}');
+    });
+
+    it('shows the placeholder reference to a non-Admin too, since they read the template', () => {
+        expect(page({ isAdmin: false }).find('[data-testid="syntax-help"]').exists()).toBe(true);
     });
 });

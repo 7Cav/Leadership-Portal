@@ -10,6 +10,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\TemplateUnchangedException;
 use App\Repositories\TemplateVersionRepository;
+use App\Rollcall\TemplateSyntax;
 use App\Support\Audit\AuditEnvelope;
 
 /**
@@ -18,9 +19,9 @@ use App\Support\Audit\AuditEnvelope;
  * {@see CreateUnit}. The write goes through {@see AuditEnvelope} with a reason always required (AD-16), since a
  * template change reaches every section under the company.
  *
- * The body is stored as given. Whether it renders is a question for the renderer (3.10), not for storage, so the
- * only checks here are the shape of the request: the target is a company, and the body has some text and a bounded
- * length. Saving text identical to the active version is a no-op that is not logged, as for the other commands: work
+ * The body is stored as given, but only if it is a well-formed template (Story 3.10): the target is a company, the body
+ * has some text and a bounded length, and its tags are all known and balanced, so a typo is refused here instead of
+ * reaching every section's rollcall. Saving text identical to the active version is a no-op that is not logged, as for the other commands: work
  * that did not happen does not get a version number.
  */
 class AuthorTemplateVersion
@@ -34,7 +35,8 @@ class AuthorTemplateVersion
     ) {}
 
     /**
-     * @throws InvalidTemplateException when the unit is not a company, or the body is empty or too long.
+     * @throws InvalidTemplateException when the unit is not a company, or the body is empty, too long or not a
+     *                                  well-formed template.
      */
     public function handle(User $actor, Unit $company, ArtifactType $type, string $body, ?string $reason): TemplateVersion
     {
@@ -48,6 +50,10 @@ class AuthorTemplateVersion
 
         if (mb_strlen($body) > self::MAX_BODY_LENGTH) {
             throw InvalidTemplateException::bodyTooLong(self::MAX_BODY_LENGTH);
+        }
+
+        if (($problem = TemplateSyntax::check($body)) !== null) {
+            throw InvalidTemplateException::badSyntax($problem);
         }
 
         $active = $this->versions->activeFor($company->id, $type);

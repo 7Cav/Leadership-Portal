@@ -1,61 +1,79 @@
+import { render } from './bbcode';
 import { forumDate } from './forumDate';
-import { countsOf, displayName, isLocked, practiceLabel, rankOf, signatureLabel } from './rollcall';
+import { displayName, fullName, isLocked, rankOf } from './rollcall';
 
-// The rollcall forum post (Story 3.10): one fixed default template — template versions (3.5, 3.6,
-// 3.11) are not built yet, so there is always exactly one, and it is always active. The portal
-// never posts it (AD-20); the leader copies it into the week's rollcall thread.
-//
-// `rollcallPost()` is the post as data — the live preview renders it — and `rollcallBbcode()`
-// writes the same data as forum BBCode, so the preview and the copied text cannot disagree.
+// The rollcall forum post (Stories 3.10, 3.11). The post is whatever the section's company has as its active template
+// (3.5, resolved by the server on every render, 3.6, AD-17) filled with the week's marks. There is no built-in copy to
+// fall back to: a company with no template shows what is missing instead of a post nobody wrote. The portal never
+// posts it (AD-20); the leader copies it into the week's rollcall thread.
 
-// Forum markup in a name or rank would break the table (or smuggle tags into the post).
-const plain = (text) => String(text ?? '').replace(/\[/g, '(').replace(/\]/g, ')');
+const RC_WORDS = { will_attend: 'Yes', cannot_attend: 'No' };
+const SP_WORDS = { present: 'Yes', missed: 'No', makeup: 'MU', attached: 'Att', loa: 'LOA' };
 
-export function rollcallPost({ designation, weekStart, troopers }) {
-    const counts = countsOf(troopers);
-    const rows = troopers.map((trooper) => ({
-        id: trooper.id,
-        rank: plain(rankOf(trooper) ?? ''),
-        name: plain(displayName(trooper)),
-        signature: isLocked(trooper) ? 'LOA' : signatureLabel(trooper.rollcall),
-        practice: practiceLabel(trooper.status),
-    }));
+/**
+ * The values a template can print, from the section, the week and each trooper's current marks.
+ *
+ * @param {{section: object, week: object, troopers: object[]}} input the props the rollcall page received, with the working marks
+ */
+export function rollcallContext({ section, week, troopers }) {
+    const rows = troopers.map((trooper, index) => {
+        const sp = isLocked(trooper) ? 'loa' : trooper.status;
+        const rc = trooper.rollcall;
 
-    const summary = [
-        `Signed ${counts.total - counts.unsigned} of ${counts.total}.`,
-        `Present ${counts.present}, missed ${counts.missed}, makeup ${counts.makeup}, attached ${counts.attached}, LOA ${counts.loa}` +
-            (counts.unmarked ? `, not marked ${counts.unmarked}.` : '.'),
-    ].join(' ');
+        return {
+            n: String(index + 1),
+            rank: trooper.rank ?? '',
+            rank_short: rankOf(trooper) ?? '',
+            name: displayName(trooper),
+            display_name: fullName(trooper),
+            rc: RC_WORDS[rc] ?? '',
+            sp: SP_WORDS[sp] ?? '',
+            sp_present: sp === 'present',
+            sp_missed: sp === 'missed',
+            sp_makeup: sp === 'makeup',
+            sp_attached: sp === 'attached',
+            sp_loa: sp === 'loa',
+            sp_unmarked: sp === null,
+            rc_yes: rc === 'will_attend',
+            rc_no: rc === 'cannot_attend',
+            rc_unsigned: rc !== 'will_attend' && rc !== 'cannot_attend',
+        };
+    });
 
     return {
-        title: `${plain(designation)} Rollcall, week of ${forumDate(weekStart)}`,
-        columns: ['Rank', 'Name', 'Rollcall', 'SP'],
-        rows,
-        summary: rows.length ? summary : 'No troopers are placed in this section.',
+        unit: section.designation,
+        unit_name: section.name,
+        week: `${forumDate(week.start)} – ${forumDate(week.closes)}`,
+        week_start: forumDate(week.start),
+        week_end: forumDate(week.closes),
+        count: String(rows.length),
+        signed: String(rows.filter((row) => row.rc_yes).length),
+        attended: String(rows.filter((row) => row.sp_present || row.sp_makeup || row.sp_attached).length),
+        troopers: rows,
     };
 }
 
-// How each SP status is written in the post: a miss stands out, the rest are their label.
-function practiceCell(label) {
-    return label === 'Missed' ? '[color=#c0392b]Missed[/color]' : label;
-}
-
-export function rollcallBbcode(input) {
-    const post = rollcallPost(input);
-    const cells = (values) => `[tr]${values.map((value) => `[td]${value}[/td]`).join('')}[/tr]`;
-    const lines = [`[b]${post.title}[/b]`, ''];
-
-    if (post.rows.length) {
-        lines.push(
-            '[table]',
-            cells(post.columns.map((column) => `[b]${column}[/b]`)),
-            ...post.rows.map((row) => cells([row.rank, row.name, row.signature, practiceCell(row.practice)])),
-            '[/table]',
-            '',
-        );
+/**
+ * The forum post for the page's current marks.
+ *
+ * `ready` carries the BBCode and the version it came from; `none` says why no template applies; `invalid` is a stored
+ * template that no longer renders (one saved before its grammar was checked), with the reason.
+ *
+ * @param {{state: string, version: ?number, body: ?string}|null} template the `template` prop (ResolvedTemplate::toArray)
+ * @returns {{state: 'ready', text: string, version: number} | {state: 'none' | 'invalid', message: string}}
+ */
+export function rollcallPost(template, input) {
+    if (template?.state === 'no_owning_company') {
+        return { state: 'none', message: 'This section does not sit under a company, so there is no rollcall template for it.' };
     }
 
-    lines.push(post.summary);
+    if (template?.state !== 'resolved' || typeof template.body !== 'string') {
+        return { state: 'none', message: 'This company has no rollcall template yet. An Admin writes one in Settings, Templates.' };
+    }
 
-    return lines.join('\n');
+    const out = render(template.body, rollcallContext(input));
+
+    return out.ok
+        ? { state: 'ready', text: out.text, version: template.version }
+        : { state: 'invalid', message: `The company's template (version ${template.version}) does not render: ${out.error} An Admin can fix it in Settings, Templates.` };
 }

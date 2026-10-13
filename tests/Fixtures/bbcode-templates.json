@@ -1,0 +1,40 @@
+{
+    "valid": [
+        { "name": "plain text with no tags", "template": "[B]Roll call[/B]" },
+        { "name": "an empty-looking skeleton", "template": "[CENTER][/CENTER]" },
+        { "name": "top-level values", "template": "{{unit}} ROLL CALL | {{week}} ({{count}} troopers, {{signed}} signed, {{attended}} attended)" },
+        { "name": "every top-level value", "template": "{{unit}}{{unit_name}}{{week}}{{week_start}}{{week_end}}{{count}}{{signed}}{{attended}}" },
+        { "name": "a trooper loop with row values", "template": "{{#troopers}}{{n}} {{rank}} {{rank_short}} {{name}} {{display_name}} {{rc}} {{sp}}\n{{/troopers}}" },
+        { "name": "an empty-section branch", "template": "{{#troopers}}{{name}}{{/troopers}}{{^troopers}}No troopers this week.{{/troopers}}" },
+        { "name": "status flags as sections", "template": "{{#troopers}}{{#sp_present}}Y{{/sp_present}}{{#sp_missed}}N{{/sp_missed}}{{#sp_makeup}}MU{{/sp_makeup}}{{#sp_attached}}ATT{{/sp_attached}}{{#sp_loa}}LOA{{/sp_loa}}{{#sp_unmarked}}-{{/sp_unmarked}}{{/troopers}}" },
+        { "name": "signature flags and an inverted flag", "template": "{{#troopers}}{{#rc_yes}}Y{{/rc_yes}}{{#rc_no}}N{{/rc_no}}{{^rc_yes}}not yes{{/rc_yes}}{{#rc_unsigned}}-{{/rc_unsigned}}{{/troopers}}" },
+        { "name": "leave details and a needs-review flag", "template": "{{#troopers}}x{{/troopers}}" },
+        { "name": "filters", "template": "{{week|upper}} {{unit|lower}}{{#troopers}}{{name | upper}}{{/troopers}}" },
+        { "name": "whitespace inside tags", "template": "{{ unit }} {{# troopers }}{{ name }}{{/ troopers }}" },
+        { "name": "a section over a top-level value", "template": "{{#unit}}Unit: {{unit}}{{/unit}}" },
+        { "name": "BBCode with square brackets and a table", "template": "[TABLE][TR][TH]#[/TH][/TR]{{#troopers}}[TR][TD]{{n}}[/TD][/TR]{{/troopers}}[/TABLE]" },
+        { "name": "a lone closing brace pair is just text", "template": "a }} b" },
+        { "name": "braces around a value are plain text", "template": "{{{unit}}}" }
+    ],
+    "invalid": [
+        { "name": "an unknown name", "template": "{{colour}}", "error": "Unknown name \"colour\"." },
+        { "name": "a typo in a row value", "template": "{{#troopers}}{{nme}}{{/troopers}}", "error": "Unknown name \"nme\"." },
+        { "name": "an unknown section", "template": "{{#squad}}x{{/squad}}", "error": "Unknown name \"squad\"." },
+        { "name": "a row value outside the loop", "template": "{{name}}", "error": "can only be used inside {{#troopers}}" },
+        { "name": "a row section outside the loop", "template": "{{#sp_present}}x{{/sp_present}}", "error": "can only be used inside {{#troopers}}" },
+        { "name": "an unclosed section", "template": "{{#troopers}}{{name}}", "error": "is never closed" },
+        { "name": "a close with nothing open", "template": "x{{/troopers}}", "error": "closes a section that is not open" },
+        { "name": "a close that does not match", "template": "{{#troopers}}{{#sp_present}}x{{/troopers}}{{/sp_present}}", "error": "does not match the open section" },
+        { "name": "an inverted section that does not match", "template": "{{#troopers}}{{^sp_present}}x{{/troopers}}", "error": "does not match the open section \"{{^sp_present}}\"" },
+        { "name": "printing the list", "template": "{{troopers}}", "error": "cannot be printed" },
+        { "name": "printing a flag", "template": "{{#troopers}}{{sp_present}}{{/troopers}}", "error": "is a yes-or-no value" },
+        { "name": "an unknown filter", "template": "{{unit|reverse}}", "error": "Unknown filter \"reverse\"" },
+        { "name": "a filter on a section", "template": "{{#troopers|upper}}x{{/troopers}}", "error": "takes no filter" },
+        { "name": "a loop inside a loop", "template": "{{#troopers}}{{#troopers}}x{{/troopers}}{{/troopers}}", "error": "cannot be nested inside itself" },
+        { "name": "an opening brace pair with no end", "template": "[B]{{unit[/B]", "error": "no matching" },
+        { "name": "a tag that is not recognised", "template": "{{ UNIT }}", "error": "not recognised" },
+        { "name": "a partial, which is not supported", "template": "{{> header}}", "error": "not recognised" },
+        { "name": "an expression", "template": "{{unit + 1}}", "error": "not recognised" },
+        { "name": "a stray opening brace pair at the end", "template": "ok {{", "error": "no matching" }
+    ]
+}
