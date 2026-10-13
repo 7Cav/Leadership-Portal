@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\TemplateVersion;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\WeeklyReport;
@@ -41,14 +42,17 @@ it('makes (unit_id, week_start) unique', function () {
     expect($uniques)->toContain(['unit_id', 'week_start']);
 });
 
-it('points unit_id at units and sent_by at users, and leaves template_version_id without a foreign key', function () {
+it('points unit_id at units, sent_by at users and template_version_id at template_versions', function () {
     $targets = collect(Schema::getForeignKeys('weekly_reports'))
         ->mapWithKeys(fn (array $fk) => [$fk['columns'][0] => $fk['foreign_table'].'.'.$fk['foreign_columns'][0]])
         ->sortKeys()
         ->all();
 
-    // `template_versions` (3.5) is deferred for the MVP, so there is nothing to reference yet.
-    expect($targets)->toBe(['sent_by' => 'users.id', 'unit_id' => 'units.id']);
+    expect($targets)->toBe([
+        'sent_by' => 'users.id',
+        'template_version_id' => 'template_versions.id',
+        'unit_id' => 'units.id',
+    ]);
 });
 
 it('rejects a second row for the same unit and week — the substrate of an idempotent send', function () {
@@ -97,10 +101,18 @@ it('defaults a row to draft with null notes, send metadata and template referenc
         ->and($raw->template_version_id)->toBeNull();
 });
 
-it('accepts a template_version_id that references nothing — no foreign key until 3.5 lands', function () {
-    DB::table('weekly_reports')->insert(rawWeeklyReportRow(['template_version_id' => 424242]));
+it('rejects a template_version_id that names no template version', function () {
+    expect(fn () => DB::table('weekly_reports')->insert(rawWeeklyReportRow(['template_version_id' => 424242])))
+        ->toThrow(QueryException::class)
+        ->and(DB::table('weekly_reports')->count())->toBe(0);
+});
 
-    expect(DB::table('weekly_reports')->sole()->template_version_id)->toBe(424242);
+it('accepts a template_version_id that names a template version', function () {
+    $version = TemplateVersion::factory()->create();
+
+    DB::table('weekly_reports')->insert(rawWeeklyReportRow(['template_version_id' => $version->id]));
+
+    expect(DB::table('weekly_reports')->sole()->template_version_id)->toBe($version->id);
 });
 
 it('keeps status and send metadata out of mass assignment — only the repository send path sets them', function () {
@@ -119,4 +131,12 @@ it('prevents deleting the user recorded as a report sender', function () {
 
     expect(fn () => User::query()->whereKey($report->sent_by)->delete())->toThrow(QueryException::class)
         ->and(WeeklyReport::query()->sole()->sent_by)->toBe($report->sent_by);
+});
+
+it('prevents deleting a template version a report was sent with', function () {
+    $version = TemplateVersion::factory()->create();
+    DB::table('weekly_reports')->insert(rawWeeklyReportRow(['status' => 'sent', 'template_version_id' => $version->id]));
+
+    expect(fn () => TemplateVersion::query()->whereKey($version->id)->delete())->toThrow(QueryException::class)
+        ->and(DB::table('weekly_reports')->sole()->template_version_id)->toBe($version->id);
 });
