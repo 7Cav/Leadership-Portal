@@ -31,6 +31,27 @@ final class WeekOf
     }
 
     /**
+     * The start of the Cav week before the one opening at `$weekStart`.
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public static function previous(CarbonInterface $weekStart): CarbonImmutable
+    {
+        return self::requireStart($weekStart)->subWeek();
+    }
+
+    /**
+     * The start of the Cav week `$weeks` weeks after the one opening at `$weekStart` (the next one by default),
+     * which is also the first instant after a range of `$weeks` weeks that begins at `$weekStart`.
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public static function next(CarbonInterface $weekStart, int $weeks = 1): CarbonImmutable
+    {
+        return self::requireStart($weekStart)->addWeeks($weeks);
+    }
+
+    /**
      * The week whose report cycle is running at `$now`. A week's report falls due at 23:59Z on the
      * Saturday after it ends — day one of the next week — so until that deadline passes the
      * closing week is still the current one, not the fresh week that would hide a report due in a

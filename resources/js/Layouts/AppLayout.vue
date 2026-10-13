@@ -34,7 +34,10 @@ const trail = computed(() => {
     const found = locate(page.url);
     if (!found) return [];
 
-    return found.group.id === 'leadership' ? [found.item.label] : [found.group.label, found.item.label];
+    const trail = found.group.id === 'leadership' ? [found.item.label] : [found.group.label, found.item.label];
+
+    // A page nested under a nav item names its own last crumb (the trooper's name) in a `crumb` prop.
+    return found.nested && page.props.crumb ? [...trail, page.props.crumb] : trail;
 });
 
 // app.blade.php themes <html> before this module loads; pick that up so the toggle starts right.

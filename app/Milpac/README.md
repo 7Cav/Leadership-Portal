@@ -10,18 +10,19 @@ leader reached the trooper:
   catalog's order. `none` rows and absent rows are the same thing and are not listed, and an empty group is not
   returned.
 - `awards`: the earned-awards history, read-only (AD-5, FR17: no rec workflow). The roster sync stores no awards
-  today and AD-3 rules out a new read for them, so `items` is empty and the page shows "No awards on record". When
-  the roster cache holds awards, they are returned as `{name, awardedAt, citation}` and the page already draws them.
+  today and AD-3 rules out a new read for them, so `available` is false with no `items`, and the page says awards are
+  not synced from the Cav roster yet (and links to the Cav milpac) instead of "none". When the roster cache holds
+  awards, they are returned as `{name, awardedAt, citation}` with `available` true.
 - `timeline`: the service record, newest first, each entry `{type, date, title, detail}` with a legend of the types
-  present. Today that is the last promotion (the roster's date in grade and current rank; none when the grade date is
-  the join date or in the future, or the rank or date is unknown), earned awards and qualified courses that have an award date. A
-  course with no date is left to the courses panel, and operations and discipline have no source yet. Two events on
-  one day order by type (promotion, award, course) and then by row, so a reload never reshuffles them.
+  present; built by `ServiceTimeline` from `TimelineEvent`s of a `TimelineEventType`. Today that is the current rank
+  and its date in grade (the roster knows only the last promotion; none when the grade date is the join date or in the
+  future, or the rank or date is unknown), earned awards and qualified courses that have an award date. A course with
+  no date is left to the courses panel, and operations and discipline have no source yet. Two events on one day order
+  by type (the enum's case order) and then by row, so a reload never reshuffles them.
 - `actions`: the leadership quick actions, `{key, label, href}`, derived from the viewer's scope (the controller passes the
-  ScopeResolver's unit ids in). Open section roster needs the trooper's section; open in rollcall needs the section too
-  and its route; the platoon readiness matrix needs the platoon above the section. Each is shown only when the scope
-  holds that unit and its route is registered, so nothing links to a 404 (rollcall arrives with 3.7, the matrix with
-  6.9). Hiding is cosmetic (AD-6): every target authorizes its own request. Nothing here changes a trooper.
+  ScopeResolver's unit ids in): open the section roster and open the section in rollcall, only when the scope holds the
+  trooper's section. Hiding is cosmetic (AD-6): every target authorizes its own request. Nothing here changes a
+  trooper. A later screen (the platoon readiness matrix, 6.9) adds its own action with its route.
 - `sync`: where the ID block came from and how current it is (AD-20): the last successful roster sync, and a stale
   flag when a later run did not succeed.
 
