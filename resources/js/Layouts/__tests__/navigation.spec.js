@@ -26,6 +26,17 @@ describe('navigation', () => {
         expect(found.item.label).toBe('Org structure');
     });
 
+    it('treats a trooper page as a child of Roster: the item stays active and the trail continues', () => {
+        expect(isActive('/troopers/12', '/roster')).toBe(true);
+        expect(isActive('/troopers/12', '/home')).toBe(false);
+        expect(isActive('/troopers', '/roster')).toBe(false);
+
+        const found = locate('/troopers/12?tab=x');
+        expect(found.item.label).toBe('Roster');
+        expect(found.nested).toBe(true);
+        expect(locate('/roster').nested).toBe(false);
+    });
+
     it('locates nothing for a page outside the nav', () => {
         expect(locate('/somewhere-else')).toBeNull();
     });

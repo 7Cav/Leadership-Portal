@@ -115,6 +115,10 @@ it('denies a unit outside the leader\'s scope server-side (2.8, 4.6, AD-8)', fun
     $this->actingAs($this->leader)->get("/roster/{$this->company->id}")->assertForbidden();
 });
 
+it('404s a unit id too long for an integer rather than erroring', function () {
+    $this->actingAs($this->leader)->get('/roster/99999999999999999999')->assertNotFound();
+});
+
 it('shows a granted unit\'s whole subtree, grouped with per-unit KPIs from the shared service (4.6)', function () {
     $staff = User::factory()->create();
     PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $this->platoon1->id]);
@@ -204,7 +208,8 @@ it('keeps a departed trooper\'s past marks in their history (2.8)', function () 
 it('links the trooper Sheet to rollcall only once the rollcall route exists', function () {
     $this->actingAs($this->leader)->get('/roster')->assertInertia(fn ($page) => $page
         ->where('links.rollcall', Route::has('rollcall.show') ? '/rollcall/' : null)
-        ->where('links.milpac', 'https://7cav.us/rosters/profile?uniqueid='));
+        ->where('links.milpac', 'https://7cav.us/rosters/profile?uniqueid=')
+        ->where('links.trooper', '/troopers/'));
 });
 
 it('leaves an unplaced trooper off every section roster (4.6, AD-18)', function () {
@@ -343,7 +348,7 @@ describe('trooper detail (Sheet)', function () {
         $outside = rosterTrooper($this->section2);
         $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->section1->id]);
 
-        $this->getJson("/roster/troopers/{$outside->id}")->assertForbidden();
+        $this->getJson("/roster/troopers/{$outside->id}")->assertNotFound();
     });
 
     it('shows a departed trooper as departed and unmeasured', function () {
@@ -359,12 +364,16 @@ describe('trooper detail (Sheet)', function () {
         $this->get('/roster/troopers/1')->assertRedirect(route('login'));
     });
 
-    it('denies a trooper outside scope, and 404s an unknown or unplaced one', function () {
+    it('answers 404 for a trooper outside scope, unknown or unplaced alike, so ids cannot be enumerated', function () {
         $outside = rosterTrooper($this->section2);
         $unplaced = Trooper::factory()->create();
 
-        $this->actingAs($this->leader)->getJson("/roster/troopers/{$outside->id}")->assertForbidden();
+        $this->actingAs($this->leader)->getJson("/roster/troopers/{$outside->id}")->assertNotFound();
         $this->actingAs($this->leader)->getJson("/roster/troopers/{$unplaced->id}")->assertNotFound();
         $this->actingAs($this->leader)->getJson('/roster/troopers/999999')->assertNotFound();
+    });
+
+    it('404s a trooper id too long for an integer rather than erroring', function () {
+        $this->actingAs($this->leader)->getJson('/roster/troopers/99999999999999999999')->assertNotFound();
     });
 });
