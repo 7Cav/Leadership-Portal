@@ -5,9 +5,11 @@ artefacts (rollcalls, per-echelon reports). The forum is the **server-of-record*
 portal is a read-mostly cache + staging layer. This guide is how we keep the codebase
 consistent across a volunteer, part-time contributor base — read it before your first PR.
 
-The full rationale lives in the **architecture spine**
-(`_bmad-output/planning-artifacts/architecture/…/ARCHITECTURE-SPINE.md`); its decisions are
-referenced below as `AD-n`. This file is the day-to-day working agreement.
+The `AD-n` references below (and in code comments) are the numbered decisions of the project's
+**architecture spine**. The spine is not committed to this repository, so you can't open it
+from a clone; the rule each decision sets is
+restated where it is enforced (this file, `deptrac.yaml`, and the layer `README.md` files). Ask
+a maintainer when you need the full reasoning. This file is the day-to-day working agreement.
 
 ---
 
@@ -43,31 +45,31 @@ Route → Controller ─┬─ (write) Command → CommandHandler ─┐
 
 | Layer | Directory | May depend on | Role |
 | --- | --- | --- | --- |
-| Controller | `app/Http/Controllers/` | CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi, Milpac | Orchestrate a request. **No business logic.** Reads repositories directly; writes via Commands. |
-| Command / Handler | `app/Commands/` | Repository, Model, Integration, Support\Audit, Authorization, Support\Time, Kpi | Write-side business logic; the **only** caller of the outbound seam. |
-| Controller | `app/Http/Controllers/` | CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi | Orchestrate a request. **No business logic.** Reads repositories directly; writes via Commands. |
-| Command / Handler | `app/Commands/` | Repository, Model, Integration, Support\Audit, Authorization, Support\Time, Kpi, Loa | Write-side business logic; the **only** caller of the outbound seam. |
+| Controller | `app/Http/Controllers/` | CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi, Milpac, Rollcall, Loa | Orchestrate a request. **No business logic.** Reads repositories directly; writes via Commands. |
+| Command / Handler | `app/Commands/` | Repository, Model, Integration, Support\Audit, Authorization, Support\Time, Kpi, Loa, Rollcall | Write-side business logic. With Sync, the only layer that may call the outbound seam. |
 | Repository | `app/Repositories/` | Model, DB, Support\Time | **Sole** DB access (AD-2) |
 | Model | `app/Models/` | DB | Eloquent entities |
-| Integration | `app/Integration/` | External (Saloon/HTTP) | **Sole** path to external systems (AD-3) — Saloon connectors, requests, DTOs, and a `{Target}Api` seam class |
-| Authorization | `app/Authorization/` | Repository, Model | The single `ScopeResolver` gating read visibility (AD-8), plus policies and view-as |
+| Integration | `app/Integration/` | External (Saloon/HTTP) | **Sole** path to external systems (AD-3) — Saloon connectors, requests, DTOs, and a `{Target}Api` seam class. Reached from CommandHandler and Sync. |
+| Authorization | `app/Authorization/` | Repository, Model | The single `ScopeResolver` gating read visibility (AD-8), and view-as (AD-9) |
 | Support\Audit | `app/Support/Audit/` | Repository | The audited-action envelope every state-changing Command routes through (AD-16) |
-| Support\Time | `app/Support/Time/` | — | `WeekOf::start()`, the **only** time → `week_start` mapping (AD-11): Saturday 00:00 UTC |
+| Support\Time | `app/Support/Time/` | — | `WeekOf::start()`, the **only** time → `week_start` mapping (AD-11): Saturday 00:00 UTC. Reached from Controller, CommandHandler, Repository, Kpi and Loa |
 | Kpi | `app/Kpi/` | Repository, Model, Support\Time, Loa | `KpiService`, the **one** place the six canonical KPIs are defined and computed (AD-21) — read-only, over facts read through Repositories |
 | Milpac | `app/Milpac/` | Repository, Model | Read-only props for the Epic 6 pages: the trooper detail page (the milpac) and the unit training-readiness matrix |
 | Loa | `app/Loa/` | Repository, Model, Support\Time | Read-only LOA logic: the source and last-sync every LOA value shows (AD-20), and the one definition of LOA coverage (AD-21) |
 | Rollcall | `app/Rollcall/` | Repository, Model | Read-only logic behind the rollcall screen (Epic 3): the template a unit resolves to, and later the pre-filled roster and the BBCode |
 | Sync | `app/Sync/` | Repository, Model, Integration | One-writer cache sync handlers (AD-4, AD-22) — `Sync{Thing}Handler` |
-| Provider | `app/Providers/` | (wires every layer) | DI composition root — bootstrap, not business logic |
-| Middleware | `app/Http/Middleware/` | — | Request glue (e.g. Inertia shared props) |
+| Job | `app/Jobs/` | Sync, CommandHandler | Queued wrappers (AD-23): each runs a Sync handler, or the practice-capture Command's handler, off the request path. No DB or external access of its own |
+| Provider | `app/Providers/` | Controller, CommandHandler, Repository, Model, Integration, Authorization, DB, Kpi | DI composition root — bootstrap, not business logic |
+| Middleware | `app/Http/Middleware/` | Authorization | Request glue (e.g. Inertia shared props, the view-as read-only guard, security headers) |
 
 **Layers added consciously as their stories landed.** `Authorization/`, `Support/Audit/`, and
 `Sync/` were all placeholders in `deptrac.yaml` until each one's own story added it — with its
 edges — deliberately (Story 1.11, Story 1.10, and Story 2.2 respectively). All three are
 enforced today. `Support/Time/` (Story 3.2) was added the same way: a pure helper with no
-outgoing edge, reachable from Controller, CommandHandler, and Repository. `Kpi/` (Story 5.1)
-likewise: the shared KPI service (AD-21), reading through Repositories and read by Controllers
-and CommandHandlers.
+outgoing edge, reachable today from Controller, CommandHandler, Repository, Kpi and Loa. `Kpi/`
+(Story 5.1) likewise: the shared KPI service (AD-21), reading through Repositories and read by
+Controllers and CommandHandlers. `deptrac.yaml`'s `ruleset` is the source of truth for every
+edge; if this table and the ruleset ever disagree, the ruleset wins and the table is the bug.
 
 Each layer directory has a `README.md` explaining its rules — read the one for the layer
 you're touching. The forbidden moves that catch people: **Controller → Integration** (an
@@ -106,7 +108,7 @@ that single edge in the same PR, with a one-line reason. That deliberate, review
   `{Target}Api` in `app/Integration/{Target}/` (`ForumApi`, `CavApi`).
 - Reads never mutate. Every state change goes through a Command → CommandHandler;
   personnel actions and report sends **require** a reason. These route through the
-  audited-action envelope (AD-16) once it lands in Story 1.10.
+  audited-action envelope in `app/Support/Audit/` (AD-16).
 - KPIs are defined once and computed by the one shared KPI service, `App\Kpi\KpiService`
   (AD-21) — never re-derived inline in a feature.
 - Repositories return fully-loaded models or DTOs. `preventLazyLoading()` is on outside
@@ -138,6 +140,6 @@ npm audit --audit-level=high  # supply-chain gate — must report no high/critic
 
 ---
 
-Questions about *why* a rule exists → the architecture spine's `AD-n` entries. Questions
+Questions about *why* a rule exists → the `AD-n` it cites (ask a maintainer for the spine). Questions
 about *where* code goes → the layer `README.md` files. When in doubt, match the surrounding
 code.
