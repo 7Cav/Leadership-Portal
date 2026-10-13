@@ -27,15 +27,29 @@ leader reached the trooper:
   missed in the KPI window (from `KpiService`); it is offered on the same scope terms as the section actions, and only
   for a trooper with a forum username who missed a practice. The page builds a link to the forum's own "start
   conversation" form from it; the portal never writes to the forum.
-- `sync`: where the ID block came from and how current it is (AD-20): the last successful roster sync, and a stale
-  flag when a later run did not succeed.
+- `sync`: where the ID block came from and how current it is (AD-20), from `RosterProvenance` below.
 
 Durations count on the server's UTC day (AD-11).
 
 **May depend on:** `Repositories/` (never the DB directly, AD-2) and `Models/`.
-**Reached from:** `Http/Controllers/TrooperDetailController` (the milpac) and `TrainingReadinessMatrixController` (the
-matrix, below). Read-only. It never decides who may look: the
+**Reached from:** `Http/Controllers/TrooperDetailController` (the milpac), `TrainingReadinessMatrixController` (the
+matrix, below), and the Home, roster, rollcall and report controllers (roster provenance, below). Read-only. It never decides who may look: the
 controller gates every request with the ScopeResolver (AD-8) before asking.
+
+## Roster provenance (AD-20)
+
+`RosterProvenance::current()` returns a `RosterSyncState`: the one answer to "where does the roster come from and
+how fresh is it", read by Home, the roster, the milpac, rollcall and the weekly report so no page judges it its own
+way. The rule is the LOA one (`Loa\LoaProvenance`): the time shown is the last **successful** roster sync, and the
+cache is `stale` when the latest finished run did not succeed (`failure` or `partial`) or the last good sync is older
+than `STALE_AFTER_HOURS` (6). The source label is `milpac`.
+
+- `toArray()` is the roster and milpac shape: `{source, lastSuccessAt, stale, lastAttempt}`. `lastAttempt` names the
+  latest run only when it did not succeed, so a cache stale by age alone has none and the page says "overdue".
+- `state()` is Home's one word: `failed`, `never`, `partial`, `stale` (overdue) or `ok`.
+- Rollcall and the report show `source` and `lastSyncedAt` only.
+
+Read-only over `sync_runs`; `Sync/SyncRosterHandler` is the one writer.
 
 ## The readiness matrix (Story 6.9)
 

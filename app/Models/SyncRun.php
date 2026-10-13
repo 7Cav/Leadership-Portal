@@ -25,6 +25,7 @@ class SyncRun extends Model
     /** The `source` the LOA sync records its runs under, and the LOA readers look them up by. */
     public const SOURCE_LOA = 'loa';
 
+    /** The `source` the roster sync records its runs under, and `Milpac\RosterProvenance` reads them by. */
     public const SOURCE_ROSTER = 'roster';
 
     /** An echelon leader's sync of one unit; recorded apart so it never moves the roster-wide stamp. */

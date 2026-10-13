@@ -173,6 +173,7 @@ deptrac:
       - Loa
     # What the Epic 6 pages show, read through Repositories and shaped as page props: the trooper detail page (the
     # milpac: ID block, courses, awards, service record, quick actions) and the training-readiness matrix of a unit.
+    # Also the roster cache's source and freshness (RosterProvenance, AD-20) that every page showing roster data reads.
     # Read-only; who may look is the Controller's ScopeResolver gate (AD-8), not decided here.
     Milpac:
       - Repository
