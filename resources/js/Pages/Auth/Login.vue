@@ -252,6 +252,19 @@ defineProps({
     align-items: center;
     justify-content: center;
 }
+/* Stacked on a phone, the sign-in panel comes first: with the hero on top, the button sat below
+   the fold at 375px. The hero still follows below it, unchanged. */
+@media (max-width: 880px) {
+    .login-side {
+        order: -1;
+        padding: 32px 20px;
+    }
+    .hero {
+        padding: 32px 20px 28px;
+        border-right: none;
+        border-top: 1px solid var(--sidebar-border);
+    }
+}
 .login-inner {
     width: 100%;
     max-width: 380px;
