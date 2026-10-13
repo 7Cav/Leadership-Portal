@@ -85,6 +85,28 @@ class Eloquent implements UnitRepository
         return Unit::query()->where('path', 'like', "{$unit->path}%")->orderBy('id')->get();
     }
 
+    public function owningCompany(Unit $unit): ?Unit
+    {
+        // The path is read from the stored row, not from `$unit`: a model loaded before the unit was moved still
+        // carries its old path and would resolve to the old company. `path` is "1/5/9/": the ids from the root
+        // down to this unit, itself last.
+        $path = Unit::query()->whereKey($unit->id)->value('path');
+        $chain = array_filter(explode('/', (string) $path), fn (string $id) => $id !== '');
+
+        if ($chain === []) {
+            return null;
+        }
+
+        // At most one company sits on any chain (the echelon rules). `sole()` makes a broken invariant a loud
+        // failure instead of an arbitrary pick; none at all is a unit above every company.
+        $companies = Unit::query()
+            ->whereIn('id', $chain)
+            ->where('type', UnitType::Company->value)
+            ->get();
+
+        return $companies->isEmpty() ? null : $companies->sole();
+    }
+
     public function rename(Unit $unit, string $name, ?string $callsign): Unit
     {
         $unit->update(['name' => $name, 'callsign' => $callsign]);
