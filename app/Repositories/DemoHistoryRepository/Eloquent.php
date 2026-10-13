@@ -12,6 +12,7 @@ use App\Models\WeeklyReport;
 use App\Models\WeeklyReportStatus;
 use App\Repositories\DemoHistoryCounts;
 use App\Repositories\DemoHistoryRepository;
+use App\Repositories\UnitPath;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -25,7 +26,10 @@ class Eloquent implements DemoHistoryRepository
 
     public function subtreeUnits(Unit $root): Collection
     {
-        return Unit::query()->where('path', 'like', "{$root->path}%")->orderBy('path')->get();
+        // Depth-first in PHP: a text `orderBy('path')` puts "1/145/" before "1/2/".
+        return Unit::query()->where('path', 'like', "{$root->path}%")->get()
+            ->sort(fn (Unit $a, Unit $b) => UnitPath::compare($a->path, $b->path))
+            ->values();
     }
 
     public function placedTroopers(Unit $root): Collection

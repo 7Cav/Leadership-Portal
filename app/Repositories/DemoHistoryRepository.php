@@ -29,7 +29,7 @@ use InvalidArgumentException;
 interface DemoHistoryRepository
 {
     /**
-     * `$root` and every unit beneath it, ordered by `path` (depth-first).
+     * `$root` and every unit beneath it, depth-first by path ({@see UnitPath::compare()}).
      *
      * @return Collection<int, Unit>
      */
