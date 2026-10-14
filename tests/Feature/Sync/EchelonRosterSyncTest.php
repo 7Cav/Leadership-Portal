@@ -69,7 +69,7 @@ function echelonFakeRoster(array $combatProfiles): void
 
 beforeEach(function () {
     MockClient::destroyGlobal();
-    config(['cav.api_base_url' => 'https://api.7cav.us', 'cav.api_key' => 'cav7_test-key']);
+    config(['services.cav.base_url' => 'https://api.7cav.us', 'services.cav.api_key' => 'cav7_test-key']);
 });
 
 it('writes only the leader\'s echelon: updates, arrivals and departures stay inside the subtree', function () {
