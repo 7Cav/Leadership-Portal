@@ -19,6 +19,7 @@ use App\Repositories\TrooperRepository;
 use App\Repositories\UnitBilletMappingRepository;
 use App\Repositories\UnitRepository;
 use App\Sync\EmptyRosterException;
+use App\Sync\RosterSyncScopeFactory;
 use App\Sync\SyncRosterHandler;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
@@ -69,6 +70,7 @@ function syncRosterHandler(): SyncRosterHandler
         app(TrooperRepository::class),
         app(SyncRunRepository::class),
         app(UnitBilletMappingRepository::class),
+        app(RosterSyncScopeFactory::class),
     );
 }
 

@@ -387,3 +387,37 @@ it('lists the active troopers placed in any of several sections in one read (7.2
     expect($repo->placedInAny([$one->id, $two->id])->pluck('id')->all())->toBe([$a->id, $b->id])
         ->and($repo->placedInAny([])->all())->toBe([]);
 });
+
+it('departs only troopers placed in the given sections when a scope is passed', function () {
+    $inside = Unit::factory()->create(['type' => UnitType::Section]);
+    $outside = Unit::factory()->create(['type' => UnitType::Section]);
+    $in = Trooper::factory()->create(['cav_id' => 1, 'status' => TrooperStatus::Combat, 'primary_section_id' => $inside->id]);
+    $out = Trooper::factory()->create(['cav_id' => 2, 'status' => TrooperStatus::Combat, 'primary_section_id' => $outside->id]);
+    $unplaced = Trooper::factory()->create(['cav_id' => 3, 'status' => TrooperStatus::Combat, 'primary_section_id' => null]);
+
+    $flipped = app(TrooperRepository::class)->markDepartedExcept([], [$inside->id]);
+
+    expect($flipped)->toBe(1)
+        ->and($in->refresh()->status)->toBe(TrooperStatus::Inactive)
+        ->and($out->refresh()->status)->toBe(TrooperStatus::Combat)
+        ->and($unplaced->refresh()->status)->toBe(TrooperStatus::Combat);
+});
+
+it('departs no one for an empty scope, and everyone absent for no scope', function () {
+    $section = Unit::factory()->create(['type' => UnitType::Section]);
+    Trooper::factory()->count(2)->create(['status' => TrooperStatus::Combat, 'primary_section_id' => $section->id]);
+    $repo = app(TrooperRepository::class);
+
+    expect($repo->markDepartedExcept([], []))->toBe(0)
+        ->and($repo->markDepartedExcept([], null))->toBe(2);
+});
+
+it('lists the cav ids placed in the sections, departed troopers included', function () {
+    $section = Unit::factory()->create(['type' => UnitType::Section]);
+    $other = Unit::factory()->create(['type' => UnitType::Section]);
+    Trooper::factory()->create(['cav_id' => 1, 'status' => TrooperStatus::Combat, 'primary_section_id' => $section->id]);
+    Trooper::factory()->create(['cav_id' => 2, 'status' => TrooperStatus::Inactive, 'primary_section_id' => $section->id]);
+    Trooper::factory()->create(['cav_id' => 3, 'status' => TrooperStatus::Combat, 'primary_section_id' => $other->id]);
+
+    expect(app(TrooperRepository::class)->cavIdsPlacedIn([$section->id]))->toEqualCanonicalizing([1, 2]);
+});

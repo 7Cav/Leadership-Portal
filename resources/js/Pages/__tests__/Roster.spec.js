@@ -92,13 +92,21 @@ describe('Roster page', () => {
         expect(post).toHaveBeenCalledWith('/settings/roster-sync', {}, expect.any(Object));
     });
 
+    it('offers a unit leader a sync of just the echelon on screen, and an Admin keeps the whole-roster one', async () => {
+        const leader = factory({ can: { sync: false, syncUnit: true } });
+        const button = leader.find('[data-testid="roster-sync-now"]');
+        expect(button.text()).toContain('Sync this unit');
+        await button.trigger('click');
+        expect(post).toHaveBeenCalledWith('/units/1/roster-sync', {}, expect.any(Object));
+    });
+
     it('says why Sync now failed instead of showing a raw error page', async () => {
         const wrapper = factory({ can: { sync: true } });
         await wrapper.find('[data-testid="roster-sync-now"]').trigger('click');
         const options = post.mock.calls[0][2];
 
         expect(options.onHttpException({ status: 403 })).toBe(false);
-        expect(toastError).toHaveBeenLastCalledWith('Only an Admin can start a roster sync.');
+        expect(toastError).toHaveBeenLastCalledWith('Only an Admin or this unit\'s leader can start a roster sync.');
 
         options.onNetworkError(new Error('offline'));
         expect(toastError.mock.calls.at(-1)[0]).toContain('Could not reach the portal');

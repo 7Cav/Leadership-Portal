@@ -7,6 +7,7 @@ use App\Integration\Cav\Data\CavRosterEntry;
 use App\Integration\Cav\Data\MilpacId;
 use App\Integration\Cav\Data\RosterRowError;
 use App\Integration\Cav\Data\RosterType;
+use App\Models\SyncRun;
 use App\Models\TrooperStatus;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
@@ -39,6 +40,13 @@ use Throwable;
  * A serving roster that comes back empty while the cache still holds troopers on it is refused
  * the same way a fetch failure is: the run is recorded as failed and nothing is written (see
  * {@see refuseEmptyRosterExodus()}).
+ *
+ * An echelon leader's manual sync passes `$unitId`: Cav only serves whole rosters, so the fetch and the
+ * empty-roster guard are the same, but the write is cut down to that unit's subtree by a {@see RosterSyncScope} —
+ * troopers placed in it, plus any whose billet now maps into it. Departures are only considered among troopers
+ * placed in the subtree, a trooper whose billet moved them out is written through to their new section, and the run
+ * is recorded under its own source so the global "last synced" stamp never claims a roster-wide refresh an
+ * echelon sync did not do.
  */
 class SyncRosterHandler
 {
@@ -50,14 +58,45 @@ class SyncRosterHandler
         private readonly TrooperRepository $troopers,
         private readonly SyncRunRepository $syncRuns,
         private readonly UnitBilletMappingRepository $billetMappings,
+        private readonly RosterSyncScopeFactory $scopes,
     ) {}
 
-    public function handle(int|string $triggeredBy = 'system'): void
+    /**
+     * @throws UnitNoLongerExistsException before any run is opened, when `$unitId` has been deleted
+     */
+    public function handle(int|string $triggeredBy = 'system', ?int $unitId = null): void
     {
-        $run = $this->syncRuns->open('roster', $triggeredBy);
+        // Looked up before the run is opened: a unit deleted since the click is permanent, not a failed run.
+        $sectionIds = $unitId === null ? null : $this->scopes->sectionIdsOf($unitId);
+
+        // The job's lock serialises every roster run, whole or echelon, so any run still `in_progress` now was killed
+        // before it could record itself. Closing it keeps the sync's state honest.
+        $this->syncRuns->failOrphaned(SyncRun::SOURCE_ROSTER);
+        $this->syncRuns->failOrphaned(SyncRun::SOURCE_ROSTER_UNIT);
+
+        $run = $this->syncRuns->open($unitId === null ? SyncRun::SOURCE_ROSTER : SyncRun::SOURCE_ROSTER_UNIT, $triggeredBy, unitId: $unitId);
 
         try {
             $result = $this->cavApi->fetchRoster();
+
+            // A row Cav reported but the seam could not parse (2.1, AC #6) is a trooper who is
+            // still present, just unusably described — it must not read as "disappeared" and be
+            // marked departed alongside troopers genuinely absent from every roster. The row's
+            // *key* is still the milpac id the sweep found them under, so it counts toward the
+            // active set even without the fields to upsert.
+            $unreadableCavIds = array_values(array_filter(array_map(
+                fn ($error) => MilpacId::parse($error->key),
+                $result->errors,
+            )));
+            $parsedCavIds = array_map(fn (CavRosterEntry $entry) => $entry->cavId, $result->troopers);
+            $activeCavIds = array_values(array_unique([...$parsedCavIds, ...$unreadableCavIds]));
+
+            // Judged on the whole response whatever the scope: whether Cav's answer is believable does not depend
+            // on which echelon asked, and counting against an echelon's slice alone would refuse a good sync.
+            $this->refuseEmptyRosterExodus($result->emptyRosters, $activeCavIds);
+
+            $sections = $this->resolveSections($result->troopers);
+            $scope = $this->scopes->build($sectionIds, $sections);
 
             $rows = array_map(
                 fn (CavRosterEntry $entry) => [
@@ -73,33 +112,20 @@ class SyncRosterHandler
                     'status' => $this->statusFor($entry->status)->value,
                     'cav_position_id' => $entry->positionId,
                 ],
-                $result->troopers,
+                $scope->filterEntries($result->troopers),
             );
-
-            // A row Cav reported but the seam could not parse (2.1, AC #6) is a trooper who is
-            // still present, just unusably described — it must not read as "disappeared" and be
-            // marked departed alongside troopers genuinely absent from every roster. The row's
-            // *key* is still the milpac id the sweep found them under, so it counts toward the
-            // active set even without the fields to upsert.
-            $unreadableCavIds = array_values(array_filter(array_map(
-                fn ($error) => MilpacId::parse($error->key),
-                $result->errors,
-            )));
-            $parsedCavIds = array_column($rows, 'cav_id');
-            $activeCavIds = [...$parsedCavIds, ...$unreadableCavIds];
-
-            $this->refuseEmptyRosterExodus($result->emptyRosters, array_values(array_unique($activeCavIds)));
 
             // An unreadable row's billet is unknown, so it is cleared rather than left conferring
             // the last-known command scope (1.16) — unless the same trooper also parsed on another
             // roster this run, whose billet is then current and kept.
             $counts = $this->troopers->sync(
                 $rows,
-                array_values(array_unique($activeCavIds)),
-                array_values(array_diff(array_unique($unreadableCavIds), $parsedCavIds)),
+                $activeCavIds,
+                $scope->filterCavIds(array_values(array_diff(array_unique($unreadableCavIds), $parsedCavIds))),
+                $scope->sectionIds,
             );
 
-            $this->troopers->updatePrimarySections($this->resolveSections($result->troopers));
+            $this->troopers->updatePrimarySections($scope->filterSections($sections));
 
             $this->syncRuns->complete(
                 $run,
@@ -110,9 +136,22 @@ class SyncRosterHandler
                 error: $this->errorSummary($result->errors),
             );
         } catch (Throwable $e) {
-            $this->syncRuns->fail($run, $e->getMessage());
+            $this->recordFailure($run, $e);
 
             throw $e;
+        }
+    }
+
+    /**
+     * Close the run as failed without letting a second failure (the database that broke the sync is often the one
+     * recording it) replace the exception that is about to be rethrown.
+     */
+    private function recordFailure(SyncRun $run, Throwable $e): void
+    {
+        try {
+            $this->syncRuns->fail($run, $e::class.': '.$e->getMessage());
+        } catch (Throwable $recording) {
+            report($recording);
         }
     }
 

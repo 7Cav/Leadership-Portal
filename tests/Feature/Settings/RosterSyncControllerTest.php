@@ -25,8 +25,9 @@ it('queues one sync however often an Admin clicks while it is still pending', fu
     // The fake never runs the first job, so it stays pending and keeps holding the unique lock,
     // exactly as a sync waiting on a busy worker would.
     $this->post('/settings/roster-sync')->assertRedirect();
-    $this->post('/settings/roster-sync')->assertRedirect();
-    $this->post('/settings/roster-sync')->assertRedirect();
+    // The page is told the click was not queued, instead of being shown a sync that never started.
+    $this->post('/settings/roster-sync')->assertStatus(409);
+    $this->post('/settings/roster-sync')->assertStatus(409);
 
     Queue::assertPushed(SyncRosterJob::class, 1);
 });
@@ -58,8 +59,10 @@ it('throttles the manual trigger: the 6th request from one Admin in a minute get
     $admin = User::factory()->admin()->create();
     $this->actingAs($admin);
 
-    for ($i = 1; $i <= 5; $i++) {
-        $this->post('/settings/roster-sync')->assertRedirect();
+    // Counted whatever the outcome: a 409 for an already-queued sync still spends the Admin's allowance.
+    $this->post('/settings/roster-sync')->assertRedirect();
+    for ($i = 2; $i <= 5; $i++) {
+        $this->post('/settings/roster-sync')->assertStatus(409);
     }
 
     $this->post('/settings/roster-sync')->assertStatus(429);

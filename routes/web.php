@@ -17,6 +17,7 @@ use App\Http\Controllers\Settings\TemplatesController;
 use App\Http\Controllers\Settings\TrooperPlacementController;
 use App\Http\Controllers\TrainingReadinessMatrixController;
 use App\Http\Controllers\TrooperDetailController;
+use App\Http\Controllers\UnitRosterSyncController;
 use App\Http\Controllers\ViewAsController;
 use App\Http\Middleware\EnsureServingMember;
 use App\Repositories\UserRepository;
@@ -149,6 +150,10 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // matching every other admin-gated write here. Throttled per Admin by the `roster-sync`
     // limiter; the job itself is unique, so extra clicks never stack up queued syncs.
     Route::post('/settings/roster-sync', [RosterSyncController::class, 'store'])->middleware('throttle:roster-sync')->name('settings.roster-sync.store');
+
+    // An echelon leader's manual sync: the same queued job, writing only that unit's subtree. The leader gate is in
+    // the controller (ScopeResolver::commandsUnit) and the throttle caps each leader and every leader together, since each run is a full Cav fetch.
+    Route::post('/units/{unit}/roster-sync', [UnitRosterSyncController::class, 'store'])->middleware('throttle:unit-roster-sync')->name('units.roster-sync.store');
 
     // Manual leave-sync trigger (Story 4.2): the same queued job the scheduler runs. Admin gate in the controller (AD-6).
     Route::post('/settings/loa-sync', [LoaSyncController::class, 'store'])->name('settings.loa-sync.store');

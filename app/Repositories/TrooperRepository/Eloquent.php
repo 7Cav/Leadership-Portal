@@ -14,11 +14,11 @@ use Illuminate\Support\Facades\DB;
 
 class Eloquent implements TrooperRepository
 {
-    public function sync(array $rows, array $activeCavIds, array $unreadableCavIds = []): array
+    public function sync(array $rows, array $activeCavIds, array $unreadableCavIds = [], ?array $withinSectionIds = null): array
     {
-        return DB::transaction(function () use ($rows, $activeCavIds, $unreadableCavIds) {
+        return DB::transaction(function () use ($rows, $activeCavIds, $unreadableCavIds, $withinSectionIds) {
             $upserted = $this->upsertActive($rows);
-            $inactivated = $this->markDepartedExcept($activeCavIds);
+            $inactivated = $this->markDepartedExcept($activeCavIds, $withinSectionIds);
 
             if ($unreadableCavIds !== []) {
                 Trooper::query()->whereIn('cav_id', $unreadableCavIds)->update(['cav_position_id' => null, 'billet' => null]);
@@ -56,9 +56,10 @@ class Eloquent implements TrooperRepository
         return ['inserted' => $inserted, 'updated' => $updated];
     }
 
-    public function markDepartedExcept(array $activeCavIds): int
+    public function markDepartedExcept(array $activeCavIds, ?array $withinSectionIds = null): int
     {
         return Trooper::query()
+            ->when($withinSectionIds !== null, fn (Builder $query) => $query->whereIn('primary_section_id', $withinSectionIds))
             ->whereNotIn('cav_id', $activeCavIds)
             ->where('status', '!=', TrooperStatus::Inactive->value)
             ->update(['status' => TrooperStatus::Inactive->value]);
@@ -276,5 +277,14 @@ class Eloquent implements TrooperRepository
             ->where('status', '!=', TrooperStatus::Inactive->value)
             ->orderBy('id')
             ->get();
+    }
+
+    public function cavIdsPlacedIn(array $sectionIds): array
+    {
+        return Trooper::query()
+            ->whereIn('primary_section_id', $sectionIds)
+            ->pluck('cav_id')
+            ->map(fn ($cavId) => (int) $cavId)
+            ->all();
     }
 }
