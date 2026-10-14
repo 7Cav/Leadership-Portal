@@ -10,6 +10,9 @@ import { fullName, initials, isLocked, optionsFor, practiceLabel, signatureLabel
 // One trooper on the guided week (mockups/v2/rollcall-r3.html `.rc-card`): who they are, how the
 // current value came to be (the shared source indicator, 3.9), and big status buttons for the step's question — their rollcall
 // signature (step 1) or their Section Practice mark (step 2).
+// The name and buttons sit side by side only when the card itself is wide enough (a container query),
+// since with the sidebar and the summary open a desktop card can be narrower than the buttons need.
+// Signatures stack below @xl and practice, with its wider buttons, below @2xl, so the name keeps about 10rem.
 const props = defineProps({
     trooper: { type: Object, required: true },
     // 'signature' | 'practice'
@@ -99,7 +102,7 @@ const TONE = {
         <div
             :class="
                 cn(
-                    'relative touch-pan-y bg-inherit p-3 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+                    '@container relative touch-pan-y bg-inherit p-3 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
                     !drag?.on && 'transition-transform duration-200',
                 )
             "
@@ -112,7 +115,14 @@ const TONE = {
             data-card-face
             :aria-label="`${name}, ${kind === 'signature' ? 'rollcall' : 'section practice'}: ${valueLabel}${locked ? ', locked' : ''}`"
         >
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div
+                :class="
+                    cn(
+                        'flex flex-col gap-3',
+                        kind === 'practice' ? 'sm:@2xl:flex-row sm:@2xl:items-center' : 'sm:@xl:flex-row sm:@xl:items-center',
+                    )
+                "
+            >
                 <div class="flex min-w-0 flex-1 items-center gap-3">
                     <span
                         class="grid size-10 flex-none place-items-center rounded-full border border-border bg-muted text-xs font-semibold"
@@ -141,7 +151,12 @@ const TONE = {
 
                 <div
                     v-if="locked"
-                    class="flex h-11 items-center gap-2 rounded-md border border-dashed border-border px-3 text-[13px] text-muted-foreground sm:h-9 sm:w-[22rem]"
+                    :class="
+                        cn(
+                            'flex h-11 items-center gap-2 rounded-md border border-dashed border-border px-3 text-[13px] text-muted-foreground sm:h-9',
+                            kind === 'practice' ? 'sm:@2xl:w-[22rem]' : 'sm:@xl:w-[22rem]',
+                        )
+                    "
                 >
                     <PhLockSimple class="size-4" aria-hidden="true" />LOA, nothing to mark
                     <Badge variant="outline" class="ml-auto">Locked</Badge>
@@ -153,7 +168,7 @@ const TONE = {
                     :class="
                         cn(
                             'grid auto-cols-fr grid-flow-col gap-[3px] rounded-md bg-muted p-[3px]',
-                            kind === 'practice' ? 'sm:w-[25rem]' : 'sm:w-[22rem]',
+                            kind === 'practice' ? 'sm:@2xl:w-[25rem]' : 'sm:@xl:w-[22rem]',
                         )
                     "
                 >
