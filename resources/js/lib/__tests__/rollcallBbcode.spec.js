@@ -50,6 +50,17 @@ describe('rollcallContext (3.11)', () => {
         expect(rows[2]).toMatchObject({ sp: '', sp_loa: false, sp_unmarked: true });
     });
 
+    it('does not count a trooper on leave as attended, even with a present mark on the page, so the post shows no tick (3.4)', () => {
+        const troopers = [
+            t(1, 'Vasquez.R', 'will_attend', 'present'),
+            { ...t(2, 'Adams.P', 'unsigned', 'present'), loa: { state: 'covered' } },
+        ];
+        const out = rollcallPost(resolved('{{#troopers}}{{name}} {{#sp_present}}✓{{/sp_present}}{{#sp_loa}}LOA{{/sp_loa}}\n{{/troopers}}attended {{attended}}'), input(troopers));
+
+        expect(rollcallContext(input(troopers)).attended).toBe('1');
+        expect(out.text).toBe('Vasquez.R ✓\nAdams.P LOA\nattended 1');
+    });
+
     it('turns each signature into its flag and word', () => {
         const by = Object.fromEntries(context.troopers.map((row) => [row.name, row]));
 
