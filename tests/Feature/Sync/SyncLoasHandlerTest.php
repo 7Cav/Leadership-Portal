@@ -212,6 +212,24 @@ describe('a normal LOA', function () {
             ->and($run->errored)->toBe(0);
     });
 
+    it('stores a one-day LOA as needs_review with no dates, so it excuses no week', function () {
+        Trooper::factory()->create(['username' => 'Smith.J']);
+        $body = str_replace('Oct 20, 2026', 'Oct 6, 2026', loaBody('loa-on-behalf'));
+        $thread = loaThread(4001, '[LOA Request] - PVT.Smith.J | Oct 6, 2026 - Oct 6, 2026', $body, '2026-10-05 08:00');
+        forumWith([180 => [[$thread]]], [4001 => $thread]);
+
+        runLoaSync();
+
+        $loa = Loa::sole();
+        expect($loa->parse_status)->toBe(LoaParseStatus::NeedsReview)
+            ->and($loa->starts_at)->toBeNull()
+            ->and($loa->ends_at)->toBeNull()
+            ->and($loa->raw_start_date)->toBe('Oct 6, 2026')
+            ->and($loa->raw_end_date)->toBe('Oct 6, 2026')
+            ->and($loa->review_reason)->toContain('shorter than one Cav week')
+            ->and(latestLoaRun()->needs_review)->toBe(1);
+    });
+
     it('flips a thread that read cleanly to needs_review when it is edited into something unreadable', function () {
         Trooper::factory()->create(['username' => 'Smith.J']);
         $good = loaThread(4001, '[LOA Request] - PVT.Smith.J', loaBody('loa-on-behalf'), '2026-10-05 08:00');
