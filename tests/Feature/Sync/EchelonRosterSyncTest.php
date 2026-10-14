@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\UnitRosterSyncController;
 use App\Jobs\SyncRosterJob;
 use App\Models\SyncRun;
 use App\Models\SyncRunStatus;
@@ -15,6 +16,9 @@ use App\Repositories\UnitRepository;
 use App\Sync\EmptyRosterException;
 use App\Sync\SyncRosterHandler;
 use App\Sync\UnitNoLongerExistsException;
+use Illuminate\Bus\UniqueLock;
+use Illuminate\Contracts\Cache\Lock;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
@@ -185,6 +189,7 @@ it('lets a leader sync a unit they command, or one beneath it, stamping them as 
     $leader = echelonLeader($tree['platoon']);
 
     $this->actingAs($leader)->post("/units/{$tree['platoon']->id}/roster-sync")->assertRedirect();
+    $this->travel(UnitRosterSyncController::COOLDOWN_SECONDS)->seconds();
     $this->actingAs($leader)->post("/units/{$tree['inside']->id}/roster-sync")->assertRedirect();
 
     Queue::assertPushed(SyncRosterJob::class, fn (SyncRosterJob $job) => $job->unitId === $tree['platoon']->id && $job->triggeredBy === $leader->id);
@@ -227,6 +232,7 @@ it('queues one sync per echelon however often it is clicked, apart from the whol
 
     $this->post("/units/{$tree['inside']->id}/roster-sync")->assertRedirect();
     $this->post("/units/{$tree['inside']->id}/roster-sync")->assertStatus(409);
+    $this->travel(UnitRosterSyncController::COOLDOWN_SECONDS)->seconds();
     $this->post("/units/{$tree['outside']->id}/roster-sync")->assertRedirect();
     $this->post('/settings/roster-sync');
 
@@ -291,14 +297,80 @@ it('shows a unit leader how their last sync of the unit went, and shows nobody e
         ->and(json_encode($sync($leader)))->not->toContain('boom');
 });
 
-it('caps how many echelon syncs one leader can ask for in a minute', function () {
+it('caps how many echelon sync requests one leader can make in a minute', function () {
     Queue::fake();
     $tree = echelonTree();
+    // A pending whole-roster sync refuses every click with a 409, so only the per-user throttle can answer 429.
+    SyncRosterJob::dispatch('system');
     $this->actingAs(echelonLeader($tree['platoon']));
 
     foreach ([$tree['platoon'], $tree['inside'], $tree['platoon']] as $unit) {
-        $this->post("/units/{$unit->id}/roster-sync");
+        $this->post("/units/{$unit->id}/roster-sync")->assertStatus(409);
     }
 
     $this->post("/units/{$tree['inside']->id}/roster-sync")->assertStatus(429);
+});
+
+it('accepts one unit sync per cooldown across nested units, so Cav sees a few roster fetches an hour', function () {
+    // QUEUE_CONNECTION=sync: each accepted click runs the job inline, a full Cav fetch, and frees its unique lock.
+    $tree = echelonTree();
+    $section2 = app(UnitRepository::class)->create(UnitType::Section, '2nd Section', '2/1/A/1-7', $tree['platoon']->id);
+    $leader = echelonLeader($tree['platoon']);
+    $mock = MockClient::global([
+        'api.7cav.us/api/v1/roster/ROSTER_TYPE_COMBAT/lite' => MockResponse::make(['profiles' => ['1' => echelonRow('Mine.A', 101)]]),
+        'api.7cav.us/api/v1/roster/ROSTER_TYPE_RESERVE/lite' => MockResponse::make(['profiles' => []]),
+        'api.7cav.us/api/v1/roster/ROSTER_TYPE_ELOA/lite' => MockResponse::make(['profiles' => []]),
+    ]);
+
+    $accepted = 0;
+    for ($minute = 0; $minute < 10; $minute++) {
+        foreach ([$tree['platoon'], $tree['inside'], $section2] as $unit) {
+            $accepted += $this->actingAs($leader)->post("/units/{$unit->id}/roster-sync")->isRedirect() ? 1 : 0;
+        }
+        $this->travel(61)->seconds();
+    }
+
+    // Ten minutes of clicks on three nested units: one sync per five minutes, three Cav requests each.
+    expect($accepted)->toBe(2)->and(count($mock->getRecordedResponses()))->toBe(6);
+});
+
+it('holds a leader of another unit to the same cooldown, and accepts their sync once it has passed', function () {
+    Queue::fake();
+    $tree = echelonTree();
+    $this->actingAs(echelonLeader($tree['platoon']))->post("/units/{$tree['inside']->id}/roster-sync")->assertRedirect();
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin)->post("/units/{$tree['outside']->id}/roster-sync")->assertStatus(429)->assertHeader('Retry-After');
+    $this->travel(UnitRosterSyncController::COOLDOWN_SECONDS)->seconds();
+    $this->actingAs($admin)->post("/units/{$tree['outside']->id}/roster-sync")->assertRedirect();
+
+    Queue::assertPushed(SyncRosterJob::class, 2);
+});
+
+it('does not let members who may not sync use up the requests leaders can make', function () {
+    Queue::fake();
+    $tree = echelonTree();
+    $leader = echelonLeader($tree['platoon']);
+
+    for ($i = 0; $i < 7; $i++) {
+        $member = User::factory()->create();
+        for ($j = 0; $j < 3; $j++) {
+            $this->actingAs($member)->post("/units/{$tree['inside']->id}/roster-sync")->assertForbidden();
+        }
+    }
+
+    $this->actingAs($leader)->post("/units/{$tree['inside']->id}/roster-sync")->assertRedirect();
+    Queue::assertPushed(SyncRosterJob::class, 1);
+});
+
+it('probes the unique lock with a short expiry, so a process dying mid-check cannot block the unit for a day', function () {
+    $job = new SyncRosterJob(7, 42);
+    $lock = Mockery::mock(Lock::class);
+    $lock->shouldReceive('get')->once()->andReturnTrue();
+    $lock->shouldReceive('release')->once()->andReturnTrue();
+    Cache::shouldReceive('lock')->once()
+        ->with(UniqueLock::getKey($job), Mockery::on(fn (int $seconds) => $seconds > 0 && $seconds <= 60))
+        ->andReturn($lock);
+
+    expect($job->isAlreadyQueued())->toBeFalse();
 });
