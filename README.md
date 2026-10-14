@@ -22,9 +22,8 @@ Start from `.env.example`; every key is documented there. For production:
 - Behind a load balancer or TLS-terminating proxy, set `TRUSTED_PROXIES` to the proxy's IPs or
   CIDRs (comma-separated, never `*`). Without it the app sees every request as coming from the
   proxy (one sign-in throttle bucket for everyone) and, when the proxy terminates TLS, as plain
-  HTTP (no HSTS). It is read in
-  `bootstrap/app.php` when the HTTP kernel is built, which happens before `.env` is loaded, so it
-  must be a real environment variable of the PHP process; a value only in `.env` is ignored.
+  HTTP (no HSTS). It is read from config (`portal.trusted_proxies`) on each request, so setting it
+  in `.env` works; run `config:cache` again after changing it.
 - `DEMO_TOOLS=false` (the default). It switches on `portal:demo-history` and Settings → Demo
   data, which write demo rows into the real database.
 - `QUEUE_CONNECTION=database` (the default) needs no extra service; see the queue worker below
@@ -43,18 +42,20 @@ php artisan queue:restart    # after a deploy, so running workers pick up the ne
 ### Queue worker
 
 The roster and LOA syncs and the practice capture run as queued jobs, so nothing syncs without a
-worker. Keep one running and restart it if it exits:
+worker. That includes the manual syncs: an Admin's **Sync now** and a leader's sync of their own
+unit from the roster page. Keep one running and restart it if it exits:
 
 ```bash
 php artisan queue:work
 ```
 
-Each job sets its own `$timeout` and `$tries`, which take precedence over the worker's
-`--timeout` and `--tries`: `SyncRosterJob` and `CaptureSectionPracticeJob` allow 120 seconds,
-`SyncLoasJob` 900 seconds (the first run backfills a year of forum threads). The queue's
-`retry_after` (`DB_QUEUE_RETRY_AFTER` for the database queue) must be longer than the longest job
-timeout, so more than 900. If it is shorter, the queue hands a still-running LOA sync to another
-worker as if it had died.
+Each job sets its own `$timeout` and retry limit, which take precedence over the worker's
+`--timeout` and `--tries`. `SyncRosterJob` and `CaptureSectionPracticeJob` allow 120 seconds,
+`SyncLoasJob` 900 seconds (the first run backfills a year of forum threads). `SyncLoasJob` and
+`CaptureSectionPracticeJob` get 5 tries; `SyncRosterJob` retries for up to 30 minutes and gives
+up after 3 exceptions. The queue's `retry_after` (`DB_QUEUE_RETRY_AFTER` for the database queue)
+must be longer than the longest job timeout, so more than 900. If it is shorter, the queue hands a
+still-running LOA sync to another worker as if it had died.
 
 ### Scheduler
 
