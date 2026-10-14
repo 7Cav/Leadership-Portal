@@ -138,6 +138,15 @@ const autosave = props.section
                   row.loa ??= { state: 'covered', fromSave: true };
               }
           },
+          // Moved out of the section since the page loaded: their marks were not saved, so the row takes back what it
+          // held, and the counts and the forum post do not show a mark the server never recorded.
+          onRejected: (ids) => {
+              for (const id of ids) {
+                  const row = rows.value.find((t) => t.id === id);
+                  const was = baseline.value.get(id);
+                  if (row && was) Object.assign(row, was);
+              }
+          },
           nameOf: (id) => displayName(rows.value.find((t) => t.id === id) ?? { cavId: id }),
       })
     : null;

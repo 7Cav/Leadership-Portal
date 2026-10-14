@@ -322,6 +322,32 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-testid="save-error"]').exists()).toBe(false);
         });
 
+        it.each([
+            ['on leave that synced after the page loaded', { message: 'on leave', rejected: [3], reason: 'loa_covered' }, { present: '1', loa: '1' }, 'Trooper3.A LOA'],
+            ['moved out of the section', { message: 'not placed', rejected: [3], reason: 'not_placed' }, { present: '1', loa: '0' }, 'Trooper3.A -'],
+        ])('stops showing a refused "Mark all present" mark for a trooper %s, on screen and in the forum post', async (_, refusal, counts, line) => {
+            post.mockResolvedValueOnce({ ok: false, status: 422, data: refusal });
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory({
+                troopers: [trooper(2, 'will_attend', null), trooper(3, 'unsigned', null)],
+                template: { ...TEMPLATE, body: '{{#troopers}}{{name}} {{#sp_present}}✓{{/sp_present}}{{#sp_loa}}LOA{{/sp_loa}}{{#sp_unmarked}}-{{/sp_unmarked}}\n{{/troopers}}attended {{attended}}' },
+            });
+            const summary = (label) => wrapper.findAll('dt').find((dt) => dt.text() === label).element.nextElementSibling.textContent;
+
+            await wrapper.find('[data-testid="mark-all-present"]').trigger('click');
+            await vi.advanceTimersByTimeAsync(7000);
+
+            expect(post).toHaveBeenCalledTimes(2);
+            expect(post).toHaveBeenLastCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 2, status: 'present' }] });
+            expect(wrapper.find('[data-trooper="3"] button[data-value="present"][aria-pressed="true"]').exists()).toBe(false);
+            expect(summary('Present')).toBe(counts.present);
+            expect(summary('On LOA')).toBe(counts.loa);
+
+            page.url = '/rollcall/12?step=3';
+            await wrapper.vm.$nextTick();
+            expect(wrapper.find('[data-testid="forum-bbcode"]').text()).toBe(`Trooper2.A ✓\n${line}\nattended 1`);
+        });
+
         it('moves between cards with J and K and sets the focused one with 1-4', async () => {
             page.url = '/rollcall/12?step=2';
             const wrapper = factory();

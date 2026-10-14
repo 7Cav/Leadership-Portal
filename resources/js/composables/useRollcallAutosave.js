@@ -36,12 +36,14 @@ export function unreachable(error) {
 
 // `post` is injectable for tests; it resolves `{ ok, status, data }` like `postJson`. `nameOf`
 // turns a trooper id into a name for messages. `onLeave` hears the troopers the server says are on
-// leave this week (a leave synced after the page loaded), so the page can lock their rows.
+// leave this week (a leave synced after the page loaded), so the page can lock their rows. `onRejected`
+// hears the troopers whose marks were refused for good, so the page can stop showing marks that never saved.
 export function useRollcallAutosave({
     url,
     week,
     onSaved = () => {},
     onLeave = () => {},
+    onRejected = () => {},
     nameOf = (id) => `#${id}`,
     post = postJson,
     now = () => Date.now(),
@@ -165,6 +167,11 @@ export function useRollcallAutosave({
                     for (const id of refused) pending.delete(id);
                     sync();
                     state.value = 'idle';
+                    try {
+                        onRejected([...refused]);
+                    } catch (e) {
+                        console.error('Rollcall onRejected handler failed', e);
+                    }
                 } else {
                     // Put the batch back, under anything changed since it was sent.
                     for (const [id, entry] of ready) {
