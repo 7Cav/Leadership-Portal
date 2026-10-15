@@ -53,7 +53,7 @@ final class TrooperMilpac
             'courses' => $this->courses($rows),
             'awards' => $awards,
             'timeline' => $this->timeline->build($trooper, $rows, $awards['items'], $today),
-            'actions' => $this->actions($section, $scope),
+            'actions' => $this->actions($trooper, $section, $scope),
             'makeup' => $this->makeup($trooper, $section, $scope, $missedWeeks),
             // Where the ID block came from and how current it is (AD-20, AD-4), by the one roster rule.
             'sync' => $this->rosterSync->current()->toArray(),
@@ -168,10 +168,14 @@ final class TrooperMilpac
      * matrix (6.9) is offered only to a viewer whose scope holds the platoon above the section, so a section leader
      * does not see a link that would be refused.
      *
+     * The rollcall link opens this week's rollcall of the section on the trooper's own card (`?focus=`, which the
+     * rollcall page scrolls to and focuses). A departed trooper has no card on it, so their link opens the section's
+     * rollcall plainly. Both are the same scope check the rollcall page makes: the section in the viewer's scope.
+     *
      * @param  Collection<int, int>  $scope
      * @return list<array{key: string, label: string, href: string}>
      */
-    private function actions(?Unit $section, Collection $scope): array
+    private function actions(Trooper $trooper, ?Unit $section, Collection $scope): array
     {
         if ($section === null) {
             return [];
@@ -181,7 +185,10 @@ final class TrooperMilpac
 
         if ($scope->contains($section->id)) {
             $actions[] = ['key' => 'section-roster', 'label' => 'Open section roster', 'href' => route('roster.index', $section->id, absolute: false)];
-            $actions[] = ['key' => 'rollcall', 'label' => 'Open in rollcall', 'href' => route('rollcall.show', $section->id, absolute: false)];
+            // Only a serving trooper has a card on the rollcall (the serving allow-list, `TrooperStatus::serving()`).
+            $actions[] = $trooper->status?->isServing() !== true
+                ? ['key' => 'rollcall', 'label' => 'Open in rollcall', 'href' => route('rollcall.show', $section->id, absolute: false)]
+                : ['key' => 'rollcall', 'label' => 'Jump to rollcall', 'href' => route('rollcall.show', ['unit' => $section->id, 'focus' => $trooper->id], absolute: false)];
         }
 
         $platoon = $section->parent_id === null ? null : $this->units->find($section->parent_id);
