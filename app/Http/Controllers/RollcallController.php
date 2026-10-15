@@ -71,8 +71,8 @@ use Throwable;
  *
  * Every read is gated by the ScopeResolver (AD-8) — a section outside the viewer's scope is a 403,
  * whatever the UI offers. A week is any moment in it (`?week=YYYY-MM-DD`), bucketed by `WeekOf`
- * (AD-11); a future week is never served — there is nothing to mark yet. Neither is a week before
- * `WeekOf::floor()`, which can no longer be written.
+ * (AD-11); a future week is never served — there is nothing to mark yet. A week before
+ * `WeekOf::floor()` is still shown, read-only (`week.beforeFloor`): its writes are refused.
  */
 class RollcallController extends Controller
 {
@@ -119,7 +119,7 @@ class RollcallController extends Controller
         $currentWeek = WeekOf::start(CarbonImmutable::now());
         $weekStart = $this->requestedWeek($request->query('week'), $currentWeek);
 
-        if ($weekStart->greaterThan($currentWeek) || WeekOf::isBeforeFloor($weekStart)) {
+        if ($weekStart->greaterThan($currentWeek)) {
             return redirect()->route('rollcall.show', array_filter(['unit' => $unit]));
         }
 
@@ -588,9 +588,11 @@ class RollcallController extends Controller
             'date' => $weekStart->toDateString(),
             'closes' => $weekStart->addWeek()->subMinute()->toIso8601String(),
             'isCurrent' => $weekStart->equalTo($currentWeek),
-            'previous' => WeekOf::isBeforeFloor($weekStart->subWeek()) ? null : $weekStart->subWeek()->toDateString(),
+            'previous' => $weekStart->subWeek()->toDateString(),
             'next' => $weekStart->lessThan($currentWeek) ? $weekStart->addWeek()->toDateString() : null,
             'current' => $currentWeek->toDateString(),
+            // Older than the week floor: shown read-only, every write for it is refused.
+            'beforeFloor' => WeekOf::isBeforeFloor($weekStart),
         ];
     }
 

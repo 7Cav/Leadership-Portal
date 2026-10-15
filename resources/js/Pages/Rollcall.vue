@@ -64,7 +64,7 @@ const props = defineProps({
     section: { type: Object, default: null },
     // Every section in the viewer's scope: `[{ id, designation, name, platoon }]`.
     sections: { type: Array, required: true },
-    // `{ start, date, closes, isCurrent, previous, next, current }` (AD-11); `previous` is null at the week floor.
+    // `{ start, date, closes, isCurrent, previous, next, current, beforeFloor }` (AD-11).
     week: { type: Object, required: true },
     // `[{ id, cavId, rank, name, rollcall, status, source, priorStatus, loa }]`. `loa` is the trooper's leave for
     // the week (`LoaCover::toArray()`, covered or needs review), else null (3.4, 4.4).
@@ -118,12 +118,13 @@ const liveAtRisk = ref(props.atRisk);
 watch(() => props.atRisk, (atRisk) => (liveAtRisk.value = atRisk));
 
 // A view-as preview (Story 1.13) and a staff grant are read-only: the server refuses every write
-// then, so the screen says so up front instead of letting saves fail.
+// then, so the screen says so up front instead of letting saves fail. So is a week before the week floor.
 const viewAs = computed(() => page.props.viewAs ?? null);
-const editable = computed(() => !viewAs.value && props.canWrite);
+const editable = computed(() => !viewAs.value && props.canWrite && !props.week.beforeFloor);
 const readOnlyReason = computed(() => {
     if (viewAs.value) return `Read-only while viewing as ${viewAs.value.label}`;
-    return props.canWrite ? null : 'Read-only: a staff grant lets you view this section, not mark it';
+    if (!props.canWrite) return 'Read-only: a staff grant lets you view this section, not mark it';
+    return props.week.beforeFloor ? 'Read-only, this week is too far back to change' : null;
 });
 
 const autosave = props.section
@@ -534,10 +535,9 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                 <h1 class="text-xl font-semibold tracking-tight sm:text-[22px]">Rollcall, week of {{ weekLabel }}</h1>
             </div>
             <div class="flex items-center gap-1 text-muted-foreground">
-                <Button v-if="week.previous" variant="ghost" size="icon-sm" as-child>
+                <Button variant="ghost" size="icon-sm" as-child>
                     <Link :href="weekHref(week.previous)" aria-label="Previous week" preserve-scroll><PhCaretLeft /></Link>
                 </Button>
-                <Button v-else variant="ghost" size="icon-sm" disabled aria-label="Previous week"><PhCaretLeft /></Button>
                 <Button v-if="!week.isCurrent" variant="ghost" size="sm" as-child>
                     <Link :href="weekHref(week.current)">This week</Link>
                 </Button>

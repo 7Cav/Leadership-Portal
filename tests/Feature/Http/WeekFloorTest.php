@@ -140,24 +140,33 @@ it('sends a report at the floor and answers 404 for the week before it', functio
         ->status->toBe(WeeklyReportStatus::Sent);
 });
 
-it('serves the report screen down to the floor with no way further back', function () {
-    $this->actingAs($this->leader)->get("/reports/{$this->section->id}/".BEFORE_FLOOR_WEEK)->assertNotFound();
+it('shows a report below the floor read-only, a sent one as it was frozen, without creating a row', function () {
+    $this->actingAs($this->leader)->get("/reports/{$this->section->id}/".BEFORE_FLOOR_WEEK)
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->where('week.beforeFloor', true)->where('week.previous', '2026-05-02')->where('report.status', 'none'));
+    expect(WeeklyReport::query()->count())->toBe(0);
 
     $this->actingAs($this->leader)->get("/reports/{$this->section->id}/".FLOOR_WEEK)
         ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page->where('week.previous', null));
+        ->assertInertia(fn (Assert $page) => $page->where('week.beforeFloor', false)->where('week.previous', BEFORE_FLOOR_WEEK));
 
-    $this->actingAs($this->leader)->get("/reports/{$this->section->id}/2026-05-23")
-        ->assertInertia(fn (Assert $page) => $page->where('week.previous', FLOOR_WEEK));
+    // A report sent back when its week was writable stays readable once the floor passes it.
+    $this->actingAs($this->leader)->post("/reports/{$this->section->id}/".FLOOR_WEEK.'/send', ['reason' => 'Late'])->assertRedirect();
+    config(['portal.week_floor_weeks' => 2]);
+
+    $this->actingAs($this->leader)->get("/reports/{$this->section->id}/".FLOOR_WEEK)
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->where('week.beforeFloor', true)->where('report.status', 'sent'));
 });
 
-it('serves the rollcall screen down to the floor and sends an older week to the current one', function () {
+it('shows a rollcall week below the floor read-only, without creating a row', function () {
     $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}?week=".BEFORE_FLOOR_WEEK)
-        ->assertRedirect(route('rollcall.show', ['unit' => $this->section->id]));
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->where('week.date', BEFORE_FLOOR_WEEK)->where('week.beforeFloor', true)->where('week.previous', '2026-05-02'));
 
     $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}?week=".FLOOR_WEEK)
         ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page->where('week.date', FLOOR_WEEK)->where('week.previous', null));
+        ->assertInertia(fn (Assert $page) => $page->where('week.beforeFloor', false));
 
     expect(practiceWeeks())->toBe([]);
 });

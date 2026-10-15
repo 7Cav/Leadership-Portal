@@ -93,13 +93,6 @@ describe('Reports/Show', () => {
         expect(wrapper.find('[data-testid="send-bar"]').exists()).toBe(true);
     });
 
-    it('offers no previous week at the week floor', () => {
-        const wrapper = mountShow({ week: { ...props().week, previous: null } });
-
-        expect(wrapper.find('a[aria-label^="Previous week"]').exists()).toBe(false);
-        expect(wrapper.get('button[aria-label="Previous week, too far back"]').attributes('disabled')).toBeDefined();
-    });
-
     it('gates the primary send on the checklist but offers "Send anyway"', () => {
         const wrapper = mountShow();
 
@@ -249,6 +242,18 @@ describe('Reports/Show', () => {
         expect(wrapper.get('[data-testid="send-button"]').attributes('disabled')).toBeDefined();
         expect(wrapper.get('#report-notes').attributes('disabled')).toBeDefined();
         expect(wrapper.get('[data-testid="save-state"]').text()).toContain('Read-only: a staff grant lets you view this report, not edit or send it');
+        vi.advanceTimersByTime(2000);
+        expect(put).not.toHaveBeenCalled();
+    });
+
+    it('is read-only for a week before the week floor, with no send controls', () => {
+        vi.useFakeTimers();
+        const wrapper = mountShow({ week: { ...props().week, beforeFloor: true } });
+
+        expect(wrapper.find('[data-testid="send-bar"]').exists()).toBe(false);
+        expect(wrapper.get('#report-notes').attributes('disabled')).toBeDefined();
+        expect(wrapper.text()).toContain('Read-only, this week is too far back to change');
+        expect(wrapper.find('a[aria-label^="Previous week"]').exists()).toBe(true);
         vi.advanceTimersByTime(2000);
         expect(put).not.toHaveBeenCalled();
     });
