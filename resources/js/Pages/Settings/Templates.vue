@@ -165,16 +165,24 @@ async function insertCode(entry) {
 
     const start = field.selectionStart ?? form.body.length;
     const end = field.selectionEnd ?? start;
-    const selected = form.body.slice(start, end);
-    const inserted = entry.close === '' ? entry.open : `${entry.open}${selected}${entry.close}`;
-    const body = form.body.slice(0, start) + inserted + form.body.slice(end);
-    if (body.length > props.maxBodyLength) return;
+    const inserted = entry.close === '' ? entry.open : `${entry.open}${form.body.slice(start, end)}${entry.close}`;
+    if (form.body.length - (end - start) + inserted.length > props.maxBodyLength) return;
 
-    form.body = body;
     // A section with nothing selected leaves the cursor between its tags, ready for what goes inside.
     const caret = entry.close !== '' && start === end ? start + entry.open.length : start + inserted.length;
-    await nextTick();
+
+    // `execCommand('insertText')` is deprecated, but it is still the only way to edit a textarea through the browser's
+    // own editing, so the insert joins the native undo stack and Ctrl+Z takes it back. It fires an `input` event, which
+    // updates `form.body` through v-model like typing does. Where it is missing or refuses (happy-dom in the tests),
+    // the text is set directly instead, which works the same except for undo.
     field.focus();
+    field.setSelectionRange(start, end);
+    const native = typeof document.execCommand === 'function' && document.execCommand('insertText', false, inserted);
+    if (!native) {
+        form.body = form.body.slice(0, start) + inserted + form.body.slice(end);
+        await nextTick();
+        field.focus();
+    }
     field.setSelectionRange(caret, caret);
 }
 

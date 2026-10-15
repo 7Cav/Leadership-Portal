@@ -442,6 +442,30 @@ describe('Settings/Templates', () => {
                 expect([editor(wrapper).selectionStart, editor(wrapper).selectionEnd]).toEqual([16, 16]);
             });
 
+            it('inserts through the browser\'s own editing where it can, so Ctrl+Z undoes it, and does not insert twice', async () => {
+                const wrapper = page({ active: { ...VERSION_2, body: 'a[TR]row[/TR]b' } });
+                let selection = null;
+                document.execCommand = vi.fn(() => {
+                    selection = [editor(wrapper).selectionStart, editor(wrapper).selectionEnd, document.activeElement === editor(wrapper)];
+
+                    return true;
+                });
+                select(wrapper, 1, 13);
+
+                try {
+                    await wrapper.get('[data-testid="legend-insert-troopers"]').trigger('click');
+                    await flushPromises();
+
+                    expect(document.execCommand).toHaveBeenCalledOnce();
+                    expect(document.execCommand).toHaveBeenCalledWith('insertText', false, '{{#troopers}}[TR]row[/TR]{{/troopers}}');
+                    expect(selection).toEqual([1, 13, true]);
+                    // The browser's own `input` event updates the form; the page does not write the text a second time.
+                    expect(formState.body).toBe('a[TR]row[/TR]b');
+                } finally {
+                    delete document.execCommand;
+                }
+            });
+
             it('redraws the preview after an insert, as typing does', async () => {
                 vi.useFakeTimers();
                 const wrapper = page({ active: { ...VERSION_2, body: '[I][/I]' } });
