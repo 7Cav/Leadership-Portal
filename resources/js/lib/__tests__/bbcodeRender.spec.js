@@ -343,14 +343,14 @@ describe('the starter template, filled', () => {
 [B]Roll Call Accountability[/B]
 [TABLE]
 [TR][TH]#[/TH][TH]Name[/TH][TH]Signed RC[/TH][TH]Attended SP[/TH][/TR]
-{{#troopers}}[TR][TD]{{n}}[/TD][TD]{{#rank_icon}}[IMG]{{rank_icon}}[/IMG] {{/rank_icon}}{{rank}} {{name}}[/TD][TD]{{#rc_yes}}✓{{/rc_yes}}{{#rc_no}}✗{{/rc_no}}{{#rc_unsigned}}-{{/rc_unsigned}}[/TD][TD]{{#sp_present}}✓{{/sp_present}}{{#sp_missed}}✗{{/sp_missed}}{{#sp_makeup}}MU{{/sp_makeup}}{{#sp_attached}}ATT{{/sp_attached}}{{#sp_loa}}LOA{{/sp_loa}}{{#sp_unmarked}}-{{/sp_unmarked}}[/TD][/TR]
+{{#troopers}}[TR][TD]{{n}}[/TD][TD]{{#rank_icon}}[IMG width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/IMG] {{/rank_icon}}{{rank}} {{name}}[/TD][TD]{{#rc_yes}}✓{{/rc_yes}}{{#rc_no}}✗{{/rc_no}}{{#rc_unsigned}}-{{/rc_unsigned}}[/TD][TD]{{#sp_present}}✓{{/sp_present}}{{#sp_missed}}✗{{/sp_missed}}{{#sp_makeup}}MU{{/sp_makeup}}{{#sp_attached}}ATT{{/sp_attached}}{{#sp_loa}}LOA{{/sp_loa}}{{#sp_unmarked}}-{{/sp_unmarked}}[/TD][/TR]
 {{/troopers}}{{^troopers}}[TR][TD]No troopers are placed in this section.[/TD][/TR]
 {{/troopers}}[/TABLE]`;
 
     it('draws the heading, then a table with a row per trooper and the rank insignia before the name', () => {
         const context = sampleContext();
         const tree = read(render(STARTER, context).text);
-        const icon = (file) => ['img', { attrs: { src: `https://7cav.us/data/roster_ranks/0/${file}`, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' } }, []];
+        const icon = (file, width) => ['img', { attrs: { src: `https://7cav.us/data/roster_ranks/0/${file}`, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' }, style: { width, height: 'auto' } }, []];
 
         expect(tree[0]).toEqual(['center', { style: { textAlign: 'center' } }, [['b', ['1/E/2-7 ROLL CALL | 16MAY26 – 22MAY26']]]]);
         expect(tree[1]).toEqual('br');
@@ -359,8 +359,8 @@ describe('the starter template, filled', () => {
         expect(tree[4][0]).toBe('table');
         expect(rows).toHaveLength(1 + context.troopers.length);
         expect(rows[0]).toEqual(['tr', [['th', ['#']], ['th', ['Name']], ['th', ['Signed RC']], ['th', ['Attended SP']]]]);
-        expect(rows[1]).toEqual(['tr', [['td', ['1']], ['td', [icon('18.jpg?1741376797'), ' Sergeant Jay.JH']], ['td', ['✓']], ['td', ['MU']]]]);
-        expect(rows[5]).toEqual(['tr', [['td', ['5']], ['td', [icon('22.jpg?1741376831'), ' Private Okafor.B']], ['td', ['-']], ['td', ['-']]]]);
+        expect(rows[1]).toEqual(['tr', [['td', ['1']], ['td', [icon('18.jpg?1741376797', '11px'), ' Sergeant Jay.JH']], ['td', ['✓']], ['td', ['MU']]]]);
+        expect(rows[5]).toEqual(['tr', [['td', ['5']], ['td', [icon('22.jpg?1741376831', '17px'), ' Private Okafor.B']], ['td', ['-']], ['td', ['-']]]]);
     });
 
     it('prints just the name for a trooper Cav has no insignia for', () => {

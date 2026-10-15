@@ -10,6 +10,7 @@ const row = (overrides = {}) => ({
     rank: 'Sergeant',
     rank_short: 'SGT',
     rank_icon: 'https://7cav.us/data/roster_ranks/0/12.jpg',
+    rank_icon_width: '8px',
     name: 'Jay.JH',
     display_name: 'SGT Jay.JH',
     rc: 'Yes',
@@ -66,6 +67,8 @@ describe('the legend of template codes', () => {
         expect(codes.unit.code).toBe('{{unit}}');
         expect(codes.troopers.code).toBe('{{#troopers}}...{{/troopers}}');
         expect(codes.rank_icon.code).toBe('{{rank_icon}}');
+        expect(codes.rank_icon_width.code).toBe('{{rank_icon_width}}');
+        expect(codes.rank_icon_width.example).toBe('[IMG width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/IMG]');
         expect(codes.sp_present.code).toBe('{{#sp_present}}...{{/sp_present}}');
         expect(codes.upper.code).toBe('{{value|upper}}');
 
@@ -94,6 +97,8 @@ describe('the sample section for the template preview', () => {
         expect(sample.signed).toBe(String(sample.troopers.filter((row) => row.rc_yes).length));
         expect(sample.attended).toBe(String(sample.troopers.filter((row) => row.sp_present || row.sp_makeup || row.sp_attached).length));
         for (const row of sample.troopers) expect(row.rank_icon).toMatch(/^https:\/\/7cav\.us\/data\/roster_ranks\/0\/\d+\.jpg\?\d+$/);
+        // Sized so every rank looks the same: a sergeant's chevrons, a corporal's, a specialist's badge, a PFC's, a private's.
+        expect(sample.troopers.map((row) => row.rank_icon_width)).toEqual(['11px', '13px', '13px', '13px', '17px']);
     });
 });
 
@@ -183,6 +188,14 @@ describe('render', () => {
 
         expect(render(template, context({ troopers: [row(), row({ name: 'Adams.P', rank_icon: '' })] })).text).toBe(
             '[IMG]https://7cav.us/data/roster_ranks/0/12.jpg[/IMG] Jay.JH;Adams.P;',
+        );
+    });
+
+    it('prints the rank icon width into the [IMG] tag the forum sizes it by', () => {
+        const template = '{{#troopers}}{{#rank_icon}}[IMG width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/IMG] {{/rank_icon}}{{name}};{{/troopers}}';
+
+        expect(render(template, context({ troopers: [row(), row({ name: 'Adams.P', rank_icon: '', rank_icon_width: '' })] })).text).toBe(
+            '[IMG width="8px" height="auto"]https://7cav.us/data/roster_ranks/0/12.jpg[/IMG] Jay.JH;Adams.P;',
         );
     });
 

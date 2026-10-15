@@ -12,12 +12,14 @@
 // A value that contains "[" would be read by the forum as a tag, so it is written with a zero-width space after it. A
 // username or billet can therefore never open or close BBCode.
 
+import { insigniaWidth } from './rankInsignia';
+
 /** Names printable anywhere in a template. */
 export const TOP_STRINGS = ['unit', 'unit_name', 'week', 'week_start', 'week_end', 'count', 'signed', 'attended'];
 /** The one list a template may repeat over. */
 export const LISTS = ['troopers'];
 /** Names printable inside {{#troopers}}. */
-export const ROW_STRINGS = ['n', 'rank', 'rank_short', 'rank_icon', 'name', 'display_name', 'rc', 'sp'];
+export const ROW_STRINGS = ['n', 'rank', 'rank_short', 'rank_icon', 'rank_icon_width', 'name', 'display_name', 'rc', 'sp'];
 /** Yes-or-no names, usable only as sections, inside {{#troopers}}. */
 export const ROW_FLAGS = ['sp_present', 'sp_missed', 'sp_makeup', 'sp_attached', 'sp_loa', 'sp_unmarked', 'rc_yes', 'rc_no', 'rc_unsigned'];
 export const FILTERS = ['upper', 'lower'];
@@ -39,6 +41,7 @@ const MEANINGS = {
     rank: ['The full rank', 'Sergeant'],
     rank_short: ['The short rank', 'SGT'],
     rank_icon: ['The rank insignia image from Cav, for an [IMG] tag. Empty when Cav has none, so wrap it in {{#rank_icon}}...{{/rank_icon}}', '{{#rank_icon}}[IMG]{{rank_icon}}[/IMG]{{/rank_icon}}'],
+    rank_icon_width: ['The width to show the rank insignia at, such as 11px, so every rank looks the same size. Empty when Cav has no insignia', '[IMG width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/IMG]'],
     name: ['The forum username', 'Jay.JH'],
     display_name: ['Short rank and username, as the forum names a member', 'SGT Jay.JH'],
     rc: ['The rollcall answer: Yes or No, empty when unsigned', 'Yes'],
@@ -100,6 +103,7 @@ export function sampleContext() {
         rank,
         rank_short: rankShort,
         rank_icon: icon ? SAMPLE_ICON(icon) : '',
+        rank_icon_width: icon ? `${insigniaWidth(SAMPLE_ICON(icon))}px` : '',
         name,
         display_name: `${rankShort} ${name}`,
         rc: { yes: 'Yes', no: 'No' }[rc] ?? '',

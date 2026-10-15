@@ -393,6 +393,13 @@ describe('Settings/Templates', () => {
             expect(entry.text()).toContain('rank insignia');
             expect(entry.text()).toContain('{{#rank_icon}}[IMG]{{rank_icon}}[/IMG]{{/rank_icon}}');
         });
+
+        it('explains the rank icon width and shows how to size the [IMG] with it', () => {
+            const entry = page().get('[data-testid="legend-entry-rank_icon_width"]');
+
+            expect(entry.text()).toContain('same size');
+            expect(entry.text()).toContain('[IMG width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/IMG]');
+        });
     });
 
     describe('the preview', () => {
