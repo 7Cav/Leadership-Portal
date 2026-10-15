@@ -52,12 +52,14 @@ let reloading = false;
 
 // `week` is fixed at page load. Once its deadline passes, the server has moved on to the next
 // cycle, so fetch it (once, until that visit finishes) instead of counting down a stale week.
+// Every prop on this page is that week's (the steps, worklist, KPIs and unit table), so all of
+// them are reloaded, never the week bar alone over last cycle's numbers.
 function tick() {
     now.value = Date.now();
 
     if (!reloading && now.value >= new Date(props.week.reportDue).getTime()) {
         reloading = true;
-        router.reload({ only: ['week'], onFinish: () => (reloading = false) });
+        router.reload({ onFinish: () => (reloading = false) });
     }
 }
 
