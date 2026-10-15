@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import EmptyState from '@/components/EmptyState.vue';
 import { copyText } from '@/lib/clipboard';
+import LoaSyncNote from '@/components/LoaSyncNote.vue';
 import { forumDate } from '@/lib/forumDate';
 import { baselineText, formatKpi, KPIS, stamp, timeOf, unitLabel } from '@/lib/report';
 import { reportSummary } from '@/lib/reportSummary';
@@ -34,6 +35,8 @@ const props = defineProps({
     reasonLabels: { type: Object, required: true },
     names: { type: Object, default: () => ({}) },
     rosterSync: { type: Object, required: true },
+    // A section's live draft: on LOA and at-risk move with leave, so its source and last sync show (AD-20).
+    loaSync: { type: Object, default: null },
     computedAt: { type: String, required: true },
 });
 
@@ -127,6 +130,7 @@ const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id ===
         <template v-else-if="kpis">
             <div class="border-t border-border"><KpiGrid :kpis="kpis" :delta="delta" :hints="hints" /></div>
             <p class="px-5 pt-2 text-[11px] text-muted-foreground" data-testid="baseline">{{ baselineText(baseline) }}</p>
+            <LoaSyncNote v-if="loaSync" :sync="loaSync" class="px-5 pt-1" />
 
             <div class="border-t border-border px-5 py-4 mt-2">
                 <TrendChart :points="trend" :live="!sent" />

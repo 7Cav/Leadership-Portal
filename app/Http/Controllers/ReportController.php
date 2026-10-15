@@ -18,6 +18,7 @@ use App\Kpi\RollupKpis;
 use App\Kpi\TrooperAttendance;
 use App\Kpi\UnitKpis;
 use App\Kpi\WeeklyReportKpis;
+use App\Loa\LoaProvenance;
 use App\Milpac\RosterProvenance;
 use App\Models\Attendance;
 use App\Models\Trooper;
@@ -76,6 +77,7 @@ class ReportController extends Controller
         private readonly AttendanceRepository $attendance,
         private readonly RosterProvenance $rosterSync,
         private readonly UserRepository $users,
+        private readonly LoaProvenance $loaProvenance,
     ) {}
 
     public function show(Request $request, int $unit, string $week): Response
@@ -143,6 +145,9 @@ class ReportController extends Controller
             'history' => $history->map(fn (WeeklyReport $past) => $this->historyRow($past, $senders))->values(),
             'reasons' => collect(UnaccountedReason::cases())->map(fn (UnaccountedReason $r) => ['value' => $r->value, 'label' => $r->label()])->values(),
             'rosterSync' => ['source' => $lastSync->source, 'at' => $lastSync->lastSyncedAt?->toIso8601String()],
+            // A section's live draft counts leave (on LOA, at-risk), so it names the leave data's source and last sync
+            // (4.3, AD-20). A sent report is frozen and a roll-up reads its children's frozen reports: neither has any.
+            'loaSync' => $isLeaf && ! $sent ? $this->loaProvenance->current()->toArray() : null,
             'computedAt' => CarbonImmutable::now('UTC')->toIso8601String(),
         ]);
     }

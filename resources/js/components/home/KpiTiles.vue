@@ -5,13 +5,15 @@ import { formatKpi } from '@/lib/report';
 import { hasTrend, tileChange, tileSeries, TILES } from '@/lib/home';
 import { forumDateTime } from '@/lib/forumDate';
 import DeltaBadge from '@/components/reports/DeltaBadge.vue';
+import LoaSyncNote from '@/components/LoaSyncNote.vue';
 import Sparkline from './Sparkline.vue';
 
 // The six canonical KPIs for the viewer's scope (Story 5.9, shell-f.html "Last 30 days"): live
 // values from the shared KPI service, each with its trailing weeks of sent snapshots. Strength is
-// synced from the milpac roster, so the source and its freshness sit beside the tiles (AD-20).
+// synced from the milpac roster, and on LOA and at-risk move with leave synced from the forum, so both sources and
+// their freshness sit beside the tiles (AD-20).
 const props = defineProps({
-    // `{ current, history, roster }` from HomeController.
+    // `{ current, history, roster, loaSync }` from HomeController; `loaSync` is `LoaSyncState::toArray()`.
     kpis: { type: Object, required: true },
 });
 
@@ -70,5 +72,6 @@ const rosterText = computed(() => {
             <component :is="rosterProblem ? PhWarning : PhArrowsClockwise" class="size-3.5 shrink-0" aria-hidden="true" />
             {{ rosterText }}
         </p>
+        <LoaSyncNote v-if="kpis.loaSync" :sync="kpis.loaSync" class="mt-1" />
     </div>
 </template>

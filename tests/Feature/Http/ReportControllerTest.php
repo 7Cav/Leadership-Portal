@@ -358,6 +358,30 @@ it('carries the roster source and its last sync time (AD-20)', function () {
             ->where('rosterSync.at', $run->finished_at->toIso8601String()));
 });
 
+it('names the leave source and its last sync on a section\'s live draft, and not on a roll-up (4.3, AD-20)', function () {
+    SyncRun::factory()->create(['source' => SyncRun::SOURCE_LOA, 'finished_at' => CarbonImmutable::parse('2026-10-08 15:00:00', 'UTC')]);
+
+    $this->actingAs($this->leader)->get(reportUrl($this->section, $this->week))
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('loaSync.source', 'Forum thread')
+            ->where('loaSync.lastSyncedAt', '2026-10-08T15:00:00+00:00')
+            ->where('loaSync.stale', false));
+
+    // A roll-up is built from its children's frozen reports, so it counts no leave of its own.
+    $this->actingAs(User::factory()->admin()->create())->get(reportUrl($this->platoon, $this->week))
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('loaSync', null));
+});
+
+it('leaves the leave sync off a sent report, which is frozen (AD-12)', function () {
+    markSp($this->section, $this->trooper, $this->weekStart, AttendanceStatus::Present);
+    $this->actingAs($this->leader)->post(reportUrl($this->section, $this->week, '/send'), [
+        'reason' => 'Weekly report', 'notes' => 'Good week.', 'training_subject' => 'Room clearing',
+    ])->assertSessionHasNoErrors();
+
+    $this->actingAs($this->leader)->get(reportUrl($this->section, $this->week))
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('report.status', 'sent')->where('loaSync', null));
+});
+
 it('does not claim who was in a sent roll-up whose snapshot is damaged', function () {
     $admin = User::factory()->admin()->create();
     app(WeeklyReportRepository::class)->send($this->platoon->id, $this->weekStart, ['corrupt' => true], null, $admin->id, 'd', null);

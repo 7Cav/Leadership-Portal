@@ -251,6 +251,20 @@ it('flags a partial run as stale too, and clears the flag once a later run succe
         ->where('sync.lastAttempt', null));
 });
 
+it('names the leave source and its last sync, stale once the latest LOA sync failed (4.3, AD-20)', function () {
+    $this->actingAs($this->leader)->get('/roster')->assertInertia(fn ($page) => $page
+        ->where('loaSync.source', 'Forum thread')
+        ->where('loaSync.neverSynced', true));
+
+    SyncRun::factory()->create(['source' => SyncRun::SOURCE_LOA, 'finished_at' => '2026-10-08 11:00:00']);
+    SyncRun::factory()->create(['source' => SyncRun::SOURCE_LOA, 'status' => SyncRunStatus::Partial, 'finished_at' => '2026-10-08 11:30:00']);
+
+    $this->actingAs($this->leader)->get('/roster')->assertInertia(fn ($page) => $page
+        ->where('loaSync.lastSyncedAt', '2026-10-08T11:00:00+00:00')
+        ->where('loaSync.stale', true)
+        ->where('loaSync.latestStatus', 'partial'));
+});
+
 it('reports no sync yet rather than inventing a time', function () {
     $this->actingAs($this->leader)->get('/roster')->assertInertia(fn ($page) => $page
         ->where('sync.lastSuccessAt', null)

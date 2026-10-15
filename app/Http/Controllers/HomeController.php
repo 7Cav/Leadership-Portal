@@ -12,6 +12,7 @@ use App\Kpi\TrooperAttendance;
 use App\Kpi\UnitKpis;
 use App\Loa\LoaCover;
 use App\Loa\LoaCoverage;
+use App\Loa\LoaProvenance;
 use App\Milpac\RosterProvenance;
 use App\Models\Unit;
 use App\Models\WeeklyReport;
@@ -55,6 +56,7 @@ class HomeController extends Controller
         private readonly UnitRepository $units,
         private readonly WeeklyReportRepository $reports,
         private readonly RosterProvenance $rosterSync,
+        private readonly LoaProvenance $loaProvenance,
         private readonly TrooperRepository $troopers,
         private readonly SectionPracticeRepository $practices,
         private readonly AttendanceRepository $attendance,
@@ -110,7 +112,8 @@ class HomeController extends Controller
      * The six KPIs now, live for the whole scope (AD-21), and the same six for each of the
      * trailing {@see SPARKLINE_WEEKS} whole weeks, summed from the scope's sections' **sent**
      * snapshots. A past week is a point only when every section in scope sent that week: a partial
-     * sum would read as a headcount dip that never happened, so it stays a gap (AD-12).
+     * sum would read as a headcount dip that never happened, so it stays a gap (AD-12). On LOA and
+     * at-risk move with leave, so the leave data's source and last sync go with them (4.3, AD-20).
      *
      * @param  Collection<int, Unit>  $roots
      * @param  Collection<int, int>  $scope
@@ -127,6 +130,7 @@ class HomeController extends Controller
             'current' => self::kpiShape($current),
             'history' => $this->history($this->units->sectionsAmong($scope), $weekStart),
             'roster' => $this->rosterProps(),
+            'loaSync' => $this->loaProvenance->current()->toArray(),
         ];
     }
 

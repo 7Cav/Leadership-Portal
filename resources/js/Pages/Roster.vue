@@ -29,6 +29,7 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import EmptyState from "@/components/EmptyState.vue";
+import LoaSyncNote from "@/components/LoaSyncNote.vue";
 import MatrixView from "@/components/roster/MatrixView.vue";
 import OrbatView from "@/components/roster/OrbatView.vue";
 import TrooperSheet from "@/components/roster/TrooperSheet.vue";
@@ -49,6 +50,9 @@ const props = defineProps({
     units: { type: Array, required: true },
     troopers: { type: Array, required: true },
     sync: { type: Object, required: true },
+    // Where leave comes from and when it last synced (`LoaSyncState::toArray()`, 4.3, AD-20): the LOA weeks,
+    // "On LOA" and at-risk all move with it.
+    loaSync: { type: Object, default: null },
     can: { type: Object, required: true },
     links: { type: Object, required: true },
 });
@@ -501,6 +505,7 @@ function syncNow() {
                 >. Rollcall and SP marks from section leaders. RC and SP cover
                 the last 4 Cav weeks.
             </p>
+            <LoaSyncNote v-if="loaSync" :sync="loaSync" />
         </template>
     </div>
 
@@ -508,6 +513,7 @@ function syncNow() {
         :trooper-id="openTrooperId"
         :links="links"
         :sync-label="syncLabel"
+        :loa-sync="loaSync"
         @close="openTrooperId = null"
     />
 </template>

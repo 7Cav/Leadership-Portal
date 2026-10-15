@@ -19,7 +19,9 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     router: { replace: (...a) => replace(...a), post: (...a) => post(...a), on: () => () => {} },
     usePage: () => mockPage,
 }));
-vi.mock('@/components/roster/TrooperSheet.vue', () => ({ default: { props: ['trooperId'], template: '<div data-testid="sheet-stub">{{ trooperId }}</div>' } }));
+vi.mock('@/components/roster/TrooperSheet.vue', () => ({
+    default: { props: ['trooperId', 'loaSync'], template: '<div data-testid="sheet-stub" :data-loa-source="loaSync?.source">{{ trooperId }}</div>' },
+}));
 
 function props(over = {}) {
     const { units, troopers } = roster();
@@ -36,6 +38,7 @@ function props(over = {}) {
         units,
         troopers,
         sync: { source: 'milpac', lastSuccessAt: '2026-10-08T09:14:00+00:00', stale: false, lastAttempt: null },
+        loaSync: { source: 'Forum thread', lastSyncedAt: '2026-10-08T09:14:00+00:00', stale: false, neverSynced: false, latestStatus: 'success', latestFinishedAt: '2026-10-08T09:14:00+00:00' },
         can: { sync: false },
         links: { milpac: 'https://7cav.us/rosters/profile?uniqueid=', rollcall: '/rollcall/' },
         ...over,
@@ -91,6 +94,16 @@ describe('Roster page', () => {
         const overdue = factory({ sync: { source: 'milpac', lastSuccessAt: '2026-10-08T03:14:00+00:00', stale: true, lastAttempt: null } });
         expect(overdue.find('[data-testid="roster-sync-stamp"]').text()).toContain('overdue');
         expect(overdue.find('[data-testid="roster-sync-stamp"]').text()).not.toContain('failed');
+    });
+
+    it('names the leave source and last sync, and hands it to the trooper sheet (4.3, AD-20)', () => {
+        const wrapper = factory();
+
+        expect(wrapper.get('[data-testid="loa-sync"]').text()).toBe('Leave from Forum thread, synced 08Oct26 09:14Z');
+        expect(wrapper.get('[data-testid="sheet-stub"]').attributes('data-loa-source')).toBe('Forum thread');
+
+        const stale = factory({ loaSync: { ...props().loaSync, stale: true, latestStatus: 'failure' } });
+        expect(stale.get('[data-testid="loa-sync"]').attributes('role')).toBe('status');
     });
 
     it('offers Sync now only to an Admin, posting to the roster sync route', async () => {

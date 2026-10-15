@@ -10,6 +10,8 @@ use App\Models\AttendanceStatus;
 use App\Models\Loa;
 use App\Models\PortalRoleGrant;
 use App\Models\RollcallSignature;
+use App\Models\SyncRun;
+use App\Models\SyncRunStatus;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
@@ -188,6 +190,24 @@ describe('KPI tiles (Story 5.9)', function () {
 
         $syncs->fail($syncs->open('roster', 'system'), 'cav api down');
         dashboard($this->commander)(fn ($page) => $page->where('kpis.roster.state', 'failed'));
+    });
+
+    it('names the leave source and its last sync beside the tiles, stale once the latest LOA sync failed (4.3, AD-20)', function () {
+        dashboard($this->commander)(fn ($page) => $page
+            ->where('kpis.loaSync.source', 'Forum thread')
+            ->where('kpis.loaSync.neverSynced', true)
+            ->where('kpis.loaSync.lastSyncedAt', null));
+
+        SyncRun::factory()->create(['source' => SyncRun::SOURCE_LOA, 'finished_at' => '2026-10-08 15:00:00']);
+        dashboard($this->commander)(fn ($page) => $page
+            ->where('kpis.loaSync.lastSyncedAt', '2026-10-08T15:00:00+00:00')
+            ->where('kpis.loaSync.stale', false));
+
+        SyncRun::factory()->create(['source' => SyncRun::SOURCE_LOA, 'status' => SyncRunStatus::Failure, 'finished_at' => '2026-10-08 16:00:00']);
+        dashboard($this->commander)(fn ($page) => $page
+            ->where('kpis.loaSync.lastSyncedAt', '2026-10-08T15:00:00+00:00')
+            ->where('kpis.loaSync.stale', true)
+            ->where('kpis.loaSync.latestStatus', 'failure'));
     });
 });
 
