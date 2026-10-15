@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useIdentity } from '../useIdentity';
 
 // The identity rules moved here from Home.vue in Story 1.15; these are Story 1.5–1.7's cases,
@@ -50,16 +50,24 @@ describe('useIdentity', () => {
         expect(provenance.value).toMatch(/\d{1,2}:\d{2}/);
     });
 
-    it.each([
-        ['today', new Date(), false],
-        ['a day ago', new Date(Date.now() - 26 * 60 * 60 * 1000), true],
-    ])('shows the date only when the fetch was not %s', (_label, at, expectsDate) => {
-        // The session lasts 24h (SESSION_LIFETIME=1440): a time-only stamp would let a day-old rank
-        // read as an hour old.
-        const { provenance } = identityFor({ username: 'Hale.S' }, enriched({ fetched_at: at.toISOString() }));
-        const month = at.toLocaleDateString(undefined, { month: 'short' });
+    describe('the fetch time, in UTC like the rest of the portal', () => {
+        afterEach(() => vi.useRealTimers());
 
-        expect(provenance.value.includes(month)).toBe(expectsDate);
+        it.each([
+            ['today', '2026-08-03T22:00:00Z', 'Cav roster (api.7cav.us) · 09:14Z'],
+            ['a day ago', '2026-08-04T10:00:00Z', 'Cav roster (api.7cav.us) · 03Aug26 09:14Z'],
+        ])('shows the date only when the fetch was not %s', (_label, now, expected) => {
+            // The session lasts 24h (SESSION_LIFETIME=1440): a time-only stamp would let a day-old rank
+            // read as an hour old.
+            vi.useFakeTimers({ toFake: ['Date'] });
+            vi.setSystemTime(new Date(now));
+
+            expect(identityFor({ username: 'Hale.S' }, enriched()).provenance.value).toBe(`MOS 42A · ${expected}`);
+        });
+
+        it('puts the exact UTC time in the detail', () => {
+            expect(identityFor({ username: 'Hale.S' }, enriched()).provenanceDetail.value).toBe('Warrant Officer 1, fetched 03Aug26 09:14 UTC');
+        });
     });
 
     it('omits the MOS when the roster has none, keeping the source', () => {
