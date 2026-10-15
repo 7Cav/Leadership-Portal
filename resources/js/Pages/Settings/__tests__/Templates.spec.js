@@ -358,11 +358,33 @@ describe('Settings/Templates', () => {
             expect(entries.map((entry) => entry.attributes('data-testid'))).toEqual(names.map((name) => `legend-entry-${name}`));
             for (const [index, name] of names.entries()) {
                 const entry = entries[index];
-                expect(entry.get('dt').text()).toBe(code(name));
-                const [meaning, example] = entry.get('dd').text().split('Example:');
-                expect(meaning.trim()).toMatch(/^[A-Z].{5,}\.$/);
-                expect(example.trim()).not.toBe('');
+                expect(entry.get('[data-testid="legend-code"]').text()).toBe(code(name));
+                expect(entry.get('[data-testid="legend-meaning"]').text()).toMatch(/^[A-Z].{5,}\.$/);
+                expect(entry.get('[data-testid="legend-example"]').text()).not.toBe('');
             }
+        });
+
+        it('heads each group with its name and where its codes go', () => {
+            const wrapper = page();
+            const heading = (key) => [wrapper.get(`[data-testid="legend-${key}"] h3`).text(), wrapper.get(`[data-testid="legend-${key}"] [data-testid="legend-where"]`).text()];
+
+            expect(heading('values')).toEqual(['Values', 'Anywhere in the template']);
+            expect(heading('rowFlags')).toEqual(['Yes/no flags', 'Inside {{#troopers}}']);
+            expect(wrapper.find('[data-testid="legend-lists"] [data-testid="legend-where"]').exists()).toBe(false);
+        });
+
+        it('copies a code to the clipboard from its button', async () => {
+            const writeText = vi.fn().mockResolvedValue();
+            vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+            const wrapper = page();
+            const button = wrapper.get('[data-testid="legend-copy-rank_icon"]');
+
+            expect(button.attributes('aria-label')).toBe('Copy {{rank_icon}}');
+            await button.trigger('click');
+            await flushPromises();
+
+            expect(writeText).toHaveBeenCalledWith('{{rank_icon}}');
+            expect(button.attributes('aria-label')).toBe('Copied {{rank_icon}}');
         });
 
         it('explains the rank icon and shows how to print it only when Cav has one', () => {

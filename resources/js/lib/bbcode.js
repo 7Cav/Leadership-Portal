@@ -61,25 +61,27 @@ export const DESCRIBED = Object.keys(MEANINGS);
 
 /**
  * Every code the template language accepts, grouped as the parser reads them, each with a one-line meaning and an
- * example. Built from the same lists as {@link parse}.
+ * example. Built from the same lists as {@link parse}. `where` says where a group's codes may be used, if anywhere
+ * in particular.
  *
- * @returns {{key: string, title: string, entries: {name: string, code: string, meaning: string, example: string}[]}[]}
+ * @returns {{key: string, title: string, where: string, entries: {name: string, code: string, meaning: string, example: string}[]}[]}
  */
 export function templateLegend() {
-    const group = (key, title, names, codeOf) => ({
+    const group = (key, title, where, names, codeOf) => ({
         key,
         title,
+        where,
         entries: names.map((name) => ({ name, code: codeOf(name), meaning: MEANINGS[name]?.[0] ?? '', example: MEANINGS[name]?.[1] ?? '' })),
     });
     const tag = (name) => `{{${name}}}`;
     const block = (name) => `{{#${name}}}...{{/${name}}}`;
 
     return [
-        group('values', 'Values, anywhere in the template', TOP_STRINGS, tag),
-        group('lists', 'The trooper list', LISTS, block),
-        group('rowValues', 'Trooper values, inside {{#troopers}}', ROW_STRINGS, tag),
-        group('rowFlags', 'Yes/no flags, inside {{#troopers}}', ROW_FLAGS, block),
-        group('filters', 'Filters, after a value', FILTERS, (name) => `{{value|${name}}}`),
+        group('values', 'Values', 'Anywhere in the template', TOP_STRINGS, tag),
+        group('lists', 'The trooper list', '', LISTS, block),
+        group('rowValues', 'Trooper values', 'Inside {{#troopers}}', ROW_STRINGS, tag),
+        group('rowFlags', 'Yes/no flags', 'Inside {{#troopers}}', ROW_FLAGS, block),
+        group('filters', 'Filters', 'After a value', FILTERS, (name) => `{{value|${name}}}`),
     ];
 }
 

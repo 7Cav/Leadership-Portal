@@ -1,8 +1,8 @@
 <script setup>
-import { computed, ref, toRef, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, toRef, watch } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { refDebounced } from '@vueuse/core';
-import { PhCircleNotch, PhFileCode, PhLockSimple, PhWarning } from '@phosphor-icons/vue';
+import { PhCaretDown, PhCheck, PhCircleNotch, PhCopy, PhFileCode, PhLockSimple, PhWarning } from '@phosphor-icons/vue';
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -137,6 +137,23 @@ const toggleView = (version) => {
 const legend = templateLegend();
 const EXAMPLES = { print: '{{name}}', loop: '{{#troopers}}...{{/troopers}}', inverted: '{{^name}}...{{/name}}' };
 
+// Puts one code on the clipboard; its button shows a tick for a moment after.
+const copiedCode = ref(null);
+let copiedTimer = null;
+async function copyCode(code) {
+    try {
+        await navigator.clipboard.writeText(code);
+    } catch {
+        return;
+    }
+    copiedCode.value = code;
+    clearTimeout(copiedTimer);
+    copiedTimer = setTimeout(() => {
+        copiedCode.value = null;
+    }, 1500);
+}
+onBeforeUnmount(() => clearTimeout(copiedTimer));
+
 // The template filled with a made-up section (the legend's examples), drawn as the forum shows the post. It follows the
 // editor a moment after the Admin stops typing, so a long template is not redrawn on every key.
 const SAMPLE = sampleContext();
@@ -248,32 +265,6 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                         </InlineNotice>
                     </section>
 
-                    <details open class="mt-4 rounded-md border border-border bg-muted/20 p-3 text-xs" data-testid="syntax-help">
-                        <summary class="cursor-pointer font-medium">Template codes</summary>
-                        <p class="mt-2 text-muted-foreground">
-                            Write the BBCode as normal and put these codes where the week's data goes.
-                            <code class="font-mono">{{ EXAMPLES.print }}</code> prints a value, <code class="font-mono">{{ EXAMPLES.loop }}</code> repeats
-                            for each trooper, and <code class="font-mono">{{ EXAMPLES.inverted }}</code> shows when a value or flag is not set. A code that
-                            is not listed here is refused when you save.
-                        </p>
-                        <section v-for="group in legend" :key="group.key" class="mt-3" :data-testid="`legend-${group.key}`">
-                            <h3 class="font-medium text-foreground">{{ group.title }}</h3>
-                            <dl class="mt-1 divide-y divide-border rounded-md border border-border bg-card">
-                                <div
-                                    v-for="entry in group.entries"
-                                    :key="entry.name"
-                                    class="grid gap-x-3 gap-y-0.5 px-2.5 py-1.5 sm:grid-cols-[minmax(0,13rem)_minmax(0,1fr)]"
-                                    :data-testid="`legend-entry-${entry.name}`"
-                                >
-                                    <dt><code class="font-mono break-all text-foreground">{{ entry.code }}</code></dt>
-                                    <dd class="text-muted-foreground">
-                                        {{ entry.meaning }}.
-                                        <span class="block">Example: <code class="font-mono break-all text-foreground">{{ entry.example }}</code></span>
-                                    </dd>
-                                </div>
-                            </dl>
-                        </section>
-                    </details>
                 </Card>
 
                 <Card class="min-w-0 gap-0 py-0">
@@ -339,6 +330,62 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                     <EmptyState v-else :icon="PhFileCode" title="No versions yet." class="border-t border-border py-10" data-testid="no-versions" />
                 </Card>
             </div>
+
+            <details open class="group rounded-xl border border-border bg-card" data-testid="syntax-help">
+                <summary class="flex cursor-pointer list-none items-center gap-2 rounded-xl px-5 py-4 [&::-webkit-details-marker]:hidden">
+                    <h2 class="text-[15px] font-semibold">Template codes</h2>
+                    <PhCaretDown class="size-4 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
+                </summary>
+                <div class="border-t border-border px-5 pt-4 pb-6">
+                    <p class="max-w-[75ch] text-[13px] leading-relaxed text-muted-foreground">
+                        Write the BBCode as normal and put these codes where the week's data goes.
+                        <code class="rounded-sm bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{{ EXAMPLES.print }}</code> prints a value,
+                        <code class="rounded-sm bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{{ EXAMPLES.loop }}</code> repeats for each trooper, and
+                        <code class="rounded-sm bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{{ EXAMPLES.inverted }}</code> shows when a value or flag
+                        is not set. A code that is not listed here is refused when you save.
+                    </p>
+
+                    <div class="mt-7 space-y-9">
+                        <section v-for="group in legend" :key="group.key" :aria-labelledby="`legend-title-${group.key}`" :data-testid="`legend-${group.key}`">
+                            <div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 border-b border-border pb-2">
+                                <h3 :id="`legend-title-${group.key}`" class="text-[13px] font-semibold tracking-tight">{{ group.title }}</h3>
+                                <span v-if="group.where" class="text-xs text-muted-foreground" data-testid="legend-where">{{ group.where }}</span>
+                            </div>
+                            <ul class="grid gap-x-10 lg:grid-cols-2">
+                                <li
+                                    v-for="entry in group.entries"
+                                    :key="entry.name"
+                                    class="border-b border-border/60 py-3.5 lg:[&:nth-last-child(2):nth-child(odd)]:border-b-0 last:border-b-0"
+                                    :data-testid="`legend-entry-${entry.name}`"
+                                >
+                                    <div class="flex items-start justify-between gap-2">
+                                        <code class="rounded-sm border border-border bg-muted px-1.5 py-0.5 font-mono text-xs break-all text-foreground" data-testid="legend-code">{{
+                                            entry.code
+                                        }}</code>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            class="-my-1 size-7 shrink-0 text-muted-foreground hover:text-foreground"
+                                            :aria-label="copiedCode === entry.code ? `Copied ${entry.code}` : `Copy ${entry.code}`"
+                                            :data-testid="`legend-copy-${entry.name}`"
+                                            @click="copyCode(entry.code)"
+                                        >
+                                            <PhCheck v-if="copiedCode === entry.code" class="text-success" aria-hidden="true" />
+                                            <PhCopy v-else aria-hidden="true" />
+                                        </Button>
+                                    </div>
+                                    <p class="mt-2 text-[13px] leading-relaxed text-foreground/85" data-testid="legend-meaning">{{ entry.meaning }}.</p>
+                                    <p class="mt-1.5 flex items-baseline gap-2 text-xs">
+                                        <span class="shrink-0 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Example</span>
+                                        <code class="font-mono break-all text-muted-foreground" data-testid="legend-example">{{ entry.example }}</code>
+                                    </p>
+                                </li>
+                            </ul>
+                        </section>
+                    </div>
+                </div>
+            </details>
         </template>
         <AlertDialog :open="target !== null" @update:open="(open) => !open && closeDialog()">
             <AlertDialogContent class="sm:max-w-md" data-testid="activate-dialog">
