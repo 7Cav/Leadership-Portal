@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countsOf, displayName, fullName, initials, isLocked, landingStep, practiceGroups, signatureGroups, stepsOf, weeksNeedingWork } from '../rollcall';
+import { countsOf, displayName, fullName, initials, isLocked, landingStep, practiceGroups, sectionStatus, signatureGroups, stepsOf, weeksNeedingWork } from '../rollcall';
 
 const t = (id, rollcall, status, extra = {}) => ({ id, cavId: 1000 + id, rank: 'PFC', name: `Trooper${id}.A`, rollcall, status, source: null, priorStatus: null, ...extra });
 
@@ -106,5 +106,36 @@ describe('rollcall vocabulary', () => {
 
     it('lists the unsigned first on the signature step and drops empty groups', () => {
         expect(signatureGroups([t(1, 'will_attend', null), t(2, 'unsigned', null)]).map((g) => g.id)).toEqual(['unsigned', 'will']);
+    });
+});
+
+describe('section status for the picker', () => {
+    const progress = (extra = {}) => ({ strength: 5, onLoa: 0, unsigned: 5, unmarked: 5, started: false, posted: false, ...extra });
+
+    it('says posted once the rollcall is marked posted', () => {
+        expect(sectionStatus(progress({ posted: true, started: true, unsigned: 1 }))).toEqual({ state: 'done', text: 'Posted' });
+    });
+
+    it('says not started when nobody has signed or been marked', () => {
+        expect(sectionStatus(progress())).toEqual({ state: 'todo', text: 'Not started' });
+    });
+
+    it('counts what is left, signatures first', () => {
+        expect(sectionStatus(progress({ started: true, unsigned: 2, unmarked: 3 }))).toEqual({ state: 'todo', text: '2 unsigned, 3 unmarked' });
+        expect(sectionStatus(progress({ started: true, unsigned: 0, unmarked: 3 }))).toEqual({ state: 'todo', text: '3 unmarked' });
+        expect(sectionStatus(progress({ started: true, unsigned: 1, unmarked: 0 }))).toEqual({ state: 'todo', text: '1 unsigned' });
+    });
+
+    it('says not posted when everything is in but the post is not', () => {
+        expect(sectionStatus(progress({ started: true, unsigned: 0, unmarked: 0 }))).toEqual({ state: 'todo', text: 'Not posted' });
+    });
+
+    it('does not call a section where everyone is on LOA not started', () => {
+        expect(sectionStatus(progress({ onLoa: 5, unsigned: 0, unmarked: 0 }))).toEqual({ state: 'todo', text: 'Not posted' });
+    });
+
+    it('says when a section has no troopers, and nothing without progress', () => {
+        expect(sectionStatus(progress({ strength: 0, unsigned: 0, unmarked: 0 }))).toEqual({ state: 'none', text: 'No troopers' });
+        expect(sectionStatus(undefined)).toBeNull();
     });
 });

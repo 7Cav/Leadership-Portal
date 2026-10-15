@@ -156,7 +156,7 @@ class RollcallController extends Controller
 
             return Inertia::render('Rollcall', [
                 'section' => null,
-                'sections' => $this->pickerOptions($sections),
+                'sections' => $this->pickerOptions($sections, $weekStart),
                 'week' => $this->weekProps($weekStart, $currentWeek),
             ]);
         }
@@ -172,7 +172,7 @@ class RollcallController extends Controller
 
         return Inertia::render('Rollcall', [
             'section' => $this->sectionProps($section, $sections),
-            'sections' => $this->pickerOptions($sections),
+            'sections' => $this->pickerOptions($sections, $weekStart),
             'week' => $this->weekProps($weekStart, $currentWeek),
             // Whether this viewer may mark, confirm or post here: command authority, not a staff grant, which only
             // reads (the handlers refuse the write either way). The page goes read-only when false.
@@ -580,14 +580,30 @@ class RollcallController extends Controller
      * @param  Collection<int, Unit>  $sections
      * @return list<array<string, mixed>>
      */
-    private function pickerOptions(Collection $sections): array
+    private function pickerOptions(Collection $sections, CarbonImmutable $weekStart): array
     {
-        return $sections->map(fn (Unit $section) => [
-            'id' => $section->id,
-            'designation' => $section->callsign ?? $section->name,
-            'name' => $section->name,
-            'platoon' => $section->parent ? ($section->parent->callsign ?? $section->parent->name) : null,
-        ])->values()->all();
+        // Where each section's rollcall stands for the week, so the picker can say which still
+        // need work: the counts the home step matrix reads, one query for every section listed.
+        $progress = $this->attendance->weekProgress($sections->modelKeys(), $weekStart);
+
+        return $sections->map(function (Unit $section) use ($progress) {
+            $week = $progress->get($section->id);
+
+            return [
+                'id' => $section->id,
+                'designation' => $section->callsign ?? $section->name,
+                'name' => $section->name,
+                'platoon' => $section->parent ? ($section->parent->callsign ?? $section->parent->name) : null,
+                'progress' => [
+                    'strength' => $week?->strength ?? 0,
+                    'onLoa' => $week?->onLoa ?? 0,
+                    'unsigned' => $week?->unsigned ?? 0,
+                    'unmarked' => $week === null ? 0 : $week->strength - $week->marked,
+                    'started' => $week !== null && ($week->signed > 0 || $week->marked > $week->onLoa),
+                    'posted' => $week?->postedAt !== null,
+                ],
+            ];
+        })->values()->all();
     }
 
     /**
