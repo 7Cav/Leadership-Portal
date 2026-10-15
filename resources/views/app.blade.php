@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title inertia>{{ config('app.name', '7Cav Leadership Portal') }}</title>
+    <title inertia>{{ config('app.name') }}</title>
     {{--
       Apply the saved light/dark choice before first paint (Story 1.15), falling back to the OS
       setting. Must run before the stylesheet renders anything, hence inline and synchronous.

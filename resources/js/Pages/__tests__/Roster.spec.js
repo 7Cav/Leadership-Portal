@@ -14,7 +14,7 @@ const mockPage = { url: '/roster/1', props: {} };
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
-    Head: { template: '<head></head>' },
+    Head: { props: ['title'], template: '<head :data-title="title"></head>' },
     Link: { props: ['href'], template: '<a :href="href"><slot /></a>' },
     router: { replace: (...a) => replace(...a), post: (...a) => post(...a), on: () => () => {} },
     usePage: () => mockPage,
@@ -62,6 +62,10 @@ describe('Roster page', () => {
 
         expect(wrapper.find('[data-testid="roster-matrix"]').exists()).toBe(true);
         expect(replace).toHaveBeenLastCalledWith(expect.objectContaining({ url: '/roster/1?view=matrix', preserveState: true }));
+    });
+
+    it('titles the tab with the unit and the portal name', () => {
+        expect(factory().find('head').attributes('data-title')).toBe('Roster 1/A/1-7 · 7Cav Leadership Portal');
     });
 
     it('starts on the view the URL asks for', () => {

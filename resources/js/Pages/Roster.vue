@@ -219,7 +219,7 @@ function syncNow() {
 </script>
 
 <template>
-    <Head :title="unit ? `Roster ${unit.callsign ?? unit.name}` : 'Roster'" />
+    <Head :title="unit ? `Roster ${unit.callsign ?? unit.name} · 7Cav Leadership Portal` : 'Roster · 7Cav Leadership Portal'" />
 
     <div class="space-y-4">
         <section
