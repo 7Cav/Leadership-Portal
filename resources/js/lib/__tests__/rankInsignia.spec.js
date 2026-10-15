@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INSIGNIA_BOX, insigniaPlacement } from '../rankInsignia';
+import { INSIGNIA_BOX, insigniaPlacement, insigniaWidth } from '../rankInsignia';
 
 const url = (n, query = '') => `https://7cav.us/data/roster_ranks/0/${n}.jpg${query}`;
 const RANKS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 26, 27, 28, 29, 30];
@@ -79,5 +79,22 @@ describe('insigniaPlacement', () => {
         const ltg = drawn(3);
         expect(ltg.right - ltg.left).toBeCloseTo(INSIGNIA_BOX, 0);
         expect(ltg.ink).toBeLessThan(drawn(18).ink);
+    });
+});
+
+describe('insigniaWidth', () => {
+    it('gives the whole-pixel width each insignia is drawn at, so the forum can show it at the same weight', () => {
+        for (const n of RANKS) {
+            expect(insigniaWidth(url(n))).toBe(Math.max(3, Math.round(insigniaPlacement(url(n)).width)));
+            expect(insigniaWidth(url(n, '?1741376831'))).toBe(insigniaWidth(url(n)));
+        }
+        expect(insigniaWidth(url(10))).toBe(5); // First Lieutenant
+        expect(insigniaWidth(url(18))).toBe(11); // Sergeant
+        expect(insigniaWidth(url(1))).toBe(18); // General of the Army
+    });
+
+    it("gives the square's size for an image that is not a known rank insignia", () => {
+        expect(insigniaWidth(url(99))).toBe(INSIGNIA_BOX);
+        expect(insigniaWidth('https://7cav.us/styles/7cav/xenforo/cav_logo.png')).toBe(INSIGNIA_BOX);
     });
 });

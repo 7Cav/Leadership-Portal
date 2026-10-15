@@ -10,7 +10,8 @@
 // Node shapes:
 //   { type: 'text', text }
 //   { type: 'br' }
-//   { type: 'element', tag, kind, attrs, style, children }   `kind` is the BBCode name, `tag` the HTML element
+//   { type: 'element', tag, kind, attrs, style, children }   `kind` is the BBCode name, `tag` the HTML element; the
+//                                                              style of an [IMG width=".." height=".."] holds its sizes
 //   { type: 'quote-by', text }                                 the "name said:" line of a [QUOTE=name]
 
 const ALIGN = { center: 'center', left: 'left', right: 'right', justify: 'justify' };
@@ -28,8 +29,14 @@ const TABLE_PARTS = new Set(['table', 'tr']);
 // Tags whose last line break, just before the closing tag, is layout rather than a blank line.
 const TRIM_END = new Set([...BLOCK, 'li', 'td', 'th']);
 
-// One opening or closing tag. The option stops at "]" or a line end, so a broken tag cannot run on through the post.
-const TAG = /\[(\/?)([a-z]+|\*)(?:=([^\]\r\n]*))?\]/gi;
+// One opening or closing tag. The option stops at "]" or a line end, so a broken tag cannot run on through the post. The
+// second form is XenForo's [IMG width="322px" height="auto"], the only tag here that takes named options.
+const TAG = /\[(\/?)([a-z]+|\*)(?:=([^\]\r\n]*))?\]|\[(img)(\s[^\]\r\n]*)\]/gi;
+
+// The largest side, in pixels, an [IMG] may be given.
+const MAX_IMG_PX = 1000;
+// One `name="value"`, `name='value'` or `name=value` among an [IMG]'s options, after the space that separates it.
+const IMG_OPTION = /\s+([a-z]+)=(?:"([^"]*)"|'([^']*)'|([^\s"']+))/iy;
 
 const text = (value) => ({ type: 'text', text: value });
 
@@ -77,6 +84,42 @@ export function safeSize(value) {
     if (px && Number(px[1]) >= MIN_PX && Number(px[1]) <= MAX_PX) return `${Number(px[1])}px`;
 
     return null;
+}
+
+/** One side of an [IMG]: a whole number of pixels from 1 to 1000, or `auto`, as a CSS size; anything else is null. */
+export function safeImageSide(value) {
+    const side = String(value ?? '');
+    if (/^auto$/i.test(side)) return 'auto';
+
+    const px = side.match(/^(\d{1,4})px$/i);
+    if (px && Number(px[1]) >= 1 && Number(px[1]) <= MAX_IMG_PX) return `${Number(px[1])}px`;
+
+    return null;
+}
+
+/**
+ * The sizes in an [IMG]'s options, as the forum takes them: `width` and `height`, each at most once, in any order,
+ * separated by spaces, quoted or not, each a size {@link safeImageSide} accepts (`auto` keeps that side in proportion to the other). Null for
+ * anything else, so the tag is shown as written.
+ *
+ * @returns {{width?: string, height?: string} | null}
+ */
+export function imageSize(options) {
+    const source = String(options ?? '').trimEnd();
+    const size = {};
+    IMG_OPTION.lastIndex = 0;
+
+    while (IMG_OPTION.lastIndex < source.length) {
+        const match = IMG_OPTION.exec(source);
+        if (!match) return null;
+
+        const key = match[1].toLowerCase();
+        const side = safeImageSide(match[2] ?? match[3] ?? match[4]);
+        if (!['width', 'height'].includes(key) || key in size || side === null) return null;
+        size[key] = side;
+    }
+
+    return Object.keys(size).length ? size : null;
 }
 
 // An option may be quoted, as the forum's editor writes [URL="..."].
@@ -184,8 +227,10 @@ export function parseBbcode(source) {
 
     for (const match of input.matchAll(TAG)) {
         const [raw, slash] = match;
-        const name = match[2].toLowerCase();
+        const name = (match[2] ?? match[4]).toLowerCase();
         const option = match[3] === undefined ? undefined : unquote(match[3].trim());
+        // The sizes of an [IMG width=".." height=".."], or null when they are not ones the forum takes.
+        const size = match[5] === undefined ? {} : imageSize(match[5]);
 
         if (match.index < last) continue;
         addText(input.slice(last, match.index));
@@ -217,13 +262,13 @@ export function parseBbcode(source) {
             const close = input.toLowerCase().indexOf(`[/${name}]`, last);
             const address = close === -1 ? null : input.slice(last, close);
             const safe = address === null ? null : name === 'img' ? safeImage(address) : safeLink(address);
-            if (safe === null || TABLE_PARTS.has(top().kind) || stack.length > MAX_DEPTH) {
+            if (safe === null || size === null || TABLE_PARTS.has(top().kind) || stack.length > MAX_DEPTH) {
                 literal(raw);
                 continue;
             }
             const node =
                 name === 'img'
-                    ? { type: 'element', tag: 'img', kind: 'img', attrs: { src: safe, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' }, style: {}, children: [] }
+                    ? { type: 'element', tag: 'img', kind: 'img', attrs: { src: safe, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' }, style: size, children: [] }
                     : { type: 'element', tag: 'a', kind: 'url', attrs: linkAttrs(safe), style: {}, children: [text(address.trim())] };
             top().children.push(node);
             last = close + name.length + 3;

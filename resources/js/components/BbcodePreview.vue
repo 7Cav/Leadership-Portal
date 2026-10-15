@@ -1,7 +1,7 @@
 <script>
 import { computed, defineComponent, h } from 'vue';
 import { parseBbcode } from '@/lib/bbcodeRender';
-import { INSIGNIA_BOX, insigniaPlacement } from '@/lib/rankInsignia';
+import { INSIGNIA_BOX, insigniaPlacement, insigniaWidth } from '@/lib/rankInsignia';
 
 // A BBCode post drawn as the forum shows it (rollcall review step, Settings > Templates). `lib/bbcodeRender.js` reads the
 // BBCode into a tree and this turns the tree into elements with `h()`: every piece of text is a text node and every
@@ -33,9 +33,13 @@ function draw(nodes, inCell) {
 
         if (node.kind === 'img') {
             // A known rank insignia is drawn in a fixed square at the same visual weight as every other rank, centred on
-            // the insignia rather than on its file's padding (`lib/rankInsignia.js`).
+            // the insignia rather than on its file's padding (`lib/rankInsignia.js`). So is one given the width the template's
+            // `{{rank_icon_width}}` prints for it: the forum shows it at about that size, and the square centres it better.
+            // Given any other size, the forum shows the image at that size, and so does the preview.
+            const { width, height } = node.style;
+            const sized = width !== undefined || height !== undefined;
             const place = insigniaPlacement(node.attrs.src);
-            if (place) {
+            if (place && (!sized || (width === `${insigniaWidth(node.attrs.src)}px` && (height ?? 'auto') === 'auto'))) {
                 // `align-middle` centres the square on the line box, which sits a little below the middle of the capitals
                 // beside it; lifting it 1.5px lines the insignia up with the name's capitals.
                 return h('span', { class: 'relative -top-[1.5px] inline-block shrink-0 overflow-hidden align-middle', style: { width: `${INSIGNIA_BOX}px`, height: `${INSIGNIA_BOX}px` }, 'data-rank-insignia': '' }, [
@@ -45,6 +49,16 @@ function draw(nodes, inCell) {
                         style: { width: `${place.width}px`, height: `${place.height}px`, left: `${place.left}px`, top: `${place.top}px` },
                     }),
                 ]);
+            }
+
+            if (sized) {
+                // Exactly the size written, a side left `auto` (or not given) unset so it follows the other. With its height
+                // free it may also shrink to fit the post, keeping its proportions; with a fixed height it may not, or it
+                // would be squashed.
+                const style = Object.fromEntries(Object.entries({ width, height }).filter(([, side]) => side !== undefined && side !== 'auto'));
+                const fit = style.height === undefined ? ' max-w-full' : ' max-w-none';
+
+                return h('img', { ...node.attrs, class: `inline-block align-middle${fit}`, style, 'data-sized-image': '' });
             }
 
             // Any other image keeps its proportions; in a cell it stays row-sized, elsewhere it may be larger.

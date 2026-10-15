@@ -47,6 +47,35 @@ const INK = 85;
 
 const RANK_IMAGE = /^https:\/\/7cav\.us\/data\/roster_ranks\/0\/(\d+)\.jpg(\?\d+)?$/;
 
+// The narrowest an insignia is ever drawn, so a thin bar is still a mark.
+const MIN_WIDTH = 3;
+
+// The measurements of a known rank insignia and the scale that gives it the same weight as every other, or null.
+function scaled(src) {
+    const match = RANK_IMAGE.exec(String(src));
+    const measured = match ? MEASURED[match[1]] : undefined;
+    if (!measured) return null;
+
+    const [, , , , width, height, , , ink] = measured;
+
+    return { measured, scale: Math.min(Math.sqrt(INK / ink), INSIGNIA_BOX / Math.max(width, height)) };
+}
+
+/**
+ * The width, in whole pixels, to show a rank insignia at on the forum so every rank carries the same visual weight: its
+ * file's width at the scale {@link insigniaPlacement} draws it at, never under 3. The forum takes this as
+ * `[IMG width="..px" height="auto"]` and scales the height to match. An image that isn't a known rank insignia gets the
+ * square's size.
+ *
+ * @param {string} src
+ * @returns {number}
+ */
+export function insigniaWidth(src) {
+    const found = scaled(src);
+
+    return found ? Math.max(MIN_WIDTH, Math.round(found.measured[0] * found.scale)) : INSIGNIA_BOX;
+}
+
 /**
  * Where to draw a rank insignia inside an `INSIGNIA_BOX` square: the image's drawn width and height and its offset, so
  * the insignia's centre of mass lands in the middle of the square, nudged only as far as needed to keep the whole
@@ -56,12 +85,11 @@ const RANK_IMAGE = /^https:\/\/7cav\.us\/data\/roster_ranks\/0\/(\d+)\.jpg(\?\d+
  * @returns {{width: number, height: number, left: number, top: number} | null}
  */
 export function insigniaPlacement(src) {
-    const match = RANK_IMAGE.exec(String(src));
-    const measured = match ? MEASURED[match[1]] : undefined;
-    if (!measured) return null;
+    const found = scaled(src);
+    if (!found) return null;
 
-    const [fileWidth, fileHeight, x, y, width, height, cx, cy, ink] = measured;
-    const scale = Math.min(Math.sqrt(INK / ink), INSIGNIA_BOX / Math.max(width, height));
+    const { measured, scale } = found;
+    const [fileWidth, fileHeight, x, y, width, height, cx, cy] = measured;
     // Put the centre of mass in the middle, then keep the insignia's box within the square.
     const fit = (center, start, size) => {
         const offset = INSIGNIA_BOX / 2 - center * scale;

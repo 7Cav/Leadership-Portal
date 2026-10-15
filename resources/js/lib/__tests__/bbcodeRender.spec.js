@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseBbcode, safeColor, safeImage, safeLink, safeSize } from '../bbcodeRender';
+import { imageSize, parseBbcode, safeColor, safeImage, safeImageSide, safeLink, safeSize } from '../bbcodeRender';
 import { inert, render, sampleContext } from '../bbcode';
 
 // The preview tree, written short: text as a string, a line break as 'br', an element as [kind, children] (or
@@ -146,6 +146,69 @@ describe('reading BBCode for the preview', () => {
         expect(read('[CENTER][B][COLOR=gold]1/E/2-7[/COLOR] ROLL CALL[/B][/CENTER]')).toEqual([
             ['center', { style: { textAlign: 'center' } }, [['b', [['color', { style: { color: 'gold' } }, ['1/E/2-7']], ' ROLL CALL']]]],
         ]);
+    });
+});
+
+describe('[IMG] with a width and a height, as the forum takes them', () => {
+    const IMG = 'https://7cav.us/data/roster_ranks/0/18.jpg';
+    const ATTRS = { src: IMG, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' };
+
+    it.each([
+        ['[IMG width="11px" height="auto"]', { width: '11px', height: 'auto' }],
+        ['[IMG width="322px" height="1px"]', { width: '322px', height: '1px' }],
+        ['[IMG height="auto" width="11px"]', { width: '11px', height: 'auto' }],
+        ['[IMG width="auto" height="40px"]', { width: 'auto', height: '40px' }],
+        ['[IMG width="11px"]', { width: '11px' }],
+        ['[IMG height="1000px"]', { height: '1000px' }],
+        ["[IMG width='11px' height='auto']", { width: '11px', height: 'auto' }],
+        ['[IMG width=11px height=auto]', { width: '11px', height: 'auto' }],
+        ['[img WIDTH="11PX" Height="AUTO"]', { width: '11px', height: 'auto' }],
+        ['[IMG  width="011px"   height="auto" ]', { width: '11px', height: 'auto' }],
+    ])('reads %s', (open, style) => {
+        expect(read(`${open}${IMG}[/IMG]`)).toEqual([['img', { attrs: ATTRS, style }, []]]);
+    });
+
+    it.each([
+        '[IMG width="50%"]',
+        '[IMG width="1px;background:url(x)"]',
+        '[IMG width="9999px"]',
+        '[IMG width="1001px"]',
+        '[IMG width="0px"]',
+        '[IMG height="-1px"]',
+        '[IMG width="11"]',
+        '[IMG width="1.5px"]',
+        '[IMG width="11 px"]',
+        '[IMG width=" 11px"]',
+        '[IMG width="11px" width="12px"]',
+        '[IMG width="11px" alt="x"]',
+        '[IMG style="position:fixed"]',
+        '[IMG onerror="alert(1)"]',
+        '[IMG width="11px" onerror=alert(1)]',
+        '[IMG width="11px"height="auto"]',
+        '[IMG width = "11px"]',
+        '[IMG width]',
+        '[IMG ]',
+    ])('shows %s as written, with no image', (open) => {
+        const source = `${open}${IMG}[/IMG]`;
+        const tree = parseBbcode(source);
+
+        expect(elementsOf(tree)).toEqual([]);
+        expect(tree.map((node) => node.text).join('')).toBe(source);
+    });
+
+    it('still takes only an https address', () => {
+        const source = '[IMG width="11px"]javascript:alert(1)[/IMG]';
+
+        expect(elementsOf(parseBbcode(source))).toEqual([]);
+    });
+
+    it('accepts a side of 1 to 1000 pixels or auto, and nothing else', () => {
+        expect(['1px', '1000px', 'auto', 'AUTO', '18PX'].map(safeImageSide)).toEqual(['1px', '1000px', 'auto', 'auto', '18px']);
+        for (const bad of ['0px', '1001px', '-1px', '50%', '1em', '11', '', 'auto;', 'calc(1px)', '1px;background:url(x)']) expect(safeImageSide(bad), bad).toBeNull();
+        expect(imageSize(' width="5px" height="auto"')).toEqual({ width: '5px', height: 'auto' });
+        expect(imageSize(' height=auto')).toEqual({ height: 'auto' });
+        expect(imageSize(' ')).toBeNull();
+        expect(imageSize(' width="5px" style="x"')).toBeNull();
     });
 });
 
