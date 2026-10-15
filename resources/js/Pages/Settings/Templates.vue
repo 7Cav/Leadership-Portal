@@ -52,7 +52,19 @@ watch(
     },
 );
 
+// Text typed into the editor that is not saved yet: the other company's template would replace it.
+const unsaved = computed(() => form.body !== (props.active?.body ?? '') || form.reason.trim() !== '');
+// Redraws the company picker on the company still open when the Admin decides to stay.
+const pickerKey = ref(0);
+
 function chooseCompany(event) {
+    // Asks before dropping a draft, as the report and rollcall pages do when leaving with unsaved changes.
+    if (unsaved.value && !window.confirm('Your template changes are not saved. Switch company and lose them?')) {
+        pickerKey.value++;
+
+        return;
+    }
+
     router.get('/settings/templates', { company: event.target.value }, { preserveScroll: true });
 }
 
@@ -147,7 +159,7 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
         <template v-else>
             <div class="grid max-w-sm gap-1.5">
                 <Label for="template-company">Company</Label>
-                <NativeSelect id="template-company" data-testid="company-select" :model-value="company" @change="chooseCompany">
+                <NativeSelect id="template-company" :key="pickerKey" data-testid="company-select" :model-value="company" @change="chooseCompany">
                     <option v-for="item in companies" :key="item.id" :value="item.id">{{ companyLabel(item) }}</option>
                 </NativeSelect>
             </div>

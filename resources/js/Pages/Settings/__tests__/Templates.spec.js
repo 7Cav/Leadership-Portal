@@ -85,6 +85,52 @@ describe('Settings/Templates', () => {
         expect(routerGet).toHaveBeenCalledWith('/settings/templates', { company: '2' }, { preserveScroll: true });
     });
 
+    describe('switching company with unsaved changes', () => {
+        const switchTo = async (wrapper, id) => {
+            const select = wrapper.get('[data-testid="company-select"]');
+            select.element.value = id;
+            await select.trigger('change');
+        };
+
+        it('does not ask when nothing was changed', async () => {
+            const confirm = vi.fn();
+            vi.stubGlobal('confirm', confirm);
+
+            await switchTo(page(), '2');
+
+            expect(confirm).not.toHaveBeenCalled();
+            expect(routerGet).toHaveBeenCalled();
+        });
+
+        it.each([
+            ['the template', 'body', '[B]half-written[/B]'],
+            ['the reason', 'reason', 'Adds the squad column'],
+        ])('asks before dropping an edit to %s, and staying keeps the draft and the company', async (_label, field, value) => {
+            const confirm = vi.fn(() => false);
+            vi.stubGlobal('confirm', confirm);
+            const wrapper = page();
+            formState[field] = value;
+
+            await switchTo(wrapper, '2');
+            await nextTick();
+
+            expect(confirm).toHaveBeenCalledOnce();
+            expect(routerGet).not.toHaveBeenCalled();
+            expect(wrapper.get('[data-testid="company-select"]').element.value).toBe('1');
+            expect(formState[field]).toBe(value);
+        });
+
+        it('switches when the Admin agrees to lose the draft', async () => {
+            vi.stubGlobal('confirm', vi.fn(() => true));
+            const wrapper = page();
+            formState.body = '[B]half-written[/B]';
+
+            await switchTo(wrapper, '2');
+
+            expect(routerGet).toHaveBeenCalledWith('/settings/templates', { company: '2' }, { preserveScroll: true });
+        });
+    });
+
     it('shows the active version number and starts an Admin\'s editor from its text', () => {
         const wrapper = page();
 
