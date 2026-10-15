@@ -177,7 +177,7 @@ class ForumApi
         return $this->config['authorize_url'].'?'.$query;
     }
 
-    public function exchangeCode(string $code): ForumToken
+    public function exchangeCode(#[\SensitiveParameter] string $code): ForumToken
     {
         $request = new ExchangeCodeRequest(
             code: $code,

@@ -37,3 +37,12 @@ it('translates each seam\'s typed failure into the source-agnostic one', functio
         expect(fn () => ($source->fetch)($now, $now))->toThrow(CaptureSourceUnavailable::class, "{$source->name}: misconfigured");
     }
 });
+
+it('records a Nightwatch base URL outside /api/public/stats as misconfigured, so the job does not retry it', function () {
+    $nw = ['base_url' => 'https://nightwatch.example.test/api/v2', 'api_key' => 'NWKEY-0123456789-REST', 'server_ids' => 'srv-a'];
+    $sources = CaptureSources::default(new CrconApi([]), new BattleMetricsApi([]), [], [], new NightwatchApi($nw), $nw);
+    $now = new DateTimeImmutable;
+
+    expect(fn () => ($sources->for(GamePlatform::Wardogs)[0]->fetch)($now->modify('-1 hour'), $now))
+        ->toThrow(CaptureSourceUnavailable::class, 'nightwatch: misconfigured');
+});

@@ -2,6 +2,7 @@
 
 namespace App\Integration\Nightwatch;
 
+use App\Integration\RefusesRedirects;
 use Saloon\Enums\Method;
 use Saloon\Http\Auth\HeaderAuthenticator;
 use Saloon\Http\Connector;
@@ -15,12 +16,13 @@ use Saloon\Traits\Plugins\HasTimeout;
  *
  * **GET-only, stats-only.** A boot hook refuses, before anything is sent, any method
  * other than GET and any path that is not strictly under the configured base (which ends in
- * `/api/public/stats`). The key is a read-only workspace key too, so this is the second lock.
+ * `/api/public/stats`). Redirects are not followed ({@see RefusesRedirects}), so that check covers
+ * the only hop. The key is a read-only workspace key too, so this is the second lock.
  * The API key is the default `X-Api-Key` header so no request goes out unauthenticated by omission.
  */
 class NightwatchConnector extends Connector
 {
-    use AcceptsJson, HasTimeout;
+    use AcceptsJson, HasTimeout, RefusesRedirects;
 
     protected int $connectTimeout = 5;
 
@@ -28,7 +30,7 @@ class NightwatchConnector extends Connector
 
     public function __construct(
         private readonly string $baseUrl,
-        private readonly string $apiKey,
+        #[\SensitiveParameter] private readonly string $apiKey,
     ) {}
 
     public function resolveBaseUrl(): string

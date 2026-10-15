@@ -2,6 +2,7 @@
 
 namespace App\Integration\Crcon;
 
+use App\Integration\RefusesRedirects;
 use Saloon\Http\Auth\TokenAuthenticator;
 use Saloon\Http\Connector;
 use Saloon\Traits\Plugins\AcceptsJson;
@@ -17,7 +18,7 @@ use Saloon\Traits\Plugins\HasTimeout;
  */
 class CrconConnector extends Connector
 {
-    use AcceptsJson, HasTimeout;
+    use AcceptsJson, HasTimeout, RefusesRedirects;
 
     protected int $connectTimeout = 5;
 
@@ -25,7 +26,7 @@ class CrconConnector extends Connector
 
     public function __construct(
         private readonly string $baseUrl,
-        private readonly string $apiKey,
+        #[\SensitiveParameter] private readonly string $apiKey,
     ) {}
 
     public function resolveBaseUrl(): string
