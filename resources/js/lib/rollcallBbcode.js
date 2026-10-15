@@ -1,4 +1,5 @@
 import { render } from './bbcode';
+import { ROLE_LABELS, orderTroopers, shownRole } from './fireteams';
 import { forumDate } from './forumDate';
 import { insigniaWidth } from './rankInsignia';
 import { displayName, fullName, isLocked, rankIconOf, rankOf } from './rollcall';
@@ -12,18 +13,26 @@ const RC_WORDS = { will_attend: 'Yes', cannot_attend: 'No' };
 const SP_WORDS = { present: 'Yes', missed: 'No', makeup: 'MU', attached: 'Att', loa: 'LOA' };
 
 /**
- * The values a template can print, from the section, the week and each trooper's current marks.
+ * The values a template can print, from the section, the week and each trooper's current marks. The troopers are
+ * listed SL, ASL, then fireteam leaders when the section shows them, then everyone else, each by rank
+ * ({@link orderTroopers}), so `{{n}}` numbers them in that order.
  *
- * @param {{section: object, week: object, troopers: object[]}} input the props the rollcall page received, with the working marks
+ * @param {{section: object, week: object, troopers: object[], fireteams?: {show: boolean, order: string}}} input the props
+ *   the rollcall page received, with the working marks
  */
-export function rollcallContext({ section, week, troopers }) {
-    const rows = troopers.map((trooper, index) => {
+export function rollcallContext({ section, week, troopers, fireteams = {} }) {
+    const rows = orderTroopers(troopers, fireteams).map((trooper, index) => {
         const sp = isLocked(trooper) ? 'loa' : trooper.status;
         const rc = trooper.rollcall;
         const icon = rankIconOf(trooper);
+        const role = shownRole(trooper, fireteams.show ?? false);
 
         return {
             n: String(index + 1),
+            role: ROLE_LABELS[role] ?? '',
+            is_sl: role === 'sl',
+            is_asl: role === 'asl',
+            is_ftl: role === 'ftl',
             rank: trooper.rank ?? '',
             rank_short: rankOf(trooper) ?? '',
             rank_icon: icon,

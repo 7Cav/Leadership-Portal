@@ -23,10 +23,10 @@ final class TemplateSyntax
     public const LISTS = ['troopers'];
 
     /** Names printable inside {{#troopers}}. */
-    public const ROW_STRINGS = ['n', 'rank', 'rank_short', 'rank_icon', 'rank_icon_width', 'name', 'display_name', 'rc', 'sp'];
+    public const ROW_STRINGS = ['n', 'role', 'rank', 'rank_short', 'rank_icon', 'rank_icon_width', 'name', 'display_name', 'rc', 'sp'];
 
     /** Yes-or-no names, usable only as sections, inside {{#troopers}}. */
-    public const ROW_FLAGS = ['sp_present', 'sp_missed', 'sp_makeup', 'sp_attached', 'sp_loa', 'sp_unmarked', 'rc_yes', 'rc_no', 'rc_unsigned'];
+    public const ROW_FLAGS = ['sp_present', 'sp_missed', 'sp_makeup', 'sp_attached', 'sp_loa', 'sp_unmarked', 'rc_yes', 'rc_no', 'rc_unsigned', 'is_sl', 'is_asl', 'is_ftl'];
 
     public const FILTERS = ['upper', 'lower'];
 

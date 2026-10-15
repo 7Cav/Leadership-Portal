@@ -20,9 +20,9 @@ export const TOP_STRINGS = ['unit', 'unit_name', 'week', 'week_start', 'week_end
 /** The one list a template may repeat over. */
 export const LISTS = ['troopers'];
 /** Names printable inside {{#troopers}}. */
-export const ROW_STRINGS = ['n', 'rank', 'rank_short', 'rank_icon', 'rank_icon_width', 'name', 'display_name', 'rc', 'sp'];
+export const ROW_STRINGS = ['n', 'role', 'rank', 'rank_short', 'rank_icon', 'rank_icon_width', 'name', 'display_name', 'rc', 'sp'];
 /** Yes-or-no names, usable only as sections, inside {{#troopers}}. */
-export const ROW_FLAGS = ['sp_present', 'sp_missed', 'sp_makeup', 'sp_attached', 'sp_loa', 'sp_unmarked', 'rc_yes', 'rc_no', 'rc_unsigned'];
+export const ROW_FLAGS = ['sp_present', 'sp_missed', 'sp_makeup', 'sp_attached', 'sp_loa', 'sp_unmarked', 'rc_yes', 'rc_no', 'rc_unsigned', 'is_sl', 'is_asl', 'is_ftl'];
 export const FILTERS = ['upper', 'lower'];
 
 // What each name means, and an example: what a value prints, or how a section or filter is written. For the legend on
@@ -38,7 +38,8 @@ const MEANINGS = {
     signed: ['How many signed the rollcall as will attend', '6'],
     attended: ['How many were present, made up or attached at practice', '5'],
     troopers: ['Repeats what is inside once for each trooper. {{^troopers}}...{{/troopers}} shows when the section is empty', '{{#troopers}}{{n}}. {{display_name}}{{/troopers}}'],
-    n: ["The trooper's row number, from 1", '1'],
+    n: ["The trooper's row number, from 1. The list runs SL, ASL, fireteam leaders when the section shows them, then everyone else, each by rank", '1'],
+    role: ["The trooper's role in the section: SL, ASL, or FTL when the section shows fireteam leaders. Empty for everyone else", 'SL'],
     rank: ['The full rank', 'Sergeant'],
     rank_short: ['The short rank', 'SGT'],
     rank_icon: ['The rank insignia image from Cav, for an [IMG] tag. Empty when Cav has none, so wrap it in {{#rank_icon}}...{{/rank_icon}}', '{{#rank_icon}}[IMG]{{rank_icon}}[/IMG]{{/rank_icon}}'],
@@ -56,6 +57,9 @@ const MEANINGS = {
     rc_yes: ['Signed the rollcall: will attend', '{{#rc_yes}}✓{{/rc_yes}}'],
     rc_no: ['Signed the rollcall: cannot attend', '{{#rc_no}}✗{{/rc_no}}'],
     rc_unsigned: ['Has not signed the rollcall', '{{#rc_unsigned}}-{{/rc_unsigned}}'],
+    is_sl: ['The Section Leader', '{{#is_sl}}(SL) {{/is_sl}}'],
+    is_asl: ['The Assistant Section Leader', '{{#is_asl}}(ASL) {{/is_asl}}'],
+    is_ftl: ['A fireteam leader, when the section shows fireteam leaders', '{{#is_ftl}}(FTL) {{/is_ftl}}'],
     upper: ['Prints a value in capitals', '{{week|upper}}'],
     lower: ['Prints a value in lower case', '{{unit|lower}}'],
 };
@@ -101,8 +105,12 @@ const SAMPLE_ICON = (file) => `https://7cav.us/data/roster_ranks/0/${file}`;
  */
 export function sampleContext() {
     const example = (name) => MEANINGS[name][1];
-    const row = (n, rank, rankShort, icon, name, rc, sp) => ({
+    const row = (n, role, rank, rankShort, icon, name, rc, sp) => ({
         n: String(n),
+        role,
+        is_sl: role === 'SL',
+        is_asl: role === 'ASL',
+        is_ftl: role === 'FTL',
         rank,
         rank_short: rankShort,
         rank_icon: icon ? SAMPLE_ICON(icon) : '',
@@ -122,11 +130,11 @@ export function sampleContext() {
         rc_unsigned: rc === null,
     });
     const troopers = [
-        row(1, example('rank'), example('rank_short'), '18.jpg?1741376797', example('name'), 'yes', 'makeup'),
-        row(2, 'Corporal', 'CPL', '19.jpg?1741376805', 'Adams.P', 'yes', 'present'),
-        row(3, 'Specialist', 'SPC', '20.jpg?1741376814', 'Reyes.M', 'no', 'loa'),
-        row(4, 'Private First Class', 'PFC', '21.jpg?1741376823', 'Novak.T', 'yes', 'attached'),
-        row(5, 'Private', 'PVT', '22.jpg?1741376831', 'Okafor.B', null, null),
+        row(1, example('role'), example('rank'), example('rank_short'), '18.jpg?1741376797', example('name'), 'yes', 'makeup'),
+        row(2, 'FTL', 'Corporal', 'CPL', '19.jpg?1741376805', 'Adams.P', 'yes', 'present'),
+        row(3, '', 'Specialist', 'SPC', '20.jpg?1741376814', 'Reyes.M', 'no', 'loa'),
+        row(4, '', 'Private First Class', 'PFC', '21.jpg?1741376823', 'Novak.T', 'yes', 'attached'),
+        row(5, '', 'Private', 'PVT', '22.jpg?1741376831', 'Okafor.B', null, null),
     ];
 
     return {
