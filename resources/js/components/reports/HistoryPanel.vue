@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { PhClockCounterClockwise, PhFileText, PhGitDiff, PhLockSimple } from '@phosphor-icons/vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import EmptyState from '@/components/EmptyState.vue';
+import TimeAgo from '@/components/TimeAgo.vue';
 import { forumDate } from '@/lib/forumDate';
 import { KPIS, formatKpi, kpiValue, percent, sentenceDiff, stamp } from '@/lib/report';
 import DeltaBadge from './DeltaBadge.vue';
@@ -76,7 +77,7 @@ const DIFF = { added: 'text-foreground', removed: 'text-muted-foreground line-th
                     <span class="justify-self-end text-xs text-muted-foreground tabular-nums">
                         RC {{ percent(entry.kpis?.rc) ?? '—' }} SP {{ percent(entry.kpis?.sp) ?? '—' }}
                     </span>
-                    <span class="col-span-2 truncate text-xs text-muted-foreground">Sent {{ stamp(entry.sentAt) }}</span>
+                    <span class="col-span-2 truncate text-xs text-muted-foreground">Sent <TimeAgo :at="entry.sentAt" :tooltip="false">{{ stamp(entry.sentAt) }}</TimeAgo></span>
                 </button>
             </div>
         </section>
@@ -87,7 +88,7 @@ const DIFF = { added: 'text-foreground', removed: 'text-muted-foreground line-th
                     <p class="flex items-center gap-1.5 text-xs text-muted-foreground"><PhLockSimple aria-hidden="true" />Frozen snapshot, read-only</p>
                     <h2 id="history-title" class="mt-1 text-base font-semibold">Week of {{ forumDate(current.week) }}</h2>
                     <p class="mt-0.5 text-[13px] text-muted-foreground">
-                        Sent {{ stamp(current.sentAt) }}<template v-if="current.sentBy"> by {{ current.sentBy }}</template>.
+                        Sent <TimeAgo :at="current.sentAt">{{ stamp(current.sentAt) }}</TimeAgo><template v-if="current.sentBy"> by {{ current.sentBy }}</template>.
                         <template v-if="current.trainingSubject"> Trained: {{ current.trainingSubject }}.</template>
                     </p>
                 </div>

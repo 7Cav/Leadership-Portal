@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { PhCircleNotch, PhPlugsConnected, PhWarning } from '@phosphor-icons/vue';
 import { Button } from '@/components/ui/button';
 import { forumDateTime } from '@/lib/forumDate';
+import TimeAgo from '@/components/TimeAgo.vue';
 
 // Why a practice has no server data (Story 7.9, mockups/v2/capture-review.html variant C, "Server data:
 // Unavailable"): the game server could not be read (with when, AD-20), or telemetry is not set up for
@@ -32,7 +33,7 @@ const lastTried = computed(() => (props.telemetry.lastAttemptAt ? `${forumDateTi
     >
         <component :is="failed ? PhWarning : PhPlugsConnected" class="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
         <p v-if="failed" class="min-w-[14rem] flex-1">
-            Game server could not be read<template v-if="lastTried"> (last tried {{ lastTried }})</template>. Nothing was pre-filled. Mark attendance by hand.
+            Game server could not be read<template v-if="lastTried">, last tried <TimeAgo :at="telemetry.lastAttemptAt" quiet>{{ lastTried }}</TimeAgo></template>. Nothing was pre-filled. Mark attendance by hand.
         </p>
         <p v-else class="min-w-[14rem] flex-1">
             Telemetry is not configured<template v-if="telemetry.platformLabel"> for {{ telemetry.platformLabel }}</template>, so nothing was pre-filled. Mark attendance by hand.

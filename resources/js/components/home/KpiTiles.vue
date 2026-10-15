@@ -6,6 +6,7 @@ import { hasTrend, tileChange, tileSeries, TILES } from '@/lib/home';
 import { forumDateTime } from '@/lib/forumDate';
 import DeltaBadge from '@/components/reports/DeltaBadge.vue';
 import LoaSyncNote from '@/components/LoaSyncNote.vue';
+import TimeAgo from '@/components/TimeAgo.vue';
 import Sparkline from './Sparkline.vue';
 
 // The six canonical KPIs for the viewer's scope (Story 5.9, shell-f.html "Last 30 days"): live
@@ -34,18 +35,20 @@ const tiles = computed(() =>
 
 const roster = computed(() => props.kpis.roster);
 const rosterProblem = computed(() => ['failed', 'partial', 'stale', 'never'].includes(roster.value.state));
+// The sentence around the sync time: `[before, after]`, or `[text]` when there is no time to show.
 const rosterText = computed(() => {
-    const at = roster.value.syncedAt ? forumDateTime(roster.value.syncedAt) : null;
+    const at = roster.value.syncedAt;
     const source = roster.value.source;
 
     return {
-        ok: `Roster synced from ${source} ${at}Z`,
-        stale: `Roster last synced from ${source} ${at}Z, overdue`,
-        partial: `Last roster sync was incomplete. Strength is from ${at}Z`,
-        failed: at ? `Last roster sync failed. Strength is from ${at}Z` : 'The roster sync failed. Strength is not yet available',
-        never: 'The roster has not synced yet',
+        ok: [`Roster synced from ${source} `, ''],
+        stale: [`Roster last synced from ${source} `, ', overdue'],
+        partial: at ? ['Last roster sync was incomplete. Strength is from ', ''] : ['Last roster sync was incomplete'],
+        failed: at ? ['Last roster sync failed. Strength is from ', ''] : ['The roster sync failed. Strength is not yet available'],
+        never: ['The roster has not synced yet'],
     }[roster.value.state];
 });
+const rosterAt = computed(() => (roster.value.syncedAt && rosterText.value.length === 2 ? forumDateTime(roster.value.syncedAt) : null));
 </script>
 
 <template>
@@ -70,7 +73,7 @@ const rosterText = computed(() => {
             data-testid="roster-freshness"
         >
             <component :is="rosterProblem ? PhWarning : PhArrowsClockwise" class="size-3.5 shrink-0" aria-hidden="true" />
-            {{ rosterText }}
+            <span>{{ rosterText[0] }}<template v-if="rosterAt"><TimeAgo :at="roster.syncedAt">{{ rosterAt }}Z</TimeAgo>{{ rosterText[1] }}</template></span>
         </p>
         <LoaSyncNote v-if="kpis.loaSync" :sync="kpis.loaSync" class="mt-1" />
     </div>

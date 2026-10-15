@@ -88,6 +88,9 @@ function factory(props = {}) {
 }
 
 describe('Rollcall page', () => {
+    // Relative times ("30 min ago") read the clock; tests that check them pin it with setSystemTime.
+    afterEach(() => vi.useRealTimers());
+
     beforeEach(() => {
         page.url = '/rollcall/12';
         page.props.viewAs = null;
@@ -99,10 +102,12 @@ describe('Rollcall page', () => {
     });
 
     it('titles the week in forum date convention and shows where the roster came from (AD-20)', () => {
+        vi.setSystemTime(new Date('2026-10-08T16:50:00Z'));
         const wrapper = factory();
 
         expect(wrapper.find('h1').text()).toBe('Rollcall, week of 03Oct26');
-        expect(wrapper.find('[data-testid="roster-provenance"]').text()).toBe('Roster from milpac, synced 08Oct26 09:14Z');
+        expect(wrapper.find('[data-testid="roster-provenance"]').text()).toBe('Roster from milpac, synced 08Oct26 09:14Z (7 h ago)');
+        expect(wrapper.find('[data-testid="roster-provenance"] time').attributes('datetime')).toBe('2026-10-08T09:14:00.000Z');
         expect(wrapper.text()).toContain('Signatures close Fri 09Oct26 23:59Z');
     });
 
@@ -310,6 +315,7 @@ describe('Rollcall page', () => {
         const button = (wrapper, id, value) => wrapper.find(`[data-trooper="${id}"] button[data-value="${value}"]`);
 
         it('sets a signature and saves it in the background through rollcall.store', async () => {
+            vi.setSystemTime(new Date('2026-10-08T16:50:00Z'));
             const wrapper = factory();
 
             await button(wrapper, 3, 'cannot_attend').trigger('click');
@@ -317,7 +323,12 @@ describe('Rollcall page', () => {
 
             await vi.advanceTimersByTimeAsync(1000);
             expect(post).toHaveBeenCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 3, rollcall: 'cannot_attend' }] });
-            expect(wrapper.find('[data-testid="save-state"]').text()).toBe('Saved 16:20Z');
+            expect(wrapper.find('[data-testid="save-state"]').text()).toBe('Saved 16:20Z (30 min ago)');
+            // The save state is a live region: the ticking part is not read out every minute.
+            expect(wrapper.find('[data-testid="save-state"] [data-relative]').attributes('aria-hidden')).toBe('true');
+
+            await vi.advanceTimersByTimeAsync(60_000);
+            expect(wrapper.find('[data-testid="save-state"]').text()).toBe('Saved 16:20Z (31 min ago)');
         });
 
         it('offers present, missed, makeup and attached on the practice step, and records a manual source', async () => {
@@ -750,13 +761,14 @@ describe('Rollcall page', () => {
 
         it('marks the rollcall posted and shows when and by whom', async () => {
             post.mockResolvedValueOnce({ ok: true, status: 200, data: { posted: { at: '2026-10-08T16:20:00+00:00', by: 'Vasquez.R' } } });
+            vi.setSystemTime(new Date('2026-10-08T16:50:00Z'));
             const wrapper = factory();
 
             await wrapper.find('[data-testid="mark-posted"]').trigger('click');
             await vi.waitFor(() => expect(wrapper.find('[data-testid="posted-state"]').exists()).toBe(true));
 
             expect(post).toHaveBeenCalledWith('/rollcall/12/posted', { week: '2026-10-03' });
-            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Rollcall posted 08Oct26 16:20Z by Vasquez.R');
+            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Rollcall posted 08Oct26 16:20Z (30 min ago) by Vasquez.R');
             expect(wrapper.find('[data-step="3"]').attributes('aria-label')).toBe('Step 3, Review and post, Posted');
             expect(wrapper.find('[data-testid="mark-posted"]').text()).toBe('Mark posted again');
         });
@@ -975,9 +987,10 @@ describe('Rollcall page', () => {
         beforeEach(() => (page.url = '/rollcall/12?step=2'));
 
         it('shows the capture source and time with the legend, and the confirm action', () => {
+            vi.setSystemTime(new Date('2026-10-08T16:50:00Z'));
             const wrapper = factory({ capture: CAPTURE });
 
-            expect(wrapper.find('[data-testid="capture-banner"]').text()).toContain('Marks filled from BattleMetrics, read 08Oct26 12:00Z.');
+            expect(wrapper.find('[data-testid="capture-banner"]').text()).toContain('Marks filled from BattleMetrics, read 08Oct26 12:00Z (4 h ago).');
             expect(wrapper.find('[data-testid="capture-banner"]').text()).toContain('Auto');
             expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Not confirmed');
             expect(wrapper.find('[data-testid="confirm-practice"]').text()).toContain('Confirm practice');
@@ -1126,10 +1139,11 @@ describe('Rollcall page', () => {
         afterEach(() => vi.useRealTimers());
 
         it('shows when the server was last tried, says nothing was pre-filled, and leaves the manual flow as it was', () => {
+            vi.setSystemTime(new Date('2026-10-08T15:47:00Z'));
             wrapper = factory({ telemetry: FAILED });
 
             expect(wrapper.find('[data-testid="telemetry-banner"]').text()).toContain(
-                'Game server could not be read (last tried 08Oct26 15:42 UTC). Nothing was pre-filled. Mark attendance by hand.',
+                'Game server could not be read, last tried 08Oct26 15:42 UTC (5 min ago). Nothing was pre-filled. Mark attendance by hand.',
             );
             expect(wrapper.find('[data-testid="capture-banner"]').exists()).toBe(false);
             expect(wrapper.find('[data-testid="unmatched-drawer"]').exists()).toBe(false);

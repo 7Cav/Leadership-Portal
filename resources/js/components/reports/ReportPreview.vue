@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import EmptyState from '@/components/EmptyState.vue';
 import { copyText } from '@/lib/clipboard';
 import LoaSyncNote from '@/components/LoaSyncNote.vue';
+import TimeAgo from '@/components/TimeAgo.vue';
 import { forumDate } from '@/lib/forumDate';
 import { baselineText, formatKpi, KPIS, stamp, timeOf, unitLabel } from '@/lib/report';
 import { reportSummary } from '@/lib/reportSummary';
@@ -232,11 +233,12 @@ const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id ===
         <p class="flex flex-wrap gap-x-4 gap-y-1 border-t border-border bg-muted/45 px-5 py-3 text-[11px] text-muted-foreground" data-testid="provenance">
             <span v-if="unit.isLeaf" class="inline-flex items-center gap-1.5">
                 <PhArrowsClockwise aria-hidden="true" />
-                {{ rosterSync.at ? `Roster from ${rosterSync.source}, synced ${stamp(rosterSync.at)}` : `Roster from ${rosterSync.source}, not synced yet` }}
+                <span v-if="rosterSync.at">Roster from {{ rosterSync.source }}, synced <TimeAgo :at="rosterSync.at">{{ stamp(rosterSync.at) }}</TimeAgo></span>
+                <template v-else>Roster from {{ rosterSync.source }}, not synced yet</template>
             </span>
-            <span v-if="sent" class="inline-flex items-center gap-1.5"><PhLockSimple aria-hidden="true" />Frozen {{ stamp(sentAt) }}</span>
+            <span v-if="sent" class="inline-flex items-center gap-1.5"><PhLockSimple aria-hidden="true" /><span>Frozen <TimeAgo :at="sentAt">{{ stamp(sentAt) }}</TimeAgo></span></span>
             <span v-else-if="unit.isLeaf" class="inline-flex items-center gap-1.5">
-                <PhLightning aria-hidden="true" />Computed from rollcall and attendance at {{ timeOf(computedAt) }}. Marks are manual unless noted as game server capture.
+                <PhLightning aria-hidden="true" /><span>Computed from rollcall and attendance at <TimeAgo :at="computedAt">{{ timeOf(computedAt) }}</TimeAgo>. Marks are manual unless noted as game server capture.</span>
             </span>
             <span v-else class="inline-flex items-center gap-1.5"><PhStack aria-hidden="true" />Built from the frozen reports of the units below</span>
         </p>

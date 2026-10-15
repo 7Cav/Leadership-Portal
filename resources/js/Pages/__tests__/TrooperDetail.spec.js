@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import TrooperDetail from '../TrooperDetail.vue';
 import { Badge } from '@/components/ui/badge';
@@ -160,11 +160,14 @@ describe('TrooperDetail', () => {
     });
 
     describe('source and freshness (AD-20)', () => {
-        it('names the source and the last successful sync in forum convention', () => {
+        afterEach(() => vi.useRealTimers());
+
+        it('names the source and the last successful sync in forum convention, with how long ago it was', () => {
+            vi.setSystemTime(new Date('2026-10-08T10:15:00Z'));
             const wrapper = page();
 
             expect(wrapper.get('[data-testid="source-line"]').text()).toContain('Source: milpac');
-            expect(wrapper.get('[data-testid="last-synced"]').text()).toBe('08Oct26 09:30 UTC');
+            expect(wrapper.get('[data-testid="last-synced"]').text()).toBe('08Oct26 09:30 UTC (45 min ago)');
             expect(wrapper.find('[data-testid="stale-notice"]').exists()).toBe(false);
         });
 

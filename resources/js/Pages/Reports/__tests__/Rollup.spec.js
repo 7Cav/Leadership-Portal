@@ -67,6 +67,7 @@ beforeEach(() => {
 afterEach(() => {
     wrapper?.unmount();
     vi.restoreAllMocks();
+    vi.useRealTimers();
 });
 
 describe('Reports/Rollup', () => {
@@ -124,12 +125,13 @@ describe('Reports/Rollup', () => {
     });
 
     it('shows a sent report as its frozen snapshot, with deltas and the leader\'s notes', async () => {
+        vi.setSystemTime(new Date('2026-10-08T22:14:00Z'));
         mountRollup();
         await wrapper.find('[data-testid="filter-all"]').trigger('click');
         await rows()[2].trigger('click');
 
         expect(panel().text()).toContain('Frozen snapshot');
-        expect(panel().text()).toContain('Frozen Tue 06Oct26 22:14Z by Haddad.Y');
+        expect(panel().text()).toContain('Frozen Tue 06Oct26 22:14Z (2 days ago) by Haddad.Y');
         expect(panel().find('[data-testid="kpis"]').text()).toContain('+2 pts');
         expect(panel().find('[data-testid="kpis"]').text()).toContain('-1.5 pts');
         expect(panel().text()).toContain('Full house.');

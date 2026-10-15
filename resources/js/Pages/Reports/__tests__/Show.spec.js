@@ -211,13 +211,24 @@ describe('Reports/Show', () => {
         expect(put).not.toHaveBeenCalled();
     });
 
+    it('says when the draft was last saved, in Zulu and how long ago', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-10-08T16:40:00Z'));
+        const wrapper = mountShow({ report: { status: 'draft', notes: '', trainingSubject: '', unaccounted: [], savedAt: '2026-10-08T16:22:00+00:00', sentAt: null, sentBy: null } });
+
+        expect(wrapper.get('[data-testid="save-state"]').text()).toBe('Draft saved 16:22Z (18 min ago)');
+        // The save state is a live region: the ticking part stays out of what a screen reader announces.
+        expect(wrapper.get('[data-testid="save-state"] [data-relative]').attributes('aria-hidden')).toBe('true');
+    });
+
     it('renders a sent report read-only from its snapshot, with who sent it', () => {
+        vi.setSystemTime(new Date('2026-10-08T18:24:00Z'));
         const wrapper = mountShow({
             report: { status: 'sent', notes: 'Good.', trainingSubject: 'Land nav', unaccounted: [], savedAt: null, sentAt: '2026-10-08T16:24:00+00:00', sentBy: 'SGT Vasquez.R' },
             troopers: null,
         });
 
-        expect(wrapper.get('[data-testid="sent-line"]').text()).toBe('Sent Thu 08Oct26 16:24Z by SGT Vasquez.R');
+        expect(wrapper.get('[data-testid="sent-line"]').text()).toBe('Sent Thu 08Oct26 16:24Z (2 h ago) by SGT Vasquez.R');
         expect(wrapper.find('[data-testid="sent-panel"]').exists()).toBe(true);
         expect(wrapper.find('[data-testid="send-bar"]').exists()).toBe(false);
         expect(wrapper.get('#training-subject').attributes('disabled')).toBeDefined();
