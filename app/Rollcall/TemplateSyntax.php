@@ -23,7 +23,7 @@ final class TemplateSyntax
     public const LISTS = ['troopers'];
 
     /** Names printable inside {{#troopers}}. */
-    public const ROW_STRINGS = ['n', 'rank', 'rank_short', 'name', 'display_name', 'rc', 'sp'];
+    public const ROW_STRINGS = ['n', 'rank', 'rank_short', 'rank_icon', 'name', 'display_name', 'rc', 'sp'];
 
     /** Yes-or-no names, usable only as sections, inside {{#troopers}}. */
     public const ROW_FLAGS = ['sp_present', 'sp_missed', 'sp_makeup', 'sp_attached', 'sp_loa', 'sp_unmarked', 'rc_yes', 'rc_no', 'rc_unsigned'];
@@ -32,7 +32,9 @@ final class TemplateSyntax
 
     /**
      * A template an Admin can start from when a company has none: the mockup's post, with a table of troopers and a
-     * mark for each status. It follows the grammar, which a test checks.
+     * mark for each status, each trooper's rank insignia before their name. `{{rank_icon}}` is empty when Cav sends no
+     * insignia, so the [IMG] tag sits in a `{{#rank_icon}}` section and prints nothing then. It follows the grammar,
+     * which a test checks.
      */
     public const STARTER = <<<'BBCODE'
 [CENTER]
@@ -42,7 +44,7 @@ final class TemplateSyntax
 [B]Roll Call Accountability[/B]
 [TABLE]
 [TR][TH]#[/TH][TH]Name[/TH][TH]Signed RC[/TH][TH]Attended SP[/TH][/TR]
-{{#troopers}}[TR][TD]{{n}}[/TD][TD]{{rank}} {{name}}[/TD][TD]{{#rc_yes}}✓{{/rc_yes}}{{#rc_no}}✗{{/rc_no}}{{#rc_unsigned}}-{{/rc_unsigned}}[/TD][TD]{{#sp_present}}✓{{/sp_present}}{{#sp_missed}}✗{{/sp_missed}}{{#sp_makeup}}MU{{/sp_makeup}}{{#sp_attached}}ATT{{/sp_attached}}{{#sp_loa}}LOA{{/sp_loa}}{{#sp_unmarked}}-{{/sp_unmarked}}[/TD][/TR]
+{{#troopers}}[TR][TD]{{n}}[/TD][TD]{{#rank_icon}}[IMG]{{rank_icon}}[/IMG] {{/rank_icon}}{{rank}} {{name}}[/TD][TD]{{#rc_yes}}✓{{/rc_yes}}{{#rc_no}}✗{{/rc_no}}{{#rc_unsigned}}-{{/rc_unsigned}}[/TD][TD]{{#sp_present}}✓{{/sp_present}}{{#sp_missed}}✗{{/sp_missed}}{{#sp_makeup}}MU{{/sp_makeup}}{{#sp_attached}}ATT{{/sp_attached}}{{#sp_loa}}LOA{{/sp_loa}}{{#sp_unmarked}}-{{/sp_unmarked}}[/TD][/TR]
 {{/troopers}}{{^troopers}}[TR][TD]No troopers are placed in this section.[/TD][/TR]
 {{/troopers}}[/TABLE]
 BBCODE;

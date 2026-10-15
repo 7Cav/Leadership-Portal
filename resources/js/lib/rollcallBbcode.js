@@ -1,6 +1,6 @@
 import { render } from './bbcode';
 import { forumDate } from './forumDate';
-import { displayName, fullName, isLocked, rankOf } from './rollcall';
+import { displayName, fullName, isLocked, rankIconOf, rankOf } from './rollcall';
 
 // The rollcall forum post (Stories 3.10, 3.11). The post is whatever the section's company has as its active template
 // (3.5, resolved by the server on every render, 3.6, AD-17) filled with the week's marks. There is no built-in copy to
@@ -24,6 +24,7 @@ export function rollcallContext({ section, week, troopers }) {
             n: String(index + 1),
             rank: trooper.rank ?? '',
             rank_short: rankOf(trooper) ?? '',
+            rank_icon: rankIconOf(trooper),
             name: displayName(trooper),
             display_name: fullName(trooper),
             rc: RC_WORDS[rc] ?? '',

@@ -651,6 +651,8 @@ class RollcallController extends Controller
                 // ("SGT Vasquez.R", "SGT #1234" until the username syncs).
                 'rank' => $trooper->rank,
                 'rankShort' => $trooper->rank_short,
+                // The synced rank insignia (an https URL on 7cav.us, or null), printed by the template's `{{rank_icon}}`.
+                'rankIcon' => $trooper->rank_image_url,
                 'name' => $trooper->username,
                 'displayName' => $trooper->display_name,
                 'rollcall' => $marks->get($trooper->id)?->rollcall->value ?? 'unsigned',

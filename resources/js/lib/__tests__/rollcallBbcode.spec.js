@@ -73,6 +73,18 @@ describe('rollcallContext (3.11)', () => {
         expect(context).toMatchObject({ count: '6', signed: '2', attended: '3' });
     });
 
+    it('gives each trooper their rank insignia for {{rank_icon}}, only an https URL on 7cav.us, else empty', () => {
+        const icon = (rankIcon) => rollcallContext(input([{ ...t(1, 'Vasquez.R', 'unsigned', null), rankIcon }])).troopers[0].rank_icon;
+
+        expect(icon('https://7cav.us/data/roster_ranks/0/12.jpg')).toBe('https://7cav.us/data/roster_ranks/0/12.jpg');
+        // It is written into an [IMG] tag: another host, a closing tag or nothing at all prints nothing.
+        expect(icon(null)).toBe('');
+        expect(icon(undefined)).toBe('');
+        expect(icon('http://7cav.us/data/roster_ranks/0/12.jpg')).toBe('');
+        expect(icon('https://example.com/12.jpg')).toBe('');
+        expect(icon('https://7cav.us/12.jpg[/IMG][URL=https://example.com]x[/URL]')).toBe('');
+    });
+
     it('names a trooper whose username has not synced by milpac id', () => {
         expect(rollcallContext(input([t(1, null, 'unsigned', null)])).troopers[0]).toMatchObject({ name: '#1001' });
     });

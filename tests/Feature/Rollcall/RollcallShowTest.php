@@ -68,6 +68,16 @@ it('lists the troopers placed in the section, each exactly once, by their synced
             ->where('troopers.1.status', null));
 });
 
+it('sends each trooper\'s synced rank insignia for the template\'s {{rank_icon}}, null when Cav has none', function () {
+    rollcallTrooper($this->section, ['username' => 'Adams.P', 'rank_image_url' => 'https://7cav.us/data/roster_ranks/0/12.jpg']);
+    rollcallTrooper($this->section, ['username' => 'Baker.Q', 'rank_image_url' => null]);
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
+        ->assertInertia(fn ($page) => $page
+            ->where('troopers.0.rankIcon', 'https://7cav.us/data/roster_ranks/0/12.jpg')
+            ->where('troopers.1.rankIcon', null));
+});
+
 it('loads this week\'s marks with their source', function () {
     $trooper = rollcallTrooper($this->section);
     $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->week]);

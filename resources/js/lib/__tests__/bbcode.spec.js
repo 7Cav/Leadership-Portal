@@ -9,6 +9,7 @@ const row = (overrides = {}) => ({
     n: '1',
     rank: 'Sergeant',
     rank_short: 'SGT',
+    rank_icon: 'https://7cav.us/data/roster_ranks/0/12.jpg',
     name: 'Jay.JH',
     display_name: 'SGT Jay.JH',
     rc: 'Yes',
@@ -117,6 +118,14 @@ describe('render', () => {
 
     it('renders an empty roster without crashing when the template has no empty-section text', () => {
         expect(render('[TABLE]{{#troopers}}[TR]{{name}}[/TR]{{/troopers}}[/TABLE]', context({ troopers: [] })).text).toBe('[TABLE][/TABLE]');
+    });
+
+    it('prints the rank icon into an [IMG] tag, and nothing at all when a trooper has none', () => {
+        const template = '{{#troopers}}{{#rank_icon}}[IMG]{{rank_icon}}[/IMG] {{/rank_icon}}{{name}};{{/troopers}}';
+
+        expect(render(template, context({ troopers: [row(), row({ name: 'Adams.P', rank_icon: '' })] })).text).toBe(
+            '[IMG]https://7cav.us/data/roster_ranks/0/12.jpg[/IMG] Jay.JH;Adams.P;',
+        );
     });
 
     it('applies filters', () => {

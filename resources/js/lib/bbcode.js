@@ -17,7 +17,7 @@ export const TOP_STRINGS = ['unit', 'unit_name', 'week', 'week_start', 'week_end
 /** The one list a template may repeat over. */
 export const LISTS = ['troopers'];
 /** Names printable inside {{#troopers}}. */
-export const ROW_STRINGS = ['n', 'rank', 'rank_short', 'name', 'display_name', 'rc', 'sp'];
+export const ROW_STRINGS = ['n', 'rank', 'rank_short', 'rank_icon', 'name', 'display_name', 'rc', 'sp'];
 /** Yes-or-no names, usable only as sections, inside {{#troopers}}. */
 export const ROW_FLAGS = ['sp_present', 'sp_missed', 'sp_makeup', 'sp_attached', 'sp_loa', 'sp_unmarked', 'rc_yes', 'rc_no', 'rc_unsigned'];
 export const FILTERS = ['upper', 'lower'];
