@@ -261,6 +261,64 @@ describe('Rollcall page', () => {
             expect(post).toHaveBeenCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 2, status: 'present' }] });
         });
 
+        it('marks every unmarked, non-LOA trooper missed in one action and leaves set marks alone', async () => {
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory({
+                troopers: [trooper(1, 'will_attend', 'present'), trooper(2, 'unsigned', null), trooper(3, 'cannot_attend', null), trooper(4, 'unsigned', 'loa')],
+            });
+
+            await wrapper.find('[data-testid="mark-rest-missed"]').trigger('click');
+
+            expect(button(wrapper, 2, 'missed').attributes('aria-pressed')).toBe('true');
+            expect(button(wrapper, 3, 'missed').attributes('aria-pressed')).toBe('true');
+            expect(button(wrapper, 1, 'present').attributes('aria-pressed')).toBe('true');
+            expect(wrapper.find('[data-trooper="4"]').text()).toContain('LOA, nothing to mark');
+
+            const [title, options] = toastSuccess.mock.calls[0];
+            expect(title).toBe('Marked 2 as missed');
+            expect(options.description).toBe('Trooper2.A, Trooper3.A');
+            expect(options.duration).toBe(6000);
+        });
+
+        it('holds "Mark the rest missed" for the undo window, then saves it', async () => {
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory({ troopers: [trooper(1, 'will_attend', 'present'), trooper(2, 'unsigned', null)] });
+
+            await wrapper.find('[data-testid="mark-rest-missed"]').trigger('click');
+            await vi.advanceTimersByTimeAsync(1000);
+            expect(post).not.toHaveBeenCalled();
+
+            await vi.advanceTimersByTimeAsync(6000);
+            expect(post).toHaveBeenCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 2, status: 'missed' }] });
+        });
+
+        it('takes "Mark the rest missed" back unsent with Undo', async () => {
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory({ troopers: [trooper(2, 'unsigned', null), trooper(3, 'unsigned', null)] });
+
+            await wrapper.find('[data-testid="mark-rest-missed"]').trigger('click');
+            toastSuccess.mock.calls[0][1].action.onClick();
+            await wrapper.vm.$nextTick();
+            await vi.advanceTimersByTimeAsync(7000);
+
+            expect(button(wrapper, 2, 'missed').attributes('aria-pressed')).toBe('false');
+            expect(button(wrapper, 3, 'missed').attributes('aria-pressed')).toBe('false');
+            expect(post).not.toHaveBeenCalled();
+        });
+
+        it('offers "Mark the rest missed" only while someone is unmarked and the page is writable', async () => {
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory({ troopers: [trooper(2, 'unsigned', null)] });
+            const action = () => wrapper.find('[data-testid="mark-rest-missed"]');
+
+            expect(action().attributes('disabled')).toBeUndefined();
+            await button(wrapper, 2, 'present').trigger('click');
+            expect(action().exists()).toBe(false);
+
+            page.props.viewAs = { label: 'CPL Lindqvist.E', admin: false };
+            expect(factory({ troopers: [trooper(3, 'unsigned', null)] }).find('[data-testid="mark-rest-missed"]').exists()).toBe(false);
+        });
+
         it('applies last week\'s marks to the troopers still to mark', async () => {
             page.url = '/rollcall/12?step=2';
             const wrapper = factory();
