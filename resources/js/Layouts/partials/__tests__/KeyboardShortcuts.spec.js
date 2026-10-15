@@ -4,7 +4,7 @@ import { reactive } from 'vue';
 import KeyboardShortcuts from '../KeyboardShortcuts.vue';
 import { SHORTCUT_GROUPS } from '@/lib/shortcuts';
 
-const mockPage = reactive({ url: '/home', props: {} });
+const mockPage = reactive({ url: '/home', props: { auth: { user: { is_admin: true } } } });
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
@@ -22,8 +22,9 @@ async function press(key, target = document.body, init = {}) {
 }
 
 let wrapper;
-function mountList(url = '/home') {
+function mountList(url = '/home', isAdmin = true) {
     mockPage.url = url;
+    mockPage.props.auth.user.is_admin = isAdmin;
     wrapper = mount(KeyboardShortcuts, { attachTo: document.body });
 
     return wrapper;
@@ -81,6 +82,14 @@ describe('KeyboardShortcuts', () => {
         expect(ids.slice(0, 2)).toEqual(['shortcuts-group-global', 'shortcuts-group-rollcall']);
         expect(dialog().querySelector('[data-testid="shortcuts-group-rollcall"] h3').textContent).toContain('This page');
         expect(dialog().querySelector('[data-testid="shortcuts-group-roster"] h3').textContent).not.toContain('This page');
+    });
+
+    it('leaves out the Settings pages for a viewer who is not an Admin', async () => {
+        mountList('/home', false);
+        await press('?');
+
+        expect(dialog().querySelector('[data-testid="shortcuts-group-org-structure"]')).toBeNull();
+        expect(dialog().querySelector('[data-testid="shortcuts-group-rollcall"]')).not.toBeNull();
     });
 
     it('stays shut while the viewer types in a field', async () => {

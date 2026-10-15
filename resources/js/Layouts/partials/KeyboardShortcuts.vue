@@ -3,18 +3,23 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useIdentity } from '@/composables/useIdentity';
 import { displayKeys, isShortcut, isTypingTarget, keyLabel, keyName, overlayOpen, SHORTCUT_GROUPS } from '@/lib/shortcuts';
-import { isActive } from '../navigation';
+import { isActive, visibleGroups } from '../navigation';
 
 // The `?` list of every keyboard shortcut, built from lib/shortcuts.js. Mounted once in the app
 // shell, so `?` works on every page. It stays out of the way while the viewer types in a field or
 // another dialog, sheet or menu is open.
 const open = ref(false);
 const page = usePage();
+const { isAdmin } = useIdentity();
+
+// Only the pages this viewer has in the sidebar (the Settings pages are an Admin's).
+const reachable = computed(() => new Set(visibleGroups(isAdmin.value, page.props.features).flatMap((group) => group.items.map((item) => item.href))));
 
 // "Everywhere" first, then the page the viewer is on, then the rest in nav order.
 const groups = computed(() =>
-    SHORTCUT_GROUPS.map((group) => ({ ...group, current: Boolean(group.href) && isActive(page.url, group.href) })).sort(
+    SHORTCUT_GROUPS.filter((group) => group.href === null || reachable.value.has(group.href)).map((group) => ({ ...group, current: Boolean(group.href) && isActive(page.url, group.href) })).sort(
         (a, b) => (a.href === null ? -1 : b.href === null ? 1 : Number(b.current) - Number(a.current)),
     ),
 );
