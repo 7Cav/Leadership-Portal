@@ -274,6 +274,24 @@ class Eloquent implements TrooperRepository
         return Trooper::query()->find($id);
     }
 
+    public function searchByUsername(string $term, iterable $sectionIds, bool $withUnplaced, int $limit): EloquentCollection
+    {
+        // `!` escapes the LIKE wildcards: one escape character both SQLite and MySQL accept without quoting games.
+        $escaped = strtr(mb_strtolower($term), ['!' => '!!', '%' => '!%', '_' => '!_']);
+
+        return Trooper::query()
+            ->where(fn (Builder $scope) => $scope
+                ->whereIn('primary_section_id', collect($sectionIds)->all())
+                ->when($withUnplaced, fn (Builder $q) => $q->orWhereNull('primary_section_id')))
+            ->whereRaw("LOWER(username) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
+            ->orderByRaw('CASE WHEN status = ? THEN 1 ELSE 0 END', [TrooperStatus::Inactive->value])
+            ->orderByRaw("CASE WHEN LOWER(username) LIKE ? ESCAPE '!' THEN 0 ELSE 1 END", ["{$escaped}%"])
+            ->orderBy('username')
+            ->orderBy('id')
+            ->limit($limit)
+            ->get();
+    }
+
     public function byIds(array $ids): Collection
     {
         return $ids === [] ? collect() : Trooper::query()->whereIn('id', $ids)->get()->keyBy('id')->toBase();

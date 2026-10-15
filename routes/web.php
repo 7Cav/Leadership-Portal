@@ -17,6 +17,7 @@ use App\Http\Controllers\Settings\TemplatesController;
 use App\Http\Controllers\Settings\TrooperPlacementController;
 use App\Http\Controllers\TrainingReadinessMatrixController;
 use App\Http\Controllers\TrooperDetailController;
+use App\Http\Controllers\TrooperSearchController;
 use App\Http\Controllers\UnitRosterSyncController;
 use App\Http\Controllers\ViewAsController;
 use App\Http\Middleware\EnsureServingMember;
@@ -76,6 +77,9 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // detail as JSON; that route is declared first so `troopers` is never taken for a unit id.
     Route::get('/roster/troopers/{trooper}', [RosterController::class, 'trooper'])->name('roster.trooper');
     Route::get('/roster/{unit?}', [RosterController::class, 'index'])->name('roster.index');
+    // The shell's trooper search (JSON): troopers in the viewer's scope by username, for a jump to their milpac. It
+    // offers only troopers the milpac below would open (ScopeResolver::canSee's rule), throttled per user.
+    Route::get('/troopers/search', TrooperSearchController::class)->middleware('throttle:trooper-search')->name('troopers.search');
     // One trooper's milpac (Story 6.3): the page every entry point to a trooper opens. Scope-gated
     // in the controller through the ScopeResolver (AD-8).
     Route::get('/troopers/{trooper}', [TrooperDetailController::class, 'show'])->name('troopers.show');

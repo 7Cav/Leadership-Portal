@@ -100,6 +100,10 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('roster-sync', fn (Request $request) => Limit::perMinute(5)
             ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
 
+        // The shell's trooper search: the client waits for a pause in typing, so a person searching stays far below this.
+        RateLimiter::for('trooper-search', fn (Request $request) => Limit::perMinute(60)
+            ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
+
         // Manual leave sync (Story 4.2), on the same terms. SyncLoasJob is unique too, but a full
         // run reads a year of forum threads, so asking for one is capped the same way, per Admin.
         RateLimiter::for('loa-sync', fn (Request $request) => Limit::perMinute(5)
