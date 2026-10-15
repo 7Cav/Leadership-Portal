@@ -42,5 +42,6 @@ test('a section leader sees only their own section', async ({ page }) => {
     await expect(page.getByTestId('step-matrix').locator('tbody tr')).toHaveCount(1);
 
     await page.getByTestId('step-matrix').locator('[data-step="posted"]').click();
-    await expect(page).toHaveURL(/\/rollcall\/\d+\?week=\d{4}-\d{2}-\d{2}$/);
+    await expect(page).toHaveURL(/\/rollcall\/\d+\?week=\d{4}-\d{2}-\d{2}&step=3$/);
+    await expect(page.getByRole('heading', { name: 'Review and post', level: 2 })).toBeVisible();
 });

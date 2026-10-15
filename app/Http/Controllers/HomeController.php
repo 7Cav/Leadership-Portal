@@ -306,7 +306,7 @@ class HomeController extends Controller
 
     /**
      * The week's five steps for every section in scope (the step matrix): rollcall posted, signed,
-     * practice held, attendance marked and report sent, each with the screen that does it. Counts
+     * practice held, attendance marked and report sent, each with the screen and step that does it. Counts
      * are over the troopers currently assigned to the section, and a trooper on leave for the week
      * counts as signed and marked, since there is nothing to sign or mark for them; a step nobody has started is simply
      * not done, never an invented deadline miss.
@@ -346,8 +346,12 @@ class HomeController extends Controller
                     null => 'not_started',
                 },
                 'sentAt' => $report?->sent_at?->toIso8601String(),
+                // Each step opens the screen and the rollcall step where it gets done.
                 'links' => [
-                    'rollcall' => route('rollcall.show', ['unit' => $section->id, 'week' => $date]),
+                    'posted' => self::rollcallStep($section, $date, 3),
+                    'signed' => self::rollcallStep($section, $date, 1),
+                    'held' => self::rollcallStep($section, $date, 2),
+                    'marked' => self::rollcallStep($section, $date, 2),
                     'report' => route('reports.show', ['unit' => $section->id, 'week' => $date]),
                 ],
             ];
@@ -410,6 +414,12 @@ class HomeController extends Controller
             ],
             'href' => route('reports.show', ['unit' => $unit->id, 'week' => $date]),
         ];
+    }
+
+    /** A section's rollcall for the week, opened on a step: 1 signatures, 2 section practice, 3 review and post. */
+    private static function rollcallStep(Unit $section, string $date, int $step): string
+    {
+        return route('rollcall.show', ['unit' => $section->id, 'week' => $date, 'step' => $step]);
     }
 
     /** @return array{id: int, designation: string, name: string} */

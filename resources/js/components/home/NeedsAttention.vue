@@ -57,6 +57,7 @@ const groups = computed(() =>
                             :href="item.href"
                             class="group grid min-w-0 flex-1 grid-cols-[1.75rem_minmax(0,1fr)_auto] items-start gap-x-2.5 rounded-md px-3 py-2.5 transition-colors hover:bg-accent/70 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
                             :data-item="item.kind"
+                            :title="item.kind === 'holding' ? `Open the ${item.unit.designation} report for this week` : `Open ${item.trooper.displayName} on the roster`"
                         >
                             <span class="grid size-7 place-items-center rounded-md border border-border bg-card text-base" :class="item.kind === 'holding' ? 'text-warning' : 'text-destructive'" aria-hidden="true">
                                 <component :is="item.kind === 'holding' ? PhFileText : PhUserMinus" />

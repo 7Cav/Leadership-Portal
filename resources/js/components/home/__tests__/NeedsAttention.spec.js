@@ -35,6 +35,22 @@ describe('NeedsAttention', () => {
         expect(wrapper.findAll('a').map((a) => a.attributes('href'))).toEqual(['/reports/1/2026-10-03', '/reports/2/2026-10-03', '/roster/5?trooper=7']);
     });
 
+    it('sends every item type to the screen that resolves it and says where in the title', () => {
+        const rows = mountList([
+            holding(1, 'draft', '2/1/A/1-7', '1/A/1-7'),
+            holding(2, 'not_started', '1/1/A/1-7', '1/A/1-7'),
+            { ...holding(3, 'not_started', '1/A/1-7', 'A/1-7'), href: '/reports/3/2026-10-03' },
+            risk(7, 'SGT Vasquez.R', 3),
+        ]).findAll('[data-item]');
+
+        expect(rows.map((row) => [row.attributes('data-item'), row.attributes('href'), row.attributes('title')])).toEqual([
+            ['holding', '/reports/1/2026-10-03', 'Open the 2/1/A/1-7 report for this week'],
+            ['holding', '/reports/2/2026-10-03', 'Open the 1/1/A/1-7 report for this week'],
+            ['holding', '/reports/3/2026-10-03', 'Open the 1/A/1-7 report for this week'],
+            ['at_risk', '/roster/5?trooper=7', 'Open SGT Vasquez.R on the roster'],
+        ]);
+    });
+
     it('describes a draft and an unstarted report differently', () => {
         const rows = mountList([holding(1, 'draft', '2/1/A/1-7', '1/A/1-7'), holding(2, 'not_started', '1/1/A/1-7', '1/A/1-7')]).findAll('[data-item="holding"]');
 
