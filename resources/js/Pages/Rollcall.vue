@@ -31,6 +31,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import EmptyState from '@/components/EmptyState.vue';
+import FireteamPanel from '@/components/rollcall/FireteamPanel.vue';
 import AttendanceSourceLegend from '@/components/attendance/AttendanceSourceLegend.vue';
 import SectionPicker from '@/components/rollcall/SectionPicker.vue';
 import ReportDeadlineBanner from '@/components/reports/ReportDeadlineBanner.vue';
@@ -43,6 +44,7 @@ import { forumDate, forumDateTime } from '@/lib/forumDate';
 import ForumPost from '@/components/rollcall/ForumPost.vue';
 import { copyText } from '@/lib/clipboard';
 import { messageFor, unreachable, useRollcallAutosave } from '@/composables/useRollcallAutosave';
+import { orderTroopers } from '@/lib/fireteams';
 import { postJson } from '@/lib/postJson';
 import { rollcallPost } from '@/lib/rollcallBbcode';
 import { displayKeys, isShortcut, keyLabel, shortcutIndex, SHORTCUTS } from '@/lib/shortcuts';
@@ -71,9 +73,10 @@ const props = defineProps({
     sections: { type: Array, required: true },
     // `{ start, date, closes, isCurrent, previous, next, current, beforeFloor }` (AD-11).
     week: { type: Object, required: true },
-    // `[{ id, cavId, rank, name, rollcall, status, source, priorStatus, loa, joined, history }]`. `loa` is the trooper's leave for
-    // the week (`LoaCover::toArray()`, covered or needs review), else null (3.4, 4.4). `history` is the last four completed
-    // weeks' SP marks for the card's attendance strip: `[{ week, status, held, loa }]`, oldest first.
+    // `[{ id, cavId, rank, name, rollcall, status, source, priorStatus, loa, joined, history, role, fireteamLeaderId }]`. `loa` is the
+    // trooper's leave for the week (`LoaCover::toArray()`, covered or needs review), else null (3.4, 4.4). `history` is the last four
+    // completed weeks' SP marks for the card's attendance strip: `[{ week, status, held, loa }]`, oldest first. `role` is
+    // `sl`, `asl`, `ftl` or null.
     troopers: { type: Array, default: () => [] },
     // Where the leave data comes from and when it last synced (`LoaSyncState::toArray()`, 4.3, AD-20).
     loaSync: { type: Object, default: null },
@@ -105,6 +108,8 @@ const props = defineProps({
     locked: { type: Boolean, default: false },
     // The section's report for this week: `{ due, overdueUntil, sent, href }`, for the deadline banner. Null for the picker.
     report: { type: Object, default: null },
+    // How the post shows fireteams and who may change it (`SectionFireteams::options()` on the server). Null for the picker.
+    fireteams: { type: Object, default: null },
 });
 
 const page = usePage();
@@ -130,6 +135,25 @@ watch(
     },
     { immediate: true },
 );
+
+// The section in the order its post lists it (the owner's order, 2026-10-16): SL, ASL, fireteam leaders when shown,
+// then everyone by rank. Every list on the screen follows it.
+const fireteams = ref(props.fireteams);
+watch(() => props.fireteams, (value) => (fireteams.value = value));
+const orderedRows = computed(() => orderTroopers(rows.value, fireteams.value ?? {}));
+
+// A fireteam change was saved: take the roles and options the server now holds. A post already on the forum lists
+// the old order, so it needs reposting when the BBCode changed.
+function onFireteams({ fireteams: options, troopers }) {
+    const before = bbcode.value;
+    const byId = new Map(troopers.map((trooper) => [trooper.id, trooper]));
+    for (const row of rows.value) {
+        const saved = byId.get(row.id);
+        if (saved) Object.assign(row, { role: saved.role, fireteamLeaderId: saved.fireteamLeaderId });
+    }
+    fireteams.value = options;
+    if (posted.value && bbcode.value !== before) editedSincePost.value = true;
+}
 
 // The players still waiting for a trooper: leaves the list as the leader links or dismisses them.
 const unmatchedPlayers = ref(props.unmatched);
@@ -346,7 +370,7 @@ const markKeys = computed(() => displayKeys(SHORTCUTS[step.value === 1 ? 'rollca
 
 // What changed on this visit, for the review step.
 const changes = computed(() =>
-    rows.value.flatMap((trooper) => {
+    orderedRows.value.flatMap((trooper) => {
         const was = baseline.value.get(trooper.id);
         if (!was) return [];
         const out = [];
@@ -364,7 +388,7 @@ const changes = computed(() =>
 // The forum post (3.10, 3.11): the company's active template filled with the current marks, generated
 // client-side and copied by the leader. The portal makes no outbound call on copy or on marking posted (AD-20).
 const post = computed(() =>
-    props.section ? rollcallPost(props.template, { section: props.section, week: props.week, troopers: rows.value }) : null,
+    props.section ? rollcallPost(props.template, { section: props.section, week: props.week, troopers: rows.value, fireteams: fireteams.value ?? {} }) : null,
 );
 const bbcode = computed(() => (post.value?.state === 'ready' ? post.value.text : ''));
 const copied = ref(false);
@@ -641,8 +665,8 @@ const laterLabel = computed(() => unfinishedLabel(unfinished.value.later, 'later
 const pickerOpen = ref(false);
 const practiceFilter = ref('all');
 
-const signatureView = computed(() => signatureGroups(rows.value));
-const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.value === 'open'));
+const signatureView = computed(() => signatureGroups(orderedRows.value));
+const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFilter.value === 'open'));
 </script>
 
 <template>
@@ -1067,7 +1091,7 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                             </p>
                         </div>
                     </div>
-                    <StepReview :troopers="rows" :at-risk="liveAtRisk" @go="go">
+                    <StepReview :troopers="orderedRows" :at-risk="liveAtRisk" @go="go">
                         <template #changes>
                             <section aria-labelledby="review-changes" class="rounded-lg border border-border bg-card" data-testid="changes">
                                 <div class="flex items-baseline justify-between gap-3 px-4 pt-3.5 pb-1">
@@ -1088,6 +1112,15 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                                 <p v-else class="px-4 pt-1 pb-4 text-xs text-muted-foreground">Nothing changed on this visit.</p>
                             </section>
                         </template>
+                        <FireteamPanel
+                            v-if="fireteams"
+                            :section-id="section.id"
+                            :troopers="orderedRows"
+                            :fireteams="fireteams"
+                            :editable="editable"
+                            :disabled-reason="readOnlyReason"
+                            @updated="onFireteams"
+                        />
                         <ForumPost :post="post" />
 
                         <div class="mt-5 flex flex-wrap items-center gap-2 py-3">
