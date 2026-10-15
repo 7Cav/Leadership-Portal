@@ -31,6 +31,8 @@ beforeEach(function () {
     // Wednesday 2026-10-07 18:00 UTC falls in the Cav week opening Saturday 2026-10-03.
     $this->moment = CarbonImmutable::parse('2026-10-07 18:00:00', 'UTC');
     $this->weekStart = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');
+    // Writes are refused before the week floor, which counts back from now: pin now to this week.
+    CarbonImmutable::setTestNow($this->moment);
 
     $this->troopers = Trooper::factory()->count(3)->create(['primary_section_id' => $this->section->id]);
 });

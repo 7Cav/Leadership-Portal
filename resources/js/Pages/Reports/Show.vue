@@ -371,9 +371,10 @@ const subjectInvalid = computed(() => props.unit.isLeaf && subjectTouched.value 
                 </h1>
             </div>
             <nav class="flex items-center gap-1" aria-label="Choose week">
-                <Button variant="ghost" size="icon-sm" as-child>
+                <Button v-if="week.previous" variant="ghost" size="icon-sm" as-child>
                     <Link :href="weekUrl(week.previous)" :aria-label="`Previous week, ${forumDate(week.previous)}`"><PhCaretLeft /></Link>
                 </Button>
+                <Button v-else variant="ghost" size="icon-sm" disabled aria-label="Previous week, too far back"><PhCaretLeft /></Button>
                 <Button v-if="week.next" variant="ghost" size="icon-sm" as-child>
                     <Link :href="weekUrl(week.next)" :aria-label="`Next week, ${forumDate(week.next)}`"><PhCaretRight /></Link>
                 </Button>

@@ -77,6 +77,25 @@ final class WeekOf
     }
 
     /**
+     * The oldest week a write may touch: the week `portal.week_floor_weeks` Cav weeks before the
+     * one containing `$now` (the current moment by default). The rollcall, the weekly report and
+     * the Commands behind them refuse a week before it, so nobody can create a practice or a
+     * report for a week long before the portal existed.
+     */
+    public static function floor(?DateTimeInterface $now = null): CarbonImmutable
+    {
+        return self::start($now ?? CarbonImmutable::now())->subWeeks(max(0, (int) config('portal.week_floor_weeks')));
+    }
+
+    /**
+     * Whether the week containing `$moment` is older than {@see floor()}.
+     */
+    public static function isBeforeFloor(DateTimeInterface $moment, ?DateTimeInterface $now = null): bool
+    {
+        return self::start($moment)->lessThan(self::floor($now));
+    }
+
+    /**
      * `$weekStart` itself, as its UTC instant, when it already is a week boundary — the guard for
      * a caller *handed* a `week_start` rather than deriving one. Validates rather than derives, so
      * a wrong date is refused instead of silently snapped to some other week.

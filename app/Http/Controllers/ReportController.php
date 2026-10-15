@@ -117,7 +117,7 @@ class ReportController extends Controller
             'week' => [
                 'start' => $weekStart->toIso8601String(),
                 'due' => WeekOf::reportDue($weekStart)->toIso8601String(),
-                'previous' => $weekStart->subWeek()->toDateString(),
+                'previous' => WeekOf::isBeforeFloor($weekStart->subWeek()) ? null : $weekStart->subWeek()->toDateString(),
                 'next' => $weekStart->addWeek()->lessThanOrEqualTo($this->currentWeek()) ? $weekStart->addWeek()->toDateString() : null,
             ],
             'report' => $this->reportProps($report, $senders),
@@ -251,12 +251,12 @@ class ReportController extends Controller
         return $unit;
     }
 
-    /** `YYYY-MM-DD` of a Saturday that opens a Cav week no later than the current one (AD-11). */
+    /** `YYYY-MM-DD` of a Saturday that opens a Cav week from `WeekOf::floor()` to the current one (AD-11). */
     private function weekStart(string $week): CarbonImmutable
     {
         $date = CarbonImmutable::createFromFormat('!Y-m-d', $week, 'UTC');
 
-        if ($date === false || $date->toDateString() !== $week || ! WeekOf::start($date)->equalTo($date) || $date->greaterThan($this->currentWeek())) {
+        if ($date === false || $date->toDateString() !== $week || ! WeekOf::start($date)->equalTo($date) || $date->greaterThan($this->currentWeek()) || WeekOf::isBeforeFloor($date)) {
             abort(404);
         }
 

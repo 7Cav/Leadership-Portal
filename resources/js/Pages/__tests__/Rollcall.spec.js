@@ -179,6 +179,14 @@ describe('Rollcall page', () => {
         expect(wrapper.find('[data-testid="past-week-notice"]').exists()).toBe(true);
     });
 
+    it('offers no previous week at the week floor', () => {
+        const wrapper = factory({ week: { ...WEEK, previous: null } });
+
+        expect(wrapper.find('a[aria-label="Previous week"]').exists()).toBe(false);
+        expect(wrapper.get('button[aria-label="Previous week"]').attributes('disabled')).toBeDefined();
+        expect(factory().find('a[aria-label="Previous week"]').attributes('href')).toContain('2026-09-26');
+    });
+
     it('reviews totals and at-risk troopers on step 3', () => {
         page.url = '/rollcall/12?step=3';
         const wrapper = factory({ atRisk: [{ trooperId: 2, missed: 2, windowWeeks: 4 }] });

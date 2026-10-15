@@ -39,7 +39,8 @@ class SaveReportDraftHandler
     /**
      * @throws SendWeeklyReportForbiddenException when the unit is outside the actor's scope, or
      *                                            does not exist.
-     * @throws InvalidReportContentException when the content is not the unit's to record.
+     * @throws InvalidReportContentException when the content is not the unit's to record, or the
+     *                                       week is before `WeekOf::floor()`.
      * @throws WeeklyReportAlreadySentException when the unit-week is already sent.
      */
     public function handle(User $actor, SaveReportDraft $command): WeeklyReport
@@ -50,8 +51,13 @@ class SaveReportDraftHandler
             throw new SendWeeklyReportForbiddenException($command->unitId);
         }
 
-        $content = ReportContent::checked($unit, $command->notes, $command->trainingSubject, $command->unaccounted, $this->troopers);
         $weekStart = WeekOf::start($command->week);
+
+        if (WeekOf::isBeforeFloor($weekStart)) {
+            throw InvalidReportContentException::weekBeforeFloor($weekStart);
+        }
+
+        $content = ReportContent::checked($unit, $command->notes, $command->trainingSubject, $command->unaccounted, $this->troopers);
         try {
             $kpis = $this->snapshots->snapshot($unit, $weekStart)->toArray();
         } catch (ReportKpisUnavailableException) {

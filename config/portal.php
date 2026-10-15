@@ -29,4 +29,18 @@ return [
 
     'trusted_proxies' => env('TRUSTED_PROXIES', ''),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Week floor
+    |--------------------------------------------------------------------------
+    |
+    | How many Cav weeks back from the current one a rollcall or weekly report may still be
+    | written. An older week is refused (the screens answer 404 or 422), so no practice or report
+    | row is created for a week long before the portal. The default, 20, matches the roster's
+    | attendance matrix, the longest history any screen shows.
+    |
+    */
+
+    'week_floor_weeks' => (int) env('PORTAL_WEEK_FLOOR_WEEKS', 20),
+
 ];

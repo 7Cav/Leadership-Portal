@@ -93,6 +93,13 @@ describe('Reports/Show', () => {
         expect(wrapper.find('[data-testid="send-bar"]').exists()).toBe(true);
     });
 
+    it('offers no previous week at the week floor', () => {
+        const wrapper = mountShow({ week: { ...props().week, previous: null } });
+
+        expect(wrapper.find('a[aria-label^="Previous week"]').exists()).toBe(false);
+        expect(wrapper.get('button[aria-label="Previous week, too far back"]').attributes('disabled')).toBeDefined();
+    });
+
     it('gates the primary send on the checklist but offers "Send anyway"', () => {
         const wrapper = mountShow();
 

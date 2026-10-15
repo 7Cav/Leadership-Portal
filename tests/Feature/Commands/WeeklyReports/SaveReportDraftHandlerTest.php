@@ -24,6 +24,8 @@ beforeEach(function () {
     $this->trooper = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
     $this->moment = CarbonImmutable::parse('2026-10-07 18:00:00', 'UTC');
     $this->weekStart = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');
+    // Writes are refused before the week floor, which counts back from now: pin now to this week.
+    CarbonImmutable::setTestNow($this->moment);
 });
 
 function saveDraft(User $actor, int $unitId, DateTimeImmutable $moment, ?string $notes = 'Notes', ?string $subject = null, array $unaccounted = []): WeeklyReport

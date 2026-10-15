@@ -58,7 +58,8 @@ class MarkAttendanceHandler
     /**
      * @throws MarkAttendanceForbiddenException when the section is outside the actor's scope.
      * @throws InvalidAttendanceMarkException when the unit is not a section, a trooper is not placed in it,
-     *                                        or a trooper's leave covers the week and so derives their status.
+     *                                        a trooper's leave covers the week and so derives their status,
+     *                                        or the week is before `WeekOf::floor()`.
      */
     public function handle(User $actor, MarkAttendance $command): SectionPractice
     {
@@ -71,6 +72,11 @@ class MarkAttendanceHandler
         }
 
         $weekStart = WeekOf::start($command->week);
+
+        if (WeekOf::isBeforeFloor($weekStart)) {
+            throw InvalidAttendanceMarkException::weekBeforeFloor($weekStart);
+        }
+
         $marks = $command->marks;
         usort($marks, fn (AttendanceMark $a, AttendanceMark $b) => $a->trooperId <=> $b->trooperId);
 
