@@ -66,26 +66,28 @@ export const DESCRIBED = Object.keys(MEANINGS);
 /**
  * Every code the template language accepts, grouped as the parser reads them, each with a one-line meaning and an
  * example. Built from the same lists as {@link parse}. `where` says where a group's codes may be used, if anywhere
- * in particular.
+ * in particular. `open` and `close` are what the editor puts in when the code is clicked: a section's open and close
+ * tags go around the selection, and any other code has an empty `close`.
  *
- * @returns {{key: string, title: string, where: string, entries: {name: string, code: string, meaning: string, example: string}[]}[]}
+ * @returns {{key: string, title: string, where: string, entries: {name: string, code: string, open: string, close: string, meaning: string, example: string}[]}[]}
  */
 export function templateLegend() {
     const group = (key, title, where, names, codeOf) => ({
         key,
         title,
         where,
-        entries: names.map((name) => ({ name, code: codeOf(name), meaning: MEANINGS[name]?.[0] ?? '', example: MEANINGS[name]?.[1] ?? '' })),
+        entries: names.map((name) => ({ name, ...codeOf(name), meaning: MEANINGS[name]?.[0] ?? '', example: MEANINGS[name]?.[1] ?? '' })),
     });
-    const tag = (name) => `{{${name}}}`;
-    const block = (name) => `{{#${name}}}...{{/${name}}}`;
+    const single = (code) => ({ code, open: code, close: '' });
+    const tag = (name) => single(`{{${name}}}`);
+    const block = (name) => ({ code: `{{#${name}}}...{{/${name}}}`, open: `{{#${name}}}`, close: `{{/${name}}}` });
 
     return [
         group('values', 'Values', 'Anywhere in the template', TOP_STRINGS, tag),
         group('lists', 'The trooper list', '', LISTS, block),
         group('rowValues', 'Trooper values', 'Inside {{#troopers}}', ROW_STRINGS, tag),
         group('rowFlags', 'Yes/no flags', 'Inside {{#troopers}}', ROW_FLAGS, block),
-        group('filters', 'Filters', 'After a value', FILTERS, (name) => `{{value|${name}}}`),
+        group('filters', 'Filters', 'After a value', FILTERS, (name) => single(`{{value|${name}}}`)),
     ];
 }
 

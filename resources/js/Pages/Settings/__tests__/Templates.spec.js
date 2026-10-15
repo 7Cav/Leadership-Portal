@@ -387,6 +387,112 @@ describe('Settings/Templates', () => {
             expect(button.attributes('aria-label')).toBe('Copied {{rank_icon}}');
         });
 
+        describe('inserting a code into the editor', () => {
+            const editor = (wrapper) => wrapper.get('[data-testid="template-body"]').element;
+            const select = (wrapper, start, end = start) => editor(wrapper).setSelectionRange(start, end);
+
+            afterEach(() => {
+                vi.useRealTimers();
+            });
+
+            it('puts a value code at the cursor and keeps the cursor after it, in the editor', async () => {
+                const wrapper = page({ active: { ...VERSION_2, body: '[B][/B]' } });
+                select(wrapper, 3);
+
+                await wrapper.get('[data-testid="legend-insert-unit"]').trigger('click');
+                await flushPromises();
+
+                expect(formState.body).toBe('[B]{{unit}}[/B]');
+                expect(editor(wrapper).value).toBe('[B]{{unit}}[/B]');
+                expect(document.activeElement).toBe(editor(wrapper));
+                expect([editor(wrapper).selectionStart, editor(wrapper).selectionEnd]).toEqual([11, 11]);
+            });
+
+            it('replaces the selection with a value code', async () => {
+                const wrapper = page({ active: { ...VERSION_2, body: 'Week of WEEK here' } });
+                select(wrapper, 8, 12);
+
+                await wrapper.get('[data-testid="legend-insert-week"]').trigger('click');
+                await flushPromises();
+
+                expect(formState.body).toBe('Week of {{week}} here');
+                expect(editor(wrapper).selectionStart).toBe(16);
+            });
+
+            it('wraps the selection in a section\'s open and close tags, the cursor after the close', async () => {
+                const wrapper = page({ active: { ...VERSION_2, body: '[TR]row[/TR]' } });
+                select(wrapper, 0, 12);
+
+                await wrapper.get('[data-testid="legend-insert-troopers"]').trigger('click');
+                await flushPromises();
+
+                expect(formState.body).toBe('{{#troopers}}[TR]row[/TR]{{/troopers}}');
+                expect(editor(wrapper).selectionStart).toBe(38);
+                expect(editor(wrapper).selectionEnd).toBe(38);
+            });
+
+            it('puts the cursor between a section\'s tags when nothing is selected', async () => {
+                const wrapper = page({ active: { ...VERSION_2, body: 'ab' } });
+                select(wrapper, 1);
+
+                await wrapper.get('[data-testid="legend-insert-sp_present"]').trigger('click');
+                await flushPromises();
+
+                expect(formState.body).toBe('a{{#sp_present}}{{/sp_present}}b');
+                expect([editor(wrapper).selectionStart, editor(wrapper).selectionEnd]).toEqual([16, 16]);
+            });
+
+            it('redraws the preview after an insert, as typing does', async () => {
+                vi.useFakeTimers();
+                const wrapper = page({ active: { ...VERSION_2, body: '[I][/I]' } });
+                select(wrapper, 3);
+
+                await wrapper.get('[data-testid="legend-insert-unit_name"]').trigger('click');
+                await nextTick();
+                vi.advanceTimersByTime(300);
+                await nextTick();
+
+                expect(wrapper.get('[data-testid="template-preview-post"] em').text()).toBe('1st Section');
+            });
+
+            it('leaves the editor as it was when the code would take it past the length limit', async () => {
+                const wrapper = page({ active: { ...VERSION_2, body: 'x'.repeat(19995) } });
+                select(wrapper, 0);
+
+                await wrapper.get('[data-testid="legend-insert-unit"]').trigger('click');
+                await flushPromises();
+
+                expect(formState.body).toBe('x'.repeat(19995));
+            });
+
+            it('tells an Admin a code can be clicked, and keeps the copy button beside it', () => {
+                const wrapper = page();
+
+                expect(wrapper.get('[data-testid="syntax-help"]').text()).toContain('Click a code to put it in the template at the cursor.');
+                expect(wrapper.get('[data-testid="legend-insert-rank"]').attributes('aria-label')).toBe('Insert {{rank}} in the template');
+                expect(wrapper.find('[data-testid="legend-copy-rank"]').exists()).toBe(true);
+            });
+
+            it('offers a non-Admin only the copy button', () => {
+                const wrapper = page({ isAdmin: false });
+
+                expect(wrapper.find('[data-testid^="legend-insert-"]').exists()).toBe(false);
+                expect(wrapper.get('[data-testid="legend-entry-rank"] [data-testid="legend-code"]').text()).toBe('{{rank}}');
+                expect(wrapper.find('[data-testid="legend-copy-rank"]').exists()).toBe(true);
+                expect(wrapper.get('[data-testid="syntax-help"]').text()).not.toContain('Click a code');
+            });
+
+            it('offers only the copy button while an Admin is viewing as a leader, and the editor stays as it was', async () => {
+                mockPage.props = { viewAs: { kind: 'unit', designation: '2/1/A/1-7', label: 'SGT Vasquez.R', admin: true } };
+                const wrapper = page({ isAdmin: false });
+
+                expect(wrapper.find('[data-testid^="legend-insert-"]').exists()).toBe(false);
+                expect(wrapper.find('[data-testid="legend-copy-rank"]').exists()).toBe(true);
+                await wrapper.get('[data-testid="legend-entry-rank"] [data-testid="legend-code"]').trigger('click');
+                expect(formState.body).toBe('[B]second[/B]');
+            });
+        });
+
         it('explains the rank icon and shows how to print it only when Cav has one', () => {
             const entry = page().get('[data-testid="legend-entry-rank_icon"]');
 
