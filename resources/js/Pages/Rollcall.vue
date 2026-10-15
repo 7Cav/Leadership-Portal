@@ -41,6 +41,7 @@ import ForumPost from '@/components/rollcall/ForumPost.vue';
 import { messageFor, unreachable, useRollcallAutosave } from '@/composables/useRollcallAutosave';
 import { postJson } from '@/lib/postJson';
 import { rollcallPost } from '@/lib/rollcallBbcode';
+import { displayKeys, isShortcut, keyLabel, shortcutIndex, SHORTCUTS } from '@/lib/shortcuts';
 import {
     countsOf,
     displayName,
@@ -246,16 +247,19 @@ function onCardKeydown(event) {
     const faces = [...event.currentTarget.querySelectorAll('[data-card-face]')];
     const index = faces.indexOf(face);
 
-    if (event.key === 'j' || event.key === 'ArrowDown') {
+    const kind = step.value === 1 ? 'signature' : 'practice';
+    const mark = shortcutIndex(event, `rollcall.${kind}`);
+
+    // The keys come from lib/shortcuts.js, which also feeds the `?` list and the keyboard card below.
+    if (isShortcut(event, 'rollcall.next')) {
         event.preventDefault();
         faces[index + 1]?.focus();
-    } else if (event.key === 'k' || event.key === 'ArrowUp') {
+    } else if (isShortcut(event, 'rollcall.previous')) {
         event.preventDefault();
         faces[index - 1]?.focus();
-    } else if (/^[1-4]$/.test(event.key)) {
+    } else if (mark >= 0) {
         const id = Number(face.closest('[data-trooper]').dataset.trooper);
-        const kind = step.value === 1 ? 'signature' : 'practice';
-        const option = optionsFor(kind)[Number(event.key) - 1];
+        const option = optionsFor(kind)[mark];
         const trooper = rows.value.find((t) => t.id === id);
         if (!option || !trooper) return;
         event.preventDefault();
@@ -264,6 +268,9 @@ function onCardKeydown(event) {
         nextTick(() => document.querySelector(`[data-trooper="${id}"] [data-card-face]`)?.focus());
     }
 }
+
+// The number keys the keyboard card shows for this step: "1 to 3" for signatures, "1 to 4" for marks.
+const markKeys = computed(() => displayKeys(SHORTCUTS[step.value === 1 ? 'rollcall.signature' : 'rollcall.practice']).map(keyLabel));
 
 // What changed on this visit, for the review step.
 const changes = computed(() =>
@@ -953,9 +960,15 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                     </Card>
                     <Card v-if="editable && step < 3" class="gap-1.5 p-4 text-xs text-muted-foreground pointer-coarse:hidden">
                         <p class="mb-1 text-[13px] font-semibold text-foreground">Keyboard</p>
-                        <p class="flex justify-between"><span>Next or previous trooper</span><span><kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">J</kbd> <kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">K</kbd></span></p>
+                        <p class="flex justify-between" data-testid="keyboard-move">
+                            <span>Next or previous trooper</span>
+                            <span><kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">{{ keyLabel(SHORTCUTS['rollcall.next'].keys[0]) }}</kbd> <kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">{{ keyLabel(SHORTCUTS['rollcall.previous'].keys[0]) }}</kbd></span>
+                        </p>
+                        <p class="flex justify-between" data-testid="keyboard-mark">
+                            <span>Set status on focused card</span><span><kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">{{ markKeys[0] }}</kbd> to <kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">{{ markKeys[1] }}</kbd></span>
+                        </p>
                         <p class="flex justify-between">
-                            <span>Set status on focused card</span><span><kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">1</kbd> to <kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">{{ step === 1 ? 3 : 4 }}</kbd></span>
+                            <span>All keyboard shortcuts</span><span><kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">{{ keyLabel(SHORTCUTS.help.keys[0]) }}</kbd></span>
                         </p>
                     </Card>
                 </div>

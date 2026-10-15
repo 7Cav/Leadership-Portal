@@ -365,6 +365,27 @@ describe('Rollcall page', () => {
             expect(button(wrapper, id, 'makeup').attributes('aria-pressed')).toBe('true');
         });
 
+        it('takes the keyboard card and the number keys from the shortcut list', async () => {
+            const wrapper = factory();
+
+            // Signatures: three buttons, so 1 to 3, and 4 does nothing.
+            expect(wrapper.find('[data-testid="keyboard-move"]').text()).toContain('J K');
+            expect(wrapper.find('[data-testid="keyboard-mark"]').text()).toContain('1 to 3');
+            const face = wrapper.findAll('[data-card-face]')[0];
+            const id = face.element.closest('[data-trooper]').dataset.trooper;
+            const pressed = () => ['will_attend', 'cannot_attend', 'unsigned'].map((value) => button(wrapper, id, value).attributes('aria-pressed'));
+            const before = pressed();
+            face.element.focus();
+            await face.trigger('keydown', { key: '4' });
+            expect(pressed()).toEqual(before);
+            await face.trigger('keydown', { key: '2' });
+            expect(button(wrapper, id, 'cannot_attend').attributes('aria-pressed')).toBe('true');
+
+            page.url = '/rollcall/12?step=2';
+            const marks = factory();
+            expect(marks.find('[data-testid="keyboard-mark"]').text()).toContain('1 to 4');
+        });
+
         it('keeps the input and offers Retry when a save fails', async () => {
             post.mockResolvedValueOnce({ ok: false, status: 422, data: { message: 'Trooper 3 is not placed in section 12.' } });
             const wrapper = factory();
