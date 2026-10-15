@@ -105,7 +105,7 @@ describe('rollcallPost (3.11)', () => {
     it('keeps forum markup in a name from opening a tag', () => {
         const out = rollcallPost(resolved('{{#troopers}}{{name}}{{/troopers}}'), input([t(1, '[/b][url]x[/url]', 'unsigned', null)]));
 
-        expect(out.text).toBe('[​/b][​url]x[​/url]');
+        expect(out.text).toBe('[\u200B/b\uFF3D[\u200Burl\uFF3Dx[\u200B/url\uFF3D');
     });
 
     it('says a company without a template has none, and writes no post of its own', () => {

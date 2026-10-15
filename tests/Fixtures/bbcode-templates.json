@@ -13,6 +13,7 @@
         { "name": "whitespace inside tags", "template": "{{ unit }} {{# troopers }}{{ name }}{{/ troopers }}" },
         { "name": "a section over a top-level value", "template": "{{#unit}}Unit: {{unit}}{{/unit}}" },
         { "name": "BBCode with square brackets and a table", "template": "[TABLE][TR][TH]#[/TH][/TR]{{#troopers}}[TR][TD]{{n}}[/TD][/TR]{{/troopers}}[/TABLE]" },
+        { "name": "a value inside a tag option", "template": "{{#troopers}}[URL={{name}}]{{rank}}[/URL]{{/troopers}}" },
         { "name": "a lone closing brace pair is just text", "template": "a }} b" },
         { "name": "braces around a value are plain text", "template": "{{{unit}}}" }
     ],

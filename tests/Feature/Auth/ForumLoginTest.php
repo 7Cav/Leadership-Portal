@@ -283,3 +283,18 @@ it('sets the session cookie HttpOnly + SameSite=Lax (AC #6)', function () {
     expect($cookie->isHttpOnly())->toBeTrue();
     expect(strtolower((string) $cookie->getSameSite()))->toBe('lax');
 });
+
+it('sends an array-valued code back to the login screen instead of a 500', function () {
+    mockForum();
+
+    foreach (['code[]=x', 'code[a]=x'] as $query) {
+        $response = $this->withSession(['forum_oauth_state' => 'valid-state'])
+            ->get("/oauth/callback/7cav?{$query}&state=valid-state");
+
+        $response->assertRedirect(route('login'));
+        $response->assertSessionHas('error', 'Sign-in was cancelled or could not be verified. Please try again.');
+    }
+
+    $this->assertGuest();
+    expect(User::count())->toBe(0);
+});

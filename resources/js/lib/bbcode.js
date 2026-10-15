@@ -94,9 +94,12 @@ function unknownName(name, inRow) {
     return `Unknown name "${name}".`;
 }
 
-/** A value as the forum will show it: a leading "[" is made inert so it cannot become a tag. */
+/**
+ * A value as the forum will show it: a "[" gets a zero-width space after it so it cannot open a tag, and a "]" is
+ * written as a fullwidth "\uFF3D" so a value inside a tag option (`[URL={{name}}]`) cannot end the option early.
+ */
 export function inert(value) {
-    return String(value).replaceAll('[', '[\u200B');
+    return String(value).replaceAll('[', '[\u200B').replaceAll(']', '\uFF3D');
 }
 
 function truthy(value) {

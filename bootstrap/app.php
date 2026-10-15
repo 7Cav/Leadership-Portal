@@ -27,7 +27,19 @@ return Application::configure(basePath: dirname(__DIR__))
         // The subclass reads `portal.trusted_proxies` per request: this callback runs before `.env`
         // and the config are loaded, so neither `env()` nor `config()` can be read here (see its
         // docblock).
+        // X-Forwarded-Host stays trusted from those proxies until we know whether the production proxy sets it or
+        // passes the client's value through; the trusted-hosts check below applies to it either way.
         $middleware->replace(BaseTrustProxies::class, TrustProxies::class);
+
+        // In production the app answers only for the APP_URL host. Otherwise redirects are built from whatever Host
+        // the request carried, so `Host: evil.example` got `Location: http://evil.example/login`. An unknown host is
+        // refused before routing. Other environments stay open (local tools, e2e on 127.0.0.1); the framework also
+        // skips the check under local and testing.
+        $middleware->trustHosts(at: function () {
+            $host = parse_url((string) config('app.url'), PHP_URL_HOST);
+
+            return app()->isProduction() && is_string($host) && $host !== '' ? ['^'.preg_quote($host).'$'] : [];
+        }, subdomains: false);
 
         // Prepended, so it wraps the whole group: appended it would be the innermost pipe and
         // any response produced further out — a 419 CSRF rejection, Inertia's 409 version

@@ -176,17 +176,25 @@ describe('an adversarial template', () => {
 });
 
 describe('a value cannot become BBCode', () => {
-    it('writes an opening bracket with a zero-width space after it, so a forum will not read a tag', () => {
-        expect(inert('[b]x[/b]')).toBe('[\u200Bb]x[\u200B/b]');
+    it('writes an opening bracket with a zero-width space after it and a closing one fullwidth, so a forum will not read a tag', () => {
+        expect(inert('[b]x[/b]')).toBe('[\u200Bb\uFF3Dx[\u200B/b\uFF3D');
         expect(inert('plain')).toBe('plain');
     });
 
     it('applies it to every printed value, so a username or billet can never open or close a tag', () => {
         const out = render('{{#troopers}}[TD]{{name}}[/TD]{{display_name}}{{/troopers}}', context({ troopers: [row({ name: '[/TD][B]evil', display_name: '[URL=x]click[/URL]' })] }));
 
-        expect(out.text).toBe('[TD][\u200B/TD][\u200BB]evil[/TD][\u200BURL=x]click[\u200B/URL]');
+        expect(out.text).toBe('[TD][\u200B/TD\uFF3D[\u200BB\uFF3Devil[/TD][\u200BURL=x\uFF3Dclick[\u200B/URL\uFF3D');
         // The only brackets left bare are the template's own [TD] and [/TD].
         expect(out.text.match(/\[(?!\u200B)/g)).toHaveLength(2);
+        expect(out.text.match(/\]/g)).toHaveLength(2);
+    });
+
+    it('keeps a value inside a tag option from ending the option early', () => {
+        const out = render('{{#troopers}}[URL={{name}}]profile[/URL]{{/troopers}}', context({ troopers: [row({ name: 'x]evil' })] }));
+
+        expect(out.text).toBe('[URL=x\uFF3Devil]profile[/URL]');
+        expect(out.text.indexOf(']')).toBe(out.text.indexOf(']profile'));
     });
 
     it('does not alter the template\'s own BBCode', () => {
