@@ -400,16 +400,16 @@ describe('TrooperDetail', () => {
     describe('leadership quick actions (6.7)', () => {
         const actions = [
             { key: 'section-roster', label: 'Open section roster', href: '/roster/3' },
-            { key: 'rollcall', label: 'Open in rollcall', href: '/rollcall/3' },
+            { key: 'rollcall', label: 'Jump to rollcall', href: '/rollcall/3?focus=7' },
         ];
 
         it('draws each action the server sent as a link, in order', () => {
             const wrapper = page({ actions });
             const links = wrapper.findAll('[data-testid="quick-actions"] a');
 
-            expect(links.map((a) => a.text())).toEqual(['Open section roster', 'Open in rollcall']);
+            expect(links.map((a) => a.text())).toEqual(['Open section roster', 'Jump to rollcall']);
             expect(links[0].attributes('href')).toBe('/roster/3');
-            expect(wrapper.get('[data-testid="action-rollcall"]').attributes('href')).toBe('/rollcall/3');
+            expect(wrapper.get('[data-testid="action-rollcall"]').attributes('href')).toBe('/rollcall/3?focus=7');
         });
 
         it('draws no row at all when the server sent no actions', () => {

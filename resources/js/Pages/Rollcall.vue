@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import {
@@ -576,9 +576,27 @@ const step = computed(() => {
 });
 const stepHeading = ref(null);
 
+// A trooper's milpac links here with `?focus=<trooper id>` ("Jump to rollcall"): the page opens on that trooper's card,
+// scrolled into view, focused and outlined. It applies once, on arrival; moving to another step drops it. A trooper
+// who is not on this section's roster this week has no card, and the page simply opens at the top.
+const spotlight = ref(null);
+function focusTrooper(id) {
+    const card = document.querySelector(`[data-trooper="${id}"]`);
+    if (!card) return;
+    spotlight.value = id;
+    card.scrollIntoView?.({ block: 'center' });
+    card.querySelector('[data-card-face]')?.focus({ preventScroll: true });
+}
+onMounted(() => {
+    const id = Number(query.value.get('focus'));
+    if (Number.isInteger(id) && id > 0) nextTick(() => focusTrooper(id));
+});
+
 function go(n) {
     const params = new URLSearchParams(query.value);
     params.set('step', String(n));
+    params.delete('focus');
+    spotlight.value = null;
     router.push({ url: `${new URL(page.url, 'http://portal.local').pathname}?${params}`, preserveState: true, preserveScroll: true });
     nextTick(() => stepHeading.value?.focus());
 }
@@ -882,6 +900,7 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                                 kind="signature"
                                 :editable="editable"
                                 :disabled-reason="readOnlyReason"
+                                :spotlight="spotlight === trooper.id"
                                 @set="(value) => set(trooper, 'signature', value)"
                             />
                         </div>
@@ -991,6 +1010,7 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                                     kind="practice"
                                     :editable="editable"
                                     :disabled-reason="readOnlyReason"
+                                    :spotlight="spotlight === trooper.id"
                                     @set="(value) => set(trooper, 'practice', value)"
                                 />
                             </div>

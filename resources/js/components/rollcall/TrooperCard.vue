@@ -22,6 +22,8 @@ const props = defineProps({
     disabledReason: { type: String, default: null },
     // `LoaSyncState::toArray()`: the leave data's source and last sync, shown in the LOA badge (AD-20).
     loaSync: { type: Object, default: null },
+    // The trooper a milpac link jumped to (`?focus=`): outlined so the leader sees whose card they landed on.
+    spotlight: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['set']);
@@ -87,8 +89,9 @@ const TONE = {
 
 <template>
     <div
-        :class="cn('relative overflow-hidden rounded-lg border border-border bg-card', locked && 'bg-muted/55')"
+        :class="cn('relative overflow-hidden rounded-lg border border-border bg-card', locked && 'bg-muted/55', spotlight && 'border-primary ring-2 ring-primary/40')"
         :data-trooper="trooper.id"
+        :data-spotlight="spotlight || undefined"
     >
         <div
             v-if="!locked && offset !== 0"
