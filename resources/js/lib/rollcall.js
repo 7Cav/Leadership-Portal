@@ -122,6 +122,17 @@ export function stepsOf(troopers, postedAt = null) {
     ];
 }
 
+// The step a rollcall opens on when the URL names none: the first one with work left. Signatures
+// count only while the thread is still open; once it has closed, the practice marks come first.
+// An empty roster has nothing to do and opens on step 1, as before.
+export function landingStep(troopers, signaturesOpen) {
+    if (!troopers.length) return 1;
+    const c = countsOf(troopers);
+    if (signaturesOpen && c.unsigned) return 1;
+
+    return c.unmarked ? 2 : 3;
+}
+
 // Step 1 groups by signature, the ones to chase first.
 export function signatureGroups(troopers) {
     const by = (value) => troopers.filter((t) => !isLocked(t) && t.rollcall === value);

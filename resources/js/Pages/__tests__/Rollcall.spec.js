@@ -129,6 +129,60 @@ describe('Rollcall page', () => {
         expect(push).toHaveBeenCalledWith(expect.objectContaining({ url: '/rollcall/12?step=3', preserveState: true }));
     });
 
+    describe('opening step', () => {
+        const PAST = { ...WEEK, isCurrent: false, date: '2026-09-26', start: '2026-09-26T00:00:00+00:00', closes: '2026-10-02T23:59:00+00:00', next: '2026-10-03' };
+        const heading = (wrapper) => wrapper.find('h2').text();
+
+        it('opens on Signatures while someone is unsigned and the thread is open', () => {
+            const wrapper = factory({ troopers: [trooper(1, 'unsigned', null), trooper(2, 'will_attend', 'present')] });
+
+            expect(heading(wrapper)).toBe('Signatures');
+            expect(wrapper.find('[data-step="1"]').attributes('aria-current')).toBe('step');
+        });
+
+        it('opens on Section practice once everyone signed and someone is unmarked', () => {
+            const wrapper = factory({ troopers: [trooper(1, 'will_attend', 'present'), trooper(2, 'cannot_attend', null)] });
+
+            expect(heading(wrapper)).toBe('Section practice');
+            expect(wrapper.find('[data-step="2"]').attributes('aria-current')).toBe('step');
+        });
+
+        it('skips closed signatures on a past week and opens on Section practice', () => {
+            expect(heading(factory({ week: PAST, troopers: [trooper(1, 'unsigned', null)] }))).toBe('Section practice');
+        });
+
+        it('opens on Review and post when everyone is marked', () => {
+            expect(heading(factory({ troopers: [trooper(1, 'will_attend', 'present'), trooper(2, 'cannot_attend', 'missed')] }))).toBe('Review and post');
+            expect(heading(factory({ week: PAST, troopers: [trooper(1, 'unsigned', 'missed')] }))).toBe('Review and post');
+        });
+
+        it('leaves troopers on LOA out of the work left', () => {
+            expect(heading(factory({ troopers: [trooper(1, 'unsigned', 'loa'), trooper(2, 'will_attend', 'present')] }))).toBe('Review and post');
+        });
+
+        it('lets a step in the URL win', () => {
+            page.url = '/rollcall/12?step=1';
+
+            expect(heading(factory({ troopers: [trooper(1, 'will_attend', 'present')] }))).toBe('Signatures');
+        });
+
+        it('lets a clicked step win', async () => {
+            const wrapper = factory({ troopers: [trooper(1, 'will_attend', 'present')] });
+
+            await wrapper.find('[data-step="1"]').trigger('click');
+
+            expect(heading(wrapper)).toBe('Signatures');
+        });
+
+        it('stays on the step when its last trooper is marked', async () => {
+            const wrapper = factory({ troopers: [trooper(1, 'will_attend', 'present'), trooper(2, 'will_attend', null)] });
+
+            await wrapper.find('[data-trooper="2"] button[data-value="present"]').trigger('click');
+
+            expect(heading(wrapper)).toBe('Section practice');
+        });
+    });
+
     it('lists "said they cannot attend" first on the practice step, and shows last week\'s mark as the pre-fill', () => {
         page.url = '/rollcall/12?step=2';
         const wrapper = factory();
