@@ -203,6 +203,87 @@ export const SORTS = {
     name: { label: 'Name, A to Z', compare: (a, b) => (a.name ?? '').localeCompare(b.name ?? '') },
 };
 
+// The order of battle's sortable columns. `value` reads what the column sorts by (null when unknown, which sorts last
+// whichever way the column runs), `first` is the direction a first click picks: the most senior, A to Z, the longest
+// served and the weakest attendance on top. Equal values keep the default billet order, so a sort never shuffles ties.
+const longAgo = (date) => (date ? -Date.parse(`${date}T00:00:00Z`) : null);
+
+export const ORBAT_SORTS = {
+    rank: { label: 'Rank', first: 'desc', value: (t) => (rankIndex(t.rank) === -1 ? null : rankIndex(t.rank)) },
+    name: { label: 'Name', first: 'asc', value: (t) => displayName(t).toLowerCase() },
+    // Time in service and in grade, as "how long ago": a departed trooper has stopped counting either.
+    tis: { label: 'Time in service', first: 'desc', value: (t) => (t.departed ? null : longAgo(t.joined)) },
+    tig: { label: 'Time in grade', first: 'desc', value: (t) => (t.departed ? null : longAgo(t.tig)) },
+    rc: { label: 'RC 30d', first: 'asc', value: (t) => percent(t.kpis?.rc) },
+    sp: { label: 'SP 30d', first: 'asc', value: (t) => percent(t.kpis?.sp) },
+};
+
+/** The comparator for an order-of-battle sort `{ key, dir }`, or the default billet order for none. */
+export function compareOrbat(sort) {
+    const column = sort && ORBAT_SORTS[sort.key];
+    if (!column) return compareBillet;
+    const sign = sort.dir === 'desc' ? -1 : 1;
+
+    return (a, b) => {
+        const x = column.value(a);
+        const y = column.value(b);
+        if (x === null || y === null) return (x === null) - (y === null) || compareBillet(a, b);
+
+        return sign * (typeof x === 'string' ? x.localeCompare(y) : x - y) || compareBillet(a, b);
+    };
+}
+
+/** The sort a header click leads to: a new column starts its natural way, the same one reverses, then back to none. */
+export function nextOrbatSort(current, key) {
+    const first = ORBAT_SORTS[key].first;
+    if (current?.key !== key) return { key, dir: first };
+    if (current.dir === first) return { key, dir: first === 'asc' ? 'desc' : 'asc' };
+
+    return null;
+}
+
+export const ORBAT_SORT_STORAGE_KEY = 'roster.orbat.sort';
+
+/** The sort this browser last chose, or null (the default order) when none is stored or storage is unavailable. */
+export function readOrbatSort(storage = globalThis.localStorage) {
+    try {
+        const stored = JSON.parse(storage?.getItem(ORBAT_SORT_STORAGE_KEY) ?? 'null');
+
+        return stored && ORBAT_SORTS[stored.key] && ['asc', 'desc'].includes(stored.dir) ? { key: stored.key, dir: stored.dir } : null;
+    } catch {
+        return null;
+    }
+}
+
+/** Remembers the sort for this browser; the default order clears it. Storage failing only means it is not remembered. */
+export function writeOrbatSort(sort, storage = globalThis.localStorage) {
+    try {
+        if (sort) storage?.setItem(ORBAT_SORT_STORAGE_KEY, JSON.stringify({ key: sort.key, dir: sort.dir }));
+        else storage?.removeItem(ORBAT_SORT_STORAGE_KEY);
+    } catch {
+        // Private mode or blocked storage: the sort still applies, it just is not remembered.
+    }
+}
+
+/** Whole months from `date` to `today` (both `YYYY-MM-DD`), or null when unknown or in the future. */
+export function monthsSince(date, today) {
+    if (!date || !today || date > today) return null;
+    const [y1, m1, d1] = date.split('-').map(Number);
+    const [y2, m2, d2] = today.split('-').map(Number);
+
+    return (y2 - y1) * 12 + (m2 - m1) - (d2 < d1 ? 1 : 0);
+}
+
+/** "2y 3m", "7m", "<1m" or "—": a time in service or grade, short enough for a table column. */
+export function shortDuration(months) {
+    if (months === null || months === undefined) return '—';
+    if (months < 1) return '<1m';
+    const years = Math.floor(months / 12);
+    const rest = months % 12;
+
+    return [years ? `${years}y` : null, rest ? `${rest}m` : null].filter(Boolean).join(' ');
+}
+
 /**
  * A section's week, summed over its members' raw marks for the matrix's aggregate row: signed
  * rollcalls of those due, attended practices of those eligible — every member of a held practice,

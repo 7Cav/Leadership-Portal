@@ -2,17 +2,24 @@ import { describe, expect, it } from 'vitest';
 import {
     aggregateWeek,
     compareBillet,
+    compareOrbat,
     FILTERS,
     highlightParts,
     isNewRecruit,
     matchesQuery,
+    monthsSince,
+    nextOrbatSort,
+    ORBAT_SORT_STORAGE_KEY,
     percent,
     percentLabel,
     rankTier,
+    readOrbatSort,
+    shortDuration,
     SORTS,
     sourceLabel,
     weekCell,
     weekLabel,
+    writeOrbatSort,
 } from '../roster';
 
 const mark = (overrides = {}) => ({ rollcall: 'will_attend', status: 'present', source: 'manual', held: true, ...overrides });
@@ -159,5 +166,154 @@ describe('displayName', () => {
 
         expect(displayName({ name: 'Reyes.M', cavId: 1 })).toBe('Reyes.M');
         expect(displayName({ name: null, cavId: 4012 })).toBe('#4012');
+    });
+});
+
+describe('order of battle column sorts', () => {
+    const t = (name, over = {}) => ({ name, rank: 'PFC', role: null, departed: false, joined: '2024-01-01', tig: '2025-01-01', kpis: { rc: [3, 4], sp: [3, 4] }, ...over });
+    const names = (list, sort) => [...list].sort(compareOrbat(sort)).map((x) => x.name);
+
+    it('keeps the billet order with no sort', () => {
+        const list = [t('B'), t('A', { role: 'ASL' }), t('C', { role: 'SL' })];
+
+        expect(names(list, null)).toEqual(['C', 'A', 'B']);
+        expect(compareOrbat(null)).toBe(compareBillet);
+        expect(compareOrbat({ key: 'nope', dir: 'asc' })).toBe(compareBillet);
+    });
+
+    it('sorts by rank seniority, most senior first, then reversed', () => {
+        const list = [t('Pvt', { rank: 'PVT' }), t('Cpt', { rank: 'CPT' }), t('Sgt', { rank: 'SGT' }), t('Cw2', { rank: 'CW2' })];
+
+        expect(names(list, { key: 'rank', dir: 'desc' })).toEqual(['Cpt', 'Cw2', 'Sgt', 'Pvt']);
+        expect(names(list, { key: 'rank', dir: 'asc' })).toEqual(['Pvt', 'Sgt', 'Cw2', 'Cpt']);
+    });
+
+    it('sorts by name, ignoring case, and by milpac id for a trooper with no name', () => {
+        const list = [t('charlie.c'), t('Alpha.A'), t(null, { cavId: 12 }), t('bravo.b')];
+
+        expect(names(list, { key: 'name', dir: 'asc' })).toEqual([null, 'Alpha.A', 'bravo.b', 'charlie.c']);
+        expect(names(list, { key: 'name', dir: 'desc' })).toEqual(['charlie.c', 'bravo.b', 'Alpha.A', null]);
+    });
+
+    it('sorts by time in service, longest first, and by time in grade the same way', () => {
+        const list = [
+            t('New', { joined: '2026-06-01', tig: '2026-08-01' }),
+            t('Old', { joined: '2021-03-01', tig: '2026-01-01' }),
+            t('Mid', { joined: '2024-05-01', tig: '2024-06-01' }),
+        ];
+
+        expect(names(list, { key: 'tis', dir: 'desc' })).toEqual(['Old', 'Mid', 'New']);
+        expect(names(list, { key: 'tis', dir: 'asc' })).toEqual(['New', 'Mid', 'Old']);
+        expect(names(list, { key: 'tig', dir: 'desc' })).toEqual(['Mid', 'Old', 'New']);
+        expect(names(list, { key: 'tig', dir: 'asc' })).toEqual(['New', 'Old', 'Mid']);
+    });
+
+    it('sorts by RC and SP 30d, lowest first', () => {
+        const list = [
+            t('Full', { kpis: { rc: [4, 4], sp: [1, 4] } }),
+            t('Half', { kpis: { rc: [2, 4], sp: [4, 4] } }),
+            t('Most', { kpis: { rc: [3, 4], sp: [2, 4] } }),
+        ];
+
+        expect(names(list, { key: 'rc', dir: 'asc' })).toEqual(['Half', 'Most', 'Full']);
+        expect(names(list, { key: 'rc', dir: 'desc' })).toEqual(['Full', 'Most', 'Half']);
+        expect(names(list, { key: 'sp', dir: 'asc' })).toEqual(['Full', 'Most', 'Half']);
+    });
+
+    it('puts unknown values last whichever way the column runs', () => {
+        const list = [
+            t('NoRank', { rank: 'XYZ' }),
+            t('NoDate', { joined: null, tig: null }),
+            t('Gone', { departed: true, joined: '2019-01-01', tig: '2019-01-01' }),
+            t('NoRc', { kpis: null }),
+            t('Known', { rank: 'SGT', joined: '2025-01-01', tig: '2025-01-01', kpis: { rc: [1, 4], sp: [1, 4] } }),
+        ];
+
+        for (const dir of ['asc', 'desc']) {
+            expect(names(list, { key: 'rank', dir }).at(-1)).toBe('NoRank');
+            expect(names(list, { key: 'tis', dir }).slice(-2)).toEqual(['Gone', 'NoDate']);
+            expect(names(list, { key: 'tig', dir }).slice(-2)).toEqual(['Gone', 'NoDate']);
+            expect(names(list, { key: 'rc', dir }).at(-1)).toBe('NoRc');
+        }
+    });
+
+    it('breaks ties in the billet order: SL, ASL, rank, then name', () => {
+        const list = [t('Zulu.Z'), t('Bravo.B', { rank: 'CPL' }), t('Alpha.A'), t('Yankee.Y', { role: 'SL', rank: 'SGT' }), t('Xray.X', { role: 'ASL' })];
+
+        // Everyone has the same RC 30d, so the default order decides, whichever way the column runs.
+        expect(names(list, { key: 'rc', dir: 'asc' })).toEqual(['Yankee.Y', 'Xray.X', 'Bravo.B', 'Alpha.A', 'Zulu.Z']);
+        expect(names(list, { key: 'rc', dir: 'desc' })).toEqual(['Yankee.Y', 'Xray.X', 'Bravo.B', 'Alpha.A', 'Zulu.Z']);
+        // Same rank: the ASL still comes before their peers, then names A to Z.
+        expect(names(list.filter((x) => x.rank === 'PFC'), { key: 'rank', dir: 'desc' })).toEqual(['Xray.X', 'Alpha.A', 'Zulu.Z']);
+    });
+
+    it('starts a column its natural way, reverses it on a second click, and goes back to the default on a third', () => {
+        expect(nextOrbatSort(null, 'rank')).toEqual({ key: 'rank', dir: 'desc' });
+        expect(nextOrbatSort({ key: 'rank', dir: 'desc' }, 'rank')).toEqual({ key: 'rank', dir: 'asc' });
+        expect(nextOrbatSort({ key: 'rank', dir: 'asc' }, 'rank')).toBeNull();
+        expect(nextOrbatSort(null, 'name')).toEqual({ key: 'name', dir: 'asc' });
+        expect(nextOrbatSort(null, 'tis')).toEqual({ key: 'tis', dir: 'desc' });
+        expect(nextOrbatSort(null, 'tig')).toEqual({ key: 'tig', dir: 'desc' });
+        expect(nextOrbatSort(null, 'rc')).toEqual({ key: 'rc', dir: 'asc' });
+        // Another column starts fresh rather than inheriting the direction.
+        expect(nextOrbatSort({ key: 'rank', dir: 'asc' }, 'sp')).toEqual({ key: 'sp', dir: 'asc' });
+    });
+
+    describe('remembering the choice', () => {
+        const memory = () => {
+            const data = new Map();
+
+            return { getItem: (k) => data.get(k) ?? null, setItem: (k, v) => data.set(k, String(v)), removeItem: (k) => data.delete(k), data };
+        };
+        const deny = () => {
+            throw new Error('denied');
+        };
+        const broken = { getItem: deny, setItem: deny, removeItem: deny };
+
+        it('writes and reads it back, and clears it for the default order', () => {
+            const storage = memory();
+
+            writeOrbatSort({ key: 'tig', dir: 'desc' }, storage);
+            expect(storage.data.get(ORBAT_SORT_STORAGE_KEY)).toBe('{"key":"tig","dir":"desc"}');
+            expect(readOrbatSort(storage)).toEqual({ key: 'tig', dir: 'desc' });
+
+            writeOrbatSort(null, storage);
+            expect(storage.data.has(ORBAT_SORT_STORAGE_KEY)).toBe(false);
+            expect(readOrbatSort(storage)).toBeNull();
+        });
+
+        it('ignores a stored value it does not recognise', () => {
+            const storage = memory();
+
+            for (const value of ['not json', '{"key":"billet","dir":"asc"}', '{"key":"rank","dir":"up"}', '42', 'null']) {
+                storage.setItem(ORBAT_SORT_STORAGE_KEY, value);
+                expect(readOrbatSort(storage), value).toBeNull();
+            }
+        });
+
+        it('gets by without storage', () => {
+            expect(readOrbatSort(broken)).toBeNull();
+            expect(() => writeOrbatSort({ key: 'rank', dir: 'desc' }, broken)).not.toThrow();
+            expect(() => writeOrbatSort(null, broken)).not.toThrow();
+            expect(readOrbatSort(undefined)).toBeNull();
+        });
+    });
+});
+
+describe('time in service and grade', () => {
+    it('counts whole months up to today', () => {
+        expect(monthsSince('2024-03-15', '2026-10-16')).toBe(31);
+        expect(monthsSince('2024-03-17', '2026-10-16')).toBe(30);
+        expect(monthsSince('2026-10-01', '2026-10-16')).toBe(0);
+        expect(monthsSince(null, '2026-10-16')).toBeNull();
+        expect(monthsSince('2027-01-01', '2026-10-16')).toBeNull();
+    });
+
+    it('reads short enough for a column', () => {
+        expect(shortDuration(31)).toBe('2y 7m');
+        expect(shortDuration(24)).toBe('2y');
+        expect(shortDuration(7)).toBe('7m');
+        expect(shortDuration(0)).toBe('<1m');
+        expect(shortDuration(null)).toBe('—');
     });
 });

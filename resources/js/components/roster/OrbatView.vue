@@ -1,9 +1,12 @@
 <script setup>
 import { computed, ref } from 'vue';
 import {
+    PhArrowDown,
     PhArrowsInLineVertical,
     PhArrowsOutLineVertical,
+    PhArrowUp,
     PhCaretRight,
+    PhCaretUpDown,
     PhLockSimple,
     PhMagnifyingGlass,
     PhSignOut,
@@ -19,19 +22,25 @@ import EmptyState from '@/components/EmptyState.vue';
 import { useSlashClaim } from '@/composables/useSlashShortcut';
 import {
     aggregateWeek,
-    compareBillet,
+    compareOrbat,
     displayName,
     FILTERS,
     highlightParts,
     isNewRecruit,
     matchesQuery,
+    monthsSince,
+    nextOrbatSort,
+    ORBAT_SORTS,
     percentLabel,
     percentTone,
     RC_STATES,
+    readOrbatSort,
+    shortDuration,
     sourceLabel,
     SP_STATES,
     weekCell,
     weekLabel,
+    writeOrbatSort,
 } from '@/lib/roster';
 import CellLegend from './CellLegend.vue';
 import FilterChips from './FilterChips.vue';
@@ -79,16 +88,35 @@ function sectionsUnder(unit) {
     return (childrenOf.value.get(unit.id) ?? []).flatMap(sectionsUnder);
 }
 
+// A column sort orders the troopers inside each section; the sections themselves keep the order of battle. Null is
+// the default billet order (SL, ASL, then rank). The choice is remembered per browser.
+const sort = ref(readOrbatSort());
+function sortBy(key) {
+    sort.value = nextOrbatSort(sort.value, key);
+    writeOrbatSort(sort.value);
+}
+function resetSort() {
+    sort.value = null;
+    writeOrbatSort(null);
+}
+const ariaSort = (...keys) => (keys.includes(sort.value?.key) ? (sort.value.dir === 'asc' ? 'ascending' : 'descending') : undefined);
+const sortIcon = (key) => (sort.value?.key !== key ? PhCaretUpDown : sort.value.dir === 'asc' ? PhArrowUp : PhArrowDown);
+
 const membersBySection = computed(() => {
     const map = new Map();
     for (const trooper of props.troopers) {
         if (!map.has(trooper.sectionId)) map.set(trooper.sectionId, []);
         map.get(trooper.sectionId).push(trooper);
     }
-    for (const list of map.values()) list.sort(compareBillet);
+    const compare = compareOrbat(sort.value);
+    for (const list of map.values()) list.sort(compare);
 
     return map;
 });
+
+// Time in service and in grade, as of today. A departed trooper's stopped counting, as on the milpac.
+const today = new Date().toISOString().slice(0, 10);
+const tenure = (trooper, date) => (trooper.departed ? '—' : shortDuration(monthsSince(date, today)));
 
 const searching = computed(() => query.value.trim() !== '' || filter.value !== 'all');
 const visible = (t) => FILTERS[filter.value](t, props.currentWeek) && matchesQuery(t, query.value);
@@ -132,8 +160,9 @@ const rows = computed(() => {
             out.push({ kind: 'section', unit, open, total: all.filter((t) => !t.departed).length, shown: shown.length, members: all, counts: counts(all) });
         }
         if (open || unit.id === root.value.id) {
+            // The SL and ASL are pinned on top only in the default order; a column sort puts them where they fall.
             shown.forEach((trooper, index) => {
-                const pinned = !!trooper.role;
+                const pinned = !sort.value && !!trooper.role;
                 out.push({ kind: 'member', trooper, pinned, pinnedLast: pinned && !shown[index + 1]?.role });
             });
         }
@@ -253,6 +282,7 @@ function clearAll() {
             </div>
             <FilterChips v-model="filter" :troopers="troopers" :current-week="currentWeek" />
             <div class="ml-auto flex items-center gap-1">
+                <Button v-if="sort" variant="ghost" size="sm" data-testid="sort-reset" @click="resetSort">Billet order</Button>
                 <Button
                     variant="ghost"
                     size="sm"
@@ -277,19 +307,36 @@ function clearAll() {
         <CellLegend class="border-b border-border" />
 
         <div ref="table" v-sticky-head class="overflow-x-auto">
-            <table class="orbat w-full min-w-[880px] border-separate border-spacing-0 text-[13px]" aria-describedby="orbat-showing" :aria-busy="loading || undefined">
+            <table class="orbat w-full min-w-[1000px] border-separate border-spacing-0 text-[13px]" aria-describedby="orbat-showing" :aria-busy="loading || undefined">
                 <thead>
                     <tr>
-                        <th class="sticky left-0 z-[4]">Trooper</th>
+                        <th class="sticky left-0 z-[4]" :aria-sort="ariaSort('rank', 'name')" data-testid="th-trooper">
+                            <span class="inline-flex items-center gap-2">
+                                <button type="button" class="sort-btn" data-testid="sort-rank" title="Sort by rank, most senior first" @click="sortBy('rank')">
+                                    {{ ORBAT_SORTS.rank.label }}<component :is="sortIcon('rank')" class="size-3" aria-hidden="true" />
+                                </button>
+                                <button type="button" class="sort-btn" data-testid="sort-name" title="Sort by name" @click="sortBy('name')">
+                                    {{ ORBAT_SORTS.name.label }}<component :is="sortIcon('name')" class="size-3" aria-hidden="true" />
+                                </button>
+                            </span>
+                        </th>
                         <th>Billet</th>
+                        <th v-for="key in ['tis', 'tig']" :key="key" class="text-right" :aria-sort="ariaSort(key)" :data-testid="`th-${key}`">
+                            <button type="button" class="sort-btn ml-auto" :data-testid="`sort-${key}`" :title="`Sort by ${ORBAT_SORTS[key].label.toLowerCase()}`" @click="sortBy(key)">
+                                <abbr :title="ORBAT_SORTS[key].label" class="no-underline">{{ key.toUpperCase() }}</abbr><component :is="sortIcon(key)" class="size-3" aria-hidden="true" />
+                            </button>
+                        </th>
                         <th>
                             <span class="block">Last 8 weeks</span>
                             <span class="mt-0.5 flex w-[104px] justify-between text-[10px] font-normal tabular-nums">
                                 <span>{{ weekLabel(stripWeeks[0]).slice(0, 5) }}</span><span>{{ weekLabel(stripWeeks[STRIP - 1]).slice(0, 5) }}</span>
                             </span>
                         </th>
-                        <th class="text-right">RC 30d</th>
-                        <th class="text-right">SP 30d</th>
+                        <th v-for="key in ['rc', 'sp']" :key="key" class="text-right" :aria-sort="ariaSort(key)" :data-testid="`th-${key}`">
+                            <button type="button" class="sort-btn ml-auto" :data-testid="`sort-${key}`" :title="`Sort by ${ORBAT_SORTS[key].label}, lowest first`" @click="sortBy(key)">
+                                {{ ORBAT_SORTS[key].label }}<component :is="sortIcon(key)" class="size-3" aria-hidden="true" />
+                            </button>
+                        </th>
                         <th>Flags</th>
                     </tr>
                 </thead>
@@ -298,6 +345,8 @@ function clearAll() {
                     <tr v-for="n in 9" :key="n">
                         <td class="sticky left-0"><div class="flex items-center gap-2.5" :class="n % 5 && 'pl-6'"><Skeleton class="h-[22px] w-12" /><Skeleton class="h-3.5 w-24" /></div></td>
                         <td><Skeleton class="h-3.5 w-32" /></td>
+                        <td><Skeleton class="ml-auto h-3.5 w-9" /></td>
+                        <td><Skeleton class="ml-auto h-3.5 w-9" /></td>
                         <td><Skeleton class="h-[18px] w-[104px]" /></td>
                         <td><Skeleton class="ml-auto h-3.5 w-9" /></td>
                         <td><Skeleton class="ml-auto h-3.5 w-9" /></td>
@@ -307,7 +356,7 @@ function clearAll() {
 
                 <tbody v-else-if="!shownCount">
                     <tr>
-                        <td colspan="6" class="py-14">
+                        <td colspan="8" class="py-14">
                             <EmptyState :icon="PhMagnifyingGlass" :title="query.trim() ? `No troopers match “${query.trim()}”` : 'No troopers match this filter'" class="sticky left-0 w-[min(100%,calc(100vw-3rem))]">
                                 Check the spelling, or try a rank like SGT or a billet like medic.
                             </EmptyState>
@@ -319,7 +368,7 @@ function clearAll() {
                 <tbody v-else>
                     <template v-for="row in rows" :key="`${row.kind}-${row.unit?.id ?? row.trooper.id}`">
                         <tr v-if="row.kind === 'group'" class="group-row" :data-testid="`group-${row.unit.id}`">
-                            <td colspan="6">
+                            <td colspan="8">
                                 <div class="sticky left-2.5 inline-flex flex-nowrap items-center gap-7" :style="{ paddingLeft: `${Math.max(row.depth - 1, 0) * 1.25}rem` }">
                                     <div class="flex min-w-[17rem] items-center gap-2.5">
                                         <span class="grid size-7 flex-none place-items-center rounded-md bg-foreground text-xs font-semibold text-background" aria-hidden="true">
@@ -372,6 +421,8 @@ function clearAll() {
                                 </button>
                             </td>
                             <td class="text-xs text-muted-foreground tabular-nums">{{ searching ? `${row.shown} of ${row.total}` : row.total }} troopers</td>
+                            <td></td>
+                            <td></td>
                             <td>
                                 <span class="inline-flex gap-[3px] rounded-sm px-[3px] py-0.5" role="img" :aria-label="`${row.unit.callsign ?? row.unit.name}, last 8 weeks by section`">
                                     <span v-for="cell in aggregateCells(row.members)" :key="cell.week" :data-tip="`s:${row.unit.id}:${cell.index}`" :class="cell.week === currentWeek && 'is-now'" class="strip-wk">
@@ -416,6 +467,8 @@ function clearAll() {
                                     <span><template v-for="(part, i) in highlightParts(row.trooper.billet ?? 'No billet', query)" :key="i"><mark v-if="part.hit" class="hl">{{ part.text }}</mark><template v-else>{{ part.text }}</template></template></span>
                                 </span>
                             </td>
+                            <td class="text-right text-muted-foreground tabular-nums" :title="row.trooper.joined ? `Joined ${row.trooper.joined}` : undefined" data-testid="tis">{{ tenure(row.trooper, row.trooper.joined) }}</td>
+                            <td class="text-right text-muted-foreground tabular-nums" :title="row.trooper.tig ? `In grade since ${row.trooper.tig}` : undefined" data-testid="tig">{{ tenure(row.trooper, row.trooper.tig) }}</td>
                             <td>
                                 <span class="inline-flex gap-[3px] rounded-sm px-[3px] py-0.5" role="img" :aria-label="stripLabel(row.trooper)">
                                     <span
@@ -469,6 +522,24 @@ function clearAll() {
     text-align: left;
     vertical-align: bottom;
     white-space: nowrap;
+}
+.orbat .sort-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border-radius: 0.25rem;
+    font-weight: inherit;
+    white-space: nowrap;
+}
+.orbat .sort-btn:hover {
+    color: var(--foreground);
+}
+.orbat .sort-btn:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+}
+.orbat th[aria-sort] {
+    color: var(--foreground);
 }
 .orbat td {
     padding: 0.4375rem 0.625rem;

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import OrbatView from '../OrbatView.vue';
 import { handleSlash } from '@/composables/useSlashShortcut';
@@ -146,5 +146,168 @@ describe('Order of battle (roster-s2)', () => {
         document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true }));
         expect(openSearch).toHaveBeenCalledOnce();
         document.removeEventListener('keydown', shell);
+    });
+});
+
+describe('sortable columns', () => {
+    const memberOrder = (wrapper) =>
+        wrapper.findAll('tbody tr').map((tr) => tr.attributes('data-testid')).filter(Boolean);
+    const ariaSort = (wrapper, column) => wrapper.find(`[data-testid="th-${column}"]`).attributes('aria-sort');
+    const DEFAULT = ['section-2', 'trooper-10', 'trooper-11', 'section-3', 'trooper-13', 'trooper-12'];
+
+    function withDates() {
+        const { units, troopers } = roster();
+        const dates = {
+            10: { joined: '2021-02-01', tig: '2026-05-01' },
+            11: { joined: '2025-09-01', tig: '2025-09-01' },
+            12: { joined: '2024-01-10', tig: '2024-11-01' },
+            13: { joined: '2023-07-01', tig: null },
+        };
+
+        return { units, troopers: troopers.map((t) => ({ ...t, ...dates[t.id] })) };
+    }
+
+    beforeEach(() => {
+        localStorage.clear();
+        vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-03T12:00:00Z') });
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        vi.restoreAllMocks();
+        localStorage.clear();
+    });
+
+    it('keeps the billet order until a header is clicked, with no column marked sorted', () => {
+        const wrapper = factory();
+
+        expect(memberOrder(wrapper)).toEqual(DEFAULT);
+        for (const column of ['trooper', 'tis', 'tig', 'rc', 'sp']) expect(ariaSort(wrapper, column)).toBeUndefined();
+        expect(wrapper.find('[data-testid="sort-reset"]').exists()).toBe(false);
+    });
+
+    it('puts every sort control in a button inside its column header', () => {
+        const wrapper = factory();
+
+        for (const key of ['rank', 'name', 'tis', 'tig', 'rc', 'sp']) {
+            const control = wrapper.find(`[data-testid="sort-${key}"]`);
+            expect(control.element.tagName).toBe('BUTTON');
+            expect(control.attributes('type')).toBe('button');
+            expect(control.element.closest('th')).not.toBeNull();
+        }
+    });
+
+    it('sorts by name inside each section, reverses on a second click, and returns to the billet order on a third', async () => {
+        const wrapper = factory();
+
+        await wrapper.find('[data-testid="sort-name"]').trigger('click');
+        expect(memberOrder(wrapper)).toEqual(['section-2', 'trooper-10', 'trooper-11', 'section-3', 'trooper-12', 'trooper-13']);
+        expect(ariaSort(wrapper, 'trooper')).toBe('ascending');
+
+        await wrapper.find('[data-testid="sort-name"]').trigger('click');
+        expect(memberOrder(wrapper)).toEqual(['section-2', 'trooper-11', 'trooper-10', 'section-3', 'trooper-13', 'trooper-12']);
+        expect(ariaSort(wrapper, 'trooper')).toBe('descending');
+
+        await wrapper.find('[data-testid="sort-name"]').trigger('click');
+        expect(memberOrder(wrapper)).toEqual(DEFAULT);
+        expect(ariaSort(wrapper, 'trooper')).toBeUndefined();
+    });
+
+    it('sorts by rank, most senior first, then junior first', async () => {
+        const wrapper = factory();
+
+        await wrapper.find('[data-testid="sort-rank"]').trigger('click');
+        expect(memberOrder(wrapper)).toEqual(['section-2', 'trooper-10', 'trooper-11', 'section-3', 'trooper-13', 'trooper-12']);
+        expect(ariaSort(wrapper, 'trooper')).toBe('descending');
+
+        await wrapper.find('[data-testid="sort-rank"]').trigger('click');
+        expect(memberOrder(wrapper)).toEqual(['section-2', 'trooper-11', 'trooper-10', 'section-3', 'trooper-12', 'trooper-13']);
+        expect(ariaSort(wrapper, 'trooper')).toBe('ascending');
+    });
+
+    it('sorts by RC 30d lowest first, keeping the billet order between equals', async () => {
+        const wrapper = factory();
+
+        await wrapper.find('[data-testid="sort-rc"]').trigger('click');
+
+        // 1st Section are both at 100%, so the SL stays first; in 2nd Section the at-risk 25% leads.
+        expect(memberOrder(wrapper)).toEqual(['section-2', 'trooper-10', 'trooper-11', 'section-3', 'trooper-12', 'trooper-13']);
+        expect(ariaSort(wrapper, 'rc')).toBe('ascending');
+        expect(ariaSort(wrapper, 'trooper')).toBeUndefined();
+    });
+
+    it('sorts by SP 30d too', async () => {
+        const wrapper = factory();
+
+        await wrapper.find('[data-testid="sort-sp"]').trigger('click');
+        await wrapper.find('[data-testid="sort-sp"]').trigger('click');
+
+        expect(memberOrder(wrapper)).toEqual(['section-2', 'trooper-10', 'trooper-11', 'section-3', 'trooper-13', 'trooper-12']);
+        expect(ariaSort(wrapper, 'sp')).toBe('descending');
+    });
+
+    it('shows time in service and time in grade, and sorts by each, longest first', async () => {
+        const wrapper = factory(withDates());
+
+        expect(wrapper.find('[data-testid="trooper-10"] [data-testid="tis"]').text()).toBe('5y 8m');
+        expect(wrapper.find('[data-testid="trooper-10"] [data-testid="tig"]').text()).toBe('5m');
+        expect(wrapper.find('[data-testid="trooper-11"] [data-testid="tig"]').text()).toBe('1y 1m');
+        expect(wrapper.find('[data-testid="trooper-13"] [data-testid="tig"]').text()).toBe('—');
+
+        await wrapper.find('[data-testid="sort-tis"]').trigger('click');
+        expect(memberOrder(wrapper)).toEqual(['section-2', 'trooper-10', 'trooper-11', 'section-3', 'trooper-13', 'trooper-12']);
+        expect(ariaSort(wrapper, 'tis')).toBe('descending');
+
+        await wrapper.find('[data-testid="sort-tig"]').trigger('click');
+        // An unknown TIG sorts last.
+        expect(memberOrder(wrapper)).toEqual(['section-2', 'trooper-11', 'trooper-10', 'section-3', 'trooper-12', 'trooper-13']);
+        expect(ariaSort(wrapper, 'tig')).toBe('descending');
+        expect(ariaSort(wrapper, 'tis')).toBeUndefined();
+
+        await wrapper.find('[data-testid="sort-tig"]').trigger('click');
+        expect(memberOrder(wrapper)).toEqual(['section-2', 'trooper-10', 'trooper-11', 'section-3', 'trooper-12', 'trooper-13']);
+        expect(ariaSort(wrapper, 'tig')).toBe('ascending');
+    });
+
+    it('stops pinning the SL on top while a column sort is on', async () => {
+        const wrapper = factory();
+        expect(wrapper.find('[data-testid="trooper-10"]').classes()).toContain('is-pin');
+
+        await wrapper.find('[data-testid="sort-name"]').trigger('click');
+
+        expect(wrapper.find('[data-testid="trooper-10"]').classes()).not.toContain('is-pin');
+        expect(wrapper.find('[data-testid="trooper-10"]').text()).toContain('SL');
+    });
+
+    it('remembers the choice in this browser, and the reset clears it', async () => {
+        const first = factory();
+        await first.find('[data-testid="sort-name"]').trigger('click');
+        await first.find('[data-testid="sort-name"]').trigger('click');
+        first.unmount();
+
+        expect(JSON.parse(localStorage.getItem('roster.orbat.sort'))).toEqual({ key: 'name', dir: 'desc' });
+
+        const second = factory();
+        expect(ariaSort(second, 'trooper')).toBe('descending');
+        expect(memberOrder(second)).toEqual(['section-2', 'trooper-11', 'trooper-10', 'section-3', 'trooper-13', 'trooper-12']);
+
+        await second.find('[data-testid="sort-reset"]').trigger('click');
+        expect(memberOrder(second)).toEqual(DEFAULT);
+        expect(localStorage.getItem('roster.orbat.sort')).toBeNull();
+    });
+
+    it('still sorts when the browser refuses storage', async () => {
+        vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+            throw new Error('denied');
+        });
+        vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+            throw new Error('denied');
+        });
+        const wrapper = factory();
+
+        await wrapper.find('[data-testid="sort-name"]').trigger('click');
+
+        expect(ariaSort(wrapper, 'trooper')).toBe('ascending');
+        expect(memberOrder(wrapper)).toEqual(['section-2', 'trooper-10', 'trooper-11', 'section-3', 'trooper-12', 'trooper-13']);
     });
 });
