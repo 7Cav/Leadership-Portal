@@ -87,14 +87,13 @@ describe('the sample section for the template preview', () => {
         expect(sample.troopers[0]).toMatchObject({ n: '1', rank: codes.rank, rank_short: codes.rank_short, name: codes.name, rc: codes.rc, sp: codes.sp });
     });
 
-    it('counts its totals from its rows, and has a row with no rank insignia', () => {
+    it('counts its totals from its rows, and gives every row its rank insignia', () => {
         const sample = sampleContext();
 
         expect(sample.count).toBe(String(sample.troopers.length));
         expect(sample.signed).toBe(String(sample.troopers.filter((row) => row.rc_yes).length));
         expect(sample.attended).toBe(String(sample.troopers.filter((row) => row.sp_present || row.sp_makeup || row.sp_attached).length));
-        expect(sample.troopers.some((row) => row.rank_icon === '')).toBe(true);
-        for (const row of sample.troopers.filter((each) => each.rank_icon !== '')) expect(row.rank_icon).toMatch(/^https:\/\/7cav\.us\/data\/roster_ranks\/0\/\d+\.jpg\?\d+$/);
+        for (const row of sample.troopers) expect(row.rank_icon).toMatch(/^https:\/\/7cav\.us\/data\/roster_ranks\/0\/\d+\.jpg\?\d+$/);
     });
 });
 

@@ -36,7 +36,9 @@ function draw(nodes, inCell) {
             // the insignia rather than on its file's padding (`lib/rankInsignia.js`).
             const place = insigniaPlacement(node.attrs.src);
             if (place) {
-                return h('span', { class: 'relative inline-block shrink-0 overflow-hidden align-middle', style: { width: `${INSIGNIA_BOX}px`, height: `${INSIGNIA_BOX}px` }, 'data-rank-insignia': '' }, [
+                // `align-middle` centres the square on the line box, which sits a little below the middle of the capitals
+                // beside it; lifting it 1.5px lines the insignia up with the name's capitals.
+                return h('span', { class: 'relative -top-[1.5px] inline-block shrink-0 overflow-hidden align-middle', style: { width: `${INSIGNIA_BOX}px`, height: `${INSIGNIA_BOX}px` }, 'data-rank-insignia': '' }, [
                     h('img', {
                         ...node.attrs,
                         class: 'absolute max-w-none',

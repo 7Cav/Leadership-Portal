@@ -297,7 +297,14 @@ describe('the starter template, filled', () => {
         expect(rows).toHaveLength(1 + context.troopers.length);
         expect(rows[0]).toEqual(['tr', [['th', ['#']], ['th', ['Name']], ['th', ['Signed RC']], ['th', ['Attended SP']]]]);
         expect(rows[1]).toEqual(['tr', [['td', ['1']], ['td', [icon('18.jpg?1741376797'), ' Sergeant Jay.JH']], ['td', ['✓']], ['td', ['MU']]]]);
-        // No insignia: no image, just the name.
+        expect(rows[5]).toEqual(['tr', [['td', ['5']], ['td', [icon('22.jpg?1741376831'), ' Private Okafor.B']], ['td', ['-']], ['td', ['-']]]]);
+    });
+
+    it('prints just the name for a trooper Cav has no insignia for', () => {
+        const context = sampleContext();
+        context.troopers[4] = { ...context.troopers[4], rank_icon: '' };
+        const [, rows] = read(render(STARTER, context).text)[4];
+
         expect(rows[5]).toEqual(['tr', [['td', ['5']], ['td', ['Private Okafor.B']], ['td', ['-']], ['td', ['-']]]]);
     });
 
@@ -312,7 +319,8 @@ describe('the starter template, filled', () => {
         context.troopers[0].name = '[IMG]https://7cav.us/x.png[/IMG]<script>alert(1)</script>';
         const tree = parseBbcode(render(STARTER, context).text);
 
-        expect(elementsOf(tree).filter((node) => node.kind === 'img')).toHaveLength(4);
+        // One insignia per trooper; the name's own [IMG] stays text.
+        expect(elementsOf(tree).filter((node) => node.kind === 'img')).toHaveLength(context.troopers.length);
         expect(JSON.stringify(tree)).toContain('<script>alert(1)</script>');
     });
 });

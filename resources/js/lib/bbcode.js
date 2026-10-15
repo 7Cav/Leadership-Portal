@@ -119,7 +119,7 @@ export function sampleContext() {
         row(2, 'Corporal', 'CPL', '19.jpg?1741376805', 'Adams.P', 'yes', 'present'),
         row(3, 'Specialist', 'SPC', '20.jpg?1741376814', 'Reyes.M', 'no', 'loa'),
         row(4, 'Private First Class', 'PFC', '21.jpg?1741376823', 'Novak.T', 'yes', 'attached'),
-        row(5, 'Private', 'PVT', null, 'Okafor.B', null, null),
+        row(5, 'Private', 'PVT', '22.jpg?1741376831', 'Okafor.B', null, null),
     ];
 
     return {
