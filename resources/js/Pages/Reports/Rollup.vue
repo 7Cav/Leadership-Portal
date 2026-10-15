@@ -2,13 +2,13 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
 import { useMediaQuery } from '@vueuse/core';
-import { toast } from 'vue-sonner';
 import { PhCaretDown, PhCaretLeft, PhCaretRight, PhChecks, PhLightning, PhTreeStructure } from '@phosphor-icons/vue';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import EmptyState from '@/components/EmptyState.vue';
+import { copyText } from '@/lib/clipboard';
 import { forumDate } from '@/lib/forumDate';
 import {
     countNodes,
@@ -175,18 +175,11 @@ function onKeydown(event, row) {
 async function copyReminder(node) {
     const text = reminderText(node, { weekStart: props.week.start, reportDue: props.week.reportDue, origin: window.location.origin });
 
-    try {
-        // Absent outside a secure context (plain HTTP): fails into the same error path.
-        await navigator.clipboard.writeText(text);
-        toast.success('Reminder copied', { description: `${unitLabel(node)}, week of ${forumDate(props.week.start)}. Paste it to the leader.` });
-    } catch (error) {
-        console.error('Copy reminder failed', { unitId: node.id, error });
-        toast.error('Could not copy the reminder', {
-            description: error?.name === 'NotAllowedError'
-                ? 'The browser blocked clipboard access. Allow it for this site and try again.'
-                : 'This browser cannot copy from this page. Open the report and send the leader its link instead.',
-        });
-    }
+    await copyText(text, 'Reminder copied', {
+        description: `${unitLabel(node)}, week of ${forumDate(props.week.start)}. Paste it to the leader.`,
+        failed: 'Could not copy the reminder',
+        fallback: 'Open the report and send the leader its link instead.',
+    });
 }
 
 const SEGMENT_COLOR = { sent: 'bg-success', draft: 'bg-warning', not_started: 'bg-border' };

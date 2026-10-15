@@ -39,6 +39,7 @@ import TrooperCard from '@/components/rollcall/TrooperCard.vue';
 import UnmatchedDrawer from '@/components/rollcall/UnmatchedDrawer.vue';
 import { forumDate, forumDateTime } from '@/lib/forumDate';
 import ForumPost from '@/components/rollcall/ForumPost.vue';
+import { copyText } from '@/lib/clipboard';
 import { messageFor, unreachable, useRollcallAutosave } from '@/composables/useRollcallAutosave';
 import { postJson } from '@/lib/postJson';
 import { rollcallPost } from '@/lib/rollcallBbcode';
@@ -362,13 +363,12 @@ const posting = ref(false);
 async function copyBbcode() {
     if (post.value?.state !== 'ready') return;
 
-    try {
-        await navigator.clipboard.writeText(bbcode.value);
-        copied.value = true;
-        toast.success('BBCode copied', { description: `Paste it as a reply in the ${props.section.designation} rollcall thread.` });
-    } catch {
-        toast.error('Could not copy the BBCode', { description: 'Select the BBCode in the Forum post section above and copy it by hand.' });
-    }
+    const ok = await copyText(bbcode.value, 'BBCode copied', {
+        description: `Paste it as a reply in the ${props.section.designation} rollcall thread.`,
+        failed: 'Could not copy the BBCode',
+        fallback: 'Open the BBCode tab and copy it by hand.',
+    });
+    if (ok) copied.value = true;
 }
 
 async function markPosted() {
