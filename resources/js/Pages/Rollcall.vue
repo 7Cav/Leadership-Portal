@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import {
@@ -40,6 +40,7 @@ import { forumDate, forumDateTime } from '@/lib/forumDate';
 import ForumPost from '@/components/rollcall/ForumPost.vue';
 import { messageFor, unreachable, useRollcallAutosave } from '@/composables/useRollcallAutosave';
 import { postJson } from '@/lib/postJson';
+import { rememberSection, rememberedSection } from '@/lib/rememberedSection';
 import { rollcallPost } from '@/lib/rollcallBbcode';
 import {
     countsOf,
@@ -463,6 +464,23 @@ function weekHref(date) {
 }
 
 const weekQuery = computed(() => (props.week.isCurrent ? null : props.week.date));
+
+// The section a leader last opened is remembered per user, so the picker can open it straight away
+// next time. A view-as preview neither records nor follows it: the preview is someone else's scope,
+// and must not move the real user's choice. `?pick` shows the picker as it is.
+const userId = computed(() => page.props.auth?.user?.id ?? null);
+watch(
+    () => props.section?.id,
+    (id) => {
+        if (id && !viewAs.value) rememberSection(userId.value, id);
+    },
+    { immediate: true },
+);
+const resuming = !props.section && !viewAs.value && !query.value.has('pick') ? rememberedSection(userId.value, props.sections) : null;
+onMounted(() => {
+    if (resuming) router.visit(`/rollcall/${resuming.id}${weekQuery.value ? `?week=${weekQuery.value}` : ''}`, { replace: true });
+});
+const pickerHref = computed(() => `/rollcall?pick=1${weekQuery.value ? `&week=${weekQuery.value}` : ''}`);
 const weekLabel = computed(() => forumDate(props.week.start));
 const closesLabel = computed(() => {
     const at = new Date(props.week.closes);
@@ -487,7 +505,8 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
             <p class="text-xs text-muted-foreground">Week of {{ forumDate(week.start) }}</p>
             <h1 class="text-xl font-semibold tracking-tight sm:text-[22px]">Choose a section</h1>
         </div>
-        <SectionPicker v-if="sections.length" :sections="sections" :week="weekQuery" />
+        <p v-if="resuming" class="text-sm text-muted-foreground" role="status">Opening {{ resuming.designation }}, the section you last opened.</p>
+        <SectionPicker v-else-if="sections.length" :sections="sections" :week="weekQuery" />
         <Card v-else class="py-0">
             <EmptyState :icon="PhUsersThree" title="No sections in your scope" class="py-12">
                 Rollcalls are kept per section. Once you lead a section, or hold a grant over one, it is listed here.
@@ -499,7 +518,13 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
         <!-- Page head -->
         <div class="flex flex-wrap items-end gap-x-6 gap-y-3">
             <div class="min-w-0">
-                <p class="text-xs text-muted-foreground">{{ section.designation }} weekly cycle</p>
+                <p class="flex flex-wrap gap-x-1.5 text-xs text-muted-foreground">
+                    <span>{{ section.designation }} weekly cycle</span>
+                    <template v-if="sections.length > 1">
+                        <span aria-hidden="true">·</span>
+                        <Link :href="pickerHref" class="underline-offset-2 hover:text-foreground hover:underline" data-testid="choose-section">Choose a section</Link>
+                    </template>
+                </p>
                 <h1 class="text-xl font-semibold tracking-tight sm:text-[22px]">Rollcall, week of {{ weekLabel }}</h1>
             </div>
             <div class="flex items-center gap-1 text-muted-foreground">

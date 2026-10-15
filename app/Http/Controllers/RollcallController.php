@@ -94,7 +94,8 @@ class RollcallController extends Controller
     /**
      * The rollcall of `$unit` for the requested week. Without a unit, a section leader lands on
      * their own section and anyone whose scope holds exactly one section on that one; everyone
-     * else gets the section picker.
+     * else gets the section picker. `?pick=1` always gets the picker (the page's "Choose a section"
+     * link), and the picker itself may open the section the user last opened.
      */
     public function show(Request $request, ?int $unit = null): Response|RedirectResponse
     {
@@ -113,7 +114,7 @@ class RollcallController extends Controller
         $weekQuery = $weekStart->equalTo($currentWeek) ? [] : ['week' => $weekStart->toDateString()];
 
         if ($unit === null) {
-            $landing = $this->landingSection($user, $sections);
+            $landing = $request->boolean('pick') ? null : $this->landingSection($user, $sections);
 
             if ($landing !== null) {
                 return redirect()->route('rollcall.show', ['unit' => $landing->id, ...$weekQuery]);
