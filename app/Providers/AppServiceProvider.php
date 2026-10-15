@@ -15,6 +15,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\View\Compilers\BladeCompiler;
+use Inertia\Directive;
+use LogicException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -70,6 +73,15 @@ class AppServiceProvider extends ServiceProvider
         // N+1. Environment-gated: ON everywhere except production.
         Model::preventLazyLoading(! $this->app->isProduction());
 
+        // inertia-laravel prints the page object into <script type="application/json"> with a bare json_encode,
+        // which leaves `<` as is. A prop holding `<!--<script` (a captured player name, a forum username) then
+        // keeps the real </script> from closing the tag and the page never mounts on a full load. Re-register
+        // @inertia with `<`, `>` and `&` written as <, > and &; JSON.parse reads them back unchanged.
+        // Registered after resolving, like the package's own, so this one runs last and wins.
+        $this->callAfterResolving('blade.compiler', function (BladeCompiler $blade) {
+            $blade->directive('inertia', fn ($expression = '') => self::compileInertiaRoot((string) $expression));
+        });
+
         // Sign-in throttle. Both halves of the OAuth handshake are reachable without a session:
         // `auth.redirect` mints and stores a state nonce per hit, and the callback spends a
         // forum token exchange per hit, so unthrottled either one lets a single client hammer
@@ -94,5 +106,25 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(3)->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())),
             Limit::perMinute(20)->by('unit-roster-sync'),
         ]);
+    }
+
+    /**
+     * The package's @inertia output with the page JSON escaped for a script element. Fails loudly if a
+     * package upgrade changes that output, so the escaping can't silently fall off.
+     */
+    private static function compileInertiaRoot(string $expression): string
+    {
+        $compiled = str_replace(
+            'json_encode($page)',
+            'json_encode($page, JSON_HEX_TAG | JSON_HEX_AMP)',
+            Directive::compile($expression),
+            $count,
+        );
+
+        if ($count !== 1) {
+            throw new LogicException('inertia-laravel changed its @inertia output; re-check the page JSON escaping in AppServiceProvider.');
+        }
+
+        return $compiled;
     }
 }

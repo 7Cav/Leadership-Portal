@@ -23,6 +23,7 @@
     @inertiaHead
 </head>
 <body class="font-sans antialiased">
+    {{-- @inertia is re-registered in AppServiceProvider so the page JSON can't close its own script tag. --}}
     @inertia
 </body>
 </html>
