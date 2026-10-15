@@ -11,11 +11,18 @@ use App\Models\ArtifactType;
 use App\Models\TemplateVersion;
 use App\Models\Unit;
 use App\Models\UnitType;
+use App\Models\User;
 use App\Repositories\TemplateVersionRepository;
 use App\Repositories\UnitRepository;
+use App\Rollcall\RollcallRoster;
 use App\Rollcall\TemplateSyntax;
+use App\Support\Time\WeekOf;
+use Carbon\CarbonImmutable;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -37,6 +44,7 @@ class TemplatesController extends Controller
     public function __construct(
         private readonly TemplateVersionRepository $versions,
         private readonly UnitRepository $units,
+        private readonly RollcallRoster $roster,
     ) {}
 
     public function index(Request $request, ScopeResolver $scope): Response
@@ -70,6 +78,42 @@ class TemplatesController extends Controller
             // Follows a view-as preview: the page then shows its authoring controls disabled, as read-only for the
             // previewed leader. The write gates below read the real flag.
             'isAdmin' => $scope->actsAsAdmin($request->user()),
+            // The sections the preview can be filled from instead of the sample: those under the company that the viewer
+            // could open on the rollcall page. Their rows load only when one is picked ({@see previewSection()}).
+            'previewSections' => $selected === null ? [] : $this->roster->options($this->sectionsUnder($selected, $request->user(), $scope)),
+        ]);
+    }
+
+    /**
+     * One section's rollcall for the current week, for the preview to fill the template with: the same section, week and
+     * trooper rows the rollcall page reads ({@see RollcallRoster}), so the preview shows the post that section would copy.
+     * Gated as the rollcall page is (AD-8): a section outside the viewer's scope is a 403. It must also sit under the
+     * company being edited, since that is the template it renders from; anything else is a 404.
+     */
+    public function previewSection(Request $request, int $unit, ScopeResolver $scope): JsonResponse
+    {
+        // Answered as JSON, like the rollcall page's own background calls: the page reads it with fetch, not a visit.
+        $validator = Validator::make($request->query(), ['company' => ['required', 'integer']]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => $validator->errors()->first()], 422);
+        }
+
+        abort_unless($scope->resolve($request->user())->contains($unit), 403, 'This section is outside your scope.');
+
+        $company = $this->units->find((int) $request->query('company'));
+        abort_unless($company?->type === UnitType::Company, 404);
+
+        $sections = $this->sectionsUnder($company, $request->user(), $scope);
+        $section = $sections->firstWhere('id', $unit);
+        abort_if($section === null, 404);
+
+        $week = WeekOf::start(CarbonImmutable::now());
+
+        return response()->json([
+            'section' => $this->roster->section($section, $sections),
+            'week' => $this->roster->week($week, $week),
+            'troopers' => $this->roster->forWeek($section, $week)->troopers,
         ]);
     }
 
@@ -114,6 +158,16 @@ class TemplatesController extends Controller
         $command->handle($request->user(), $version, $data['reason']);
 
         return redirect()->route('settings.templates', ['company' => $version->company_id]);
+    }
+
+    /**
+     * The sections under `$company` in the viewer's scope (view-as included), each with its platoon loaded.
+     *
+     * @return Collection<int, Unit>
+     */
+    private function sectionsUnder(Unit $company, User $user, ScopeResolver $scope): Collection
+    {
+        return $this->units->sectionsAmong($scope->resolve($user)->intersect($this->units->subtreeIds($company)));
     }
 
     /**

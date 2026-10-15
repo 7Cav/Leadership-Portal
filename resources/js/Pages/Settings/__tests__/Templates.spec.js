@@ -656,6 +656,106 @@ describe('Settings/Templates', () => {
         it('shows nothing for an empty editor', () => {
             expect(page({ active: null, history: [] }).find('[data-testid="template-preview"]').exists()).toBe(false);
         });
+
+        describe('with a real section', () => {
+            const SECTIONS = [
+                { id: 7, designation: '2/1/E/2-7', name: '2nd Section', platoon: '1/E/2-7' },
+                { id: 8, designation: '3/1/E/2-7', name: '3rd Section', platoon: '1/E/2-7' },
+            ];
+            const TABLE = '[B]{{unit}}[/B] {{week_start}} [TABLE]{{#troopers}}[TR][TD]{{display_name}}[/TD][TD]{{sp}}[/TD][/TR]{{/troopers}}[/TABLE]';
+            const ROLLCALL = {
+                section: { id: 7, designation: '2/1/E/2-7', name: '2nd Section', platoon: '1/E/2-7' },
+                week: { start: '2026-10-03T00:00:00+00:00', closes: '2026-10-09T23:59:00+00:00' },
+                troopers: [
+                    { id: 1, cavId: 11, rank: 'Sergeant', rankShort: 'SGT', rankIcon: null, name: 'Vasquez.R', displayName: 'SGT Vasquez.R', rollcall: 'will_attend', status: 'present' },
+                    { id: 2, cavId: 12, rank: 'Private', rankShort: 'PVT', rankIcon: null, name: 'Lowe.K', displayName: 'PVT Lowe.K', rollcall: 'unsigned', status: 'loa' },
+                ],
+            };
+            const respond = (status, body = {}) => vi.fn(async () => ({ ok: status < 300, status, json: async () => body }));
+            const real = (overrides = {}) => page({ active: { ...VERSION_2, body: TABLE }, previewSections: SECTIONS, ...overrides });
+            const pick = async (wrapper, id) => {
+                await wrapper.get('[data-testid="template-preview-with"]').setValue(id);
+                await flushPromises();
+            };
+
+            it("offers the company's sections next to the sample, and starts on the sample", () => {
+                const wrapper = real();
+                const options = wrapper.findAll('[data-testid="template-preview-with"] option');
+
+                expect(options.map((option) => option.text())).toEqual(['Sample section', '2/1/E/2-7 2nd Section, this week', '3/1/E/2-7 3rd Section, this week']);
+                expect(wrapper.get('[data-testid="template-preview-with"]').element.value).toBe('');
+                expect(wrapper.get('[data-testid="template-preview-post"] strong').text()).toBe('1/E/2-7');
+            });
+
+            it('offers no picker when the company has no section the viewer can open', () => {
+                expect(page().find('[data-testid="template-preview-with"]').exists()).toBe(false);
+            });
+
+            it('loads the picked section for this week and fills the preview with its troopers and marks', async () => {
+                const fetch = respond(200, ROLLCALL);
+                vi.stubGlobal('fetch', fetch);
+                const wrapper = real();
+
+                await pick(wrapper, '7');
+
+                expect(fetch).toHaveBeenCalledWith('/settings/templates/preview/7?company=1', expect.objectContaining({ headers: expect.objectContaining({ Accept: 'application/json' }) }));
+                const post = wrapper.get('[data-testid="template-preview-post"]');
+                expect(post.get('strong').text()).toBe('2/1/E/2-7');
+                expect(post.text()).toContain('03Oct26');
+                expect(post.findAll('td').map((cell) => cell.text())).toEqual(['SGT Vasquez.R', 'Yes', 'PVT Lowe.K', 'LOA']);
+                expect(wrapper.get('[data-testid="template-preview-note"]').text()).toContain("2/1/E/2-7's 2 troopers and their marks this week");
+            });
+
+            it('goes back to the sample when the sample is picked again', async () => {
+                vi.stubGlobal('fetch', respond(200, ROLLCALL));
+                const wrapper = real();
+
+                await pick(wrapper, '7');
+                await pick(wrapper, '');
+
+                expect(wrapper.get('[data-testid="template-preview-post"] strong').text()).toBe('1/E/2-7');
+                expect(wrapper.get('[data-testid="template-preview-note"]').text()).toContain('sample section of 5 troopers');
+            });
+
+            it('keeps the sample and says why when the section cannot be loaded', async () => {
+                vi.stubGlobal('fetch', respond(403));
+                const wrapper = real();
+
+                await pick(wrapper, '7');
+
+                expect(wrapper.get('[data-testid="template-preview-section-error"]').text()).toContain('no longer in your scope');
+                expect(wrapper.get('[data-testid="template-preview-post"] strong').text()).toBe('1/E/2-7');
+            });
+
+            it('shows a section that was picked last, not one whose answer came back late', async () => {
+                let answerFirst;
+                const fetch = vi.fn((url) =>
+                    url.includes('/7?')
+                        ? new Promise((resolve) => (answerFirst = resolve))
+                        : Promise.resolve({ ok: true, status: 200, json: async () => ({ ...ROLLCALL, section: { ...ROLLCALL.section, designation: '3/1/E/2-7' } }) }),
+                );
+                vi.stubGlobal('fetch', fetch);
+                const wrapper = real();
+
+                await wrapper.get('[data-testid="template-preview-with"]').setValue('7');
+                await pick(wrapper, '8');
+                answerFirst({ ok: true, status: 200, json: async () => ROLLCALL });
+                await flushPromises();
+
+                expect(wrapper.get('[data-testid="template-preview-post"] strong').text()).toBe('3/1/E/2-7');
+            });
+
+            it('goes back to the sample when another company opens', async () => {
+                vi.stubGlobal('fetch', respond(200, ROLLCALL));
+                const wrapper = real();
+
+                await pick(wrapper, '7');
+                await wrapper.setProps({ company: 2, previewSections: [] });
+
+                expect(wrapper.get('[data-testid="template-preview-post"] strong').text()).toBe('1/E/2-7');
+                expect(wrapper.find('[data-testid="template-preview-with"]').exists()).toBe(false);
+            });
+        });
     });
 
     it('shows the placeholder reference to a non-Admin too, since they read the template', () => {

@@ -55,6 +55,7 @@ use App\Repositories\TrooperRepository;
 use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
+use App\Rollcall\RollcallRoster;
 use App\Rollcall\TemplateResolver;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
@@ -121,6 +122,7 @@ class RollcallController extends Controller
         private readonly TemplateResolver $templates,
         private readonly LoaCoverage $loaCoverage,
         private readonly LoaProvenance $loaProvenance,
+        private readonly RollcallRoster $roster,
     ) {}
 
     /**
@@ -176,7 +178,7 @@ class RollcallController extends Controller
         }
 
         return Inertia::render('Rollcall', [
-            'section' => $this->sectionProps($section, $sections),
+            'section' => $this->roster->section($section, $sections),
             'sections' => $this->pickerOptions($sections, $weekStart),
             'week' => $this->weekProps($weekStart, $currentWeek),
             // Whether this viewer may mark, confirm or post here: command authority, not a staff grant, which only
@@ -582,6 +584,8 @@ class RollcallController extends Controller
     }
 
     /**
+     * The picker's sections ({@see RollcallRoster::options()}), each with where its rollcall stands for the week.
+     *
      * @param  Collection<int, Unit>  $sections
      * @return list<array<string, mixed>>
      */
@@ -598,14 +602,11 @@ class RollcallController extends Controller
         ));
         $progress = $this->attendance->weekProgress($ids, $weekStart, $covered);
 
-        return $sections->map(function (Unit $section) use ($progress) {
-            $week = $progress->get($section->id);
+        return array_map(function (array $option) use ($progress) {
+            $week = $progress->get($option['id']);
 
             return [
-                'id' => $section->id,
-                'designation' => $section->callsign ?? $section->name,
-                'name' => $section->name,
-                'platoon' => $section->parent ? ($section->parent->callsign ?? $section->parent->name) : null,
+                ...$option,
                 'progress' => [
                     'strength' => $week?->strength ?? 0,
                     'onLoa' => $week?->onLoa ?? 0,
@@ -615,39 +616,18 @@ class RollcallController extends Controller
                     'posted' => $week?->postedAt !== null,
                 ],
             ];
-        })->values()->all();
+        }, $this->roster->options($sections));
     }
 
     /**
-     * @param  Collection<int, Unit>  $sections
-     * @return array<string, mixed>
-     */
-    private function sectionProps(Unit $section, Collection $sections): array
-    {
-        $parent = $sections->firstWhere('id', $section->id)?->parent;
-
-        return [
-            'id' => $section->id,
-            'designation' => $section->callsign ?? $section->name,
-            'name' => $section->name,
-            'platoon' => $parent ? ($parent->callsign ?? $parent->name) : null,
-        ];
-    }
-
-    /**
+     * {@see RollcallRoster::week()}, plus whether the week is older than the week floor.
+     *
      * @return array<string, mixed>
      */
     private function weekProps(CarbonImmutable $weekStart, CarbonImmutable $currentWeek): array
     {
         return [
-            // Saturday 00:00 UTC (AD-11); the rollcall thread's signatures close the Friday after.
-            'start' => $weekStart->toIso8601String(),
-            'date' => $weekStart->toDateString(),
-            'closes' => $weekStart->addWeek()->subMinute()->toIso8601String(),
-            'isCurrent' => $weekStart->equalTo($currentWeek),
-            'previous' => $weekStart->subWeek()->toDateString(),
-            'next' => $weekStart->lessThan($currentWeek) ? $weekStart->addWeek()->toDateString() : null,
-            'current' => $currentWeek->toDateString(),
+            ...$this->roster->week($weekStart, $currentWeek),
             // Older than the week floor: shown read-only, every write for it is refused.
             'beforeFloor' => WeekOf::isBeforeFloor($weekStart),
         ];
@@ -657,57 +637,37 @@ class RollcallController extends Controller
      * The section's troopers with this week's marks, last week's practice marks (the pre-fill
      * suggestion, 3.7), each trooper's leave for the week from `LoaCoverage` (3.4, 4.4), the at-risk
      * flags from the shared KPI service (AD-21), and when the roster and the leave data they come
-     * from were last synced (AD-20).
+     * from were last synced (AD-20). The rows come from {@see RollcallRoster}, which the template
+     * editor's preview of a real section reads too; the leave and the attendance strip are added here.
      *
      * @return array<string, mixed>
      */
     private function rosterProps(Unit $section, CarbonImmutable $weekStart, CarbonImmutable $currentWeek): array
     {
-        $practice = $this->practices->find($section->id, $weekStart);
-        $marks = $practice ? $this->attendance->forPractice($practice)->keyBy('trooper_id') : collect();
-
-        $priorPractice = $this->practices->find($section->id, $weekStart->subWeek());
-        $prior = $priorPractice
-            ? $this->attendance->forPractice($priorPractice)->filter(fn (Attendance $row) => $row->status !== null)->keyBy('trooper_id')
-            : collect();
-
-        $roster = $this->troopers->placedIn($section->id);
-        $history = $this->history($section, $roster->pluck('id'), $weekStart);
+        $week = $this->roster->forWeek($section, $weekStart);
+        $practice = $week->practice;
+        $trooperIds = array_column($week->troopers, 'id');
+        $history = $this->history($section, collect($trooperIds), $weekStart);
         $lastSync = $this->rosterSync->current();
         // The one LOA definition (4.4, AD-21), the same the Command refuses a practice mark by: a covered trooper's
         // status is derived as `loa`, so the screen locks the row and never sends one for them (3.4).
-        $covers = $this->loaCoverage->forTroopers($roster->modelKeys(), $weekStart);
+        $covers = $this->loaCoverage->forTroopers($trooperIds, $weekStart);
 
         return [
-            'troopers' => $roster->map(fn (Trooper $trooper) => [
-                'id' => $trooper->id,
-                'cavId' => $trooper->cav_id,
-                // The synced forum identity (2.10): `rankShort` + `name` render as `displayName`
-                // ("SGT Vasquez.R", "SGT #1234" until the username syncs).
-                'rank' => $trooper->rank,
-                'rankShort' => $trooper->rank_short,
-                // The synced rank insignia (an https URL on 7cav.us, or null), printed by the template's `{{rank_icon}}`.
-                'rankIcon' => $trooper->rank_image_url,
-                'name' => $trooper->username,
-                'displayName' => $trooper->display_name,
-                'rollcall' => $marks->get($trooper->id)?->rollcall->value ?? 'unsigned',
-                'status' => $marks->get($trooper->id)?->status?->value,
-                'source' => $marks->get($trooper->id)?->source?->value,
-                'priorStatus' => $prior->get($trooper->id)?->status->value,
+            'troopers' => array_map(fn (array $row) => [
+                ...$row,
                 // `LoaCover::toArray()` for a trooper with leave this week (covered or needs review), the badge's
                 // shape; null with none. A leave that needs review derives no status, so that row stays markable.
-                'loa' => $covers[$trooper->id]->suppressesAtRisk() ? $covers[$trooper->id]->toArray() : null,
-                // The Cav join date, so a week before it reads "not in the unit yet" as on the roster matrix.
-                'joined' => $trooper->tis?->toDateString(),
-                'history' => $history[$trooper->id],
-            ])->sortBy(fn (array $row) => mb_strtolower($row['name'] ?? "~{$row['cavId']}"))->values()->all(),
-            'priorWeekMarked' => $prior->isNotEmpty(),
+                'loa' => $covers[$row['id']]->suppressesAtRisk() ? $covers[$row['id']]->toArray() : null,
+                'history' => $history[$row['id']],
+            ], $week->troopers),
+            'priorWeekMarked' => $week->priorWeekMarked,
             // Where the leave data comes from and how fresh it is (4.3, AD-20), shown with every LOA badge.
             'loaSync' => $this->loaProvenance->current()->toArray(),
             // The section's real report for the week was sent (AD-12): the rollcall is read-only.
             // A draft, no report, or a generated demo report (#115) leaves it open.
             'locked' => $this->reports->isSentFor($section->id, $weekStart),
-            'weekStatus' => $this->weekStatus($section, $currentWeek, $roster->modelKeys()),
+            'weekStatus' => $this->weekStatus($section, $currentWeek, $trooperIds),
             'atRisk' => $this->atRisk($section, $weekStart),
             'roster' => [
                 'source' => $lastSync->source,
@@ -716,7 +676,7 @@ class RollcallController extends Controller
             ...$this->captureProps($practice),
             'telemetry' => $this->telemetryProps($section->id, $practice),
             'practice' => [
-                'lastMarkedAt' => $marks->max(fn (Attendance $row) => $row->updated_at)?->toIso8601String(),
+                'lastMarkedAt' => $week->marks->max(fn (Attendance $row) => $row->updated_at)?->toIso8601String(),
                 'posted' => $this->postedProps($practice),
                 'confirmation' => $this->confirmationProps($practice),
             ],

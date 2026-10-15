@@ -2,13 +2,22 @@
 
 use App\Commands\Templates\AuthorTemplateVersion;
 use App\Models\ArtifactType;
+use App\Models\Attendance;
+use App\Models\AttendanceSource;
+use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
+use App\Models\PortalRoleGrant;
+use App\Models\RollcallSignature;
+use App\Models\SectionPractice;
 use App\Models\TemplateVersion;
+use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\TemplateVersionRepository;
 use App\Rollcall\TemplateSyntax;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Carbon;
 
 // Story 3.5: the Admin template screen. Viewing is open; every write is Admin-only on the server (AD-6, AD-16, AD-17).
 
@@ -17,6 +26,14 @@ beforeEach(function () {
     $this->admin = User::factory()->admin()->create();
     $this->repo = app(TemplateVersionRepository::class);
 });
+
+function previewTrooper(Unit $section, array $attributes = []): Trooper
+{
+    $trooper = Trooper::factory()->create($attributes);
+    $trooper->forceFill(['primary_section_id' => $section->id])->save();
+
+    return $trooper;
+}
 
 function authorTemplate($test, string $body, ?Unit $company = null): TemplateVersion
 {
@@ -202,5 +219,93 @@ describe('making an older version active', function () {
 
     it('answers a version that does not exist with 404', function () {
         $this->actingAs($this->admin)->post('/settings/templates/999999/activate', ['reason' => 'why'])->assertNotFound();
+    });
+});
+
+describe('previewing with a real section', function () {
+    beforeEach(function () {
+        // Thursday 08Oct26, inside the Cav week that opened Saturday 03Oct26.
+        Carbon::setTestNow(CarbonImmutable::parse('2026-10-08 16:20:00', 'UTC'));
+
+        $this->alpha = Unit::factory()->create(['type' => UnitType::Company, 'name' => 'Alpha Company', 'callsign' => 'A/1-7', 'path' => '800/']);
+        $this->platoon = Unit::factory()->create(['type' => UnitType::Platoon, 'parent_id' => $this->alpha->id, 'name' => '1st Platoon', 'callsign' => '1/A/1-7', 'path' => '800/801/']);
+        $this->section = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'name' => '2nd Section', 'callsign' => '2/1/A/1-7', 'path' => '800/801/802/']);
+        $this->sibling = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'name' => '3rd Section', 'callsign' => '3/1/A/1-7', 'path' => '800/801/803/']);
+
+        $this->bravo = Unit::factory()->create(['type' => UnitType::Company, 'name' => 'Bravo Company', 'callsign' => 'B/1-7', 'path' => '810/']);
+        $this->elsewhere = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->bravo->id, 'name' => '1st Section', 'callsign' => '1/1/B/1-7', 'path' => '810/811/']);
+
+        $this->leader = User::factory()->serving()->create();
+        PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
+    });
+
+    it('offers an Admin every section under the company', function () {
+        $this->actingAs($this->admin)->get('/settings/templates?company='.$this->alpha->id)->assertInertia(fn ($page) => $page
+            ->where('previewSections', [
+                ['id' => $this->section->id, 'designation' => '2/1/A/1-7', 'name' => '2nd Section', 'platoon' => '1/A/1-7'],
+                ['id' => $this->sibling->id, 'designation' => '3/1/A/1-7', 'name' => '3rd Section', 'platoon' => '1/A/1-7'],
+            ]));
+    });
+
+    it('offers anyone else only the sections under the company in their scope', function () {
+        $this->actingAs($this->leader)->get('/settings/templates?company='.$this->alpha->id)->assertInertia(fn ($page) => $page
+            ->has('previewSections', 1)
+            ->where('previewSections.0.id', $this->section->id));
+
+        $this->actingAs($this->leader)->get('/settings/templates?company='.$this->bravo->id)->assertInertia(fn ($page) => $page
+            ->where('previewSections', []));
+    });
+
+    it('answers the section, this week and the same trooper rows the rollcall page sends', function () {
+        $signed = previewTrooper($this->section, ['rank' => 'Sergeant', 'rank_short' => 'SGT', 'username' => 'Vasquez.R', 'rank_image_url' => 'https://7cav.us/data/roster_ranks/0/12.jpg']);
+        previewTrooper($this->section, ['rank_short' => 'PVT', 'username' => 'Lowe.K']);
+        previewTrooper($this->sibling, ['username' => 'Other.S']);
+        $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC')]);
+        Attendance::factory()->create([
+            'trooper_id' => $signed->id, 'section_practice_id' => $practice->id,
+            'status' => AttendanceStatus::Present, 'source' => AttendanceSource::Manual, 'rollcall' => RollcallSignature::WillAttend,
+        ]);
+
+        $rollcall = null;
+        $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")->assertInertia(function ($page) use (&$rollcall) {
+            $rollcall = $page->toArray()['props'];
+        });
+
+        $this->actingAs($this->leader)->getJson("/settings/templates/preview/{$this->section->id}?company={$this->alpha->id}")
+            ->assertOk()
+            ->assertExactJson([
+                'section' => $rollcall['section'],
+                'week' => $rollcall['week'],
+                'troopers' => $rollcall['troopers'],
+            ])
+            ->assertJsonPath('section.designation', '2/1/A/1-7')
+            ->assertJsonPath('week.date', '2026-10-03')
+            ->assertJsonCount(2, 'troopers')
+            ->assertJsonPath('troopers.1.name', 'Vasquez.R')
+            ->assertJsonPath('troopers.1.status', 'present')
+            ->assertJsonPath('troopers.1.rollcall', 'will_attend')
+            ->assertJsonPath('troopers.1.rankIcon', 'https://7cav.us/data/roster_ranks/0/12.jpg');
+    });
+
+    it('refuses a section outside the viewer\'s scope with 403, as the rollcall page does', function () {
+        $this->actingAs($this->leader)->getJson("/settings/templates/preview/{$this->sibling->id}?company={$this->alpha->id}")->assertForbidden();
+    });
+
+    it('answers 404 for a section under another company, a unit that is not a section, or a company that is not one', function (string $unit, string $company) {
+        $ids = ['section' => $this->section->id, 'elsewhere' => $this->elsewhere->id, 'platoon' => $this->platoon->id, 'alpha' => $this->alpha->id, 'bravo' => $this->bravo->id];
+
+        $this->actingAs($this->admin)->getJson("/settings/templates/preview/{$ids[$unit]}?company={$ids[$company]}")->assertNotFound();
+    })->with([
+        'section of another company' => ['elsewhere', 'alpha'],
+        'a platoon' => ['platoon', 'alpha'],
+        'a company id that is a section' => ['section', 'section'],
+    ]);
+
+    it('requires the company being edited', function () {
+        $this->actingAs($this->admin)->getJson("/settings/templates/preview/{$this->section->id}")->assertUnprocessable();
+    });
+
+    it('requires authentication', function () {
+        $this->get("/settings/templates/preview/{$this->section->id}?company={$this->alpha->id}")->assertRedirect(route('login'));
     });
 });
