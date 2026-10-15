@@ -34,6 +34,14 @@ final readonly class CavDesignation
         'Z' => 'Zulu',
     ];
 
+    /**
+     * Companies whose name doesn't follow the NATO letter, by callsign. B/ACD is a WW2 unit and is
+     * called Baker Company; the rest of the ACD uses the NATO names like every other battalion.
+     */
+    private const NAMED_COMPANIES = [
+        'B/ACD' => 'Baker Company',
+    ];
+
     private function __construct(
         public UnitType $type,
         public ?string $battalion = null,
@@ -155,7 +163,7 @@ final readonly class CavDesignation
         return match ($this->type) {
             UnitType::Regiment => self::REGIMENT_NAME,
             UnitType::Battalion => self::battalionName($this->battalion),
-            UnitType::Company => (self::NATO[$this->company] ?? $this->company).' Company',
+            UnitType::Company => self::NAMED_COMPANIES[$this->callsign()] ?? (self::NATO[$this->company] ?? $this->company).' Company',
             UnitType::Platoon => self::ordinal($this->platoon).' Platoon',
             UnitType::Section => self::ordinal($this->section).' Section',
         };

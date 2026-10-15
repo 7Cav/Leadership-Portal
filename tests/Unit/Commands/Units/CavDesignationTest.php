@@ -27,7 +27,10 @@ it('recognises a line-company group and names its battalion and company', functi
     ['A/1-7', '1-7', '1st Battalion', 'Alpha Company'],
     ['E/2-7', '2-7', '2nd Battalion', 'Echo Company'],
     ['C/3-7', '3-7', '3rd Battalion', 'Charlie Company'],
-    ['B/ACD', 'ACD', 'Auxiliary Combat Detachment', 'Bravo Company'],
+    // B/ACD is a WW2 unit called Baker Company; the rest of the ACD keeps the NATO names.
+    ['B/ACD', 'ACD', 'Auxiliary Combat Detachment', 'Baker Company'],
+    ['A/ACD', 'ACD', 'Auxiliary Combat Detachment', 'Alpha Company'],
+    ['C/ACD', 'ACD', 'Auxiliary Combat Detachment', 'Charlie Company'],
     ['D/DEVCOM', 'DEVCOM', 'DEVCOM', 'Delta Company'],
     ['A/11-7', '11-7', '11th Battalion', 'Alpha Company'],
 ]);
