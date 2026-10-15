@@ -28,7 +28,18 @@ describe('BbcodePreview', () => {
         expect(wrapper.get('table td').text()).toBe('Jay.JH');
         const img = wrapper.get('td img');
         expect(img.attributes()).toMatchObject({ src: 'https://7cav.us/data/roster_ranks/0/18.jpg', loading: 'lazy', alt: '', referrerpolicy: 'no-referrer' });
+        // A known rank insignia sits in a fixed 18px square, scaled and offset so the insignia is centred in it.
+        const box = wrapper.get('td [data-rank-insignia]');
+        expect(box.attributes('style')).toContain('width: 18px');
+        expect(box.attributes('style')).toContain('height: 18px');
+        expect(img.attributes('style')).toMatch(/left: -?[\d.]+px/);
+    });
+
+    it('keeps any other image in a cell row-sized', () => {
+        const img = draw('[TABLE][TR][TD][IMG]https://7cav.us/styles/7cav/xenforo/cav_logo.png[/IMG][/TD][/TR][/TABLE]').get('td img');
+
         expect(img.classes()).toContain('max-h-10');
+        expect(img.element.closest('[data-rank-insignia]')).toBeNull();
     });
 
     it('opens links in a new tab with no referrer or opener', () => {

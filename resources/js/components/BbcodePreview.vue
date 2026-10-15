@@ -1,6 +1,7 @@
 <script>
 import { computed, defineComponent, h } from 'vue';
 import { parseBbcode } from '@/lib/bbcodeRender';
+import { INSIGNIA_BOX, insigniaPlacement } from '@/lib/rankInsignia';
 
 // A BBCode post drawn as the forum shows it (rollcall review step, Settings > Templates). `lib/bbcodeRender.js` reads the
 // BBCode into a tree and this turns the tree into elements with `h()`: every piece of text is a text node and every
@@ -31,7 +32,20 @@ function draw(nodes, inCell) {
         if (node.type === 'quote-by') return h('p', { class: 'mb-1 text-xs font-semibold text-muted-foreground' }, node.text);
 
         if (node.kind === 'img') {
-            // A rank insignia is about 30 by 38 pixels; in a cell it keeps that size, elsewhere an image may be larger.
+            // A known rank insignia is drawn in a fixed square at the same visual weight as every other rank, centred on
+            // the insignia rather than on its file's padding (`lib/rankInsignia.js`).
+            const place = insigniaPlacement(node.attrs.src);
+            if (place) {
+                return h('span', { class: 'relative inline-block shrink-0 overflow-hidden align-middle', style: { width: `${INSIGNIA_BOX}px`, height: `${INSIGNIA_BOX}px` }, 'data-rank-insignia': '' }, [
+                    h('img', {
+                        ...node.attrs,
+                        class: 'absolute max-w-none',
+                        style: { width: `${place.width}px`, height: `${place.height}px`, left: `${place.left}px`, top: `${place.top}px` },
+                    }),
+                ]);
+            }
+
+            // Any other image keeps its proportions; in a cell it stays row-sized, elsewhere it may be larger.
             const size = inCell ? 'max-h-10' : 'max-h-64';
 
             return h('img', { ...node.attrs, class: `inline-block max-w-full align-middle ${size}` });
