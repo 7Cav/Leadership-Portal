@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import { nextTick, reactive } from 'vue';
 import Templates from '../Templates.vue';
+import { FILTERS, LISTS, ROW_FLAGS, ROW_STRINGS, TOP_STRINGS } from '@/lib/bbcode';
 
 const post = vi.fn();
 const toastError = vi.fn();
@@ -41,12 +42,6 @@ const COMPANIES = [
 const VERSION_2 = { id: 22, version: 2, body: '[B]second[/B]', createdAt: '2026-10-08T09:30:00+00:00', createdBy: 'Pike.S' };
 const VERSION_1 = { id: 21, version: 1, body: '[B]first[/B]', createdAt: '2026-10-01T09:30:00+00:00', createdBy: 'Pike.S' };
 
-const SYNTAX = {
-    values: ['unit', 'week'],
-    rowValues: ['n', 'name'],
-    rowFlags: ['sp_present', 'rc_yes'],
-    filters: ['upper', 'lower'],
-};
 const STARTER = '[B]{{unit}}[/B]{{#troopers}}{{name}}{{/troopers}}';
 
 const props = (overrides = {}) => ({
@@ -56,7 +51,6 @@ const props = (overrides = {}) => ({
     active: VERSION_2,
     history: [{ ...VERSION_2, isActive: true }, { ...VERSION_1, isActive: false }],
     maxBodyLength: 20000,
-    syntax: SYNTAX,
     starter: STARTER,
     isAdmin: true,
     ...overrides,
@@ -348,14 +342,35 @@ describe('Settings/Templates', () => {
         expect(page().find('[data-testid="use-starter"]').exists()).toBe(false);
     });
 
-    it('lists every placeholder the server accepts, so an Admin does not have to guess', () => {
-        const wrapper = page();
+    describe('the legend of template codes', () => {
+        const groups = [
+            ['values', TOP_STRINGS, (name) => `{{${name}}}`],
+            ['lists', LISTS, (name) => `{{#${name}}}...{{/${name}}}`],
+            ['rowValues', ROW_STRINGS, (name) => `{{${name}}}`],
+            ['rowFlags', ROW_FLAGS, (name) => `{{#${name}}}...{{/${name}}}`],
+            ['filters', FILTERS, (name) => `{{value|${name}}}`],
+        ];
 
-        expect(wrapper.get('[data-testid="syntax-values"]').text()).toContain('{{unit}}');
-        expect(wrapper.get('[data-testid="syntax-values"]').text()).toContain('{{week}}');
-        expect(wrapper.get('[data-testid="syntax-row-values"]').text()).toContain('{{name}}');
-        expect(wrapper.get('[data-testid="syntax-row-flags"]').text()).toContain('{{#sp_present}}...{{/sp_present}}');
-        expect(wrapper.get('[data-testid="syntax-help"]').text()).toContain('{{name|upper}}');
+        it.each(groups)('lists every code in the %s group the parser accepts, each with a meaning and an example', (key, names, code) => {
+            const group = page().get(`[data-testid="legend-${key}"]`);
+            const entries = group.findAll('[data-testid^="legend-entry-"]');
+
+            expect(entries.map((entry) => entry.attributes('data-testid'))).toEqual(names.map((name) => `legend-entry-${name}`));
+            for (const [index, name] of names.entries()) {
+                const entry = entries[index];
+                expect(entry.get('dt').text()).toBe(code(name));
+                const [meaning, example] = entry.get('dd').text().split('Example:');
+                expect(meaning.trim()).toMatch(/^[A-Z].{5,}\.$/);
+                expect(example.trim()).not.toBe('');
+            }
+        });
+
+        it('explains the rank icon and shows how to print it only when Cav has one', () => {
+            const entry = page().get('[data-testid="legend-entry-rank_icon"]');
+
+            expect(entry.text()).toContain('rank insignia');
+            expect(entry.text()).toContain('{{#rank_icon}}[IMG]{{rank_icon}}[/IMG]{{/rank_icon}}');
+        });
     });
 
     it('shows the placeholder reference to a non-Admin too, since they read the template', () => {

@@ -44,11 +44,8 @@ describe('viewing', function () {
             ->where('history.1.isActive', false));
     });
 
-    it('sends the placeholders an Admin may write and a starter template', function () {
+    it('sends a starter template', function () {
         $this->actingAs($this->admin)->get('/settings/templates')->assertInertia(fn ($page) => $page
-            ->where('syntax.values', TemplateSyntax::TOP_STRINGS)
-            ->where('syntax.rowFlags', TemplateSyntax::ROW_FLAGS)
-            ->where('syntax.filters', ['upper', 'lower'])
             ->where('starter', TemplateSyntax::STARTER));
     });
 

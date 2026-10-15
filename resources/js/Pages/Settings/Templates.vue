@@ -11,6 +11,7 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { templateLegend } from '@/lib/bbcode';
 import { useViewAs } from '@/composables/useViewAs';
 import EmptyState from '@/components/EmptyState.vue';
 import { toast } from 'vue-sonner';
@@ -31,8 +32,7 @@ const props = defineProps({
     active: { type: Object, default: null },
     history: { type: Array, required: true },
     maxBodyLength: { type: Number, required: true },
-    // The names a template may use, and a template to start from (Story 3.10).
-    syntax: { type: Object, required: true },
+    // A template to start from (Story 3.10).
     starter: { type: String, required: true },
     isAdmin: { type: Boolean, required: true },
 });
@@ -127,12 +127,12 @@ const toggleView = (version) => {
     viewing.value = viewing.value === version.id ? null : version.id;
 };
 
-// The placeholders as an Admin types them. They are built here because Vue's own template syntax would read the double
-// braces inside a template string as the end of an interpolation.
-const tag = (name) => `{{${name}}}`;
-const flagBlock = (name) => `{{#${name}}}...{{/${name}}}`;
-const filterTag = (filter) => `{{name|${filter}}}`;
-const EXAMPLES = { print: tag('name'), loop: '{{#troopers}} ... {{/troopers}}', inverted: '{{^name}}...{{/name}}', empty: '{{^troopers}}' };
+// Every code the template language accepts, grouped, with what it means and an example (Story 3.10). It is built from the
+// lists the parser itself reads (`lib/bbcode.js`, held to the server's by the shared cases), so it cannot list a code
+// the save would refuse or miss one it accepts. The codes are strings here because Vue's own template syntax would read
+// double braces written in the markup as an interpolation.
+const legend = templateLegend();
+const EXAMPLES = { print: '{{name}}', loop: '{{#troopers}}...{{/troopers}}', inverted: '{{^name}}...{{/name}}' };
 
 // Fills the editor with the starter, only when an Admin asks, so nobody saves it unread.
 function useStarter() {
@@ -223,32 +223,31 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
 
                     <pre v-else-if="active" class="overflow-x-auto rounded-md border border-border bg-muted/30 p-3 font-mono text-xs whitespace-pre-wrap" data-testid="template-readonly">{{ active.body }}</pre>
 
-                    <details class="mt-4 rounded-md border border-border bg-muted/20 p-3 text-xs" data-testid="syntax-help">
-                        <summary class="cursor-pointer font-medium">Placeholders you can use</summary>
-                        <div class="mt-2 space-y-2 text-muted-foreground">
-                            <p>
-                                Write the BBCode as normal. <code class="font-mono">{{ EXAMPLES.print }}</code> prints a value, and
-                                <code class="font-mono">{{ EXAMPLES.loop }}</code> repeats for each trooper. A name that is not on these lists is refused when
-                                you save.
-                            </p>
-                            <p data-testid="syntax-values">
-                                <span class="font-medium text-foreground">Anywhere:</span>
-                                <code v-for="name in syntax.values" :key="name" class="mr-1.5 font-mono">{{ tag(name) }}</code>
-                            </p>
-                            <p data-testid="syntax-row-values">
-                                <span class="font-medium text-foreground">Inside a trooper block, print:</span>
-                                <code v-for="name in syntax.rowValues" :key="name" class="mr-1.5 font-mono">{{ tag(name) }}</code>
-                            </p>
-                            <p data-testid="syntax-row-flags">
-                                <span class="font-medium text-foreground">Inside a trooper block, show only when set:</span>
-                                <code v-for="name in syntax.rowFlags" :key="name" class="mr-1.5 font-mono">{{ flagBlock(name) }}</code>
-                            </p>
-                            <p>
-                                <code class="font-mono">{{ EXAMPLES.inverted }}</code> shows when it is not set, for example
-                                <code class="font-mono">{{ EXAMPLES.empty }}</code> for an empty section. Filters:
-                                <code v-for="filter in syntax.filters" :key="filter" class="mr-1.5 font-mono">{{ filterTag(filter) }}</code>
-                            </p>
-                        </div>
+                    <details open class="mt-4 rounded-md border border-border bg-muted/20 p-3 text-xs" data-testid="syntax-help">
+                        <summary class="cursor-pointer font-medium">Template codes</summary>
+                        <p class="mt-2 text-muted-foreground">
+                            Write the BBCode as normal and put these codes where the week's data goes.
+                            <code class="font-mono">{{ EXAMPLES.print }}</code> prints a value, <code class="font-mono">{{ EXAMPLES.loop }}</code> repeats
+                            for each trooper, and <code class="font-mono">{{ EXAMPLES.inverted }}</code> shows when a value or flag is not set. A code that
+                            is not listed here is refused when you save.
+                        </p>
+                        <section v-for="group in legend" :key="group.key" class="mt-3" :data-testid="`legend-${group.key}`">
+                            <h3 class="font-medium text-foreground">{{ group.title }}</h3>
+                            <dl class="mt-1 divide-y divide-border rounded-md border border-border bg-card">
+                                <div
+                                    v-for="entry in group.entries"
+                                    :key="entry.name"
+                                    class="grid gap-x-3 gap-y-0.5 px-2.5 py-1.5 sm:grid-cols-[minmax(0,13rem)_minmax(0,1fr)]"
+                                    :data-testid="`legend-entry-${entry.name}`"
+                                >
+                                    <dt><code class="font-mono break-all text-foreground">{{ entry.code }}</code></dt>
+                                    <dd class="text-muted-foreground">
+                                        {{ entry.meaning }}.
+                                        <span class="block">Example: <code class="font-mono break-all text-foreground">{{ entry.example }}</code></span>
+                                    </dd>
+                                </div>
+                            </dl>
+                        </section>
                     </details>
                 </Card>
 

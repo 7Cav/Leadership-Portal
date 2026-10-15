@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import cases from '../../../../tests/Fixtures/bbcode-templates.json';
-import { FILTERS, LISTS, ROW_FLAGS, ROW_STRINGS, TOP_STRINGS, inert, parse, render } from '../bbcode';
+import { DESCRIBED, FILTERS, LISTS, ROW_FLAGS, ROW_STRINGS, TOP_STRINGS, inert, parse, render, templateLegend } from '../bbcode';
 
 // Story 3.10. The grammar cases are shared with the server's TemplateSyntax (tests/Fixtures/bbcode-templates.json), so the
 // browser and the server accept and refuse the same templates with the same messages.
@@ -37,6 +37,43 @@ const context = (overrides = {}) => ({
     attended: '1',
     troopers: [row()],
     ...overrides,
+});
+
+describe('the legend of template codes', () => {
+    it('describes every name the parser accepts and nothing else, so the legend cannot drift', () => {
+        expect([...DESCRIBED].sort()).toEqual([...TOP_STRINGS, ...LISTS, ...ROW_STRINGS, ...ROW_FLAGS, ...FILTERS].sort());
+    });
+
+    it('groups the codes as the parser reads them, each with a meaning and an example', () => {
+        const legend = templateLegend();
+
+        expect(legend.map((group) => [group.key, group.entries.map((entry) => entry.name)])).toEqual([
+            ['values', TOP_STRINGS],
+            ['lists', LISTS],
+            ['rowValues', ROW_STRINGS],
+            ['rowFlags', ROW_FLAGS],
+            ['filters', FILTERS],
+        ]);
+        for (const entry of legend.flatMap((group) => group.entries)) {
+            expect(entry.meaning, entry.name).not.toBe('');
+            expect(entry.example, entry.name).not.toBe('');
+        }
+    });
+
+    it('writes each code as a template would, and every example that is a template parses', () => {
+        const codes = Object.fromEntries(templateLegend().flatMap((group) => group.entries.map((entry) => [entry.name, entry])));
+
+        expect(codes.unit.code).toBe('{{unit}}');
+        expect(codes.troopers.code).toBe('{{#troopers}}...{{/troopers}}');
+        expect(codes.rank_icon.code).toBe('{{rank_icon}}');
+        expect(codes.sp_present.code).toBe('{{#sp_present}}...{{/sp_present}}');
+        expect(codes.upper.code).toBe('{{value|upper}}');
+
+        const inRow = new Set([...ROW_STRINGS, ...ROW_FLAGS]);
+        for (const { name, example } of Object.values(codes).filter((entry) => entry.example.includes('{{'))) {
+            expect(parse(inRow.has(name) ? `{{#troopers}}${example}{{/troopers}}` : example), name).toMatchObject({ ok: true });
+        }
+    });
 });
 
 describe('the grammar, against the cases shared with the server', () => {

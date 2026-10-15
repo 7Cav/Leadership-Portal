@@ -22,6 +22,67 @@ export const ROW_STRINGS = ['n', 'rank', 'rank_short', 'rank_icon', 'name', 'dis
 export const ROW_FLAGS = ['sp_present', 'sp_missed', 'sp_makeup', 'sp_attached', 'sp_loa', 'sp_unmarked', 'rc_yes', 'rc_no', 'rc_unsigned'];
 export const FILTERS = ['upper', 'lower'];
 
+// What each name means, and an example: what a value prints, or how a section or filter is written. For the legend on
+// Settings > Templates, which is built from the lists above; a test checks every listed name has an entry here and no
+// entry is left over, so the legend cannot drift from what the parser accepts.
+const MEANINGS = {
+    unit: ["The section's callsign", '1/E/2-7'],
+    unit_name: ["The section's name", '1st Section'],
+    week: ['The Cav week, Saturday to Friday', '16May26 – 22May26'],
+    week_start: ['The Saturday the week starts', '16May26'],
+    week_end: ['The Friday the week ends', '22May26'],
+    count: ['How many troopers are in the section', '8'],
+    signed: ['How many signed the rollcall as will attend', '6'],
+    attended: ['How many were present, made up or attached at practice', '5'],
+    troopers: ['Repeats what is inside once for each trooper. {{^troopers}}...{{/troopers}} shows when the section is empty', '{{#troopers}}{{n}}. {{display_name}}{{/troopers}}'],
+    n: ["The trooper's row number, from 1", '1'],
+    rank: ['The full rank', 'Sergeant'],
+    rank_short: ['The short rank', 'SGT'],
+    rank_icon: ['The rank insignia image from Cav, for an [IMG] tag. Empty when Cav has none, so wrap it in {{#rank_icon}}...{{/rank_icon}}', '{{#rank_icon}}[IMG]{{rank_icon}}[/IMG]{{/rank_icon}}'],
+    name: ['The forum username', 'Jay.JH'],
+    display_name: ['Short rank and username, as the forum names a member', 'SGT Jay.JH'],
+    rc: ['The rollcall answer: Yes or No, empty when unsigned', 'Yes'],
+    sp: ['The practice mark: Yes, No, MU, Att or LOA, empty when not marked', 'MU'],
+    sp_present: ['Present at section practice', '{{#sp_present}}✓{{/sp_present}}'],
+    sp_missed: ['Missed section practice', '{{#sp_missed}}✗{{/sp_missed}}'],
+    sp_makeup: ['Made up a missed practice', '{{#sp_makeup}}MU{{/sp_makeup}}'],
+    sp_attached: ['Trained with another unit, credited to this section', '{{#sp_attached}}ATT{{/sp_attached}}'],
+    sp_loa: ['On leave for the week', '{{#sp_loa}}LOA{{/sp_loa}}'],
+    sp_unmarked: ['No practice mark yet', '{{#sp_unmarked}}-{{/sp_unmarked}}'],
+    rc_yes: ['Signed the rollcall: will attend', '{{#rc_yes}}✓{{/rc_yes}}'],
+    rc_no: ['Signed the rollcall: cannot attend', '{{#rc_no}}✗{{/rc_no}}'],
+    rc_unsigned: ['Has not signed the rollcall', '{{#rc_unsigned}}-{{/rc_unsigned}}'],
+    upper: ['Prints a value in capitals', '{{week|upper}}'],
+    lower: ['Prints a value in lower case', '{{unit|lower}}'],
+};
+
+/** The names the legend describes, so a test can hold them to the lists. */
+export const DESCRIBED = Object.keys(MEANINGS);
+
+/**
+ * Every code the template language accepts, grouped as the parser reads them, each with a one-line meaning and an
+ * example. Built from the same lists as {@link parse}.
+ *
+ * @returns {{key: string, title: string, entries: {name: string, code: string, meaning: string, example: string}[]}[]}
+ */
+export function templateLegend() {
+    const group = (key, title, names, codeOf) => ({
+        key,
+        title,
+        entries: names.map((name) => ({ name, code: codeOf(name), meaning: MEANINGS[name]?.[0] ?? '', example: MEANINGS[name]?.[1] ?? '' })),
+    });
+    const tag = (name) => `{{${name}}}`;
+    const block = (name) => `{{#${name}}}...{{/${name}}}`;
+
+    return [
+        group('values', 'Values, anywhere in the template', TOP_STRINGS, tag),
+        group('lists', 'The trooper list', LISTS, block),
+        group('rowValues', 'Trooper values, inside {{#troopers}}', ROW_STRINGS, tag),
+        group('rowFlags', 'Yes/no flags, inside {{#troopers}}', ROW_FLAGS, block),
+        group('filters', 'Filters, after a value', FILTERS, (name) => `{{value|${name}}}`),
+    ];
+}
+
 // One run of whitespace in each place, so a long run of spaces inside "{{ ... }}" cannot make the match slow.
 const TAG = /\{\{\s*(?:([#^/])\s*)?([a-z_]+)\s*(?:\|\s*([a-z]+)\s*)?\}\}/g;
 
