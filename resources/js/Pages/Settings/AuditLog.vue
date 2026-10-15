@@ -1,6 +1,6 @@
 <script setup>
 import { reactive } from 'vue';
-import { Head, router } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { PhCaretLeft, PhCaretRight, PhListMagnifyingGlass, PhLockSimple } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,17 +14,25 @@ import { forumDateTime } from '@/lib/forumDate';
 
 // Flat entries + option lists (mirrors `StaffGrants.vue`'s flat-props pattern). `entries` is a
 // Laravel paginator serialized as-is — `data` plus the standard pagination metadata — so no
-// reshaping happens here.
+// reshaping happens here. Each entry's `link` (`{ href, label }`, or null) is where to see what it changed, resolved
+// by the server for the whole page at once.
 const props = defineProps({
     entries: { type: Object, required: true },
     filters: { type: Object, required: true },
     actorOptions: { type: Array, required: true },
     actionOptions: { type: Array, required: true },
+    // Every unit in tree order, `[{ id, label, depth }]`: the unit filter keeps the entries about a unit or anything under it.
+    unitOptions: { type: Array, default: () => [] },
 });
+
+// Indents a unit under its parent in the filter's list.
+const INDENT = String.fromCharCode(160).repeat(3);
+const unitOptionLabel = (unit) => `${INDENT.repeat(unit.depth)}${unit.label}`;
 
 const filters = reactive({
     actor_id: props.filters.actor_id ?? null,
     action: props.filters.action ?? null,
+    unit_id: props.filters.unit_id ?? null,
     target_type: props.filters.target_type ?? '',
     target_id: props.filters.target_id ?? '',
     date_from: props.filters.date_from ?? '',
@@ -38,6 +46,7 @@ function applyFilters() {
 function clearFilters() {
     filters.actor_id = null;
     filters.action = null;
+    filters.unit_id = null;
     filters.target_type = '';
     filters.target_id = '';
     filters.date_from = '';
@@ -60,7 +69,7 @@ function goTo(url) {
         <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0">
                 <h1 class="text-xl font-semibold tracking-tight">Audit log</h1>
-                <p class="mt-1 text-[13px] text-muted-foreground">Every audited action, filterable by actor, action, target and date range.</p>
+                <p class="mt-1 text-[13px] text-muted-foreground">Every audited action, filterable by actor, action, unit, target and date range.</p>
             </div>
             <Badge variant="outline" class="gap-1"><PhLockSimple aria-hidden="true" />Admin only</Badge>
         </div>
@@ -68,7 +77,7 @@ function goTo(url) {
         <Card class="min-w-0 gap-0 py-0">
             <form
                 data-testid="filter-form"
-                class="grid gap-3 border-b border-border p-4 sm:grid-cols-3 lg:grid-cols-6"
+                class="grid gap-3 border-b border-border p-4 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7"
                 @submit.prevent="applyFilters"
             >
                 <div class="grid gap-1.5">
@@ -85,6 +94,15 @@ function goTo(url) {
                         <option :value="null">Any action</option>
                         <option v-for="action in actionOptions" :key="action" :value="action">{{ action }}</option>
                     </NativeSelect>
+                </div>
+
+                <div class="grid gap-1.5">
+                    <Label for="filter-unit">Unit</Label>
+                    <NativeSelect id="filter-unit" v-model="filters.unit_id" data-testid="filter-unit_id" aria-describedby="filter-unit-help">
+                        <option :value="null">Any unit</option>
+                        <option v-for="unit in unitOptions" :key="unit.id" :value="unit.id">{{ unitOptionLabel(unit) }}</option>
+                    </NativeSelect>
+                    <span id="filter-unit-help" class="sr-only">Includes every unit under the one chosen.</span>
                 </div>
 
                 <div class="grid gap-1.5">
@@ -128,7 +146,16 @@ function goTo(url) {
                     <TableRow v-for="entry in entries.data" :key="entry.id" :data-testid="`entry-row-${entry.id}`" class="align-top">
                         <TableCell class="px-4 font-medium">{{ entry.actor }}</TableCell>
                         <TableCell class="font-mono text-xs">{{ entry.action }}</TableCell>
-                        <TableCell class="font-mono text-xs">{{ entry.target_type }}#{{ entry.target_id }}</TableCell>
+                        <TableCell class="text-xs">
+                            <Link
+                                v-if="entry.link"
+                                :href="entry.link.href"
+                                class="font-medium text-foreground underline underline-offset-2 hover:decoration-2"
+                                :data-testid="`target-link-${entry.id}`"
+                                >{{ entry.link.label }}</Link
+                            >
+                            <div class="font-mono text-muted-foreground" :class="{ 'mt-0.5': entry.link }">{{ entry.target_type }}#{{ entry.target_id }}</div>
+                        </TableCell>
                         <TableCell class="max-w-[28ch] whitespace-normal">
                             <template v-if="entry.reason">{{ entry.reason }}</template>
                             <span v-else class="text-muted-foreground">None given</span>

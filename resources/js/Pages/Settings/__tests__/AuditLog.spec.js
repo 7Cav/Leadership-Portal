@@ -97,14 +97,56 @@ describe('Settings/AuditLog', () => {
     });
 
     it('resets every filter field and re-applies when Clear is clicked', async () => {
-        const wrapper = makeWrapper({ filters: { actor_id: 10, action: 'unit.created', target_type: 'Unit', target_id: '7', date_from: '2026-05-01', date_to: '2026-05-31' } });
+        const wrapper = makeWrapper({ filters: { actor_id: 10, action: 'unit.created', unit_id: 3, target_type: 'Unit', target_id: '7', date_from: '2026-05-01', date_to: '2026-05-31' } });
 
         await wrapper.find('[data-testid="clear-filters"]').trigger('click');
 
         expect(getSpy).toHaveBeenCalledWith(
             '/settings/audit-log',
-            { actor_id: null, action: null, target_type: '', target_id: '', date_from: '', date_to: '' },
+            { actor_id: null, action: null, unit_id: null, target_type: '', target_id: '', date_from: '', date_to: '' },
             expect.objectContaining({ preserveState: true }),
         );
+    });
+
+    it('links an entry to what it changed, and keeps the raw target beside it', () => {
+        const wrapper = makeWrapper({
+            entries: { ...ENTRIES, data: [{ ...ENTRY, link: { href: '/rollcall/7?week=2026-10-03', label: '2/1/A/1-7 rollcall, week of 03Oct26' } }] },
+        });
+        const link = wrapper.get('[data-testid="target-link-1"]');
+
+        expect(link.element.tagName).toBe('A');
+        expect(link.attributes('href')).toBe('/rollcall/7?week=2026-10-03');
+        expect(link.text()).toBe('2/1/A/1-7 rollcall, week of 03Oct26');
+        expect(wrapper.get('[data-testid="entry-row-1"]').text()).toContain('Unit#7');
+    });
+
+    it('shows only the raw target for an entry with nothing to link to', () => {
+        const wrapper = makeWrapper({ entries: { ...ENTRIES, data: [{ ...ENTRY, link: null }] } });
+
+        expect(wrapper.find('[data-testid="target-link-1"]').exists()).toBe(false);
+        expect(wrapper.get('[data-testid="entry-row-1"]').text()).toContain('Unit#7');
+    });
+
+    it('filters by a unit chosen from the tree, indented under its parent', async () => {
+        const wrapper = makeWrapper({
+            unitOptions: [
+                { id: 1, label: 'A/1-7 Alpha Company', depth: 0 },
+                { id: 2, label: '1/A/1-7 1st Platoon', depth: 1 },
+            ],
+        });
+        const select = wrapper.get('[data-testid="filter-unit_id"]');
+
+        expect(select.findAll('option').map((option) => option.element.textContent)).toEqual(['Any unit', 'A/1-7 Alpha Company', `${String.fromCharCode(160).repeat(3)}1/A/1-7 1st Platoon`]);
+
+        await select.setValue('2');
+        await wrapper.find('[data-testid="filter-form"]').trigger('submit');
+
+        expect(getSpy).toHaveBeenLastCalledWith('/settings/audit-log', expect.objectContaining({ unit_id: 2 }), expect.objectContaining({ preserveState: true }));
+    });
+
+    it('opens with the unit filter it was given', () => {
+        const wrapper = makeWrapper({ filters: { unit_id: 2 }, unitOptions: [{ id: 1, label: 'Alpha', depth: 0 }, { id: 2, label: 'Bravo', depth: 0 }] });
+
+        expect(wrapper.get('[data-testid="filter-unit_id"]').element.value).toBe('2');
     });
 });
