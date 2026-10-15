@@ -3,15 +3,20 @@
 namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
+use App\Kpi\KpiService;
 use App\Milpac\TrooperMilpac;
 use App\Models\Trooper;
+use App\Repositories\UnitRepository;
+use App\Support\Time\WeekOf;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /**
  * One trooper's milpac (Stories 6.3 to 6.7): the page every entry point to a trooper opens. It orchestrates
- * only; what the page shows comes from {@see TrooperMilpac}.
+ * only; what the page shows comes from {@see TrooperMilpac}, and the practices the trooper missed in the KPI
+ * window come from the shared {@see KpiService} (AD-21), the same rows the roster and Home read.
  *
  * Who may see it is decided by the single ScopeResolver (AD-8, AD-6), the same `canSee` gate the roster Sheet
  * uses: a trooper outside the viewer's effective scope answers 404 exactly like an id that does not exist,
@@ -23,6 +28,8 @@ class TrooperDetailController extends Controller
     public function __construct(
         private readonly ScopeResolver $scope,
         private readonly TrooperMilpac $milpac,
+        private readonly UnitRepository $units,
+        private readonly KpiService $kpis,
     ) {}
 
     public function show(Request $request, Trooper $trooper): Response
@@ -31,6 +38,23 @@ class TrooperDetailController extends Controller
 
         abort_unless($this->scope->canSee($user, $trooper), 404);
 
-        return Inertia::render('TrooperDetail', $this->milpac->for($trooper, $this->scope->resolve($user)));
+        return Inertia::render('TrooperDetail', $this->milpac->for($trooper, $this->scope->resolve($user), $this->missedWeeks($trooper)));
+    }
+
+    /**
+     * The weeks the trooper was marked missing a section practice in the current KPI window, oldest first. None
+     * for a trooper the sync has not placed: they have no section practice to miss.
+     *
+     * @return list<string>
+     */
+    private function missedWeeks(Trooper $trooper): array
+    {
+        $section = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
+
+        if ($section === null) {
+            return [];
+        }
+
+        return $this->kpis->trooperAttendance($section, WeekOf::start(CarbonImmutable::now()))->get($trooper->id)?->missedWeeks ?? [];
     }
 }

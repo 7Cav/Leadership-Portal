@@ -301,6 +301,20 @@ it('leaves a week a needs_review LOA may apply to out of both denominators, not 
         ->and($kpis->onLoa)->toBe(0);
 });
 
+it('names the weeks behind the miss count, oldest first, leaving out a week leave covers', function () {
+    $trooper = kpiTrooper($this->sectionA);
+    kpiMark($trooper, $this->sectionA, 0, AttendanceStatus::Missed);
+    kpiMark($trooper, $this->sectionA, 2, AttendanceStatus::Missed);
+    kpiMark($trooper, $this->sectionA, 3, AttendanceStatus::Missed);
+    kpiMark($trooper, $this->sectionA, 1, AttendanceStatus::Present);
+    kpiLeave($trooper, '2026-06-15', '2026-06-16');
+
+    $attendance = $this->kpis->trooperAttendance($this->sectionA, kpiWeek())[$trooper->id];
+
+    expect($attendance->missedWeeks)->toBe(['2026-06-06', '2026-06-27'])
+        ->and($attendance->missed)->toBe(count($attendance->missedWeeks));
+});
+
 it('does not count a miss in a week a cleanly read LOA covers, even with no loa mark on the practice', function () {
     $trooper = kpiTrooper($this->sectionA);
     kpiMark($trooper, $this->sectionA, 3, AttendanceStatus::Missed);

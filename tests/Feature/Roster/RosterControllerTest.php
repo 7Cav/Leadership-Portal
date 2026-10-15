@@ -335,6 +335,18 @@ describe('trooper detail (Sheet)', function () {
             ->assertJsonPath('currentWeek', ROSTER_WEEK);
     });
 
+    it('names the weeks the trooper missed, for the Sheet\'s makeup PM, and none for a departed trooper', function () {
+        $t = rosterTrooper($this->section1);
+        rosterMark($t, $this->section1, 0, AttendanceStatus::Missed);
+        rosterMark($t, $this->section1, 2, AttendanceStatus::Missed);
+        rosterMark($t, $this->section1, 1, AttendanceStatus::Present);
+        $gone = rosterTrooper($this->section1, ['status' => TrooperStatus::Inactive]);
+
+        $this->actingAs($this->leader)->getJson("/roster/troopers/{$t->id}")
+            ->assertJsonPath('trooper.missedWeeks', [rosterWeek(2)->toDateString(), ROSTER_WEEK]);
+        $this->getJson("/roster/troopers/{$gone->id}")->assertJsonPath('trooper.missedWeeks', []);
+    });
+
     it('opens a trooper anywhere in a granted subtree', function () {
         $staff = User::factory()->serving()->create();
         PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $this->platoon1->id]);

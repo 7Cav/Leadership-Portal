@@ -1,10 +1,12 @@
 <script setup>
 import { computed } from 'vue';
-import { Link } from '@inertiajs/vue3';
-import { PhCaretRight, PhCheckCircle, PhFileText, PhUserMinus } from '@phosphor-icons/vue';
+import { Link, usePage } from '@inertiajs/vue3';
+import { PhCaretRight, PhCheckCircle, PhEnvelopeSimple, PhFileText, PhUserMinus } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import EmptyState from '@/components/EmptyState.vue';
+import { makeupPmUrl } from '@/lib/makeupPm';
 
 // The "Needs attention" worklist (Story 5.10): reports holding up the chain and at-risk troopers,
 // each row a link to the screen that resolves it. The server decides what belongs (the shared
@@ -14,6 +16,12 @@ const props = defineProps({
     // `{ items, totals }` from HomeController.
     attention: { type: Object, required: true },
 });
+
+// An at-risk row also offers a makeup PM: a link that opens the forum's own "start conversation" form,
+// pre-filled, for the leader to send there. None for a trooper with no forum username.
+const page = usePage();
+const makeupHref = (item) =>
+    item.kind === 'at_risk' && item.missedWeeks?.length ? makeupPmUrl(page.props.forum?.baseUrl, item.trooper.username, item.missedWeeks) : null;
 
 const holding = computed(() => props.attention.items.filter((item) => item.kind === 'holding'));
 const atRisk = computed(() => props.attention.items.filter((item) => item.kind === 'at_risk'));
@@ -44,10 +52,10 @@ const groups = computed(() =>
                     <span class="tabular-nums">{{ group.total }}</span>
                 </h3>
                 <ul>
-                    <li v-for="item in group.items" :key="item.id">
+                    <li v-for="item in group.items" :key="item.id" class="flex items-start gap-1">
                         <Link
                             :href="item.href"
-                            class="group grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-start gap-x-2.5 rounded-md px-3 py-2.5 transition-colors hover:bg-accent/70 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
+                            class="group grid min-w-0 flex-1 grid-cols-[1.75rem_minmax(0,1fr)_auto] items-start gap-x-2.5 rounded-md px-3 py-2.5 transition-colors hover:bg-accent/70 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
                             :data-item="item.kind"
                         >
                             <span class="grid size-7 place-items-center rounded-md border border-border bg-card text-base" :class="item.kind === 'holding' ? 'text-warning' : 'text-destructive'" aria-hidden="true">
@@ -72,6 +80,19 @@ const groups = computed(() =>
                                 <PhCaretRight class="size-3.5 text-muted-foreground" aria-hidden="true" />
                             </span>
                         </Link>
+                        <!-- A sibling of the row's link, never inside it: one link may not hold another. -->
+                        <Button v-if="makeupHref(item)" as-child variant="ghost" size="icon-sm" class="mt-2 mr-1 flex-none text-muted-foreground">
+                            <a
+                                :href="makeupHref(item)"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="Send makeup PM on the forum"
+                                data-testid="makeup-pm"
+                            >
+                                <PhEnvelopeSimple aria-hidden="true" />
+                                <span class="sr-only">Send makeup PM to {{ item.trooper.displayName }} (opens the forum in a new tab)</span>
+                            </a>
+                        </Button>
                     </li>
                 </ul>
                 <p v-if="group.total > group.items.length" class="px-3 pt-1 pb-1 text-xs text-muted-foreground">

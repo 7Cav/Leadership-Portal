@@ -36,9 +36,10 @@ final class TrooperMilpac
 
     /**
      * @param  Collection<int, int>  $scope  the unit ids the viewer may read, from the ScopeResolver (AD-8)
-     * @return array{crumb: string, trooper: array<string, mixed>, actions: list<array{key: string, label: string, href: string}>, timeline: array<string, mixed>, awards: array{available: bool, items: list<array{name: string, awardedAt: ?string, citation: ?string}>}, courses: array{groups: list<array{status: string, label: string, courses: list<array{code: string, name: string, awardedAt: ?string}>}>, qualified: int, total: int}, sync: array<string, mixed>}
+     * @param  list<string>  $missedWeeks  the weeks the trooper missed a section practice in the KPI window, from the caller
+     * @return array{crumb: string, trooper: array<string, mixed>, actions: list<array{key: string, label: string, href: string}>, makeup: ?array{username: string, missedWeeks: list<string>}, timeline: array<string, mixed>, awards: array{available: bool, items: list<array{name: string, awardedAt: ?string, citation: ?string}>}, courses: array{groups: list<array{status: string, label: string, courses: list<array{code: string, name: string, awardedAt: ?string}>}>, qualified: int, total: int}, sync: array<string, mixed>}
      */
-    public function for(Trooper $trooper, Collection $scope): array
+    public function for(Trooper $trooper, Collection $scope, array $missedWeeks = []): array
     {
         // One clock for the whole page, so the ID block's durations and the timeline's date rules always agree.
         $today = CarbonImmutable::now('UTC');
@@ -54,6 +55,7 @@ final class TrooperMilpac
             'awards' => $awards,
             'timeline' => $this->timeline->build($trooper, $rows, $awards['items'], $today),
             'actions' => $this->actions($section, $scope),
+            'makeup' => $this->makeup($trooper, $section, $scope, $missedWeeks),
             'sync' => $this->sync(),
         ];
     }
@@ -159,8 +161,9 @@ final class TrooperMilpac
     /**
      * The leadership quick actions (Story 6.7): links from the milpac to the rest of the portal, shown only to a
      * viewer whose scope holds the trooper's section. Hiding is cosmetic (AD-6): every target route authorizes the
-     * request itself, so a link typed by hand is refused the same way. Nothing here changes a trooper: messaging,
-     * leave on someone's behalf, medal recommendations and promotions are not read-only and are not offered. A
+     * request itself, so a link typed by hand is refused the same way. Nothing here changes a trooper: leave on
+     * someone's behalf, medal recommendations and promotions are not read-only and are not offered (the makeup PM,
+     * below, only opens the forum's own form). A
      * trooper the sync has not placed in a section has no unit to act on, so has no actions. The platoon readiness
      * matrix (6.9) is offered only to a viewer whose scope holds the platoon above the section, so a section leader
      * does not see a link that would be refused.
@@ -188,6 +191,26 @@ final class TrooperMilpac
         }
 
         return $actions;
+    }
+
+    /**
+     * What the page needs to offer a makeup PM (Command Brief principle 2, "send a makeup PM directly from the
+     * row"): the trooper's forum username and the weeks they missed. The page only opens the forum's own "start
+     * conversation" form, pre-filled, and the leader sends it there; the portal never writes to the forum. Offered
+     * on the same terms as the section actions above (the viewer's scope holds the trooper's section), and only for a
+     * trooper with a forum account who missed a practice in the KPI window.
+     *
+     * @param  Collection<int, int>  $scope
+     * @param  list<string>  $missedWeeks
+     * @return array{username: string, missedWeeks: list<string>}|null
+     */
+    private function makeup(Trooper $trooper, ?Unit $section, Collection $scope, array $missedWeeks): ?array
+    {
+        if ($section === null || ! $scope->contains($section->id) || blank($trooper->username) || $missedWeeks === []) {
+            return null;
+        }
+
+        return ['username' => $trooper->username, 'missedWeeks' => array_values($missedWeeks)];
     }
 
     /**

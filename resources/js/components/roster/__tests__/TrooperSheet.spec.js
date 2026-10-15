@@ -6,6 +6,7 @@ import { CURRENT, trooper, WEEKS } from './fixture';
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
     Link: { props: ['href'], template: '<a :href="href"><slot /></a>' },
+    usePage: () => ({ props: { forum: { baseUrl: 'https://7cav.us' } } }),
 }));
 
 const LINKS = { milpac: 'https://7cav.us/rosters/profile?uniqueid=', rollcall: '/rollcall/', trooper: '/troopers/' };
@@ -124,5 +125,36 @@ describe('Trooper sheet', () => {
 
         expect(globalThis.fetch).not.toHaveBeenCalled();
         expect(document.body.querySelector('[data-testid="trooper-sheet"]')).toBeNull();
+    });
+
+    describe('makeup PM', () => {
+        it('opens the forum\'s own conversation form, pre-filled, in a new tab, for a trooper who missed practices', async () => {
+            respond(200, detail({ missedWeeks: ['2026-09-26', '2026-10-03'] }));
+            factory();
+            await flushPromises();
+
+            const link = document.body.querySelector('[data-testid="sheet-makeup-pm"]');
+            expect(link.getAttribute('href')).toBe('https://7cav.us/conversations/add?to=Reyes.M&title=Section%20practice%20makeup%3A%20weeks%20of%2026Sep26%2C%2003Oct26');
+            expect(link.getAttribute('target')).toBe('_blank');
+            expect(link.getAttribute('rel')).toBe('noopener noreferrer');
+            expect(link.textContent).toContain('Send makeup PM');
+        });
+
+        it('is not offered when the trooper missed nothing in the window', async () => {
+            respond(200, detail({ missedWeeks: [] }));
+            factory();
+            await flushPromises();
+
+            expect(document.body.querySelector('[data-testid="sheet-makeup-pm"]')).toBeNull();
+        });
+
+        it('is not offered for a trooper with no forum username', async () => {
+            respond(200, detail({ name: null, missedWeeks: ['2026-10-03'] }));
+            factory();
+            await flushPromises();
+
+            expect(document.body.querySelector('[data-testid="sheet-makeup-pm"]')).toBeNull();
+            expect(document.body.querySelector('[data-testid="sheet-milpac"]')).not.toBeNull();
+        });
     });
 });

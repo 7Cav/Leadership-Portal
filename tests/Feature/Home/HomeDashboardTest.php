@@ -237,6 +237,7 @@ describe('Needs attention (Story 5.10)', function () {
             ->where('attention.items.2.trooper.displayName', $risky->display_name)
             ->where('attention.items.2.section.designation', '1/1/A/1-7')
             ->where('attention.items.2.missed', 2)
+            ->where('attention.items.2.missedWeeks', [$this->week->subWeek()->toDateString(), $this->week->toDateString()])
             ->where('attention.items.2.windowWeeks', 4)
             ->where('attention.items.2.href', route('roster.index', ['unit' => $this->s11->id, 'trooper' => $risky->id])));
     });

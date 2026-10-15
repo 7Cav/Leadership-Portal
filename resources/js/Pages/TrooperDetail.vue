@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
-import { Head, Link } from '@inertiajs/vue3';
-import { PhArrowLeft, PhArrowSquareOut, PhSignOut, PhWarning } from '@phosphor-icons/vue';
+import { Head, Link, usePage } from '@inertiajs/vue3';
+import { PhArrowLeft, PhArrowSquareOut, PhEnvelopeSimple, PhSignOut, PhWarning } from '@phosphor-icons/vue';
 import InlineNotice from '@/components/InlineNotice.vue';
 import MilpacPanel from '@/components/milpac/MilpacPanel.vue';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { forumDate, forumDateTime } from '@/lib/forumDate';
 import { initialsOf } from '@/lib/initials';
+import { makeupPmUrl } from '@/lib/makeupPm';
 import { trooperStatusOf } from '@/lib/roster';
 
 // One trooper's milpac (Stories 6.3 to 6.7): the ID block from the cached Cav roster, the courses and
@@ -22,10 +23,15 @@ const props = defineProps({
     awards: { type: Object, required: true },
     timeline: { type: Object, required: true },
     actions: { type: Array, required: true },
+    // `{ username, missedWeeks }` when the viewer may send this trooper a makeup PM, else null.
+    makeup: { type: Object, default: null },
     sync: { type: Object, required: true },
 });
 
 const status = computed(() => trooperStatusOf(props.trooper.status));
+// The makeup PM opens the forum's own "start conversation" form, pre-filled; the leader sends it there.
+const page = usePage();
+const makeupHref = computed(() => (props.makeup ? makeupPmUrl(page.props.forum?.baseUrl, props.makeup.username, props.makeup.missedWeeks) : null));
 // The avatar's letters, as the mockup draws them: the surname's first letter and the given initial ("Milkovic.D"
 // is MD).
 const initials = computed(() => initialsOf(props.trooper.username) || '?');
@@ -113,9 +119,14 @@ const staleNotice = computed(() => {
         <InlineNotice v-if="staleNotice" tone="warning" :icon="PhWarning" role="status" data-testid="stale-notice">{{ staleNotice }}</InlineNotice>
 
         <!-- Links the server already limited to this viewer's scope. Hiding one is cosmetic (AD-6): its route authorizes the request itself. -->
-        <nav v-if="actions.length" aria-label="Leadership actions" class="flex flex-wrap items-center gap-2" data-testid="quick-actions">
+        <nav v-if="actions.length || makeupHref" aria-label="Leadership actions" class="flex flex-wrap items-center gap-2" data-testid="quick-actions">
             <Button v-for="action in actions" :key="action.key" as-child variant="outline" size="sm">
                 <Link :href="action.href" :data-testid="`action-${action.key}`">{{ action.label }}</Link>
+            </Button>
+            <Button v-if="makeupHref" as-child variant="outline" size="sm">
+                <a :href="makeupHref" target="_blank" rel="noopener noreferrer" data-testid="action-makeup-pm">
+                    <PhEnvelopeSimple aria-hidden="true" />Send makeup PM<span class="sr-only"> (opens the forum in a new tab)</span>
+                </a>
             </Button>
         </nav>
         <!-- The panels stack in one column. -->

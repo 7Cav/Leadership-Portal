@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\AttendanceSource;
+use App\Models\AttendanceStatus;
 use App\Models\Course;
 use App\Models\CourseStatus;
 use App\Models\PortalRoleGrant;
@@ -12,6 +14,8 @@ use App\Models\Unit;
 use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\AttendanceRepository;
+use App\Repositories\SectionPracticeRepository;
 use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
@@ -537,5 +541,45 @@ describe('the leadership quick actions (6.7)', function () {
 
             expect($route->methods())->toContain('GET')->not->toContain('POST')->not->toContain('PUT')->not->toContain('DELETE');
         }
+    });
+});
+
+describe('the makeup PM (Command Brief principle 2)', function () {
+    // Marks the trooper's SP for the Cav week `$back` weeks before the current one (which starts Saturday 2026-10-03).
+    function milpacMark(Trooper $trooper, Unit $section, int $back, AttendanceStatus $status): void
+    {
+        $practice = app(SectionPracticeRepository::class)->findOrCreate($section->id, CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC')->subWeeks($back));
+        app(AttendanceRepository::class)->markPractice($practice, $trooper->id, $status, AttendanceSource::Manual);
+    }
+
+    it('gives the page the forum username and the missed weeks of a trooper in the viewer\'s section', function () {
+        $trooper = milpacTrooper($this->section1, ['username' => 'Reyes.M']);
+        milpacMark($trooper, $this->section1, 2, AttendanceStatus::Missed);
+        milpacMark($trooper, $this->section1, 1, AttendanceStatus::Present);
+        milpacMark($trooper, $this->section1, 0, AttendanceStatus::Missed);
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page
+            ->where('makeup', ['username' => 'Reyes.M', 'missedWeeks' => ['2026-09-19', '2026-10-03']]));
+    });
+
+    it('offers none for a trooper who missed nothing in the window', function () {
+        $trooper = milpacTrooper($this->section1, ['username' => 'Reyes.M']);
+        milpacMark($trooper, $this->section1, 0, AttendanceStatus::Present);
+        milpacMark($trooper, $this->section1, 4, AttendanceStatus::Missed);
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page->where('makeup', null));
+    });
+
+    it('offers none for a trooper with no forum username to address', function () {
+        $trooper = milpacTrooper($this->section1, ['username' => null]);
+        milpacMark($trooper, $this->section1, 0, AttendanceStatus::Missed);
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page->where('makeup', null));
+    });
+
+    it('offers none for a trooper the sync has not placed', function () {
+        $this->actingAs(User::factory()->admin()->create());
+
+        milpacOpen($this, Trooper::factory()->create(['username' => 'Reyes.M']))->assertInertia(fn ($page) => $page->where('makeup', null));
     });
 });

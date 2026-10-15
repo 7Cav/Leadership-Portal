@@ -62,6 +62,11 @@ class HandleInertiaRequests extends Middleware
             // request (AD-9) — the shell's banner reads it. A stored target that no longer holds
             // is dropped by the resolver, so the banner and the scope never disagree.
             'viewAs' => fn () => $request->user() ? $this->scope->activeViewAs($request->user())?->toArray() : null,
+            // The 7cav.us forum's address, for links that open a forum page (the makeup PM opens the forum's own
+            // "start conversation" form). The portal never writes to the forum; these are plain links.
+            'forum' => [
+                'baseUrl' => rtrim((string) config('services.sevencav.base_url'), '/'),
+            ],
             // Optional tools the shell's navigation shows only when switched on (#115: Settings →
             // Demo data, DEMO_TOOLS=true). Navigation only — each screen enforces its own gate.
             'features' => [

@@ -23,6 +23,10 @@ leader reached the trooper:
   ScopeResolver's unit ids in): open the section roster and open the section in rollcall, only when the scope holds the
   trooper's section. Hiding is cosmetic (AD-6): every target authorizes its own request. Nothing here changes a
   trooper. The platoon readiness matrix (6.9) is offered too, but only when the scope holds the platoon above the section.
+- `makeup`: `{username, missedWeeks}` for the makeup PM, or null. The controller passes in the weeks the trooper
+  missed in the KPI window (from `KpiService`); it is offered on the same scope terms as the section actions, and only
+  for a trooper with a forum username who missed a practice. The page builds a link to the forum's own "start
+  conversation" form from it; the portal never writes to the forum.
 - `sync`: where the ID block came from and how current it is (AD-20): the last successful roster sync, and a stale
   flag when a later run did not succeed.
 

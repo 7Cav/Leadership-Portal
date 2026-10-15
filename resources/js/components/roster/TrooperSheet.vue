@@ -1,13 +1,14 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { Link } from '@inertiajs/vue3';
-import { PhArrowsClockwise, PhArrowSquareOut, PhClipboardText, PhIdentificationCard, PhLockSimple, PhSignOut, PhWarning } from '@phosphor-icons/vue';
+import { Link, usePage } from '@inertiajs/vue3';
+import { PhArrowsClockwise, PhArrowSquareOut, PhClipboardText, PhEnvelopeSimple, PhIdentificationCard, PhLockSimple, PhSignOut, PhWarning } from '@phosphor-icons/vue';
 import InlineNotice from '@/components/InlineNotice.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { forumDate } from '@/lib/forumDate';
+import { makeupPmUrl } from '@/lib/makeupPm';
 import { percentLabel, percentTone, RC_STATES, sourceLabel, SP_STATES, weekCell, weekLabel } from '@/lib/roster';
 import RankBadge from './RankBadge.vue';
 import WeekCell from './WeekCell.vue';
@@ -66,6 +67,13 @@ const cells = computed(() =>
     })),
 );
 const recent = computed(() => cells.value.slice(-8).reverse());
+
+// A trooper who missed a practice in the KPI window can be sent a makeup PM: a link that opens the forum's own
+// "start conversation" form, pre-filled, for the leader to send there. None without a forum username.
+const page = usePage();
+const makeupHref = computed(() =>
+    trooper.value?.missedWeeks?.length ? makeupPmUrl(page.props.forum?.baseUrl, trooper.value.name, trooper.value.missedWeeks) : null,
+);
 
 const FAILURES = {
     forbidden: ['This trooper is outside your scope.', 'You can only open troopers in units you command or were granted.'],
@@ -197,6 +205,11 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                     </Button>
                     <Button as-child variant="outline">
                         <a :href="trooper.milpacUrl" target="_blank" rel="noopener noreferrer" data-testid="sheet-milpac"><PhArrowSquareOut />View on 7cav.us</a>
+                    </Button>
+                    <Button v-if="makeupHref" as-child variant="outline">
+                        <a :href="makeupHref" target="_blank" rel="noopener noreferrer" data-testid="sheet-makeup-pm">
+                            <PhEnvelopeSimple />Send makeup PM<span class="sr-only"> (opens the forum in a new tab)</span>
+                        </a>
                     </Button>
                 </SheetFooter>
             </template>

@@ -8,6 +8,7 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
     // `<Head>` needs a real Inertia app instance; this unit test does not stand one up.
     Head: { template: '<head></head>' },
+    usePage: () => ({ props: { forum: { baseUrl: 'https://7cav.us' } } }),
 }));
 
 const trooper = (overrides = {}) => ({
@@ -410,6 +411,22 @@ describe('TrooperDetail', () => {
 
             expect(row.findAll('button, input, select, textarea, form')).toHaveLength(0);
             expect(row.text()).not.toMatch(/promot|medal|recommend|makeup|submit/i);
+        });
+
+        it('offers a makeup PM that opens the forum\'s own conversation form, pre-filled, in a new tab', () => {
+            const wrapper = page({ actions, makeup: { username: 'Milkovic.D', missedWeeks: ['2026-10-03'] } });
+            const link = wrapper.get('[data-testid="action-makeup-pm"]');
+
+            expect(link.attributes('href')).toBe('https://7cav.us/conversations/add?to=Milkovic.D&title=Section%20practice%20makeup%3A%20week%20of%2003Oct26');
+            expect(link.attributes('target')).toBe('_blank');
+            expect(link.attributes('rel')).toBe('noopener noreferrer');
+            expect(link.text()).toContain('Send makeup PM');
+            expect(link.text()).toContain('opens the forum in a new tab');
+        });
+
+        it('draws the row for a makeup PM alone, and no makeup PM when the server sent none', () => {
+            expect(page({ makeup: { username: 'Milkovic.D', missedWeeks: ['2026-10-03'] } }).find('[data-testid="action-makeup-pm"]').exists()).toBe(true);
+            expect(page({ actions }).find('[data-testid="action-makeup-pm"]').exists()).toBe(false);
         });
     });
 });
