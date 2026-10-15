@@ -45,6 +45,7 @@ use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Models\WeeklyReportStatus;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\CountingMark;
 use App\Repositories\GameIdentityLinkException;
@@ -187,6 +188,7 @@ class RollcallController extends Controller
             // Resolved on every request, never cached, so an Admin's edit or rollback reaches every section under the
             // company on its next load (3.11, AD-17). Marks are data; the template is only how they are written up.
             'template' => $this->templates->forUnit($section)->toArray(),
+            'report' => $this->reportProps($section, $weekStart),
             ...$this->rosterProps($section, $weekStart, $currentWeek),
         ]);
     }
@@ -581,6 +583,21 @@ class RollcallController extends Controller
         }
 
         return $sections->count() === 1 ? $sections->first() : null;
+    }
+
+    /**
+     * The section's report for the week shown, for the deadline banner: when it falls due (AD-11,
+     * `WeekOf::reportDue`), whether it is sent, and where to write it.
+     *
+     * @return array{due: string, sent: bool, href: string}
+     */
+    private function reportProps(Unit $section, CarbonImmutable $weekStart): array
+    {
+        return [
+            'due' => WeekOf::reportDue($weekStart)->toIso8601String(),
+            'sent' => $this->reports->find($section->id, $weekStart)?->status === WeeklyReportStatus::Sent,
+            'href' => route('reports.show', ['unit' => $section->id, 'week' => $weekStart->toDateString()]),
+        ];
     }
 
     /**

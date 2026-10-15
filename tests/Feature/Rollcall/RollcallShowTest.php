@@ -377,6 +377,26 @@ it('gives a user with no sections in scope an empty picker', function () {
         ->assertInertia(fn ($page) => $page->where('section', null)->where('sections', []));
 });
 
+it("gives the deadline banner the shown week's report: when it is due, whether it is sent, and where it is", function () {
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
+        ->assertInertia(fn ($page) => $page->where('report', [
+            'due' => '2026-10-10T23:59:00+00:00',
+            'sent' => false,
+            'href' => route('reports.show', ['unit' => $this->section->id, 'week' => '2026-10-03']),
+        ]));
+
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->week->subWeek()]);
+
+    // On the due Saturday the rollcall opens on the new week, so a past week is asked for by date.
+    $this->travelTo(CarbonImmutable::parse('2026-10-10 20:00:00', 'UTC'));
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
+        ->assertInertia(fn ($page) => $page->where('week.date', '2026-10-10')->where('report.due', '2026-10-17T23:59:00+00:00'));
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}?week=2026-10-03")
+        ->assertInertia(fn ($page) => $page->where('report.due', '2026-10-10T23:59:00+00:00')->where('report.sent', false));
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}?week=2026-09-26")
+        ->assertInertia(fn ($page) => $page->where('report.due', '2026-10-03T23:59:00+00:00')->where('report.sent', true));
+});
+
 it('requires authentication', function () {
     $this->get('/rollcall')->assertRedirect(route('login'));
 });

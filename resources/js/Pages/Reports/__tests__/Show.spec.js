@@ -510,3 +510,27 @@ describe('Reports/Show training topic', () => {
         expect(platoonPage().find('[data-testid="platoon-topic"]').exists()).toBe(false);
     });
 });
+
+describe('Reports/Show deadline banner', () => {
+    it('shows an unsent report due within a day, without a link to the page it is on', () => {
+        vi.useFakeTimers({ now: new Date('2026-10-10T18:30:00Z') });
+        const banner = mountShow().find('[data-testid="report-deadline"]');
+
+        expect(banner.text()).toContain('Report due in 5 h');
+        expect(banner.find('a').exists()).toBe(false);
+    });
+
+    it('says how long an unsent report is overdue', () => {
+        vi.useFakeTimers({ now: new Date('2026-10-12T00:30:00Z') });
+
+        expect(mountShow().find('[data-testid="report-deadline"]').text()).toContain('Report overdue by 24 h');
+    });
+
+    it('hides for a sent report and while more than a day is left', () => {
+        vi.useFakeTimers({ now: new Date('2026-10-10T18:30:00Z') });
+        expect(mountShow({ report: { ...props().report, status: 'sent', sentAt: '2026-10-10T12:00:00+00:00' } }).find('[data-testid="report-deadline"]').exists()).toBe(false);
+
+        vi.setSystemTime(new Date('2026-10-08T16:20:00Z'));
+        expect(mountShow().find('[data-testid="report-deadline"]').exists()).toBe(false);
+    });
+});
