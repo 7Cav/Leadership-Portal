@@ -46,6 +46,10 @@ function makeWrapper(overrides = {}) {
 }
 
 describe('Settings/AuditLog', () => {
+    it('keeps the column headers in view while the log scrolls', () => {
+        expect(makeWrapper().find('[data-slot="table-container"]').attributes('data-sticky-head')).toBeDefined();
+    });
+
     it('renders every entry with a forum-convention timestamp', () => {
         const wrapper = makeWrapper();
 

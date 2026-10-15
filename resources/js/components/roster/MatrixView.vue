@@ -22,6 +22,7 @@ import {
     weekCell,
     weekLabel,
 } from '@/lib/roster';
+import { vStickyHead } from '@/lib/stickyHead';
 import CellLegend from './CellLegend.vue';
 import FilterChips from './FilterChips.vue';
 import FloatingTip from './FloatingTip.vue';
@@ -262,7 +263,7 @@ function clearAll() {
             </div>
         </div>
 
-        <div ref="wrap" class="overflow-auto overscroll-x-contain lg:max-h-[calc(100dvh-15.5rem)]" @keydown="onGridKey">
+        <div ref="wrap" v-sticky-head="'box'" class="overflow-auto overscroll-x-contain lg:[--sticky-box-gap:12.5rem]" @keydown="onGridKey">
             <table class="rm min-w-full border-separate border-spacing-0 text-[13px]" role="grid" aria-labelledby="matrix-title" aria-describedby="roster-legend" :aria-busy="loading || undefined">
                 <thead>
                     <tr>

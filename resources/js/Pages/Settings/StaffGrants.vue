@@ -83,7 +83,7 @@ function requestRevoke(grant) {
                 </div>
                 <p v-if="revokeError" data-testid="revoke-error" role="alert" class="px-4 pb-2 text-xs text-destructive">{{ revokeError }}</p>
 
-                <Table v-if="grants.length" class="text-[13px]">
+                <Table v-if="grants.length" sticky-header class="text-[13px]">
                     <TableHeader>
                         <TableRow class="hover:bg-transparent">
                             <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">User</TableHead>

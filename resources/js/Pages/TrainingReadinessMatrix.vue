@@ -60,11 +60,12 @@ const LEGEND = [
             <TooltipProvider v-else :delay-duration="200">
                 <!-- The table's own scroller is capped in height, so a long unit scrolls inside the card and the sticky course header stays in view; focusable so the keyboard can scroll it. -->
                 <Table
+                    sticky-header="box"
                     role="region"
                     aria-labelledby="matrix-title"
                     tabindex="0"
                     class="border-collapse text-[13px]"
-                    style="max-height: calc(100dvh - 14rem); scrollbar-color: var(--border) transparent; scrollbar-width: thin"
+                    style="--sticky-box-gap: 11rem; scrollbar-color: var(--border) transparent; scrollbar-width: thin"
                 >
                     <TableHeader>
                         <TableRow class="hover:bg-transparent">

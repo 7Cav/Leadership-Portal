@@ -256,7 +256,7 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                     <div class="px-4 pt-3.5 pb-2">
                         <h2 class="text-[15px] font-semibold">Versions</h2>
                     </div>
-                    <Table v-if="history.length" class="text-[13px]">
+                    <Table v-if="history.length" sticky-header class="text-[13px]">
                         <TableHeader>
                             <TableRow class="hover:bg-transparent">
                                 <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">Version</TableHead>

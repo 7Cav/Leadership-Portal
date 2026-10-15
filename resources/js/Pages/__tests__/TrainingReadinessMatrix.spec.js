@@ -49,7 +49,9 @@ describe('TrainingReadinessMatrix', () => {
 
         expect(region.attributes('aria-labelledby')).toBe('matrix-title');
         expect(region.attributes('tabindex')).toBe('0');
-        expect(region.attributes('style')).toContain('max-height');
+        // The shared sticky-header box (lib/stickyHead.js) caps its height below the top bar.
+        expect(region.attributes('data-sticky-head')).toBe('box');
+        expect(region.attributes('style')).toContain('--sticky-box-gap');
         expect(wrapper.get('[data-testid="course-column"]').classes()).toContain('sticky');
         expect(wrapper.get('[data-testid="course-column"]').classes()).toContain('top-0');
         expect(wrapper.get('[data-testid="trooper-row"] th').classes()).toContain('border-r');

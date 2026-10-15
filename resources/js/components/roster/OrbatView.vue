@@ -14,6 +14,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { vStickyHead } from '@/lib/stickyHead';
 import EmptyState from '@/components/EmptyState.vue';
 import {
     aggregateWeek,
@@ -235,7 +236,7 @@ function clearAll() {
 </script>
 
 <template>
-    <section class="overflow-hidden rounded-[10px] border border-border bg-card" aria-label="Order of battle" data-testid="roster-orbat">
+    <section class="overflow-clip rounded-[10px] border border-border bg-card" aria-label="Order of battle" data-testid="roster-orbat">
         <div class="flex flex-wrap items-center gap-2 border-b border-border p-3">
             <div class="relative w-full sm:w-72">
                 <PhMagnifyingGlass class="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
@@ -282,11 +283,11 @@ function clearAll() {
 
         <CellLegend class="border-b border-border" />
 
-        <div ref="table" class="overflow-x-auto">
+        <div ref="table" v-sticky-head class="overflow-x-auto">
             <table class="orbat w-full min-w-[880px] border-separate border-spacing-0 text-[13px]" aria-describedby="orbat-showing" :aria-busy="loading || undefined">
                 <thead>
                     <tr>
-                        <th class="sticky left-0 z-[2]">Trooper</th>
+                        <th class="sticky left-0 z-[4]">Trooper</th>
                         <th>Billet</th>
                         <th>
                             <span class="block">Last 8 weeks</span>
