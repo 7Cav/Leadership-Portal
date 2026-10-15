@@ -183,18 +183,15 @@ function echelonLeader(Unit $commands): User
     return User::factory()->create(['cav_id' => 9001]);
 }
 
-it('lets a leader sync a unit they command, or one beneath it, stamping them as the trigger', function () {
+it('lets a leader sync a unit they command, or one beneath it, stamping them as the trigger', function (string $target) {
     Queue::fake();
     $tree = echelonTree();
     $leader = echelonLeader($tree['platoon']);
 
-    $this->actingAs($leader)->post("/units/{$tree['platoon']->id}/roster-sync")->assertRedirect();
-    $this->travel(UnitRosterSyncController::COOLDOWN_SECONDS)->seconds();
-    $this->actingAs($leader)->post("/units/{$tree['inside']->id}/roster-sync")->assertRedirect();
+    $this->actingAs($leader)->post("/units/{$tree[$target]->id}/roster-sync")->assertRedirect();
 
-    Queue::assertPushed(SyncRosterJob::class, fn (SyncRosterJob $job) => $job->unitId === $tree['platoon']->id && $job->triggeredBy === $leader->id);
-    Queue::assertPushed(SyncRosterJob::class, fn (SyncRosterJob $job) => $job->unitId === $tree['inside']->id);
-});
+    Queue::assertPushed(SyncRosterJob::class, fn (SyncRosterJob $job) => $job->unitId === $tree[$target]->id && $job->triggeredBy === $leader->id);
+})->with(['the unit they command' => 'platoon', 'a unit beneath it' => 'inside']);
 
 it('refuses a leader a unit outside their command, and a plain user any unit', function () {
     Queue::fake();
@@ -232,7 +229,6 @@ it('queues one sync per echelon however often it is clicked, apart from the whol
 
     $this->post("/units/{$tree['inside']->id}/roster-sync")->assertRedirect();
     $this->post("/units/{$tree['inside']->id}/roster-sync")->assertStatus(409);
-    $this->travel(UnitRosterSyncController::COOLDOWN_SECONDS)->seconds();
     $this->post("/units/{$tree['outside']->id}/roster-sync")->assertRedirect();
     $this->post('/settings/roster-sync');
 
@@ -334,15 +330,56 @@ it('accepts one unit sync per cooldown across nested units, so Cav sees a few ro
     expect($accepted)->toBe(2)->and(count($mock->getRecordedResponses()))->toBe(6);
 });
 
-it('holds a leader of another unit to the same cooldown, and accepts their sync once it has passed', function () {
+/** Frees a queued unit sync's unique lock, as the worker does when the job finishes. */
+function finishUnitSync(Unit $unit): void
+{
+    Cache::lock(UniqueLock::getKey(new SyncRosterJob('system', $unit->id)))->forceRelease();
+}
+
+it('treats a unit above or below one pending or synced within the cooldown as the same sync', function () {
+    Queue::fake();
+    $tree = echelonTree();
+    $this->actingAs(echelonLeader($tree['platoon']));
+
+    $this->post("/units/{$tree['inside']->id}/roster-sync")->assertRedirect();
+    // Pending below it.
+    $this->post("/units/{$tree['platoon']->id}/roster-sync")->assertStatus(409);
+
+    finishUnitSync($tree['inside']);
+    // Synced below it a moment ago.
+    $this->post("/units/{$tree['platoon']->id}/roster-sync")->assertStatus(429)->assertHeader('Retry-After');
+
+    $this->travel(UnitRosterSyncController::COOLDOWN_SECONDS)->seconds();
+    $this->post("/units/{$tree['platoon']->id}/roster-sync")->assertRedirect();
+
+    finishUnitSync($tree['platoon']);
+    // Synced above it a moment ago.
+    $this->post("/units/{$tree['inside']->id}/roster-sync")->assertStatus(429);
+
+    Queue::assertPushed(SyncRosterJob::class, 2);
+});
+
+it('lets leaders of unrelated units sync at the same time', function () {
+    Queue::fake();
+    $tree = echelonTree();
+    $insideLeader = echelonLeader($tree['inside']);
+    Trooper::factory()->create(['cav_id' => 9002, 'cav_position_id' => 902, 'status' => TrooperStatus::Combat]);
+    UnitCommandMapping::factory()->create(['unit_id' => $tree['outside']->id, 'cav_position_id' => 902]);
+    $outsideLeader = User::factory()->create(['cav_id' => 9002]);
+
+    $this->actingAs($insideLeader)->post("/units/{$tree['inside']->id}/roster-sync")->assertRedirect();
+    $this->actingAs($outsideLeader)->post("/units/{$tree['outside']->id}/roster-sync")->assertRedirect();
+
+    Queue::assertPushed(SyncRosterJob::class, 2);
+});
+
+it('does not hold an Admin to the cooldown', function () {
     Queue::fake();
     $tree = echelonTree();
     $this->actingAs(echelonLeader($tree['platoon']))->post("/units/{$tree['inside']->id}/roster-sync")->assertRedirect();
-    $admin = User::factory()->admin()->create();
+    finishUnitSync($tree['inside']);
 
-    $this->actingAs($admin)->post("/units/{$tree['outside']->id}/roster-sync")->assertStatus(429)->assertHeader('Retry-After');
-    $this->travel(UnitRosterSyncController::COOLDOWN_SECONDS)->seconds();
-    $this->actingAs($admin)->post("/units/{$tree['outside']->id}/roster-sync")->assertRedirect();
+    $this->actingAs(User::factory()->admin()->create())->post("/units/{$tree['platoon']->id}/roster-sync")->assertRedirect();
 
     Queue::assertPushed(SyncRosterJob::class, 2);
 });

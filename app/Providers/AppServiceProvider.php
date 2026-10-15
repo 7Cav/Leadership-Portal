@@ -101,8 +101,8 @@ class AppServiceProvider extends ServiceProvider
             ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
 
         // Echelon sync requests, per user. This runs before the controller's leader check, so it is per user only: a
-        // shared bucket here would let members who may not sync spend it and lock every leader out. The ceiling on
-        // Cav calls across all leaders is the controller's cooldown, which only accepted requests reach.
+        // shared bucket here would let members who may not sync spend it and lock every leader out. What bounds the
+        // Cav calls is the controller's per-unit cooldown, which only accepted requests reach.
         RateLimiter::for('unit-roster-sync', fn (Request $request) => Limit::perMinute(3)
             ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
     }
