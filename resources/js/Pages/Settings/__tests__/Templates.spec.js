@@ -258,6 +258,59 @@ describe('Settings/Templates', () => {
         expect(wrapper.find('[data-testid="version-body-21"]').exists()).toBe(false);
     });
 
+    describe('comparing a version with the active one', () => {
+        const ACTIVE = { ...VERSION_2, body: '[B]{{unit}}[/B]\n[TABLE]\n{{#troopers}}[TR][TD]{{name}}[/TD][/TR]{{/troopers}}\n[/TABLE]' };
+        const OLDER = { ...VERSION_1, body: '[B]{{unit_name}}[/B]\n[TABLE]\n{{#troopers}}[TR][TD]{{name}}[/TD][/TR]{{/troopers}}\n[/TABLE]\n[I]Signed {{signed}}[/I]' };
+        const compared = (overrides = {}) => page({ active: ACTIVE, history: [{ ...ACTIVE, isActive: true }, { ...OLDER, isActive: false }], ...overrides });
+
+        it('offers it on every version but the active one', () => {
+            const wrapper = compared();
+
+            expect(wrapper.get('[data-testid="compare-21"]').text()).toBe('Compare with active');
+            expect(wrapper.find('[data-testid="compare-22"]').exists()).toBe(false);
+        });
+
+        it('shows what the version has that the active one does not, line by line', async () => {
+            const wrapper = compared();
+
+            await wrapper.get('[data-testid="compare-21"]').trigger('click');
+
+            const diff = wrapper.get('[data-testid="version-compare-21"]');
+            expect(wrapper.get('[data-testid="compare-21"]').attributes('aria-expanded')).toBe('true');
+            expect(wrapper.get('[data-testid="compare-21"]').text()).toBe('Hide comparison');
+            expect(diff.text()).toContain('From the active version 2 to version 1');
+            expect(diff.get('[data-testid="diff-summary"]').text()).toBe('2 lines added, 1 line removed');
+            expect(diff.findAll('[data-testid="diff-removed"]').map((row) => row.text())).toEqual(['1−Removed: [B]{{unit}}[/B]']);
+            expect(diff.findAll('[data-testid="diff-added"]').map((row) => row.text())).toEqual(['1+Added: [B]{{unit_name}}[/B]', '5+Added: [I]Signed {{signed}}[/I]']);
+            expect(diff.findAll('[data-testid="diff-same"]')).toHaveLength(3);
+
+            await wrapper.get('[data-testid="compare-21"]').trigger('click');
+
+            expect(wrapper.find('[data-testid="version-compare-21"]').exists()).toBe(false);
+        });
+
+        it('lets a non-Admin compare too, since comparing changes nothing', async () => {
+            const wrapper = compared({ isAdmin: false });
+
+            await wrapper.get('[data-testid="compare-21"]').trigger('click');
+
+            expect(wrapper.find('[data-testid="version-compare-21"]').exists()).toBe(true);
+        });
+
+        it('says so when the version has the same text as the active one', async () => {
+            const wrapper = compared({ history: [{ ...ACTIVE, isActive: true }, { ...VERSION_1, body: ACTIVE.body, isActive: false }] });
+
+            await wrapper.get('[data-testid="compare-21"]').trigger('click');
+
+            expect(wrapper.get('[data-testid="diff-summary"]').text()).toBe('No differences.');
+            expect(wrapper.find('[data-testid="diff-lines"]').exists()).toBe(false);
+        });
+
+        it('offers nothing to compare with while the company has no active version', () => {
+            expect(compared({ active: null }).find('[data-testid="compare-21"]').exists()).toBe(false);
+        });
+    });
+
     it('lets a non-Admin read a version too, since reading changes nothing', async () => {
         const wrapper = page({ isAdmin: false });
 
