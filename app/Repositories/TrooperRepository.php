@@ -28,7 +28,7 @@ interface TrooperRepository
      * their current billet is unknown, and a stale one must not keep conferring command scope
      * (1.16, deny-by-default).
      *
-     * @param  list<array{cav_id: int, rank: ?string, rank_short?: ?string, username?: ?string, forum_user_id?: ?int, billet?: ?string, mos: ?string, tis: mixed, tig: mixed, status: string, cav_position_id?: ?int}>  $rows
+     * @param  list<array{cav_id: int, rank: ?string, rank_short?: ?string, rank_image_url?: ?string, username?: ?string, forum_user_id?: ?int, billet?: ?string, mos: ?string, tis: mixed, tig: mixed, status: string, cav_position_id?: ?int}>  $rows
      * @param  list<int>  $activeCavIds
      * @param  list<int>  $unreadableCavIds
      * @param  list<int>|null  $withinSectionIds  an echelon-scoped sync (departures only among troopers placed in these sections); null is the whole roster
@@ -45,9 +45,10 @@ interface TrooperRepository
      * `cav_position_id` (the primary billet, 1.16) is overwritten like any synced column, null
      * included: a billet Cav no longer reports must not keep conferring command scope. The same
      * goes for the forum identity and short rank (`username`, `forum_user_id`, `rank_short`,
-     * 2.10), so a forum rename follows, and the billet title (`billet`, 2.8). A row without one of these optional keys writes null.
+     * 2.10), so a forum rename follows, the billet title (`billet`, 2.8) and the rank insignia (`rank_image_url`, 3.10).
+     * A row without one of these optional keys writes null.
      *
-     * @param  list<array{cav_id: int, rank: ?string, rank_short?: ?string, username?: ?string, forum_user_id?: ?int, billet?: ?string, mos: ?string, tis: mixed, tig: mixed, status: string, cav_position_id?: ?int}>  $rows
+     * @param  list<array{cav_id: int, rank: ?string, rank_short?: ?string, rank_image_url?: ?string, username?: ?string, forum_user_id?: ?int, billet?: ?string, mos: ?string, tis: mixed, tig: mixed, status: string, cav_position_id?: ?int}>  $rows
      * @return array{inserted: int, updated: int}
      */
     public function upsertActive(array $rows): array;

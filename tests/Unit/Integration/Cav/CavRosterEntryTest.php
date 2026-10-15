@@ -57,6 +57,30 @@ describe('CavRosterEntry::fromPayload', function () use ($fetchedAt) {
             ->and($trooper->fetchedAt)->toEqual($fetchedAt);
     });
 
+    it('reads the rank insignia URL Cav serves', function () use ($fetchedAt) {
+        $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload(), $fetchedAt);
+
+        expect($trooper->rankImageUrl)->toBe('https://7cav.us/data/roster_ranks/0/4.jpg');
+    });
+
+    it('keeps only an https rank image on 7cav.us with a plain path, since it is written into an [IMG] tag', function (mixed $url) use ($fetchedAt) {
+        $rank = ['rankShort' => 'MG', 'rankFull' => 'Major General', 'rankImageUrl' => $url, 'rankId' => '4'];
+
+        expect(CavRosterEntry::fromPayload(1, rosterEntryPayload(['rank' => $rank]), $fetchedAt)->rankImageUrl)->toBeNull();
+    })->with([
+        'missing' => [null],
+        'blank' => [''],
+        'not a string' => [12],
+        'plain http' => ['http://7cav.us/data/roster_ranks/0/4.jpg'],
+        'another host' => ['https://example.com/data/roster_ranks/0/4.jpg'],
+        'a host that only starts with 7cav.us' => ['https://7cav.us.example.com/4.jpg'],
+        'credentials before the host' => ['https://7cav.us@example.com/4.jpg'],
+        'a closing tag in the path' => ['https://7cav.us/4.jpg[/IMG][URL=https://example.com]x[/URL]'],
+        'a space' => ['https://7cav.us/4.jpg x'],
+        'a query string' => ['https://7cav.us/4.jpg?x=1'],
+        'a protocol-relative url' => ['//7cav.us/4.jpg'],
+    ]);
+
     it('does not require a resolvable forum user id, unlike CavRosterProfile', function () use ($fetchedAt) {
         // A trooper can be on the roster with no forum account linked yet; this DTO must not
         // punish that with a thrown exception the way the identity-focused DTO does.

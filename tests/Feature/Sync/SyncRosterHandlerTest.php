@@ -127,6 +127,27 @@ it('caches each trooper\'s forum identity and short rank, but never their real n
         ->and(json_encode(Trooper::query()->toBase()->get()))->not->toContain('Adam Jarvis');
 });
 
+it('stores the rank insignia URL from the roster, and clears it when Cav stops sending a usable one', function () {
+    $rank = fn (string $url) => ['rank' => ['rankShort' => 'SGT', 'rankFull' => 'Sergeant', 'rankImageUrl' => $url, 'rankId' => '12']];
+    $roster = function (string $url) use ($rank) {
+        MockClient::destroyGlobal();
+        MockClient::global([
+            SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT', $rank($url))]]),
+            SR_RESERVE_URL => srEmptyRoster(),
+            SR_ELOA_URL => srEmptyRoster(),
+        ]);
+    };
+
+    $roster('https://7cav.us/data/roster_ranks/0/12.jpg');
+    syncRosterHandler()->handle();
+    expect(Trooper::where('cav_id', 1)->sole()->rank_image_url)->toBe('https://7cav.us/data/roster_ranks/0/12.jpg');
+
+    // It goes into the forum post's [IMG] tag: another host is never stored, and a stale one is not kept.
+    $roster('https://example.com/rank.jpg');
+    syncRosterHandler()->handle();
+    expect(Trooper::where('cav_id', 1)->sole()->rank_image_url)->toBeNull();
+});
+
 it('follows a forum rename on the next sync, overwriting the stale username', function () {
     $existing = Trooper::factory()->create(['cav_id' => 1, 'username' => 'Vasquez.R', 'forum_user_id' => 3, 'status' => TrooperStatus::Combat]);
 
