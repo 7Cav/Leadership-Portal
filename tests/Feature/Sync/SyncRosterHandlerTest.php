@@ -772,3 +772,33 @@ it('keeps a billet that parsed on one roster even when the same trooper errored 
 
     expect(Trooper::where('cav_id', 1)->sole()->cav_position_id)->toBe(196);
 });
+
+it('counts only the unit\'s own unreadable rows in a unit run, and every one in a whole run', function () {
+    $units = app(UnitRepository::class);
+    $company = $units->create(UnitType::Company, 'Alpha Company', 'A/1-7', null);
+    $mine = $units->create(UnitType::Section, '1st Section', '1/1/A/1-7', $units->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', $company->id)->id);
+    $theirs = $units->create(UnitType::Section, '2nd Section', '2/2/A/1-7', $units->create(UnitType::Platoon, '2nd Platoon', '2/A/1-7', $company->id)->id);
+    UnitBilletMapping::factory()->create(['unit_id' => $mine->id, 'cav_position_id' => 773]);
+    Trooper::factory()->create(['cav_id' => 1, 'status' => TrooperStatus::Combat, 'primary_section_id' => $mine->id]);
+    Trooper::factory()->create(['cav_id' => 2, 'status' => TrooperStatus::Combat, 'primary_section_id' => $theirs->id]);
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => [
+            '1' => srRosterRow(),
+            '2' => ['code' => 1, 'message' => 'unavailable'],
+            '9' => ['code' => 1, 'message' => 'unavailable'],
+        ]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle(7, $mine->id);
+    syncRosterHandler()->handle(7, $theirs->id);
+    syncRosterHandler()->handle();
+
+    [$mineRun, $theirsRun, $wholeRun] = SyncRun::query()->orderBy('id')->get()->all();
+    expect([$mineRun->status, $mineRun->errored, $mineRun->error])->toBe([SyncRunStatus::Success, 0, null])
+        ->and([$theirsRun->status, $theirsRun->errored])->toBe([SyncRunStatus::Partial, 1])
+        ->and($theirsRun->error)->toStartWith('2: ')
+        ->and([$wholeRun->status, $wholeRun->errored])->toBe([SyncRunStatus::Partial, 2]);
+});

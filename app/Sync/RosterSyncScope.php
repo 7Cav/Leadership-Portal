@@ -3,6 +3,8 @@
 namespace App\Sync;
 
 use App\Integration\Cav\Data\CavRosterEntry;
+use App\Integration\Cav\Data\MilpacId;
+use App\Integration\Cav\Data\RosterRowError;
 
 /**
  * How much of the cached roster one sync run may write: all of it, or one echelon's subtree. The run asks the scope
@@ -65,5 +67,24 @@ final class RosterSyncScope
     public function filterSections(array $sections): array
     {
         return $this->coveredCavIds === null ? $sections : array_intersect_key($sections, $this->coveredCavIds);
+    }
+
+    /**
+     * The unreadable rows this run answers for: all of them for the whole roster; for an echelon, only those of
+     * troopers it covers, so one bad row elsewhere in Cav does not mark every echelon's run partial. A row whose key
+     * names no trooper belongs to no echelon and is reported by whole-roster runs only.
+     *
+     * @param  list<RosterRowError>  $errors
+     * @return list<RosterRowError>
+     */
+    public function filterErrors(array $errors): array
+    {
+        return $this->coveredCavIds === null
+            ? $errors
+            : array_values(array_filter($errors, function (RosterRowError $error) {
+                $cavId = MilpacId::parse($error->key);
+
+                return $cavId !== null && isset($this->coveredCavIds[$cavId]);
+            }));
     }
 }
