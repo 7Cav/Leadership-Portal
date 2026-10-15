@@ -121,9 +121,10 @@ class SyncRosterJob implements ShouldBeUnique, ShouldQueue
 
     /**
      * `SyncRosterHandler` already records each failed attempt as a `sync_runs` row (Story 2.3),
-     * and the screens show the latest one (2.8). This adds a log line once every retry is
-     * exhausted, so a job that gave up is told apart from one failed attempt without
-     * cross-referencing `failed_jobs` against `sync_runs` by hand.
+     * and the screens show the latest one (2.8). This adds a log line once the job gives up for
+     * good: its third exception (`$maxExceptions`), the 30-minute {@see retryUntil()} window
+     * running out, or a unit that no longer exists. A job that gave up is then told apart from one
+     * failed attempt without cross-referencing `failed_jobs` against `sync_runs` by hand.
      */
     public function failed(Throwable $e): void
     {
