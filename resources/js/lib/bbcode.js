@@ -83,6 +83,56 @@ export function templateLegend() {
     ];
 }
 
+// The forum's own rank insignia, for the sample section's rows.
+const SAMPLE_ICON = (file) => `https://7cav.us/data/roster_ranks/0/${file}`;
+
+/**
+ * A made-up section to fill a template with, for the preview on Settings > Templates. The section and the first trooper
+ * are the legend's own examples; the other rows show the other marks, and one has no rank insignia. The totals are
+ * counted from the rows, as {@link rollcallContext} counts them.
+ */
+export function sampleContext() {
+    const example = (name) => MEANINGS[name][1];
+    const row = (n, rank, rankShort, icon, name, rc, sp) => ({
+        n: String(n),
+        rank,
+        rank_short: rankShort,
+        rank_icon: icon ? SAMPLE_ICON(icon) : '',
+        name,
+        display_name: `${rankShort} ${name}`,
+        rc: { yes: 'Yes', no: 'No' }[rc] ?? '',
+        sp: { present: 'Yes', missed: 'No', makeup: 'MU', attached: 'Att', loa: 'LOA' }[sp] ?? '',
+        sp_present: sp === 'present',
+        sp_missed: sp === 'missed',
+        sp_makeup: sp === 'makeup',
+        sp_attached: sp === 'attached',
+        sp_loa: sp === 'loa',
+        sp_unmarked: sp === null,
+        rc_yes: rc === 'yes',
+        rc_no: rc === 'no',
+        rc_unsigned: rc === null,
+    });
+    const troopers = [
+        row(1, example('rank'), example('rank_short'), '18.jpg?1741376797', example('name'), 'yes', 'makeup'),
+        row(2, 'Corporal', 'CPL', '19.jpg?1741376805', 'Adams.P', 'yes', 'present'),
+        row(3, 'Specialist', 'SPC', '20.jpg?1741376814', 'Reyes.M', 'no', 'loa'),
+        row(4, 'Private First Class', 'PFC', '21.jpg?1741376823', 'Novak.T', 'yes', 'attached'),
+        row(5, 'Private', 'PVT', null, 'Okafor.B', null, null),
+    ];
+
+    return {
+        unit: example('unit'),
+        unit_name: example('unit_name'),
+        week: example('week'),
+        week_start: example('week_start'),
+        week_end: example('week_end'),
+        count: String(troopers.length),
+        signed: String(troopers.filter((trooper) => trooper.rc_yes).length),
+        attended: String(troopers.filter((trooper) => trooper.sp_present || trooper.sp_makeup || trooper.sp_attached).length),
+        troopers,
+    };
+}
+
 // One run of whitespace in each place, so a long run of spaces inside "{{ ... }}" cannot make the match slow.
 const TAG = /\{\{\s*(?:([#^/])\s*)?([a-z_]+)\s*(?:\|\s*([a-z]+)\s*)?\}\}/g;
 

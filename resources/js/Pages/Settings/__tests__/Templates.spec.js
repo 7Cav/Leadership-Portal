@@ -373,6 +373,59 @@ describe('Settings/Templates', () => {
         });
     });
 
+    describe('the preview', () => {
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
+        it('draws the active template as the forum shows it, filled with the sample section', () => {
+            const wrapper = page({ active: { ...VERSION_2, body: '[B]{{unit}}[/B][TABLE]{{#troopers}}[TR][TD]{{display_name}}[/TD][/TR]{{/troopers}}[/TABLE]' } });
+            const post = wrapper.get('[data-testid="template-preview-post"]');
+
+            expect(post.get('strong').text()).toBe('1/E/2-7');
+            expect(post.findAll('td').map((cell) => cell.text())).toEqual(['SGT Jay.JH', 'CPL Adams.P', 'SPC Reyes.M', 'PFC Novak.T', 'PVT Okafor.B']);
+            expect(wrapper.get('[data-testid="template-preview"]').text()).toContain('sample section of 5 troopers');
+        });
+
+        it('follows the editor a moment after the Admin stops typing', async () => {
+            vi.useFakeTimers();
+            const wrapper = page();
+            const body = wrapper.get('[data-testid="template-body"]');
+
+            await body.setValue('[I]{{unit_name}}[/I]');
+            expect(wrapper.get('[data-testid="template-preview-post"]').find('em').exists()).toBe(false);
+
+            vi.advanceTimersByTime(300);
+            await nextTick();
+
+            expect(wrapper.get('[data-testid="template-preview-post"] em').text()).toBe('1st Section');
+        });
+
+        it('says why there is no preview while the codes do not parse', async () => {
+            vi.useFakeTimers();
+            const wrapper = page();
+
+            await wrapper.get('[data-testid="template-body"]').setValue('{{#troopers}}');
+            vi.advanceTimersByTime(300);
+            await nextTick();
+
+            expect(wrapper.find('[data-testid="template-preview-post"]').exists()).toBe(false);
+            expect(wrapper.get('[data-testid="template-preview-error"]').text()).toContain('is never closed');
+        });
+
+        it('shows HTML in a template as text, never as markup', () => {
+            const wrapper = page({ active: { ...VERSION_2, body: '<img src=x onerror=alert(1)><script>alert(1)</script>[IMG]javascript:alert(1)[/IMG]' } });
+            const post = wrapper.get('[data-testid="template-preview-post"]');
+
+            expect(post.find('img, script').exists()).toBe(false);
+            expect(post.text()).toContain('<script>alert(1)</script>');
+        });
+
+        it('shows nothing for an empty editor', () => {
+            expect(page({ active: null, history: [] }).find('[data-testid="template-preview"]').exists()).toBe(false);
+        });
+    });
+
     it('shows the placeholder reference to a non-Admin too, since they read the template', () => {
         expect(page({ isAdmin: false }).find('[data-testid="syntax-help"]').exists()).toBe(true);
     });

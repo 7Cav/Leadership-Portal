@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import cases from '../../../../tests/Fixtures/bbcode-templates.json';
-import { DESCRIBED, FILTERS, LISTS, ROW_FLAGS, ROW_STRINGS, TOP_STRINGS, inert, parse, render, templateLegend } from '../bbcode';
+import { DESCRIBED, FILTERS, LISTS, ROW_FLAGS, ROW_STRINGS, TOP_STRINGS, inert, parse, render, sampleContext, templateLegend } from '../bbcode';
 
 // Story 3.10. The grammar cases are shared with the server's TemplateSyntax (tests/Fixtures/bbcode-templates.json), so the
 // browser and the server accept and refuse the same templates with the same messages.
@@ -73,6 +73,28 @@ describe('the legend of template codes', () => {
         for (const { name, example } of Object.values(codes).filter((entry) => entry.example.includes('{{'))) {
             expect(parse(inRow.has(name) ? `{{#troopers}}${example}{{/troopers}}` : example), name).toMatchObject({ ok: true });
         }
+    });
+});
+
+describe('the sample section for the template preview', () => {
+    it('gives every value and flag the template language has, the first trooper being the legend example', () => {
+        const sample = sampleContext();
+        const codes = Object.fromEntries(templateLegend().flatMap((group) => group.entries.map((entry) => [entry.name, entry.example])));
+
+        expect(Object.keys(sample).sort()).toEqual([...TOP_STRINGS, ...LISTS].sort());
+        for (const name of ['unit', 'unit_name', 'week', 'week_start', 'week_end']) expect(sample[name], name).toBe(codes[name]);
+        for (const trooper of sample.troopers) expect(Object.keys(trooper).sort()).toEqual([...ROW_STRINGS, ...ROW_FLAGS].sort());
+        expect(sample.troopers[0]).toMatchObject({ n: '1', rank: codes.rank, rank_short: codes.rank_short, name: codes.name, rc: codes.rc, sp: codes.sp });
+    });
+
+    it('counts its totals from its rows, and has a row with no rank insignia', () => {
+        const sample = sampleContext();
+
+        expect(sample.count).toBe(String(sample.troopers.length));
+        expect(sample.signed).toBe(String(sample.troopers.filter((row) => row.rc_yes).length));
+        expect(sample.attended).toBe(String(sample.troopers.filter((row) => row.sp_present || row.sp_makeup || row.sp_attached).length));
+        expect(sample.troopers.some((row) => row.rank_icon === '')).toBe(true);
+        for (const row of sample.troopers.filter((each) => each.rank_icon !== '')) expect(row.rank_icon).toMatch(/^https:\/\/7cav\.us\/data\/roster_ranks\/0\/\d+\.jpg\?\d+$/);
     });
 });
 

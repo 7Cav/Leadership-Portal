@@ -1,7 +1,8 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, ref, toRef, watch } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { PhCircleNotch, PhFileCode, PhLockSimple } from '@phosphor-icons/vue';
+import { refDebounced } from '@vueuse/core';
+import { PhCircleNotch, PhFileCode, PhLockSimple, PhWarning } from '@phosphor-icons/vue';
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,10 +12,12 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { templateLegend } from '@/lib/bbcode';
+import { render, sampleContext, templateLegend } from '@/lib/bbcode';
 import { useViewAs } from '@/composables/useViewAs';
+import BbcodePreview from '@/components/BbcodePreview.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import { toast } from 'vue-sonner';
+import InlineNotice from '@/components/InlineNotice.vue';
 import { forumDate } from '@/lib/forumDate';
 import { onHttpException } from '@/lib/httpError';
 
@@ -134,6 +137,13 @@ const toggleView = (version) => {
 const legend = templateLegend();
 const EXAMPLES = { print: '{{name}}', loop: '{{#troopers}}...{{/troopers}}', inverted: '{{^name}}...{{/name}}' };
 
+// The template filled with a made-up section (the legend's examples), drawn as the forum shows the post. It follows the
+// editor a moment after the Admin stops typing, so a long template is not redrawn on every key.
+const SAMPLE = sampleContext();
+const typedBody = refDebounced(toRef(form, 'body'), 250);
+const previewSource = computed(() => (showEditor.value ? typedBody.value : (props.active?.body ?? '')));
+const preview = computed(() => (previewSource.value.trim() === '' ? null : render(previewSource.value, SAMPLE)));
+
 // Fills the editor with the starter, only when an Admin asks, so nobody saves it unread.
 function useStarter() {
     form.body = props.starter;
@@ -222,6 +232,21 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                     </form>
 
                     <pre v-else-if="active" class="overflow-x-auto rounded-md border border-border bg-muted/30 p-3 font-mono text-xs whitespace-pre-wrap" data-testid="template-readonly">{{ active.body }}</pre>
+
+                    <section v-if="preview" class="mt-5 border-t border-border pt-4" aria-labelledby="template-preview-title" data-testid="template-preview">
+                        <div class="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                            <h3 id="template-preview-title" class="text-[13px] font-semibold">Preview</h3>
+                            <p class="text-xs text-muted-foreground">
+                                As the forum shows it, filled with a sample section of {{ SAMPLE.troopers.length }} troopers. Updates as you type.
+                            </p>
+                        </div>
+                        <div v-if="preview.ok" class="max-h-[28rem] overflow-auto rounded-md border border-border bg-background px-5 py-4" data-testid="template-preview-post">
+                            <BbcodePreview :source="preview.text" />
+                        </div>
+                        <InlineNotice v-else :icon="PhWarning" tone="warning" role="status" data-testid="template-preview-error">
+                            The preview shows again once the template codes are valid. {{ preview.error }}
+                        </InlineNotice>
+                    </section>
 
                     <details open class="mt-4 rounded-md border border-border bg-muted/20 p-3 text-xs" data-testid="syntax-help">
                         <summary class="cursor-pointer font-medium">Template codes</summary>
