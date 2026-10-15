@@ -7,8 +7,8 @@ use Throwable;
 
 /**
  * The org-structure import could not run (story 2.9) — the Cav API was unreachable, answered
- * with an error or an unusable payload, no `CAV_API_KEY` is configured, or Cav published nothing
- * that looks like a line company. Lives in the
+ * with an error or an unusable payload, no `CAV_API_KEY` is configured, Cav published nothing
+ * that looks like a line company, or another import is still running. Lives in the
  * CommandHandler layer so the controller can catch it (Controller → Integration is forbidden).
  * Thrown before any write, so a failed import never leaves a partial tree behind.
  */
@@ -22,5 +22,10 @@ class OrgStructureImportFailedException extends RuntimeException
     public static function noLineCompanies(): self
     {
         return new self('The Cav position groups listed no line companies, so there was nothing to import.');
+    }
+
+    public static function alreadyRunning(): self
+    {
+        return new self('Another org-structure import is still running. Try again once it has finished.');
     }
 }

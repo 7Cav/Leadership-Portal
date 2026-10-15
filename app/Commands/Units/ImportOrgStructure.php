@@ -13,6 +13,7 @@ use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitRepository;
 use App\Support\Audit\AuditEnvelope;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -49,6 +50,11 @@ use Illuminate\Support\Facades\Log;
  */
 class ImportOrgStructure
 {
+    private const LOCK = 'org-structure-import';
+
+    /** Long enough for the largest import to commit; a crashed run frees the lock after this. */
+    private const LOCK_SECONDS = 120;
+
     public function __construct(
         private readonly CavApi $cav,
         private readonly UnitRepository $units,
@@ -101,46 +107,59 @@ class ImportOrgStructure
         $sectionCounts = [0, 0];
         $commandCounts = [0, 0, 0, []];
 
-        $this->audit->record(
-            actorId: $actor->id,
-            action: 'org_structure.imported',
-            reason: null,
-            reasonRequired: false,
-            mutation: function () use ($designations, $sectionByPositionId, $commandByPositionId, &$unitsCreated, &$sectionCounts, &$commandCounts): Unit {
-                $index = $this->existingUnitsByKey();
-                $regimentKey = CavDesignation::regiment()->key();
-                $root = $index[$regimentKey] ?? null;
+        // One import at a time: the lookup of existing units below takes no lock and `units` has no
+        // unique key, so two imports at once could both miss a unit and both create it. The lock is
+        // held until the transaction commits; a second import is refused, not queued.
+        $lock = Cache::lock(self::LOCK, self::LOCK_SECONDS);
 
-                if ($root === null) {
-                    $root = $this->units->create(UnitType::Regiment, CavDesignation::REGIMENT_NAME, CavDesignation::REGIMENT_CALLSIGN, null);
-                    $index[$regimentKey] = $root;
-                    $unitsCreated++;
-                }
+        if (! $lock->get()) {
+            throw OrgStructureImportFailedException::alreadyRunning();
+        }
 
-                // `plan()` lists every designation after its parent, so the parent is always
-                // already in the index by the time a child is reached.
-                foreach ($designations as $key => $designation) {
-                    if (isset($index[$key])) {
-                        continue;
+        try {
+            $this->audit->record(
+                actorId: $actor->id,
+                action: 'org_structure.imported',
+                reason: null,
+                reasonRequired: false,
+                mutation: function () use ($designations, $sectionByPositionId, $commandByPositionId, &$unitsCreated, &$sectionCounts, &$commandCounts): Unit {
+                    $index = $this->existingUnitsByKey();
+                    $regimentKey = CavDesignation::regiment()->key();
+                    $root = $index[$regimentKey] ?? null;
+
+                    if ($root === null) {
+                        $root = $this->units->create(UnitType::Regiment, CavDesignation::REGIMENT_NAME, CavDesignation::REGIMENT_CALLSIGN, null);
+                        $index[$regimentKey] = $root;
+                        $unitsCreated++;
                     }
 
-                    $parent = $index[$designation->parent()->key()];
-                    $index[$key] = $this->units->create($designation->type, $designation->name(), $designation->callsign(), $parent->id);
-                    $unitsCreated++;
-                }
+                    // `plan()` lists every designation after its parent, so the parent is always
+                    // already in the index by the time a child is reached.
+                    foreach ($designations as $key => $designation) {
+                        if (isset($index[$key])) {
+                            continue;
+                        }
 
-                $sectionCounts = $this->addMappings(
-                    $sectionByPositionId,
-                    $index,
-                    $this->mappings->unitIdsByPositionId(),
-                    fn (int $unitId, int $positionId) => $this->mappings->create($unitId, $positionId),
-                );
+                        $parent = $index[$designation->parent()->key()];
+                        $index[$key] = $this->units->create($designation->type, $designation->name(), $designation->callsign(), $parent->id);
+                        $unitsCreated++;
+                    }
 
-                $commandCounts = $this->reconcileCommands($commandByPositionId, $index);
+                    $sectionCounts = $this->addMappings(
+                        $sectionByPositionId,
+                        $index,
+                        $this->mappings->unitIdsByPositionId(),
+                        fn (int $unitId, int $positionId) => $this->mappings->create($unitId, $positionId),
+                    );
 
-                return $root;
-            },
-        );
+                    $commandCounts = $this->reconcileCommands($commandByPositionId, $index);
+
+                    return $root;
+                },
+            );
+        } finally {
+            $lock->release();
+        }
 
         [$commandsCreated, $commandsRepointed, $commandsRemoved, $unplacedCommands] = $commandCounts;
 

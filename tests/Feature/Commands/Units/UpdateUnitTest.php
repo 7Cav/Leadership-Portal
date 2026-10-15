@@ -11,7 +11,7 @@ it('delegates the rename to the repository', function () {
     $repo = app(UnitRepository::class);
     $unit = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
 
-    $renamed = app(UpdateUnit::class)->handle($actor, $unit, '7th Cav Regiment', '7CAV');
+    $renamed = app(UpdateUnit::class)->handle($actor, $unit, '7th Cav Regiment', '7CAV', null);
 
     expect($renamed->name)->toBe('7th Cav Regiment')
         ->and($renamed->callsign)->toBe('7CAV');
@@ -22,7 +22,7 @@ it('records exactly one audit_log entry for the rename', function () {
     $repo = app(UnitRepository::class);
     $unit = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
 
-    app(UpdateUnit::class)->handle($actor, $unit, '7th Cav Regiment', '7CAV');
+    app(UpdateUnit::class)->handle($actor, $unit, '7th Cav Regiment', '7CAV', null);
 
     expect(AuditLogEntry::count())->toBe(1);
 
@@ -39,7 +39,7 @@ it('is a no-op when name and callsign are unchanged, and logs nothing', function
     $repo = app(UnitRepository::class);
     $unit = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);
 
-    $result = app(UpdateUnit::class)->handle($actor, $unit, $unit->name, $unit->callsign);
+    $result = app(UpdateUnit::class)->handle($actor, $unit, $unit->name, $unit->callsign, null);
 
     expect($result->name)->toBe('7th Cavalry Regiment')
         ->and(AuditLogEntry::count())->toBe(0);
