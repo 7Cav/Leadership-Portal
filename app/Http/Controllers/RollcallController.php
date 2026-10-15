@@ -57,6 +57,7 @@ use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Rollcall\RollcallRoster;
+use App\Rollcall\SectionFireteams;
 use App\Rollcall\TemplateResolver;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
@@ -124,6 +125,7 @@ class RollcallController extends Controller
         private readonly LoaCoverage $loaCoverage,
         private readonly LoaProvenance $loaProvenance,
         private readonly RollcallRoster $roster,
+        private readonly SectionFireteams $fireteams,
     ) {}
 
     /**
@@ -190,6 +192,7 @@ class RollcallController extends Controller
             'template' => $this->templates->forUnit($section)->toArray(),
             'report' => $this->reportProps($section, $weekStart),
             ...$this->rosterProps($section, $weekStart, $currentWeek),
+            'fireteams' => $this->fireteamProps($user, $section),
         ]);
     }
 
@@ -775,6 +778,25 @@ class RollcallController extends Controller
                 'loa' => $covers[$id][$week]->isCovered() || $mark?->status === AttendanceStatus::Loa,
             ];
         }, $weeks)])->all();
+    }
+
+    /**
+     * How the section's post shows fireteams, and whether the viewer may change it: a leader who commands the section
+     * (its SL or ASL, the command above it, or an Admin) sets its fireteams and display; the company's command sets the
+     * company's policy. A staff grant reads the rollcall but changes neither, and a view-as preview changes nothing.
+     *
+     * @return array<string, mixed>
+     */
+    private function fireteamProps(User $user, Unit $section): array
+    {
+        $writable = $this->scope->activeViewAs($user) === null;
+        $company = $this->fireteams->companyOf($section);
+
+        return $this->fireteams->options(
+            $section,
+            canEdit: $writable && $this->scope->commandsUnit($user, $section),
+            canEditPolicy: $writable && $company !== null && $this->scope->commandsUnit($user, $company),
+        );
     }
 
     /**
