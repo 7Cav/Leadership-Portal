@@ -33,3 +33,16 @@ it('has an index on forum_user_id so a portal user can be matched to their troop
         ->and(Schema::hasColumns('troopers', ['username', 'forum_user_id', 'rank_short']))->toBeTrue()
         ->and(Schema::hasColumn('troopers', 'real_name'))->toBeFalse();
 });
+
+it('reads an assistant section leader as the ASL even when they are the one holding the section\'s command billet', function () {
+    $asl = Trooper::factory()->create(['billet' => 'Assistant Section Leader 1/1/A/1-7']);
+    $sl = Trooper::factory()->create(['billet' => 'Section Leader 1/1/A/1-7']);
+    $trooper = Trooper::factory()->create(['billet' => 'Rifleman']);
+
+    // The assistant is the section's named commander only while the Section Leader billet is vacant.
+    expect($asl->roleUnder($asl))->toBe('ASL')
+        ->and($sl->roleUnder($sl))->toBe('SL')
+        ->and($asl->roleUnder($sl))->toBe('ASL')
+        ->and($trooper->roleUnder($sl))->toBeNull()
+        ->and($trooper->roleUnder(null))->toBeNull();
+});

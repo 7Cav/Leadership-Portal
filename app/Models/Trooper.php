@@ -65,18 +65,19 @@ class Trooper extends Model
     }
 
     /**
-     * The trooper's role in their section, for screens that list a unit leader-first: `SL` when they hold the
-     * section's command billet (1.16's mapping, passed in as `$sectionLeader`), `ASL` when their billet title says
-     * assistant section leader (all Cav tells us about the second-in-command), otherwise null. One definition, so
-     * the roster and the readiness matrix never disagree about who leads.
+     * The trooper's role in their section, for screens that list a unit leader-first: `ASL` when their billet title
+     * says assistant section leader (all Cav tells us about the second-in-command), `SL` when they hold the section's
+     * command billet (1.16's mapping, passed in as `$sectionLeader`), otherwise null. The assistant's billet maps to
+     * the section too, so the title is read first: an assistant named while the Section Leader billet is vacant is
+     * still the ASL. One definition, so the roster, the readiness matrix and the rollcall never disagree about who leads.
      */
     public function roleUnder(?self $sectionLeader): ?string
     {
-        if ($sectionLeader !== null && $sectionLeader->id === $this->id) {
-            return 'SL';
+        if ($this->billet !== null && preg_match('/\bassistant section leader\b/i', $this->billet)) {
+            return 'ASL';
         }
 
-        return $this->billet !== null && preg_match('/\bassistant section leader\b/i', $this->billet) ? 'ASL' : null;
+        return $sectionLeader !== null && $sectionLeader->id === $this->id ? 'SL' : null;
     }
 
     public function primarySection(): BelongsTo
