@@ -17,6 +17,7 @@ use Saloon\Exceptions\Request\FatalRequestException;
 use Saloon\Http\Auth\TokenAuthenticator;
 use Saloon\Http\Request;
 use Saloon\Http\Response;
+use TypeError;
 
 /**
  * The single door out to the 7cav.us forum OAuth2 flow (AD-3). CommandHandlers call
@@ -225,7 +226,9 @@ class ForumApi
 
         try {
             return $response->json();
-        } catch (JsonException $e) {
+        } catch (JsonException|TypeError $e) {
+            // A body that is valid JSON but not an object or list (`1`, `"ok"`, `null`) fails Saloon's
+            // array-typed decode with a TypeError, not a JsonException.
             throw ForumRequestException::malformedResponse($e);
         }
     }
@@ -239,7 +242,7 @@ class ForumApi
     {
         try {
             $code = $response->json('errors.0.code');
-        } catch (JsonException) {
+        } catch (JsonException|TypeError) {
             return null;
         }
 

@@ -342,3 +342,17 @@ describe('reading when a PAF thread was filed', function () {
         expect(loaForum()->threadUrl(4001))->toBe('https://7cav.us/threads/4001/');
     });
 });
+
+it('turns a body that is a JSON scalar into a typed failure, not a TypeError', function () {
+    foreach (['1', '"ok"', 'null'] as $body) {
+        MockClient::destroyGlobal();
+        MockClient::global([LOA_LIST_URL => MockResponse::make($body, 200, ['Content-Type' => 'application/json'])]);
+
+        expect(fn () => loaForum()->listLoaThreads(180))->toThrow(ForumRequestException::class, 'could not be parsed');
+    }
+
+    MockClient::destroyGlobal();
+    MockClient::global([LOA_LIST_URL => MockResponse::make('"down"', 503, ['Content-Type' => 'application/json'])]);
+
+    expect(fn () => loaForum()->listLoaThreads(180))->toThrow(ForumRequestException::class, 'HTTP 503');
+});

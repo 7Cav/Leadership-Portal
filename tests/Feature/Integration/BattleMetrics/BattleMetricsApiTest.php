@@ -312,3 +312,24 @@ it('rejects loosely formatted timestamps', function () {
 
     expect(fn () => bm()->fetchPresence($start, $end))->toThrow(BattleMetricsUnavailable::class);
 });
+
+it('keeps the window when a next-page link carries its own start, stop and include', function () {
+    $mock = MockClient::global([
+        BM_URL => function (PendingRequest $request) {
+            return str_contains($request->getUri()->getQuery(), 'cursor')
+                ? bmBody([])
+                : bmBody([], [], 'https://bm.test/servers/42/relationships/sessions?cursor=abc&start=2000-01-01T00:00:00Z&stop=2099-01-01T00:00:00Z&include=player');
+        },
+    ]);
+
+    [$start, $end] = bmWindow();
+    bm()->fetchPresence($start, $end);
+
+    $mock->assertSentCount(2);
+    $mock->assertSent(function (Request $request, Response $response) {
+        $query = $response->getPendingRequest()->query()->all();
+
+        return ($query['cursor'] ?? null) === 'abc'
+            && $query['start'] === '2026-10-10T19:00:00Z' && $query['stop'] === '2026-10-10T21:00:00Z' && $query['include'] === 'identifier';
+    });
+});

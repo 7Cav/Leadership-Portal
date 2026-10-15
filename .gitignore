@@ -32,8 +32,9 @@ Thumbs.db
 # --- Laravel ---
 *.log
 .env
-.env.backup
-.env.production
+# Every copy of the env file can hold real keys (.env.local, .env.staging, .env.testing, ...); only the example is tracked.
+.env.*
+!.env.example
 .phpactor.json
 .phpunit.result.cache
 /.phpunit.cache
