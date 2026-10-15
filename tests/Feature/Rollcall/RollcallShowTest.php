@@ -483,3 +483,128 @@ it('counts a trooper whose leave covers a past week as having nothing to mark th
             ->where('weekStatus.0', ['date' => '2026-09-26', 'unmarked' => 0, 'posted' => true])
             ->where('weekStatus.1', ['date' => '2026-09-19', 'unmarked' => 1, 'posted' => false]));
 });
+
+// The card's attendance strip: the four completed Cav weeks before the week shown, oldest first.
+
+function practiceWeek(Unit $section, CarbonImmutable $week, array $marks): SectionPractice
+{
+    $practice = SectionPractice::factory()->create(['section_id' => $section->id, 'week_start' => $week]);
+    foreach ($marks as $trooperId => $status) {
+        Attendance::factory()->create(['trooper_id' => $trooperId, 'section_practice_id' => $practice->id, 'status' => $status]);
+    }
+
+    return $practice;
+}
+
+it('sends each trooper\'s last four completed weeks of practice marks, oldest first', function () {
+    $trooper = rollcallTrooper($this->section, ['username' => 'Adams.P', 'tis' => '2024-01-01']);
+    $other = rollcallTrooper($this->section, ['username' => 'Baker.Q', 'tis' => '2024-01-01']);
+    practiceWeek($this->section, $this->week->subWeeks(5), [$trooper->id => AttendanceStatus::Missed]);
+    practiceWeek($this->section, $this->week->subWeeks(4), [$trooper->id => AttendanceStatus::Present, $other->id => AttendanceStatus::Attached]);
+    // Three weeks back: no practice row at all.
+    practiceWeek($this->section, $this->week->subWeeks(2), [$trooper->id => AttendanceStatus::Missed]);
+    practiceWeek($this->section, $this->week->subWeek(), [$trooper->id => AttendanceStatus::Makeup]);
+    // This week's mark is the card's own buttons, not history.
+    practiceWeek($this->section, $this->week, [$trooper->id => AttendanceStatus::Missed]);
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
+        ->assertInertia(fn ($page) => $page
+            ->where('troopers.0.id', $trooper->id)
+            ->where('troopers.0.joined', '2024-01-01')
+            ->where('troopers.0.history', [
+                ['week' => '2026-09-05', 'status' => 'present', 'held' => true, 'loa' => false],
+                ['week' => '2026-09-12', 'status' => null, 'held' => false, 'loa' => false],
+                ['week' => '2026-09-19', 'status' => 'missed', 'held' => true, 'loa' => false],
+                ['week' => '2026-09-26', 'status' => 'makeup', 'held' => true, 'loa' => false],
+            ])
+            // A held week the trooper was not marked in reads as held and unmarked, never as a miss.
+            ->where('troopers.1.history', [
+                ['week' => '2026-09-05', 'status' => 'attached', 'held' => true, 'loa' => false],
+                ['week' => '2026-09-12', 'status' => null, 'held' => false, 'loa' => false],
+                ['week' => '2026-09-19', 'status' => null, 'held' => true, 'loa' => false],
+                ['week' => '2026-09-26', 'status' => null, 'held' => true, 'loa' => false],
+            ]));
+});
+
+it('moves the strip\'s window with the week being viewed', function () {
+    rollcallTrooper($this->section);
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}?week=2026-09-26")
+        ->assertInertia(fn ($page) => $page->where('troopers.0.history', fn ($weeks) => collect($weeks)->pluck('week')->all() === [
+            '2026-08-29', '2026-09-05', '2026-09-12', '2026-09-19',
+        ]));
+});
+
+it('marks a week LOA when leave covers it, with or without a practice that week, or when it was marked loa', function () {
+    $trooper = rollcallTrooper($this->section, ['username' => 'Adams.P']);
+    $present = rollcallTrooper($this->section, ['username' => 'Baker.Q']);
+    // Covers the Cav weeks of 12Sep26 (no practice row) and 19Sep26 (a held practice the trooper was not marked in).
+    Loa::factory()->create(['trooper_id' => $trooper->id, 'starts_at' => '2026-09-14', 'ends_at' => '2026-09-21']);
+    practiceWeek($this->section, $this->week->subWeeks(2), [$present->id => AttendanceStatus::Present]);
+    // An older `loa` mark the resolver no longer backs still reads as LOA, as it does for the KPI service.
+    practiceWeek($this->section, $this->week->subWeek(), [$trooper->id => AttendanceStatus::Loa]);
+    // A leave that could not be read is not shown as an absence (AD-4).
+    Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'posted_at' => '2026-09-06 12:00:00']);
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
+        ->assertInertia(fn ($page) => $page
+            ->where('troopers.0.id', $trooper->id)
+            ->where('troopers.0.history', fn ($weeks) => collect($weeks)->pluck('loa', 'week')->all() === [
+                '2026-09-05' => false,
+                '2026-09-12' => true,
+                '2026-09-19' => true,
+                '2026-09-26' => true,
+            ])
+            ->where('troopers.1.history', fn ($weeks) => collect($weeks)->every(fn ($week) => $week['loa'] === false)));
+});
+
+it('sends weeks with no practice as unheld and unmarked', function () {
+    rollcallTrooper($this->section);
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
+        ->assertInertia(fn ($page) => $page->where('troopers.0.history', fn ($weeks) => count($weeks) === 4 && collect($weeks)
+            ->every(fn ($week) => $week['status'] === null && $week['held'] === false && $week['loa'] === false)));
+});
+
+it('sends a recent recruit\'s join date with the full window, so the strip shows the weeks before it as not in the unit yet', function () {
+    $recruit = rollcallTrooper($this->section, ['username' => 'Adams.P', 'tis' => '2026-09-21']);
+    $veteran = rollcallTrooper($this->section, ['username' => 'Baker.Q', 'tis' => '2024-01-01']);
+    practiceWeek($this->section, $this->week->subWeeks(3), [$veteran->id => AttendanceStatus::Present]);
+    practiceWeek($this->section, $this->week->subWeek(), [$recruit->id => AttendanceStatus::Present]);
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
+        ->assertInertia(fn ($page) => $page
+            ->where('troopers.0.id', $recruit->id)
+            ->where('troopers.0.joined', '2026-09-21')
+            ->where('troopers.0.history', fn ($weeks) => collect($weeks)->map(fn ($week) => [$week['status'], $week['held']])->all() === [
+                [null, false],
+                [null, true],
+                [null, false],
+                ['present', true],
+            ]));
+});
+
+it('reads the strip in the same number of queries however many troopers the section has', function () {
+    $queries = function () {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")->assertOk();
+        DB::disableQueryLog();
+
+        return count(DB::getQueryLog());
+    };
+
+    $first = rollcallTrooper($this->section);
+    foreach ([1, 2, 3, 4] as $weeksAgo) {
+        practiceWeek($this->section, $this->week->subWeeks($weeksAgo), [$first->id => AttendanceStatus::Present]);
+    }
+    Loa::factory()->create(['trooper_id' => $first->id, 'starts_at' => '2026-09-14', 'ends_at' => '2026-09-21']);
+    $baseline = $queries();
+
+    foreach (range(1, 5) as $i) {
+        $trooper = rollcallTrooper($this->section);
+        Loa::factory()->create(['trooper_id' => $trooper->id, 'starts_at' => '2026-09-14', 'ends_at' => '2026-09-21']);
+    }
+
+    expect($queries())->toBe($baseline);
+});

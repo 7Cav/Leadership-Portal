@@ -70,8 +70,9 @@ const props = defineProps({
     sections: { type: Array, required: true },
     // `{ start, date, closes, isCurrent, previous, next, current, beforeFloor }` (AD-11).
     week: { type: Object, required: true },
-    // `[{ id, cavId, rank, name, rollcall, status, source, priorStatus, loa }]`. `loa` is the trooper's leave for
-    // the week (`LoaCover::toArray()`, covered or needs review), else null (3.4, 4.4).
+    // `[{ id, cavId, rank, name, rollcall, status, source, priorStatus, loa, joined, history }]`. `loa` is the trooper's leave for
+    // the week (`LoaCover::toArray()`, covered or needs review), else null (3.4, 4.4). `history` is the last four completed
+    // weeks' SP marks for the card's attendance strip: `[{ week, status, held, loa }]`, oldest first.
     troopers: { type: Array, default: () => [] },
     // Where the leave data comes from and when it last synced (`LoaSyncState::toArray()`, 4.3, AD-20).
     loaSync: { type: Object, default: null },
