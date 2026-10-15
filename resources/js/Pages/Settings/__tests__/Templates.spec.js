@@ -58,6 +58,7 @@ const props = (overrides = {}) => ({
 
 const page = (overrides = {}) => mount(Templates, { props: props(overrides), attachTo: document.body });
 const dialog = () => document.body.querySelector('[data-testid="activate-dialog"]');
+const starterDialog = () => document.body.querySelector('[data-testid="starter-dialog"]');
 const field = (testid) => document.body.querySelector(`[data-testid="${testid}"]`);
 const typeReason = async (text) => {
     const input = field('activate-reason');
@@ -330,16 +331,88 @@ describe('Settings/Templates', () => {
         expect(page().get('[data-testid="template-body"]').attributes('maxlength')).toBe('20000');
     });
 
-    it('starts an Admin with no template from a blank editor, and fills the example only on request', async () => {
+    it('starts an Admin with no template from a blank editor, and fills the default only on request', async () => {
         const wrapper = page({ active: null, history: [] });
 
         expect(wrapper.get('[data-testid="template-body"]').element.value).toBe('');
+        expect(wrapper.get('[data-testid="use-starter"]').text()).toBe('Start from the default');
         await wrapper.get('[data-testid="use-starter"]').trigger('click');
+        await flushPromises();
+
+        expect(starterDialog()).toBeNull();
         expect(wrapper.get('[data-testid="template-body"]').element.value).toBe(STARTER);
     });
 
-    it('offers no starter once the company has a template', () => {
-        expect(page().find('[data-testid="use-starter"]').exists()).toBe(false);
+    describe('starting from the default template', () => {
+        it('fills the editor with the default straight away when it holds the active text unchanged', async () => {
+            const wrapper = page();
+
+            await wrapper.get('[data-testid="use-starter"]').trigger('click');
+            await flushPromises();
+
+            expect(starterDialog()).toBeNull();
+            expect(wrapper.get('[data-testid="template-body"]').element.value).toBe(STARTER);
+        });
+
+        it('only fills the editor: nothing is saved until the Admin saves a new version', async () => {
+            const wrapper = page();
+
+            await wrapper.get('[data-testid="use-starter"]').trigger('click');
+            await flushPromises();
+
+            expect(post).not.toHaveBeenCalled();
+            expect(routerPost).not.toHaveBeenCalled();
+            expect(formState.reason).toBe('');
+            expect(wrapper.get('[data-testid="save-template"]').text()).toBe('Save as a new version');
+        });
+
+        it('asks before replacing edits that are not saved, and keeping them changes nothing', async () => {
+            const wrapper = page();
+            await wrapper.get('[data-testid="template-body"]').setValue('[B]my edit[/B]');
+
+            await wrapper.get('[data-testid="use-starter"]').trigger('click');
+            await flushPromises();
+
+            expect(starterDialog()).not.toBeNull();
+            expect(starterDialog().textContent).toContain('Replace your edits with the default template?');
+            expect(formState.body).toBe('[B]my edit[/B]');
+
+            [...starterDialog().querySelectorAll('button')].find((b) => b.textContent.trim() === 'Keep my edits').click();
+            await flushPromises();
+
+            expect(starterDialog()).toBeNull();
+            expect(formState.body).toBe('[B]my edit[/B]');
+        });
+
+        it('replaces the edits with the default once the Admin confirms', async () => {
+            const wrapper = page();
+            await wrapper.get('[data-testid="template-body"]').setValue('[B]my edit[/B]');
+
+            await wrapper.get('[data-testid="use-starter"]').trigger('click');
+            await flushPromises();
+            starterDialog().querySelector('[data-testid="starter-confirm"]').click();
+            await flushPromises();
+
+            expect(starterDialog()).toBeNull();
+            expect(wrapper.get('[data-testid="template-body"]').element.value).toBe(STARTER);
+        });
+
+        it('does not ask when the editor already holds the default', async () => {
+            const wrapper = page();
+            await wrapper.get('[data-testid="template-body"]').setValue(STARTER);
+
+            await wrapper.get('[data-testid="use-starter"]').trigger('click');
+            await flushPromises();
+
+            expect(starterDialog()).toBeNull();
+        });
+
+        it('is not offered to a non-Admin, or while an Admin is viewing as a leader', () => {
+            expect(page({ isAdmin: false }).find('[data-testid="use-starter"]').exists()).toBe(false);
+
+            mockPage.props = { viewAs: { kind: 'unit', designation: '2/1/A/1-7', label: 'SGT Vasquez.R', admin: true } };
+            expect(page({ isAdmin: false }).find('[data-testid="use-starter"]').exists()).toBe(false);
+        });
     });
 
     describe('the legend of template codes', () => {
