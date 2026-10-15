@@ -2,6 +2,7 @@
 
 namespace App\Authorization;
 
+use App\Models\SyncRun;
 use App\Models\User;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
@@ -23,9 +24,6 @@ use Illuminate\Contracts\Session\Session;
 class ServingSession
 {
     private const KEY = 'admitted_live';
-
-    /** The sync_runs `source` the roster sync records under. */
-    private const ROSTER_SOURCE = 'roster';
 
     public function __construct(
         private readonly Session $session,
@@ -81,8 +79,8 @@ class ServingSession
         }
 
         // `started_at` is second-precision; a run that started in the admission's second counts as after
-        // it, so the doubt goes to the cache.
-        $sync = $this->syncRuns->latestSuccessful(self::ROSTER_SOURCE);
+        // it, so the doubt goes to the cache. Only a whole-roster run counts: an echelon sync refreshes one unit.
+        $sync = $this->syncRuns->latestSuccessful(SyncRun::SOURCE_ROSTER);
 
         return $sync === null || $sync->started_at->getTimestamp() < $stored['at'];
     }
