@@ -457,6 +457,35 @@ it('records a failed sync run capturing the error when the Cav seam errors', fun
         ->and($run->inactivated)->toBe(0);
 });
 
+it('counts only troopers whose data changed as updated, for a whole run and for one unit', function () {
+    $units = app(UnitRepository::class);
+    $company = $units->create(UnitType::Company, 'Alpha Company', 'A/1-7', null);
+    $platoon = $units->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', $company->id);
+    $section = $units->create(UnitType::Section, '1st Section', '1/1/A/1-7', $platoon->id);
+    UnitBilletMapping::factory()->create(['unit_id' => $section->id, 'cav_position_id' => 773]);
+    $roster = fn (string $rank) => MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => [
+            '1' => srRosterRow(),
+            '2' => srRosterRow(overrides: ['rank' => ['rankShort' => 'SGT', 'rankFull' => $rank, 'rankImageUrl' => '', 'rankId' => '4']]),
+        ]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    $roster('Sergeant');
+    syncRosterHandler()->handle();
+    syncRosterHandler()->handle();
+    syncRosterHandler()->handle(7, $platoon->id);
+    MockClient::destroyGlobal();
+    $roster('Staff Sergeant');
+    syncRosterHandler()->handle(7, $platoon->id);
+
+    $runs = SyncRun::query()->orderBy('id')->get();
+    expect($runs->pluck('inserted')->all())->toBe([2, 0, 0, 0])
+        ->and($runs->pluck('updated')->all())->toBe([0, 0, 0, 1])
+        ->and(Trooper::where('cav_id', 2)->sole()->rank)->toBe('Staff Sergeant');
+});
+
 it('does not write an audit_log row for a sync run', function () {
     MockClient::global([
         SR_COMBAT_URL => srEmptyRoster(),
