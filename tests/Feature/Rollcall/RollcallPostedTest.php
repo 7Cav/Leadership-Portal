@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\AuditLogEntry;
-use App\Models\PortalRoleGrant;
 use App\Models\SectionPractice;
 use App\Models\Unit;
 use App\Models\UnitType;
@@ -15,8 +14,7 @@ use Illuminate\Support\Facades\Http;
 beforeEach(function () {
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-08 16:20:00', 'UTC'));
     $this->section = Unit::factory()->create(['type' => UnitType::Section, 'path' => '920/']);
-    $this->leader = User::factory()->serving()->create(['username' => 'Vasquez.R']);
-    PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
+    $this->leader = User::factory()->commanding($this->section)->create(['username' => 'Vasquez.R']);
 });
 
 it('records when and by whom the rollcall was posted, and shows it on the page', function () {

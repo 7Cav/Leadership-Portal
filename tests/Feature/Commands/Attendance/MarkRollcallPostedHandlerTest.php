@@ -5,7 +5,6 @@ use App\Commands\Attendance\MarkRollcallPosted;
 use App\Commands\Attendance\MarkRollcallPostedForbiddenException;
 use App\Commands\Attendance\MarkRollcallPostedHandler;
 use App\Models\AuditLogEntry;
-use App\Models\PortalRoleGrant;
 use App\Models\SectionPractice;
 use App\Models\Unit;
 use App\Models\UnitType;
@@ -19,8 +18,7 @@ use Illuminate\Support\Carbon;
 beforeEach(function () {
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-08 16:20:00', 'UTC'));
     $this->section = Unit::factory()->create(['type' => UnitType::Section]);
-    $this->leader = User::factory()->serving()->create();
-    PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
+    $this->leader = User::factory()->commanding($this->section)->create();
     $this->moment = CarbonImmutable::parse('2026-10-07 18:00:00', 'UTC');
 });
 

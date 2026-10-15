@@ -35,6 +35,10 @@ use Illuminate\Support\Collection;
  * materialized `path` (AD-18) and unioned into one set, so a leader who also holds grants — or a
  * dual-hatted user with several — sees each unit once.
  *
+ * Writes are narrower: {@see writeScope()} leaves the grants out, so a staff grant reads an echelon
+ * but never marks, confirms, sends or relinks anything in it. Only Admin and the roster-derived
+ * command write.
+ *
  * **View-as** (AD-9, Story 1.13) then narrows that set, never widens it: the effective scope
  * {@see resolve()} hands back is `real ∩ target`, and the stored target is re-checked against the
  * user's *current* real authority on every call, so a target that has fallen outside it — a lost
@@ -63,6 +67,22 @@ class ScopeResolver
     }
 
     /**
+     * The units the user may write to: their real command authority (Admin or the roster-derived
+     * subtree, never a staff grant), narrowed to their active view-as target when they have one.
+     * Every write handler gates on this, not {@see resolve()}: a staff grant lets someone read an
+     * echelon, not mark, confirm, send or relink anything in it.
+     *
+     * @return Collection<int, int> unit ids the user may write to
+     */
+    public function writeScope(User $user): Collection
+    {
+        $command = $this->commandScope($user);
+        $preview = $this->activeViewAs($user);
+
+        return $preview === null ? $command : $command->intersect($preview->scope)->values();
+    }
+
+    /**
      * The real-authority ceiling, ignoring view-as.
      *
      * @return Collection<int, int> unit ids
@@ -79,6 +99,23 @@ class ScopeResolver
             ->flatMap(fn ($unit) => $this->units->subtreeIds($unit))
             ->unique()
             ->values();
+    }
+
+    /**
+     * Real command authority, ignoring view-as and grants: the full tree for an Admin, otherwise
+     * the subtree of the unit the user's synced billet commands (empty when it commands none).
+     *
+     * @return Collection<int, int> unit ids
+     */
+    private function commandScope(User $user): Collection
+    {
+        if ($user->is_admin) {
+            return $this->units->allIds();
+        }
+
+        $commanded = $this->commands->commandedUnitFor($user);
+
+        return $commanded === null ? collect() : $this->units->subtreeIds($commanded)->values();
     }
 
     /**

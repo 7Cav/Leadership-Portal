@@ -61,16 +61,22 @@ const props = defineProps({
     reasons: { type: Array, required: true },
     rosterSync: { type: Object, required: true },
     computedAt: { type: String, required: true },
+    // Whether the viewer may save or send this report: false for a unit they only see through a
+    // staff grant, which reads but never writes (the server refuses those writes).
+    canWrite: { type: Boolean, default: false },
 });
 
 const page = usePage();
 
 const sent = computed(() => props.report.status === 'sent');
-// View-as (1.13) is a read-only preview: every write is refused server-side, so say so here
-// rather than let a save fail.
+// View-as (1.13) and a staff grant are read-only: every write is refused server-side, so say so
+// here rather than let a save fail.
 const viewAs = computed(() => page.props.viewAs ?? null);
-const readOnly = computed(() => sent.value || !!viewAs.value);
-const readOnlyNote = computed(() => (viewAs.value ? `Read-only while viewing as ${viewAs.value.label}` : null));
+const readOnly = computed(() => sent.value || !!viewAs.value || !props.canWrite);
+const readOnlyNote = computed(() => {
+    if (viewAs.value) return `Read-only while viewing as ${viewAs.value.label}`;
+    return props.canWrite ? null : 'Read-only: a staff grant lets you view this report, not edit or send it';
+});
 
 const weekDate = computed(() => props.week.start.slice(0, 10));
 const baseUrl = computed(() => `/reports/${props.unit.id}/${weekDate.value}`);
@@ -470,7 +476,7 @@ const subjectInvalid = computed(() => props.unit.isLeaf && subjectTouched.value 
                                 <h2 id="notes-title" class="text-[15px] font-semibold">Leader notes</h2>
                                 <span class="ml-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground" aria-live="polite" data-testid="save-state">
                                     <template v-if="sent"><PhLockSimple aria-hidden="true" />Locked with the snapshot</template>
-                                    <template v-else-if="viewAs"><PhLockSimple aria-hidden="true" />{{ readOnlyNote }}</template>
+                                    <template v-else-if="readOnlyNote"><PhLockSimple aria-hidden="true" />{{ readOnlyNote }}</template>
                                     <template v-else>
                                         <component :is="saveIcon" aria-hidden="true" :class="{ 'text-destructive': save.state === 'error' }" />{{ saveLabel }}
                                         <button v-if="save.state === 'error'" type="button" class="underline underline-offset-2 hover:text-foreground" @click="saveDraft">Retry</button>

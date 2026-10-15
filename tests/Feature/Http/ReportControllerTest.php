@@ -8,11 +8,11 @@ use App\Kpi\UnitKpis;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
-use App\Models\PortalRoleGrant;
 use App\Models\RollcallSignature;
 use App\Models\SyncRun;
 use App\Models\Trooper;
 use App\Models\Unit;
+use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReport;
@@ -37,9 +37,10 @@ beforeEach(function () {
     $this->section = Unit::factory()->create(['type' => UnitType::Section, 'name' => '2nd Section', 'callsign' => '2/1/A/1-7', 'parent_id' => $this->platoon->id, 'path' => '700/701/']);
     $this->sibling = Unit::factory()->create(['type' => UnitType::Section, 'callsign' => '3/1/A/1-7', 'parent_id' => $this->platoon->id, 'path' => '700/702/']);
 
-    $this->leader = User::factory()->serving()->create(['username' => 'Vasquez.R', 'cav_id' => 501]);
-    Trooper::factory()->create(['cav_id' => 501, 'rank_short' => 'SGT', 'username' => 'Vasquez.R', 'primary_section_id' => $this->section->id]);
-    PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
+    // The section's leader by billet: a command billet is what writes, a staff grant only reads.
+    $this->leader = User::factory()->create(['username' => 'Vasquez.R', 'cav_id' => 501]);
+    UnitCommandMapping::factory()->create(['unit_id' => $this->section->id, 'cav_position_id' => 5501]);
+    Trooper::factory()->create(['cav_id' => 501, 'rank_short' => 'SGT', 'username' => 'Vasquez.R', 'primary_section_id' => $this->section->id, 'cav_position_id' => 5501]);
 
     $this->trooper = Trooper::factory()->create(['rank_short' => 'PFC', 'username' => null, 'primary_section_id' => $this->section->id]);
 });
@@ -207,8 +208,7 @@ it('records the send with its reason in the audit log', function () {
 });
 
 it('renders a non-leaf unit as the roll-up of its children, naming those not sent', function () {
-    $platoonLeader = User::factory()->serving()->create();
-    PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
+    $platoonLeader = User::factory()->commanding($this->platoon)->create();
     app(WeeklyReportRepository::class)->send($this->sibling->id, $this->weekStart, frozenSnapshot(4), null, $platoonLeader->id, 'd', null, 'Land navigation');
 
     $this->actingAs($platoonLeader)->get(reportUrl($this->platoon, $this->week))
@@ -225,8 +225,7 @@ it('renders a non-leaf unit as the roll-up of its children, naming those not sen
 });
 
 it('lets a platoon leader send with a child missing, freezing who was missing', function () {
-    $platoonLeader = User::factory()->serving()->create();
-    PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
+    $platoonLeader = User::factory()->commanding($this->platoon)->create();
 
     $this->actingAs($platoonLeader)->post(reportUrl($this->platoon, $this->week, '/send'), ['reason' => 'Weekly report'])
         ->assertSessionHasNoErrors();
@@ -324,8 +323,7 @@ it('tells the leader when the report was already sent, leaving the frozen conten
 });
 
 it('shows a sent roll-up\'s children as they froze, not as they stand now', function () {
-    $platoonLeader = User::factory()->serving()->create();
-    PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
+    $platoonLeader = User::factory()->commanding($this->platoon)->create();
     $this->actingAs($platoonLeader)->post(reportUrl($this->platoon, $this->week, '/send'), ['reason' => 'Weekly report']);
     app(WeeklyReportRepository::class)->send($this->sibling->id, $this->weekStart, frozenSnapshot(4), null, $platoonLeader->id, 'd', null); // sent late
 

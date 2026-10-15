@@ -5,7 +5,6 @@ use App\Models\Attendance;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
-use App\Models\PortalRoleGrant;
 use App\Models\SectionPractice;
 use App\Models\Trooper;
 use App\Models\Unit;
@@ -20,8 +19,7 @@ use Inertia\Testing\AssertableInertia as Assert;
 beforeEach(function () {
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-08 16:20:00', 'UTC'));
     $this->section = Unit::factory()->create(['type' => UnitType::Section, 'path' => '940/']);
-    $this->leader = User::factory()->serving()->create(['username' => 'Vasquez.R']);
-    PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
+    $this->leader = User::factory()->commanding($this->section)->create(['username' => 'Vasquez.R']);
     $this->ortega = Trooper::factory()->create(['username' => 'Ortega.M']);
     $this->dube = Trooper::factory()->create(['username' => 'Dube.R']);
     foreach ([$this->ortega, $this->dube] as $trooper) {
@@ -78,9 +76,9 @@ it('confirms the practice as an audited, scope-gated action and shows it on the 
 
 it('confirms a purely manual practice the same way', function () {
     $other = Unit::factory()->create(['type' => UnitType::Section, 'path' => '941/']);
-    PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $other->id]);
+    $otherLeader = User::factory()->commanding($other)->create();
 
-    $this->actingAs($this->leader)->postJson("/rollcall/{$other->id}/confirm", ['week' => '2026-10-03'])->assertOk();
+    $this->actingAs($otherLeader)->postJson("/rollcall/{$other->id}/confirm", ['week' => '2026-10-03'])->assertOk();
 
     expect(SectionPractice::query()->where('section_id', $other->id)->sole()->confirmed_at)->not->toBeNull();
 });

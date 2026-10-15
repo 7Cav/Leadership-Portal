@@ -6,7 +6,6 @@ use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
 use App\Models\GamePlatform;
 use App\Models\GamePlayerDismissal;
-use App\Models\PortalRoleGrant;
 use App\Models\PracticeCapturePlayer;
 use App\Models\SectionPractice;
 use App\Models\Trooper;
@@ -24,8 +23,7 @@ use Inertia\Testing\AssertableInertia as Assert;
 beforeEach(function () {
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-08 16:20:00', 'UTC'));
     $this->section = Unit::factory()->create(['type' => UnitType::Section, 'path' => '930/']);
-    $this->leader = User::factory()->serving()->create(['username' => 'Vasquez.R']);
-    PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
+    $this->leader = User::factory()->commanding($this->section)->create(['username' => 'Vasquez.R']);
     $this->ortega = unmatchedTrooper($this->section, ['username' => 'Ortega.M', 'rank_short' => 'SGT']);
     $this->practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => '2026-10-03 00:00:00']);
     $this->practice->forceFill(['captured_at' => '2026-10-08 12:00:00', 'capture_source' => 'crcon', 'server_ref' => 'crcon-1'])->save();
@@ -132,9 +130,10 @@ it('refuses a trooper from another section of the leader\'s scope', function () 
     $sibling = Unit::factory()->create(['type' => UnitType::Section, 'path' => '930/932/']);
     $other = unmatchedTrooper($sibling);
     $this->section->forceFill(['path' => '930/'])->save();
-    PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $sibling->id]);
+    // An Admin, so the other section is in scope too: the refusal is about the section, not scope.
+    $admin = User::factory()->admin()->create();
 
-    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this, ['trooper_id' => $other->id]))
+    $this->actingAs($admin)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this, ['trooper_id' => $other->id]))
         ->assertStatus(422);
 
     expect(TrooperGameIdentity::query()->count())->toBe(0);

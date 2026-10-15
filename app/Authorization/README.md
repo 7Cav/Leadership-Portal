@@ -19,9 +19,19 @@ is a serving trooper (`users.cav_id` → a cached trooper on combat, reserve or 
 `TrooperStatus::serving()` allow-list the billet half uses): a holder who leaves keeps the row, shown
 as lapsed on the staff grants page, but none of its scope.
 
+**Write scope** is narrower than read scope: `ScopeResolver::writeScope()` is the full tree for an Admin,
+otherwise only the roster-derived subtree. A staff grant reads an echelon, it never writes to it, so a grant
+holder sees the rollcall, reports and game identities of the granted units read-only. Every write handler
+(mark attendance, confirm practice, mark rollcall posted, request capture, link or dismiss an unmatched
+player, set or remove a game identity, save or send a weekly report, demo history) gates on `writeScope()`,
+not `resolve()`, and the pages take a `canWrite` (or per-trooper `editable`) flag from it so they go
+read-only instead of offering buttons that answer 403. `commandsUnit()` (the echelon roster sync) is the
+same authority without the view-as narrowing.
+
 **View-as** (AD-9, Story 1.13) narrows, never widens. `ViewAs` keeps the viewer's chosen target
 (a unit in their scope, or — Admins only — another user) in the server-side session, bound to the
 viewer. `ScopeResolver::resolve()` returns the *effective* scope, `real ∩ target`; `realScope()` is
 the ceiling. The target is re-checked by `evaluate()` on every call, so one that falls outside
 current real authority stops applying at once. While a preview is active, the
-`ReadOnlyWhileViewingAs` middleware refuses every write except leaving view-as and signing out.
+`ReadOnlyWhileViewingAs` middleware refuses every write except leaving view-as and signing out, and
+`writeScope()` is narrowed to the target as well.

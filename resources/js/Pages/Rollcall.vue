@@ -89,6 +89,9 @@ const props = defineProps({
     // The company's active rollcall template, resolved on this request (3.6, 3.11):
     // `{ state, companyId, versionId, version, body }`. Null for the picker.
     template: { type: Object, default: null },
+    // Whether the viewer may write here: false for a section they only see through a staff grant,
+    // which reads but never marks, confirms or posts (the server refuses those writes).
+    canWrite: { type: Boolean, default: false },
 });
 
 const page = usePage();
@@ -114,11 +117,14 @@ const showUnmatched = computed(() => Boolean(props.capture) && unmatchedPlayers.
 const liveAtRisk = ref(props.atRisk);
 watch(() => props.atRisk, (atRisk) => (liveAtRisk.value = atRisk));
 
-// A view-as preview (Story 1.13) is read-only: the server refuses every write during one, so the
-// screen says so up front instead of letting saves fail.
+// A view-as preview (Story 1.13) and a staff grant are read-only: the server refuses every write
+// then, so the screen says so up front instead of letting saves fail.
 const viewAs = computed(() => page.props.viewAs ?? null);
-const editable = computed(() => !viewAs.value);
-const readOnlyReason = computed(() => (viewAs.value ? `Read-only while viewing as ${viewAs.value.label}` : null));
+const editable = computed(() => !viewAs.value && props.canWrite);
+const readOnlyReason = computed(() => {
+    if (viewAs.value) return `Read-only while viewing as ${viewAs.value.label}`;
+    return props.canWrite ? null : 'Read-only: a staff grant lets you view this section, not mark it';
+});
 
 const autosave = props.section
     ? useRollcallAutosave({
@@ -623,7 +629,7 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
             data-testid="read-only-notice"
         >
             <PhEye class="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
-            <p>{{ readOnlyReason }}. Exit view as to mark attendance.</p>
+            <p>{{ readOnlyReason }}.<template v-if="viewAs"> Exit view as to mark attendance.</template></p>
         </div>
 
         <div

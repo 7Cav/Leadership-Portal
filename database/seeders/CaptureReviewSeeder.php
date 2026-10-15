@@ -4,13 +4,13 @@ namespace Database\Seeders;
 
 use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Models\GamePlatform;
-use App\Models\PortalRoleGrant;
 use App\Models\SyncRun;
 use App\Models\SyncRunStatus;
 use App\Models\Trooper;
 use App\Models\TrooperGameIdentity;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
+use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\PracticeCapturePlayerRepository;
@@ -46,7 +46,7 @@ class CaptureReviewSeeder extends Seeder
                 'cav_id' => $cavId, 'rank_short' => $rank, 'username' => $username, 'status' => TrooperStatus::Combat, 'primary_section_id' => $section->id,
             ]);
         }
-        PortalRoleGrant::factory()->create(['user_id' => User::query()->where('username', 'Hartmann.L')->sole()->id, 'unit_id' => $section->id]);
+        $this->leads('Hartmann.L', $section, (int) "{$tag}90");
 
         $practice = app(SectionPracticeRepository::class)->findOrCreate($section->id, WeekOf::start($now));
         app(SectionPracticeRepository::class)->stampCapture($practice, 'crcon-e2e', $now, 'crcon');
@@ -57,6 +57,17 @@ class CaptureReviewSeeder extends Seeder
 
         $this->seedReviewSection($platoon, $tag, $now);
         $this->seedDownSection($platoon, $tag, $now);
+    }
+
+    /**
+     * Make the user the section's leader by billet: the roster-derived command, which writes (a staff
+     * grant only reads).
+     */
+    private function leads(string $username, Unit $section, int $positionId): void
+    {
+        UnitCommandMapping::factory()->create(['unit_id' => $section->id, 'cav_position_id' => $positionId]);
+        Trooper::query()->where('cav_id', User::query()->where('username', $username)->sole()->cav_id)->sole()
+            ->forceFill(['cav_position_id' => $positionId])->save();
     }
 
     private function seedReviewSection(Unit $platoon, string $tag, CarbonImmutable $now): void
@@ -71,7 +82,7 @@ class CaptureReviewSeeder extends Seeder
                 'cav_id' => $cavId, 'rank_short' => $rank, 'username' => $username, 'status' => TrooperStatus::Combat, 'primary_section_id' => $section->id,
             ])->id;
         }
-        PortalRoleGrant::factory()->create(['user_id' => User::query()->where('username', 'Brandt.K')->sole()->id, 'unit_id' => $section->id]);
+        $this->leads('Brandt.K', $section, (int) "{$tag}91");
 
         $practice = app(SectionPracticeRepository::class)->findOrCreate($section->id, WeekOf::start($now));
         app(MarkAttendanceHandler::class)->preMark($practice, [$ids['Okafor.D'], $ids['Lindqvist.E']]);
@@ -93,7 +104,7 @@ class CaptureReviewSeeder extends Seeder
                 TrooperGameIdentity::factory()->create(['trooper_id' => $trooper->id, 'platform' => GamePlatform::Hll, 'player_name' => 'Park', 'platform_id' => '76561198000009101']);
             }
         }
-        PortalRoleGrant::factory()->create(['user_id' => User::query()->where('username', 'Voss.H')->sole()->id, 'unit_id' => $section->id]);
+        $this->leads('Voss.H', $section, (int) "{$tag}92");
 
         // The practice was read earlier and no source answered: no stamp, no marks, a failed run naming it.
         $practice = app(SectionPracticeRepository::class)->findOrCreate($section->id, WeekOf::start($now));

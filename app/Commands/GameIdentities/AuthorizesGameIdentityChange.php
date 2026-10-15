@@ -9,8 +9,9 @@ use App\Repositories\TrooperRepository;
 
 /**
  * The scope gate shared by the link and unlink handlers (AD-8): a trooper may be changed only when
- * their primary section is in the actor's effective scope — a view-as preview narrows it, so a
- * previewing leader cannot reach further than the target they are viewing as.
+ * their primary section is in the actor's write scope — command authority, never a staff grant, and
+ * a view-as preview narrows it, so a previewing leader cannot reach further than the target they are
+ * viewing as.
  */
 trait AuthorizesGameIdentityChange
 {
@@ -24,7 +25,7 @@ trait AuthorizesGameIdentityChange
         if ($trooper === null
             || ! $trooper->status->isServing()
             || $trooper->primary_section_id === null
-            || ! $scope->resolve($actor)->contains($trooper->primary_section_id)) {
+            || ! $scope->writeScope($actor)->contains($trooper->primary_section_id)) {
             throw GameIdentityForbiddenException::forTrooper($trooperId);
         }
 

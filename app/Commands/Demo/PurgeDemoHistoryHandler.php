@@ -39,7 +39,7 @@ class PurgeDemoHistoryHandler
             throw DemoHistoryForbiddenException::notAdmin();
         }
 
-        $root = $this->scope->resolve($actor)->contains($command->unitId) ? $this->units->find($command->unitId) : null;
+        $root = $this->scope->writeScope($actor)->contains($command->unitId) ? $this->units->find($command->unitId) : null;
 
         if ($root === null) {
             throw DemoHistoryForbiddenException::outOfScope($command->unitId);

@@ -46,7 +46,7 @@ class RequestPracticeCaptureHandler
      */
     public function handle(User $actor, RequestPracticeCapture $command): CaptureSectionPractice
     {
-        if (! $this->scope->resolve($actor)->contains($command->sectionId)) {
+        if (! $this->scope->writeScope($actor)->contains($command->sectionId)) {
             throw new CaptureRetryForbiddenException($command->sectionId);
         }
 

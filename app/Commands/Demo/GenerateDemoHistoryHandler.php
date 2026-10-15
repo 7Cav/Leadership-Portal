@@ -173,7 +173,7 @@ class GenerateDemoHistoryHandler
             throw DemoHistoryForbiddenException::notAdmin();
         }
 
-        $unit = $this->scope->resolve($actor)->contains($unitId) ? $this->units->find($unitId) : null;
+        $unit = $this->scope->writeScope($actor)->contains($unitId) ? $this->units->find($unitId) : null;
 
         return $unit ?? throw DemoHistoryForbiddenException::outOfScope($unitId);
     }

@@ -6,7 +6,6 @@ use App\Commands\WeeklyReports\SaveReportDraftHandler;
 use App\Commands\WeeklyReports\SendWeeklyReportForbiddenException;
 use App\Kpi\ReportSnapshot;
 use App\Models\AuditLogEntry;
-use App\Models\PortalRoleGrant;
 use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
@@ -21,8 +20,7 @@ use Carbon\CarbonImmutable;
 beforeEach(function () {
     $this->platoon = Unit::factory()->create(['type' => UnitType::Platoon, 'path' => '710/']);
     $this->section = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => '710/711/']);
-    $this->leader = User::factory()->serving()->create();
-    PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
+    $this->leader = User::factory()->commanding($this->section)->create();
     $this->trooper = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
     $this->moment = CarbonImmutable::parse('2026-10-07 18:00:00', 'UTC');
     $this->weekStart = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');
@@ -57,8 +55,7 @@ it('refuses a unit outside the actor\'s scope', function () {
 })->throws(SendWeeklyReportForbiddenException::class);
 
 it('refuses unaccounted troopers on a roll-up, and a trooper listed twice', function (Closure $call) {
-    $platoonLeader = User::factory()->serving()->create();
-    PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
+    $platoonLeader = User::factory()->commanding($this->platoon)->create();
 
     expect(fn () => $call($this, $platoonLeader))->toThrow(InvalidReportContentException::class);
     expect(WeeklyReport::query()->exists())->toBeFalse();

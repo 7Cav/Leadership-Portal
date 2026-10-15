@@ -56,6 +56,7 @@ function props(overrides = {}) {
         reasons: [{ value: 'sick', label: 'Sick' }],
         rosterSync: { source: 'Cav roster (api.7cav.us)', at: null },
         computedAt: '2026-10-08T16:20:00+00:00',
+        canWrite: true,
         ...overrides,
     };
 }
@@ -229,6 +230,18 @@ describe('Reports/Show', () => {
         expect(wrapper.get('[data-testid="send-anyway"]').attributes('disabled')).toBeDefined();
         expect(wrapper.get('#report-notes').attributes('disabled')).toBeDefined();
         expect(wrapper.text()).toContain('Read-only while viewing as SGT Haddad.N');
+        vi.advanceTimersByTime(2000);
+        expect(put).not.toHaveBeenCalled();
+    });
+
+    it('is read-only for a unit the viewer only sees through a staff grant, saying so', async () => {
+        vi.useFakeTimers();
+        const wrapper = mountShow({ canWrite: false });
+
+        expect(wrapper.get('[data-testid="send-anyway"]').attributes('disabled')).toBeDefined();
+        expect(wrapper.get('[data-testid="send-button"]').attributes('disabled')).toBeDefined();
+        expect(wrapper.get('#report-notes').attributes('disabled')).toBeDefined();
+        expect(wrapper.get('[data-testid="save-state"]').text()).toContain('Read-only: a staff grant lets you view this report, not edit or send it');
         vi.advanceTimersByTime(2000);
         expect(put).not.toHaveBeenCalled();
     });

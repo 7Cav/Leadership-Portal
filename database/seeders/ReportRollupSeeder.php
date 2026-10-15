@@ -6,7 +6,6 @@ use App\Kpi\WeeklyReportKpis;
 use App\Models\ArtifactType;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
-use App\Models\PortalRoleGrant;
 use App\Models\RollcallSignature;
 use App\Models\Trooper;
 use App\Models\Unit;
@@ -26,8 +25,7 @@ use Illuminate\Database\Seeder;
  * A company's reporting week for the report roll-up workspace (Story 5.8): the browser test and
  * screenshots run against it. Builds 7CAV ─ 1-7 ─ A/1-7 with two platoons of four sections, four
  * weeks of attendance, last week sent everywhere, and this week five of eight sections sent, two
- * drafts and one not started. `Hale.S` holds a staff grant over the company; `Vasquez.R` over one
- * section. Run against an empty database only (the e2e setup migrates fresh first). Refuses to run
+ * drafts and one not started. `Hale.S` commands the company and `Vasquez.R` one section, by billet. Run against an empty database only (the e2e setup migrates fresh first). Refuses to run
  * outside local, testing and e2e: those two users hold real scope wherever they are created.
  */
 class ReportRollupSeeder extends Seeder
@@ -73,9 +71,9 @@ BBCODE;
             2 => $units->create(UnitType::Platoon, '2nd Platoon', '2/A/1-7', $company->id),
         ];
 
-        // Serving, or their grants would lapse (a grant counts only while its holder serves).
-        $commander = User::factory()->serving()->create(['username' => 'Hale.S']);
-        PortalRoleGrant::factory()->create(['user_id' => $commander->id, 'unit_id' => $company->id]);
+        // Each leader holds their unit's command billet: the roster-derived scope, which writes (a staff
+        // grant only reads). Their trooper is placed in no section, so no unit's strength moves.
+        User::factory()->commanding($company, ['username' => 'Hale.S'])->create(['username' => 'Hale.S']);
 
         // The company's rollcall template (Story 3.11): every section under it renders its forum post from it, and an
         // Admin (`Pike.S`) edits it from Settings. A company without one shows no post.
@@ -87,8 +85,7 @@ BBCODE;
             [$number, $platoon] = explode('/', $callsign);
             $ordinal = ['1' => '1st', '2' => '2nd', '3' => '3rd', '4' => '4th'][$number];
             $section = $units->create(UnitType::Section, "{$ordinal} Section", $callsign, $platoons[(int) $platoon]->id);
-            $user = User::factory()->serving()->create(['username' => $leader]);
-            PortalRoleGrant::factory()->create(['user_id' => $user->id, 'unit_id' => $section->id]);
+            $user = User::factory()->commanding($section, ['username' => $leader])->create(['username' => $leader]);
             $this->attendance($section, $strength, $week);
             $sections[] = [$section, $user, $state, $notes];
         }

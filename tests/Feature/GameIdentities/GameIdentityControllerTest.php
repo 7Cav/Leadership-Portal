@@ -5,7 +5,6 @@ use App\Commands\GameIdentities\SetTrooperGameIdentityHandler;
 use App\Models\Attendance;
 use App\Models\AuditLogEntry;
 use App\Models\GamePlatform;
-use App\Models\PortalRoleGrant;
 use App\Models\Trooper;
 use App\Models\TrooperGameIdentity;
 use App\Models\TrooperStatus;
@@ -21,8 +20,7 @@ beforeEach(function () {
     $this->platoon = Unit::factory()->create(['type' => UnitType::Platoon, 'path' => '910/']);
     $this->section = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => '910/911/', 'callsign' => '1/A']);
     $this->other = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => '910/912/']);
-    $this->leader = User::factory()->serving()->create();
-    PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
+    $this->leader = User::factory()->commanding($this->section)->create();
     $this->mine = placedTrooper($this->section, ['username' => 'Ortega.M', 'rank_short' => 'SGT']);
     $this->theirs = placedTrooper($this->other, ['username' => 'Nakamura.T']);
 });
@@ -204,8 +202,7 @@ it('names the owner of a collision even when they are outside the leader\'s scop
 });
 
 it('shows a platoon leader the troopers of every section beneath', function () {
-    $platoonLeader = User::factory()->serving()->create();
-    PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
+    $platoonLeader = User::factory()->commanding($this->platoon)->create();
 
     $this->actingAs($platoonLeader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page->has('troopers', 2));
     $this->actingAs($platoonLeader)->put(identityUrl($this->theirs), ['player_name' => 'N', 'platform_id' => '5'])->assertRedirect();

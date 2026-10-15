@@ -9,7 +9,6 @@ use App\Models\Attendance;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
-use App\Models\PortalRoleGrant;
 use App\Models\RollcallSignature;
 use App\Models\SectionPractice;
 use App\Models\Trooper;
@@ -27,8 +26,7 @@ use Illuminate\Support\Collection;
 
 beforeEach(function () {
     $this->section = Unit::factory()->create(['type' => UnitType::Section]);
-    $this->leader = User::factory()->serving()->create();
-    PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
+    $this->leader = User::factory()->commanding($this->section)->create();
 
     // Wednesday 2026-10-07 18:00 UTC falls in the Cav week opening Saturday 2026-10-03.
     $this->moment = CarbonImmutable::parse('2026-10-07 18:00:00', 'UTC');
@@ -299,12 +297,11 @@ it('reports the out-of-scope rejection as an authorization failure (a 403 for an
     expect(new MarkAttendanceForbiddenException(1))->toBeInstanceOf(AuthorizationException::class);
 });
 
-it('lets a leader whose grant sits higher up the tree mark the section', function () {
+it('lets a leader whose command sits higher up the tree mark the section', function () {
     $platoon = Unit::factory()->create(['type' => UnitType::Platoon, 'path' => '9900/']);
     $section = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $platoon->id, 'path' => '9900/9901/']);
     $trooper = Trooper::factory()->create(['primary_section_id' => $section->id]);
-    $platoonLeader = User::factory()->serving()->create();
-    PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $platoon->id]);
+    $platoonLeader = User::factory()->commanding($platoon)->create();
 
     mark($platoonLeader, $section->id, $this->moment, [new AttendanceMark($trooper->id, AttendanceStatus::Present)]);
 
@@ -340,9 +337,9 @@ it('rejects a trooper id that does not exist', function () {
 
 it('refuses to key a practice to a unit that is not a section, writing nothing', function () {
     $platoon = Unit::factory()->create(['type' => UnitType::Platoon]);
-    PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $platoon->id]);
+    $admin = User::factory()->admin()->create();
 
-    expect(fn () => mark($this->leader, $platoon->id, $this->moment, [
+    expect(fn () => mark($admin, $platoon->id, $this->moment, [
         new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present),
     ]))->toThrow(InvalidAttendanceMarkException::class, "Unit {$platoon->id} is not a section");
 

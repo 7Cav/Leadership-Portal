@@ -1,6 +1,7 @@
 <?php
 
 use App\Authorization\ScopeResolver;
+use App\Authorization\ViewAs;
 use App\Authorization\ViewAsKind;
 use App\Authorization\ViewAsTarget;
 use App\Models\PortalRoleGrant;
@@ -327,4 +328,42 @@ it('does not treat a staff grant as the right to sync, however wide the grant', 
 
     expect($resolver->resolve($staff)->contains($tree['platoon']->id))->toBeTrue()
         ->and($resolver->commandsUnit($staff, $tree['platoon']))->toBeFalse();
+});
+
+// ── writeScope: which units a user may write to (command authority, never a staff grant) ──
+
+it('gives a leader write scope over their command subtree only, never over a unit they hold a grant on', function () {
+    $tree = rdTree();
+    UnitCommandMapping::factory()->create(['unit_id' => $tree['platoon']->id, 'cav_position_id' => 500]);
+    $leader = rdLeader(500);
+    PortalRoleGrant::factory()->create(['user_id' => $leader->id, 'unit_id' => $tree['otherBattalion']->id]);
+    $resolver = app(ScopeResolver::class);
+
+    expect($resolver->writeScope($leader)->all())->toEqualCanonicalizing([$tree['platoon']->id, $tree['section1']->id, $tree['section2']->id])
+        ->and($resolver->resolve($leader)->contains($tree['otherBattalion']->id))->toBeTrue();
+});
+
+it('gives a staff user with only a grant no write scope at all, however wide the grant', function () {
+    $tree = rdTree();
+    Trooper::factory()->create(['cav_id' => 4242, 'status' => TrooperStatus::Combat]);
+    $staff = User::factory()->create(['cav_id' => 4242]);
+    PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $tree['regiment']->id]);
+
+    expect(app(ScopeResolver::class)->writeScope($staff)->all())->toBe([]);
+});
+
+it('gives an Admin write scope over the full tree', function () {
+    $tree = rdTree();
+
+    expect(app(ScopeResolver::class)->writeScope(User::factory()->admin()->create())->all())
+        ->toEqualCanonicalizing(array_map(fn (Unit $unit) => $unit->id, array_values($tree)));
+});
+
+it('narrows write scope to the view-as target, never widens it', function () {
+    $tree = rdTree();
+    UnitCommandMapping::factory()->create(['unit_id' => $tree['company']->id, 'cav_position_id' => 500]);
+    $commander = rdLeader(500);
+    app(ViewAs::class)->enter($commander, new ViewAsTarget(ViewAsKind::Unit, $tree['section1']->id));
+
+    expect(app(ScopeResolver::class)->writeScope($commander)->all())->toBe([$tree['section1']->id]);
 });
