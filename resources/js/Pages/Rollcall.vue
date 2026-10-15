@@ -55,6 +55,7 @@ import {
     signatureGroups,
     signatureLabel,
     stepsOf,
+    weeksNeedingWork,
 } from '@/lib/rollcall';
 import { cn } from '@/lib/utils';
 
@@ -74,6 +75,9 @@ const props = defineProps({
     // Where the leave data comes from and when it last synced (`LoaSyncState::toArray()`, 4.3, AD-20).
     loaSync: { type: Object, default: null },
     priorWeekMarked: { type: Boolean, default: false },
+    // `[{ date, unmarked, posted }]`: the last few past weeks, for flagging unfinished ones on the
+    // week navigation.
+    weekStatus: { type: Array, default: () => [] },
     // `[{ trooperId, missed, windowWeeks }]`, from the shared KPI service (AD-21).
     atRisk: { type: Array, default: () => [] },
     // `{ source, syncedAt }` (AD-20).
@@ -591,6 +595,17 @@ const closesLabel = computed(() => {
 });
 const syncedLabel = computed(() => (props.roster?.syncedAt ? `${forumDateTime(props.roster.syncedAt)}Z` : null));
 
+// Past weeks left unfinished are flagged on the arrow that leads to them, so none is forgotten.
+const unfinished = computed(() => weeksNeedingWork(props.weekStatus, props.week.date));
+function unfinishedLabel(weeks, direction) {
+    if (!weeks.length) return null;
+    const list = weeks.map((week) => `${forumDate(week.date)} (${week.what})`).join(', ');
+
+    return `${weeks.length} ${direction} ${weeks.length === 1 ? 'week needs' : 'weeks need'} work: ${list}`;
+}
+const earlierLabel = computed(() => unfinishedLabel(unfinished.value.earlier, 'earlier'));
+const laterLabel = computed(() => unfinishedLabel(unfinished.value.later, 'later'));
+
 const pickerOpen = ref(false);
 const practiceFilter = ref('all');
 
@@ -629,15 +644,43 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                 <h1 class="text-xl font-semibold tracking-tight sm:text-[22px]">Rollcall, week of {{ weekLabel }}</h1>
             </div>
             <div class="flex items-center gap-1 text-muted-foreground">
-                <Button variant="ghost" size="icon-sm" as-child>
-                    <Link :href="weekHref(week.previous)" aria-label="Previous week" preserve-scroll><PhCaretLeft /></Link>
+                <Button variant="ghost" size="icon-sm" class="relative" as-child>
+                    <Link
+                        :href="weekHref(week.previous)"
+                        :aria-label="earlierLabel ? `Previous week. ${earlierLabel}` : 'Previous week'"
+                        :title="earlierLabel ?? undefined"
+                        data-testid="previous-week"
+                        preserve-scroll
+                    >
+                        <PhCaretLeft />
+                        <span
+                            v-if="earlierLabel"
+                            class="absolute top-0.5 right-0.5 size-2 rounded-full bg-warning ring-2 ring-background"
+                            aria-hidden="true"
+                            data-testid="earlier-weeks-flag"
+                        />
+                    </Link>
                 </Button>
                 <Button v-if="!week.isCurrent" variant="ghost" size="sm" as-child>
                     <Link :href="weekHref(week.current)">This week</Link>
                 </Button>
                 <Button v-else variant="ghost" size="sm" disabled>This week</Button>
-                <Button v-if="week.next" variant="ghost" size="icon-sm" as-child>
-                    <Link :href="weekHref(week.next)" aria-label="Next week" preserve-scroll><PhCaretRight /></Link>
+                <Button v-if="week.next" variant="ghost" size="icon-sm" class="relative" as-child>
+                    <Link
+                        :href="weekHref(week.next)"
+                        :aria-label="laterLabel ? `Next week. ${laterLabel}` : 'Next week'"
+                        :title="laterLabel ?? undefined"
+                        data-testid="next-week"
+                        preserve-scroll
+                    >
+                        <PhCaretRight />
+                        <span
+                            v-if="laterLabel"
+                            class="absolute top-0.5 right-0.5 size-2 rounded-full bg-warning ring-2 ring-background"
+                            aria-hidden="true"
+                            data-testid="later-weeks-flag"
+                        />
+                    </Link>
                 </Button>
                 <Button v-else variant="ghost" size="icon-sm" disabled aria-label="Next week"><PhCaretRight /></Button>
                 <Button v-if="sections.length > 1" variant="outline" size="sm" class="ml-1" @click="pickerOpen = true">

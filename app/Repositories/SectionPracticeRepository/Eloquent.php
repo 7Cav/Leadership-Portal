@@ -3,13 +3,16 @@
 namespace App\Repositories\SectionPracticeRepository;
 
 use App\Models\SectionPractice;
+use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitType;
+use App\Repositories\PracticeWeekStatus;
 use App\Repositories\SectionPracticeRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 class Eloquent implements SectionPracticeRepository
@@ -65,6 +68,40 @@ class Eloquent implements SectionPracticeRepository
             ->where('week_start', $weekStart)
             ->get()
             ->keyBy('section_id')
+            ->toBase();
+    }
+
+    public function weekStatuses(int $sectionId, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
+    {
+        $firstWeek = WeekOf::requireStart($firstWeek);
+        $lastWeek = WeekOf::requireStart($lastWeek);
+
+        return SectionPractice::query()
+            ->where('section_practices.section_id', $sectionId)
+            ->whereBetween('section_practices.week_start', [$firstWeek, $lastWeek])
+            ->leftJoin('attendance', 'attendance.section_practice_id', '=', 'section_practices.id')
+            // Only marks of troopers placed in the section now count, the same population the
+            // rollcall screen lists; any row's change still makes a posted rollcall stale.
+            ->leftJoin('troopers', function ($join) {
+                $join->on('troopers.id', '=', 'attendance.trooper_id')
+                    ->on('troopers.primary_section_id', '=', 'section_practices.section_id')
+                    ->where('troopers.status', '!=', TrooperStatus::Inactive->value);
+            })
+            ->groupBy('section_practices.id', 'section_practices.week_start', 'section_practices.rollcall_posted_at')
+            ->withCasts(['marked' => 'integer', 'last_marked_at' => 'immutable_datetime'])
+            ->get([
+                'section_practices.id',
+                'section_practices.week_start',
+                'section_practices.rollcall_posted_at',
+                DB::raw('coalesce(sum(case when troopers.id is not null and attendance.status is not null then 1 else 0 end), 0) as marked'),
+                DB::raw('max(attendance.updated_at) as last_marked_at'),
+            ])
+            ->mapWithKeys(fn (SectionPractice $practice) => [$practice->week_start->toDateString() => new PracticeWeekStatus(
+                weekStart: $practice->week_start,
+                marked: $practice->marked,
+                posted: $practice->rollcall_posted_at !== null
+                    && ($practice->last_marked_at === null || $practice->last_marked_at->lessThanOrEqualTo($practice->rollcall_posted_at)),
+            )])
             ->toBase();
     }
 

@@ -62,6 +62,19 @@ interface SectionPracticeRepository
      */
     public function forSections(array $sectionIds, CarbonInterface $weekStart): Collection;
 
+    /**
+     * Where the section's practices stand for the weeks `$firstWeek` through `$lastWeek` inclusive
+     * (the rollcall's week navigation): per practice row, the troopers currently placed in the
+     * section (not inactive) who carry a practice mark, and whether the rollcall is marked posted
+     * with no attendance row changed after it. Keyed by `week_start` date (`Y-m-d`); a week with
+     * no practice row is absent. One grouped query. Never creates a row.
+     *
+     * @return Collection<string, PracticeWeekStatus>
+     *
+     * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
+     */
+    public function weekStatuses(int $sectionId, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection;
+
     public function markRollcallPosted(SectionPractice $practice, int $userId): SectionPractice;
 
     /**
