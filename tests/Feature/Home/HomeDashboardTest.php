@@ -23,6 +23,7 @@ use App\Repositories\SyncRunRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
 
 // Stories 5.9–5.11: the leader's Home dashboard. Scope from the ScopeResolver (AD-8), numbers from
@@ -71,6 +72,19 @@ function sentWeek(Unit $section, CarbonImmutable $week, UnitKpis $kpis): void
 {
     $snapshot = (new ReportSnapshot($kpis, null))->toArray();
     app(WeeklyReportRepository::class)->send($section->id, $week, $snapshot, null, User::factory()->serving()->create()->id, 'digest', null);
+}
+
+/** @return array<string, mixed> the page's shape of one set of KPIs */
+function homeKpiShape(UnitKpis $kpis): array
+{
+    return [
+        'strength' => $kpis->strength,
+        'rc' => ['numerator' => $kpis->rc30d->numerator, 'denominator' => $kpis->rc30d->denominator],
+        'sp' => ['numerator' => $kpis->sp30d->numerator, 'denominator' => $kpis->sp30d->denominator],
+        'atRisk' => $kpis->atRisk,
+        'onLoa' => $kpis->onLoa,
+        'makeups' => $kpis->makeups,
+    ];
 }
 
 function dashboard(User $user): Closure
@@ -327,6 +341,36 @@ describe('Subordinate units (Story 5.11)', function () {
         dashboard($this->commander)(fn ($page) => $page
             ->where('units.0.kpis.strength', $live->strength)
             ->where('units.0.kpis.strength', 7));
+    });
+
+    it('reads every live non-leaf row without a query per unit, each equal to that unit\'s own KPIs', function () {
+        $admin = User::factory()->serving()->create(['is_admin' => true]);
+        markWeek($this->s11, $this->s11Troopers[0], $this->week, AttendanceStatus::Present);
+        markWeek($this->sb, $this->sbTroopers[0], $this->week, AttendanceStatus::Missed);
+        $queries = function () use ($admin) {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            test()->actingAs($admin)->get('/home')->assertOk();
+            DB::disableQueryLog();
+
+            return count(DB::getQueryLog());
+        };
+
+        $before = $queries();
+        $units = app(UnitRepository::class);
+        $charlie = $units->create(UnitType::Company, 'Charlie Company', 'C/1-7', $this->battalion->id);
+        $pc = $units->create(UnitType::Platoon, '1st Platoon', '1/C/1-7', $charlie->id);
+        $sc = $units->create(UnitType::Section, '1st Section', '1/1/C/1-7', $pc->id);
+        markWeek($sc, Trooper::factory()->create(['primary_section_id' => $sc->id]), $this->week, AttendanceStatus::Makeup);
+
+        expect($queries())->toBe($before);
+        $kpis = app(KpiService::class);
+        dashboard($admin)(fn ($page) => $page
+            ->has('units', 3)
+            ->where('units.0.kpis', homeKpiShape($kpis->forUnit($this->alpha, $this->week)))
+            ->where('units.1.kpis', homeKpiShape($kpis->forUnit($this->bravo, $this->week)))
+            ->where('units.2.kpis', homeKpiShape($kpis->forUnit($charlie, $this->week)))
+            ->where('kpis.current', homeKpiShape($kpis->forUnit($this->battalion, $this->week))));
     });
 
     it('shows a sent unit as its frozen snapshot, and a leaf-only viewer their own section', function () {

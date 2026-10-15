@@ -79,15 +79,23 @@ class Eloquent implements AttendanceRepository
     {
         // A practice is held once any row on it carries a leader's SP mark. Signatures alone do
         // not hold it, and neither does `loa` — derived from LOA data, it says nothing about
-        // whether the practice ran.
+        // whether the practice ran. Only practices in the window, of sections under `$unit`, can
+        // join below, so the subquery reads those and not the whole attendance history.
+        $from = WeekOf::requireStart($firstWeek);
+        $to = WeekOf::requireStart($lastWeek);
+        $sections = Unit::query()->select('id')->where('path', 'like', "{$unit->path}%");
+
         $held = Attendance::query()
-            ->select('section_practice_id')
-            ->whereNotNull('status')
-            ->where('status', '!=', AttendanceStatus::Loa->value)
-            ->groupBy('section_practice_id');
+            ->select('attendance.section_practice_id')
+            ->join('section_practices', 'section_practices.id', '=', 'attendance.section_practice_id')
+            ->whereBetween('section_practices.week_start', [$from, $to])
+            ->whereIn('section_practices.section_id', $sections)
+            ->whereNotNull('attendance.status')
+            ->where('attendance.status', '!=', AttendanceStatus::Loa->value)
+            ->groupBy('attendance.section_practice_id');
 
         $population = $includeDeparted
-            ? Trooper::query()->whereIn('troopers.primary_section_id', Unit::query()->select('id')->where('path', 'like', "{$unit->path}%"))
+            ? Trooper::query()->whereIn('troopers.primary_section_id', $sections)
             : Trooper::query()->assignedWithin($unit);
 
         return $population
@@ -97,10 +105,7 @@ class Eloquent implements AttendanceRepository
                 $join->on('attendance.section_practice_id', '=', 'section_practices.id')
                     ->on('attendance.trooper_id', '=', 'troopers.id');
             })
-            ->whereBetween('section_practices.week_start', [
-                WeekOf::requireStart($firstWeek),
-                WeekOf::requireStart($lastWeek),
-            ])
+            ->whereBetween('section_practices.week_start', [$from, $to])
             ->orderBy('troopers.id')
             ->orderBy('section_practices.week_start')
             ->toBase()

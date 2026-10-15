@@ -71,8 +71,13 @@ class HomeController extends Controller
         // deadline passes, so the deadline counted down is never one that already went by.
         $weekStart = WeekOf::reporting(CarbonImmutable::now());
         $scope = $this->scope->resolve($request->user());
-        $roots = $this->topmost($scope);
+        $tree = $this->units->tree();
+        $roots = $this->topmost($scope, $tree);
         $chains = $roots->map(fn (Unit $root) => $this->chain->build($root, $weekStart));
+        // Each root's per-trooper rows, read once: the tiles, the at-risk list and the live rows
+        // of the unit table are all sums or filters of them.
+        $attendance = $roots->map(fn (Unit $root) => $this->kpis->trooperAttendance($root, $weekStart));
+        $paths = $tree->mapWithKeys(fn (Unit $unit) => [$unit->id => $unit->path]);
 
         return Inertia::render('Home', [
             'week' => [
@@ -80,11 +85,16 @@ class HomeController extends Controller
                 'start' => $weekStart->toIso8601String(),
                 'reportDue' => WeekOf::reportDue($weekStart)->toIso8601String(),
             ],
-            'kpis' => $roots->isEmpty() ? null : $this->kpiProps($roots, $scope, $weekStart),
-            'attention' => $roots->isEmpty() ? null : $this->attentionProps($roots, $chains, $scope, $weekStart),
+            'kpis' => $roots->isEmpty() ? null : $this->kpiProps($attendance, $scope, $weekStart),
+            'attention' => $roots->isEmpty() ? null : $this->attentionProps($attendance, $chains, $scope, $weekStart),
             'steps' => $this->stepProps($scope, $weekStart),
-            'units' => $chains->flatMap(fn (ChainNode $chain) => $this->subordinates($chain))
-                ->map(fn (ChainNode $node) => $this->unitRow($node, $weekStart))
+            'units' => $chains->flatMap(function (ChainNode $chain, int $i) use ($roots, $attendance, $paths, $weekStart) {
+                $rows = $attendance[$i];
+                $sectionOf = $this->hasLiveRollup($chain) ? $this->troopers->sectionsOfAssignedWithin($roots[$i]) : collect();
+
+                return collect($this->subordinates($chain))
+                    ->map(fn (ChainNode $node) => $this->unitRow($node, $weekStart, $rows, $sectionOf, $paths));
+            })
                 ->values()
                 ->all(),
         ]);
@@ -95,13 +105,14 @@ class HomeController extends Controller
      * so every other unit in it sits under one of these.
      *
      * @param  Collection<int, int>  $scope
+     * @param  Collection<int, Unit>  $tree
      * @return Collection<int, Unit>
      */
-    private function topmost(Collection $scope): Collection
+    private function topmost(Collection $scope, Collection $tree): Collection
     {
         $ids = $scope->flip();
 
-        return $this->units->tree()
+        return $tree
             ->filter(fn (Unit $unit) => $ids->has($unit->id) && ($unit->parent_id === null || ! $ids->has($unit->parent_id)))
             ->sortBy('id')
             ->values()
@@ -115,14 +126,14 @@ class HomeController extends Controller
      * sum would read as a headcount dip that never happened, so it stays a gap (AD-12). On LOA and
      * at-risk move with leave, so the leave data's source and last sync go with them (4.3, AD-20).
      *
-     * @param  Collection<int, Unit>  $roots
+     * @param  Collection<int, Collection<int, TrooperAttendance>>  $attendance  each root's per-trooper rows
      * @param  Collection<int, int>  $scope
      * @return array<string, mixed>
      */
-    private function kpiProps(Collection $roots, Collection $scope, CarbonImmutable $weekStart): array
+    private function kpiProps(Collection $attendance, Collection $scope, CarbonImmutable $weekStart): array
     {
-        $current = $roots->reduce(
-            fn (UnitKpis $sum, Unit $root) => $sum->plus($this->kpis->forUnit($root, $weekStart)),
+        $current = $attendance->reduce(
+            fn (UnitKpis $sum, Collection $rows) => $sum->plus($this->kpis->sum($rows)),
             UnitKpis::none(),
         );
 
@@ -203,20 +214,20 @@ class HomeController extends Controller
      * Leave (Epic 4) is not listed here: an expiring LOA would join as another `kind`, and a
      * `needs_review` LOA must then never produce an at-risk item (AD-4).
      *
-     * @param  Collection<int, Unit>  $roots
+     * @param  Collection<int, Collection<int, TrooperAttendance>>  $attendance  each root's per-trooper rows
      * @param  Collection<int, ChainNode>  $chains
      * @param  Collection<int, int>  $scope
      * @return array{items: list<array<string, mixed>>, totals: array{holding: int, atRisk: int}}
      */
-    private function attentionProps(Collection $roots, Collection $chains, Collection $scope, CarbonImmutable $weekStart): array
+    private function attentionProps(Collection $attendance, Collection $chains, Collection $scope, CarbonImmutable $weekStart): array
     {
         $holding = $chains
             ->flatMap(fn (ChainNode $chain) => $this->holdingBlockers($chain))
             ->sortBy(fn (array $blocker) => [$blocker['child']->status === ChildReportStatus::Draft ? 0 : 1, $blocker['child']->unit->id])
             ->values();
 
-        $atRisk = $roots
-            ->flatMap(fn (Unit $root) => $this->kpis->trooperAttendance($root, $weekStart)
+        $atRisk = $attendance
+            ->flatMap(fn (Collection $rows) => $rows
                 ->filter(fn (TrooperAttendance $row) => $row->atRisk())
                 ->map(fn (TrooperAttendance $row) => ['trooperId' => $row->trooperId, 'missed' => $row->missed, 'missedWeeks' => $row->missedWeeks]))
             ->values();
@@ -355,19 +366,35 @@ class HomeController extends Controller
         return $root->children === [] ? [$root] : $root->children;
     }
 
+    /** Whether a table row under this root is an unsent non-leaf, the one kind summed live. */
+    private function hasLiveRollup(ChainNode $root): bool
+    {
+        return collect($this->subordinates($root))->contains(fn (ChainNode $node) => $node->live && $node->children !== []);
+    }
+
     /**
      * One table row. A sent report is its frozen snapshot, a leaf is live attendance, and an unsent
      * non-leaf is live for its whole subtree, never the partial sum of the children that happen to
      * have sent: the roll-up semantics (status, holding) stay the chain's own, so the table and the
      * navigator never disagree (AD-13). A sent report whose snapshot cannot be read has `kpis`
-     * null: the row says so, and the rest of the table still renders.
+     * null: the row says so, and the rest of the table still renders. The live subtree is summed
+     * from the root's per-trooper rows, as the roster totals a unit, rather than read again.
      *
+     * @param  Collection<int, TrooperAttendance>  $rows  the root's per-trooper rows
+     * @param  Collection<int, int>  $sectionOf  trooper id to section id, for the root
+     * @param  Collection<int, string>  $paths  unit id to materialized path
      * @return array<string, mixed>
      */
-    private function unitRow(ChainNode $node, CarbonImmutable $weekStart): array
+    private function unitRow(ChainNode $node, CarbonImmutable $weekStart, Collection $rows, Collection $sectionOf, Collection $paths): array
     {
         $unit = $node->unit;
-        $kpis = $node->live && $node->children !== [] ? $this->kpis->forUnit($unit, $weekStart) : $node->kpis;
+        $kpis = $node->live && $node->children !== []
+            ? $this->kpis->sum($rows->filter(function (TrooperAttendance $row) use ($sectionOf, $paths, $unit) {
+                $section = $sectionOf->get($row->trooperId);
+
+                return $section !== null && str_starts_with($paths->get($section, ''), $unit->path);
+            }))
+            : $node->kpis;
         $date = $weekStart->toDateString();
 
         return [
