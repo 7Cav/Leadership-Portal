@@ -63,6 +63,12 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
         ->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.draft');
     Route::post('/reports/{unit}/{week}/send', [ReportController::class, 'send'])
         ->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.send');
+    // The training topic a platoon sets for its sections this week. Who may set it (the platoon's
+    // chain of command, or an Admin) is checked in the Command's handler.
+    Route::put('/reports/{unit}/{week}/topic', [ReportController::class, 'topic'])
+        ->whereNumber('unit')->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.topic');
+    Route::delete('/reports/{unit}/{week}/topic', [ReportController::class, 'clearTopic'])
+        ->whereNumber('unit')->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.topic.clear');
 
     // The roster (Stories 2.8, 4.6, 4.7, 4.9): the selected unit's subtree, `?view=orbat|matrix`.
     // Scope-gated in the controller through the ScopeResolver (AD-8). The trooper Sheet reads its

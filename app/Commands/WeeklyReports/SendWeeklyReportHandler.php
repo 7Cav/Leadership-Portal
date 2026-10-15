@@ -7,6 +7,7 @@ use App\Kpi\ReportKpisUnavailableException;
 use App\Kpi\WeeklyReportKpis;
 use App\Models\User;
 use App\Models\WeeklyReportStatus;
+use App\Repositories\PlatoonTrainingTopicRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportAlreadySentException;
@@ -26,8 +27,10 @@ use Carbon\CarbonInterface;
  * system is called (AD-10).
  *
  * Refused before anything is written: a unit outside the actor's scope (AD-8), a blank reason,
- * content that is not the unit's to record, and a unit whose KPIs cannot be reported (a non-leaf
- * with no children). A roll-up whose children have not all sent **is** sent: their ids are frozen
+ * content that is not the unit's to record, a training subject other than the one the platoon
+ * enforces for the week, and a unit whose KPIs cannot be reported (a non-leaf with no children).
+ * The frozen subject is {@see SectionTrainingSubject::forSend()}: the enforced topic when there is
+ * one. A roll-up whose children have not all sent **is** sent: their ids are frozen
  * as `missing_children` and never substituted with live numbers (5.7, AD-13).
  *
  * **Re-send is a clean no-op.** A report already sent for the unit-week is returned as it was
@@ -61,6 +64,7 @@ class SendWeeklyReportHandler
         private readonly WeeklyReportRepository $reports,
         private readonly WeeklyReportKpis $snapshots,
         private readonly AuditEnvelope $audit,
+        private readonly PlatoonTrainingTopicRepository $topics,
     ) {}
 
     /**
@@ -69,6 +73,7 @@ class SendWeeklyReportHandler
      * @throws ReasonRequiredException when no reason is given — on a re-send too.
      * @throws InvalidReportContentException when the content is not the unit's to record, or the
      *                                       week is before `WeekOf::floor()`.
+     * @throws TrainingSubjectEnforcedException when the platoon enforces a different subject.
      * @throws ReportKpisUnavailableException when the unit's KPIs cannot be reported yet, or the
      *                                        prior week's sent snapshot is unreadable.
      */
@@ -99,6 +104,7 @@ class SendWeeklyReportHandler
         }
 
         $content = ReportContent::checked($unit, $command->notes, $command->trainingSubject, $command->unaccounted, $this->troopers);
+        $trainingSubject = SectionTrainingSubject::forSend($unit->id, $this->topics->forSection($unit, $weekStart), $content->trainingSubject);
         $kpis = $this->snapshots->snapshot($unit, $weekStart)->toArray();
         $templateVersionId = null;
 
@@ -114,9 +120,9 @@ class SendWeeklyReportHandler
                     $kpis,
                     $content->notes,
                     $actor->id,
-                    self::contentDigest($unit->id, $weekStart, $kpis, $content->notes, $templateVersionId, $content->trainingSubject, $content->unaccounted),
+                    self::contentDigest($unit->id, $weekStart, $kpis, $content->notes, $templateVersionId, $trainingSubject, $content->unaccounted),
                     $templateVersionId,
-                    $content->trainingSubject,
+                    $trainingSubject,
                     $content->unaccounted,
                 ),
             );

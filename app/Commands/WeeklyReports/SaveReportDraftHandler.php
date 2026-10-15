@@ -7,6 +7,7 @@ use App\Kpi\ReportKpisUnavailableException;
 use App\Kpi\WeeklyReportKpis;
 use App\Models\User;
 use App\Models\WeeklyReport;
+use App\Repositories\PlatoonTrainingTopicRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportAlreadySentException;
@@ -21,7 +22,9 @@ use App\Support\Time\WeekOf;
  * freezes its own (AD-12).
  *
  * Refused before anything is written: a unit outside the actor's scope (AD-8), content that is
- * not the section's to record, and a report that is already sent — a sent report is frozen.
+ * not the section's to record, a training subject other than the one the platoon enforces for the
+ * week, and a report that is already sent — a sent report is frozen. How the subject combines
+ * with the platoon's topic is {@see SectionTrainingSubject::forDraft()}.
  */
 class SaveReportDraftHandler
 {
@@ -34,6 +37,7 @@ class SaveReportDraftHandler
         private readonly WeeklyReportRepository $reports,
         private readonly WeeklyReportKpis $snapshots,
         private readonly AuditEnvelope $audit,
+        private readonly PlatoonTrainingTopicRepository $topics,
     ) {}
 
     /**
@@ -41,6 +45,7 @@ class SaveReportDraftHandler
      *                                            does not exist.
      * @throws InvalidReportContentException when the content is not the unit's to record, or the
      *                                       week is before `WeekOf::floor()`.
+     * @throws TrainingSubjectEnforcedException when the platoon enforces a different subject.
      * @throws WeeklyReportAlreadySentException when the unit-week is already sent.
      */
     public function handle(User $actor, SaveReportDraft $command): WeeklyReport
@@ -58,6 +63,12 @@ class SaveReportDraftHandler
         }
 
         $content = ReportContent::checked($unit, $command->notes, $command->trainingSubject, $command->unaccounted, $this->troopers);
+        $trainingSubject = SectionTrainingSubject::forDraft(
+            $unit->id,
+            $this->topics->forSection($unit, $weekStart),
+            $content->trainingSubject,
+            $this->reports->find($unit->id, $weekStart)?->training_subject,
+        );
         try {
             $kpis = $this->snapshots->snapshot($unit, $weekStart)->toArray();
         } catch (ReportKpisUnavailableException) {
@@ -76,7 +87,7 @@ class SaveReportDraftHandler
                 $weekStart,
                 $kpis,
                 $content->notes,
-                $content->trainingSubject,
+                $trainingSubject,
                 $content->unaccounted,
             ),
         );

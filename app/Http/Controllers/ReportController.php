@@ -3,11 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
+use App\Commands\WeeklyReports\InvalidPlatoonTrainingTopicException;
 use App\Commands\WeeklyReports\InvalidReportContentException;
 use App\Commands\WeeklyReports\SaveReportDraft;
 use App\Commands\WeeklyReports\SaveReportDraftHandler;
 use App\Commands\WeeklyReports\SendWeeklyReport;
 use App\Commands\WeeklyReports\SendWeeklyReportHandler;
+use App\Commands\WeeklyReports\SetPlatoonTrainingTopic;
+use App\Commands\WeeklyReports\SetPlatoonTrainingTopicHandler;
+use App\Commands\WeeklyReports\TrainingSubjectEnforcedException;
 use App\Kpi\ChildReport;
 use App\Kpi\ChildReportStatus;
 use App\Kpi\KpiDelta;
@@ -21,6 +25,7 @@ use App\Kpi\WeeklyReportKpis;
 use App\Loa\LoaProvenance;
 use App\Milpac\RosterProvenance;
 use App\Models\Attendance;
+use App\Models\PlatoonTrainingTopic;
 use App\Models\Trooper;
 use App\Models\UnaccountedReason;
 use App\Models\Unit;
@@ -29,6 +34,7 @@ use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Models\WeeklyReportStatus;
 use App\Repositories\AttendanceRepository;
+use App\Repositories\PlatoonTrainingTopicRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
@@ -78,6 +84,7 @@ class ReportController extends Controller
         private readonly RosterProvenance $rosterSync,
         private readonly UserRepository $users,
         private readonly LoaProvenance $loaProvenance,
+        private readonly PlatoonTrainingTopicRepository $topics,
     ) {}
 
     public function show(Request $request, int $unit, string $week): Response
@@ -109,6 +116,14 @@ class ReportController extends Controller
         $parent = $unit->parent_id === null ? null : $this->units->find($unit->parent_id);
         $lastSync = $this->rosterSync->current();
         $senders = $this->senderLabels(collect([$report])->merge($history)->filter(fn (?WeeklyReport $r) => $r?->status === WeeklyReportStatus::Sent));
+        $isPlatoon = $unit->type === UnitType::Platoon;
+        // The week's training topic from the platoon: a section's draft shows its platoon's (a sent
+        // report keeps the subject it froze), a platoon's own screen shows the one it set.
+        $topic = match (true) {
+            $isLeaf => $sent || $parent === null ? null : $this->topics->forSection($unit, $weekStart),
+            $isPlatoon => $this->topics->find($unit->id, $weekStart),
+            default => null,
+        };
 
         return Inertia::render('Reports/Show', [
             'unit' => [
@@ -127,6 +142,13 @@ class ReportController extends Controller
             'report' => $this->reportProps($report, $senders),
             // Whether this viewer may save or send it: command authority, not a staff grant, which only reads.
             'canWrite' => $this->scope->writeScope($request->user())->contains($unit->id),
+            'topic' => $topic === null ? null : $this->topicProps($topic, $isLeaf ? $parent : $unit),
+            // Only the platoon's own chain of command (or an Admin) sets it, until the platoon's
+            // report is sent. A staff grant reads, it does not write.
+            'canSetTopic' => $isPlatoon && ! $sent && $this->scope->commandsUnit($request->user(), $unit),
+            // Carry-forward: the subject of the section's most recent sent report, offered on an
+            // empty field for the leader to accept. Never saved unless they do.
+            'suggestedSubject' => $isLeaf && ! $sent ? $history->first()?->training_subject : null,
             'kpis' => $snapshot === null ? null : $this->kpiProps($snapshot->kpis),
             'delta' => $snapshot?->delta === null ? null : $this->deltaProps($snapshot->delta),
             'kpiError' => $kpiError,
@@ -194,6 +216,40 @@ class ReportController extends Controller
     }
 
     /**
+     * Set the training topic for the platoon's sections this week: `enforced` locks it on their
+     * reports, otherwise it is a default they may change. A blank subject clears it.
+     */
+    public function topic(Request $request, SetPlatoonTrainingTopicHandler $handler, int $unit, string $week): RedirectResponse
+    {
+        $unit = $this->unitInScope($request, $unit);
+        $weekStart = $this->weekStart($week);
+        $data = $request->validate([
+            'subject' => ['nullable', 'string', 'max:255'],
+            'enforced' => ['sometimes', 'boolean'],
+        ]);
+
+        return $this->writeTopic($request, $handler, $unit, $weekStart, $data['subject'] ?? null, (bool) ($data['enforced'] ?? false));
+    }
+
+    public function clearTopic(Request $request, SetPlatoonTrainingTopicHandler $handler, int $unit, string $week): RedirectResponse
+    {
+        $unit = $this->unitInScope($request, $unit);
+
+        return $this->writeTopic($request, $handler, $unit, $this->weekStart($week), null, false);
+    }
+
+    private function writeTopic(Request $request, SetPlatoonTrainingTopicHandler $handler, Unit $unit, CarbonImmutable $weekStart, ?string $subject, bool $enforced): RedirectResponse
+    {
+        try {
+            $handler->handle($request->user(), new SetPlatoonTrainingTopic($unit->id, $weekStart, $subject, $enforced));
+        } catch (InvalidPlatoonTrainingTopicException $e) {
+            throw ValidationException::withMessages(['topic' => $e->getMessage()]);
+        }
+
+        return redirect()->route('reports.show', ['unit' => $unit->id, 'week' => $weekStart->toDateString()]);
+    }
+
+    /**
      * @return array<string, list<string>>
      */
     private function contentRules(): array
@@ -218,6 +274,9 @@ class ReportController extends Controller
         } catch (InvalidReportContentException) {
             // Most often a trooper moved out of the section since the page loaded.
             throw ValidationException::withMessages(['unaccounted' => 'A trooper you gave a reason for is no longer in this section, or the reason is not one of the listed ones. Reload the page to update the roster.']);
+        } catch (TrainingSubjectEnforcedException) {
+            // The platoon leader locked the topic after this page loaded.
+            throw ValidationException::withMessages(['training_subject' => "Your platoon set this week's training topic and locked it, so it cannot be changed here. Reload the page to see it."]);
         } catch (ReportKpisUnavailableException $e) {
             throw ValidationException::withMessages(['report' => $this->unavailableMessage($e)]);
         } catch (WeeklyReportAlreadySentException) {
@@ -306,6 +365,26 @@ class ReportController extends Controller
             'savedAt' => $report?->updated_at?->toIso8601String(),
             'sentAt' => $report?->sent_at?->toIso8601String(),
             'sentBy' => $report?->sent_by === null ? null : $senders->get($report->sent_by),
+        ];
+    }
+
+    /**
+     * The platoon's training topic for the week, with the platoon it came from and who set it
+     * (`RANK Name` from the roster, or their forum username).
+     *
+     * @return array<string, mixed>
+     */
+    private function topicProps(PlatoonTrainingTopic $topic, ?Unit $platoon): array
+    {
+        $setter = $topic->setter;
+        $trooper = $setter?->cav_id === null ? null : $this->troopers->byCavId([$setter->cav_id])->get($setter->cav_id);
+
+        return [
+            'subject' => $topic->subject,
+            'enforced' => $topic->enforced,
+            'platoon' => $platoon === null ? null : $this->unitProps($platoon),
+            'setBy' => $trooper?->display_name ?? $setter?->username,
+            'setAt' => $topic->updated_at?->toIso8601String(),
         ];
     }
 
