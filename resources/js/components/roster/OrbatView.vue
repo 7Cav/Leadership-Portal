@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import {
     PhArrowsInLineVertical,
     PhArrowsOutLineVertical,
@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { vStickyHead } from '@/lib/stickyHead';
 import EmptyState from '@/components/EmptyState.vue';
+import { useSlashClaim } from '@/composables/useSlashShortcut';
 import {
     aggregateWeek,
     compareBillet,
@@ -218,16 +219,8 @@ function onRowKey(event, trooper) {
     all[at + (event.key === 'ArrowDown' ? 1 : -1)]?.focus();
 }
 
-// `/` jumps to the search, but not while an overlay (the trooper sheet, a picker, a popover) is
-// open: focus would leave the overlay for a field behind it.
-function onSlash(event) {
-    if (event.key !== '/' || event.target.closest?.('input, textarea, [contenteditable]')) return;
-    if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
-    event.preventDefault();
-    search.value?.focus();
-}
-onMounted(() => document.addEventListener('keydown', onSlash));
-onBeforeUnmount(() => document.removeEventListener('keydown', onSlash));
+// On the roster `/` filters this table, as it always has; the shell's trooper search takes the key back elsewhere.
+useSlashClaim(() => search.value?.focus());
 
 function clearAll() {
     query.value = '';

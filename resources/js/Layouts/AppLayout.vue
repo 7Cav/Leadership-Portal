@@ -1,7 +1,7 @@
 <script setup>
-import { computed, onMounted } from 'vue';
+import { computed, onBeforeUnmount, onMounted } from 'vue';
 import { usePage } from '@inertiajs/vue3';
-import { PhMoon, PhSun, PhUserSwitch } from '@phosphor-icons/vue';
+import { PhMagnifyingGlass, PhMoon, PhSun, PhUserSwitch } from '@phosphor-icons/vue';
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -13,12 +13,15 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Toaster } from '@/components/ui/sonner';
+import { handleSlash, slashClaimed } from '@/composables/useSlashShortcut';
 import { useTheme } from '@/composables/useTheme';
+import { useTrooperSearch } from '@/composables/useTrooperSearch';
 import { useViewAs } from '@/composables/useViewAs';
 import { locate } from './navigation';
 import 'vue-sonner/style.css';
 import AppSidebar from './partials/AppSidebar.vue';
 import KeyboardShortcuts from './partials/KeyboardShortcuts.vue';
+import TrooperSearch from './partials/TrooperSearch.vue';
 import ViewAsBanner from './partials/ViewAsBanner.vue';
 import ViewAsPicker from './partials/ViewAsPicker.vue';
 
@@ -28,6 +31,7 @@ import ViewAsPicker from './partials/ViewAsPicker.vue';
 const page = usePage();
 const { theme, toggleTheme, syncFromDocument } = useTheme();
 const { active: viewingAs, openPicker } = useViewAs();
+const { openSearch } = useTrooperSearch();
 
 // The page's own breadcrumb trail, from the nav it lives under. Scope crumbs (battalion,
 // company) join once unit scopes exist; for now the regiment is the only scope.
@@ -43,6 +47,11 @@ const trail = computed(() => {
 
 // app.blade.php themes <html> before this module loads; pick that up so the toggle starts right.
 onMounted(syncFromDocument);
+
+// `/` opens the trooper search from any page, unless the page claims it for a search of its own (the roster's filter).
+const onKeydown = (event) => handleSlash(event, openSearch);
+onMounted(() => document.addEventListener('keydown', onKeydown));
+onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
 </script>
 
 <template>
@@ -83,6 +92,25 @@ onMounted(syncFromDocument);
                     </Breadcrumb>
 
                     <div class="ml-auto flex items-center gap-1.5">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            class="text-muted-foreground"
+                            data-testid="trooper-search-trigger"
+                            aria-haspopup="dialog"
+                            :aria-keyshortcuts="slashClaimed ? undefined : '/'"
+                            @click="openSearch"
+                        >
+                            <PhMagnifyingGlass />
+                            <span class="hidden sm:inline">Find trooper</span>
+                            <span class="sr-only sm:hidden">Find trooper</span>
+                            <kbd
+                                v-if="!slashClaimed"
+                                class="hidden rounded-sm border border-border bg-muted px-1 font-mono text-[11px] leading-4 text-muted-foreground sm:inline"
+                                aria-hidden="true"
+                                >/</kbd
+                            >
+                        </Button>
                         <!-- View as (Story 1.13): in the top bar on every page, as the issue asks (UX-DR2). -->
                         <Button
                             variant="ghost"
@@ -118,6 +146,7 @@ onMounted(syncFromDocument);
     </SidebarProvider>
 
     <ViewAsPicker />
+    <TrooperSearch />
 
     <!-- `?` on any page lists every keyboard shortcut (lib/shortcuts.js). -->
     <KeyboardShortcuts />

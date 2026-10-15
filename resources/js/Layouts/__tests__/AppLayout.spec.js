@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { reactive } from 'vue';
 import AppLayout from '../AppLayout.vue';
 import { THEME_STORAGE_KEY, useTheme } from '@/composables/useTheme';
+import { useTrooperSearch } from '@/composables/useTrooperSearch';
 
 // The shell reads everything from the shared Inertia page (url + auth). A reactive stand-in lets
 // a test move the URL the way an Inertia visit would.
@@ -432,6 +433,60 @@ describe('AppLayout', () => {
             wrapper = mountLayout({ user: { id: 1, username: 'Gryspeert.J', is_admin: true }, viewAs: { ...AS_PERSON, admin: true } });
 
             expect(wrapper.find('[data-testid="nav-group-settings"]').exists()).toBe(true);
+        });
+    });
+
+    describe('trooper search', () => {
+        afterEach(() => {
+            useTrooperSearch().searchOpen.value = false;
+        });
+
+        const pressSlash = (target = document.body) =>
+            target.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true }));
+
+        it('opens from the top-bar control, which advertises the / key', async () => {
+            wrapper = mountLayout();
+            const trigger = wrapper.find('[data-testid="trooper-search-trigger"]');
+
+            expect(trigger.attributes('aria-keyshortcuts')).toBe('/');
+            expect(trigger.find('kbd').text()).toBe('/');
+
+            await trigger.trigger('click');
+            await flushPromises();
+
+            expect(inBody('[data-testid="trooper-search"]')).not.toBeNull();
+        });
+
+        it('opens on / from anywhere on the page', async () => {
+            wrapper = mountLayout();
+
+            pressSlash();
+            await flushPromises();
+
+            expect(useTrooperSearch().searchOpen.value).toBe(true);
+            expect(inBody('[data-testid="trooper-search"]')).not.toBeNull();
+        });
+
+        it('leaves / alone while typing in a field', async () => {
+            wrapper = mountLayout({ url: '/home' });
+            const input = document.createElement('input');
+            document.body.append(input);
+
+            pressSlash(input);
+            await flushPromises();
+
+            expect(useTrooperSearch().searchOpen.value).toBe(false);
+        });
+
+        it('stops listening once the shell is gone', async () => {
+            wrapper = mountLayout();
+            wrapper.unmount();
+            wrapper = null;
+
+            pressSlash();
+            await flushPromises();
+
+            expect(useTrooperSearch().searchOpen.value).toBe(false);
         });
     });
 });
