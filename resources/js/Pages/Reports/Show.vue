@@ -541,6 +541,7 @@ const subjectInvalid = computed(() => props.unit.isLeaf && subjectTouched.value 
                             :week="week"
                             :sent="sent"
                             :sent-at="report.sentAt"
+                            :sent-by="report.sentBy"
                             :kpis="kpis"
                             :kpi-error="kpiError"
                             :delta="delta"
