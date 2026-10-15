@@ -101,6 +101,19 @@ describe('GameIdentities page', () => {
         expect(put).toHaveBeenCalledWith('/game-identities/1/arma', expect.objectContaining({ preserveScroll: true }));
     });
 
+    it('says why a save was refused in the notice instead of showing the raw error page', async () => {
+        const wrapper = factory();
+        await wrapper.get('[data-testid="open-1"]').trigger('click');
+        await wrapper.get('[data-testid="identity-name"]').setValue('Ortega_7Cav');
+        await wrapper.get('[data-testid="identity-id"]').setValue('b2c3');
+        await wrapper.get('[data-testid="identity-form"]').trigger('submit');
+
+        expect(put.mock.lastCall[1].onHttpException({ status: 403 })).toBe(false);
+        await nextTick();
+
+        expect(wrapper.get('[data-testid="notice"]').text()).toBe('This was not saved. You are not allowed to do that; reload the page, or exit view as first.');
+    });
+
     it('shows the collision error next to the platform id', async () => {
         const wrapper = factory();
         await wrapper.get('[data-testid="open-2"]').trigger('click');

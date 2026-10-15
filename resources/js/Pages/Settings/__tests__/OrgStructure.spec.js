@@ -14,7 +14,8 @@ let addFormState = { type: 'battalion', name: '', callsign: '', parent_id: null,
 let editFormState = { name: '', callsign: '', parent_id: null, processing: false, errors: {} };
 
 const toastSuccess = vi.fn();
-vi.mock('vue-sonner', () => ({ toast: { success: (...a) => toastSuccess(...a), error: vi.fn() } }));
+const toastError = vi.fn();
+vi.mock('vue-sonner', () => ({ toast: { success: (...a) => toastSuccess(...a), error: (...a) => toastError(...a) } }));
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
@@ -87,6 +88,16 @@ describe('Settings/OrgStructure', () => {
         expect(addSubmit).toHaveBeenCalledWith('/settings/org-structure', expect.objectContaining({ onSuccess: expect.any(Function) }));
     });
 
+    it('says why an add was refused instead of showing the raw error page', async () => {
+        toastError.mockReset();
+        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+
+        await wrapper.find('[data-testid="add-unit-form"]').trigger('submit');
+
+        expect(addSubmit.mock.lastCall[1].onHttpException({ status: 403 })).toBe(false);
+        expect(toastError).toHaveBeenCalledWith('The unit was not added. You are not allowed to do that; reload the page, or exit view as first.');
+    });
+
     it('renders a server-side validation error next to its field', () => {
         addFormState = {
             type: 'section',
@@ -129,6 +140,17 @@ describe('Settings/OrgStructure', () => {
         await wrapper.find('[data-testid="edit-unit-form"]').trigger('submit');
 
         expect(editSubmit).toHaveBeenCalledWith('/settings/org-structure/2', expect.objectContaining({ preserveScroll: true }));
+    });
+
+    it('says why an edit failed instead of showing the raw error page', async () => {
+        toastError.mockReset();
+        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+
+        await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+        await wrapper.find('[data-testid="edit-unit-form"]').trigger('submit');
+
+        expect(editSubmit.mock.lastCall[1].onHttpException({ status: 500 })).toBe(false);
+        expect(toastError).toHaveBeenCalledWith('The unit was not saved (error 500). Try again.');
     });
 
     it('renders a server-side validation error on the edit form', async () => {

@@ -3,6 +3,8 @@ import { mount } from '@vue/test-utils';
 import StaffGrants from '../StaffGrants.vue';
 
 const grantSubmit = vi.fn();
+const toastError = vi.fn();
+vi.mock('vue-sonner', () => ({ toast: { error: (...a) => toastError(...a) } }));
 let deleteSpy = vi.fn();
 let grantFormState = { user_id: null, unit_id: null, reason: '', processing: false, errors: {} };
 
@@ -71,6 +73,15 @@ describe('Settings/StaffGrants', () => {
         await wrapper.find('[data-testid="grant-form"]').trigger('submit');
 
         expect(grantSubmit).toHaveBeenCalledWith('/settings/staff-grants', expect.objectContaining({ preserveScroll: true }));
+    });
+
+    it('says why a grant was refused instead of showing the raw error page', async () => {
+        const wrapper = mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, isAdmin: true } });
+
+        await wrapper.find('[data-testid="grant-form"]').trigger('submit');
+
+        expect(grantSubmit.mock.lastCall[1].onHttpException({ status: 419 })).toBe(false);
+        expect(toastError).toHaveBeenCalledWith('The grant was not added. Your session expired; reload the page and try again.');
     });
 
     it('renders a server-side validation error next to its field', () => {

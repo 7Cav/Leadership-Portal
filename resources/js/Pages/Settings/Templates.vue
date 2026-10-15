@@ -13,7 +13,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useViewAs } from '@/composables/useViewAs';
 import EmptyState from '@/components/EmptyState.vue';
+import { toast } from 'vue-sonner';
 import { forumDate } from '@/lib/forumDate';
+import { onHttpException } from '@/lib/httpError';
 
 // Rollcall template authoring (Story 3.5, AD-17). Everything is shaped by `Settings\TemplatesController`. A save is
 // always a new version and a rollback only moves the active pointer: the page has no way to change a version that
@@ -69,7 +71,10 @@ function chooseCompany(event) {
 }
 
 function save() {
-    form.post('/settings/templates', { preserveScroll: true });
+    form.post('/settings/templates', {
+        preserveScroll: true,
+        onHttpException: onHttpException('The template was not saved', (message) => toast.error(message)),
+    });
 }
 
 const { active: previewing, subject: previewSubject } = useViewAs();

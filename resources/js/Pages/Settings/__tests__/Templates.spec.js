@@ -4,6 +4,7 @@ import { nextTick, reactive } from 'vue';
 import Templates from '../Templates.vue';
 
 const post = vi.fn();
+const toastError = vi.fn();
 const routerGet = vi.fn();
 const routerPost = vi.fn();
 let formState;
@@ -21,11 +22,14 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     },
 }));
 
+vi.mock('vue-sonner', () => ({ toast: { error: (...args) => toastError(...args) } }));
+
 afterEach(() => {
     mockPage.props = {};
     document.body.innerHTML = '';
     vi.unstubAllGlobals();
     post.mockReset();
+    toastError.mockReset();
     routerGet.mockReset();
     routerPost.mockReset();
 });
@@ -160,7 +164,17 @@ describe('Settings/Templates', () => {
 
         await wrapper.get('[data-testid="template-form"]').trigger('submit');
 
-        expect(post).toHaveBeenCalledWith('/settings/templates', { preserveScroll: true });
+        expect(post).toHaveBeenCalledWith('/settings/templates', expect.objectContaining({ preserveScroll: true }));
+    });
+
+    it('says why a save was refused or failed instead of showing the raw error page', async () => {
+        const wrapper = page();
+
+        await wrapper.get('[data-testid="template-form"]').trigger('submit');
+        const { onHttpException } = post.mock.calls[0][1];
+
+        expect(onHttpException({ status: 419 })).toBe(false);
+        expect(toastError).toHaveBeenCalledWith('The template was not saved. Your session expired; reload the page and try again.');
     });
 
     it('asks for a reason in a labelled dialog before making an older version active, and cancelling does nothing', async () => {
