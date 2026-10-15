@@ -109,6 +109,21 @@ it('opens a section leader on their own section with rank, name, billet and stat
             ->where('can.sync', false));
 });
 
+it('sends each trooper\'s join and promotion dates, for the order of battle\'s TIS and TIG columns', function () {
+    $this->leaderTrooper->forceFill(['tis' => '2023-04-15', 'tig' => '2025-11-02'])->save();
+    $unknown = rosterTrooper($this->section1, ['tis' => null, 'tig' => null]);
+
+    $this->actingAs($this->leader)->get('/roster')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('troopers.0.id', $this->leaderTrooper->id)
+            ->where('troopers.0.joined', '2023-04-15')
+            ->where('troopers.0.tig', '2025-11-02')
+            ->where('troopers.1.id', $unknown->id)
+            ->where('troopers.1.joined', null)
+            ->where('troopers.1.tig', null));
+});
+
 it('denies a unit outside the leader\'s scope server-side (2.8, 4.6, AD-8)', function () {
     $this->actingAs($this->leader)->get("/roster/{$this->section2->id}")->assertForbidden();
     $this->actingAs($this->leader)->get("/roster/{$this->company->id}")->assertForbidden();
