@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import { flushPromises, mount } from '@vue/test-utils';
 import OrgStructure from '../OrgStructure.vue';
 
 // `useForm` needs a real Inertia page context; stub the adapter surface this page touches
@@ -641,6 +641,141 @@ describe('Settings/OrgStructure', () => {
             const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: false, unplacedTroopers: null } });
 
             expect(wrapper.find('[data-testid="unplaced-panel"]').exists()).toBe(false);
+        });
+    });
+
+    describe('find a unit', () => {
+        const TREE = [
+            ...UNITS,
+            { id: 10, parent_id: 2, type: 'company', name: 'Alpha Company', callsign: 'A/2-7', path: '1/2/10/', trooper_count: 0 },
+            { id: 11, parent_id: 10, type: 'platoon', name: '1st Platoon', callsign: 'Nightriders', path: '1/2/10/11/', trooper_count: 0 },
+            { id: 12, parent_id: 11, type: 'section', name: '1st Squad', callsign: 'Nightriders-1', path: '1/2/10/11/12/', trooper_count: 6 },
+        ];
+
+        let wrapper;
+        afterEach(() => {
+            wrapper?.unmount();
+            vi.useRealTimers();
+        });
+
+        function mountTree(props = {}) {
+            wrapper = mount(OrgStructure, { props: { units: TREE, isAdmin: false, ...props }, attachTo: document.body });
+            return wrapper;
+        }
+
+        async function type(text) {
+            const input = wrapper.find('[data-testid="unit-search-input"]');
+            await input.trigger('focus');
+            await input.setValue(text);
+            return input;
+        }
+
+        it('is a labelled combobox tied to its list of matches', () => {
+            mountTree();
+            const input = wrapper.find('[data-testid="unit-search-input"]');
+
+            expect(input.attributes('role')).toBe('combobox');
+            expect(input.attributes('aria-controls')).toBe('unit-search-results');
+            expect(input.attributes('aria-expanded')).toBe('false');
+            expect(wrapper.find('label[for="unit-search"]').text()).toContain('Find a unit');
+        });
+
+        it('is hidden when there are no units to search', () => {
+            mountTree({ units: [] });
+
+            expect(wrapper.find('[data-testid="unit-search"]').exists()).toBe(false);
+        });
+
+        it('lists matches by name or callsign with the units above them', async () => {
+            mountTree();
+            const input = await type('NIGHT');
+
+            expect(input.attributes('aria-expanded')).toBe('true');
+            const options = wrapper.findAll('[role="option"]');
+            expect(options.map((o) => o.attributes('id'))).toEqual(['unit-search-option-11', 'unit-search-option-12']);
+            expect(options[1].text()).toContain('1st Squad');
+            expect(options[1].text()).toContain('Nightriders-1');
+            expect(options[1].text()).toContain('2nd Battalion / Alpha Company / 1st Platoon');
+            expect(wrapper.find('[data-testid="unit-search-status"]').text()).toBe('2 units match');
+        });
+
+        it('says so when nothing matches', async () => {
+            mountTree();
+            await type('zulu');
+
+            expect(wrapper.findAll('[role="option"]')).toHaveLength(0);
+            expect(wrapper.find('[data-testid="unit-search-empty"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="unit-search-status"]').text()).toBe('No units match');
+        });
+
+        it('moves the active match with the arrow keys and wraps around', async () => {
+            mountTree();
+            const input = await type('night');
+
+            expect(input.attributes('aria-activedescendant')).toBe('unit-search-option-11');
+            await input.trigger('keydown', { key: 'ArrowDown' });
+            expect(input.attributes('aria-activedescendant')).toBe('unit-search-option-12');
+            expect(wrapper.find('#unit-search-option-12').attributes('aria-selected')).toBe('true');
+            await input.trigger('keydown', { key: 'ArrowDown' });
+            expect(input.attributes('aria-activedescendant')).toBe('unit-search-option-11');
+            await input.trigger('keydown', { key: 'ArrowUp' });
+            expect(input.attributes('aria-activedescendant')).toBe('unit-search-option-12');
+        });
+
+        it('on Enter opens the collapsed branches above the match, selects it and focuses its row', async () => {
+            mountTree();
+            // Collapse the battalion: the squad is two levels under it and out of the tree.
+            await wrapper.find('[data-testid="unit-row-2"] button').trigger('click');
+            expect(wrapper.find('[data-testid="unit-row-12"]').exists()).toBe(false);
+
+            const input = await type('squad');
+            await input.trigger('keydown', { key: 'Enter' });
+            await flushPromises();
+
+            const row = wrapper.find('[data-testid="unit-row-12"]');
+            expect(row.exists()).toBe(true);
+            expect(row.attributes('aria-selected')).toBe('true');
+            expect(document.activeElement).toBe(row.element);
+            expect(wrapper.find('[data-testid="detail-panel"]').text()).toContain('1st Squad');
+            expect(input.attributes('aria-expanded')).toBe('false');
+        });
+
+        it('highlights the picked row briefly', async () => {
+            vi.useFakeTimers();
+            mountTree();
+            await type('alpha');
+            await wrapper.find('[data-testid="unit-search-option-10"]').trigger('click');
+
+            expect(wrapper.find('[data-testid="unit-row-10"]').attributes('data-highlighted')).toBe('true');
+            vi.advanceTimersByTime(2000);
+            await flushPromises();
+            expect(wrapper.find('[data-testid="unit-row-10"]').attributes('data-highlighted')).toBeUndefined();
+            expect(wrapper.find('[data-testid="unit-row-10"]').attributes('aria-selected')).toBe('true');
+        });
+
+        it('scrolls the picked row into view', async () => {
+            mountTree();
+            const scroll = vi.fn();
+            const original = Element.prototype.scrollIntoView;
+            Element.prototype.scrollIntoView = scroll;
+            await type('alpha');
+            await wrapper.find('[data-testid="unit-search-option-10"]').trigger('click');
+            await flushPromises();
+
+            expect(scroll.mock.contexts).toContain(wrapper.find('[data-testid="unit-row-10"]').element);
+            Element.prototype.scrollIntoView = original;
+        });
+
+        it('closes the list on Escape, then clears the box on a second Escape', async () => {
+            mountTree();
+            const input = await type('alpha');
+
+            await input.trigger('keydown', { key: 'Escape' });
+            expect(input.attributes('aria-expanded')).toBe('false');
+            expect(input.element.value).toBe('alpha');
+
+            await input.trigger('keydown', { key: 'Escape' });
+            expect(input.element.value).toBe('');
         });
     });
 });

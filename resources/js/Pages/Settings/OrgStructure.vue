@@ -1,7 +1,16 @@
 <script setup>
-import { computed, nextTick, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { PhCaretDown, PhCheckCircle, PhCloudArrowDown, PhLockSimple, PhPlus, PhTreeStructure, PhWarningCircle } from '@phosphor-icons/vue';
+import {
+    PhCaretDown,
+    PhCheckCircle,
+    PhCloudArrowDown,
+    PhLockSimple,
+    PhMagnifyingGlass,
+    PhPlus,
+    PhTreeStructure,
+    PhWarningCircle,
+} from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -13,6 +22,7 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { Separator } from '@/components/ui/separator';
 import EmptyState from '@/components/EmptyState.vue';
 import { onHttpException } from '@/lib/httpError';
+import { ancestorIds, searchUnits } from '@/lib/orgSearch';
 import OrgTreeNode from './OrgTreeNode.vue';
 
 // Flat units array with `path` (AD-18) — nested here for rendering; the server keeps the
@@ -69,6 +79,84 @@ function toggleCollapsed(id) {
 
 const selectedId = ref(null);
 const selectedUnit = computed(() => props.units.find((unit) => unit.id === selectedId.value) ?? null);
+
+// Find a unit by name or callsign. Picking a match opens the branches above it, selects it,
+// scrolls it into view and moves focus to its row, which glows for a moment so the eye finds it.
+const unitQuery = ref('');
+const searchOpen = ref(false);
+const activeIndex = ref(0);
+const highlightId = ref(null);
+let highlightTimer = null;
+
+const search = computed(() => searchUnits(props.units, unitQuery.value));
+const listOpen = computed(() => searchOpen.value && unitQuery.value.trim() !== '');
+const activeOption = computed(() => (listOpen.value ? (search.value.results[activeIndex.value] ?? null) : null));
+const searchAnnouncement = computed(() => {
+    if (!unitQuery.value.trim()) return '';
+    const { total } = search.value;
+    return total === 0 ? 'No units match' : `${total} ${total === 1 ? 'unit matches' : 'units match'}`;
+});
+
+watch(unitQuery, () => {
+    activeIndex.value = 0;
+    searchOpen.value = true;
+});
+
+watch(activeOption, (option) => {
+    if (option) nextTick(() => document.getElementById(`unit-search-option-${option.id}`)?.scrollIntoView?.({ block: 'nearest' }));
+});
+
+function moveActive(step) {
+    const count = search.value.results.length;
+    if (!count) return;
+    if (!searchOpen.value) {
+        searchOpen.value = true;
+        return;
+    }
+    activeIndex.value = (activeIndex.value + step + count) % count;
+}
+
+function onSearchKeydown(event) {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        moveActive(event.key === 'ArrowDown' ? 1 : -1);
+    } else if (event.key === 'Enter') {
+        if (activeOption.value) {
+            event.preventDefault();
+            pickUnit(activeOption.value.id);
+        }
+    } else if (event.key === 'Escape') {
+        if (listOpen.value) {
+            searchOpen.value = false;
+        } else if (unitQuery.value) {
+            unitQuery.value = '';
+        }
+    }
+}
+
+function pickUnit(id) {
+    const unit = props.units.find((candidate) => candidate.id === id);
+    if (!unit) return;
+
+    for (const ancestorId of ancestorIds(unit)) {
+        collapsed.delete(ancestorId);
+    }
+    selectedId.value = id;
+    searchOpen.value = false;
+
+    highlightId.value = id;
+    clearTimeout(highlightTimer);
+    highlightTimer = setTimeout(() => (highlightId.value = null), 1600);
+
+    nextTick(() => {
+        const row = document.querySelector(`[data-testid="unit-row-${id}"]`);
+        const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        row?.scrollIntoView?.({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' });
+        row?.focus({ preventScroll: true });
+    });
+}
+
+onBeforeUnmount(() => clearTimeout(highlightTimer));
 
 // Mirrors `UnitType::rank()` (app/Models/UnitType.php) — Regiment first, one rank per echelon.
 // `CreateUnit` enforces the real invariant server-side; this is the UI's best-effort mirror of
@@ -359,12 +447,69 @@ function requestDelete(id) {
                     <h2 class="text-[15px] font-semibold">Chain of command</h2>
                     <span class="truncate text-xs text-muted-foreground">{{ units.length }} {{ units.length === 1 ? 'unit' : 'units' }}</span>
                 </div>
+                <div v-if="units.length" class="relative px-4 pb-2" data-testid="unit-search">
+                    <label for="unit-search" class="sr-only">Find a unit by name or callsign</label>
+                    <PhMagnifyingGlass class="pointer-events-none absolute top-1/2 left-6.5 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                    <Input
+                        id="unit-search"
+                        v-model="unitQuery"
+                        data-testid="unit-search-input"
+                        type="text"
+                        role="combobox"
+                        autocomplete="off"
+                        aria-autocomplete="list"
+                        aria-controls="unit-search-results"
+                        :aria-expanded="listOpen"
+                        :aria-activedescendant="activeOption ? `unit-search-option-${activeOption.id}` : undefined"
+                        placeholder="Find a unit by name or callsign"
+                        class="pl-7.5"
+                        @keydown="onSearchKeydown"
+                        @focus="searchOpen = true"
+                        @blur="searchOpen = false"
+                    />
+                    <div
+                        v-show="listOpen"
+                        class="absolute inset-x-4 top-full z-20 -mt-1 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-panel"
+                    >
+                        <ul id="unit-search-results" role="listbox" aria-label="Matching units" class="max-h-72 overflow-y-auto">
+                            <li
+                                v-for="(result, index) in search.results"
+                                :id="`unit-search-option-${result.id}`"
+                                :key="result.id"
+                                role="option"
+                                :aria-selected="activeOption?.id === result.id"
+                                :data-testid="`unit-search-option-${result.id}`"
+                                class="cursor-pointer rounded-md px-2 py-1.5 text-[13px]"
+                                :class="activeOption?.id === result.id && 'bg-accent'"
+                                @mousedown.prevent
+                                @mousemove="activeIndex = index"
+                                @click="pickUnit(result.id)"
+                            >
+                                <span class="block truncate">
+                                    {{ result.name }}
+                                    <span v-if="result.callsign" class="ml-1.5 font-mono text-[11px] text-muted-foreground">{{ result.callsign }}</span>
+                                </span>
+                                <span class="block truncate text-xs text-muted-foreground">
+                                    <span class="capitalize">{{ result.type }}</span><template v-if="result.trail"> in {{ result.trail }}</template>
+                                </span>
+                            </li>
+                        </ul>
+                        <p v-if="!search.total" data-testid="unit-search-empty" class="px-2 py-1.5 text-[13px] text-muted-foreground">
+                            No unit matches that name or callsign.
+                        </p>
+                        <p v-else-if="search.total > search.results.length" data-testid="unit-search-more" class="px-2 pt-1 pb-0.5 text-xs text-muted-foreground">
+                            Showing {{ search.results.length }} of {{ search.total }}. Keep typing to narrow it down.
+                        </p>
+                    </div>
+                    <p class="sr-only" aria-live="polite" data-testid="unit-search-status">{{ searchAnnouncement }}</p>
+                </div>
                 <ul v-if="tree.length" role="tree" aria-label="Chain of command" class="px-2 pb-2">
                     <OrgTreeNode
                         v-for="node in tree"
                         :key="node.id"
                         :node="node"
                         :selected-id="selectedId"
+                        :highlight-id="highlightId"
                         :collapsed="collapsed"
                         :is-admin="isAdmin"
                         @select="(id) => (selectedId = id)"
