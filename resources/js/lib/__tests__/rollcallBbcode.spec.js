@@ -77,6 +77,9 @@ describe('rollcallContext (3.11)', () => {
         const icon = (rankIcon) => rollcallContext(input([{ ...t(1, 'Vasquez.R', 'unsigned', null), rankIcon }])).troopers[0].rank_icon;
 
         expect(icon('https://7cav.us/data/roster_ranks/0/12.jpg')).toBe('https://7cav.us/data/roster_ranks/0/12.jpg');
+        // The forum serves rank images with a numeric cache-busting query.
+        expect(icon('https://7cav.us/data/roster_ranks/0/22.jpg?1741376831')).toBe('https://7cav.us/data/roster_ranks/0/22.jpg?1741376831');
+        expect(icon('https://7cav.us/data/roster_ranks/0/22.jpg?x=1')).toBe('');
         // It is written into an [IMG] tag: another host, a closing tag or nothing at all prints nothing.
         expect(icon(null)).toBe('');
         expect(icon(undefined)).toBe('');

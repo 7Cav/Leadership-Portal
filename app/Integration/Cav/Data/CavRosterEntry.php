@@ -32,13 +32,14 @@ use Throwable;
  * portal has no use for it (data minimisation).
  *
  * `rankImageUrl` is the rank insignia Cav serves (`rank.rankImageUrl`), which the rollcall template prints into an
- * [IMG] tag (3.10). Only an https URL on 7cav.us with a plain path is kept; anything else degrades to null, so a
- * changed or hostile payload can never put another host or a BBCode tag into a forum post.
+ * [IMG] tag (3.10). Only an https URL on 7cav.us with a plain path is kept, plus the numeric cache-busting query
+ * the forum adds (`22.jpg?1741376831`); anything else degrades to null, so a changed or hostile payload can never
+ * put another host or a BBCode tag into a forum post.
  */
 readonly class CavRosterEntry
 {
-    /** The rank images Cav serves: https on 7cav.us, a plain path, short enough for the column. */
-    public const RANK_IMAGE = '#^https://7cav\.us/[A-Za-z0-9._~%/-]{1,200}$#';
+    /** The rank images Cav serves: https on 7cav.us, a plain path and an optional numeric `?version`, short enough for the column. */
+    public const RANK_IMAGE = '#^https://7cav\.us/[A-Za-z0-9._~%/-]{1,200}(\?[0-9]{1,20})?$#';
 
     public function __construct(
         public int $cavId,

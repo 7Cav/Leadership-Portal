@@ -56,7 +56,7 @@ export function displayName(trooper) {
 // The rank insignia Cav serves (`rankIcon`, synced from the roster), only as an https URL on 7cav.us with a plain path,
 // since the template writes it into an [IMG] tag; anything else, or none, is empty. The server keeps the same rule
 // (`CavRosterEntry::RANK_IMAGE`), so this only guards against a value that slipped past it.
-const RANK_ICON = /^https:\/\/7cav\.us\/[A-Za-z0-9._~%/-]{1,200}$/;
+const RANK_ICON = /^https:\/\/7cav\.us\/[A-Za-z0-9._~%/-]{1,200}(\?[0-9]{1,20})?$/;
 
 export function rankIconOf(trooper) {
     return typeof trooper.rankIcon === 'string' && RANK_ICON.test(trooper.rankIcon) ? trooper.rankIcon : '';
