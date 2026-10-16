@@ -7,6 +7,7 @@
         { "name": "a trooper loop with row values", "template": "{{#troopers}}{{n}} {{rank}} {{rank_short}} {{rank_icon}} {{rank_icon_width}} {{name}} {{display_name}} {{rc}} {{sp}}\n{{/troopers}}" },
         { "name": "a section over a row value, so an empty one prints nothing", "template": "{{#troopers}}{{#rank_icon}}[IMG]{{rank_icon}}[/IMG] {{/rank_icon}}{{^rank_icon}}-{{/rank_icon}}{{name}}{{/troopers}}" },
         { "name": "the rank icon at the width that gives every rank the same weight", "template": "{{#troopers}}{{#rank_icon}}[IMG width=\"{{rank_icon_width}}\" height=\"auto\"]{{rank_icon}}[/IMG] {{/rank_icon}}{{name}}{{/troopers}}" },
+        { "name": "a section over a count, set unless it is zero", "template": "{{#attended}}{{attended}} attended{{/attended}}{{^attended}}Nobody attended{{/attended}}" },
         { "name": "an empty-section branch", "template": "{{#troopers}}{{name}}{{/troopers}}{{^troopers}}No troopers this week.{{/troopers}}" },
         { "name": "status flags as sections", "template": "{{#troopers}}{{#sp_present}}Y{{/sp_present}}{{#sp_missed}}N{{/sp_missed}}{{#sp_makeup}}MU{{/sp_makeup}}{{#sp_attached}}ATT{{/sp_attached}}{{#sp_loa}}LOA{{/sp_loa}}{{#sp_unmarked}}-{{/sp_unmarked}}{{/troopers}}" },
         { "name": "signature flags and an inverted flag", "template": "{{#troopers}}{{#rc_yes}}Y{{/rc_yes}}{{#rc_no}}N{{/rc_no}}{{^rc_yes}}not yes{{/rc_yes}}{{#rc_unsigned}}-{{/rc_unsigned}}{{/troopers}}" },

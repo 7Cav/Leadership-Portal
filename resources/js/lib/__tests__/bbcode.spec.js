@@ -146,6 +146,14 @@ describe('render', () => {
         expect(render('{{count}} troopers, {{signed}} signed, {{attended}} attended', context({ count: '8', signed: '3', attended: '7' })).text).toBe('8 troopers, 3 signed, 7 attended');
     });
 
+    it('reads a count of zero as not set, so {{^attended}} can say nobody attended', () => {
+        const template = '{{#attended}}{{attended}} attended{{/attended}}{{^attended}}Nobody attended{{/attended}}';
+
+        expect(render(template, context({ attended: '0' })).text).toBe('Nobody attended');
+        expect(render(template, context({ attended: '3' })).text).toBe('3 attended');
+        expect(render(template, context({ attended: '10' })).text).toBe('10 attended');
+    });
+
     it('renders each status the way the template defines it: present, missed, makeup, attached and LOA', () => {
         const template = '{{#troopers}}{{name}}={{#sp_present}}✓{{/sp_present}}{{#sp_missed}}✗{{/sp_missed}}{{#sp_makeup}}MU{{/sp_makeup}}{{#sp_attached}}ATT{{/sp_attached}}{{#sp_loa}}LOA{{/sp_loa}}{{#sp_unmarked}}-{{/sp_unmarked}};{{/troopers}}';
         const flags = (name) => ({ sp_present: false, sp_missed: false, sp_makeup: false, sp_attached: false, sp_loa: false, sp_unmarked: false, [name]: true });

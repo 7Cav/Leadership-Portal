@@ -6,6 +6,7 @@
 //   {{name}} and {{name|upper}} (or |lower)   print a value
 //   {{#name}} ... {{/name}}                    repeat for each trooper (`troopers`), or show when a flag or value is set
 //   {{^name}} ... {{/name}}                    show when it is not set (use {{^troopers}} for an empty section)
+// A value is set when it is not empty and not a count of zero, so {{^attended}} can say that nobody attended.
 // Every name is from the fixed lists below, so a typo is refused when an Admin saves the template (the server checks
 // the same grammar, `Rollcall\TemplateSyntax`, against the shared cases in tests/Fixtures/bbcode-templates.json).
 //
@@ -219,8 +220,9 @@ export function inert(value) {
     return String(value).replaceAll('[', '[\u200B').replaceAll(']', '\uFF3D');
 }
 
+// The counts reach a template as text ("0"), so a zero count is not set either.
 function truthy(value) {
-    return value === true || (typeof value === 'string' && value !== '') || (typeof value === 'number' && value !== 0);
+    return value === true || (typeof value === 'string' && value !== '' && value !== '0') || (typeof value === 'number' && value !== 0);
 }
 
 function print(value, filter) {
