@@ -199,6 +199,26 @@ it('keeps that session past the next request, until a clean roster sync started 
     $this->assertGuest();
 });
 
+it('does not let an Admin sign-in outlast the flag when Cav listed them as a past member', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-10-13 12:00:00', 'UTC'));
+    $admin = User::factory()->admin()->create(['forum_user_id' => 4, 'cav_id' => 77, 'username' => 'Hale.S']);
+    Trooper::factory()->create(['cav_id' => 77, 'status' => TrooperStatus::Inactive]);
+    SyncRun::factory()->create(['started_at' => now()->subHour(), 'finished_at' => now()->subHour()]);
+
+    // The Admin flag admits them; Cav's answer said they had left, so it vouches for nothing.
+    gateSignIn(['api.7cav.us/api/v1/milpacs/profile/id/77' => MockResponse::make(gateRosterEntry(4, 'ROSTER_TYPE_PAST_MEMBERS'))])
+        ->assertRedirect(route('home'));
+
+    $admin->forceFill(['is_admin' => false])->save();
+    // The next request loads the user afresh, as a real one would.
+    auth()->forgetGuards();
+
+    $this->get('/home')
+        ->assertRedirect(route('login'))
+        ->assertSessionHas('error', GATE_NOT_SERVING);
+    $this->assertGuest();
+});
+
 it('signs in an Admin who holds no milpac — Admins are never locked out by roster data', function () {
     User::factory()->admin()->create(['forum_user_id' => 4]);
 
