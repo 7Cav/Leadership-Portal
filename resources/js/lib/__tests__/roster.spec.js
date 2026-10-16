@@ -291,6 +291,16 @@ describe('order of battle column sorts', () => {
             }
         });
 
+        it('ignores a stored key that only names a built-in object property', () => {
+            const storage = memory();
+
+            for (const key of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+                storage.setItem(ORBAT_SORT_STORAGE_KEY, JSON.stringify({ key, dir: 'asc' }));
+                expect(readOrbatSort(storage), key).toBeNull();
+            }
+            expect(compareOrbat({ key: 'constructor', dir: 'asc' })).toBe(compareBillet);
+        });
+
         it('gets by without storage', () => {
             expect(readOrbatSort(broken)).toBeNull();
             expect(() => writeOrbatSort({ key: 'rank', dir: 'desc' }, broken)).not.toThrow();

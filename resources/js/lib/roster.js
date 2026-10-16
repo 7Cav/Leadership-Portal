@@ -220,7 +220,7 @@ export const ORBAT_SORTS = {
 
 /** The comparator for an order-of-battle sort `{ key, dir }`, or the default billet order for none. */
 export function compareOrbat(sort) {
-    const column = sort && ORBAT_SORTS[sort.key];
+    const column = sort && Object.hasOwn(ORBAT_SORTS, sort.key) ? ORBAT_SORTS[sort.key] : null;
     if (!column) return compareBillet;
     const sign = sort.dir === 'desc' ? -1 : 1;
 
@@ -249,7 +249,8 @@ export function readOrbatSort(storage = globalThis.localStorage) {
     try {
         const stored = JSON.parse(storage?.getItem(ORBAT_SORT_STORAGE_KEY) ?? 'null');
 
-        return stored && ORBAT_SORTS[stored.key] && ['asc', 'desc'].includes(stored.dir) ? { key: stored.key, dir: stored.dir } : null;
+        // `hasOwn`, so a stored key like `constructor` is not taken for a column.
+        return stored && Object.hasOwn(ORBAT_SORTS, stored.key) && ['asc', 'desc'].includes(stored.dir) ? { key: stored.key, dir: stored.dir } : null;
     } catch {
         return null;
     }
