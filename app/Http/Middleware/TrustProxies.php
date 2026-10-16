@@ -16,9 +16,9 @@ use Illuminate\Http\Request;
  * `env()` sees only a real process variable (never a value set in `.env`) and `config()` is not
  * bound yet. By the time this middleware runs both are loaded, cached config or not.
  *
- * Empty means no proxy: `proxies()` falls through to the framework's default (null), so a
- * deploy without a proxy keeps trusting nothing. Never `*` on an internet-facing host, since
- * any client could then forge its own address.
+ * Empty means no proxy: `proxies()` returns null and nothing is trusted, whatever the Host (see
+ * `setTrustedProxyIpAddresses()`). Never `*` on an internet-facing host, since any client could
+ * then forge its own address.
  */
 class TrustProxies extends Middleware
 {
@@ -32,6 +32,22 @@ class TrustProxies extends Middleware
         | Request::HEADER_X_FORWARDED_HOST
         | Request::HEADER_X_FORWARDED_PORT
         | Request::HEADER_X_FORWARDED_PROTO;
+
+    /**
+     * With no proxy configured the framework still trusts every address when the Host ends in
+     * `.on-forge.com` or `.on-vapor.com` (or on Laravel Cloud). The client picks the Host, so that
+     * would let it forge its own address; an empty setting has to mean no proxy at all.
+     *
+     * @return void
+     */
+    protected function setTrustedProxyIpAddresses(Request $request)
+    {
+        if ($this->proxies() === null) {
+            return;
+        }
+
+        parent::setTrustedProxyIpAddresses($request);
+    }
 
     /**
      * @return array<int, string>|string|null
