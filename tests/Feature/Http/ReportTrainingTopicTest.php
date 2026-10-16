@@ -149,3 +149,11 @@ it('suggests the subject of the section\'s last sent report on its draft', funct
     // A suggestion is only shown; nothing is saved until the leader takes it.
     expect(WeeklyReport::query()->where('week_start', $this->weekStart)->exists())->toBeFalse();
 });
+
+it('answers 404, not 500, for a unit id too long to be one, on both topic routes', function () {
+    foreach (['put', 'delete'] as $method) {
+        $this->actingAs($this->platoonLeader)
+            ->{$method}("/reports/1234567890123456789012/{$this->week}/topic", ['subject' => 'Room clearing'])
+            ->assertNotFound();
+    }
+});
