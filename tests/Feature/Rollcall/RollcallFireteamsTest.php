@@ -52,10 +52,13 @@ function rollcallPlaced(Unit $section, array $attributes = []): Trooper
     return $trooper;
 }
 
-/** @return array<int, array{role: ?string, fireteamLeaderId: ?int}> */
+/** @return array<int, array{role: ?string, leads: bool, fireteamLeaderId: ?int}> */
 function rolesOn($page): array
 {
-    return collect($page->toArray()['props']['troopers'])->mapWithKeys(fn ($t) => [$t['id'] => ['role' => $t['role'], 'fireteamLeaderId' => $t['fireteamLeaderId']]])->sortKeys()->all();
+    return collect($page->toArray()['props']['troopers'])
+        ->mapWithKeys(fn ($t) => [$t['id'] => ['role' => $t['role'], 'leads' => $t['leadsFireteam'], 'fireteamLeaderId' => $t['fireteamLeaderId']]])
+        ->sortKeys()
+        ->all();
 }
 
 it('sends each trooper\'s role and fireteam, with the SL and ASL read from the roster', function () {
@@ -67,11 +70,11 @@ it('sends each trooper\'s role and fireteam, with the SL and ASL read from the r
         ->assertOk()
         // Keyed by trooper id, in id order: the page sorts the rows itself (resources/js/lib/fireteams.js).
         ->assertInertia(fn ($page) => expect(rolesOn($page))->toBe([
-            $this->sl->id => ['role' => 'sl', 'fireteamLeaderId' => null],
-            $this->asl->id => ['role' => 'asl', 'fireteamLeaderId' => null],
-            $this->ftl->id => ['role' => 'ftl', 'fireteamLeaderId' => null],
-            $this->member->id => ['role' => null, 'fireteamLeaderId' => $this->ftl->id],
-            $this->loner->id => ['role' => null, 'fireteamLeaderId' => null],
+            $this->sl->id => ['role' => 'sl', 'leads' => false, 'fireteamLeaderId' => null],
+            $this->asl->id => ['role' => 'asl', 'leads' => false, 'fireteamLeaderId' => null],
+            $this->ftl->id => ['role' => 'ftl', 'leads' => true, 'fireteamLeaderId' => null],
+            $this->member->id => ['role' => null, 'leads' => false, 'fireteamLeaderId' => $this->ftl->id],
+            $this->loner->id => ['role' => null, 'leads' => false, 'fireteamLeaderId' => null],
         ]) && true);
 });
 
@@ -86,9 +89,9 @@ it('reads an FTL who has since become the ASL as the ASL, and a fireteam whose l
 
     $this->actingAs($this->slUser)->get("/rollcall/{$this->section->id}")
         ->assertInertia(fn ($page) => expect(rolesOn($page))->toMatchArray([
-            $this->asl->id => ['role' => 'asl', 'fireteamLeaderId' => null],
-            $this->member->id => ['role' => null, 'fireteamLeaderId' => null],
-            $this->loner->id => ['role' => 'ftl', 'fireteamLeaderId' => null],
+            $this->asl->id => ['role' => 'asl', 'leads' => false, 'fireteamLeaderId' => null],
+            $this->member->id => ['role' => null, 'leads' => false, 'fireteamLeaderId' => null],
+            $this->loner->id => ['role' => 'ftl', 'leads' => true, 'fireteamLeaderId' => null],
         ]) && true);
 });
 
@@ -98,7 +101,9 @@ it('defaults to FTLs hidden, all FTLs above the rest, and lets the section\'s le
             ->where('fireteams.show', false)
             ->where('fireteams.order', 'leaders_first')
             ->where('fireteams.section', ['show' => null, 'order' => null])
-            ->where('fireteams.company', ['id' => $this->company->id, 'designation' => 'A/1-7', 'show' => null, 'order' => null])
+            ->where('fireteams.slAslLead', false)
+            ->where('fireteams.alphabet', 'nato')
+            ->where('fireteams.company', ['id' => $this->company->id, 'designation' => 'A/1-7', 'show' => null, 'order' => null, 'slAslLead' => false])
             ->where('fireteams.can', ['edit' => true, 'editPolicy' => false]));
 });
 
@@ -145,7 +150,7 @@ it('marks an FTL and fills their fireteam, answering the section\'s fireteams as
         'trooper_id' => $this->member->id, 'role' => 'member', 'leader_id' => $this->ftl->id,
     ])->assertOk();
 
-    expect(collect($response->json('troopers'))->keyBy('id')[$this->member->id])->toBe(['id' => $this->member->id, 'role' => null, 'fireteamLeaderId' => $this->ftl->id])
+    expect(collect($response->json('troopers'))->keyBy('id')[$this->member->id])->toBe(['id' => $this->member->id, 'role' => null, 'leadsFireteam' => false, 'fireteamLeaderId' => $this->ftl->id])
         ->and(collect($response->json('troopers'))->keyBy('id')[$this->ftl->id]['role'])->toBe('ftl');
 
     $this->actingAs($this->slUser)->postJson("/rollcall/{$this->section->id}/fireteams", ['trooper_id' => $this->ftl->id, 'role' => null])
@@ -173,9 +178,9 @@ it('refuses a staff grant holder, an unknown section and anyone outside the sect
 
     $this->actingAs($granted)->postJson("/rollcall/{$this->section->id}/fireteams", ['trooper_id' => $this->ftl->id, 'role' => 'ftl'])->assertForbidden();
     $this->actingAs($granted)->postJson("/rollcall/{$this->section->id}/fireteams/options", ['show' => true])->assertForbidden();
-    $this->actingAs($this->slUser)->postJson("/rollcall/{$this->section->id}/fireteams/policy", ['show' => false, 'order' => null])->assertForbidden();
+    $this->actingAs($this->slUser)->postJson("/rollcall/{$this->section->id}/fireteams/policy", ['show' => false, 'order' => null, 'sl_asl_lead' => false])->assertForbidden();
     $this->actingAs($this->slUser)->postJson('/rollcall/999999/fireteams', ['trooper_id' => $this->ftl->id, 'role' => 'ftl'])->assertForbidden();
-    $this->actingAs($this->slUser)->postJson('/rollcall/999999/fireteams/policy', ['show' => false, 'order' => null])->assertForbidden();
+    $this->actingAs($this->slUser)->postJson('/rollcall/999999/fireteams/policy', ['show' => false, 'order' => null, 'sl_asl_lead' => false])->assertForbidden();
 
     expect(FireteamAssignment::query()->count())->toBe(0)->and(AuditLogEntry::query()->count())->toBe(0);
 });
@@ -188,7 +193,7 @@ it('sets the section\'s options and the company\'s policy, and the answer shows 
         ->assertJsonPath('fireteams.show', true)
         ->assertJsonPath('fireteams.order', 'by_fireteam');
 
-    $this->actingAs($co)->postJson("/rollcall/{$this->section->id}/fireteams/policy", ['show' => null, 'order' => 'leaders_first'])
+    $this->actingAs($co)->postJson("/rollcall/{$this->section->id}/fireteams/policy", ['show' => null, 'order' => 'leaders_first', 'sl_asl_lead' => false])
         ->assertOk()
         ->assertJsonPath('fireteams.order', 'leaders_first')
         ->assertJsonPath('fireteams.section.order', 'by_fireteam')
@@ -198,7 +203,43 @@ it('sets the section\'s options and the company\'s policy, and the answer shows 
     $this->actingAs($this->slUser)->postJson("/rollcall/{$this->section->id}/fireteams/options", ['order' => 'by_fireteam'])
         ->assertStatus(422)
         ->assertJsonPath('message', fn ($message) => str_contains($message, 'The company has set'));
+    $this->actingAs($co)->postJson("/rollcall/{$this->section->id}/fireteams/policy", ['show' => null, 'order' => 'by_fireteam', 'sl_asl_lead' => false])->assertStatus(422);
     $this->actingAs($co)->postJson("/rollcall/{$this->section->id}/fireteams/policy", ['show' => true, 'order' => null])->assertStatus(422);
+
+    $this->actingAs($co)->postJson("/rollcall/{$this->section->id}/fireteams/policy", ['show' => true, 'order' => null, 'sl_asl_lead' => true])
+        ->assertOk()
+        ->assertJsonPath('fireteams.show', true)
+        ->assertJsonPath('fireteams.slAslLead', true)
+        ->assertJsonPath('fireteams.company.slAslLead', true);
+});
+
+it('lets the SL lead a fireteam while the company allows it, and reads it as none once the company stops', function () {
+    $co = rollcallCommander($this->company, 196);
+    $this->actingAs($co)->postJson("/rollcall/{$this->section->id}/fireteams/policy", ['show' => null, 'order' => null, 'sl_asl_lead' => true])->assertOk();
+
+    $this->actingAs($this->slUser)->postJson("/rollcall/{$this->section->id}/fireteams", ['trooper_id' => $this->sl->id, 'role' => 'ftl'])->assertOk();
+    $answer = $this->actingAs($this->slUser)->postJson("/rollcall/{$this->section->id}/fireteams", ['trooper_id' => $this->member->id, 'role' => 'member', 'leader_id' => $this->sl->id])->assertOk();
+
+    expect(collect($answer->json('troopers'))->keyBy('id')[$this->sl->id])->toBe(['id' => $this->sl->id, 'role' => 'sl', 'leadsFireteam' => true, 'fireteamLeaderId' => null])
+        ->and(collect($answer->json('troopers'))->keyBy('id')[$this->member->id]['fireteamLeaderId'])->toBe($this->sl->id);
+
+    $this->actingAs($co)->postJson("/rollcall/{$this->section->id}/fireteams/policy", ['show' => null, 'order' => null, 'sl_asl_lead' => false])->assertOk();
+
+    $this->actingAs($this->slUser)->get("/rollcall/{$this->section->id}")
+        ->assertInertia(fn ($page) => expect(rolesOn($page))->toMatchArray([
+            $this->sl->id => ['role' => 'sl', 'leads' => false, 'fireteamLeaderId' => null],
+            $this->member->id => ['role' => null, 'leads' => false, 'fireteamLeaderId' => null],
+        ]) && true);
+    expect(FireteamAssignment::query()->count())->toBe(2);
+});
+
+it('names the fireteams of B/ACD, Baker Company, in the WW2 alphabet', function () {
+    $units = app(UnitRepository::class);
+    $baker = $units->create(UnitType::Company, 'Baker Company', 'B/ACD', null);
+    $section = $units->create(UnitType::Section, '1st Section', '1/1/B/ACD', $units->create(UnitType::Platoon, '1st Platoon', '1/B/ACD', $baker->id)->id);
+
+    $this->actingAs(User::factory()->admin()->create())->get("/rollcall/{$section->id}")
+        ->assertInertia(fn ($page) => $page->where('fireteams.alphabet', 'ww2'));
 });
 
 it('refuses every fireteam write during a view-as preview, and the page offers none (1.13)', function () {
@@ -209,7 +250,7 @@ it('refuses every fireteam write during a view-as preview, and the page offers n
         ->assertInertia(fn ($page) => $page->where('fireteams.can', ['edit' => false, 'editPolicy' => false]));
     $this->actingAs($admin)->postJson("/rollcall/{$this->section->id}/fireteams", ['trooper_id' => $this->ftl->id, 'role' => 'ftl'])->assertForbidden();
     $this->actingAs($admin)->postJson("/rollcall/{$this->section->id}/fireteams/options", ['show' => true])->assertForbidden();
-    $this->actingAs($admin)->postJson("/rollcall/{$this->section->id}/fireteams/policy", ['show' => false, 'order' => null])->assertForbidden();
+    $this->actingAs($admin)->postJson("/rollcall/{$this->section->id}/fireteams/policy", ['show' => false, 'order' => null, 'sl_asl_lead' => false])->assertForbidden();
 
     expect(FireteamAssignment::query()->count())->toBe(0)->and(AuditLogEntry::query()->count())->toBe(0);
 });

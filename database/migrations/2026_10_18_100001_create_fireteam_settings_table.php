@@ -16,7 +16,7 @@ return new class extends Migration
         // and `SetCompanyFireteamPolicy` Commands, through `FireteamRepository`. At most one row per unit; a unit with
         // no row has every value null.
         //
-        // The same two columns mean different things by echelon. On a section they are its leaders' choice, null for
+        // `show_fireteams` and `fireteam_order` mean different things by echelon. On a section they are its leaders' choice, null for
         // the default (FTLs not shown; when shown, all FTLs above the rest). On a company they are a policy over every
         // section beneath it, null to leave the choice to the sections. A section's effective value is the company's
         // policy, else its own choice, else the default (`FireteamSetting::effective()`).
@@ -31,6 +31,9 @@ return new class extends Migration
             $table->enum('fireteam_order', ['leaders_first', 'by_fireteam'])->nullable();
             // Whether the post names FTLs and lists them above the troopers they lead.
             $table->boolean('show_fireteams')->nullable();
+            // Company only: whether the SL and ASL of its sections may lead a fireteam too. Null or false is off, so they
+            // stay above the fireteams; a section never sets it. Turning it off keeps their rows, read as no fireteam.
+            $table->boolean('sl_asl_lead_fireteams')->nullable();
             $table->timestamps();
         });
     }

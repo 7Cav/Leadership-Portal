@@ -27,7 +27,7 @@ class InvalidFireteamException extends RuntimeException
 
     public static function leadsSection(string $name, string $role): self
     {
-        return new self("{$name} is the section's {$role} and is always listed above the fireteams, so they cannot be a fireteam leader or member.");
+        return new self("{$name} is the section's {$role} and is always listed first, so they cannot be a fireteam member, and lead a fireteam only where the company allows it.");
     }
 
     public static function memberNeedsLeader(): self

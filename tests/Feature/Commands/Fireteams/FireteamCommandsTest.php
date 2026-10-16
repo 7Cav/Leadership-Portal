@@ -71,9 +71,9 @@ function setOptions(User $actor, int $sectionId, ?bool $show = null, ?FireteamOr
     return app(SetSectionFireteamOptionsHandler::class)->handle($actor, new SetSectionFireteamOptions($sectionId, $show, $order));
 }
 
-function setPolicy(User $actor, int $companyId, ?bool $show, ?FireteamOrder $order): FireteamSetting
+function setPolicy(User $actor, int $companyId, ?bool $show, ?FireteamOrder $order, bool $slAslLead = false): FireteamSetting
 {
-    return app(SetCompanyFireteamPolicyHandler::class)->handle($actor, new SetCompanyFireteamPolicy($companyId, $show, $order));
+    return app(SetCompanyFireteamPolicyHandler::class)->handle($actor, new SetCompanyFireteamPolicy($companyId, $show, $order, $slAslLead));
 }
 
 describe('setting a trooper\'s fireteam role', function () {
@@ -153,7 +153,33 @@ describe('setting a trooper\'s fireteam role', function () {
             ->toThrow(InvalidFireteamException::class, 'is not placed in this section');
     });
 
-    it('refuses to make the SL or ASL an FTL or a member: they are listed first already', function () {
+    it('lets the SL and ASL lead a fireteam only while the company allows it, and never be a member', function () {
+        $asl = fireteamPlaced($this->section, ['billet' => 'Assistant Section Leader 1/1/A/1-7']);
+        $slTrooper = Trooper::query()->where('cav_id', $this->sl->cav_id)->sole();
+        $admin = User::factory()->admin()->create();
+        setPolicy($admin, $this->company->id, show: null, order: null, slAslLead: true);
+
+        setRole($this->sl, $this->section->id, $slTrooper->id, FireteamRole::Leader);
+        setRole($this->sl, $this->section->id, $asl->id, FireteamRole::Leader);
+        $member = setRole($this->sl, $this->section->id, $this->member->id, FireteamRole::Member, $slTrooper->id);
+
+        expect($member->leader_trooper_id)->toBe($slTrooper->id)
+            ->and(fn () => setRole($this->sl, $this->section->id, $asl->id, FireteamRole::Member, $slTrooper->id))->toThrow(InvalidFireteamException::class, "section's ASL");
+
+        // Turned off again: the rows stay, but no new SL or ASL fireteam, and nobody joins one.
+        setPolicy($admin, $this->company->id, show: null, order: null, slAslLead: false);
+
+        expect(fn () => setRole($this->sl, $this->section->id, $slTrooper->id, FireteamRole::Leader))->toThrow(InvalidFireteamException::class, "section's SL")
+            ->and(fn () => setRole($this->sl, $this->section->id, $this->ftl->id, FireteamRole::Member, $asl->id))->toThrow(InvalidFireteamException::class, 'is not a fireteam leader')
+            ->and(FireteamAssignment::query()->count())->toBe(3);
+
+        // Taking an SL out of their old fireteam still works, and takes their members out too.
+        setRole($this->sl, $this->section->id, $slTrooper->id, null);
+
+        expect(FireteamAssignment::query()->pluck('trooper_id')->all())->toBe([$asl->id]);
+    });
+
+    it('refuses to make the SL or ASL an FTL or a member while the company has not allowed it', function () {
         $asl = fireteamPlaced($this->section, ['billet' => 'Assistant Section Leader 1/1/A/1-7']);
         $slTrooper = Trooper::query()->where('cav_id', $this->sl->cav_id)->sole();
         setRole($this->sl, $this->section->id, $this->ftl->id, FireteamRole::Leader);
@@ -235,6 +261,13 @@ describe('a section\'s fireteam display', function () {
 });
 
 describe('a company\'s fireteam policy', function () {
+    it('records whether the SL and ASL may lead a fireteam, off unless given', function () {
+        $admin = User::factory()->admin()->create();
+
+        expect(setPolicy($admin, $this->company->id, show: null, order: null, slAslLead: true)->sl_asl_lead_fireteams)->toBeTrue()
+            ->and(setPolicy($admin, $this->company->id, show: null, order: null)->sl_asl_lead_fireteams)->toBeFalse();
+    });
+
     it('lets the company command, the battalion above it and an Admin set it, as one audit entry', function () {
         $battalion = app(UnitRepository::class)->create(UnitType::Battalion, '1st Battalion', '1-7', null);
         app(UnitRepository::class)->move($this->company, $battalion->id);
@@ -261,10 +294,10 @@ describe('a company\'s fireteam policy', function () {
         expect(FireteamSetting::query()->count())->toBe(0);
     });
 
-    it('only narrows: it never forces FTLs on or the by-fireteam order', function () {
+    it('can force FTLs shown or hidden, but never the by-fireteam order', function () {
         $admin = User::factory()->admin()->create();
 
-        expect(fn () => setPolicy($admin, $this->company->id, show: true, order: null))->toThrow(InvalidFireteamException::class)
+        expect(setPolicy($admin, $this->company->id, show: true, order: null)->show_fireteams)->toBeTrue()
             ->and(fn () => setPolicy($admin, $this->company->id, show: null, order: FireteamOrder::ByFireteam))->toThrow(InvalidFireteamException::class)
             ->and(fn () => setPolicy($admin, $this->section->id, show: false, order: null))->toThrow(InvalidFireteamException::class, 'is not a company');
     });
@@ -276,11 +309,11 @@ describe('a company\'s fireteam policy', function () {
 
         $repo = app(FireteamRepository::class);
         expect(FireteamSetting::effective($repo->settingFor($this->company->id), $repo->settingFor($this->section->id)))
-            ->toBe(['show' => false, 'order' => FireteamOrder::LeadersFirst]);
+            ->toBe(['show' => false, 'order' => FireteamOrder::LeadersFirst, 'slAslLead' => false]);
 
         setPolicy($admin, $this->company->id, show: null, order: null);
 
         expect(FireteamSetting::effective($repo->settingFor($this->company->id), $repo->settingFor($this->section->id)))
-            ->toBe(['show' => true, 'order' => FireteamOrder::ByFireteam]);
+            ->toBe(['show' => true, 'order' => FireteamOrder::ByFireteam, 'slAslLead' => false]);
     });
 });

@@ -23,8 +23,9 @@ use Illuminate\Support\Collection;
  *
  * Only a leader who commands the section may do it ({@see ScopeResolver::commandsUnit()}: its SL or ASL, the platoon
  * or company command above it, or an Admin); a staff grant reads the rollcall but does not change it. Both troopers
- * must be placed in the section now; a member's leader must already be one of its FTLs; the SL and ASL are always
- * listed first, so they are neither FTLs nor members; and an FTL is unmarked before joining another fireteam.
+ * must be placed in the section now; a member's leader must already be one of its FTLs; and an FTL is unmarked before
+ * joining another fireteam. The SL and ASL are always listed first, so they are never a member of a fireteam, and lead
+ * one only while their company's policy allows it (`sl_asl_lead_fireteams`, off unless a company turns it on).
  */
 class SetFireteamRoleHandler
 {
@@ -54,7 +55,11 @@ class SetFireteamRoleHandler
         }
 
         $sectionLeader = $this->commands->commandersOf([$section->id])->get($section->id);
-        $this->refuseSectionLeader($trooper, $sectionLeader);
+        $slAslLead = $this->slAslMayLead($section);
+
+        if ($command->role === FireteamRole::Member || ! $slAslLead) {
+            $this->refuseSectionLeader($trooper, $sectionLeader);
+        }
 
         if ($command->role === FireteamRole::Leader) {
             return $this->audit->record(
@@ -66,7 +71,7 @@ class SetFireteamRoleHandler
             );
         }
 
-        $leader = $this->memberLeader($command, $placed, $sectionLeader, $section);
+        $leader = $this->memberLeader($command, $placed, $sectionLeader, $section, $slAslLead);
 
         if ($this->fireteams->assignmentsIn($section->id)->get($trooper->id)?->role === FireteamRole::Leader) {
             throw InvalidFireteamException::leadsFireteam($trooper->display_name);
@@ -100,6 +105,16 @@ class SetFireteamRoleHandler
         return $section;
     }
 
+    /**
+     * Whether the section's company lets its SL and ASL lead a fireteam. A section with no company never does.
+     */
+    private function slAslMayLead(Unit $section): bool
+    {
+        $company = $this->units->owningCompany($section);
+
+        return $company !== null && ($this->fireteams->settingFor($company->id)?->sl_asl_lead_fireteams ?? false);
+    }
+
     private function refuseSectionLeader(Trooper $trooper, ?Trooper $sectionLeader): void
     {
         $role = $trooper->roleUnder($sectionLeader);
@@ -110,11 +125,12 @@ class SetFireteamRoleHandler
     }
 
     /**
-     * The FTL a new member follows: placed in the section, not the member themselves, and already one of its FTLs.
+     * The FTL a new member follows: placed in the section, not the member themselves, and already one of its FTLs. An
+     * SL or ASL counts only while the company lets them lead a fireteam.
      *
      * @param  Collection<int, Trooper>  $placed
      */
-    private function memberLeader(SetFireteamRole $command, Collection $placed, ?Trooper $sectionLeader, Unit $section): Trooper
+    private function memberLeader(SetFireteamRole $command, Collection $placed, ?Trooper $sectionLeader, Unit $section, bool $slAslLead): Trooper
     {
         if ($command->leaderTrooperId === null) {
             throw InvalidFireteamException::memberNeedsLeader();
@@ -127,7 +143,7 @@ class SetFireteamRoleHandler
         $leader = $placed->get($command->leaderTrooperId);
 
         if ($leader === null
-            || $leader->roleUnder($sectionLeader) !== null
+            || (! $slAslLead && $leader->roleUnder($sectionLeader) !== null)
             || $this->fireteams->assignmentsIn($section->id)->get($leader->id)?->role !== FireteamRole::Leader) {
             throw InvalidFireteamException::notALeader($command->leaderTrooperId);
         }

@@ -89,14 +89,16 @@ class RollcallFireteamController extends Controller
     }
 
     /**
-     * The policy of the company `$unit` sits under: `show` false or null, `order` `leaders_first` or null, both given
-     * each time (null leaves that choice to the sections).
+     * The policy of the company `$unit` sits under: `show` true, false or null, `order` `leaders_first` or null (null
+     * leaves that choice to the sections), and `sl_asl_lead`, whether the SL and ASL may lead a fireteam. All three are
+     * given each time.
      */
     public function policy(Request $request, int $unit, SetCompanyFireteamPolicyHandler $handler): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'show' => ['present', 'nullable', 'boolean'],
             'order' => ['present', 'nullable', Rule::enum(FireteamOrder::class)],
+            'sl_asl_lead' => ['required', 'boolean'],
         ]);
 
         if ($validator->fails()) {
@@ -117,6 +119,7 @@ class RollcallFireteamController extends Controller
             $company->id,
             $request->input('show') === null ? null : $request->boolean('show'),
             FireteamOrder::tryFrom((string) $request->input('order')),
+            $request->boolean('sl_asl_lead'),
         )));
     }
 
@@ -141,7 +144,7 @@ class RollcallFireteamController extends Controller
     }
 
     /**
-     * @return array{fireteams: array<string, mixed>, troopers: list<array{id: int, role: ?string, fireteamLeaderId: ?int}>}
+     * @return array{fireteams: array<string, mixed>, troopers: list<array{id: int, role: ?string, leadsFireteam: bool, fireteamLeaderId: ?int}>}
      */
     private function state(User $user, Unit $section): array
     {

@@ -2,6 +2,7 @@
 
 namespace App\Rollcall;
 
+use App\Models\FireteamOrder;
 use App\Models\FireteamRole;
 use App\Models\FireteamSetting;
 use App\Models\Trooper;
@@ -13,19 +14,27 @@ use Illuminate\Support\Collection;
 
 /**
  * What the rollcall needs to list a section leader-first (the owner's order, 2026-10-16): each trooper's role and
- * fireteam, and how the post shows fireteams. The ordering itself is done once, in the browser
+ * fireteam, and how the post shows fireteams. The ordering and the fireteam names are worked out once, in the browser
  * (`resources/js/lib/fireteams.js`), for the post and the screen alike.
  *
  * A trooper's role is `sl` or `asl` from the roster ({@see Trooper::roleUnder()}, the same rule as the roster and the
- * readiness matrix), else `ftl` when the section's leaders marked them a fireteam leader, else null. The SL and ASL
- * outrank a fireteam role: a stored FTL row of a trooper who has since become the ASL is not read as an FTL, and their
- * members count as in no fireteam. A member's `fireteamLeaderId` is set only while that leader is an FTL placed in the
- * section, so a fireteam whose leader left reads as no fireteam.
+ * readiness matrix), else `ftl` when the section's leaders marked them a fireteam leader, else null. `leadsFireteam`
+ * says the trooper leads a fireteam: every FTL, and an SL or ASL marked as one while their company lets the SL and ASL
+ * lead a fireteam. When the company turns that off, their rows are kept but read as no fireteam, as is the FTL row of a
+ * trooper who has since become the SL or ASL. A member's `fireteamLeaderId` is set only while that leader leads a
+ * fireteam and is placed in the section, so a fireteam whose leader left reads as no fireteam.
  *
  * Read-only.
  */
 final class SectionFireteams
 {
+    /**
+     * Companies whose fireteams are named with the WW2 phonetic alphabet (Able, Baker, Charlie, Dog...) instead of
+     * today's (Alpha, Bravo...), by callsign: B/ACD is Baker Company, a WW2 unit (the owner, 2026-10-15). Kept here
+     * only; once `CavDesignation::NAMED_COMPANIES` (#273) is merged this can read that list.
+     */
+    public const WW2_ALPHABET_COMPANIES = ['B/ACD'];
+
     public function __construct(
         private readonly UnitRepository $units,
         private readonly UnitCommandMappingRepository $commands,
@@ -33,56 +42,64 @@ final class SectionFireteams
     ) {}
 
     /**
-     * Each placed trooper's role and fireteam leader, keyed by trooper id.
+     * Each placed trooper's role, whether they lead a fireteam, and the leader of the fireteam they are in, keyed by
+     * trooper id.
      *
      * @param  Collection<int, Trooper>  $placed  the troopers placed in the section now
-     * @return array<int, array{role: ?string, fireteamLeaderId: ?int}>
+     * @return array<int, array{role: ?string, leadsFireteam: bool, fireteamLeaderId: ?int}>
      */
     public function roles(Unit $section, Collection $placed): array
     {
         $leader = $this->commands->commandersOf([$section->id])->get($section->id);
         $assignments = $this->fireteams->assignmentsIn($section->id);
+        $slAslLead = $this->policyFor($section)['slAslLead'];
 
-        $roles = $placed->mapWithKeys(function (Trooper $trooper) use ($leader, $assignments) {
+        $roles = $placed->mapWithKeys(function (Trooper $trooper) use ($leader, $assignments, $slAslLead) {
             $command = $trooper->roleUnder($leader);
-            $row = $assignments->get($trooper->id);
+            $marked = $assignments->get($trooper->id)?->role === FireteamRole::Leader;
 
-            return [$trooper->id => $command !== null ? strtolower($command) : ($row?->role === FireteamRole::Leader ? 'ftl' : null)];
+            return [$trooper->id => [
+                'role' => $command !== null ? strtolower($command) : ($marked ? 'ftl' : null),
+                'leadsFireteam' => $marked && ($command === null || $slAslLead),
+            ]];
         });
 
         return $placed->mapWithKeys(function (Trooper $trooper) use ($roles, $assignments) {
             $row = $assignments->get($trooper->id);
-            $leaderId = $roles->get($trooper->id) === null && $row?->role === FireteamRole::Member && $roles->get($row->leader_trooper_id) === 'ftl'
+            $own = $roles->get($trooper->id);
+            $leaderId = $own['role'] === null && $row?->role === FireteamRole::Member && ($roles->get($row->leader_trooper_id)['leadsFireteam'] ?? false)
                 ? $row->leader_trooper_id
                 : null;
 
-            return [$trooper->id => ['role' => $roles->get($trooper->id), 'fireteamLeaderId' => $leaderId]];
+            return [$trooper->id => [...$own, 'fireteamLeaderId' => $leaderId]];
         })->all();
     }
 
     /**
-     * How the section's post shows fireteams: the effective `show` and `order` (the company's policy, else the
-     * section's choice, else the default, {@see FireteamSetting::effective()}), the section's own choices, and the
-     * company's policy (null without an owning company). `can` says what the viewer may change.
+     * How the section's post shows fireteams: the effective `show`, `order` and `slAslLead` (the company's policy, else
+     * the section's choice, else the default, {@see FireteamSetting::effective()}), the alphabet its fireteams are named
+     * in, the section's own choices, and the company's policy (null without an owning company). `can` says what the
+     * viewer may change.
      *
      * @return array<string, mixed>
      */
     public function options(Unit $section, bool $canEdit, bool $canEditPolicy): array
     {
-        $company = $this->units->owningCompany($section);
-        $own = $this->fireteams->settingFor($section->id);
-        $policy = $company === null ? null : $this->fireteams->settingFor($company->id);
+        ['company' => $company, 'own' => $own, 'policy' => $policy] = $this->settings($section);
         $effective = FireteamSetting::effective($policy, $own);
 
         return [
             'show' => $effective['show'],
             'order' => $effective['order']->value,
+            'slAslLead' => $effective['slAslLead'],
+            'alphabet' => in_array($company?->callsign, self::WW2_ALPHABET_COMPANIES, true) ? 'ww2' : 'nato',
             'section' => ['show' => $own?->show_fireteams, 'order' => $own?->fireteam_order?->value],
             'company' => $company === null ? null : [
                 'id' => $company->id,
                 'designation' => $company->callsign ?? $company->name,
                 'show' => $policy?->show_fireteams,
                 'order' => $policy?->fireteam_order?->value,
+                'slAslLead' => $policy?->sl_asl_lead_fireteams ?? false,
             ],
             'can' => ['edit' => $canEdit, 'editPolicy' => $canEditPolicy && $company !== null],
         ];
@@ -94,5 +111,29 @@ final class SectionFireteams
     public function companyOf(Unit $section): ?Unit
     {
         return $this->units->owningCompany($section);
+    }
+
+    /**
+     * @return array{show: bool, order: FireteamOrder, slAslLead: bool}
+     */
+    private function policyFor(Unit $section): array
+    {
+        ['own' => $own, 'policy' => $policy] = $this->settings($section);
+
+        return FireteamSetting::effective($policy, $own);
+    }
+
+    /**
+     * @return array{company: ?Unit, own: ?FireteamSetting, policy: ?FireteamSetting}
+     */
+    private function settings(Unit $section): array
+    {
+        $company = $this->units->owningCompany($section);
+
+        return [
+            'company' => $company,
+            'own' => $this->fireteams->settingFor($section->id),
+            'policy' => $company === null ? null : $this->fireteams->settingFor($company->id),
+        ];
     }
 }

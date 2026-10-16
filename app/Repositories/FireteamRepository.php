@@ -48,7 +48,7 @@ interface FireteamRepository
      * Write the unit's fireteam setting, creating it if needed. Only the keys given change; a null value clears that
      * choice back to "not set".
      *
-     * @param  array{fireteam_order?: ?FireteamOrder, show_fireteams?: ?bool}  $values
+     * @param  array{fireteam_order?: ?FireteamOrder, show_fireteams?: ?bool, sl_asl_lead_fireteams?: ?bool}  $values
      */
     public function updateSetting(int $unitId, array $values): FireteamSetting;
 }

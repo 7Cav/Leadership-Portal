@@ -89,18 +89,27 @@ describe('the effective setting of a section', function () {
     $setting = fn (?bool $show, ?FireteamOrder $order) => new FireteamSetting(['show_fireteams' => $show, 'fireteam_order' => $order]);
 
     it('defaults to FTLs hidden and all FTLs above the rest', function () use ($setting) {
-        expect(FireteamSetting::effective(null, null))->toBe(['show' => false, 'order' => FireteamOrder::LeadersFirst])
-            ->and(FireteamSetting::effective($setting(null, null), $setting(null, null)))->toBe(['show' => false, 'order' => FireteamOrder::LeadersFirst]);
+        expect(FireteamSetting::effective(null, null))->toBe(['show' => false, 'order' => FireteamOrder::LeadersFirst, 'slAslLead' => false])
+            ->and(FireteamSetting::effective($setting(null, null), $setting(null, null)))->toBe(['show' => false, 'order' => FireteamOrder::LeadersFirst, 'slAslLead' => false]);
     });
 
     it('takes the section\'s choice where the company leaves it to them', function () use ($setting) {
-        expect(FireteamSetting::effective(null, $setting(true, FireteamOrder::ByFireteam)))->toBe(['show' => true, 'order' => FireteamOrder::ByFireteam])
-            ->and(FireteamSetting::effective($setting(null, null), $setting(true, FireteamOrder::ByFireteam)))->toBe(['show' => true, 'order' => FireteamOrder::ByFireteam]);
+        expect(FireteamSetting::effective(null, $setting(true, FireteamOrder::ByFireteam)))->toBe(['show' => true, 'order' => FireteamOrder::ByFireteam, 'slAslLead' => false])
+            ->and(FireteamSetting::effective($setting(null, null), $setting(true, FireteamOrder::ByFireteam)))->toBe(['show' => true, 'order' => FireteamOrder::ByFireteam, 'slAslLead' => false]);
     });
 
     it('lets the company\'s policy override the section, value by value', function () use ($setting) {
-        expect(FireteamSetting::effective($setting(false, null), $setting(true, FireteamOrder::ByFireteam)))->toBe(['show' => false, 'order' => FireteamOrder::ByFireteam])
-            ->and(FireteamSetting::effective($setting(null, FireteamOrder::LeadersFirst), $setting(true, FireteamOrder::ByFireteam)))->toBe(['show' => true, 'order' => FireteamOrder::LeadersFirst])
-            ->and(FireteamSetting::effective($setting(false, FireteamOrder::LeadersFirst), null))->toBe(['show' => false, 'order' => FireteamOrder::LeadersFirst]);
+        expect(FireteamSetting::effective($setting(false, null), $setting(true, FireteamOrder::ByFireteam)))->toBe(['show' => false, 'order' => FireteamOrder::ByFireteam, 'slAslLead' => false])
+            ->and(FireteamSetting::effective($setting(null, FireteamOrder::LeadersFirst), $setting(true, FireteamOrder::ByFireteam)))->toBe(['show' => true, 'order' => FireteamOrder::LeadersFirst, 'slAslLead' => false])
+            ->and(FireteamSetting::effective($setting(false, FireteamOrder::LeadersFirst), null))->toBe(['show' => false, 'order' => FireteamOrder::LeadersFirst, 'slAslLead' => false]);
+    });
+
+    it('lets only the company say whether the SL and ASL may lead a fireteam, off unless it does', function () {
+        $lead = fn (?bool $value) => new FireteamSetting(['sl_asl_lead_fireteams' => $value]);
+
+        expect(FireteamSetting::effective($lead(true), null)['slAslLead'])->toBeTrue()
+            ->and(FireteamSetting::effective($lead(false), $lead(true))['slAslLead'])->toBeFalse()
+            ->and(FireteamSetting::effective(null, $lead(true))['slAslLead'])->toBeFalse()
+            ->and(FireteamSetting::effective($lead(null), null)['slAslLead'])->toBeFalse();
     });
 });

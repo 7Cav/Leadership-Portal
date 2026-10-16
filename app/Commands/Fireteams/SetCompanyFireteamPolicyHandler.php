@@ -16,9 +16,11 @@ use App\Support\Audit\AuditEnvelope;
  * team, the battalion or regimental command above it, or an Admin may ({@see ScopeResolver::commandsUnit()}); a staff
  * grant does not, and neither does a section or platoon leader beneath it.
  *
- * The policy can only narrow what sections show: hide FTLs (`show` false) and keep FTLs above the rest (`order`
- * LeadersFirst), or leave each to the sections (null). Forcing FTLs on, or forcing the by-fireteam order, is refused.
- * The sections' own stored choices are left as they are, so lifting the policy brings them back.
+ * The policy shows or hides FTLs on every section (`show`; shown only prints something where a section has an FTL),
+ * keeps FTLs above the rest (`order` LeadersFirst), or leaves either to the sections (null). Forcing the by-fireteam
+ * order is refused. It also says whether the sections' SL and ASL may lead a fireteam (`slAslLead`), which only a
+ * company sets. The sections' own stored choices, and fireteams an SL or ASL led, are left as they are, so lifting the
+ * policy brings them back.
  */
 class SetCompanyFireteamPolicyHandler
 {
@@ -31,7 +33,7 @@ class SetCompanyFireteamPolicyHandler
 
     /**
      * @throws FireteamForbiddenException when the actor does not command the company (or it does not exist).
-     * @throws InvalidFireteamException when the unit is not a company, or the policy would force something on.
+     * @throws InvalidFireteamException when the unit is not a company, or the policy would force the by-fireteam order.
      */
     public function handle(User $actor, SetCompanyFireteamPolicy $command): FireteamSetting
     {
@@ -43,10 +45,6 @@ class SetCompanyFireteamPolicyHandler
 
         if ($company->type !== UnitType::Company) {
             throw InvalidFireteamException::notACompany($company->id);
-        }
-
-        if ($command->show === true) {
-            throw InvalidFireteamException::notAPolicy('showing fireteam leaders');
         }
 
         if ($command->order === FireteamOrder::ByFireteam) {
@@ -61,6 +59,7 @@ class SetCompanyFireteamPolicyHandler
             mutation: fn () => $this->fireteams->updateSetting($company->id, [
                 'show_fireteams' => $command->show,
                 'fireteam_order' => $command->order,
+                'sl_asl_lead_fireteams' => $command->slAslLead,
             ]),
         );
     }
