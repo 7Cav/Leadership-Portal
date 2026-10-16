@@ -15,15 +15,17 @@ use App\Commands\WeeklyReports\SaveReportDraftHandler;
 use App\Commands\WeeklyReports\SendWeeklyReport;
 use App\Commands\WeeklyReports\SendWeeklyReportHandler;
 use App\Jobs\CaptureSectionPracticeJob;
+use App\Models\Attendance;
 use App\Models\AttendanceStatus;
 use App\Models\GamePlatform;
-use App\Models\PortalRoleGrant;
+use App\Models\PracticeCapturePlayer;
 use App\Models\SectionPractice;
 use App\Models\SyncRun;
 use App\Models\SyncRunStatus;
 use App\Models\Trooper;
 use App\Models\TrooperGameIdentity;
 use App\Models\Unit;
+use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReport;
@@ -49,8 +51,10 @@ beforeEach(function () {
 
     $this->platoon = Unit::factory()->create(['type' => UnitType::Platoon, 'path' => '960/']);
     $this->section = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => '960/961/']);
-    $this->leader = User::factory()->serving()->create();
-    PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
+    // The section leader by synced billet: command authority, which writes (a staff grant only reads).
+    $this->leader = User::factory()->create(['cav_id' => Trooper::factory()->create([
+        'cav_position_id' => UnitCommandMapping::factory()->create(['unit_id' => $this->section->id])->cav_position_id,
+    ])->cav_id]);
     $this->trooper = Trooper::factory()->create();
     $this->trooper->forceFill(['primary_section_id' => $this->section->id])->save();
     TrooperGameIdentity::factory()->create(['trooper_id' => $this->trooper->id, 'platform' => GamePlatform::Hll, 'platform_id' => '7656119000000009']);
@@ -120,6 +124,29 @@ it('queues a capture retry at the floor and refuses the week before it', functio
 
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/capture", ['week' => FLOOR_WEEK])->assertStatus(202);
     Queue::assertPushed(CaptureSectionPracticeJob::class, 1);
+});
+
+it('links an unmatched player at the floor and refuses the week before it, which would pre-mark that week', function () {
+    $ortega = Trooper::factory()->create();
+    $ortega->forceFill(['primary_section_id' => $this->section->id])->save();
+
+    foreach ([BEFORE_FLOOR_WEEK, FLOOR_WEEK] as $week) {
+        $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => floorWeek($week)]);
+        PracticeCapturePlayer::query()->create([
+            'section_practice_id' => $practice->id, 'platform' => GamePlatform::Hll, 'player_name' => 'Ortega', 'platform_id' => '7656119000000001',
+        ]);
+    }
+
+    $link = fn (string $week) => $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", [
+        'week' => $week, 'platform' => 'hll', 'platform_id' => '7656119000000001', 'trooper_id' => $ortega->id,
+    ]);
+
+    $link(BEFORE_FLOOR_WEEK)->assertStatus(422)->assertJsonPath('message', 'The week of '.BEFORE_FLOOR_WEEK.' is too far back to change.');
+    expect(Attendance::query()->count())->toBe(0)
+        ->and(TrooperGameIdentity::query()->where('trooper_id', $ortega->id)->count())->toBe(0);
+
+    $link(FLOOR_WEEK)->assertOk()->assertJsonPath('marked', true);
+    expect(Attendance::query()->sole()->trooper_id)->toBe($ortega->id);
 });
 
 it('saves a report draft at the floor and answers 404 for the week before it', function () {
