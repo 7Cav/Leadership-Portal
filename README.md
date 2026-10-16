@@ -15,6 +15,8 @@ Start from `.env.example`; every key is documented there. For production:
 
 - `APP_ENV=production` and `APP_DEBUG=false`. `APP_URL` is the public `https://` address; the
   7Cav SSO callback is built from it (`SEVENCAV_OAUTH_REDIRECT_URI`).
+- `APP_KEY` is empty in `.env.example`. Set it once on a new install with
+  `php artisan key:generate` and keep it: a new key signs everyone out.
 - Serve over HTTPS. Leave `SESSION_SECURE_COOKIE` unset: it defaults to true when
   `APP_ENV=production` (`config/session.php`), so the session cookie is only sent over HTTPS.
   `Strict-Transport-Security` is sent only in production and only on a request the app sees as
@@ -32,7 +34,8 @@ Start from `.env.example`; every key is documented there. For production:
 ### Install and update
 
 ```bash
-composer install
+composer install --no-dev --optimize-autoloader
+npm ci                       # the build tools are dev dependencies, so keep NODE_ENV unset here
 npm run build
 php artisan migrate --force
 php artisan config:cache     # re-run after every .env change
