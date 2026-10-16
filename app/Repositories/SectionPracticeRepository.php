@@ -69,11 +69,16 @@ interface SectionPracticeRepository
      * with no attendance row changed after it. Keyed by `week_start` date (`Y-m-d`); a week with
      * no practice row is absent. One grouped query. Never creates a row.
      *
+     * `$excused` lists, per week (`Y-m-d`), the troopers whose leave covers it (3.4, as `LoaCoverage`
+     * decides; the caller asks it, since a Repository cannot). Their marks that week are left out of
+     * `marked`, so the caller can count each of them once as having nothing to mark.
+     *
+     * @param  array<string, list<int>>  $excused
      * @return Collection<string, PracticeWeekStatus>
      *
      * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
      */
-    public function weekStatuses(int $sectionId, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection;
+    public function weekStatuses(int $sectionId, CarbonInterface $firstWeek, CarbonInterface $lastWeek, array $excused = []): Collection;
 
     public function markRollcallPosted(SectionPractice $practice, int $userId): SectionPractice;
 

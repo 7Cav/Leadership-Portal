@@ -9,10 +9,10 @@ use App\Models\UnitType;
 use App\Repositories\PracticeWeekStatus;
 use App\Repositories\SectionPracticeRepository;
 use App\Support\Time\WeekOf;
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 class Eloquent implements SectionPracticeRepository
@@ -71,10 +71,22 @@ class Eloquent implements SectionPracticeRepository
             ->toBase();
     }
 
-    public function weekStatuses(int $sectionId, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
+    public function weekStatuses(int $sectionId, CarbonInterface $firstWeek, CarbonInterface $lastWeek, array $excused = []): Collection
     {
         $firstWeek = WeekOf::requireStart($firstWeek);
         $lastWeek = WeekOf::requireStart($lastWeek);
+
+        // A mark of a trooper whose leave covers that week is not counted: the caller counts them once, mark or not.
+        $excusedSql = [];
+        $bindings = [];
+        foreach ($excused as $date => $trooperIds) {
+            if ($trooperIds === []) {
+                continue;
+            }
+            $excusedSql[] = '(section_practices.week_start = ? and attendance.trooper_id in ('.implode(', ', array_fill(0, count($trooperIds), '?')).'))';
+            $bindings = [...$bindings, WeekOf::requireStart(CarbonImmutable::parse($date, 'UTC'))->toDateTimeString(), ...array_map('intval', $trooperIds)];
+        }
+        $notExcused = $excusedSql === [] ? '' : ' and not ('.implode(' or ', $excusedSql).')';
 
         return SectionPractice::query()
             ->where('section_practices.section_id', $sectionId)
@@ -89,13 +101,10 @@ class Eloquent implements SectionPracticeRepository
             })
             ->groupBy('section_practices.id', 'section_practices.week_start', 'section_practices.rollcall_posted_at')
             ->withCasts(['marked' => 'integer', 'last_marked_at' => 'immutable_datetime'])
-            ->get([
-                'section_practices.id',
-                'section_practices.week_start',
-                'section_practices.rollcall_posted_at',
-                DB::raw('coalesce(sum(case when troopers.id is not null and attendance.status is not null then 1 else 0 end), 0) as marked'),
-                DB::raw('max(attendance.updated_at) as last_marked_at'),
-            ])
+            ->select(['section_practices.id', 'section_practices.week_start', 'section_practices.rollcall_posted_at'])
+            ->selectRaw("coalesce(sum(case when troopers.id is not null and attendance.status is not null{$notExcused} then 1 else 0 end), 0) as marked", $bindings)
+            ->selectRaw('max(attendance.updated_at) as last_marked_at')
+            ->get()
             ->mapWithKeys(fn (SectionPractice $practice) => [$practice->week_start->toDateString() => new PracticeWeekStatus(
                 weekStart: $practice->week_start,
                 marked: $practice->marked,

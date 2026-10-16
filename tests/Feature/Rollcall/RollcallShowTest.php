@@ -415,3 +415,26 @@ it('reads the week status in one query, however many weeks have practices', func
         ->and($statuses->keys()->sort()->values()->all())->toBe(['2026-09-05', '2026-09-12', '2026-09-19', '2026-09-26'])
         ->and($statuses->every(fn ($status) => $status->marked === 1 && $status->posted === false))->toBeTrue();
 });
+
+it('counts a trooper whose leave covers a past week as having nothing to mark there, as the screen does', function () {
+    $here = rollcallTrooper($this->section);
+    $away = rollcallTrooper($this->section);
+    $markedThenAway = rollcallTrooper($this->section);
+    // Synced leave (4.4): $away is covered for 19Sep26 and 26Sep26, $markedThenAway for 19Sep26 only,
+    // after a leader had already marked them present that week.
+    Loa::factory()->create(['trooper_id' => $away->id, 'starts_at' => '2026-09-19', 'ends_at' => '2026-10-02']);
+    Loa::factory()->create(['trooper_id' => $markedThenAway->id, 'starts_at' => '2026-09-19', 'ends_at' => '2026-09-25']);
+
+    $posted = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->week->subWeek()]);
+    Attendance::factory()->create(['trooper_id' => $here->id, 'section_practice_id' => $posted->id, 'status' => AttendanceStatus::Present, 'source' => AttendanceSource::Manual]);
+    Attendance::factory()->create(['trooper_id' => $markedThenAway->id, 'section_practice_id' => $posted->id, 'status' => AttendanceStatus::Present, 'source' => AttendanceSource::Manual]);
+    $posted->forceFill(['rollcall_posted_at' => '2026-10-08 17:00:00'])->save();
+
+    $open = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->week->subWeeks(2)]);
+    Attendance::factory()->create(['trooper_id' => $markedThenAway->id, 'section_practice_id' => $open->id, 'status' => AttendanceStatus::Present, 'source' => AttendanceSource::Manual]);
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
+        ->assertInertia(fn ($page) => $page
+            ->where('weekStatus.0', ['date' => '2026-09-26', 'unmarked' => 0, 'posted' => true])
+            ->where('weekStatus.1', ['date' => '2026-09-19', 'unmarked' => 1, 'posted' => false]));
+});

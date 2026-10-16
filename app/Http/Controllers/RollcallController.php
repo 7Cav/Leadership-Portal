@@ -675,7 +675,7 @@ class RollcallController extends Controller
             // The section's real report for the week was sent (AD-12): the rollcall is read-only.
             // A draft, no report, or a generated demo report (#115) leaves it open.
             'locked' => $this->reports->isSentFor($section->id, $weekStart),
-            'weekStatus' => $this->weekStatus($section, $currentWeek, $roster->count()),
+            'weekStatus' => $this->weekStatus($section, $currentWeek, $roster->modelKeys()),
             'atRisk' => $this->atRisk($section, $weekStart),
             'roster' => [
                 'source' => $lastSync->source,
@@ -694,27 +694,40 @@ class RollcallController extends Controller
     /**
      * Where each of the section's last {@see STATUS_WEEKS} past weeks stands, newest first, so the
      * week navigation can flag the ones still needing work: `unmarked` troopers placed in the section
-     * now with no practice mark (LOA counts as marked, as on the screen), and whether the rollcall
-     * is `posted` with no mark changed since. A week with no practice row has everyone unmarked and
-     * nothing posted. An empty roster has nothing to do, so it sends no weeks. Read in one query.
+     * now with no practice mark (LOA counts as marked, as on the screen: a trooper whose leave covers
+     * the week, by `LoaCoverage`, has nothing to mark), and whether the rollcall is `posted` with no
+     * mark changed since. A week with no practice row has everyone not on leave unmarked and nothing
+     * posted. An empty roster has nothing to do, so it sends no weeks.
      *
+     * @param  list<int>  $trooperIds  the troopers placed in the section now
      * @return list<array{date: string, unmarked: int, posted: bool}>
      */
-    private function weekStatus(Unit $section, CarbonImmutable $currentWeek, int $strength): array
+    private function weekStatus(Unit $section, CarbonImmutable $currentWeek, array $trooperIds): array
     {
-        if ($strength === 0) {
+        if ($trooperIds === []) {
             return [];
         }
 
-        $practices = $this->practices->weekStatuses($section->id, $currentWeek->subWeeks(self::STATUS_WEEKS), $currentWeek->subWeek());
+        $firstWeek = $currentWeek->subWeeks(self::STATUS_WEEKS);
+        $covered = [];
+        foreach ($this->loaCoverage->forTroopersOverWeeks($trooperIds, $firstWeek, self::STATUS_WEEKS) as $trooperId => $weeks) {
+            foreach ($weeks as $date => $cover) {
+                if ($cover->isCovered()) {
+                    $covered[$date][] = $trooperId;
+                }
+            }
+        }
 
-        return array_map(function (int $back) use ($currentWeek, $practices, $strength) {
+        $practices = $this->practices->weekStatuses($section->id, $firstWeek, $currentWeek->subWeek(), $covered);
+        $strength = count($trooperIds);
+
+        return array_map(function (int $back) use ($currentWeek, $practices, $strength, $covered) {
             $date = $currentWeek->subWeeks($back)->toDateString();
             $practice = $practices->get($date);
 
             return [
                 'date' => $date,
-                'unmarked' => max(0, $strength - ($practice?->marked ?? 0)),
+                'unmarked' => max(0, $strength - count($covered[$date] ?? []) - ($practice?->marked ?? 0)),
                 'posted' => $practice?->posted ?? false,
             ];
         }, range(1, self::STATUS_WEEKS));
