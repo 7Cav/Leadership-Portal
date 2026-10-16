@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Authorization\ScopeResolver;
 use App\Jobs\SyncRosterJob;
 use App\Models\Unit;
+use App\Models\User;
 use App\Repositories\UnitRepository;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -26,6 +28,9 @@ class UnitRosterSyncController extends Controller
     /** Seconds after an accepted unit sync before a leader may sync that unit, or one above or below it, again. */
     public const COOLDOWN_SECONDS = 300;
 
+    /** Seconds a request waits for another one's check to finish before it is told to try again. */
+    private const DECIDE_WAIT_SECONDS = 3;
+
     public function __construct(
         private readonly ScopeResolver $scope,
         private readonly UnitRepository $units,
@@ -41,7 +46,26 @@ class UnitRosterSyncController extends Controller
             abort(403, 'Only that unit\'s leader or an Admin may sync it.');
         }
 
-        $related = $this->relatedUnitIds($found);
+        // The checks and the cooldown they start are one step, taken one request at a time: otherwise two leaders
+        // clicking overlapping units at once both read no cooldown before either writes one, and both fetch.
+        try {
+            Cache::lock('unit-roster-sync:deciding', 10)->block(self::DECIDE_WAIT_SECONDS, fn () => $this->startCooldown($user, $found));
+        } catch (LockTimeoutException) {
+            abort(429, 'Another roster sync is being started right now. Try again in a moment.', ['Retry-After' => 5]);
+        }
+
+        dispatch(new SyncRosterJob($user->id, $found->id));
+
+        return back();
+    }
+
+    /**
+     * Refuse the sync while one that overlaps it is pending or within the cooldown, otherwise start this unit's
+     * cooldown. Runs under {@see store()}'s lock, so the read and the write cannot interleave with another request's.
+     */
+    private function startCooldown(User $user, Unit $unit): void
+    {
+        $related = $this->relatedUnitIds($unit);
 
         // A pending whole-roster sync already covers this unit, and a pending one for this unit is the same job, so
         // dispatching would be dropped silently; a pending one above or below it overlaps it. Say so rather than let
@@ -63,11 +87,7 @@ class UnitRosterSyncController extends Controller
             }
         }
 
-        Cache::put(self::cooldownKey($found->id), now()->addSeconds(self::COOLDOWN_SECONDS)->getTimestamp(), self::COOLDOWN_SECONDS);
-
-        dispatch(new SyncRosterJob($user->id, $found->id));
-
-        return back();
+        Cache::put(self::cooldownKey($unit->id), now()->addSeconds(self::COOLDOWN_SECONDS)->getTimestamp(), self::COOLDOWN_SECONDS);
     }
 
     /**
