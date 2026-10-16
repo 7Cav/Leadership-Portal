@@ -149,7 +149,7 @@ function onFireteams({ fireteams: options, troopers }) {
     const byId = new Map(troopers.map((trooper) => [trooper.id, trooper]));
     for (const row of rows.value) {
         const saved = byId.get(row.id);
-        if (saved) Object.assign(row, { role: saved.role, fireteamLeaderId: saved.fireteamLeaderId });
+        if (saved) Object.assign(row, { role: saved.role, leadsFireteam: saved.leadsFireteam, fireteamLeaderId: saved.fireteamLeaderId });
     }
     fireteams.value = options;
     if (posted.value && bbcode.value !== before) editedSincePost.value = true;

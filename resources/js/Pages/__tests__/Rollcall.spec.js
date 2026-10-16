@@ -1406,7 +1406,7 @@ describe('Rollcall page', () => {
             const wrapper = factory({ troopers: SQUAD, fireteams: FIRETEAMS, template: { ...TEMPLATE, body: '{{#troopers}}{{n}}.{{#role}}{{role}} {{/role}}{{name}};{{/troopers}}' } });
 
             expect(wrapper.find('[data-testid="fireteams"]').exists()).toBe(true);
-            expect(wrapper.find('[data-testid="forum-bbcode"]').text()).toBe('1.SL Sl.E;2.ASL Asl.C;3.Ftl.B;4.Member.D;5.Able.A;');
+            expect(wrapper.find('[data-testid="forum-bbcode"]').text()).toBe('1.Section Leader Sl.E;2.Assistant Section Leader Asl.C;3.Ftl.B;4.Member.D;5.Able.A;');
         });
 
         it('takes a saved fireteam change into the post, and flags a posted rollcall for reposting', async () => {

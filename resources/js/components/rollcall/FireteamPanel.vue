@@ -4,20 +4,22 @@ import { PhBuildings, PhCaretDown, PhCircleNotch, PhUsersFour } from '@phosphor-
 import { Badge } from '@/components/ui/badge';
 import { NativeSelect } from '@/components/ui/native-select';
 import { messageFor, unreachable } from '@/composables/useRollcallAutosave';
-import { ROLE_LABELS } from '@/lib/fireteams';
+import { ROLE_LABELS, fireteamNames, leadsFireteam } from '@/lib/fireteams';
 import { postJson } from '@/lib/postJson';
 import { fullName } from '@/lib/rollcall';
 
 // The rollcall's fireteam controls (the owner's order, 2026-10-16), on the review step above the forum post they order.
 // The post lists the SL, then the ASL, then everyone by rank; the section's leaders may show unofficial fireteam leaders
-// (FTLs) as well, all above the rest or each above their own fireteam. A company's command may enforce either choice
-// for every section, and the enforced value shows here, locked, as "Set by company". Every change is saved at once and
-// the server answers the section's fireteams as they now stand, which the page takes as they are (`updated`).
+// (FTLs) as well, all above the rest or each above their own fireteam, named by letter in the order they appear. A
+// company's command may enforce either choice for every section, and the enforced value shows here, locked, as "Set by
+// company"; only the company lets the SL and ASL lead a fireteam. Every change is saved at once and the server answers
+// the section's fireteams as they now stand, which the page takes as they are (`updated`).
 const props = defineProps({
     sectionId: { type: Number, required: true },
-    // The rollcall rows in the order the post lists them: `[{ id, name, rankShort, role, fireteamLeaderId, ... }]`.
+    // The rollcall rows in the order the post lists them: `[{ id, name, rankShort, role, leadsFireteam, fireteamLeaderId, ... }]`.
     troopers: { type: Array, required: true },
-    // `{ show, order, section: { show, order }, company: { id, designation, show, order } | null, can: { edit, editPolicy } }`.
+    // `{ show, order, slAslLead, alphabet, section: { show, order }, company: { id, designation, show, order, slAslLead } | null,
+    // can: { edit, editPolicy } }`.
     fireteams: { type: Object, required: true },
     // False during a view-as preview, which changes nothing.
     editable: { type: Boolean, default: true },
@@ -44,8 +46,13 @@ const company = computed(() => props.fireteams.company);
 const showEnforced = computed(() => company.value?.show !== null && company.value?.show !== undefined);
 const orderEnforced = computed(() => company.value?.order !== null && company.value?.order !== undefined);
 
-const ftls = computed(() => props.troopers.filter((trooper) => trooper.role === 'ftl'));
-const leads = (trooper) => trooper.role === 'sl' || trooper.role === 'asl';
+// Every fireteam leader, the SL or ASL included where the company allows it, and the letter each fireteam goes by.
+const ftls = computed(() => props.troopers.filter(leadsFireteam));
+const names = computed(() => fireteamNames(props.troopers, props.fireteams));
+const commands = (trooper) => trooper.role === 'sl' || trooper.role === 'asl';
+// The SL and ASL get a select only where the company lets them lead a fireteam; they are never a member of one.
+const selectable = (trooper) => !commands(trooper) || props.fireteams.slAslLead;
+const teamLabel = (ftl) => `${names.value.get(ftl.id) ?? 'Fireteam'} (${fullName(ftl)})`;
 
 const summary = computed(() => {
     if (!props.fireteams.show) return 'The post lists the SL, then the ASL, then everyone by rank.';
@@ -55,12 +62,12 @@ const summary = computed(() => {
 });
 
 // A trooper's choice in their select: '' (no fireteam), 'ftl', or 'member:<leader id>'.
-const valueOf = (trooper) => (trooper.role === 'ftl' ? 'ftl' : trooper.fireteamLeaderId ? `member:${trooper.fireteamLeaderId}` : '');
+const valueOf = (trooper) => (leadsFireteam(trooper) ? 'ftl' : trooper.fireteamLeaderId ? `member:${trooper.fireteamLeaderId}` : '');
 
 // Fireteams matter to the order only "by fireteam", so that is when a trooper is offered one; a trooper already in one
 // keeps it listed so the select shows the truth.
 const teamsFor = (trooper) =>
-    ftls.value.filter((ftl) => ftl.id !== trooper.id && (props.fireteams.order === 'by_fireteam' || trooper.fireteamLeaderId === ftl.id));
+    commands(trooper) ? [] : ftls.value.filter((ftl) => ftl.id !== trooper.id && (props.fireteams.order === 'by_fireteam' || trooper.fireteamLeaderId === ftl.id));
 
 async function send(path, body) {
     if (busy.value) return;
@@ -87,10 +94,18 @@ function setRole(trooper, value) {
 const setShow = (show) => canEdit.value && !showEnforced.value && show !== props.fireteams.show && send('/options', { show });
 const setOrder = (order) => canEdit.value && !orderEnforced.value && order !== props.fireteams.order && send('/options', { order });
 
+// The whole policy goes each time: `show` true, false or null (each section chooses), `order` 'leaders_first' or null,
+// and whether the SL and ASL may lead a fireteam.
+const POLICY_SHOW = { '': null, shown: true, hidden: false };
+const policyShowValue = computed(() => (company.value?.show === true ? 'shown' : company.value?.show === false ? 'hidden' : ''));
+
 function setPolicy(field, raw) {
     if (!canEditPolicy.value) return;
-    const value = raw === '' ? null : field === 'show' ? false : raw;
-    send('/policy', { show: company.value.show ?? null, order: company.value.order ?? null, [field]: value });
+    const policy = { show: company.value.show ?? null, order: company.value.order ?? null, sl_asl_lead: company.value.slAslLead ?? false };
+    if (field === 'show') policy.show = POLICY_SHOW[raw] ?? null;
+    if (field === 'order') policy.order = raw || null;
+    if (field === 'sl_asl_lead') policy.sl_asl_lead = raw === 'yes';
+    send('/policy', policy);
 }
 
 const segment =
@@ -170,8 +185,12 @@ const segment =
                     class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-2 py-1.5"
                     :data-testid="`fireteam-${trooper.id}`"
                 >
-                    <span class="min-w-[7rem] flex-1 truncate">{{ fullName(trooper) }}</span>
-                    <Badge v-if="leads(trooper)" variant="outline" class="shrink-0 font-normal">{{ ROLE_LABELS[trooper.role] }}, listed first</Badge>
+                    <span class="flex min-w-[11rem] flex-1 items-center gap-2">
+                        <span class="truncate">{{ fullName(trooper) }}</span>
+                        <Badge v-if="commands(trooper)" variant="outline" class="shrink-0 font-normal">{{ ROLE_LABELS[trooper.role] }}</Badge>
+                        <Badge v-if="names.has(trooper.id)" variant="secondary" class="shrink-0 font-normal" data-testid="fireteam-name">{{ names.get(trooper.id) }}</Badge>
+                    </span>
+                    <span v-if="!selectable(trooper)" class="shrink-0 text-xs text-muted-foreground">Listed first</span>
                     <div v-else class="w-56 max-w-full shrink-0">
                         <NativeSelect
                             :model-value="valueOf(trooper)"
@@ -183,7 +202,7 @@ const segment =
                         >
                             <option value="">No fireteam role</option>
                             <option value="ftl">Fireteam leader</option>
-                            <option v-for="ftl in teamsFor(trooper)" :key="ftl.id" :value="`member:${ftl.id}`">In {{ fullName(ftl) }}'s fireteam</option>
+                            <option v-for="ftl in teamsFor(trooper)" :key="ftl.id" :value="`member:${ftl.id}`">In {{ teamLabel(ftl) }}</option>
                         </NativeSelect>
                     </div>
                 </li>
@@ -194,16 +213,17 @@ const segment =
             <p class="flex items-center gap-2 text-xs font-semibold">
                 <PhBuildings class="size-4 text-muted-foreground" aria-hidden="true" />Company policy, every section in {{ company.designation }}
             </p>
-            <div class="mt-2 grid gap-2 sm:grid-cols-2">
+            <div class="mt-2 grid gap-2 sm:grid-cols-3">
                 <label class="grid gap-1 text-xs text-muted-foreground">
                     Fireteam leaders
                     <NativeSelect
-                        :model-value="company.show === false ? 'hidden' : ''"
+                        :model-value="policyShowValue"
                         :disabled="busy"
                         data-testid="fireteams-policy-show"
                         @update:model-value="(value) => setPolicy('show', value)"
                     >
                         <option value="">Each section chooses</option>
+                        <option value="shown">Shown on every section</option>
                         <option value="hidden">Hidden on every section</option>
                     </NativeSelect>
                 </label>
@@ -217,6 +237,18 @@ const segment =
                     >
                         <option value="">Each section chooses</option>
                         <option value="leaders_first">All fireteam leaders above the rest</option>
+                    </NativeSelect>
+                </label>
+                <label class="grid gap-1 text-xs text-muted-foreground">
+                    SL and ASL can lead a fireteam
+                    <NativeSelect
+                        :model-value="company.slAslLead ? 'yes' : 'no'"
+                        :disabled="busy"
+                        data-testid="fireteams-policy-sl-asl"
+                        @update:model-value="(value) => setPolicy('sl_asl_lead', value)"
+                    >
+                        <option value="no">No, they stay above the fireteams</option>
+                        <option value="yes">Yes, on every section</option>
                     </NativeSelect>
                 </label>
             </div>
