@@ -223,7 +223,7 @@ it('counts each section\'s week progress in one pass: strength, signed, marked a
         ->and($repo->weekProgress([], $week))->toBeEmpty();
 });
 
-it('counts an excused trooper as marked once, row or not, and never as holding the practice (3.4)', function () {
+it('counts an excused trooper as signed and marked once, row or not, and never as holding the practice (3.4)', function () {
     $week = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');
     $section = Unit::factory()->create(['type' => UnitType::Section]);
     [$noRow, $signedOnly, $marked] = Trooper::factory()->count(3)->create(['primary_section_id' => $section->id]);
@@ -236,14 +236,14 @@ it('counts an excused trooper as marked once, row or not, and never as holding t
 
     expect($repo->weekProgress([$section->id], $week)->get($section->id)->marked)->toBe(1)
         ->and($repo->weekProgress([$section->id], $week, [$noRow->id, $signedOnly->id, $marked->id, $outsider->id])->get($section->id))
-        ->toEqual(new SectionWeekProgress($section->id, 3, 1, 3, true));
+        ->toEqual(new SectionWeekProgress($section->id, 3, 3, 3, true));
 
     // Nobody marked by hand: the excused troopers alone do not make the practice held.
     $quiet = Unit::factory()->create(['type' => UnitType::Section]);
     $away = Trooper::factory()->create(['primary_section_id' => $quiet->id]);
 
     expect($repo->weekProgress([$quiet->id], $week, [$away->id])->get($quiet->id))
-        ->toEqual(new SectionWeekProgress($quiet->id, 1, 0, 1, false));
+        ->toEqual(new SectionWeekProgress($quiet->id, 1, 1, 1, false));
 });
 
 // 7.6 / AD-14, AD-22: capture's write — present/auto, never over a leader's mark.

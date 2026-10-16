@@ -137,7 +137,8 @@ class Eloquent implements AttendanceRepository
         $unsigned = RollcallSignature::Unsigned->value;
         $loa = AttendanceStatus::Loa->value;
         $excused = array_values(array_unique(array_map('intval', $excusedTrooperIds)));
-        // An excused trooper counts as marked whether or not they have a row; `or` keeps one with a row from counting twice.
+        // An excused trooper counts as signed and marked whether or not they have a row; `or` keeps one with a row from
+        // counting twice.
         $excusedSql = $excused === [] ? '' : ' or troopers.id in ('.implode(', ', array_fill(0, count($excused), '?')).')';
 
         return Trooper::query()
@@ -155,7 +156,7 @@ class Eloquent implements AttendanceRepository
             ->toBase()
             ->select('troopers.primary_section_id as section_id')
             ->selectRaw('count(troopers.id) as strength')
-            ->selectRaw("coalesce(sum(case when attendance.rollcall is not null and attendance.rollcall != '{$unsigned}' then 1 else 0 end), 0) as signed")
+            ->selectRaw("coalesce(sum(case when (attendance.rollcall is not null and attendance.rollcall != '{$unsigned}'){$excusedSql} then 1 else 0 end), 0) as signed", $excused)
             ->selectRaw("coalesce(sum(case when attendance.status is not null{$excusedSql} then 1 else 0 end), 0) as marked", $excused)
             ->selectRaw("coalesce(sum(case when attendance.status is not null and attendance.status != '{$loa}' then 1 else 0 end), 0) as held_marks")
             ->get()

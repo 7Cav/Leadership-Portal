@@ -390,7 +390,7 @@ describe('Week step matrix', function () {
             ->where('steps.0.marked', 1));
     });
 
-    it('counts a trooper whose leave covers the week as marked, once, so the step can reach strength (3.4)', function () {
+    it('counts a trooper whose leave covers the week as signed and marked, once, so both steps can reach strength (3.4)', function () {
         // Two on leave: one with no row at all, one who also signed. Nothing stores an `loa` mark any more.
         Loa::factory()->create(['trooper_id' => $this->s11Troopers[0]->id, 'starts_at' => '2026-10-01', 'ends_at' => '2026-10-20']);
         Loa::factory()->create(['trooper_id' => $this->s11Troopers[1]->id, 'starts_at' => '2026-10-05', 'ends_at' => '2026-10-06']);
@@ -402,6 +402,7 @@ describe('Week step matrix', function () {
 
         dashboard($this->commander)(fn ($page) => $page
             ->where('steps.0.strength', 4)
+            ->where('steps.0.signed', 4)
             ->where('steps.0.marked', 4)
             ->where('steps.0.held', true)
             ->where('steps.1.marked', 0));
