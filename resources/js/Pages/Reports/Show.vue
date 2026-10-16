@@ -424,7 +424,7 @@ function useSuggestion() {
             </div>
         </section>
 
-        <ReportDeadlineBanner :due="week.due" :sent="sent" />
+        <ReportDeadlineBanner :due="week.due" :overdue-until="week.overdueUntil" :sent="sent" />
 
         <!-- The shared mode switch (5.3 AC): this screen creates and sends; the roll-up navigates. -->
         <nav aria-label="Report mode" class="inline-flex w-fit gap-0.5 rounded-md bg-muted p-0.5 text-xs font-medium">

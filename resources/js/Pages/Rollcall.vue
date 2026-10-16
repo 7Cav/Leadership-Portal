@@ -103,7 +103,7 @@ const props = defineProps({
     canWrite: { type: Boolean, default: false },
     // The section's weekly report for this week has been sent (AD-12): the rollcall is read-only.
     locked: { type: Boolean, default: false },
-    // The section's report for this week: `{ due, sent, href }`, for the deadline banner. Null for the picker.
+    // The section's report for this week: `{ due, overdueUntil, sent, href }`, for the deadline banner. Null for the picker.
     report: { type: Object, default: null },
 });
 
@@ -762,7 +762,7 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
             </div>
         </div>
 
-        <ReportDeadlineBanner v-if="report" class="mt-3" :due="report.due" :sent="report.sent" :href="report.href" :read-only="!editable" />
+        <ReportDeadlineBanner v-if="report" class="mt-3" :due="report.due" :overdue-until="report.overdueUntil" :sent="report.sent" :href="report.href" :read-only="!editable" />
 
         <div
             v-if="autosave?.state.value === 'error'"

@@ -22,6 +22,14 @@ describe('report deadline', () => {
         expect(reportDeadline(DUE, at('2026-10-16T09:00:00Z'))).toEqual({ overdue: true, text: 'Report overdue by 5 d' });
     });
 
+    it('stops calling a report overdue once its week leaves the 4-week window', () => {
+        const until = '2026-10-31T00:00:00+00:00';
+
+        expect(reportDeadline(DUE, at('2026-10-30T23:59:00Z'), false, until)).toEqual({ overdue: true, text: 'Report overdue by 20 d' });
+        expect(reportDeadline(DUE, at('2026-10-31T00:00:00Z'), false, until)).toBeNull();
+        expect(reportDeadline(DUE, at('2026-10-10T18:30:00Z'), false, until)).toEqual({ overdue: false, text: 'Report due in 5 h' });
+    });
+
     it('says nothing for a sent report', () => {
         expect(reportDeadline(DUE, at('2026-10-10T18:30:00Z'), true)).toBeNull();
         expect(reportDeadline(DUE, at('2026-10-11T18:30:00Z'), true)).toBeNull();

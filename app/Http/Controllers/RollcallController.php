@@ -587,14 +587,17 @@ class RollcallController extends Controller
 
     /**
      * The section's report for the week shown, for the deadline banner: when it falls due (AD-11,
-     * `WeekOf::reportDue`), whether it is sent, and where to write it.
+     * `WeekOf::reportDue`), whether it is sent, where to write it, and when an unsent one stops
+     * being called overdue: once the week leaves the KPI window ({@see KpiService::WINDOW_WEEKS}
+     * Cav weeks, the current one included).
      *
-     * @return array{due: string, sent: bool, href: string}
+     * @return array{due: string, overdueUntil: string, sent: bool, href: string}
      */
     private function reportProps(Unit $section, CarbonImmutable $weekStart): array
     {
         return [
             'due' => WeekOf::reportDue($weekStart)->toIso8601String(),
+            'overdueUntil' => WeekOf::next($weekStart, KpiService::WINDOW_WEEKS)->toIso8601String(),
             'sent' => $this->reports->find($section->id, $weekStart)?->status === WeeklyReportStatus::Sent,
             'href' => route('reports.show', ['unit' => $section->id, 'week' => $weekStart->toDateString()]),
         ];

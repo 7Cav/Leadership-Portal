@@ -10,7 +10,8 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
 
 const DUE = '2026-10-10T23:59:00+00:00';
 const HREF = '/reports/12/2026-10-03';
-const factory = (props = {}) => mount(ReportDeadlineBanner, { props: { due: DUE, href: HREF, ...props } });
+const UNTIL = '2026-10-31T00:00:00+00:00';
+const factory = (props = {}) => mount(ReportDeadlineBanner, { props: { due: DUE, overdueUntil: UNTIL, href: HREF, ...props } });
 const banner = (wrapper) => wrapper.find('[data-testid="report-deadline"]');
 
 describe('ReportDeadlineBanner', () => {
@@ -33,6 +34,15 @@ describe('ReportDeadlineBanner', () => {
         await vi.advanceTimersByTimeAsync(3 * 3_600_000);
         expect(banner(wrapper).text()).toContain('Report overdue by 2 h');
         expect(banner(wrapper).attributes('data-state')).toBe('overdue');
+    });
+
+    it('drops the overdue line when the week leaves the 4-week window', async () => {
+        vi.setSystemTime(new Date('2026-10-30T23:59:00Z'));
+        const wrapper = factory();
+        expect(banner(wrapper).text()).toContain('Report overdue by 20 d');
+
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(banner(wrapper).exists()).toBe(false);
     });
 
     it('links to the report', () => {

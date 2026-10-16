@@ -89,7 +89,9 @@ it('renders a section\'s live draft with its KPIs, troopers and a first-report b
             ->has('trend', 8)
             ->has('reasons', 5)
             ->where('week.next', null)
-            ->where('week.previous', '2026-09-26'));
+            ->where('week.previous', '2026-09-26')
+            // The deadline banner calls it overdue only while the week is in the 4-week KPI window.
+            ->where('week.overdueUntil', '2026-10-31T00:00:00+00:00'));
 
     expect(WeeklyReport::query()->exists())->toBeFalse(); // viewing never persists (AD-12)
 });

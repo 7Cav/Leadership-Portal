@@ -134,6 +134,9 @@ class ReportController extends Controller
             'week' => [
                 'start' => $weekStart->toIso8601String(),
                 'due' => WeekOf::reportDue($weekStart)->toIso8601String(),
+                // The deadline banner stops calling an unsent report overdue once the week leaves
+                // the KPI window (the current Cav week and the 3 before it).
+                'overdueUntil' => WeekOf::next($weekStart, KpiService::WINDOW_WEEKS)->toIso8601String(),
                 'previous' => $weekStart->subWeek()->toDateString(),
                 'next' => $weekStart->addWeek()->lessThanOrEqualTo($this->currentWeek()) ? $weekStart->addWeek()->toDateString() : null,
                 // Older than the week floor: shown read-only, a draft or send for it is a 404.

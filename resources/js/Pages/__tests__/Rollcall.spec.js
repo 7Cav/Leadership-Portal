@@ -1379,7 +1379,7 @@ describe('Rollcall page', () => {
     });
 
     describe('report deadline banner', () => {
-        const REPORT = { due: '2026-10-10T23:59:00+00:00', sent: false, href: '/reports/12/2026-10-03' };
+        const REPORT = { due: '2026-10-10T23:59:00+00:00', overdueUntil: '2026-10-31T00:00:00+00:00', sent: false, href: '/reports/12/2026-10-03' };
 
         beforeEach(() => vi.useFakeTimers({ now: new Date('2026-10-10T18:30:00Z') }));
         afterEach(() => vi.useRealTimers());
@@ -1396,6 +1396,12 @@ describe('Rollcall page', () => {
 
             expect(factory({ report: REPORT }).find('[data-testid="report-deadline"]').text()).toContain('Report overdue by 2 h');
             expect(factory({ report: { ...REPORT, sent: true } }).find('[data-testid="report-deadline"]').exists()).toBe(false);
+        });
+
+        it('shows nothing for an unsent week older than the 4-week window', () => {
+            vi.setSystemTime(new Date('2026-10-31T00:00:00Z'));
+
+            expect(factory({ report: REPORT }).find('[data-testid="report-deadline"]').exists()).toBe(false);
         });
 
         it('shows without the link in a view-as preview', () => {

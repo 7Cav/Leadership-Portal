@@ -6,11 +6,13 @@ import { forumDateTime } from '@/lib/forumDate';
 import { reportDeadline } from '@/lib/reportDeadline';
 
 // A slim line over the rollcall and report screens once the week's report is due within 24 hours,
-// or overdue, and not sent. It links to the report unless `href` is null (on the report itself) or
+// or overdue for a recent week (until `overdueUntil`), and not sent. It links to the report unless `href` is null (on the report itself) or
 // the screen is read-only (a view-as preview), where it only informs.
 const props = defineProps({
     // When the report falls due, ISO-8601 UTC (`WeekOf::reportDue`).
     due: { type: String, required: true },
+    // When an unsent report stops being called overdue: the week has left the 4-week KPI window.
+    overdueUntil: { type: String, default: null },
     sent: { type: Boolean, default: false },
     href: { type: String, default: null },
     readOnly: { type: Boolean, default: false },
@@ -24,7 +26,7 @@ onMounted(() => {
 });
 onBeforeUnmount(() => clearInterval(clock));
 
-const deadline = computed(() => reportDeadline(props.due, now.value, props.sent));
+const deadline = computed(() => reportDeadline(props.due, now.value, props.sent, props.overdueUntil));
 const dueLabel = computed(() => `${forumDateTime(props.due)}Z`);
 </script>
 

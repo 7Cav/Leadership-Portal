@@ -381,6 +381,7 @@ it("gives the deadline banner the shown week's report: when it is due, whether i
     $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
         ->assertInertia(fn ($page) => $page->where('report', [
             'due' => '2026-10-10T23:59:00+00:00',
+            'overdueUntil' => '2026-10-31T00:00:00+00:00',
             'sent' => false,
             'href' => route('reports.show', ['unit' => $this->section->id, 'week' => '2026-10-03']),
         ]));
@@ -395,6 +396,10 @@ it("gives the deadline banner the shown week's report: when it is due, whether i
         ->assertInertia(fn ($page) => $page->where('report.due', '2026-10-10T23:59:00+00:00')->where('report.sent', false));
     $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}?week=2026-09-26")
         ->assertInertia(fn ($page) => $page->where('report.due', '2026-10-03T23:59:00+00:00')->where('report.sent', true));
+
+    // The overdue line ends when the week leaves the KPI window: the current week and the 3 before it.
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}?week=2026-09-19")
+        ->assertInertia(fn ($page) => $page->where('report.overdueUntil', '2026-10-17T00:00:00+00:00'));
 });
 
 it('requires authentication', function () {
