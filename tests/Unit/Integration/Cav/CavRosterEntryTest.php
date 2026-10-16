@@ -164,6 +164,16 @@ describe('CavRosterEntry::fromPayload', function () use ($fetchedAt) {
         expect($trooper->positionId)->toBeNull();
     });
 
+    it('reads a positionId or userId only when it is all digits, as MilpacId does, so "1e3" is not position 1000', function (string $id) use ($fetchedAt) {
+        $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload([
+            'user' => ['userId' => $id, 'username' => 'Jarvis.A'],
+            'primary' => ['positionTitle' => 'Rifleman', 'positionId' => $id],
+        ]), $fetchedAt);
+
+        expect($trooper->positionId)->toBeNull()
+            ->and($trooper->forumUserId)->toBeNull();
+    })->with(['an exponent' => ['1e3'], 'a decimal' => ['77.3'], 'a leading space' => [' 773'], 'a sign' => ['+773'], 'too long for an int' => ['99999999999999999999']]);
+
     it('reads positionId when the API sends it as a bare int rather than a numeric string', function () use ($fetchedAt) {
         $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload(['primary' => ['positionTitle' => 'Rifleman', 'positionId' => 773]]), $fetchedAt);
 

@@ -125,8 +125,8 @@ readonly class CavRosterEntry
     /**
      * `positionId`/`userId` arrive as numeric strings; accepts a bare int too in case that ever
      * changes, since a JSON-encoding drift there must not silently stop every trooper from
-     * resolving a section (2.5) or a forum identity (2.10). A drift to something genuinely
-     * non-numeric costs this trooper that one field, not their whole record.
+     * resolving a section (2.5) or a forum identity (2.10). A drift to anything but digits
+     * costs this trooper that one field, not their whole record.
      */
     private static function integer(mixed $value): ?int
     {
@@ -136,7 +136,8 @@ readonly class CavRosterEntry
 
         $text = self::text($value);
 
-        return $text !== null && is_numeric($text) ? (int) $text : null;
+        // Digits only, as `MilpacId::parse` reads an id: `is_numeric` would let "1e3" through as 1000 and "77.3" as 77.
+        return $text !== null && ctype_digit($text) && strlen($text) <= 18 ? (int) $text : null;
     }
 
     /**
