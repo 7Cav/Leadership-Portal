@@ -354,6 +354,23 @@ it('tells the picker where each section stands for the week shown', function () 
         ->assertInertia(fn ($page) => $page->where('sections.0.progress.unsigned', 2));
 });
 
+it('counts a trooper whose synced leave covers the week as on LOA in the picker, not unsigned or unmarked', function () {
+    $platoonLeader = User::factory()->serving()->create();
+    PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
+    $present = rollcallTrooper($this->section);
+    $away = rollcallTrooper($this->section);
+    $needsReview = rollcallTrooper($this->section);
+    // Leave comes from the LOA sync (4.4), never from a stored `loa` mark: the screen reads it through `LoaCoverage`.
+    Loa::factory()->create(['trooper_id' => $away->id, 'starts_at' => '2026-10-03', 'ends_at' => '2026-10-16']);
+    Loa::factory()->needsReview()->create(['trooper_id' => $needsReview->id, 'posted_at' => '2026-10-05 12:00:00']);
+    $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->week]);
+    Attendance::factory()->create(['trooper_id' => $present->id, 'section_practice_id' => $practice->id, 'rollcall' => RollcallSignature::WillAttend, 'status' => AttendanceStatus::Present]);
+
+    $this->actingAs($platoonLeader)->get('/rollcall')
+        ->assertInertia(fn ($page) => $page
+            ->where('sections.0.progress', ['strength' => 3, 'onLoa' => 1, 'unsigned' => 1, 'unmarked' => 1, 'started' => true, 'posted' => false]));
+});
+
 it('gives a user with no sections in scope an empty picker', function () {
     $this->actingAs(User::factory()->serving()->create())->get('/rollcall')
         ->assertOk()

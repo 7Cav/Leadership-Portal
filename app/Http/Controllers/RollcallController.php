@@ -31,6 +31,7 @@ use App\Commands\GameIdentities\UnmatchedPlayerResolutionException;
 use App\Jobs\CaptureSectionPracticeJob;
 use App\Kpi\KpiService;
 use App\Kpi\TrooperAttendance;
+use App\Loa\LoaCover;
 use App\Loa\LoaCoverage;
 use App\Loa\LoaProvenance;
 use App\Milpac\RosterProvenance;
@@ -583,8 +584,15 @@ class RollcallController extends Controller
     private function pickerOptions(Collection $sections, CarbonImmutable $weekStart): array
     {
         // Where each section's rollcall stands for the week, so the picker can say which still
-        // need work: the counts the home step matrix reads, one query for every section listed.
-        $progress = $this->attendance->weekProgress($sections->modelKeys(), $weekStart);
+        // need work: the counts the home step matrix reads, one query for every section listed. A
+        // trooper whose leave covers the week has nothing to sign or mark (3.4): the one LOA
+        // definition says who (AD-21), as on the rollcall screen.
+        $ids = $sections->modelKeys();
+        $covered = array_keys(array_filter(
+            $this->loaCoverage->forTroopers($this->troopers->placedInAny($ids)->modelKeys(), $weekStart),
+            fn (LoaCover $cover) => $cover->isCovered(),
+        ));
+        $progress = $this->attendance->weekProgress($ids, $weekStart, $covered);
 
         return $sections->map(function (Unit $section) use ($progress) {
             $week = $progress->get($section->id);
