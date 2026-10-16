@@ -14,23 +14,21 @@ function toDate(value) {
     return Number.isNaN(date.getTime()) ? null : date;
 }
 
-// `just now`, `35 min ago`, `3 h ago`, `2 days ago`; a future time reads `in 5 min`. Whole units,
-// rounded down, so a stamp never reads as more recent or further off than it is. Null for a
-// missing or unreadable value.
+// `just now`, `35 min ago`, `3 h ago`, `2 days ago`. Whole units, rounded down, so a stamp never
+// reads as more recent than it is. Every stamp is something that already happened, so one ahead of
+// the viewer's clock (a server time on a clock that runs slow) reads `just now`. Null for a missing
+// or unreadable value.
 export function timeAgo(value, now = Date.now()) {
     const date = toDate(value);
     if (!date) return null;
 
-    const diff = Number(now) - date.getTime();
-    const span = Math.abs(diff);
+    const span = Number(now) - date.getTime();
     if (span < MINUTE) return 'just now';
 
-    let amount;
-    if (span < HOUR) amount = `${Math.floor(span / MINUTE)} min`;
-    else if (span < 2 * DAY) amount = `${Math.floor(span / HOUR)} h`;
-    else amount = `${Math.floor(span / DAY)} days`;
+    if (span < HOUR) return `${Math.floor(span / MINUTE)} min ago`;
+    if (span < 2 * DAY) return `${Math.floor(span / HOUR)} h ago`;
 
-    return diff > 0 ? `${amount} ago` : `in ${amount}`;
+    return `${Math.floor(span / DAY)} days ago`;
 }
 
 // The same moment on the viewer's clock, in their locale and time zone, with the zone named

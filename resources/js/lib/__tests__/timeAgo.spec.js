@@ -22,9 +22,10 @@ describe('timeAgo', () => {
         expect(timeAgo('2026-10-16T19:51:01Z', NOW)).toBe('2 h ago');
     });
 
-    it('reads a future time forwards', () => {
-        expect(timeAgo('2026-10-16T22:56:00Z', NOW)).toBe('in 5 min');
-        expect(timeAgo('2026-10-17T23:59:00Z', NOW)).toBe('in 25 h');
+    it('reads a stamp ahead of the viewer clock as just now, since every stamp is something that already happened', () => {
+        // A server time on a viewer whose clock runs a few minutes slow, e.g. a draft saved a moment ago.
+        expect(timeAgo('2026-10-16T22:56:00Z', NOW)).toBe('just now');
+        expect(timeAgo('2026-10-17T23:59:00Z', NOW)).toBe('just now');
         expect(timeAgo('2026-10-16T22:51:20Z', NOW)).toBe('just now');
     });
 
