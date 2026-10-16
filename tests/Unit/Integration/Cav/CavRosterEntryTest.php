@@ -87,6 +87,7 @@ describe('CavRosterEntry::fromPayload', function () use ($fetchedAt) {
         'a query string that is not a plain number' => ['https://7cav.us/4.jpg?x=1'],
         'a query string with a second part' => ['https://7cav.us/4.jpg?1&x=1'],
         'a protocol-relative url' => ['//7cav.us/4.jpg'],
+        'a trailing line break' => ["https://7cav.us/data/roster_ranks/0/4.jpg\n"],
     ]);
 
     it('does not require a resolvable forum user id, unlike CavRosterProfile', function () use ($fetchedAt) {

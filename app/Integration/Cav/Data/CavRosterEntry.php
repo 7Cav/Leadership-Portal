@@ -39,7 +39,7 @@ use Throwable;
 readonly class CavRosterEntry
 {
     /** The rank images Cav serves: https on 7cav.us, a plain path and an optional numeric `?version`, short enough for the column. */
-    public const RANK_IMAGE = '#^https://7cav\.us/[A-Za-z0-9._~%/-]{1,200}(\?[0-9]{1,20})?$#';
+    public const RANK_IMAGE = '#^https://7cav\.us/[A-Za-z0-9._~%/-]{1,200}(\?[0-9]{1,20})?$#D';
 
     public function __construct(
         public int $cavId,
