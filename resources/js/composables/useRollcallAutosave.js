@@ -72,6 +72,8 @@ export function useRollcallAutosave({
     const locked = computed(() => state.value === 'locked');
     let timer = null;
     let inFlight = null;
+    // The batch on its way, until its answer is in.
+    let sending = new Map();
 
     const sync = () => (pendingCount.value = pending.size);
 
@@ -108,9 +110,9 @@ export function useRollcallAutosave({
         return cancelled;
     }
 
-    // Whether a change to this field is still queued or held (not yet sent), so the screen knows
-    // the leader's value is newer than anything the server answers in the meantime.
-    const isPending = (trooperId, field) => pending.get(trooperId)?.[field] !== undefined;
+    // Whether a change to this field is not saved yet (queued, held, or on its way), so the screen
+    // knows the leader's value is newer than anything the server answers in the meantime.
+    const isPending = (trooperId, field) => pending.get(trooperId)?.[field] !== undefined || sending.get(trooperId)?.[field] !== undefined;
 
     async function flush({ includeHeld = false } = {}) {
         clearTimeout(timer);
@@ -138,6 +140,7 @@ export function useRollcallAutosave({
         }));
 
         state.value = 'saving';
+        sending = new Map(ready);
         inFlight = post(url, { week, marks })
             .catch(unreachable)
             .then((result) => {
@@ -209,10 +212,16 @@ export function useRollcallAutosave({
                     error.value = messageFor(result);
                 }
             })
-            .finally(() => (inFlight = null));
+            .finally(() => {
+                inFlight = null;
+                sending = new Map();
+            });
 
         await inFlight;
         if (state.value === 'idle' && pending.size) return flush({ includeHeld });
+        // An explicit save (marking posted, confirming, showing a capture) also sends what changed
+        // while its batch was in flight, so what follows it sees every mark on screen.
+        if (includeHeld && state.value === 'saved' && pending.size) return flush({ includeHeld });
         if (state.value !== 'error') reschedule();
 
         // A batch refused as locked was not saved either: a caller waiting on it (marking the

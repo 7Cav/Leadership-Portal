@@ -720,6 +720,23 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-step="3"]').attributes('aria-label')).toBe('Step 3, Review and post, Not posted yet');
         });
 
+        it('flags the post as stale when a mark changes while marking it posted is in flight', async () => {
+            page.url = '/rollcall/12?step=3';
+            let answer;
+            post.mockImplementation((url) => (url.endsWith('/posted') ? new Promise((resolve) => (answer = resolve)) : Promise.resolve({ ok: true, status: 200, data: { savedAt: '2026-10-08T16:22:00+00:00', atRisk: [] } })));
+            const wrapper = factory();
+            await wrapper.find('[data-testid="mark-posted"]').trigger('click');
+            await flushPromises();
+
+            await wrapper.find('[data-step="2"]').trigger('click');
+            await wrapper.find('[data-trooper="3"] button[data-value="missed"]').trigger('click');
+            answer({ ok: true, status: 200, data: { posted: { at: '2026-10-08T16:21:00+00:00', by: 'Vasquez.R' } } });
+            await flushPromises();
+            await wrapper.find('[data-step="3"]').trigger('click');
+
+            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Repost the updated BBCode');
+        });
+
         it('warns when Undo comes too late because marking posted already saved the marks', async () => {
             page.url = '/rollcall/12?step=2';
             const wrapper = factory({ troopers: [trooper(2, 'unsigned', null)] });
@@ -1085,6 +1102,93 @@ describe('Rollcall page', () => {
             expect(reload).toHaveBeenCalledTimes(1);
             expect(toastWarning).not.toHaveBeenCalled();
             expect(vi.getTimerCount()).toBe(0);
+        });
+
+        describe('when the capture lands while a hand mark is on its way', () => {
+            const CAPTURED = { source: 'crcon', capturedAt: '2026-10-08T16:20:00+00:00' };
+            // The server's marks: the page's troopers, with every save that answered applied.
+            let saved;
+            const serverTroopers = () =>
+                [trooper(1, 'will_attend', 'present'), trooper(2, 'cannot_attend', null, { priorStatus: 'missed' }), trooper(3, 'unsigned', null)].map((t) =>
+                    saved.has(t.id) ? { ...t, status: saved.get(t.id), source: 'manual' } : t,
+                );
+            const answered = (body) => {
+                for (const mark of body.marks) if (mark.status) saved.set(mark.trooper_id, mark.status);
+
+                return { ok: true, status: 200, data: { savedAt: '2026-10-08T16:22:00+00:00', atRisk: [] } };
+            };
+            const pressed = (id, value) => wrapper.find(`[data-trooper="${id}"] button[data-value="${value}"]`).attributes('aria-pressed');
+
+            beforeEach(() => (saved = new Map()));
+
+            it('saves a mark set during the pre-reload save first, and reloads without asking to leave', async () => {
+                const confirm = vi.fn().mockReturnValue(true);
+                vi.stubGlobal('confirm', confirm);
+                let firstSave;
+                post.mockImplementation((url, body) => {
+                    if (url.endsWith('/capture')) return Promise.resolve({ ok: true, status: 202, data: { queued: true } });
+                    if (!firstSave) return new Promise((resolve) => (firstSave = () => resolve(answered(body))));
+
+                    return Promise.resolve(answered(body));
+                });
+                wrapper = factory({ telemetry: FAILED });
+                reload.mockImplementation((options) =>
+                    visitThroughGuard(options, async () => {
+                        if (options.only) await wrapper.setProps({ telemetry: null, capture: CAPTURED });
+                        else await wrapper.setProps({ troopers: serverTroopers() });
+                        options.onFinish?.();
+                    }),
+                );
+
+                await wrapper.find('[data-testid="telemetry-retry"]').trigger('click');
+                await vi.advanceTimersByTimeAsync(2000);
+                await wrapper.find('[data-trooper="3"] button[data-value="missed"]').trigger('click');
+                // The poll sees the capture and saves the pending mark before showing it.
+                await vi.advanceTimersByTimeAsync(600);
+                expect(firstSave).toBeTypeOf('function');
+                await wrapper.find('[data-trooper="2"] button[data-value="present"]').trigger('click');
+                firstSave();
+                await flushPromises();
+
+                expect(confirm).not.toHaveBeenCalled();
+                expect(reload).toHaveBeenLastCalledWith({ preserveScroll: true });
+                expect(post.mock.calls.filter(([url]) => url === '/rollcall/12').map(([, body]) => body.marks)).toEqual([
+                    [{ trooper_id: 3, status: 'missed' }],
+                    [{ trooper_id: 2, status: 'present' }],
+                ]);
+                expect(pressed(2, 'present')).toBe('true');
+                vi.unstubAllGlobals();
+            });
+
+            it('keeps a mark set while the reload is in flight on screen, and saves it', async () => {
+                let land;
+                post.mockImplementation((url, body) =>
+                    Promise.resolve(url.endsWith('/capture') ? { ok: true, status: 202, data: { queued: true } } : answered(body)),
+                );
+                wrapper = factory({ telemetry: FAILED });
+                reload.mockImplementation(async (options) => {
+                    if (options.only) {
+                        await wrapper.setProps({ telemetry: null, capture: CAPTURED });
+                        options.onFinish();
+
+                        return;
+                    }
+                    // The server reads the marks now; the page gets them a moment later.
+                    const troopers = serverTroopers();
+                    land = () => wrapper.setProps({ troopers });
+                });
+
+                await click();
+                await flushPromises();
+                expect(land).toBeTypeOf('function');
+                await wrapper.find('[data-trooper="1"] button[data-value="missed"]').trigger('click');
+                await land();
+
+                expect(pressed(1, 'missed')).toBe('true');
+                await vi.advanceTimersByTimeAsync(1000);
+                expect(saved.get(1)).toBe('missed');
+                expect(pressed(1, 'missed')).toBe('true');
+            });
         });
 
         it('surfaces a refusal and does not poll', async () => {

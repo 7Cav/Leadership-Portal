@@ -99,13 +99,22 @@ const props = defineProps({
 const page = usePage();
 
 // The screen's working copy of the marks, and what they were when the page loaded (the review
-// step lists the difference as this visit's changes).
+// step lists the difference as this visit's changes). A reload that answers while one of the
+// leader's marks is not saved yet keeps that mark on screen: it saves after the server read the page.
 const rows = ref([]);
 const baseline = ref(new Map());
 watch(
     () => props.troopers,
     (troopers) => {
-        rows.value = troopers.map((trooper) => ({ ...trooper }));
+        const shown = new Map(rows.value.map((trooper) => [trooper.id, trooper]));
+        rows.value = troopers.map((trooper) => {
+            const row = { ...trooper };
+            const mine = shown.get(trooper.id);
+            if (mine && autosave?.isPending(trooper.id, 'status')) Object.assign(row, { status: mine.status, source: mine.source });
+            if (mine && autosave?.isPending(trooper.id, 'rollcall')) row.rollcall = mine.rollcall;
+
+            return row;
+        });
         baseline.value = new Map(troopers.map((trooper) => [trooper.id, { rollcall: trooper.rollcall, status: trooper.status, source: trooper.source }]));
     },
     { immediate: true },
@@ -181,6 +190,7 @@ function set(trooper, kind, value, options = {}) {
     if (trooper[field] === value) return;
 
     trooper[field] = value;
+    edits++;
     if (field === 'status') {
         trooper.source = 'manual';
         practiceEdits.set(trooper.id, (practiceEdits.get(trooper.id) ?? 0) + 1);
@@ -230,7 +240,9 @@ function applyMany(entries, title) {
 const sameUnmatched = (a, b) => a.platform === b.platform && a.platformId === b.platformId;
 
 // Practice marks set on this screen, counted per trooper, and the count when each link was sent:
-// a link answer must not overwrite a mark the leader set while it was in flight.
+// a link answer must not overwrite a mark the leader set while it was in flight. `edits` counts
+// every mark, for the same check on marking the rollcall posted.
+let edits = 0;
 const practiceEdits = new Map();
 const editsAtLink = new Map();
 
@@ -370,10 +382,12 @@ async function markPosted() {
 
             return;
         }
+        // A mark changed while this request is in flight saves after the post was stamped: stale.
+        const editsBefore = edits;
         const result = await postJson(`/rollcall/${props.section.id}/posted`, { week: props.week.date }).catch(unreachable);
         if (result.ok && result.data?.posted) {
             posted.value = result.data.posted;
-            editedSincePost.value = false;
+            editedSincePost.value = edits !== editsBefore;
             toast.success('Rollcall marked posted', { description: `${props.section.designation}, week of ${weekLabel.value}` });
         } else {
             toast.error('Could not mark the rollcall posted', { description: messageFor(result) });
