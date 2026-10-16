@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import cases from '../../../../tests/Fixtures/bbcode-templates.json';
-import { DESCRIBED, FILTERS, LISTS, ROW_FLAGS, ROW_STRINGS, TOP_STRINGS, inert, parse, render, sampleContext, templateLegend } from '../bbcode';
+import { DESCRIBED, FILTERS, LISTS, ROW_FLAGS, ROW_STRINGS, TOP_FLAGS, TOP_STRINGS, inert, parse, render, sampleContext, templateLegend } from '../bbcode';
 
 // Story 3.10. The grammar cases are shared with the server's TemplateSyntax (tests/Fixtures/bbcode-templates.json), so the
 // browser and the server accept and refuse the same templates with the same messages.
@@ -42,7 +42,7 @@ const context = (overrides = {}) => ({
 
 describe('the legend of template codes', () => {
     it('describes every name the parser accepts and nothing else, so the legend cannot drift', () => {
-        expect([...DESCRIBED].sort()).toEqual([...TOP_STRINGS, ...LISTS, ...ROW_STRINGS, ...ROW_FLAGS, ...FILTERS].sort());
+        expect([...DESCRIBED].sort()).toEqual([...TOP_STRINGS, ...TOP_FLAGS, ...LISTS, ...ROW_STRINGS, ...ROW_FLAGS, ...FILTERS].sort());
     });
 
     it('groups the codes as the parser reads them, each with a meaning and an example', () => {
@@ -50,6 +50,7 @@ describe('the legend of template codes', () => {
 
         expect(legend.map((group) => [group.key, group.entries.map((entry) => entry.name)])).toEqual([
             ['values', TOP_STRINGS],
+            ['topFlags', TOP_FLAGS],
             ['lists', LISTS],
             ['rowValues', ROW_STRINGS],
             ['rowFlags', ROW_FLAGS],
@@ -94,7 +95,7 @@ describe('the sample section for the template preview', () => {
         const sample = sampleContext();
         const codes = Object.fromEntries(templateLegend().flatMap((group) => group.entries.map((entry) => [entry.name, entry.example])));
 
-        expect(Object.keys(sample).sort()).toEqual([...TOP_STRINGS, ...LISTS].sort());
+        expect(Object.keys(sample).sort()).toEqual([...TOP_STRINGS, ...TOP_FLAGS, ...LISTS].sort());
         for (const name of ['unit', 'unit_name', 'week', 'week_start', 'week_end']) expect(sample[name], name).toBe(codes[name]);
         for (const trooper of sample.troopers) expect(Object.keys(trooper).sort()).toEqual([...ROW_STRINGS, ...ROW_FLAGS].sort());
         expect(sample.troopers[0]).toMatchObject({ n: '1', rank: codes.rank, rank_short: codes.rank_short, name: codes.name, rc: codes.rc, sp: codes.sp });
@@ -127,7 +128,7 @@ describe('the grammar, against the cases shared with the server', () => {
     it('lists the same names as the server, one per case, so the two lists cannot drift', () => {
         const valid = cases.valid.map((c) => c.template).join('\n');
 
-        for (const name of [...TOP_STRINGS, ...ROW_STRINGS, ...ROW_FLAGS]) expect(valid).toContain(name);
+        for (const name of [...TOP_STRINGS, ...TOP_FLAGS, ...ROW_STRINGS, ...ROW_FLAGS]) expect(valid).toContain(name);
         expect(LISTS).toEqual(['troopers']);
         expect(FILTERS).toEqual(['upper', 'lower']);
     });

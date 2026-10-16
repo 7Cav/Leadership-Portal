@@ -1,5 +1,5 @@
 import { render } from './bbcode';
-import { ROLE_LABELS, orderTroopers, shownRole } from './fireteams';
+import { fireteamNames, orderTroopers, roleLabel } from './fireteams';
 import { forumDate } from './forumDate';
 import { insigniaWidth } from './rankInsignia';
 import { displayName, fullName, isLocked, rankIconOf, rankOf } from './rollcall';
@@ -15,24 +15,26 @@ const SP_WORDS = { present: 'Yes', missed: 'No', makeup: 'MU', attached: 'Att', 
 /**
  * The values a template can print, from the section, the week and each trooper's current marks. The troopers are
  * listed SL, ASL, then fireteam leaders when the section shows them, then everyone else, each by rank
- * ({@link orderTroopers}), so `{{n}}` numbers them in that order.
+ * ({@link orderTroopers}), so `{{n}}` numbers them in that order. Shown fireteams are named by letter
+ * ({@link fireteamNames}), and `fireteams_shown` is set only when the section shows FTLs and has at least one.
  *
- * @param {{section: object, week: object, troopers: object[], fireteams?: {show: boolean, order: string}}} input the props
- *   the rollcall page received, with the working marks
+ * @param {{section: object, week: object, troopers: object[], fireteams?: {show: boolean, order: string, alphabet: string}}} input
+ *   the props the rollcall page received, with the working marks
  */
 export function rollcallContext({ section, week, troopers, fireteams = {} }) {
-    const rows = orderTroopers(troopers, fireteams).map((trooper, index) => {
+    const ordered = orderTroopers(troopers, fireteams);
+    const names = fireteamNames(ordered, fireteams);
+    const rows = ordered.map((trooper, index) => {
         const sp = isLocked(trooper) ? 'loa' : trooper.status;
         const rc = trooper.rollcall;
         const icon = rankIconOf(trooper);
-        const role = shownRole(trooper, fireteams.show ?? false);
 
         return {
             n: String(index + 1),
-            role: ROLE_LABELS[role] ?? '',
-            is_sl: role === 'sl',
-            is_asl: role === 'asl',
-            is_ftl: role === 'ftl',
+            role: roleLabel(trooper, names),
+            is_sl: trooper.role === 'sl',
+            is_asl: trooper.role === 'asl',
+            is_ftl: names.has(trooper.id),
             rank: trooper.rank ?? '',
             rank_short: rankOf(trooper) ?? '',
             rank_icon: icon,
@@ -63,6 +65,7 @@ export function rollcallContext({ section, week, troopers, fireteams = {} }) {
         count: String(rows.length),
         signed: String(rows.filter((row) => row.rc_yes).length),
         attended: String(rows.filter((row) => row.sp_present || row.sp_makeup || row.sp_attached).length),
+        fireteams_shown: names.size > 0,
         troopers: rows,
     };
 }

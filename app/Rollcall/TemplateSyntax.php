@@ -19,6 +19,9 @@ final class TemplateSyntax
     /** Names printable anywhere in a template. */
     public const TOP_STRINGS = ['unit', 'unit_name', 'week', 'week_start', 'week_end', 'count', 'signed', 'attended'];
 
+    /** Yes-or-no names about the whole post, usable only as sections, anywhere in a template. */
+    public const TOP_FLAGS = ['fireteams_shown'];
+
     /** The one list a template may repeat over. */
     public const LISTS = ['troopers'];
 
@@ -35,7 +38,8 @@ final class TemplateSyntax
      * mark for each status, each trooper's rank insignia before their name. `{{rank_icon}}` is empty when Cav sends no
      * insignia, so the [IMG] tag sits in a `{{#rank_icon}}` section and prints nothing then. `{{rank_icon_width}}` sizes
      * each insignia so every rank looks the same size on the forum, which scales the height to match. It follows the
-     * grammar, which a test checks.
+     * grammar, which a test checks. A Role column (Section Leader, Assistant Section Leader, FTL Alpha) shows only when the
+     * section shows fireteam leaders and has at least one (`{{#fireteams_shown}}`); otherwise the table is as before.
      */
     public const STARTER = <<<'BBCODE'
 [CENTER]
@@ -44,8 +48,8 @@ final class TemplateSyntax
 
 [B]Roll Call Accountability[/B]
 [TABLE]
-[TR][TH]#[/TH][TH]Name[/TH][TH]Signed RC[/TH][TH]Attended SP[/TH][/TR]
-{{#troopers}}[TR][TD]{{n}}[/TD][TD]{{#rank_icon}}[IMG width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/IMG] {{/rank_icon}}{{rank}} {{name}}[/TD][TD]{{#rc_yes}}✓{{/rc_yes}}{{#rc_no}}✗{{/rc_no}}{{#rc_unsigned}}-{{/rc_unsigned}}[/TD][TD]{{#sp_present}}✓{{/sp_present}}{{#sp_missed}}✗{{/sp_missed}}{{#sp_makeup}}MU{{/sp_makeup}}{{#sp_attached}}ATT{{/sp_attached}}{{#sp_loa}}LOA{{/sp_loa}}{{#sp_unmarked}}-{{/sp_unmarked}}[/TD][/TR]
+[TR][TH]#[/TH][TH]Name[/TH]{{#fireteams_shown}}[TH]Role[/TH]{{/fireteams_shown}}[TH]Signed RC[/TH][TH]Attended SP[/TH][/TR]
+{{#troopers}}[TR][TD]{{n}}[/TD][TD]{{#rank_icon}}[IMG width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/IMG] {{/rank_icon}}{{rank}} {{name}}[/TD]{{#fireteams_shown}}[TD]{{role}}[/TD]{{/fireteams_shown}}[TD]{{#rc_yes}}✓{{/rc_yes}}{{#rc_no}}✗{{/rc_no}}{{#rc_unsigned}}-{{/rc_unsigned}}[/TD][TD]{{#sp_present}}✓{{/sp_present}}{{#sp_missed}}✗{{/sp_missed}}{{#sp_makeup}}MU{{/sp_makeup}}{{#sp_attached}}ATT{{/sp_attached}}{{#sp_loa}}LOA{{/sp_loa}}{{#sp_unmarked}}-{{/sp_unmarked}}[/TD][/TR]
 {{/troopers}}{{^troopers}}[TR][TD]No troopers are placed in this section.[/TD][/TR]
 {{/troopers}}[/TABLE]
 BBCODE;
@@ -103,6 +107,7 @@ BBCODE;
             if ($mark === '#' || $mark === '^') {
                 $known = in_array($name, self::LISTS, true)
                     || in_array($name, self::TOP_STRINGS, true)
+                    || in_array($name, self::TOP_FLAGS, true)
                     || ($inRow && (in_array($name, self::ROW_STRINGS, true) || in_array($name, self::ROW_FLAGS, true)));
 
                 if (! $known) {
@@ -122,7 +127,7 @@ BBCODE;
                 return "\"{$name}\" cannot be printed; use {{#{$name}}}...{{/{$name}}} to repeat for each trooper.";
             }
 
-            if (in_array($name, self::ROW_FLAGS, true)) {
+            if (in_array($name, self::ROW_FLAGS, true) || in_array($name, self::TOP_FLAGS, true)) {
                 return "\"{$name}\" is a yes-or-no value, so use {{#{$name}}}...{{/{$name}}} rather than printing it.";
             }
 
