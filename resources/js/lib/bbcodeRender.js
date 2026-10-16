@@ -189,6 +189,20 @@ export function parseBbcode(source) {
 
     const top = () => stack.at(-1);
 
+    // Where the next [/IMG] or [/URL] at or after `from` starts, or -1. Searched in the post itself, case-insensitively,
+    // so the place is right even after a letter whose lower case is longer ("İ"). `from` only grows, so the last answer
+    // still holds while it is not behind `from`, and a post full of unclosed tags is not searched again each time.
+    const closes = {};
+    const closeOf = (name, from) => {
+        const known = closes[name];
+        if (known !== undefined && (known === -1 || known >= from)) return known;
+        const pattern = new RegExp(`\\[/${name}\\]`, 'gi');
+        pattern.lastIndex = from;
+        closes[name] = pattern.exec(input)?.index ?? -1;
+
+        return closes[name];
+    };
+
     const addText = (value) => {
         let chunk = value;
         if (trimNext) chunk = chunk.replace(/^\r?\n/, '');
@@ -259,7 +273,7 @@ export function parseBbcode(source) {
 
         // [IMG] and a bare [URL] hold an address, not more BBCode.
         if ((name === 'img' && option === undefined) || (name === 'url' && option === undefined)) {
-            const close = input.toLowerCase().indexOf(`[/${name}]`, last);
+            const close = closeOf(name, last);
             const address = close === -1 ? null : input.slice(last, close);
             const safe = address === null ? null : name === 'img' ? safeImage(address) : safeLink(address);
             if (safe === null || size === null || TABLE_PARTS.has(top().kind) || stack.length > MAX_DEPTH) {

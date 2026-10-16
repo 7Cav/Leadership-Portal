@@ -303,6 +303,19 @@ describe('injection attempts', () => {
         expect(tree.map((node) => node.text).join('')).toBe(source);
     });
 
+    it('finds an [IMG] or [URL] close by its place in the post, even after a letter whose lower case is longer', () => {
+        // "İ" lower-cases to two characters, so a search in a lower-cased copy lands one place off per "İ".
+        const tree = read('İnce.M [IMG]https://7cav.us/a.png[/IMG] after [URL]https://7cav.us[/URL] end');
+
+        expect(tree).toEqual([
+            'İnce.M ',
+            ['img', { attrs: { src: 'https://7cav.us/a.png', alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' } }, []],
+            ' after ',
+            ['url', { attrs: { href: 'https://7cav.us/', rel: 'noopener noreferrer nofollow', target: '_blank' } }, ['https://7cav.us']],
+            ' end',
+        ]);
+    });
+
     it('only ever sets the attributes it chose, with checked values', () => {
         const tree = parseBbcode(
             '[URL=https://7cav.us]a[/URL][IMG]https://7cav.us/a.png[/IMG][LIST=1][*]x[/LIST][COLOR=red;background:url(x)]c[/COLOR][SIZE=3;position:fixed]d[/SIZE]',
