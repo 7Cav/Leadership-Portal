@@ -160,7 +160,8 @@ class ReportRollupController extends Controller
             'holding' => $node->isHolding(),
             'open' => $node->open,
             'live' => $node->live,
-            'kpis' => self::kpis($node->kpis),
+            // Null when a sent snapshot it depends on cannot be read: the row shows it as unavailable.
+            'kpis' => $node->kpis === null ? null : self::kpis($node->kpis),
             'delta' => self::delta($node->delta),
             'coverage' => $node->rollup === null ? null : [
                 'sent' => count($node->rollup->children) - count($node->rollup->missingChildren()),

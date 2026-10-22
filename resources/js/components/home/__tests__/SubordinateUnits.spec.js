@@ -89,4 +89,14 @@ describe('SubordinateUnits', () => {
         expect(wrapper.find('[data-testid="no-units"]').exists()).toBe(true);
         expect(wrapper.find('table').exists()).toBe(false);
     });
+
+    it('marks a unit whose sent snapshot cannot be read as unavailable, and sorts it last', async () => {
+        const wrapper = mountTable([unit(1, 'P1', { kpis: null }), unit(2, 'P2')]);
+
+        expect(wrapper.find('[data-unit="1"] [data-testid="kpis-unavailable"]').text()).toContain('Unavailable');
+        expect(wrapper.find('[data-unit="2"] [data-testid="kpis-unavailable"]').exists()).toBe(false);
+
+        await wrapper.find('[data-sort="strength"]').trigger('click');
+        expect(rows(wrapper)).toEqual(['P2', 'P1']);
+    });
 });

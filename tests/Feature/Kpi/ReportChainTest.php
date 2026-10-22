@@ -6,6 +6,7 @@ use App\Kpi\KpiDelta;
 use App\Kpi\KpiService;
 use App\Kpi\Ratio;
 use App\Kpi\ReportChain;
+use App\Kpi\ReportKpisUnavailableException;
 use App\Kpi\ReportSnapshot;
 use App\Kpi\UnitKpis;
 use App\Models\AttendanceSource;
@@ -22,6 +23,7 @@ use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 
 // 5.8: the navigator's read model. Every node is either its frozen snapshot (sent), or live and
 // labelled so: a leaf from KpiService, a non-leaf from its children's SENT snapshots only (AD-13).
@@ -200,12 +202,42 @@ it('reads a whole battalion in six queries, however many units it holds', functi
     expect($small)->toBe(6)->and($count($this->battalion))->toBe(6);
 });
 
-it('fails loudly on an unreadable sent snapshot rather than showing a plausible zero', function () {
+it('shows a unit with an unreadable sent snapshot as unknown, never a plausible zero, and still builds the rest of the chain', function () {
+    Exceptions::fake();
     ($this->send)($this->s11, chainKpis(6, [20, 24], [10, 12]));
+    ($this->send)($this->s12, chainKpis(3, [6, 12], [3, 6]));
     WeeklyReport::query()->where('unit_id', $this->s11->id)->update(['kpis' => json_encode(['strength' => 6])]);
 
-    $this->chain->build($this->company, chainWeek());
-})->throws(UnexpectedValueException::class, 'unreadable');
+    $nodes = chainIndex($this->chain->build($this->company, chainWeek()));
+
+    // The corrupt unit itself: sent, but its numbers are unknown.
+    expect($nodes[$this->s11->id]->status)->toBe(ChildReportStatus::Sent)
+        ->and($nodes[$this->s11->id]->kpis)->toBeNull()
+        ->and($nodes[$this->s11->id]->delta)->toBeNull()
+        // Its unsent platoon has nothing true to sum: no roll-up, no KPIs, not reported as holding.
+        ->and($nodes[$this->p1->id]->rollup)->toBeNull()
+        ->and($nodes[$this->p1->id]->kpis)->toBeNull()
+        ->and($nodes[$this->p1->id]->isHolding())->toBeFalse()
+        // The rest of the chain reads as before.
+        ->and($nodes[$this->s21->id]->kpis)->not->toBeNull()
+        ->and($nodes[$this->p2->id]->kpis)->toEqual(chainKpis(3, [6, 12], [3, 6]))
+        ->and($nodes[$this->company->id]->rollup)->not->toBeNull();
+
+    // Reported once, though the platoon's roll-up and the section's own node both needed it.
+    Exceptions::assertReportedCount(1);
+    Exceptions::assertReported(fn (ReportKpisUnavailableException $e) => $e->unreadable?->unit_id === $this->s11->id);
+});
+
+it('gives an unsent unit no delta when its prior week\'s sent snapshot is unreadable, and keeps its numbers', function () {
+    Exceptions::fake();
+    ($this->send)($this->s12, chainKpis(3, [6, 12], [3, 6]), weeksBack: 1);
+    WeeklyReport::query()->where('unit_id', $this->s12->id)->update(['kpis' => json_encode(['corrupt' => true])]);
+
+    $node = chainIndex($this->chain->build($this->company, chainWeek()))[$this->s12->id];
+
+    expect($node->kpis)->not->toBeNull()->and($node->delta)->toBeNull();
+    Exceptions::assertReportedCount(1);
+});
 
 it('gives an unsent non-leaf the delta of its roll-up against its own last sent report', function () {
     $prior = chainKpis(4, [10, 16], [2, 4]);

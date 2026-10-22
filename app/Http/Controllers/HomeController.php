@@ -367,14 +367,15 @@ class HomeController extends Controller
      * One table row. A sent report is its frozen snapshot, a leaf is live attendance, and an unsent
      * non-leaf is live for its whole subtree, never the partial sum of the children that happen to
      * have sent: the roll-up semantics (status, holding) stay the chain's own, so the table and the
-     * navigator never disagree (AD-13).
+     * navigator never disagree (AD-13). A sent report whose snapshot cannot be read has `kpis`
+     * null: the row says so, and the rest of the table still renders.
      *
      * @return array<string, mixed>
      */
     private function unitRow(ChainNode $node, CarbonImmutable $weekStart): array
     {
         $unit = $node->unit;
-        $kpis = $node->live && $node->rollup !== null ? $this->kpis->forUnit($unit, $weekStart) : $node->kpis;
+        $kpis = $node->live && $node->children !== [] ? $this->kpis->forUnit($unit, $weekStart) : $node->kpis;
         $date = $weekStart->toDateString();
 
         return [
@@ -383,7 +384,7 @@ class HomeController extends Controller
             'status' => $node->status->value,
             'holding' => $node->isHolding(),
             'live' => $node->live,
-            'kpis' => self::kpiShape($kpis),
+            'kpis' => $kpis === null ? null : self::kpiShape($kpis),
             'coverage' => $node->rollup === null ? null : [
                 'sent' => count($node->rollup->children) - count($node->rollup->missingChildren()),
                 'of' => count($node->rollup->children),

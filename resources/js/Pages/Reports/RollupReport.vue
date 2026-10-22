@@ -48,6 +48,7 @@ const liveNote = computed(() =>
 
 const items = computed(() => {
     const { kpis, delta } = props.node;
+    if (!kpis) return [];
     const rc = percent(kpis.rc);
     const sp = percent(kpis.sp);
 
@@ -68,6 +69,7 @@ function tone(item) {
 }
 
 function ratioLine(child) {
+    if (!child.kpis) return 'Unavailable';
     const rc = percent(child.kpis.rc);
     const sp = percent(child.kpis.sp);
 
@@ -135,11 +137,24 @@ function ratioLine(child) {
             <div>
                 <div class="mb-2 flex items-baseline justify-between gap-2">
                     <h3 class="text-xs text-muted-foreground">Key figures</h3>
-                    <span class="text-[11px] text-muted-foreground">
+                    <span v-if="node.kpis" class="text-[11px] text-muted-foreground">
                         {{ node.delta ? "vs last week's sent report" : 'No sent report last week to compare' }}
                     </span>
                 </div>
-                <dl class="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-border bg-border" data-testid="kpis">
+                <p
+                    v-if="!node.kpis"
+                    role="status"
+                    class="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/6 p-3"
+                    data-testid="kpis-unavailable"
+                >
+                    <PhWarning class="mt-px size-4 shrink-0 text-warning" aria-hidden="true" />
+                    {{
+                        node.status === 'sent'
+                            ? "This report's frozen snapshot cannot be read. An admin needs to look at it."
+                            : 'A sent report below this unit cannot be read, so its roll-up cannot be computed. An admin needs to look at it.'
+                    }}
+                </p>
+                <dl v-else class="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-border bg-border" data-testid="kpis">
                     <div v-for="item in items" :key="item.label" class="min-w-0 bg-card px-3 py-2.5">
                         <dt class="text-[11px] text-muted-foreground">{{ item.label }}</dt>
                         <dd class="mt-0.5 flex flex-wrap items-baseline gap-1.5">

@@ -8,6 +8,7 @@ use App\Models\PortalRoleGrant;
 use App\Models\Trooper;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Models\WeeklyReport;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use Carbon\CarbonImmutable;
@@ -246,4 +247,22 @@ it('narrows the workspace to a unit viewed as', function () {
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page->has('roots', 1)->where('roots.0.id', $this->p1->id));
     $this->actingAs($this->commander)->get("/reports/{$this->company->id}")->assertForbidden();
+});
+
+it('renders the chain when one sent snapshot is unreadable, showing that unit as unavailable', function () {
+    WeeklyReport::query()->where('unit_id', $this->s11->id)->update(['kpis' => json_encode(['corrupt' => true])]);
+
+    $this->actingAs($this->commander)->get('/reports')
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('roots.0.children.0.children.0.id', $this->s11->id)
+            ->where('roots.0.children.0.children.0.status', 'sent')
+            ->where('roots.0.children.0.children.0.kpis', null)
+            ->where('roots.0.children.0.children.0.delta', null)
+            // Its unsent platoon has nothing true to sum.
+            ->where('roots.0.children.0.kpis', null)
+            ->where('roots.0.children.0.coverage', null)
+            // Everything else still reads.
+            ->whereNot('roots.0.children.0.children.1.kpis', null)
+            ->whereNot('roots.0.children.1.kpis', null));
 });

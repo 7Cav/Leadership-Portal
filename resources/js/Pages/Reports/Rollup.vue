@@ -351,23 +351,32 @@ function pct(ratio) {
                                     <span v-if="row.node.callsign" class="block truncate text-xs font-normal text-muted-foreground">{{ row.node.name }}</span>
                                 </span>
                             </div>
-                            <div role="gridcell" class="rt-num rt-wide" :class="{ 'text-muted-foreground': row.node.live && !row.hasChildren }">
-                                {{ row.node.kpis.strength }}
-                            </div>
-                            <div role="gridcell" class="rt-num" :class="{ 'text-muted-foreground': row.node.live && !row.hasChildren }">
-                                {{ pct(row.node.kpis.rc) }}
-                                <small v-if="row.node.coverage && row.node.status !== 'sent'">{{ row.node.coverage.sent }} of {{ row.node.coverage.of }} in</small>
-                            </div>
-                            <div role="gridcell" class="rt-num" :class="{ 'text-muted-foreground': row.node.live && !row.hasChildren }">
-                                {{ pct(row.node.kpis.sp) }}
-                            </div>
-                            <div
-                                role="gridcell"
-                                class="rt-num rt-wide"
-                                :class="row.node.live && !row.hasChildren ? 'text-muted-foreground' : row.node.kpis.atRisk ? 'text-warning' : 'text-muted-foreground'"
-                            >
-                                {{ row.node.kpis.atRisk }}
-                            </div>
+                            <!-- A sent snapshot this row depends on cannot be read: no numbers, never a plausible zero. -->
+                            <template v-if="!row.node.kpis">
+                                <div role="gridcell" class="rt-num rt-wide text-warning" data-testid="kpis-unavailable">Unavailable</div>
+                                <div role="gridcell" class="rt-num text-muted-foreground">—</div>
+                                <div role="gridcell" class="rt-num text-muted-foreground">—</div>
+                                <div role="gridcell" class="rt-num rt-wide text-muted-foreground">—</div>
+                            </template>
+                            <template v-else>
+                                <div role="gridcell" class="rt-num rt-wide" :class="{ 'text-muted-foreground': row.node.live && !row.hasChildren }">
+                                    {{ row.node.kpis.strength }}
+                                </div>
+                                <div role="gridcell" class="rt-num" :class="{ 'text-muted-foreground': row.node.live && !row.hasChildren }">
+                                    {{ pct(row.node.kpis.rc) }}
+                                    <small v-if="row.node.coverage && row.node.status !== 'sent'">{{ row.node.coverage.sent }} of {{ row.node.coverage.of }} in</small>
+                                </div>
+                                <div role="gridcell" class="rt-num" :class="{ 'text-muted-foreground': row.node.live && !row.hasChildren }">
+                                    {{ pct(row.node.kpis.sp) }}
+                                </div>
+                                <div
+                                    role="gridcell"
+                                    class="rt-num rt-wide"
+                                    :class="row.node.live && !row.hasChildren ? 'text-muted-foreground' : row.node.kpis.atRisk ? 'text-warning' : 'text-muted-foreground'"
+                                >
+                                    {{ row.node.kpis.atRisk }}
+                                </div>
+                            </template>
                             <div role="gridcell"><StatusPill :status="displayStatus(row.node)" /></div>
                         </div>
                     </div>
