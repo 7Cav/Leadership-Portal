@@ -16,14 +16,14 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
 }));
 
 const UNITS = [
-    { id: 1, name: '7th Cavalry Regiment' },
-    { id: 2, name: '2nd Battalion' },
+    { id: 1, name: '7th Cavalry Regiment', label: '7th Cavalry Regiment' },
+    { id: 2, name: '2nd Battalion', label: '2nd Battalion' },
 ];
 
 const USERS = [{ id: 10, username: 'jsmith' }];
 
 const GRANTS = [
-    { id: 100, user_id: 10, username: 'jsmith', holder_serving: true, unit_id: 2, unit_name: '2nd Battalion', created_at: '2026-08-11T00:00:00Z' },
+    { id: 100, user_id: 10, username: 'jsmith', holder_serving: true, unit_id: 2, unit_name: '2nd Battalion', unit_label: '2nd Battalion', created_at: '2026-08-11T00:00:00Z' },
 ];
 
 describe('Settings/StaffGrants', () => {
@@ -44,6 +44,19 @@ describe('Settings/StaffGrants', () => {
         expect(wrapper.find('[data-testid="lapsed-101"] .sr-only').text()).toContain('gives no scope while its holder is not on a serving Cav roster');
         expect(wrapper.find('[data-testid="lapsed-100"]').exists()).toBe(false);
         expect(wrapper.find('[data-testid="revoke-101"]').exists()).toBe(true);
+    });
+
+    it('tells two same-named units apart by their chain in the picker and the grants list', () => {
+        const units = [
+            { id: 3, name: '1st Platoon', label: 'Alpha Company › 1st Platoon' },
+            { id: 4, name: '1st Platoon', label: 'Bravo Company › 1st Platoon' },
+        ];
+        const grants = [{ ...GRANTS[0], unit_id: 4, unit_name: '1st Platoon', unit_label: 'Bravo Company › 1st Platoon' }];
+        const wrapper = mount(StaffGrants, { props: { grants, units, users: USERS, isAdmin: true } });
+
+        const options = wrapper.findAll('[data-testid="grant-unit_id"] option').map((o) => o.text());
+        expect(options).toEqual(['Choose a unit', 'Alpha Company › 1st Platoon', 'Bravo Company › 1st Platoon']);
+        expect(wrapper.find('[data-testid="grant-row-100"]').text()).toContain('Bravo Company › 1st Platoon');
     });
 
     it('shows an empty state when there are no grants', () => {

@@ -217,8 +217,11 @@ function onRowKey(event, trooper) {
     all[at + (event.key === 'ArrowDown' ? 1 : -1)]?.focus();
 }
 
+// `/` jumps to the search, but not while an overlay (the trooper sheet, a picker, a popover) is
+// open: focus would leave the overlay for a field behind it.
 function onSlash(event) {
     if (event.key !== '/' || event.target.closest?.('input, textarea, [contenteditable]')) return;
+    if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
     event.preventDefault();
     search.value?.focus();
 }

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import { PhCheck, PhFlask, PhLockSimple, PhSparkle, PhTrash, PhTreeStructure, PhWarning } from '@phosphor-icons/vue';
 import { toast } from 'vue-sonner';
@@ -70,7 +70,10 @@ function submit() {
     };
     const options = {
         preserveScroll: true,
-        onSuccess: () => (confirming.value = null),
+        onSuccess: (page) => {
+            confirming.value = null;
+            announce(page.props.result);
+        },
         onError: () => (confirming.value = null),
         onHttpException: (response) =>
             failed(
@@ -88,16 +91,14 @@ function submit() {
     }
 }
 
-// Every generate or purge comes back as a flashed `result`: toast it once per run.
-watch(
-    () => props.result,
-    (result) => {
-        if (!result) return;
-        if (result.empty) toast.info(result.summary);
-        else toast.success(result.summary);
-    },
-    { immediate: true },
-);
+// Every generate or purge comes back as a flashed `result`: toast it once per run, from the run's
+// own success callback. Watching the prop instead toasted again whenever the page was shown with
+// that prop, such as going back to it from history.
+function announce(result) {
+    if (!result) return;
+    if (result.empty) toast.info(result.summary);
+    else toast.success(result.summary);
+}
 
 const stats = computed(() => [
     { key: 'weeks', label: 'Weeks', value: props.existing.weeks },

@@ -51,6 +51,14 @@ describe('Attendance matrix (roster-s3)', () => {
         expect(wrapper.findAll('thead th.wk')).toHaveLength(8);
     });
 
+    it('keeps the week window when the active button is pressed again', async () => {
+        const wrapper = factory();
+        await wrapper.find('[data-testid="window-20"]').trigger('click');
+
+        expect(wrapper.findAll('thead th.wk')).toHaveLength(20);
+        expect(wrapper.find('[data-testid="window-20"]').attributes('data-state')).toBe('on');
+    });
+
     it('sorts at-risk first from the column header', async () => {
         const wrapper = factory();
         await wrapper.find('[data-testid="sort-risk-header"]').trigger('click');

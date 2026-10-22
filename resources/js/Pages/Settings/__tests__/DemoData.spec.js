@@ -139,11 +139,24 @@ describe('Settings/DemoData', () => {
         expect(mockForm.post).toHaveBeenCalledWith(expect.objectContaining({ unit_id: 2, weeks: 3 }), '/settings/demo-data', expect.any(Object));
     });
 
-    it('toasts a result that arrives after a redirect', async () => {
-        const wrapper = mount(DemoData, { props: { units: [], existing: NONE, weeks: { default: 8, max: 12 }, recentWeeks: RECENT, result: null } });
-        await wrapper.setProps({ result: { action: 'purged', empty: false, summary: 'Purged demo history for A/1-7.' } });
+    it('toasts the result the run redirects back with', async () => {
+        const wrapper = render();
+        await pick(wrapper, 2);
+        await wrapper.find('[data-testid="generate"]').trigger('click');
+        await flushPromises();
+        inBody('[data-testid="confirm"]').click();
 
-        expect(mockToast.success).toHaveBeenCalledWith('Purged demo history for A/1-7.');
+        mockForm.post.mock.calls[0][2].onSuccess({ props: { result: { action: 'generated', empty: false, summary: 'Generated 8 weeks of demo history for A/1-7.' } } });
+
+        expect(mockToast.success).toHaveBeenCalledWith('Generated 8 weeks of demo history for A/1-7.');
+    });
+
+    // Going back to the page restores its props, result included; that is not a new run.
+    it('does not toast a result the page is merely shown with', () => {
+        render({ result: { action: 'purged', empty: false, summary: 'Purged demo history for A/1-7.' } });
+
+        expect(mockToast.success).not.toHaveBeenCalled();
+        expect(mockToast.info).not.toHaveBeenCalled();
     });
 
     it('confirms a purge, then deletes with only the unit', async () => {
@@ -185,7 +198,7 @@ describe('Settings/DemoData', () => {
         expect(wrapper.find('[data-testid="existing-weeks"]').text()).toBe('3');
     });
 
-    it('toasts and shows the last result, including skipped weeks', () => {
+    it('shows the last result, including skipped weeks', () => {
         const result = {
             action: 'generated',
             empty: false,
@@ -195,13 +208,18 @@ describe('Settings/DemoData', () => {
         };
         const wrapper = render({ result });
 
-        expect(mockToast.success).toHaveBeenCalledWith(result.summary);
         expect(wrapper.find('[data-testid="result"]').text()).toContain('2026-09-12');
         expect(wrapper.find('[data-testid="skipped"]').text()).toContain('2026-08-29');
     });
 
-    it('toasts an empty outcome as information, not success', () => {
-        render({ result: { action: 'purged', empty: true, summary: 'There is no demo history for A/1-7 to purge.' } });
+    it('toasts an empty outcome as information, not success', async () => {
+        const wrapper = render();
+        await pick(wrapper, 2);
+        await wrapper.find('[data-testid="purge"]').trigger('click');
+        await flushPromises();
+        inBody('[data-testid="confirm"]').click();
+
+        mockForm.delete.mock.calls[0][2].onSuccess({ props: { result: { action: 'purged', empty: true, summary: 'There is no demo history for A/1-7 to purge.' } } });
 
         expect(mockToast.info).toHaveBeenCalledWith('There is no demo history for A/1-7 to purge.');
         expect(mockToast.success).not.toHaveBeenCalled();

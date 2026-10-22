@@ -55,7 +55,9 @@ onMounted(syncFromDocument);
     <SidebarProvider>
         <AppSidebar />
 
-        <SidebarInset class="min-w-0">
+        <!-- `--shell-top` is the sticky bar's height (header h-12, plus the h-9 view-as banner when it
+             shows). A page's own sticky parts offset from it so they stop below the bar, not under it. -->
+        <SidebarInset class="min-w-0" :style="{ '--shell-top': viewingAs ? '5.25rem' : '3rem' }">
             <!-- The banner shares the sticky bar with the header, so a view-as preview stays in sight. -->
             <div class="sticky top-0 z-30">
                 <ViewAsBanner />

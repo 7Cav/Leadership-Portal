@@ -5,7 +5,9 @@ use App\Models\PortalRoleGrant;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
+use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\UnitRepository;
 
 it('renders the grants list for any authenticated user', function () {
     $unit = Unit::factory()->create();
@@ -48,6 +50,27 @@ it('excludes Admins from the target-user picker (AD-7 — a grant to an Admin is
     $this->actingAs($admin)->get('/settings/staff-grants')
         ->assertInertia(fn ($page) => $page
             ->where('users', fn ($users) => collect($users)->pluck('id')->all() === [$staff->id]));
+});
+
+it('labels each unit with its chain below the root, so two same-named platoons read apart', function () {
+    $units = app(UnitRepository::class);
+    $regiment = $units->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);
+    $alpha = $units->create(UnitType::Company, 'Alpha Company', 'A/1-7', $regiment->id);
+    $bravo = $units->create(UnitType::Company, 'Bravo Company', 'B/1-7', $regiment->id);
+    $alphaFirst = $units->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', $alpha->id);
+    $bravoFirst = $units->create(UnitType::Platoon, '1st Platoon', '1/B/1-7', $bravo->id);
+    PortalRoleGrant::factory()->create(['user_id' => User::factory()->create()->id, 'unit_id' => $bravoFirst->id]);
+
+    $this->actingAs(User::factory()->admin()->create())->get('/settings/staff-grants')
+        ->assertInertia(fn ($page) => $page
+            ->where('units', fn ($list) => collect($list)->pluck('label', 'id')->all() === [
+                $regiment->id => '7th Cavalry Regiment',
+                $alpha->id => 'Alpha Company',
+                $alphaFirst->id => 'Alpha Company › 1st Platoon',
+                $bravo->id => 'Bravo Company',
+                $bravoFirst->id => 'Bravo Company › 1st Platoon',
+            ])
+            ->where('grants.0.unit_label', 'Bravo Company › 1st Platoon'));
 });
 
 it('lets an Admin grant a non-admin staff user scope at a chosen node (AC #1)', function () {

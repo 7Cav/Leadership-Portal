@@ -638,6 +638,12 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-testid="confirm-practice"]').text()).toContain('Confirm practice');
         });
 
+        it('names the game server, not "null", when a capture has no source recorded', () => {
+            const wrapper = factory({ capture: { ...CAPTURE, source: null } });
+
+            expect(wrapper.find('[data-testid="capture-banner"]').text()).toContain('Marks filled from the game server, read 08Oct26 12:00Z.');
+        });
+
         it('renders the unchanged manual screen, with no banner or confirm action, when nothing was captured', () => {
             const wrapper = factory({ capture: null });
 

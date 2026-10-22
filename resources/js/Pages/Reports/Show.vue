@@ -78,6 +78,8 @@ const weekUrl = (date) => `/reports/${props.unit.id}/${date}`;
 const rollcallUrl = computed(() => (props.unit.isLeaf ? `/rollcall/${props.unit.id}?week=${weekDate.value}` : null));
 const reasonLabels = computed(() => Object.fromEntries(props.reasons.map((r) => [r.value, r.label])));
 const parentLabel = computed(() => (props.unit.parent ? unitLabel(props.unit.parent) : null));
+// "88%", or "—" with no percent sign when nothing was eligible.
+const percentText = (ratio) => (percent(ratio) === null ? '—' : `${percent(ratio)}%`);
 
 // ---- The leader's content, autosaved as a draft (5.5) ----
 const content = reactive({
@@ -436,7 +438,7 @@ const subjectInvalid = computed(() => props.unit.isLeaf && subjectTouched.value 
                                 <template v-if="kpis">
                                     <dt class="text-muted-foreground">Key numbers</dt>
                                     <dd class="tabular-nums">
-                                        RC {{ percent(kpis.rc) ?? '—' }}%, SP {{ percent(kpis.sp) ?? '—' }}%, {{ kpis.atRisk }} at-risk
+                                        RC {{ percentText(kpis.rc) }}, SP {{ percentText(kpis.sp) }}, {{ kpis.atRisk }} at-risk
                                     </dd>
                                 </template>
                                 <template v-if="missingChildren.length">
@@ -533,7 +535,7 @@ const subjectInvalid = computed(() => props.unit.isLeaf && subjectTouched.value 
                         </section>
                     </div>
 
-                    <div class="min-w-0 lg:sticky lg:top-16">
+                    <div class="min-w-0 lg:sticky lg:top-[calc(var(--shell-top,3rem)+1rem)]">
                         <ReportPreview
                             :unit="unit"
                             :week="week"

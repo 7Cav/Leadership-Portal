@@ -43,6 +43,11 @@ const query = defineModel('query', { type: String, default: '' });
 const filter = defineModel('filter', { type: String, default: 'all' });
 
 const win = ref('20');
+// A single-select group emits an empty value when the active button is pressed again; keep the
+// current window rather than rendering zero (NaN) week columns.
+function selectWindow(value) {
+    if (value) win.value = value;
+}
 const sortKey = ref('billet');
 const range = computed(() => {
     const count = Number(win.value);
@@ -236,7 +241,7 @@ function clearAll() {
             </label>
             <FilterChips v-model="filter" :troopers="troopers" :current-week="currentWeek" />
             <div class="ml-auto flex items-center gap-2">
-                <ToggleGroup v-model="win" type="single" variant="segment" aria-label="Weeks shown">
+                <ToggleGroup :model-value="win" type="single" variant="segment" aria-label="Weeks shown" @update:model-value="selectWindow">
                     <ToggleGroupItem value="8" data-testid="window-8">8 wk</ToggleGroupItem>
                     <ToggleGroupItem value="20" data-testid="window-20">20 wk</ToggleGroupItem>
                 </ToggleGroup>

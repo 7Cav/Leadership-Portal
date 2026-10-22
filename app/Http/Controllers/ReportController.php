@@ -127,7 +127,8 @@ class ReportController extends Controller
             'baseline' => $this->baseline($snapshot, $sent ? $report : null, $history, $weekStart),
             'trend' => $this->trend($weekStart, $snapshot, $history),
             'troopers' => $isLeaf && ! $sent ? $this->trooperRows($unit, $weekStart, $roster) : null,
-            'names' => $roster->mapWithKeys(fn (Trooper $t) => [$t->id => $this->trooperLabel($t)]),
+            // An object even when empty: `[]` fails the page's Object prop check.
+            'names' => (object) $roster->mapWithKeys(fn (Trooper $t) => [$t->id => $this->trooperLabel($t)])->all(),
             'children' => match (true) {
                 $isLeaf => null,
                 // A damaged snapshot cannot say who was in it.

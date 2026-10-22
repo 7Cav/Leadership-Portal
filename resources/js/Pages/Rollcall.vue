@@ -330,7 +330,8 @@ async function markPosted() {
 // Capture review (7.8): where the marks came from and when (AD-20), and the leader's confirmation
 // of them. Confirming is its own audited save, so held and pending marks are saved first.
 const CAPTURE_SOURCES = { crcon: 'CRCON', battlemetrics: 'BattleMetrics', nightwatch: 'Nightwatch' };
-const captureLabel = computed(() => (props.capture ? (CAPTURE_SOURCES[props.capture.source] ?? props.capture.source) : null));
+// A capture with no source recorded reads as "the game server", never as "null".
+const captureLabel = computed(() => (props.capture ? (CAPTURE_SOURCES[props.capture.source] ?? props.capture.source ?? 'the game server') : null));
 const capturedLabel = computed(() => (props.capture ? `${forumDateTime(props.capture.capturedAt)}Z` : null));
 const confirmation = ref(props.practice?.confirmation ?? null);
 const confirming = ref(false);
@@ -398,7 +399,7 @@ async function retryCapture() {
 
                     return;
                 }
-                toast.success(`Read ${CAPTURE_SOURCES[props.capture.source] ?? props.capture.source}`, { description: 'Marks were filled in. Check them, then confirm.' });
+                toast.success(`Read ${captureLabel.value}`, { description: 'Marks were filled in. Check them, then confirm.' });
                 router.reload({ preserveScroll: true });
 
                 return;
@@ -614,7 +615,7 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
 
         <!-- Stepper -->
         <div
-            class="sticky top-12 z-20 -mx-4 mt-3 border-b border-border bg-background/95 px-4 pt-3 pb-2 backdrop-blur sm:-mx-6 sm:px-6"
+            class="sticky top-[var(--shell-top,3rem)] z-20 -mx-4 mt-3 border-b border-border bg-background/95 px-4 pt-3 pb-2 backdrop-blur sm:-mx-6 sm:px-6"
         >
             <nav aria-label="Rollcall steps">
                 <ol class="grid grid-cols-3 gap-1.5">
@@ -878,7 +879,7 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
             </section>
 
             <!-- Aside: the step's tallies -->
-            <aside :class="cn('space-y-4 lg:sticky lg:top-[8.5rem]', !(step === 2 && showUnmatched) && 'hidden lg:block')" aria-label="Step details">
+            <aside :class="cn('space-y-4 lg:sticky lg:top-[calc(var(--shell-top,3rem)+5.5rem)]', !(step === 2 && showUnmatched) && 'hidden lg:block')" aria-label="Step details">
                 <!-- Under the marks list on a phone, beside it on a wide screen (capture-review.html C). -->
                 <UnmatchedDrawer
                     v-if="step === 2 && showUnmatched"

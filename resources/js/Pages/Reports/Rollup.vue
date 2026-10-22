@@ -394,7 +394,7 @@ function pct(ratio) {
                 role="region"
                 aria-labelledby="report-title"
                 aria-live="polite"
-                class="sticky top-16 max-h-[calc(100dvh-7.5rem)] min-w-0 gap-0 overflow-hidden py-0"
+                class="sticky top-[calc(var(--shell-top,3rem)+1rem)] max-h-[calc(100dvh-var(--shell-top,3rem)-4.5rem)] min-w-0 gap-0 overflow-hidden py-0"
             >
                 <RollupReport :node="selected" :by-id="byId" :week="week" @select="(id) => select(id, { openSheet: false })" @copy-reminder="copyReminder" />
             </Card>
