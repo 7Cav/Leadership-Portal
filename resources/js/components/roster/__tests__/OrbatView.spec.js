@@ -106,6 +106,9 @@ describe('Order of battle (roster-s2)', () => {
     });
 
     it('focuses the search on /, but not while a dialog is open', () => {
+        // The shell owns the `/` listener (useSlashShortcut); the table only claims the key.
+        const shell = (event) => handleSlash(event, () => {});
+        document.addEventListener('keydown', shell);
         const wrapper = factory();
         const search = wrapper.find('[data-testid="roster-search"]').element;
 
@@ -119,6 +122,7 @@ describe('Order of battle (roster-s2)', () => {
         document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true }));
         expect(document.activeElement).toBe(search);
         wrapper.unmount();
+        document.removeEventListener('keydown', shell);
     });
 
     it('shows a skeleton while another unit loads', () => {

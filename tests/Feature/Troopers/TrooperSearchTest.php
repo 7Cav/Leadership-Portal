@@ -50,7 +50,7 @@ beforeEach(function () {
     $this->viewers = [
         'section leader' => User::factory()->create(['cav_id' => $leaderTrooper->cav_id]),
         'platoon staff' => $staff,
-        'no scope' => User::factory()->create(),
+        'no scope' => User::factory()->serving()->create(),
         'admin' => User::factory()->admin()->create(),
     ];
     // Every username shares `Xqz`, so one search reaches all of them and only the scope decides who comes back.
@@ -103,8 +103,8 @@ describe('who it offers', function () {
         expect($names)->toBe(['Xqz.Sibling']);
     });
 
-    it('sends a signed-out visitor to sign in without results', function () {
-        $response = $this->getJson(route('troopers.search', ['q' => 'xqz']))->assertRedirect(route('login'));
+    it('answers a signed-out visitor 401 without results, as every fetch is answered', function () {
+        $response = $this->getJson(route('troopers.search', ['q' => 'xqz']))->assertUnauthorized();
 
         expect($response->getContent())->not->toContain('Xqz');
     });
