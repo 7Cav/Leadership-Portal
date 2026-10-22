@@ -151,8 +151,7 @@ it('re-stamps on a second confirmation and audits each one', function () {
 // Two leaders confirming the same practice at once: the second one's screen still showed it
 // unconfirmed, so it gets the first confirmation back instead of a second stamp and audit entry.
 it('answers a confirmation the leader never saw instead of stamping a second one', function () {
-    $other = User::factory()->serving()->create(['username' => 'Ortega.M']);
-    PortalRoleGrant::factory()->create(['user_id' => $other->id, 'unit_id' => $this->section->id]);
+    $other = User::factory()->commanding($this->section)->create(['username' => 'Ortega.M']);
     $this->actingAs($other)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => '2026-10-03', 'confirmedAt' => null])->assertOk();
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-08 16:20:05', 'UTC'));
 

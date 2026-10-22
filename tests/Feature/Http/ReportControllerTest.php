@@ -369,8 +369,7 @@ it('does not claim who was in a sent roll-up whose snapshot is damaged', functio
 
 it('renders a roll-up whose child sent an unreadable snapshot as unavailable, naming the child, and refuses the send but not the draft', function () {
     Exceptions::fake();
-    $platoonLeader = User::factory()->serving()->create();
-    PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
+    $platoonLeader = User::factory()->commanding($this->platoon)->create();
     app(WeeklyReportRepository::class)->send($this->sibling->id, $this->weekStart, ['corrupt' => true], null, $platoonLeader->id, 'd', null);
 
     $this->actingAs($platoonLeader)->get(reportUrl($this->platoon, $this->week))
