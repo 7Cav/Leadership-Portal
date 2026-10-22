@@ -261,6 +261,61 @@ describe('rollcall autosave', () => {
         vi.unstubAllGlobals();
     });
 
+    it('lets a partial reload of the page through without asking, even with unsaved changes', () => {
+        const save = setup(vi.fn(() => ok()));
+        const confirm = vi.fn().mockReturnValue(false);
+        vi.stubGlobal('confirm', confirm);
+
+        save.queue(1, 'status', 'present', { holdMs: 6000 });
+        expect(visitGuard({ detail: { visit: { method: 'get', only: ['telemetry', 'capture'], except: [] } } })).toBeUndefined();
+        expect(visitGuard({ detail: { visit: { method: 'get', only: [], except: [] } } })).toBe(false);
+        expect(confirm).toHaveBeenCalledTimes(1);
+        vi.unstubAllGlobals();
+    });
+
+    it('says whether a field still has an unsent change, held or queued', async () => {
+        const save = setup(vi.fn(() => ok()));
+
+        save.queue(1, 'status', 'present', { holdMs: 6000 });
+        save.queue(2, 'rollcall', 'will_attend');
+        expect(save.isPending(1, 'status')).toBe(true);
+        expect(save.isPending(1, 'rollcall')).toBe(false);
+        expect(save.isPending(2, 'rollcall')).toBe(true);
+
+        await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+        expect(save.isPending(2, 'rollcall')).toBe(false);
+        expect(save.isPending(1, 'status')).toBe(true);
+    });
+
+    it('counts a change as pending while its batch is on the way', async () => {
+        let finish;
+        const save = setup(vi.fn().mockReturnValueOnce(new Promise((resolve) => (finish = resolve))));
+
+        save.queue(1, 'status', 'present');
+        await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+        expect(save.isPending(1, 'status')).toBe(true);
+
+        finish({ ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00' } });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(save.isPending(1, 'status')).toBe(false);
+    });
+
+    it('an explicit save also sends what changed while its batch was in flight', async () => {
+        let finish;
+        const post = vi.fn().mockReturnValueOnce(new Promise((resolve) => (finish = resolve))).mockImplementation(() => ok());
+        const save = setup(post);
+
+        save.queue(1, 'status', 'present');
+        const flushed = save.flush({ includeHeld: true });
+        save.queue(2, 'rollcall', 'will_attend');
+        finish({ ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00' } });
+
+        expect(await flushed).toBe(true);
+        expect(post).toHaveBeenCalledTimes(2);
+        expect(post).toHaveBeenLastCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 2, rollcall: 'will_attend' }] });
+        expect(save.hasUnsaved.value).toBe(false);
+    });
+
     it('explains each kind of failure in words the leader can act on', () => {
         expect(messageFor({ status: 403, data: null })).toBe('This rollcall is read-only for you right now.');
         expect(messageFor({ status: 419, data: null })).toBe('Your session expired. Reload the page to keep going.');

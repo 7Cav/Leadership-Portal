@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import {
@@ -99,13 +99,22 @@ const props = defineProps({
 const page = usePage();
 
 // The screen's working copy of the marks, and what they were when the page loaded (the review
-// step lists the difference as this visit's changes).
+// step lists the difference as this visit's changes). A reload that answers while one of the
+// leader's marks is not saved yet keeps that mark on screen: it saves after the server read the page.
 const rows = ref([]);
 const baseline = ref(new Map());
 watch(
     () => props.troopers,
     (troopers) => {
-        rows.value = troopers.map((trooper) => ({ ...trooper }));
+        const shown = new Map(rows.value.map((trooper) => [trooper.id, trooper]));
+        rows.value = troopers.map((trooper) => {
+            const row = { ...trooper };
+            const mine = shown.get(trooper.id);
+            if (mine && autosave?.isPending(trooper.id, 'status')) Object.assign(row, { status: mine.status, source: mine.source });
+            if (mine && autosave?.isPending(trooper.id, 'rollcall')) row.rollcall = mine.rollcall;
+
+            return row;
+        });
         baseline.value = new Map(troopers.map((trooper) => [trooper.id, { rollcall: trooper.rollcall, status: trooper.status, source: trooper.source }]));
     },
     { immediate: true },
@@ -181,8 +190,10 @@ function set(trooper, kind, value, options = {}) {
     if (trooper[field] === value) return;
 
     trooper[field] = value;
+    edits++;
     if (field === 'status') {
         trooper.source = 'manual';
+        practiceEdits.set(trooper.id, (practiceEdits.get(trooper.id) ?? 0) + 1);
     }
     if (posted.value) editedSincePost.value = true;
     autosave.queue(trooper.id, field, value, options);
@@ -228,19 +239,38 @@ function applyMany(entries, title) {
 
 const sameUnmatched = (a, b) => a.platform === b.platform && a.platformId === b.platformId;
 
+// Practice marks set on this screen, counted per trooper, and the count when each link was sent:
+// a link answer must not overwrite a mark the leader set while it was in flight. `edits` counts
+// every mark, for the same check on marking the rollcall posted.
+let edits = 0;
+const practiceEdits = new Map();
+const editsAtLink = new Map();
+
+// Before a link is sent, the marks waiting in the autosave go first, so the server's manual-wins
+// pre-mark sees a mark the leader just set instead of racing it. Held marks (an open Undo) stay held.
+function beforeLink(trooperId) {
+    editsAtLink.set(trooperId, practiceEdits.get(trooperId) ?? 0);
+
+    return autosave.flush();
+}
+
 // The server linked the player and pre-marked the trooper (a manual mark is kept, so the row takes
-// what the server says it now holds).
+// what the server says it now holds), unless the leader's own mark is newer than that answer: still
+// queued or held, or set while the link was in flight. That mark saves as manual and wins.
 function onLinked({ player, marked, trooper, atRisk }) {
     unmatchedPlayers.value = unmatchedPlayers.value.filter((p) => !sameUnmatched(p, player));
     const row = rows.value.find((t) => t.id === trooper.id);
-    if (row && trooper.status) {
+    const newerHere = autosave.isPending(trooper.id, 'status') || (practiceEdits.get(trooper.id) ?? 0) !== (editsAtLink.get(trooper.id) ?? 0);
+    editsAtLink.delete(trooper.id);
+    if (row && trooper.status && !newerHere) {
         Object.assign(row, { status: trooper.status, source: trooper.source });
         // A mark written after the forum post makes that post stale, as a hand edit does.
         if (marked && posted.value) editedSincePost.value = true;
     }
     liveAtRisk.value = atRisk ?? liveAtRisk.value;
     const name = row ? displayName(row) : `trooper ${trooper.id}`;
-    if (marked) toast.success(`Linked ${player.playerName} to ${name}`, { description: 'Marked present for this practice.' });
+    if (newerHere) toast.success(`Linked ${player.playerName} to ${name}`, { description: 'The mark you just set stays.' });
+    else if (marked) toast.success(`Linked ${player.playerName} to ${name}`, { description: 'Marked present for this practice.' });
     else if (confirmation.value) toast.success(`Linked ${player.playerName} to ${name}`, { description: 'The practice is confirmed, so its marks were not changed.' });
     else toast.success(`Linked ${player.playerName} to ${name}`, { description: 'Their existing mark was kept.' });
 }
@@ -352,10 +382,12 @@ async function markPosted() {
 
             return;
         }
+        // A mark changed while this request is in flight saves after the post was stamped: stale.
+        const editsBefore = edits;
         const result = await postJson(`/rollcall/${props.section.id}/posted`, { week: props.week.date }).catch(unreachable);
         if (result.ok && result.data?.posted) {
             posted.value = result.data.posted;
-            editedSincePost.value = false;
+            editedSincePost.value = edits !== editsBefore;
             toast.success('Rollcall marked posted', { description: `${props.section.designation}, week of ${weekLabel.value}` });
         } else {
             toast.error('Could not mark the rollcall posted', { description: messageFor(result) });
@@ -413,15 +445,37 @@ const RETRY_POLL_MS = 2500;
 const RETRY_POLLS = 24;
 const retrying = ref(false);
 
-const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// The poll belongs to this screen: leaving it (another week, another page) ends it at once, so it
+// never reloads or toasts over whatever is shown next.
+let left = false;
+let leave;
+const leaving = new Promise((resolve) => (leave = resolve));
+onBeforeUnmount(() => {
+    left = true;
+    leave();
+});
+
+const pause = (ms) =>
+    new Promise((resolve) => {
+        const timer = setTimeout(resolve, ms);
+        leaving.then(() => {
+            clearTimeout(timer);
+            resolve();
+        });
+    });
+// A partial reload of this page: the autosave's leave guard lets it through (it is not leaving).
 const refreshTelemetry = () =>
-    new Promise((resolve) => router.reload({ only: ['telemetry', 'capture'], preserveState: true, preserveScroll: true, onFinish: resolve }));
+    Promise.race([
+        new Promise((resolve) => router.reload({ only: ['telemetry', 'capture'], preserveState: true, preserveScroll: true, onFinish: resolve })),
+        leaving,
+    ]);
 
 async function retryCapture() {
     retrying.value = true;
     try {
         const before = props.telemetry?.lastAttemptAt ?? null;
         const result = await postJson(`/rollcall/${props.section.id}/capture`, { week: props.week.date }).catch(unreachable);
+        if (left) return;
         if (!result.ok) {
             toast.error('Could not try again', { description: messageFor(result) });
             if (result.status === 409 && result.data?.locked) router.reload();
@@ -431,11 +485,15 @@ async function retryCapture() {
 
         for (let poll = 0; poll < RETRY_POLLS; poll++) {
             await pause(RETRY_POLL_MS);
+            if (left) return;
             await refreshTelemetry();
+            if (left) return;
 
             if (props.capture) {
                 // Marks were pre-filled on the server: save what is pending, then show them.
-                if (!(await autosave.flush({ includeHeld: true }))) {
+                const saved = await autosave.flush({ includeHeld: true });
+                if (left) return;
+                if (!saved) {
                     toast.error('Changes are not saved yet', { description: autosave.error.value ?? autosave.lockedMessage.value });
 
                     return;
@@ -473,9 +531,22 @@ const saveLabel = computed(() => {
 
 // Rollcall posted to the forum (3.10): when and by whom, and whether marks changed since — then
 // the post on the forum is stale and needs reposting.
+const markedSince = (practice) =>
+    Boolean(practice?.posted && practice.lastMarkedAt && new Date(practice.lastMarkedAt) > new Date(practice.posted.at));
 const posted = ref(props.practice?.posted ?? null);
-const editedSincePost = ref(
-    Boolean(posted.value && props.practice?.lastMarkedAt && new Date(props.practice.lastMarkedAt) > new Date(posted.value.at)),
+const editedSincePost = ref(markedSince(props.practice));
+
+// A reload that keeps this screen (the capture retry's, or any preserve-state visit) brings a fresh
+// `practice`: posted and confirmed are re-read from it, not kept from the first load. An edit seen
+// here since the same post stays flagged even before its save reaches the server.
+watch(
+    () => props.practice,
+    (practice) => {
+        const samePost = Boolean(posted.value && practice?.posted && practice.posted.at === posted.value.at);
+        editedSincePost.value = markedSince(practice) || (samePost && editedSincePost.value);
+        posted.value = practice?.posted ?? null;
+        confirmation.value = practice?.confirmation ?? null;
+    },
 );
 
 const counts = computed(() => countsOf(rows.value));
@@ -960,6 +1031,7 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                     :troopers="rows"
                     :editable="editable"
                     :disabled-reason="readOnlyReason"
+                    :before-link="beforeLink"
                     @linked="onLinked"
                     @dismissed="onDismissed"
                 />

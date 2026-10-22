@@ -25,6 +25,9 @@ const props = defineProps({
     troopers: { type: Array, required: true },
     editable: { type: Boolean, default: true },
     disabledReason: { type: String, default: null },
+    // Called with the chosen trooper id before a link is sent; resolves false to hold the link back
+    // (the rollcall saves the leader's pending marks first, so the pre-mark cannot race them).
+    beforeLink: { type: Function, default: null },
 });
 
 // `linked` carries the server's answer ({ marked, trooper, atRisk }); `dismissed` the player.
@@ -57,7 +60,13 @@ async function link(player) {
     s.busy = true;
     s.error = null;
     try {
-        const result = await postJson(`/rollcall/${props.sectionId}/unmatched/link`, { ...body(player), trooper_id: Number(s.trooperId) }).catch(unreachable);
+        const trooperId = Number(s.trooperId);
+        if (props.beforeLink && !(await props.beforeLink(trooperId))) {
+            s.error = 'Your marks are not saved yet, so the player was not linked. Retry saving them, then link again.';
+
+            return;
+        }
+        const result = await postJson(`/rollcall/${props.sectionId}/unmatched/link`, { ...body(player), trooper_id: trooperId }).catch(unreachable);
         if (result.ok) emit('linked', { player, ...result.data });
         else s.error = messageFor(result);
     } finally {

@@ -7,6 +7,10 @@ const page = reactive({ url: '/rollcall/12', props: { auth: { user: { username: 
 const push = vi.fn((visit) => (page.url = visit.url));
 const visit = vi.fn();
 const reload = vi.fn();
+// Global router listeners (the autosave's leave guard registers `before`).
+const listeners = {};
+// Runs a visit the way Inertia does: the `before` listeners can refuse it, and then nothing follows.
+const visitThroughGuard = (options, run) => (listeners.before?.({ detail: { visit: { method: 'get', only: [], except: [], ...options } } }) === false ? undefined : run());
 
 enableAutoUnmount(afterEach);
 const post = vi.fn();
@@ -28,7 +32,7 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
     Head: { template: '<head></head>' },
     Link: { props: ['href'], template: '<a :href="href"><slot /></a>' },
-    router: { push: (...args) => push(...args), visit: (...args) => visit(...args), reload: (...args) => reload(...args), on: () => () => {} },
+    router: { push: (...args) => push(...args), visit: (...args) => visit(...args), reload: (...args) => reload(...args), on: (event, callback) => ((listeners[event] = callback), () => listeners[event] === callback && delete listeners[event]) },
     usePage: () => page,
 }));
 
@@ -716,6 +720,23 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-step="3"]').attributes('aria-label')).toBe('Step 3, Review and post, Not posted yet');
         });
 
+        it('flags the post as stale when a mark changes while marking it posted is in flight', async () => {
+            page.url = '/rollcall/12?step=3';
+            let answer;
+            post.mockImplementation((url) => (url.endsWith('/posted') ? new Promise((resolve) => (answer = resolve)) : Promise.resolve({ ok: true, status: 200, data: { savedAt: '2026-10-08T16:22:00+00:00', atRisk: [] } })));
+            const wrapper = factory();
+            await wrapper.find('[data-testid="mark-posted"]').trigger('click');
+            await flushPromises();
+
+            await wrapper.find('[data-step="2"]').trigger('click');
+            await wrapper.find('[data-trooper="3"] button[data-value="missed"]').trigger('click');
+            answer({ ok: true, status: 200, data: { posted: { at: '2026-10-08T16:21:00+00:00', by: 'Vasquez.R' } } });
+            await flushPromises();
+            await wrapper.find('[data-step="3"]').trigger('click');
+
+            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Repost the updated BBCode');
+        });
+
         it('warns when Undo comes too late because marking posted already saved the marks', async () => {
             page.url = '/rollcall/12?step=2';
             const wrapper = factory({ troopers: [trooper(2, 'unsigned', null)] });
@@ -775,6 +796,44 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-testid="unmatched-drawer"]').exists()).toBe(false);
             expect(wrapper.find('[data-testid="unmatched-banner"]').exists()).toBe(false);
             expect(wrapper.find('[data-trooper="3"]').text()).toContain('Present');
+        });
+
+        const LINKED = { ok: true, status: 200, data: { marked: true, trooper: { id: 3, status: 'present', source: 'auto' }, atRisk: [] } };
+        const SAVED = { ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00', atRisk: [] } };
+        const pressed = (wrapper, value) => wrapper.find(`[data-trooper="3"] button[data-value="${value}"]`).attributes('aria-pressed');
+
+        it('saves a mark just set before linking, so the server keeps it as manual', async () => {
+            // What the server answers once the manual mark is saved: kept, not pre-marked.
+            const KEPT = { ok: true, status: 200, data: { marked: false, trooper: { id: 3, status: 'missed', source: 'manual' }, atRisk: [] } };
+            post.mockImplementation((url) => Promise.resolve(url.endsWith('/unmatched/link') ? KEPT : SAVED));
+            const wrapper = factory({ capture: CAPTURE, unmatched: UNMATCHED });
+
+            await wrapper.find('[data-trooper="3"] button[data-value="missed"]').trigger('click');
+            await wrapper.find('[data-testid="unmatched-trooper"]').setValue('3');
+            await wrapper.find('[data-testid="unmatched-link"]').trigger('click');
+            await flushPromises();
+
+            expect(post.mock.calls.map(([url]) => url)).toEqual(['/rollcall/12', '/rollcall/12/unmatched/link']);
+            expect(post.mock.calls[0][1]).toEqual({ week: '2026-10-03', marks: [{ trooper_id: 3, status: 'missed' }] });
+            expect(pressed(wrapper, 'missed')).toBe('true');
+            expect(toastSuccess).toHaveBeenLastCalledWith('Linked Trooper1 to Trooper3.A', { description: 'Their existing mark was kept.' });
+        });
+
+        it('keeps a mark the leader sets while the link is in flight', async () => {
+            let answer;
+            post.mockImplementation((url) => (url.endsWith('/unmatched/link') ? new Promise((resolve) => (answer = resolve)) : Promise.resolve(SAVED)));
+            const wrapper = factory({ capture: CAPTURE, unmatched: UNMATCHED });
+
+            await wrapper.find('[data-testid="unmatched-trooper"]').setValue('3');
+            await wrapper.find('[data-testid="unmatched-link"]').trigger('click');
+            await flushPromises();
+            await wrapper.find('[data-trooper="3"] button[data-value="makeup"]').trigger('click');
+            answer(LINKED);
+            await flushPromises();
+
+            expect(pressed(wrapper, 'makeup')).toBe('true');
+            expect(pressed(wrapper, 'present')).toBe('false');
+            expect(toastSuccess).toHaveBeenLastCalledWith('Linked Trooper1 to Trooper3.A', { description: 'The mark you just set stays.' });
         });
     });
 
@@ -879,6 +938,41 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Not confirmed');
             vi.useRealTimers();
         });
+
+        it('re-reads confirmed and posted from the practice a reload brings', async () => {
+            const wrapper = factory({ capture: CAPTURE });
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Not confirmed');
+
+            await wrapper.setProps({
+                practice: {
+                    lastMarkedAt: '2026-10-08T16:00:00+00:00',
+                    posted: { at: '2026-10-08T16:20:00+00:00', by: 'Ortega.M' },
+                    confirmation: { at: '2026-10-08T16:30:00+00:00', by: 'Ortega.M' },
+                },
+            });
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed');
+            await wrapper.find('[data-step="3"]').trigger('click');
+            page.url = '/rollcall/12?step=3';
+            await wrapper.vm.$nextTick();
+            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Rollcall posted 08Oct26 16:20Z by Ortega.M');
+            expect(wrapper.find('[data-testid="posted-state"]').text()).not.toContain('Repost');
+
+            await wrapper.setProps({ practice: { lastMarkedAt: '2026-10-08T16:40:00+00:00', posted: null, confirmation: null } });
+            expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Not confirmed');
+            expect(wrapper.find('[data-testid="posted-state"]').exists()).toBe(false);
+        });
+
+        it('keeps a post flagged stale across a reload while the edit since it is still on its way', async () => {
+            const POSTED = { at: '2026-10-08T16:20:00+00:00', by: 'Vasquez.R' };
+            const wrapper = factory({ capture: CAPTURE, practice: { lastMarkedAt: '2026-10-08T16:00:00+00:00', posted: POSTED } });
+
+            await wrapper.find('[data-trooper="3"] button[data-value="missed"]').trigger('click');
+            await wrapper.setProps({ practice: { lastMarkedAt: '2026-10-08T16:00:00+00:00', posted: { ...POSTED } } });
+            page.url = '/rollcall/12?step=3';
+            await wrapper.vm.$nextTick();
+
+            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Repost the updated BBCode');
+        });
     });
 
     describe('telemetry unavailable (7.9)', () => {
@@ -969,6 +1063,132 @@ describe('Rollcall page', () => {
             await flushPromises();
 
             expect(toastWarning).toHaveBeenCalledWith('Still waiting for the game server', expect.anything());
+        });
+
+        it('polls through the leave guard without asking while marks are still held', async () => {
+            const confirm = vi.fn().mockReturnValue(false);
+            vi.stubGlobal('confirm', confirm);
+            post.mockResolvedValue({ ok: true, status: 202, data: { queued: true } });
+            wrapper = factory({ telemetry: FAILED });
+            reload.mockImplementation((options) =>
+                visitThroughGuard(options, async () => {
+                    await wrapper.setProps({ telemetry: { ...FAILED, lastAttemptAt: '2026-10-08T16:20:00+00:00' } });
+                    options.onFinish();
+                }),
+            );
+
+            // Held for the undo window, so still unsaved while the poll runs.
+            await wrapper.find('[data-testid="mark-all-present"]').trigger('click');
+            await click();
+            await flushPromises();
+
+            expect(confirm).not.toHaveBeenCalled();
+            expect(toastError).toHaveBeenCalledWith('Game server still could not be read', expect.anything());
+            expect(wrapper.find('[data-testid="telemetry-retry"]').text()).toBe('Try again');
+            vi.unstubAllGlobals();
+        });
+
+        it('stops polling once the leader leaves the screen', async () => {
+            post.mockResolvedValue({ ok: true, status: 202, data: { queued: true } });
+            wrapper = factory({ telemetry: FAILED });
+            reload.mockImplementation(async (options) => options.onFinish?.());
+
+            await click();
+            expect(reload).toHaveBeenCalledTimes(1);
+            wrapper.unmount();
+            await vi.advanceTimersByTimeAsync(2500 * 30);
+            await flushPromises();
+
+            expect(reload).toHaveBeenCalledTimes(1);
+            expect(toastWarning).not.toHaveBeenCalled();
+            expect(vi.getTimerCount()).toBe(0);
+        });
+
+        describe('when the capture lands while a hand mark is on its way', () => {
+            const CAPTURED = { source: 'crcon', capturedAt: '2026-10-08T16:20:00+00:00' };
+            // The server's marks: the page's troopers, with every save that answered applied.
+            let saved;
+            const serverTroopers = () =>
+                [trooper(1, 'will_attend', 'present'), trooper(2, 'cannot_attend', null, { priorStatus: 'missed' }), trooper(3, 'unsigned', null)].map((t) =>
+                    saved.has(t.id) ? { ...t, status: saved.get(t.id), source: 'manual' } : t,
+                );
+            const answered = (body) => {
+                for (const mark of body.marks) if (mark.status) saved.set(mark.trooper_id, mark.status);
+
+                return { ok: true, status: 200, data: { savedAt: '2026-10-08T16:22:00+00:00', atRisk: [] } };
+            };
+            const pressed = (id, value) => wrapper.find(`[data-trooper="${id}"] button[data-value="${value}"]`).attributes('aria-pressed');
+
+            beforeEach(() => (saved = new Map()));
+
+            it('saves a mark set during the pre-reload save first, and reloads without asking to leave', async () => {
+                const confirm = vi.fn().mockReturnValue(true);
+                vi.stubGlobal('confirm', confirm);
+                let firstSave;
+                post.mockImplementation((url, body) => {
+                    if (url.endsWith('/capture')) return Promise.resolve({ ok: true, status: 202, data: { queued: true } });
+                    if (!firstSave) return new Promise((resolve) => (firstSave = () => resolve(answered(body))));
+
+                    return Promise.resolve(answered(body));
+                });
+                wrapper = factory({ telemetry: FAILED });
+                reload.mockImplementation((options) =>
+                    visitThroughGuard(options, async () => {
+                        if (options.only) await wrapper.setProps({ telemetry: null, capture: CAPTURED });
+                        else await wrapper.setProps({ troopers: serverTroopers() });
+                        options.onFinish?.();
+                    }),
+                );
+
+                await wrapper.find('[data-testid="telemetry-retry"]').trigger('click');
+                await vi.advanceTimersByTimeAsync(2000);
+                await wrapper.find('[data-trooper="3"] button[data-value="missed"]').trigger('click');
+                // The poll sees the capture and saves the pending mark before showing it.
+                await vi.advanceTimersByTimeAsync(600);
+                expect(firstSave).toBeTypeOf('function');
+                await wrapper.find('[data-trooper="2"] button[data-value="present"]').trigger('click');
+                firstSave();
+                await flushPromises();
+
+                expect(confirm).not.toHaveBeenCalled();
+                expect(reload).toHaveBeenLastCalledWith({ preserveScroll: true });
+                expect(post.mock.calls.filter(([url]) => url === '/rollcall/12').map(([, body]) => body.marks)).toEqual([
+                    [{ trooper_id: 3, status: 'missed' }],
+                    [{ trooper_id: 2, status: 'present' }],
+                ]);
+                expect(pressed(2, 'present')).toBe('true');
+                vi.unstubAllGlobals();
+            });
+
+            it('keeps a mark set while the reload is in flight on screen, and saves it', async () => {
+                let land;
+                post.mockImplementation((url, body) =>
+                    Promise.resolve(url.endsWith('/capture') ? { ok: true, status: 202, data: { queued: true } } : answered(body)),
+                );
+                wrapper = factory({ telemetry: FAILED });
+                reload.mockImplementation(async (options) => {
+                    if (options.only) {
+                        await wrapper.setProps({ telemetry: null, capture: CAPTURED });
+                        options.onFinish();
+
+                        return;
+                    }
+                    // The server reads the marks now; the page gets them a moment later.
+                    const troopers = serverTroopers();
+                    land = () => wrapper.setProps({ troopers });
+                });
+
+                await click();
+                await flushPromises();
+                expect(land).toBeTypeOf('function');
+                await wrapper.find('[data-trooper="1"] button[data-value="missed"]').trigger('click');
+                await land();
+
+                expect(pressed(1, 'missed')).toBe('true');
+                await vi.advanceTimersByTimeAsync(1000);
+                expect(saved.get(1)).toBe('missed');
+                expect(pressed(1, 'missed')).toBe('true');
+            });
         });
 
         it('surfaces a refusal and does not poll', async () => {

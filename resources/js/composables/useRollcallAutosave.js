@@ -72,6 +72,8 @@ export function useRollcallAutosave({
     const locked = computed(() => state.value === 'locked');
     let timer = null;
     let inFlight = null;
+    // The batch on its way, until its answer is in.
+    let sending = new Map();
 
     const sync = () => (pendingCount.value = pending.size);
 
@@ -108,6 +110,10 @@ export function useRollcallAutosave({
         return cancelled;
     }
 
+    // Whether a change to this field is not saved yet (queued, held, or on its way), so the screen
+    // knows the leader's value is newer than anything the server answers in the meantime.
+    const isPending = (trooperId, field) => pending.get(trooperId)?.[field] !== undefined || sending.get(trooperId)?.[field] !== undefined;
+
     async function flush({ includeHeld = false } = {}) {
         clearTimeout(timer);
         if (inFlight) {
@@ -134,6 +140,7 @@ export function useRollcallAutosave({
         }));
 
         state.value = 'saving';
+        sending = new Map(ready);
         inFlight = post(url, { week, marks })
             .catch(unreachable)
             .then((result) => {
@@ -205,10 +212,16 @@ export function useRollcallAutosave({
                     error.value = messageFor(result);
                 }
             })
-            .finally(() => (inFlight = null));
+            .finally(() => {
+                inFlight = null;
+                sending = new Map();
+            });
 
         await inFlight;
         if (state.value === 'idle' && pending.size) return flush({ includeHeld });
+        // An explicit save (marking posted, confirming, showing a capture) also sends what changed
+        // while its batch was in flight, so what follows it sees every mark on screen.
+        if (includeHeld && state.value === 'saved' && pending.size) return flush({ includeHeld });
         if (state.value !== 'error') reschedule();
 
         // A batch refused as locked was not saved either: a caller waiting on it (marking the
@@ -242,9 +255,13 @@ export function useRollcallAutosave({
         event.returnValue = '';
     };
     // Any Inertia visit away — a link, another week, or a form such as Sign out — prompts too.
-    // Saves themselves are fetches, and step changes client-side visits; neither reaches here.
-    const visitGuard = () => {
+    // Saves themselves are fetches, and step changes client-side visits; neither reaches here. A
+    // partial reload (`only`/`except`, such as the capture retry's poll) refreshes props on this
+    // page and keeps the queue, so it is not leaving: asking there would stall the poll.
+    const visitGuard = (event) => {
         if (!hasUnsaved.value) return;
+        const visit = event?.detail?.visit;
+        if (visit?.only?.length || visit?.except?.length) return;
 
         return window.confirm('Some rollcall changes are not saved yet. Leave anyway?');
     };
@@ -263,5 +280,5 @@ export function useRollcallAutosave({
         removeVisitGuard();
     });
 
-    return { queue, cancel, flush, retry, state, savedAt, error, hasUnsaved, pendingCount, rejected, rejectedMessage, onLeaveIds, onLeaveMessage, locked, lockedMessage };
+    return { queue, cancel, isPending, flush, retry, state, savedAt, error, hasUnsaved, pendingCount, rejected, rejectedMessage, onLeaveIds, onLeaveMessage, locked, lockedMessage };
 }
