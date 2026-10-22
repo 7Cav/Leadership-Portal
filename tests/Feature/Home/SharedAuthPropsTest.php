@@ -18,7 +18,7 @@ it('shares is_admin as a real boolean on every shell page', function (bool $isAd
 it('shares the configured forum address, without a trailing slash, for links that open a forum page', function () {
     config(['services.sevencav.base_url' => 'https://forum.example.test/']);
 
-    $this->actingAs(User::factory()->create())
+    $this->actingAs(User::factory()->serving()->create())
         ->get('/home')
         ->assertInertia(fn (AssertableInertia $page) => $page->where('forum.baseUrl', 'https://forum.example.test'));
 });

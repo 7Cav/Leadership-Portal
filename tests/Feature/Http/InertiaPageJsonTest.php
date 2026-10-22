@@ -62,7 +62,7 @@ it('keeps the page mountable when a forum username holds </script>', function ()
     PortalRoleGrant::factory()->create(['user_id' => $user->id, 'unit_id' => Unit::factory()->create()->id]);
 
     $this->withoutVite();
-    $parsed = parseFullLoad($this->actingAs(User::factory()->create())->get('/settings/staff-grants')->assertOk()->getContent());
+    $parsed = parseFullLoad($this->actingAs(User::factory()->serving()->create())->get('/settings/staff-grants')->assertOk()->getContent());
 
     expect($parsed['app'])->toBeTrue()
         ->and($parsed['page'])->toBeArray()

@@ -392,7 +392,7 @@ it('does not let members who may not sync use up the requests leaders can make',
     $leader = echelonLeader($tree['platoon']);
 
     for ($i = 0; $i < 7; $i++) {
-        $member = User::factory()->create();
+        $member = User::factory()->serving()->create();
         for ($j = 0; $j < 3; $j++) {
             $this->actingAs($member)->post("/units/{$tree['inside']->id}/roster-sync")->assertForbidden();
         }
