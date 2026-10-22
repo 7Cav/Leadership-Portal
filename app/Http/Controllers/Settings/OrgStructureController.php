@@ -7,7 +7,6 @@ use App\Commands\Units\CreateUnit;
 use App\Commands\Units\DeleteUnit;
 use App\Commands\Units\ImportOrgStructure;
 use App\Commands\Units\InvalidUnitPlacementException;
-use App\Commands\Units\MoveUnit;
 use App\Commands\Units\OrgStructureImportFailedException;
 use App\Commands\Units\UnitHasDependentsException;
 use App\Commands\Units\UpdateUnit;
@@ -121,13 +120,11 @@ class OrgStructureController extends Controller
 
     /**
      * Rename a node and/or re-parent it (AC #1, #2). Echelon (`type`) isn't editable here — see
-     * `UpdateUnit`'s docblock. Both are staged through their own Commands so a rename with no
-     * `parent_id` change never touches `UnitRepository::move()`. `MoveUnit` runs first
-     * deliberately: it validates before it ever writes (a no-op or a thrown
-     * `InvalidUnitPlacementException`), whereas `UpdateUnit` always writes — renaming first
-     * would let a refused re-parent leave the rename committed behind a 422.
+     * `UpdateUnit`'s docblock. `UpdateUnit` stages the re-parent through `MoveUnit` and the
+     * rename in one transaction, each with its own audit row, so the edit applies fully or not
+     * at all, and a rename with no `parent_id` change never touches `UnitRepository::move()`.
      */
-    public function update(Request $request, Unit $unit, UpdateUnit $renameUnit, MoveUnit $moveUnit): RedirectResponse
+    public function update(Request $request, Unit $unit, UpdateUnit $command): RedirectResponse
     {
         if (! $request->user()->is_admin) {
             abort(403, 'Only an Admin may edit the chain of command.');
@@ -140,8 +137,7 @@ class OrgStructureController extends Controller
         ]);
 
         try {
-            $moveUnit->handle($request->user(), $unit, $data['parent_id'] ?? null);
-            $renameUnit->handle($request->user(), $unit, $data['name'], $data['callsign'] ?? null);
+            $command->handle($request->user(), $unit, $data['name'], $data['callsign'] ?? null, $data['parent_id'] ?? null);
         } catch (InvalidUnitPlacementException $e) {
             // Cycle and echelon-rank violations are domain rules the request-shape validation
             // above can't express — surfaced as a form error on `parent_id` (AC #3).

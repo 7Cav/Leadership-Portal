@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TemplateVersionRepository;
 use App\Repositories\UnitRepository;
+use App\Repositories\UnitRepository\Eloquent as EloquentUnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
@@ -205,6 +206,41 @@ it('never persists the rename half of a request whose re-parent is refused', fun
     ])->assertInvalid('parent_id');
 
     expect(Unit::find($battalion->id)->name)->toBe('1st Battalion');
+});
+
+it('logs both halves of a move and rename, and rolls the move back when the rename fails', function () {
+    $admin = User::factory()->admin()->create();
+    $repo = app(UnitRepository::class);
+    $regiment = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+    $battalionA = $repo->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
+    $battalionB = $repo->create(UnitType::Battalion, '2nd Battalion', '2-7', $regiment->id);
+    $company = $repo->create(UnitType::Company, 'Alpha Company', 'A/1-7', $battalionA->id);
+    $platoon = $repo->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', $company->id);
+
+    // The rename hits a database fault after the move has written.
+    $failing = Mockery::mock(EloquentUnitRepository::class)->makePartial();
+    $failing->shouldReceive('rename')->andThrow(new RuntimeException('database went away'));
+    app()->instance(UnitRepository::class, $failing);
+
+    $this->actingAs($admin)->patch("/settings/org-structure/{$company->id}", [
+        'name' => 'Bravo Company',
+        'callsign' => 'B/2-7',
+        'parent_id' => $battalionB->id,
+    ])->assertServerError();
+
+    expect(Unit::find($company->id)->only('parent_id', 'path', 'name'))->toBe(['parent_id' => $battalionA->id, 'path' => $company->path, 'name' => 'Alpha Company'])
+        ->and(Unit::find($platoon->id)->path)->toBe($platoon->path)
+        ->and(AuditLogEntry::count())->toBe(0);
+
+    app()->forgetInstance(UnitRepository::class);
+    $this->actingAs($admin)->patch("/settings/org-structure/{$company->id}", [
+        'name' => 'Bravo Company',
+        'callsign' => 'B/2-7',
+        'parent_id' => $battalionB->id,
+    ])->assertRedirect();
+
+    expect(Unit::find($company->id)->only('parent_id', 'name'))->toBe(['parent_id' => $battalionB->id, 'name' => 'Bravo Company'])
+        ->and(AuditLogEntry::query()->orderBy('id')->pluck('action')->all())->toBe(['unit.moved', 'unit.renamed']);
 });
 
 it('422s a cyclic re-parent as a form error on parent_id (AC #3)', function () {

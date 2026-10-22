@@ -11,7 +11,9 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\UnitBilletMappingRepository;
 use App\Repositories\UnitRepository;
+use App\Repositories\UnitRepository\Eloquent as EloquentUnitRepository;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
 
@@ -71,6 +73,33 @@ function iosSnapshot(): array
 beforeEach(function () {
     app()->instance(CavApi::class, new CavApi(['base_url' => 'https://api.7cav.us', 'api_key' => 'cav7_test-key']));
     iosFake(iosFixture());
+});
+
+it('refuses to run while another import holds the import lock, and writes nothing', function () {
+    $running = Cache::lock('org-structure-import', 120);
+    $running->get();
+
+    expect(fn () => iosImport())->toThrow(OrgStructureImportFailedException::class, 'still running')
+        ->and(Unit::count())->toBe(0)
+        ->and(AuditLogEntry::count())->toBe(0);
+
+    $running->release();
+    iosImport();
+
+    expect(Unit::query()->whereNull('parent_id')->count())->toBe(1);
+});
+
+it('frees the import lock when the write fails, so the next import can run', function () {
+    $failing = Mockery::mock(EloquentUnitRepository::class)->makePartial();
+    $failing->shouldReceive('create')->andThrow(new RuntimeException('database went away'));
+    app()->instance(UnitRepository::class, $failing);
+
+    expect(fn () => iosImport())->toThrow(RuntimeException::class, 'database went away');
+
+    app()->forgetInstance(UnitRepository::class);
+    iosImport();
+
+    expect(Unit::query()->whereNull('parent_id')->count())->toBe(1);
 });
 
 it('builds Regiment → Battalion → Company → Platoon → Section from the line groups (AC #2)', function () {
