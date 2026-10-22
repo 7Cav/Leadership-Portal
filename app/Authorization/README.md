@@ -1,11 +1,12 @@
-# `Authorization/` — ScopeResolver, policies, view-as (AD-6, AD-7, AD-8, AD-9)
+# `Authorization/` — ScopeResolver, view-as (AD-6, AD-7, AD-8, AD-9)
 
 The single `ScopeResolver` that maps a user's effective scope → the set of units
 they may read (AD-8). Every echelon-scoped read filters through it — no controller
-hand-rolls visibility. Also holds policies and the view-as control (view-as narrows,
-never widens — AD-9).
+hand-rolls visibility. Also holds the view-as control (view-as narrows, never widens —
+AD-9). There are no Laravel policies; access checks go through the `ScopeResolver`.
 
-**Reached from** `Controllers/` (and any CommandHandler that must scope a write).
+**Reached from** `Controllers/`, `Http/Middleware/` (view-as sharing, the read-only guard and the serving-member check),
+and any CommandHandler that must scope a write.
 The ScopeResolver reads the org tree, `portal_role_grants` and the billet → command mapping through `Repositories/`
 methods only (AD-2) — never the DB directly. Enforced in `deptrac.yaml` since Story 1.11.
 
