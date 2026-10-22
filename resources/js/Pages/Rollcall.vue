@@ -24,6 +24,7 @@ import {
     PhUsersThree,
     PhUserCircleDashed,
     PhWarning,
+    PhX,
 } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -165,7 +166,7 @@ function set(trooper, kind, value, options = {}) {
     autosave.queue(trooper.id, field, value, options);
 }
 
-// "Mark all present" and "use last week's marks" set many rows at once. Their saves are held for
+// "Mark all present", "Mark the rest missed" and "use last week's marks" set many rows at once. Their saves are held for
 // the undo window, because a saved practice mark cannot be cleared again (3.3).
 const UNDO_MS = 6000;
 
@@ -233,6 +234,14 @@ const prefillable = computed(() => unmarked.value.filter((t) => t.priorStatus &&
 function markAllPresent() {
     const entries = unmarked.value.map((trooper) => ({ trooper, value: 'present' }));
     applyMany(entries, `Marked ${entries.length} as present`);
+}
+
+// Everyone still unmarked missed the practice: the same rows as "Mark all present" (LOA rows are
+// locked and skipped), held for the same Undo window.
+function markRestMissed() {
+    if (!editable.value) return;
+    const entries = unmarked.value.map((trooper) => ({ trooper, value: 'missed' }));
+    applyMany(entries, `Marked ${entries.length} as missed`);
 }
 
 function useLastWeek() {
@@ -788,9 +797,20 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                     </p>
                     <div v-if="editable && unmarked.length" class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
                         <span>Sets the {{ unmarked.length }} troopers not marked yet. Marks you already set stay.</span>
-                        <Button variant="outline" size="sm" class="sm:ml-auto" data-testid="mark-all-present" @click="markAllPresent">
-                            <PhChecks />Mark all present
-                        </Button>
+                        <div class="flex flex-wrap gap-2 sm:ml-auto">
+                            <Button variant="outline" size="sm" data-testid="mark-all-present" @click="markAllPresent">
+                                <PhChecks />Mark all present
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                data-testid="mark-rest-missed"
+                                :disabled="!editable || !unmarked.length"
+                                @click="markRestMissed"
+                            >
+                                <PhX />Mark the rest missed
+                            </Button>
+                        </div>
                     </div>
 
                     <template v-if="practiceView.length">
