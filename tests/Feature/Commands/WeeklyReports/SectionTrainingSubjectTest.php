@@ -8,7 +8,6 @@ use App\Commands\WeeklyReports\SendWeeklyReportHandler;
 use App\Commands\WeeklyReports\TrainingSubjectEnforcedException;
 use App\Models\AuditLogEntry;
 use App\Models\PlatoonTrainingTopic;
-use App\Models\PortalRoleGrant;
 use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
@@ -25,8 +24,8 @@ use Carbon\CarbonImmutable;
 beforeEach(function () {
     $this->platoon = Unit::factory()->create(['type' => UnitType::Platoon, 'path' => '720/']);
     $this->section = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => '720/721/']);
-    $this->leader = User::factory()->serving()->create();
-    PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
+    // The section's leader by billet: a staff grant only reads (it never saves or sends a report).
+    $this->leader = User::factory()->commanding($this->section)->create();
     Trooper::factory()->create(['primary_section_id' => $this->section->id]);
 
     $this->moment = CarbonImmutable::parse('2026-10-07 18:00:00', 'UTC');
