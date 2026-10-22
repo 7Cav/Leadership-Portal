@@ -1388,3 +1388,82 @@ describe('Rollcall page', () => {
         });
     });
 });
+
+describe('jumping to a trooper from their milpac (?focus=)', () => {
+    let scrolled;
+
+    beforeEach(() => {
+        page.url = '/rollcall/12';
+        push.mockClear();
+        document.body.innerHTML = '';
+        scrolled = [];
+        // happy-dom may not lay pages out; give it the method so the spy has something to wrap.
+        Element.prototype.scrollIntoView ??= () => {};
+        vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(function (options) {
+            scrolled.push([this.dataset.trooper, options]);
+        });
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    const face = (wrapper, id) => wrapper.find(`[data-trooper="${id}"] [data-card-face]`).element;
+    const spotlit = (wrapper) => wrapper.findAll('[data-spotlight]').map((card) => card.attributes('data-trooper'));
+
+    it('opens on the trooper\'s card: scrolled into view, focused and outlined', async () => {
+        page.url = '/rollcall/12?focus=2';
+        const wrapper = factory();
+        await flushPromises();
+
+        expect(wrapper.find('h2').text()).toBe('Signatures');
+        expect(document.activeElement).toBe(face(wrapper, 2));
+        expect(scrolled).toEqual([['2', { block: 'center' }]]);
+        expect(spotlit(wrapper)).toEqual(['2']);
+    });
+
+    it('opens a week with no work left on the practice step, since the review step has no cards', async () => {
+        page.url = '/rollcall/12?focus=2';
+        const wrapper = factory({ troopers: [trooper(1, 'will_attend', 'present'), trooper(2, 'cannot_attend', 'missed')] });
+        await flushPromises();
+
+        expect(wrapper.find('h2').text()).toBe('Section practice');
+        expect(document.activeElement).toBe(face(wrapper, 2));
+        expect(spotlit(wrapper)).toEqual(['2']);
+    });
+
+    it('works on whichever step the link names', async () => {
+        page.url = '/rollcall/12?step=2&focus=3';
+        const wrapper = factory();
+        await flushPromises();
+
+        expect(wrapper.find('h2').text()).toBe('Section practice');
+        expect(document.activeElement).toBe(face(wrapper, 3));
+        expect(spotlit(wrapper)).toEqual(['3']);
+    });
+
+    it('does nothing without a focus, or for a trooper with no card here', async () => {
+        for (const url of ['/rollcall/12', '/rollcall/12?focus=99', '/rollcall/12?focus=abc', '/rollcall/12?focus=-2']) {
+            page.url = url;
+            const wrapper = factory();
+            await flushPromises();
+
+            expect(spotlit(wrapper), url).toEqual([]);
+            expect(document.activeElement?.hasAttribute('data-card-face'), url).toBe(false);
+            expect(scrolled, url).toEqual([]);
+            wrapper.unmount();
+        }
+    });
+
+    it('lets go of the trooper when the leader moves to another step', async () => {
+        page.url = '/rollcall/12?focus=2';
+        const wrapper = factory();
+        await flushPromises();
+
+        await wrapper.findAll('button').find((b) => b.text().startsWith('Next: section practice')).trigger('click');
+        await flushPromises();
+
+        expect(push).toHaveBeenCalledWith(expect.objectContaining({ url: '/rollcall/12?step=2' }));
+        expect(spotlit(wrapper)).toEqual([]);
+    });
+});

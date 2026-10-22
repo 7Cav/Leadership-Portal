@@ -495,8 +495,26 @@ describe('the leadership quick actions (6.7)', function () {
         milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page
             ->where('actions', [
                 ['key' => 'section-roster', 'label' => 'Open section roster', 'href' => "/roster/{$this->section1->id}"],
-                ['key' => 'rollcall', 'label' => 'Open in rollcall', 'href' => "/rollcall/{$this->section1->id}"],
+                ['key' => 'rollcall', 'label' => 'Jump to rollcall', 'href' => "/rollcall/{$this->section1->id}?focus={$trooper->id}"],
             ]));
+    });
+
+    it('jumps to this week\'s rollcall of the trooper\'s section, which lists the trooper it focuses', function () {
+        $trooper = milpacTrooper($this->section1);
+        $href = collect(milpacActions($this->actingAs($this->leader), $trooper))->firstWhere('key', 'rollcall')['href'];
+
+        $this->get($href)->assertOk()->assertInertia(fn ($page) => $page
+            ->component('Rollcall')
+            ->where('section.id', $this->section1->id)
+            ->where('week.isCurrent', true)
+            ->where('troopers', fn ($troopers) => collect($troopers)->pluck('id')->contains($trooper->id)));
+    });
+
+    it('opens the rollcall plainly for a departed trooper, who has no card on it', function () {
+        $departed = milpacTrooper($this->section1, ['status' => TrooperStatus::Inactive]);
+
+        expect(collect(milpacActions($this->actingAs($this->leader), $departed))->firstWhere('key', 'rollcall'))
+            ->toBe(['key' => 'rollcall', 'label' => 'Open in rollcall', 'href' => "/rollcall/{$this->section1->id}"]);
     });
 
     it('hides the platoon readiness matrix from a section leader, whose scope does not hold the platoon', function () {
