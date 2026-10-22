@@ -270,6 +270,8 @@ describe('previewing with a real section', function () {
         $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")->assertInertia(function ($page) use (&$rollcall) {
             $rollcall = $page->toArray()['props'];
         });
+        // The card's attendance strip is the page's own; the post, and so the preview, does not read it.
+        $rollcall['troopers'] = array_map(fn (array $row) => array_diff_key($row, ['history' => true]), $rollcall['troopers']);
 
         $this->actingAs($this->leader)->getJson("/settings/templates/preview/{$this->section->id}?company={$this->alpha->id}")
             ->assertOk()

@@ -7,6 +7,7 @@ use App\Commands\Templates\ActivateTemplateVersion;
 use App\Commands\Templates\AuthorTemplateVersion;
 use App\Commands\Templates\InvalidTemplateException;
 use App\Http\Controllers\Controller;
+use App\Loa\LoaCoverage;
 use App\Models\ArtifactType;
 use App\Models\TemplateVersion;
 use App\Models\Unit;
@@ -90,7 +91,7 @@ class TemplatesController extends Controller
      * Gated as the rollcall page is (AD-8): a section outside the viewer's scope is a 403. It must also sit under the
      * company being edited, since that is the template it renders from; anything else is a 404.
      */
-    public function previewSection(Request $request, int $unit, ScopeResolver $scope): JsonResponse
+    public function previewSection(Request $request, int $unit, ScopeResolver $scope, LoaCoverage $loa): JsonResponse
     {
         // Answered as JSON, like the rollcall page's own background calls: the page reads it with fetch, not a visit.
         $validator = Validator::make($request->query(), ['company' => ['required', 'integer']]);
@@ -109,11 +110,19 @@ class TemplatesController extends Controller
         abort_if($section === null, 404);
 
         $week = WeekOf::start(CarbonImmutable::now());
+        $troopers = $this->roster->forWeek($section, $week)->troopers;
+        // The post prints a trooper whose leave covers the week as LOA, so the rows carry their leave as the rollcall
+        // page's do (`LoaCover::toArray()` when it covers them or needs review). The page's attendance strip is not
+        // part of the post, so it is left out here.
+        $covers = $loa->forTroopers(array_column($troopers, 'id'), $week);
 
         return response()->json([
             'section' => $this->roster->section($section, $sections),
-            'week' => $this->roster->week($week, $week),
-            'troopers' => $this->roster->forWeek($section, $week)->troopers,
+            'week' => [...$this->roster->week($week, $week), 'beforeFloor' => WeekOf::isBeforeFloor($week)],
+            'troopers' => array_map(fn (array $row) => [
+                ...$row,
+                'loa' => $covers[$row['id']]->suppressesAtRisk() ? $covers[$row['id']]->toArray() : null,
+            ], $troopers),
         ]);
     }
 
