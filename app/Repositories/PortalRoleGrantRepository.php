@@ -39,6 +39,12 @@ interface PortalRoleGrantRepository
     public function find(User $user, Unit $unit): ?PortalRoleGrant;
 
     /**
+     * The grant with this id, if it exists: the revoke route names a grant by id, and resolves it
+     * only after its Admin gate.
+     */
+    public function findById(int $id): ?PortalRoleGrant;
+
+    /**
      * Attach `$user` to `$unit` (Story 1.12). Idempotent on the unique `[user_id, unit_id]`
      * constraint — re-granting an already-held node returns the existing row rather than
      * throwing or duplicating it, including when a racing grant committed it inside the caller's

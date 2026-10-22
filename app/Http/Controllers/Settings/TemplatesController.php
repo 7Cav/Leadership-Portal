@@ -103,11 +103,14 @@ class TemplatesController extends Controller
     }
 
     /**
-     * Make an existing version the active one again. Admin-only, enforced here (AD-6).
+     * Make an existing version the active one again. Admin-only, enforced here (AD-6), and before the version
+     * is looked up, so a non-Admin gets the same 403 whether or not the id exists.
      */
-    public function activate(Request $request, TemplateVersion $version, ActivateTemplateVersion $command): RedirectResponse
+    public function activate(Request $request, int $version, ActivateTemplateVersion $command): RedirectResponse
     {
         abort_unless($request->user()->is_admin, 403, 'Only an Admin may activate a template version.');
+
+        $version = $this->versions->find($version) ?? abort(404);
 
         $data = $request->validate([
             'reason' => ['required', 'string', 'max:1000'],

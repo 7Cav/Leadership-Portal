@@ -200,7 +200,7 @@ it('refuses a leader a unit outside their command, and a plain user any unit', f
     $tree = echelonTree();
 
     $this->actingAs(echelonLeader($tree['platoon']))->post("/units/{$tree['outside']->id}/roster-sync")->assertForbidden();
-    $this->actingAs(User::factory()->create())->post("/units/{$tree['inside']->id}/roster-sync")->assertForbidden();
+    $this->actingAs(User::factory()->serving()->create())->post("/units/{$tree['inside']->id}/roster-sync")->assertForbidden();
 
     Queue::assertNothingPushed();
 });
@@ -209,7 +209,7 @@ it('refuses a unit that does not exist the same way as one that is not theirs', 
     Queue::fake();
     echelonTree();
 
-    $this->actingAs(User::factory()->create())->post('/units/999999/roster-sync')->assertForbidden();
+    $this->actingAs(User::factory()->serving()->create())->post('/units/999999/roster-sync')->assertForbidden();
 
     Queue::assertNothingPushed();
 });
@@ -392,7 +392,7 @@ it('does not let members who may not sync use up the requests leaders can make',
     $leader = echelonLeader($tree['platoon']);
 
     for ($i = 0; $i < 7; $i++) {
-        $member = User::factory()->create();
+        $member = User::factory()->serving()->create();
         for ($j = 0; $j < 3; $j++) {
             $this->actingAs($member)->post("/units/{$tree['inside']->id}/roster-sync")->assertForbidden();
         }

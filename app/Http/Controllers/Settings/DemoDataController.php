@@ -86,6 +86,7 @@ class DemoDataController extends Controller
     public function store(Request $request, GenerateDemoHistoryHandler $handler): RedirectResponse
     {
         $this->ensureEnabled();
+        $this->ensureAdmin($request);
 
         $data = $request->validate([
             'unit_id' => ['required', 'integer', 'exists:units,id'],
@@ -104,6 +105,7 @@ class DemoDataController extends Controller
     public function destroy(Request $request, PurgeDemoHistoryHandler $handler): RedirectResponse
     {
         $this->ensureEnabled();
+        $this->ensureAdmin($request);
 
         $data = $request->validate(['unit_id' => ['required', 'integer', 'exists:units,id']]);
 
@@ -119,5 +121,15 @@ class DemoDataController extends Controller
     private function ensureEnabled(): void
     {
         abort_unless((bool) config('portal.demo_tools'), 404);
+    }
+
+    /**
+     * The real Admin flag, checked before the request is validated: validating first would answer a
+     * non-Admin 422 for a unit id that does not exist and 403 for one that does. The handlers check
+     * the flag again, as the boundary.
+     */
+    private function ensureAdmin(Request $request): void
+    {
+        abort_unless($request->user()->is_admin, 403, 'Only an Admin may manage demo data.');
     }
 }

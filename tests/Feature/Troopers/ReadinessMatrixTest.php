@@ -85,7 +85,7 @@ describe('who may open it', function () {
     });
 
     it('refuses someone with no scope at all', function () {
-        readinessOpen($this->actingAs(User::factory()->create()), $this->section1)->assertForbidden();
+        readinessOpen($this->actingAs(User::factory()->serving()->create()), $this->section1)->assertForbidden();
     });
 
     it('lets an Admin open any unit', function () {
@@ -102,8 +102,15 @@ describe('who may open it', function () {
         readinessOpen($this, $this->platoon1)->assertForbidden();
     });
 
-    it('answers a unit that does not exist with 404', function () {
-        $this->actingAs($this->leader)->get('/readiness/999999')->assertNotFound();
+    it('answers a unit that does not exist with the same 403 as one outside scope, so ids cannot be probed', function () {
+        $missing = $this->actingAs($this->leader)->get('/readiness/999999')->assertForbidden();
+        $outside = $this->actingAs($this->leader)->get("/readiness/{$this->platoon2->id}")->assertForbidden();
+
+        expect($missing->exception?->getMessage())->toBe($outside->exception?->getMessage());
+    });
+
+    it('answers an Admin 403 for a unit that does not exist, as the report screen does', function () {
+        $this->actingAs(User::factory()->admin()->create())->get('/readiness/999999')->assertForbidden();
     });
 
     it('answers a unit id too long for an integer with 404 rather than erroring', function () {

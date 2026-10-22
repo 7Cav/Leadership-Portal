@@ -233,9 +233,9 @@ it('returns the at-risk flags recomputed from the saved marks', function () {
 });
 
 it('requires authentication, writing nothing', function () {
-    // The app renders JSON errors for api/* only, so a guest is redirected — the screen treats any
-    // answer without a `savedAt` as a failed save.
-    $this->postJson("/rollcall/{$this->section->id}", ['week' => '2026-10-03', 'marks' => []])->assertRedirect(route('login'));
+    // A fetch asks for JSON, so a guest gets a 401 it can act on (the screen reloads into sign-in)
+    // rather than a redirect to the login page it cannot follow.
+    $this->postJson("/rollcall/{$this->section->id}", ['week' => '2026-10-03', 'marks' => []])->assertUnauthorized()->assertJson(['message' => 'Unauthenticated.']);
 
     expect(SectionPractice::query()->count())->toBe(0);
 });

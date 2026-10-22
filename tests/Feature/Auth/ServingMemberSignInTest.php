@@ -1,8 +1,11 @@
 <?php
 
+use App\Models\SyncRun;
+use App\Models\SyncRunStatus;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Testing\TestResponse;
 use Saloon\Http\Faking\MockClient;
@@ -168,6 +171,52 @@ it('signs in a trooper Cav lists live on a serving roster whom the cache still s
         ->assertRedirect(route('home'));
 
     $this->assertAuthenticated();
+});
+
+it('keeps that session past the next request, until a clean roster sync started after the sign-in has run', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-10-13 12:00:00', 'UTC'));
+    User::create(['forum_user_id' => 4, 'cav_id' => 77, 'username' => 'Hale.S']);
+    Trooper::factory()->create(['cav_id' => 77, 'status' => TrooperStatus::Inactive]);
+    // The sync that cached the discharge ran before this sign-in.
+    SyncRun::factory()->create(['started_at' => now()->subHour(), 'finished_at' => now()->subHour()]);
+
+    gateSignIn(['api.7cav.us/api/v1/milpacs/profile/id/77' => MockResponse::make(gateRosterEntry(4, 'ROSTER_TYPE_RESERVE'))])
+        ->assertRedirect(route('home'));
+
+    // The cache still says departed; the session check must not bounce what Cav admitted moments ago.
+    $this->get('/home')->assertOk();
+
+    // A sync that failed wrote nothing, so the cache has not caught up.
+    $this->travel(10)->minutes();
+    SyncRun::factory()->create(['status' => SyncRunStatus::Failure, 'started_at' => now(), 'finished_at' => now()]);
+    $this->get('/home')->assertOk();
+
+    // A clean sync that started after the sign-in and still shows them departed has the last word.
+    SyncRun::factory()->create(['started_at' => now(), 'finished_at' => now()]);
+    $this->get('/home')
+        ->assertRedirect(route('login'))
+        ->assertSessionHas('error', GATE_NOT_SERVING);
+    $this->assertGuest();
+});
+
+it('does not let an Admin sign-in outlast the flag when Cav listed them as a past member', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-10-13 12:00:00', 'UTC'));
+    $admin = User::factory()->admin()->create(['forum_user_id' => 4, 'cav_id' => 77, 'username' => 'Hale.S']);
+    Trooper::factory()->create(['cav_id' => 77, 'status' => TrooperStatus::Inactive]);
+    SyncRun::factory()->create(['started_at' => now()->subHour(), 'finished_at' => now()->subHour()]);
+
+    // The Admin flag admits them; Cav's answer said they had left, so it vouches for nothing.
+    gateSignIn(['api.7cav.us/api/v1/milpacs/profile/id/77' => MockResponse::make(gateRosterEntry(4, 'ROSTER_TYPE_PAST_MEMBERS'))])
+        ->assertRedirect(route('home'));
+
+    $admin->forceFill(['is_admin' => false])->save();
+    // The next request loads the user afresh, as a real one would.
+    auth()->forgetGuards();
+
+    $this->get('/home')
+        ->assertRedirect(route('login'))
+        ->assertSessionHas('error', GATE_NOT_SERVING);
+    $this->assertGuest();
 });
 
 it('signs in an Admin who holds no milpac — Admins are never locked out by roster data', function () {

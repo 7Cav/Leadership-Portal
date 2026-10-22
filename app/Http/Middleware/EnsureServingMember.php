@@ -2,7 +2,7 @@
 
 namespace App\Http\Middleware;
 
-use App\Authorization\ScopeResolver;
+use App\Authorization\ServingSession;
 use App\Commands\Auth\AdmitServingMember;
 use Closure;
 use Illuminate\Http\Request;
@@ -14,29 +14,33 @@ use Symfony\Component\HttpFoundation\Response;
  * The sign-in gate ({@see AdmitServingMember}) decides admission once, at the
  * door; this keeps it true for the length of the session. A member discharged mid-session would
  * otherwise keep reading the open pages until the session expires, so each authenticated request
- * checks the roster cache's standing for the user's linked trooper and ends the session when it is
- * a departed one. Admins are never locked out by roster data (AD-7). A user the cache holds no
- * trooper for is let through: sign-in may have admitted them on Cav's live answer ahead of the
- * next sync, and the absence of a record is no evidence against them.
+ * asks {@see ServingSession::mustEnd()} and ends the session when the user no longer qualifies.
+ * A background `fetch` gets a 401 rather than a redirect it would only see as an opaque failure.
  */
 class EnsureServingMember
 {
-    public function __construct(private readonly ScopeResolver $scope) {}
+    private const MESSAGE = "Your forum account isn't linked to a serving 7th Cavalry milpac.";
+
+    public function __construct(private readonly ServingSession $serving) {}
 
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
 
-        if ($user === null || ! $this->scope->hasDeparted($user)) {
+        if ($user === null || ! $this->serving->mustEnd($user)) {
             return $next($request);
         }
 
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+
+        if ($request->expectsJson() && ! $request->header('X-Inertia')) {
+            return response()->json(['message' => self::MESSAGE], 401);
+        }
+
         Inertia::clearHistory();
 
-        return redirect()->route('login')
-            ->with('error', "Your forum account isn't linked to a serving 7th Cavalry milpac.");
+        return redirect()->route('login')->with('error', self::MESSAGE);
     }
 }

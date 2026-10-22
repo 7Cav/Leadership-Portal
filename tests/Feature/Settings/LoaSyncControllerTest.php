@@ -29,7 +29,7 @@ it('lets an Admin ask for a full run', function () {
 it('refuses a non-Admin with 403 and dispatches nothing (AD-6)', function () {
     Queue::fake();
 
-    $this->actingAs(User::factory()->create())->post('/settings/loa-sync')->assertForbidden();
+    $this->actingAs(User::factory()->serving()->create())->post('/settings/loa-sync')->assertForbidden();
 
     Queue::assertNothingPushed();
 });

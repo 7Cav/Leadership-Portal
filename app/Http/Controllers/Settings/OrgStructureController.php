@@ -123,11 +123,9 @@ class OrgStructureController extends Controller
      * rename in one transaction, each with its own audit row, so the edit applies fully or not
      * at all, and a rename with no `parent_id` change never touches `UnitRepository::move()`.
      */
-    public function update(Request $request, Unit $unit, UpdateUnit $command): RedirectResponse
+    public function update(Request $request, int $unit, UpdateUnit $command): RedirectResponse
     {
-        if (! $request->user()->is_admin) {
-            abort(403, 'Only an Admin may edit the chain of command.');
-        }
+        $unit = $this->adminUnit($request, $unit);
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -149,11 +147,9 @@ class OrgStructureController extends Controller
     /**
      * Remove a node (AC #4). Refused, not a raw DB constraint error, when children remain.
      */
-    public function destroy(Request $request, Unit $unit, DeleteUnit $command): RedirectResponse
+    public function destroy(Request $request, int $unit, DeleteUnit $command): RedirectResponse
     {
-        if (! $request->user()->is_admin) {
-            abort(403, 'Only an Admin may edit the chain of command.');
-        }
+        $unit = $this->adminUnit($request, $unit);
 
         try {
             $command->handle($request->user(), $unit);
@@ -162,6 +158,19 @@ class OrgStructureController extends Controller
         }
 
         return redirect()->route('settings.org-structure');
+    }
+
+    /**
+     * The unit an edit names, behind the Admin gate. The gate comes first, so a non-Admin gets the same
+     * 403 whether or not the id exists; only an Admin learns that an id is gone (404).
+     */
+    private function adminUnit(Request $request, int $id): Unit
+    {
+        if (! $request->user()->is_admin) {
+            abort(403, 'Only an Admin may edit the chain of command.');
+        }
+
+        return $this->units->find($id) ?? abort(404);
     }
 
     /**

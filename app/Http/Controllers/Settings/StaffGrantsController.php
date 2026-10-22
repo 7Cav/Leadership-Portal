@@ -139,13 +139,16 @@ class StaffGrantsController extends Controller
 
     /**
      * Revoke a grant (AC #2). A no-op if the grant no longer exists is not an error — it may
-     * already have been revoked from another tab.
+     * already have been revoked from another tab. The Admin gate runs before the lookup, so a
+     * non-Admin gets the same 403 whether or not the grant exists.
      */
-    public function destroy(Request $request, PortalRoleGrant $grant, RevokeStaffScope $command): RedirectResponse
+    public function destroy(Request $request, int $grant, RevokeStaffScope $command): RedirectResponse
     {
         if (! $request->user()->is_admin) {
             abort(403, 'Only an Admin may manage staff grants.');
         }
+
+        $grant = $this->grants->findById($grant) ?? abort(404);
 
         $data = $request->validate([
             'reason' => ['required', 'string', 'max:1000'],

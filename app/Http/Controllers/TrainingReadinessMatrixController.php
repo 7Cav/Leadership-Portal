@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
 use App\Milpac\ReadinessMatrix;
-use App\Models\Unit;
+use App\Repositories\UnitRepository;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -15,20 +15,24 @@ use Inertia\Response;
  *
  * Which units a viewer may open is decided here by the single ScopeResolver (AD-8, AD-6): a unit outside the
  * viewer's effective scope is a 403 whatever link led there, and a view-as preview narrows it as it would for that
- * leader (AD-9). The milpac's quick-action link to a trooper's platoon is only a convenience; this gate is the
- * boundary.
+ * leader (AD-9). A unit id that does not exist gets the same 403, as on the report and rollcall screens, so the
+ * answer never tells an out-of-scope unit from a missing one. The milpac's quick-action link to a trooper's
+ * platoon is only a convenience; this gate is the boundary.
  */
 class TrainingReadinessMatrixController extends Controller
 {
     public function __construct(
         private readonly ScopeResolver $scope,
         private readonly ReadinessMatrix $matrix,
+        private readonly UnitRepository $units,
     ) {}
 
-    public function show(Request $request, Unit $unit): Response
+    public function show(Request $request, int $unit): Response
     {
-        abort_unless($this->scope->resolve($request->user())->contains($unit->id), 403, 'That unit is outside your scope.');
+        $found = $this->scope->resolve($request->user())->contains($unit) ? $this->units->find($unit) : null;
 
-        return Inertia::render('TrainingReadinessMatrix', $this->matrix->for($unit));
+        abort_if($found === null, 403, 'That unit is outside your scope.');
+
+        return Inertia::render('TrainingReadinessMatrix', $this->matrix->for($found));
     }
 }

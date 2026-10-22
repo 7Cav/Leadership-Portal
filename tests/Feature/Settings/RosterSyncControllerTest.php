@@ -71,7 +71,7 @@ it('throttles the manual trigger: the 6th request from one Admin in a minute get
 it('refuses a non-Admin manual trigger with 403 (AC #4, AD-6)', function () {
     Queue::fake();
 
-    $user = User::factory()->create();
+    $user = User::factory()->serving()->create();
 
     $this->actingAs($user)->post('/settings/roster-sync')->assertForbidden();
 

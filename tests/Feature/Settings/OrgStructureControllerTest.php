@@ -20,7 +20,7 @@ use Saloon\Http\Faking\MockResponse;
 
 it('renders the org tree for any authenticated user', function () {
     app(UnitRepository::class)->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
-    $user = User::factory()->create();
+    $user = User::factory()->serving()->create();
 
     $this->actingAs($user)->get('/settings/org-structure')
         ->assertOk()
@@ -48,7 +48,7 @@ it('lets an Admin create a node under a chosen parent (AC #2)', function () {
 });
 
 it('refuses a non-Admin server-side, even though the UI hides the control (AC #5, AD-6)', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->serving()->create();
 
     $this->actingAs($user)->post('/settings/org-structure', [
         'type' => 'battalion',
@@ -260,7 +260,7 @@ it('422s a cyclic re-parent as a form error on parent_id (AC #3)', function () {
 });
 
 it('refuses a non-Admin server-side on rename/re-parent, even with the UI control hidden (AC #5)', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->serving()->create();
     $regiment = app(UnitRepository::class)->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
 
     $this->actingAs($user)->patch("/settings/org-structure/{$regiment->id}", [
@@ -305,7 +305,7 @@ it('422s a delete blocked by remaining children, with a clear reason (AC #4)', f
 });
 
 it('refuses a non-Admin delete server-side, even with the UI control hidden (AC #5)', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->serving()->create();
     $unit = app(UnitRepository::class)->create(UnitType::Section, 'Nightriders', '1/1/E/2-7', null);
 
     $this->actingAs($user)->delete("/settings/org-structure/{$unit->id}")->assertForbidden();
@@ -351,14 +351,14 @@ it('lets an Admin import the tree and reports what was created (2.9)', function 
 });
 
 it('passes a null importResult when no import just ran', function () {
-    $this->actingAs(User::factory()->create())->get('/settings/org-structure')
+    $this->actingAs(User::factory()->serving()->create())->get('/settings/org-structure')
         ->assertInertia(fn ($page) => $page->where('importResult', null));
 });
 
 it('refuses a non-Admin import with 403 and calls Cav not at all (2.9, AD-6)', function () {
     oscFakeCav(MockResponse::make(['groups' => []]));
 
-    $this->actingAs(User::factory()->create())->post('/settings/org-structure/import')->assertForbidden();
+    $this->actingAs(User::factory()->serving()->create())->post('/settings/org-structure/import')->assertForbidden();
 
     MockClient::getGlobal()->assertNothingSent();
     expect(Unit::count())->toBe(0);

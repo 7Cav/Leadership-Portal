@@ -8,7 +8,7 @@ use App\Models\User;
  * replayed, and rotate the CSRF token — not merely forget who the user was.
  */
 it('rotates the CSRF token on logout (AC #1)', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->serving()->create();
 
     $this->actingAs($user)->get('/home')->assertOk();
 
@@ -27,7 +27,7 @@ it('rotates the CSRF token on logout (AC #1)', function () {
 });
 
 it('flushes the session payload, not just the auth state (AC #1)', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->serving()->create();
 
     // A marker standing in for anything a session accumulates while signed in. If logout
     // only called Auth::logout(), this would survive — which is the bug this asserts against.
@@ -79,7 +79,7 @@ it('kills the session itself, so replaying the pre-logout cookie is denied (AC #
 });
 
 it('clears the Inertia history so "back" cannot repaint the authenticated page (AC #2)', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->serving()->create();
 
     $this->actingAs($user)->get('/home')->assertOk();
 
@@ -95,7 +95,7 @@ it('clears the Inertia history so "back" cannot repaint the authenticated page (
 });
 
 it('encrypts the history of an authenticated page, so clearing it on logout has teeth (AC #2)', function (string $path) {
-    $user = User::factory()->create();
+    $user = User::factory()->serving()->create();
 
     // `clearHistory()` above only deletes the client's encryption key. With history
     // encryption off the stored page objects are plaintext, losing the key costs them
@@ -108,7 +108,7 @@ it('encrypts the history of an authenticated page, so clearing it on logout has 
 })->with(['/home', '/reports', '/settings/org-structure', '/settings/staff-grants']);
 
 it('marks authenticated responses no-store so a reload cannot repaint them (AC #2)', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->serving()->create();
 
     $response = $this->actingAs($user)->get('/home');
 
@@ -119,7 +119,7 @@ it('marks authenticated responses no-store so a reload cannot repaint them (AC #
 });
 
 it('marks a rejected request no-store too, not just the happy path (AC #2)', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->serving()->create();
 
     liftCsrfTestShortCircuit();
 
@@ -144,7 +144,7 @@ it('requires an authenticated session to log out', function () {
 });
 
 it('is not reachable by GET — a logout link must not be prefetchable', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->serving()->create();
 
     $this->actingAs($user)->get('/logout')->assertStatus(405);
 });

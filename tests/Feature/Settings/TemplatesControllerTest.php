@@ -32,7 +32,7 @@ describe('viewing', function () {
         authorTemplate($this, 'first body');
         authorTemplate($this, 'second body');
 
-        $this->actingAs(User::factory()->create())->get('/settings/templates')->assertOk()->assertInertia(fn ($page) => $page
+        $this->actingAs(User::factory()->serving()->create())->get('/settings/templates')->assertOk()->assertInertia(fn ($page) => $page
             ->component('Settings/Templates')
             ->where('isAdmin', false)
             ->where('company', $this->company->id)
@@ -121,7 +121,7 @@ describe('saving a new version', function () {
     });
 
     it('refuses a non-Admin on the server, whatever the page showed, and writes nothing', function () {
-        $this->actingAs(User::factory()->create())->post('/settings/templates', [
+        $this->actingAs(User::factory()->serving()->create())->post('/settings/templates', [
             'company_id' => $this->company->id,
             'body' => 'body',
             'reason' => 'why',
@@ -191,7 +191,7 @@ describe('making an older version active', function () {
         $first = authorTemplate($this, 'first body');
         $second = authorTemplate($this, 'second body');
 
-        $this->actingAs(User::factory()->create())->post("/settings/templates/{$first->id}/activate", ['reason' => 'why'])->assertForbidden();
+        $this->actingAs(User::factory()->serving()->create())->post("/settings/templates/{$first->id}/activate", ['reason' => 'why'])->assertForbidden();
 
         expect($this->repo->activeFor($this->company->id, ArtifactType::RollcallBbcode)->id)->toBe($second->id);
     });

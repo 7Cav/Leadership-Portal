@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Authorization\ServingSession;
 use App\Commands\Auth\Admission;
 use App\Commands\Auth\AdmitServingMember;
 use App\Commands\Auth\BeginForumLogin;
@@ -80,7 +81,7 @@ class ForumAuthController extends Controller
      * session starts only for an Admin or a user linked to a serving trooper
      * ({@see AdmitServingMember}); everyone else goes back to the login screen with the reason.
      */
-    public function callback(Request $request, CompleteForumLogin $command, EnrichCavProfile $enrich, AdmitServingMember $admit): RedirectResponse
+    public function callback(Request $request, CompleteForumLogin $command, EnrichCavProfile $enrich, AdmitServingMember $admit, ServingSession $serving): RedirectResponse
     {
         $expectedState = $request->session()->pull(self::STATE_KEY);
         $providedState = $request->query('state');
@@ -141,6 +142,13 @@ class ForumAuthController extends Controller
         $request->session()->regenerate();
 
         $this->attachCavProfile($request, $cav);
+
+        // Admitted on Cav's live roster, which can be ahead of the cache: the session check reads the
+        // cache, so it needs to know not to bounce a re-enlisted trooper before the next sync. An Admin got in on
+        // the flag, whatever roster Cav named, so their note would keep a departed trooper in once the flag goes.
+        if ($cav['live'] !== null && ! $user->is_admin) {
+            $serving->admittedLive($user);
+        }
 
         return redirect()->intended(route('home'));
     }
