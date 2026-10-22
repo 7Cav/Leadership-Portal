@@ -122,8 +122,11 @@ class Eloquent implements LoaRepository
                 ];
 
                 // An ELOA already ended by a return keeps the end the return gave it: the thread itself
-                // never says so, and would otherwise reopen the leave on every re-read.
-                if (! $isNew && $loa->return_thread_id !== null && $write->parseStatus === LoaParseStatus::Ok) {
+                // never says so, and would otherwise reopen the leave on every re-read. That holds for a
+                // needs_review read too. The end comes from the return thread, not this one, and a return
+                // is applied only once, so clearing it here would leave the ELOA open for good once the
+                // thread reads cleanly again.
+                if (! $isNew && $loa->return_thread_id !== null) {
                     unset($attributes['ends_at']);
                 }
 
