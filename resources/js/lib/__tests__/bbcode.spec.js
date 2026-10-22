@@ -77,6 +77,16 @@ describe('the legend of template codes', () => {
             expect(parse(inRow.has(name) ? `{{#troopers}}${example}{{/troopers}}` : example), name).toMatchObject({ ok: true });
         }
     });
+
+    it('splits a section into the open and close tags the editor puts around a selection, and keeps any other code whole', () => {
+        const codes = Object.fromEntries(templateLegend().flatMap((group) => group.entries.map((entry) => [entry.name, entry])));
+
+        expect(codes.troopers).toMatchObject({ open: '{{#troopers}}', close: '{{/troopers}}' });
+        expect(codes.sp_present).toMatchObject({ open: '{{#sp_present}}', close: '{{/sp_present}}' });
+        expect(codes.unit).toMatchObject({ open: '{{unit}}', close: '' });
+        expect(codes.rank_icon).toMatchObject({ open: '{{rank_icon}}', close: '' });
+        expect(codes.upper).toMatchObject({ open: '{{value|upper}}', close: '' });
+    });
 });
 
 describe('the sample section for the template preview', () => {

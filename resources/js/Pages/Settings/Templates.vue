@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, ref, toRef, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, toRef, watch } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { refDebounced } from '@vueuse/core';
 import { PhCaretDown, PhCheck, PhCircleNotch, PhCopy, PhFileCode, PhLockSimple, PhWarning } from '@phosphor-icons/vue';
@@ -154,6 +154,38 @@ async function copyCode(code) {
 }
 onBeforeUnmount(() => clearTimeout(copiedTimer));
 
+// Clicking a code puts it in the editor at the cursor, in place of any selection, as typing it would: a section's open
+// and close tags go around the selection, with the cursor between them when nothing is selected. The editor keeps the
+// focus with the cursor after what went in. Only an Admin who can edit gets this; anyone else can still copy a code.
+const bodyField = ref(null);
+const canInsert = computed(() => showEditor.value && !readOnlyPreview.value);
+async function insertCode(entry) {
+    const field = bodyField.value?.$el;
+    if (!canInsert.value || !field) return;
+
+    const start = field.selectionStart ?? form.body.length;
+    const end = field.selectionEnd ?? start;
+    const inserted = entry.close === '' ? entry.open : `${entry.open}${form.body.slice(start, end)}${entry.close}`;
+    if (form.body.length - (end - start) + inserted.length > props.maxBodyLength) return;
+
+    // A section with nothing selected leaves the cursor between its tags, ready for what goes inside.
+    const caret = entry.close !== '' && start === end ? start + entry.open.length : start + inserted.length;
+
+    // `execCommand('insertText')` is deprecated, but it is still the only way to edit a textarea through the browser's
+    // own editing, so the insert joins the native undo stack and Ctrl+Z takes it back. It fires an `input` event, which
+    // updates `form.body` through v-model like typing does. Where it is missing or refuses (happy-dom in the tests),
+    // the text is set directly instead, which works the same except for undo.
+    field.focus();
+    field.setSelectionRange(start, end);
+    const native = typeof document.execCommand === 'function' && document.execCommand('insertText', false, inserted);
+    if (!native) {
+        form.body = form.body.slice(0, start) + inserted + form.body.slice(end);
+        await nextTick();
+        field.focus();
+    }
+    field.setSelectionRange(caret, caret);
+}
+
 // The template filled with a made-up section (the legend's examples), drawn as the forum shows the post. It follows the
 // editor a moment after the Admin stops typing, so a long template is not redrawn on every key.
 const SAMPLE = sampleContext();
@@ -213,6 +245,7 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                             <Label for="template-body">Template</Label>
                             <Textarea
                                 id="template-body"
+                                ref="bodyField"
                                 v-model="form.body"
                                 data-testid="template-body"
                                 rows="16"
@@ -342,7 +375,8 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                         <code class="rounded-sm bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{{ EXAMPLES.print }}</code> prints a value,
                         <code class="rounded-sm bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{{ EXAMPLES.loop }}</code> repeats for each trooper, and
                         <code class="rounded-sm bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{{ EXAMPLES.inverted }}</code> shows when a value or flag
-                        is not set. A code that is not listed here is refused when you save.
+                        is not set. A code that is not listed here is refused when you save.<template v-if="canInsert">
+                            Click a code to put it in the template at the cursor.</template>
                     </p>
 
                     <div class="mt-7 space-y-9">
@@ -359,7 +393,17 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                                     :data-testid="`legend-entry-${entry.name}`"
                                 >
                                     <div class="flex items-start justify-between gap-2">
-                                        <code class="rounded-sm border border-border bg-muted px-1.5 py-0.5 font-mono text-xs break-all text-foreground" data-testid="legend-code">{{
+                                        <button
+                                            v-if="canInsert"
+                                            type="button"
+                                            class="rounded-sm text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                                            :aria-label="`Insert ${entry.code} in the template`"
+                                            :data-testid="`legend-insert-${entry.name}`"
+                                            @click="insertCode(entry)"
+                                        >
+                                            <code class="block cursor-pointer rounded-sm border border-border bg-muted px-1.5 py-0.5 font-mono text-xs break-all text-foreground transition-colors hover:border-ring hover:bg-accent" data-testid="legend-code">{{ entry.code }}</code>
+                                        </button>
+                                        <code v-else class="rounded-sm border border-border bg-muted px-1.5 py-0.5 font-mono text-xs break-all text-foreground" data-testid="legend-code">{{
                                             entry.code
                                         }}</code>
                                         <Button
