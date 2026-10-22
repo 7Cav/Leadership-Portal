@@ -244,6 +244,18 @@ interface TrooperRepository
     public function find(int $id): ?Trooper;
 
     /**
+     * The troopers whose username contains `$term`, ignoring case, for the shell's trooper search: those placed in
+     * one of `$sectionIds`, plus (with `$withUnplaced`) those the sync has placed nowhere. The caller passes the
+     * viewer's scope, so scope stays the ScopeResolver's to decide (AD-8). Serving troopers come before departed
+     * ones, a username that starts with the term before one that only contains it, then by username. At most
+     * `$limit` rows. `%` and `_` in the term match themselves, not any character.
+     *
+     * @param  iterable<int>  $sectionIds
+     * @return EloquentCollection<int, Trooper>
+     */
+    public function searchByUsername(string $term, iterable $sectionIds, bool $withUnplaced, int $limit): EloquentCollection;
+
+    /**
      * The troopers with these ids, keyed by id; an unknown id is simply absent. One query, for a
      * worklist that names a few troopers out of a whole roster (5.10).
      *

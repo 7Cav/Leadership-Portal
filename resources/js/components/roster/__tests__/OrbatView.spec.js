@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import OrbatView from '../OrbatView.vue';
+import { handleSlash } from '@/composables/useSlashShortcut';
 import { CURRENT, roster, WEEKS } from './fixture';
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
@@ -8,13 +9,19 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     Link: { props: ['href'], template: '<a :href="href"><slot /></a>' },
 }));
 
+// Every mounted table holds the `/` key while it lives, so each test's tables are unmounted after it.
+const mounted = [];
+afterEach(() => mounted.splice(0).forEach((wrapper) => wrapper.vm.$.isUnmounted || wrapper.unmount()));
+
 function factory(props = {}) {
     const { units, troopers } = roster();
-
-    return mount(OrbatView, {
+    const wrapper = mount(OrbatView, {
         props: { units, troopers, weeks: WEEKS, currentWeek: CURRENT, query: '', filter: 'all', ...props },
         attachTo: document.body,
     });
+    mounted.push(wrapper);
+
+    return wrapper;
 }
 
 describe('Order of battle (roster-s2)', () => {
@@ -99,6 +106,9 @@ describe('Order of battle (roster-s2)', () => {
     });
 
     it('focuses the search on /, but not while a dialog is open', () => {
+        // The shell owns the `/` listener (useSlashShortcut); the table only claims the key.
+        const shell = (event) => handleSlash(event, () => {});
+        document.addEventListener('keydown', shell);
         const wrapper = factory();
         const search = wrapper.find('[data-testid="roster-search"]').element;
 
@@ -112,6 +122,7 @@ describe('Order of battle (roster-s2)', () => {
         document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true }));
         expect(document.activeElement).toBe(search);
         wrapper.unmount();
+        document.removeEventListener('keydown', shell);
     });
 
     it('shows a skeleton while another unit loads', () => {
@@ -119,5 +130,21 @@ describe('Order of battle (roster-s2)', () => {
 
         expect(wrapper.find('table').attributes('aria-busy')).toBe('true');
         expect(wrapper.find('[data-member]').exists()).toBe(false);
+    });
+
+    it("keeps / for its own filter while mounted, instead of the shell's trooper search", () => {
+        const openSearch = vi.fn();
+        const shell = (event) => handleSlash(event, openSearch);
+        document.addEventListener('keydown', shell);
+        const wrapper = factory();
+
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true }));
+        expect(document.activeElement).toBe(wrapper.find('[data-testid="roster-search"]').element);
+        expect(openSearch).not.toHaveBeenCalled();
+
+        wrapper.unmount();
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true }));
+        expect(openSearch).toHaveBeenCalledOnce();
+        document.removeEventListener('keydown', shell);
     });
 });
