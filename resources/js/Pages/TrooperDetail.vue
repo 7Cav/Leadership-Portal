@@ -78,7 +78,7 @@ const staleNotice = computed(() => {
 </script>
 
 <template>
-    <Head :title="trooper.displayName" />
+    <Head :title="`${trooper.displayName} · 7Cav Leadership Portal`" />
 
     <!-- The shell's <main> already supplies the gutters and the max width. -->
     <div class="flex flex-col gap-5">
