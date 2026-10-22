@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { PhClockCounterClockwise, PhLockSimple, PhSignature } from '@phosphor-icons/vue';
 import AttendanceSourceIndicator from '@/components/attendance/AttendanceSourceIndicator.vue';
 import LoaBadge from '@/components/LoaBadge.vue';
+import AttendanceStrip from '@/components/rollcall/AttendanceStrip.vue';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { fullName, initials, isLocked, optionsFor, practiceLabel, signatureLabel } from '@/lib/rollcall';
@@ -136,6 +137,7 @@ const TONE = {
                     <div class="min-w-0 flex-1">
                         <p class="truncate text-sm leading-tight font-semibold">{{ name }}</p>
                         <div class="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                            <AttendanceStrip v-if="trooper.history?.length" :weeks="trooper.history" :joined="trooper.joined" />
                             <LoaBadge v-if="cover" :cover="cover" :sync="loaSync" />
                             <template v-if="locked">
                                 <AttendanceSourceIndicator v-if="!cover" status="loa" :source="trooper.source" />

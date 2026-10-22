@@ -1,9 +1,10 @@
 <script setup>
 // One Cav week as a split cell (roster-s3.html `.cc`): top half the rollcall signature, bottom
 // half the section practice. Missed and unsigned carry a slash and LOA a hatch, so the state never
-// rests on colour alone. Section aggregate rows pass heat levels `g1`–`g4` instead.
+// rests on colour alone. Section aggregate rows pass heat levels `g1`–`g4` instead. Without `rc`
+// only the SP half renders (the rollcall card's attendance strip).
 defineProps({
-    rc: { type: String, required: true },
+    rc: { type: String, default: null },
     sp: { type: String, required: true },
     size: { type: String, default: 'md' },
     auto: { type: Boolean, default: false },
@@ -12,7 +13,7 @@ defineProps({
 
 <template>
     <span class="roster-cc" :class="[`roster-cc--${size}`, { 'roster-cc--auto': auto }]">
-        <span class="roster-h" :class="`roster-h--${rc}`" />
+        <span v-if="rc" class="roster-h" :class="`roster-h--${rc}`" />
         <span class="roster-h" :class="`roster-h--${sp}`" />
     </span>
 </template>

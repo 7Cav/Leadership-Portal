@@ -46,6 +46,7 @@ use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\AttendanceRepository;
+use App\Repositories\CountingMark;
 use App\Repositories\GameIdentityLinkException;
 use App\Repositories\PracticeCapturePlayerRepository;
 use App\Repositories\SectionPracticeRepository;
@@ -100,6 +101,9 @@ class RollcallController extends Controller
      * weeks whose marks still feed the at-risk flags (AD-21).
      */
     private const STATUS_WEEKS = KpiService::WINDOW_WEEKS;
+
+    /** Completed Cav weeks each trooper card's attendance strip shows: the ones before the week being viewed. */
+    public const HISTORY_WEEKS = 4;
 
     public function __construct(
         private readonly ScopeResolver $scope,
@@ -668,6 +672,7 @@ class RollcallController extends Controller
             : collect();
 
         $roster = $this->troopers->placedIn($section->id);
+        $history = $this->history($section, $roster->pluck('id'), $weekStart);
         $lastSync = $this->rosterSync->current();
         // The one LOA definition (4.4, AD-21), the same the Command refuses a practice mark by: a covered trooper's
         // status is derived as `loa`, so the screen locks the row and never sends one for them (3.4).
@@ -692,6 +697,9 @@ class RollcallController extends Controller
                 // `LoaCover::toArray()` for a trooper with leave this week (covered or needs review), the badge's
                 // shape; null with none. A leave that needs review derives no status, so that row stays markable.
                 'loa' => $covers[$trooper->id]->suppressesAtRisk() ? $covers[$trooper->id]->toArray() : null,
+                // The Cav join date, so a week before it reads "not in the unit yet" as on the roster matrix.
+                'joined' => $trooper->tis?->toDateString(),
+                'history' => $history[$trooper->id],
             ])->sortBy(fn (array $row) => mb_strtolower($row['name'] ?? "~{$row['cavId']}"))->values()->all(),
             'priorWeekMarked' => $prior->isNotEmpty(),
             // Where the leave data comes from and how fresh it is (4.3, AD-20), shown with every LOA badge.
@@ -755,6 +763,38 @@ class RollcallController extends Controller
                 'posted' => $practice?->posted ?? false,
             ];
         }, range(1, self::STATUS_WEEKS));
+    }
+
+    /**
+     * Each trooper's Section Practice marks over the {@see HISTORY_WEEKS} completed Cav weeks before `$weekStart`,
+     * oldest first, for the card's attendance strip: the same counting marks the roster matrix reads (one query for
+     * the section) and LOA from the one coverage definition, as the KPI service reads it (one query). A week with no
+     * practice row has a null `status` and is not `held`; `loa` is true when leave covers the week or the week was
+     * marked `loa`. A leave that needs review is not shown as LOA, since nothing says the trooper was away (AD-4).
+     *
+     * @param  Collection<int, int>  $trooperIds
+     * @return array<int, list<array{week: string, status: ?string, held: bool, loa: bool}>>
+     */
+    private function history(Unit $section, Collection $trooperIds, CarbonImmutable $weekStart): array
+    {
+        $first = $weekStart->subWeeks(self::HISTORY_WEEKS);
+        $weeks = array_map(fn (int $offset) => $first->addWeeks($offset)->toDateString(), range(0, self::HISTORY_WEEKS - 1));
+
+        $marks = $this->attendance->countingMarks($section, $first, $weekStart->subWeek())
+            ->groupBy(fn (CountingMark $mark) => $mark->trooperId)
+            ->map(fn (Collection $marks) => $marks->keyBy(fn (CountingMark $mark) => $mark->weekStart->toDateString()));
+        $covers = $this->loaCoverage->forTroopersOverWeeks($trooperIds, $first, self::HISTORY_WEEKS);
+
+        return $trooperIds->mapWithKeys(fn (int $id) => [$id => array_map(function (string $week) use ($id, $marks, $covers) {
+            $mark = $marks->get($id)?->get($week);
+
+            return [
+                'week' => $week,
+                'status' => $mark?->status?->value,
+                'held' => $mark?->held ?? false,
+                'loa' => $covers[$id][$week]->isCovered() || $mark?->status === AttendanceStatus::Loa,
+            ];
+        }, $weeks)])->all();
     }
 
     /**
