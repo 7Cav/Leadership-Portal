@@ -27,6 +27,7 @@ import { Textarea } from '@/components/ui/textarea';
 import HistoryPanel from '@/components/reports/HistoryPanel.vue';
 import PlatoonTopicField from '@/components/reports/PlatoonTopicField.vue';
 import ReadinessChecklist from '@/components/reports/ReadinessChecklist.vue';
+import ReportDeadlineBanner from '@/components/reports/ReportDeadlineBanner.vue';
 import ReportPreview from '@/components/reports/ReportPreview.vue';
 import SendDialog from '@/components/reports/SendDialog.vue';
 import TimeAgo from '@/components/TimeAgo.vue';
@@ -422,6 +423,8 @@ function useSuggestion() {
                 </p>
             </div>
         </section>
+
+        <ReportDeadlineBanner :due="week.due" :overdue-until="week.overdueUntil" :sent="sent" />
 
         <!-- The shared mode switch (5.3 AC): this screen creates and sends; the roll-up navigates. -->
         <nav aria-label="Report mode" class="inline-flex w-fit gap-0.5 rounded-md bg-muted p-0.5 text-xs font-medium">

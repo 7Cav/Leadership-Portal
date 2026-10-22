@@ -40,7 +40,7 @@ const KPIS = { strength: 2, rc: { numerator: 7, denominator: 8 }, sp: { numerato
 function props(overrides = {}) {
     return {
         unit: { id: 5, name: '2nd Section', callsign: '2/1/A/1-7', type: 'section', isLeaf: true, parent: { id: 2, name: '1st Platoon', callsign: '1/A/1-7', type: 'platoon' } },
-        week: { start: '2026-10-03T00:00:00+00:00', due: '2026-10-10T23:59:00+00:00', previous: '2026-09-26', next: null },
+        week: { start: '2026-10-03T00:00:00+00:00', due: '2026-10-10T23:59:00+00:00', overdueUntil: '2026-10-31T00:00:00+00:00', previous: '2026-09-26', next: null },
         report: { status: 'draft', notes: '', trainingSubject: '', unaccounted: [], savedAt: null, sentAt: null, sentBy: null },
         kpis: KPIS,
         delta: null,
@@ -508,5 +508,32 @@ describe('Reports/Show training topic', () => {
 
     it('hides the topic on a platoon with none set for a viewer who cannot set one', () => {
         expect(platoonPage().find('[data-testid="platoon-topic"]').exists()).toBe(false);
+    });
+});
+
+describe('Reports/Show deadline banner', () => {
+    it('shows an unsent report due within a day, without a link to the page it is on', () => {
+        vi.useFakeTimers({ now: new Date('2026-10-10T18:30:00Z') });
+        const banner = mountShow().find('[data-testid="report-deadline"]');
+
+        expect(banner.text()).toContain('Report due in 5 h');
+        expect(banner.find('a').exists()).toBe(false);
+    });
+
+    it('says how long an unsent report is overdue', () => {
+        vi.useFakeTimers({ now: new Date('2026-10-12T00:30:00Z') });
+
+        expect(mountShow().find('[data-testid="report-deadline"]').text()).toContain('Report overdue by 24 h');
+    });
+
+    it('hides for a sent report and while more than a day is left', () => {
+        vi.useFakeTimers({ now: new Date('2026-10-10T18:30:00Z') });
+        expect(mountShow({ report: { ...props().report, status: 'sent', sentAt: '2026-10-10T12:00:00+00:00' } }).find('[data-testid="report-deadline"]').exists()).toBe(false);
+
+        vi.setSystemTime(new Date('2026-10-08T16:20:00Z'));
+        expect(mountShow().find('[data-testid="report-deadline"]').exists()).toBe(false);
+
+        vi.setSystemTime(new Date('2026-10-31T00:00:00Z'));
+        expect(mountShow().find('[data-testid="report-deadline"]').exists()).toBe(false);
     });
 });

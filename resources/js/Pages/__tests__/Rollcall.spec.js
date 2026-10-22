@@ -1378,6 +1378,45 @@ describe('Rollcall page', () => {
         });
     });
 
+    describe('report deadline banner', () => {
+        const REPORT = { due: '2026-10-10T23:59:00+00:00', overdueUntil: '2026-10-31T00:00:00+00:00', sent: false, href: '/reports/12/2026-10-03' };
+
+        beforeEach(() => vi.useFakeTimers({ now: new Date('2026-10-10T18:30:00Z') }));
+        afterEach(() => vi.useRealTimers());
+
+        it("shows when the week's report is due within a day, linking to it", () => {
+            const banner = factory({ report: REPORT }).find('[data-testid="report-deadline"]');
+
+            expect(banner.text()).toContain('Report due in 5 h');
+            expect(banner.find('a').attributes('href')).toBe('/reports/12/2026-10-03');
+        });
+
+        it('says overdue after the deadline, and nothing once the report is sent', () => {
+            vi.setSystemTime(new Date('2026-10-11T02:00:00Z'));
+
+            expect(factory({ report: REPORT }).find('[data-testid="report-deadline"]').text()).toContain('Report overdue by 2 h');
+            expect(factory({ report: { ...REPORT, sent: true } }).find('[data-testid="report-deadline"]').exists()).toBe(false);
+        });
+
+        it('shows nothing for an unsent week older than the 4-week window', () => {
+            vi.setSystemTime(new Date('2026-10-31T00:00:00Z'));
+
+            expect(factory({ report: REPORT }).find('[data-testid="report-deadline"]').exists()).toBe(false);
+        });
+
+        it('shows without the link in a view-as preview', () => {
+            page.props.viewAs = { label: 'CPL Lindqvist.E', admin: false };
+            const banner = factory({ report: REPORT }).find('[data-testid="report-deadline"]');
+
+            expect(banner.text()).toContain('Report due in 5 h');
+            expect(banner.find('a').exists()).toBe(false);
+        });
+
+        it('is not on the section picker', () => {
+            expect(factory({ section: null, troopers: [] }).find('[data-testid="report-deadline"]').exists()).toBe(false);
+        });
+    });
+
     describe('choosing a section', () => {
         it('keeps a "Choose a section" link to the picker, for the same week', () => {
             expect(factory().find('[data-testid="choose-section"]').attributes('href')).toBe('/rollcall?pick=1');
