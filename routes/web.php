@@ -28,8 +28,9 @@ use Illuminate\Support\Facades\Route;
 // parameter, which PHP cannot hold, so the request died in a TypeError and a 500 instead of a
 // 404. 18 digits always fit in a signed 64-bit int. Declared once as global patterns so a new
 // route taking one of these ids cannot forget the constraint (RouteIdConstraintTest walks the
-// routes and fails on an id-like parameter missing from this list).
-foreach (['unit', 'grant', 'trooper'] as $id) {
+// routes and fails on an id-like parameter missing from this list). Don't add `whereNumber()` or
+// `where()` for these on a route: it replaces the global pattern rather than adding to it.
+foreach (['unit', 'grant', 'trooper', 'version'] as $id) {
     Route::pattern($id, '[0-9]{1,18}');
 }
 
@@ -57,11 +58,11 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // non-leaf unit's roll-up; save the draft; freeze and send it. Scope is checked in the
     // controller (403 outside it); `{week}` is the Saturday that opens the Cav week.
     Route::get('/reports/{unit}/{week}', [ReportController::class, 'show'])
-        ->whereNumber('unit')->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.show');
+        ->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.show');
     Route::put('/reports/{unit}/{week}', [ReportController::class, 'draft'])
-        ->whereNumber('unit')->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.draft');
+        ->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.draft');
     Route::post('/reports/{unit}/{week}/send', [ReportController::class, 'send'])
-        ->whereNumber('unit')->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.send');
+        ->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.send');
 
     // The roster (Stories 2.8, 4.6, 4.7, 4.9): the selected unit's subtree, `?view=orbat|matrix`.
     // Scope-gated in the controller through the ScopeResolver (AD-8). The trooper Sheet reads its
@@ -78,22 +79,20 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
 
     // Weekly rollcall of one section (Stories 3.7–3.10). Scope is enforced in the controller
     // through the ScopeResolver (AD-8): an out-of-scope section is a 403, not a hidden link.
-    Route::get('/rollcall/{unit?}', [RollcallController::class, 'show'])->whereNumber('unit')->name('rollcall.show');
-    Route::post('/rollcall/{unit}', [RollcallController::class, 'store'])->whereNumber('unit')->name('rollcall.store');
-    Route::post('/rollcall/{unit}/unmatched/link', [RollcallController::class, 'linkUnmatched'])->whereNumber('unit')->name('rollcall.unmatched.link');
-    Route::post('/rollcall/{unit}/unmatched/dismiss', [RollcallController::class, 'dismissUnmatched'])->whereNumber('unit')->name('rollcall.unmatched.dismiss');
-    Route::post('/rollcall/{unit}/capture', [RollcallController::class, 'retryCapture'])->whereNumber('unit')->name('rollcall.capture');
-    Route::post('/rollcall/{unit}/confirm', [RollcallController::class, 'confirm'])->whereNumber('unit')->name('rollcall.confirm');
-    Route::post('/rollcall/{unit}/posted', [RollcallController::class, 'posted'])->whereNumber('unit')->name('rollcall.posted');
+    Route::get('/rollcall/{unit?}', [RollcallController::class, 'show'])->name('rollcall.show');
+    Route::post('/rollcall/{unit}', [RollcallController::class, 'store'])->name('rollcall.store');
+    Route::post('/rollcall/{unit}/unmatched/link', [RollcallController::class, 'linkUnmatched'])->name('rollcall.unmatched.link');
+    Route::post('/rollcall/{unit}/unmatched/dismiss', [RollcallController::class, 'dismissUnmatched'])->name('rollcall.unmatched.dismiss');
+    Route::post('/rollcall/{unit}/capture', [RollcallController::class, 'retryCapture'])->name('rollcall.capture');
+    Route::post('/rollcall/{unit}/confirm', [RollcallController::class, 'confirm'])->name('rollcall.confirm');
+    Route::post('/rollcall/{unit}/posted', [RollcallController::class, 'posted'])->name('rollcall.posted');
 
     // Game identities (Story 7.2): link troopers in scope to their in-game identity, one per
     // platform. The controller reads repositories; each write is an audited Command whose handler
     // checks the trooper against the viewer's scope (AD-8) — outside it is a 403.
     Route::get('/game-identities', [GameIdentityController::class, 'index'])->name('game-identities.index');
-    Route::put('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'update'])
-        ->whereNumber('trooper')->name('game-identities.update');
-    Route::delete('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'destroy'])
-        ->whereNumber('trooper')->name('game-identities.destroy');
+    Route::put('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'update'])->name('game-identities.update');
+    Route::delete('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'destroy'])->name('game-identities.destroy');
 
     // Logout (Story 1.5). POST, so it carries CSRF protection and can't be triggered by a
     // prefetched link or a cross-site <img>.
@@ -125,9 +124,8 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
 
     // Place a trooper the sync could not map into a section (Story 2.7). The Admin gate is checked in the
     // controller first and again in the Command's handler; the required reason and the audited write live
-    // in the handler (AD-6, AD-16), not in the route. The id is capped at 18 digits rather than
-    // `whereNumber()`: a longer one overflows the controller's `int` parameter and would answer 500, not 404.
-    Route::post('/settings/org-structure/troopers/{trooper}/placement', [TrooperPlacementController::class, 'store'])->where('trooper', '[0-9]{1,18}')->name('settings.trooper-placement.store');
+    // in the handler (AD-6, AD-16), not in the route.
+    Route::post('/settings/org-structure/troopers/{trooper}/placement', [TrooperPlacementController::class, 'store'])->name('settings.trooper-placement.store');
 
     // Staff grants (Story 1.12). Viewing is open to any authenticated user, matching
     // org-structure; the Admin gate on every write is enforced in the controller (AD-6).
@@ -139,7 +137,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // every write is enforced in the controller (AD-6). A save is always a new immutable version.
     Route::get('/settings/templates', [TemplatesController::class, 'index'])->name('settings.templates');
     Route::post('/settings/templates', [TemplatesController::class, 'store'])->name('settings.templates.store');
-    Route::post('/settings/templates/{version}/activate', [TemplatesController::class, 'activate'])->whereNumber('version')->name('settings.templates.activate');
+    Route::post('/settings/templates/{version}/activate', [TemplatesController::class, 'activate'])->name('settings.templates.activate');
 
     // Audit-log review (Story 1.14). The whole screen is Admin-only (AC #4) — the gate is
     // enforced in the controller, not route middleware, matching every other Admin gate here.
