@@ -10,6 +10,13 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     router: mockRouter,
 }));
 
+const mockReload = vi.hoisted(() => vi.fn());
+
+vi.mock('@/lib/postJson', async (importOriginal) => ({
+    ...(await importOriginal()),
+    reloadPage: mockReload,
+}));
+
 const RESULTS = {
     troopers: [
         { id: 7, rank: 'SGT', rankFull: 'Sergeant', name: 'Vasquez.R', displayName: 'SGT Vasquez.R', section: { id: 5, designation: '1/1/A/1-7', name: '1st Section' }, departed: false },
@@ -55,6 +62,7 @@ describe('TrooperSearch', () => {
     beforeEach(() => {
         vi.useFakeTimers();
         mockRouter.visit.mockReset();
+        mockReload.mockReset();
     });
 
     afterEach(() => {
@@ -186,6 +194,28 @@ describe('TrooperSearch', () => {
         await settle();
 
         expect(inBody('[data-testid="trooper-search-throttled"]')).not.toBeNull();
+    });
+
+    it.each([401, 419])('reloads into sign-in after a %i instead of showing an error', async (status) => {
+        respond(() => json({ message: 'Unauthenticated.' }, status));
+        wrapper = await open();
+
+        await type('vas');
+        await settle();
+
+        expect(mockReload).toHaveBeenCalledOnce();
+        expect(inBody('[data-testid="trooper-search-error"]')).toBeNull();
+    });
+
+    it('stays on the page and offers a retry after a server error', async () => {
+        respond(() => json({ message: 'Server Error' }, 500));
+        wrapper = await open();
+
+        await type('vas');
+        await settle();
+
+        expect(mockReload).not.toHaveBeenCalled();
+        expect(inBody('[data-testid="trooper-search-error"]')).not.toBeNull();
     });
 
     it('offers a retry when the search fails', async () => {

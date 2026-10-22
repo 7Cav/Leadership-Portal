@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Skeleton } from '@/components/ui/skeleton';
 import RankBadge from '@/components/roster/RankBadge.vue';
 import { DEBOUNCE_MS, MIN_CHARS, useTrooperSearch } from '@/composables/useTrooperSearch';
+import { reloadPage, sessionEnded } from '@/lib/postJson';
 
 // The shell's trooper search: type part of a name, pick a trooper, land on their milpac. The server answers with only
 // the troopers in the viewer's scope (the milpac's own rule), so nothing here decides who may be seen. The list is
@@ -42,6 +43,11 @@ async function run(q) {
             signal: controller.signal,
         });
         if (id !== latest) return;
+        // A session that ended while the page sat open: reload into sign-in, as the other JSON fetches do.
+        if (sessionEnded(response.status)) {
+            reloadPage();
+            return;
+        }
         if (response.status === 429) {
             status.value = 'throttled';
             return;
