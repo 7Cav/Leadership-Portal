@@ -74,6 +74,20 @@ describe('KpiTiles', () => {
         expect(wrapper.find('[data-kpi="atRisk"] [data-testid="delta"]').classes().join(' ')).toContain('text-destructive');
     });
 
+    describe('leave source and freshness (4.3, AD-20)', () => {
+        it('names the leave source and last sync under the tiles, since on LOA and at-risk move with it', () => {
+            const wrapper = mountTiles({ loaSync: { source: 'Forum thread', lastSyncedAt: '2026-10-08T09:14:00+00:00', stale: false, neverSynced: false, latestStatus: 'success', latestFinishedAt: '2026-10-08T09:14:00+00:00' } });
+
+            expect(wrapper.get('[data-testid="loa-sync"]').text()).toBe('Leave from Forum thread, synced 08Oct26 09:14Z');
+        });
+
+        it('warns when the leave sync is stale', () => {
+            const wrapper = mountTiles({ loaSync: { ...{ source: 'Forum thread', lastSyncedAt: '2026-10-08T09:14:00+00:00', stale: false, neverSynced: false, latestStatus: 'success', latestFinishedAt: '2026-10-08T09:14:00+00:00' }, stale: true, latestStatus: 'failure' } });
+
+            expect(wrapper.get('[data-testid="loa-sync"]').attributes('role')).toBe('status');
+        });
+    });
+
     describe('roster source and freshness (AD-20)', () => {
         const note = (roster) => mountTiles({ roster }).find('[data-testid="roster-freshness"]');
 

@@ -7,6 +7,7 @@ use App\Kpi\KpiService;
 use App\Kpi\Ratio;
 use App\Kpi\TrooperAttendance;
 use App\Kpi\UnitKpis;
+use App\Loa\LoaProvenance;
 use App\Milpac\RosterProvenance;
 use App\Models\SyncRun;
 use App\Models\Trooper;
@@ -51,6 +52,7 @@ class RosterController extends Controller
         private readonly SyncRunRepository $syncRuns,
         private readonly RosterProvenance $rosterSync,
         private readonly KpiService $kpis,
+        private readonly LoaProvenance $loaProvenance,
     ) {}
 
     public function index(Request $request, ?int $unit = null): Response
@@ -80,6 +82,9 @@ class RosterController extends Controller
                 ...$this->rosterSync->current()->toArray(),
                 'unit' => $selected !== null && $this->scope->commandsUnit($user, $selected) ? $this->unitSyncStatus($selected) : null,
             ],
+            // The matrix's LOA weeks and the Sheet's "On LOA" and at-risk move with leave: where it comes from and
+            // when it last synced (4.3, AD-20).
+            'loaSync' => $this->loaProvenance->current()->toArray(),
             'can' => [
                 // Follows view-as: a preview of a non-Admin never offers an Admin action (1.13).
                 'sync' => $this->scope->actsAsAdmin($user),

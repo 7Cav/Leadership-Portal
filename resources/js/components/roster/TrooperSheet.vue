@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { PhArrowsClockwise, PhArrowSquareOut, PhClipboardText, PhEnvelopeSimple, PhIdentificationCard, PhLockSimple, PhSignOut, PhWarning } from '@phosphor-icons/vue';
 import InlineNotice from '@/components/InlineNotice.vue';
+import LoaSyncNote from '@/components/LoaSyncNote.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -20,6 +21,8 @@ const props = defineProps({
     trooperId: { type: Number, default: null },
     links: { type: Object, required: true },
     syncLabel: { type: String, required: true },
+    // `LoaSyncState::toArray()`: "On LOA" and at-risk below move with leave, so its source and last sync show (AD-20).
+    loaSync: { type: Object, default: null },
 });
 const emit = defineEmits(['close']);
 
@@ -135,6 +138,7 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                             <dd class="text-[11px] text-muted-foreground">section practices</dd>
                         </div>
                     </dl>
+                    <LoaSyncNote v-if="trooper.kpis && loaSync" :sync="loaSync" class="-mt-3" />
 
                     <div>
                         <h3 class="mb-2 text-xs text-muted-foreground">20 Cav weeks</h3>

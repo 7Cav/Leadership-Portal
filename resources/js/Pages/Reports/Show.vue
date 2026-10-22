@@ -60,6 +60,8 @@ const props = defineProps({
     history: { type: Array, required: true },
     reasons: { type: Array, required: true },
     rosterSync: { type: Object, required: true },
+    // A section's live draft only: where leave comes from and when it last synced (`LoaSyncState::toArray()`, AD-20).
+    loaSync: { type: Object, default: null },
     computedAt: { type: String, required: true },
     // Whether the viewer may save or send this report: false for a unit they only see through a
     // staff grant, which reads but never writes (the server refuses those writes).
@@ -563,6 +565,7 @@ const subjectInvalid = computed(() => props.unit.isLeaf && subjectTouched.value 
                             :reason-labels="reasonLabels"
                             :names="names"
                             :roster-sync="rosterSync"
+                            :loa-sync="loaSync"
                             :computed-at="computedAt"
                         />
                     </div>

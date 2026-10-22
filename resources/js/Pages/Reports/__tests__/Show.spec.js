@@ -55,6 +55,7 @@ function props(overrides = {}) {
         history: [],
         reasons: [{ value: 'sick', label: 'Sick' }],
         rosterSync: { source: 'milpac', at: null },
+        loaSync: { source: 'Forum thread', lastSyncedAt: '2026-10-08T09:14:00+00:00', stale: false, neverSynced: false, latestStatus: 'success', latestFinishedAt: '2026-10-08T09:14:00+00:00' },
         computedAt: '2026-10-08T16:20:00+00:00',
         canWrite: true,
         ...overrides,
@@ -91,6 +92,13 @@ describe('Reports/Show', () => {
         expect(wrapper.get('[data-testid="baseline"]').text()).toMatch(/^First report/);
         expect(wrapper.get('[data-testid="trooper-table"]').text()).toContain('PFC Okafor.T');
         expect(wrapper.find('[data-testid="send-bar"]').exists()).toBe(true);
+    });
+
+    it("names the leave source and last sync under a live draft's KPIs, and nothing when the server sends none (4.3, AD-20)", () => {
+        expect(mountShow().get('[data-testid="loa-sync"]').text()).toBe('Leave from Forum thread, synced 08Oct26 09:14Z');
+
+        document.body.innerHTML = '';
+        expect(mountShow({ loaSync: null }).find('[data-testid="loa-sync"]').exists()).toBe(false);
     });
 
     it('gates the primary send on the checklist but offers "Send anyway"', () => {

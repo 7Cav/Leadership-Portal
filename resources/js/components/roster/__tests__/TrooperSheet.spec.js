@@ -36,14 +36,24 @@ function detail(over = {}) {
     };
 }
 
+const LOA_SYNC = { source: 'Forum thread', lastSyncedAt: '2026-10-08T09:14:00+00:00', stale: false, neverSynced: false, latestStatus: 'success', latestFinishedAt: '2026-10-08T09:14:00+00:00' };
+
 const factory = (trooperId = 12) =>
-    mount(TrooperSheet, { props: { trooperId, links: LINKS, syncLabel: 'milpac, synced 09:14Z' }, attachTo: document.body });
+    mount(TrooperSheet, { props: { trooperId, links: LINKS, syncLabel: 'milpac, synced 09:14Z', loaSync: LOA_SYNC }, attachTo: document.body });
 
 afterEach(() => {
     document.body.innerHTML = '';
 });
 
 describe('Trooper sheet', () => {
+    it('names the leave source and last sync under the KPIs, since on LOA and at-risk move with it (4.3, AD-20)', async () => {
+        respond(200, detail());
+        factory();
+        await flushPromises();
+
+        expect(document.body.querySelector('[data-testid="loa-sync"]').textContent).toContain('Leave from Forum thread, synced 08Oct26 09:14Z');
+    });
+
     it('loads the trooper from the scope-checked endpoint and shows identity, at-risk and marks with source', async () => {
         respond(200, detail());
         factory();
