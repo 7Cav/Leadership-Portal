@@ -18,6 +18,10 @@ Read-only logic behind the weekly rollcall, so no screen re-derives it.
   both read the shared cases in `tests/Fixtures/bbcode-templates.json`. `STARTER` is an example for a company that has
   none.
 
+- `RollcallRoster` (3.7): the section, week and trooper rows (with the week's marks and last week's practice marks) the
+  rollcall page reads and its forum post is filled from. The template editor's preview of a real section reads the same
+  rows, so the two cannot drift apart.
+
 ## How the rollcall binds end to end (3.7 to 3.11)
 
 The page opens a section and week (3.7), pre-fills it from the roster, the leave data and the prior week, and receives the

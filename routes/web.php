@@ -150,6 +150,8 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/settings/templates', [TemplatesController::class, 'index'])->name('settings.templates');
     Route::post('/settings/templates', [TemplatesController::class, 'store'])->name('settings.templates.store');
     Route::post('/settings/templates/{version}/activate', [TemplatesController::class, 'activate'])->name('settings.templates.activate');
+    // One section's rollcall for this week, to fill the template preview with (scope-gated in the controller, AD-8).
+    Route::get('/settings/templates/preview/{unit}', [TemplatesController::class, 'previewSection'])->name('settings.templates.preview');
 
     // Audit-log review (Story 1.14). The whole screen is Admin-only (AC #4) — the gate is
     // enforced in the controller, not route middleware, matching every other Admin gate here.

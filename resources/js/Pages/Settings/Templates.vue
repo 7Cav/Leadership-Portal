@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { render, sampleContext, templateLegend } from '@/lib/bbcode';
+import { rollcallContext } from '@/lib/rollcallBbcode';
 import { useViewAs } from '@/composables/useViewAs';
 import BbcodePreview from '@/components/BbcodePreview.vue';
 import EmptyState from '@/components/EmptyState.vue';
@@ -38,6 +39,9 @@ const props = defineProps({
     // A template to start from (Story 3.10).
     starter: { type: String, required: true },
     isAdmin: { type: Boolean, required: true },
+    // The company's sections the viewer could open on the rollcall page, to preview with instead of the sample:
+    // `[{ id, designation, name, platoon }]`.
+    previewSections: { type: Array, default: () => [] },
 });
 
 const form = useForm({
@@ -191,7 +195,63 @@ async function insertCode(entry) {
 const SAMPLE = sampleContext();
 const typedBody = refDebounced(toRef(form, 'body'), 250);
 const previewSource = computed(() => (showEditor.value ? typedBody.value : (props.active?.body ?? '')));
-const preview = computed(() => (previewSource.value.trim() === '' ? null : render(previewSource.value, SAMPLE)));
+
+// The preview can instead be filled with one of the company's real sections for this week. Its rows are asked for only
+// when it is picked, from the same builder as the rollcall page, and made into the template's values by the same
+// `rollcallContext()` the rollcall page uses, so the preview is the post that section would copy now.
+const previewWith = ref('');
+const realSection = ref(null);
+const realState = ref('idle');
+let realRequest = 0;
+
+const REAL_FAILURES = {
+    forbidden: 'That section is no longer in your scope.',
+    missing: 'That section is no longer under this company.',
+    signedOut: 'Your session has ended. Sign in again to load the section.',
+    error: 'The section could not be loaded. Try again in a moment.',
+};
+
+async function choosePreview(event) {
+    const id = event.target.value;
+    const request = ++realRequest;
+    previewWith.value = id;
+    realSection.value = null;
+    realState.value = id === '' ? 'idle' : 'loading';
+    if (id === '') return;
+
+    try {
+        const response = await fetch(`/settings/templates/preview/${id}?company=${props.company}`, {
+            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        });
+        if (request !== realRequest) return;
+        if (!response.ok) {
+            realState.value = { 403: 'forbidden', 404: 'missing', 401: 'signedOut', 419: 'signedOut' }[response.status] ?? 'error';
+
+            return;
+        }
+        realSection.value = rollcallContext(await response.json());
+        realState.value = 'ready';
+    } catch (error) {
+        console.error(`Templates: loading section ${id} for the preview failed`, error);
+        if (request === realRequest) realState.value = 'error';
+    }
+}
+
+// Another company has other sections, so the preview goes back to the sample.
+watch(
+    () => props.company,
+    () => {
+        realRequest++;
+        previewWith.value = '';
+        realSection.value = null;
+        realState.value = 'idle';
+    },
+);
+
+const previewContext = computed(() => (realState.value === 'ready' ? realSection.value : SAMPLE));
+const preview = computed(() => (previewSource.value.trim() === '' ? null : render(previewSource.value, previewContext.value)));
+const troopersLabel = (count) => `${count} trooper${count === 1 ? '' : 's'}`;
+const sectionLabel = (section) => (section.designation === section.name ? section.name : `${section.designation} ${section.name}`);
 
 // Fills the editor with the default template (the starter the server sends), only when an Admin asks, so nobody saves
 // it unread. It only fills the editor: saving it is still a new version with a reason. When the editor holds edits that
@@ -299,10 +359,36 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                     <section v-if="preview" class="mt-5 border-t border-border pt-4" aria-labelledby="template-preview-title" data-testid="template-preview">
                         <div class="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                             <h3 id="template-preview-title" class="text-[13px] font-semibold">Preview</h3>
-                            <p class="text-xs text-muted-foreground">
-                                As the forum shows it, filled with a sample section of {{ SAMPLE.troopers.length }} troopers. Updates as you type.
+                            <p class="text-xs text-muted-foreground" data-testid="template-preview-note">
+                                <template v-if="realState === 'ready'">
+                                    As the forum shows it, filled with {{ realSection.unit }}'s {{ troopersLabel(realSection.troopers.length) }} and their marks this week.
+                                </template>
+                                <template v-else>As the forum shows it, filled with a sample section of {{ SAMPLE.troopers.length }} troopers.</template>
+                                Updates as you type.
                             </p>
                         </div>
+                        <div v-if="previewSections.length" class="mb-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+                            <Label for="template-preview-with" class="text-xs font-normal text-muted-foreground">Fill with</Label>
+                            <div class="min-w-0 flex-1 sm:max-w-xs">
+                                <NativeSelect
+                                    id="template-preview-with"
+                                    data-testid="template-preview-with"
+                                    class="text-xs"
+                                    :model-value="previewWith"
+                                    :aria-busy="realState === 'loading'"
+                                    @change="choosePreview"
+                                >
+                                    <option value="">Sample section</option>
+                                    <option v-for="section in previewSections" :key="section.id" :value="String(section.id)">{{ sectionLabel(section) }}, this week</option>
+                                </NativeSelect>
+                            </div>
+                            <span v-if="realState === 'loading'" class="flex items-center gap-1.5 text-xs text-muted-foreground" role="status" data-testid="template-preview-loading">
+                                <PhCircleNotch class="size-3.5 animate-spin" aria-hidden="true" />Loading the section
+                            </span>
+                        </div>
+                        <InlineNotice v-if="REAL_FAILURES[realState]" :icon="PhWarning" tone="warning" role="status" class="mb-3" data-testid="template-preview-section-error">
+                            {{ REAL_FAILURES[realState] }} The preview uses the sample section until then.
+                        </InlineNotice>
                         <div v-if="preview.ok" class="max-h-[28rem] overflow-auto rounded-md border border-border bg-background px-5 py-4" data-testid="template-preview-post">
                             <BbcodePreview :source="preview.text" />
                         </div>
