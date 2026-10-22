@@ -258,14 +258,14 @@ it('counts an excused trooper as signed and marked once, row or not, and never a
 
     expect($repo->weekProgress([$section->id], $week)->get($section->id)->marked)->toBe(1)
         ->and($repo->weekProgress([$section->id], $week, [$noRow->id, $signedOnly->id, $marked->id, $outsider->id])->get($section->id))
-        ->toEqual(new SectionWeekProgress($section->id, 3, 3, 3, true));
+        ->toEqual(new SectionWeekProgress($section->id, 3, 3, 3, true, onLoa: 3, unsigned: 0));
 
     // Nobody marked by hand: the excused troopers alone do not make the practice held.
     $quiet = Unit::factory()->create(['type' => UnitType::Section]);
     $away = Trooper::factory()->create(['primary_section_id' => $quiet->id]);
 
     expect($repo->weekProgress([$quiet->id], $week, [$away->id])->get($quiet->id))
-        ->toEqual(new SectionWeekProgress($quiet->id, 1, 1, 1, false));
+        ->toEqual(new SectionWeekProgress($quiet->id, 1, 1, 1, false, onLoa: 1, unsigned: 0));
 });
 
 it("reads when each section's rollcall was marked posted with its week progress, in the same query", function () {
