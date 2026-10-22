@@ -4,6 +4,7 @@ use App\Integration\Forum\Requests\ExchangeCodeRequest;
 use App\Integration\Forum\Requests\FetchProfileRequest;
 use App\Models\Trooper;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
 use Tests\TestCase;
@@ -31,7 +32,12 @@ pest()->extend(TestCase::class)
     ->beforeEach(fn () => $this->withoutVite())
     // A global Saloon mock client outlives the test that installed it, so drop it between
     // tests rather than relying on every file that fakes the forum to remember (Story 1.5).
-    ->afterEach(fn () => MockClient::destroyGlobal())
+    // Trusted hosts are static on the Symfony request too: a test that runs as production sets them
+    // from APP_URL (bootstrap/app.php), and they would refuse every later test's other hosts.
+    ->afterEach(function () {
+        MockClient::destroyGlobal();
+        Request::setTrustedHosts([]);
+    })
     ->in('Feature');
 
 /*
