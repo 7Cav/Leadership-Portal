@@ -91,6 +91,8 @@ const subjectTouched = ref(false);
 
 const save = reactive({ state: props.report.savedAt ? 'saved' : 'idle', at: props.report.savedAt });
 let timer = null;
+// Bumped on every edit, so a save that lands can tell whether it carried the latest content.
+let revision = 0;
 
 function payload() {
     return { notes: content.notes, training_subject: content.trainingSubject, unaccounted: content.unaccounted };
@@ -101,14 +103,22 @@ function saveDraft() {
     timer = null;
     if (readOnly.value) return;
 
+    const sentRevision = revision;
     save.state = 'saving';
     router.put(baseUrl.value, payload(), {
         preserveState: true,
         preserveScroll: true,
         only: ['report', 'computedAt'],
         onSuccess: () => {
-            save.state = 'saved';
             save.at = props.report.savedAt;
+            // An edit made while this save was in flight is not in it: the screen stays unsaved
+            // (and leaving stays guarded) until that edit's own save lands.
+            if (revision === sentRevision) {
+                save.state = 'saved';
+            } else {
+                save.state = 'pending';
+                rearm();
+            }
         },
         onError: (errors) => saveFailed(Object.values(errors)[0]),
         onHttpException: (response) => {
@@ -143,6 +153,7 @@ watch(
             reviewed.value = false;
             staleReview.value = true;
         }
+        revision++;
         save.state = 'pending';
         clearTimeout(timer);
         timer = setTimeout(saveDraft, 800);
