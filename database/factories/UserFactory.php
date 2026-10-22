@@ -24,7 +24,9 @@ class UserFactory extends Factory
     public function definition(): array
     {
         return [
-            'forum_user_id' => fake()->unique()->numberBetween(1, 999999),
+            // Wide and above a million, like TrooperFactory's ids: `unique()` does not span the separate seeder
+            // processes the browser tests run, and tests pick small forum ids by hand.
+            'forum_user_id' => fake()->unique()->numberBetween(1_000_000, 2_000_000_000),
             'cav_id' => null,
             'username' => fake()->userName(),
             'email' => fake()->unique()->safeEmail(),
