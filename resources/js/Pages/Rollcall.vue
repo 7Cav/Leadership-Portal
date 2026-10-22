@@ -572,7 +572,11 @@ const query = computed(() => new URL(page.url, 'http://portal.local').searchPara
 const step = computed(() => {
     const requested = Number(query.value.get('step'));
 
-    return [1, 2, 3].includes(requested) ? requested : landing;
+    if ([1, 2, 3].includes(requested)) return requested;
+
+    // A milpac jump (`?focus=`) needs the trooper's card on screen, and the review step has none: a week with no work
+    // left opens on the practice step instead.
+    return query.value.has('focus') ? Math.min(landing, 2) : landing;
 });
 const stepHeading = ref(null);
 

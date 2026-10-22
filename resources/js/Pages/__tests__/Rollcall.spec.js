@@ -1422,6 +1422,16 @@ describe('jumping to a trooper from their milpac (?focus=)', () => {
         expect(spotlit(wrapper)).toEqual(['2']);
     });
 
+    it('opens a week with no work left on the practice step, since the review step has no cards', async () => {
+        page.url = '/rollcall/12?focus=2';
+        const wrapper = factory({ troopers: [trooper(1, 'will_attend', 'present'), trooper(2, 'cannot_attend', 'missed')] });
+        await flushPromises();
+
+        expect(wrapper.find('h2').text()).toBe('Section practice');
+        expect(document.activeElement).toBe(face(wrapper, 2));
+        expect(spotlit(wrapper)).toEqual(['2']);
+    });
+
     it('works on whichever step the link names', async () => {
         page.url = '/rollcall/12?step=2&focus=3';
         const wrapper = factory();
