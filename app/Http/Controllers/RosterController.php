@@ -126,7 +126,6 @@ class RosterController extends Controller
                 ...$this->trooperRow($found, $kpis, $marks, $week, $leader),
                 'rankFull' => $found->rank,
                 'mos' => $found->mos,
-                'tig' => $found->tig?->toDateString(),
                 'section' => $this->unitSummary($section),
                 'sectionLeader' => $leader ? $this->person($leader) : null,
                 'milpacUrl' => Trooper::MILPAC_PROFILE_URL.$found->cav_id,
@@ -231,6 +230,8 @@ class RosterController extends Controller
             'sectionId' => $t->primary_section_id,
             'role' => $t->roleUnder($sectionLeader),
             'joined' => $t->tis?->toDateString(),
+            // Time in grade: the date of the trooper's last promotion, for the order of battle's TIG column and sort.
+            'tig' => $t->tig?->toDateString(),
             // Null for a departed trooper: they are no longer measured (AD-21 strength).
             'kpis' => $kpis ? [
                 'rc' => $this->ratio($kpis->rollcall),
