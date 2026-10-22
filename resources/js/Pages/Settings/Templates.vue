@@ -193,9 +193,22 @@ const typedBody = refDebounced(toRef(form, 'body'), 250);
 const previewSource = computed(() => (showEditor.value ? typedBody.value : (props.active?.body ?? '')));
 const preview = computed(() => (previewSource.value.trim() === '' ? null : render(previewSource.value, SAMPLE)));
 
-// Fills the editor with the starter, only when an Admin asks, so nobody saves it unread.
+// Fills the editor with the default template (the starter the server sends), only when an Admin asks, so nobody saves
+// it unread. It only fills the editor: saving it is still a new version with a reason. When the editor holds edits that
+// are not saved, it asks first, since those edits would be lost.
+const confirmingStarter = ref(false);
+const unsavedEdits = computed(() => form.body !== (props.active?.body ?? '') && form.body !== props.starter);
 function useStarter() {
+    if (unsavedEdits.value) {
+        confirmingStarter.value = true;
+
+        return;
+    }
     form.body = props.starter;
+}
+function confirmStarter() {
+    form.body = props.starter;
+    confirmingStarter.value = false;
 }
 
 const companyLabel = (company) => (company.callsign ? `${company.callsign} ${company.name}` : company.name);
@@ -254,8 +267,8 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                                 :disabled="readOnlyPreview"
                                 :aria-invalid="!!form.errors.body"
                             />
-                            <Button v-if="!active && !readOnlyPreview" type="button" variant="outline" size="sm" class="justify-self-start" data-testid="use-starter" @click="useStarter">
-                                Start from an example
+                            <Button v-if="!readOnlyPreview" type="button" variant="outline" size="sm" class="justify-self-start" data-testid="use-starter" @click="useStarter">
+                                Start from the default
                             </Button>
                             <p v-if="form.errors.body" class="text-xs text-destructive" data-testid="error-body">{{ form.errors.body }}</p>
                             <p v-if="form.errors.company_id" class="text-xs text-destructive" data-testid="error-company_id">{{ form.errors.company_id }}</p>
@@ -458,6 +471,18 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                         <PhCircleNotch v-if="activating" class="animate-spin" aria-hidden="true" />
                         {{ activating ? 'Activating' : 'Make active' }}
                     </Button>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+        <AlertDialog :open="confirmingStarter" @update:open="(open) => (confirmingStarter = open)">
+            <AlertDialogContent class="sm:max-w-md" data-testid="starter-dialog">
+                <AlertDialogTitle class="text-base leading-snug font-semibold">Replace your edits with the default template?</AlertDialogTitle>
+                <AlertDialogDescription class="text-[13px] text-muted-foreground">
+                    The editor has changes that are not saved, and they will be lost. Nothing is saved until you save a new version.
+                </AlertDialogDescription>
+                <AlertDialogFooter class="flex-row flex-wrap justify-end gap-2">
+                    <AlertDialogCancel class="mt-0">Keep my edits</AlertDialogCancel>
+                    <Button data-testid="starter-confirm" @click="confirmStarter">Replace</Button>
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
