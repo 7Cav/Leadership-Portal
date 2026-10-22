@@ -63,6 +63,26 @@ class PracticeTelemetry
             return null;
         }
 
-        return CaptureTelemetry::failed($platform, DateTimeImmutable::createFromInterface($run->finished_at ?? $run->started_at));
+        return CaptureTelemetry::failed($platform, DateTimeImmutable::createFromInterface($run->finished_at ?? $run->started_at), $this->feedsOf($platform));
+    }
+
+    /**
+     * The game's sources with keys set, in the order a capture tries them: the ones the failed run
+     * read and could not get an answer from (#176). Read from the configuration rather than parsed
+     * back out of the run's summary text, which is a log line, not a contract. A key changed since
+     * the run is the one case they differ, and the next run follows the new keys anyway.
+     *
+     * @return list<string>
+     */
+    private function feedsOf(?GamePlatform $platform): array
+    {
+        if ($platform === null) {
+            return [];
+        }
+
+        return array_values(array_map(
+            fn (CaptureSource $source) => $source->name,
+            array_filter($this->sources->for($platform), fn (CaptureSource $source) => $source->configured),
+        ));
     }
 }

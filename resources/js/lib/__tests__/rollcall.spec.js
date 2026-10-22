@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countsOf, displayName, fullName, initials, isLocked, landingStep, practiceGroups, sectionStatus, signatureGroups, stepsOf, weeksNeedingWork } from '../rollcall';
+import { countsOf, displayName, feedLabel, fullName, initials, isLocked, landingStep, practiceGroups, sectionStatus, signatureGroups, stepsOf, unlinkedLabel, weeksNeedingWork } from '../rollcall';
 
 const t = (id, rollcall, status, extra = {}) => ({ id, cavId: 1000 + id, rank: 'PFC', name: `Trooper${id}.A`, rollcall, status, source: null, priorStatus: null, ...extra });
 
@@ -34,6 +34,23 @@ describe('rollcall vocabulary', () => {
     it('marks a step done only once nothing is left on it', () => {
         expect(stepsOf([t(1, 'unsigned', null)]).map((s) => s.state)).toEqual(['warn', 'warn', 'todo']);
         expect(stepsOf([t(1, 'will_attend', 'present')], '2026-10-08T16:20:00Z').map((s) => s.state)).toEqual(['done', 'done', 'done']);
+    });
+
+    it('keeps the practice step a warning, with the count, while players are unlinked (#176)', () => {
+        const steps = stepsOf([t(1, 'will_attend', 'present')], null, 3);
+
+        expect(steps.map((s) => s.state)).toEqual(['done', 'warn', 'todo']);
+        expect(steps[1].unlinked).toBe(3);
+        expect(stepsOf([t(1, 'will_attend', 'present')])[1].unlinked).toBe(0);
+        expect(unlinkedLabel(1)).toBe('1 unlinked player');
+        expect(unlinkedLabel(3)).toBe('3 unlinked players');
+    });
+
+    it('names the feed that is down by game and source (#176)', () => {
+        expect(feedLabel({ platformLabel: 'Hell Let Loose', feeds: ['crcon', 'battlemetrics'] })).toBe('Hell Let Loose server (CRCON, BattleMetrics)');
+        expect(feedLabel({ platformLabel: 'WARDOGS', feeds: ['nightwatch'] })).toBe('WARDOGS server (Nightwatch)');
+        expect(feedLabel({ platformLabel: 'Arma Reforger', feeds: [] })).toBe('Arma Reforger server');
+        expect(feedLabel({ platformLabel: null, feeds: [] })).toBe('Game server');
     });
 
     it('opens on the first step with work left', () => {

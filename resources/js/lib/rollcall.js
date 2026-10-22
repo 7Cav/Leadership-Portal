@@ -111,8 +111,27 @@ export function sectionStatus(progress) {
     return { state: 'todo', text: left.length ? left.join(', ') : 'Not posted' };
 }
 
-// The three steps of the guided week, with whether each is done.
-export function stepsOf(troopers, postedAt = null) {
+// "3 unlinked players": the count the rollcall header and review step show (#176).
+export function unlinkedLabel(count) {
+    return `${count} unlinked ${count === 1 ? 'player' : 'players'}`;
+}
+
+// What a game's server feeds are called on screen, by `capture_source` value (7.8, 7.9).
+export const CAPTURE_SOURCES = { crcon: 'CRCON', battlemetrics: 'BattleMetrics', nightwatch: 'Nightwatch' };
+
+// Which feed could not be read, for the telemetry banner and its retry (7.9, #176): "Hell Let Loose server (CRCON)",
+// so a down feed never reads as an empty server. With no game known for the section it is the plain "Game server".
+export function feedLabel(telemetry) {
+    if (!telemetry?.platformLabel) return 'Game server';
+    const feeds = (telemetry.feeds ?? []).map((feed) => CAPTURE_SOURCES[feed] ?? feed);
+
+    return `${telemetry.platformLabel} server${feeds.length ? ` (${feeds.join(', ')})` : ''}`;
+}
+
+// The three steps of the guided week, with whether each is done. `unlinked` is how many players the capture saw that
+// no trooper is linked to yet (7.7, #176): the practice step carries the count and stays a warning while any are left,
+// so a leader on any step sees that someone who was online is not accounted for, even with every trooper marked.
+export function stepsOf(troopers, postedAt = null, unlinked = 0) {
     const c = countsOf(troopers);
 
     return [
@@ -126,7 +145,8 @@ export function stepsOf(troopers, postedAt = null) {
             n: 2,
             title: 'Section practice',
             sub: c.unmarked ? `${c.unmarked} left to mark` : 'All marked',
-            state: c.unmarked ? 'warn' : 'done',
+            state: c.unmarked || unlinked ? 'warn' : 'done',
+            unlinked,
         },
         {
             n: 3,

@@ -942,6 +942,58 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-trooper="3"]').text()).toContain('Present');
         });
 
+        describe('the unlinked count in the stepper (#176)', () => {
+            const TWO = [...UNMATCHED, { platform: 'arma', platformLabel: 'Arma Reforger', playerName: 'Stranger', platformId: 'a-77' }];
+            const count = (wrapper) => wrapper.find('[data-step="2"] [data-testid="unlinked-count"]');
+
+            it('shows the count on the practice step and keeps that step a warning, even with everyone marked', () => {
+                page.url = '/rollcall/12?step=1';
+                const wrapper = factory({ capture: CAPTURE, unmatched: TWO, troopers: [trooper(1, 'will_attend', 'present')] });
+
+                expect(count(wrapper).text()).toBe('2 unlinked players');
+                expect(wrapper.find('[data-step="2"]').attributes('aria-label')).toBe('Step 2, Section practice, All marked, 2 unlinked players');
+                expect(wrapper.find('[data-step="2"]').classes()).toContain('after:bg-warning/70');
+            });
+
+            it('is hidden with nobody unlinked, or with no capture', () => {
+                expect(count(factory({ capture: CAPTURE, unmatched: [] })).exists()).toBe(false);
+                expect(count(factory({ capture: null, unmatched: UNMATCHED })).exists()).toBe(false);
+            });
+
+            it('shows on the other steps too, and the review step sends the leader back to the drawer', async () => {
+                page.url = '/rollcall/12?step=3';
+                const wrapper = factory({ capture: CAPTURE, unmatched: UNMATCHED });
+
+                expect(count(wrapper).text()).toBe('1 unlinked player');
+                expect(wrapper.find('[data-testid="unlinked-review"]').text()).toContain('1 unlinked player seen on the server is not accounted for.');
+                await wrapper.find('[data-testid="unlinked-go"]').trigger('click');
+                expect(push).toHaveBeenCalledWith(expect.objectContaining({ url: '/rollcall/12?step=2' }));
+            });
+
+            it('counts down as players are linked or dismissed, and goes once none are left', async () => {
+                post.mockImplementation((url) =>
+                    Promise.resolve(
+                        url.endsWith('/unmatched/link')
+                            ? { ok: true, status: 200, data: { marked: true, trooper: { id: 3, status: 'present', source: 'auto' }, atRisk: [] } }
+                            : { ok: true, status: 200, data: { dismissed: true } },
+                    ),
+                );
+                const wrapper = factory({ capture: CAPTURE, unmatched: TWO });
+                expect(count(wrapper).text()).toBe('2 unlinked players');
+
+                await wrapper.find('[data-testid="unmatched-7656119000000001"] [data-testid="unmatched-trooper"]').setValue('3');
+                await wrapper.find('[data-testid="unmatched-7656119000000001"] [data-testid="unmatched-link"]').trigger('click');
+                await flushPromises();
+                expect(count(wrapper).text()).toBe('1 unlinked player');
+
+                await wrapper.find('[data-testid="unmatched-a-77"] [data-testid="unmatched-dismiss"]').trigger('click');
+                await wrapper.find('[data-testid="unmatched-a-77"] [data-testid="confirm-dismiss"]').trigger('click');
+                await flushPromises();
+                expect(count(wrapper).exists()).toBe(false);
+                expect(wrapper.find('[data-step="2"]').attributes('aria-label')).toBe('Step 2, Section practice, 1 left to mark');
+            });
+        });
+
         const LINKED = { ok: true, status: 200, data: { marked: true, trooper: { id: 3, status: 'present', source: 'auto' }, atRisk: [] } };
         const SAVED = { ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00', atRisk: [] } };
         const pressed = (wrapper, value) => wrapper.find(`[data-trooper="3"] button[data-value="${value}"]`).attributes('aria-pressed');
@@ -1124,8 +1176,8 @@ describe('Rollcall page', () => {
     });
 
     describe('telemetry unavailable (7.9)', () => {
-        const FAILED = { state: 'failed', platformLabel: 'Hell Let Loose', lastAttemptAt: '2026-10-08T15:42:00+00:00', canRetry: true };
-        const NOT_CONFIGURED = { state: 'not_configured', platformLabel: 'Hell Let Loose', lastAttemptAt: null, canRetry: false };
+        const FAILED = { state: 'failed', platformLabel: 'Hell Let Loose', feeds: ['crcon'], lastAttemptAt: '2026-10-08T15:42:00+00:00', canRetry: true };
+        const NOT_CONFIGURED = { state: 'not_configured', platformLabel: 'Hell Let Loose', feeds: [], lastAttemptAt: null, canRetry: false };
         let wrapper;
         const click = async () => {
             await wrapper.find('[data-testid="telemetry-retry"]').trigger('click');
@@ -1146,7 +1198,7 @@ describe('Rollcall page', () => {
             wrapper = factory({ telemetry: FAILED });
 
             expect(wrapper.find('[data-testid="telemetry-banner"]').text()).toContain(
-                'Game server could not be read, last tried 08Oct26 15:42 UTC (5 min ago). Nothing was pre-filled. Mark attendance by hand.',
+                'Hell Let Loose server (CRCON) could not be read, last tried 08Oct26 15:42 UTC (5 min ago). Nothing was pre-filled. Mark attendance by hand.',
             );
             expect(wrapper.find('[data-testid="capture-banner"]').exists()).toBe(false);
             expect(wrapper.find('[data-testid="unmatched-drawer"]').exists()).toBe(false);
@@ -1155,6 +1207,14 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-testid="use-last-week"]').exists()).toBe(true);
             // Manual marks are confirmed the same way (mockup C).
             expect(wrapper.find('[data-testid="confirm-practice"]').exists()).toBe(true);
+        });
+
+        it('names every feed that was tried, and falls back to the game server when no game is known (#176)', () => {
+            wrapper = factory({ telemetry: { ...FAILED, feeds: ['crcon', 'battlemetrics'] } });
+            expect(wrapper.find('[data-testid="telemetry-banner"]').text()).toMatch(/^Hell Let Loose server \(CRCON, BattleMetrics\) could not be read/);
+
+            wrapper = factory({ telemetry: { ...FAILED, platformLabel: null, feeds: [], canRetry: false } });
+            expect(wrapper.find('[data-testid="telemetry-banner"]').text()).toMatch(/^Game server could not be read/);
         });
 
         it('says telemetry is not configured, with no retry to offer', () => {
@@ -1181,7 +1241,7 @@ describe('Rollcall page', () => {
 
             expect(post).toHaveBeenCalledWith('/rollcall/12/capture', { week: '2026-10-03' });
             expect(reload).toHaveBeenCalledWith(expect.objectContaining({ only: ['telemetry', 'capture'] }));
-            expect(toastError).toHaveBeenCalledWith('Game server still could not be read', expect.anything());
+            expect(toastError).toHaveBeenCalledWith('Hell Let Loose server (CRCON) still could not be read', expect.anything());
             expect(wrapper.find('[data-testid="telemetry-retry"]').text()).toBe('Try again');
         });
 
@@ -1232,7 +1292,7 @@ describe('Rollcall page', () => {
             await flushPromises();
 
             expect(confirm).not.toHaveBeenCalled();
-            expect(toastError).toHaveBeenCalledWith('Game server still could not be read', expect.anything());
+            expect(toastError).toHaveBeenCalledWith('Hell Let Loose server (CRCON) still could not be read', expect.anything());
             expect(wrapper.find('[data-testid="telemetry-retry"]').text()).toBe('Try again');
             vi.unstubAllGlobals();
         });

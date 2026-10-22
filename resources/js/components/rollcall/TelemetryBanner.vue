@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { PhCircleNotch, PhPlugsConnected, PhWarning } from '@phosphor-icons/vue';
 import { Button } from '@/components/ui/button';
 import { forumDateTime } from '@/lib/forumDate';
+import { feedLabel } from '@/lib/rollcall';
 import TimeAgo from '@/components/TimeAgo.vue';
 
 // Why a practice has no server data (Story 7.9, mockups/v2/capture-review.html variant C, "Server data:
@@ -10,7 +11,8 @@ import TimeAgo from '@/components/TimeAgo.vue';
 // the game. Either way nothing was pre-filled and the leader marks by hand; "Try again" asks the portal
 // to read the server once more. Not dismissible: it stays until a capture succeeds.
 const props = defineProps({
-    // `{ state: 'failed' | 'not_configured', platformLabel, lastAttemptAt, canRetry }`.
+    // `{ state: 'failed' | 'not_configured', platformLabel, feeds, lastAttemptAt, canRetry }`; `feeds` names the
+    // game's sources that were tried (`crcon`, `battlemetrics`, `nightwatch`).
     telemetry: { type: Object, required: true },
     // A "Try again" is in flight.
     retrying: { type: Boolean, default: false },
@@ -21,6 +23,9 @@ const props = defineProps({
 defineEmits(['retry']);
 
 const failed = computed(() => props.telemetry.state === 'failed');
+// The feed that is down, by game and source (#176): "Hell Let Loose server (CRCON)", never a bare "server" that could
+// read as nobody having been online.
+const feed = computed(() => feedLabel(props.telemetry));
 const lastTried = computed(() => (props.telemetry.lastAttemptAt ? `${forumDateTime(props.telemetry.lastAttemptAt)} UTC` : null));
 </script>
 
@@ -33,7 +38,7 @@ const lastTried = computed(() => (props.telemetry.lastAttemptAt ? `${forumDateTi
     >
         <component :is="failed ? PhWarning : PhPlugsConnected" class="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
         <p v-if="failed" class="min-w-[14rem] flex-1">
-            Game server could not be read<template v-if="lastTried">, last tried <TimeAgo :at="telemetry.lastAttemptAt" quiet>{{ lastTried }}</TimeAgo></template>. Nothing was pre-filled. Mark attendance by hand.
+            {{ feed }} could not be read<template v-if="lastTried">, last tried <TimeAgo :at="telemetry.lastAttemptAt" quiet>{{ lastTried }}</TimeAgo></template>. Nothing was pre-filled. Mark attendance by hand.
         </p>
         <p v-else class="min-w-[14rem] flex-1">
             Telemetry is not configured<template v-if="telemetry.platformLabel"> for {{ telemetry.platformLabel }}</template>, so nothing was pre-filled. Mark attendance by hand.
