@@ -15,7 +15,6 @@ use App\Models\ArtifactType;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
-use App\Models\PortalRoleGrant;
 use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
@@ -43,8 +42,7 @@ use Saloon\Http\Faking\MockClient;
 beforeEach(function () {
     $this->platoon = Unit::factory()->create(['type' => UnitType::Platoon, 'path' => '700/']);
     $this->section = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => '700/701/']);
-    $this->leader = User::factory()->serving()->create();
-    PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
+    $this->leader = User::factory()->commanding($this->section)->create();
 
     // Wednesday 2026-10-07 18:00 UTC falls in the Cav week opening Saturday 2026-10-03.
     $this->moment = CarbonImmutable::parse('2026-10-07 18:00:00', 'UTC');
@@ -304,8 +302,7 @@ it('rejects a user with no scope over the unit, writing nothing', function () {
 
 it('rejects the leader of a sibling section', function () {
     $sibling = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => '700/702/']);
-    $siblingLeader = User::factory()->serving()->create();
-    PortalRoleGrant::factory()->create(['user_id' => $siblingLeader->id, 'unit_id' => $sibling->id]);
+    $siblingLeader = User::factory()->commanding($sibling)->create();
 
     sendReport($siblingLeader, $this->section->id, $this->moment);
 })->throws(SendWeeklyReportForbiddenException::class);
@@ -320,9 +317,8 @@ it('rejects an out-of-scope re-send without revealing the sent report', function
     sendReport(User::factory()->create(), $this->section->id, $this->moment);
 })->throws(SendWeeklyReportForbiddenException::class);
 
-it('lets a leader whose grant sits higher up the tree send the section\'s report', function () {
-    $platoonLeader = User::factory()->serving()->create();
-    PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
+it('lets a leader whose command sits higher up the tree send the section\'s report', function () {
+    $platoonLeader = User::factory()->commanding($this->platoon)->create();
 
     expect(sendReport($platoonLeader, $this->section->id, $this->moment)->alreadySent)->toBeFalse();
 });
@@ -337,8 +333,7 @@ it('refuses a unit that does not exist, even for an admin (no unit is in anyone\
 })->throws(SendWeeklyReportForbiddenException::class);
 
 it('sends a non-leaf report as the roll-up of its sent children, freezing the ones it went without (5.7)', function () {
-    $platoonLeader = User::factory()->serving()->create();
-    PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
+    $platoonLeader = User::factory()->commanding($this->platoon)->create();
     $sent = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => '700/702/']);
     $sentKpis = new UnitKpis(4, new Ratio(12, 16), new Ratio(3, 4), 1, 0, 1);
     app(WeeklyReportRepository::class)->send($sent->id, $this->weekStart, (new ReportSnapshot($sentKpis, null))->toArray(), null, $platoonLeader->id, 'd', null);

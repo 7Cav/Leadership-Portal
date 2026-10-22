@@ -158,6 +158,9 @@ class RollcallController extends Controller
             'section' => $this->sectionProps($section, $sections),
             'sections' => $this->pickerOptions($sections),
             'week' => $this->weekProps($weekStart, $currentWeek),
+            // Whether this viewer may mark, confirm or post here: command authority, not a staff grant, which only
+            // reads (the handlers refuse the write either way). The page goes read-only when false.
+            'canWrite' => $this->scope->writeScope($user)->contains($section->id),
             // Resolved on every request, never cached, so an Admin's edit or rollback reaches every section under the
             // company on its next load (3.11, AD-17). Marks are data; the template is only how they are written up.
             'template' => $this->templates->forUnit($section)->toArray(),

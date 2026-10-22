@@ -4,7 +4,6 @@ use App\Commands\Capture\CaptureSources;
 use App\Jobs\CaptureSectionPracticeJob;
 use App\Models\AuditLogEntry;
 use App\Models\GamePlatform;
-use App\Models\PortalRoleGrant;
 use App\Models\SectionPractice;
 use App\Models\SyncRun;
 use App\Models\SyncRunStatus;
@@ -27,8 +26,7 @@ beforeEach(function () {
     app()->forgetInstance(CaptureSources::class);
 
     $this->section = Unit::factory()->create(['type' => UnitType::Section, 'path' => '950/']);
-    $this->leader = User::factory()->serving()->create(['username' => 'Vasquez.R']);
-    PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
+    $this->leader = User::factory()->commanding($this->section)->create(['username' => 'Vasquez.R']);
     $this->ortega = Trooper::factory()->create(['username' => 'Ortega.M']);
     $this->ortega->forceFill(['primary_section_id' => $this->section->id])->save();
     TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'platform' => GamePlatform::Hll, 'platform_id' => '7656119000000001']);

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-// Story 7.2 happy path. Vasquez.R holds a staff grant over one seeded section of eight troopers
+// Story 7.2 happy path. Vasquez.R commands one seeded section of eight troopers
 // (ReportRollupSeeder), none of them linked to a game yet.
 
 test('a section leader links their troopers, hits a collision, then edits and removes an identity', async ({ page }) => {

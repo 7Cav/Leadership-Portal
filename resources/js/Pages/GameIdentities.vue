@@ -19,16 +19,17 @@ import { cn } from '@/lib/utils';
 const props = defineProps({
     // `[{ value, label, idLabel }]` — one per supported game.
     platforms: { type: Array, required: true },
-    // `[{ id, displayName, billet, section, identities: { [platform]: { playerName, platformId } } }]`
-    // — the troopers in the viewer's scope, by name.
+    // `[{ id, displayName, billet, section, editable, identities: { [platform]: { playerName, platformId } } }]`
+    // — the troopers in the viewer's scope, by name. `editable` is false for one the viewer only sees
+    // through a staff grant.
     troopers: { type: Array, required: true },
 });
 
 const page = usePage();
 
-// A view-as preview is read-only (Story 1.13): the server refuses every write, so say so up front.
+// A view-as preview is read-only (Story 1.13), and so is a trooper the viewer only sees through a
+// staff grant (`editable` false): the server refuses those writes, so say so up front.
 const viewAs = computed(() => page.props.viewAs ?? null);
-const editable = computed(() => !viewAs.value);
 
 const view = ref('needs');
 const selectedId = ref(null);
@@ -53,6 +54,7 @@ const percent = computed(() => (slots.value ? Math.round((linked.value / slots.v
 const selected = computed(() => props.troopers.find((trooper) => trooper.id === selectedId.value) ?? null);
 const platformMeta = computed(() => platformOf(platform.value));
 const existing = computed(() => selected.value?.identities[platform.value] ?? null);
+const editable = computed(() => !viewAs.value && Boolean(selected.value?.editable));
 
 function joinNames(list) {
     const names = list.map((p) => p.label);
@@ -243,6 +245,9 @@ function remove(value) {
 
                         <p v-if="viewAs" class="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="read-only">
                             <PhLockSimple aria-hidden="true" />Read-only while viewing as {{ viewAs.label }}
+                        </p>
+                        <p v-else-if="!editable" class="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="read-only">
+                            <PhLockSimple aria-hidden="true" />Read-only: a staff grant lets you view this trooper, not change their links
                         </p>
 
                         <ul v-if="linkedOf(selected).length" class="grid gap-2" data-testid="identities">

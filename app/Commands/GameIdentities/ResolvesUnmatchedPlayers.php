@@ -12,7 +12,7 @@ use App\Support\Time\WeekOf;
 
 /**
  * The gate and lookup shared by the link and dismiss handlers (Story 7.7): the practice's section
- * must be in the actor's effective scope (AD-8), and the player must be one that practice's
+ * must be in the actor's write scope (AD-8), and the player must be one that practice's
  * capture stored as unmatched.
  */
 trait ResolvesUnmatchedPlayers
@@ -30,7 +30,7 @@ trait ResolvesUnmatchedPlayers
         PracticeCapturePlayerRepository $captured,
         LinkUnmatchedPlayer|DismissUnmatchedPlayer $command,
     ): array {
-        if (! $scope->resolve($actor)->contains($command->sectionId)) {
+        if (! $scope->writeScope($actor)->contains($command->sectionId)) {
             throw GameIdentityForbiddenException::forSection($command->sectionId);
         }
 

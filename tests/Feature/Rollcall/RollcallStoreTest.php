@@ -5,7 +5,6 @@ use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
 use App\Models\Loa;
-use App\Models\PortalRoleGrant;
 use App\Models\RollcallSignature;
 use App\Models\SectionPractice;
 use App\Models\Trooper;
@@ -27,8 +26,7 @@ beforeEach(function () {
     $this->platoon = Unit::factory()->create(['type' => UnitType::Platoon, 'path' => '910/']);
     $this->section = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => '910/911/']);
     $this->sibling = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => '910/912/']);
-    $this->leader = User::factory()->serving()->create();
-    PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
+    $this->leader = User::factory()->commanding($this->section)->create();
     $this->trooper = Trooper::factory()->create();
     $this->trooper->forceFill(['primary_section_id' => $this->section->id])->save();
 });
@@ -174,9 +172,8 @@ it('rejects a malformed batch', function (array $payload) {
     'duplicate trooper' => [fn () => ['week' => '2026-10-03', 'marks' => [['trooper_id' => $this->trooper->id, 'status' => 'present'], ['trooper_id' => $this->trooper->id, 'status' => 'missed']]]],
 ]);
 
-it('lets a leader whose grant sits higher up the tree mark a child section', function () {
-    $platoonLeader = User::factory()->serving()->create();
-    PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
+it('lets a leader whose command sits higher up the tree mark a child section', function () {
+    $platoonLeader = User::factory()->commanding($this->platoon)->create();
 
     saveRollcall($platoonLeader, $this->section->id, [['trooper_id' => $this->trooper->id, 'status' => 'present']])->assertOk();
 });

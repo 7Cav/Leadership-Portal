@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-// Stories 2.8 / 4.6–4.9 happy path. Data comes from ReportRollupSeeder: Vasquez.R holds a staff
-// grant over section 2/1/A/1-7 (eight troopers with attendance), Hale.S over company A/1-7.
+// Stories 2.8 / 4.6–4.9 happy path. Data comes from ReportRollupSeeder: Vasquez.R commands
+// section 2/1/A/1-7 (eight troopers with attendance), Hale.S company A/1-7.
 
 test('a section leader reads their section in both views and opens a trooper', async ({ page }) => {
     await page.goto('/__e2e/login/Vasquez.R?to=/home');
@@ -41,7 +41,7 @@ test('a unit outside the leader\'s scope is refused by the server', async ({ pag
     await page.getByTestId('roster-scope').click();
     const companyHref = await page.getByRole('menuitem', { name: /A\/1-7/ }).first().getAttribute('href');
 
-    // …which the section leader, whose grant covers one section, may not open.
+    // …which the section leader, whose command covers one section, may not open.
     await page.goto('/__e2e/login/Vasquez.R?to=/home');
     const response = await page.goto(companyHref);
     expect(response.status()).toBe(403);

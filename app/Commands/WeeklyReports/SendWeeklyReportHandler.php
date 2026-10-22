@@ -73,7 +73,7 @@ class SendWeeklyReportHandler
      */
     public function handle(User $actor, SendWeeklyReport $command): SentWeeklyReport
     {
-        $unit = $this->scope->resolve($actor)->contains($command->unitId) ? $this->units->find($command->unitId) : null;
+        $unit = $this->scope->writeScope($actor)->contains($command->unitId) ? $this->units->find($command->unitId) : null;
 
         if ($unit === null) {
             throw new SendWeeklyReportForbiddenException($command->unitId);

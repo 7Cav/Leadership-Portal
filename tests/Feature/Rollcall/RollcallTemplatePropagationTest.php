@@ -4,7 +4,6 @@ use App\Models\ArtifactType;
 use App\Models\Attendance;
 use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
-use App\Models\PortalRoleGrant;
 use App\Models\TemplateVersion;
 use App\Models\Trooper;
 use App\Models\Unit;
@@ -42,8 +41,7 @@ function bindTemplate($test, Unit $section): array
 
 function bindLeader(Unit $section): User
 {
-    $leader = User::factory()->serving()->create();
-    PortalRoleGrant::factory()->create(['user_id' => $leader->id, 'unit_id' => $section->id]);
+    $leader = User::factory()->commanding($section)->create();
 
     return $leader;
 }

@@ -38,7 +38,7 @@ const PLATFORMS = [
     { value: 'hll', label: 'Hell Let Loose', idLabel: 'Steam ID' },
     { value: 'arma', label: 'Arma Reforger', idLabel: 'Player ID' },
 ];
-const trooper = (id, name, identities = {}) => ({ id, displayName: name, billet: 'Rifleman', section: '1/A', identities });
+const trooper = (id, name, identities = {}, editable = true) => ({ id, displayName: name, billet: 'Rifleman', section: '1/A', editable, identities });
 const TROOPERS = [
     trooper(1, 'SGT Ortega.M', { hll: { playerName: 'OrtegaCav', platformId: '7656' } }),
     trooper(2, 'PFC Dube.R'),
@@ -162,6 +162,19 @@ describe('GameIdentities page', () => {
 
         expect(wrapper.get('[data-testid="read-only"]').text()).toContain('Vasquez.R');
         expect(wrapper.get('[data-testid="identity-save"]').attributes('disabled')).toBeDefined();
+    });
+
+    it('is read-only for a trooper the viewer only sees through a staff grant', async () => {
+        const wrapper = factory([trooper(1, 'SGT Ortega.M', { hll: { playerName: 'OrtegaCav', platformId: '7656' } }, false), trooper(2, 'PFC Dube.R')]);
+        await wrapper.get('[data-testid="open-1"]').trigger('click');
+
+        expect(wrapper.get('[data-testid="read-only"]').text()).toContain('a staff grant lets you view this trooper');
+        expect(wrapper.get('[data-testid="identity-save"]').attributes('disabled')).toBeDefined();
+        expect(wrapper.get('[data-testid="remove-hll"]').attributes('disabled')).toBeDefined();
+
+        await wrapper.get('[data-testid="open-2"]').trigger('click');
+        expect(wrapper.find('[data-testid="read-only"]').exists()).toBe(false);
+        expect(wrapper.get('[data-testid="identity-save"]').attributes('disabled')).toBeUndefined();
     });
 
     it('shows an empty state when nobody is in scope', () => {

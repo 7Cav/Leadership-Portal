@@ -62,7 +62,7 @@ class MarkAttendanceHandler
      */
     public function handle(User $actor, MarkAttendance $command): SectionPractice
     {
-        if (! $this->scope->resolve($actor)->contains($command->sectionId)) {
+        if (! $this->scope->writeScope($actor)->contains($command->sectionId)) {
             throw new MarkAttendanceForbiddenException($command->sectionId);
         }
 

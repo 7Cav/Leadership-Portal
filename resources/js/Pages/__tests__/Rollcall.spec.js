@@ -75,6 +75,7 @@ function factory(props = {}) {
             roster: { source: 'milpac', syncedAt: '2026-10-08T09:14:00+00:00' },
             practice: { lastMarkedAt: null },
             template: TEMPLATE,
+            canWrite: true,
             ...props,
         },
         attachTo: document.body,
@@ -469,6 +470,16 @@ describe('Rollcall page', () => {
             expect(button(wrapper, 3, 'present').attributes('disabled')).toBeDefined();
             expect(button(wrapper, 3, 'present').attributes('title')).toBe('Read-only while viewing as CPL Lindqvist.E');
             expect(wrapper.find('[data-testid="mark-all-present"]').exists()).toBe(false);
+        });
+
+        it('is read-only for a section the viewer only sees through a staff grant', async () => {
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory({ canWrite: false });
+
+            expect(wrapper.find('[data-testid="read-only-notice"]').text()).toBe('Read-only: a staff grant lets you view this section, not mark it.');
+            expect(button(wrapper, 3, 'present').attributes('disabled')).toBeDefined();
+            expect(wrapper.find('[data-testid="mark-all-present"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="use-last-week"]').exists()).toBe(false);
         });
 
         it('lists this visit\'s changes on the review step', async () => {

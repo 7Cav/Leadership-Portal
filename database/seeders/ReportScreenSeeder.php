@@ -6,11 +6,11 @@ use App\Commands\WeeklyReports\SendWeeklyReport;
 use App\Commands\WeeklyReports\SendWeeklyReportHandler;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
-use App\Models\PortalRoleGrant;
 use App\Models\RollcallSignature;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
+use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReport;
@@ -63,11 +63,12 @@ class ReportScreenSeeder extends Seeder
                 'cav_id' => $cavId, 'rank_short' => $person[0], 'username' => $person[1], 'status' => TrooperStatus::Combat, 'primary_section_id' => $this->section->id,
             ]);
         });
+        // Mercer.J leads the section by billet: the command that writes (a staff grant only reads).
         $this->sectionLeader = User::query()->where('cav_id', $troopers[0]->cav_id)->sole();
-        PortalRoleGrant::factory()->create(['user_id' => $this->sectionLeader->id, 'unit_id' => $this->section->id]);
+        UnitCommandMapping::factory()->create(['unit_id' => $this->section->id, 'cav_position_id' => (int) "{$tag}1"]);
+        $troopers[0]->forceFill(['cav_position_id' => (int) "{$tag}1"])->save();
 
-        $this->platoonLeader = User::factory()->serving()->create(['username' => 'Brennan.J']);
-        PortalRoleGrant::factory()->create(['user_id' => $this->platoonLeader->id, 'unit_id' => $this->platoon->id]);
+        $this->platoonLeader = User::factory()->commanding($this->platoon, ['username' => 'Brennan.J'])->create(['username' => 'Brennan.J']);
 
         foreach ([$first, $third] as $other) {
             Trooper::factory()->count(5)->create(['primary_section_id' => $other->id, 'rank_short' => 'PFC']);

@@ -5,7 +5,7 @@ namespace App\Commands\Attendance;
 use Illuminate\Auth\Access\AuthorizationException;
 
 /**
- * The actor's effective scope (AD-8, via `ScopeResolver`) does not cover the section whose rollcall
+ * The actor's write scope (AD-8, `ScopeResolver::writeScope()`) does not cover the section whose rollcall
  * they tried to mark posted. An `AuthorizationException`, so any HTTP caller that lets it propagate
  * answers 403.
  */

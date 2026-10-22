@@ -121,6 +121,8 @@ class ReportController extends Controller
                 'next' => $weekStart->addWeek()->lessThanOrEqualTo($this->currentWeek()) ? $weekStart->addWeek()->toDateString() : null,
             ],
             'report' => $this->reportProps($report, $senders),
+            // Whether this viewer may save or send it: command authority, not a staff grant, which only reads.
+            'canWrite' => $this->scope->writeScope($request->user())->contains($unit->id),
             'kpis' => $snapshot === null ? null : $this->kpiProps($snapshot->kpis),
             'delta' => $snapshot?->delta === null ? null : $this->deltaProps($snapshot->delta),
             'kpiError' => $kpiError,

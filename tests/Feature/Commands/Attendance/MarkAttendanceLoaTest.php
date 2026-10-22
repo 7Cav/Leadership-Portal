@@ -11,7 +11,6 @@ use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
 use App\Models\Loa;
 use App\Models\LoaType;
-use App\Models\PortalRoleGrant;
 use App\Models\RollcallSignature;
 use App\Models\SectionPractice;
 use App\Models\Trooper;
@@ -26,8 +25,7 @@ use Illuminate\Support\Facades\DB;
 
 beforeEach(function () {
     $this->section = Unit::factory()->create(['type' => UnitType::Section]);
-    $this->leader = User::factory()->serving()->create();
-    PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
+    $this->leader = User::factory()->commanding($this->section)->create();
 
     $this->moment = CarbonImmutable::parse('2026-10-07 18:00:00', 'UTC');
     $this->weekStart = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');

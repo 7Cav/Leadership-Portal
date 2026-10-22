@@ -3,6 +3,8 @@
 namespace Database\Factories;
 
 use App\Models\Trooper;
+use App\Models\Unit;
+use App\Models\UnitCommandMapping;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -49,6 +51,24 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'cav_id' => Trooper::factory()->create()->cav_id,
+        ]);
+    }
+
+    /**
+     * Link the identity to a serving trooper whose synced billet commands `$unit` (the roster-derived
+     * scope, AD-7): a fresh command mapping for the unit and a trooper holding that billet, with any
+     * `$trooper` attributes. Unlike a staff grant, which only reads, this is write authority over the
+     * unit's subtree.
+     *
+     * @param  array<string, mixed>  $trooper
+     */
+    public function commanding(Unit $unit, array $trooper = []): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'cav_id' => Trooper::factory()->create([
+                ...$trooper,
+                'cav_position_id' => UnitCommandMapping::factory()->create(['unit_id' => $unit->id])->cav_position_id,
+            ])->cav_id,
         ]);
     }
 }

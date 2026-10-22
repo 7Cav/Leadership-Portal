@@ -44,6 +44,7 @@ class GameIdentityController extends Controller
     public function index(Request $request): Response
     {
         $scope = $this->scope->resolve($request->user());
+        $writable = $this->scope->writeScope($request->user())->flip();
         $sections = $this->units->sectionsAmong($scope)->keyBy('id');
         $troopers = $this->troopers->placedInAny($sections->keys());
         $identities = $this->identities->forTroopers($troopers->modelKeys())->groupBy('trooper_id');
@@ -59,6 +60,8 @@ class GameIdentityController extends Controller
                 'displayName' => $trooper->display_name,
                 'billet' => $trooper->billet,
                 'section' => $this->designation($sections->get($trooper->primary_section_id)),
+                // A staff grant shows the trooper but does not let the viewer change their links.
+                'editable' => $writable->has($trooper->primary_section_id),
                 'identities' => ($identities->get($trooper->id) ?? collect())
                     ->mapWithKeys(fn (TrooperGameIdentity $identity) => [$identity->platform->value => [
                         'playerName' => $identity->player_name,

@@ -41,7 +41,7 @@ class ConfirmSectionPracticeHandler
      */
     public function handle(User $actor, ConfirmSectionPractice $command): SectionPractice
     {
-        if (! $this->scope->resolve($actor)->contains($command->sectionId)) {
+        if (! $this->scope->writeScope($actor)->contains($command->sectionId)) {
             throw new ConfirmSectionPracticeForbiddenException($command->sectionId);
         }
 
