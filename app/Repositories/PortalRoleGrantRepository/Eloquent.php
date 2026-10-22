@@ -7,6 +7,7 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Repositories\PortalRoleGrantRepository;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 
 class Eloquent implements PortalRoleGrantRepository
@@ -35,15 +36,27 @@ class Eloquent implements PortalRoleGrantRepository
 
     public function grant(User $user, Unit $unit): PortalRoleGrant
     {
-        return PortalRoleGrant::query()->firstOrCreate([
-            'user_id' => $user->getKey(),
-            'unit_id' => $unit->getKey(),
-        ]);
+        $key = ['user_id' => $user->getKey(), 'unit_id' => $unit->getKey()];
+
+        try {
+            return PortalRoleGrant::query()->firstOrCreate($key);
+        } catch (UniqueConstraintViolationException $e) {
+            // A racing grant committed the row after this transaction's snapshot: firstOrCreate's own
+            // re-read is a plain (snapshot) read under MySQL REPEATABLE READ, so it cannot see it and
+            // rethrows. A locking read sees the latest committed row (as SectionPracticeRepository does).
+            return PortalRoleGrant::query()->where($key)->lockForUpdate()->first() ?? throw $e;
+        }
     }
 
     public function revoke(User $user, Unit $unit): ?PortalRoleGrant
     {
-        $grant = $this->find($user, $unit);
+        // A locking read, so a racing revoke that committed first is seen (null here) rather than
+        // hidden by this transaction's snapshot, and the same row is never deleted twice.
+        $grant = PortalRoleGrant::query()
+            ->where('user_id', $user->getKey())
+            ->where('unit_id', $unit->getKey())
+            ->lockForUpdate()
+            ->first();
 
         if ($grant === null) {
             return null;

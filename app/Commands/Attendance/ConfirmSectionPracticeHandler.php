@@ -10,11 +10,15 @@ use App\Repositories\SectionPracticeRepository;
 use App\Repositories\UnitRepository;
 use App\Support\Audit\AuditEnvelope;
 use App\Support\Time\WeekOf;
+use DateTimeImmutable;
 
 /**
  * Confirms a section's practice (7.8): finds or creates the week's practice row and stamps it with
  * now and the actor, as one audited action (AD-16). Works for a captured practice and a purely
- * manual one alike. Confirming again re-stamps; each confirmation is its own audit entry. Refuses a
+ * manual one alike. Confirming again re-stamps; each confirmation is its own audit entry. A leader
+ * whose screen did not show the practice's current confirmation (another leader confirmed it in
+ * the meantime, or at the same moment) gets that confirmation back, with no stamp and no entry of
+ * their own: see {@see ConfirmSectionPractice::$seenConfirmedAt}. Refuses a
  * section outside the actor's scope (AD-8) and a unit that is not a section.
  *
  * Not the same as "signed" (a trooper signing the rollcall thread, 3.7), "posted" (the leader
@@ -47,15 +51,42 @@ class ConfirmSectionPracticeHandler
 
         $weekStart = WeekOf::start($command->week);
 
-        return $this->audit->record(
-            actorId: $actor->id,
-            action: 'practice.confirmed',
-            reason: null,
-            reasonRequired: false,
-            mutation: fn () => $this->practices->confirm(
-                $this->practices->findOrCreate($command->sectionId, $weekStart),
-                $actor->id,
-            ),
-        );
+        try {
+            return $this->audit->record(
+                actorId: $actor->id,
+                action: 'practice.confirmed',
+                reason: null,
+                reasonRequired: false,
+                mutation: function () use ($command, $weekStart, $actor) {
+                    $created = $this->practices->findOrCreate($command->sectionId, $weekStart);
+
+                    // Decided under the row lock, so of two leaders confirming at once the second
+                    // waits, then sees the first one's confirmation instead of stamping its own.
+                    $practice = $this->practices->lockById($created->id) ?? $created;
+
+                    if ($this->confirmedMeanwhile($practice, $command->seenConfirmedAt)) {
+                        throw new PracticeConfirmedMeanwhileException($practice);
+                    }
+
+                    return $this->practices->confirm($practice, $actor->id);
+                },
+            );
+        } catch (PracticeConfirmedMeanwhileException $meanwhile) {
+            return $this->practices->find($command->sectionId, $weekStart) ?? $meanwhile->practice;
+        }
+    }
+
+    /**
+     * Whether the practice holds a confirmation other than the one the leader saw. A practice with
+     * no confirmation never counts: confirming it is always a real confirmation. `confirmed_at` is
+     * stored to the second, which is also what the screen is sent.
+     */
+    private function confirmedMeanwhile(SectionPractice $practice, DateTimeImmutable|false|null $seen): bool
+    {
+        if ($seen === false || $practice->confirmed_at === null) {
+            return false;
+        }
+
+        return $seen === null || $practice->confirmed_at->getTimestamp() !== $seen->getTimestamp();
     }
 }

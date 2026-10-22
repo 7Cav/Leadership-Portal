@@ -348,7 +348,12 @@ async function confirmPractice() {
 
             return;
         }
-        const result = await postJson(`/rollcall/${props.section.id}/confirm`, { week: props.week.date }).catch(unreachable);
+        // The confirmation on screen goes along, so a leader who confirms just after another one
+        // gets theirs back instead of a second stamp (7.8).
+        const result = await postJson(`/rollcall/${props.section.id}/confirm`, {
+            week: props.week.date,
+            confirmedAt: confirmation.value?.at ?? null,
+        }).catch(unreachable);
         if (result.ok && result.data?.confirmation) {
             confirmation.value = result.data.confirmation;
             toast.success('Practice confirmed', { description: `${props.section.designation}, week of ${weekLabel.value}` });

@@ -16,7 +16,9 @@ use App\Support\Audit\AuditEnvelope;
  * {@see GrantTargetIsAdminException}. A no-op when the grant already exists never routes through
  * {@see AuditEnvelope} — the same rule {@see RevokeStaffScope} states for its own no-op, so a
  * double-click on "Grant scope" never records a second `portal_role_grant.granted` for the same
- * node. Otherwise the write is staged through `AuditEnvelope` (AD-16) with a reason always
+ * node. Two grants racing past that check meet at the unique key: the one that loses finds the
+ * row the other wrote and rolls back without an entry (see {@see GrantUnchangedException}).
+ * Otherwise the write is staged through `AuditEnvelope` (AD-16) with a reason always
  * required — a role grant is the kind of high-authority mutation CONTRIBUTING §4 reserves that
  * for.
  */
@@ -42,12 +44,26 @@ class GrantStaffScope
             return $existing;
         }
 
-        return $this->audit->record(
-            actorId: $actor->id,
-            action: 'portal_role_grant.granted',
-            reason: $reason,
-            reasonRequired: true,
-            mutation: fn () => $this->grants->grant($target, $unit),
-        );
+        try {
+            return $this->audit->record(
+                actorId: $actor->id,
+                action: 'portal_role_grant.granted',
+                reason: $reason,
+                reasonRequired: true,
+                mutation: function () use ($target, $unit) {
+                    $grant = $this->grants->grant($target, $unit);
+
+                    // A racing grant for the same node committed between the check above and this
+                    // write: the node is already granted, so this is the same no-op as above.
+                    if (! $grant->wasRecentlyCreated) {
+                        throw new GrantUnchangedException($grant);
+                    }
+
+                    return $grant;
+                },
+            );
+        } catch (GrantUnchangedException $unchanged) {
+            return $unchanged->grant;
+        }
     }
 }

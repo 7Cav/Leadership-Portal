@@ -149,3 +149,30 @@ it('re-stamps on a second confirmation and audits each one', function () {
 
     expect(AuditLogEntry::query()->where('action', 'practice.confirmed')->count())->toBe(2);
 });
+
+// Two leaders confirming the same practice at once: the second one's screen still showed it
+// unconfirmed, so it gets the first confirmation back instead of a second stamp and audit entry.
+it('answers a confirmation the leader never saw instead of stamping a second one', function () {
+    $other = User::factory()->serving()->create(['username' => 'Ortega.M']);
+    PortalRoleGrant::factory()->create(['user_id' => $other->id, 'unit_id' => $this->section->id]);
+    $this->actingAs($other)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => '2026-10-03', 'confirmedAt' => null])->assertOk();
+    Carbon::setTestNow(CarbonImmutable::parse('2026-10-08 16:20:05', 'UTC'));
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => '2026-10-03', 'confirmedAt' => null])
+        ->assertOk()
+        ->assertJsonPath('confirmation.at', '2026-10-08T16:20:00+00:00')
+        ->assertJsonPath('confirmation.by', 'Ortega.M');
+
+    expect(AuditLogEntry::query()->where('action', 'practice.confirmed')->count())->toBe(1)
+        ->and($this->practice->fresh()->confirmed_by)->toBe($other->id);
+});
+
+it('re-stamps when the leader confirms again over the confirmation on their screen', function () {
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => '2026-10-03', 'confirmedAt' => null])->assertOk();
+    Carbon::setTestNow(CarbonImmutable::parse('2026-10-09 08:00:00', 'UTC'));
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => '2026-10-03', 'confirmedAt' => '2026-10-08T16:20:00+00:00'])
+        ->assertOk()->assertJsonPath('confirmation.at', '2026-10-09T08:00:00+00:00');
+
+    expect(AuditLogEntry::query()->where('action', 'practice.confirmed')->count())->toBe(2);
+});

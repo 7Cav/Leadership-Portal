@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\PlacementSource;
+use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Repositories\UnitRepository;
@@ -170,6 +172,25 @@ it('deletes a childless unit', function () {
     $repo->delete($unit);
 
     expect(Unit::find($unit->id))->toBeNull();
+});
+
+// The foreign key nulled the section but left `placement_source` naming who placed the trooper.
+it('leaves the troopers of a deleted section unplaced, clearing their placement source too', function () {
+    $repo = app(UnitRepository::class);
+    $doomed = $repo->create(UnitType::Section, 'Nightriders', '1/1/E/2-7', null);
+    $kept = $repo->create(UnitType::Section, 'Dark Horse', '2/1/E/2-7', null);
+    $manual = Trooper::factory()->create(['primary_section_id' => $doomed->id, 'placement_source' => PlacementSource::Manual]);
+    $synced = Trooper::factory()->create(['primary_section_id' => $doomed->id, 'placement_source' => PlacementSource::Sync]);
+    $elsewhere = Trooper::factory()->create(['primary_section_id' => $kept->id, 'placement_source' => PlacementSource::Manual]);
+
+    $repo->delete($doomed);
+
+    foreach ([$manual, $synced] as $trooper) {
+        expect($trooper->fresh()->primary_section_id)->toBeNull()
+            ->and($trooper->fresh()->placement_source)->toBeNull();
+    }
+    expect($elsewhere->fresh()->primary_section_id)->toBe($kept->id)
+        ->and($elsewhere->fresh()->placement_source)->toBe(PlacementSource::Manual);
 });
 
 it('reports whether a unit has children', function () {
