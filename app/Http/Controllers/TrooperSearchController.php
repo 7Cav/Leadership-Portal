@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
 use App\Models\Trooper;
-use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
@@ -62,7 +61,7 @@ class TrooperSearchController extends Controller
                 'section' => ($section = $units->get($t->primary_section_id)) instanceof Unit
                     ? ['id' => $section->id, 'designation' => $section->callsign ?? $section->name, 'name' => $section->name]
                     : null,
-                'departed' => $t->status === TrooperStatus::Inactive,
+                'departed' => $t->status?->isServing() !== true,
             ])->values(),
             'more' => $found->count() > self::LIMIT,
         ]);

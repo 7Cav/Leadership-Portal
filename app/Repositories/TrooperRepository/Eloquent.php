@@ -284,7 +284,7 @@ class Eloquent implements TrooperRepository
                 ->whereIn('primary_section_id', collect($sectionIds)->all())
                 ->when($withUnplaced, fn (Builder $q) => $q->orWhereNull('primary_section_id')))
             ->whereRaw("LOWER(username) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
-            ->orderByRaw('CASE WHEN status = ? THEN 1 ELSE 0 END', [TrooperStatus::Inactive->value])
+            ->orderByRaw('CASE WHEN status IN ('.implode(', ', array_fill(0, count(TrooperStatus::serving()), '?')).') THEN 0 ELSE 1 END', TrooperStatus::servingValues())
             ->orderByRaw("CASE WHEN LOWER(username) LIKE ? ESCAPE '!' THEN 0 ELSE 1 END", ["{$escaped}%"])
             ->orderBy('username')
             ->orderBy('id')
