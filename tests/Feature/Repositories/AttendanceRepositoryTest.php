@@ -164,6 +164,28 @@ it('marks a practice held once anyone in the section has an SP mark, not on sign
     ]);
 });
 
+it('reads only the span\'s practices of the unit\'s sections to decide whether a practice was held', function () {
+    [$section, $trooper] = countingFixture();
+    $week = CarbonImmutable::parse('2026-06-27 00:00:00', 'UTC');
+    $practice = SectionPractice::factory()->create(['section_id' => $section->id, 'week_start' => $week]);
+    $this->repo->markPractice($practice, $trooper->id, AttendanceStatus::Present, AttendanceSource::Manual);
+
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+    $marks = $this->repo->countingMarks($section, $week, $week);
+    $sql = str_replace(['"', '`'], '', collect(DB::getQueryLog())->pluck('query')->implode("\n"));
+    DB::disableQueryLog();
+
+    // The held subquery is the left-joined select aliased `held`; unbounded, it would group the
+    // whole attendance history on every KPI read.
+    preg_match('/left join \((select .*?)\) as held/s', $sql, $held);
+
+    expect($marks->sole()->held)->toBeTrue()
+        ->and($held)->not->toBeEmpty()
+        ->and($held[1])->toContain('section_practices.week_start between')
+        ->and($held[1])->toContain('section_practices.section_id in');
+});
+
 it('carries who recorded each counting mark, for the roster cell\'s source (2.8)', function () {
     [$section, $trooper] = countingFixture();
     $week = CarbonImmutable::parse('2026-06-27 00:00:00', 'UTC');
