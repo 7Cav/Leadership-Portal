@@ -25,6 +25,7 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import HistoryPanel from '@/components/reports/HistoryPanel.vue';
+import PlatoonTopicField from '@/components/reports/PlatoonTopicField.vue';
 import ReadinessChecklist from '@/components/reports/ReadinessChecklist.vue';
 import ReportPreview from '@/components/reports/ReportPreview.vue';
 import SendDialog from '@/components/reports/SendDialog.vue';
@@ -66,6 +67,12 @@ const props = defineProps({
     // Whether the viewer may save or send this report: false for a unit they only see through a
     // staff grant, which reads but never writes (the server refuses those writes).
     canWrite: { type: Boolean, default: false },
+    // The platoon's training topic for the week: on a section's draft, its platoon's; on a
+    // platoon's screen, the one it set for its sections.
+    topic: { type: Object, default: null },
+    canSetTopic: { type: Boolean, default: false },
+    // Carry-forward: the subject of the section's last sent report, offered on an empty field.
+    suggestedSubject: { type: String, default: null },
 });
 
 const page = usePage();
@@ -92,9 +99,22 @@ const parentLabel = computed(() => (props.unit.parent ? unitLabel(props.unit.par
 const percentText = (ratio) => (percent(ratio) === null ? '—' : `${percent(ratio)}%`);
 
 // ---- The leader's content, autosaved as a draft (5.5) ----
+// The training subject follows the platoon's topic: enforced, it is the subject and cannot be
+// changed; otherwise it fills an empty field and the leader may change it. The server applies the
+// same rule, so an enforced topic holds whatever this page sends.
+const sectionTopic = computed(() => (props.unit.isLeaf && !sent.value ? props.topic : null));
+const subjectLocked = computed(() => !!sectionTopic.value?.enforced);
+const topicFrom = computed(() => unitLabel(sectionTopic.value?.platoon) || 'your platoon');
+
+function initialSubject() {
+    if (subjectLocked.value) return sectionTopic.value.subject;
+
+    return props.report.trainingSubject || sectionTopic.value?.subject || '';
+}
+
 const content = reactive({
     notes: props.report.notes ?? '',
-    trainingSubject: props.report.trainingSubject ?? '',
+    trainingSubject: initialSubject(),
     unaccounted: [...(props.report.unaccounted ?? [])],
 });
 const reviewed = ref(false);
@@ -359,6 +379,16 @@ function jumpToNext() {
 }
 
 const subjectInvalid = computed(() => props.unit.isLeaf && subjectTouched.value && content.trainingSubject.trim().length < 3);
+
+// Last week's subject, offered (never filled in on its own) while the field is empty.
+const suggestion = computed(() =>
+    props.unit.isLeaf && !readOnly.value && !subjectLocked.value && props.suggestedSubject && !content.trainingSubject.trim() ? props.suggestedSubject : null,
+);
+
+function useSuggestion() {
+    content.trainingSubject = suggestion.value;
+    subjectTouched.value = true;
+}
 </script>
 
 <template>
@@ -493,7 +523,7 @@ const subjectInvalid = computed(() => props.unit.isLeaf && subjectTouched.value 
                                     <Input
                                         id="training-subject"
                                         v-model="content.trainingSubject"
-                                        :disabled="readOnly"
+                                        :disabled="readOnly || subjectLocked"
                                         maxlength="255"
                                         autocomplete="off"
                                         aria-required="true"
@@ -501,13 +531,30 @@ const subjectInvalid = computed(() => props.unit.isLeaf && subjectTouched.value 
                                         :aria-describedby="`training-subject-help${subjectInvalid ? ' training-subject-error' : ''}`"
                                         @blur="subjectTouched = true"
                                     />
-                                    <p id="training-subject-help" class="text-xs text-muted-foreground">
+                                    <p v-if="subjectLocked" id="training-subject-help" class="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="topic-note">
+                                        <PhLockSimple aria-hidden="true" />Set by {{ topicFrom }} for this week. Your platoon leader locked it.
+                                    </p>
+                                    <p v-else-if="sectionTopic" id="training-subject-help" class="text-xs text-muted-foreground" data-testid="topic-note">
+                                        {{ topicFrom }} set "{{ sectionTopic.subject }}" for this week. You can change it.
+                                    </p>
+                                    <p v-else id="training-subject-help" class="text-xs text-muted-foreground">
                                         One line, shown as the report headline. For example: Room clearing, two-man entries.
+                                    </p>
+                                    <p v-if="suggestion" class="text-xs text-muted-foreground" data-testid="subject-suggestion">
+                                        Last week: {{ suggestion }}.
+                                        <button type="button" class="font-medium text-foreground underline underline-offset-2" @click="useSuggestion">Use it again</button>
                                     </p>
                                     <p v-if="subjectInvalid" id="training-subject-error" class="text-xs text-destructive">
                                         Add a training subject. Command uses it to track what each section trained.
                                     </p>
                                 </div>
+                                <PlatoonTopicField
+                                    v-if="unit.type === 'platoon' && (topic || canSetTopic)"
+                                    :topic="topic"
+                                    :can-set="canSetTopic"
+                                    :read-only="readOnly"
+                                    :url="`${baseUrl}/topic`"
+                                />
                                 <div class="space-y-1.5">
                                     <Label for="report-notes" class="text-[13px]">Notes to send with this report</Label>
                                     <Textarea

@@ -4,6 +4,7 @@ import Show from '../Show.vue';
 
 const put = vi.fn();
 const post = vi.fn();
+const del = vi.fn();
 let pageProps = {};
 // The page's Inertia `before` listener (its leave guard).
 let visitGuard = null;
@@ -16,6 +17,7 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     router: {
         put: (...args) => put(...args),
         post: (...args) => post(...args),
+        delete: (...args) => del(...args),
         on: (event, callback) => ((visitGuard = callback), () => (visitGuard = null)),
     },
 }));
@@ -75,6 +77,7 @@ beforeEach(() => {
     pageProps = {};
     put.mockReset();
     post.mockReset();
+    del.mockReset();
 });
 
 afterEach(() => {
@@ -402,5 +405,97 @@ describe('Reports/Show', () => {
 
         expect(wrapper.get('[data-testid="send-anyway"]').attributes('disabled')).toBeDefined();
         expect(wrapper.get('[role="alert"]').text()).toContain("Last week's sent report cannot be read.");
+    });
+});
+
+describe('Reports/Show training topic', () => {
+    const PLATOON = { id: 2, name: '1st Platoon', callsign: '1/A/1-7', type: 'platoon' };
+    const topic = (enforced, subject = 'Room clearing') => ({ subject, enforced, platoon: PLATOON, setBy: 'SFC Hale.J', setAt: '2026-10-05T12:00:00+00:00' });
+    const platoonPage = (overrides = {}) =>
+        mountShow({ unit: { ...PLATOON, isLeaf: false, parent: null }, troopers: null, children: [], ...overrides });
+
+    it('locks the subject to an enforced platoon topic, saying who set it, and saves it as is', async () => {
+        vi.useFakeTimers();
+        const wrapper = mountShow({ topic: topic(true), report: { ...props().report, trainingSubject: 'Radio procedure' } });
+
+        expect(wrapper.get('#training-subject').element.value).toBe('Room clearing');
+        expect(wrapper.get('#training-subject').attributes('disabled')).toBeDefined();
+        expect(wrapper.get('[data-testid="topic-note"]').text()).toContain('Set by 1/A/1-7 for this week');
+        expect(wrapper.find('[data-testid="subject-suggestion"]').exists()).toBe(false);
+
+        await wrapper.get('#report-notes').setValue('Good week.');
+        vi.advanceTimersByTime(900);
+        expect(put.mock.calls[0][1].training_subject).toBe('Room clearing');
+    });
+
+    it('prefills a platoon topic that is not enforced and lets the leader change it', async () => {
+        const wrapper = mountShow({ topic: topic(false) });
+
+        expect(wrapper.get('#training-subject').element.value).toBe('Room clearing');
+        expect(wrapper.get('#training-subject').attributes('disabled')).toBeUndefined();
+        expect(wrapper.get('[data-testid="topic-note"]').text()).toContain('You can change it');
+    });
+
+    it("keeps the section's own subject over a platoon topic that is not enforced", () => {
+        const wrapper = mountShow({ topic: topic(false), report: { ...props().report, trainingSubject: 'Radio procedure' } });
+
+        expect(wrapper.get('#training-subject').element.value).toBe('Radio procedure');
+    });
+
+    it("offers last week's subject on an empty field without saving it until the leader takes it", async () => {
+        vi.useFakeTimers();
+        const wrapper = mountShow({ suggestedSubject: 'Land navigation' });
+
+        expect(wrapper.get('#training-subject').element.value).toBe('');
+        expect(wrapper.get('[data-testid="subject-suggestion"]').text()).toContain('Last week: Land navigation.');
+        vi.advanceTimersByTime(2000);
+        expect(put).not.toHaveBeenCalled();
+
+        await wrapper.get('[data-testid="subject-suggestion"] button').trigger('click');
+        expect(wrapper.get('#training-subject').element.value).toBe('Land navigation');
+        expect(wrapper.find('[data-testid="subject-suggestion"]').exists()).toBe(false);
+        vi.advanceTimersByTime(900);
+        expect(put.mock.calls[0][1].training_subject).toBe('Land navigation');
+    });
+
+    it('does not offer a suggestion when the platoon set a topic', () => {
+        const wrapper = mountShow({ topic: topic(false), suggestedSubject: 'Land navigation' });
+
+        expect(wrapper.find('[data-testid="subject-suggestion"]').exists()).toBe(false);
+    });
+
+    it("lets the platoon leader apply an enforced topic to their sections from the platoon's report", async () => {
+        const wrapper = platoonPage({ canSetTopic: true });
+
+        await wrapper.get('#platoon-topic').setValue('  Room clearing ');
+        await wrapper.get('[data-testid="topic-enforced"]').trigger('click');
+        await wrapper.get('[data-testid="topic-apply"]').trigger('click');
+
+        expect(put).toHaveBeenCalledWith(
+            '/reports/2/2026-10-03/topic',
+            { subject: 'Room clearing', enforced: true },
+            expect.objectContaining({ only: ['topic', 'canSetTopic'], preserveState: true }),
+        );
+    });
+
+    it('clears a topic', async () => {
+        const wrapper = platoonPage({ canSetTopic: true, topic: topic(true) });
+
+        expect(wrapper.get('[data-testid="topic-status"]').text()).toContain('Locked on every section report this week. Set by SFC Hale.J');
+        await wrapper.get('[data-testid="topic-clear"]').trigger('click');
+
+        expect(del).toHaveBeenCalledWith('/reports/2/2026-10-03/topic', expect.objectContaining({ only: ['topic', 'canSetTopic'] }));
+    });
+
+    it('shows the topic read-only to someone who cannot set it', () => {
+        const wrapper = platoonPage({ canSetTopic: false, topic: topic(false) });
+
+        expect(wrapper.get('#platoon-topic').attributes('disabled')).toBeDefined();
+        expect(wrapper.get('[data-testid="topic-status"]').text()).toContain('Each section starts with it and can change it.');
+        expect(wrapper.find('[data-testid="topic-apply"]').exists()).toBe(false);
+    });
+
+    it('hides the topic on a platoon with none set for a viewer who cannot set one', () => {
+        expect(platoonPage().find('[data-testid="platoon-topic"]').exists()).toBe(false);
     });
 });
