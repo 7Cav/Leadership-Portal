@@ -178,6 +178,21 @@ it('handles a non-JSON 2xx body (proxy/WAF HTML) — never a 500 (AC #5)', funct
     expect(User::count())->toBe(0);
 });
 
+it('handles a 2xx body that is a JSON scalar rather than an object — never a 500', function () {
+    foreach (['1', '"ok"', 'null'] as $body) {
+        mockForum(tokenResponse: MockResponse::make($body, 200, ['Content-Type' => 'application/json']));
+
+        $response = $this->withSession(['forum_oauth_state' => 'valid-state'])
+            ->get('/oauth/callback/7cav?code=good-code&state=valid-state');
+
+        $response->assertRedirect(route('login'));
+        $response->assertSessionHas('error');
+    }
+
+    $this->assertGuest();
+    expect(User::count())->toBe(0);
+});
+
 it('handles the forum being unreachable (connection failure) — never a 500 (AC #5)', function () {
     // Simulate a transport-level failure (timeout/DNS/refused): Saloon throws
     // FatalRequestException from send(), which must still funnel to the graceful redirect.
