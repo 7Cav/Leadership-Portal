@@ -35,6 +35,7 @@
         <env name="LOA_SYNC_CRON" value="15 * * * *"/>
         <env name="LOA_SYNC_REQUEST_DELAY_MS" value="0"/>
         <env name="SESSION_DRIVER" value="array"/>
+        <env name="TRUSTED_PROXIES" value=""/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
