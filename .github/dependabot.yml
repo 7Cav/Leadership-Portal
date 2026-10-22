@@ -1,0 +1,15 @@
+# The workflow actions are pinned to commit SHAs, so nothing moves them forward on its own.
+# Dependabot opens a weekly PR when a pinned action has a newer release, keeping the SHA and
+# its version comment in step.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+    groups:
+      github-actions:
+        patterns:
+          - "*"

@@ -4,7 +4,6 @@ use App\Integration\Forum\Requests\ExchangeCodeRequest;
 use App\Integration\Forum\Requests\FetchProfileRequest;
 use App\Models\Trooper;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Env;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
 use Tests\TestCase;
@@ -105,21 +104,30 @@ function liftCsrfTestShortCircuit(): void
  * Run `$probe` with an environment variable hidden, so a config file can be re-evaluated as
  * an environment that never sets the key would see it. Restored afterwards either way.
  *
- * Caveat: Laravel's env repository is immutable, so this only masks values that came from
- * `.env`. A variable exported in the real shell (or set by a CI job) cannot be cleared and
- * will still be visible to `$probe`.
+ * Laravel's env repository is immutable: its `clear()` skips any variable it did not load
+ * itself, which includes every key phpunit.xml pins. So this hides the key from the places the
+ * repository reads (`$_ENV`, `$_SERVER`, `getenv()`) directly, which works wherever the value
+ * came from: `.env`, phpunit.xml or the shell.
  */
 function withoutEnv(string $key, Closure $probe): mixed
 {
-    $repository = Env::getRepository();
-    $original = $repository->get($key);
-    $repository->clear($key);
+    $env = $_ENV[$key] ?? null;
+    $server = $_SERVER[$key] ?? null;
+    $process = getenv($key);
+    unset($_ENV[$key], $_SERVER[$key]);
+    putenv($key);
 
     try {
         return $probe();
     } finally {
-        if ($original !== null) {
-            $repository->set($key, $original);
+        if ($env !== null) {
+            $_ENV[$key] = $env;
+        }
+        if ($server !== null) {
+            $_SERVER[$key] = $server;
+        }
+        if ($process !== false) {
+            putenv("{$key}={$process}");
         }
     }
 }

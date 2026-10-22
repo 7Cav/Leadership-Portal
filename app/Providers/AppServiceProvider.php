@@ -100,6 +100,11 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('roster-sync', fn (Request $request) => Limit::perMinute(5)
             ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
 
+        // Manual leave sync (Story 4.2), on the same terms. SyncLoasJob is unique too, but a full
+        // run reads a year of forum threads, so asking for one is capped the same way, per Admin.
+        RateLimiter::for('loa-sync', fn (Request $request) => Limit::perMinute(5)
+            ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
+
         // Echelon sync requests, per user. This runs before the controller's leader check, so it is per user only: a
         // shared bucket here would let members who may not sync spend it and lock every leader out. What bounds the
         // Cav calls is the controller's per-unit cooldown, which only accepted requests reach.

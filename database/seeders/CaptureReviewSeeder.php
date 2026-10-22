@@ -17,6 +17,7 @@ use App\Repositories\PracticeCapturePlayerRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
+use Database\Seeders\Concerns\RefusesOutsideDevEnvironments;
 use Illuminate\Database\Seeder;
 
 /**
@@ -26,12 +27,17 @@ use Illuminate\Database\Seeder;
  * (4/2/C/1-7, led by `Brandt.K`) holds a captured practice with two auto pre-marks and one trooper the
  * server did not see, for the review-and-confirm test (Story 7.8). A third (5/2/C/1-7, led by `Voss.H`)
  * holds a practice whose last capture failed, with an HLL-linked trooper so it can be retried, for the
- * telemetry-unavailable test (Story 7.9). Never seeded in production.
+ * telemetry-unavailable test (Story 7.9). Refuses to run outside local, testing and e2e: its users
+ * hold staff grants.
  */
 class CaptureReviewSeeder extends Seeder
 {
+    use RefusesOutsideDevEnvironments;
+
     public function run(): void
     {
+        $this->refuseOutsideDevEnvironments();
+
         $now = CarbonImmutable::now('UTC');
         $tag = $now->format('His').random_int(100, 999);
 

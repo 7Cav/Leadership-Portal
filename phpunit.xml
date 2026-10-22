@@ -28,13 +28,34 @@
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
+        <env name="DB_QUEUE_RETRY_AFTER" value="960"/>
         <env name="ROSTER_SYNC_CRON" value="0 * * * *"/>
+        <env name="DEMO_TOOLS" value="false"/>
+        <env name="SEVENCAV_OAUTH_CLIENT_ID" value=""/>
+        <env name="SEVENCAV_OAUTH_CLIENT_SECRET" value=""/>
+        <env name="SEVENCAV_OAUTH_REDIRECT_URI" value=""/>
+        <env name="SEVENCAV_FORUM_BASE_URL" value="https://7cav.us"/>
+        <env name="SEVENCAV_OAUTH_AUTHORIZE_URL" value="https://7cav.us/oauth2/authorize"/>
+        <env name="SEVENCAV_OAUTH_SCOPES" value="user:read"/>
         <env name="SEVENCAV_FORUM_API_KEY" value=""/>
         <env name="SEVENCAV_FORUM_LOA_NODES" value=""/>
         <env name="SEVENCAV_FORUM_PAF_NODE" value=""/>
         <env name="LOA_SYNC_CRON" value="15 * * * *"/>
+        <env name="LOA_SYNC_FULL_CRON" value="30 3 * * *"/>
         <env name="LOA_SYNC_REQUEST_DELAY_MS" value="0"/>
         <env name="PORTAL_WEEK_FLOOR_WEEKS" value="20"/>
+        <env name="CAV_API_BASE_URL" value="https://api.7cav.us"/>
+        <env name="CAV_API_KEY" value=""/>
+        <env name="CAV_API_SWEEP_BUDGET_SECONDS" value="12"/>
+        <env name="CRCON_BASE_URL" value=""/>
+        <env name="CRCON_API_KEY" value=""/>
+        <env name="BATTLEMETRICS_BASE_URL" value="https://api.battlemetrics.com"/>
+        <env name="BATTLEMETRICS_API_KEY" value=""/>
+        <env name="BATTLEMETRICS_SERVER_ID" value=""/>
+        <!-- WARDOGS presence (Story 7.10). Not the Laravel Nightwatch package flag pinned below. -->
+        <env name="NIGHTWATCH_BASE_URL" value="https://nightwatch.to/api/public/stats"/>
+        <env name="NIGHTWATCH_API_KEY" value=""/>
+        <env name="NIGHTWATCH_SERVER_IDS" value=""/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="TRUSTED_PROXIES" value=""/>
         <env name="PULSE_ENABLED" value="false"/>
