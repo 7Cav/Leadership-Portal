@@ -85,6 +85,86 @@ describe('UnmatchedDrawer', () => {
         expect(wrapper.emitted('linked')).toBeUndefined();
     });
 
+    describe('replace or cancel (#176)', () => {
+        const HAS_OTHER = {
+            ok: false,
+            status: 422,
+            data: {
+                message: 'That trooper is already linked to DubeMain (7656119000000099) on Hell Let Loose. Replace it, or cancel to keep it.',
+                reason: 'has_other_identity',
+                current: { playerName: 'DubeMain', platformId: '7656119000000099' },
+            },
+        };
+        const LINKED = { ok: true, status: 200, data: { marked: true, trooper: { id: 1, status: 'present', source: 'auto' }, atRisk: [] } };
+        const dialog = () => document.body.querySelector('[data-testid="replace-dialog"]');
+        let wrapper;
+
+        async function askToReplace() {
+            wrapper = mount(UnmatchedDrawer, { props: { sectionId: 12, week: '2026-10-03', players: PLAYERS, troopers: TROOPERS }, attachTo: document.body });
+            const first = card(wrapper, '7656119000000001');
+            await first.find('select').setValue('1');
+            await first.find('[data-testid="unmatched-link"]').trigger('click');
+            await flushPromises();
+
+            return first;
+        }
+
+        beforeEach(() => (document.body.innerHTML = ''));
+
+        it('asks with both identities named instead of showing the refusal, and overwrites nothing yet', async () => {
+            post.mockResolvedValueOnce(HAS_OTHER);
+            const first = await askToReplace();
+
+            expect(dialog()).not.toBeNull();
+            expect(dialog().querySelector('[data-testid="replace-question"]').textContent.replace(/\s+/g, ' ').trim()).toBe(
+                'PFC Dube.R is linked to DubeMain (7656119000000099) on Hell Let Loose. Replace it with Dubes (7656119000000001)?',
+            );
+            expect(first.find('[data-testid="unmatched-error"]').exists()).toBe(false);
+            expect(post).toHaveBeenCalledTimes(1);
+            expect(wrapper.emitted('linked')).toBeUndefined();
+        });
+
+        it('sends the link again with replace when the leader chooses Replace, and emits the answer', async () => {
+            post.mockResolvedValueOnce(HAS_OTHER).mockResolvedValueOnce(LINKED);
+            await askToReplace();
+
+            dialog().querySelector('[data-testid="replace-confirm"]').click();
+            await flushPromises();
+
+            expect(post).toHaveBeenLastCalledWith('/rollcall/12/unmatched/link', {
+                week: '2026-10-03', platform: 'hll', platform_id: '7656119000000001', trooper_id: 1, replace: true,
+            });
+            expect(wrapper.emitted('linked')[0][0]).toMatchObject({ player: PLAYERS[0], marked: true, trooper: { id: 1 } });
+            expect(dialog()).toBeNull();
+        });
+
+        it('leaves everything as it was on Cancel', async () => {
+            post.mockResolvedValueOnce(HAS_OTHER);
+            const first = await askToReplace();
+
+            dialog().querySelector('[data-testid="replace-cancel"]').click();
+            await flushPromises();
+
+            expect(dialog()).toBeNull();
+            expect(post).toHaveBeenCalledTimes(1);
+            expect(wrapper.emitted('linked')).toBeUndefined();
+            expect(first.find('[data-testid="unmatched-error"]').exists()).toBe(false);
+            expect(first.find('select').element.value).toBe('1');
+            expect(first.find('[data-testid="unmatched-link"]').attributes('disabled')).toBeUndefined();
+        });
+
+        it('shows a refusal of the replace itself inline, without asking again', async () => {
+            post.mockResolvedValueOnce(HAS_OTHER).mockResolvedValueOnce({ ok: false, status: 422, data: { message: 'Already linked to PVT Nakamura.T on Hell Let Loose.' } });
+            const first = await askToReplace();
+
+            dialog().querySelector('[data-testid="replace-confirm"]').click();
+            await flushPromises();
+
+            expect(dialog()).toBeNull();
+            expect(first.find('[data-testid="unmatched-error"]').text()).toBe('Already linked to PVT Nakamura.T on Hell Let Loose.');
+        });
+    });
+
     it('asks before dismissing, then posts and emits', async () => {
         post.mockResolvedValue({ ok: true, status: 200, data: { dismissed: true } });
         const wrapper = factory();

@@ -1,6 +1,14 @@
 <script setup>
-import { computed, reactive } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { PhCircleNotch, PhUserCircleDashed } from '@phosphor-icons/vue';
+import {
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -14,7 +22,8 @@ import { suggestTroopers } from '@/lib/unmatched';
 // variant C: every player the capture saw but no trooper is linked to, each with a trooper picker
 // and two actions. The picker only *orders* by name closeness: nothing is ever chosen for the
 // leader, and "Link and mark present" stays disabled until they choose (AD-19). The server does the
-// work (an audited link, then the manual-wins pre-mark) and scope-gates both actions (AD-8).
+// work (an audited link, then the manual-wins pre-mark) and scope-gates both actions (AD-8). A trooper who already
+// holds another ID on the game is never overwritten silently: the leader is asked to replace or cancel (#176).
 const props = defineProps({
     sectionId: { type: Number, required: true },
     // The practice's week (`YYYY-MM-DD`).
@@ -53,7 +62,18 @@ const options = computed(() =>
 
 const body = (player) => ({ week: props.week, platform: player.platform, platform_id: player.platformId });
 
-async function link(player) {
+// "Replace or cancel" (#176): the server refused a link because the chosen trooper already holds a different
+// identity on that game, and said which (`reason: has_other_identity`, `current`). Nothing is overwritten until the
+// leader answers: Replace sends the same link again with `replace: true`, Cancel leaves everything as it was.
+// `{ player, trooperId, current: { playerName, platformId } }` while the question is open, else null.
+const replacing = ref(null);
+const trooperName = (id) => {
+    const trooper = props.troopers.find((t) => t.id === id);
+
+    return trooper ? fullName(trooper) : `trooper ${id}`;
+};
+
+async function link(player, replace = false) {
     const s = of(player);
     if (!props.editable || s.busy || s.trooperId === '') return;
 
@@ -66,12 +86,30 @@ async function link(player) {
 
             return;
         }
-        const result = await postJson(`/rollcall/${props.sectionId}/unmatched/link`, { ...body(player), trooper_id: trooperId }).catch(unreachable);
+        const result = await postJson(`/rollcall/${props.sectionId}/unmatched/link`, {
+            ...body(player),
+            trooper_id: trooperId,
+            ...(replace ? { replace: true } : {}),
+        }).catch(unreachable);
         if (result.ok) emit('linked', { player, ...result.data });
+        else if (!replace && result.data?.reason === 'has_other_identity' && result.data.current) replacing.value = { player, trooperId, current: result.data.current };
         else s.error = messageFor(result);
     } finally {
         s.busy = false;
     }
+}
+
+function cancelReplace() {
+    replacing.value = null;
+}
+
+// The leader chose Replace: the same player and trooper as asked about, even if the picker moved since.
+async function confirmReplace() {
+    const ask = replacing.value;
+    replacing.value = null;
+    if (!ask) return;
+    of(ask.player).trooperId = String(ask.trooperId);
+    await link(ask.player, true);
 }
 
 async function dismiss(player) {
@@ -169,5 +207,21 @@ async function dismiss(player) {
                 </div>
             </li>
         </ul>
+
+        <AlertDialog :open="replacing !== null" @update:open="(open) => !open && cancelReplace()">
+            <AlertDialogContent class="sm:max-w-md" data-testid="replace-dialog">
+                <AlertDialogTitle class="text-base leading-snug font-semibold">
+                    Replace {{ replacing ? trooperName(replacing.trooperId) : '' }}'s {{ replacing?.player.platformLabel }} ID?
+                </AlertDialogTitle>
+                <AlertDialogDescription v-if="replacing" class="text-[13px] text-muted-foreground" data-testid="replace-question">
+                    {{ trooperName(replacing.trooperId) }} is linked to {{ replacing.current.playerName }} ({{ replacing.current.platformId }}) on
+                    {{ replacing.player.platformLabel }}. Replace it with {{ replacing.player.playerName }} ({{ replacing.player.platformId }})?
+                </AlertDialogDescription>
+                <AlertDialogFooter class="flex-row flex-wrap justify-end gap-2">
+                    <AlertDialogCancel class="mt-0" data-testid="replace-cancel">Cancel</AlertDialogCancel>
+                    <Button data-testid="replace-confirm" @click="confirmReplace">Replace</Button>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     </Card>
 </template>

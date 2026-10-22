@@ -9,9 +9,23 @@ use RuntimeException;
  * An unmatched player cannot be resolved the way the leader asked (Story 7.7): it is not listed
  * for that practice (any more), the chosen trooper does not fit, or the week is too far back. The
  * message is shown to them.
+ *
+ * `reason` marks the one refusal the leader can answer on the spot: `has_other_identity`, with the
+ * identity the trooper holds now in `current` (`playerName`, `platformId`), so the screen asks
+ * "replace or cancel" instead of only showing the message (#176). The others have no reason.
  */
 class UnmatchedPlayerResolutionException extends RuntimeException
 {
+    public const HAS_OTHER_IDENTITY = 'has_other_identity';
+
+    /**
+     * @param  array{playerName: string, platformId: string}|null  $current
+     */
+    public function __construct(string $message, public readonly ?string $reason = null, public readonly ?array $current = null)
+    {
+        parent::__construct($message);
+    }
+
     public static function notListed(): self
     {
         return new self('That player is no longer listed as unmatched for this practice. Reload to see the current list.');
@@ -22,9 +36,13 @@ class UnmatchedPlayerResolutionException extends RuntimeException
         return new self("Choose a trooper from this section: pre-marking counts in a trooper's own section (AD-14).");
     }
 
-    public static function alreadyHasIdentity(string $playerName, string $gameLabel): self
+    public static function alreadyHasIdentity(string $playerName, string $platformId, string $gameLabel): self
     {
-        return new self("That trooper is already linked to {$playerName} on {$gameLabel}. Change it on the Game identities screen first.");
+        return new self(
+            "That trooper is already linked to {$playerName} ({$platformId}) on {$gameLabel}. Replace it, or cancel to keep it.",
+            self::HAS_OTHER_IDENTITY,
+            ['playerName' => $playerName, 'platformId' => $platformId],
+        );
     }
 
     /** The practice's week is older than `WeekOf::floor()`: linking would pre-mark it. */

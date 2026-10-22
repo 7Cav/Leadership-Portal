@@ -21,10 +21,13 @@ use App\Support\Time\WeekOf;
  * action. Both steps are idempotent, so a request that failed between them can simply be repeated.
  *
  * Refuses a section or trooper outside the actor's scope (AD-8); a practice whose week is before
- * `WeekOf::floor()`, since the pre-mark would write to it; a trooper from another section
- * (the mark would not count there); and a trooper who already holds a different identity on that
- * game, which linking would silently replace. An identifier another trooper owns surfaces as
- * {@see GameIdentityLinkException}, never reassigned.
+ * `WeekOf::floor()`, since the pre-mark would write to it; and a trooper from another section
+ * (the mark would not count there). A trooper who already holds a different identity on that game
+ * is refused with the `has_other_identity` reason and that identity, so the screen can ask the
+ * leader to replace or cancel (#176); only a command carrying `replace` overwrites it, through the
+ * same audited writer (`game_identity.updated`, AD-16), and the pre-mark rule is unchanged. An
+ * identifier another trooper owns surfaces as {@see GameIdentityLinkException}, never reassigned,
+ * whether or not `replace` is set: replacing only ever changes the chosen trooper's own row.
  */
 class LinkUnmatchedPlayerHandler
 {
@@ -60,10 +63,19 @@ class LinkUnmatchedPlayerHandler
             throw UnmatchedPlayerResolutionException::notInSection();
         }
 
+        // Checked before the replace question: a leader must not be asked to replace a trooper's
+        // identity for a link that would then fail because someone else owns the player. The
+        // repository's UNIQUE guard still decides a race between this read and the write.
+        $owner = $this->identities->findByPlatformId($command->platform, $player->platform_id);
+
+        if ($owner !== null && $owner->trooper_id !== $trooper->id) {
+            throw GameIdentityLinkException::alreadyLinked($command->platform, $player->platform_id);
+        }
+
         $held = $this->identities->forTrooper($trooper->id)->firstWhere('platform', $command->platform);
 
-        if ($held !== null && $held->platform_id !== $player->platform_id) {
-            throw UnmatchedPlayerResolutionException::alreadyHasIdentity($held->player_name, $command->platform->label());
+        if ($held !== null && $held->platform_id !== $player->platform_id && ! $command->replace) {
+            throw UnmatchedPlayerResolutionException::alreadyHasIdentity($held->player_name, $held->platform_id, $command->platform->label());
         }
 
         $this->setIdentity->handle($actor, new SetTrooperGameIdentity($trooper->id, $command->platform, $player->player_name, $player->platform_id));

@@ -152,13 +152,90 @@ it('surfaces "Already linked to <trooper> on <game>" instead of reassigning', fu
         ->and(Attendance::query()->count())->toBe(0);
 });
 
-it('does not replace a different identity the chosen trooper already holds on that game', function () {
+it('does not replace a different identity the chosen trooper already holds on that game, and says which so the leader can choose', function () {
     TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'platform' => GamePlatform::Hll, 'player_name' => 'OrtegaMain', 'platform_id' => '7656119000000099']);
+    $before = AuditLogEntry::query()->count();
 
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this))
-        ->assertStatus(422);
+        ->assertStatus(422)
+        ->assertJsonPath('reason', 'has_other_identity')
+        ->assertJsonPath('current', ['playerName' => 'OrtegaMain', 'platformId' => '7656119000000099'])
+        ->assertJsonPath('message', 'That trooper is already linked to OrtegaMain (7656119000000099) on Hell Let Loose. Replace it, or cancel to keep it.');
+
+    expect(TrooperGameIdentity::query()->sole()->platform_id)->toBe('7656119000000099')
+        ->and(AuditLogEntry::query()->count())->toBe($before)
+        ->and(Attendance::query()->count())->toBe(0);
+});
+
+// #176: "replace or cancel". Replacing goes through the 7.2 writer as an audited update, then the 7.7 pre-mark.
+
+it('replaces the trooper\'s identity on that game when the leader chose to, audited, and pre-marks them', function () {
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'platform' => GamePlatform::Hll, 'player_name' => 'OrtegaMain', 'platform_id' => '7656119000000099']);
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this, ['replace' => true]))
+        ->assertOk()
+        ->assertJsonPath('marked', true)
+        ->assertJsonPath('trooper', ['id' => $this->ortega->id, 'status' => 'present', 'source' => 'auto']);
+
+    $identity = TrooperGameIdentity::query()->sole();
+    expect($identity->only(['trooper_id', 'player_name', 'platform_id']))->toBe(['trooper_id' => $this->ortega->id, 'player_name' => 'Ortega', 'platform_id' => '7656119000000001'])
+        ->and(AuditLogEntry::query()->where('action', 'game_identity.updated')->where('actor_id', $this->leader->id)->count())->toBe(1)
+        ->and(AuditLogEntry::query()->where('action', 'game_identity.linked')->count())->toBe(0)
+        ->and(AuditLogEntry::query()->where('action', 'attendance.auto_marked')->count())->toBe(1);
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")->assertInertia(fn (Assert $page) => $page->where('unmatched', []));
+});
+
+it('keeps a manual mark when replacing (manual wins)', function () {
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'platform' => GamePlatform::Hll, 'player_name' => 'OrtegaMain', 'platform_id' => '7656119000000099']);
+    Attendance::factory()->create([
+        'trooper_id' => $this->ortega->id, 'section_practice_id' => $this->practice->id,
+        'status' => AttendanceStatus::Missed, 'source' => AttendanceSource::Manual,
+    ]);
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this, ['replace' => true]))
+        ->assertOk()
+        ->assertJsonPath('marked', false)
+        ->assertJsonPath('trooper', ['id' => $this->ortega->id, 'status' => 'missed', 'source' => 'manual']);
+
+    expect(TrooperGameIdentity::query()->sole()->platform_id)->toBe('7656119000000001');
+});
+
+it('never reassigns an identifier another trooper owns, even with replace, and names that trooper', function () {
+    $owner = unmatchedTrooper($this->section, ['username' => 'Nakamura.T', 'rank_short' => 'PFC']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $owner->id, 'platform' => GamePlatform::Hll, 'platform_id' => '7656119000000001']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'platform' => GamePlatform::Hll, 'player_name' => 'OrtegaMain', 'platform_id' => '7656119000000099']);
+    $before = AuditLogEntry::query()->count();
+
+    // Without replace it names the owner too, rather than asking to replace a link that could not be made.
+    foreach ([[], ['replace' => true]] as $override) {
+        $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this, $override))
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Already linked to PFC Nakamura.T on Hell Let Loose.')
+            ->assertJsonMissingPath('reason');
+    }
+
+    expect(TrooperGameIdentity::query()->where('trooper_id', $this->ortega->id)->sole()->platform_id)->toBe('7656119000000099')
+        ->and(TrooperGameIdentity::query()->where('platform_id', '7656119000000001')->sole()->trooper_id)->toBe($owner->id)
+        ->and(AuditLogEntry::query()->count())->toBe($before)
+        ->and(Attendance::query()->count())->toBe(0);
+});
+
+it('denies a replace for a trooper outside the leader\'s scope, server-side (AD-8)', function () {
+    $outsider = unmatchedTrooper(Unit::factory()->create(['type' => UnitType::Section, 'path' => '931/']));
+    TrooperGameIdentity::factory()->create(['trooper_id' => $outsider->id, 'platform' => GamePlatform::Hll, 'player_name' => 'Theirs', 'platform_id' => '7656119000000099']);
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this, ['trooper_id' => $outsider->id, 'replace' => true]))
+        ->assertForbidden();
 
     expect(TrooperGameIdentity::query()->sole()->platform_id)->toBe('7656119000000099');
+});
+
+it('refuses a replace flag that is not a boolean', function () {
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this, ['replace' => 'please']))
+        ->assertStatus(422);
+
+    expect(TrooperGameIdentity::query()->count())->toBe(0);
 });
 
 it('answers 422 for a player the practice never listed', function () {
