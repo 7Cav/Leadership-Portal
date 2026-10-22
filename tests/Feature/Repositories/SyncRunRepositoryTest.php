@@ -66,6 +66,42 @@ it('fails a run, capturing the error and leaving counts at zero', function () {
         ->and($run->inactivated)->toBe(0);
 });
 
+// A mass parse failure once built a summary of about 100KB, past a MySQL `text` column: the close
+// failed, then the failure record failed the same way, and the run stayed `in_progress`.
+it('keeps the first 2,000 characters of an over-long error when completing or failing a run', function (string $close) {
+    $run = syncRunRepository()->open('roster', 'system');
+    $error = str_repeat('é', 70000);
+
+    $close === 'complete'
+        ? syncRunRepository()->complete($run, inserted: 0, updated: 0, inactivated: 0, errored: 1, error: $error)
+        : syncRunRepository()->fail($run, $error);
+
+    $run->refresh();
+    expect($run->status)->not->toBe(SyncRunStatus::InProgress)
+        ->and($run->error)->toBe(str_repeat('é', 2000));
+})->with(['complete', 'fail']);
+
+it('closes orphaned in_progress runs of one source only', function () {
+    $roster = syncRunRepository()->open('roster', 'system');
+    $loa = syncRunRepository()->open('loa', 'system');
+
+    expect(syncRunRepository()->failOrphaned('roster'))->toBe(1);
+
+    expect($roster->fresh()->status)->toBe(SyncRunStatus::Failure)
+        ->and($roster->fresh()->finished_at)->not->toBeNull()
+        ->and($loa->fresh()->status)->toBe(SyncRunStatus::InProgress);
+});
+
+it('closes only the orphaned runs of the practice it is given', function () {
+    $mine = syncRunRepository()->open('capture', 'system', 11);
+    $other = syncRunRepository()->open('capture', 'system', 12);
+
+    expect(syncRunRepository()->failOrphaned('capture', 11))->toBe(1);
+
+    expect($mine->fresh()->status)->toBe(SyncRunStatus::Failure)
+        ->and($other->fresh()->status)->toBe(SyncRunStatus::InProgress);
+});
+
 it('finds the latest successful run for a source, ignoring other sources and non-success runs', function () {
     $older = SyncRun::factory()->create(['source' => 'roster', 'finished_at' => now()->subDay()]);
     $newer = SyncRun::factory()->create(['source' => 'roster', 'finished_at' => now()]);

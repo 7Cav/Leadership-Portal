@@ -80,6 +80,11 @@ class CaptureSectionPracticeHandler
             return CaptureResult::notConfigured();
         }
 
+        // The job's lock is per practice, so a run of this practice still `in_progress` now was killed
+        // before it could record itself. Only this practice's runs are closed: a capture for another
+        // practice may be running right now.
+        $this->syncRuns->failOrphaned('capture', $practice->id);
+
         $run = $this->syncRuns->open('capture', $command->triggeredBy, $practice->id);
 
         try {
@@ -133,7 +138,10 @@ class CaptureSectionPracticeHandler
         } catch (Throwable $e) {
             // Not a typed seam failure (e.g. a DB error): close the run as failed, then let the
             // job retry — a retry re-stamps and re-resolves, so a stamp that landed first is harmless.
-            $this->syncRuns->fail($run, $e->getMessage());
+            // The run keeps a plain sentence, not the exception's message: a database error quotes
+            // the SQL and the player data it choked on. The exception itself is rethrown, so the
+            // worker's log still has the detail.
+            $this->syncRuns->fail($run, "the capture hit an unexpected error (practice {$practice->id}, ".class_basename($e).')');
 
             throw $e;
         }

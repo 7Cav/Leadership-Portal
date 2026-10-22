@@ -10,6 +10,14 @@ use Illuminate\Support\Facades\DB;
 
 class Eloquent implements PracticeCapturePlayerRepository
 {
+    /**
+     * The length of `practice_capture_players.player_name` (Laravel's default `string`, `varchar(255)`). The name
+     * is whatever the game server reports, and a strict MySQL refuses a longer value outright, which would fail
+     * the whole capture run, so nothing longer is ever sent. The player is keyed on `platform_id`, so a cut name
+     * still resolves.
+     */
+    private const NAME_LENGTH = 255;
+
     public function replaceForPractice(int $practiceId, GamePlatform $platform, array $players): void
     {
         DB::transaction(function () use ($practiceId, $platform, $players) {
@@ -19,7 +27,7 @@ class Eloquent implements PracticeCapturePlayerRepository
                 PracticeCapturePlayer::query()->create([
                     'section_practice_id' => $practiceId,
                     'platform' => $platform,
-                    'player_name' => $player['player_name'],
+                    'player_name' => mb_substr($player['player_name'], 0, self::NAME_LENGTH),
                     'platform_id' => $player['platform_id'],
                     'trooper_id' => $player['trooper_id'],
                 ]);

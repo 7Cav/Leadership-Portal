@@ -416,6 +416,29 @@ it('accumulates the errored count and detail across multiple bad rows', function
         ->and($run->error)->toContain('7');
 });
 
+// A mass parse failure: about 100KB of per-row detail. On MySQL that overflowed `sync_runs.error`,
+// so neither the close nor the failure record could be written and the run stayed `in_progress`.
+it('closes a run with every row unreadable, keeping the start of the error detail', function () {
+    $bad = [];
+    foreach (range(1000, 2499) as $key) {
+        $bad[(string) $key] = ['code' => 1, 'message' => 'unavailable'];
+    }
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => $bad]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    $run = SyncRun::sole();
+    expect($run->status)->toBe(SyncRunStatus::Partial)
+        ->and($run->errored)->toBe(1500)
+        ->and(mb_strlen($run->error))->toBe(2000)
+        ->and($run->error)->toStartWith('1000: ');
+});
+
 it('records a failed sync run capturing the error when the Cav seam errors', function () {
     MockClient::global([
         SR_COMBAT_URL => MockResponse::make(status: 500),

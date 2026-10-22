@@ -194,7 +194,9 @@ class SyncRosterHandler
 
     /**
      * The per-row detail for a partial run's `sync_runs.error` column — otherwise a partial run's
-     * `errored` count says *how many* rows were bad with no way to find out *which*.
+     * `errored` count says *how many* rows were bad with no way to find out *which*. A mass parse
+     * failure makes this long; the repository keeps its first 2,000 characters, which still name
+     * the first rows to look at.
      *
      * @param  list<RosterRowError>  $errors
      */
