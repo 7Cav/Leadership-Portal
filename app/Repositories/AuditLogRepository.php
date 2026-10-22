@@ -3,8 +3,10 @@
 namespace App\Repositories;
 
 use App\Models\AuditLogEntry;
+use App\Models\Unit;
 use App\Models\User;
 use Closure;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use RuntimeException;
@@ -56,6 +58,11 @@ interface AuditLogRepository
      * across requests — the column is second-precision, so several entries written within the
      * same second can otherwise land on the same timestamp with no deterministic order.
      *
+     * `withinUnit` keeps the entries about `$withinUnit` or anything in its subtree (the materialized-path prefix, AD-18):
+     * the unit itself, a section practice or weekly report of one of its units, a template of one of its companies, a staff
+     * grant on one of its units, and a trooper (with their game identities and courses) whose section is in it now. The
+     * cache holds only a trooper's current section, so a trooper who has since moved counts under their new unit.
+     *
      * @return LengthAwarePaginator<int, AuditLogEntry>
      */
     public function filtered(
@@ -65,8 +72,20 @@ interface AuditLogRepository
         ?string $targetId = null,
         ?string $dateFrom = null,
         ?string $dateTo = null,
+        ?Unit $withinUnit = null,
         int $perPage = 25,
     ): LengthAwarePaginator;
+
+    /**
+     * What each entry is about, as it is stored now: the model behind each entry's `target_type`/`target_id`, keyed
+     * `"{target_type}#{target_id}"`, with what a link to it needs loaded. One query per target type among the entries,
+     * never one per entry. A target that no longer exists (a deleted unit, a removed identity) and a type with nowhere to
+     * link to (a user, a course) are left out.
+     *
+     * @param  iterable<AuditLogEntry>  $entries
+     * @return array<string, Model>
+     */
+    public function targetsOf(iterable $entries): array;
 
     /**
      * Every user who has at least one `audit_log` entry, for the review screen's actor filter —
