@@ -9,7 +9,14 @@ vi.mock('@inertiajs/vue3', () => ({
 
 const step = (id, designation, over = {}) => ({
     id, designation, name: designation, platoon: '1/A/1-7', strength: 4, postedAt: null, signed: 0, held: false, marked: 0, report: 'not_started', sentAt: null,
-    links: { rollcall: `/rollcall/${id}?week=2026-10-03`, report: `/reports/${id}/2026-10-03` }, ...over,
+    links: {
+        posted: `/rollcall/${id}?week=2026-10-03&step=3`,
+        signed: `/rollcall/${id}?week=2026-10-03&step=1`,
+        held: `/rollcall/${id}?week=2026-10-03&step=2`,
+        marked: `/rollcall/${id}?week=2026-10-03&step=2`,
+        report: `/reports/${id}/2026-10-03`,
+    },
+    ...over,
 });
 
 describe('StepMatrix', () => {
@@ -28,11 +35,15 @@ describe('StepMatrix', () => {
         expect(wrapper.find('tbody tr').text()).toContain('1/A/1-7');
     });
 
-    it('links the first four steps to the rollcall and the last to the report', () => {
+    it('links each rollcall step to its step of the rollcall and the last to the report', () => {
         const row = mount(StepMatrix, { props: { steps: [step(1, '1/1/A/1-7')] } }).find('tbody tr');
 
         expect(row.findAll('a').map((a) => a.attributes('href'))).toEqual([
-            '/rollcall/1?week=2026-10-03', '/rollcall/1?week=2026-10-03', '/rollcall/1?week=2026-10-03', '/rollcall/1?week=2026-10-03', '/reports/1/2026-10-03',
+            '/rollcall/1?week=2026-10-03&step=3',
+            '/rollcall/1?week=2026-10-03&step=1',
+            '/rollcall/1?week=2026-10-03&step=2',
+            '/rollcall/1?week=2026-10-03&step=2',
+            '/reports/1/2026-10-03',
         ]);
     });
 

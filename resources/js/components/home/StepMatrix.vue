@@ -8,8 +8,9 @@ import { STEPS, stepCells } from '@/lib/home';
 import EmptyState from '@/components/EmptyState.vue';
 
 // "Section progress" (shell-f.html): one row per section in scope, the week's five steps across.
-// Each step links to the screen that does it: the rollcall for the first four, the report for the
-// last. Values are the server's counts (rollcall, attendance and report facts), never estimated.
+// Each step links to where it gets done: its step of the rollcall (signatures, practice, or review and
+// post) for the first four, the report for the last. Values are the server's counts (rollcall,
+// attendance and report facts), never estimated.
 const props = defineProps({
     steps: { type: Array, required: true },
 });
@@ -45,7 +46,7 @@ const barTone = (percent) => (percent >= 90 ? 'bg-success' : percent >= 60 ? 'bg
                         </TableCell>
                         <TableCell v-for="(key, index) in KEYS" :key="key" class="py-2 whitespace-nowrap">
                             <Link
-                                :href="step.links[LINK[index]]"
+                                :href="step.links[key]"
                                 class="inline-flex items-center gap-1.5 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                                 :data-step="key"
                                 :data-state="cells[key].state"

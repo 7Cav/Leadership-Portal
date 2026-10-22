@@ -244,7 +244,8 @@ describe('Needs attention (Story 5.10)', function () {
             ->where('attention.items.0.holds.designation', '1/A/1-7')
             ->where('attention.items.0.href', route('reports.show', ['unit' => $this->s21->id, 'week' => '2026-10-03']))
             ->where('attention.items.1.unit.designation', '1/1/A/1-7')
-            ->where('attention.items.1.status', 'not_started'));
+            ->where('attention.items.1.status', 'not_started')
+            ->where('attention.items.1.href', route('reports.show', ['unit' => $this->s11->id, 'week' => '2026-10-03'])));
     });
 
     it('blames the platoon only once its own sections are all in', function () use ($sendAll) {
@@ -254,7 +255,8 @@ describe('Needs attention (Story 5.10)', function () {
             ->where('attention.totals.holding', 1)
             ->where('attention.items.0.unit.designation', '1/A/1-7')
             ->where('attention.items.0.status', 'not_started')
-            ->where('attention.items.0.holds.designation', 'A/1-7'));
+            ->where('attention.items.0.holds.designation', 'A/1-7')
+            ->where('attention.items.0.href', route('reports.show', ['unit' => $this->p1->id, 'week' => '2026-10-03'])));
     });
 
     it('lists at-risk troopers by the shared definition, with their section and a roster link', function () {
@@ -435,8 +437,14 @@ describe('Week step matrix', function () {
             ->where('steps.0.marked', 2)
             ->where('steps.0.held', true)
             ->where('steps.0.report', 'not_started')
-            ->where('steps.0.links.rollcall', route('rollcall.show', ['unit' => $this->s11->id, 'week' => '2026-10-03']))
-            ->where('steps.0.links.report', route('reports.show', ['unit' => $this->s11->id, 'week' => '2026-10-03']))
+            ->where('steps.0.links', [
+                'posted' => route('rollcall.show', ['unit' => $this->s11->id, 'week' => '2026-10-03', 'step' => 3]),
+                'signed' => route('rollcall.show', ['unit' => $this->s11->id, 'week' => '2026-10-03', 'step' => 1]),
+                'held' => route('rollcall.show', ['unit' => $this->s11->id, 'week' => '2026-10-03', 'step' => 2]),
+                'marked' => route('rollcall.show', ['unit' => $this->s11->id, 'week' => '2026-10-03', 'step' => 2]),
+                'report' => route('reports.show', ['unit' => $this->s11->id, 'week' => '2026-10-03']),
+            ])
+            ->where('steps.0.links.posted', fn (string $url) => str_ends_with($url, "/rollcall/{$this->s11->id}?week=2026-10-03&step=3"))
             ->where('steps.1.id', $this->s21->id)
             ->where('steps.1.postedAt', null)
             ->where('steps.1.signed', 0)
