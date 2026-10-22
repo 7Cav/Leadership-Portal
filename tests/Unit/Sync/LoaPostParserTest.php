@@ -127,6 +127,41 @@ describe('never guessing (needs_review)', function () {
         expect($parsed->status())->toBe(LoaParseStatus::NeedsReview)->and($parsed->reason())->toContain('before the Start');
     });
 
+    // 2026-10-03 is a Saturday. An LOA is at least one Cav week (Saturday to Friday) and at most 14 days.
+    it('flags an LOA shorter than one Cav week, and asserts no dates', function (string $start, string $end) {
+        $parsed = parseLoa('[LOA Request] - PVT.Smith.J', "Username: Smith.J\nStart Date\n{$start}\nEnd Date\n{$end}\n");
+
+        expect($parsed->status())->toBe(LoaParseStatus::NeedsReview)
+            ->and($parsed->reason())->toBe('The leave covers fewer than 7 days, shorter than one Cav week (Saturday to Friday).')
+            ->and($parsed->startsAt)->toBeNull()
+            ->and($parsed->endsAt)->toBeNull();
+    })->with([
+        'one day' => ['Oct 3, 2026', 'Oct 3, 2026'],
+        'six days' => ['Oct 3, 2026', 'Oct 8, 2026'],
+    ]);
+
+    it('reads an LOA from one Cav week up to 14 days cleanly, whatever day it starts on', function (string $start, string $end) {
+        $parsed = parseLoa('[LOA Request] - PVT.Smith.J', "Username: Smith.J\nStart Date\n{$start}\nEnd Date\n{$end}\n");
+
+        expect($parsed->status())->toBe(LoaParseStatus::Ok)
+            ->and($parsed->startsAt)->not->toBeNull()
+            ->and($parsed->endsAt)->not->toBeNull();
+    })->with([
+        'one Cav week, Saturday to Friday' => ['Oct 3, 2026', 'Oct 9, 2026'],
+        'seven days from a Tuesday' => ['Oct 6, 2026', 'Oct 12, 2026'],
+        'fourteen days' => ['Oct 3, 2026', 'Oct 16, 2026'],
+        'two weeks to the same weekday, as the forum posts them' => ['Oct 3, 2026', 'Oct 17, 2026'],
+    ]);
+
+    it('flags an LOA longer than 14 days, and asserts no dates', function (string $end) {
+        $parsed = parseLoa('[LOA Request] - PVT.Smith.J', "Username: Smith.J\nStart Date\nOct 3, 2026\nEnd Date\n{$end}\n");
+
+        expect($parsed->status())->toBe(LoaParseStatus::NeedsReview)
+            ->and($parsed->reason())->toBe('The End Date is more than 14 days after the Start Date, longer than an LOA can be.')
+            ->and($parsed->startsAt)->toBeNull()
+            ->and($parsed->endsAt)->toBeNull();
+    })->with(['Oct 18, 2026', 'Dec 3, 2026']);
+
     it('flags a date more than three years out, in either direction', function (string $date) {
         $parsed = parseLoa('[LOA Request] - PVT.Smith.J', "Username: Smith.J\nStart Date\n{$date}\nEnd Date\n{$date}\n");
 
@@ -281,6 +316,14 @@ describe('an ELOA report', function () {
         expect($parsed->status())->toBe(LoaParseStatus::Ok)
             ->and($parsed->expectedReturnAt)->toBeNull();
     });
+
+    it('is not held to the LOA length limits, however near or far its expected return', function (string $return) {
+        $body = preg_replace('/Nov 13, 2026/', $return, loaFixture('eloa-report'));
+        $parsed = parseLoa('[ELOA Report] - PFC.Lane.M', $body, LoaType::Eloa);
+
+        expect($parsed->status())->toBe(LoaParseStatus::Ok)
+            ->and($parsed->expectedReturnAt?->toDateString())->not->toBeNull();
+    })->with(['Oct 9, 2026', 'Aug 4, 2027']);
 
     it('has no expected return for an LOA', function () {
         expect(parseLoa('[LOA Request] - SGT.Smith.J', loaFixture('loa-self'), LoaType::Loa)->expectedReturnAt)->toBeNull();

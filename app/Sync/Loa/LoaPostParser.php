@@ -42,6 +42,12 @@ final class LoaPostParser
     /** A date further than this from today is more likely a typo than leave. */
     private const SANE_DAYS = 1095;
 
+    /** Days from an LOA's Start Date to its End Date: one Cav week, Saturday to Friday, is six. */
+    private const SHORTEST_LOA_GAP = 6;
+
+    /** Days from an LOA's Start Date to its End Date when the End Date is the day back: 14 days of leave. */
+    private const LONGEST_LOA_GAP = 14;
+
     public function parse(string $title, string $body, LoaType $section, CarbonImmutable $now): ParsedLoaThread
     {
         $reasons = [];
@@ -278,8 +284,17 @@ final class LoaPostParser
             return;
         }
 
+        // An LOA is at least one Cav week (Saturday to the following Friday) and at most 14 days. Coverage
+        // excuses every week a leave touches, so a shorter one would excuse a whole week. It need not start
+        // on a Saturday. Forum posts end a two-week LOA on the weekday it started (Oct 3 to Oct 17), so the
+        // End Date may be the day back: each bound reads it the way that lets the post through, and only a
+        // post that is wrong either way is flagged.
         if ($end->lessThan($start)) {
             $reasons[] = 'The End Date is before the Start Date.';
+        } elseif ($start->diffInDays($end) < self::SHORTEST_LOA_GAP) {
+            $reasons[] = 'The leave covers fewer than 7 days, shorter than one Cav week (Saturday to Friday).';
+        } elseif ($start->diffInDays($end) > self::LONGEST_LOA_GAP) {
+            $reasons[] = 'The End Date is more than 14 days after the Start Date, longer than an LOA can be.';
         }
 
         foreach (['Start Date' => $start, 'End Date' => $end] as $label => $date) {
