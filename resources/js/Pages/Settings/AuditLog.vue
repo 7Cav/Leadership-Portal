@@ -113,7 +113,7 @@ function goTo(url) {
                 </div>
             </form>
 
-            <Table v-if="entries.data.length" class="text-[13px]">
+            <Table v-if="entries.data.length" sticky-header class="text-[13px]">
                 <TableHeader>
                     <TableRow class="hover:bg-transparent">
                         <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">Actor</TableHead>

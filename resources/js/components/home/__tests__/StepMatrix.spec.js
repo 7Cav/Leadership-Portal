@@ -13,6 +13,13 @@ const step = (id, designation, over = {}) => ({
 });
 
 describe('StepMatrix', () => {
+    it('keeps the step headers in view inside its capped box', () => {
+        const box = mount(StepMatrix, { props: { steps: [step(1, '1/1/A/1-7')] } }).find('[data-slot="table-container"]');
+
+        expect(box.attributes('data-sticky-head')).toBe('box');
+        expect(box.attributes('style')).toContain('max-height: 28rem');
+    });
+
     it('draws a row per section with the five step columns', () => {
         const wrapper = mount(StepMatrix, { props: { steps: [step(1, '1/1/A/1-7'), step(2, '2/1/A/1-7')] } });
 

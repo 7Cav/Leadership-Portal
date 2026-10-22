@@ -18,6 +18,13 @@ function factory(props = {}) {
 }
 
 describe('Order of battle (roster-s2)', () => {
+    it('keeps the column headers in view, with the trooper header above the others', () => {
+        const wrapper = factory();
+
+        expect(wrapper.find('thead').element.parentElement.parentElement.dataset.stickyHead).toBeDefined();
+        expect(wrapper.find('thead th').classes()).toContain('z-[4]');
+    });
+
     it('groups troopers under section rows with the SL pinned first', () => {
         const wrapper = factory();
         const rows = wrapper.findAll('tbody tr').map((tr) => tr.attributes('data-testid'));

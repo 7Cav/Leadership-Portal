@@ -27,6 +27,12 @@ const GRANTS = [
 ];
 
 describe('Settings/StaffGrants', () => {
+    it('keeps the column headers in view while the list scrolls', () => {
+        const wrapper = mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, isAdmin: false } });
+
+        expect(wrapper.find('[data-slot="table-container"]').attributes('data-sticky-head')).toBeDefined();
+    });
+
     it('renders every current grant', () => {
         const wrapper = mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, isAdmin: false } });
 

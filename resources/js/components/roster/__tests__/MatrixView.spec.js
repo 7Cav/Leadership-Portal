@@ -19,6 +19,10 @@ function factory(props = {}) {
 }
 
 describe('Attendance matrix (roster-s3)', () => {
+    it('scrolls in its own box with the week headers in view, at every width', () => {
+        expect(factory().find('thead').element.parentElement.parentElement.dataset.stickyHead).toBe('box');
+    });
+
     it('shows 20 week columns with the current week outlined, then RC, SP and at-risk', () => {
         const head = factory().findAll('thead th');
 

@@ -29,8 +29,8 @@ const barTone = (percent) => (percent >= 90 ? 'bg-success' : percent >= 60 ? 'bg
         <div class="px-4 pt-3.5">
             <h2 id="progress-title" class="text-[15px] font-semibold">Section progress</h2>
         </div>
-        <div class="mt-2 max-h-[28rem] overflow-auto border-t border-border">
-            <Table class="text-[13px]">
+        <div class="mt-2 border-t border-border">
+            <Table sticky-header="box" class="text-[13px]" style="max-height: 28rem">
                 <TableHeader>
                     <TableRow class="hover:bg-transparent">
                         <TableHead class="h-auto min-w-[8.5rem] py-2 text-xs font-medium text-muted-foreground">Unit</TableHead>
