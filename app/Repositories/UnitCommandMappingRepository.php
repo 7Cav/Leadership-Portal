@@ -62,7 +62,9 @@ interface UnitCommandMappingRepository
     /**
      * The serving trooper holding each unit's command billet, keyed by unit id — the leader a
      * roster's platoon and section headers name (2.8). A unit with no mapping, or whose billet no
-     * serving trooper holds, is absent. One query for any number of units.
+     * serving trooper holds, is absent. One query for any number of units. A section's Assistant
+     * Section Leader billet maps to the section too, so the Section Leader is preferred; the
+     * assistant is named only while the Section Leader billet is vacant.
      *
      * @param  list<int>  $unitIds
      * @return Collection<int, Trooper>

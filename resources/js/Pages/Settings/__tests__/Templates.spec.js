@@ -495,7 +495,8 @@ describe('Settings/Templates', () => {
             const heading = (key) => [wrapper.get(`[data-testid="legend-${key}"] h3`).text(), wrapper.get(`[data-testid="legend-${key}"] [data-testid="legend-where"]`).text()];
 
             expect(heading('values')).toEqual(['Values', 'Anywhere in the template']);
-            expect(heading('rowFlags')).toEqual(['Yes/no flags', 'Inside {{#troopers}}']);
+            expect(heading('topFlags')).toEqual(['Yes/no flags for the post', 'Anywhere in the template']);
+            expect(heading('rowFlags')).toEqual(['Yes/no flags for a trooper', 'Inside {{#troopers}}']);
             expect(wrapper.find('[data-testid="legend-lists"] [data-testid="legend-where"]').exists()).toBe(false);
         });
 

@@ -29,7 +29,7 @@ it('refuses every malformed template in the shared cases, saying what is wrong',
 it('has a case for every name it lets a template use, so the lists cannot drift from the tests', function () {
     $valid = implode("\n", array_column(bbcodeCases()['valid'], 'template'));
 
-    foreach ([...TemplateSyntax::TOP_STRINGS, ...TemplateSyntax::ROW_STRINGS, ...TemplateSyntax::ROW_FLAGS] as $name) {
+    foreach ([...TemplateSyntax::TOP_STRINGS, ...TemplateSyntax::TOP_FLAGS, ...TemplateSyntax::ROW_STRINGS, ...TemplateSyntax::ROW_FLAGS] as $name) {
         expect($valid)->toContain($name);
     }
 });
@@ -46,6 +46,17 @@ it('ships a starter template that follows its own grammar and uses every status'
 
 it('starts each trooper with their rank insignia, only when Cav has one, so a missing icon prints no empty [IMG]', function () {
     expect(TemplateSyntax::STARTER)->toContain('[TD]{{#rank_icon}}[IMG width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/IMG] {{/rank_icon}}{{rank}} {{name}}[/TD]');
+});
+
+it('adds a Role column to the starter only when the section shows fireteam leaders', function () {
+    expect(TemplateSyntax::STARTER)->toContain('[TH]Name[/TH]{{#fireteams_shown}}[TH]Role[/TH]{{/fireteams_shown}}[TH]Signed RC[/TH]')
+        ->and(TemplateSyntax::STARTER)->toContain('{{name}}[/TD]{{#fireteams_shown}}[TD]{{role}}[/TD]{{/fireteams_shown}}[TD]');
+});
+
+it('accepts the fireteams flag as a section anywhere, never printed', function () {
+    expect(TemplateSyntax::check('{{#fireteams_shown}}x{{/fireteams_shown}}{{^fireteams_shown}}y{{/fireteams_shown}}'))->toBeNull()
+        ->and(TemplateSyntax::check('{{#troopers}}{{#fireteams_shown}}{{role}}{{/fireteams_shown}}{{/troopers}}'))->toBeNull()
+        ->and(TemplateSyntax::check('{{fireteams_shown}}'))->toContain('is a yes-or-no value');
 });
 
 it('accepts the rank icon width only inside the trooper list', function () {

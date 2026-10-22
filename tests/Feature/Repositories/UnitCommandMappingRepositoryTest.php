@@ -133,3 +133,29 @@ it('names the serving trooper holding each unit\'s command billet, keyed by unit
         ->and($leaders[$section->id]->is($sl))->toBeTrue()
         ->and(app(UnitCommandMappingRepository::class)->commandersOf([])->all())->toBe([]);
 });
+
+it('names the Section Leader rather than the assistant whose billet maps to the same section, whoever synced first', function () {
+    $section = Unit::factory()->create(['type' => UnitType::Section]);
+    $other = Unit::factory()->create(['type' => UnitType::Section]);
+    foreach ([[$section, 201], [$section, 202], [$other, 301], [$other, 302]] as [$unit, $positionId]) {
+        UnitCommandMapping::factory()->create(['unit_id' => $unit->id, 'cav_position_id' => $positionId]);
+    }
+    // Synced in either order: the assistant before the leader in one section, after in the other.
+    Trooper::factory()->create(['cav_position_id' => 202, 'billet' => 'Assistant Section Leader 1/1/A/1-7']);
+    $sl = Trooper::factory()->create(['cav_position_id' => 201, 'billet' => 'Section Leader 1/1/A/1-7']);
+    $otherSl = Trooper::factory()->create(['cav_position_id' => 301, 'billet' => 'Section Leader 2/1/A/1-7']);
+    Trooper::factory()->create(['cav_position_id' => 302, 'billet' => 'Assistant Section Leader 2/1/A/1-7']);
+
+    $leaders = app(UnitCommandMappingRepository::class)->commandersOf([$section->id, $other->id]);
+
+    expect($leaders[$section->id]->is($sl))->toBeTrue()
+        ->and($leaders[$other->id]->is($otherSl))->toBeTrue();
+});
+
+it('names the assistant while the Section Leader billet is vacant', function () {
+    $section = Unit::factory()->create(['type' => UnitType::Section]);
+    UnitCommandMapping::factory()->create(['unit_id' => $section->id, 'cav_position_id' => 202]);
+    $asl = Trooper::factory()->create(['cav_position_id' => 202, 'billet' => 'Assistant Section Leader 1/1/A/1-7']);
+
+    expect(app(UnitCommandMappingRepository::class)->commandersOf([$section->id])[$section->id]->is($asl))->toBeTrue();
+});

@@ -1378,6 +1378,75 @@ describe('Rollcall page', () => {
         });
     });
 
+    describe('order and fireteams (the owner, 2026-10-16)', () => {
+        const FIRETEAMS = {
+            show: false,
+            order: 'leaders_first',
+            section: { show: null, order: null },
+            company: { id: 3, designation: 'A/1-7', show: null, order: null },
+            can: { edit: true, editPolicy: false },
+        };
+        const SQUAD = [
+            trooper(1, 'will_attend', 'present', { name: 'Able.A', rankShort: 'PVT' }),
+            trooper(2, 'will_attend', 'present', { name: 'Ftl.B', rankShort: 'CPL', role: 'ftl' }),
+            trooper(3, 'will_attend', 'present', { name: 'Asl.C', rankShort: 'CPL', role: 'asl' }),
+            trooper(4, 'will_attend', 'present', { name: 'Member.D', rankShort: 'SPC', fireteamLeaderId: 2 }),
+            trooper(5, 'will_attend', 'present', { name: 'Sl.E', rankShort: 'SGT', role: 'sl' }),
+        ];
+        const names = (wrapper, selector) => wrapper.findAll(`${selector} [data-trooper]`).map((card) => card.text().match(/(Able|Ftl|Asl|Member|Sl)\.\w/)?.[0]);
+
+        it('lists the SL, then the ASL, then everyone by rank in each step-1 group', () => {
+            // Everyone has signed and is marked, so without a step the page would open on the review step.
+            page.url = '/rollcall/12?step=1';
+            const wrapper = factory({ troopers: SQUAD, fireteams: FIRETEAMS });
+
+            expect(names(wrapper, '[role="group"][aria-label="Will attend"]')).toEqual(['Sl.E', 'Asl.C', 'Ftl.B', 'Member.D', 'Able.A']);
+        });
+
+        it('numbers the forum post in that order, and shows the fireteam controls on the review step', () => {
+            page.url = '/rollcall/12?step=3';
+            const wrapper = factory({ troopers: SQUAD, fireteams: FIRETEAMS, template: { ...TEMPLATE, body: '{{#troopers}}{{n}}.{{#role}}{{role}} {{/role}}{{name}};{{/troopers}}' } });
+
+            expect(wrapper.find('[data-testid="fireteams"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="forum-bbcode"]').text()).toBe('1.Section Leader Sl.E;2.Assistant Section Leader Asl.C;3.Ftl.B;4.Member.D;5.Able.A;');
+        });
+
+        it('takes a saved fireteam change into the post, and flags a posted rollcall for reposting', async () => {
+            page.url = '/rollcall/12?step=3';
+            const wrapper = factory({
+                troopers: SQUAD,
+                fireteams: FIRETEAMS,
+                practice: { lastMarkedAt: null, posted: { at: '2026-10-08T16:00:00+00:00', by: 'Vasquez.R' } },
+                template: { ...TEMPLATE, body: '{{#troopers}}{{n}}.{{#is_ftl}}(FTL) {{/is_ftl}}{{name}};{{/troopers}}' },
+            });
+            expect(wrapper.find('[data-testid="posted-state"]').text()).not.toContain('Repost');
+
+            post.mockResolvedValueOnce({
+                ok: true,
+                status: 200,
+                data: {
+                    fireteams: { ...FIRETEAMS, show: true, order: 'by_fireteam', section: { show: true, order: 'by_fireteam' } },
+                    troopers: SQUAD.map((row) => ({ id: row.id, role: row.role ?? null, fireteamLeaderId: row.fireteamLeaderId ?? null })),
+                },
+            });
+            await wrapper.find('[data-testid="fireteams-show"]').findAll('button')[1].trigger('click');
+            await flushPromises();
+
+            expect(post).toHaveBeenCalledWith('/rollcall/12/fireteams/options', { show: true });
+            expect(wrapper.find('[data-testid="forum-bbcode"]').text()).toBe('1.Sl.E;2.Asl.C;3.(FTL) Ftl.B;4.Member.D;5.Able.A;');
+            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Repost the updated BBCode');
+        });
+
+        it('shows the controls read-only during a view-as preview', () => {
+            page.url = '/rollcall/12?step=3';
+            page.props.viewAs = { label: '1/1/A/1-7' };
+            const wrapper = factory({ troopers: SQUAD, fireteams: FIRETEAMS });
+
+            expect(wrapper.find('[data-testid="fireteams-read-only"]').text()).toBe('Read-only while viewing as 1/1/A/1-7');
+            expect(wrapper.find('[data-testid="fireteams-show"] button').attributes('disabled')).toBeDefined();
+        });
+    });
+
     describe('report deadline banner', () => {
         const REPORT = { due: '2026-10-10T23:59:00+00:00', overdueUntil: '2026-10-31T00:00:00+00:00', sent: false, href: '/reports/12/2026-10-03' };
 

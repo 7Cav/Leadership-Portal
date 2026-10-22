@@ -78,6 +78,9 @@ class Eloquent implements UnitCommandMappingRepository
             ->join('unit_command_mappings', 'unit_command_mappings.cav_position_id', '=', 'troopers.cav_position_id')
             ->whereIn('unit_command_mappings.unit_id', $unitIds)
             ->whereIn('troopers.status', TrooperStatus::servingValues())
+            // A section's Section Leader and Assistant Section Leader billets both map to it, and the last row per unit
+            // wins below: the assistant is read first, so the Section Leader is named whenever the billet is held.
+            ->orderByRaw("CASE WHEN LOWER(troopers.billet) LIKE '%assistant section leader%' THEN 0 ELSE 1 END")
             ->orderBy('troopers.id')
             ->get()
             ->keyBy(fn (Trooper $trooper) => (int) $trooper->getAttribute('commands_unit_id'));

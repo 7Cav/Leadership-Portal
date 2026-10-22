@@ -10,8 +10,8 @@ const STARTER = `[CENTER]
 
 [B]Roll Call Accountability[/B]
 [TABLE]
-[TR][TH]#[/TH][TH]Name[/TH][TH]Signed RC[/TH][TH]Attended SP[/TH][/TR]
-{{#troopers}}[TR][TD]{{n}}[/TD][TD]{{#rank_icon}}[IMG width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/IMG] {{/rank_icon}}{{rank}} {{name}}[/TD][TD]{{#rc_yes}}✓{{/rc_yes}}{{#rc_no}}✗{{/rc_no}}{{#rc_unsigned}}-{{/rc_unsigned}}[/TD][TD]{{#sp_present}}✓{{/sp_present}}{{#sp_missed}}✗{{/sp_missed}}{{#sp_makeup}}MU{{/sp_makeup}}{{#sp_attached}}ATT{{/sp_attached}}{{#sp_loa}}LOA{{/sp_loa}}{{#sp_unmarked}}-{{/sp_unmarked}}[/TD][/TR]
+[TR][TH]#[/TH][TH]Name[/TH]{{#fireteams_shown}}[TH]Role[/TH]{{/fireteams_shown}}[TH]Signed RC[/TH][TH]Attended SP[/TH][/TR]
+{{#troopers}}[TR][TD]{{n}}[/TD][TD]{{#rank_icon}}[IMG width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/IMG] {{/rank_icon}}{{rank}} {{name}}[/TD]{{#fireteams_shown}}[TD]{{role}}[/TD]{{/fireteams_shown}}[TD]{{#rc_yes}}✓{{/rc_yes}}{{#rc_no}}✗{{/rc_no}}{{#rc_unsigned}}-{{/rc_unsigned}}[/TD][TD]{{#sp_present}}✓{{/sp_present}}{{#sp_missed}}✗{{/sp_missed}}{{#sp_makeup}}MU{{/sp_makeup}}{{#sp_attached}}ATT{{/sp_attached}}{{#sp_loa}}LOA{{/sp_loa}}{{#sp_unmarked}}-{{/sp_unmarked}}[/TD][/TR]
 {{/troopers}}{{^troopers}}[TR][TD]No troopers are placed in this section.[/TD][/TR]
 {{/troopers}}[/TABLE]`;
 
@@ -41,5 +41,17 @@ describe('the starter template', () => {
 
     it('says so for an empty section', () => {
         expect(render(STARTER, { ...CONTEXT, troopers: [] }).text).toContain('[TR][TD]No troopers are placed in this section.[/TD][/TR]');
+    });
+
+    it('adds a Role column only when the section shows fireteam leaders and has one', () => {
+        const roles = ['Section Leader (FTL Alpha)', ''];
+        const shown = render(STARTER, { ...CONTEXT, fireteams_shown: true, troopers: CONTEXT.troopers.map((row, i) => ({ ...row, role: roles[i] })) }).text;
+        const hidden = render(STARTER, { ...CONTEXT, fireteams_shown: false, troopers: CONTEXT.troopers.map((row, i) => ({ ...row, role: roles[i] })) }).text;
+
+        expect(shown).toContain('[TH]Name[/TH][TH]Role[/TH][TH]Signed RC[/TH]');
+        expect(shown).toContain('Sergeant Jay.JH[/TD][TD]Section Leader (FTL Alpha)[/TD][TD]✓[/TD]');
+        expect(shown).toContain('Specialist Adams.P[/TD][TD][/TD][TD]✗[/TD]');
+        expect(hidden).not.toContain('Role');
+        expect(hidden).toContain('Sergeant Jay.JH[/TD][TD]✓[/TD]');
     });
 });

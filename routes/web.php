@@ -6,6 +6,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReportRollupController;
 use App\Http\Controllers\RollcallController;
+use App\Http\Controllers\RollcallFireteamController;
 use App\Http\Controllers\RosterController;
 use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\DemoDataController;
@@ -99,6 +100,11 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::post('/rollcall/{unit}/capture', [RollcallController::class, 'retryCapture'])->middleware('throttle:practice-capture')->name('rollcall.capture');
     Route::post('/rollcall/{unit}/confirm', [RollcallController::class, 'confirm'])->name('rollcall.confirm');
     Route::post('/rollcall/{unit}/posted', [RollcallController::class, 'posted'])->name('rollcall.posted');
+    // Fireteams on the rollcall (the owner's order, 2026-10-16): each write is an audited Command whose handler checks
+    // the actor commands the section (or, for the policy, its company); a staff grant reads, it does not write.
+    Route::post('/rollcall/{unit}/fireteams', [RollcallFireteamController::class, 'role'])->name('rollcall.fireteams.role');
+    Route::post('/rollcall/{unit}/fireteams/options', [RollcallFireteamController::class, 'options'])->name('rollcall.fireteams.options');
+    Route::post('/rollcall/{unit}/fireteams/policy', [RollcallFireteamController::class, 'policy'])->name('rollcall.fireteams.policy');
 
     // Game identities (Story 7.2): link troopers in scope to their in-game identity, one per
     // platform. The controller reads repositories; each write is an audited Command whose handler

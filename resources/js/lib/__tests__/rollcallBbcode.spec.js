@@ -22,8 +22,8 @@ describe('rollcallContext (3.11)', () => {
         expect(context).toMatchObject({ unit: '2/1/A/1-7', unit_name: '2nd Section', week: '03Oct26 – 09Oct26', week_start: '03Oct26', week_end: '09Oct26' });
     });
 
-    it('numbers the troopers in the order the page lists them and takes names from the synced username', () => {
-        expect(context.troopers.map((row) => [row.n, row.name])).toEqual([['1', 'Vasquez.R'], ['2', 'Okafor.T'], ['3', 'Kowalczyk.P'], ['4', 'Reyes.M'], ['5', 'Doyle.A'], ['6', 'Tanaka.H']]);
+    it('numbers the troopers by rank, senior first, then name, and takes names from the synced username', () => {
+        expect(context.troopers.map((row) => [row.n, row.name])).toEqual([['1', 'Vasquez.R'], ['2', 'Kowalczyk.P'], ['3', 'Okafor.T'], ['4', 'Tanaka.H'], ['5', 'Doyle.A'], ['6', 'Reyes.M']]);
         expect(context.troopers[0]).toMatchObject({ rank: 'Long Rank Title', rank_short: 'SGT', display_name: 'SGT Vasquez.R' });
     });
 
@@ -44,10 +44,12 @@ describe('rollcallContext (3.11)', () => {
             { ...t(8, 'Diaz.L', 'will_attend', 'present'), loa: { state: 'covered' } },
             { ...t(9, 'Park.J', 'unsigned', null), loa: { state: 'needs_review' } },
         ])).troopers;
+        // The post orders the rows itself (same rank, then by last name), so they are read by name.
+        const by = Object.fromEntries(rows.map((row) => [row.name, row]));
 
-        expect(rows[0]).toMatchObject({ sp: 'LOA', sp_loa: true, sp_unmarked: false });
-        expect(rows[1]).toMatchObject({ sp: 'LOA', sp_loa: true, sp_present: false, rc: 'Yes' });
-        expect(rows[2]).toMatchObject({ sp: '', sp_loa: false, sp_unmarked: true });
+        expect(by['Ito.K']).toMatchObject({ sp: 'LOA', sp_loa: true, sp_unmarked: false });
+        expect(by['Diaz.L']).toMatchObject({ sp: 'LOA', sp_loa: true, sp_present: false, rc: 'Yes' });
+        expect(by['Park.J']).toMatchObject({ sp: '', sp_loa: false, sp_unmarked: true });
     });
 
     it('does not count a trooper on leave as attended, even with a present mark on the page, so the post shows no tick (3.4)', () => {
@@ -58,7 +60,8 @@ describe('rollcallContext (3.11)', () => {
         const out = rollcallPost(resolved('{{#troopers}}{{name}} {{#sp_present}}✓{{/sp_present}}{{#sp_loa}}LOA{{/sp_loa}}\n{{/troopers}}attended {{attended}}'), input(troopers));
 
         expect(rollcallContext(input(troopers)).attended).toBe('1');
-        expect(out.text).toBe('Vasquez.R ✓\nAdams.P LOA\nattended 1');
+        // Same rank, so by last name: Adams before Vasquez.
+        expect(out.text).toBe('Adams.P LOA\nVasquez.R ✓\nattended 1');
     });
 
     it('turns each signature into its flag and word', () => {
@@ -114,7 +117,7 @@ describe('rollcallContext (3.11)', () => {
 describe('rollcallPost (3.11)', () => {
     it("sizes each insignia in the starter template's [IMG] tag", () => {
         const starter = '{{#troopers}}{{#rank_icon}}[IMG width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/IMG] {{/rank_icon}}{{name}};{{/troopers}}';
-        const troopers = [{ ...t(1, 'Vasquez.R', 'unsigned', null), rankIcon: 'https://7cav.us/data/roster_ranks/0/10.jpg' }, t(2, 'Okafor.T', 'unsigned', null)];
+        const troopers = [{ ...t(1, 'Vasquez.R', 'unsigned', null, 'SGT'), rankIcon: 'https://7cav.us/data/roster_ranks/0/10.jpg' }, t(2, 'Okafor.T', 'unsigned', null)];
 
         expect(rollcallPost(resolved(starter), input(troopers)).text).toBe('[IMG width="5px" height="auto"]https://7cav.us/data/roster_ranks/0/10.jpg[/IMG] Vasquez.R;Okafor.T;');
     });
@@ -125,7 +128,7 @@ describe('rollcallPost (3.11)', () => {
         expect(post).toEqual({
             state: 'ready',
             version: 3,
-            text: '[b]2/1/A/1-7[/b] 2/6\nVasquez.R=ok;Okafor.T=No;Kowalczyk.P=ok;Reyes.M=ok;Doyle.A=ok;Tanaka.H=ok;',
+            text: '[b]2/1/A/1-7[/b] 2/6\nVasquez.R=ok;Kowalczyk.P=ok;Okafor.T=No;Tanaka.H=ok;Doyle.A=ok;Reyes.M=ok;',
         });
     });
 
@@ -173,5 +176,76 @@ describe('rollcallPost (3.11)', () => {
 
     it('renders an empty section from the template\'s own empty text', () => {
         expect(rollcallPost(resolved('{{#troopers}}{{name}}{{/troopers}}{{^troopers}}nobody{{/troopers}}'), input([])).text).toBe('nobody');
+    });
+});
+
+describe('rollcallContext roles and order (the owner, 2026-10-16)', () => {
+    const r = (id, name, rankShort, role = null, fireteamLeaderId = null, leadsFireteam = role === 'ftl') => ({
+        ...t(id, name, 'will_attend', 'present', rankShort),
+        role,
+        fireteamLeaderId,
+        leadsFireteam,
+    });
+    const SQUAD = [
+        r(1, 'Able.A', 'PVT'),
+        r(2, 'Ftl.B', 'CPL', 'ftl'),
+        r(3, 'Asl.C', 'CPL', 'asl'),
+        r(4, 'Member.D', 'SPC', null, 2),
+        r(5, 'Sl.E', 'SGT', 'sl'),
+        r(6, 'Senior.F', 'SGT'),
+    ];
+    const context = (fireteams, troopers = SQUAD) => rollcallContext({ ...input(troopers), fireteams });
+    const rows = (fireteams) => context(fireteams).troopers;
+
+    it('lists the SL, then the ASL, then everyone by rank, and names only the SL and ASL while FTLs are hidden', () => {
+        expect(rows().map((row) => [row.n, row.name, row.role])).toEqual([
+            ['1', 'Sl.E', 'Section Leader'], ['2', 'Asl.C', 'Assistant Section Leader'], ['3', 'Senior.F', ''], ['4', 'Ftl.B', ''], ['5', 'Member.D', ''], ['6', 'Able.A', ''],
+        ]);
+        expect(rows({ show: false, order: 'by_fireteam' }).map((row) => row.name)).toEqual(rows().map((row) => row.name));
+        expect(context().fireteams_shown).toBe(false);
+    });
+
+    it('puts every FTL above the rest and names their fireteam, once the section shows them', () => {
+        expect(rows({ show: true, order: 'leaders_first' }).map((row) => [row.name, row.role])).toEqual([
+            ['Sl.E', 'Section Leader'], ['Asl.C', 'Assistant Section Leader'], ['Ftl.B', 'FTL Alpha'], ['Senior.F', ''], ['Member.D', ''], ['Able.A', ''],
+        ]);
+        expect(context({ show: true }).fireteams_shown).toBe(true);
+    });
+
+    it('puts each FTL directly above their fireteam, troopers in no fireteam last, with the by-fireteam order', () => {
+        expect(rows({ show: true, order: 'by_fireteam' }).map((row) => row.name)).toEqual(['Sl.E', 'Asl.C', 'Ftl.B', 'Member.D', 'Senior.F', 'Able.A']);
+    });
+
+    it("names an SL or ASL who leads a fireteam by both, the SL's fireteam first, in the WW2 alphabet for B/ACD", () => {
+        const squad = SQUAD.map((row) => (row.role === 'sl' || row.role === 'asl' ? { ...row, leadsFireteam: true } : row));
+
+        expect(context({ show: true }, squad).troopers.slice(0, 3).map((row) => row.role)).toEqual([
+            'Section Leader (FTL Alpha)', 'Assistant Section Leader (FTL Bravo)', 'FTL Charlie',
+        ]);
+        expect(context({ show: true, alphabet: 'ww2' }, squad).troopers.slice(0, 3).map((row) => row.role)).toEqual([
+            'Section Leader (FTL Able)', 'Assistant Section Leader (FTL Baker)', 'FTL Charlie',
+        ]);
+    });
+
+    it('sets fireteams_shown only when FTLs are shown and the section has one, so a forced-on policy with no FTL prints nothing', () => {
+        const noFtl = SQUAD.filter((row) => row.role !== 'ftl');
+
+        expect(context({ show: true }, noFtl).fireteams_shown).toBe(false);
+        expect(context({ show: false }).fireteams_shown).toBe(false);
+        expect(context({ show: true }).fireteams_shown).toBe(true);
+    });
+
+    it('sets the role flags: SL and ASL always, FTL only while shown', () => {
+        const by = (fireteams) => Object.fromEntries(rows(fireteams).map((row) => [row.name, [row.is_sl, row.is_asl, row.is_ftl]]));
+
+        expect(by({ show: true })).toMatchObject({ 'Sl.E': [true, false, false], 'Asl.C': [false, true, false], 'Ftl.B': [false, false, true], 'Able.A': [false, false, false] });
+        expect(by({ show: false })['Ftl.B']).toEqual([false, false, false]);
+    });
+
+    it('prints the roles through a template, numbering the rows in the new order', () => {
+        const body = '{{#fireteams_shown}}Teams:{{/fireteams_shown}}{{#troopers}}{{n}}.{{#role}}({{role}}){{/role}}{{name}}{{#is_ftl}}*{{/is_ftl}} {{/troopers}}';
+        const out = rollcallPost(resolved(body), { ...input(SQUAD), fireteams: { show: true, order: 'by_fireteam' } });
+
+        expect(out.text).toBe('Teams:1.(Section Leader)Sl.E 2.(Assistant Section Leader)Asl.C 3.(FTL Alpha)Ftl.B* 4.Member.D 5.Senior.F 6.Able.A ');
     });
 });

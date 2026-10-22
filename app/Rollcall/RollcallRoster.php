@@ -25,6 +25,7 @@ final class RollcallRoster
         private readonly TrooperRepository $troopers,
         private readonly SectionPracticeRepository $practices,
         private readonly AttendanceRepository $attendance,
+        private readonly SectionFireteams $fireteams,
     ) {}
 
     /**
@@ -84,7 +85,10 @@ final class RollcallRoster
             ? $this->attendance->forPractice($priorPractice)->filter(fn (Attendance $row) => $row->status !== null)->keyBy('trooper_id')
             : collect();
 
-        $troopers = $this->troopers->placedIn($section->id)->map(fn (Trooper $trooper) => [
+        $placed = $this->troopers->placedIn($section->id);
+        $roles = $this->fireteams->roles($section, $placed);
+
+        $troopers = $placed->map(fn (Trooper $trooper) => [
             'id' => $trooper->id,
             'cavId' => $trooper->cav_id,
             // The synced forum identity (2.10): `rankShort` + `name` render as `displayName`
@@ -101,6 +105,11 @@ final class RollcallRoster
             'priorStatus' => $prior->get($trooper->id)?->status->value,
             // The Cav join date, so a week before it reads "not in the unit yet" as on the roster matrix.
             'joined' => $trooper->tis?->toDateString(),
+            // `sl`, `asl`, `ftl` or null, whether they lead a fireteam, and the leader of the fireteam they are in:
+            // the screen and the post list the section leader-first from these (resources/js/lib/fireteams.js).
+            'role' => $roles[$trooper->id]['role'],
+            'leadsFireteam' => $roles[$trooper->id]['leadsFireteam'],
+            'fireteamLeaderId' => $roles[$trooper->id]['fireteamLeaderId'],
         ])->sortBy(fn (array $row) => mb_strtolower($row['name'] ?? "~{$row['cavId']}"))->values()->all();
 
         return new RollcallRosterWeek($practice, $marks, $troopers, $prior->isNotEmpty());
