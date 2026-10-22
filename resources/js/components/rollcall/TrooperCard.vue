@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import { PhClockCounterClockwise, PhLockSimple, PhSignature } from '@phosphor-icons/vue';
 import AttendanceSourceIndicator from '@/components/attendance/AttendanceSourceIndicator.vue';
+import LoaBadge from '@/components/LoaBadge.vue';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { fullName, initials, isLocked, optionsFor, practiceLabel, signatureLabel } from '@/lib/rollcall';
@@ -16,11 +17,16 @@ const props = defineProps({
     editable: { type: Boolean, default: false },
     // Shown as the buttons' title when they are disabled for a reason (e.g. a view-as preview).
     disabledReason: { type: String, default: null },
+    // `LoaSyncState::toArray()`: the leave data's source and last sync, shown in the LOA badge (AD-20).
+    loaSync: { type: Object, default: null },
 });
 
 const emit = defineEmits(['set']);
 
 const locked = computed(() => isLocked(props.trooper));
+// The trooper's leave this week as the server sent it (covered, or needs review: then the row stays markable and
+// only the badge says someone must look). A cover learned from a refused save has no dates to show, so it only locks.
+const cover = computed(() => (props.trooper.loa && !props.trooper.loa.fromSave ? props.trooper.loa : null));
 const options = computed(() => optionsFor(props.kind));
 const value = computed(() => (props.kind === 'signature' ? props.trooper.rollcall : props.trooper.status));
 const valueLabel = computed(() => (props.kind === 'signature' ? signatureLabel(value.value) : practiceLabel(value.value)));
@@ -117,7 +123,11 @@ const TONE = {
                     <div class="min-w-0 flex-1">
                         <p class="truncate text-sm leading-tight font-semibold">{{ name }}</p>
                         <div class="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                            <AttendanceSourceIndicator v-if="kind === 'practice' || locked" :status="trooper.status" :source="trooper.source" />
+                            <LoaBadge v-if="cover" :cover="cover" :sync="loaSync" />
+                            <template v-if="locked">
+                                <AttendanceSourceIndicator v-if="!cover" status="loa" :source="trooper.source" />
+                            </template>
+                            <AttendanceSourceIndicator v-else-if="kind === 'practice'" :status="trooper.status" :source="trooper.source" />
                             <span v-else class="inline-flex items-center gap-1" data-testid="signature-line">
                                 <PhSignature class="size-3.5" aria-hidden="true" />
                                 {{ trooper.rollcall === 'unsigned' ? 'Not signed yet' : `Signed: ${valueLabel}` }}

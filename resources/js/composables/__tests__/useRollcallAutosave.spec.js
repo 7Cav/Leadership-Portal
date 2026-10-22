@@ -8,7 +8,7 @@ vi.mock('@inertiajs/vue3', () => ({ router: { on: (event, callback) => ((visitGu
 
 function setup(post) {
     let api;
-    mount(defineComponent({ setup: () => ((api = useRollcallAutosave({ url: '/rollcall/12', week: '2026-10-03', post, onSaved, nameOf: (id) => `Trooper${id}.A` })), () => h('div')) }));
+    mount(defineComponent({ setup: () => ((api = useRollcallAutosave({ url: '/rollcall/12', week: '2026-10-03', post, onSaved, onLeave, nameOf: (id) => `Trooper${id}.A` })), () => h('div')) }));
 
     return api;
 }
@@ -16,12 +16,14 @@ function setup(post) {
 enableAutoUnmount(afterEach);
 
 const onSaved = vi.fn();
+const onLeave = vi.fn();
 const ok = (data = {}) => Promise.resolve({ ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00', atRisk: [], ...data } });
 
 describe('rollcall autosave', () => {
     beforeEach(() => {
         vi.useFakeTimers();
         onSaved.mockClear();
+        onLeave.mockClear();
     });
     afterEach(() => vi.useRealTimers());
 
@@ -143,6 +145,50 @@ describe('rollcall autosave', () => {
         expect(save.rejectedMessage.value).toBe('Trooper2.A is no longer placed in this section, so that mark was not saved. Reload to refresh the roster.');
 
         save.queue(2, 'status', 'missed');
+        expect(save.pendingCount.value).toBe(0);
+    });
+
+    it('keeps the signature of a trooper the server says is on leave, drops only their practice mark, and says why', async () => {
+        const post = vi.fn()
+            .mockResolvedValueOnce({ ok: false, status: 422, data: { message: 'on leave', rejected: [2], reason: 'loa_covered' } })
+            .mockImplementation(() => ok());
+        const save = setup(post);
+
+        save.queue(1, 'status', 'present');
+        save.queue(2, 'status', 'present');
+        save.queue(2, 'rollcall', 'cannot_attend');
+        await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+
+        expect(post).toHaveBeenCalledTimes(2);
+        expect(post).toHaveBeenLastCalledWith('/rollcall/12', {
+            week: '2026-10-03',
+            marks: [{ trooper_id: 1, status: 'present' }, { trooper_id: 2, rollcall: 'cannot_attend' }],
+        });
+        expect(save.state.value).toBe('saved');
+        expect(onLeave).toHaveBeenCalledWith([2]);
+        expect(save.rejectedMessage.value).toBeNull();
+        expect(save.onLeaveMessage.value).toBe(
+            'Trooper2.A is on leave this week, so their practice mark comes from the leave and the one entered here was not saved. Signatures still save.',
+        );
+
+        // Later: a practice mark for them is never queued again; a signature still is.
+        save.queue(2, 'status', 'missed');
+        expect(save.pendingCount.value).toBe(0);
+        save.queue(2, 'rollcall', 'will_attend');
+        expect(save.pendingCount.value).toBe(1);
+    });
+
+    it('drops a trooper on leave whose batch entry was only a practice mark', async () => {
+        const post = vi.fn()
+            .mockResolvedValueOnce({ ok: false, status: 422, data: { message: 'on leave', rejected: [2], reason: 'loa_covered' } })
+            .mockImplementation(() => ok());
+        const save = setup(post);
+
+        save.queue(1, 'rollcall', 'will_attend');
+        save.queue(2, 'status', 'present');
+        await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+
+        expect(post).toHaveBeenLastCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 1, rollcall: 'will_attend' }] });
         expect(save.pendingCount.value).toBe(0);
     });
 

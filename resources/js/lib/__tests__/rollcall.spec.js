@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countsOf, displayName, fullName, initials, practiceGroups, signatureGroups, stepsOf } from '../rollcall';
+import { countsOf, displayName, fullName, initials, isLocked, practiceGroups, signatureGroups, stepsOf } from '../rollcall';
 
 const t = (id, rollcall, status, extra = {}) => ({ id, cavId: 1000 + id, rank: 'PFC', name: `Trooper${id}.A`, rollcall, status, source: null, priorStatus: null, ...extra });
 
@@ -46,6 +46,24 @@ describe('rollcall vocabulary', () => {
         const groups = practiceGroups([t(1, 'will_attend', 'present'), t(2, 'will_attend', 'missed'), t(3, 'will_attend', null), t(4, 'unsigned', 'loa')], true);
 
         expect(groups.flatMap((g) => g.troopers.map((x) => x.id))).toEqual([2, 3]);
+    });
+
+    it('locks a trooper whose leave covers the week, from the server coverage rather than a stored mark (3.4)', () => {
+        const covered = t(1, 'unsigned', null, { loa: { state: 'covered' } });
+        const review = t(2, 'unsigned', null, { loa: { state: 'needs_review' } });
+        const troopers = [covered, review, t(3, 'will_attend', null)];
+
+        expect(isLocked(covered)).toBe(true);
+        expect(isLocked(review)).toBe(false);
+        // An older stored `loa` mark still locks its row.
+        expect(isLocked(t(4, 'unsigned', 'loa'))).toBe(true);
+
+        expect(signatureGroups(troopers).find((g) => g.id === 'loa').troopers).toEqual([covered]);
+        expect(practiceGroups(troopers).find((g) => g.id === 'loa').troopers).toEqual([covered]);
+        // A needs-review leave asserts nothing (AD-4): that row stays with everyone still to mark.
+        expect(practiceGroups(troopers).find((g) => g.id === 'unsigned').troopers).toEqual([review]);
+        expect(countsOf(troopers)).toMatchObject({ total: 2, loa: 1, unsigned: 1, unmarked: 2 });
+        expect(stepsOf([covered, t(3, 'will_attend', 'present')]).map((s) => s.state)).toEqual(['done', 'done', 'todo']);
     });
 
     it('lists the unsigned first on the signature step and drops empty groups', () => {

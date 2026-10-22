@@ -30,6 +30,13 @@ every section under the company on its next load, and no other company's. Marks 
 a template change between load and save does not affect what is saved. A leader has no way to edit a template from here;
 authoring is Admin-only in Settings, Templates (3.5).
 
+Leave comes from `Loa/LoaCoverage`, the one definition (3.4, 4.4, AD-21), sent per trooper as `loa` (`LoaCover::toArray()`)
+with the LOA source and last sync (`loaSync`, AD-20). Nothing stores an `loa` mark: a covered trooper's row is locked, listed
+under "On LOA", left out of "Mark all present" and last week's marks, and posts as `LOA`. `MarkAttendance` still refuses a
+practice mark for them; if a leave syncs after the page loaded, the refusal says `loa_covered`, the screen locks the row and
+keeps saving their signature. A leave that needs review asserts nothing (AD-4): the row stays markable and only shows the
+badge. Home's "marked" step counts a covered trooper as marked.
+
 **May depend on:** `Repositories/` (never the DB directly, AD-2) and `Models/`.
 **Reached from:** `Http/Controllers/`. Read-only: templates are written only by the audited
 `Commands/Templates` Commands. Who may look is the Controller's ScopeResolver gate (AD-8), not decided here.

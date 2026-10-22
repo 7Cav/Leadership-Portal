@@ -102,10 +102,16 @@ interface AttendanceRepository
      * held. Keyed by section id; a section with no assigned trooper is absent. A section with no
      * practice row yet counts as nothing signed or marked. One query, however many sections.
      *
+     * `$excusedTrooperIds` are troopers whose practice status is derived rather than marked (their leave covers the
+     * week, 3.4, as `LoaCoverage` decides; the caller asks it, since a Repository cannot). Each counts as marked,
+     * once, whether or not a row exists, so a section with someone on leave can reach its full strength. They never
+     * make the practice held.
+     *
      * @param  list<int>  $sectionIds
+     * @param  list<int>  $excusedTrooperIds
      * @return Collection<int, SectionWeekProgress>
      *
      * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
      */
-    public function weekProgress(array $sectionIds, CarbonInterface $weekStart): Collection;
+    public function weekProgress(array $sectionIds, CarbonInterface $weekStart, array $excusedTrooperIds = []): Collection;
 }

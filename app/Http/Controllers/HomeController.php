@@ -10,6 +10,8 @@ use App\Kpi\KpiService;
 use App\Kpi\ReportChain;
 use App\Kpi\TrooperAttendance;
 use App\Kpi\UnitKpis;
+use App\Loa\LoaCover;
+use App\Loa\LoaCoverage;
 use App\Models\SyncRunStatus;
 use App\Models\Unit;
 use App\Models\WeeklyReport;
@@ -62,6 +64,7 @@ class HomeController extends Controller
         private readonly AttendanceRepository $attendance,
         private readonly KpiService $kpis,
         private readonly ReportChain $chain,
+        private readonly LoaCoverage $loaCoverage,
     ) {}
 
     public function show(Request $request): Response
@@ -301,7 +304,8 @@ class HomeController extends Controller
     /**
      * The week's five steps for every section in scope (the step matrix): rollcall posted, signed,
      * practice held, attendance marked and report sent, each with the screen that does it. Counts
-     * are over the troopers currently assigned to the section; a step nobody has started is simply
+     * are over the troopers currently assigned to the section, and a trooper on leave for the week
+     * counts as marked, since there is nothing to mark for them; a step nobody has started is simply
      * not done, never an invented deadline miss.
      *
      * @param  Collection<int, int>  $scope
@@ -312,7 +316,12 @@ class HomeController extends Controller
         $sections = $this->units->sectionsAmong($scope);
         $ids = $sections->modelKeys();
         $practices = $this->practices->forSections($ids, $weekStart);
-        $progress = $this->attendance->weekProgress($ids, $weekStart);
+        // A trooper whose leave covers the week has no mark to make (3.4): the one LOA definition says who (AD-21).
+        $covered = array_keys(array_filter(
+            $this->loaCoverage->forTroopers($this->troopers->placedInAny($ids)->modelKeys(), $weekStart),
+            fn (LoaCover $cover) => $cover->isCovered(),
+        ));
+        $progress = $this->attendance->weekProgress($ids, $weekStart, $covered);
         $reports = $this->reports->forUnits($ids, $weekStart);
         $date = $weekStart->toDateString();
 

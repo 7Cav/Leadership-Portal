@@ -40,9 +40,11 @@ export function practiceLabel(value) {
     return PRACTICE.find((option) => option.value === value)?.label ?? 'Not marked';
 }
 
-// An LOA-derived row is locked: nothing on it may be set by hand (3.4 / 3.8).
+// An LOA-derived row is locked: nothing on it may be set by hand (3.4 / 3.8). The leave comes from the server's
+// one coverage definition (`trooper.loa`, `LoaCover::toArray()`); nothing stores an `loa` mark any more, but an
+// older stored one still locks its row. A leave that needs review is not coverage, so that row stays markable.
 export function isLocked(trooper) {
-    return trooper.status === 'loa';
+    return trooper.loa?.state === 'covered' || trooper.status === 'loa';
 }
 
 // A trooper's forum username, synced from the roster (2.10); until it syncs, their milpac id —

@@ -38,6 +38,29 @@ describe('rollcallContext (3.11)', () => {
         expect(by['Tanaka.H']).toMatchObject({ sp: 'LOA', sp_loa: true });
     });
 
+    it('writes LOA for a trooper whose leave covers the week, even with no stored mark or with one (3.4)', () => {
+        const rows = rollcallContext(input([
+            { ...t(7, 'Ito.K', 'unsigned', null), loa: { state: 'covered' } },
+            { ...t(8, 'Diaz.L', 'will_attend', 'present'), loa: { state: 'covered' } },
+            { ...t(9, 'Park.J', 'unsigned', null), loa: { state: 'needs_review' } },
+        ])).troopers;
+
+        expect(rows[0]).toMatchObject({ sp: 'LOA', sp_loa: true, sp_unmarked: false });
+        expect(rows[1]).toMatchObject({ sp: 'LOA', sp_loa: true, sp_present: false, rc: 'Yes' });
+        expect(rows[2]).toMatchObject({ sp: '', sp_loa: false, sp_unmarked: true });
+    });
+
+    it('does not count a trooper on leave as attended, even with a present mark on the page, so the post shows no tick (3.4)', () => {
+        const troopers = [
+            t(1, 'Vasquez.R', 'will_attend', 'present'),
+            { ...t(2, 'Adams.P', 'unsigned', 'present'), loa: { state: 'covered' } },
+        ];
+        const out = rollcallPost(resolved('{{#troopers}}{{name}} {{#sp_present}}✓{{/sp_present}}{{#sp_loa}}LOA{{/sp_loa}}\n{{/troopers}}attended {{attended}}'), input(troopers));
+
+        expect(rollcallContext(input(troopers)).attended).toBe('1');
+        expect(out.text).toBe('Vasquez.R ✓\nAdams.P LOA\nattended 1');
+    });
+
     it('turns each signature into its flag and word', () => {
         const by = Object.fromEntries(context.troopers.map((row) => [row.name, row]));
 
