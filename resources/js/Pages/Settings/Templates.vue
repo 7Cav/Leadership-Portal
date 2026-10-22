@@ -22,6 +22,7 @@ import { toast } from 'vue-sonner';
 import InlineNotice from '@/components/InlineNotice.vue';
 import { forumDate } from '@/lib/forumDate';
 import { onHttpException } from '@/lib/httpError';
+import { copyText } from '@/lib/clipboard';
 
 // Rollcall template authoring (Story 3.5, AD-17). Everything is shaped by `Settings\TemplatesController`. A save is
 // always a new version and a rollback only moves the active pointer: the page has no way to change a version that
@@ -148,15 +149,12 @@ const toggleCompare = (version) => {
 const legend = templateLegend();
 const EXAMPLES = { print: '{{name}}', loop: '{{#troopers}}...{{/troopers}}', inverted: '{{^name}}...{{/name}}' };
 
-// Puts one code on the clipboard; its button shows a tick for a moment after.
+// Puts one code on the clipboard, with the same toasts as every other copy button; its button also shows a tick for a
+// moment after.
 const copiedCode = ref(null);
 let copiedTimer = null;
 async function copyCode(code) {
-    try {
-        await navigator.clipboard.writeText(code);
-    } catch {
-        return;
-    }
+    if (!(await copyText(code, 'Code copied', { description: code, failed: 'Could not copy the code', fallback: 'Type it by hand instead.' }))) return;
     copiedCode.value = code;
     clearTimeout(copiedTimer);
     copiedTimer = setTimeout(() => {

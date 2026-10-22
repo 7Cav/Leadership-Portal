@@ -4,6 +4,7 @@ import { usePage } from '@inertiajs/vue3';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useIdentity } from '@/composables/useIdentity';
+import { slashClaimed } from '@/composables/useSlashShortcut';
 import { displayKeys, isShortcut, isTypingTarget, keyLabel, keyName, overlayOpen, SHORTCUT_GROUPS } from '@/lib/shortcuts';
 import { isActive, visibleGroups } from '../navigation';
 
@@ -29,6 +30,11 @@ function separator(shortcut) {
     if (shortcut.range) return 'to';
 
     return shortcut.keys.length === 2 ? 'or' : null;
+}
+
+// While the page on screen holds `/` for its own search, the global entry says so rather than promising the trooper search.
+function whereFor(shortcut) {
+    return shortcut.claimed && slashClaimed.value ? shortcut.claimed : shortcut.where;
 }
 
 function onKeydown(event) {
@@ -62,7 +68,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
                         <li v-for="shortcut in group.shortcuts" :key="shortcut.id" class="flex items-start justify-between gap-4 py-1.5 text-[13px]" :data-testid="`shortcut-${shortcut.id}`">
                             <span class="min-w-0">
                                 {{ shortcut.label }}
-                                <span v-if="shortcut.where" class="block text-xs text-muted-foreground">{{ shortcut.where }}</span>
+                                <span v-if="whereFor(shortcut)" class="block text-xs text-muted-foreground">{{ whereFor(shortcut) }}</span>
                             </span>
                             <span class="flex shrink-0 flex-wrap items-center justify-end gap-1 text-xs text-muted-foreground">
                                 <template v-for="(key, index) in displayKeys(shortcut)" :key="key">

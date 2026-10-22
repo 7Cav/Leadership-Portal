@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
-import { reactive } from 'vue';
+import { defineComponent, h, reactive } from 'vue';
 import KeyboardShortcuts from '../KeyboardShortcuts.vue';
+import { useSlashClaim } from '@/composables/useSlashShortcut';
 import { SHORTCUT_GROUPS } from '@/lib/shortcuts';
 
 const mockPage = reactive({ url: '/home', props: { auth: { user: { is_admin: true } } } });
@@ -82,6 +83,27 @@ describe('KeyboardShortcuts', () => {
         expect(ids.slice(0, 2)).toEqual(['shortcuts-group-global', 'shortcuts-group-rollcall']);
         expect(dialog().querySelector('[data-testid="shortcuts-group-rollcall"] h3').textContent).toContain('This page');
         expect(dialog().querySelector('[data-testid="shortcuts-group-roster"] h3').textContent).not.toContain('This page');
+    });
+
+    it('lists / as the trooper search everywhere', async () => {
+        mountList();
+        await press('?');
+
+        const search = dialog().querySelector('[data-testid="shortcuts-group-global"] [data-testid="shortcut-search"]');
+        expect(search.textContent).toContain('Find a trooper');
+        expect(search.querySelector('kbd .sr-only').textContent).toBe('Slash');
+        expect(search.textContent).not.toContain('its own search');
+    });
+
+    it('says so on the / entry while the page claims / for its own search', async () => {
+        const Page = defineComponent({ setup: () => (useSlashClaim(() => {}), () => h('div')) });
+        const claimer = mount(Page);
+        mountList('/roster');
+        await press('?');
+
+        expect(dialog().querySelector('[data-testid="shortcut-search"]').textContent).toContain('This page uses it for its own search');
+        expect(dialog().querySelector('[data-testid="shortcut-roster.search"]').textContent).toContain('in place of Find a trooper');
+        claimer.unmount();
     });
 
     it('leaves out the Settings pages for a viewer who is not an Admin', async () => {

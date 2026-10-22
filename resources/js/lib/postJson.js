@@ -12,8 +12,13 @@ function xsrfToken() {
 // A 401 or 419 means the session behind this page is gone or its token is stale. Reloading lets
 // the server decide: a signed-out user lands on sign-in with this page as the place to return to,
 // and a still-live session just picks up a fresh token. A screen holding unsaved changes asks
-// before the page goes (`beforeunload`), so nothing is dropped without the user's say.
-function reloadPage() {
+// before the page goes (`beforeunload`), so nothing is dropped without the user's say. Other JSON
+// fetches (the trooper search) use these two as well, so every one of them ends a session the same way.
+export function sessionEnded(status) {
+    return status === 401 || status === 419;
+}
+
+export function reloadPage() {
     window.location.reload();
 }
 
@@ -40,7 +45,7 @@ export async function postJson(url, body, { onSignedOut = reloadPage } = {}) {
         });
     }
 
-    if (response.status === 401 || response.status === 419) {
+    if (sessionEnded(response.status)) {
         // After the caller has had the result, so it can keep what it was sending first.
         setTimeout(onSignedOut, 0);
     }

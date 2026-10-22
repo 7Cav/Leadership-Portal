@@ -8,7 +8,8 @@ import { PRACTICE, SIGNATURES } from './rollcall';
 //
 // `keys` are `KeyboardEvent.key` values, any one of which triggers the shortcut. `range` shows a
 // run of number keys as "1 to N". `where` names the part of the page it works in, when that is
-// not the whole page. `href` is the nav item the page sits under, so the list can put the page
+// not the whole page. `claimed` replaces `where` while a page holds the key for itself (only `/`
+// can be claimed, see composables/useSlashShortcut.js). `href` is the nav item the page sits under, so the list can put the page
 // the viewer is on first.
 
 export const SHORTCUT_GROUPS = [
@@ -18,6 +19,9 @@ export const SHORTCUT_GROUPS = [
         href: null,
         shortcuts: [
             { id: 'help', keys: ['?'], label: 'Show this list of keyboard shortcuts' },
+            // AppLayout.vue `onKeydown` (composables/useSlashShortcut.js). A page with a search of its own can claim
+            // the key while it is mounted; the list then says so on this entry (`claimed`).
+            { id: 'search', keys: ['/'], label: 'Find a trooper', claimed: 'This page uses it for its own search' },
             { id: 'close', keys: ['Escape'], label: 'Close a dialog, menu or side panel' },
         ],
     },
@@ -26,8 +30,8 @@ export const SHORTCUT_GROUPS = [
         title: 'Roster',
         href: '/roster',
         shortcuts: [
-            // OrbatView.vue `onSlash`.
-            { id: 'roster.search', keys: ['/'], label: 'Jump to the trooper search', where: 'Order of battle' },
+            // OrbatView.vue `useSlashClaim`: `/` goes to the roster's own filter here, not to Find a trooper.
+            { id: 'roster.search', keys: ['/'], label: 'Jump to the roster search, in place of Find a trooper', where: 'Order of battle' },
             // `@keydown.esc` on the OrbatView and MatrixView search boxes.
             { id: 'roster.clearSearch', keys: ['Escape'], label: 'Clear the search', where: 'In the search box' },
             // OrbatView.vue `onRowKey`.

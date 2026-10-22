@@ -6,6 +6,7 @@ import { FILTERS, LISTS, ROW_FLAGS, ROW_STRINGS, TOP_STRINGS } from '@/lib/bbcod
 
 const post = vi.fn();
 const toastError = vi.fn();
+const toastSuccess = vi.fn();
 const routerGet = vi.fn();
 const routerPost = vi.fn();
 let formState;
@@ -23,7 +24,7 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     },
 }));
 
-vi.mock('vue-sonner', () => ({ toast: { error: (...args) => toastError(...args) } }));
+vi.mock('vue-sonner', () => ({ toast: { error: (...args) => toastError(...args), success: (...args) => toastSuccess(...args) } }));
 
 afterEach(() => {
     mockPage.props = {};
@@ -31,6 +32,7 @@ afterEach(() => {
     vi.unstubAllGlobals();
     post.mockReset();
     toastError.mockReset();
+    toastSuccess.mockReset();
     routerGet.mockReset();
     routerPost.mockReset();
 });
@@ -512,6 +514,24 @@ describe('Settings/Templates', () => {
 
             expect(writeText).toHaveBeenCalledWith('{{rank_icon}}');
             expect(button.attributes('aria-label')).toBe('Copied {{rank_icon}}');
+            expect(toastSuccess).toHaveBeenCalledWith('Code copied', { description: '{{rank_icon}}' });
+            expect(toastError).not.toHaveBeenCalled();
+        });
+
+        it('says so when the browser will not copy a code, and shows no tick', async () => {
+            const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const writeText = vi.fn().mockRejectedValue(Object.assign(new Error('denied'), { name: 'NotAllowedError' }));
+            vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+            const wrapper = page();
+            const button = wrapper.get('[data-testid="legend-copy-rank_icon"]');
+
+            await button.trigger('click');
+            await flushPromises();
+
+            expect(toastError).toHaveBeenCalledWith('Could not copy the code', { description: expect.stringContaining('blocked clipboard access') });
+            expect(toastSuccess).not.toHaveBeenCalled();
+            expect(button.attributes('aria-label')).toBe('Copy {{rank_icon}}');
+            consoleError.mockRestore();
         });
 
         describe('inserting a code into the editor', () => {
