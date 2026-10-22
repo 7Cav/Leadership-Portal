@@ -260,6 +260,64 @@ it('dismisses a player with an audit entry, and they leave this and later lists'
     expect(app(PracticeCapturePlayerRepository::class)->unmatchedFor($next->id))->toHaveCount(0);
 });
 
+// #176: a dismissal can be undone, from the toast or the drawer's "Dismissed" list.
+
+it('lists this practice\'s dismissed players for the drawer, and undoing one lists them again, audited', function () {
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/dismiss", linkBody($this))->assertOk();
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")->assertInertia(fn (Assert $page) => $page
+        ->where('unmatched', [])
+        ->where('dismissed', [['platform' => 'hll', 'platformLabel' => 'Hell Let Loose', 'playerName' => 'Ortega', 'platformId' => '7656119000000001']]));
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/restore", linkBody($this))
+        ->assertOk()->assertJsonPath('restored', true);
+
+    $entry = AuditLogEntry::query()->where('action', 'game_player.restored')->sole();
+    expect($entry->actor_id)->toBe($this->leader->id)
+        ->and(GamePlayerDismissal::query()->count())->toBe(0);
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")->assertInertia(fn (Assert $page) => $page
+        ->where('dismissed', [])
+        ->where('unmatched.0.platformId', '7656119000000001'));
+
+    // And on later practices that see them.
+    $next = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => '2026-10-10 00:00:00']);
+    capturedPlayer($next, 'Ortega', '7656119000000001');
+    expect(app(PracticeCapturePlayerRepository::class)->unmatchedFor($next->id))->toHaveCount(1);
+});
+
+it('does not list a dismissal of a player this practice never saw', function () {
+    GamePlayerDismissal::query()->create(['platform' => GamePlatform::Hll, 'platform_id' => '7656119000000777', 'player_name' => 'Elsewhere', 'dismissed_by' => $this->leader->id]);
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")->assertInertia(fn (Assert $page) => $page->where('dismissed', []));
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/restore", linkBody($this, ['platform_id' => '7656119000000777']))
+        ->assertStatus(422);
+
+    expect(GamePlayerDismissal::query()->count())->toBe(1);
+});
+
+it('answers a clean 422 for undoing a player who is not dismissed, and records nothing', function () {
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/restore", linkBody($this))
+        ->assertStatus(422)
+        ->assertJsonPath('message', 'That player is not dismissed, so there is nothing to undo. Reload to see the current list.');
+
+    expect(AuditLogEntry::query()->count())->toBe(0);
+});
+
+it('denies undoing a dismissal for a section outside the leader\'s scope (AD-8)', function () {
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/dismiss", linkBody($this))->assertOk();
+    $stranger = User::factory()->serving()->create();
+
+    $this->actingAs($stranger)->postJson("/rollcall/{$this->section->id}/unmatched/restore", linkBody($this))->assertForbidden();
+
+    expect(GamePlayerDismissal::query()->count())->toBe(1)
+        ->and(AuditLogEntry::query()->where('action', 'game_player.restored')->count())->toBe(0);
+});
+
+it('refuses an undo with no week or platform', function () {
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/restore", ['platform_id' => '7656119000000001'])->assertStatus(422);
+});
+
 it('lists a dismissed player again once they are linked, then unlinked', function () {
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/dismiss", linkBody($this))->assertOk();
 

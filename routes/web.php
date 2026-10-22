@@ -97,6 +97,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::post('/rollcall/{unit}', [RollcallController::class, 'store'])->name('rollcall.store');
     Route::post('/rollcall/{unit}/unmatched/link', [RollcallController::class, 'linkUnmatched'])->name('rollcall.unmatched.link');
     Route::post('/rollcall/{unit}/unmatched/dismiss', [RollcallController::class, 'dismissUnmatched'])->name('rollcall.unmatched.dismiss');
+    Route::post('/rollcall/{unit}/unmatched/restore', [RollcallController::class, 'restoreUnmatched'])->name('rollcall.unmatched.restore');
     Route::post('/rollcall/{unit}/capture', [RollcallController::class, 'retryCapture'])->middleware('throttle:practice-capture')->name('rollcall.capture');
     Route::post('/rollcall/{unit}/confirm', [RollcallController::class, 'confirm'])->name('rollcall.confirm');
     Route::post('/rollcall/{unit}/posted', [RollcallController::class, 'posted'])->name('rollcall.posted');

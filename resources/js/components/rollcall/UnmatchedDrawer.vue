@@ -1,6 +1,6 @@
 <script setup>
 import { computed, reactive, ref } from 'vue';
-import { PhCircleNotch, PhUserCircleDashed } from '@phosphor-icons/vue';
+import { PhCaretRight, PhCircleNotch, PhUserCircleDashed } from '@phosphor-icons/vue';
 import {
     AlertDialog,
     AlertDialogCancel,
@@ -37,6 +37,11 @@ const props = defineProps({
     // Called with the chosen trooper id before a link is sent; resolves false to hold the link back
     // (the rollcall saves the leader's pending marks first, so the pre-mark cannot race them).
     beforeLink: { type: Function, default: null },
+    // Players this practice's capture saw that a leader dismissed (#176), in the `players` shape, listed under
+    // "Dismissed" with an Undo each.
+    dismissed: { type: Array, default: () => [] },
+    // Undoes one dismissal (the rollcall's, shared with its toast): resolves true once the player is listed again.
+    restore: { type: Function, default: null },
 });
 
 // `linked` carries the server's answer ({ marked, trooper, atRisk }); `dismissed` the player.
@@ -99,6 +104,21 @@ async function link(player, replace = false) {
     }
 }
 
+// The dismissals being undone right now, by key, so each Undo shows it is busy and cannot be sent twice.
+const restoring = reactive(new Set());
+
+async function undoDismissal(player) {
+    const key = keyOf(player);
+    if (!props.editable || !props.restore || restoring.has(key)) return;
+
+    restoring.add(key);
+    try {
+        await props.restore(player);
+    } finally {
+        restoring.delete(key);
+    }
+}
+
 function cancelReplace() {
     replacing.value = null;
 }
@@ -120,8 +140,11 @@ async function dismiss(player) {
     s.error = null;
     try {
         const result = await postJson(`/rollcall/${props.sectionId}/unmatched/dismiss`, body(player)).catch(unreachable);
-        if (result.ok) emit('dismissed', player);
-        else {
+        if (result.ok) {
+            // An undone dismissal lists the player again: their row comes back with Dismiss, not the question.
+            s.confirming = false;
+            emit('dismissed', player);
+        } else {
             s.error = messageFor(result);
             s.confirming = false;
         }
@@ -138,11 +161,12 @@ async function dismiss(player) {
                 <PhUserCircleDashed class="size-4 text-muted-foreground" aria-hidden="true" />Not matched to a trooper
             </h3>
             <p class="mt-0.5 text-xs text-muted-foreground tabular-nums">
-                {{ players.length }} seen on the server{{ disabledReason ? `. ${disabledReason}` : '' }}
+                <template v-if="players.length">{{ players.length }} seen on the server</template>
+                <template v-else>Everyone seen on the server is linked or dismissed</template>{{ disabledReason ? `. ${disabledReason}` : '' }}
             </p>
         </div>
 
-        <ul class="max-h-[70vh] divide-y divide-border overflow-y-auto">
+        <ul v-if="players.length" class="max-h-[70vh] divide-y divide-border overflow-y-auto">
             <li v-for="player in players" :key="keyOf(player)" class="grid gap-2 px-4 py-3" :data-testid="`unmatched-${player.platformId}`">
                 <div class="min-w-0">
                     <p class="flex items-center gap-2">
@@ -207,6 +231,37 @@ async function dismiss(player) {
                 </div>
             </li>
         </ul>
+
+        <!-- Dismissed for this practice (#176): closed by default, since a dismissal is usually right. -->
+        <details v-if="dismissed.length" class="group border-t border-border" data-testid="dismissed-list">
+            <summary
+                class="flex cursor-pointer list-none items-center gap-1.5 px-4 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground tabular-nums [&::-webkit-details-marker]:hidden"
+            >
+                <PhCaretRight class="size-3 transition-transform group-open:rotate-90" aria-hidden="true" />Dismissed ({{ dismissed.length }})
+            </summary>
+            <ul class="max-h-[40vh] divide-y divide-border overflow-y-auto border-t border-border">
+                <li v-for="player in dismissed" :key="keyOf(player)" class="flex items-center gap-2 px-4 py-2" :data-testid="`dismissed-${player.platformId}`">
+                    <div class="min-w-0 flex-1">
+                        <p class="flex items-center gap-2">
+                            <span class="truncate text-muted-foreground">{{ player.playerName }}</span>
+                            <Badge variant="outline" class="shrink-0">{{ player.platformLabel }}</Badge>
+                        </p>
+                        <p class="truncate font-mono text-xs text-muted-foreground">{{ player.platformId }}</p>
+                    </div>
+                    <Button
+                        variant="outline"
+                        size="xs"
+                        data-testid="undo-dismiss"
+                        :disabled="!editable || !restore || restoring.has(keyOf(player))"
+                        :title="disabledReason ?? undefined"
+                        :aria-label="`Undo dismissing ${player.playerName}`"
+                        @click="undoDismissal(player)"
+                    >
+                        <PhCircleNotch v-if="restoring.has(keyOf(player))" class="animate-spin" aria-hidden="true" />Undo
+                    </Button>
+                </li>
+            </ul>
+        </details>
 
         <AlertDialog :open="replacing !== null" @update:open="(open) => !open && cancelReplace()">
             <AlertDialogContent class="sm:max-w-md" data-testid="replace-dialog">

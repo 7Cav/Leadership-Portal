@@ -31,6 +31,12 @@ class UnmatchedPlayerResolutionException extends RuntimeException
         return new self('That player is no longer listed as unmatched for this practice. Reload to see the current list.');
     }
 
+    /** Undo of a dismissal for a player who is not dismissed (any more): nothing to restore (#176). */
+    public static function notDismissed(): self
+    {
+        return new self('That player is not dismissed, so there is nothing to undo. Reload to see the current list.');
+    }
+
     public static function notInSection(): self
     {
         return new self("Choose a trooper from this section: pre-marking counts in a trooper's own section (AD-14).");

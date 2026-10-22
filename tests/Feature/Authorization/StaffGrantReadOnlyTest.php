@@ -67,6 +67,7 @@ it('refuses a grant holder every write, writing nothing', function (string $meth
     'request capture' => ['POST', fn ($t) => "/rollcall/{$t->section->id}/capture", ['week' => '2026-10-03']],
     'link unmatched player' => ['POST', fn ($t) => "/rollcall/{$t->section->id}/unmatched/link", ['week' => '2026-10-03', 'platform' => 'hll', 'platform_id' => '7656119000000002', 'trooper_id' => 0]],
     'dismiss unmatched player' => ['POST', fn ($t) => "/rollcall/{$t->section->id}/unmatched/dismiss", ['week' => '2026-10-03', 'platform' => 'hll', 'platform_id' => '7656119000000002']],
+    'undo a dismissal' => ['POST', fn ($t) => "/rollcall/{$t->section->id}/unmatched/restore", ['week' => '2026-10-03', 'platform' => 'hll', 'platform_id' => '7656119000000002']],
     'save report draft' => ['PUT', fn ($t) => "/reports/{$t->section->id}/2026-10-03", ['notes' => 'staff notes']],
     'send report' => ['POST', fn ($t) => "/reports/{$t->section->id}/2026-10-03/send", ['reason' => 'staff send']],
     'set game identity' => ['PUT', fn ($t) => "/game-identities/{$t->member->id}/hll", ['player_name' => 'Staff', 'platform_id' => '7656119000000003']],

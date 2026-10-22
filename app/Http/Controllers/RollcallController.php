@@ -27,6 +27,8 @@ use App\Commands\GameIdentities\DismissUnmatchedPlayerHandler;
 use App\Commands\GameIdentities\GameIdentityForbiddenException;
 use App\Commands\GameIdentities\LinkUnmatchedPlayer;
 use App\Commands\GameIdentities\LinkUnmatchedPlayerHandler;
+use App\Commands\GameIdentities\RestoreDismissedPlayer;
+use App\Commands\GameIdentities\RestoreDismissedPlayerHandler;
 use App\Commands\GameIdentities\UnmatchedPlayerResolutionException;
 use App\Jobs\CaptureSectionPracticeJob;
 use App\Kpi\KpiService;
@@ -524,6 +526,40 @@ class RollcallController extends Controller
     }
 
     /**
+     * A leader undoes a dismissal (#176): the toast's Undo and the drawer's "Dismissed" list both
+     * land here. One audited Command, scope-gated like the dismissal (AD-8); the player is listed
+     * again on this practice and later ones. A player who is not dismissed is a 422 with the reason.
+     */
+    public function restoreUnmatched(Request $request, int $unit, RestoreDismissedPlayerHandler $handler): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'week' => ['required', 'date_format:Y-m-d'],
+            'platform' => ['required', Rule::enum(GamePlatform::class)],
+            'platform_id' => ['required', 'string', 'max:255'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => $validator->errors()->first(), 'errors' => $validator->errors()], 422);
+        }
+
+        $weekStart = $this->requestedWeek($request->input('week'), WeekOf::start(CarbonImmutable::now()));
+
+        try {
+            $handler->handle($request->user(), new RestoreDismissedPlayer($unit, $weekStart, GamePlatform::from($request->input('platform')), $request->input('platform_id')));
+        } catch (GameIdentityForbiddenException $e) {
+            return response()->json(['message' => $e->getMessage()], 403);
+        } catch (UnmatchedPlayerResolutionException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'The portal hit an error undoing this dismissal.'], 500);
+        }
+
+        return response()->json(['restored' => true]);
+    }
+
+    /**
      * "Already linked to SGT Ortega.M on Hell Let Loose." — the owner is named so the leader knows
      * whose row to fix (as on the link-identity screen, 7.2).
      */
@@ -811,24 +847,29 @@ class RollcallController extends Controller
     /**
      * What the capture run left for the leader (7.7): the players no trooper is linked to, once the
      * practice has been captured. `capture` drives the capture banner (7.8); the drawer renders only
-     * when there are players. A practice with no capture gets `telemetry` instead (7.9).
+     * when there are players. A practice with no capture gets `telemetry` instead (7.9). `dismissed`
+     * are the players this practice's capture saw that a leader dismissed, for the drawer's
+     * "Dismissed" list and its Undo (#176), in the same shape.
      *
-     * @return array{capture: ?array{source: string, capturedAt: string}, unmatched: list<array<string, string>>}
+     * @return array{capture: ?array{source: string, capturedAt: string}, unmatched: list<array<string, string>>, dismissed: list<array<string, string>>}
      */
     private function captureProps(?SectionPractice $practice): array
     {
         if ($practice?->captured_at === null) {
-            return ['capture' => null, 'unmatched' => []];
+            return ['capture' => null, 'unmatched' => [], 'dismissed' => []];
         }
+
+        $shape = fn (PracticeCapturePlayer $player) => [
+            'platform' => $player->platform->value,
+            'platformLabel' => $player->platform->label(),
+            'playerName' => $player->player_name,
+            'platformId' => $player->platform_id,
+        ];
 
         return [
             'capture' => ['source' => $practice->capture_source, 'capturedAt' => $practice->captured_at->toIso8601String()],
-            'unmatched' => $this->capturePlayers->unmatchedFor($practice->id)->map(fn (PracticeCapturePlayer $player) => [
-                'platform' => $player->platform->value,
-                'platformLabel' => $player->platform->label(),
-                'playerName' => $player->player_name,
-                'platformId' => $player->platform_id,
-            ])->values()->all(),
+            'unmatched' => $this->capturePlayers->unmatchedFor($practice->id)->map($shape)->values()->all(),
+            'dismissed' => $this->capturePlayers->dismissedFor($practice->id)->map($shape)->values()->all(),
         ];
     }
 

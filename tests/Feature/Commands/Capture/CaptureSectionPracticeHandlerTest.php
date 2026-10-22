@@ -24,6 +24,7 @@ use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReport;
+use App\Repositories\PracticeCapturePlayerRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 
@@ -402,12 +403,15 @@ it('stores the unmatched and other-section players of the practice, replaced on 
     expect(PracticeCapturePlayer::query()->count())->toBe(0);
 });
 
-it('leaves out a player a leader already dismissed', function () {
+it('stores a player a leader already dismissed, but does not list them, so the dismissal can be undone here (#176)', function () {
     GamePlayerDismissal::query()->create(['platform' => GamePlatform::Hll, 'platform_id' => '76561190000000002', 'player_name' => 'Rando', 'dismissed_by' => User::factory()->create()->id]);
 
     runCapture($this, [answeringSource('crcon', [new CrconPlayer('Rando', '76561190000000002'), new CrconPlayer('Other', '76561190000000003')])]);
 
-    expect(PracticeCapturePlayer::query()->pluck('platform_id')->all())->toBe(['76561190000000003']);
+    $players = app(PracticeCapturePlayerRepository::class);
+    expect(PracticeCapturePlayer::query()->orderBy('platform_id')->pluck('platform_id')->all())->toBe(['76561190000000002', '76561190000000003'])
+        ->and($players->unmatchedFor($this->practice->id)->pluck('platform_id')->all())->toBe(['76561190000000003'])
+        ->and($players->dismissedFor($this->practice->id)->pluck('platform_id')->all())->toBe(['76561190000000002']);
 });
 
 it('keeps the earlier stored players when a later re-run finds every source down', function () {

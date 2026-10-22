@@ -994,6 +994,76 @@ describe('Rollcall page', () => {
             });
         });
 
+        describe('undoing a dismissal (#176)', () => {
+            const DISMISSED_OK = { ok: true, status: 200, data: { dismissed: true } };
+            const RESTORED_OK = { ok: true, status: 200, data: { restored: true } };
+            const answer = (url) => Promise.resolve(url.endsWith('/unmatched/restore') ? RESTORED_OK : DISMISSED_OK);
+
+            async function dismissTrooper1(wrapper) {
+                await wrapper.find('[data-testid="unmatched-dismiss"]').trigger('click');
+                await wrapper.find('[data-testid="confirm-dismiss"]').trigger('click');
+                await flushPromises();
+            }
+
+            it('offers Undo on the dismiss toast, which lists the player again', async () => {
+                post.mockImplementation(answer);
+                const wrapper = factory({ capture: CAPTURE, unmatched: UNMATCHED });
+
+                await dismissTrooper1(wrapper);
+                expect(wrapper.find('[data-testid="unmatched-banner"]').exists()).toBe(false);
+                const [title, options] = toastSuccess.mock.calls.at(-1);
+                expect(title).toBe('Dismissed Trooper1');
+                expect(options.action.label).toBe('Undo');
+
+                await options.action.onClick();
+                await flushPromises();
+
+                expect(post).toHaveBeenLastCalledWith('/rollcall/12/unmatched/restore', { week: '2026-10-03', platform: 'hll', platform_id: '7656119000000001' });
+                expect(wrapper.find('[data-testid="unmatched-7656119000000001"]').exists()).toBe(true);
+                expect(wrapper.find('[data-testid="dismissed-list"]').exists()).toBe(false);
+                expect(wrapper.find('[data-step="2"] [data-testid="unlinked-count"]').text()).toBe('1 unlinked player');
+                // The row is back as it started, so it can be dismissed again.
+                expect(wrapper.find('[data-testid="unmatched-7656119000000001"] [data-testid="unmatched-dismiss"]').exists()).toBe(true);
+                expect(wrapper.find('[data-testid="dismiss-confirm"]').exists()).toBe(false);
+            });
+
+            it('keeps the drawer for the Dismissed list once the last player is dismissed, and undoes from there', async () => {
+                post.mockImplementation(answer);
+                const wrapper = factory({ capture: CAPTURE, unmatched: UNMATCHED });
+
+                await dismissTrooper1(wrapper);
+                expect(wrapper.find('[data-testid="unmatched-drawer"]').exists()).toBe(true);
+                expect(wrapper.find('[data-testid="dismissed-list"] summary').text()).toBe('Dismissed (1)');
+
+                await wrapper.find('[data-testid="dismissed-7656119000000001"] [data-testid="undo-dismiss"]').trigger('click');
+                await flushPromises();
+
+                expect(wrapper.find('[data-testid="unmatched-7656119000000001"]').exists()).toBe(true);
+                expect(wrapper.find('[data-testid="dismissed-list"]').exists()).toBe(false);
+                expect(toastSuccess).toHaveBeenLastCalledWith('Trooper1 is listed again', expect.anything());
+            });
+
+            it('lists the dismissed players the page loaded with', () => {
+                const wrapper = factory({ capture: CAPTURE, unmatched: [], dismissed: UNMATCHED });
+
+                expect(wrapper.find('[data-testid="dismissed-7656119000000001"]').exists()).toBe(true);
+                expect(wrapper.find('[data-step="2"] [data-testid="unlinked-count"]').exists()).toBe(false);
+            });
+
+            it('says so and keeps the player dismissed when the undo is refused', async () => {
+                post.mockResolvedValue({ ok: false, status: 422, data: { message: 'That player is not dismissed, so there is nothing to undo. Reload to see the current list.' } });
+                const wrapper = factory({ capture: CAPTURE, unmatched: [], dismissed: UNMATCHED });
+
+                await wrapper.find('[data-testid="undo-dismiss"]').trigger('click');
+                await flushPromises();
+
+                expect(toastError).toHaveBeenCalledWith('Could not undo dismissing Trooper1', {
+                    description: 'That player is not dismissed, so there is nothing to undo. Reload to see the current list.',
+                });
+                expect(wrapper.find('[data-testid="dismissed-7656119000000001"]').exists()).toBe(true);
+            });
+        });
+
         const LINKED = { ok: true, status: 200, data: { marked: true, trooper: { id: 3, status: 'present', source: 'auto' }, atRisk: [] } };
         const SAVED = { ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00', atRisk: [] } };
         const pressed = (wrapper, value) => wrapper.find(`[data-trooper="3"] button[data-value="${value}"]`).attributes('aria-pressed');
