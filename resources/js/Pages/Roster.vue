@@ -33,9 +33,11 @@ import LoaSyncNote from "@/components/LoaSyncNote.vue";
 import MatrixView from "@/components/roster/MatrixView.vue";
 import OrbatView from "@/components/roster/OrbatView.vue";
 import TrooperSheet from "@/components/roster/TrooperSheet.vue";
+import { useNow } from "@/composables/useNow";
 import { useViewAs } from "@/composables/useViewAs";
 import { forumDate } from "@/lib/forumDate";
 import { percentLabel } from "@/lib/roster";
+import { localTime, timeAgo } from "@/lib/timeAgo";
 
 // The roster (Stories 2.8, 4.6, 4.7, 4.9). One page, two views of the same subtree, toggled and
 // kept in the URL (`?view=`): the order of battle (binding mockup roster-s2.html) and the
@@ -141,15 +143,21 @@ function clock(iso) {
 
     return today ? `${hhmm}Z` : `${forumDate(iso)} ${hhmm}Z`;
 }
+// The stamp sits inside its own tooltip, so the relative time joins the text and the viewer's local
+// time joins that tooltip (the shared clock keeps "35 min ago" current).
+const now = useNow();
 const syncLabel = computed(() =>
     props.sync.lastSuccessAt
-        ? `${props.sync.source}, synced ${clock(props.sync.lastSuccessAt)}`
+        ? `${props.sync.source}, synced ${clock(props.sync.lastSuccessAt)} (${timeAgo(props.sync.lastSuccessAt, now.value)})`
         : `${props.sync.source}, never synced`,
 );
 const syncDetail = computed(() => {
     const lines = [
         "Ranks, billets and placements come from milpac and refresh on every roster sync.",
     ];
+    if (props.sync.lastSuccessAt) {
+        lines.push(`Last synced ${localTime(props.sync.lastSuccessAt)} your time.`);
+    }
     if (props.sync.stale && props.sync.lastAttempt) {
         lines.push(
             `The last attempt (${clock(props.sync.lastAttempt.at)}) ${props.sync.lastAttempt.status === "partial" ? "skipped some rows" : "failed"}; this is the last good copy.`,

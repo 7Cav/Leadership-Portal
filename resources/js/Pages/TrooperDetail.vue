@@ -4,6 +4,7 @@ import { Head, Link, usePage } from '@inertiajs/vue3';
 import { PhArrowLeft, PhArrowSquareOut, PhEnvelopeSimple, PhSignOut, PhWarning } from '@phosphor-icons/vue';
 import InlineNotice from '@/components/InlineNotice.vue';
 import MilpacPanel from '@/components/milpac/MilpacPanel.vue';
+import TimeAgo from '@/components/TimeAgo.vue';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -113,7 +114,7 @@ const staleNotice = computed(() => {
                 <p data-testid="source-line" class="mt-1 text-[13px] text-muted-foreground">
                     Source: {{ sync.source }}
                     <template v-if="sync.lastSuccessAt">
-                        · last synced <span data-testid="last-synced">{{ forumDateTime(sync.lastSuccessAt) }} UTC</span>
+                        · last synced <span data-testid="last-synced"><TimeAgo :at="sync.lastSuccessAt">{{ forumDateTime(sync.lastSuccessAt) }} UTC</TimeAgo></span>
                     </template>
                     <template v-else> · never synced</template>
                 </p>

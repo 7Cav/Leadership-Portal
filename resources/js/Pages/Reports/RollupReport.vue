@@ -12,6 +12,7 @@ import {
     PhWarning,
 } from '@phosphor-icons/vue';
 import { Button } from '@/components/ui/button';
+import TimeAgo from '@/components/TimeAgo.vue';
 import { forumDate } from '@/lib/forumDate';
 import { dayTime, displayStatus, percent, points, TYPE_LABEL, unitLabel } from '@/lib/reportRollup';
 import StatusPill from './StatusPill.vue';
@@ -32,12 +33,13 @@ const status = computed(() => displayStatus(props.node));
 const leaf = computed(() => props.node.children.length === 0);
 const missing = computed(() => (props.node.coverage?.missing ?? []).map((id) => props.byId.get(id)?.node).filter(Boolean));
 
+// The status line around its time: `{ before, at, after }`; `at` is null when there is no time.
 const meta = computed(() => {
     const node = props.node;
-    if (node.status === 'sent') return `Frozen ${dayTime(node.sentAt)}${node.sentBy ? ` by ${node.sentBy}` : ''}`;
-    if (node.status === 'draft') return `Draft saved ${dayTime(node.savedAt)}, not sent`;
+    if (node.status === 'sent') return { before: 'Frozen ', at: node.sentAt, after: node.sentBy ? ` by ${node.sentBy}` : '' };
+    if (node.status === 'draft') return { before: 'Draft saved ', at: node.savedAt, after: ', not sent' };
 
-    return 'No report started yet';
+    return { before: 'No report started yet', at: null, after: '' };
 });
 
 const liveNote = computed(() =>
@@ -88,7 +90,7 @@ function ratioLine(child) {
             <p class="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                 <PhLockSimple v-if="node.status === 'sent'" class="size-3.5" aria-hidden="true" />
                 <span v-if="node.callsign" class="truncate">{{ node.name }}.</span>
-                <span>{{ meta }}</span>
+                <span>{{ meta.before }}<TimeAgo v-if="meta.at" :at="meta.at">{{ dayTime(meta.at) }}</TimeAgo>{{ meta.after }}</span>
             </p>
         </div>
 

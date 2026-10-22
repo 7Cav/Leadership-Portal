@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { h } from 'vue';
-import { mount } from '@vue/test-utils';
+import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import Roster from '../Roster.vue';
 import { CURRENT, roster, WEEKS } from '../../components/roster/__tests__/fixture';
@@ -44,6 +44,9 @@ function props(over = {}) {
         ...over,
     };
 }
+
+// Unmounted after each test, so the shared relative-time clock (useNow) starts fresh.
+enableAutoUnmount(afterEach);
 
 // The shell's SidebarProvider supplies the tooltip context on a real page.
 const factory = (over) => mount({ render: () => h(TooltipProvider, () => h(Roster, props(over))) });
@@ -104,6 +107,20 @@ describe('Roster page', () => {
 
         const stale = factory({ loaSync: { ...props().loaSync, stale: true, latestStatus: 'failure' } });
         expect(stale.get('[data-testid="loa-sync"]').attributes('role')).toBe('status');
+    });
+
+    it('adds how long ago the last sync was, and keeps it current', async () => {
+        vi.useFakeTimers();
+        try {
+            vi.setSystemTime(new Date('2026-10-08T11:20:00Z'));
+            const wrapper = factory({ sync: { source: 'milpac', lastSuccessAt: '2026-10-08T09:14:00+00:00', stale: false, lastAttempt: null } });
+            expect(wrapper.find('[data-testid="roster-sync-stamp"]').text()).toBe('milpac, synced 09:14Z (2 h ago)');
+
+            await vi.advanceTimersByTimeAsync(60 * 60_000);
+            expect(wrapper.find('[data-testid="roster-sync-stamp"]').text()).toBe('milpac, synced 09:14Z (3 h ago)');
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it('offers Sync now only to an Admin, posting to the roster sync route', async () => {

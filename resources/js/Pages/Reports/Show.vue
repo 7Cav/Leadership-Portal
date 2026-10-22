@@ -29,6 +29,7 @@ import PlatoonTopicField from '@/components/reports/PlatoonTopicField.vue';
 import ReadinessChecklist from '@/components/reports/ReadinessChecklist.vue';
 import ReportPreview from '@/components/reports/ReportPreview.vue';
 import SendDialog from '@/components/reports/SendDialog.vue';
+import TimeAgo from '@/components/TimeAgo.vue';
 import { forumDate } from '@/lib/forumDate';
 import {
     defaultSendReason,
@@ -417,7 +418,7 @@ function useSuggestion() {
                 <p class="text-xs text-muted-foreground">{{ parentLabel ? `Due to ${parentLabel} ${stamp(week.due)}` : `Due ${stamp(week.due)}` }}</p>
                 <p v-if="!sent" class="text-lg leading-tight font-semibold tabular-nums" data-testid="countdown">{{ countdown }}</p>
                 <p v-else class="text-[13px] font-medium" data-testid="sent-line">
-                    Sent {{ stamp(report.sentAt) }}<template v-if="report.sentBy"> by {{ report.sentBy }}</template>
+                    Sent <TimeAgo :at="report.sentAt">{{ stamp(report.sentAt) }}</TimeAgo><template v-if="report.sentBy"> by {{ report.sentBy }}</template>
                 </p>
             </div>
         </section>
@@ -466,7 +467,7 @@ function useSuggestion() {
                                         Report sent{{ parentLabel ? ` to ${parentLabel}` : '' }}
                                     </h2>
                                     <p class="mt-0.5 text-[13px] text-muted-foreground">
-                                        Frozen {{ stamp(report.sentAt) }}<template v-if="report.sentBy"> by {{ report.sentBy }}</template>.
+                                        Frozen <TimeAgo :at="report.sentAt">{{ stamp(report.sentAt) }}</TimeAgo><template v-if="report.sentBy"> by {{ report.sentBy }}</template>.
                                     </p>
                                 </div>
                             </div>
@@ -512,7 +513,9 @@ function useSuggestion() {
                                     <template v-if="sent"><PhLockSimple aria-hidden="true" />Locked with the snapshot</template>
                                     <template v-else-if="readOnlyNote"><PhLockSimple aria-hidden="true" />{{ readOnlyNote }}</template>
                                     <template v-else>
-                                        <component :is="saveIcon" aria-hidden="true" :class="{ 'text-destructive': save.state === 'error' }" />{{ saveLabel }}
+                                        <component :is="saveIcon" aria-hidden="true" :class="{ 'text-destructive': save.state === 'error' }" />
+                                        <span v-if="save.state === 'saved' && save.at">Draft saved <TimeAgo :at="save.at" quiet>{{ timeOf(save.at) }}</TimeAgo></span>
+                                        <template v-else>{{ saveLabel }}</template>
                                         <button v-if="save.state === 'error'" type="button" class="underline underline-offset-2 hover:text-foreground" @click="saveDraft">Retry</button>
                                     </template>
                                 </span>

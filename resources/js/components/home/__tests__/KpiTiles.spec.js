@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import KpiTiles from '../KpiTiles.vue';
 
@@ -89,17 +89,24 @@ describe('KpiTiles', () => {
     });
 
     describe('roster source and freshness (AD-20)', () => {
+        beforeEach(() => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2026-10-08T11:20:00Z'));
+        });
+        afterEach(() => vi.useRealTimers());
+
         const note = (roster) => mountTiles({ roster }).find('[data-testid="roster-freshness"]');
 
-        it('names the source and the last successful sync', () => {
-            expect(note(ROSTER).text()).toBe('Roster synced from milpac 08Oct26 09:14Z');
+        it('names the source and the last successful sync, with how long ago it was', () => {
+            expect(note(ROSTER).text()).toBe('Roster synced from milpac 08Oct26 09:14Z (2 h ago)');
+            expect(note(ROSTER).find('time').attributes('datetime')).toBe('2026-10-08T09:14:00.000Z');
             expect(note(ROSTER).attributes('role')).toBeUndefined();
         });
 
         it.each([
-            ['stale', 'overdue'],
-            ['partial', 'Last roster sync was incomplete. Strength is from 08Oct26 09:14Z'],
-            ['failed', 'Last roster sync failed. Strength is from 08Oct26 09:14Z'],
+            ['stale', 'Roster last synced from milpac 08Oct26 09:14Z (2 h ago), overdue'],
+            ['partial', 'Last roster sync was incomplete. Strength is from 08Oct26 09:14Z (2 h ago)'],
+            ['failed', 'Last roster sync failed. Strength is from 08Oct26 09:14Z (2 h ago)'],
         ])('surfaces a %s sync as a warning, not a silent gap', (state, text) => {
             const el = note({ ...ROSTER, state });
 

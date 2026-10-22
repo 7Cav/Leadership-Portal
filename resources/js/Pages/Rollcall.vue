@@ -34,6 +34,7 @@ import EmptyState from '@/components/EmptyState.vue';
 import AttendanceSourceLegend from '@/components/attendance/AttendanceSourceLegend.vue';
 import SectionPicker from '@/components/rollcall/SectionPicker.vue';
 import TelemetryBanner from '@/components/rollcall/TelemetryBanner.vue';
+import TimeAgo from '@/components/TimeAgo.vue';
 import StepReview from '@/components/rollcall/StepReview.vue';
 import TrooperCard from '@/components/rollcall/TrooperCard.vue';
 import UnmatchedDrawer from '@/components/rollcall/UnmatchedDrawer.vue';
@@ -520,15 +521,20 @@ async function retryCapture() {
     }
 }
 
-const postedLabel = computed(() =>
-    posted.value ? `${forumDateTime(posted.value.at)}Z${posted.value.by ? ` by ${posted.value.by}` : ''}` : null,
-);
+const postedLabel = computed(() => (posted.value ? `${forumDateTime(posted.value.at)}Z` : null));
+
+// `22:55Z` of the last save, while that is what the save state reads.
+const savedClock = computed(() => {
+    if (!autosave || ['saving', 'error'].includes(autosave.state.value) || !autosave.savedAt.value) return null;
+
+    return `${forumDateTime(autosave.savedAt.value).split(' ')[1]}Z`;
+});
 
 const saveLabel = computed(() => {
     if (!autosave) return null;
     if (autosave.state.value === 'saving') return 'Saving...';
     if (autosave.state.value === 'error') return 'Not saved';
-    if (autosave.savedAt.value) return `Saved ${forumDateTime(autosave.savedAt.value).split(' ')[1]}Z`;
+    if (savedClock.value) return `Saved ${savedClock.value}`;
     if (autosave.pendingCount.value) return 'Unsaved changes';
 
     return null;
@@ -710,7 +716,7 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
             <div :class="cn('flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground sm:w-auto', capture || telemetry ? 'sm:ml-0' : 'sm:ml-auto')">
                 <span class="inline-flex items-center gap-1.5" data-testid="roster-provenance">
                     <PhArrowsClockwise class="size-4" aria-hidden="true" />
-                    <template v-if="syncedLabel">Roster from {{ roster.source }}, synced {{ syncedLabel }}</template>
+                    <template v-if="syncedLabel">Roster from {{ roster.source }}, synced <TimeAgo :at="roster.syncedAt">{{ syncedLabel }}</TimeAgo></template>
                     <template v-else>Roster from {{ roster?.source ?? 'milpac' }}, not synced yet</template>
                 </span>
                 <span class="inline-flex items-center gap-1.5">
@@ -721,7 +727,10 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                         <PhCircleNotch v-if="autosave.state.value === 'saving'" class="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
                         <PhCloudSlash v-else-if="autosave.state.value === 'error'" class="size-4 text-destructive" aria-hidden="true" />
                         <PhCloudCheck v-else-if="autosave.state.value === 'saved'" class="size-4 text-success" aria-hidden="true" />
-                        <span :class="autosave.state.value === 'saving' && 'text-muted-foreground'">{{ saveLabel }}</span>
+                        <span :class="autosave.state.value === 'saving' && 'text-muted-foreground'">
+                            <template v-if="savedClock">Saved <TimeAgo :at="autosave.savedAt.value" quiet>{{ savedClock }}</TimeAgo></template>
+                            <template v-else>{{ saveLabel }}</template>
+                        </span>
                     </template>
                 </span>
             </div>
@@ -918,7 +927,7 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                     >
                         <PhBroadcast class="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
                         <p class="min-w-[14rem] flex-1">
-                            Marks filled from {{ captureLabel }}, read {{ capturedLabel }}.
+                            Marks filled from {{ captureLabel }}, read <TimeAgo :at="capture.capturedAt" quiet>{{ capturedLabel }}</TimeAgo>.
                             <template v-if="showUnmatched">
                                 <b class="font-semibold" data-testid="unmatched-banner">{{ unmatchedPlayers.length }} {{ unmatchedPlayers.length === 1 ? 'player needs' : 'players need' }} a trooper.</b>
                                 Link or dismiss them in the panel.
@@ -1019,7 +1028,9 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                         <PhWarning v-if="editedSincePost" class="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
                         <PhCheckCircle v-else class="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
                         <div class="flex-1">
-                            <p class="font-medium">Rollcall posted {{ postedLabel }}</p>
+                            <p class="font-medium">
+                                Rollcall posted <TimeAgo :at="posted.at" quiet>{{ postedLabel }}</TimeAgo><template v-if="posted.by"> by {{ posted.by }}</template>
+                            </p>
                             <p class="mt-0.5 text-xs text-muted-foreground">
                                 <template v-if="editedSincePost">Marks changed since then. Repost the updated BBCode, then mark it posted again.</template>
                                 <template v-else>Edits after this show up here as changes to repost.</template>

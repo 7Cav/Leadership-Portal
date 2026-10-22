@@ -10,8 +10,9 @@ test('a practice whose last capture failed shows the unavailable banner, the man
     await page.getByRole('button', { name: /^Step 2, Section practice/ }).click();
 
     const banner = page.getByTestId('telemetry-banner');
-    await expect(banner).toContainText('Game server could not be read (last tried');
-    await expect(banner).toContainText('UTC). Nothing was pre-filled. Mark attendance by hand.');
+    await expect(banner).toContainText('Game server could not be read, last tried');
+    // The Zulu time carries a "(3 h ago)" note after it.
+    await expect(banner).toContainText(/UTC \([^)]*ago\)\. Nothing was pre-filled\. Mark attendance by hand\./);
     const lastTried = await banner.innerText();
 
     // The manual screen is unchanged: no capture banner, no source dots, no unmatched panel.
