@@ -64,13 +64,8 @@ class TemplatesController extends Controller
                 ->values()
                 ->all(),
             'maxBodyLength' => AuthorTemplateVersion::MAX_BODY_LENGTH,
-            // What an Admin may write, so the screen can list it (Story 3.10), and a template to start from.
-            'syntax' => [
-                'values' => TemplateSyntax::TOP_STRINGS,
-                'rowValues' => TemplateSyntax::ROW_STRINGS,
-                'rowFlags' => TemplateSyntax::ROW_FLAGS,
-                'filters' => TemplateSyntax::FILTERS,
-            ],
+            // A template to start from (Story 3.10). The screen lists the codes a template may use from the browser's own
+            // parser (`lib/bbcode.js`), which the shared cases hold to `TemplateSyntax`.
             'starter' => TemplateSyntax::STARTER,
             // Follows a view-as preview: the page then shows its authoring controls disabled, as read-only for the
             // previewed leader. The write gates below read the real flag.

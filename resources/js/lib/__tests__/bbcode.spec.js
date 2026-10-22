@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import cases from '../../../../tests/Fixtures/bbcode-templates.json';
-import { FILTERS, LISTS, ROW_FLAGS, ROW_STRINGS, TOP_STRINGS, inert, parse, render } from '../bbcode';
+import { DESCRIBED, FILTERS, LISTS, ROW_FLAGS, ROW_STRINGS, TOP_STRINGS, inert, parse, render, sampleContext, templateLegend } from '../bbcode';
 
 // Story 3.10. The grammar cases are shared with the server's TemplateSyntax (tests/Fixtures/bbcode-templates.json), so the
 // browser and the server accept and refuse the same templates with the same messages.
@@ -9,6 +9,8 @@ const row = (overrides = {}) => ({
     n: '1',
     rank: 'Sergeant',
     rank_short: 'SGT',
+    rank_icon: 'https://7cav.us/data/roster_ranks/0/12.jpg',
+    rank_icon_width: '8px',
     name: 'Jay.JH',
     display_name: 'SGT Jay.JH',
     rc: 'Yes',
@@ -36,6 +38,68 @@ const context = (overrides = {}) => ({
     attended: '1',
     troopers: [row()],
     ...overrides,
+});
+
+describe('the legend of template codes', () => {
+    it('describes every name the parser accepts and nothing else, so the legend cannot drift', () => {
+        expect([...DESCRIBED].sort()).toEqual([...TOP_STRINGS, ...LISTS, ...ROW_STRINGS, ...ROW_FLAGS, ...FILTERS].sort());
+    });
+
+    it('groups the codes as the parser reads them, each with a meaning and an example', () => {
+        const legend = templateLegend();
+
+        expect(legend.map((group) => [group.key, group.entries.map((entry) => entry.name)])).toEqual([
+            ['values', TOP_STRINGS],
+            ['lists', LISTS],
+            ['rowValues', ROW_STRINGS],
+            ['rowFlags', ROW_FLAGS],
+            ['filters', FILTERS],
+        ]);
+        for (const entry of legend.flatMap((group) => group.entries)) {
+            expect(entry.meaning, entry.name).not.toBe('');
+            expect(entry.example, entry.name).not.toBe('');
+        }
+    });
+
+    it('writes each code as a template would, and every example that is a template parses', () => {
+        const codes = Object.fromEntries(templateLegend().flatMap((group) => group.entries.map((entry) => [entry.name, entry])));
+
+        expect(codes.unit.code).toBe('{{unit}}');
+        expect(codes.troopers.code).toBe('{{#troopers}}...{{/troopers}}');
+        expect(codes.rank_icon.code).toBe('{{rank_icon}}');
+        expect(codes.rank_icon_width.code).toBe('{{rank_icon_width}}');
+        expect(codes.rank_icon_width.example).toBe('[IMG width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/IMG]');
+        expect(codes.sp_present.code).toBe('{{#sp_present}}...{{/sp_present}}');
+        expect(codes.upper.code).toBe('{{value|upper}}');
+
+        const inRow = new Set([...ROW_STRINGS, ...ROW_FLAGS]);
+        for (const { name, example } of Object.values(codes).filter((entry) => entry.example.includes('{{'))) {
+            expect(parse(inRow.has(name) ? `{{#troopers}}${example}{{/troopers}}` : example), name).toMatchObject({ ok: true });
+        }
+    });
+});
+
+describe('the sample section for the template preview', () => {
+    it('gives every value and flag the template language has, the first trooper being the legend example', () => {
+        const sample = sampleContext();
+        const codes = Object.fromEntries(templateLegend().flatMap((group) => group.entries.map((entry) => [entry.name, entry.example])));
+
+        expect(Object.keys(sample).sort()).toEqual([...TOP_STRINGS, ...LISTS].sort());
+        for (const name of ['unit', 'unit_name', 'week', 'week_start', 'week_end']) expect(sample[name], name).toBe(codes[name]);
+        for (const trooper of sample.troopers) expect(Object.keys(trooper).sort()).toEqual([...ROW_STRINGS, ...ROW_FLAGS].sort());
+        expect(sample.troopers[0]).toMatchObject({ n: '1', rank: codes.rank, rank_short: codes.rank_short, name: codes.name, rc: codes.rc, sp: codes.sp });
+    });
+
+    it('counts its totals from its rows, and gives every row its rank insignia', () => {
+        const sample = sampleContext();
+
+        expect(sample.count).toBe(String(sample.troopers.length));
+        expect(sample.signed).toBe(String(sample.troopers.filter((row) => row.rc_yes).length));
+        expect(sample.attended).toBe(String(sample.troopers.filter((row) => row.sp_present || row.sp_makeup || row.sp_attached).length));
+        for (const row of sample.troopers) expect(row.rank_icon).toMatch(/^https:\/\/7cav\.us\/data\/roster_ranks\/0\/\d+\.jpg\?\d+$/);
+        // Sized so every rank looks the same: a sergeant's chevrons, a corporal's, a specialist's badge, a PFC's, a private's.
+        expect(sample.troopers.map((row) => row.rank_icon_width)).toEqual(['11px', '13px', '13px', '13px', '17px']);
+    });
 });
 
 describe('the grammar, against the cases shared with the server', () => {
@@ -82,6 +146,14 @@ describe('render', () => {
         expect(render('{{count}} troopers, {{signed}} signed, {{attended}} attended', context({ count: '8', signed: '3', attended: '7' })).text).toBe('8 troopers, 3 signed, 7 attended');
     });
 
+    it('reads a count of zero as not set, so {{^attended}} can say nobody attended', () => {
+        const template = '{{#attended}}{{attended}} attended{{/attended}}{{^attended}}Nobody attended{{/attended}}';
+
+        expect(render(template, context({ attended: '0' })).text).toBe('Nobody attended');
+        expect(render(template, context({ attended: '3' })).text).toBe('3 attended');
+        expect(render(template, context({ attended: '10' })).text).toBe('10 attended');
+    });
+
     it('renders each status the way the template defines it: present, missed, makeup, attached and LOA', () => {
         const template = '{{#troopers}}{{name}}={{#sp_present}}✓{{/sp_present}}{{#sp_missed}}✗{{/sp_missed}}{{#sp_makeup}}MU{{/sp_makeup}}{{#sp_attached}}ATT{{/sp_attached}}{{#sp_loa}}LOA{{/sp_loa}}{{#sp_unmarked}}-{{/sp_unmarked}};{{/troopers}}';
         const flags = (name) => ({ sp_present: false, sp_missed: false, sp_makeup: false, sp_attached: false, sp_loa: false, sp_unmarked: false, [name]: true });
@@ -117,6 +189,22 @@ describe('render', () => {
 
     it('renders an empty roster without crashing when the template has no empty-section text', () => {
         expect(render('[TABLE]{{#troopers}}[TR]{{name}}[/TR]{{/troopers}}[/TABLE]', context({ troopers: [] })).text).toBe('[TABLE][/TABLE]');
+    });
+
+    it('prints the rank icon into an [IMG] tag, and nothing at all when a trooper has none', () => {
+        const template = '{{#troopers}}{{#rank_icon}}[IMG]{{rank_icon}}[/IMG] {{/rank_icon}}{{name}};{{/troopers}}';
+
+        expect(render(template, context({ troopers: [row(), row({ name: 'Adams.P', rank_icon: '' })] })).text).toBe(
+            '[IMG]https://7cav.us/data/roster_ranks/0/12.jpg[/IMG] Jay.JH;Adams.P;',
+        );
+    });
+
+    it('prints the rank icon width into the [IMG] tag the forum sizes it by', () => {
+        const template = '{{#troopers}}{{#rank_icon}}[IMG width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/IMG] {{/rank_icon}}{{name}};{{/troopers}}';
+
+        expect(render(template, context({ troopers: [row(), row({ name: 'Adams.P', rank_icon: '', rank_icon_width: '' })] })).text).toBe(
+            '[IMG width="8px" height="auto"]https://7cav.us/data/roster_ranks/0/12.jpg[/IMG] Jay.JH;Adams.P;',
+        );
     });
 
     it('applies filters', () => {

@@ -103,6 +103,7 @@ class SyncRosterHandler
                     'cav_id' => $entry->cavId,
                     'rank' => $entry->rankFull,
                     'rank_short' => $entry->rankShort,
+                    'rank_image_url' => $entry->rankImageUrl,
                     'username' => $entry->username,
                     'forum_user_id' => $entry->forumUserId,
                     'billet' => $entry->billet,

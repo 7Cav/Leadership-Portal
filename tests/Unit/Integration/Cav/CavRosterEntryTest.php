@@ -57,6 +57,39 @@ describe('CavRosterEntry::fromPayload', function () use ($fetchedAt) {
             ->and($trooper->fetchedAt)->toEqual($fetchedAt);
     });
 
+    it('reads the rank insignia URL Cav serves', function () use ($fetchedAt) {
+        $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload(), $fetchedAt);
+
+        expect($trooper->rankImageUrl)->toBe('https://7cav.us/data/roster_ranks/0/4.jpg');
+    });
+
+    it('keeps the numeric cache-busting query the forum puts on its rank images', function () use ($fetchedAt) {
+        $rank = ['rankShort' => 'PVT', 'rankFull' => 'Private', 'rankImageUrl' => 'https://7cav.us/data/roster_ranks/0/22.jpg?1741376831', 'rankId' => '22'];
+
+        expect(CavRosterEntry::fromPayload(1, rosterEntryPayload(['rank' => $rank]), $fetchedAt)->rankImageUrl)
+            ->toBe('https://7cav.us/data/roster_ranks/0/22.jpg?1741376831');
+    });
+
+    it('keeps only an https rank image on 7cav.us with a plain path, since it is written into an [IMG] tag', function (mixed $url) use ($fetchedAt) {
+        $rank = ['rankShort' => 'MG', 'rankFull' => 'Major General', 'rankImageUrl' => $url, 'rankId' => '4'];
+
+        expect(CavRosterEntry::fromPayload(1, rosterEntryPayload(['rank' => $rank]), $fetchedAt)->rankImageUrl)->toBeNull();
+    })->with([
+        'missing' => [null],
+        'blank' => [''],
+        'not a string' => [12],
+        'plain http' => ['http://7cav.us/data/roster_ranks/0/4.jpg'],
+        'another host' => ['https://example.com/data/roster_ranks/0/4.jpg'],
+        'a host that only starts with 7cav.us' => ['https://7cav.us.example.com/4.jpg'],
+        'credentials before the host' => ['https://7cav.us@example.com/4.jpg'],
+        'a closing tag in the path' => ['https://7cav.us/4.jpg[/IMG][URL=https://example.com]x[/URL]'],
+        'a space' => ['https://7cav.us/4.jpg x'],
+        'a query string that is not a plain number' => ['https://7cav.us/4.jpg?x=1'],
+        'a query string with a second part' => ['https://7cav.us/4.jpg?1&x=1'],
+        'a protocol-relative url' => ['//7cav.us/4.jpg'],
+        'a trailing line break' => ["https://7cav.us/data/roster_ranks/0/4.jpg\n"],
+    ]);
+
     it('does not require a resolvable forum user id, unlike CavRosterProfile', function () use ($fetchedAt) {
         // A trooper can be on the roster with no forum account linked yet; this DTO must not
         // punish that with a thrown exception the way the identity-focused DTO does.
@@ -130,6 +163,16 @@ describe('CavRosterEntry::fromPayload', function () use ($fetchedAt) {
 
         expect($trooper->positionId)->toBeNull();
     });
+
+    it('reads a positionId or userId only when it is all digits, as MilpacId does, so "1e3" is not position 1000', function (string $id) use ($fetchedAt) {
+        $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload([
+            'user' => ['userId' => $id, 'username' => 'Jarvis.A'],
+            'primary' => ['positionTitle' => 'Rifleman', 'positionId' => $id],
+        ]), $fetchedAt);
+
+        expect($trooper->positionId)->toBeNull()
+            ->and($trooper->forumUserId)->toBeNull();
+    })->with(['an exponent' => ['1e3'], 'a decimal' => ['77.3'], 'a leading space' => [' 773'], 'a sign' => ['+773'], 'too long for an int' => ['99999999999999999999']]);
 
     it('reads positionId when the API sends it as a bare int rather than a numeric string', function () use ($fetchedAt) {
         $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload(['primary' => ['positionTitle' => 'Rifleman', 'positionId' => 773]]), $fetchedAt);

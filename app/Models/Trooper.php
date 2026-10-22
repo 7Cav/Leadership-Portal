@@ -26,9 +26,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * the roster-derived command scope (1.16, `unit_command_mappings`) follows a billet change.
  *
  * `username`, `forum_user_id` and `rank_short` are synced too (2.10): the forum identity 7Cav
- * names a member by. Render a trooper through `display_name`, never by hand.
+ * names a member by. Render a trooper through `display_name`, never by hand. So is `rank_image_url`,
+ * the rank insignia the rollcall template prints (3.10), only ever an https URL on 7cav.us.
  */
-#[Fillable(['cav_id', 'username', 'forum_user_id', 'rank', 'rank_short', 'billet', 'mos', 'tis', 'tig', 'status', 'cav_position_id'])]
+#[Fillable(['cav_id', 'username', 'forum_user_id', 'rank', 'rank_short', 'rank_image_url', 'billet', 'mos', 'tis', 'tig', 'status', 'cav_position_id'])]
 class Trooper extends Model
 {
     /** The Cav milpac page for a trooper, keyed by their milpac id (`cav_id`). The one definition every screen links through. */

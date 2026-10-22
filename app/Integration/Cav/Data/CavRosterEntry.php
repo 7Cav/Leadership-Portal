@@ -30,9 +30,17 @@ use Throwable;
  * (`SGT Vasquez.R`). Both degrade to null independently — a roster row with no forum account
  * (`"user": null`) is still a trooper. The payload's `realName` is deliberately never read: the
  * portal has no use for it (data minimisation).
+ *
+ * `rankImageUrl` is the rank insignia Cav serves (`rank.rankImageUrl`), which the rollcall template prints into an
+ * [IMG] tag (3.10). Only an https URL on 7cav.us with a plain path is kept, plus the numeric cache-busting query
+ * the forum adds (`22.jpg?1741376831`); anything else degrades to null, so a changed or hostile payload can never
+ * put another host or a BBCode tag into a forum post.
  */
 readonly class CavRosterEntry
 {
+    /** The rank images Cav serves: https on 7cav.us, a plain path and an optional numeric `?version`, short enough for the column. */
+    public const RANK_IMAGE = '#^https://7cav\.us/[A-Za-z0-9._~%/-]{1,200}(\?[0-9]{1,20})?$#D';
+
     public function __construct(
         public int $cavId,
         public DateTimeImmutable $fetchedAt,
@@ -46,6 +54,7 @@ readonly class CavRosterEntry
         public ?DateTimeImmutable $tis = null,
         public ?DateTimeImmutable $tig = null,
         public ?RosterType $status = null,
+        public ?string $rankImageUrl = null,
     ) {
         if ($cavId <= 0) {
             throw CavRequestException::malformedProfile("cav id {$cavId} is not a positive integer");
@@ -89,7 +98,19 @@ readonly class CavRosterEntry
             // An unrecognised roster type — including the API's explicit `*_UNSPECIFIED`
             // member, and any roster added later — carries no more than null does.
             status: RosterType::tryFrom((string) self::text($payload['roster'] ?? null)),
+            rankImageUrl: self::rankImage($rank['rankImageUrl'] ?? null),
         );
+    }
+
+    /**
+     * The rank insignia URL, kept only when it is https on 7cav.us with a plain path (letters, digits and `/._~%-`):
+     * it is written into an [IMG] tag, so no other host, query, bracket or space gets through.
+     */
+    private static function rankImage(mixed $value): ?string
+    {
+        $text = self::text($value);
+
+        return $text !== null && preg_match(self::RANK_IMAGE, $text) === 1 ? $text : null;
     }
 
     /**
@@ -104,8 +125,8 @@ readonly class CavRosterEntry
     /**
      * `positionId`/`userId` arrive as numeric strings; accepts a bare int too in case that ever
      * changes, since a JSON-encoding drift there must not silently stop every trooper from
-     * resolving a section (2.5) or a forum identity (2.10). A drift to something genuinely
-     * non-numeric costs this trooper that one field, not their whole record.
+     * resolving a section (2.5) or a forum identity (2.10). A drift to anything but digits
+     * costs this trooper that one field, not their whole record.
      */
     private static function integer(mixed $value): ?int
     {
@@ -115,7 +136,8 @@ readonly class CavRosterEntry
 
         $text = self::text($value);
 
-        return $text !== null && is_numeric($text) ? (int) $text : null;
+        // Digits only, as `MilpacId::parse` reads an id: `is_numeric` would let "1e3" through as 1000 and "77.3" as 77.
+        return $text !== null && ctype_digit($text) && strlen($text) <= 18 ? (int) $text : null;
     }
 
     /**

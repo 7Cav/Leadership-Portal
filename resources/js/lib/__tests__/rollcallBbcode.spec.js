@@ -73,12 +73,52 @@ describe('rollcallContext (3.11)', () => {
         expect(context).toMatchObject({ count: '6', signed: '2', attended: '3' });
     });
 
+    it('gives each trooper their rank insignia for {{rank_icon}}, only an https URL on 7cav.us, else empty', () => {
+        const icon = (rankIcon) => rollcallContext(input([{ ...t(1, 'Vasquez.R', 'unsigned', null), rankIcon }])).troopers[0].rank_icon;
+
+        expect(icon('https://7cav.us/data/roster_ranks/0/12.jpg')).toBe('https://7cav.us/data/roster_ranks/0/12.jpg');
+        // The forum serves rank images with a numeric cache-busting query.
+        expect(icon('https://7cav.us/data/roster_ranks/0/22.jpg?1741376831')).toBe('https://7cav.us/data/roster_ranks/0/22.jpg?1741376831');
+        expect(icon('https://7cav.us/data/roster_ranks/0/22.jpg?x=1')).toBe('');
+        // It is written into an [IMG] tag: another host, a closing tag or nothing at all prints nothing.
+        expect(icon(null)).toBe('');
+        expect(icon(undefined)).toBe('');
+        expect(icon('http://7cav.us/data/roster_ranks/0/12.jpg')).toBe('');
+        expect(icon('https://example.com/12.jpg')).toBe('');
+        expect(icon('https://7cav.us/12.jpg[/IMG][URL=https://example.com]x[/URL]')).toBe('');
+    });
+
+    it('gives each trooper the width that shows their insignia at the same weight as every other rank, empty with no insignia', () => {
+        const width = (rankIcon) => rollcallContext(input([{ ...t(1, 'Vasquez.R', 'unsigned', null), rankIcon }])).troopers[0].rank_icon_width;
+        const rank = (n) => `https://7cav.us/data/roster_ranks/0/${n}.jpg?1741376831`;
+
+        expect(width(rank(10))).toBe('5px'); // First Lieutenant: a solid bar
+        expect(width(rank(29))).toBe('5px'); // Chief Warrant Officer 2
+        expect(width(rank(18))).toBe('11px'); // Sergeant
+        expect(width(rank(12))).toBe('8px'); // Command Sergeant Major
+        expect(width(rank(22))).toBe('17px'); // Private
+        expect(width(rank(1))).toBe('18px'); // General of the Army: as wide as the square allows
+        // An image on 7cav.us that is not a rank insignia it knows: the square's size.
+        expect(width('https://7cav.us/data/roster_ranks/0/99.jpg')).toBe('18px');
+        expect(width('https://7cav.us/styles/7cav/xenforo/cav_logo.png')).toBe('18px');
+        // No insignia, or one refused: no width, so {{#rank_icon_width}} is not set either.
+        expect(width(null)).toBe('');
+        expect(width('https://example.com/data/roster_ranks/0/18.jpg')).toBe('');
+    });
+
     it('names a trooper whose username has not synced by milpac id', () => {
         expect(rollcallContext(input([t(1, null, 'unsigned', null)])).troopers[0]).toMatchObject({ name: '#1001' });
     });
 });
 
 describe('rollcallPost (3.11)', () => {
+    it("sizes each insignia in the starter template's [IMG] tag", () => {
+        const starter = '{{#troopers}}{{#rank_icon}}[IMG width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/IMG] {{/rank_icon}}{{name}};{{/troopers}}';
+        const troopers = [{ ...t(1, 'Vasquez.R', 'unsigned', null), rankIcon: 'https://7cav.us/data/roster_ranks/0/10.jpg' }, t(2, 'Okafor.T', 'unsigned', null)];
+
+        expect(rollcallPost(resolved(starter), input(troopers)).text).toBe('[IMG width="5px" height="auto"]https://7cav.us/data/roster_ranks/0/10.jpg[/IMG] Vasquez.R;Okafor.T;');
+    });
+
     it('renders the active template with the current marks and says which version it came from', () => {
         const post = rollcallPost(resolved('[b]{{unit}}[/b] {{signed}}/{{count}}\n{{#troopers}}{{name}}={{#sp_missed}}No{{/sp_missed}}{{^sp_missed}}ok{{/sp_missed}};{{/troopers}}'), input());
 

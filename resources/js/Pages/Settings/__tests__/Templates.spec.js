@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import { nextTick, reactive } from 'vue';
 import Templates from '../Templates.vue';
+import { FILTERS, LISTS, ROW_FLAGS, ROW_STRINGS, TOP_STRINGS } from '@/lib/bbcode';
 
 const post = vi.fn();
 const toastError = vi.fn();
@@ -41,12 +42,6 @@ const COMPANIES = [
 const VERSION_2 = { id: 22, version: 2, body: '[B]second[/B]', createdAt: '2026-10-08T09:30:00+00:00', createdBy: 'Pike.S' };
 const VERSION_1 = { id: 21, version: 1, body: '[B]first[/B]', createdAt: '2026-10-01T09:30:00+00:00', createdBy: 'Pike.S' };
 
-const SYNTAX = {
-    values: ['unit', 'week'],
-    rowValues: ['n', 'name'],
-    rowFlags: ['sp_present', 'rc_yes'],
-    filters: ['upper', 'lower'],
-};
 const STARTER = '[B]{{unit}}[/B]{{#troopers}}{{name}}{{/troopers}}';
 
 const props = (overrides = {}) => ({
@@ -56,7 +51,6 @@ const props = (overrides = {}) => ({
     active: VERSION_2,
     history: [{ ...VERSION_2, isActive: true }, { ...VERSION_1, isActive: false }],
     maxBodyLength: 20000,
-    syntax: SYNTAX,
     starter: STARTER,
     isAdmin: true,
     ...overrides,
@@ -348,14 +342,117 @@ describe('Settings/Templates', () => {
         expect(page().find('[data-testid="use-starter"]').exists()).toBe(false);
     });
 
-    it('lists every placeholder the server accepts, so an Admin does not have to guess', () => {
-        const wrapper = page();
+    describe('the legend of template codes', () => {
+        const groups = [
+            ['values', TOP_STRINGS, (name) => `{{${name}}}`],
+            ['lists', LISTS, (name) => `{{#${name}}}...{{/${name}}}`],
+            ['rowValues', ROW_STRINGS, (name) => `{{${name}}}`],
+            ['rowFlags', ROW_FLAGS, (name) => `{{#${name}}}...{{/${name}}}`],
+            ['filters', FILTERS, (name) => `{{value|${name}}}`],
+        ];
 
-        expect(wrapper.get('[data-testid="syntax-values"]').text()).toContain('{{unit}}');
-        expect(wrapper.get('[data-testid="syntax-values"]').text()).toContain('{{week}}');
-        expect(wrapper.get('[data-testid="syntax-row-values"]').text()).toContain('{{name}}');
-        expect(wrapper.get('[data-testid="syntax-row-flags"]').text()).toContain('{{#sp_present}}...{{/sp_present}}');
-        expect(wrapper.get('[data-testid="syntax-help"]').text()).toContain('{{name|upper}}');
+        it.each(groups)('lists every code in the %s group the parser accepts, each with a meaning and an example', (key, names, code) => {
+            const group = page().get(`[data-testid="legend-${key}"]`);
+            const entries = group.findAll('[data-testid^="legend-entry-"]');
+
+            expect(entries.map((entry) => entry.attributes('data-testid'))).toEqual(names.map((name) => `legend-entry-${name}`));
+            for (const [index, name] of names.entries()) {
+                const entry = entries[index];
+                expect(entry.get('[data-testid="legend-code"]').text()).toBe(code(name));
+                expect(entry.get('[data-testid="legend-meaning"]').text()).toMatch(/^[A-Z].{5,}\.$/);
+                expect(entry.get('[data-testid="legend-example"]').text()).not.toBe('');
+            }
+        });
+
+        it('heads each group with its name and where its codes go', () => {
+            const wrapper = page();
+            const heading = (key) => [wrapper.get(`[data-testid="legend-${key}"] h3`).text(), wrapper.get(`[data-testid="legend-${key}"] [data-testid="legend-where"]`).text()];
+
+            expect(heading('values')).toEqual(['Values', 'Anywhere in the template']);
+            expect(heading('rowFlags')).toEqual(['Yes/no flags', 'Inside {{#troopers}}']);
+            expect(wrapper.find('[data-testid="legend-lists"] [data-testid="legend-where"]').exists()).toBe(false);
+        });
+
+        it('copies a code to the clipboard from its button', async () => {
+            const writeText = vi.fn().mockResolvedValue();
+            vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+            const wrapper = page();
+            const button = wrapper.get('[data-testid="legend-copy-rank_icon"]');
+
+            expect(button.attributes('aria-label')).toBe('Copy {{rank_icon}}');
+            await button.trigger('click');
+            await flushPromises();
+
+            expect(writeText).toHaveBeenCalledWith('{{rank_icon}}');
+            expect(button.attributes('aria-label')).toBe('Copied {{rank_icon}}');
+        });
+
+        it('explains the rank icon and shows how to print it only when Cav has one', () => {
+            const entry = page().get('[data-testid="legend-entry-rank_icon"]');
+
+            expect(entry.text()).toContain('rank insignia');
+            expect(entry.text()).toContain('{{#rank_icon}}[IMG]{{rank_icon}}[/IMG]{{/rank_icon}}');
+        });
+
+        it('explains the rank icon width and shows how to size the [IMG] with it', () => {
+            const entry = page().get('[data-testid="legend-entry-rank_icon_width"]');
+
+            expect(entry.text()).toContain('same size');
+            expect(entry.text()).toContain('[IMG width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/IMG]');
+        });
+    });
+
+    describe('the preview', () => {
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
+        it('draws the active template as the forum shows it, filled with the sample section', () => {
+            const wrapper = page({ active: { ...VERSION_2, body: '[B]{{unit}}[/B][TABLE]{{#troopers}}[TR][TD]{{display_name}}[/TD][/TR]{{/troopers}}[/TABLE]' } });
+            const post = wrapper.get('[data-testid="template-preview-post"]');
+
+            expect(post.get('strong').text()).toBe('1/E/2-7');
+            expect(post.findAll('td').map((cell) => cell.text())).toEqual(['SGT Jay.JH', 'CPL Adams.P', 'SPC Reyes.M', 'PFC Novak.T', 'PVT Okafor.B']);
+            expect(wrapper.get('[data-testid="template-preview"]').text()).toContain('sample section of 5 troopers');
+        });
+
+        it('follows the editor a moment after the Admin stops typing', async () => {
+            vi.useFakeTimers();
+            const wrapper = page();
+            const body = wrapper.get('[data-testid="template-body"]');
+
+            await body.setValue('[I]{{unit_name}}[/I]');
+            expect(wrapper.get('[data-testid="template-preview-post"]').find('em').exists()).toBe(false);
+
+            vi.advanceTimersByTime(300);
+            await nextTick();
+
+            expect(wrapper.get('[data-testid="template-preview-post"] em').text()).toBe('1st Section');
+        });
+
+        it('says why there is no preview while the codes do not parse', async () => {
+            vi.useFakeTimers();
+            const wrapper = page();
+
+            await wrapper.get('[data-testid="template-body"]').setValue('{{#troopers}}');
+            vi.advanceTimersByTime(300);
+            await nextTick();
+
+            expect(wrapper.find('[data-testid="template-preview-post"]').exists()).toBe(false);
+            expect(wrapper.get('[data-testid="template-preview-error"]').text()).toContain('is never closed');
+        });
+
+        it('shows HTML in a template as text, never as markup', () => {
+            const wrapper = page({ active: { ...VERSION_2, body: '<img src=x onerror=alert(1)><script>alert(1)</script>[IMG]javascript:alert(1)[/IMG]' } });
+            const post = wrapper.get('[data-testid="template-preview-post"]');
+
+            expect(post.find('img, script').exists()).toBe(false);
+            expect(post.text()).toContain('<script>alert(1)</script>');
+        });
+
+        it('shows nothing for an empty editor', () => {
+            expect(page({ active: null, history: [] }).find('[data-testid="template-preview"]').exists()).toBe(false);
+        });
     });
 
     it('shows the placeholder reference to a non-Admin too, since they read the template', () => {

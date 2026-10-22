@@ -44,6 +44,21 @@ it('ships a starter template that follows its own grammar and uses every status'
     expect(TemplateSyntax::STARTER)->toContain('{{^troopers}}');
 });
 
+it('starts each trooper with their rank insignia, only when Cav has one, so a missing icon prints no empty [IMG]', function () {
+    expect(TemplateSyntax::STARTER)->toContain('[TD]{{#rank_icon}}[IMG width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/IMG] {{/rank_icon}}{{rank}} {{name}}[/TD]');
+});
+
+it('accepts the rank icon width only inside the trooper list', function () {
+    expect(TemplateSyntax::check('{{#troopers}}[IMG width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/IMG]{{/troopers}}'))->toBeNull()
+        ->and(TemplateSyntax::check('{{#troopers}}{{#rank_icon_width}}x{{/rank_icon_width}}{{/troopers}}'))->toBeNull()
+        ->and(TemplateSyntax::check('[IMG width="{{rank_icon_width}}"]x[/IMG]'))->toContain('can only be used inside {{#troopers}}');
+});
+
+it('accepts the rank icon only inside the trooper list', function () {
+    expect(TemplateSyntax::check('{{#troopers}}[IMG]{{rank_icon}}[/IMG]{{/troopers}}'))->toBeNull()
+        ->and(TemplateSyntax::check('[IMG]{{rank_icon}}[/IMG]'))->toContain('can only be used inside {{#troopers}}');
+});
+
 it('knows exactly one list and two filters', function () {
     expect(TemplateSyntax::LISTS)->toBe(['troopers'])->and(TemplateSyntax::FILTERS)->toBe(['upper', 'lower']);
 });

@@ -573,6 +573,22 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-testid="forum-bbcode"]').text()).toBe('v3 2/1/A/1-7 3');
         });
 
+        it('opens on a preview drawn as the forum shows the post, with the BBCode one tab away', async () => {
+            const wrapper = factory({ template: { ...TEMPLATE, body: '[B]{{unit}}[/B] [I]{{count}} troopers[/I]' } });
+            const panel = (testid) => wrapper.get(`[data-testid="${testid}"]`).element.closest('[role="tabpanel"]');
+
+            expect(wrapper.get('[data-testid="forum-preview"] strong').text()).toBe('2/1/A/1-7');
+            expect(wrapper.get('[data-testid="forum-preview"] em').text()).toBe('3 troopers');
+            expect(wrapper.get('[data-testid="forum-view-preview"]').attributes('aria-selected')).toBe('true');
+            expect(panel('forum-bbcode').hidden).toBe(true);
+
+            await wrapper.get('[data-testid="forum-view-bbcode"]').trigger('mousedown', { button: 0 });
+
+            expect(panel('forum-bbcode').hidden).toBe(false);
+            expect(panel('forum-preview').hidden).toBe(true);
+            expect(wrapper.get('[data-testid="forum-bbcode"]').text()).toBe('[B]2/1/A/1-7[/B] [I]3 troopers[/I]');
+        });
+
         it.each([
             ['a company with no active template', { state: 'no_active_template', companyId: 1, versionId: null, version: null, body: null }, 'no rollcall template yet'],
             ['a section under no company', { state: 'no_owning_company', companyId: null, versionId: null, version: null, body: null }, 'does not sit under a company'],

@@ -1,0 +1,95 @@
+<script>
+import { computed, defineComponent, h } from 'vue';
+import { parseBbcode } from '@/lib/bbcodeRender';
+import { INSIGNIA_BOX, insigniaPlacement, insigniaWidth } from '@/lib/rankInsignia';
+
+// A BBCode post drawn as the forum shows it (rollcall review step, Settings > Templates). `lib/bbcodeRender.js` reads the
+// BBCode into a tree and this turns the tree into elements with `h()`: every piece of text is a text node and every
+// attribute is one the parser checked, so nothing in a template or a trooper's name can become markup. The classes
+// live here, not in the parser, so Tailwind finds them.
+
+const CLASSES = {
+    b: 'font-semibold',
+    i: 'italic',
+    u: 'underline underline-offset-2',
+    s: 'line-through',
+    url: 'text-info underline underline-offset-2 hover:opacity-80',
+    quote: 'my-2 rounded-md border border-border bg-muted/50 px-3.5 py-2.5',
+    list: 'my-1.5 pl-6',
+    li: 'my-0.5',
+    table: 'w-full border-collapse text-[13px]',
+    th: 'border border-border bg-muted/70 px-3 py-2 text-left align-middle font-semibold',
+    td: 'border border-border px-3 py-2 align-middle',
+    hr: 'my-3 border-border',
+};
+
+const LIST_STYLE = { ul: 'list-disc', 1: 'list-decimal', a: 'list-[lower-alpha]', A: 'list-[upper-alpha]', i: 'list-[lower-roman]', I: 'list-[upper-roman]' };
+
+function draw(nodes, inCell) {
+    return nodes.map((node) => {
+        if (node.type === 'text') return node.text;
+        if (node.type === 'br') return h('br');
+        if (node.type === 'quote-by') return h('p', { class: 'mb-1 text-xs font-semibold text-muted-foreground' }, node.text);
+
+        if (node.kind === 'img') {
+            // A known rank insignia is drawn in a fixed square at the same visual weight as every other rank, centred on
+            // the insignia rather than on its file's padding (`lib/rankInsignia.js`). So is one given the width the template's
+            // `{{rank_icon_width}}` prints for it: the forum shows it at about that size, and the square centres it better.
+            // Given any other size, the forum shows the image at that size, and so does the preview.
+            const { width, height } = node.style;
+            const sized = width !== undefined || height !== undefined;
+            const place = insigniaPlacement(node.attrs.src);
+            if (place && (!sized || (width === `${insigniaWidth(node.attrs.src)}px` && (height ?? 'auto') === 'auto'))) {
+                // `align-middle` centres the square on the line box, which sits a little below the middle of the capitals
+                // beside it; lifting it 1.5px lines the insignia up with the name's capitals.
+                return h('span', { class: 'relative -top-[1.5px] inline-block shrink-0 overflow-hidden align-middle', style: { width: `${INSIGNIA_BOX}px`, height: `${INSIGNIA_BOX}px` }, 'data-rank-insignia': '' }, [
+                    h('img', {
+                        ...node.attrs,
+                        class: 'absolute max-w-none',
+                        style: { width: `${place.width}px`, height: `${place.height}px`, left: `${place.left}px`, top: `${place.top}px` },
+                    }),
+                ]);
+            }
+
+            if (sized) {
+                // Exactly the size written, a side left `auto` (or not given) unset so it follows the other. With its height
+                // free it may also shrink to fit the post, keeping its proportions; with a fixed height it may not, or it
+                // would be squashed.
+                const style = Object.fromEntries(Object.entries({ width, height }).filter(([, side]) => side !== undefined && side !== 'auto'));
+                const fit = style.height === undefined ? ' max-w-full' : ' max-w-none';
+
+                return h('img', { ...node.attrs, class: `inline-block align-middle${fit}`, style, 'data-sized-image': '' });
+            }
+
+            // Any other image keeps its proportions; in a cell it stays row-sized, elsewhere it may be larger.
+            const size = inCell ? 'max-h-10' : 'max-h-64';
+
+            return h('img', { ...node.attrs, class: `inline-block max-w-full align-middle ${size}` });
+        }
+
+        let extra = '';
+        if (node.kind === 'list') extra = LIST_STYLE[node.attrs.type ?? 'ul'] ?? 'list-disc';
+
+        const element = h(
+            node.tag,
+            { ...node.attrs, style: node.style, class: [CLASSES[node.kind], extra] },
+            node.kind === 'hr' ? undefined : draw(node.children, inCell || node.kind === 'td' || node.kind === 'th'),
+        );
+
+        // A wide table scrolls inside the post instead of pushing the page sideways.
+        return node.kind === 'table' ? h('div', { class: 'my-2 overflow-x-auto' }, [element]) : element;
+    });
+}
+
+export default defineComponent({
+    name: 'BbcodePreview',
+    props: {
+        source: { type: String, required: true },
+    },
+    setup(props) {
+        const tree = computed(() => parseBbcode(props.source));
+
+        return () => h('div', { class: 'text-sm leading-relaxed break-words text-foreground', 'data-bbcode-preview': '' }, draw(tree.value, false));
+    },
+});
+</script>
