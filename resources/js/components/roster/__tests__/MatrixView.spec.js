@@ -42,10 +42,16 @@ describe('Attendance matrix (roster-s3)', () => {
     });
 
     it('slashes missed and unsigned cells so colour is not the only cue', () => {
-        const cells = factory().find('[data-testid="matrix-trooper-12"]').findAll('.roster-cc');
+        const row = factory().find('[data-testid="matrix-trooper-12"]');
+        // The state class on each half of a week's cell, top (rollcall) then bottom (SP).
+        // `roster-h--bad` is the one WeekCell draws with the slash.
+        const halves = (i) => row.findAll('.roster-cc')[i].findAll('.roster-h').map((half) => half.classes().find((c) => c.startsWith('roster-h--')));
 
-        expect(cells[17].find('.roster-h--bad').exists()).toBe(true);
-        expect(cells[17].attributes('class')).toBeDefined();
+        // Week 17: unsigned and missed. Both halves are slashed, and the cell names both states in words.
+        expect(halves(17)).toEqual(['roster-h--bad', 'roster-h--bad']);
+        expect(row.findAll('.cc-focus')[17].attributes('aria-label')).toContain('Rollcall: Unsigned. SP: Missed.');
+        // Week 16: signed and present, so neither half is slashed.
+        expect(halves(16)).toEqual(['roster-h--ok', 'roster-h--ok']);
     });
 
     it('narrows to 8 weeks', async () => {
