@@ -11,6 +11,7 @@ use App\Repositories\PracticeCapturePlayerRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
+use App\Support\Time\WeekOf;
 
 /**
  * Resolves an unmatched player to the trooper a leader chose (Story 7.7, AD-19 — the system only
@@ -19,7 +20,8 @@ use App\Repositories\TrooperRepository;
  * (one attendance writer; a manual or LOA mark is kept, AD-14/AD-22). Each is its own audited
  * action. Both steps are idempotent, so a request that failed between them can simply be repeated.
  *
- * Refuses a section or trooper outside the actor's scope (AD-8); a trooper from another section
+ * Refuses a section or trooper outside the actor's scope (AD-8); a practice whose week is before
+ * `WeekOf::floor()`, since the pre-mark would write to it; a trooper from another section
  * (the mark would not count there); and a trooper who already holds a different identity on that
  * game, which linking would silently replace. An identifier another trooper owns surfaces as
  * {@see GameIdentityLinkException}, never reassigned.
@@ -47,6 +49,11 @@ class LinkUnmatchedPlayerHandler
     public function handle(User $actor, LinkUnmatchedPlayer $command): AutoMarkResult
     {
         [$practice, $player] = $this->listedPlayer($actor, $this->scope, $this->practices, $this->captured, $command);
+
+        if (WeekOf::isBeforeFloor($practice->week_start)) {
+            throw UnmatchedPlayerResolutionException::weekBeforeFloor($practice->week_start);
+        }
+
         $trooper = $this->authorizedTrooper($actor, $command->trooperId, $this->scope, $this->troopers);
 
         if ($trooper->primary_section_id !== $practice->section_id) {

@@ -81,6 +81,8 @@ function attendanceFacts(): array
 }
 
 beforeEach(function () {
+    // A leader's mark over a demo week is refused before the week floor, which counts back from now.
+    CarbonImmutable::setTestNow(demoNow());
     $units = app(UnitRepository::class);
     $this->battalion = $units->create(UnitType::Battalion, '1st Battalion', '1-7', null);
     $this->company = $units->create(UnitType::Company, 'Alpha Company', 'A/1-7', $this->battalion->id);

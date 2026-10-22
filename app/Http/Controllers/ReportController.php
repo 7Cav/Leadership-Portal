@@ -119,6 +119,8 @@ class ReportController extends Controller
                 'due' => WeekOf::reportDue($weekStart)->toIso8601String(),
                 'previous' => $weekStart->subWeek()->toDateString(),
                 'next' => $weekStart->addWeek()->lessThanOrEqualTo($this->currentWeek()) ? $weekStart->addWeek()->toDateString() : null,
+                // Older than the week floor: shown read-only, a draft or send for it is a 404.
+                'beforeFloor' => WeekOf::isBeforeFloor($weekStart),
             ],
             'report' => $this->reportProps($report, $senders),
             // Whether this viewer may save or send it: command authority, not a staff grant, which only reads.
@@ -148,7 +150,7 @@ class ReportController extends Controller
     public function draft(Request $request, SaveReportDraftHandler $handler, int $unit, string $week): RedirectResponse
     {
         $unit = $this->unitInScope($request, $unit);
-        $weekStart = $this->weekStart($week);
+        $weekStart = $this->writableWeekStart($week);
         $data = $request->validate($this->contentRules());
 
         $this->asFormErrors(fn () => $handler->handle($request->user(), new SaveReportDraft(
@@ -165,7 +167,7 @@ class ReportController extends Controller
     public function send(Request $request, SendWeeklyReportHandler $handler, int $unit, string $week): RedirectResponse
     {
         $unit = $this->unitInScope($request, $unit);
-        $weekStart = $this->weekStart($week);
+        $weekStart = $this->writableWeekStart($week);
         $data = $request->validate([...$this->contentRules(), 'reason' => ['required', 'string', 'max:1000']]);
 
         $result = $this->asFormErrors(fn () => $handler->handle($request->user(), new SendWeeklyReport(
@@ -261,6 +263,15 @@ class ReportController extends Controller
         }
 
         return $date;
+    }
+
+    /** {@see weekStart()} for a write: a week before `WeekOf::floor()` is a 404 too. */
+    private function writableWeekStart(string $week): CarbonImmutable
+    {
+        $weekStart = $this->weekStart($week);
+        abort_if(WeekOf::isBeforeFloor($weekStart), 404);
+
+        return $weekStart;
     }
 
     private function currentWeek(): CarbonImmutable

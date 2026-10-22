@@ -246,6 +246,18 @@ describe('Reports/Show', () => {
         expect(put).not.toHaveBeenCalled();
     });
 
+    it('is read-only for a week before the week floor, with no send controls', () => {
+        vi.useFakeTimers();
+        const wrapper = mountShow({ week: { ...props().week, beforeFloor: true } });
+
+        expect(wrapper.find('[data-testid="send-bar"]').exists()).toBe(false);
+        expect(wrapper.get('#report-notes').attributes('disabled')).toBeDefined();
+        expect(wrapper.text()).toContain('Read-only, this week is too far back to change');
+        expect(wrapper.find('a[aria-label^="Previous week"]').exists()).toBe(true);
+        vi.advanceTimersByTime(2000);
+        expect(put).not.toHaveBeenCalled();
+    });
+
     it('shows a roll-up with its children and warns about the ones holding up the chain', async () => {
         const wrapper = mountShow({
             unit: { id: 2, name: '1st Platoon', callsign: '1/A/1-7', type: 'platoon', isLeaf: false, parent: null },

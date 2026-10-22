@@ -2,6 +2,7 @@
 
 namespace App\Commands\Attendance;
 
+use Carbon\CarbonInterface;
 use RuntimeException;
 
 /**
@@ -59,6 +60,12 @@ class InvalidAttendanceMarkException extends RuntimeException
     public static function duplicateTrooper(int $trooperId): self
     {
         return new self("Trooper {$trooperId} appears more than once in one attendance batch.");
+    }
+
+    /** The week is older than `WeekOf::floor()`, too far back to write. */
+    public static function weekBeforeFloor(CarbonInterface $weekStart): self
+    {
+        return new self("The week of {$weekStart->toDateString()} is too far back to change.");
     }
 
     /**

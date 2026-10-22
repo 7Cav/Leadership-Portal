@@ -28,7 +28,7 @@ class MarkRollcallPostedHandler
 
     /**
      * @throws MarkRollcallPostedForbiddenException when the section is outside the actor's scope.
-     * @throws InvalidAttendanceMarkException when the unit is not a section.
+     * @throws InvalidAttendanceMarkException when the unit is not a section, or the week is before `WeekOf::floor()`.
      */
     public function handle(User $actor, MarkRollcallPosted $command): SectionPractice
     {
@@ -41,6 +41,10 @@ class MarkRollcallPostedHandler
         }
 
         $weekStart = WeekOf::start($command->week);
+
+        if (WeekOf::isBeforeFloor($weekStart)) {
+            throw InvalidAttendanceMarkException::weekBeforeFloor($weekStart);
+        }
 
         return $this->audit->record(
             actorId: $actor->id,

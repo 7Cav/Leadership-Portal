@@ -72,10 +72,12 @@ const sent = computed(() => props.report.status === 'sent');
 // View-as (1.13) and a staff grant are read-only: every write is refused server-side, so say so
 // here rather than let a save fail.
 const viewAs = computed(() => page.props.viewAs ?? null);
-const readOnly = computed(() => sent.value || !!viewAs.value || !props.canWrite);
+// A week before the week floor is shown read-only: the server refuses a draft or send for it.
+const readOnly = computed(() => sent.value || !!viewAs.value || !props.canWrite || !!props.week.beforeFloor);
 const readOnlyNote = computed(() => {
     if (viewAs.value) return `Read-only while viewing as ${viewAs.value.label}`;
-    return props.canWrite ? null : 'Read-only: a staff grant lets you view this report, not edit or send it';
+    if (!props.canWrite) return 'Read-only: a staff grant lets you view this report, not edit or send it';
+    return props.week.beforeFloor ? 'Read-only, this week is too far back to change' : null;
 });
 
 const weekDate = computed(() => props.week.start.slice(0, 10));
@@ -567,7 +569,7 @@ const subjectInvalid = computed(() => props.unit.isLeaf && subjectTouched.value 
                 </div>
 
                 <div
-                    v-if="!sent"
+                    v-if="!sent && !week.beforeFloor"
                     class="sticky bottom-0 z-20 -mx-4 mt-6 flex flex-col items-stretch gap-x-4 gap-y-2 sm:flex-row sm:items-center bg-background/95 px-4 py-3 shadow-[0_-1px_0_var(--border),0_-12px_24px_-18px_hsl(75_20%_10%/0.35)] backdrop-blur sm:-mx-6 sm:px-6"
                     data-testid="send-bar"
                 >

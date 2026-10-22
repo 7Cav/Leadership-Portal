@@ -67,7 +67,8 @@ class SendWeeklyReportHandler
      * @throws SendWeeklyReportForbiddenException when the unit is outside the actor's scope, or
      *                                            does not exist.
      * @throws ReasonRequiredException when no reason is given — on a re-send too.
-     * @throws InvalidReportContentException when the content is not the unit's to record.
+     * @throws InvalidReportContentException when the content is not the unit's to record, or the
+     *                                       week is before `WeekOf::floor()`.
      * @throws ReportKpisUnavailableException when the unit's KPIs cannot be reported yet, or the
      *                                        prior week's sent snapshot is unreadable.
      */
@@ -86,6 +87,11 @@ class SendWeeklyReportHandler
         }
 
         $weekStart = WeekOf::start($command->week);
+
+        if (WeekOf::isBeforeFloor($weekStart)) {
+            throw InvalidReportContentException::weekBeforeFloor($weekStart);
+        }
+
         $existing = $this->reports->find($unit->id, $weekStart);
 
         if ($existing?->status === WeeklyReportStatus::Sent) {

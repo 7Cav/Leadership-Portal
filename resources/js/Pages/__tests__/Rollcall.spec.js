@@ -482,6 +482,19 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-testid="use-last-week"]').exists()).toBe(false);
         });
 
+        it('is read-only for a week before the week floor, still letting the leader page back', async () => {
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory({ week: { ...WEEK, isCurrent: false, beforeFloor: true, next: '2026-10-10' } });
+
+            expect(wrapper.find('[data-testid="read-only-notice"]').text()).toBe('Read-only, this week is too far back to change.');
+            expect(button(wrapper, 3, 'present').attributes('disabled')).toBeDefined();
+            expect(wrapper.find('[data-testid="mark-all-present"]').exists()).toBe(false);
+            expect(wrapper.find('a[aria-label="Previous week"]').attributes('href')).toContain('2026-09-26');
+            await button(wrapper, 3, 'present').trigger('click');
+            vi.advanceTimersByTime(5000);
+            expect(post).not.toHaveBeenCalled();
+        });
+
         it('lists this visit\'s changes on the review step', async () => {
             const wrapper = factory();
             await button(wrapper, 3, 'will_attend').trigger('click');

@@ -71,7 +71,8 @@ use Throwable;
  *
  * Every read is gated by the ScopeResolver (AD-8) — a section outside the viewer's scope is a 403,
  * whatever the UI offers. A week is any moment in it (`?week=YYYY-MM-DD`), bucketed by `WeekOf`
- * (AD-11); a future week is never served — there is nothing to mark yet.
+ * (AD-11); a future week is never served — there is nothing to mark yet. A week before
+ * `WeekOf::floor()` is still shown, read-only (`week.beforeFloor`): its writes are refused.
  */
 class RollcallController extends Controller
 {
@@ -348,6 +349,10 @@ class RollcallController extends Controller
             return response()->json(['message' => 'A future week cannot be captured yet.'], 422);
         }
 
+        if (WeekOf::isBeforeFloor($weekStart)) {
+            return response()->json(['message' => 'That week is too far back to capture.'], 422);
+        }
+
         try {
             $capture = $handler->handle($request->user(), new RequestPracticeCapture($unit, $weekStart));
         } catch (CaptureRetryForbiddenException $e) {
@@ -586,6 +591,8 @@ class RollcallController extends Controller
             'previous' => $weekStart->subWeek()->toDateString(),
             'next' => $weekStart->lessThan($currentWeek) ? $weekStart->addWeek()->toDateString() : null,
             'current' => $currentWeek->toDateString(),
+            // Older than the week floor: shown read-only, every write for it is refused.
+            'beforeFloor' => WeekOf::isBeforeFloor($weekStart),
         ];
     }
 
