@@ -160,7 +160,7 @@ class NightwatchApi
     /**
      * @return array<int|string, mixed>
      */
-    private function fetchMatches(string $baseUrl, string $apiKey, string $serverId, DateTimeImmutable $windowStart): array
+    private function fetchMatches(string $baseUrl, #[\SensitiveParameter] string $apiKey, string $serverId, DateTimeImmutable $windowStart): array
     {
         try {
             $response = $this->connector($baseUrl, $apiKey)->send(new FetchMatchesRequest($serverId));
@@ -248,7 +248,7 @@ class NightwatchApi
         }
     }
 
-    private function connector(string $baseUrl, string $apiKey): NightwatchConnector
+    private function connector(string $baseUrl, #[\SensitiveParameter] string $apiKey): NightwatchConnector
     {
         return $this->connector ??= new NightwatchConnector($baseUrl, $apiKey);
     }

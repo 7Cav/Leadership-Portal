@@ -18,9 +18,9 @@ class ExchangeCodeRequest extends Request implements HasBody
     protected Method $method = Method::POST;
 
     public function __construct(
-        private readonly string $code,
+        #[\SensitiveParameter] private readonly string $code,
         private readonly string $clientId,
-        private readonly string $clientSecret,
+        #[\SensitiveParameter] private readonly string $clientSecret,
         private readonly string $redirectUri,
     ) {}
 

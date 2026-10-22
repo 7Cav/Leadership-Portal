@@ -2,6 +2,7 @@
 
 namespace App\Integration\Forum;
 
+use App\Integration\RefusesRedirects;
 use Saloon\Http\Connector;
 use Saloon\Traits\Plugins\HasTimeout;
 
@@ -17,7 +18,7 @@ use Saloon\Traits\Plugins\HasTimeout;
  */
 class ForumConnector extends Connector
 {
-    use HasTimeout;
+    use HasTimeout, RefusesRedirects;
 
     protected int $connectTimeout = 5;
 

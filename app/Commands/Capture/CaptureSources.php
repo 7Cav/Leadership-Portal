@@ -7,6 +7,8 @@ use App\Integration\BattleMetrics\BattleMetricsUnavailable;
 use App\Integration\Crcon\CrconApi;
 use App\Integration\Crcon\CrconUnavailable;
 use App\Integration\Nightwatch\NightwatchApi;
+use App\Integration\Nightwatch\NightwatchFailureReason;
+use App\Integration\Nightwatch\NightwatchRequestRefused;
 use App\Integration\Nightwatch\NightwatchUnavailable;
 use App\Integration\Nightwatch\NightwatchWindowExpired;
 use App\Models\GamePlatform;
@@ -60,7 +62,9 @@ final class CaptureSources
             self::filled($battleMetricsConfig, 'base_url', 'api_key', 'server_id'),
         );
 
-        // A window past Nightwatch's retention is as unanswerable as an outage: same typed failure.
+        // A window past Nightwatch's retention is as unanswerable as an outage: same typed failure. A refused request
+        // can only come from a NIGHTWATCH_BASE_URL outside /api/public/stats here, a deployment fault that no retry
+        // fixes, so it is recorded as a misconfigured source instead of failing the job.
         $nightwatchSource = new CaptureSource(
             'nightwatch',
             'nightwatch:'.(string) ($nightwatchConfig['server_ids'] ?? ''),
@@ -71,6 +75,8 @@ final class CaptureSources
                     throw new CaptureSourceUnavailable("nightwatch: {$e->reason->value}", previous: $e);
                 } catch (NightwatchWindowExpired $e) {
                     throw new CaptureSourceUnavailable("nightwatch: window expired ({$e->retentionHours}h retention)", previous: $e);
+                } catch (NightwatchRequestRefused $e) {
+                    throw new CaptureSourceUnavailable('nightwatch: '.NightwatchFailureReason::Misconfigured->value, previous: $e);
                 }
             },
             self::filled($nightwatchConfig, 'base_url', 'api_key', 'server_ids'),

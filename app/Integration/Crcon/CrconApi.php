@@ -253,7 +253,7 @@ class CrconApi
         return null;
     }
 
-    private function connector(string $baseUrl, string $apiKey): CrconConnector
+    private function connector(string $baseUrl, #[\SensitiveParameter] string $apiKey): CrconConnector
     {
         return $this->connector ??= new CrconConnector($baseUrl, $apiKey);
     }

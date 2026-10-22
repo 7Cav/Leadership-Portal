@@ -370,7 +370,7 @@ class CavApi
         return $payload;
     }
 
-    private function connector(string $baseUrl, string $apiKey): CavConnector
+    private function connector(string $baseUrl, #[\SensitiveParameter] string $apiKey): CavConnector
     {
         // Memoised so a three-roster sweep reuses one connector, and with it Guzzle's
         // connection pool, instead of building three.

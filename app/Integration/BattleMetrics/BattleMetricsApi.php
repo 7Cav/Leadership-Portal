@@ -172,7 +172,7 @@ class BattleMetricsApi
     /**
      * @return array{data: array<int|string, mixed>, included?: mixed, links?: array<string, mixed>}
      */
-    private function fetchPage(string $baseUrl, string $apiKey, FetchServerSessionsRequest $request): array
+    private function fetchPage(string $baseUrl, #[\SensitiveParameter] string $apiKey, FetchServerSessionsRequest $request): array
     {
         try {
             $response = $this->connector($baseUrl, $apiKey)->send($request);
@@ -290,7 +290,7 @@ class BattleMetricsApi
         }
     }
 
-    private function connector(string $baseUrl, string $apiKey): BattleMetricsConnector
+    private function connector(string $baseUrl, #[\SensitiveParameter] string $apiKey): BattleMetricsConnector
     {
         return $this->connector ??= new BattleMetricsConnector($baseUrl, $apiKey);
     }
