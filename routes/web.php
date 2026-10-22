@@ -111,9 +111,8 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/reports/{unit?}', [ReportRollupController::class, 'index'])->name('reports.index');
 
     // Chain of command (Story 1.8, edit/delete in 1.9). Viewing is open to any authenticated
-    // user (AC #3); the Admin gate on every write is enforced in the controller, not by route
-    // middleware — there is no `can:` policy for it yet (Authorization/ScopeResolver lands in
-    // 1.11).
+    // user (AC #3); every write is Admin-only, checked in the controller against the real
+    // `is_admin` flag (AD-6), not by route middleware.
     Route::get('/settings/org-structure', [OrgStructureController::class, 'index'])->name('settings.org-structure');
     Route::post('/settings/org-structure', [OrgStructureController::class, 'store'])->name('settings.org-structure.store');
     // Import the tree + billet mapping from the Cav position groups (Story 2.9). Admin gate in the
@@ -143,8 +142,8 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // enforced in the controller, not route middleware, matching every other Admin gate here.
     Route::get('/settings/audit-log', [AuditLogController::class, 'index'])->name('settings.audit-log');
 
-    // Manual roster sync trigger (Story 2.4). No GET view yet — the roster screen that will
-    // host this control is Story 2.8's. The Admin gate is enforced in the controller (AD-6),
+    // Manual roster sync trigger (Story 2.4), posted by the roster screen's "Sync now" control
+    // (2.8); there is no GET view of its own. The Admin gate is enforced in the controller (AD-6),
     // matching every other admin-gated write here. Throttled per Admin by the `roster-sync`
     // limiter; the job itself is unique, so extra clicks never stack up queued syncs.
     Route::post('/settings/roster-sync', [RosterSyncController::class, 'store'])->middleware('throttle:roster-sync')->name('settings.roster-sync.store');

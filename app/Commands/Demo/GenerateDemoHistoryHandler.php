@@ -44,8 +44,9 @@ use Illuminate\Support\Collection;
  * reported. The current week is never touched.
  *
  * Writes go through {@see DemoHistoryRepository}, the explicit tagged demo writer, rather than
- * `MarkAttendance`/`SendWeeklyReport`: those write one section, row by row, as a leader within
- * their scope, and `SendWeeklyReport` cannot send a non-leaf unit yet. The KPI numbers still come
+ * `MarkAttendance`/`SendWeeklyReport`: those write one section or unit at a time, as a leader
+ * within their scope, and their rows are real records, while every demo row is tagged `is_demo`
+ * so the purge can never touch a real one. The KPI numbers still come
  * only from `KpiService` and `RollupKpis`, and the digest from `SendWeeklyReportHandler`.
  */
 class GenerateDemoHistoryHandler
