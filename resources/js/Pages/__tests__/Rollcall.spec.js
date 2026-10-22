@@ -999,7 +999,8 @@ describe('Rollcall page', () => {
         it('names the game server, not "null", when a capture has no source recorded', () => {
             const wrapper = factory({ capture: { ...CAPTURE, source: null } });
 
-            expect(wrapper.find('[data-testid="capture-banner"]').text()).toContain('Marks filled from the game server, read 08Oct26 12:00Z.');
+            expect(wrapper.find('[data-testid="capture-banner"]').text()).toContain('Marks filled from the game server, read 08Oct26 12:00Z');
+            expect(wrapper.find('[data-testid="capture-banner"]').text()).not.toContain('null');
         });
 
         it('renders the unchanged manual screen, with no banner or confirm action, when nothing was captured', () => {
@@ -1099,7 +1100,9 @@ describe('Rollcall page', () => {
             await wrapper.find('[data-step="3"]').trigger('click');
             page.url = '/rollcall/12?step=3';
             await wrapper.vm.$nextTick();
-            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Rollcall posted 08Oct26 16:20Z by Ortega.M');
+            // The stamp carries how long ago it was, which this test does not pin.
+            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Rollcall posted 08Oct26 16:20Z');
+            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('by Ortega.M');
             expect(wrapper.find('[data-testid="posted-state"]').text()).not.toContain('Repost');
 
             await wrapper.setProps({ practice: { lastMarkedAt: '2026-10-08T16:40:00+00:00', posted: null, confirmation: null } });
