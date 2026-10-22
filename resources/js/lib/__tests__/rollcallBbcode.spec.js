@@ -44,10 +44,12 @@ describe('rollcallContext (3.11)', () => {
             { ...t(8, 'Diaz.L', 'will_attend', 'present'), loa: { state: 'covered' } },
             { ...t(9, 'Park.J', 'unsigned', null), loa: { state: 'needs_review' } },
         ])).troopers;
+        // The post orders the rows itself (same rank, then by last name), so they are read by name.
+        const by = Object.fromEntries(rows.map((row) => [row.name, row]));
 
-        expect(rows[0]).toMatchObject({ sp: 'LOA', sp_loa: true, sp_unmarked: false });
-        expect(rows[1]).toMatchObject({ sp: 'LOA', sp_loa: true, sp_present: false, rc: 'Yes' });
-        expect(rows[2]).toMatchObject({ sp: '', sp_loa: false, sp_unmarked: true });
+        expect(by['Ito.K']).toMatchObject({ sp: 'LOA', sp_loa: true, sp_unmarked: false });
+        expect(by['Diaz.L']).toMatchObject({ sp: 'LOA', sp_loa: true, sp_present: false, rc: 'Yes' });
+        expect(by['Park.J']).toMatchObject({ sp: '', sp_loa: false, sp_unmarked: true });
     });
 
     it('does not count a trooper on leave as attended, even with a present mark on the page, so the post shows no tick (3.4)', () => {
@@ -58,7 +60,8 @@ describe('rollcallContext (3.11)', () => {
         const out = rollcallPost(resolved('{{#troopers}}{{name}} {{#sp_present}}✓{{/sp_present}}{{#sp_loa}}LOA{{/sp_loa}}\n{{/troopers}}attended {{attended}}'), input(troopers));
 
         expect(rollcallContext(input(troopers)).attended).toBe('1');
-        expect(out.text).toBe('Vasquez.R ✓\nAdams.P LOA\nattended 1');
+        // Same rank, so by last name: Adams before Vasquez.
+        expect(out.text).toBe('Adams.P LOA\nVasquez.R ✓\nattended 1');
     });
 
     it('turns each signature into its flag and word', () => {

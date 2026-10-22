@@ -1396,6 +1396,8 @@ describe('Rollcall page', () => {
         const names = (wrapper, selector) => wrapper.findAll(`${selector} [data-trooper]`).map((card) => card.text().match(/(Able|Ftl|Asl|Member|Sl)\.\w/)?.[0]);
 
         it('lists the SL, then the ASL, then everyone by rank in each step-1 group', () => {
+            // Everyone has signed and is marked, so without a step the page would open on the review step.
+            page.url = '/rollcall/12?step=1';
             const wrapper = factory({ troopers: SQUAD, fireteams: FIRETEAMS });
 
             expect(names(wrapper, '[role="group"][aria-label="Will attend"]')).toEqual(['Sl.E', 'Asl.C', 'Ftl.B', 'Member.D', 'Able.A']);
