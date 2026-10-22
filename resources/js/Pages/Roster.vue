@@ -159,6 +159,17 @@ const syncDetail = computed(() => {
 // front instead of failing on click.
 const { active: viewAs, subject: viewAsSubject } = useViewAs();
 
+// The unit leader's own last sync of this echelon, apart from the roster-wide stamp.
+const unitSyncLabel = computed(() => {
+    const run = props.sync.unit;
+    if (!run?.at) return null;
+    const at = clock(run.at);
+
+    return run.status === "failure"
+        ? `This unit's sync failed ${at}`
+        : `This unit synced ${at}${run.status === "partial" ? ", some rows skipped" : ""}`;
+});
+
 const syncing = ref(false);
 function syncNow() {
     if (viewAs.value || syncing.value) return;
@@ -356,6 +367,17 @@ function syncNow() {
                         syncDetail
                     }}</TooltipContent>
                 </Tooltip>
+
+                <Badge
+                    v-if="unitSyncLabel"
+                    :variant="sync.unit.status === 'success' ? 'outline' : 'warning'"
+                    class="h-7 px-2.5 text-xs"
+                    data-testid="roster-unit-sync"
+                >
+                    <PhArrowsClockwise v-if="sync.unit.status === 'success'" />
+                    <PhWarning v-else />
+                    {{ unitSyncLabel }}
+                </Badge>
 
                 <template v-if="can.sync || can.syncUnit">
                     <Tooltip v-if="viewAs">

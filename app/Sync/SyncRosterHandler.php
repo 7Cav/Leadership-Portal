@@ -127,13 +127,16 @@ class SyncRosterHandler
 
             $this->troopers->updatePrimarySections($scope->filterSections($sections));
 
+            // A unit run reports only its own troopers' bad rows: one elsewhere is not this unit's partial sync.
+            $errors = $scope->filterErrors($result->errors);
+
             $this->syncRuns->complete(
                 $run,
                 inserted: $counts['inserted'],
                 updated: $counts['updated'],
                 inactivated: $counts['inactivated'],
-                errored: count($result->errors),
-                error: $this->errorSummary($result->errors),
+                errored: count($errors),
+                error: $this->errorSummary($errors),
             );
         } catch (Throwable $e) {
             $this->recordFailure($run, $e);

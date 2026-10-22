@@ -100,6 +100,22 @@ describe('Roster page', () => {
         expect(post).toHaveBeenCalledWith('/units/1/roster-sync', {}, expect.any(Object));
     });
 
+    it('shows a unit leader the result of their own unit sync next to the roster stamp', () => {
+        const base = { source: 'milpac', lastSuccessAt: '2026-10-08T09:14:00+00:00', stale: false, lastAttempt: null };
+        expect(factory().find('[data-testid="roster-unit-sync"]').exists()).toBe(false);
+        expect(factory({ sync: { ...base, unit: null } }).find('[data-testid="roster-unit-sync"]').exists()).toBe(false);
+
+        const ok = factory({ sync: { ...base, unit: { status: 'success', at: '2026-10-08T10:20:00+00:00' } } });
+        expect(ok.find('[data-testid="roster-unit-sync"]').text()).toContain('This unit synced');
+        expect(ok.find('[data-testid="roster-unit-sync"]').text()).toContain('10:20Z');
+
+        const partial = factory({ sync: { ...base, unit: { status: 'partial', at: '2026-10-08T10:20:00+00:00' } } });
+        expect(partial.find('[data-testid="roster-unit-sync"]').text()).toContain('some rows skipped');
+
+        const failed = factory({ sync: { ...base, unit: { status: 'failure', at: '2026-10-08T10:20:00+00:00' } } });
+        expect(failed.find('[data-testid="roster-unit-sync"]').text()).toContain("This unit's sync failed");
+    });
+
     it('says why Sync now failed instead of showing a raw error page', async () => {
         const wrapper = factory({ can: { sync: true } });
         await wrapper.find('[data-testid="roster-sync-now"]').trigger('click');
