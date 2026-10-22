@@ -60,3 +60,30 @@ test('a section leader copies the forum post and marks the rollcall posted', asy
     await page.reload();
     await expect(page.getByTestId('posted-state')).toContainText('by Vasquez.R');
 });
+
+test('trooper cards keep the name visible when the sidebar and summary leave them narrow', async ({ page }) => {
+    // At 1024px the sidebar and the week summary leave each card about 390px wide, less than the
+    // buttons' fixed width, so the card has to stack instead of squeezing the name to nothing.
+    await page.setViewportSize({ width: 1024, height: 800 });
+    await page.goto('/__e2e/login/Vasquez.R?to=/rollcall');
+    await expect(page).toHaveURL(/\/rollcall\/\d+$/);
+
+    const checkCards = async () => {
+        const cards = page.locator('[data-trooper]');
+        await expect(cards.first()).toBeVisible();
+        for (const card of await cards.all()) {
+            const box = await card.boundingBox();
+            const name = await card.locator('[data-card-face] p').first().boundingBox();
+            expect(name.width).toBeGreaterThan(140);
+            for (const button of await card.getByRole('button').all()) {
+                const edge = await button.boundingBox();
+                expect(edge.x + edge.width).toBeLessThanOrEqual(box.x + box.width);
+            }
+        }
+    };
+
+    await checkCards();
+    await page.getByRole('button', { name: /^Step 2, Section practice/ }).click();
+    await expect(page).toHaveURL(/step=2/);
+    await checkCards();
+});
