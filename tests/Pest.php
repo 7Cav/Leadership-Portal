@@ -50,6 +50,28 @@ expect()->extend('toBeOne', function () {
     return $this->toBe(1);
 });
 
+// `toBe` for a decoded JSON column, minus object key order. MySQL's JSON type stores an
+// object's keys in its own order (shortest first), so `{"trooper_id":7,"reason":"sick"}` reads
+// back as `{"reason":"sick","trooper_id":7}`; SQLite keeps the text as written. Values stay
+// strict and a list's order still counts: only string-keyed arrays are key-sorted.
+expect()->extend('toBeIgnoringKeyOrder', function (mixed $expected) {
+    $sortKeys = function (mixed $value) use (&$sortKeys): mixed {
+        if (! is_array($value)) {
+            return $value;
+        }
+        $value = array_map($sortKeys, $value);
+        if (! array_is_list($value)) {
+            ksort($value);
+        }
+
+        return $value;
+    };
+
+    expect($sortKeys($this->value))->toBe($sortKeys($expected));
+
+    return $this;
+});
+
 /*
 |--------------------------------------------------------------------------
 | Functions

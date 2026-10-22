@@ -305,7 +305,7 @@ it('saves and freezes the training subject and unaccounted reasons with the repo
     $sent = $repo->find($unit->id, $week);
 
     expect($draft->training_subject)->toBe('Room clearing')
-        ->and($draft->unaccounted)->toBe([['trooper_id' => 7, 'reason' => 'sick']])
+        ->and($draft->unaccounted)->toBeIgnoringKeyOrder([['trooper_id' => 7, 'reason' => 'sick']])
         ->and($sent->training_subject)->toBe('Final subject')
         ->and($sent->unaccounted)->toBe([]);
 });

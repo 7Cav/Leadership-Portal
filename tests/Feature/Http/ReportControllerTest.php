@@ -167,7 +167,7 @@ it('saves the draft\'s notes, subject and unaccounted reasons through the audite
     expect($report->status)->toBe(WeeklyReportStatus::Draft)
         ->and($report->notes)->toBe('Comms tighter.')
         ->and($report->training_subject)->toBe('Bounding overwatch')
-        ->and($report->unaccounted)->toBe([['trooper_id' => $this->trooper->id, 'reason' => 'sick']])
+        ->and($report->unaccounted)->toBeIgnoringKeyOrder([['trooper_id' => $this->trooper->id, 'reason' => 'sick']])
         ->and(AuditLogEntry::query()->sole()->action)->toBe(SaveReportDraftHandler::ACTION);
 });
 
