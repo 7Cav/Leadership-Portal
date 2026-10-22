@@ -254,6 +254,45 @@ describe('LoaBadge', () => {
         wrapper.unmount();
     });
 
+    describe('end date on hover', () => {
+        const tooltipFor = async (cover) => {
+            const wrapper = mount(LoaBadge, { props: { cover, sync: synced() }, attachTo: document.body });
+
+            expect(document.body.querySelector('[data-testid="loa-tooltip"]')).toBeNull();
+            await wrapper.get('[data-testid="loa-badge"]').trigger('focus');
+            const text = document.body.querySelector('[data-testid="loa-tooltip"]')?.textContent ?? null;
+            wrapper.unmount();
+
+            return text;
+        };
+
+        it.each([
+            ['a leave with an end date', covered({ endsAt: '2026-10-20', endsInDays: 2 }), 'LOA until 20Oct26'],
+            ['a leave already over', covered({ endsAt: '2026-10-14', ended: true }), 'LOA ended 14Oct26'],
+            ['an open ELOA', covered({ type: 'eloa', typeLabel: 'ELOA', endsAt: null, expectedReturnAt: '2026-10-20', ongoing: true }), 'ELOA, expected back 20Oct26'],
+            [
+                'an overdue ELOA',
+                covered({ type: 'eloa', typeLabel: 'ELOA', endsAt: null, expectedReturnAt: '2026-10-10', ongoing: true, overdue: true }),
+                'ELOA overdue, expected back 10Oct26, no return posted yet',
+            ],
+            ['an ELOA with no return date', covered({ type: 'eloa', typeLabel: 'ELOA', endsAt: null, ongoing: true }), 'ELOA, no return date yet'],
+            ['a leave that needs review', needsReview(), 'ELOA needs review: the leave post could not be read, so no dates are shown'],
+            ['a leave of unknown type that needs review', needsReview({ type: null, typeLabel: null }), 'LOA needs review: the leave post could not be read, so no dates are shown'],
+        ])('names the date for %s', async (_, cover, text) => {
+            expect(await tooltipFor(cover)).toContain(text);
+        });
+
+        it('never shows a date for a leave that needs review, even one the post half gave', async () => {
+            expect(await tooltipFor(needsReview({ endsAt: '2026-10-20' }))).not.toContain('20Oct26');
+        });
+
+        it('keeps the badge described by the full details for screen readers', () => {
+            const wrapper = badge({ cover: covered(), sync: synced() });
+
+            expect(wrapper.get('[data-testid="loa-badge"]').attributes('aria-describedby')).toBe(wrapper.get('[data-testid="loa-details"]').attributes('id'));
+        });
+    });
+
     it('is a real button, reachable by keyboard, and described for screen readers', () => {
         const wrapper = badge({ cover: covered(), sync: synced() });
         const trigger = wrapper.get('[data-testid="loa-badge"]');
