@@ -1,6 +1,7 @@
 <?php
 
 use App\Integration\Cav\CavApi;
+use App\Models\ArtifactType;
 use App\Models\AuditLogEntry;
 use App\Models\PortalRoleGrant;
 use App\Models\Unit;
@@ -8,6 +9,7 @@ use App\Models\UnitBilletMapping;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\SectionPracticeRepository;
+use App\Repositories\TemplateVersionRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Time\WeekOf;
@@ -380,3 +382,17 @@ it('turns a delete blocked by a staff grant or report history into errors.delete
         'it has weekly reports, and that report history must not be orphaned.',
     ],
 ]);
+
+it('turns a delete of a company holding template versions into errors.delete, not a 500 (3.5)', function () {
+    $admin = User::factory()->admin()->create();
+    $company = app(UnitRepository::class)->create(UnitType::Company, 'Alpha Company', 'A/1-7', null);
+    app(TemplateVersionRepository::class)->author($company->id, ArtifactType::RollcallBbcode, '[b]{section}[/b]', $admin->id);
+
+    $this->actingAs($admin)
+        ->from('/settings/org-structure')
+        ->delete("/settings/org-structure/{$company->id}")
+        ->assertRedirect('/settings/org-structure')
+        ->assertSessionHasErrors(['delete' => 'Cannot delete "Alpha Company" — it has template versions, and that template history must not be orphaned.']);
+
+    expect(Unit::find($company->id))->not->toBeNull();
+});

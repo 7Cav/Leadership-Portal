@@ -7,7 +7,7 @@ use RuntimeException;
 /**
  * A unit cannot be deleted while it still has dependents (AD-22 protects portal-owned data from
  * silent orphaning): a child unit, a Cav billet mapped to the unit (2.9), a staff grant on it
- * (1.12), a recorded practice (3.3) or a weekly report (5.6). Each is a `restrictOnDelete` foreign
+ * (1.12), a recorded practice (3.3), a weekly report (5.6) or a company's template version (3.5). Each is a `restrictOnDelete` foreign
  * key to `units`, so without this the delete would die in the database as a 500.
  */
 class UnitHasDependentsException extends RuntimeException
@@ -44,6 +44,13 @@ class UnitHasDependentsException extends RuntimeException
     {
         return new self(
             "Cannot delete \"{$unitName}\" — it has weekly reports, and that report history must not be orphaned.",
+        );
+    }
+
+    public static function hasTemplates(string $unitName): self
+    {
+        return new self(
+            "Cannot delete \"{$unitName}\" — it has template versions, and that template history must not be orphaned.",
         );
     }
 }

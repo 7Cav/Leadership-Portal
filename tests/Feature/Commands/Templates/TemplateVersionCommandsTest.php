@@ -58,6 +58,11 @@ function staleActiveRepository(TemplateVersionRepository $real, ?TemplateVersion
         {
             return $this->real->find($id);
         }
+
+        public function hasTemplatesFor(Unit $company): bool
+        {
+            return $this->real->hasTemplatesFor($company);
+        }
     };
 }
 

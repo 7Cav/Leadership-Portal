@@ -2,17 +2,21 @@
 
 use App\Commands\Units\DeleteUnit;
 use App\Commands\Units\UnitHasDependentsException;
+use App\Models\ArtifactType;
 use App\Models\AuditLogEntry;
 use App\Models\PortalRoleGrant;
+use App\Models\TemplateVersion;
 use App\Models\Unit;
 use App\Models\UnitBilletMapping;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\SectionPracticeRepository;
+use App\Repositories\TemplateVersionRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 it('deletes a leaf unit', function () {
     $actor = User::factory()->admin()->create();
@@ -110,4 +114,43 @@ it('is not blocked by a grant, practice or report on a different unit', function
     app(DeleteUnit::class)->handle($actor, $doomed);
 
     expect(Unit::find($doomed->id))->toBeNull();
+});
+
+// Template versions (3.5) belong to a company and restrict its delete, as does the active pointer.
+// Without the check the delete reached the database and came back as a QueryException (a 500).
+it('refuses to delete a company that holds template versions, naming them', function () {
+    $actor = User::factory()->admin()->create();
+    $company = app(UnitRepository::class)->create(UnitType::Company, 'Alpha Company', 'A/1-7', null);
+    app(TemplateVersionRepository::class)->author($company->id, ArtifactType::RollcallBbcode, '[b]{section}[/b]', $actor->id);
+
+    expect(fn () => app(DeleteUnit::class)->handle($actor, $company))
+        ->toThrow(UnitHasDependentsException::class, 'Cannot delete "Alpha Company" — it has template versions, and that template history must not be orphaned.');
+
+    expect(Unit::find($company->id))->not->toBeNull()
+        ->and(TemplateVersion::count())->toBe(1)
+        ->and(AuditLogEntry::count())->toBe(0);
+});
+
+it('is not blocked by another company\'s template versions', function () {
+    $actor = User::factory()->admin()->create();
+    $repo = app(UnitRepository::class);
+    $doomed = $repo->create(UnitType::Company, 'Alpha Company', 'A/1-7', null);
+    $other = $repo->create(UnitType::Company, 'Bravo Company', 'B/1-7', null);
+    app(TemplateVersionRepository::class)->author($other->id, ArtifactType::RollcallBbcode, '[b]{section}[/b]', $actor->id);
+
+    app(DeleteUnit::class)->handle($actor, $doomed);
+
+    expect(Unit::find($doomed->id))->toBeNull();
+});
+
+// The command locks the unit row before its checks; a unit another Admin deleted first is not found
+// there, so no second `unit.deleted` entry is written for a row that no longer exists.
+it('does not audit a delete of a unit that is already gone', function () {
+    $actor = User::factory()->admin()->create();
+    $unit = app(UnitRepository::class)->create(UnitType::Section, 'Nightriders', '1/1/E/2-7', null);
+    Unit::query()->whereKey($unit->id)->delete();
+
+    expect(fn () => app(DeleteUnit::class)->handle($actor, $unit))->toThrow(ModelNotFoundException::class);
+
+    expect(AuditLogEntry::count())->toBe(0);
 });

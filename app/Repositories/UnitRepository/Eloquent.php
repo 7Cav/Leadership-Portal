@@ -147,6 +147,11 @@ class Eloquent implements UnitRepository
         });
     }
 
+    public function lockForDelete(Unit $unit): void
+    {
+        Unit::query()->whereKey($unit->id)->lockForUpdate()->firstOrFail(['id']);
+    }
+
     public function hasChildren(Unit $unit): bool
     {
         return $unit->children()->exists();

@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Models\ArtifactType;
 use App\Models\TemplateVersion;
+use App\Models\Unit;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
 
@@ -55,4 +56,11 @@ interface TemplateVersionRepository
     public function history(int $companyId, ArtifactType $type): Collection;
 
     public function find(int $id): ?TemplateVersion;
+
+    /**
+     * Whether the company holds any template version, of any kind. Both `template_versions` and the
+     * `active_template_versions` pointer restrict a company's delete; a pointer always names one of the company's
+     * own versions, so checking the versions covers both.
+     */
+    public function hasTemplatesFor(Unit $company): bool;
 }
