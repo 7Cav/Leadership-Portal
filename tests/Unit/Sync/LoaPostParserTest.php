@@ -138,6 +138,8 @@ describe('never guessing (needs_review)', function () {
     })->with([
         'one day' => ['Oct 3, 2026', 'Oct 3, 2026'],
         'six days' => ['Oct 3, 2026', 'Oct 8, 2026'],
+        'six days over the EU spring clock change' => ['Mar 27, 2027', 'Apr 1, 2027'],
+        'six days over a leap day' => ['Feb 26, 2028', 'Mar 2, 2028'],
     ]);
 
     it('reads an LOA from one Cav week up to 14 days cleanly, whatever day it starts on', function (string $start, string $end) {
@@ -151,6 +153,11 @@ describe('never guessing (needs_review)', function () {
         'seven days from a Tuesday' => ['Oct 6, 2026', 'Oct 12, 2026'],
         'fourteen days' => ['Oct 3, 2026', 'Oct 16, 2026'],
         'two weeks to the same weekday, as the forum posts them' => ['Oct 3, 2026', 'Oct 17, 2026'],
+        // Whole calendar days in UTC: a clock change or a leap day must not tip a bound either way.
+        'one Cav week over the EU spring clock change' => ['Mar 27, 2027', 'Apr 2, 2027'],
+        'one Cav week over a leap day' => ['Feb 26, 2028', 'Mar 3, 2028'],
+        'two Cav weeks over the US fall clock change' => ['Oct 31, 2026', 'Nov 13, 2026'],
+        'full month names' => ['October 3, 2026', 'October 9, 2026'],
     ]);
 
     it('flags an LOA longer than 14 days, and asserts no dates', function (string $end) {

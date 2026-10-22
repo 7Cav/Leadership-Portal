@@ -307,7 +307,7 @@ class HomeController extends Controller
      * The week's five steps for every section in scope (the step matrix): rollcall posted, signed,
      * practice held, attendance marked and report sent, each with the screen that does it. Counts
      * are over the troopers currently assigned to the section, and a trooper on leave for the week
-     * counts as marked, since there is nothing to mark for them; a step nobody has started is simply
+     * counts as signed and marked, since there is nothing to sign or mark for them; a step nobody has started is simply
      * not done, never an invented deadline miss.
      *
      * @param  Collection<int, int>  $scope

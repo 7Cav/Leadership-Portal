@@ -2,6 +2,8 @@
 
 use App\Integration\Forum\ForumApi;
 use App\Integration\Forum\ForumRequestException;
+use App\Loa\LoaCoverage;
+use App\Loa\LoaCoverageState;
 use App\Models\Loa;
 use App\Models\LoaParseStatus;
 use App\Models\LoaType;
@@ -228,6 +230,23 @@ describe('a normal LOA', function () {
             ->and($loa->raw_end_date)->toBe('Oct 6, 2026')
             ->and($loa->review_reason)->toContain('shorter than one Cav week')
             ->and(latestLoaRun()->needs_review)->toBe(1);
+    });
+
+    it('excuses just the Cav week of a Saturday to Friday LOA, the shortest one allowed', function () {
+        $trooper = Trooper::factory()->create(['username' => 'Smith.J']);
+        $body = str_replace(['Oct 6, 2026', 'Oct 20, 2026'], ['Oct 3, 2026', 'Oct 9, 2026'], loaBody('loa-on-behalf'));
+        $thread = loaThread(4001, '[LOA Request] - PVT.Smith.J | Oct 3, 2026 - Oct 9, 2026', $body, '2026-10-02 08:00');
+        forumWith([180 => [[$thread]]], [4001 => $thread]);
+
+        runLoaSync();
+
+        $weeks = app(LoaCoverage::class)->forTroopersOverWeeks([$trooper->id], CarbonImmutable::parse('2026-09-26', 'UTC'), 3)[$trooper->id];
+        expect(Loa::sole()->parse_status)->toBe(LoaParseStatus::Ok)
+            ->and(array_map(fn ($cover) => $cover->state, $weeks))->toBe([
+                '2026-09-26' => LoaCoverageState::None,
+                '2026-10-03' => LoaCoverageState::Covered,
+                '2026-10-10' => LoaCoverageState::None,
+            ]);
     });
 
     it('flips a thread that read cleanly to needs_review when it is edited into something unreadable', function () {

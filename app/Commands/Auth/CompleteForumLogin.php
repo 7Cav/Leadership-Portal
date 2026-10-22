@@ -24,7 +24,7 @@ class CompleteForumLogin
         private readonly UserRepository $users,
     ) {}
 
-    public function handle(string $code): User
+    public function handle(#[\SensitiveParameter] string $code): User
     {
         try {
             $token = $this->forum->exchangeCode($code);

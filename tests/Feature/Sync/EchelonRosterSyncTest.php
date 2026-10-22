@@ -17,8 +17,10 @@ use App\Sync\EmptyRosterException;
 use App\Sync\SyncRosterHandler;
 use App\Sync\UnitNoLongerExistsException;
 use Illuminate\Bus\UniqueLock;
+use Illuminate\Cache\Events\CacheMissed;
 use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
@@ -410,4 +412,29 @@ it('probes the unique lock with a short expiry, so a process dying mid-check can
         ->andReturn($lock);
 
     expect($job->isAlreadyQueued())->toBeFalse();
+});
+
+it('decides overlapping syncs one at a time, so two leaders clicking at once start one Cav fetch', function () {
+    Queue::fake();
+    $tree = echelonTree();
+    $platoonLeader = echelonLeader($tree['platoon']);
+    Trooper::factory()->create(['cav_id' => 9002, 'cav_position_id' => 902, 'status' => TrooperStatus::Combat]);
+    UnitCommandMapping::factory()->create(['unit_id' => $tree['inside']->id, 'cav_position_id' => 902]);
+    $sectionLeader = User::factory()->create(['cav_id' => 9002]);
+
+    // The section leader's click arrives just after the platoon leader's request has read the cooldowns and before
+    // it has written its own: without one decision at a time, both pass the check and both fetch the roster.
+    $raced = false;
+    Event::listen(CacheMissed::class, function (CacheMissed $missed) use (&$raced, $sectionLeader, $tree) {
+        if ($raced || ! str_starts_with($missed->key, 'unit-roster-sync:synced:')) {
+            return;
+        }
+        $raced = true;
+        $this->actingAs($sectionLeader)->post("/units/{$tree['inside']->id}/roster-sync");
+    });
+
+    $this->actingAs($platoonLeader)->post("/units/{$tree['platoon']->id}/roster-sync");
+
+    expect($raced)->toBeTrue();
+    Queue::assertPushed(SyncRosterJob::class, 1);
 });

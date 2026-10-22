@@ -35,7 +35,7 @@ with the LOA source and last sync (`loaSync`, AD-20). Nothing stores an `loa` ma
 under "On LOA", left out of "Mark all present" and last week's marks, and posts as `LOA`. `MarkAttendance` still refuses a
 practice mark for them; if a leave syncs after the page loaded, the refusal says `loa_covered`, the screen locks the row and
 keeps saving their signature. A leave that needs review asserts nothing (AD-4): the row stays markable and only shows the
-badge. Home's "marked" step counts a covered trooper as marked.
+badge. Home's "signed" and "marked" steps count a covered trooper as done.
 
 **May depend on:** `Repositories/` (never the DB directly, AD-2) and `Models/`.
 **Reached from:** `Http/Controllers/`. Read-only: templates are written only by the audited

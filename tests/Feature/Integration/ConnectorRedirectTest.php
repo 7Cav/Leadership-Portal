@@ -1,5 +1,7 @@
 <?php
 
+use App\Commands\Auth\CompleteForumLogin;
+use App\Commands\Auth\ForumLoginException;
 use App\Integration\BattleMetrics\BattleMetricsApi;
 use App\Integration\BattleMetrics\BattleMetricsConnector;
 use App\Integration\BattleMetrics\BattleMetricsFailureReason;
@@ -19,6 +21,7 @@ use App\Integration\Nightwatch\NightwatchConnector;
 use App\Integration\Nightwatch\NightwatchFailureReason;
 use App\Integration\Nightwatch\NightwatchRequestRefused;
 use App\Integration\Nightwatch\NightwatchUnavailable;
+use App\Repositories\UserRepository;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
 
@@ -127,6 +130,17 @@ describe('with exception arguments in traces', function () {
             $this->fail('expected a refusal');
         } catch (NightwatchRequestRefused $e) {
             expect((string) $e)->not->toContain('NWKEY-');
+        }
+    });
+
+    it('keeps the OAuth code out of a failed sign-in\'s trace', function () {
+        redirectingEverything();
+
+        try {
+            (new CompleteForumLogin(redirectForum(), app(UserRepository::class)))->handle('OAUTHCODE-0123456789-REST');
+            $this->fail('expected a failed sign-in');
+        } catch (ForumLoginException $e) {
+            expect((string) $e)->not->toContain('OAUTHCODE-');
         }
     });
 

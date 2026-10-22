@@ -44,6 +44,19 @@ it('trusts nothing when the setting is empty', function () {
     throughProxy('10.0.0.5')->assertOk()->assertExactJson(['ip' => '10.0.0.5', 'secure' => false]);
 });
 
+it('trusts nothing when the setting is empty, whatever Host the client sends', function () {
+    // The framework trusts every address when no proxy is set and the Host ends in .on-forge.com or
+    // .on-vapor.com. The client picks the Host, so that would let it forge its own address.
+    config()->set('portal.trusted_proxies', '');
+
+    foreach (['portal.on-forge.com', 'portal.on-vapor.com'] as $host) {
+        $this->withServerVariables(['REMOTE_ADDR' => '198.51.100.7'])
+            ->withHeaders(['X-Forwarded-For' => '203.0.113.9', 'X-Forwarded-Proto' => 'https'])
+            ->get("http://{$host}/__test/client")
+            ->assertOk()->assertExactJson(['ip' => '198.51.100.7', 'secure' => false]);
+    }
+});
+
 it('sends HSTS in production when TLS ends at a trusted proxy', function () {
     config()->set('portal.trusted_proxies', '10.0.0.5');
     app()['env'] = 'production';
