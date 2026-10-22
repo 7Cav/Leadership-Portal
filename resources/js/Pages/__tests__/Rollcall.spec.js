@@ -620,16 +620,32 @@ describe('Rollcall page', () => {
             expect(writeText.mock.calls[0][0]).toContain('[tr][td]PFC[/td][td]Trooper2.A[/td][td]Cannot attend[/td][td]Not marked[/td][/tr]');
             expect(post).not.toHaveBeenCalled();
             await vi.waitFor(() => expect(wrapper.find('[data-testid="copy-bbcode"]').text()).toBe('Copy again'));
+            expect(toastSuccess).toHaveBeenCalledWith('BBCode copied', { description: 'Paste it as a reply in the 2/1/A/1-7 rollcall thread.' });
         });
 
         it('says so when the clipboard is unavailable', async () => {
+            vi.spyOn(console, 'error').mockImplementation(() => {});
             Object.defineProperty(navigator, 'clipboard', { value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) }, configurable: true });
             const wrapper = factory();
 
             await wrapper.find('[data-testid="copy-bbcode"]').trigger('click');
-            await vi.waitFor(() => expect(toastError).toHaveBeenCalledWith('Could not copy the BBCode', expect.anything()));
-            // There is no BBCode tab: the text is in the Forum post section.
-            expect(toastError.mock.calls[0][1].description).toBe('Select the BBCode in the Forum post section above and copy it by hand.');
+            await vi.waitFor(() =>
+                expect(toastError).toHaveBeenCalledWith('Could not copy the BBCode', { description: expect.stringContaining('Open the BBCode tab and copy it by hand.') }),
+            );
+            expect(wrapper.find('[data-testid="copy-bbcode"]').text()).toBe('Copy BBCode');
+        });
+
+        it('says the browser blocked the clipboard, the same way the roll-up reminder does', async () => {
+            vi.spyOn(console, 'error').mockImplementation(() => {});
+            const denied = Object.assign(new Error('denied'), { name: 'NotAllowedError' });
+            Object.defineProperty(navigator, 'clipboard', { value: { writeText: vi.fn().mockRejectedValue(denied) }, configurable: true });
+            const wrapper = factory();
+
+            await wrapper.find('[data-testid="copy-bbcode"]').trigger('click');
+            await vi.waitFor(() =>
+                expect(toastError).toHaveBeenCalledWith('Could not copy the BBCode', { description: expect.stringContaining('blocked clipboard access') }),
+            );
+            expect(toastSuccess).not.toHaveBeenCalledWith('BBCode copied', expect.anything());
         });
 
         it('marks the rollcall posted and shows when and by whom', async () => {
