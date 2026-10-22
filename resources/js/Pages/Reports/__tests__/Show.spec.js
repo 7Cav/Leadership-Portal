@@ -330,6 +330,40 @@ describe('Reports/Show', () => {
         expect(wrapper.get('[data-testid="baseline"]').text()).toContain('26Sep26');
     });
 
+    it('copies a plain-text summary of the sent report', async () => {
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+        const wrapper = mountShow({
+            report: { status: 'sent', notes: 'Good.', trainingSubject: 'Land nav', unaccounted: [], savedAt: null, sentAt: '2026-10-08T16:24:00+00:00', sentBy: 'SGT Vasquez.R' },
+            troopers: null,
+        });
+
+        await wrapper.get('[data-testid="copy-summary"]').trigger('click');
+        await flushPromises();
+
+        const text = writeText.mock.calls[0][0];
+        expect(text.split('\n').slice(0, 3)).toEqual([
+            '2nd Section (2/1/A/1-7) weekly report, week of 03Oct26',
+            'Sent Thu 08Oct26 16:24Z by SGT Vasquez.R',
+            'Strength 2',
+        ]);
+        expect(text).toContain('Trained: Land nav');
+        expect(text).toContain('Notes:\nGood.');
+    });
+
+    it('copies the draft as it stands, saying it is not sent', async () => {
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+        const wrapper = mountShow();
+
+        await wrapper.get('#training-subject').setValue('Room clearing');
+        await wrapper.get('[data-testid="copy-summary"]').trigger('click');
+        await flushPromises();
+
+        expect(writeText.mock.calls[0][0]).toContain('Draft, not sent yet');
+        expect(writeText.mock.calls[0][0]).toContain('Trained: Room clearing');
+    });
+
     it('blocks sending when the numbers cannot be computed, saying why', () => {
         const wrapper = mountShow({ kpis: null, kpiError: "Last week's sent report cannot be read." });
 

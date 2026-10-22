@@ -1,11 +1,14 @@
 <script setup>
 import { computed } from 'vue';
-import { PhArrowsClockwise, PhEye, PhLightning, PhLockSimple, PhPencilSimple, PhStack, PhWarningCircle } from '@phosphor-icons/vue';
+import { PhArrowsClockwise, PhCopy, PhEye, PhLightning, PhLockSimple, PhPencilSimple, PhStack, PhWarningCircle } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import EmptyState from '@/components/EmptyState.vue';
+import { copyText } from '@/lib/clipboard';
 import { forumDate } from '@/lib/forumDate';
 import { baselineText, formatKpi, KPIS, stamp, timeOf, unitLabel } from '@/lib/report';
+import { reportSummary } from '@/lib/reportSummary';
 import HighlightList from './HighlightList.vue';
 import KpiGrid from './KpiGrid.vue';
 import TrendChart from './TrendChart.vue';
@@ -17,6 +20,7 @@ const props = defineProps({
     week: { type: Object, required: true },
     sent: { type: Boolean, default: false },
     sentAt: { type: String, default: null },
+    sentBy: { type: String, default: null },
     kpis: { type: Object, default: null },
     kpiError: { type: String, default: null },
     delta: { type: Object, default: null },
@@ -74,6 +78,25 @@ function noteFor(trooper) {
     return parts.join('. ');
 }
 
+// A few plain lines for a Discord or staff thread: the draft as it stands, or the sent snapshot.
+function copySummary() {
+    copyText(
+        reportSummary({
+            unit: props.unit,
+            week: props.week,
+            sent: props.sent,
+            sentAt: props.sentAt,
+            sentBy: props.sentBy,
+            kpis: props.kpis,
+            delta: props.delta,
+            trainingSubject: props.content.trainingSubject,
+            notes: props.content.notes,
+        }),
+        'Summary copied',
+        { description: props.sent ? 'Paste it into Discord or a staff thread.' : 'This is the draft as it stands, not a sent report.', failed: 'Could not copy the summary' },
+    );
+}
+
 const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id === id)) || `Unit ${id}`;
 </script>
 
@@ -89,8 +112,11 @@ const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id ===
                 </p>
                 <p v-else class="mt-0.5 text-[13px] text-muted-foreground">Rolled up from sent reports only</p>
             </div>
-            <Badge v-if="sent" variant="success" class="flex-none"><PhLockSimple aria-hidden="true" />Sent {{ timeOf(sentAt) }}</Badge>
-            <Badge v-else variant="warning" class="flex-none"><PhPencilSimple aria-hidden="true" />Draft, live</Badge>
+            <div class="flex flex-none flex-col items-end gap-1.5">
+                <Badge v-if="sent" variant="success"><PhLockSimple aria-hidden="true" />Sent {{ timeOf(sentAt) }}</Badge>
+                <Badge v-else variant="warning"><PhPencilSimple aria-hidden="true" />Draft, live</Badge>
+                <Button variant="ghost" size="xs" data-testid="copy-summary" @click="copySummary"><PhCopy aria-hidden="true" />Copy summary</Button>
+            </div>
         </div>
 
         <div v-if="kpiError" role="alert" class="flex items-start gap-2.5 border-t border-border px-5 py-4 text-[13px]">
