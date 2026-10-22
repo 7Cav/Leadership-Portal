@@ -18,7 +18,8 @@ class UnitBilletMappingFactory extends Factory
     {
         return [
             'unit_id' => Unit::factory(),
-            'cav_position_id' => fake()->unique()->numberBetween(1, 100000),
+            // Wide and above a million, like TrooperFactory's ids, so separate seeder processes cannot collide.
+            'cav_position_id' => fake()->unique()->numberBetween(1_000_000, 2_000_000_000),
         ];
     }
 }
