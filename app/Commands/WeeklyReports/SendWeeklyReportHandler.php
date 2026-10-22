@@ -43,8 +43,12 @@ use Carbon\CarbonInterface;
  * does not come back sent, the original `WeeklyReportAlreadySentException` is rethrown rather than
  * a draft being passed off as the sent report.
  *
- * The template version (AD-17) is frozen as null: template versioning (3.5) is deferred for the
- * MVP. When it lands, resolve the active version here and pass its id to `send()`.
+ * The template version (AD-17) is frozen as null. `template_version_id` records the report-layout
+ * template a report was rendered from, and no such template exists yet: the only `ArtifactType` is
+ * the rollcall BBCode, which the weekly report does not use, so freezing its id here would record a
+ * template the report never rendered from. When a report-layout type lands, resolve the unit's
+ * version through `TemplateResolver` (the owning company's active version) and pass its id to
+ * `send()`; `contentDigest()` already covers it.
  */
 class SendWeeklyReportHandler
 {

@@ -11,6 +11,7 @@ use App\Kpi\Ratio;
 use App\Kpi\ReportKpisUnavailableException;
 use App\Kpi\ReportSnapshot;
 use App\Kpi\UnitKpis;
+use App\Models\ArtifactType;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
@@ -23,13 +24,16 @@ use App\Models\WeeklyReport;
 use App\Models\WeeklyReportStatus;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\SectionPracticeRepository;
+use App\Repositories\TemplateVersionRepository;
 use App\Repositories\WeeklyReportAlreadySentException;
 use App\Repositories\WeeklyReportRepository;
 use App\Repositories\WeeklyReportRepository\Eloquent as EloquentWeeklyReportRepository;
+use App\Rollcall\TemplateResolver;
 use App\Support\Audit\ReasonRequiredException;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Saloon\Http\Faking\MockClient;
 
@@ -96,7 +100,7 @@ it('freezes the live KPIs, the delta and the notes, and marks the report sent', 
         ->and($report->notes)->toBe('Two new recruits.')
         ->and($report->sent_by)->toBe($this->leader->id)
         ->and($report->sent_at)->not->toBeNull()
-        ->and($report->template_version_id)->toBeNull(); // template versioning (3.5) deferred
+        ->and($report->template_version_id)->toBeNull(); // the weekly report has no layout template yet
 });
 
 it('records a content digest that can be re-verified from the stored row, whatever its key order', function () {
@@ -117,6 +121,30 @@ it('digests the notes and the KPIs, so a change to either changes the digest', f
     expect($digest($report->kpis, 'original'))->toBe($report->content_digest)
         ->and($digest($report->kpis, 'edited'))->not->toBe($report->content_digest)
         ->and($digest([...$report->kpis, 'strength' => $report->kpis['strength'] + 1], 'original'))->not->toBe($report->content_digest);
+});
+
+it('digests the template version, so a different version changes the digest', function () {
+    $report = sendReport($this->leader, $this->section->id, $this->moment)->report;
+    $digest = fn (?int $templateVersionId) => SendWeeklyReportHandler::contentDigest(
+        $report->unit_id, $report->week_start, $report->kpis, $report->notes, $templateVersionId,
+    );
+
+    expect($digest(null))->toBe($report->content_digest)
+        ->and($digest(1))->not->toBe($report->content_digest)
+        ->and($digest(2))->not->toBe($digest(1));
+});
+
+it('freezes a null template version even when the owning company has an active rollcall template', function () {
+    // The rollcall BBCode is the only template kind, and the weekly report does not render from it.
+    $company = Unit::factory()->create(['type' => UnitType::Company]);
+    DB::table('units')->where('id', $this->section->id)->update(['path' => "{$company->id}/{$this->section->id}/"]);
+    app(TemplateVersionRepository::class)->author($company->id, ArtifactType::RollcallBbcode, '[B]{{unit}}[/B]', $this->leader->id);
+    expect(app(TemplateResolver::class)->forUnit($this->section)->isResolved())->toBeTrue();
+
+    $report = sendReport($this->leader, $this->section->id, $this->moment)->report;
+
+    expect($report->template_version_id)->toBeNull()
+        ->and($report->content_digest)->toBe(digestOfStored($report));
 });
 
 it('freezes null notes as null', function () {

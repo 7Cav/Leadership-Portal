@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\TemplateVersion;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
@@ -89,8 +90,10 @@ it('updates the one draft row on a repeat save rather than adding a second', fun
 it('sends a unit-week with no prior draft, recording the frozen snapshot and send metadata', function () {
     Date::setTestNow('2026-10-09 21:15:00');
 
+    $version = TemplateVersion::factory()->create();
+
     $report = $this->repo->send(
-        $this->unit->id, $this->saturday, sixKpiSnapshot(), 'All good.', $this->sender->id, str_repeat('a', 64), 7,
+        $this->unit->id, $this->saturday, sixKpiSnapshot(), 'All good.', $this->sender->id, str_repeat('a', 64), $version->id,
     );
 
     $stored = $this->repo->find($this->unit->id, $this->saturday);
@@ -102,7 +105,7 @@ it('sends a unit-week with no prior draft, recording the frozen snapshot and sen
         ->and($stored->sent_by)->toBe($this->sender->id)
         ->and($stored->sent_at->equalTo(CarbonImmutable::parse('2026-10-09 21:15:00', 'UTC')))->toBeTrue()
         ->and($stored->content_digest)->toBe(str_repeat('a', 64))
-        ->and($stored->template_version_id)->toBe(7);
+        ->and($stored->template_version_id)->toBe($version->id);
 });
 
 it('sends an existing draft in place, replacing its kpis and notes with the sent snapshot', function () {
@@ -133,13 +136,16 @@ it('refuses a draft save over a sent report and leaves the snapshot untouched', 
 });
 
 it('refuses a second send and leaves the first snapshot and metadata untouched', function () {
+    [$first, $second] = TemplateVersion::factory()->count(2)->sequence(['version' => 1], ['version' => 2])
+        ->create(['company_id' => Unit::factory()->create(['type' => UnitType::Company])->id]);
+
     Date::setTestNow('2026-10-09 21:15:00');
-    $this->repo->send($this->unit->id, $this->saturday, sixKpiSnapshot(), 'first', $this->sender->id, 'digest-1', 3);
+    $this->repo->send($this->unit->id, $this->saturday, sixKpiSnapshot(), 'first', $this->sender->id, 'digest-1', $first->id);
 
     Date::setTestNow('2026-10-10 08:00:00');
     $other = User::factory()->create();
 
-    expect(fn () => $this->repo->send($this->unit->id, $this->saturday, [], 'second', $other->id, 'digest-2', 4))
+    expect(fn () => $this->repo->send($this->unit->id, $this->saturday, [], 'second', $other->id, 'digest-2', $second->id))
         ->toThrow(WeeklyReportAlreadySentException::class);
 
     $stored = $this->repo->find($this->unit->id, $this->saturday);
@@ -149,7 +155,7 @@ it('refuses a second send and leaves the first snapshot and metadata untouched',
         ->and(sortedKeys($stored->kpis))->toBe(sortedKeys(sixKpiSnapshot()))
         ->and($stored->sent_by)->toBe($this->sender->id)
         ->and($stored->content_digest)->toBe('digest-1')
-        ->and($stored->template_version_id)->toBe(3)
+        ->and($stored->template_version_id)->toBe($first->id)
         ->and($stored->sent_at->equalTo(CarbonImmutable::parse('2026-10-09 21:15:00', 'UTC')))->toBeTrue();
 });
 
@@ -170,6 +176,12 @@ it('carries the unit and week on the already-sent refusal', function () {
 it('refuses a send recorded against a user id that does not exist', function () {
     expect(fn () => $this->repo->send($this->unit->id, $this->saturday, sixKpiSnapshot(), null, 999999, 'd', null))
         ->toThrow(InvalidArgumentException::class)
+        ->and(WeeklyReport::query()->count())->toBe(0);
+});
+
+it('refuses a send recorded against a template version id that does not exist', function () {
+    expect(fn () => $this->repo->send($this->unit->id, $this->saturday, sixKpiSnapshot(), null, $this->sender->id, 'd', 999999))
+        ->toThrow(InvalidArgumentException::class, 'Template version 999999 does not exist')
         ->and(WeeklyReport::query()->count())->toBe(0);
 });
 

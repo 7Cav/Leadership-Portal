@@ -2,6 +2,7 @@
 
 namespace App\Repositories\WeeklyReportRepository;
 
+use App\Models\TemplateVersion;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\WeeklyReport;
@@ -102,6 +103,10 @@ class Eloquent implements WeeklyReportRepository
     ): WeeklyReport {
         if (! User::query()->whereKey($sentBy)->exists()) {
             throw new InvalidArgumentException("User {$sentBy} does not exist; a sent report records its sender.");
+        }
+
+        if ($templateVersionId !== null && ! TemplateVersion::query()->whereKey($templateVersionId)->exists()) {
+            throw new InvalidArgumentException("Template version {$templateVersionId} does not exist; a sent report can only name a stored version.");
         }
 
         return $this->write($unitId, $weekStart, [
