@@ -183,6 +183,7 @@ final class KpiService
             ->unique();
         $eligible = $marks->reject(fn (CountingMark $mark) => $loaWeeks->contains($mark->weekStart->toDateString()));
         $thisWeek = $marks->filter(fn (CountingMark $mark) => $mark->weekStart->equalTo($weekStart));
+        $missed = $eligible->filter(fn (CountingMark $mark) => $mark->status === AttendanceStatus::Missed);
 
         return new TrooperAttendance(
             trooperId: $trooperId,
@@ -194,11 +195,12 @@ final class KpiService
                 $eligible->filter(fn (CountingMark $mark) => in_array($mark->status, self::ATTENDED, true))->count(),
                 $eligible->filter(fn (CountingMark $mark) => $mark->held)->count(),
             ),
-            missed: $eligible->filter(fn (CountingMark $mark) => $mark->status === AttendanceStatus::Missed)->count(),
+            missed: $missed->count(),
             // Covered, not merely suppressed: a leave that needs review is never asserted as "on LOA".
             onLoa: ($covers[$weekStart->toDateString()]->state === LoaCoverageState::Covered)
                 || $thisWeek->contains(fn (CountingMark $mark) => $this->isLoaCovered($mark)),
             makeups: $thisWeek->filter(fn (CountingMark $mark) => $mark->status === AttendanceStatus::Makeup)->count(),
+            missedWeeks: $missed->map(fn (CountingMark $mark) => $mark->weekStart->toDateString())->sort()->values()->all(),
         );
     }
 

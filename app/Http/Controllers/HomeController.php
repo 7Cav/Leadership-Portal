@@ -228,7 +228,7 @@ class HomeController extends Controller
         $atRisk = $roots
             ->flatMap(fn (Unit $root) => $this->kpis->trooperAttendance($root, $weekStart)
                 ->filter(fn (TrooperAttendance $row) => $row->atRisk())
-                ->map(fn (TrooperAttendance $row) => ['trooperId' => $row->trooperId, 'missed' => $row->missed]))
+                ->map(fn (TrooperAttendance $row) => ['trooperId' => $row->trooperId, 'missed' => $row->missed, 'missedWeeks' => $row->missedWeeks]))
             ->values();
 
         $troopers = $this->troopers->byIds($atRisk->pluck('trooperId')->all());
@@ -265,6 +265,8 @@ class HomeController extends Controller
                         ],
                         'section' => $section ? self::unitProps($section) : null,
                         'missed' => $row['missed'],
+                        // The weeks behind `missed`, oldest first, for the makeup PM's title.
+                        'missedWeeks' => $row['missedWeeks'],
                         'windowWeeks' => KpiService::WINDOW_WEEKS,
                         'href' => route('roster.index', array_filter(['unit' => $trooper->primary_section_id, 'trooper' => $trooper->id])),
                     ];

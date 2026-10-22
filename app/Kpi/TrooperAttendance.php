@@ -24,6 +24,8 @@ final readonly class TrooperAttendance
         public bool $onLoa,
         /** Makeup marks in the `week_start` week (0 or 1). */
         public int $makeups,
+        /** The `week_start` dates (Y-m-d) of the practices counted in `missed`, oldest first. */
+        public array $missedWeeks = [],
     ) {}
 
     public function atRisk(): bool

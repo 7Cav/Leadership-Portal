@@ -119,6 +119,8 @@ class RosterController extends Controller
                 'section' => $this->unitSummary($section),
                 'sectionLeader' => $leader ? $this->person($leader) : null,
                 'milpacUrl' => Trooper::MILPAC_PROFILE_URL.$found->cav_id,
+                // The weeks behind `kpis.missed`, oldest first, for the Sheet's makeup PM link.
+                'missedWeeks' => $kpis?->missedWeeks ?? [],
             ],
             'weeks' => $this->weeks($week),
             'currentWeek' => $week->toDateString(),
