@@ -48,6 +48,7 @@ import {
     countsOf,
     displayName,
     isLocked,
+    landingStep,
     optionsFor,
     practiceGroups,
     practiceLabel,
@@ -553,11 +554,15 @@ const counts = computed(() => countsOf(rows.value));
 const steps = computed(() => stepsOf(rows.value, posted.value && !editedSincePost.value ? posted.value.at : null));
 
 // The step is part of the URL (`?step=2`), so a step can be linked to and Back walks the steps.
+// Without one the rollcall opens on the first step with work left. The rollcall thread closes on
+// the week's last minute, so only the current week's signatures are still open. Worked out once on
+// load: marking the last trooper of a step does not move the screen.
+const landing = props.section ? landingStep(props.troopers, props.week.isCurrent) : 1;
 const query = computed(() => new URL(page.url, 'http://portal.local').searchParams);
 const step = computed(() => {
     const requested = Number(query.value.get('step'));
 
-    return [1, 2, 3].includes(requested) ? requested : 1;
+    return [1, 2, 3].includes(requested) ? requested : landing;
 });
 const stepHeading = ref(null);
 

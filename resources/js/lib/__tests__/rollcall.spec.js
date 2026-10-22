@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countsOf, displayName, fullName, initials, isLocked, practiceGroups, signatureGroups, stepsOf } from '../rollcall';
+import { countsOf, displayName, fullName, initials, isLocked, landingStep, practiceGroups, signatureGroups, stepsOf } from '../rollcall';
 
 const t = (id, rollcall, status, extra = {}) => ({ id, cavId: 1000 + id, rank: 'PFC', name: `Trooper${id}.A`, rollcall, status, source: null, priorStatus: null, ...extra });
 
@@ -34,6 +34,22 @@ describe('rollcall vocabulary', () => {
     it('marks a step done only once nothing is left on it', () => {
         expect(stepsOf([t(1, 'unsigned', null)]).map((s) => s.state)).toEqual(['warn', 'warn', 'todo']);
         expect(stepsOf([t(1, 'will_attend', 'present')], '2026-10-08T16:20:00Z').map((s) => s.state)).toEqual(['done', 'done', 'done']);
+    });
+
+    it('opens on the first step with work left', () => {
+        expect(landingStep([t(1, 'unsigned', null), t(2, 'will_attend', 'present')], true)).toBe(1);
+        expect(landingStep([t(1, 'will_attend', null), t(2, 'cannot_attend', 'missed')], true)).toBe(2);
+        expect(landingStep([t(1, 'will_attend', 'present'), t(2, 'cannot_attend', 'missed')], true)).toBe(3);
+    });
+
+    it('skips the signatures once the thread has closed', () => {
+        expect(landingStep([t(1, 'unsigned', null)], false)).toBe(2);
+        expect(landingStep([t(1, 'unsigned', 'missed')], false)).toBe(3);
+    });
+
+    it('leaves LOA rows out of the work left, and opens an empty roster on step 1', () => {
+        expect(landingStep([t(1, 'unsigned', 'loa'), t(2, 'will_attend', 'present')], true)).toBe(3);
+        expect(landingStep([], true)).toBe(1);
     });
 
     it('lists "cannot attend" first on the practice step, LOA last', () => {
