@@ -5,6 +5,7 @@ namespace App\Repositories\UnitRepository;
 use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
+use App\Repositories\UnitPath;
 use App\Repositories\UnitRepository;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as ScalarCollection;
@@ -41,29 +42,7 @@ class Eloquent implements UnitRepository
         // "1/145/" before "1/2/" and shuffle siblings once ids pass a digit boundary. Comparing the
         // segments as numbers keeps every unit after its parent and siblings in id order, which is
         // creation order, and the org import creates units in Cav's display order.
-        return Unit::query()->get()->sort(fn (Unit $a, Unit $b) => $this->comparePaths($a->path, $b->path))->values();
-    }
-
-    /**
-     * Depth-first order over materialized paths: compare segment by segment as numbers, and a path
-     * that is a prefix of another (an ancestor) comes first.
-     */
-    private function comparePaths(string $a, string $b): int
-    {
-        $left = array_map('intval', explode('/', trim($a, '/')));
-        $right = array_map('intval', explode('/', trim($b, '/')));
-
-        foreach ($left as $index => $segment) {
-            if (! isset($right[$index])) {
-                return 1;
-            }
-
-            if ($segment !== $right[$index]) {
-                return $segment <=> $right[$index];
-            }
-        }
-
-        return count($left) <=> count($right);
+        return Unit::query()->get()->sort(fn (Unit $a, Unit $b) => UnitPath::compare($a->path, $b->path))->values();
     }
 
     public function find(int $id): ?Unit
@@ -167,12 +146,15 @@ class Eloquent implements UnitRepository
     {
         $ids = collect($unitIds)->values()->all();
 
+        // Sorted in PHP for the same reason as tree(): a text `orderBy('path')` puts "1/145/"
+        // before "1/2/".
         return Unit::query()
             ->with('parent')
             ->where('type', UnitType::Section->value)
             ->whereIn('id', $ids)
-            ->orderBy('path')
-            ->get();
+            ->get()
+            ->sort(fn (Unit $a, Unit $b) => UnitPath::compare($a->path, $b->path))
+            ->values();
     }
 
     public function delete(Unit $unit): void

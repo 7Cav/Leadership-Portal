@@ -27,7 +27,7 @@ interface UnitRepository
      * Every unit in the tree, in depth-first path order so a caller can render it without
      * re-deriving order from `parent_id` walks: each unit follows its parent, and siblings keep id
      * order (creation order, which the org import sets to Cav's display order). Paths are compared
-     * segment by segment as numbers, so "1/2/" sorts before "1/145/".
+     * segment by segment as numbers ({@see UnitPath::compare()}), so "1/2/" sorts before "1/145/".
      *
      * @return Collection<int, Unit>
      */
@@ -109,7 +109,8 @@ interface UnitRepository
 
     /**
      * The sections among `$unitIds` — e.g. a user's resolved scope — each with its `parent`
-     * loaded (the platoon a picker groups them under), ordered by `path` so siblings sit together.
+     * loaded (the platoon a picker groups them under), in the same depth-first path order as
+     * {@see tree()}, so siblings sit together and keep id order.
      *
      * @param  iterable<int>  $unitIds
      * @return Collection<int, Unit>
