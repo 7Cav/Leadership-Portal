@@ -13,8 +13,11 @@ rollcall signatures, Section Practice marks and sent weekly reports. Generated r
 # 1. Switch the demo tools on (off by default; leave them off in production)
 echo "DEMO_TOOLS=true" >> .env && php artisan config:clear
 
-# 2. Make yourself Admin (sign in once through 7Cav SSO first)
+# 2. Make yourself Admin (sign in once through 7Cav SSO first). The exact username shows the
+#    matched account and asks to confirm; --forum-id skips the prompt (for scripts). An account
+#    with no Cav profile linked needs --force; --revoke removes the flag.
 php artisan portal:admin <your forum username>
+php artisan portal:admin --forum-id=<your forum user id>
 
 # 3. Import the org structure (Settings → Org structure → Import from Cav), then sync the
 #    roster so troopers are placed in their sections (the scheduler does this hourly; to run it now:)

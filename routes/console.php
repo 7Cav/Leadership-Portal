@@ -7,6 +7,9 @@ use App\Commands\Demo\PurgeDemoHistoryHandler;
 use App\Commands\Users\SetAdminFlag;
 use App\Jobs\SyncLoasJob;
 use App\Jobs\SyncRosterJob;
+use App\Models\Trooper;
+use App\Models\User;
+use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
 use Illuminate\Foundation\Inspiring;
@@ -32,33 +35,84 @@ Schedule::job(new SyncLoasJob('system', true))->cron(config('sync.loa_full_cron'
 
 // Bootstrap or remove an Admin without SQL (story 2.9). The user must already exist — i.e. have
 // signed in once via 7Cav SSO. Audited through `SetAdminFlag` (AD-16); see its docblock for why
-// the target is recorded as the actor.
-Artisan::command('portal:admin {username} {--revoke : Clear the Admin flag instead of setting it}', function (UserRepository $users, SetAdminFlag $setAdminFlag) {
-    $username = (string) $this->argument('username');
-    $matches = $users->withUsername($username);
+// the target is recorded as the actor. Every account that finishes the forum sign-in has a row, refused
+// non-members included, so the command shows which account it matched (forum id, Cav profile, roster
+// status) before changing anything. A username must match exactly (the column's collation ignores case
+// and accents) and the change must be confirmed; `--forum-id` names the account outright and needs no
+// prompt, for scripts. Granting Admin to an account with no Cav profile linked needs `--force`.
+Artisan::command('portal:admin {username? : The exact forum username; the match is shown and must be confirmed}
+    {--forum-id= : The forum user id instead of a username; no confirmation prompt}
+    {--revoke : Clear the Admin flag instead of setting it}
+    {--force : Grant even though the account has no Cav profile linked}', function (UserRepository $users, TrooperRepository $troopers, SetAdminFlag $setAdminFlag) {
+    $username = $this->argument('username');
+    $forumId = $this->option('forum-id');
 
-    if ($matches->isEmpty()) {
-        $this->error("No portal user is named '{$username}'. They must sign in once before they can be made Admin.");
+    if (($username === null) === ($forumId === null)) {
+        $this->error('Name the user by forum username or by --forum-id (one of the two).');
 
         return 1;
     }
 
-    if ($matches->count() > 1) {
-        $this->error("{$matches->count()} portal users are named '{$username}'; refusing to guess which one.");
+    if ($forumId !== null) {
+        $user = ctype_digit((string) $forumId) ? $users->withForumUserId((int) $forumId) : null;
 
-        return 1;
+        if ($user === null) {
+            $this->error("No portal user has forum id '{$forumId}'. They must sign in once before they can be made Admin.");
+
+            return 1;
+        }
+    } else {
+        $username = (string) $username;
+        $matches = $users->withUsername($username);
+        $exact = $matches->filter(fn (User $match) => $match->username === $username)->values();
+
+        if ($exact->isEmpty()) {
+            $near = $matches->map(fn (User $match) => "{$match->username} (forum id {$match->forum_user_id})")->implode(', ');
+            $this->error("No portal user is named '{$username}'. They must sign in once before they can be made Admin."
+                .($near === '' ? '' : " Not an exact match: {$near}."));
+
+            return 1;
+        }
+
+        if ($exact->count() > 1) {
+            $this->error("{$exact->count()} portal users are named '{$username}'; refusing to guess which one. Use --forum-id.");
+
+            return 1;
+        }
+
+        $user = $exact->first();
     }
 
-    $user = $matches->first();
+    $status = $user->cav_id === null ? null : $troopers->statusOf((int) $user->cav_id);
+    $this->line("Matched {$user->username}, forum id {$user->forum_user_id}: ".match (true) {
+        $user->cav_id === null => 'no Cav profile linked.',
+        $status === null => 'Cav profile '.Trooper::MILPAC_PROFILE_URL."{$user->cav_id}, not on the synced roster.",
+        default => 'Cav profile '.Trooper::MILPAC_PROFILE_URL."{$user->cav_id}, roster status {$status->value} (".($status->isServing() ? 'serving' : 'not serving').').',
+    });
+
     $grant = ! $this->option('revoke');
 
-    $changed = $setAdminFlag->handle($user, $user, $grant, 'Set from the console: php artisan portal:admin'.($grant ? '' : ' --revoke'));
+    if ($grant === (bool) $user->is_admin) {
+        $this->info("{$user->username} is already ".($grant ? 'an Admin' : 'not an Admin').'; nothing changed.');
 
-    $this->info(match (true) {
-        ! $changed => "{$username} is already ".($grant ? 'an Admin' : 'not an Admin').'; nothing changed.',
-        $grant => "{$username} is now an Admin.",
-        default => "{$username} is no longer an Admin.",
-    });
+        return 0;
+    }
+
+    if ($grant && $user->cav_id === null && ! $this->option('force')) {
+        $this->error("{$user->username} has no Cav profile linked, so the portal cannot tell they are a 7Cav member. Nothing changed. Re-run with --force if this is the right account.");
+
+        return 1;
+    }
+
+    if ($forumId === null && ! $this->confirm($grant ? "Make {$user->username} an Admin?" : "Remove Admin from {$user->username}?")) {
+        $this->warn('Nothing changed. Without a terminal, name the user with --forum-id instead.');
+
+        return 1;
+    }
+
+    $setAdminFlag->handle($user, $user, $grant, 'Set from the console: php artisan portal:admin'.($grant ? '' : ' --revoke'));
+
+    $this->info($grant ? "{$user->username} is now an Admin." : "{$user->username} is no longer an Admin.");
 
     return 0;
 })->purpose('Grant (or with --revoke, remove) the portal Admin flag for an existing user');

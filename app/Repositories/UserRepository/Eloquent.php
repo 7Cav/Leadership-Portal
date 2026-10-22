@@ -59,6 +59,11 @@ class Eloquent implements UserRepository
         return User::find($id);
     }
 
+    public function withForumUserId(int $forumUserId): ?User
+    {
+        return User::query()->where('forum_user_id', $forumUserId)->first();
+    }
+
     public function all(): Collection
     {
         return User::query()->orderBy('username')->get();

@@ -51,6 +51,12 @@ interface UserRepository
     public function find(int $id): ?User;
 
     /**
+     * The user signed in as forum account `$forumUserId`, or null. `forum_user_id` is unique, so unlike
+     * a username this names exactly one account.
+     */
+    public function withForumUserId(int $forumUserId): ?User;
+
+    /**
      * Every portal user, ordered by username — the people an Admin may view the portal as
      * (Story 1.13). Admins are included: previewing another Admin is a legitimate check.
      *
