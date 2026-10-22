@@ -97,7 +97,7 @@ class Eloquent implements SectionPracticeRepository
             ->leftJoin('troopers', function ($join) {
                 $join->on('troopers.id', '=', 'attendance.trooper_id')
                     ->on('troopers.primary_section_id', '=', 'section_practices.section_id')
-                    ->where('troopers.status', '!=', TrooperStatus::Inactive->value);
+                    ->whereIn('troopers.status', TrooperStatus::servingValues());
             })
             ->groupBy('section_practices.id', 'section_practices.week_start', 'section_practices.rollcall_posted_at')
             ->withCasts(['marked' => 'integer', 'last_marked_at' => 'immutable_datetime'])
