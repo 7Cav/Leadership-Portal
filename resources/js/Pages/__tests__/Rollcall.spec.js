@@ -238,6 +238,52 @@ describe('Rollcall page', () => {
         expect(wrapper.find('[data-testid="past-week-notice"]').exists()).toBe(true);
     });
 
+    describe('unfinished past weeks', () => {
+        const STATUS = [
+            { date: '2026-09-26', unmarked: 0, posted: true },
+            { date: '2026-09-19', unmarked: 3, posted: false },
+            { date: '2026-09-12', unmarked: 0, posted: false },
+            { date: '2026-09-05', unmarked: 0, posted: true },
+        ];
+
+        it('flags the previous-week arrow, naming each unfinished week for screen readers', () => {
+            const wrapper = factory({ weekStatus: STATUS });
+            const previous = wrapper.find('[data-testid="previous-week"]');
+
+            expect(previous.find('[data-testid="earlier-weeks-flag"]').exists()).toBe(true);
+            expect(previous.attributes('aria-label')).toBe(
+                'Previous week. 2 earlier weeks need work: 19Sep26 (3 not marked, not posted), 12Sep26 (not posted)',
+            );
+            expect(previous.attributes('title')).toBe('2 earlier weeks need work: 19Sep26 (3 not marked, not posted), 12Sep26 (not posted)');
+        });
+
+        it('flags the arrow on the side the unfinished weeks are, from a past week', () => {
+            const wrapper = factory({
+                weekStatus: STATUS,
+                week: { ...WEEK, isCurrent: false, date: '2026-09-26', start: '2026-09-26T00:00:00+00:00', previous: '2026-09-19', next: '2026-10-03' },
+            });
+
+            expect(wrapper.find('[data-testid="earlier-weeks-flag"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="later-weeks-flag"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="next-week"]').attributes('aria-label')).toBe('Next week');
+
+            const older = factory({
+                weekStatus: STATUS,
+                week: { ...WEEK, isCurrent: false, date: '2026-09-12', start: '2026-09-12T00:00:00+00:00', previous: '2026-09-05', next: '2026-09-19' },
+            });
+            expect(older.find('[data-testid="earlier-weeks-flag"]').exists()).toBe(false);
+            expect(older.find('[data-testid="next-week"]').attributes('aria-label')).toBe('Next week. 1 later week needs work: 19Sep26 (3 not marked, not posted)');
+        });
+
+        it('shows no flag when every past week is marked and posted', () => {
+            const wrapper = factory({ weekStatus: [{ date: '2026-09-26', unmarked: 0, posted: true }] });
+
+            expect(wrapper.find('[data-testid="earlier-weeks-flag"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="previous-week"]').attributes('aria-label')).toBe('Previous week');
+            expect(wrapper.find('[data-testid="previous-week"]').attributes('title')).toBeUndefined();
+        });
+    });
+
     it('reviews totals and at-risk troopers on step 3', () => {
         page.url = '/rollcall/12?step=3';
         const wrapper = factory({ atRisk: [{ trooperId: 2, missed: 2, windowWeeks: 4 }] });

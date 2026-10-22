@@ -3,10 +3,13 @@
 namespace App\Repositories\SectionPracticeRepository;
 
 use App\Models\SectionPractice;
+use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitType;
+use App\Repositories\PracticeWeekStatus;
 use App\Repositories\SectionPracticeRepository;
 use App\Support\Time\WeekOf;
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
@@ -65,6 +68,49 @@ class Eloquent implements SectionPracticeRepository
             ->where('week_start', $weekStart)
             ->get()
             ->keyBy('section_id')
+            ->toBase();
+    }
+
+    public function weekStatuses(int $sectionId, CarbonInterface $firstWeek, CarbonInterface $lastWeek, array $excused = []): Collection
+    {
+        $firstWeek = WeekOf::requireStart($firstWeek);
+        $lastWeek = WeekOf::requireStart($lastWeek);
+
+        // A mark of a trooper whose leave covers that week is not counted: the caller counts them once, mark or not.
+        $excusedSql = [];
+        $bindings = [];
+        foreach ($excused as $date => $trooperIds) {
+            if ($trooperIds === []) {
+                continue;
+            }
+            $excusedSql[] = '(section_practices.week_start = ? and attendance.trooper_id in ('.implode(', ', array_fill(0, count($trooperIds), '?')).'))';
+            $bindings = [...$bindings, WeekOf::requireStart(CarbonImmutable::parse($date, 'UTC'))->toDateTimeString(), ...array_map('intval', $trooperIds)];
+        }
+        $notExcused = $excusedSql === [] ? '' : ' and not ('.implode(' or ', $excusedSql).')';
+
+        return SectionPractice::query()
+            ->where('section_practices.section_id', $sectionId)
+            ->whereBetween('section_practices.week_start', [$firstWeek, $lastWeek])
+            ->leftJoin('attendance', 'attendance.section_practice_id', '=', 'section_practices.id')
+            // Only marks of troopers placed in the section now count, the same population the
+            // rollcall screen lists; any row's change still makes a posted rollcall stale.
+            ->leftJoin('troopers', function ($join) {
+                $join->on('troopers.id', '=', 'attendance.trooper_id')
+                    ->on('troopers.primary_section_id', '=', 'section_practices.section_id')
+                    ->whereIn('troopers.status', TrooperStatus::servingValues());
+            })
+            ->groupBy('section_practices.id', 'section_practices.week_start', 'section_practices.rollcall_posted_at')
+            ->withCasts(['marked' => 'integer', 'last_marked_at' => 'immutable_datetime'])
+            ->select(['section_practices.id', 'section_practices.week_start', 'section_practices.rollcall_posted_at'])
+            ->selectRaw("coalesce(sum(case when troopers.id is not null and attendance.status is not null{$notExcused} then 1 else 0 end), 0) as marked", $bindings)
+            ->selectRaw('max(attendance.updated_at) as last_marked_at')
+            ->get()
+            ->mapWithKeys(fn (SectionPractice $practice) => [$practice->week_start->toDateString() => new PracticeWeekStatus(
+                weekStart: $practice->week_start,
+                marked: $practice->marked,
+                posted: $practice->rollcall_posted_at !== null
+                    && ($practice->last_marked_at === null || $practice->last_marked_at->lessThanOrEqualTo($practice->rollcall_posted_at)),
+            )])
             ->toBase();
     }
 

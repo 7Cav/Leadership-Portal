@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countsOf, displayName, fullName, initials, isLocked, landingStep, practiceGroups, signatureGroups, stepsOf } from '../rollcall';
+import { countsOf, displayName, fullName, initials, isLocked, landingStep, practiceGroups, signatureGroups, stepsOf, weeksNeedingWork } from '../rollcall';
 
 const t = (id, rollcall, status, extra = {}) => ({ id, cavId: 1000 + id, rank: 'PFC', name: `Trooper${id}.A`, rollcall, status, source: null, priorStatus: null, ...extra });
 
@@ -50,6 +50,28 @@ describe('rollcall vocabulary', () => {
     it('leaves LOA rows out of the work left, and opens an empty roster on step 1', () => {
         expect(landingStep([t(1, 'unsigned', 'loa'), t(2, 'will_attend', 'present')], true)).toBe(3);
         expect(landingStep([], true)).toBe(1);
+    });
+
+    it('splits the past weeks still needing work around the shown week, newest first', () => {
+        const status = [
+            { date: '2026-09-26', unmarked: 0, posted: true },
+            { date: '2026-09-19', unmarked: 2, posted: false },
+            { date: '2026-09-12', unmarked: 0, posted: false },
+            { date: '2026-09-05', unmarked: 1, posted: true },
+        ];
+
+        const fromCurrent = weeksNeedingWork(status, '2026-10-03');
+        expect(fromCurrent.earlier.map((w) => [w.date, w.what])).toEqual([
+            ['2026-09-19', '2 not marked, not posted'],
+            ['2026-09-12', 'not posted'],
+            ['2026-09-05', '1 not marked'],
+        ]);
+        expect(fromCurrent.later).toEqual([]);
+
+        const fromPast = weeksNeedingWork(status, '2026-09-12');
+        expect(fromPast.earlier.map((w) => w.date)).toEqual(['2026-09-05']);
+        expect(fromPast.later.map((w) => w.date)).toEqual(['2026-09-19']);
+        expect(weeksNeedingWork([], '2026-10-03')).toEqual({ earlier: [], later: [] });
     });
 
     it('lists "cannot attend" first on the practice step, LOA last', () => {

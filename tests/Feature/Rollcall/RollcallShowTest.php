@@ -16,8 +16,10 @@ use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReport;
+use App\Repositories\SectionPracticeRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 // 3.7 / AD-8, AD-11, AD-14, AD-20, AD-21: the rollcall page reads one section's roster and marks
 // for a week, gated by the ScopeResolver.
@@ -348,4 +350,91 @@ it('marks the week locked only when the section\'s real report for that week has
     $locked('2026-09-19', false);  // a demo sent report (#115)
     $locked('2026-09-12', false);  // another section's sent report
     $locked('2026-09-05', false);  // no report at all
+});
+
+it('sends where each of the last four past weeks stands, so the week navigation can flag unfinished ones', function () {
+    $a = rollcallTrooper($this->section);
+    $b = rollcallTrooper($this->section);
+    $departed = rollcallTrooper($this->section, ['status' => TrooperStatus::Inactive]);
+    $moved = rollcallTrooper($this->sibling);
+    $practice = fn (int $weeksAgo) => SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->week->subWeeks($weeksAgo)]);
+    $mark = fn (SectionPractice $practice, Trooper $trooper, ?AttendanceStatus $status) => Attendance::factory()->create([
+        'trooper_id' => $trooper->id, 'section_practice_id' => $practice->id, 'status' => $status, 'source' => $status ? AttendanceSource::Manual : null,
+    ]);
+
+    // This week is in progress and never flagged.
+    $mark($practice(0), $a, null);
+
+    // 26Sep26: everyone marked (LOA counts), posted after the last mark.
+    $done = $practice(1);
+    $mark($done, $a, AttendanceStatus::Present);
+    $mark($done, $b, AttendanceStatus::Loa);
+    $done->forceFill(['rollcall_posted_at' => '2026-10-08 17:00:00'])->save();
+
+    // 19Sep26: one signed but unmarked; marks of a departed or moved trooper do not count.
+    $half = $practice(2);
+    $mark($half, $a, AttendanceStatus::Missed);
+    $mark($half, $b, null);
+    $mark($half, $departed, AttendanceStatus::Present);
+    $mark($half, $moved, AttendanceStatus::Present);
+
+    // 12Sep26: everyone marked, but a mark changed after it was posted.
+    $stale = $practice(3);
+    $stale->forceFill(['rollcall_posted_at' => '2026-10-01 12:00:00'])->save();
+    $mark($stale, $a, AttendanceStatus::Present);
+    $mark($stale, $b, AttendanceStatus::Present);
+
+    // 05Sep26 has no practice row at all; 29Aug26 is outside the window.
+    $practice(5);
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}?week=2026-09-19")
+        ->assertInertia(fn ($page) => $page->where('weekStatus', [
+            ['date' => '2026-09-26', 'unmarked' => 0, 'posted' => true],
+            ['date' => '2026-09-19', 'unmarked' => 1, 'posted' => false],
+            ['date' => '2026-09-12', 'unmarked' => 0, 'posted' => false],
+            ['date' => '2026-09-05', 'unmarked' => 2, 'posted' => false],
+        ]));
+});
+
+it('sends no week status for an empty roster', function () {
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
+        ->assertInertia(fn ($page) => $page->where('weekStatus', []));
+});
+
+it('reads the week status in one query, however many weeks have practices', function () {
+    $trooper = rollcallTrooper($this->section);
+    foreach ([1, 2, 3, 4] as $weeksAgo) {
+        $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->week->subWeeks($weeksAgo)]);
+        Attendance::factory()->create(['trooper_id' => $trooper->id, 'section_practice_id' => $practice->id]);
+    }
+
+    DB::enableQueryLog();
+    $statuses = app(SectionPracticeRepository::class)->weekStatuses($this->section->id, $this->week->subWeeks(4), $this->week->subWeek());
+
+    expect(DB::getQueryLog())->toHaveCount(1)
+        ->and($statuses->keys()->sort()->values()->all())->toBe(['2026-09-05', '2026-09-12', '2026-09-19', '2026-09-26'])
+        ->and($statuses->every(fn ($status) => $status->marked === 1 && $status->posted === false))->toBeTrue();
+});
+
+it('counts a trooper whose leave covers a past week as having nothing to mark there, as the screen does', function () {
+    $here = rollcallTrooper($this->section);
+    $away = rollcallTrooper($this->section);
+    $markedThenAway = rollcallTrooper($this->section);
+    // Synced leave (4.4): $away is covered for 19Sep26 and 26Sep26, $markedThenAway for 19Sep26 only,
+    // after a leader had already marked them present that week.
+    Loa::factory()->create(['trooper_id' => $away->id, 'starts_at' => '2026-09-19', 'ends_at' => '2026-10-02']);
+    Loa::factory()->create(['trooper_id' => $markedThenAway->id, 'starts_at' => '2026-09-19', 'ends_at' => '2026-09-25']);
+
+    $posted = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->week->subWeek()]);
+    Attendance::factory()->create(['trooper_id' => $here->id, 'section_practice_id' => $posted->id, 'status' => AttendanceStatus::Present, 'source' => AttendanceSource::Manual]);
+    Attendance::factory()->create(['trooper_id' => $markedThenAway->id, 'section_practice_id' => $posted->id, 'status' => AttendanceStatus::Present, 'source' => AttendanceSource::Manual]);
+    $posted->forceFill(['rollcall_posted_at' => '2026-10-08 17:00:00'])->save();
+
+    $open = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->week->subWeeks(2)]);
+    Attendance::factory()->create(['trooper_id' => $markedThenAway->id, 'section_practice_id' => $open->id, 'status' => AttendanceStatus::Present, 'source' => AttendanceSource::Manual]);
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
+        ->assertInertia(fn ($page) => $page
+            ->where('weekStatus.0', ['date' => '2026-09-26', 'unmarked' => 0, 'posted' => true])
+            ->where('weekStatus.1', ['date' => '2026-09-19', 'unmarked' => 1, 'posted' => false]));
 });

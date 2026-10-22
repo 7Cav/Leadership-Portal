@@ -94,6 +94,12 @@ class RollcallController extends Controller
     /** How long the remembered section is kept: a year, in minutes. */
     private const REMEMBERED_SECTION_MINUTES = 525_600;
 
+    /**
+     * How many past weeks the week navigation flags when they still need work: the KPI window, the
+     * weeks whose marks still feed the at-risk flags (AD-21).
+     */
+    private const STATUS_WEEKS = KpiService::WINDOW_WEEKS;
+
     public function __construct(
         private readonly ScopeResolver $scope,
         private readonly UnitRepository $units,
@@ -174,7 +180,7 @@ class RollcallController extends Controller
             // Resolved on every request, never cached, so an Admin's edit or rollback reaches every section under the
             // company on its next load (3.11, AD-17). Marks are data; the template is only how they are written up.
             'template' => $this->templates->forUnit($section)->toArray(),
-            ...$this->rosterProps($section, $weekStart),
+            ...$this->rosterProps($section, $weekStart, $currentWeek),
         ]);
     }
 
@@ -627,7 +633,7 @@ class RollcallController extends Controller
      *
      * @return array<string, mixed>
      */
-    private function rosterProps(Unit $section, CarbonImmutable $weekStart): array
+    private function rosterProps(Unit $section, CarbonImmutable $weekStart, CarbonImmutable $currentWeek): array
     {
         $practice = $this->practices->find($section->id, $weekStart);
         $marks = $practice ? $this->attendance->forPractice($practice)->keyBy('trooper_id') : collect();
@@ -669,6 +675,7 @@ class RollcallController extends Controller
             // The section's real report for the week was sent (AD-12): the rollcall is read-only.
             // A draft, no report, or a generated demo report (#115) leaves it open.
             'locked' => $this->reports->isSentFor($section->id, $weekStart),
+            'weekStatus' => $this->weekStatus($section, $currentWeek, $roster->modelKeys()),
             'atRisk' => $this->atRisk($section, $weekStart),
             'roster' => [
                 'source' => $lastSync->source,
@@ -682,6 +689,48 @@ class RollcallController extends Controller
                 'confirmation' => $this->confirmationProps($practice),
             ],
         ];
+    }
+
+    /**
+     * Where each of the section's last {@see STATUS_WEEKS} past weeks stands, newest first, so the
+     * week navigation can flag the ones still needing work: `unmarked` troopers placed in the section
+     * now with no practice mark (LOA counts as marked, as on the screen: a trooper whose leave covers
+     * the week, by `LoaCoverage`, has nothing to mark), and whether the rollcall is `posted` with no
+     * mark changed since. A week with no practice row has everyone not on leave unmarked and nothing
+     * posted. An empty roster has nothing to do, so it sends no weeks.
+     *
+     * @param  list<int>  $trooperIds  the troopers placed in the section now
+     * @return list<array{date: string, unmarked: int, posted: bool}>
+     */
+    private function weekStatus(Unit $section, CarbonImmutable $currentWeek, array $trooperIds): array
+    {
+        if ($trooperIds === []) {
+            return [];
+        }
+
+        $firstWeek = $currentWeek->subWeeks(self::STATUS_WEEKS);
+        $covered = [];
+        foreach ($this->loaCoverage->forTroopersOverWeeks($trooperIds, $firstWeek, self::STATUS_WEEKS) as $trooperId => $weeks) {
+            foreach ($weeks as $date => $cover) {
+                if ($cover->isCovered()) {
+                    $covered[$date][] = $trooperId;
+                }
+            }
+        }
+
+        $practices = $this->practices->weekStatuses($section->id, $firstWeek, $currentWeek->subWeek(), $covered);
+        $strength = count($trooperIds);
+
+        return array_map(function (int $back) use ($currentWeek, $practices, $strength, $covered) {
+            $date = $currentWeek->subWeeks($back)->toDateString();
+            $practice = $practices->get($date);
+
+            return [
+                'date' => $date,
+                'unmarked' => max(0, $strength - count($covered[$date] ?? []) - ($practice?->marked ?? 0)),
+                'posted' => $practice?->posted ?? false,
+            ];
+        }, range(1, self::STATUS_WEEKS));
     }
 
     /**

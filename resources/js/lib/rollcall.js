@@ -133,6 +133,20 @@ export function landingStep(troopers, signaturesOpen) {
     return c.unmarked ? 2 : 3;
 }
 
+// The past weeks around `date` that still need work (`weekStatus` from the server: troopers left
+// unmarked, or the rollcall not posted), split into the ones before and after it, newest first.
+export function weeksNeedingWork(weekStatus, date) {
+    const open = weekStatus
+        .filter((week) => week.unmarked > 0 || !week.posted)
+        .map((week) => ({ ...week, what: [week.unmarked && `${week.unmarked} not marked`, !week.posted && 'not posted'].filter(Boolean).join(', ') }))
+        .sort((a, b) => b.date.localeCompare(a.date));
+
+    return {
+        earlier: open.filter((week) => week.date < date),
+        later: open.filter((week) => week.date > date),
+    };
+}
+
 // Step 1 groups by signature, the ones to chase first.
 export function signatureGroups(troopers) {
     const by = (value) => troopers.filter((t) => !isLocked(t) && t.rollcall === value);
