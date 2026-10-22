@@ -39,7 +39,8 @@ interface TrooperRepository
     /**
      * Upsert every row keyed by `cav_id`, updating an existing trooper's synced columns in place
      * (their internal `id` PK never changes) or inserting a new one. Never touches
-     * `primary_section_id` — that column belongs to 2.5/2.7, not the sync handler.
+     * `primary_section_id` — that column belongs to 2.5/2.7, not the sync handler. `updated`
+     * counts only existing troopers whose synced columns actually changed.
      *
      * `cav_position_id` (the primary billet, 1.16) is overwritten like any synced column, null
      * included: a billet Cav no longer reports must not keep conferring command scope. The same

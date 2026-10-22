@@ -68,6 +68,15 @@ it('writes the forum identity and short rank, overwriting stale values and nulli
         ->and($trooper->rank_short)->toBeNull();
 });
 
+it('reports a row that already holds the synced values as neither an insert nor an update', function () {
+    $repo = app(TrooperRepository::class);
+    $row = ['cav_id' => 42, 'rank' => 'Sergeant', 'mos' => '11B', 'tis' => '2020-01-01', 'tig' => '2022-01-01', 'status' => TrooperStatus::Combat->value];
+    $repo->upsertActive([$row]);
+
+    expect($repo->upsertActive([$row]))->toBe(['inserted' => 0, 'updated' => 0])
+        ->and($repo->upsertActive([['rank' => 'Staff Sergeant'] + $row]))->toBe(['inserted' => 0, 'updated' => 1]);
+});
+
 it('counts several inserts and updates independently in one batch', function () {
     $repo = app(TrooperRepository::class);
     Trooper::factory()->create(['cav_id' => 1, 'status' => TrooperStatus::Combat]);

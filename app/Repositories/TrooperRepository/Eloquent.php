@@ -50,7 +50,12 @@ class Eloquent implements TrooperRepository
                 ],
             );
 
-            $trooper->wasRecentlyCreated ? $inserted++ : $updated++;
+            if ($trooper->wasRecentlyCreated) {
+                $inserted++;
+            } elseif ($trooper->wasChanged()) {
+                // An unchanged row is not saved at all, so a sync that changes nothing reports no updates.
+                $updated++;
+            }
         }
 
         return ['inserted' => $inserted, 'updated' => $updated];
