@@ -30,9 +30,12 @@ describe('the shortcut registry', () => {
         }
     });
 
-    it('lists ? for this list and / for the roster search', () => {
+    it('lists ? for this list, / for the trooper search everywhere, and / for the roster search on the roster', () => {
         expect(SHORTCUTS.help.keys).toEqual(['?']);
+        expect(SHORTCUT_GROUPS[0].shortcuts).toContain(SHORTCUTS.search);
+        expect(SHORTCUTS.search).toMatchObject({ keys: ['/'], label: 'Find a trooper' });
         expect(SHORTCUTS['roster.search'].keys).toEqual(['/']);
+        expect(SHORTCUTS['roster.search'].label).toContain('in place of Find a trooper');
     });
 
     it("follows the rollcall card's buttons: one number per signature and per practice mark", () => {
