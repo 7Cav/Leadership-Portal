@@ -5,7 +5,6 @@ namespace App\Milpac;
 use App\Models\CourseStatus;
 use App\Models\Trooper;
 use App\Models\TrooperCourse;
-use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Repositories\SyncRunRepository;
@@ -68,7 +67,7 @@ final class TrooperMilpac
      */
     private function idBlock(Trooper $trooper, ?Unit $section, CarbonImmutable $today): array
     {
-        $departed = $trooper->status === TrooperStatus::Inactive;
+        $departed = ! $trooper->status->isServing();
 
         return [
             'id' => $trooper->id,

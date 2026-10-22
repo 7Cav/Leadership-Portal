@@ -61,6 +61,8 @@ class Eloquent implements TrooperRepository
         return Trooper::query()
             ->when($withinSectionIds !== null, fn (Builder $query) => $query->whereIn('primary_section_id', $withinSectionIds))
             ->whereNotIn('cav_id', $activeCavIds)
+            // Not a serving check: "not already departed", so a trooper holding any other standing who
+            // has left every roster is marked departed too, and the count only reports new departures.
             ->where('status', '!=', TrooperStatus::Inactive->value)
             ->update(['status' => TrooperStatus::Inactive->value]);
     }
@@ -93,7 +95,7 @@ class Eloquent implements TrooperRepository
     {
         return Trooper::query()
             ->whereNotNull('primary_section_id')
-            ->where('status', '!=', TrooperStatus::Inactive->value)
+            ->whereIn('status', TrooperStatus::servingValues())
             ->groupBy('primary_section_id')
             ->selectRaw('primary_section_id, count(*) as total')
             ->pluck('total', 'primary_section_id')
@@ -108,7 +110,7 @@ class Eloquent implements TrooperRepository
         $placed = Trooper::query()
             ->whereKey($trooperId)
             ->whereNull('primary_section_id')
-            ->where('status', '!=', TrooperStatus::Inactive->value)
+            ->whereIn('status', TrooperStatus::servingValues())
             ->update(['primary_section_id' => $sectionId, 'placement_source' => PlacementSource::Manual->value]);
 
         return $placed === 1 ? Trooper::find($trooperId) : null;
@@ -170,7 +172,7 @@ class Eloquent implements TrooperRepository
     {
         return Trooper::query()
             ->whereNull('primary_section_id')
-            ->where('status', '!=', TrooperStatus::Inactive->value);
+            ->whereIn('status', TrooperStatus::servingValues());
     }
 
     public function rosterOf(Unit $unit): Collection
@@ -275,7 +277,7 @@ class Eloquent implements TrooperRepository
     {
         return Trooper::query()
             ->where('primary_section_id', $sectionId)
-            ->where('status', '!=', TrooperStatus::Inactive->value)
+            ->whereIn('status', TrooperStatus::servingValues())
             ->orderBy('id')
             ->get();
     }
@@ -284,7 +286,7 @@ class Eloquent implements TrooperRepository
     {
         return Trooper::query()
             ->whereIn('primary_section_id', collect($sectionIds)->all())
-            ->where('status', '!=', TrooperStatus::Inactive->value)
+            ->whereIn('status', TrooperStatus::servingValues())
             ->orderBy('id')
             ->get();
     }
