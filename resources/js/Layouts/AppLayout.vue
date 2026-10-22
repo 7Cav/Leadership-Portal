@@ -18,6 +18,7 @@ import { useViewAs } from '@/composables/useViewAs';
 import { locate } from './navigation';
 import 'vue-sonner/style.css';
 import AppSidebar from './partials/AppSidebar.vue';
+import KeyboardShortcuts from './partials/KeyboardShortcuts.vue';
 import ViewAsBanner from './partials/ViewAsBanner.vue';
 import ViewAsPicker from './partials/ViewAsPicker.vue';
 
@@ -117,6 +118,9 @@ onMounted(syncFromDocument);
     </SidebarProvider>
 
     <ViewAsPicker />
+
+    <!-- `?` on any page lists every keyboard shortcut (lib/shortcuts.js). -->
+    <KeyboardShortcuts />
 
     <!-- The one toast region for every page, following the theme toggle: a page calls vue-sonner's
          `toast()`, never mounts its own. -->
