@@ -8,7 +8,6 @@ use App\Integration\Crcon\Data\CrconPresence;
 use App\Models\GamePlatform;
 use App\Models\SectionPractice;
 use App\Models\SyncRun;
-use App\Repositories\GamePlayerDismissalRepository;
 use App\Repositories\PracticeCapturePlayerRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\SyncRunRepository;
@@ -42,7 +41,8 @@ use Throwable;
  * a `users` FK, so a `'system'` run is covered by its `sync_runs` row (AD-16's carve-out for system
  * jobs). No authorization here: callers (scheduler, a later leader trigger) decide who may run it.
  * Re-running re-stamps the same row and re-resolves. The unmatched and other-section players are
- * stored per practice (replaced each run, dismissed ones excluded) for the leader's review (7.7).
+ * stored per practice (replaced each run; dismissed ones are stored and filtered on read, so a
+ * dismissal can be undone for this practice, #176) for the leader's review (7.7).
  *
  * A practice whose week is locked — the section's weekly report for it has been really sent, not
  * a demo report (#115) — is not captured at all (AD-12: a sent report froze the week's attendance,
@@ -61,7 +61,6 @@ class CaptureSectionPracticeHandler
         private readonly TrooperGameIdentityRepository $identities,
         private readonly TrooperRepository $troopers,
         private readonly PracticeCapturePlayerRepository $capturePlayers,
-        private readonly GamePlayerDismissalRepository $dismissals,
         private readonly SyncRunRepository $syncRuns,
         private readonly WeeklyReportRepository $reports,
         private readonly AuditEnvelope $audit,
@@ -171,15 +170,17 @@ class CaptureSectionPracticeHandler
 
     /**
      * Keep what the leader must review (7.7): the unmatched and other-section players, replacing
-     * the earlier run's. A player a leader already dismissed is left out (AD-19).
+     * the earlier run's. A player a leader already dismissed is stored too, and left out when the
+     * list is read ({@see PracticeCapturePlayerRepository::unmatchedFor()}, AD-19): the practice
+     * keeps a record of everyone its capture saw, so undoing a dismissal (#176) puts that player
+     * straight back on this practice's list, and the drawer can show which of this practice's
+     * players are dismissed ({@see PracticeCapturePlayerRepository::dismissedFor()}).
      */
     private function persistUnresolved(int $practiceId, GamePlatform $platform, CaptureResult $result): void
     {
-        $dismissed = array_flip($this->dismissals->dismissedAmong($platform, array_map(fn (CrconPlayer $p) => $p->platformId, $result->unmatched)));
-
         $this->capturePlayers->replaceForPractice($practiceId, $platform, [
             ...array_map(fn (CrconPlayer $p) => ['platform_id' => $p->platformId, 'player_name' => $p->playerName, 'trooper_id' => null],
-                array_values(array_filter($result->unmatched, fn (CrconPlayer $p) => ! isset($dismissed[$p->platformId])))),
+                $result->unmatched),
             ...array_map(fn (array $row) => ['platform_id' => $row['player']->platformId, 'player_name' => $row['player']->playerName, 'trooper_id' => $row['trooperId']],
                 $result->otherSection),
         ]);

@@ -179,6 +179,54 @@ describe('UnmatchedDrawer', () => {
         expect(wrapper.emitted('dismissed')[0]).toEqual([PLAYERS[1]]);
     });
 
+    describe('the dismissed list (#176)', () => {
+        const DISMISSED = [{ platform: 'hll', platformLabel: 'Hell Let Loose', playerName: 'Gone', platformId: '7656119000000009' }];
+
+        it('lists this practice\'s dismissed players under a closed disclosure, with the count', () => {
+            const wrapper = factory({ dismissed: DISMISSED });
+            const list = wrapper.find('[data-testid="dismissed-list"]');
+
+            expect(list.find('summary').text()).toBe('Dismissed (1)');
+            expect(list.attributes('open')).toBeUndefined();
+            expect(list.find('[data-testid="dismissed-7656119000000009"]').text()).toContain('Gone');
+            expect(list.find('[data-testid="dismissed-7656119000000009"]').text()).toContain('7656119000000009');
+        });
+
+        it('is not there with nobody dismissed', () => {
+            expect(factory().find('[data-testid="dismissed-list"]').exists()).toBe(false);
+        });
+
+        it('undoes a dismissal through the rollcall, showing it is busy until it answers', async () => {
+            let answer;
+            const restore = vi.fn(() => new Promise((resolve) => (answer = resolve)));
+            const wrapper = factory({ dismissed: DISMISSED, restore });
+            const undo = wrapper.find('[data-testid="dismissed-7656119000000009"] [data-testid="undo-dismiss"]');
+
+            await undo.trigger('click');
+            expect(restore).toHaveBeenCalledWith(DISMISSED[0]);
+            expect(undo.attributes('disabled')).toBeDefined();
+            await undo.trigger('click');
+            expect(restore).toHaveBeenCalledTimes(1);
+
+            answer(true);
+            await flushPromises();
+            expect(undo.attributes('disabled')).toBeUndefined();
+        });
+
+        it('stays open with only dismissed players left, and says nobody is waiting', () => {
+            const wrapper = factory({ players: [], dismissed: DISMISSED });
+
+            expect(wrapper.text()).toContain('Everyone seen on the server is linked or dismissed');
+            expect(wrapper.find('[data-testid="unmatched-link"]').exists()).toBe(false);
+        });
+
+        it('offers no undo when not editable', () => {
+            const wrapper = factory({ dismissed: DISMISSED, restore: vi.fn(), editable: false });
+
+            expect(wrapper.find('[data-testid="undo-dismiss"]').attributes('disabled')).toBeDefined();
+        });
+    });
+
     it('can back out of a dismissal', async () => {
         const wrapper = factory();
         const second = card(wrapper, '7656119000000002');

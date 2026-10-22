@@ -42,6 +42,25 @@ it('lists only unmatched players that are neither dismissed nor linked since, by
     expect($this->repo->unmatchedFor($this->practice->id)->pluck('player_name')->all())->toBe(['Alpha', 'Zed']);
 });
 
+it('lists the practice\'s dismissed players that nobody linked since, by name, and only this practice\'s (#176)', function () {
+    $trooper = Trooper::factory()->create();
+    $by = User::factory()->create()->id;
+    $this->repo->replaceForPractice($this->practice->id, GamePlatform::Hll, [
+        playerRow('1', 'Zed'), playerRow('2', 'Alpha'), playerRow('3', 'Open'), playerRow('4', 'Linked since'), playerRow('5', 'Elsewhere', $trooper->id),
+    ]);
+    foreach (['1' => 'Zed', '2' => 'Alpha', '4' => 'Linked since', '5' => 'Elsewhere', '9' => 'Never seen here'] as $id => $name) {
+        $this->dismissals->dismiss(GamePlatform::Hll, (string) $id, $name, $by);
+    }
+    TrooperGameIdentity::factory()->create(['trooper_id' => $trooper->id, 'platform' => GamePlatform::Hll, 'platform_id' => '4']);
+
+    expect($this->repo->dismissedFor($this->practice->id)->pluck('player_name')->all())->toBe(['Alpha', 'Zed'])
+        ->and($this->repo->dismissedFor(SectionPractice::factory()->create()->id))->toHaveCount(0);
+
+    $this->dismissals->forget(GamePlatform::Hll, '2');
+    expect($this->repo->dismissedFor($this->practice->id)->pluck('player_name')->all())->toBe(['Zed'])
+        ->and($this->repo->unmatchedFor($this->practice->id)->pluck('player_name')->all())->toBe(['Alpha', 'Open']);
+});
+
 it('keeps a dismissal per platform, so the same id on another game is not hidden', function () {
     $this->repo->replaceForPractice($this->practice->id, GamePlatform::Arma, [playerRow('1')]);
     $this->dismissals->dismiss(GamePlatform::Hll, '1', 'P', User::factory()->create()->id);

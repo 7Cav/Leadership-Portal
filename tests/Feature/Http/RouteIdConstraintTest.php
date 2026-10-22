@@ -29,6 +29,7 @@ it('answers a 20-digit id with 404, not a 500', function (string $method, string
     'mark attendance' => ['POST', '/rollcall/99999999999999999999'],
     'link an unmatched player' => ['POST', '/rollcall/99999999999999999999/unmatched/link'],
     'dismiss an unmatched player' => ['POST', '/rollcall/99999999999999999999/unmatched/dismiss'],
+    'undo a dismissal' => ['POST', '/rollcall/99999999999999999999/unmatched/restore'],
     'retry capture' => ['POST', '/rollcall/99999999999999999999/capture'],
     'confirm a practice' => ['POST', '/rollcall/99999999999999999999/confirm'],
     'mark rollcall posted' => ['POST', '/rollcall/99999999999999999999/posted'],

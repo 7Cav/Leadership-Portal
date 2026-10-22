@@ -51,6 +51,22 @@ class Eloquent implements PracticeCapturePlayerRepository
             ->get();
     }
 
+    public function dismissedFor(int $practiceId): Collection
+    {
+        return PracticeCapturePlayer::query()
+            ->where('section_practice_id', $practiceId)
+            ->whereNull('trooper_id')
+            ->whereExists(fn ($query) => $query->from('game_player_dismissals')
+                ->whereColumn('game_player_dismissals.platform', 'practice_capture_players.platform')
+                ->whereColumn('game_player_dismissals.platform_id', 'practice_capture_players.platform_id'))
+            ->whereNotExists(fn ($query) => $query->from('trooper_game_identities')
+                ->whereColumn('trooper_game_identities.platform', 'practice_capture_players.platform')
+                ->whereColumn('trooper_game_identities.platform_id', 'practice_capture_players.platform_id'))
+            ->orderBy('player_name')
+            ->orderBy('id')
+            ->get();
+    }
+
     public function findUnmatched(int $practiceId, GamePlatform $platform, string $platformId): ?PracticeCapturePlayer
     {
         return PracticeCapturePlayer::query()

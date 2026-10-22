@@ -102,6 +102,9 @@ const props = defineProps({
     // `[{ platform, platformLabel, playerName, platformId }]`: players the capture saw that no
     // trooper is linked to (7.7).
     unmatched: { type: Array, default: () => [] },
+    // The same shape: players this practice's capture saw that a leader dismissed, for the drawer's
+    // "Dismissed" list and its Undo (#176).
+    dismissed: { type: Array, default: () => [] },
     // The company's active rollcall template, resolved on this request (3.6, 3.11):
     // `{ state, companyId, versionId, version, body }`. Null for the picker.
     template: { type: Object, default: null },
@@ -166,6 +169,11 @@ const showUnmatched = computed(() => Boolean(props.capture) && unmatchedPlayers.
 // How many are left, for the stepper and the review step (#176): a leader on any step sees that someone who was
 // online is not accounted for yet. It follows the drawer, so it drops as each player is linked or dismissed.
 const unlinkedCount = computed(() => (showUnmatched.value ? unmatchedPlayers.value.length : 0));
+// The players dismissed for this practice (#176): the drawer stays while any are, so a dismissal can be undone
+// after the toast is gone, even once nobody is left to link.
+const dismissedPlayers = ref(props.dismissed);
+watch(() => props.dismissed, (dismissed) => (dismissedPlayers.value = dismissed));
+const showDrawer = computed(() => Boolean(props.capture) && (unmatchedPlayers.value.length > 0 || dismissedPlayers.value.length > 0));
 
 const liveAtRisk = ref(props.atRisk);
 watch(() => props.atRisk, (atRisk) => (liveAtRisk.value = atRisk));
@@ -317,9 +325,37 @@ function onLinked({ player, marked, trooper, atRisk }) {
     else toast.success(`Linked ${player.playerName} to ${name}`, { description: 'Their existing mark was kept.' });
 }
 
+// Both lists are kept in the server's order, by name, so a player moved between them lands where a reload puts them.
+const byName = (a, b) => a.playerName.localeCompare(b.playerName, undefined, { sensitivity: 'base' });
+const moveTo = (list, player) => [...list.filter((p) => !sameUnmatched(p, player)), player].sort(byName);
+
 function onDismissed(player) {
     unmatchedPlayers.value = unmatchedPlayers.value.filter((p) => !sameUnmatched(p, player));
-    toast.success(`Dismissed ${player.playerName}`, { description: 'They stay off the unmatched lists until linked to a trooper.' });
+    dismissedPlayers.value = moveTo(dismissedPlayers.value, player);
+    toast.success(`Dismissed ${player.playerName}`, {
+        description: 'They stay off the unmatched lists until linked to a trooper.',
+        action: { label: 'Undo', onClick: () => restoreDismissed(player) },
+    });
+}
+
+// Undo a dismissal (#176), from the toast or the drawer's "Dismissed" list: one audited save on the server, then the
+// player is back on this practice's list. Resolves whether it worked; a refusal is said in a toast.
+async function restoreDismissed(player) {
+    const result = await postJson(`/rollcall/${props.section.id}/unmatched/restore`, {
+        week: props.week.date,
+        platform: player.platform,
+        platform_id: player.platformId,
+    }).catch(unreachable);
+    if (!result.ok) {
+        toast.error(`Could not undo dismissing ${player.playerName}`, { description: messageFor(result) });
+
+        return false;
+    }
+    dismissedPlayers.value = dismissedPlayers.value.filter((p) => !sameUnmatched(p, player));
+    unmatchedPlayers.value = moveTo(unmatchedPlayers.value, player);
+    toast.success(`${player.playerName} is listed again`, { description: 'Link them to a trooper, or dismiss them again.' });
+
+    return true;
 }
 
 const unmarked = computed(() => rows.value.filter((t) => !isLocked(t) && t.status === null));
@@ -1172,13 +1208,15 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
             </section>
 
             <!-- Aside: the step's tallies -->
-            <aside :class="cn('space-y-4 lg:sticky lg:top-[calc(var(--shell-top,3rem)+5.5rem)]', !(step === 2 && showUnmatched) && 'hidden lg:block')" aria-label="Step details">
+            <aside :class="cn('space-y-4 lg:sticky lg:top-[calc(var(--shell-top,3rem)+5.5rem)]', !(step === 2 && showDrawer) && 'hidden lg:block')" aria-label="Step details">
                 <!-- Under the marks list on a phone, beside it on a wide screen (capture-review.html C). -->
                 <UnmatchedDrawer
-                    v-if="step === 2 && showUnmatched"
+                    v-if="step === 2 && showDrawer"
                     :section-id="section.id"
                     :week="week.date"
                     :players="unmatchedPlayers"
+                    :dismissed="dismissedPlayers"
+                    :restore="restoreDismissed"
                     :troopers="rows"
                     :editable="editable"
                     :disabled-reason="readOnlyReason"

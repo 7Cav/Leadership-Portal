@@ -30,6 +30,15 @@ interface PracticeCapturePlayerRepository
     public function unmatchedFor(int $practiceId): Collection;
 
     /**
+     * The practice's unmatched players a leader has dismissed and nobody has linked since: the
+     * drawer's "Dismissed" list, where a dismissal can be undone (#176). Only players this
+     * practice's capture saw, since the capture stores dismissed players too. By name.
+     *
+     * @return Collection<int, PracticeCapturePlayer>
+     */
+    public function dismissedFor(int $practiceId): Collection;
+
+    /**
      * One stored unmatched player of the practice, however it has been resolved since.
      */
     public function findUnmatched(int $practiceId, GamePlatform $platform, string $platformId): ?PracticeCapturePlayer;

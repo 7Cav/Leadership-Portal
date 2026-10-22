@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test';
 // week was captured with three players no trooper is linked to ("Dubes", "RandoGuy88" and "Halvorsen";
 // Halvorsen.K already holds another HLL ID, so linking them asks to replace or cancel, #176).
 
-test('a section leader links unmatched players to troopers, replacing an old ID only when asked, and dismisses another', async ({ page }) => {
+test('a section leader links unmatched players to troopers, replacing an old ID only when asked, and dismisses another, with undo', async ({ page }) => {
     await page.goto('/__e2e/login/Hartmann.L?to=/rollcall');
     await expect(page).toHaveURL(/\/rollcall\/\d+$/);
     // The count shows in the stepper from whichever step the rollcall opens on (#176).
@@ -52,16 +52,36 @@ test('a section leader links unmatched players to troopers, replacing an old ID 
     await expect(halvoCard.getByRole('button', { name: /^Present/ })).toHaveAttribute('aria-pressed', 'true');
 
     const rando = page.getByTestId('unmatched-76561198000009002');
-    await rando.getByTestId('unmatched-dismiss').click();
-    await rando.getByTestId('confirm-dismiss').click();
-
-    await expect(drawer).toHaveCount(0);
+    const dismissRando = async () => {
+        await rando.getByTestId('unmatched-dismiss').click();
+        await rando.getByTestId('confirm-dismiss').click();
+        await expect(rando).toHaveCount(0);
+        await expect(count).toHaveCount(0);
+    };
+    await dismissRando();
     await expect(page.getByTestId('unmatched-banner')).toHaveCount(0);
-    await expect(count).toHaveCount(0);
 
-    // Every resolution is durable: nothing is listed after a reload, and the marks came from the server.
+    // A dismissal can be undone (#176): from the toast...
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    await expect(rando).toBeVisible();
+    await expect(count).toHaveText('1 unlinked player');
+
+    // ...or from the drawer's Dismissed list, which stays once nobody is left to link.
+    await dismissRando();
+    const dismissed = drawer.getByTestId('dismissed-list');
+    await expect(dismissed.locator('summary')).toHaveText('Dismissed (1)');
+    await dismissed.locator('summary').click();
+    await dismissed.getByTestId('dismissed-76561198000009002').getByTestId('undo-dismiss').click();
+    await expect(rando).toBeVisible();
+    await expect(dismissed).toHaveCount(0);
+
+    await dismissRando();
+
+    // Every resolution is durable: after a reload nobody is waiting, the dismissal is listed, and the marks came from the server.
     await page.reload();
-    await expect(page.getByTestId('unmatched-drawer')).toHaveCount(0);
+    await expect(page.getByTestId('unmatched-banner')).toHaveCount(0);
+    await expect(page.getByTestId('unmatched-76561198000009002')).toHaveCount(0);
+    await expect(page.getByTestId('dismissed-76561198000009002')).toHaveCount(1);
     await expect(page.locator('[data-trooper]').filter({ hasText: 'Dube.R' }).getByRole('button', { name: /^Present/ })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('[data-trooper]').filter({ hasText: 'Halvorsen.K' }).getByRole('button', { name: /^Present/ })).toHaveAttribute('aria-pressed', 'true');
 });

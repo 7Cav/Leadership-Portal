@@ -16,6 +16,14 @@ class Eloquent implements GamePlayerDismissalRepository
         );
     }
 
+    public function find(GamePlatform $platform, string $platformId): ?GamePlayerDismissal
+    {
+        return GamePlayerDismissal::query()
+            ->where('platform', $platform->value)
+            ->where('platform_id', $platformId)
+            ->first();
+    }
+
     public function forget(GamePlatform $platform, string $platformId): bool
     {
         return GamePlayerDismissal::query()
