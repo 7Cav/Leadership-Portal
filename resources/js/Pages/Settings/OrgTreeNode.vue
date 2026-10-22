@@ -7,6 +7,8 @@ defineOptions({ name: 'OrgTreeNode' });
 const props = defineProps({
     node: { type: Object, required: true },
     selectedId: { type: Number, default: null },
+    // The unit just picked from the search box: its row glows briefly so the eye lands on it.
+    highlightId: { type: Number, default: null },
     collapsed: { type: Object, required: true }, // reactive Set of collapsed unit ids
     isAdmin: { type: Boolean, default: false },
 });
@@ -29,8 +31,12 @@ const childType = computed(() => ECHELON_ORDER[ECHELON_ORDER.indexOf(props.node.
             tabindex="0"
             :aria-selected="node.id === selectedId"
             :aria-expanded="node.children.length ? !collapsed.has(node.id) : undefined"
-            class="group relative flex min-h-8 cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] hover:bg-accent/70"
-            :class="{ 'bg-accent font-medium shadow-[inset_2px_0_0_var(--primary)]': node.id === selectedId }"
+            :data-highlighted="node.id === highlightId || undefined"
+            class="group relative flex min-h-8 cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] transition-shadow duration-700 hover:bg-accent/70"
+            :class="{
+                'bg-accent font-medium shadow-[inset_2px_0_0_var(--primary)]': node.id === selectedId,
+                'ring-2 ring-primary ring-inset duration-150': node.id === highlightId,
+            }"
             @click="emit('select', node.id)"
             @keydown.enter.space.prevent="emit('select', node.id)"
         >
@@ -104,6 +110,7 @@ const childType = computed(() => ECHELON_ORDER[ECHELON_ORDER.indexOf(props.node.
                 :key="child.id"
                 :node="child"
                 :selected-id="selectedId"
+                :highlight-id="highlightId"
                 :collapsed="collapsed"
                 :is-admin="isAdmin"
                 @select="(id) => emit('select', id)"
