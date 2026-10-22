@@ -167,9 +167,12 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
 
 // Browser-test sign-in (Story 5.8). The real login is a 7cav.us OAuth round-trip a test cannot
 // drive, so the Playwright server — and only it, running as APP_ENV=e2e against its own throwaway
-// SQLite database — signs a seeded user in by username. Never registered in any other environment.
+// SQLite database — signs a seeded user in by username. Never registered in any other environment,
+// and the closure checks again, so a route cache built under e2e and deployed elsewhere still refuses.
 if (app()->environment('e2e')) {
     Route::get('/__e2e/login/{username}', function (string $username) {
+        abort_unless(app()->environment('e2e'), 404);
+
         $user = app(UserRepository::class)->withUsername($username)->sole();
         auth()->login($user);
         request()->session()->regenerate();

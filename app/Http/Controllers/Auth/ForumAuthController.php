@@ -103,7 +103,8 @@ class ForumAuthController extends Controller
             return $this->backToLogin('Sign-in was cancelled or could not be verified. Please try again.');
         }
 
-        if (! $request->filled('code')) {
+        // `filled()` is true for `?code[]=x`, which the string cast below would turn into a 500.
+        if (! $request->filled('code') || ! is_string($request->query('code'))) {
             Log::warning('Forum OAuth callback rejected: no authorization code and no error parameter.');
 
             return $this->backToLogin('Sign-in was cancelled or could not be verified. Please try again.');
