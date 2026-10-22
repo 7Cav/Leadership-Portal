@@ -184,9 +184,9 @@ function syncNow() {
                     response.status === 403
                         ? "Only an Admin or this unit's leader can start a roster sync."
                         : response.status === 409
-                          ? "A sync that covers this unit is already queued or running."
+                          ? "A sync of this unit, or of a unit above or below it, is already queued or running."
                           : response.status === 429
-                            ? "Too many sync requests. Wait a minute and try again."
+                            ? "Too many sync requests. Wait a few minutes and try again."
                             : response.status === 419
                               ? "Your session expired. Reload the page and try again."
                               : `The sync could not be started (error ${response.status}). Try again.`,

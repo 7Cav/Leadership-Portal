@@ -100,12 +100,11 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('roster-sync', fn (Request $request) => Limit::perMinute(5)
             ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
 
-        // An echelon sync fetches the whole roster from Cav however small its unit, so beyond the per-leader cap there
-        // is a ceiling across every leader: a battalion's worth of unit clicks cannot hammer the Cav API.
-        RateLimiter::for('unit-roster-sync', fn (Request $request) => [
-            Limit::perMinute(3)->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())),
-            Limit::perMinute(20)->by('unit-roster-sync'),
-        ]);
+        // Echelon sync requests, per user. This runs before the controller's leader check, so it is per user only: a
+        // shared bucket here would let members who may not sync spend it and lock every leader out. What bounds the
+        // Cav calls is the controller's per-unit cooldown, which only accepted requests reach.
+        RateLimiter::for('unit-roster-sync', fn (Request $request) => Limit::perMinute(3)
+            ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
     }
 
     /**
