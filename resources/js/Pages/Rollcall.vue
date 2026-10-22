@@ -463,6 +463,9 @@ function weekHref(date) {
 }
 
 const weekQuery = computed(() => (props.week.isCurrent ? null : props.week.date));
+
+// The picker itself, even for a leader the server would land on a section (`?pick`).
+const pickerHref = computed(() => `/rollcall?pick=1${weekQuery.value ? `&week=${weekQuery.value}` : ''}`);
 const weekLabel = computed(() => forumDate(props.week.start));
 const closesLabel = computed(() => {
     const at = new Date(props.week.closes);
@@ -499,7 +502,13 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
         <!-- Page head -->
         <div class="flex flex-wrap items-end gap-x-6 gap-y-3">
             <div class="min-w-0">
-                <p class="text-xs text-muted-foreground">{{ section.designation }} weekly cycle</p>
+                <p class="flex flex-wrap gap-x-1.5 text-xs text-muted-foreground">
+                    <span>{{ section.designation }} weekly cycle</span>
+                    <template v-if="sections.length > 1">
+                        <span aria-hidden="true">·</span>
+                        <Link :href="pickerHref" class="underline-offset-2 hover:text-foreground hover:underline" data-testid="choose-section">Choose a section</Link>
+                    </template>
+                </p>
                 <h1 class="text-xl font-semibold tracking-tight sm:text-[22px]">Rollcall, week of {{ weekLabel }}</h1>
             </div>
             <div class="flex items-center gap-1 text-muted-foreground">

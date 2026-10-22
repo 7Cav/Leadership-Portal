@@ -58,6 +58,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -74,6 +75,16 @@ use Throwable;
  */
 class RollcallController extends Controller
 {
+    /**
+     * The cookie that remembers the section a user last opened, suffixed with their user id so two
+     * people sharing a browser keep their own. Encrypted like every portal cookie, so it is only
+     * ever a section id the portal set; it is still checked against the scope before it is used.
+     */
+    private const REMEMBERED_SECTION_COOKIE = 'rollcall_section_';
+
+    /** How long the remembered section is kept: a year, in minutes. */
+    private const REMEMBERED_SECTION_MINUTES = 525_600;
+
     public function __construct(
         private readonly ScopeResolver $scope,
         private readonly UnitRepository $units,
@@ -94,7 +105,10 @@ class RollcallController extends Controller
     /**
      * The rollcall of `$unit` for the requested week. Without a unit, a section leader lands on
      * their own section and anyone whose scope holds exactly one section on that one; everyone
-     * else gets the section picker.
+     * else gets the section picker. The section the user last opened in this browser wins over
+     * both while it is still in their scope. `?pick=1` always gets the picker (the page's "Choose a
+     * section" link). A view-as preview neither follows nor records the remembered section, so it
+     * never moves the real user's choice.
      */
     public function show(Request $request, ?int $unit = null): Response|RedirectResponse
     {
@@ -111,9 +125,14 @@ class RollcallController extends Controller
         $scope = $this->scope->resolve($user);
         $sections = $this->units->sectionsAmong($scope);
         $weekQuery = $weekStart->equalTo($currentWeek) ? [] : ['week' => $weekStart->toDateString()];
+        $previewing = $this->scope->activeViewAs($user) !== null;
 
         if ($unit === null) {
-            $landing = $this->landingSection($user, $sections);
+            $landing = match (true) {
+                $request->boolean('pick') => null,
+                $previewing => $this->landingSection($user, $sections),
+                default => $this->rememberedSection($request, $user, $sections) ?? $this->landingSection($user, $sections),
+            };
 
             if ($landing !== null) {
                 return redirect()->route('rollcall.show', ['unit' => $landing->id, ...$weekQuery]);
@@ -130,6 +149,10 @@ class RollcallController extends Controller
         abort_unless($scope->contains($unit), 403, 'This section is outside your scope.');
         $section = $this->units->find($unit);
         abort_unless($section?->type === UnitType::Section, 404);
+
+        if (! $previewing) {
+            Cookie::queue(self::REMEMBERED_SECTION_COOKIE.$user->id, (string) $section->id, self::REMEMBERED_SECTION_MINUTES);
+        }
 
         return Inertia::render('Rollcall', [
             'section' => $this->sectionProps($section, $sections),
@@ -484,6 +507,19 @@ class RollcallController extends Controller
     private function requestedWeek(?string $week, CarbonImmutable $currentWeek): CarbonImmutable
     {
         return $week === null ? $currentWeek : WeekOf::start(CarbonImmutable::createFromFormat('!Y-m-d', $week, 'UTC'));
+    }
+
+    /**
+     * The section this user last opened in this browser, when it is still one of `$sections` (their
+     * scope); null otherwise.
+     *
+     * @param  Collection<int, Unit>  $sections
+     */
+    private function rememberedSection(Request $request, User $user, Collection $sections): ?Unit
+    {
+        $id = (int) $request->cookie(self::REMEMBERED_SECTION_COOKIE.$user->id);
+
+        return $id > 0 ? $sections->firstWhere('id', $id) : null;
     }
 
     /**

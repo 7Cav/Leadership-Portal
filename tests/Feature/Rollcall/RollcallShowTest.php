@@ -228,6 +228,76 @@ it('lands a user whose scope holds a single section on it', function () {
     $this->actingAs($this->leader)->get('/rollcall')->assertRedirect("/rollcall/{$this->section->id}");
 });
 
+it('gives the picker to anyone who asks for it with ?pick, instead of landing them on a section', function () {
+    $leader = User::factory()->serving()->create(['cav_id' => 4242]);
+    Trooper::factory()->create(['cav_id' => 4242, 'cav_position_id' => 77]);
+    UnitCommandMapping::factory()->create(['unit_id' => $this->sibling->id, 'cav_position_id' => 77]);
+    PortalRoleGrant::factory()->create(['user_id' => $leader->id, 'unit_id' => $this->section->id]);
+
+    $this->actingAs($leader)->get('/rollcall?pick=1&week=2026-09-30')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('Rollcall')
+            ->where('section', null)
+            ->where('week.date', '2026-09-26')
+            ->has('sections', 2));
+
+    $this->actingAs($this->leader)->get('/rollcall?pick=1')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('section', null)->has('sections', 1));
+});
+
+it('remembers the section a user opens, per user, but not during a view-as preview', function () {
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
+        ->assertOk()
+        ->assertCookie("rollcall_section_{$this->leader->id}", (string) $this->section->id);
+
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->platoon->id]);
+    $this->actingAs($admin)->get("/rollcall/{$this->sibling->id}")
+        ->assertOk()
+        ->assertCookieMissing("rollcall_section_{$admin->id}");
+});
+
+it('lands a leader on the section they last opened, ahead of the one their billet commands', function () {
+    $leader = User::factory()->serving()->create(['cav_id' => 4242]);
+    Trooper::factory()->create(['cav_id' => 4242, 'cav_position_id' => 77]);
+    UnitCommandMapping::factory()->create(['unit_id' => $this->sibling->id, 'cav_position_id' => 77]);
+    PortalRoleGrant::factory()->create(['user_id' => $leader->id, 'unit_id' => $this->section->id]);
+
+    $this->actingAs($leader)->withCookie("rollcall_section_{$leader->id}", (string) $this->section->id)
+        ->get('/rollcall?week=2026-09-30')
+        ->assertRedirect("/rollcall/{$this->section->id}?week=2026-09-26");
+});
+
+it('ignores a remembered section outside the scope, or remembered for another user, and for ?pick', function () {
+    $leader = User::factory()->serving()->create(['cav_id' => 4242]);
+    Trooper::factory()->create(['cav_id' => 4242, 'cav_position_id' => 77]);
+    UnitCommandMapping::factory()->create(['unit_id' => $this->sibling->id, 'cav_position_id' => 77]);
+    PortalRoleGrant::factory()->create(['user_id' => $leader->id, 'unit_id' => $this->section->id]);
+    $outside = Unit::factory()->create(['type' => UnitType::Section, 'name' => '1st Section', 'path' => '800/']);
+
+    $this->actingAs($leader)->withCookie("rollcall_section_{$leader->id}", (string) $outside->id)
+        ->get('/rollcall')->assertRedirect("/rollcall/{$this->sibling->id}");
+    $this->actingAs($leader)->withCookie("rollcall_section_{$this->leader->id}", (string) $this->section->id)
+        ->get('/rollcall')->assertRedirect("/rollcall/{$this->sibling->id}");
+
+    $this->actingAs($leader)->withCookie("rollcall_section_{$leader->id}", (string) $this->section->id)
+        ->get('/rollcall?pick=1')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('section', null)->has('sections', 2));
+});
+
+it('does not follow the remembered section during a view-as preview', function () {
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->platoon->id]);
+
+    $this->actingAs($admin)->withCookie("rollcall_section_{$admin->id}", (string) $this->section->id)
+        ->get('/rollcall')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('section', null)->has('sections', 2));
+});
+
 it('gives anyone else a picker of the sections in their scope, grouped by platoon', function () {
     $platoonLeader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);

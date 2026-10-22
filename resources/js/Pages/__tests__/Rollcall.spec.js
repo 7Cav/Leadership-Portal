@@ -815,4 +815,14 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-testid="telemetry-retry"]').attributes('disabled')).toBeDefined();
         });
     });
+
+    describe('choosing a section', () => {
+        it('keeps a "Choose a section" link to the picker, for the same week', () => {
+            expect(factory().find('[data-testid="choose-section"]').attributes('href')).toBe('/rollcall?pick=1');
+            expect(factory({ week: { ...WEEK, date: '2026-09-26', isCurrent: false } }).find('[data-testid="choose-section"]').attributes('href')).toBe(
+                '/rollcall?pick=1&week=2026-09-26',
+            );
+            expect(factory({ sections: [SECTION] }).find('[data-testid="choose-section"]').exists()).toBe(false);
+        });
+    });
 });
