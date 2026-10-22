@@ -6,6 +6,9 @@ import { expect, test } from '@playwright/test';
 test('a section leader links one unmatched player to a trooper and dismisses another', async ({ page }) => {
     await page.goto('/__e2e/login/Hartmann.L?to=/rollcall');
     await expect(page).toHaveURL(/\/rollcall\/\d+$/);
+    // The count shows in the stepper from whichever step the rollcall opens on (#176).
+    const count = page.getByTestId('unlinked-count');
+    await expect(count).toHaveText('2 unlinked players');
     await page.getByRole('button', { name: /^Step 2, Section practice/ }).click();
 
     await expect(page.getByTestId('unmatched-banner')).toContainText('2 players need a trooper');
@@ -22,6 +25,7 @@ test('a section leader links one unmatched player to a trooper and dismisses ano
 
     await expect(dubes).toHaveCount(0);
     await expect(page.getByTestId('unmatched-banner')).toContainText('1 player needs a trooper');
+    await expect(count).toHaveText('1 unlinked player');
     const dubeCard = page.locator('[data-trooper]').filter({ hasText: 'Dube.R' });
     await expect(dubeCard.getByRole('button', { name: /^Present/ })).toHaveAttribute('aria-pressed', 'true');
 
@@ -31,6 +35,7 @@ test('a section leader links one unmatched player to a trooper and dismisses ano
 
     await expect(drawer).toHaveCount(0);
     await expect(page.getByTestId('unmatched-banner')).toHaveCount(0);
+    await expect(count).toHaveCount(0);
 
     // Both resolutions are durable: nothing is listed after a reload, and the mark came from the server.
     await page.reload();

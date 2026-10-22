@@ -10,14 +10,22 @@ use DateTimeImmutable;
  * source with env keys set (`NotConfigured`, nothing was attempted), or the last capture attempt
  * found no source that could answer (`Failed`, with when). A practice that was never attempted has
  * no state at all, so there is nothing to show.
+ *
+ * `feeds` names the sources a capture of the game tries (their `capture_source` values, in order), so the
+ * screen can say which feed is down ("Hell Let Loose server (CRCON)") instead of a bare "server" that could
+ * read as nobody having been online (#176). Empty when the game is unknown or has no source set up.
  */
 final readonly class CaptureTelemetry
 {
+    /**
+     * @param  list<string>  $feeds
+     */
     private function __construct(
         public CaptureTelemetryState $state,
         public ?GamePlatform $platform,
         public ?DateTimeImmutable $lastAttemptAt,
         public bool $canRetry,
+        public array $feeds = [],
     ) {}
 
     public static function notConfigured(GamePlatform $platform): self
@@ -25,8 +33,11 @@ final readonly class CaptureTelemetry
         return new self(CaptureTelemetryState::NotConfigured, $platform, null, false);
     }
 
-    public static function failed(?GamePlatform $platform, DateTimeImmutable $lastAttemptAt): self
+    /**
+     * @param  list<string>  $feeds
+     */
+    public static function failed(?GamePlatform $platform, DateTimeImmutable $lastAttemptAt, array $feeds = []): self
     {
-        return new self(CaptureTelemetryState::Failed, $platform, $lastAttemptAt, $platform !== null);
+        return new self(CaptureTelemetryState::Failed, $platform, $lastAttemptAt, $platform !== null, $feeds);
     }
 }

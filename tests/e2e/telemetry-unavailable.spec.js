@@ -10,7 +10,8 @@ test('a practice whose last capture failed shows the unavailable banner, the man
     await page.getByRole('button', { name: /^Step 2, Section practice/ }).click();
 
     const banner = page.getByTestId('telemetry-banner');
-    await expect(banner).toContainText('Game server could not be read, last tried');
+    // The banner names the feed that is down (#176), so it never reads as an empty server.
+    await expect(banner).toContainText('Hell Let Loose server (CRCON) could not be read, last tried');
     // The Zulu time carries a "(3 h ago)" note after it.
     await expect(banner).toContainText(/UTC \([^)]*ago\)\. Nothing was pre-filled\. Mark attendance by hand\./);
     const lastTried = await banner.innerText();
@@ -28,9 +29,9 @@ test('a practice whose last capture failed shows the unavailable banner, the man
 
     // Try again: the server is still down, and the screen says so with a new time rather than going quiet.
     await page.getByTestId('telemetry-retry').click();
-    await expect(page.getByText('Game server still could not be read')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Hell Let Loose server (CRCON) still could not be read')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('telemetry-banner')).not.toHaveText(lastTried);
-    await expect(page.getByTestId('telemetry-banner')).toContainText('Game server could not be read');
+    await expect(page.getByTestId('telemetry-banner')).toContainText('Hell Let Loose server (CRCON) could not be read');
     await expect(park.getByRole('button', { name: /^Present/ })).toHaveAttribute('aria-pressed', 'true');
 
     await page.getByTestId('confirm-practice').click();

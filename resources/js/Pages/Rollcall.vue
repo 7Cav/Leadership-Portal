@@ -49,8 +49,10 @@ import { postJson } from '@/lib/postJson';
 import { rollcallPost } from '@/lib/rollcallBbcode';
 import { displayKeys, isShortcut, keyLabel, shortcutIndex, SHORTCUTS } from '@/lib/shortcuts';
 import {
+    CAPTURE_SOURCES,
     countsOf,
     displayName,
+    feedLabel,
     isLocked,
     landingStep,
     optionsFor,
@@ -59,6 +61,7 @@ import {
     signatureGroups,
     signatureLabel,
     stepsOf,
+    unlinkedLabel,
     weeksNeedingWork,
 } from '@/lib/rollcall';
 import { cn } from '@/lib/utils';
@@ -93,7 +96,8 @@ const props = defineProps({
     // capture banner and the confirm action (7.8).
     capture: { type: Object, default: null },
     // Why there is no capture, when the server could not be read or is not set up (7.9):
-    // `{ state: 'failed' | 'not_configured', platformLabel, lastAttemptAt, canRetry }`, else null.
+    // `{ state: 'failed' | 'not_configured', platformLabel, feeds, lastAttemptAt, canRetry }`, else null. `feeds` are the
+    // game's sources a capture tries (`crcon`, ...), so the banner names the feed that is down (#176).
     telemetry: { type: Object, default: null },
     // `[{ platform, platformLabel, playerName, platformId }]`: players the capture saw that no
     // trooper is linked to (7.7).
@@ -159,6 +163,9 @@ function onFireteams({ fireteams: options, troopers }) {
 const unmatchedPlayers = ref(props.unmatched);
 watch(() => props.unmatched, (unmatched) => (unmatchedPlayers.value = unmatched));
 const showUnmatched = computed(() => Boolean(props.capture) && unmatchedPlayers.value.length > 0);
+// How many are left, for the stepper and the review step (#176): a leader on any step sees that someone who was
+// online is not accounted for yet. It follows the drawer, so it drops as each player is linked or dismissed.
+const unlinkedCount = computed(() => (showUnmatched.value ? unmatchedPlayers.value.length : 0));
 
 const liveAtRisk = ref(props.atRisk);
 watch(() => props.atRisk, (atRisk) => (liveAtRisk.value = atRisk));
@@ -433,7 +440,6 @@ async function markPosted() {
 
 // Capture review (7.8): where the marks came from and when (AD-20), and the leader's confirmation
 // of them. Confirming is its own audited save, so held and pending marks are saved first.
-const CAPTURE_SOURCES = { crcon: 'CRCON', battlemetrics: 'BattleMetrics', nightwatch: 'Nightwatch' };
 // A capture with no source recorded reads as "the game server", never as "null".
 const captureLabel = computed(() => (props.capture ? (CAPTURE_SOURCES[props.capture.source] ?? props.capture.source ?? 'the game server') : null));
 const capturedLabel = computed(() => (props.capture ? `${forumDateTime(props.capture.capturedAt)}Z` : null));
@@ -538,7 +544,7 @@ async function retryCapture() {
                 return;
             }
             if ((props.telemetry?.lastAttemptAt ?? null) !== before) {
-                toast.error('Game server still could not be read', { description: 'Nothing was pre-filled. Mark attendance by hand.' });
+                toast.error(`${feedLabel(props.telemetry)} still could not be read`, { description: 'Nothing was pre-filled. Mark attendance by hand.' });
 
                 return;
             }
@@ -589,7 +595,7 @@ watch(
 );
 
 const counts = computed(() => countsOf(rows.value));
-const steps = computed(() => stepsOf(rows.value, posted.value && !editedSincePost.value ? posted.value.at : null));
+const steps = computed(() => stepsOf(rows.value, posted.value && !editedSincePost.value ? posted.value.at : null, unlinkedCount.value));
 
 // The step is part of the URL (`?step=2`), so a step can be linked to and Back walks the steps.
 // Without one the rollcall opens on the first step with work left. The rollcall thread closes on
@@ -863,10 +869,10 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                         <button
                             type="button"
                             :aria-current="step === s.n ? 'step' : undefined"
-                            :aria-label="`Step ${s.n}, ${s.title}, ${s.sub}`"
+                            :aria-label="`Step ${s.n}, ${s.title}, ${s.sub}${s.unlinked ? `, ${unlinkedLabel(s.unlinked)}` : ''}`"
                             :class="
                                 cn(
-                                    'relative grid min-h-[3.75rem] w-full grid-cols-1 items-center justify-items-center gap-x-2.5 gap-y-0.5 rounded-md px-1 pt-1.5 pb-3 text-center hover:bg-accent/70 sm:min-h-14 sm:grid-cols-[auto_minmax(0,1fr)] sm:justify-items-start sm:px-2.5 sm:pt-2 sm:text-left',
+                                    'relative grid h-full min-h-[3.75rem] w-full grid-cols-1 items-center justify-items-center gap-x-2.5 gap-y-0.5 rounded-md px-1 pt-1.5 pb-3 text-center hover:bg-accent/70 sm:min-h-14 sm:grid-cols-[auto_minmax(0,1fr)] sm:justify-items-start sm:px-2.5 sm:pt-2 sm:text-left',
                                     'after:absolute after:inset-x-2.5 after:bottom-1 after:h-[3px] after:rounded-full after:bg-border',
                                     s.state === 'done' && 'after:bg-success/70',
                                     s.state === 'warn' && 'after:bg-warning/70',
@@ -892,6 +898,15 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                             </span>
                             <span class="w-full truncate text-xs font-medium sm:text-[13px] sm:leading-tight sm:font-semibold">{{ s.title }}</span>
                             <span class="hidden w-full truncate text-xs leading-tight text-muted-foreground tabular-nums sm:block">{{ s.sub }}</span>
+                            <!-- Shown on every step and every width (#176): the step leads to the drawer that resolves them. -->
+                            <Badge
+                                v-if="s.unlinked"
+                                variant="outline"
+                                class="max-w-full truncate border-warning/40 bg-warning/8 px-1.5 text-[11px] font-normal text-warning tabular-nums sm:col-start-2"
+                                data-testid="unlinked-count"
+                            >
+                                {{ unlinkedLabel(s.unlinked) }}
+                            </Badge>
                         </button>
                     </li>
                 </ol>
@@ -1067,6 +1082,20 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                         <p class="mt-0.5 max-w-[62ch] text-[13px] text-muted-foreground">
                             Check the totals, copy the forum post into the rollcall thread on 7cav.us, then mark it posted.
                         </p>
+                    </div>
+                    <!-- The rollcall can still be posted, but not without seeing who the server saw and nobody accounted for (#176). -->
+                    <div
+                        v-if="unlinkedCount"
+                        role="status"
+                        class="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-2 rounded-lg border border-warning/40 bg-warning/7 px-3.5 py-2.5 text-[13px]"
+                        data-testid="unlinked-review"
+                    >
+                        <PhUserCircleDashed class="size-4 shrink-0 text-warning" aria-hidden="true" />
+                        <p class="min-w-[14rem] flex-1">
+                            <b class="font-semibold">{{ unlinkedLabel(unlinkedCount) }}</b> seen on the server {{ unlinkedCount === 1 ? 'is' : 'are' }} not
+                            accounted for. Link or dismiss them on the practice step.
+                        </p>
+                        <Button variant="outline" size="sm" data-testid="unlinked-go" @click="go(2)">Go to section practice</Button>
                     </div>
                     <div
                         v-if="posted"

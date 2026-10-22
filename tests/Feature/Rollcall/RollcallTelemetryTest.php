@@ -55,7 +55,7 @@ it('shows the failure with its time and the unchanged manual marks when the last
     captureRun($this, SyncRunStatus::Failure);
 
     telemetryOf($this)->assertInertia(fn (Assert $page) => $page
-        ->where('telemetry', ['state' => 'failed', 'platformLabel' => 'Hell Let Loose', 'lastAttemptAt' => '2026-10-08T15:42:00+00:00', 'canRetry' => true])
+        ->where('telemetry', ['state' => 'failed', 'platformLabel' => 'Hell Let Loose', 'feeds' => ['crcon'], 'lastAttemptAt' => '2026-10-08T15:42:00+00:00', 'canRetry' => true])
         ->where('capture', null)
         ->where('unmatched', [])
         ->where('troopers.0.status', null)
@@ -85,7 +85,22 @@ it('says telemetry is not configured when the game has no source with keys set, 
     captureRun($this, SyncRunStatus::Failure);
 
     telemetryOf($this)->assertInertia(fn (Assert $page) => $page
-        ->where('telemetry', ['state' => 'not_configured', 'platformLabel' => 'Hell Let Loose', 'lastAttemptAt' => null, 'canRetry' => false]));
+        ->where('telemetry', ['state' => 'not_configured', 'platformLabel' => 'Hell Let Loose', 'feeds' => [], 'lastAttemptAt' => null, 'canRetry' => false]));
+});
+
+it('names every feed of the game that was tried, in the order a capture tries them (#176)', function () {
+    config(['services.battlemetrics' => ['base_url' => 'https://bm.test', 'api_key' => 'k', 'server_id' => '1']]);
+    app()->forgetInstance(CaptureSources::class);
+    captureRun($this, SyncRunStatus::Failure);
+
+    telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.feeds', ['crcon', 'battlemetrics']));
+});
+
+it('names no feed when no game can be read for the section', function () {
+    TrooperGameIdentity::query()->delete();
+    captureRun($this, SyncRunStatus::Failure);
+
+    telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.platformLabel', null)->where('telemetry.feeds', []));
 });
 
 it('treats a configured fallback as configured', function () {

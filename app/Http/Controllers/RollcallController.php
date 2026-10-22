@@ -828,8 +828,9 @@ class RollcallController extends Controller
      * (the game's env keys are unset, nothing was attempted) or `failed` (the last capture found no
      * source that could answer, at `lastAttemptAt`). Null when the practice was captured or never
      * attempted. The failure is never read as an empty practice: the marks stay the manual ones.
+     * `feeds` names the sources that were tried, so the banner says which feed is down (#176).
      *
-     * @return array{state: string, platformLabel: ?string, lastAttemptAt: ?string, canRetry: bool}|null
+     * @return array{state: string, platformLabel: ?string, feeds: list<string>, lastAttemptAt: ?string, canRetry: bool}|null
      */
     private function telemetryProps(int $sectionId, ?SectionPractice $practice): ?array
     {
@@ -838,6 +839,7 @@ class RollcallController extends Controller
         return $state instanceof CaptureTelemetry ? [
             'state' => $state->state->value,
             'platformLabel' => $state->platform?->label(),
+            'feeds' => $state->feeds,
             'lastAttemptAt' => $state->lastAttemptAt?->format(DATE_ATOM),
             'canRetry' => $state->canRetry,
         ] : null;
