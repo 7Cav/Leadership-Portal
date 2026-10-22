@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import EmptyState from '@/components/EmptyState.vue';
+import { onHttpException } from '@/lib/httpError';
 import { cn } from '@/lib/utils';
 
 // The link-identity screen (Story 7.2), binding design mockups/v2/link-identity.html variant C
@@ -111,6 +112,8 @@ function save() {
             // request) gets a message of its own rather than a silent form.
             if (!errors.player_name && !errors.platform_id) notice.value = 'This could not be saved. Reload the page and try again.';
         },
+        // A refused or expired request is an HTTP exception, not a validation error: it says why in the same notice.
+        onHttpException: onHttpException('This was not saved', (message) => (notice.value = message)),
     });
 }
 

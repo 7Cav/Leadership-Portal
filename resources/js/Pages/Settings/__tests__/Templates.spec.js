@@ -4,6 +4,7 @@ import { nextTick, reactive } from 'vue';
 import Templates from '../Templates.vue';
 
 const post = vi.fn();
+const toastError = vi.fn();
 const routerGet = vi.fn();
 const routerPost = vi.fn();
 let formState;
@@ -21,11 +22,14 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     },
 }));
 
+vi.mock('vue-sonner', () => ({ toast: { error: (...args) => toastError(...args) } }));
+
 afterEach(() => {
     mockPage.props = {};
     document.body.innerHTML = '';
     vi.unstubAllGlobals();
     post.mockReset();
+    toastError.mockReset();
     routerGet.mockReset();
     routerPost.mockReset();
 });
@@ -85,6 +89,52 @@ describe('Settings/Templates', () => {
         expect(routerGet).toHaveBeenCalledWith('/settings/templates', { company: '2' }, { preserveScroll: true });
     });
 
+    describe('switching company with unsaved changes', () => {
+        const switchTo = async (wrapper, id) => {
+            const select = wrapper.get('[data-testid="company-select"]');
+            select.element.value = id;
+            await select.trigger('change');
+        };
+
+        it('does not ask when nothing was changed', async () => {
+            const confirm = vi.fn();
+            vi.stubGlobal('confirm', confirm);
+
+            await switchTo(page(), '2');
+
+            expect(confirm).not.toHaveBeenCalled();
+            expect(routerGet).toHaveBeenCalled();
+        });
+
+        it.each([
+            ['the template', 'body', '[B]half-written[/B]'],
+            ['the reason', 'reason', 'Adds the squad column'],
+        ])('asks before dropping an edit to %s, and staying keeps the draft and the company', async (_label, field, value) => {
+            const confirm = vi.fn(() => false);
+            vi.stubGlobal('confirm', confirm);
+            const wrapper = page();
+            formState[field] = value;
+
+            await switchTo(wrapper, '2');
+            await nextTick();
+
+            expect(confirm).toHaveBeenCalledOnce();
+            expect(routerGet).not.toHaveBeenCalled();
+            expect(wrapper.get('[data-testid="company-select"]').element.value).toBe('1');
+            expect(formState[field]).toBe(value);
+        });
+
+        it('switches when the Admin agrees to lose the draft', async () => {
+            vi.stubGlobal('confirm', vi.fn(() => true));
+            const wrapper = page();
+            formState.body = '[B]half-written[/B]';
+
+            await switchTo(wrapper, '2');
+
+            expect(routerGet).toHaveBeenCalledWith('/settings/templates', { company: '2' }, { preserveScroll: true });
+        });
+    });
+
     it('shows the active version number and starts an Admin\'s editor from its text', () => {
         const wrapper = page();
 
@@ -114,7 +164,17 @@ describe('Settings/Templates', () => {
 
         await wrapper.get('[data-testid="template-form"]').trigger('submit');
 
-        expect(post).toHaveBeenCalledWith('/settings/templates', { preserveScroll: true });
+        expect(post).toHaveBeenCalledWith('/settings/templates', expect.objectContaining({ preserveScroll: true }));
+    });
+
+    it('says why a save was refused or failed instead of showing the raw error page', async () => {
+        const wrapper = page();
+
+        await wrapper.get('[data-testid="template-form"]').trigger('submit');
+        const { onHttpException } = post.mock.calls[0][1];
+
+        expect(onHttpException({ status: 419 })).toBe(false);
+        expect(toastError).toHaveBeenCalledWith('The template was not saved. Your session expired; reload the page and try again.');
     });
 
     it('asks for a reason in a labelled dialog before making an older version active, and cancelling does nothing', async () => {

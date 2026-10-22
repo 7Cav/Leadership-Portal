@@ -299,7 +299,7 @@ async function copyBbcode() {
         copied.value = true;
         toast.success('BBCode copied', { description: `Paste it as a reply in the ${props.section.designation} rollcall thread.` });
     } catch {
-        toast.error('Could not copy the BBCode', { description: 'Open the BBCode tab and copy it by hand.' });
+        toast.error('Could not copy the BBCode', { description: 'Select the BBCode in the Forum post section above and copy it by hand.' });
     }
 }
 

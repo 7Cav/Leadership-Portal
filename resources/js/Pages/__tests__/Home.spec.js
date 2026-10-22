@@ -88,7 +88,8 @@ describe('Home page', () => {
 
             await vi.advanceTimersByTimeAsync(90_000);
             expect(reload).toHaveBeenCalledTimes(1);
-            expect(reload.mock.calls[0][0]).toMatchObject({ only: ['week'] });
+            // Every prop is that week's: the steps, worklist, KPIs and units come with it, not the week bar alone.
+            expect(reload.mock.calls[0][0]).not.toHaveProperty('only');
         });
     });
 

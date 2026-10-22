@@ -10,6 +10,8 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import EmptyState from '@/components/EmptyState.vue';
+import { toast } from 'vue-sonner';
+import { onHttpException } from '@/lib/httpError';
 
 // Flat grants/units/users lists (mirrors `OrgStructure.vue`'s flat-props pattern) — the target
 // user and node pickers are plain `<select>`s (no roster/Trooper model exists yet for a live
@@ -31,6 +33,7 @@ function submitGrant() {
     form.post('/settings/staff-grants', {
         preserveScroll: true,
         onSuccess: () => form.reset(),
+        onHttpException: onHttpException('The grant was not added', (message) => toast.error(message)),
     });
 }
 

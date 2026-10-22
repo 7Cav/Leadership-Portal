@@ -1,5 +1,6 @@
 import { computed } from 'vue';
 import { usePage } from '@inertiajs/vue3';
+import { forumDate, forumDateTime } from '@/lib/forumDate';
 import { initialsOf } from '@/lib/initials';
 
 // The signed-in identity as the shell shows it (moved out of Home.vue in Story 1.15; the rules
@@ -46,16 +47,17 @@ export function useIdentity() {
     });
 
     // The snapshot is taken once per login and the session lives for 24h (SESSION_LIFETIME=1440),
-    // so a bare `09:14` would read as "an hour ago" the next morning. Show the date too whenever
-    // the fetch was not today: the point of AD-20 is that age is legible.
+    // so a bare `09:14Z` would read as "an hour ago" the next morning. Show the date too whenever
+    // the fetch was not today: the point of AD-20 is that age is legible. UTC, like every other
+    // time in the portal (AD-11), so "today" is the UTC day too.
     const fetchedAtLabel = computed(() => {
         const at = fetchedAt.value;
         if (!at) return null;
 
-        const time = at.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-        const isToday = at.toDateString() === new Date().toDateString();
+        const time = `${forumDateTime(at).split(' ')[1]}Z`;
+        const isToday = at.toISOString().slice(0, 10) === new Date().toISOString().slice(0, 10);
 
-        return isToday ? time : `${at.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${time}`;
+        return isToday ? time : `${forumDate(at)} ${time}`;
     });
 
     // MOS shares this line: it is the same synced value from the same fetch, so one source-and-time
@@ -72,7 +74,7 @@ export function useIdentity() {
     // it must never hide the attribution.
     const provenanceDetail = computed(
         () =>
-            [profile.value?.rank_full, fetchedAt.value && `fetched ${fetchedAt.value.toLocaleString()}`]
+            [profile.value?.rank_full, fetchedAt.value && `fetched ${forumDateTime(fetchedAt.value)} UTC`]
                 .filter(Boolean)
                 .join(', ') || null,
     );

@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Separator } from '@/components/ui/separator';
 import EmptyState from '@/components/EmptyState.vue';
+import { onHttpException } from '@/lib/httpError';
 import OrgTreeNode from './OrgTreeNode.vue';
 
 // Flat units array with `path` (AD-18) — nested here for rendering; the server keeps the
@@ -101,6 +102,7 @@ watch(
 function submitAdd() {
     form.post('/settings/org-structure', {
         onSuccess: () => form.reset('name', 'callsign'),
+        onHttpException: onHttpException('The unit was not added', (message) => toast.error(message)),
     });
 }
 
@@ -138,7 +140,10 @@ const editLegalParents = computed(() => {
 });
 
 function submitEdit() {
-    editForm.patch(`/settings/org-structure/${selectedUnit.value.id}`, { preserveScroll: true });
+    editForm.patch(`/settings/org-structure/${selectedUnit.value.id}`, {
+        preserveScroll: true,
+        onHttpException: onHttpException('The unit was not saved', (message) => toast.error(message)),
+    });
 }
 
 function cancelEdit() {

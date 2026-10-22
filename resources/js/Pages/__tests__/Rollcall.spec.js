@@ -470,6 +470,8 @@ describe('Rollcall page', () => {
 
             await wrapper.find('[data-testid="copy-bbcode"]').trigger('click');
             await vi.waitFor(() => expect(toastError).toHaveBeenCalledWith('Could not copy the BBCode', expect.anything()));
+            // There is no BBCode tab: the text is in the Forum post section.
+            expect(toastError.mock.calls[0][1].description).toBe('Select the BBCode in the Forum post section above and copy it by hand.');
         });
 
         it('marks the rollcall posted and shows when and by whom', async () => {

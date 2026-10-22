@@ -13,7 +13,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useViewAs } from '@/composables/useViewAs';
 import EmptyState from '@/components/EmptyState.vue';
+import { toast } from 'vue-sonner';
 import { forumDate } from '@/lib/forumDate';
+import { onHttpException } from '@/lib/httpError';
 
 // Rollcall template authoring (Story 3.5, AD-17). Everything is shaped by `Settings\TemplatesController`. A save is
 // always a new version and a rollback only moves the active pointer: the page has no way to change a version that
@@ -52,12 +54,27 @@ watch(
     },
 );
 
+// Text typed into the editor that is not saved yet: the other company's template would replace it.
+const unsaved = computed(() => form.body !== (props.active?.body ?? '') || form.reason.trim() !== '');
+// Redraws the company picker on the company still open when the Admin decides to stay.
+const pickerKey = ref(0);
+
 function chooseCompany(event) {
+    // Asks before dropping a draft, as the report and rollcall pages do when leaving with unsaved changes.
+    if (unsaved.value && !window.confirm('Your template changes are not saved. Switch company and lose them?')) {
+        pickerKey.value++;
+
+        return;
+    }
+
     router.get('/settings/templates', { company: event.target.value }, { preserveScroll: true });
 }
 
 function save() {
-    form.post('/settings/templates', { preserveScroll: true });
+    form.post('/settings/templates', {
+        preserveScroll: true,
+        onHttpException: onHttpException('The template was not saved', (message) => toast.error(message)),
+    });
 }
 
 const { active: previewing, subject: previewSubject } = useViewAs();
@@ -147,7 +164,7 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
         <template v-else>
             <div class="grid max-w-sm gap-1.5">
                 <Label for="template-company">Company</Label>
-                <NativeSelect id="template-company" data-testid="company-select" :model-value="company" @change="chooseCompany">
+                <NativeSelect id="template-company" :key="pickerKey" data-testid="company-select" :model-value="company" @change="chooseCompany">
                     <option v-for="item in companies" :key="item.id" :value="item.id">{{ companyLabel(item) }}</option>
                 </NativeSelect>
             </div>
