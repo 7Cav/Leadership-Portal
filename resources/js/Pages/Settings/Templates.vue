@@ -16,6 +16,7 @@ import { render, sampleContext, templateLegend } from '@/lib/bbcode';
 import { rollcallContext } from '@/lib/rollcallBbcode';
 import { useViewAs } from '@/composables/useViewAs';
 import BbcodePreview from '@/components/BbcodePreview.vue';
+import LineDiff from '@/components/LineDiff.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import { toast } from 'vue-sonner';
 import InlineNotice from '@/components/InlineNotice.vue';
@@ -132,6 +133,12 @@ function confirmActivate() {
 const viewing = ref(null);
 const toggleView = (version) => {
     viewing.value = viewing.value === version.id ? null : version.id;
+};
+
+// Which version is compared line by line with the active one, so an Admin sees exactly what a rollback would change.
+const comparing = ref(null);
+const toggleCompare = (version) => {
+    comparing.value = comparing.value === version.id ? null : version.id;
 };
 
 // Every code the template language accepts, grouped, with what it means and an example (Story 3.10). It is built from the
@@ -421,30 +428,43 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                                     <TableCell class="text-muted-foreground">
                                         {{ forumDate(version.createdAt) }}<template v-if="version.createdBy"> by {{ version.createdBy }}</template>
                                     </TableCell>
-                                    <TableCell class="px-4 text-right whitespace-nowrap">
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            :aria-expanded="viewing === version.id"
-                                            :aria-controls="`version-body-${version.id}`"
-                                            :data-testid="`view-${version.id}`"
-                                            @click="toggleView(version)"
-                                        >
-                                            {{ viewing === version.id ? 'Hide' : 'View' }}
-                                        </Button>
-                                        <template v-if="showEditor && !version.isActive">
-                                            <TooltipProvider v-if="readOnlyPreview">
-                                                <Tooltip>
-                                                    <TooltipTrigger as-child>
-                                                        <Button variant="ghost" size="sm" aria-disabled="true" class="cursor-not-allowed opacity-60" :data-testid="`activate-${version.id}`" @click.prevent>
-                                                            <PhLockSimple aria-hidden="true" />Make active
-                                                        </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>{{ readOnlyReason }}</TooltipContent>
-                                                </Tooltip>
-                                            </TooltipProvider>
-                                            <Button v-else variant="ghost" size="sm" :data-testid="`activate-${version.id}`" @click="requestActivate(version)">Make active</Button>
-                                        </template>
+                                    <TableCell class="px-4 text-right">
+                                        <div class="flex flex-wrap items-center justify-end gap-x-1 gap-y-0.5">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                :aria-expanded="viewing === version.id"
+                                                :aria-controls="`version-body-${version.id}`"
+                                                :data-testid="`view-${version.id}`"
+                                                @click="toggleView(version)"
+                                            >
+                                                {{ viewing === version.id ? 'Hide' : 'View' }}
+                                            </Button>
+                                            <Button
+                                                v-if="active && !version.isActive"
+                                                variant="ghost"
+                                                size="sm"
+                                                :aria-expanded="comparing === version.id"
+                                                :aria-controls="`version-compare-${version.id}`"
+                                                :data-testid="`compare-${version.id}`"
+                                                @click="toggleCompare(version)"
+                                            >
+                                                {{ comparing === version.id ? 'Hide comparison' : 'Compare with active' }}
+                                            </Button>
+                                            <template v-if="showEditor && !version.isActive">
+                                                <TooltipProvider v-if="readOnlyPreview">
+                                                    <Tooltip>
+                                                        <TooltipTrigger as-child>
+                                                            <Button variant="ghost" size="sm" aria-disabled="true" class="cursor-not-allowed opacity-60" :data-testid="`activate-${version.id}`" @click.prevent>
+                                                                <PhLockSimple aria-hidden="true" />Make active
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>{{ readOnlyReason }}</TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                                <Button v-else variant="ghost" size="sm" :data-testid="`activate-${version.id}`" @click="requestActivate(version)">Make active</Button>
+                                            </template>
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                                 <TableRow v-if="viewing === version.id" class="hover:bg-transparent">
@@ -454,6 +474,18 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                                             class="max-h-72 overflow-auto rounded-md border border-border bg-muted/30 p-3 font-mono text-xs whitespace-pre-wrap"
                                             :data-testid="`version-body-${version.id}`"
                                         >{{ version.body }}</pre>
+                                    </TableCell>
+                                </TableRow>
+                                <TableRow v-if="active && comparing === version.id && !version.isActive" class="hover:bg-transparent">
+                                    <TableCell colspan="3" class="px-4 pb-3 whitespace-normal">
+                                        <section :id="`version-compare-${version.id}`" :aria-label="`Version ${version.version} compared with the active version ${active.version}`" :data-testid="`version-compare-${version.id}`">
+                                            <p class="mb-1.5 text-xs text-muted-foreground">
+                                                From the active version {{ active.version }} to version {{ version.version }}:
+                                                <span class="font-semibold text-success">+</span> lines are only in version {{ version.version }},
+                                                <span class="font-semibold text-destructive">&minus;</span> lines only in version {{ active.version }}.
+                                            </p>
+                                            <LineDiff :before="active.body" :after="version.body" />
+                                        </section>
                                     </TableCell>
                                 </TableRow>
                             </template>
