@@ -96,6 +96,21 @@ export function countsOf(troopers) {
     };
 }
 
+// Where a section's rollcall stands for the week, for the section picker: `{ state, text }`, where
+// `state` is `done` (marked posted), `todo` (work left) or `none` (no troopers). The words follow
+// the home step matrix; the counts are the server's (`progress` from `weekProgress`), with
+// troopers on LOA neither unsigned nor unmarked, as on this screen.
+export function sectionStatus(progress) {
+    if (!progress) return null;
+    if (progress.posted) return { state: 'done', text: 'Posted' };
+    if (progress.strength === 0) return { state: 'none', text: 'No troopers' };
+    if (!progress.started && progress.strength > progress.onLoa) return { state: 'todo', text: 'Not started' };
+
+    const left = [progress.unsigned && `${progress.unsigned} unsigned`, progress.unmarked && `${progress.unmarked} unmarked`].filter(Boolean);
+
+    return { state: 'todo', text: left.length ? left.join(', ') : 'Not posted' };
+}
+
 // The three steps of the guided week, with whether each is done.
 export function stepsOf(troopers, postedAt = null) {
     const c = countsOf(troopers);

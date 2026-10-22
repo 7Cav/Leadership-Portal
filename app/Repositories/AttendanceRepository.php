@@ -98,14 +98,15 @@ interface AttendanceRepository
 
     /**
      * Where each of `$sectionIds` stands for the week `$weekStart` (the home step matrix, AD-14):
-     * troopers assigned, rollcalls signed, practice marks recorded and whether the practice was
-     * held. Keyed by section id; a section with no assigned trooper is absent. A section with no
+     * troopers assigned, rollcalls signed, practice marks recorded, whether the practice was held,
+     * and for the rollcall's section picker the troopers on LOA, the unsigned ones and when the
+     * rollcall was marked posted. Keyed by section id; a section with no assigned trooper is absent. A section with no
      * practice row yet counts as nothing signed or marked. One query, however many sections.
      *
      * `$excusedTrooperIds` are troopers whose practice status is derived rather than marked (their leave covers the
-     * week, 3.4, as `LoaCoverage` decides; the caller asks it, since a Repository cannot). Each counts as signed and
-     * as marked, once, whether or not a row exists, so a section with someone on leave can reach its full strength on
-     * both steps. They never make the practice held.
+     * week, 3.4, as `LoaCoverage` decides; the caller asks it, since a Repository cannot). Each counts as signed, as
+     * marked and as on LOA, once, whether or not a row exists, and never as unsigned, so a section with someone on
+     * leave can reach its full strength on both steps. They never make the practice held.
      *
      * @param  list<int>  $sectionIds
      * @param  list<int>  $excusedTrooperIds

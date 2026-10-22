@@ -142,9 +142,10 @@ class Eloquent implements AttendanceRepository
         $unsigned = RollcallSignature::Unsigned->value;
         $loa = AttendanceStatus::Loa->value;
         $excused = array_values(array_unique(array_map('intval', $excusedTrooperIds)));
-        // An excused trooper counts as signed and marked whether or not they have a row; `or` keeps one with a row from
-        // counting twice.
+        // An excused trooper counts as signed, marked and on LOA whether or not they have a row, and never as unsigned;
+        // `or` keeps one with a row from counting twice.
         $excusedSql = $excused === [] ? '' : ' or troopers.id in ('.implode(', ', array_fill(0, count($excused), '?')).')';
+        $notExcusedSql = $excused === [] ? '' : ' and troopers.id not in ('.implode(', ', array_fill(0, count($excused), '?')).')';
 
         return Trooper::query()
             ->whereIn('troopers.status', TrooperStatus::servingValues())
@@ -164,6 +165,9 @@ class Eloquent implements AttendanceRepository
             ->selectRaw("coalesce(sum(case when (attendance.rollcall is not null and attendance.rollcall != '{$unsigned}'){$excusedSql} then 1 else 0 end), 0) as signed", $excused)
             ->selectRaw("coalesce(sum(case when attendance.status is not null{$excusedSql} then 1 else 0 end), 0) as marked", $excused)
             ->selectRaw("coalesce(sum(case when attendance.status is not null and attendance.status != '{$loa}' then 1 else 0 end), 0) as held_marks")
+            ->selectRaw("coalesce(sum(case when attendance.status = '{$loa}'{$excusedSql} then 1 else 0 end), 0) as on_loa", $excused)
+            ->selectRaw("coalesce(sum(case when (attendance.status is null or attendance.status != '{$loa}') and (attendance.rollcall is null or attendance.rollcall = '{$unsigned}'){$notExcusedSql} then 1 else 0 end), 0) as not_signed", $excused)
+            ->selectRaw('max(section_practices.rollcall_posted_at) as posted_at')
             ->get()
             ->mapWithKeys(fn (object $row) => [(int) $row->section_id => new SectionWeekProgress(
                 sectionId: (int) $row->section_id,
@@ -171,6 +175,9 @@ class Eloquent implements AttendanceRepository
                 signed: (int) $row->signed,
                 marked: (int) $row->marked,
                 held: (int) $row->held_marks > 0,
+                onLoa: (int) $row->on_loa,
+                unsigned: (int) $row->not_signed,
+                postedAt: $row->posted_at === null ? null : CarbonImmutable::parse($row->posted_at, 'UTC'),
             )]);
     }
 

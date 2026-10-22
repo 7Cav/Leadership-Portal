@@ -321,9 +321,54 @@ it('gives anyone else a picker of the sections in their scope, grouped by platoo
             ->component('Rollcall')
             ->where('section', null)
             ->where('sections', [
-                ['id' => $this->section->id, 'designation' => '2/1/A/1-7', 'name' => '2nd Section', 'platoon' => '1/A/1-7'],
-                ['id' => $this->sibling->id, 'designation' => '3/1/A/1-7', 'name' => '3rd Section', 'platoon' => '1/A/1-7'],
+                ['id' => $this->section->id, 'designation' => '2/1/A/1-7', 'name' => '2nd Section', 'platoon' => '1/A/1-7', 'progress' => EMPTY_PROGRESS],
+                ['id' => $this->sibling->id, 'designation' => '3/1/A/1-7', 'name' => '3rd Section', 'platoon' => '1/A/1-7', 'progress' => EMPTY_PROGRESS],
             ]));
+});
+
+const EMPTY_PROGRESS = ['strength' => 0, 'onLoa' => 0, 'unsigned' => 0, 'unmarked' => 0, 'started' => false, 'posted' => false];
+
+it('tells the picker where each section stands for the week shown', function () {
+    $platoonLeader = User::factory()->serving()->create();
+    PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
+    [$signed, $marked, $onLoa] = [rollcallTrooper($this->section), rollcallTrooper($this->section), rollcallTrooper($this->section)];
+    rollcallTrooper($this->section);
+    rollcallTrooper($this->sibling);
+    $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->week]);
+    Attendance::factory()->create(['trooper_id' => $signed->id, 'section_practice_id' => $practice->id, 'rollcall' => RollcallSignature::WillAttend, 'status' => null, 'source' => null]);
+    Attendance::factory()->create(['trooper_id' => $marked->id, 'section_practice_id' => $practice->id, 'rollcall' => RollcallSignature::Unsigned, 'status' => AttendanceStatus::Present]);
+    Attendance::factory()->create(['trooper_id' => $onLoa->id, 'section_practice_id' => $practice->id, 'rollcall' => RollcallSignature::Unsigned, 'status' => AttendanceStatus::Loa]);
+    $lastWeek = SectionPractice::factory()->create(['section_id' => $this->sibling->id, 'week_start' => $this->week->subWeek()]);
+    $lastWeek->forceFill(['rollcall_posted_at' => '2026-10-01 20:00:00'])->save();
+
+    $this->actingAs($platoonLeader)->get('/rollcall')
+        ->assertInertia(fn ($page) => $page
+            ->where('sections.0.progress', ['strength' => 4, 'onLoa' => 1, 'unsigned' => 2, 'unmarked' => 2, 'started' => true, 'posted' => false])
+            ->where('sections.1.progress', ['strength' => 1, 'onLoa' => 0, 'unsigned' => 1, 'unmarked' => 1, 'started' => false, 'posted' => false]));
+
+    $this->actingAs($platoonLeader)->get('/rollcall?week=2026-09-26')
+        ->assertInertia(fn ($page) => $page->where('sections.1.progress.posted', true)->where('sections.0.progress.started', false));
+
+    // The switcher on a section's page lists the same states.
+    $this->actingAs($platoonLeader)->get("/rollcall/{$this->section->id}")
+        ->assertInertia(fn ($page) => $page->where('sections.0.progress.unsigned', 2));
+});
+
+it('counts a trooper whose synced leave covers the week as on LOA in the picker, not unsigned or unmarked', function () {
+    $platoonLeader = User::factory()->serving()->create();
+    PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
+    $present = rollcallTrooper($this->section);
+    $away = rollcallTrooper($this->section);
+    $needsReview = rollcallTrooper($this->section);
+    // Leave comes from the LOA sync (4.4), never from a stored `loa` mark: the screen reads it through `LoaCoverage`.
+    Loa::factory()->create(['trooper_id' => $away->id, 'starts_at' => '2026-10-03', 'ends_at' => '2026-10-16']);
+    Loa::factory()->needsReview()->create(['trooper_id' => $needsReview->id, 'posted_at' => '2026-10-05 12:00:00']);
+    $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->week]);
+    Attendance::factory()->create(['trooper_id' => $present->id, 'section_practice_id' => $practice->id, 'rollcall' => RollcallSignature::WillAttend, 'status' => AttendanceStatus::Present]);
+
+    $this->actingAs($platoonLeader)->get('/rollcall')
+        ->assertInertia(fn ($page) => $page
+            ->where('sections.0.progress', ['strength' => 3, 'onLoa' => 1, 'unsigned' => 1, 'unmarked' => 1, 'started' => true, 'posted' => false]));
 });
 
 it('gives a user with no sections in scope an empty picker', function () {

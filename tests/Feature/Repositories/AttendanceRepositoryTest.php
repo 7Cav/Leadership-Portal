@@ -240,8 +240,8 @@ it('counts each section\'s week progress in one pass: strength, signed, marked a
     $progress = $repo->weekProgress([$busy->id, $quiet->id, $empty->id], $week);
 
     expect($progress->keys()->all())->toEqualCanonicalizing([$busy->id, $quiet->id])
-        ->and($progress->get($busy->id))->toEqual(new SectionWeekProgress($busy->id, 3, 1, 2, true))
-        ->and($progress->get($quiet->id))->toEqual(new SectionWeekProgress($quiet->id, 2, 0, 0, false))
+        ->and($progress->get($busy->id))->toEqual(new SectionWeekProgress($busy->id, 3, 1, 2, true, onLoa: 1, unsigned: 1))
+        ->and($progress->get($quiet->id))->toEqual(new SectionWeekProgress($quiet->id, 2, 0, 0, false, onLoa: 0, unsigned: 2))
         ->and($repo->weekProgress([], $week))->toBeEmpty();
 });
 
@@ -258,14 +258,32 @@ it('counts an excused trooper as signed and marked once, row or not, and never a
 
     expect($repo->weekProgress([$section->id], $week)->get($section->id)->marked)->toBe(1)
         ->and($repo->weekProgress([$section->id], $week, [$noRow->id, $signedOnly->id, $marked->id, $outsider->id])->get($section->id))
-        ->toEqual(new SectionWeekProgress($section->id, 3, 3, 3, true));
+        ->toEqual(new SectionWeekProgress($section->id, 3, 3, 3, true, onLoa: 3, unsigned: 0));
 
     // Nobody marked by hand: the excused troopers alone do not make the practice held.
     $quiet = Unit::factory()->create(['type' => UnitType::Section]);
     $away = Trooper::factory()->create(['primary_section_id' => $quiet->id]);
 
     expect($repo->weekProgress([$quiet->id], $week, [$away->id])->get($quiet->id))
-        ->toEqual(new SectionWeekProgress($quiet->id, 1, 1, 1, false));
+        ->toEqual(new SectionWeekProgress($quiet->id, 1, 1, 1, false, onLoa: 1, unsigned: 0));
+});
+
+it("reads when each section's rollcall was marked posted with its week progress, in the same query", function () {
+    $week = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');
+    [$posted, $open] = Unit::factory()->count(2)->create(['type' => UnitType::Section]);
+    Trooper::factory()->create(['primary_section_id' => $posted->id]);
+    Trooper::factory()->create(['primary_section_id' => $open->id]);
+    $practice = app(SectionPracticeRepository::class)->findOrCreate($posted->id, $week);
+    $practice->forceFill(['rollcall_posted_at' => '2026-10-06 18:30:00'])->save();
+    app(SectionPracticeRepository::class)->findOrCreate($posted->id, $week->subWeek())->forceFill(['rollcall_posted_at' => '2026-09-29 10:00:00'])->save();
+    $repo = app(AttendanceRepository::class);
+
+    DB::enableQueryLog();
+    $progress = $repo->weekProgress([$posted->id, $open->id], $week);
+
+    expect(DB::getQueryLog())->toHaveCount(1)
+        ->and($progress->get($posted->id)->postedAt?->toIso8601String())->toBe('2026-10-06T18:30:00+00:00')
+        ->and($progress->get($open->id)->postedAt)->toBeNull();
 });
 
 // 7.6 / AD-14, AD-22: capture's write — present/auto, never over a leader's mark.
