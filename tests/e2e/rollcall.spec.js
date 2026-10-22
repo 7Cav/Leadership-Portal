@@ -82,6 +82,9 @@ test('trooper cards keep the name visible when the sidebar and summary leave the
         }
     };
 
+    // A week with no work left opens on the review step, which has no cards, so start from the signatures step.
+    await page.getByRole('button', { name: /^Step 1,/ }).click();
+    await expect(page).toHaveURL(/step=1/);
     await checkCards();
     await page.getByRole('button', { name: /^Step 2, Section practice/ }).click();
     await expect(page).toHaveURL(/step=2/);
