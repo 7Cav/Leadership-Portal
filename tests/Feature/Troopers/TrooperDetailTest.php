@@ -229,11 +229,11 @@ describe('the ID block (6.3)', function () {
 });
 
 describe('where it came from (AD-20)', function () {
-    it('names the Cav roster and its last successful sync', function () {
+    it('names the roster source and its last successful sync', function () {
         SyncRun::factory()->create(['source' => 'roster', 'status' => SyncRunStatus::Success, 'finished_at' => '2026-10-08 09:30:00']);
 
         milpacOpen($this->actingAs($this->leader), milpacTrooper($this->section1))->assertInertia(fn ($page) => $page
-            ->where('sync.source', 'Cav roster')
+            ->where('sync.source', 'milpac')
             ->where('sync.lastSuccessAt', '2026-10-08T09:30:00+00:00')
             ->where('sync.stale', false)
             ->where('sync.lastAttempt', null));

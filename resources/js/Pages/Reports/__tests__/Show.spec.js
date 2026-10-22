@@ -54,7 +54,7 @@ function props(overrides = {}) {
         missingChildren: [],
         history: [],
         reasons: [{ value: 'sick', label: 'Sick' }],
-        rosterSync: { source: 'Cav roster (api.7cav.us)', at: null },
+        rosterSync: { source: 'milpac', at: null },
         computedAt: '2026-10-08T16:20:00+00:00',
         canWrite: true,
         ...overrides,

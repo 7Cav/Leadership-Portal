@@ -84,6 +84,7 @@ describe('KpiTiles', () => {
 
         it.each([
             ['stale', 'overdue'],
+            ['partial', 'Last roster sync was incomplete. Strength is from 08Oct26 09:14Z'],
             ['failed', 'Last roster sync failed. Strength is from 08Oct26 09:14Z'],
         ])('surfaces a %s sync as a warning, not a silent gap', (state, text) => {
             const el = note({ ...ROSTER, state });

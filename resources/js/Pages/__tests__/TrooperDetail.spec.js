@@ -46,7 +46,7 @@ const awards = (items = [], available = true) => ({ available, items });
 
 const timeline = (entries = [], legend = []) => ({ entries, legend });
 
-const sync = (overrides = {}) => ({ source: 'Cav roster', lastSuccessAt: '2026-10-08T09:30:00+00:00', stale: false, lastAttempt: null, ...overrides });
+const sync = (overrides = {}) => ({ source: 'milpac', lastSuccessAt: '2026-10-08T09:30:00+00:00', stale: false, lastAttempt: null, ...overrides });
 
 const page = (props = {}) => mount(TrooperDetail, { props: { trooper: trooper(), courses: courses(), awards: awards(), timeline: timeline(), actions: [], sync: sync(), ...props } });
 
@@ -157,7 +157,7 @@ describe('TrooperDetail', () => {
         it('names the source and the last successful sync in forum convention', () => {
             const wrapper = page();
 
-            expect(wrapper.get('[data-testid="source-line"]').text()).toContain('Source: Cav roster');
+            expect(wrapper.get('[data-testid="source-line"]').text()).toContain('Source: milpac');
             expect(wrapper.get('[data-testid="last-synced"]').text()).toBe('08Oct26 09:30 UTC');
             expect(wrapper.find('[data-testid="stale-notice"]').exists()).toBe(false);
         });
@@ -173,6 +173,13 @@ describe('TrooperDetail', () => {
             const wrapper = page({ sync: sync({ stale: true, lastAttempt: { status: 'partial', at: '2026-10-08T11:00:00+00:00' } }) });
 
             expect(wrapper.get('[data-testid="stale-notice"]').text()).toContain('only partly applied');
+        });
+
+        it('says the sync is overdue when the last good copy is too old and nothing failed', () => {
+            const wrapper = page({ sync: sync({ stale: true, lastAttempt: null }) });
+
+            expect(wrapper.get('[data-testid="stale-notice"]').text()).toContain('has not synced recently');
+            expect(wrapper.get('[data-testid="stale-notice"]').text()).not.toContain('failed');
         });
 
         it('says never synced, with a warning, when no sync has succeeded', () => {

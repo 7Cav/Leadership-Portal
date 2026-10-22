@@ -150,9 +150,19 @@ const syncDetail = computed(() => {
         lines.push(
             `The last attempt (${clock(props.sync.lastAttempt.at)}) ${props.sync.lastAttempt.status === "partial" ? "skipped some rows" : "failed"}; this is the last good copy.`,
         );
+    } else if (props.sync.stale) {
+        lines.push("No sync has succeeded recently; this is the last good copy.");
     }
 
     return lines.join(" ");
+});
+// Why the stamp warns: the last attempt's outcome, or, with no failed attempt to name, an overdue sync.
+const staleReason = computed(() => {
+    if (!props.sync.lastAttempt) return "overdue";
+
+    return props.sync.lastAttempt.status === "partial"
+        ? "last attempt incomplete"
+        : "last attempt failed";
 });
 
 // While previewing someone else (1.13) the server refuses every write, so the control says so up
@@ -354,12 +364,7 @@ function syncNow() {
                             <PhArrowsClockwise v-else />
                             {{ syncLabel
                             }}<template v-if="sync.stale"
-                                >,
-                                {{
-                                    sync.lastAttempt?.status === "partial"
-                                        ? "last attempt incomplete"
-                                        : "last attempt failed"
-                                }}</template
+                                >, {{ staleReason }}</template
                             >
                         </Badge>
                     </TooltipTrigger>

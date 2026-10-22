@@ -31,13 +31,15 @@ const tiles = computed(() =>
 );
 
 const roster = computed(() => props.kpis.roster);
-const rosterProblem = computed(() => ['failed', 'stale', 'never'].includes(roster.value.state));
+const rosterProblem = computed(() => ['failed', 'partial', 'stale', 'never'].includes(roster.value.state));
 const rosterText = computed(() => {
     const at = roster.value.syncedAt ? forumDateTime(roster.value.syncedAt) : null;
+    const source = roster.value.source;
 
     return {
-        ok: `Roster synced from milpac ${at}Z`,
-        stale: `Roster last synced from milpac ${at}Z, overdue`,
+        ok: `Roster synced from ${source} ${at}Z`,
+        stale: `Roster last synced from ${source} ${at}Z, overdue`,
+        partial: `Last roster sync was incomplete. Strength is from ${at}Z`,
         failed: at ? `Last roster sync failed. Strength is from ${at}Z` : 'The roster sync failed. Strength is not yet available',
         never: 'The roster has not synced yet',
     }[roster.value.state];

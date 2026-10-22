@@ -18,6 +18,7 @@ use App\Kpi\RollupKpis;
 use App\Kpi\TrooperAttendance;
 use App\Kpi\UnitKpis;
 use App\Kpi\WeeklyReportKpis;
+use App\Milpac\RosterProvenance;
 use App\Models\Attendance;
 use App\Models\Trooper;
 use App\Models\UnaccountedReason;
@@ -28,7 +29,6 @@ use App\Models\WeeklyReport;
 use App\Models\WeeklyReportStatus;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\SectionPracticeRepository;
-use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
@@ -74,7 +74,7 @@ class ReportController extends Controller
         private readonly TrooperRepository $troopers,
         private readonly SectionPracticeRepository $practices,
         private readonly AttendanceRepository $attendance,
-        private readonly SyncRunRepository $syncRuns,
+        private readonly RosterProvenance $rosterSync,
         private readonly UserRepository $users,
     ) {}
 
@@ -105,7 +105,7 @@ class ReportController extends Controller
 
         $roster = $isLeaf ? $this->troopers->rosterOf($unit) : collect();
         $parent = $unit->parent_id === null ? null : $this->units->find($unit->parent_id);
-        $lastSync = $this->syncRuns->latestSuccessful('roster');
+        $lastSync = $this->rosterSync->current();
         $senders = $this->senderLabels(collect([$report])->merge($history)->filter(fn (?WeeklyReport $r) => $r?->status === WeeklyReportStatus::Sent));
 
         return Inertia::render('Reports/Show', [
@@ -142,7 +142,7 @@ class ReportController extends Controller
             'missingChildren' => $snapshot?->missingChildren ?? [],
             'history' => $history->map(fn (WeeklyReport $past) => $this->historyRow($past, $senders))->values(),
             'reasons' => collect(UnaccountedReason::cases())->map(fn (UnaccountedReason $r) => ['value' => $r->value, 'label' => $r->label()])->values(),
-            'rosterSync' => ['source' => 'Cav roster (api.7cav.us)', 'at' => $lastSync?->finished_at?->toIso8601String()],
+            'rosterSync' => ['source' => $lastSync->source, 'at' => $lastSync->lastSyncedAt?->toIso8601String()],
             'computedAt' => CarbonImmutable::now('UTC')->toIso8601String(),
         ]);
     }
