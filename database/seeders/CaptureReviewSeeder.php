@@ -21,9 +21,11 @@ use Database\Seeders\Concerns\RefusesOutsideDevEnvironments;
 use Illuminate\Database\Seeder;
 
 /**
- * A section whose practice this week was captured with two players no trooper is linked to, for the
+ * A section whose practice this week was captured with three players no trooper is linked to, for the
  * unmatched-players drawer's browser test (Story 7.7), seeded by the e2e setup beside the other
- * seeders under its own company and usernames (`Hartmann.L` leads 3/2/C/1-7). A second section
+ * seeders under its own company and usernames (`Hartmann.L` leads 3/2/C/1-7). One of them,
+ * "Halvorsen", is meant for `Halvorsen.K`, who already holds another HLL ID: the replace-or-cancel
+ * question (#176). A second section
  * (4/2/C/1-7, led by `Brandt.K`) holds a captured practice with two auto pre-marks and one trooper the
  * server did not see, for the review-and-confirm test (Story 7.8). A third (5/2/C/1-7, led by `Voss.H`)
  * holds a practice whose last capture failed, with an HLL-linked trooper so it can be retried, for the
@@ -48,9 +50,14 @@ class CaptureReviewSeeder extends Seeder
         foreach ([['SGT', 'Hartmann.L'], ['PFC', 'Dube.R'], ['PVT', 'Nakamura.T'], ['SPC', 'Halvorsen.K']] as $i => [$rank, $username]) {
             $cavId = (int) ($tag.$i);
             User::factory()->create(['username' => $username, 'cav_id' => $cavId]);
-            Trooper::factory()->create([
+            $trooper = Trooper::factory()->create([
                 'cav_id' => $cavId, 'rank_short' => $rank, 'username' => $username, 'status' => TrooperStatus::Combat, 'primary_section_id' => $section->id,
             ]);
+
+            // Already linked to another HLL account, so linking the captured "Halvorsen" to them asks to replace (#176).
+            if ($username === 'Halvorsen.K') {
+                TrooperGameIdentity::factory()->create(['trooper_id' => $trooper->id, 'platform' => GamePlatform::Hll, 'player_name' => 'HalvoOld', 'platform_id' => '76561198000009099']);
+            }
         }
         $this->leads('Hartmann.L', $section, (int) "{$tag}90");
 
@@ -59,6 +66,7 @@ class CaptureReviewSeeder extends Seeder
         app(PracticeCapturePlayerRepository::class)->replaceForPractice($practice->id, GamePlatform::Hll, [
             ['platform_id' => '76561198000009001', 'player_name' => 'Dubes', 'trooper_id' => null],
             ['platform_id' => '76561198000009002', 'player_name' => 'RandoGuy88', 'trooper_id' => null],
+            ['platform_id' => '76561198000009003', 'player_name' => 'Halvorsen', 'trooper_id' => null],
         ]);
 
         $this->seedReviewSection($platoon, $tag, $now);

@@ -424,7 +424,10 @@ class RollcallController extends Controller
      * is written and the trooper pre-marked present through audited Commands, scope-gated inside
      * the handler (AD-8). Answers JSON for the drawer: the trooper's resulting mark (a manual one is
      * kept, so `marked` can be false) and the refreshed at-risk flags. 422 carries the readable
-     * reason inline — including "Already linked to <trooper> on <game>".
+     * reason inline — including "Already linked to <trooper> on <game>". A trooper who already holds
+     * another identity on that game is a 422 with `reason: has_other_identity` and that identity in
+     * `current`, which the drawer turns into "replace or cancel"; the leader's "Replace" sends the
+     * same request again with `replace: true` (#176).
      */
     public function linkUnmatched(Request $request, int $unit, LinkUnmatchedPlayerHandler $handler): JsonResponse
     {
@@ -433,6 +436,7 @@ class RollcallController extends Controller
             'platform' => ['required', Rule::enum(GamePlatform::class)],
             'platform_id' => ['required', 'string', 'max:255'],
             'trooper_id' => ['required', 'integer'],
+            'replace' => ['sometimes', 'boolean'],
         ]);
 
         if ($validator->fails()) {
@@ -444,11 +448,16 @@ class RollcallController extends Controller
         $trooperId = (int) $request->input('trooper_id');
 
         try {
-            $result = $handler->handle($request->user(), new LinkUnmatchedPlayer($unit, $weekStart, $platform, $request->input('platform_id'), $trooperId));
+            $result = $handler->handle($request->user(), new LinkUnmatchedPlayer(
+                $unit, $weekStart, $platform, $request->input('platform_id'), $trooperId, $request->boolean('replace'),
+            ));
         } catch (GameIdentityForbiddenException $e) {
             return response()->json(['message' => $e->getMessage()], 403);
         } catch (UnmatchedPlayerResolutionException $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
+            return response()->json(array_filter(
+                ['message' => $e->getMessage(), 'reason' => $e->reason, 'current' => $e->current],
+                fn ($value) => $value !== null,
+            ), 422);
         } catch (GameIdentityLinkException) {
             return response()->json(['message' => $this->collisionMessage($platform, $request->input('platform_id'))], 422);
         } catch (Throwable $e) {
