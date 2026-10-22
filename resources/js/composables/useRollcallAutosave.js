@@ -11,6 +11,11 @@ export const DEBOUNCE_MS = 700;
 // all present"): it is not sent until the hold expires, so Undo can still take it back, because a
 // saved practice mark cannot be cleared again (3.3).
 //
+// A week whose section report has been sent is locked (AD-12): the server answers any save for it
+// with a 409 and `locked`. That refusal is final, so the autosave stops instead of retrying: it drops
+// what is queued (it can never be saved), ignores later changes, and reports `locked` with the
+// server's message, so the page can turn read-only and reload the frozen marks.
+//
 // What to tell the leader about a failed request (`{ status, data }` as `postJson` resolves).
 export function messageFor(result) {
     if (result.data?.message) return result.data.message;
@@ -38,19 +43,21 @@ export function unreachable(error) {
 // turns a trooper id into a name for messages. `onLeave` hears the troopers the server says are on
 // leave this week (a leave synced after the page loaded), so the page can lock their rows. `onRejected`
 // hears the troopers whose marks were refused for good, so the page can stop showing marks that never saved.
+// `onLocked` runs once, when a save finds the week locked.
 export function useRollcallAutosave({
     url,
     week,
     onSaved = () => {},
     onLeave = () => {},
     onRejected = () => {},
+    onLocked = () => {},
     nameOf = (id) => `#${id}`,
     post = postJson,
     now = () => Date.now(),
 }) {
     // trooperId → { status?, rollcall?, notBefore }
     const pending = new Map();
-    const state = ref('idle'); // idle | saving | saved | error
+    const state = ref('idle'); // idle | saving | saved | error | locked
     const savedAt = ref(null);
     const error = ref(null);
     const pendingCount = ref(0);
@@ -60,6 +67,9 @@ export function useRollcallAutosave({
     // Troopers the server says are on leave this week (3.4): their practice status comes from the
     // leave, so a practice mark for them is never sent again. Their signature still saves.
     const onLeaveIds = ref([]);
+    // The server's reason once a save found the week locked (its report was sent); null until then.
+    const lockedMessage = ref(null);
+    const locked = computed(() => state.value === 'locked');
     let timer = null;
     let inFlight = null;
 
@@ -71,7 +81,7 @@ export function useRollcallAutosave({
     }
 
     function queue(trooperId, field, value, { holdMs = 0 } = {}) {
-        if (rejected.value.includes(trooperId)) return;
+        if (locked.value || rejected.value.includes(trooperId)) return;
         if (field === 'status' && onLeaveIds.value.includes(trooperId)) return;
         const entry = pending.get(trooperId) ?? { notBefore: 0 };
         entry[field] = value;
@@ -139,6 +149,18 @@ export function useRollcallAutosave({
                     } catch (e) {
                         console.error('Rollcall onSaved handler failed', e);
                     }
+                } else if (result.status === 409 && result.data?.locked) {
+                    // Final: nothing queued for this week can ever save. Drop it all and stop.
+                    pending.clear();
+                    sync();
+                    state.value = 'locked';
+                    lockedMessage.value = messageFor(result);
+                    error.value = null;
+                    try {
+                        onLocked(lockedMessage.value);
+                    } catch (e) {
+                        console.error('Rollcall onLocked handler failed', e);
+                    }
                 } else if (leaveCovered && refused.size) {
                     // On leave this week: drop just their practice marks, keep their signatures, and
                     // send the batch again at once. The Command refuses only the practice mark.
@@ -189,7 +211,9 @@ export function useRollcallAutosave({
         if (state.value === 'idle' && pending.size) return flush({ includeHeld });
         if (state.value !== 'error') reschedule();
 
-        return state.value !== 'error';
+        // A batch refused as locked was not saved either: a caller waiting on it (marking the
+        // rollcall posted) must not go on as if it had been.
+        return state.value !== 'error' && state.value !== 'locked';
     }
 
     function reschedule() {
@@ -239,5 +263,5 @@ export function useRollcallAutosave({
         removeVisitGuard();
     });
 
-    return { queue, cancel, flush, retry, state, savedAt, error, hasUnsaved, pendingCount, rejected, rejectedMessage, onLeaveIds, onLeaveMessage };
+    return { queue, cancel, flush, retry, state, savedAt, error, hasUnsaved, pendingCount, rejected, rejectedMessage, onLeaveIds, onLeaveMessage, locked, lockedMessage };
 }

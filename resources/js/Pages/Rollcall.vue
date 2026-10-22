@@ -92,6 +92,8 @@ const props = defineProps({
     // Whether the viewer may write here: false for a section they only see through a staff grant,
     // which reads but never marks, confirms or posts (the server refuses those writes).
     canWrite: { type: Boolean, default: false },
+    // The section's weekly report for this week has been sent (AD-12): the rollcall is read-only.
+    locked: { type: Boolean, default: false },
 });
 
 const page = usePage();
@@ -120,12 +122,15 @@ watch(() => props.atRisk, (atRisk) => (liveAtRisk.value = atRisk));
 // A view-as preview (Story 1.13) and a staff grant are read-only: the server refuses every write
 // then, so the screen says so up front instead of letting saves fail. So is a week before the week floor.
 const viewAs = computed(() => page.props.viewAs ?? null);
-const editable = computed(() => !viewAs.value && props.canWrite && !props.week.beforeFloor);
-const readOnlyReason = computed(() => {
+// Why nothing here may be written at all, posting included: a preview, a staff grant, or a week
+// before the week floor. A sent report's lock is separate below, since it leaves posting open.
+const previewReason = computed(() => {
     if (viewAs.value) return `Read-only while viewing as ${viewAs.value.label}`;
     if (!props.canWrite) return 'Read-only: a staff grant lets you view this section, not mark it';
     return props.week.beforeFloor ? 'Read-only, this week is too far back to change' : null;
 });
+
+const LOCKED_MESSAGE = 'The report for this week has been sent, so its rollcall is locked.';
 
 const autosave = props.section
     ? useRollcallAutosave({
@@ -156,9 +161,19 @@ const autosave = props.section
                   if (row && was) Object.assign(row, was);
               }
           },
+          // The report was sent while this screen was open: reload the frozen marks, and `locked`.
+          onLocked: () => router.reload(),
           nameOf: (id) => displayName(rows.value.find((t) => t.id === id) ?? { cavId: id }),
       })
     : null;
+
+// A week whose report has been sent is locked (AD-12), read-only the same way as a preview: the
+// server refuses every save for it. Known from the page load, or from a save refused because the
+// report was sent since. The forum post stays usable: copying it and marking it posted are fine.
+const weekLocked = computed(() => props.locked || Boolean(autosave?.locked.value));
+const lockedReason = computed(() => (weekLocked.value ? (autosave?.lockedMessage.value ?? LOCKED_MESSAGE) : null));
+const editable = computed(() => !previewReason.value && !weekLocked.value);
+const readOnlyReason = computed(() => previewReason.value ?? lockedReason.value);
 
 function set(trooper, kind, value, options = {}) {
     if (!editable.value || isLocked(trooper)) return;
@@ -333,7 +348,7 @@ async function markPosted() {
         for (const id of undoToasts) toast.dismiss(id);
         undoToasts.clear();
         if (!(await autosave.flush({ includeHeld: true }))) {
-            toast.error('Changes are not saved yet', { description: autosave.error.value });
+            toast.error('Changes are not saved yet', { description: autosave.error.value ?? autosave.lockedMessage.value });
 
             return;
         }
@@ -368,7 +383,7 @@ async function confirmPractice() {
         for (const id of undoToasts) toast.dismiss(id);
         undoToasts.clear();
         if (!(await autosave.flush({ includeHeld: true }))) {
-            toast.error('Changes are not saved yet', { description: autosave.error.value });
+            toast.error('Changes are not saved yet', { description: autosave.error.value ?? autosave.lockedMessage.value });
 
             return;
         }
@@ -383,6 +398,8 @@ async function confirmPractice() {
             toast.success('Practice confirmed', { description: `${props.section.designation}, week of ${weekLabel.value}` });
         } else {
             toast.error('Could not confirm the practice', { description: messageFor(result) });
+            // The report was sent since the page loaded: show the week as the server now has it.
+            if (result.status === 409 && result.data?.locked) router.reload();
         }
     } finally {
         confirming.value = false;
@@ -407,6 +424,7 @@ async function retryCapture() {
         const result = await postJson(`/rollcall/${props.section.id}/capture`, { week: props.week.date }).catch(unreachable);
         if (!result.ok) {
             toast.error('Could not try again', { description: messageFor(result) });
+            if (result.status === 409 && result.data?.locked) router.reload();
 
             return;
         }
@@ -418,7 +436,7 @@ async function retryCapture() {
             if (props.capture) {
                 // Marks were pre-filled on the server: save what is pending, then show them.
                 if (!(await autosave.flush({ includeHeld: true }))) {
-                    toast.error('Changes are not saved yet', { description: autosave.error.value });
+                    toast.error('Changes are not saved yet', { description: autosave.error.value ?? autosave.lockedMessage.value });
 
                     return;
                 }
@@ -624,17 +642,27 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
         </div>
 
         <div
-            v-if="readOnlyReason"
+            v-if="previewReason"
             role="status"
             class="mt-3 flex items-start gap-2.5 rounded-lg border border-info/35 bg-info/7 px-3.5 py-2.5 text-[13px]"
             data-testid="read-only-notice"
         >
             <PhEye class="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
-            <p>{{ readOnlyReason }}.<template v-if="viewAs"> Exit view as to mark attendance.</template></p>
+            <p>{{ previewReason }}.<template v-if="viewAs"> Exit view as to mark attendance.</template></p>
         </div>
 
         <div
-            v-if="!week.isCurrent"
+            v-if="lockedReason"
+            role="status"
+            class="mt-3 flex items-start gap-2.5 rounded-lg border border-info/35 bg-info/7 px-3.5 py-2.5 text-[13px]"
+            data-testid="locked-notice"
+        >
+            <PhLockSimple class="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
+            <p>{{ lockedReason }} You can still copy the forum post and mark it posted.</p>
+        </div>
+
+        <div
+            v-if="!week.isCurrent && !weekLocked"
             role="status"
             class="mt-3 flex items-start gap-2.5 rounded-lg border border-warning/40 bg-warning/7 px-3.5 py-2.5 text-[13px]"
             data-testid="past-week-notice"
@@ -910,8 +938,8 @@ const practiceView = computed(() => practiceGroups(rows.value, practiceFilter.va
                             <Button
                                 class="h-11 flex-1 sm:h-9 sm:flex-none"
                                 data-testid="mark-posted"
-                                :disabled="!editable || posting"
-                                :title="readOnlyReason ?? undefined"
+                                :disabled="Boolean(previewReason) || posting"
+                                :title="previewReason ?? undefined"
                                 @click="markPosted"
                             >
                                 <PhCheck />{{ posted ? 'Mark posted again' : 'Mark rollcall posted' }}

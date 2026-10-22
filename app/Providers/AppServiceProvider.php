@@ -105,6 +105,17 @@ class AppServiceProvider extends ServiceProvider
         // Cav calls is the controller's per-unit cooldown, which only accepted requests reach.
         RateLimiter::for('unit-roster-sync', fn (Request $request) => Limit::perMinute(3)
             ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
+
+        // Rollcall "Try again" (Story 7.9). The handler already allows one request per practice a
+        // minute; this caps how many practices one leader can queue captures for, since every run
+        // spends calls on an external game-server API.
+        RateLimiter::for('practice-capture', fn (Request $request) => Limit::perMinute(10)
+            ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip()))
+            // The screen posts in the background and reads `message`; the framework's 429 would be
+            // an HTML page here, since this app renders JSON errors only on api/*.
+            ->response(fn (Request $request, array $headers) => response()->json(
+                ['message' => 'Too many capture requests. Try again in a minute.'], 429, $headers,
+            )));
     }
 
     /**

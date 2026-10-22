@@ -5,6 +5,7 @@ use App\Commands\Attendance\InvalidAttendanceMarkException;
 use App\Commands\Attendance\MarkAttendance;
 use App\Commands\Attendance\MarkAttendanceForbiddenException;
 use App\Commands\Attendance\MarkAttendanceHandler;
+use App\Commands\Attendance\RollcallWeekLockedException;
 use App\Models\Attendance;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
@@ -16,6 +17,7 @@ use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Models\WeeklyReport;
 use App\Repositories\AttendanceRepository;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -358,6 +360,56 @@ it('refuses a section id that does not exist, even for an admin (no unit is in a
     expect(SectionPractice::query()->count())->toBe(0);
 });
 
+// AD-12: a week whose report has been sent is locked; the whole batch is refused before any write.
+
+it('refuses every batch for a week whose report has been sent, writing nothing and auditing nothing', function (Closure $marks) {
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->weekStart]);
+
+    expect(fn () => mark($this->leader, $this->section->id, $this->moment, $marks($this->troopers)))
+        ->toThrow(RollcallWeekLockedException::class, 'The report for this week has been sent, so its rollcall is locked.');
+
+    expect(SectionPractice::query()->count())->toBe(0)
+        ->and(Attendance::query()->count())->toBe(0)
+        ->and(AuditLogEntry::query()->count())->toBe(0);
+})->with([
+    'a practice mark' => [fn ($troopers) => [new AttendanceMark($troopers[0]->id, AttendanceStatus::Present)]],
+    'a signature only' => [fn ($troopers) => [new AttendanceMark($troopers[0]->id, rollcall: RollcallSignature::WillAttend)]],
+    'an empty batch' => [fn ($troopers) => []],
+]);
+
+it('leaves an existing practice and its marks exactly as they were when the week is locked', function () {
+    $practice = mark($this->leader, $this->section->id, $this->moment, [new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present)]);
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->weekStart]);
+
+    expect(fn () => mark($this->leader, $this->section->id, $this->moment, [new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Missed)]))
+        ->toThrow(RollcallWeekLockedException::class);
+
+    expect(Attendance::query()->sole()->status)->toBe(AttendanceStatus::Present)
+        ->and(SectionPractice::query()->sole()->id)->toBe($practice->id)
+        ->and(AuditLogEntry::query()->count())->toBe(1);
+});
+
+it('keeps a week open whose report is a draft, or a generated demo report, or absent', function (Closure $report) {
+    $report($this->section, $this->weekStart);
+
+    mark($this->leader, $this->section->id, $this->moment, [new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present)]);
+
+    expect(Attendance::query()->sole()->status)->toBe(AttendanceStatus::Present);
+})->with([
+    'a draft' => [fn (Unit $section, CarbonImmutable $week) => WeeklyReport::factory()->create(['unit_id' => $section->id, 'week_start' => $week])],
+    'a demo sent report (#115)' => [fn (Unit $section, CarbonImmutable $week) => WeeklyReport::factory()->sent()->create(['unit_id' => $section->id, 'week_start' => $week, 'is_demo' => true])],
+    'no report' => [fn () => null],
+]);
+
+it('locks only the sent unit-week: another section\'s sent report, or another week\'s, leaves this one open', function () {
+    WeeklyReport::factory()->sent()->create(['unit_id' => Unit::factory()->create(['type' => UnitType::Section])->id, 'week_start' => $this->weekStart]);
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->weekStart->subWeek()]);
+
+    mark($this->leader, $this->section->id, $this->moment, [new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present)]);
+
+    expect(Attendance::query()->count())->toBe(1);
+});
+
 // 7.6 / AD-14, AD-22: preMark — capture as a second source through this same writer.
 
 it('pre-marks only troopers placed in the practice section, counting what it kept and skipped', function () {
@@ -392,4 +444,25 @@ it('writes no audit entry for an empty pre-mark even when a user triggered it', 
     $result = app(MarkAttendanceHandler::class)->preMark($practice, [], $this->leader->id);
 
     expect($result->marked)->toBe(0)->and(AuditLogEntry::query()->count())->toBe(0);
+});
+
+it('pre-marks nothing for a week whose report has been sent, answering week locked rather than throwing', function (bool $byUser) {
+    $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->weekStart]);
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->weekStart]);
+
+    $result = app(MarkAttendanceHandler::class)->preMark($practice, [$this->troopers[0]->id], $byUser ? $this->leader->id : 'system');
+
+    expect($result->weekLocked)->toBeTrue()
+        ->and([$result->marked, $result->keptManual, $result->notPlaced])->toBe([0, 0, 0])
+        ->and(Attendance::query()->count())->toBe(0)
+        ->and(AuditLogEntry::query()->count())->toBe(0);
+})->with(['a system run' => [false], 'a user-triggered run' => [true]]);
+
+it('still pre-marks a week whose only sent report is a demo report (#115)', function () {
+    $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->weekStart]);
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->weekStart, 'is_demo' => true]);
+
+    $result = app(MarkAttendanceHandler::class)->preMark($practice, [$this->troopers[0]->id]);
+
+    expect($result->weekLocked)->toBeFalse()->and($result->marked)->toBe(1);
 });

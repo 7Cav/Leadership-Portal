@@ -12,6 +12,7 @@ use App\Models\TrooperGameIdentity;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Models\WeeklyReport;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Queue;
@@ -134,6 +135,7 @@ function tryAgain(object $test, array $body = ['week' => '2026-10-03'], ?User $a
 
 it('queues a capture of the practice for the leader, bounded to the week so far, and audits the request', function () {
     Queue::fake();
+    captureRun($this, SyncRunStatus::Failure);
 
     tryAgain($this)->assertStatus(202)->assertJson(['queued' => true]);
 
@@ -149,19 +151,71 @@ it('queues a capture of the practice for the leader, bounded to the week so far,
     expect(AuditLogEntry::query()->where('action', 'practice.capture_requested')->count())->toBe(1);
 });
 
-it('creates the practice row when the week has none yet', function () {
+// S-M1: the server offers "Try again" on the same terms as the screen (`telemetry.canRetry`).
+
+it('refuses a retry the screen would not offer: no practice, never attempted, last run ok, or already captured', function (Closure $arrange) {
     Queue::fake();
-    $this->practice->delete();
+    $arrange($this);
+
+    tryAgain($this)->assertStatus(422)->assertJsonPath('message', 'There is no failed capture to try again for this week.');
+
+    Queue::assertNothingPushed();
+    expect(AuditLogEntry::query()->where('action', 'practice.capture_requested')->count())->toBe(0)
+        ->and(SectionPractice::query()->where('section_id', $this->section->id)->count())->toBeLessThanOrEqual(1);
+})->with([
+    'no practice row for the week' => [fn (object $test) => $test->practice->delete()],
+    'never attempted' => [fn () => null],
+    'the last run succeeded' => [fn (object $test) => captureRun($test, SyncRunStatus::Success)],
+    'already captured' => [function (object $test) {
+        captureRun($test, SyncRunStatus::Failure);
+        $test->practice->forceFill(['captured_at' => '2026-10-08 16:00:00', 'capture_source' => 'crcon', 'server_ref' => 'x'])->save();
+    }],
+]);
+
+it('refuses a retry of an old week whose capture never failed, and allows one whose capture did', function () {
+    Queue::fake();
+    $old = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => '2026-08-01 00:00:00']);
+
+    tryAgain($this, ['week' => '2026-08-01'])->assertStatus(422);
+
+    SyncRun::factory()->create(['source' => 'capture', 'status' => SyncRunStatus::Failure, 'section_practice_id' => $old->id, 'started_at' => '2026-08-05 20:00:00', 'finished_at' => '2026-08-05 20:00:00']);
+
+    tryAgain($this, ['week' => '2026-08-01'])->assertStatus(202);
+    Queue::assertPushed(CaptureSectionPracticeJob::class, 1);
+});
+
+it('refuses a retry for a week whose report has been sent, as locked, even after a failed capture', function () {
+    Queue::fake();
+    captureRun($this, SyncRunStatus::Failure);
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => '2026-10-03']);
+
+    tryAgain($this)->assertStatus(409)->assertJson(['locked' => true, 'message' => 'The report for this week has been sent, so its rollcall is locked.']);
+
+    Queue::assertNothingPushed();
+    expect(AuditLogEntry::query()->count())->toBe(0);
+});
+
+it('throttles the capture route per leader, on top of the handler\'s per-practice throttle', function () {
+    Queue::fake();
+    captureRun($this, SyncRunStatus::Failure);
 
     tryAgain($this)->assertStatus(202);
 
-    expect(SectionPractice::query()->where('section_id', $this->section->id)->count())->toBe(1);
-    Queue::assertPushed(CaptureSectionPracticeJob::class);
+    // Requests 2-10 reach the handler, which answers its own per-practice 429 with the wait.
+    foreach (range(2, 10) as $i) {
+        tryAgain($this)->assertStatus(429)->assertJsonStructure(['retryAfter']);
+    }
+
+    // The 11th is stopped by the route limiter before the handler runs.
+    tryAgain($this)->assertStatus(429)
+        ->assertJsonPath('message', 'Too many capture requests. Try again in a minute.')
+        ->assertJsonMissingPath('retryAfter');
 });
 
 it('caps the window at the end of a past week', function () {
     Queue::fake();
-    SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => '2026-09-26 00:00:00']);
+    $past = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => '2026-09-26 00:00:00']);
+    SyncRun::factory()->create(['source' => 'capture', 'status' => SyncRunStatus::Failure, 'section_practice_id' => $past->id, 'started_at' => '2026-10-01 20:00:00', 'finished_at' => '2026-10-01 20:00:00']);
 
     tryAgain($this, ['week' => '2026-09-26'])->assertStatus(202);
 
@@ -208,6 +262,7 @@ it('refuses a missing week and a future week', function () {
 it('refuses a second request for the same practice within the throttle window, with the wait', function () {
     Queue::fake();
     RateLimiter::clear('practice-capture-retry:'.$this->section->id.':2026-10-03');
+    captureRun($this, SyncRunStatus::Failure);
 
     tryAgain($this)->assertStatus(202);
     tryAgain($this)->assertStatus(429)->assertJsonStructure(['message', 'retryAfter']);
@@ -217,6 +272,7 @@ it('refuses a second request for the same practice within the throttle window, w
 
 it('does not use up the throttle on a refused request', function () {
     Queue::fake();
+    captureRun($this, SyncRunStatus::Failure);
     config(['services.crcon' => []]);
     app()->forgetInstance(CaptureSources::class);
     tryAgain($this)->assertStatus(422);
@@ -229,6 +285,7 @@ it('does not use up the throttle on a refused request', function () {
 
 it('answers a queue failure as an error, never as success', function () {
     Queue::shouldReceive('push')->andThrow(new RuntimeException('queue is down'));
+    captureRun($this, SyncRunStatus::Failure);
 
     tryAgain($this)->assertStatus(500)->assertJsonPath('message', fn (string $m) => str_contains($m, 'could not be queued'));
 });
@@ -237,10 +294,11 @@ it('runs the queued retry through to a visible failure on the next page load', f
     // The sync queue (phpunit.xml) runs the job inline: every source down -> a failed run the screen shows.
     config(['services.crcon' => ['base_url' => 'http://127.0.0.1:9', 'api_key' => 'k']]);
     app()->forgetInstance(CaptureSources::class);
+    $earlier = captureRun($this, SyncRunStatus::Failure, '2026-10-08 10:00:00');
 
     tryAgain($this)->assertStatus(202);
 
-    $run = SyncRun::query()->where('source', 'capture')->sole();
+    $run = SyncRun::query()->where('source', 'capture')->whereKeyNot($earlier->id)->sole();
     expect($run->status)->toBe(SyncRunStatus::Failure)->and($run->triggered_by)->toBe((string) $this->leader->id);
     telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.state', 'failed')->where('capture', null));
 });

@@ -17,4 +17,9 @@ class CaptureRetryRefusedException extends RuntimeException
     {
         return new self("Telemetry is not configured for {$platform->label()}. Mark attendance by hand.");
     }
+
+    public static function nothingToRetry(): self
+    {
+        return new self('There is no failed capture to try again for this week.');
+    }
 }

@@ -14,6 +14,7 @@ use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Commands\Attendance\MarkRollcallPosted;
 use App\Commands\Attendance\MarkRollcallPostedForbiddenException;
 use App\Commands\Attendance\MarkRollcallPostedHandler;
+use App\Commands\Attendance\RollcallWeekLockedException;
 use App\Commands\Capture\CaptureRetryForbiddenException;
 use App\Commands\Capture\CaptureRetryRefusedException;
 use App\Commands\Capture\CaptureRetryThrottledException;
@@ -51,6 +52,7 @@ use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitRepository;
+use App\Repositories\WeeklyReportRepository;
 use App\Rollcall\TemplateResolver;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
@@ -73,6 +75,12 @@ use Throwable;
  * whatever the UI offers. A week is any moment in it (`?week=YYYY-MM-DD`), bucketed by `WeekOf`
  * (AD-11); a future week is never served — there is nothing to mark yet. A week before
  * `WeekOf::floor()` is still shown, read-only (`week.beforeFloor`): its writes are refused.
+ *
+ * A week whose section report has been sent is locked (AD-12): `show` says so (`locked`) and the
+ * screen turns read-only, and `store`, `confirm` and `retryCapture` refuse it with a 409 and
+ * `locked` (the rule itself lives in their handlers; a capture run and a link's pre-mark skip the
+ * week the same way). Marking the forum post posted (`posted`) stays open: it records when the
+ * BBCode went up, not a fact the report froze.
  */
 class RollcallController extends Controller
 {
@@ -94,6 +102,7 @@ class RollcallController extends Controller
         private readonly SectionPracticeRepository $practices,
         private readonly AttendanceRepository $attendance,
         private readonly SyncRunRepository $syncRuns,
+        private readonly WeeklyReportRepository $reports,
         private readonly KpiService $kpis,
         private readonly PracticeCapturePlayerRepository $capturePlayers,
         private readonly TrooperGameIdentityRepository $identities,
@@ -174,8 +183,10 @@ class RollcallController extends Controller
      * rollcall signature, or both — written through the audited `MarkAttendance` Command, the one
      * writer of record (AD-16, AD-22). "Mark all present" is the same batch. Answers JSON, since
      * the page saves in the background and must keep the leader's input on a failure: 422 for a
-     * batch nobody may record, 403 outside scope (AD-8). On success it returns the at-risk flags
-     * recomputed by the KPI service (AD-21), so the review step reflects the saved marks.
+     * batch nobody may record, 403 outside scope (AD-8), 409 with `locked` once the section's
+     * report for the week has been sent (AD-12) — any batch, even an empty one. On success it
+     * returns the at-risk flags recomputed by the KPI service (AD-21), so the review step reflects
+     * the saved marks.
      */
     public function store(Request $request, int $unit, MarkAttendanceHandler $handler): JsonResponse
     {
@@ -217,6 +228,11 @@ class RollcallController extends Controller
             // (`loa_covered`, a leave synced after the page loaded). The screen keeps saving everyone
             // else's marks, and a covered trooper's signature.
             return response()->json(['message' => $e->getMessage(), 'rejected' => $e->trooperIds, 'reason' => $e->reason], 422);
+        } catch (RollcallWeekLockedException $e) {
+            // The week's report was sent (AD-12), perhaps while this screen was open. A 409 with
+            // `locked`, not a 422: no trooper can be dropped to make the batch acceptable, so the
+            // screen stops saving and shows the week read-only instead of retrying.
+            return response()->json(['message' => $e->getMessage(), 'locked' => true], 409);
         } catch (Throwable $e) {
             report($e);
 
@@ -285,7 +301,8 @@ class RollcallController extends Controller
 
     /**
      * The leader confirms the practice's marks as reviewed (Story 7.8): one audited Command,
-     * scope-gated (AD-8). Marking it again re-stamps. Answers the confirmation for the badge.
+     * scope-gated (AD-8). Marking it again re-stamps. Answers the confirmation for the badge, or a
+     * 409 with `locked` once the section's report for the week has been sent (AD-12).
      * `confirmedAt` is the confirmation the screen showed (null for none): one the leader never
      * saw is answered back as it is rather than stamped over. Without it, every request re-stamps.
      */
@@ -318,6 +335,8 @@ class RollcallController extends Controller
             return response()->json(['message' => $e->getMessage()], 403);
         } catch (InvalidAttendanceMarkException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
+        } catch (RollcallWeekLockedException $e) {
+            return response()->json(['message' => $e->getMessage(), 'locked' => true], 409);
         } catch (Throwable $e) {
             report($e);
 
@@ -331,8 +350,10 @@ class RollcallController extends Controller
      * "Try again" on the telemetry-unavailable banner (Story 7.9): queue a fresh capture of the
      * practice, as the leader, through {@see RequestPracticeCaptureHandler}. Answers 202 once it is
      * queued — the run is asynchronous (AD-23), so the screen polls the practice's state. A refusal
-     * is spoken, never swallowed: 403 outside scope, 422 when nothing could be attempted (with the
-     * reason), 429 with `retryAfter` when it was asked a moment ago.
+     * is spoken, never swallowed: 403 outside scope, 422 when nothing could be attempted or the
+     * practice has no failed capture to retry (with the reason), 409 with `locked` for a week whose
+     * report was sent, 429 with `retryAfter` when it was asked a moment ago. The route is also
+     * throttled per user (`throttle:practice-capture`), since every queued run reads an external API.
      */
     public function retryCapture(Request $request, int $unit, RequestPracticeCaptureHandler $handler): JsonResponse
     {
@@ -361,6 +382,8 @@ class RollcallController extends Controller
             return response()->json(['message' => $e->getMessage(), 'retryAfter' => $e->retryAfter], 429);
         } catch (CaptureRetryRefusedException|InvalidAttendanceMarkException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
+        } catch (RollcallWeekLockedException $e) {
+            return response()->json(['message' => $e->getMessage(), 'locked' => true], 409);
         } catch (Throwable $e) {
             report($e);
 
@@ -641,6 +664,9 @@ class RollcallController extends Controller
             'priorWeekMarked' => $prior->isNotEmpty(),
             // Where the leave data comes from and how fresh it is (4.3, AD-20), shown with every LOA badge.
             'loaSync' => $this->loaProvenance->current()->toArray(),
+            // The section's real report for the week was sent (AD-12): the rollcall is read-only.
+            // A draft, no report, or a generated demo report (#115) leaves it open.
+            'locked' => $this->reports->isSentFor($section->id, $weekStart),
             'atRisk' => $this->atRisk($section, $weekStart),
             'roster' => [
                 'source' => 'milpac',

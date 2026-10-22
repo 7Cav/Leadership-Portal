@@ -8,6 +8,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\UnitRepository;
+use App\Repositories\WeeklyReportRepository;
 use App\Support\Audit\AuditEnvelope;
 use App\Support\Time\WeekOf;
 use DateTimeImmutable;
@@ -25,6 +26,10 @@ use DateTimeImmutable;
  * posting the BBCode to the forum, 3.10) or the weekly report's send freeze (5.6): this says the
  * leader reviewed the practice marks. A later hand edit of a mark clears it (see
  * {@see MarkAttendanceHandler}), and capture pre-marks leave a confirmed practice alone.
+ *
+ * A week whose section report has been really sent is locked for this too (AD-12), as it is for a
+ * mark: confirming it is refused with `RollcallWeekLockedException`, checked first inside the
+ * audited transaction under the same shared lock, so a refused confirmation leaves no audit entry.
  */
 class ConfirmSectionPracticeHandler
 {
@@ -32,12 +37,14 @@ class ConfirmSectionPracticeHandler
         private readonly ScopeResolver $scope,
         private readonly UnitRepository $units,
         private readonly SectionPracticeRepository $practices,
+        private readonly WeeklyReportRepository $reports,
         private readonly AuditEnvelope $audit,
     ) {}
 
     /**
      * @throws ConfirmSectionPracticeForbiddenException when the section is outside the actor's scope.
      * @throws InvalidAttendanceMarkException when the unit is not a section, or the week is before `WeekOf::floor()`.
+     * @throws RollcallWeekLockedException when the section's report for the week has been sent.
      */
     public function handle(User $actor, ConfirmSectionPractice $command): SectionPractice
     {
@@ -62,6 +69,10 @@ class ConfirmSectionPracticeHandler
                 reason: null,
                 reasonRequired: false,
                 mutation: function () use ($command, $weekStart, $actor) {
+                    if ($this->reports->isSentFor($command->sectionId, $weekStart)) {
+                        throw RollcallWeekLockedException::for($command->sectionId, $weekStart);
+                    }
+
                     $created = $this->practices->findOrCreate($command->sectionId, $weekStart);
 
                     // Decided under the row lock, so of two leaders confirming at once the second

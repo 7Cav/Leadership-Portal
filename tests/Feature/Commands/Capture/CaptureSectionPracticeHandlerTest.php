@@ -23,6 +23,7 @@ use App\Models\TrooperGameIdentity;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Models\WeeklyReport;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 
@@ -516,3 +517,59 @@ it('records a failed run naming only the configured source when the unconfigured
         ->and($run->status)->toBe(SyncRunStatus::Failure)
         ->and($run->error)->toContain('battlemetrics: unreachable')->not->toContain('crcon');
 });
+
+// AD-12: a sent weekly report freezes the week's attendance; an automatic capture may not change it.
+
+it('captures nothing for a week whose report has been sent, and records a week-locked run', function (int|string $by) {
+    $mine = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
+    linkIdentity($mine, '76561190000000001');
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->practice->week_start]);
+    $asked = null;
+
+    $result = runCapture($this, [answeringSource('crcon', [new CrconPlayer('Ranger', '76561190000000001')], $asked)], is_string($by) ? $by : User::factory()->create()->id);
+
+    expect($result->weekLocked)->toBeTrue()
+        ->and($result->captured)->toBeFalse()
+        ->and($result->seen())->toBe(0)
+        ->and($asked)->toBeNull()
+        ->and(Attendance::query()->count())->toBe(0)
+        ->and($this->practice->fresh()->capture_source)->toBeNull()
+        ->and(AuditLogEntry::query()->count())->toBe(0);
+
+    $run = SyncRun::query()->sole();
+    expect($run->status)->toBe(SyncRunStatus::Success)
+        ->and($run->error)->toContain('week locked')->toContain('2026-10-03');
+})->with(['a system run' => ['system'], 'a user-triggered run' => [0]]);
+
+it('writes nothing when the report is sent while the capture is reading its source', function () {
+    $mine = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
+    linkIdentity($mine, '76561190000000001');
+    $source = new CaptureSource('crcon', 'crcon-server-1', function ($start, $end) {
+        WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->practice->week_start]);
+
+        return new CrconPresence([new CrconPlayer('Ranger', '76561190000000001')], $start, $end, CarbonImmutable::parse('2026-10-08 20:00:00', 'UTC')->toDateTimeImmutable());
+    });
+
+    $result = runCapture($this, [$source]);
+
+    expect($result->weekLocked)->toBeTrue()
+        ->and(Attendance::query()->count())->toBe(0)
+        ->and($this->practice->fresh()->capture_source)->toBeNull()
+        ->and(SyncRun::query()->sole()->error)->toContain('week locked');
+});
+
+it('still captures and pre-marks a week whose report is a demo, a draft, or absent', function (Closure $report) {
+    $mine = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
+    linkIdentity($mine, '76561190000000001');
+    $report($this->section, $this->practice->week_start);
+
+    $result = runCapture($this, [answeringSource('crcon', [new CrconPlayer('Ranger', '76561190000000001')])]);
+
+    expect($result->captured)->toBeTrue()
+        ->and($result->weekLocked)->toBeFalse()
+        ->and(Attendance::query()->sole()->source)->toBe(AttendanceSource::Auto);
+})->with([
+    'a demo sent report (#115)' => [fn (Unit $section, $week) => WeeklyReport::factory()->sent()->create(['unit_id' => $section->id, 'week_start' => $week, 'is_demo' => true])],
+    'a draft' => [fn (Unit $section, $week) => WeeklyReport::factory()->create(['unit_id' => $section->id, 'week_start' => $week])],
+    'no report' => [fn () => null],
+]);

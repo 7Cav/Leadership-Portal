@@ -8,7 +8,7 @@ vi.mock('@inertiajs/vue3', () => ({ router: { on: (event, callback) => ((visitGu
 
 function setup(post) {
     let api;
-    mount(defineComponent({ setup: () => ((api = useRollcallAutosave({ url: '/rollcall/12', week: '2026-10-03', post, onSaved, onLeave, nameOf: (id) => `Trooper${id}.A` })), () => h('div')) }));
+    mount(defineComponent({ setup: () => ((api = useRollcallAutosave({ url: '/rollcall/12', week: '2026-10-03', post, onSaved, onLeave, onLocked, nameOf: (id) => `Trooper${id}.A` })), () => h('div')) }));
 
     return api;
 }
@@ -17,6 +17,7 @@ enableAutoUnmount(afterEach);
 
 const onSaved = vi.fn();
 const onLeave = vi.fn();
+const onLocked = vi.fn();
 const ok = (data = {}) => Promise.resolve({ ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00', atRisk: [], ...data } });
 
 describe('rollcall autosave', () => {
@@ -24,6 +25,7 @@ describe('rollcall autosave', () => {
         vi.useFakeTimers();
         onSaved.mockClear();
         onLeave.mockClear();
+        onLocked.mockClear();
     });
     afterEach(() => vi.useRealTimers());
 
@@ -190,6 +192,30 @@ describe('rollcall autosave', () => {
 
         expect(post).toHaveBeenLastCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 1, rollcall: 'will_attend' }] });
         expect(save.pendingCount.value).toBe(0);
+    });
+
+    it('stops for good when the week is locked: drops the queue, ignores later changes, never retries (AD-12)', async () => {
+        const message = 'The report for this week has been sent, so its rollcall is locked.';
+        const post = vi.fn().mockResolvedValue({ ok: false, status: 409, data: { message, locked: true } });
+        const save = setup(post);
+
+        save.queue(1, 'status', 'present');
+        save.queue(2, 'rollcall', 'will_attend', { holdMs: 6000 });
+        expect(await save.flush()).toBe(false);
+
+        expect(save.state.value).toBe('locked');
+        expect(save.locked.value).toBe(true);
+        expect(save.lockedMessage.value).toBe(message);
+        expect(save.error.value).toBeNull();
+        expect(save.hasUnsaved.value).toBe(false);
+        expect(onLocked).toHaveBeenCalledTimes(1);
+
+        save.queue(1, 'status', 'missed');
+        expect(save.pendingCount.value).toBe(0);
+        await vi.advanceTimersByTimeAsync(10000);
+        expect(post).toHaveBeenCalledTimes(1);
+        expect(await save.flush({ includeHeld: true })).toBe(true);
+        expect(post).toHaveBeenCalledTimes(1);
     });
 
     it('cannot take back a held change once it was sent early', async () => {

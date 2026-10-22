@@ -26,6 +26,22 @@ class Eloquent implements WeeklyReportRepository
             ->first();
     }
 
+    /**
+     * Reads the row by its UNIQUE `(unit_id, week_start)` key whatever its status, and decides in
+     * PHP: filtering on status in SQL would leave a draft row unlocked, and a send could then flip
+     * it to sent under a save already past this check.
+     */
+    public function isSentFor(int $unitId, CarbonInterface $weekStart): bool
+    {
+        $report = WeeklyReport::query()
+            ->where('unit_id', $unitId)
+            ->where('week_start', $this->assertWeekStart($weekStart))
+            ->sharedLock()
+            ->first(['id', 'status', 'is_demo']);
+
+        return $report !== null && $report->status === WeeklyReportStatus::Sent && ! $report->is_demo;
+    }
+
     public function forUnits(array $unitIds, CarbonInterface $weekStart): Collection
     {
         $weekStart = $this->assertWeekStart($weekStart);

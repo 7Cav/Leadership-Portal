@@ -358,3 +358,21 @@ it('refuses a range that is not on week boundaries', function () {
     expect(fn () => app(WeeklyReportRepository::class)->sentWithin([1], $week->addDay(), $week))
         ->toThrow(InvalidArgumentException::class);
 });
+
+it('says a unit-week is sent only for a real sent report, never a draft, a demo report or another unit-week (AD-12)', function () {
+    $other = Unit::factory()->create();
+    $demo = Unit::factory()->create();
+    $this->repo->send($this->unit->id, $this->saturday, [], null, $this->sender->id, 'd', null);
+    $this->repo->saveDraft($other->id, $this->saturday, [], null);
+    WeeklyReport::factory()->sent()->create(['unit_id' => $demo->id, 'week_start' => $this->saturday, 'is_demo' => true]);
+
+    expect($this->repo->isSentFor($this->unit->id, $this->saturday))->toBeTrue()
+        ->and($this->repo->isSentFor($this->unit->id, $this->saturday->subWeek()))->toBeFalse()
+        ->and($this->repo->isSentFor($other->id, $this->saturday))->toBeFalse()
+        ->and($this->repo->isSentFor($demo->id, $this->saturday))->toBeFalse()
+        ->and(WeeklyReport::query()->count())->toBe(3);
+});
+
+it('refuses a sent check for a week_start that is not a Saturday 00:00 UTC', function () {
+    $this->repo->isSentFor($this->unit->id, $this->saturday->addHour());
+})->throws(InvalidArgumentException::class);
