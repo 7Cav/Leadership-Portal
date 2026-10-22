@@ -123,6 +123,16 @@ class Eloquent implements TrooperRepository
             ->pluck('id');
     }
 
+    public function servingIdsPlacedIn(int $sectionId, array $trooperIds): Collection
+    {
+        return Trooper::query()
+            ->where('primary_section_id', $sectionId)
+            ->whereIn('id', $trooperIds)
+            ->whereIn('status', TrooperStatus::servingValues())
+            ->orderBy('id')
+            ->pluck('id');
+    }
+
     public function assignedWithin(Unit $unit): Collection
     {
         return Trooper::query()->assignedWithin($unit)->orderBy('id')->pluck('id');

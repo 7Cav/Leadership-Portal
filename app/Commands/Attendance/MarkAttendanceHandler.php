@@ -153,7 +153,10 @@ class MarkAttendanceHandler
      * *source* rather than a second writer. Manual wins: a trooper whose row already carries a
      * `manual` mark (or `loa`) is left exactly as it is, decided per row at write time by the
      * repository. Re-running updates auto rows in place. Never writes `loa`, and skips a trooper
-     * no longer placed in the practice's section.
+     * no longer placed in the practice's section or no longer serving (a departed trooper keeps
+     * their last placement). A trooper the LOA data covers that week is skipped too, by the same
+     * {@see LoaCoverage} rule that refuses a manual mark: their status is derived as `loa`, and an
+     * auto `present` would be a stored mark the leader could not then change (3.4).
      *
      * No actor authorization: capture is system-triggered, like the roster sync (the caller
      * decides who may start a run). A user-triggered run is audited as one batch on the practice;
@@ -187,11 +190,12 @@ class MarkAttendanceHandler
                 return new AuditedBatch($practice);
             }
 
-            $placed = $this->troopers->idsPlacedIn($practice->section_id, $trooperIds)->all();
+            $placed = $this->troopers->servingIdsPlacedIn($practice->section_id, $trooperIds)->all();
             $notPlaced = count($trooperIds) - count($placed);
+            $covers = $placed === [] ? [] : $this->loaCoverage->forTroopers($placed, $practice->week_start);
 
             foreach ($trooperIds as $trooperId) {
-                if (! in_array($trooperId, $placed, true)) {
+                if (! in_array($trooperId, $placed, true) || $covers[$trooperId]->derivedAttendanceStatus() !== null) {
                     continue;
                 }
 

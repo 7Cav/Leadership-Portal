@@ -222,6 +222,19 @@ it('returns nothing for an empty list of troopers', function () {
     expect(app(TrooperRepository::class)->idsPlacedIn(Unit::factory()->create()->id, [])->all())->toBe([]);
 });
 
+// 7.6: capture pre-marks only troopers still serving; a departed trooper keeps their last placement.
+
+it('narrows the placed troopers to those still serving for capture, and leaves idsPlacedIn as it was', function () {
+    $section = Unit::factory()->create();
+    $serving = Trooper::factory()->create(['primary_section_id' => $section->id, 'status' => TrooperStatus::Reserve]);
+    $departed = Trooper::factory()->create(['primary_section_id' => $section->id, 'status' => TrooperStatus::Inactive]);
+    $elsewhere = Trooper::factory()->create(['primary_section_id' => Unit::factory()->create()->id]);
+    $ids = [$serving->id, $departed->id, $elsewhere->id];
+
+    expect(app(TrooperRepository::class)->servingIdsPlacedIn($section->id, $ids)->all())->toBe([$serving->id])
+        ->and(app(TrooperRepository::class)->idsPlacedIn($section->id, $ids)->all())->toBe([$serving->id, $departed->id]);
+});
+
 // 5.1: strength's population — active troopers whose primary section sits in the subtree.
 it('lists the active troopers placed anywhere in a unit\'s subtree, by id', function () {
     $platoon = Unit::factory()->create(['path' => '800/']);

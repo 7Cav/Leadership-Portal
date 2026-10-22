@@ -197,6 +197,30 @@ describe('a leave that needs review (AD-4)', function () {
     });
 });
 
+// 7.6: capture's pre-mark reads the same coverage, so a trooper on leave who shows up on the server is not
+// given an auto `present` that the leader could then not change.
+describe('capture pre-marking a trooper on leave', function () {
+    it('skips a trooper whose leave covers the week, counting them as left untouched', function () {
+        leave($this->troopers[0], '2026-10-01', '2026-10-20');
+        $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->weekStart]);
+
+        $result = app(MarkAttendanceHandler::class)->preMark($practice, [$this->troopers[0]->id, $this->troopers[1]->id]);
+
+        expect([$result->marked, $result->keptManual, $result->notPlaced])->toBe([1, 1, 0])
+            ->and(Attendance::query()->pluck('trooper_id')->all())->toBe([$this->troopers[1]->id]);
+    });
+
+    it('still pre-marks a trooper whose leave needs review, as a leader may mark them by hand', function () {
+        Loa::factory()->needsReview()->create(['trooper_id' => $this->troopers[0]->id]);
+        $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->weekStart]);
+
+        $result = app(MarkAttendanceHandler::class)->preMark($practice, [$this->troopers[0]->id]);
+
+        expect($result->marked)->toBe(1)
+            ->and(Attendance::query()->sole()->source)->toBe(AttendanceSource::Auto);
+    });
+});
+
 it('asks for the leave of every trooper in a batch in one query', function () {
     foreach ($this->troopers as $trooper) {
         leave($trooper, '2026-09-01', '2026-09-05');
