@@ -44,6 +44,9 @@
         <env name="LOA_SYNC_FULL_CRON" value="30 3 * * *"/>
         <env name="LOA_SYNC_REQUEST_DELAY_MS" value="0"/>
         <env name="PORTAL_WEEK_FLOOR_WEEKS" value="20"/>
+        <env name="JSAM_MIN_VISITS" value="3"/>
+        <env name="JSAM_MIN_OWN_SP_PERCENT" value="75"/>
+        <env name="JSAM_WINDOW_WEEKS" value="12"/>
         <env name="CAV_API_BASE_URL" value="https://api.7cav.us"/>
         <env name="CAV_API_KEY" value=""/>
         <env name="CAV_API_SWEEP_BUDGET_SECONDS" value="12"/>

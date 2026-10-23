@@ -52,6 +52,18 @@ trooper's own section's practice and credits their SP like a makeup marked by ha
 held for the rest of the section, so a section that did not practise is not shown as having held SP; the week still
 counts as eligible and attended for the trooper who made it up (a week a trooper attended is always eligible for them).
 
+`trooperAttendance()` takes an optional window (`$windowWeeks`, default `WINDOW_WEEKS`) so a caller that needs the
+same definitions over a longer span reads them here instead of re-deriving SP. Only `PracticeGuests` uses it.
+
+`PracticeGuests` (decided 2026-10-23) is the roster's "Guests at our practices" read model, the Joint Service
+Achievement Medal evidence: the serving troopers from outside a unit recorded at its sections' practices
+(`cross_section_sightings`, capture or a host leader's hand entry, one visit per practice) over the last
+`portal.jsam.window_weeks` Cav weeks, with their visits, the last week seen and their own SP % over the same window
+from `trooperAttendance()` for their own section. `JsamCriteria` marks a candidate: visits at least
+`portal.jsam.min_visits` and own SP at least `portal.jsam.min_own_sp_percent` (compared on the ratio's parts; an SP
+with nothing eligible never qualifies). Visits count the viewed unit's practices only, so the number shown is the one
+the badge is decided on. The portal never awards the medal.
+
 LOA coverage is `Loa\LoaCoverage` (4.4), the one definition (4.8): for each week of the window it says
 covered, needs review or none, whether or not a practice row exists. A covered week, and a week a
 leave that needs review may apply to, leaves the window: no miss, out of both denominators. Only a

@@ -58,6 +58,7 @@ use App\Repositories\TrooperRepository;
 use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
+use App\Rollcall\RollcallGuests;
 use App\Rollcall\RollcallRoster;
 use App\Rollcall\SectionFireteams;
 use App\Rollcall\TemplateResolver;
@@ -128,6 +129,7 @@ class RollcallController extends Controller
         private readonly LoaProvenance $loaProvenance,
         private readonly RollcallRoster $roster,
         private readonly SectionFireteams $fireteams,
+        private readonly RollcallGuests $guests,
     ) {}
 
     /**
@@ -742,6 +744,9 @@ class RollcallController extends Controller
                 'syncedAt' => $lastSync->lastSyncedAt?->toIso8601String(),
             ],
             ...$this->captureProps($practice),
+            // Troopers from other sections recorded at this practice (JSAM evidence, 2026-10-23): what the capture saw
+            // and who the leader added by hand, for the practice step's "Guests" area.
+            'guests' => $this->guests->forPractice($practice),
             'telemetry' => $this->telemetryProps($section->id, $practice),
             'practice' => [
                 'lastMarkedAt' => $week->marks->max(fn (Attendance $row) => $row->updated_at)?->toIso8601String(),

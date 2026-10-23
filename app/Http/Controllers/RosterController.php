@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
 use App\Kpi\KpiService;
+use App\Kpi\PracticeGuest;
+use App\Kpi\PracticeGuests;
 use App\Kpi\Ratio;
 use App\Kpi\TrooperAttendance;
 use App\Kpi\UnitKpis;
@@ -53,6 +55,7 @@ class RosterController extends Controller
         private readonly RosterProvenance $rosterSync,
         private readonly KpiService $kpis,
         private readonly LoaProvenance $loaProvenance,
+        private readonly PracticeGuests $practiceGuests,
     ) {}
 
     public function index(Request $request, ?int $unit = null): Response
@@ -76,6 +79,7 @@ class RosterController extends Controller
             'weeks' => $this->weeks($week),
             'currentWeek' => $week->toDateString(),
             ...($selected ? $this->roster($selected, $week) : ['units' => [], 'troopers' => []]),
+            'guests' => $selected ? $this->guestProps($selected, $week, $tree) : null,
             // Source and freshness of the cached roster (AD-20): the one rule every roster page shares, plus the unit
             // leader's own last sync of this echelon, kept apart from the roster-wide stamp.
             'sync' => [
@@ -206,6 +210,44 @@ class RosterController extends Controller
         ))->values()->all();
 
         return ['units' => $units, 'troopers' => $troopers];
+    }
+
+    /**
+     * "Guests at our practices" (JSAM evidence, decided 2026-10-23) for a section, platoon or company: the troopers from
+     * outside the unit recorded at its sections' practices over the JSAM window, read from {@see PracticeGuests} (own SP
+     * from the one KPI definition, AD-21, never here), with the thresholds so the panel can say what a candidate is.
+     * Null for a battalion or the regiment, whose commanders are not the "benefitted combat line unit commander" the
+     * award names, and whose lists would be too long to read. Read-only, like the rest of the roster: a staff grant and a
+     * view-as preview see the same panel and nothing on it writes.
+     *
+     * @param  Collection<int, Unit>  $tree
+     * @return array{criteria: array{minVisits: int, minOwnSpPercent: int, windowWeeks: int}, rows: list<array<string, mixed>>}|null
+     */
+    private function guestProps(Unit $unit, CarbonImmutable $week, Collection $tree): ?array
+    {
+        if (! in_array($unit->type, [UnitType::Section, UnitType::Platoon, UnitType::Company], true)) {
+            return null;
+        }
+
+        $units = $tree->keyBy('id');
+
+        return [
+            'criteria' => $this->practiceGuests->criteria()->toArray(),
+            'rows' => array_map(fn (PracticeGuest $guest) => [
+                'trooperId' => $guest->trooper->id,
+                'name' => $guest->trooper->username,
+                'displayName' => $guest->trooper->display_name,
+                'rank' => $guest->trooper->rank_short ?? $guest->trooper->rank,
+                'rankFull' => $guest->trooper->rank,
+                'section' => ($section = $units->get($guest->trooper->primary_section_id)) instanceof Unit
+                    ? ['id' => $section->id, 'designation' => $section->callsign ?? $section->name]
+                    : null,
+                'visits' => $guest->visits,
+                'lastSeen' => $guest->lastWeek->toDateString(),
+                'ownSp' => $this->ratio($guest->ownSp),
+                'candidate' => $guest->candidate,
+            ], $this->practiceGuests->forUnit($unit, $week)),
+        ];
     }
 
     /**
