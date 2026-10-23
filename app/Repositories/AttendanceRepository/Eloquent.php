@@ -22,6 +22,19 @@ use Illuminate\Support\Facades\DB;
 
 class Eloquent implements AttendanceRepository
 {
+    /**
+     * The row is not an automatic makeup, so it can hold its practice (see countingMarks()). Only
+     * ever applied to a row whose `status` is set; a null `source` (a mark that predates sources)
+     * is spelled out, since `source = 'auto'` on it is unknown rather than false.
+     */
+    private static function notAutoMakeupSql(): string
+    {
+        $makeup = AttendanceStatus::Makeup->value;
+        $auto = AttendanceSource::Auto->value;
+
+        return "(attendance.status != '{$makeup}' or attendance.source is null or attendance.source != '{$auto}')";
+    }
+
     public function markPractice(
         SectionPractice $practice,
         int $trooperId,
@@ -58,6 +71,38 @@ class Eloquent implements AttendanceRepository
         });
     }
 
+    public function markMakeupAuto(SectionPractice $practice, int $trooperId): ?Attendance
+    {
+        $key = ['trooper_id' => $trooperId, 'section_practice_id' => $practice->id];
+        $values = ['status' => AttendanceStatus::Makeup, 'source' => AttendanceSource::Auto];
+
+        return DB::transaction(function () use ($key, $values) {
+            $row = Attendance::query()->where($key)->lockForUpdate()->first();
+
+            if ($row === null) {
+                try {
+                    return $this->realise(Attendance::query()->create($key + $values));
+                } catch (UniqueConstraintViolationException $e) {
+                    // A racing writer inserted the row first; a locking read sees it (cf. upsert()).
+                    $row = Attendance::query()->where($key)->lockForUpdate()->first() ?? throw $e;
+                }
+            }
+
+            // A leader's say, the LOA mark, and an attended mark all stay: a makeup is only ever an
+            // upgrade over nothing or over an automatic miss.
+            $keeps = $row->source === AttendanceSource::Manual
+                || in_array($row->status, [AttendanceStatus::Loa, AttendanceStatus::Present, AttendanceStatus::Attached], true);
+
+            if ($keeps) {
+                return null;
+            }
+
+            $row->fill($values)->save();
+
+            return $this->realise($row);
+        });
+    }
+
     public function signRollcall(
         SectionPractice $practice,
         int $trooperId,
@@ -79,8 +124,10 @@ class Eloquent implements AttendanceRepository
     {
         // A practice is held once any row on it carries a leader's SP mark. Signatures alone do
         // not hold it, and neither does `loa` — derived from LOA data, it says nothing about
-        // whether the practice ran. Only practices in the window, of sections under `$unit`, can
-        // join below, so the subquery reads those and not the whole attendance history.
+        // whether the practice ran — nor an automatic makeup, which records a practice attended
+        // elsewhere and is written whether or not this section practised. Only practices in the
+        // window, of sections under `$unit`, can join below, so the subquery reads those and not
+        // the whole attendance history.
         $from = WeekOf::requireStart($firstWeek);
         $to = WeekOf::requireStart($lastWeek);
         $sections = Unit::query()->select('id')->where('path', 'like', "{$unit->path}%");
@@ -92,6 +139,7 @@ class Eloquent implements AttendanceRepository
             ->whereIn('section_practices.section_id', $sections)
             ->whereNotNull('attendance.status')
             ->where('attendance.status', '!=', AttendanceStatus::Loa->value)
+            ->whereRaw(self::notAutoMakeupSql())
             ->groupBy('attendance.section_practice_id');
 
         $population = $includeDeparted
@@ -164,7 +212,7 @@ class Eloquent implements AttendanceRepository
             ->selectRaw('count(troopers.id) as strength')
             ->selectRaw("coalesce(sum(case when (attendance.rollcall is not null and attendance.rollcall != '{$unsigned}'){$excusedSql} then 1 else 0 end), 0) as signed", $excused)
             ->selectRaw("coalesce(sum(case when attendance.status is not null{$excusedSql} then 1 else 0 end), 0) as marked", $excused)
-            ->selectRaw("coalesce(sum(case when attendance.status is not null and attendance.status != '{$loa}' then 1 else 0 end), 0) as held_marks")
+            ->selectRaw("coalesce(sum(case when attendance.status is not null and attendance.status != '{$loa}' and ".self::notAutoMakeupSql().' then 1 else 0 end), 0) as held_marks')
             ->selectRaw("coalesce(sum(case when attendance.status = '{$loa}'{$excusedSql} then 1 else 0 end), 0) as on_loa", $excused)
             ->selectRaw("coalesce(sum(case when (attendance.status is null or attendance.status != '{$loa}') and (attendance.rollcall is null or attendance.rollcall = '{$unsigned}'){$notExcusedSql} then 1 else 0 end), 0) as not_signed", $excused)
             ->selectRaw('max(section_practices.rollcall_posted_at) as posted_at')
