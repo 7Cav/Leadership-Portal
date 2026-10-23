@@ -69,13 +69,17 @@ Add one cron entry that runs the Laravel scheduler every minute:
 * * * * * cd /path/to/portal && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-It queues these jobs (`routes/console.php`; `php artisan schedule:list` shows them):
+It runs these commands, each of which queues its sync job (`routes/console.php`; `php artisan schedule:list`
+shows them). To change when one runs, change its schedule there.
 
-| Job | Default (UTC) | Env key | Runs only if |
+| Command | When (UTC) | Queues | Runs only if |
 | --- | --- | --- | --- |
-| `SyncRosterJob` | `0 * * * *`, hourly on the hour | `ROSTER_SYNC_CRON` | always |
-| `SyncLoasJob` (recent threads) | `15 * * * *`, hourly at :15 | `LOA_SYNC_CRON` | `SEVENCAV_FORUM_API_KEY` and `SEVENCAV_FORUM_LOA_NODES` are set |
-| `SyncLoasJob` (full run) | `30 3 * * *`, daily at 03:30 | `LOA_SYNC_FULL_CRON` | the same |
+| `portal:sync-roster` | hourly, on the hour | `SyncRosterJob` | always |
+| `portal:sync-loas` | hourly, at :15 | `SyncLoasJob` (recent threads) | `SEVENCAV_FORUM_API_KEY` and `SEVENCAV_FORUM_LOA_NODES` are set |
+| `portal:sync-loas --full` | daily, at 03:30 | `SyncLoasJob` (full run) | the same |
+
+Run any of them by hand to sync now. They queue the job, so a queue worker picks it up; add `--now` to run the
+sync in the foreground instead, e.g. `php artisan portal:sync-roster --now` for the first sync.
 
 Locally, `php artisan schedule:work` runs the scheduler in the foreground; `composer dev` starts a
 queue listener but not the scheduler.
@@ -120,7 +124,7 @@ php artisan portal:admin --forum-id=<your forum user id>
 #    roster so troopers are placed in their sections. The scheduler queues this hourly, but only
 #    where `schedule:run` is wired up (see Deploying); `composer dev` doesn't start the scheduler.
 #    To run it now:
-php artisan tinker --execute="App\Jobs\SyncRosterJob::dispatchSync()"
+php artisan portal:sync-roster --now
 
 # 4. Generate 8 completed weeks for a unit's whole subtree (designation or unit id)
 php artisan portal:demo-history A/1-7 --weeks=8

@@ -2,36 +2,45 @@
 
 use App\Jobs\SyncRosterJob;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Queue;
 
 /**
- * Story 2.4 — the scheduler is the "system" dispatch path; this only proves it's wired to
- * `SyncRosterJob` on the configured cadence, not that cron itself fires (framework's job).
+ * Story 2.4 — the scheduler is the "system" dispatch path, through `portal:sync-roster`. This proves the command
+ * is on the schedule hourly and queues the job stamped as `system`, not that cron itself fires (framework's job).
  */
-it('registers SyncRosterJob on the schedule at the configured cadence', function () {
-    $this->artisan('list');
+function rosterSyncEvent()
+{
+    test()->artisan('list');
 
-    $event = collect(app(Schedule::class)->events())
-        ->first(fn ($event) => $event->description === SyncRosterJob::class);
+    return collect(app(Schedule::class)->events())
+        ->first(fn ($event) => str_contains((string) $event->command, 'portal:sync-roster'));
+}
 
-    expect($event)->not->toBeNull();
-    // Read from config, not hardcoded — changing `ROSTER_SYNC_CRON` needs no code change.
-    expect($event->getExpression())->toBe(config('sync.roster_cron'));
+it('schedules portal:sync-roster hourly, on the hour', function () {
+    $event = rosterSyncEvent();
+
+    expect($event)->not->toBeNull()
+        ->and($event->getExpression())->toBe('0 * * * *')
+        ->and($event->filtersPass($this->app))->toBeTrue();
 });
 
-it('defaults ROSTER_SYNC_CRON to hourly when unset', function () {
-    expect(config('sync.roster_cron'))->toBe('0 * * * *');
-});
-
-it('stamps the scheduled run as triggered by system, not a hardcoded instance the controller could drift from', function () {
+it('queues the roster sync stamped as triggered by system, not a hardcoded instance the controller could drift from', function () {
     Queue::fake();
 
-    $this->artisan('list');
+    $this->artisan('portal:sync-roster')
+        ->expectsOutput('Roster sync queued.')
+        ->assertSuccessful();
 
-    $event = collect(app(Schedule::class)->events())
-        ->first(fn ($event) => $event->description === SyncRosterJob::class);
+    Queue::assertPushed(SyncRosterJob::class, fn (SyncRosterJob $job) => $job->triggeredBy === 'system' && $job->unitId === null);
+});
 
-    $event->run($this->app);
+it('runs the roster sync in the foreground with --now', function () {
+    Bus::fake();
 
-    Queue::assertPushed(SyncRosterJob::class, fn (SyncRosterJob $job) => $job->triggeredBy === 'system');
+    $this->artisan('portal:sync-roster', ['--now' => true])
+        ->expectsOutput('Roster sync finished.')
+        ->assertSuccessful();
+
+    Bus::assertDispatchedSync(SyncRosterJob::class, fn (SyncRosterJob $job) => $job->triggeredBy === 'system');
 });
