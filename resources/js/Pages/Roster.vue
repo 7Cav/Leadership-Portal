@@ -32,6 +32,7 @@ import EmptyState from "@/components/EmptyState.vue";
 import LoaSyncNote from "@/components/LoaSyncNote.vue";
 import MatrixView from "@/components/roster/MatrixView.vue";
 import OrbatView from "@/components/roster/OrbatView.vue";
+import PracticeGuestsPanel from "@/components/roster/PracticeGuestsPanel.vue";
 import TrooperSheet from "@/components/roster/TrooperSheet.vue";
 import { useNow } from "@/composables/useNow";
 import { useViewAs } from "@/composables/useViewAs";
@@ -57,6 +58,9 @@ const props = defineProps({
     loaSync: { type: Object, default: null },
     can: { type: Object, required: true },
     links: { type: Object, required: true },
+    // "Guests at our practices" for a section, platoon or company (JSAM evidence, 2026-10-23): `{ criteria, rows }`,
+    // or null for a battalion or the regiment.
+    guests: { type: Object, default: null },
 });
 
 const page = usePage();
@@ -504,6 +508,12 @@ function syncNow() {
                 :current-week="currentWeek"
                 :loading="navigating"
                 @open="openTrooperId = $event"
+            />
+
+            <PracticeGuestsPanel
+                v-if="guests"
+                :guests="guests"
+                :unit-label="unit.callsign ?? unit.name"
             />
 
             <p class="flex items-center gap-1.5 text-xs text-muted-foreground">
