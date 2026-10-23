@@ -9,7 +9,7 @@ import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import RankBadge from '@/components/roster/RankBadge.vue';
-import { DEBOUNCE_MS, MIN_CHARS, useTrooperSearch } from '@/composables/useTrooperSearch';
+import { DEBOUNCE_MS, MAX_CHARS, MIN_CHARS, useTrooperSearch } from '@/composables/useTrooperSearch';
 import { reloadPage, sessionEnded } from '@/lib/postJson';
 
 // The shell's trooper search: type part of a name, pick a trooper, land on their milpac. The server answers with only
@@ -19,13 +19,23 @@ import { reloadPage, sessionEnded } from '@/lib/postJson';
 const { searchOpen } = useTrooperSearch();
 
 const query = ref('');
-const status = ref('idle'); // idle | loading | ready | error | throttled
+const status = ref('idle'); // idle | loading | ready | error | throttled | tooLong
 const results = ref([]);
 const more = ref(false);
 
 let timer = null;
 let controller = null;
 let latest = 0;
+
+// Characters as the server counts them (`mb_strlen`, one per code point), not as `String.length` does (UTF-16 units,
+// two for an emoji), so the dialog sends exactly the searches the server accepts.
+const charCount = (text) => [...text].length;
+
+function clearResults(next) {
+    results.value = [];
+    more.value = false;
+    status.value = next;
+}
 
 function cancel() {
     clearTimeout(timer);
@@ -52,6 +62,12 @@ async function run(q) {
             status.value = 'throttled';
             return;
         }
+        // The server's length check (2 to 64 characters) is not a broken connection. The dialog only sends a search it
+        // counts in range, so a refusal means the server counted more, as for a space PHP's trim keeps: say too long.
+        if (response.status === 422) {
+            clearResults(charCount(q) < MIN_CHARS ? 'idle' : 'tooLong');
+            return;
+        }
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const body = await response.json();
         if (id !== latest) return;
@@ -68,18 +84,23 @@ async function run(q) {
 watch(query, (value) => {
     cancel();
     const q = value.trim();
-    if (q.length < MIN_CHARS) {
+    const length = charCount(q);
+    if (length < MIN_CHARS || length > MAX_CHARS) {
         latest++;
-        status.value = 'idle';
-        results.value = [];
-        more.value = false;
+        clearResults(length > MAX_CHARS ? 'tooLong' : 'idle');
         return;
     }
     status.value = 'loading';
     timer = setTimeout(() => run(q), DEBOUNCE_MS);
 });
 
-const retry = () => run(query.value.trim());
+// Try again shows the search under way, and drops a request still out (or a search waiting on the debounce) first, so
+// only this one's answer can land.
+function retry() {
+    cancel();
+    status.value = 'loading';
+    run(query.value.trim());
+}
 
 // Each opening starts blank: an old search would show troopers from a scope the viewer may since have left.
 watch(searchOpen, (open) => {
@@ -112,6 +133,7 @@ function choose(trooper) {
                     <ListboxFilter
                         v-model="query"
                         auto-focus
+                        :maxlength="MAX_CHARS"
                         placeholder="Find a trooper by name"
                         aria-label="Search troopers by name"
                         autocomplete="off"
@@ -139,6 +161,10 @@ function choose(trooper) {
                     <p class="max-w-[42ch] text-[13px] text-muted-foreground">The search did not load. Check your connection, then try again.</p>
                     <Button variant="outline" size="sm" @click="retry">Try again</Button>
                 </div>
+
+                <p v-else-if="status === 'tooLong'" class="px-6 py-8 text-center text-[13px] text-muted-foreground" data-testid="trooper-search-too-long">
+                    That is longer than any name. Search with at most {{ MAX_CHARS }} characters.
+                </p>
 
                 <p v-else-if="status === 'throttled'" role="alert" class="px-6 py-8 text-center text-[13px] text-muted-foreground" data-testid="trooper-search-throttled">
                     Too many searches in a short time. Wait a moment, then keep typing.

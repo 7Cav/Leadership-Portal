@@ -22,11 +22,15 @@ export function reloadPage() {
     window.location.reload();
 }
 
-export async function postJson(url, body, { onSignedOut = reloadPage } = {}) {
+// `keepalive` lets the request outlive the page that sent it (a tab closed or reloaded right after a
+// change): the browser finishes sending it instead of cancelling it with the page. The answer may
+// then have nowhere to go, so only a save that is fine unanswered asks for it.
+export async function postJson(url, body, { onSignedOut = reloadPage, keepalive = false } = {}) {
     const response = await fetch(url, {
         method: 'POST',
         credentials: 'same-origin',
         redirect: 'manual',
+        keepalive,
         headers: {
             Accept: 'application/json',
             'Content-Type': 'application/json',

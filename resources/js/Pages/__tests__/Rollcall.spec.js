@@ -19,12 +19,13 @@ const toastSuccess = vi.fn();
 vi.mock('@/lib/postJson', () => ({ postJson: (...args) => post(...args) }));
 const toastError = vi.fn();
 const toastWarning = vi.fn();
+const toastDismiss = vi.fn();
 vi.mock('vue-sonner', () => ({
     toast: {
         success: (...args) => toastSuccess(...args),
         error: (...args) => toastError(...args),
         warning: (...args) => toastWarning(...args),
-        dismiss: () => {},
+        dismiss: (...args) => toastDismiss(...args),
     },
 }));
 
@@ -258,6 +259,19 @@ describe('Rollcall page', () => {
         expect(wrapper.find('[data-testid="past-week-notice"]').exists()).toBe(true);
     });
 
+    // "Changes correct that week's record" beside a notice that nothing here can change would contradict it.
+    it.each([
+        ['a week before the week floor', { week: { ...WEEK, isCurrent: false, beforeFloor: true, next: '2026-10-10' } }, false],
+        ['a section seen through a staff grant', { canWrite: false }, false],
+        ['a view-as preview', {}, true],
+    ])('does not say a past week is being edited for %s, which is read-only', (_, props, viewAs) => {
+        if (viewAs) page.props.viewAs = { label: 'CPL Lindqvist.E', admin: false };
+        const wrapper = factory({ week: { ...WEEK, isCurrent: false, date: '2026-09-26', start: '2026-09-26T00:00:00+00:00', next: '2026-10-03' }, ...props });
+
+        expect(wrapper.find('[data-testid="read-only-notice"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="past-week-notice"]').exists()).toBe(false);
+    });
+
     describe('unfinished past weeks', () => {
         const STATUS = [
             { date: '2026-09-26', unmarked: 0, posted: true },
@@ -391,6 +405,44 @@ describe('Rollcall page', () => {
             await vi.advanceTimersByTimeAsync(7000);
 
             expect(post).toHaveBeenCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 2, status: 'present' }] });
+        });
+
+        it('saves marks held for Undo as soon as the leader moves to another step, and closes the Undo', async () => {
+            page.url = '/rollcall/12?step=2';
+            toastSuccess.mockReturnValueOnce('undo-1');
+            toastDismiss.mockClear();
+            const wrapper = factory({ troopers: [trooper(2, 'unsigned', null), trooper(3, 'unsigned', null)] });
+
+            await wrapper.find('[data-testid="mark-all-present"]').trigger('click');
+            expect(post).not.toHaveBeenCalled();
+            await wrapper.find('[data-step="3"]').trigger('click');
+            await flushPromises();
+
+            expect(post).toHaveBeenCalledTimes(1);
+            expect(post).toHaveBeenCalledWith('/rollcall/12', {
+                week: '2026-10-03',
+                marks: [
+                    { trooper_id: 2, status: 'present' },
+                    { trooper_id: 3, status: 'present' },
+                ],
+            });
+            expect(toastDismiss).toHaveBeenCalledWith('undo-1');
+            expect(push).toHaveBeenCalledWith(expect.objectContaining({ url: '/rollcall/12?step=3' }));
+            await vi.advanceTimersByTimeAsync(7000);
+            expect(post).toHaveBeenCalledTimes(1);
+        });
+
+        it('saves marks held for Undo when the screen goes away (browser Back rebuilds it from history)', async () => {
+            page.url = '/rollcall/12?step=2';
+            toastSuccess.mockReturnValueOnce('undo-1');
+            toastDismiss.mockClear();
+            const wrapper = factory({ troopers: [trooper(2, 'unsigned', null)] });
+
+            await wrapper.find('[data-testid="mark-rest-missed"]').trigger('click');
+            wrapper.unmount();
+
+            expect(post).toHaveBeenCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 2, status: 'missed' }] }, { keepalive: true });
+            expect(toastDismiss).toHaveBeenCalledWith('undo-1');
         });
 
         it('marks every unmarked, non-LOA trooper missed in one action and leaves set marks alone', async () => {
@@ -553,6 +605,55 @@ describe('Rollcall page', () => {
             const id = faces()[0].element.closest('[data-trooper]').dataset.trooper;
             await faces()[0].trigger('keydown', { key: '3' });
             expect(button(wrapper, id, 'makeup').attributes('aria-pressed')).toBe('true');
+        });
+
+        describe('when a mark takes the focused card off the "Needs a look" list', () => {
+            const needsALook = async () => {
+                page.url = '/rollcall/12?step=2';
+                const wrapper = factory({ troopers: [trooper(1, 'will_attend', 'present'), trooper(2, 'unsigned', null), trooper(3, 'unsigned', null), trooper(4, 'unsigned', null)] });
+                await wrapper.findAll('button[aria-pressed]').find((b) => b.text().startsWith('Needs a look')).trigger('click');
+
+                return wrapper;
+            };
+            const faces = (wrapper) => wrapper.findAll('[data-card-face]').map((face) => face.element);
+            const idOf = (element) => element.closest('[data-trooper]').dataset.trooper;
+            const press = async (wrapper, element, key) => {
+                element.focus();
+                element.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+                await wrapper.vm.$nextTick();
+                await wrapper.vm.$nextTick();
+            };
+
+            it('moves the focus to the card that took its place, so J and K keep working', async () => {
+                const wrapper = await needsALook();
+                const [first, second, third] = faces(wrapper);
+                const [secondId, thirdId] = [idOf(second), idOf(third)];
+
+                await press(wrapper, first, '1');
+
+                expect(faces(wrapper)).toHaveLength(2);
+                expect(idOf(document.activeElement)).toBe(secondId);
+                document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', bubbles: true }));
+                expect(idOf(document.activeElement)).toBe(thirdId);
+            });
+
+            it('moves the focus to the card before it when it was the last', async () => {
+                const wrapper = await needsALook();
+                const [, second, third] = faces(wrapper);
+
+                await press(wrapper, third, '1');
+
+                expect(idOf(document.activeElement)).toBe(idOf(second));
+            });
+
+            it('moves the focus to the step heading once no card is left', async () => {
+                const wrapper = await needsALook();
+
+                for (let left = 3; left > 0; left--) await press(wrapper, faces(wrapper)[0], '1');
+
+                expect(faces(wrapper)).toHaveLength(0);
+                expect(document.activeElement).toBe(wrapper.find('h2').element);
+            });
         });
 
         it('takes the keyboard card and the number keys from the shortcut list', async () => {
@@ -749,6 +850,71 @@ describe('Rollcall page', () => {
             expect(toastSuccess).toHaveBeenCalledWith('BBCode copied', { description: 'Paste it as a reply in the 2/1/A/1-7 rollcall thread.' });
         });
 
+        describe('a copy made before the marks changed', () => {
+            const finishList = (wrapper) => wrapper.findAll('aside li').map((item) => item.text());
+            const copyThenChange = async () => {
+                toastWarning.mockClear();
+                Object.defineProperty(navigator, 'clipboard', { value: { writeText: vi.fn().mockResolvedValue() }, configurable: true });
+                page.url = '/rollcall/12?step=3';
+                const wrapper = factory();
+                await wrapper.find('[data-testid="copy-bbcode"]').trigger('click');
+                await vi.waitFor(() => expect(wrapper.find('[data-testid="copy-bbcode"]').text()).toBe('Copy again'));
+                expect(wrapper.find('aside li').find('svg').exists()).toBe(true);
+
+                page.url = '/rollcall/12?step=2';
+                await wrapper.vm.$nextTick();
+                await wrapper.find('[data-trooper="3"] button[data-value="present"]').trigger('click');
+                page.url = '/rollcall/12?step=3';
+                await wrapper.vm.$nextTick();
+
+                return wrapper;
+            };
+
+            it('no longer counts as copied once the post it copied has changed', async () => {
+                const wrapper = await copyThenChange();
+
+                expect(wrapper.find('[data-testid="copy-bbcode"]').text()).toBe('Copy BBCode');
+                expect(finishList(wrapper)[0]).toContain('Copy the updated BBCode');
+                expect(wrapper.find('aside li').find('svg').exists()).toBe(false);
+            });
+
+            it('warns when the rollcall is marked posted from it, and asks for a repost', async () => {
+                const wrapper = await copyThenChange();
+                post.mockImplementation(async (url) =>
+                    url.endsWith('/posted')
+                        ? { ok: true, status: 200, data: { posted: { at: '2026-10-08T16:21:00+00:00', by: 'Vasquez.R' } } }
+                        : { ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00', atRisk: [] } },
+                );
+
+                await wrapper.find('[data-testid="mark-posted"]').trigger('click');
+                await vi.waitFor(() => expect(wrapper.find('[data-testid="posted-state"]').exists()).toBe(true));
+
+                expect(toastWarning).toHaveBeenCalledWith('Marked posted, but the copied BBCode is out of date', {
+                    description: 'Marks changed after you copied it. Copy it again, update the forum post, then mark it posted again.',
+                });
+                expect(toastSuccess).not.toHaveBeenCalledWith('Rollcall marked posted', expect.anything());
+                expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Repost the updated BBCode');
+            });
+
+            it('marks posted as current once the updated post is copied again', async () => {
+                const wrapper = await copyThenChange();
+                post.mockImplementation(async (url) =>
+                    url.endsWith('/posted')
+                        ? { ok: true, status: 200, data: { posted: { at: '2026-10-08T16:21:00+00:00', by: 'Vasquez.R' } } }
+                        : { ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00', atRisk: [] } },
+                );
+
+                await wrapper.find('[data-testid="copy-bbcode"]').trigger('click');
+                await vi.waitFor(() => expect(wrapper.find('[data-testid="copy-bbcode"]').text()).toBe('Copy again'));
+                await wrapper.find('[data-testid="mark-posted"]').trigger('click');
+                await vi.waitFor(() => expect(wrapper.find('[data-testid="posted-state"]').exists()).toBe(true));
+
+                expect(toastWarning).not.toHaveBeenCalled();
+                expect(toastSuccess).toHaveBeenCalledWith('Rollcall marked posted', expect.anything());
+                expect(wrapper.find('[data-testid="posted-state"]').text()).not.toContain('Repost the updated BBCode');
+            });
+        });
+
         it('says so when the clipboard is unavailable', async () => {
             vi.spyOn(console, 'error').mockImplementation(() => {});
             Object.defineProperty(navigator, 'clipboard', { value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) }, configurable: true });
@@ -834,6 +1000,36 @@ describe('Rollcall page', () => {
         });
     });
 
+    describe('going back a step with the browser (a screen rebuilt from history)', () => {
+        it('reads the marks again, and keeps the marks it opened with as this visit\'s changes', async () => {
+            page.url = '/rollcall/12?step=3';
+            window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+            // The history entry still has trooper 2 unmarked; the server has the present saved since.
+            const wrapper = factory({ troopers: [trooper(2, 'unsigned', null)] });
+            await flushPromises();
+
+            expect(reload).toHaveBeenCalledTimes(1);
+            const [options] = reload.mock.calls[0];
+            expect(options.only).toEqual(expect.arrayContaining(['troopers', 'practice', 'atRisk', 'weekStatus']));
+
+            await wrapper.setProps({ troopers: [trooper(2, 'unsigned', 'present')] });
+            options.onFinish();
+            await flushPromises();
+
+            const changes = wrapper.find('[data-testid="changes"]').text();
+            expect(changes).toContain('Trooper2.A');
+            expect(changes).toContain('Present');
+        });
+
+        it('does not read the marks again for a screen the server just answered', async () => {
+            page.url = '/rollcall/12?step=3';
+            factory();
+            await flushPromises();
+
+            expect(reload).not.toHaveBeenCalled();
+        });
+    });
+
     describe('failure paths (review)', () => {
         beforeEach(() => {
             toastError.mockClear();
@@ -844,14 +1040,16 @@ describe('Rollcall page', () => {
             page.url = '/rollcall/12?step=2';
             const wrapper = factory();
             await wrapper.find('[data-trooper="3"] button[data-value="present"]').trigger('click');
+            // Moving to the review step sends the mark at once; marking posted tries it again.
+            post.mockResolvedValueOnce({ ok: false, status: 500, data: null }).mockResolvedValueOnce({ ok: false, status: 500, data: null });
             await wrapper.find('[data-step="3"]').trigger('click');
-            post.mockResolvedValueOnce({ ok: false, status: 500, data: null });
+            await flushPromises();
 
             await wrapper.find('[data-testid="mark-posted"]').trigger('click');
             await vi.waitFor(() => expect(toastError).toHaveBeenCalledWith('Changes are not saved yet', expect.anything()));
 
-            expect(post).toHaveBeenCalledTimes(1);
-            expect(post.mock.calls[0][0]).toBe('/rollcall/12');
+            expect(post).toHaveBeenCalledTimes(2);
+            expect(post.mock.calls.map(([url]) => url)).toEqual(['/rollcall/12', '/rollcall/12']);
             expect(wrapper.find('[data-testid="posted-state"]').exists()).toBe(false);
         });
 

@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Repositories\TemplateVersionRepository;
 use App\Repositories\UnitRepository;
 use App\Rollcall\RollcallRoster;
+use App\Rollcall\SectionFireteams;
 use App\Rollcall\TemplateSyntax;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
@@ -89,9 +90,11 @@ class TemplatesController extends Controller
      * One section's rollcall for the current week, for the preview to fill the template with: the same section, week and
      * trooper rows the rollcall page reads ({@see RollcallRoster}), so the preview shows the post that section would copy.
      * Gated as the rollcall page is (AD-8): a section outside the viewer's scope is a 403. It must also sit under the
-     * company being edited, since that is the template it renders from; anything else is a 404.
+     * company being edited, since that is the template it renders from; anything else is a 404. The section's fireteam
+     * display goes along in the rollcall page's shape ({@see SectionFireteams::options()}), since it sets the post's
+     * order and its FTL lines; the preview changes nothing, so it says the viewer may edit neither.
      */
-    public function previewSection(Request $request, int $unit, ScopeResolver $scope, LoaCoverage $loa): JsonResponse
+    public function previewSection(Request $request, int $unit, ScopeResolver $scope, LoaCoverage $loa, SectionFireteams $fireteams): JsonResponse
     {
         // Answered as JSON, like the rollcall page's own background calls: the page reads it with fetch, not a visit.
         $validator = Validator::make($request->query(), ['company' => ['required', 'integer']]);
@@ -123,6 +126,7 @@ class TemplatesController extends Controller
                 ...$row,
                 'loa' => $covers[$row['id']]->suppressesAtRisk() ? $covers[$row['id']]->toArray() : null,
             ], $troopers),
+            'fireteams' => $fireteams->options($section, canEdit: false, canEditPolicy: false),
         ]);
     }
 

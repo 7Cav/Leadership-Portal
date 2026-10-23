@@ -7,6 +7,9 @@ const searchOpen = ref(false);
 /** The server refuses shorter searches, so the dialog does not send them. */
 export const MIN_CHARS = 2;
 
+/** The server refuses longer searches too (`TrooperSearchController::MAX_LENGTH`), so the input stops there. */
+export const MAX_CHARS = 64;
+
 /** How long typing must pause before a search goes out. */
 export const DEBOUNCE_MS = 250;
 

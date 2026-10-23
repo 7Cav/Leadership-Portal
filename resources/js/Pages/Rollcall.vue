@@ -44,7 +44,8 @@ import UnmatchedDrawer from '@/components/rollcall/UnmatchedDrawer.vue';
 import { forumDate, forumDateTime } from '@/lib/forumDate';
 import ForumPost from '@/components/rollcall/ForumPost.vue';
 import { copyText } from '@/lib/clipboard';
-import { messageFor, unreachable, useRollcallAutosave } from '@/composables/useRollcallAutosave';
+import { messageFor, unreachable, useRollcallAutosave, whenLeft } from '@/composables/useRollcallAutosave';
+import { takeHistoryRestore } from '@/lib/historyRestore';
 import { orderTroopers } from '@/lib/fireteams';
 import { postJson } from '@/lib/postJson';
 import { rollcallPost } from '@/lib/rollcallBbcode';
@@ -130,6 +131,9 @@ const page = usePage();
 // leader's marks is not saved yet keeps that mark on screen: it saves after the server read the page.
 const rows = ref([]);
 const baseline = ref(new Map());
+// While the marks are read again after a history restore (below), the baseline the page opened with: the marks the
+// server answers then include this visit's own changes, which must not become the new "before".
+let keptBaseline = null;
 watch(
     () => props.troopers,
     (troopers) => {
@@ -142,7 +146,9 @@ watch(
 
             return row;
         });
-        baseline.value = new Map(troopers.map((trooper) => [trooper.id, { rollcall: trooper.rollcall, status: trooper.status, source: trooper.source }]));
+        baseline.value = new Map(
+            troopers.map((trooper) => [trooper.id, keptBaseline?.get(trooper.id) ?? { rollcall: trooper.rollcall, status: trooper.status, source: trooper.source }]),
+        );
     },
     { immediate: true },
 );
@@ -259,6 +265,17 @@ const UNDO_MS = 6000;
 
 // Undo toasts still open; marking posted saves their held changes early, so it closes them.
 const undoToasts = new Set();
+
+// Save the held changes now and close their Undo toasts: once a change is saved, Undo could only
+// answer "already saved". Marking posted and confirming need the marks on the server first, and
+// moving to another step commits them too: an Undo is for the step it was made on, and a hold must
+// not outlive it (the step change keeps this screen, but browser Back to a step rebuilds it).
+function commitHeld() {
+    for (const id of undoToasts) toast.dismiss(id);
+    undoToasts.clear();
+
+    return autosave.flush({ includeHeld: true });
+}
 
 function applyMany(entries, title) {
     if (!entries.length) return;
@@ -406,9 +423,21 @@ function onCardKeydown(event) {
         const trooper = rows.value.find((t) => t.id === id);
         if (!option || !trooper) return;
         event.preventDefault();
+        // The event's list, kept for after the re-render (`currentTarget` is gone once the handler returns).
+        const list = event.currentTarget;
         set(trooper, kind, option.value);
-        // The card may have moved to another group; keep the focus on the same trooper.
-        nextTick(() => document.querySelector(`[data-trooper="${id}"] [data-card-face]`)?.focus());
+        // The card may have moved to another group; keep the focus on the same trooper. Under "Needs a look" a mark can
+        // take the card off the list: the focus goes to the card that took its place (the next one), or the one before
+        // it at the end, so J / K keep working instead of the focus dropping to the page. With no card left, the
+        // step's heading takes it.
+        nextTick(() => {
+            const same = list.querySelector(`[data-trooper="${id}"] [data-card-face]`);
+            if (same) return same.focus();
+            const remaining = [...list.querySelectorAll('[data-card-face]')];
+            const next = remaining[index] ?? remaining[index - 1] ?? remaining.at(-1);
+            if (next) next.focus();
+            else stepHeading.value?.focus();
+        });
     }
 }
 
@@ -438,38 +467,50 @@ const post = computed(() =>
     props.section ? rollcallPost(props.template, { section: props.section, week: props.week, troopers: rows.value, fireteams: fireteams.value ?? {} }) : null,
 );
 const bbcode = computed(() => (post.value?.state === 'ready' ? post.value.text : ''));
-const copied = ref(false);
+// The BBCode as the leader last copied it. "Copied" holds only while the post on screen is still that text: a mark or a
+// fireteam changed since means what they paste, or already pasted, is out of date (`copyStale`).
+const copiedText = ref(null);
+const copied = computed(() => copiedText.value !== null && copiedText.value === bbcode.value);
+const copyStale = computed(() => copiedText.value !== null && !copied.value);
 const posting = ref(false);
 
 async function copyBbcode() {
     if (post.value?.state !== 'ready') return;
 
-    const ok = await copyText(bbcode.value, 'BBCode copied', {
+    // The text as it was clicked: a mark that lands while the clipboard is busy makes this copy stale, not current.
+    const text = bbcode.value;
+    const ok = await copyText(text, 'BBCode copied', {
         description: `Paste it as a reply in the ${props.section.designation} rollcall thread.`,
         failed: 'Could not copy the BBCode',
         fallback: 'Open the BBCode tab and copy it by hand.',
     });
-    if (ok) copied.value = true;
+    if (ok) copiedText.value = text;
 }
 
 async function markPosted() {
     posting.value = true;
     try {
         // The post on the forum was made from the marks on screen, so they must be saved first.
-        for (const id of undoToasts) toast.dismiss(id);
-        undoToasts.clear();
-        if (!(await autosave.flush({ includeHeld: true }))) {
+        if (!(await commitHeld())) {
             toast.error('Changes are not saved yet', { description: autosave.error.value ?? autosave.lockedMessage.value });
 
             return;
         }
         // A mark changed while this request is in flight saves after the post was stamped: stale.
         const editsBefore = edits;
+        // Copied here, but the post changed since: the forum has the older text, so the stamp is not a current post.
+        const staleCopy = copyStale.value;
         const result = await postJson(`/rollcall/${props.section.id}/posted`, { week: props.week.date }).catch(unreachable);
         if (result.ok && result.data?.posted) {
             posted.value = result.data.posted;
-            editedSincePost.value = edits !== editsBefore;
-            toast.success('Rollcall marked posted', { description: `${props.section.designation}, week of ${weekLabel.value}` });
+            editedSincePost.value = staleCopy || edits !== editsBefore;
+            if (staleCopy) {
+                toast.warning('Marked posted, but the copied BBCode is out of date', {
+                    description: 'Marks changed after you copied it. Copy it again, update the forum post, then mark it posted again.',
+                });
+            } else {
+                toast.success('Rollcall marked posted', { description: `${props.section.designation}, week of ${weekLabel.value}` });
+            }
         } else {
             toast.error('Could not mark the rollcall posted', { description: messageFor(result) });
         }
@@ -492,9 +533,7 @@ const confirmationLabel = computed(() =>
 async function confirmPractice() {
     confirming.value = true;
     try {
-        for (const id of undoToasts) toast.dismiss(id);
-        undoToasts.clear();
-        if (!(await autosave.flush({ includeHeld: true }))) {
+        if (!(await commitHeld())) {
             toast.error('Changes are not saved yet', { description: autosave.error.value ?? autosave.lockedMessage.value });
 
             return;
@@ -533,6 +572,10 @@ const leaving = new Promise((resolve) => (leave = resolve));
 onBeforeUnmount(() => {
     left = true;
     leave();
+    // The autosave sends the held marks as the screen goes, so an Undo toast left open on the next
+    // page could not take them back.
+    for (const id of undoToasts) toast.dismiss(id);
+    undoToasts.clear();
 });
 
 const pause = (ms) =>
@@ -670,7 +713,27 @@ onMounted(() => {
     if (Number.isInteger(id) && id > 0) nextTick(() => focusTrooper(id));
 });
 
+// Browser Back or Forward rebuilds this screen from the history entry, whose marks are the ones the step was first
+// opened with: going back a step would show marks saved since as never made. Read them again from the server, once the
+// screen that was just left has sent what it still held, and keep the opening marks as this visit's "before". It is a
+// partial reload of what changes as the week is worked, so a mark set meanwhile neither trips the leave guard nor is
+// overwritten (the rows keep a mark not saved yet).
+const LIVE_PROPS = ['troopers', 'practice', 'atRisk', 'weekStatus', 'fireteams', 'unmatched', 'dismissed', 'capture', 'telemetry', 'locked', 'report'];
+// A save that never answers must not keep the marks stale for good: past a few seconds, read them anyway.
+const LEFT_WAIT_MS = 3000;
+onMounted(() => {
+    if (!autosave || !takeHistoryRestore()) return;
+    Promise.race([whenLeft(), pause(LEFT_WAIT_MS)]).then(() => {
+        if (left) return;
+        keptBaseline = baseline.value;
+        router.reload({ only: LIVE_PROPS, onFinish: () => nextTick(() => (keptBaseline = null)) });
+    });
+});
+
+// Moving to another step commits the marks held for Undo (see `commitHeld`): the save goes now, while
+// this screen is still here to show whether it worked.
 function go(n) {
+    if (autosave && n !== step.value) commitHeld();
     const params = new URLSearchParams(query.value);
     params.set('step', String(n));
     params.delete('focus');
@@ -887,8 +950,10 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
             <p>{{ lockedReason }} You can still copy the forum post and mark it posted.</p>
         </div>
 
+        <!-- Only where a change can be made: a read-only week (too far back, a staff grant, a view-as preview, a sent
+             report) already says why nothing here changes. -->
         <div
-            v-if="!week.isCurrent && !weekLocked"
+            v-if="!week.isCurrent && editable"
             role="status"
             class="mt-3 flex items-start gap-2.5 rounded-lg border border-warning/40 bg-warning/7 px-3.5 py-2.5 text-[13px]"
             data-testid="past-week-notice"
@@ -1266,7 +1331,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                         <ol class="space-y-2.5">
                             <li
                                 v-for="(item, index) in [
-                                    { label: 'Copy the BBCode', done: copied },
+                                    { label: copyStale ? 'Copy the updated BBCode' : 'Copy the BBCode', done: copied },
                                     { label: 'Paste it as a reply in the rollcall thread', done: copied && !!posted && !editedSincePost },
                                     { label: 'Mark the rollcall posted', done: !!posted && !editedSincePost },
                                 ]"
