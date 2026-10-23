@@ -15,6 +15,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
+use LogicException;
 
 class Eloquent implements WeeklyReportRepository
 {
@@ -139,7 +140,41 @@ class Eloquent implements WeeklyReportRepository
     }
 
     /**
-     * Update-or-create the unit-week's row, refusing a sent one, in one transaction:
+     * The first half of {@see write()} on its own — the same placeholder upsert and row lock, the
+     * same refusal of a sent row — so the send path can hold the row before it computes what it
+     * freezes. It writes nothing of its own that outlives a rollback: the placeholder a first send
+     * creates is rolled back with the caller's transaction if the send then fails.
+     */
+    public function lockForSend(int $unitId, CarbonInterface $weekStart): void
+    {
+        if (DB::transactionLevel() === 0) {
+            throw new LogicException('WeeklyReportRepository::lockForSend() must run inside the send\'s transaction; on its own the lock would be released at once.');
+        }
+
+        $this->lockUnsent($unitId, $this->assertWeekStart($weekStart));
+    }
+
+    /**
+     * Update-or-create the unit-week's row, refusing a sent one, in one transaction: lock the row
+     * ({@see lockUnsent()}), then write `$values` over it.
+     *
+     * @param  array<string, mixed>  $values  built only by this class, so they are force-filled
+     */
+    private function write(int $unitId, CarbonInterface $weekStart, array $values): WeeklyReport
+    {
+        $weekStart = $this->assertWeekStart($weekStart);
+
+        return DB::transaction(function () use ($unitId, $weekStart, $values) {
+            $report = $this->lockUnsent($unitId, $weekStart);
+
+            $report->forceFill($values)->save();
+
+            return $report;
+        });
+    }
+
+    /**
+     * Inside the caller's transaction, lock the unit-week's row for update and refuse it if sent:
      *
      * 1. Share-lock the `units` row, so the unit cannot be deleted mid-write and a missing unit is
      *    an `InvalidArgumentException` rather than a raw foreign-key error.
@@ -150,49 +185,47 @@ class Eloquent implements WeeklyReportRepository
      *    writers of one unit-week queue one at a time — an insert-or-ignore would take only a
      *    shared lock on the duplicate, and three or more writers then deadlock upgrading it.
      *    The placeholder values never outlive the transaction; a duplicate touches only
-     *    `updated_at`, which the write below sets again anyway.
-     * 3. Lock that row, refuse it if sent, and write `$values` over it.
+     *    `updated_at`, which the write sets again anyway.
+     * 3. Lock that row and refuse it if sent.
      *
-     * @param  array<string, mixed>  $values  built only by this class, so they are force-filled
+     * Every read here is a locking read, so on MySQL's REPEATABLE READ none of them opens the
+     * transaction's read view: the first plain read after this — the send's KPI snapshot — sees
+     * everything committed before the lock was granted.
+     *
+     * @throws WeeklyReportAlreadySentException when the unit-week is already sent.
      */
-    private function write(int $unitId, CarbonInterface $weekStart, array $values): WeeklyReport
+    private function lockUnsent(int $unitId, CarbonImmutable $weekStart): WeeklyReport
     {
-        $weekStart = $this->assertWeekStart($weekStart);
+        if (Unit::query()->whereKey($unitId)->sharedLock()->first() === null) {
+            throw new InvalidArgumentException("Unit {$unitId} does not exist; a weekly report belongs to a unit.");
+        }
 
-        return DB::transaction(function () use ($unitId, $weekStart, $values) {
-            if (Unit::query()->whereKey($unitId)->sharedLock()->first() === null) {
-                throw new InvalidArgumentException("Unit {$unitId} does not exist; a weekly report belongs to a unit.");
-            }
+        $now = CarbonImmutable::now('UTC');
 
-            $now = CarbonImmutable::now('UTC');
+        WeeklyReport::query()->toBase()->upsert(
+            [[
+                'unit_id' => $unitId,
+                'week_start' => $weekStart,
+                'status' => WeeklyReportStatus::Draft->value,
+                'kpis' => '[]',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]],
+            ['unit_id', 'week_start'],
+            ['updated_at'],
+        );
 
-            WeeklyReport::query()->toBase()->upsert(
-                [[
-                    'unit_id' => $unitId,
-                    'week_start' => $weekStart,
-                    'status' => WeeklyReportStatus::Draft->value,
-                    'kpis' => '[]',
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]],
-                ['unit_id', 'week_start'],
-                ['updated_at'],
-            );
+        $report = WeeklyReport::query()
+            ->where('unit_id', $unitId)
+            ->where('week_start', $weekStart)
+            ->lockForUpdate()
+            ->sole();
 
-            $report = WeeklyReport::query()
-                ->where('unit_id', $unitId)
-                ->where('week_start', $weekStart)
-                ->lockForUpdate()
-                ->sole();
+        if ($report->status === WeeklyReportStatus::Sent) {
+            throw WeeklyReportAlreadySentException::for($unitId, $weekStart);
+        }
 
-            if ($report->status === WeeklyReportStatus::Sent) {
-                throw WeeklyReportAlreadySentException::for($unitId, $weekStart);
-            }
-
-            $report->forceFill($values)->save();
-
-            return $report;
-        });
+        return $report;
     }
 
     /**

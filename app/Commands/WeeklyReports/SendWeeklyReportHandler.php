@@ -28,8 +28,9 @@ use Carbon\CarbonInterface;
  *
  * Refused before anything is written: a unit outside the actor's scope (AD-8), a blank reason,
  * content that is not the unit's to record, a training subject other than the one the platoon
- * enforces for the week, and a unit whose KPIs cannot be reported (a non-leaf with no children).
- * The frozen subject is {@see SectionTrainingSubject::forSend()}: the enforced topic when there is
+ * enforces for the week, and a unit whose KPIs cannot be reported (a non-leaf with no children) —
+ * that last one inside the transaction, since the snapshot is computed under the report-row lock,
+ * so it rolls back with nothing left behind. The frozen subject is {@see SectionTrainingSubject::forSend()}: the enforced topic when there is
  * one. A roll-up whose children have not all sent **is** sent: their ids are frozen
  * as `missing_children` and never substituted with live numbers (5.7, AD-13).
  *
@@ -105,7 +106,6 @@ class SendWeeklyReportHandler
 
         $content = ReportContent::checked($unit, $command->notes, $command->trainingSubject, $command->unaccounted, $this->troopers);
         $trainingSubject = SectionTrainingSubject::forSend($unit->id, $this->topics->forSection($unit, $weekStart), $content->trainingSubject);
-        $kpis = $this->snapshots->snapshot($unit, $weekStart)->toArray();
         $templateVersionId = null;
 
         try {
@@ -114,17 +114,29 @@ class SendWeeklyReportHandler
                 action: self::ACTION,
                 reason: $command->reason,
                 reasonRequired: true,
-                mutation: fn () => $this->reports->send(
-                    $unit->id,
-                    $weekStart,
-                    $kpis,
-                    $content->notes,
-                    $actor->id,
-                    self::contentDigest($unit->id, $weekStart, $kpis, $content->notes, $templateVersionId, $trainingSubject, $content->unaccounted),
-                    $templateVersionId,
-                    $trainingSubject,
-                    $content->unaccounted,
-                ),
+                mutation: function () use ($unit, $weekStart, $content, $actor, $templateVersionId, $trainingSubject) {
+                    // Lock the report row first, then read the numbers it freezes. A rollcall save
+                    // holds a shared lock on this row until it commits (`isSentFor()`), so the
+                    // lock is granted only once every save that got in first has committed — and
+                    // the snapshot read after it includes them. Read before the lock, a save
+                    // committing in between would be missing from the frozen KPIs while the week
+                    // then locked under it (AD-12).
+                    $this->reports->lockForSend($unit->id, $weekStart);
+
+                    $kpis = $this->snapshots->snapshot($unit, $weekStart)->toArray();
+
+                    return $this->reports->send(
+                        $unit->id,
+                        $weekStart,
+                        $kpis,
+                        $content->notes,
+                        $actor->id,
+                        self::contentDigest($unit->id, $weekStart, $kpis, $content->notes, $templateVersionId, $trainingSubject, $content->unaccounted),
+                        $templateVersionId,
+                        $trainingSubject,
+                        $content->unaccounted,
+                    );
+                },
             );
         } catch (WeeklyReportAlreadySentException $raced) {
             $winner = $this->reports->find($unit->id, $weekStart);
