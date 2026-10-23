@@ -104,6 +104,13 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('trooper-search', fn (Request $request) => Limit::perMinute(60)
             ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
 
+        // The audited rollcall and report writes that had no cap of their own: fireteam changes, dismissing and restoring
+        // an unmatched player, and the platoon training topic. Each request writes an audit row, so one leader looping
+        // them could flood their section's log. One bucket per user across all of them; a leader working through a
+        // rollcall stays far below this.
+        RateLimiter::for('audited-writes', fn (Request $request) => Limit::perMinute(60)
+            ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
+
         // Manual leave sync (Story 4.2), on the same terms. SyncLoasJob is unique too, but a full
         // run reads a year of forum threads, so asking for one is capped the same way, per Admin.
         RateLimiter::for('loa-sync', fn (Request $request) => Limit::perMinute(5)
