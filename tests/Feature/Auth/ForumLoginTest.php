@@ -298,3 +298,24 @@ it('sends an array-valued code back to the login screen instead of a 500', funct
     $this->assertGuest();
     expect(User::count())->toBe(0);
 });
+
+it('completes the sign-in on /auth/callback too, the path registered for the hosted install', function () {
+    User::factory()->serving()->create(['forum_user_id' => 4]);
+    mockForum();
+
+    $this->withSession(['forum_oauth_state' => 'valid-state'])
+        ->get('/auth/callback?code=good-code&state=valid-state')
+        ->assertRedirect(route('home'));
+
+    $this->assertAuthenticated();
+});
+
+it('refuses a forged state on /auth/callback as well', function () {
+    mockForum();
+
+    $this->withSession(['forum_oauth_state' => 'valid-state'])
+        ->get('/auth/callback?code=good-code&state=attacker-supplied')
+        ->assertRedirect(route('login'));
+
+    $this->assertGuest();
+});

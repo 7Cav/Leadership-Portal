@@ -49,8 +49,11 @@ Route::middleware('guest')->group(function () {
     Route::get('/login', [ForumAuthController::class, 'show'])->name('login');
     Route::get('/auth/redirect', [ForumAuthController::class, 'redirect'])->middleware('throttle:login')->name('auth.redirect');
 });
-// Path matches the redirect URI registered for the forum OAuth client (confirmed in 1.4).
+// Paths match the redirect URIs registered for the forum OAuth client: `/oauth/callback/7cav` (confirmed in 1.4)
+// and `/auth/callback`, the one registered for the hosted install (2026-10-23). Both run the same callback; which
+// one a sign-in uses is set by SEVENCAV_OAUTH_REDIRECT_URI.
 Route::get('/oauth/callback/7cav', [ForumAuthController::class, 'callback'])->middleware('throttle:login')->name('auth.callback');
+Route::get('/auth/callback', [ForumAuthController::class, 'callback'])->middleware('throttle:login')->name('auth.callback.short');
 
 // Authenticated landing. Unauthenticated hits redirect to `login` via the auth
 // middleware. Named `home` — the target Laravel's guest middleware bounces to.
