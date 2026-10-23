@@ -63,8 +63,37 @@ with the auto source dot. The rules:
   (see `Kpi/`). A makeup marked by hand still holds the practice, as before.
 
 Every such sighting is also recorded in `cross_section_sightings` (trooper, host practice, its week, the capture
-window, source `capture`), once per trooper and host practice, whether or not it changed the mark: groundwork for the
-Joint Service Achievement Medal candidates, with no screen yet. The capture handler is its one writer.
+window, source `capture`), once per trooper and host practice, whether or not it changed the mark: the evidence for
+the Joint Service Achievement Medal candidates (see "Guests at our practices" below).
+
+## Guests at our practices (JSAM evidence)
+
+The Joint Service Achievement Medal is for a trooper who attends several practices of sections they are not assigned
+to while still attending their own, recommended by the commander of the unit that benefited. The portal never awards
+it; it shows the evidence.
+
+- **Sources.** A `cross_section_sightings` row is either `capture` (the game server saw them, written by the capture
+  handler) or `manual` (the host section's leader added them on their rollcall, `recorded_by` that leader). One row per
+  trooper and host practice whatever the source, so a trooper is one visit per practice: a capture of a trooper already
+  added by hand, or the reverse, adds nothing.
+- **Adding a guest by hand** (`RecordGuestAttendance`): gated by the host section's write scope (a staff grant and a
+  view-as preview only read), refused for a week before `WeekOf::floor()`, a host week whose report was really sent
+  (409, `locked`) and a confirmed host practice. The guest must be serving, placed in a section, and not in the host
+  section. The picker (`GET /rollcall/{unit}/guests/search`) finds serving troopers outside the leader's scope by
+  username and answers only id, username, rank and own section designation, never the milpac.
+- **The makeup it brings.** A hand-added guest gets the same automatic makeup on their own section's rollcall as a
+  capture sighting, through `MarkAttendanceHandler::preMarkMakeups()` with all its guards (same Cav week, never over
+  `present`/`attached`/`loa` or any manual mark, never into a locked, confirmed or before-floor week, skipped for
+  leave and for a trooper no longer serving there). It is audited as `attendance.auto_marked` with the host leader as
+  the actor, so the guest's own leader can see whose word it was and change the mark.
+- **Undo** (`RemoveGuestAttendance`): only a `manual` entry, by someone who may write the host section, under the same
+  host guards. A capture sighting cannot be removed by hand. The makeup is taken back (cleared to unmarked,
+  `attendance.auto_unmarked`, same actor) only while it is still the automatic makeup and nothing else supports it:
+  no other sighting of that trooper, capture or manual, at any practice that Cav week, and their own week is not
+  locked or confirmed. A makeup a leader has since confirmed or changed by hand, or one the trooper's own capture has
+  turned into `present`, stays as it is.
+
+The candidates are read in `Kpi/PracticeGuests` and shown on the roster (see `Kpi/README.md`).
 
 **May depend on:** `Repositories/` (never the DB directly, AD-2) and `Models/`.
 **Reached from:** `Http/Controllers/`. Read-only: templates are written only by the audited

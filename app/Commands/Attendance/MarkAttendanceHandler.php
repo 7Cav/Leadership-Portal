@@ -407,6 +407,58 @@ class MarkAttendanceHandler
     }
 
     /**
+     * The other half of a hand-added guest (decided 2026-10-23): when the host leader removes the entry that alone put
+     * an automatic makeup on `$trooperId`'s own section's rollcall for `$weekStart`, that makeup goes too, cleared to
+     * unmarked through {@see AttendanceRepository::clearMakeupAuto()}, the same writer that wrote it. The caller has
+     * already established that nothing else supports it (no other sighting of the trooper that Cav week); this decides
+     * whether it may still be taken back.
+     *
+     * Only the automatic makeup itself is cleared: a manual mark (a makeup a leader marked by hand included), an
+     * attended mark (`present` after their own practice was captured), `loa` and every other status stay, and so does a
+     * week with no practice row (`Kept`). Nothing changes in a week before `WeekOf::floor()`, a week whose own-section
+     * report was really sent (AD-12) or a practice its leader confirmed (7.8) (`Locked`): both are checked first and
+     * again under the locks inside the audited transaction, and a refusal there rolls back without an entry. Audited as
+     * `attendance.auto_unmarked` on the trooper's own practice with `$triggeredBy` (the host leader) as the actor, so
+     * the guest's own leader sees who took it back.
+     */
+    public function withdrawMakeup(int $trooperId, CarbonImmutable $weekStart, int $triggeredBy): MakeupWithdrawal
+    {
+        $sectionId = $this->troopers->find($trooperId)?->primary_section_id;
+        $practice = $sectionId === null ? null : $this->practices->find($sectionId, $weekStart);
+
+        if ($practice === null) {
+            return MakeupWithdrawal::Kept;
+        }
+
+        if (WeekOf::isBeforeFloor($weekStart) || $this->reports->isSentFor($sectionId, $weekStart) || $practice->confirmed_at !== null) {
+            return MakeupWithdrawal::Locked;
+        }
+
+        try {
+            $this->audit->recordBatch($triggeredBy, 'attendance.auto_unmarked', null, false, function () use ($practice, $sectionId, $weekStart, $trooperId) {
+                if ($this->reports->isSentFor($sectionId, $weekStart)) {
+                    throw RollcallWeekLockedException::for($sectionId, $weekStart);
+                }
+
+                if ($this->practices->lockById($practice->id)?->confirmed_at !== null) {
+                    throw new PracticeConfirmedMeanwhileException($practice);
+                }
+
+                // Nothing to take back: thrown so the audited transaction rolls back without an empty entry.
+                $cleared = $this->attendance->clearMakeupAuto($practice, $trooperId) ?? throw new NoAutoMakeupException;
+
+                return new AuditedBatch($practice, $cleared);
+            });
+        } catch (RollcallWeekLockedException|PracticeConfirmedMeanwhileException) {
+            return MakeupWithdrawal::Locked;
+        } catch (NoAutoMakeupException) {
+            return MakeupWithdrawal::Kept;
+        }
+
+        return MakeupWithdrawal::Withdrawn;
+    }
+
+    /**
      * Which of `$trooperIds` may take an automatic mark on their section's practice this week: still
      * serving and placed there, and not covered by leave (whose status is derived as `loa`, 3.4).
      *
