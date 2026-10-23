@@ -103,6 +103,25 @@ class Eloquent implements AttendanceRepository
         });
     }
 
+    public function clearMakeupAuto(SectionPractice $practice, int $trooperId): ?Attendance
+    {
+        return DB::transaction(function () use ($practice, $trooperId) {
+            $row = Attendance::query()
+                ->where(['trooper_id' => $trooperId, 'section_practice_id' => $practice->id])
+                ->lockForUpdate()
+                ->first();
+
+            // Only the automatic makeup itself: a leader's word, an attended mark and every other status stay.
+            if ($row === null || $row->status !== AttendanceStatus::Makeup || $row->source !== AttendanceSource::Auto) {
+                return null;
+            }
+
+            $row->fill(['status' => null, 'source' => null])->save();
+
+            return $this->realise($row);
+        });
+    }
+
     public function signRollcall(
         SectionPractice $practice,
         int $trooperId,

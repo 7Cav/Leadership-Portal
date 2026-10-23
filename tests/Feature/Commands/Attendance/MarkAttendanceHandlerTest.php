@@ -246,6 +246,11 @@ it('rolls the whole batch back — practice, marks and audit — when a write fa
             return $this->inner->markMakeupAuto($practice, $trooperId);
         }
 
+        public function clearMakeupAuto(SectionPractice $practice, int $trooperId): ?Attendance
+        {
+            return $this->inner->clearMakeupAuto($practice, $trooperId);
+        }
+
         public function signRollcall(SectionPractice $practice, int $trooperId, RollcallSignature $rollcall): Attendance
         {
             return $this->inner->signRollcall($practice, $trooperId, $rollcall);

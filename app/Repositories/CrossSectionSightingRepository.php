@@ -2,14 +2,19 @@
 
 namespace App\Repositories;
 
+use App\Models\CrossSectionSighting;
 use App\Models\SectionPractice;
+use App\Models\Unit;
+use Carbon\CarbonInterface;
 use DateTimeInterface;
+use Illuminate\Support\Collection;
 
 /**
- * Sole DB access for `cross_section_sightings` (AD-2): every time a capture saw a linked trooper at
- * a practice of a section that is not their own, kept for the later Joint Service Achievement Medal
- * candidates. The capture handler is its one writer. Not a cache: a re-run never replaces or
- * removes what an earlier run recorded.
+ * Sole DB access for `cross_section_sightings` (AD-2): every time a linked trooper attended a practice of a section
+ * that is not their own, kept as the Joint Service Achievement Medal evidence. Two writers, one per source: the
+ * capture handler ({@see record()}, what the game server saw) and the audited guest Commands ({@see recordManual()} and
+ * {@see removeManual()}, what the host section's leader said). Not a cache: a capture re-run never replaces or removes
+ * what an earlier run recorded, and a capture sighting is never removed by hand.
  */
 interface CrossSectionSightingRepository
 {
@@ -22,4 +27,43 @@ interface CrossSectionSightingRepository
      * @param  list<int>  $trooperIds
      */
     public function record(SectionPractice $hostPractice, array $trooperIds, DateTimeInterface $seenFrom, DateTimeInterface $seenUntil): int;
+
+    /**
+     * The host leader's word that `$trooperId` attended `$hostPractice` (source `manual`, no capture window, recorded by
+     * `$recordedBy`). Insert-or-find under the same UNIQUE key as {@see record()}: returns the new row, or null when the
+     * pair is already recorded, from either source, which is then left as it is.
+     */
+    public function recordManual(SectionPractice $hostPractice, int $trooperId, int $recordedBy): ?CrossSectionSighting;
+
+    /**
+     * Delete the hand-added entry for `$trooperId` at the host practice. A capture sighting is never deleted here,
+     * whoever asks. Returns whether a row was deleted.
+     */
+    public function removeManual(int $hostPracticeId, int $trooperId): bool;
+
+    public function find(int $hostPracticeId, int $trooperId): ?CrossSectionSighting;
+
+    /**
+     * Every trooper recorded at this host practice, capture and manual, with `trooper` and `recordedBy` loaded, by
+     * username: the rollcall's "Guests" list.
+     *
+     * @return Collection<int, CrossSectionSighting>
+     */
+    public function forHostPractice(int $hostPracticeId): Collection;
+
+    /**
+     * Whether `$trooperId` is recorded at any host practice of this Cav week, from either source: what still supports an
+     * automatic makeup on their own rollcall once one entry is removed.
+     */
+    public function existsForTrooperInWeek(int $trooperId, CarbonInterface $weekStart): bool;
+
+    /**
+     * The guests at `$unit`'s practices over `$firstWeek`..`$lastWeek` (whole Cav weeks, both included): each serving
+     * trooper recorded at a practice of a section anywhere under `$unit` whose own primary section is *not* under it,
+     * with how many of those practices and the newest week. A departed trooper is left out, and so is an unplaced one
+     * (no section of their own to come from). Keyed and ordered by trooper id. One query, whatever the subtree.
+     *
+     * @return Collection<int, GuestVisits>
+     */
+    public function visitsWithin(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection;
 }

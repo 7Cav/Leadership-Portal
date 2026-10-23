@@ -292,6 +292,22 @@ class Eloquent implements TrooperRepository
             ->get();
     }
 
+    public function searchGuests(string $term, int $hostSectionId, int $limit): EloquentCollection
+    {
+        $escaped = strtr(mb_strtolower($term), ['!' => '!!', '%' => '!%', '_' => '!_']);
+
+        return Trooper::query()
+            ->whereNotNull('primary_section_id')
+            ->where('primary_section_id', '!=', $hostSectionId)
+            ->whereIn('status', TrooperStatus::servingValues())
+            ->whereRaw("LOWER(username) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
+            ->orderByRaw("CASE WHEN LOWER(username) LIKE ? ESCAPE '!' THEN 0 ELSE 1 END", ["{$escaped}%"])
+            ->orderBy('username')
+            ->orderBy('id')
+            ->limit($limit)
+            ->get();
+    }
+
     public function byIds(array $ids): Collection
     {
         return $ids === [] ? collect() : Trooper::query()->whereIn('id', $ids)->get()->keyBy('id')->toBase();
