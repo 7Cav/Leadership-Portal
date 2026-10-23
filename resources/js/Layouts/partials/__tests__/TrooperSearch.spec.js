@@ -235,6 +235,79 @@ describe('TrooperSearch', () => {
         expect(inBody('[data-testid="trooper-search-result-7"]')).not.toBeNull();
     });
 
+    it('stops the input at the 64 characters the server accepts', async () => {
+        respond(() => json(RESULTS));
+        wrapper = await open();
+
+        expect(inBody('[data-testid="trooper-search-input"]').getAttribute('maxlength')).toBe('64');
+    });
+
+    it('counts characters as the server does, so an emoji is one and sends nothing alone', async () => {
+        const fetchMock = respond(() => json(RESULTS));
+        wrapper = await open();
+
+        await type('😀');
+        await settle();
+
+        expect(fetchMock).not.toHaveBeenCalled();
+        expect(inBody('[data-testid="trooper-search-hint"]')).not.toBeNull();
+        expect(inBody('[data-testid="trooper-search-error"]')).toBeNull();
+    });
+
+    it('says a search is too long instead of sending it, counting an emoji as one character', async () => {
+        const fetchMock = respond(() => json(RESULTS));
+        wrapper = await open();
+
+        // 64 characters is fine even though the emoji make it longer than 64 UTF-16 units.
+        await type(`${'a'.repeat(62)}😀😀`);
+        await settle();
+        expect(fetchMock).toHaveBeenCalledOnce();
+
+        await type('a'.repeat(65));
+        await settle();
+
+        expect(fetchMock).toHaveBeenCalledOnce();
+        expect(inBody('[data-testid="trooper-search-too-long"]').textContent).toContain('at most 64 characters');
+        expect(inBody('[data-testid="trooper-search-results"]')).toBeNull();
+    });
+
+    it('reads the server refusing the length as too long, not as a broken connection', async () => {
+        respond(() => json({ message: 'Search with 2 to 64 characters.' }, 422));
+        wrapper = await open();
+
+        await type('vas');
+        await settle();
+
+        expect(inBody('[data-testid="trooper-search-error"]')).toBeNull();
+        expect(inBody('[data-testid="trooper-search-too-long"]')).not.toBeNull();
+        expect(mockReload).not.toHaveBeenCalled();
+    });
+
+    it('shows the retry under way and drops the request it replaces', async () => {
+        const signals = [];
+        const fetchMock = respond(() => Promise.reject(new TypeError('network')));
+        wrapper = await open();
+        await type('vas');
+        await settle();
+
+        fetchMock.mockImplementation((url, init) => {
+            signals.push(init.signal);
+            return new Promise(() => {});
+        });
+        const tryAgain = () => [...inBody('[data-testid="trooper-search-error"]').querySelectorAll('button')].at(-1);
+        const button = tryAgain();
+        button.click();
+        await flushPromises();
+        expect(inBody('[data-testid="trooper-search-loading"]')).not.toBeNull();
+
+        // A second Try again (from a stale reference, as a double click would be) cancels the first request.
+        button.click();
+        await flushPromises();
+        expect(signals).toHaveLength(2);
+        expect(signals[0].aborted).toBe(true);
+        expect(signals[1].aborted).toBe(false);
+    });
+
     it('starts blank each time it opens', async () => {
         respond(() => json(RESULTS));
         wrapper = await open();

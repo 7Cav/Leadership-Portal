@@ -419,9 +419,21 @@ function onCardKeydown(event) {
         const trooper = rows.value.find((t) => t.id === id);
         if (!option || !trooper) return;
         event.preventDefault();
+        // The event's list, kept for after the re-render (`currentTarget` is gone once the handler returns).
+        const list = event.currentTarget;
         set(trooper, kind, option.value);
-        // The card may have moved to another group; keep the focus on the same trooper.
-        nextTick(() => document.querySelector(`[data-trooper="${id}"] [data-card-face]`)?.focus());
+        // The card may have moved to another group; keep the focus on the same trooper. Under "Needs a look" a mark can
+        // take the card off the list: the focus goes to the card that took its place (the next one), or the one before
+        // it at the end, so J / K keep working instead of the focus dropping to the page. With no card left, the
+        // step's heading takes it.
+        nextTick(() => {
+            const same = list.querySelector(`[data-trooper="${id}"] [data-card-face]`);
+            if (same) return same.focus();
+            const remaining = [...list.querySelectorAll('[data-card-face]')];
+            const next = remaining[index] ?? remaining[index - 1] ?? remaining.at(-1);
+            if (next) next.focus();
+            else stepHeading.value?.focus();
+        });
     }
 }
 
@@ -451,18 +463,24 @@ const post = computed(() =>
     props.section ? rollcallPost(props.template, { section: props.section, week: props.week, troopers: rows.value, fireteams: fireteams.value ?? {} }) : null,
 );
 const bbcode = computed(() => (post.value?.state === 'ready' ? post.value.text : ''));
-const copied = ref(false);
+// The BBCode as the leader last copied it. "Copied" holds only while the post on screen is still that text: a mark or a
+// fireteam changed since means what they paste, or already pasted, is out of date (`copyStale`).
+const copiedText = ref(null);
+const copied = computed(() => copiedText.value !== null && copiedText.value === bbcode.value);
+const copyStale = computed(() => copiedText.value !== null && !copied.value);
 const posting = ref(false);
 
 async function copyBbcode() {
     if (post.value?.state !== 'ready') return;
 
-    const ok = await copyText(bbcode.value, 'BBCode copied', {
+    // The text as it was clicked: a mark that lands while the clipboard is busy makes this copy stale, not current.
+    const text = bbcode.value;
+    const ok = await copyText(text, 'BBCode copied', {
         description: `Paste it as a reply in the ${props.section.designation} rollcall thread.`,
         failed: 'Could not copy the BBCode',
         fallback: 'Open the BBCode tab and copy it by hand.',
     });
-    if (ok) copied.value = true;
+    if (ok) copiedText.value = text;
 }
 
 async function markPosted() {
@@ -476,11 +494,19 @@ async function markPosted() {
         }
         // A mark changed while this request is in flight saves after the post was stamped: stale.
         const editsBefore = edits;
+        // Copied here, but the post changed since: the forum has the older text, so the stamp is not a current post.
+        const staleCopy = copyStale.value;
         const result = await postJson(`/rollcall/${props.section.id}/posted`, { week: props.week.date }).catch(unreachable);
         if (result.ok && result.data?.posted) {
             posted.value = result.data.posted;
-            editedSincePost.value = edits !== editsBefore;
-            toast.success('Rollcall marked posted', { description: `${props.section.designation}, week of ${weekLabel.value}` });
+            editedSincePost.value = staleCopy || edits !== editsBefore;
+            if (staleCopy) {
+                toast.warning('Marked posted, but the copied BBCode is out of date', {
+                    description: 'Marks changed after you copied it. Copy it again, update the forum post, then mark it posted again.',
+                });
+            } else {
+                toast.success('Rollcall marked posted', { description: `${props.section.designation}, week of ${weekLabel.value}` });
+            }
         } else {
             toast.error('Could not mark the rollcall posted', { description: messageFor(result) });
         }
@@ -920,8 +946,10 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
             <p>{{ lockedReason }} You can still copy the forum post and mark it posted.</p>
         </div>
 
+        <!-- Only where a change can be made: a read-only week (too far back, a staff grant, a view-as preview, a sent
+             report) already says why nothing here changes. -->
         <div
-            v-if="!week.isCurrent && !weekLocked"
+            v-if="!week.isCurrent && editable"
             role="status"
             class="mt-3 flex items-start gap-2.5 rounded-lg border border-warning/40 bg-warning/7 px-3.5 py-2.5 text-[13px]"
             data-testid="past-week-notice"
@@ -1289,7 +1317,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                         <ol class="space-y-2.5">
                             <li
                                 v-for="(item, index) in [
-                                    { label: 'Copy the BBCode', done: copied },
+                                    { label: copyStale ? 'Copy the updated BBCode' : 'Copy the BBCode', done: copied },
                                     { label: 'Paste it as a reply in the rollcall thread', done: copied && !!posted && !editedSincePost },
                                     { label: 'Mark the rollcall posted', done: !!posted && !editedSincePost },
                                 ]"

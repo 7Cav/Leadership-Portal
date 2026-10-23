@@ -244,6 +244,19 @@ describe('Rollcall page', () => {
         expect(wrapper.find('[data-testid="past-week-notice"]').exists()).toBe(true);
     });
 
+    // "Changes correct that week's record" beside a notice that nothing here can change would contradict it.
+    it.each([
+        ['a week before the week floor', { week: { ...WEEK, isCurrent: false, beforeFloor: true, next: '2026-10-10' } }, false],
+        ['a section seen through a staff grant', { canWrite: false }, false],
+        ['a view-as preview', {}, true],
+    ])('does not say a past week is being edited for %s, which is read-only', (_, props, viewAs) => {
+        if (viewAs) page.props.viewAs = { label: 'CPL Lindqvist.E', admin: false };
+        const wrapper = factory({ week: { ...WEEK, isCurrent: false, date: '2026-09-26', start: '2026-09-26T00:00:00+00:00', next: '2026-10-03' }, ...props });
+
+        expect(wrapper.find('[data-testid="read-only-notice"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="past-week-notice"]').exists()).toBe(false);
+    });
+
     describe('unfinished past weeks', () => {
         const STATUS = [
             { date: '2026-09-26', unmarked: 0, posted: true },
@@ -579,6 +592,55 @@ describe('Rollcall page', () => {
             expect(button(wrapper, id, 'makeup').attributes('aria-pressed')).toBe('true');
         });
 
+        describe('when a mark takes the focused card off the "Needs a look" list', () => {
+            const needsALook = async () => {
+                page.url = '/rollcall/12?step=2';
+                const wrapper = factory({ troopers: [trooper(1, 'will_attend', 'present'), trooper(2, 'unsigned', null), trooper(3, 'unsigned', null), trooper(4, 'unsigned', null)] });
+                await wrapper.findAll('button[aria-pressed]').find((b) => b.text().startsWith('Needs a look')).trigger('click');
+
+                return wrapper;
+            };
+            const faces = (wrapper) => wrapper.findAll('[data-card-face]').map((face) => face.element);
+            const idOf = (element) => element.closest('[data-trooper]').dataset.trooper;
+            const press = async (wrapper, element, key) => {
+                element.focus();
+                element.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+                await wrapper.vm.$nextTick();
+                await wrapper.vm.$nextTick();
+            };
+
+            it('moves the focus to the card that took its place, so J and K keep working', async () => {
+                const wrapper = await needsALook();
+                const [first, second, third] = faces(wrapper);
+                const [secondId, thirdId] = [idOf(second), idOf(third)];
+
+                await press(wrapper, first, '1');
+
+                expect(faces(wrapper)).toHaveLength(2);
+                expect(idOf(document.activeElement)).toBe(secondId);
+                document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', bubbles: true }));
+                expect(idOf(document.activeElement)).toBe(thirdId);
+            });
+
+            it('moves the focus to the card before it when it was the last', async () => {
+                const wrapper = await needsALook();
+                const [, second, third] = faces(wrapper);
+
+                await press(wrapper, third, '1');
+
+                expect(idOf(document.activeElement)).toBe(idOf(second));
+            });
+
+            it('moves the focus to the step heading once no card is left', async () => {
+                const wrapper = await needsALook();
+
+                for (let left = 3; left > 0; left--) await press(wrapper, faces(wrapper)[0], '1');
+
+                expect(faces(wrapper)).toHaveLength(0);
+                expect(document.activeElement).toBe(wrapper.find('h2').element);
+            });
+        });
+
         it('takes the keyboard card and the number keys from the shortcut list', async () => {
             const wrapper = factory();
 
@@ -771,6 +833,71 @@ describe('Rollcall page', () => {
             expect(post).not.toHaveBeenCalled();
             await vi.waitFor(() => expect(wrapper.find('[data-testid="copy-bbcode"]').text()).toBe('Copy again'));
             expect(toastSuccess).toHaveBeenCalledWith('BBCode copied', { description: 'Paste it as a reply in the 2/1/A/1-7 rollcall thread.' });
+        });
+
+        describe('a copy made before the marks changed', () => {
+            const finishList = (wrapper) => wrapper.findAll('aside li').map((item) => item.text());
+            const copyThenChange = async () => {
+                toastWarning.mockClear();
+                Object.defineProperty(navigator, 'clipboard', { value: { writeText: vi.fn().mockResolvedValue() }, configurable: true });
+                page.url = '/rollcall/12?step=3';
+                const wrapper = factory();
+                await wrapper.find('[data-testid="copy-bbcode"]').trigger('click');
+                await vi.waitFor(() => expect(wrapper.find('[data-testid="copy-bbcode"]').text()).toBe('Copy again'));
+                expect(wrapper.find('aside li').find('svg').exists()).toBe(true);
+
+                page.url = '/rollcall/12?step=2';
+                await wrapper.vm.$nextTick();
+                await wrapper.find('[data-trooper="3"] button[data-value="present"]').trigger('click');
+                page.url = '/rollcall/12?step=3';
+                await wrapper.vm.$nextTick();
+
+                return wrapper;
+            };
+
+            it('no longer counts as copied once the post it copied has changed', async () => {
+                const wrapper = await copyThenChange();
+
+                expect(wrapper.find('[data-testid="copy-bbcode"]').text()).toBe('Copy BBCode');
+                expect(finishList(wrapper)[0]).toContain('Copy the updated BBCode');
+                expect(wrapper.find('aside li').find('svg').exists()).toBe(false);
+            });
+
+            it('warns when the rollcall is marked posted from it, and asks for a repost', async () => {
+                const wrapper = await copyThenChange();
+                post.mockImplementation(async (url) =>
+                    url.endsWith('/posted')
+                        ? { ok: true, status: 200, data: { posted: { at: '2026-10-08T16:21:00+00:00', by: 'Vasquez.R' } } }
+                        : { ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00', atRisk: [] } },
+                );
+
+                await wrapper.find('[data-testid="mark-posted"]').trigger('click');
+                await vi.waitFor(() => expect(wrapper.find('[data-testid="posted-state"]').exists()).toBe(true));
+
+                expect(toastWarning).toHaveBeenCalledWith('Marked posted, but the copied BBCode is out of date', {
+                    description: 'Marks changed after you copied it. Copy it again, update the forum post, then mark it posted again.',
+                });
+                expect(toastSuccess).not.toHaveBeenCalledWith('Rollcall marked posted', expect.anything());
+                expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Repost the updated BBCode');
+            });
+
+            it('marks posted as current once the updated post is copied again', async () => {
+                const wrapper = await copyThenChange();
+                post.mockImplementation(async (url) =>
+                    url.endsWith('/posted')
+                        ? { ok: true, status: 200, data: { posted: { at: '2026-10-08T16:21:00+00:00', by: 'Vasquez.R' } } }
+                        : { ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00', atRisk: [] } },
+                );
+
+                await wrapper.find('[data-testid="copy-bbcode"]').trigger('click');
+                await vi.waitFor(() => expect(wrapper.find('[data-testid="copy-bbcode"]').text()).toBe('Copy again'));
+                await wrapper.find('[data-testid="mark-posted"]').trigger('click');
+                await vi.waitFor(() => expect(wrapper.find('[data-testid="posted-state"]').exists()).toBe(true));
+
+                expect(toastWarning).not.toHaveBeenCalled();
+                expect(toastSuccess).toHaveBeenCalledWith('Rollcall marked posted', expect.anything());
+                expect(wrapper.find('[data-testid="posted-state"]').text()).not.toContain('Repost the updated BBCode');
+            });
         });
 
         it('says so when the clipboard is unavailable', async () => {

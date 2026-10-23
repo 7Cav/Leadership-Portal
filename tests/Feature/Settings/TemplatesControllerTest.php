@@ -6,6 +6,7 @@ use App\Models\Attendance;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
+use App\Models\FireteamOrder;
 use App\Models\PortalRoleGrant;
 use App\Models\RollcallSignature;
 use App\Models\SectionPractice;
@@ -14,6 +15,7 @@ use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\FireteamRepository;
 use App\Repositories\TemplateVersionRepository;
 use App\Rollcall\TemplateSyntax;
 use Carbon\CarbonImmutable;
@@ -279,6 +281,8 @@ describe('previewing with a real section', function () {
                 'section' => $rollcall['section'],
                 'week' => $rollcall['week'],
                 'troopers' => $rollcall['troopers'],
+                // How the post shows fireteams, as the rollcall page has it; the preview lets nobody change it.
+                'fireteams' => [...$rollcall['fireteams'], 'can' => ['edit' => false, 'editPolicy' => false]],
             ])
             ->assertJsonPath('section.designation', '2/1/A/1-7')
             ->assertJsonPath('week.date', '2026-10-03')
@@ -287,6 +291,31 @@ describe('previewing with a real section', function () {
             ->assertJsonPath('troopers.1.status', 'present')
             ->assertJsonPath('troopers.1.rollcall', 'will_attend')
             ->assertJsonPath('troopers.1.rankIcon', 'https://7cav.us/data/roster_ranks/0/12.jpg');
+    });
+
+    it('sends the section\'s fireteams and their display, so the preview orders and labels the post as the rollcall does', function () {
+        $ftl = previewTrooper($this->section, ['username' => 'Adams.P']);
+        $member = previewTrooper($this->section, ['username' => 'Baker.Q']);
+        $fireteams = app(FireteamRepository::class);
+        $fireteams->makeLeader($this->section->id, $ftl->id);
+        $fireteams->makeMember($this->section->id, $member->id, $ftl->id);
+        $fireteams->updateSetting($this->section->id, ['show_fireteams' => true, 'fireteam_order' => FireteamOrder::ByFireteam]);
+
+        $rollcall = null;
+        $this->actingAs($this->admin)->get("/rollcall/{$this->section->id}")->assertInertia(function ($page) use (&$rollcall) {
+            $rollcall = $page->toArray()['props'];
+        });
+
+        $response = $this->actingAs($this->admin)->getJson("/settings/templates/preview/{$this->section->id}?company={$this->alpha->id}")
+            ->assertOk()
+            ->assertJsonPath('fireteams.show', true)
+            ->assertJsonPath('fireteams.order', FireteamOrder::ByFireteam->value)
+            // The Admin could change both on the rollcall page; the preview is read-only either way.
+            ->assertJsonPath('fireteams.can', ['edit' => false, 'editPolicy' => false]);
+
+        expect(array_diff_key($response->json('fireteams'), ['can' => true]))->toBe(array_diff_key($rollcall['fireteams'], ['can' => true]))
+            ->and($rollcall['fireteams']['can']['edit'])->toBeTrue()
+            ->and(collect($response->json('troopers'))->firstWhere('id', $member->id)['fireteamLeaderId'])->toBe($ftl->id);
     });
 
     it('refuses a section outside the viewer\'s scope with 403, as the rollcall page does', function () {
