@@ -35,6 +35,7 @@ Thumbs.db
 # Every copy of the env file can hold real keys (.env.local, .env.staging, .env.testing, ...); only the example is tracked.
 .env.*
 !.env.example
+!.env.production.example
 .phpactor.json
 .phpunit.result.cache
 /.phpunit.cache

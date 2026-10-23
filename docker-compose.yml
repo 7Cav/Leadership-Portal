@@ -1,0 +1,101 @@
+# Production stack: Caddy (HTTPS) → app (nginx + PHP-FPM) + queue worker + scheduler + MySQL 8.4.
+# Setup and day-to-day commands: docker/README.md.
+
+x-app: &app
+  build: .
+  image: 7cav-portal:latest
+  restart: unless-stopped
+  env_file: .env
+  environment: &app-env
+    DB_CONNECTION: mysql
+    DB_HOST: mysql
+    DB_PORT: 3306
+    LOG_CHANNEL: stderr
+    # Caddy reaches the app from inside the fixed `portal` subnet below.
+    TRUSTED_PROXIES: ${PORTAL_SUBNET:-172.30.0.0/24}
+  volumes:
+    - storage:/var/www/html/storage/app
+  networks: [portal]
+  depends_on:
+    mysql:
+      condition: service_healthy
+
+services:
+  app:
+    <<: *app
+    environment:
+      <<: *app-env
+      # Runs migrate --force and config/route/view/event caching on every start.
+      AUTORUN_ENABLED: "true"
+      AUTORUN_LARAVEL_STORAGE_LINK: "false"
+
+  queue:
+    <<: *app
+    command: ["php", "/var/www/html/artisan", "queue:work", "--sleep=3", "--max-time=3600"]
+    stop_signal: SIGTERM
+    stop_grace_period: 2m
+    healthcheck:
+      test: ["CMD", "healthcheck-queue"]
+      start_period: 15s
+    depends_on:
+      app:
+        condition: service_healthy
+
+  scheduler:
+    <<: *app
+    command: ["php", "/var/www/html/artisan", "schedule:work"]
+    stop_signal: SIGTERM
+    healthcheck:
+      test: ["CMD", "healthcheck-schedule"]
+      start_period: 15s
+    depends_on:
+      app:
+        condition: service_healthy
+
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:?set DB_DATABASE in .env}
+      MYSQL_USER: ${DB_USERNAME:?set DB_USERNAME in .env}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?set DB_ROOT_PASSWORD in .env}
+    volumes:
+      - mysql:/var/lib/mysql
+    networks: [portal]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?set APP_DOMAIN in .env}
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [portal]
+    depends_on:
+      app:
+        condition: service_healthy
+
+networks:
+  portal:
+    ipam:
+      config:
+        - subnet: ${PORTAL_SUBNET:-172.30.0.0/24}
+
+volumes:
+  storage:
+  mysql:
+  caddy_data:
+  caddy_config:
