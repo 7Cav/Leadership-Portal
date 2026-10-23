@@ -148,8 +148,10 @@ class ReportController extends Controller
             'topic' => $topic === null ? null : $this->topicProps($topic, $isLeaf ? $parent : $unit),
             // Only the platoon's own chain of command (or an Admin) sets it, until the platoon's
             // report is sent, and not for a week before the floor (the write is a 404 there). A
-            // staff grant reads, it does not write.
-            'canSetTopic' => $isPlatoon && ! $sent && ! WeekOf::isBeforeFloor($weekStart) && $this->scope->commandsUnit($request->user(), $unit),
+            // staff grant reads, it does not write, and a view-as preview changes nothing.
+            'canSetTopic' => $isPlatoon && ! $sent && ! WeekOf::isBeforeFloor($weekStart)
+                && $this->scope->activeViewAs($request->user()) === null
+                && $this->scope->commandsUnit($request->user(), $unit),
             // Carry-forward: the subject of the section's most recent sent report, offered on an
             // empty field for the leader to accept. Never saved unless they do.
             'suggestedSubject' => $isLeaf && ! $sent ? $history->first()?->training_subject : null,

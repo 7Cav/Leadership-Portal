@@ -257,6 +257,20 @@ it('offers the unit sync to the leader of that unit only, following real authori
         ->and($page(User::factory()->admin()->create(), $tree['inside']->id))->toMatchArray(['sync' => true, 'syncUnit' => true]);
 });
 
+it('offers no unit sync during a view-as preview, where the write is refused anyway (1.13)', function () {
+    $tree = echelonTree();
+    $admin = User::factory()->admin()->create();
+    $runs = app(SyncRunRepository::class);
+    $runs->fail($runs->open('roster-unit', $admin->id, unitId: $tree['inside']->id), 'boom');
+    $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $tree['inside']->id]);
+
+    $props = $this->actingAs($admin)->get("/roster/{$tree['inside']->id}")->assertOk()->viewData('page')['props'];
+
+    expect($props['can'])->toMatchArray(['sync' => false, 'syncUnit' => false])
+        ->and($props['sync']['unit'])->toBeNull();
+    $this->actingAs($admin)->post("/units/{$tree['inside']->id}/roster-sync")->assertForbidden();
+});
+
 it('records which unit an echelon run was for, so that unit\'s leader can see how it went', function () {
     $tree = echelonTree();
     echelonFakeRoster(['1' => echelonRow('Mine.A', 101)]);

@@ -12,6 +12,7 @@ use App\Models\Attendance;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
+use App\Models\CrossSectionSighting;
 use App\Models\GamePlatform;
 use App\Models\GamePlayerDismissal;
 use App\Models\PracticeCapturePlayer;
@@ -20,6 +21,7 @@ use App\Models\SyncRun;
 use App\Models\SyncRunStatus;
 use App\Models\Trooper;
 use App\Models\TrooperGameIdentity;
+use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
@@ -284,8 +286,40 @@ it('pre-marks a matched trooper present with source auto and nobody else on this
     expect($row->trooper_id)->toBe($mine->id)
         ->and($row->status)->toBe(AttendanceStatus::Present)
         ->and($row->source)->toBe(AttendanceSource::Auto)
-        // The other section's trooper made up their own section's practice instead (2026-10-23).
-        ->and(Attendance::query()->where('trooper_id', $elsewhere->id)->sole()->status)->toBe(AttendanceStatus::Makeup);
+        // Nor anywhere else: the capture writes no makeup for another section's trooper (2026-10-23).
+        ->and(Attendance::query()->where('trooper_id', $elsewhere->id)->count())->toBe(0);
+});
+
+// 2026-10-23: until practice time slots exist the capture window is the whole Cav week on servers every
+// section shares, so another section's trooper seen there is listed for review and credited nowhere.
+
+it('writes no sighting and leaves the own rollcall of another section\'s trooper unchanged, still listing them for review', function () {
+    $home = Unit::factory()->create(['type' => UnitType::Section]);
+    $visitor = Trooper::factory()->create(['primary_section_id' => $home->id, 'status' => TrooperStatus::Combat]);
+    $away = Trooper::factory()->create(['primary_section_id' => Unit::factory()->create(['type' => UnitType::Section])->id, 'status' => TrooperStatus::Combat]);
+    linkIdentity($visitor, '76561190000000020');
+    linkIdentity($away, '76561190000000021');
+    $homePractice = SectionPractice::factory()->create(['section_id' => $home->id, 'week_start' => '2026-10-03 00:00:00']);
+    Attendance::factory()->create(['trooper_id' => $visitor->id, 'section_practice_id' => $homePractice->id, 'status' => null, 'source' => null, 'rollcall' => 'will_attend']);
+    $before = Attendance::query()->sole()->only(['status', 'source', 'rollcall', 'updated_at']);
+
+    $result = runCapture($this, [answeringSource('crcon', [
+        new CrconPlayer('Visitor', '76561190000000020'),
+        new CrconPlayer('Away', '76561190000000021'),
+    ])], User::factory()->create()->id);
+
+    expect($result->otherSection)->toHaveCount(2)
+        ->and(CrossSectionSighting::query()->count())->toBe(0)
+        // Their own rollcall is as it was, and no practice row appears for a section that had none.
+        ->and(Attendance::query()->sole()->only(['status', 'source', 'rollcall', 'updated_at']))->toEqual($before)
+        ->and(Attendance::query()->where('trooper_id', $away->id)->count())->toBe(0)
+        ->and(SectionPractice::query()->count())->toBe(2)
+        ->and(AuditLogEntry::query()->where('action', 'attendance.auto_marked')->count())->toBe(0)
+        ->and(SyncRun::query()->sole()->error)->toContain('(2 in another section)')
+        ->and(SyncRun::query()->sole()->error)->not->toContain('makeup')
+        // Still on this practice's review list as other-section players.
+        ->and(PracticeCapturePlayer::query()->where('section_practice_id', $this->practice->id)->orderBy('trooper_id')->pluck('trooper_id')->all())
+        ->toBe(collect([$visitor->id, $away->id])->sort()->values()->all());
 });
 
 it('leaves a manual mark of any status untouched, including its timestamps', function () {

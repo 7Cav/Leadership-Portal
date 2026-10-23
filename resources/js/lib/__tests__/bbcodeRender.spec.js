@@ -303,6 +303,22 @@ describe('injection attempts', () => {
         expect(tree.map((node) => node.text).join('')).toBe(source);
     });
 
+    it.each([
+        'https://tracker.example/x.png',
+        'https://evil7cav.us/x.png',
+        'https://7cav.us.evil.example/x.png',
+        'https://7cav.us@evil.example/x.png',
+    ])('shows an image on another host, %s, as a link to it and never loads it', (address) => {
+        const href = new URL(address).href;
+
+        expect(read(`a [IMG]${address}[/IMG] b`)).toEqual(['a ', ['url', { attrs: { href, rel: 'noopener noreferrer nofollow', target: '_blank' } }, [address]], ' b']);
+        expect(read(`[IMG width="20px"]${address}[/IMG]`)).toEqual([['url', { attrs: { href, rel: 'noopener noreferrer nofollow', target: '_blank' } }, [address]]]);
+    });
+
+    it('loads an image from 7cav.us or one of its subdomains', () => {
+        expect(read('[IMG]https://www.7cav.us/a.png[/IMG]')).toEqual([['img', { attrs: { src: 'https://www.7cav.us/a.png', alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' } }, []]]);
+    });
+
     it('finds an [IMG] or [URL] close by its place in the post, even after a letter whose lower case is longer', () => {
         // "İ" lower-cases to two characters, so a search in a lower-cased copy lands one place off per "İ".
         const tree = read('İnce.M [IMG]https://7cav.us/a.png[/IMG] after [URL]https://7cav.us[/URL] end');
@@ -328,13 +344,17 @@ describe('injection attempts', () => {
 });
 
 describe('the address and style checks', () => {
-    it('accepts only full http and https links, and only https images', () => {
+    it('accepts only full http and https links, and only https images on 7cav.us', () => {
         expect(safeLink('https://7cav.us/x')).toBe('https://7cav.us/x');
         expect(safeLink(' http://7cav.us ')).toBe('http://7cav.us/');
         expect(safeLink('javascript:alert(1)')).toBeNull();
         expect(safeLink('https://')).toBeNull();
         expect(safeImage('https://7cav.us/a.png')).toBe('https://7cav.us/a.png');
         expect(safeImage('http://7cav.us/a.png')).toBeNull();
+        expect(safeImage('https://WWW.7cav.US/a.png')).toBe('https://www.7cav.us/a.png');
+        for (const bad of ['https://tracker.example/x.png', 'https://evil7cav.us/a.png', 'https://7cav.us.evil.example/a.png', 'https://7cav.us@evil.example/a.png', 'https://7cav.us./a.png']) {
+            expect(safeImage(bad), bad).toBeNull();
+        }
     });
 
     it('accepts colours and sizes it knows', () => {

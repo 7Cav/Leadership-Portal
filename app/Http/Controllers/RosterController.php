@@ -71,6 +71,8 @@ class RosterController extends Controller
         abort_if($unit !== null && $selected === null, 403, 'That unit is outside your scope.');
 
         $week = WeekOf::start(CarbonImmutable::now());
+        // The unit sync is a write, and a view-as preview changes nothing (1.13), so a preview never offers it.
+        $syncsUnit = $selected !== null && $this->scope->activeViewAs($user) === null && $this->scope->commandsUnit($user, $selected);
 
         return Inertia::render('Roster', [
             'unit' => $selected ? $this->unitSummary($selected) : null,
@@ -84,7 +86,7 @@ class RosterController extends Controller
             // leader's own last sync of this echelon, kept apart from the roster-wide stamp.
             'sync' => [
                 ...$this->rosterSync->current()->toArray(),
-                'unit' => $selected !== null && $this->scope->commandsUnit($user, $selected) ? $this->unitSyncStatus($selected) : null,
+                'unit' => $syncsUnit ? $this->unitSyncStatus($selected) : null,
             ],
             // The matrix's LOA weeks and the Sheet's "On LOA" and at-risk move with leave: where it comes from and
             // when it last synced (4.3, AD-20).
@@ -93,7 +95,7 @@ class RosterController extends Controller
                 // Follows view-as: a preview of a non-Admin never offers an Admin action (1.13).
                 'sync' => $this->scope->actsAsAdmin($user),
                 // A leader refreshing their own echelon (the whole roster stays Admin-only).
-                'syncUnit' => $selected !== null && $this->scope->commandsUnit($user, $selected),
+                'syncUnit' => $syncsUnit,
             ],
             'links' => [
                 'milpac' => Trooper::MILPAC_PROFILE_URL,

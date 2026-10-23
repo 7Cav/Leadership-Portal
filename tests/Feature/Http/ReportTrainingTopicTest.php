@@ -71,6 +71,21 @@ it('lets the platoon leader set an enforced topic from the platoon\'s report, an
             ->where('topic.setBy', 'SFC Hale.J'));
 });
 
+it('offers no topic field during an Admin\'s view-as preview, where the write is refused anyway (1.13)', function () {
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin)->get(rtUrl($this->platoon->id, $this->week))
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('canSetTopic', true));
+
+    $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->platoon->id]);
+
+    $this->actingAs($admin)->get(rtUrl($this->platoon->id, $this->week))
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('canSetTopic', false));
+    $this->actingAs($admin)->put(rtUrl($this->platoon->id, $this->week, '/topic'), ['subject' => 'Room clearing', 'enforced' => false])
+        ->assertForbidden();
+
+    expect(PlatoonTrainingTopic::query()->exists())->toBeFalse();
+});
+
 it('clears the topic', function () {
     app(PlatoonTrainingTopicRepository::class)->set($this->platoon->id, $this->weekStart, 'Room clearing', false, $this->platoonLeader->id);
 

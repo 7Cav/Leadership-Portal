@@ -327,7 +327,7 @@ it('turns a demo row real when it auto-marks over it', function () {
     expect(Attendance::query()->sole()->is_demo)->toBeFalse();
 });
 
-// 2026-10-23: capture's makeup write, for a trooper seen at another section's practice.
+// 2026-10-23: the automatic makeup write, for a trooper seen at another section's practice (not called by the capture for now).
 
 it('writes an auto makeup over nothing, a rollcall-only row or an auto miss, and keeps an auto makeup in place', function (?AttendanceStatus $status, ?AttendanceSource $source) {
     if ($status !== null || $source !== null) {

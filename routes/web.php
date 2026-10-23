@@ -70,9 +70,9 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // chain of command, or an Admin) is checked in the Command's handler. No `whereNumber('unit')`:
     // it would replace the 18-digit global pattern above.
     Route::put('/reports/{unit}/{week}/topic', [ReportController::class, 'topic'])
-        ->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.topic');
+        ->where('week', '\d{4}-\d{2}-\d{2}')->middleware('throttle:audited-writes')->name('reports.topic');
     Route::delete('/reports/{unit}/{week}/topic', [ReportController::class, 'clearTopic'])
-        ->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.topic.clear');
+        ->where('week', '\d{4}-\d{2}-\d{2}')->middleware('throttle:audited-writes')->name('reports.topic.clear');
 
     // The roster (Stories 2.8, 4.6, 4.7, 4.9): the selected unit's subtree, `?view=orbat|matrix`.
     // Scope-gated in the controller through the ScopeResolver (AD-8). The trooper Sheet reads its
@@ -97,23 +97,25 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/rollcall/{unit?}', [RollcallController::class, 'show'])->name('rollcall.show');
     Route::post('/rollcall/{unit}', [RollcallController::class, 'store'])->name('rollcall.store');
     Route::post('/rollcall/{unit}/unmatched/link', [RollcallController::class, 'linkUnmatched'])->name('rollcall.unmatched.link');
-    Route::post('/rollcall/{unit}/unmatched/dismiss', [RollcallController::class, 'dismissUnmatched'])->name('rollcall.unmatched.dismiss');
-    Route::post('/rollcall/{unit}/unmatched/restore', [RollcallController::class, 'restoreUnmatched'])->name('rollcall.unmatched.restore');
+    Route::post('/rollcall/{unit}/unmatched/dismiss', [RollcallController::class, 'dismissUnmatched'])->middleware('throttle:audited-writes')->name('rollcall.unmatched.dismiss');
+    Route::post('/rollcall/{unit}/unmatched/restore', [RollcallController::class, 'restoreUnmatched'])->middleware('throttle:audited-writes')->name('rollcall.unmatched.restore');
     Route::post('/rollcall/{unit}/capture', [RollcallController::class, 'retryCapture'])->middleware('throttle:practice-capture')->name('rollcall.capture');
     Route::post('/rollcall/{unit}/confirm', [RollcallController::class, 'confirm'])->name('rollcall.confirm');
     Route::post('/rollcall/{unit}/posted', [RollcallController::class, 'posted'])->name('rollcall.posted');
     // Fireteams on the rollcall (the owner's order, 2026-10-16): each write is an audited Command whose handler checks
-    // the actor commands the section (or, for the policy, its company); a staff grant reads, it does not write.
-    Route::post('/rollcall/{unit}/fireteams', [RollcallFireteamController::class, 'role'])->name('rollcall.fireteams.role');
-    Route::post('/rollcall/{unit}/fireteams/options', [RollcallFireteamController::class, 'options'])->name('rollcall.fireteams.options');
-    Route::post('/rollcall/{unit}/fireteams/policy', [RollcallFireteamController::class, 'policy'])->name('rollcall.fireteams.policy');
+    // the actor commands the section (or, for the policy, its company); a staff grant reads, it does not write. These,
+    // the unmatched dismiss and restore, the topic and the guest add and remove share one per-user throttle, since each
+    // request writes an audit row.
+    Route::post('/rollcall/{unit}/fireteams', [RollcallFireteamController::class, 'role'])->middleware('throttle:audited-writes')->name('rollcall.fireteams.role');
+    Route::post('/rollcall/{unit}/fireteams/options', [RollcallFireteamController::class, 'options'])->middleware('throttle:audited-writes')->name('rollcall.fireteams.options');
+    Route::post('/rollcall/{unit}/fireteams/policy', [RollcallFireteamController::class, 'policy'])->middleware('throttle:audited-writes')->name('rollcall.fireteams.policy');
     // Guests at this week's practice (JSAM evidence, decided 2026-10-23): a host leader adds a trooper from another
     // section, or takes back one they added. Each write is an audited Command whose handler checks the section's write
     // scope; the picker finds serving troopers outside the leader's scope by username, answering only name, rank and
     // section, throttled per user like the shell's trooper search.
     Route::get('/rollcall/{unit}/guests/search', [RollcallGuestController::class, 'search'])->middleware('throttle:trooper-search')->name('rollcall.guests.search');
-    Route::post('/rollcall/{unit}/guests', [RollcallGuestController::class, 'store'])->name('rollcall.guests.store');
-    Route::post('/rollcall/{unit}/guests/remove', [RollcallGuestController::class, 'destroy'])->name('rollcall.guests.remove');
+    Route::post('/rollcall/{unit}/guests', [RollcallGuestController::class, 'store'])->middleware('throttle:audited-writes')->name('rollcall.guests.store');
+    Route::post('/rollcall/{unit}/guests/remove', [RollcallGuestController::class, 'destroy'])->middleware('throttle:audited-writes')->name('rollcall.guests.remove');
 
     // Game identities (Story 7.2): link troopers in scope to their in-game identity, one per
     // platform. The controller reads repositories; each write is an audited Command whose handler

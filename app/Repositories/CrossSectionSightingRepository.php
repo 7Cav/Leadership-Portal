@@ -11,10 +11,12 @@ use Illuminate\Support\Collection;
 
 /**
  * Sole DB access for `cross_section_sightings` (AD-2): every time a linked trooper attended a practice of a section
- * that is not their own, kept as the Joint Service Achievement Medal evidence. Two writers, one per source: the
- * capture handler ({@see record()}, what the game server saw) and the audited guest Commands ({@see recordManual()} and
- * {@see removeManual()}, what the host section's leader said). Not a cache: a capture re-run never replaces or removes
- * what an earlier run recorded, and a capture sighting is never removed by hand.
+ * that is not their own, kept as the Joint Service Achievement Medal evidence. Two writers, one per source: the audited
+ * guest Commands ({@see recordManual()} and {@see removeManual()}, what the host section's leader said) and the capture
+ * ({@see record()}, what the game server saw). The capture stopped recording sightings until practice time slots
+ * exist, since its window is the whole Cav week (2026-10-23), so for now only the guest Commands write. Not a cache: a
+ * capture re-run never replaces or removes what an earlier run recorded, and a capture sighting is never removed by
+ * hand.
  */
 interface CrossSectionSightingRepository
 {

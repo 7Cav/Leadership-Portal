@@ -35,9 +35,11 @@ test('a section leader reviews a captured practice, overrides an auto mark and c
     await expect(page.locator('[data-trooper]').filter({ hasText: 'Okafor.D' }).locator('[data-provenance="manual"]')).toBeVisible();
 });
 
-// Decided 2026-10-23: Mbatha.Z (4th Section) was seen on the server during 3rd Section's practice, so the
-// capture pre-marked a makeup on his own section's rollcall, shown with the auto source rather than "by hand".
-test('a trooper seen at another section\'s practice shows on their own rollcall as an automatic makeup', async ({ page }) => {
+// Mbatha.Z (4th Section) carries an automatic makeup (`source = auto`): the seeder adds him as a guest at 3rd
+// Section's practice and writes the makeup through preMarkMakeups(), as that hand entry does; the capture does not
+// write makeups until practice time slots exist (2026-10-23). The card
+// shows it with the auto source rather than "by hand".
+test('an automatic makeup shows on the trooper\'s own rollcall with the auto source', async ({ page }) => {
     await page.goto('/__e2e/login/Brandt.K?to=/rollcall');
     await expect(page).toHaveURL(/\/rollcall\/\d+$/);
     await page.getByRole('button', { name: /^Step 2, Section practice/ }).click();

@@ -9,11 +9,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * One time a linked trooper attended another section's practice (decided 2026-10-23), kept as the Joint Service
  * Achievement Medal evidence whether or not it changed the trooper's own mark. `section_practice_id` is the host
- * practice; `week_start` repeats its week (AD-11). Two sources, one row per trooper and host practice: `capture` (the
- * game server saw them; `seen_from`/`seen_until` are the capture window), written by the capture handler, and `manual`
- * (the host section's leader said so on their rollcall; no window, `recorded_by` is that leader), written by the
- * audited `RecordGuestAttendance` Command and removable only through `RemoveGuestAttendance`. A hand entry the
- * capture then sees becomes `capture`, with its window, and keeps `recorded_by`. Both go through
+ * practice; `week_start` repeats its week (AD-11). Two sources, one row per trooper and host practice: `manual` (the
+ * host section's leader said so on their rollcall; no window, `recorded_by` is that leader), written by the audited
+ * `RecordGuestAttendance` Command and removable only through `RemoveGuestAttendance`, and `capture` (the game server
+ * saw them; `seen_from`/`seen_until` are the capture window). The capture does not record sightings until practice
+ * time slots exist (its window is the whole Cav week), so new rows are `manual`; older `capture` rows stay. A hand
+ * entry a capture later sees becomes `capture`, with its window, and keeps `recorded_by`. Both go through
  * `CrossSectionSightingRepository`.
  */
 #[Fillable(['trooper_id', 'section_practice_id', 'week_start', 'seen_from', 'seen_until', 'source', 'recorded_by'])]

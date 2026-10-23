@@ -29,8 +29,9 @@ use Illuminate\Database\Seeder;
  * "Halvorsen", is meant for `Halvorsen.K`, who already holds another HLL ID: the replace-or-cancel
  * question (#176). A second section
  * (4/2/C/1-7, led by `Brandt.K`) holds a captured practice with two auto pre-marks and one trooper the
- * server did not see, for the review-and-confirm test (Story 7.8), plus `Mbatha.Z`, seen at 3rd
- * Section's practice instead and so carrying an automatic makeup (2026-10-23). A third (5/2/C/1-7, led by `Voss.H`)
+ * server did not see, for the review-and-confirm test (Story 7.8), plus `Mbatha.Z`, whom `Hartmann.L` added as a
+ * guest at 3rd Section's practice, so he carries the automatic makeup that hand entry writes (the capture does not
+ * write sightings or makeups, 2026-10-23). A third (5/2/C/1-7, led by `Voss.H`)
  * holds a practice whose last capture failed, with an HLL-linked trooper so it can be retried, for the
  * telemetry-unavailable test (Story 7.9). Refuses to run outside local, testing and e2e: its users
  * lead their sections by command billet, so they hold real scope wherever they are created.
@@ -104,9 +105,9 @@ class CaptureReviewSeeder extends Seeder
         $practice = app(SectionPracticeRepository::class)->findOrCreate($section->id, WeekOf::start($now));
         app(MarkAttendanceHandler::class)->preMark($practice, [$ids['Okafor.D'], $ids['Lindqvist.E']]);
         app(SectionPracticeRepository::class)->stampCapture($practice, 'crcon-e2e-review', $now, 'crcon');
-        // Seen at 3rd Section's practice instead: an automatic makeup on this section's rollcall (2026-10-23). A makeup
-        // stands on a sighting, so the sighting goes in first.
-        app(CrossSectionSightingRepository::class)->record($neighbour, [$ids['Mbatha.Z']], $now->subHours(2), $now->subHour());
+        // Added by 3rd Section's leader as a guest at its practice, which writes an automatic makeup on this section's
+        // rollcall (2026-10-23): the capture does not write sightings or makeups, and a makeup stands on a sighting.
+        app(CrossSectionSightingRepository::class)->recordManual($neighbour, $ids['Mbatha.Z'], User::query()->where('username', 'Hartmann.L')->sole()->id);
         app(MarkAttendanceHandler::class)->preMarkMakeups($neighbour, [$ids['Mbatha.Z']]);
     }
 
