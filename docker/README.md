@@ -24,7 +24,7 @@ cp .env.production.example .env
 Fill in `.env`:
 
 - `APP_DOMAIN` and `APP_URL` (`https://` + the domain), and `SEVENCAV_OAUTH_REDIRECT_URI`
-  (`APP_URL` + `/oauth/callback/7cav`). Register that callback with the 7cav.us OAuth client.
+  (`APP_URL` + `/auth/callback`). Register that callback with the 7cav.us OAuth client.
 - `APP_KEY`: generate one with `docker run --rm php:8.4-cli php -r "echo 'base64:'.base64_encode(random_bytes(32)).PHP_EOL;"`.
   Keep it; a new key signs everyone out.
 - `DB_PASSWORD` and `DB_ROOT_PASSWORD`: long random strings (`openssl rand -hex 24`).
