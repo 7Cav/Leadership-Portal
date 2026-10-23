@@ -29,7 +29,7 @@ Everything the portal needs to *read* about leave lives here, so no screen re-de
   when a cleanly read leave covers it and nothing otherwise. A needs-review leave derives none, so it never reads as
   an absence nor as away. The status is derived here and never stored; `MarkAttendanceHandler` reads it through
   `LoaCoverage` to refuse a hand-entered practice mark for a covered trooper, and to skip that trooper when
-  capture pre-marks the practice (7.6).
+  capture pre-marks the practice (7.6) or pre-marks a makeup for them after seeing them at another section's practice.
 
 **May depend on:** `Repositories/` (the facts, never the DB directly, AD-2), `Models/`,
 `Support/Time/` (the week window, AD-11).
