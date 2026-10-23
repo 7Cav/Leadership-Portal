@@ -419,9 +419,21 @@ function onCardKeydown(event) {
         const trooper = rows.value.find((t) => t.id === id);
         if (!option || !trooper) return;
         event.preventDefault();
+        // The event's list, kept for after the re-render (`currentTarget` is gone once the handler returns).
+        const list = event.currentTarget;
         set(trooper, kind, option.value);
-        // The card may have moved to another group; keep the focus on the same trooper.
-        nextTick(() => document.querySelector(`[data-trooper="${id}"] [data-card-face]`)?.focus());
+        // The card may have moved to another group; keep the focus on the same trooper. Under "Needs a look" a mark can
+        // take the card off the list: the focus goes to the card that took its place (the next one), or the one before
+        // it at the end, so J / K keep working instead of the focus dropping to the page. With no card left, the
+        // step's heading takes it.
+        nextTick(() => {
+            const same = list.querySelector(`[data-trooper="${id}"] [data-card-face]`);
+            if (same) return same.focus();
+            const remaining = [...list.querySelectorAll('[data-card-face]')];
+            const next = remaining[index] ?? remaining[index - 1] ?? remaining.at(-1);
+            if (next) next.focus();
+            else stepHeading.value?.focus();
+        });
     }
 }
 
