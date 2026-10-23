@@ -45,12 +45,18 @@ badge. Home's "signed" and "marked" steps count a covered trooper as done.
 
 A capture of a section's practice pre-marks the troopers it saw as `present` with the `auto` source (7.6), through
 the same writer as a leader's mark, and a leader's mark always wins. A trooper is on exactly one rollcall, their
-primary section's (AD-14). Since 2026-10-23 a trooper the capture sees at *another* section's practice has made up
-their own section's practice for that Cav week: `MarkAttendanceHandler::preMarkMakeups()` pre-marks `makeup` with
-the `auto` source on their own section's rollcall (creating that week's practice row if needed), and the card shows it
-with the auto source dot. The rules:
+primary section's (AD-14), and attending another section's practice is a makeup for their own section's practice that
+Cav week.
 
-- Same Cav week only (`WeekOf`, Saturday to Friday): a sighting never credits an older or a later week.
+The capture does not credit other-section troopers: it lists them on the review drawer as other-section and writes
+nothing for them, no makeup on their own rollcall and no `cross_section_sightings` row. Until the portal has practice
+time slots, the capture window is the whole Cav week so far and the game servers are shared by every section, so being
+seen on the server does not mean someone was at that practice (decided 2026-10-23). Makeups come from leaders.
+
+`MarkAttendanceHandler::preMarkMakeups()` (a `makeup` with the `auto` source, shown with the auto source dot) stays
+for when practice times exist, with these rules:
+
+- Same Cav week only (`WeekOf`, Saturday to Friday): never an older or a later week.
 - Never a downgrade: `present` or `attached` stays, so does a leader's manual mark of any status and an `loa` mark. An
   unmarked trooper and an automatic `missed` become the makeup. When their own practice is captured later and sees
   them, the auto makeup becomes `present`.
@@ -61,10 +67,6 @@ with the auto source dot. The rules:
   practice *held* (Home's "SP held" step, the counting marks): it records a practice attended elsewhere, so a section
   that did not practise is not shown as having practised. The trooper's own SP still counts the week as attended
   (see `Kpi/`). A makeup marked by hand still holds the practice, as before.
-
-Every such sighting is also recorded in `cross_section_sightings` (trooper, host practice, its week, the capture
-window, source `capture`), once per trooper and host practice, whether or not it changed the mark: groundwork for the
-Joint Service Achievement Medal candidates, with no screen yet. The capture handler is its one writer.
 
 **May depend on:** `Repositories/` (never the DB directly, AD-2) and `Models/`.
 **Reached from:** `Http/Controllers/`. Read-only: templates are written only by the audited

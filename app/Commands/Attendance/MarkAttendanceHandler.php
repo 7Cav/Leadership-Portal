@@ -50,8 +50,7 @@ use Carbon\CarbonImmutable;
  * `source = manual`, overwriting whatever was there — including an `auto` mark, since manual wins
  * on conflict (AD-22); the auto-capture path (Epic 7), whatever writes `source = auto`, is
  * the one that must not overwrite a manual mark — which is {@see preMark()}, below, and its
- * makeup counterpart {@see preMarkMakeups()} for a trooper seen at another section's practice (still
- * written only on the trooper's own section's practice). A failure anywhere rolls back the practice row,
+ * makeup counterpart {@see preMarkMakeups()} (written only on the trooper's own section's practice). A failure anywhere rolls back the practice row,
  * every mark and the log entry together; the log records the batch once, targeting the practice,
  * with a digest over every row written.
  */
@@ -278,9 +277,11 @@ class MarkAttendanceHandler
     }
 
     /**
-     * Capture's makeup (decided by the product owner 2026-10-23, refining AD-14): a trooper is on
-     * exactly one rollcall, their primary section's, so a trooper the capture saw at *another*
-     * section's practice (`$host`) has made up their own section's practice. Each of `$trooperIds`
+     * An automatic makeup (decided by the product owner 2026-10-23, refining AD-14): a trooper is on
+     * exactly one rollcall, their primary section's, so a trooper who attended *another* section's
+     * practice (`$host`) has made up their own section's practice. The capture does not call this
+     * until practice time slots exist: its window is the whole Cav week so far, on servers every
+     * section shares, so it cannot tell a practice from a public match. Makeups come from a leader. Each of `$trooperIds`
      * gets `makeup` with `source = auto` on their own section's practice for the host's Cav week —
      * the same week, never an older or a later one, found or created through
      * {@see SectionPracticeRepository::findOrCreate()} — the same writer and second *source* as

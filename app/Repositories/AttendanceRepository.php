@@ -57,9 +57,9 @@ interface AttendanceRepository
     public function markPracticeAuto(SectionPractice $practice, int $trooperId): ?Attendance;
 
     /**
-     * Auto-capture's makeup write (decided 2026-10-23): `status = makeup`, `source = auto` on the
-     * trooper's own section's practice, for a trooper the capture saw at another section's practice
-     * that week. It never downgrades and never overrides a leader: a row that already carries a
+     * The automatic makeup write (decided 2026-10-23): `status = makeup`, `source = auto` on the
+     * trooper's own section's practice, for a trooper seen at another section's practice that week
+     * (not called by the capture until practice time slots exist). It never downgrades and never overrides a leader: a row that already carries a
      * `manual` mark of any status, an `loa` mark, or an attended mark (`present` or `attached`,
      * whatever its source) is left untouched. An unmarked row (none yet, or rollcall-only) and an
      * `auto` `missed` row become the makeup; an existing auto makeup is kept in place. The guard is
