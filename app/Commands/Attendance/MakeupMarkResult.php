@@ -3,7 +3,7 @@
 namespace App\Commands\Attendance;
 
 /**
- * What {@see MarkAttendanceHandler::preMarkMakeups()} did with the troopers a capture saw at another
+ * What {@see MarkAttendanceHandler::preMarkMakeups()} did with the troopers seen at another
  * section's practice: `marked` now carry an `auto` makeup on their own section's practice (written,
  * or an earlier one kept in place), `kept` were left as they were: a leader's mark, an attended
  * mark, `loa`, leave covering the week, or no longer serving in a section. `locked` got nothing
