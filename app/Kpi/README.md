@@ -47,10 +47,27 @@ the `Unit` it is handed), `Support/Time/` (the week window, AD-11), `Loa/` (LOA 
 **Reached from:** `Http/Controllers/` and `Commands/`. Read-only; it never writes. Callers pass
 only units the ScopeResolver permits (AD-8) — the service does not re-check scope.
 
-An automatic makeup (`source = auto`, 2026-10-23; the capture does not write one until practice time slots exist,
-see `Rollcall/`) is recorded on the trooper's own section's practice and credits their SP like a makeup marked by hand. It does not make that practice
+An automatic makeup (`source = auto`, 2026-10-23; written when a host leader adds the trooper as a guest, while the capture
+does not write one until practice time slots exist, see `Rollcall/`) is recorded on the trooper's own section's practice and credits their SP like a makeup marked by hand. It does not make that practice
 held for the rest of the section, so a section that did not practise is not shown as having held SP; the week still
 counts as eligible and attended for the trooper who made it up (a week a trooper attended is always eligible for them).
+
+`ownSectionPractice()` (decided 2026-10-23) is the JSAM "consistently attending their own" check, kept here so it is
+one definition (AD-21): the SP above over a caller's window, for any set of troopers whatever their sections, with one
+difference. A makeup (by hand or automatic) answers the weekly accountability, so it counts in the SP everywhere else,
+but it is not attendance at the trooper's own section, so here it never counts as attended; a week their own section
+held counts as eligible even when they made it up elsewhere, and a week their own section did not hold stays out, so
+visits can never stand in for their own. LOA weeks leave it exactly as above. Only `PracticeGuests` uses it.
+
+`PracticeGuests` (decided 2026-10-23) is the roster's "Guests at our practices" read model, the Joint Service
+Achievement Medal evidence: the serving troopers from outside a unit recorded at its sections' practices
+(`cross_section_sightings`, one visit per practice: a host leader's hand entry, or a game-server sighting recorded
+before 2026-10-23; the capture records guests again once practices have set times) over the last
+`portal.jsam.window_weeks` Cav weeks, with their visits, the last week seen and their own-section SP % over the same
+window from `ownSectionPractice()`. `JsamCriteria` marks a candidate: visits at least
+`portal.jsam.min_visits` and own SP at least `portal.jsam.min_own_sp_percent` (compared on the ratio's parts; an SP
+with nothing eligible never qualifies). Visits count the viewed unit's practices only, so the number shown is the one
+the badge is decided on. The portal never awards the medal.
 
 LOA coverage is `Loa\LoaCoverage` (4.4), the one definition (4.8): for each week of the window it says
 covered, needs review or none, whether or not a practice row exists. A covered week, and a week a

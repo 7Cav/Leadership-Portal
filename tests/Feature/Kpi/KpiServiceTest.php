@@ -205,6 +205,44 @@ it('only counts weeks inside the trailing 4-week window', function () {
         ->and($kpis->makeups)->toBe(1);
 });
 
+// Decided 2026-10-23 (M2): the JSAM own-section SP. A makeup answers the weekly accountability, but it is never
+// attendance at the trooper's own section, so it counts in neither part; a week their own section did not hold stays
+// out; leave stays out as in every other KPI.
+it('measures own-section attendance without makeups, over held own practices only, for troopers of many sections at once', function () {
+    $a = kpiTrooper($this->sectionA);
+    $practiceRepo = app(SectionPracticeRepository::class);
+    kpiMark($a, $this->sectionA, 11, AttendanceStatus::Present);   // first week of 12
+    kpiMark($a, $this->sectionA, 12, AttendanceStatus::Present);   // before it
+    kpiMark($a, $this->sectionA, 6, AttendanceStatus::Attached);
+    kpiMark($a, $this->sectionA, 5, AttendanceStatus::Missed);
+    // Their own practice was held (someone else present) but they made it up elsewhere: eligible, not attended.
+    kpiMark(kpiTrooper($this->sectionA), $this->sectionA, 3, AttendanceStatus::Present);
+    app(AttendanceRepository::class)->markMakeupAuto($practiceRepo->findOrCreate($this->sectionA->id, kpiWeek(3)), $a->id);
+    // Their own section did not practise: the automatic makeup leaves the week out entirely.
+    app(AttendanceRepository::class)->markMakeupAuto($practiceRepo->findOrCreate($this->sectionA->id, kpiWeek(2)), $a->id);
+    // Leave covers a held week, which leaves the ratio.
+    kpiMark($a, $this->sectionA, 7, AttendanceStatus::Missed);
+    kpiLeave($a, kpiWeek(7)->toDateString(), kpiWeek(7)->addDays(6)->toDateString());
+
+    $b = kpiTrooper($this->sectionB);
+    kpiMark($b, $this->sectionB, 0, AttendanceStatus::Present);
+    $departed = kpiTrooper($this->sectionB, TrooperStatus::Inactive);
+    kpiMark($departed, $this->sectionB, 0, AttendanceStatus::Present);
+
+    $own = $this->kpis->ownSectionPractice([$b->id, $a->id, $departed->id], kpiWeek(), 12);
+
+    expect($own->keys()->all())->toBe(collect([$a->id, $b->id, $departed->id])->sort()->values()->all())
+        ->and($own[$a->id])->toEqual(new Ratio(2, 4))
+        ->and($own[$b->id])->toEqual(new Ratio(1, 1))
+        ->and($own[$departed->id])->toEqual(new Ratio(0, 0))
+        // The SP everywhere else still counts the makeups, the unheld week included.
+        ->and($this->kpis->trooperAttendance($this->sectionA, kpiWeek())[$a->id]->practice)->toEqual(new Ratio(2, 2));
+});
+
+it('refuses an own-section window shorter than one Cav week', function () {
+    expect(fn () => $this->kpis->ownSectionPractice([1], kpiWeek(), 0))->toThrow(InvalidArgumentException::class);
+});
+
 it('counts only the trooper\'s primary-section practice — one counting SP per trooper-week', function () {
     $trooper = kpiTrooper($this->sectionA);
     kpiMark($trooper, $this->sectionA, 0, AttendanceStatus::Missed);

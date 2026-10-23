@@ -43,4 +43,24 @@ return [
 
     'week_floor_weeks' => (int) env('PORTAL_WEEK_FLOOR_WEEKS', 20),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Joint Service Achievement Medal candidates
+    |--------------------------------------------------------------------------
+    |
+    | The roster's "Guests at our practices" panel marks a guest as a JSAM candidate when, over the
+    | last `window_weeks` Cav weeks (the current one included), they attended at least `min_visits`
+    | practices of the viewed unit's sections while not assigned to them, and their own SP % over the
+    | same window (the one KPI definition, AD-21, so LOA weeks leave it as everywhere else) is at
+    | least `min_own_sp_percent`. Agreed with the product owner 2026-10-23; S1 may change them. The
+    | portal never awards: the commander of the benefited unit recommends.
+    |
+    */
+
+    'jsam' => [
+        'min_visits' => (int) env('JSAM_MIN_VISITS', 3),
+        'min_own_sp_percent' => (int) env('JSAM_MIN_OWN_SP_PERCENT', 75),
+        'window_weeks' => (int) env('JSAM_WINDOW_WEEKS', 12),
+    ],
+
 ];

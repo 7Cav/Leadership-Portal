@@ -361,6 +361,37 @@ it('never writes a makeup over a manual mark, loa, or an attended mark', functio
     'loa' => [AttendanceStatus::Loa, AttendanceSource::Auto],
 ]);
 
+it('clears an automatic makeup to unmarked, keeping the row and its signature', function () {
+    $this->repo->signRollcall($this->practice, $this->trooper->id, RollcallSignature::WillAttend);
+    $this->repo->markMakeupAuto($this->practice, $this->trooper->id);
+
+    $row = $this->repo->clearMakeupAuto($this->practice, $this->trooper->id);
+
+    expect($row->status)->toBeNull()
+        ->and($row->source)->toBeNull()
+        ->and(Attendance::query()->sole()->status)->toBeNull()
+        ->and(Attendance::query()->sole()->rollcall)->toBe(RollcallSignature::WillAttend);
+});
+
+it('never clears anything but an automatic makeup', function (AttendanceStatus $status, AttendanceSource $source) {
+    $this->repo->markPractice($this->practice, $this->trooper->id, $status, $source);
+
+    expect($this->repo->clearMakeupAuto($this->practice, $this->trooper->id))->toBeNull();
+
+    $row = Attendance::query()->sole();
+    expect($row->status)->toBe($status)->and($row->source)->toBe($source);
+})->with([
+    'manual makeup' => [AttendanceStatus::Makeup, AttendanceSource::Manual],
+    'auto present' => [AttendanceStatus::Present, AttendanceSource::Auto],
+    'auto missed' => [AttendanceStatus::Missed, AttendanceSource::Auto],
+    'loa' => [AttendanceStatus::Loa, AttendanceSource::Auto],
+]);
+
+it('clears nothing where the trooper has no row', function () {
+    expect($this->repo->clearMakeupAuto($this->practice, $this->trooper->id))->toBeNull()
+        ->and(Attendance::query()->count())->toBe(0);
+});
+
 it('lets a later capture of the trooper\'s own practice replace the auto makeup with present', function () {
     $this->repo->markMakeupAuto($this->practice, $this->trooper->id);
 

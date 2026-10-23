@@ -201,6 +201,11 @@ it('still answers saved when only the at-risk refresh fails, so the screen never
             return $this->inner->markMakeupAuto($practice, $trooperId);
         }
 
+        public function clearMakeupAuto(SectionPractice $practice, int $trooperId): ?Attendance
+        {
+            return $this->inner->clearMakeupAuto($practice, $trooperId);
+        }
+
         public function signRollcall(SectionPractice $practice, int $trooperId, RollcallSignature $rollcall): Attendance
         {
             return $this->inner->signRollcall($practice, $trooperId, $rollcall);
@@ -214,6 +219,11 @@ it('still answers saved when only the at-risk refresh fails, so the screen never
         public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection
         {
             throw new RuntimeException('kpi read failed');
+        }
+
+        public function countingMarksOf(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
+        {
+            return $this->inner->countingMarksOf($trooperIds, $firstWeek, $lastWeek);
         }
 
         public function weekProgress(array $sectionIds, CarbonInterface $weekStart, array $excusedTrooperIds = []): Collection

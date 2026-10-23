@@ -32,6 +32,7 @@ import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import EmptyState from '@/components/EmptyState.vue';
 import FireteamPanel from '@/components/rollcall/FireteamPanel.vue';
+import GuestsPanel from '@/components/rollcall/GuestsPanel.vue';
 import AttendanceSourceLegend from '@/components/attendance/AttendanceSourceLegend.vue';
 import SectionPicker from '@/components/rollcall/SectionPicker.vue';
 import ReportDeadlineBanner from '@/components/reports/ReportDeadlineBanner.vue';
@@ -106,6 +107,9 @@ const props = defineProps({
     // The same shape: players this practice's capture saw that a leader dismissed, for the drawer's
     // "Dismissed" list and its Undo (#176).
     dismissed: { type: Array, default: () => [] },
+    // Troopers from other sections recorded at this practice (JSAM evidence, 2026-10-23), by the capture or by hand:
+    // `[{ trooperId, name, displayName, rank, section, source, recordedBy }]`.
+    guests: { type: Array, default: () => [] },
     // The company's active rollcall template, resolved on this request (3.6, 3.11):
     // `{ state, companyId, versionId, version, body }`. Null for the picker.
     template: { type: Object, default: null },
@@ -1167,6 +1171,16 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                         </div>
                     </template>
                     <EmptyState v-else :icon="PhCheck" title="Nothing needs a look" class="py-12">Everyone is marked and nobody missed.</EmptyState>
+
+                    <!-- Who else attended this practice (JSAM evidence): on this step, since it is about the same practice the
+                         marks above record and the capture banner reviews, and it locks with the practice's confirmation. -->
+                    <GuestsPanel
+                        :section-id="section.id"
+                        :week="week.date"
+                        :guests="guests"
+                        :editable="editable && !confirmation"
+                        :disabled-reason="readOnlyReason ?? (confirmation ? 'The practice is confirmed, so its guests can no longer change' : null)"
+                    />
 
                     <div class="mt-5 flex items-center gap-2 py-3">
                         <Button variant="outline" class="h-11 sm:h-9" @click="go(1)"><PhCaretLeft />Back</Button>

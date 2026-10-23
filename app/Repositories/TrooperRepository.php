@@ -256,6 +256,17 @@ interface TrooperRepository
     public function searchByUsername(string $term, iterable $sectionIds, bool $withUnplaced, int $limit): EloquentCollection;
 
     /**
+     * The rollcall's guest picker (decided 2026-10-23): serving troopers placed in any section but `$hostSectionId`, whose
+     * username contains `$term` (ignoring case, `%` and `_` matching themselves), for a host leader saying "X from another
+     * section attended our practice". Deliberately not scope-filtered: a guest comes from outside the leader's scope by
+     * definition. The caller exposes only what the picker needs (username, rank, own section), never the milpac. A
+     * username that starts with the term comes first, then by username. At most `$limit` rows, with `primary_section_id`.
+     *
+     * @return EloquentCollection<int, Trooper>
+     */
+    public function searchGuests(string $term, int $hostSectionId, int $limit): EloquentCollection;
+
+    /**
      * The troopers with these ids, keyed by id; an unknown id is simply absent. One query, for a
      * worklist that names a few troopers out of a whole roster (5.10).
      *

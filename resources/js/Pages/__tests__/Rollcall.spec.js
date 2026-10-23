@@ -135,6 +135,21 @@ describe('Rollcall page', () => {
         expect(push).toHaveBeenCalledWith(expect.objectContaining({ url: '/rollcall/12?step=3', preserveState: true }));
     });
 
+    it('shows the practice\'s guests on the practice step, closed for changes once the practice is confirmed', () => {
+        page.url = '/rollcall/12?step=2';
+        const guests = [{ trooperId: 9, name: 'Visitor.V', displayName: 'PFC Visitor.V', rank: 'PFC', section: '3/2/B/1-7', source: 'manual', recordedBy: 'Vasquez.R' }];
+
+        const open = factory({ guests });
+        expect(open.find('[data-testid="guest-9"]').text()).toContain('Visitor.V');
+        expect(open.find('[data-testid="guest-add"]').attributes('disabled')).toBeUndefined();
+        open.unmount();
+
+        const confirmed = factory({ guests, practice: { lastMarkedAt: null, confirmation: { at: '2026-10-08T18:00:00+00:00', by: 'Vasquez.R' } } });
+        expect(confirmed.find('[data-testid="guest-add"]').attributes('disabled')).toBeDefined();
+        expect(confirmed.find('[data-testid="guest-undo"]').exists()).toBe(false);
+        expect(confirmed.find('[data-testid="guests-panel"]').text()).toContain('The practice is confirmed, so its guests can no longer change.');
+    });
+
     describe('opening step', () => {
         const PAST = { ...WEEK, isCurrent: false, date: '2026-09-26', start: '2026-09-26T00:00:00+00:00', closes: '2026-10-02T23:59:00+00:00', next: '2026-10-03' };
         const heading = (wrapper) => wrapper.find('h2').text();

@@ -59,7 +59,7 @@ interface AttendanceRepository
     /**
      * The automatic makeup write (decided 2026-10-23): `status = makeup`, `source = auto` on the
      * trooper's own section's practice, for a trooper seen at another section's practice that week
-     * (not called by the capture until practice time slots exist). It never downgrades and never overrides a leader: a row that already carries a
+     * (a host leader's hand-added guest; not called by the capture until practice time slots exist). It never downgrades and never overrides a leader: a row that already carries a
      * `manual` mark of any status, an `loa` mark, or an attended mark (`present` or `attached`,
      * whatever its source) is left untouched. An unmarked row (none yet, or rollcall-only) and an
      * `auto` `missed` row become the makeup; an existing auto makeup is kept in place. The guard is
@@ -69,6 +69,17 @@ interface AttendanceRepository
      * auto makeup, or null when it was left alone.
      */
     public function markMakeupAuto(SectionPractice $practice, int $trooperId): ?Attendance;
+
+    /**
+     * Take back an automatic makeup (decided 2026-10-23): when the host leader removes the guest entry that alone
+     * supported it, the `makeup`/`auto` mark {@see markMakeupAuto()} wrote on the trooper's own section's practice is
+     * cleared to unmarked (`status` and `source` null; the row and its rollcall signature stay). Anything else is left
+     * exactly as it is: a leader's manual mark (a makeup marked by hand included), `present` or `attached` (the
+     * trooper's own practice was captured since), `loa`, `missed`, or no row. Decided against a locking read inside
+     * this write's own transaction, as {@see markMakeupAuto()} is. Returns the cleared row, or null when nothing was
+     * cleared.
+     */
+    public function clearMakeupAuto(SectionPractice $practice, int $trooperId): ?Attendance;
 
     /**
      * Record the trooper's signature on the week's rollcall thread. Leaves `status`/`source` as
@@ -111,6 +122,19 @@ interface AttendanceRepository
      * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
      */
     public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection;
+
+    /**
+     * {@see countingMarks()} for a set of troopers instead of a subtree: each serving, placed trooper of `$trooperIds`
+     * against the practices of their own primary section, whichever sections those are, with `held` decided by the
+     * same rule. For a screen that measures troopers from many sections at once (the JSAM guests' own SP) in one
+     * query rather than one per section. A departed or unplaced trooper has no marks. Ordered by trooper id, then week.
+     *
+     * @param  list<int>  $trooperIds
+     * @return Collection<int, CountingMark>
+     *
+     * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
+     */
+    public function countingMarksOf(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection;
 
     /**
      * Where each of `$sectionIds` stands for the week `$weekStart` (the home step matrix, AD-14):

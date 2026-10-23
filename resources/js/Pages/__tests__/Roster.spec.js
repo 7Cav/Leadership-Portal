@@ -59,6 +59,13 @@ describe('Roster page', () => {
         mockPage.props = {};
     });
 
+    it('shows the guests panel when the server sends one, and none for a battalion or the regiment', () => {
+        const guests = { criteria: { minVisits: 3, minOwnSpPercent: 75, windowWeeks: 12 }, rows: [] };
+
+        expect(factory({ guests }).find('[data-testid="practice-guests"]').text()).toContain("1/A/1-7's practices");
+        expect(factory().find('[data-testid="practice-guests"]').exists()).toBe(false);
+    });
+
     it('opens on the order of battle and keeps the chosen view in the URL', async () => {
         const wrapper = factory();
         expect(wrapper.find('[data-testid="roster-orbat"]').exists()).toBe(true);

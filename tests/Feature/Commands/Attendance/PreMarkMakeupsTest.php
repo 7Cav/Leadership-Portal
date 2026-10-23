@@ -13,6 +13,7 @@ use App\Models\Attendance;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
+use App\Models\CrossSectionSighting;
 use App\Models\GamePlatform;
 use App\Models\Loa;
 use App\Models\LoaType;
@@ -31,7 +32,8 @@ use Illuminate\Support\Carbon;
 // attended another section's practice, they made up their own: preMarkMakeups() writes `makeup`/`auto`
 // on their own section's practice for the same Cav week, never downgrading, never over a leader, never
 // into a locked week. The capture does not call it until practice time slots exist, so these tests call
-// the writer directly.
+// the writer directly. A makeup stands on a sighting (review L1), so each call first records the trooper at the
+// host practice, as a host leader's hand entry does.
 
 beforeEach(function () {
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-08 20:00:00', 'UTC'));
@@ -43,8 +45,15 @@ beforeEach(function () {
 });
 
 /** @param  list<int>  $trooperIds */
-function makeUp(SectionPractice $host, array $trooperIds, int|string $by = 'system'): MakeupMarkResult
+function makeUp(SectionPractice $host, array $trooperIds, int|string $by = 'system', bool $sighted = true): MakeupMarkResult
 {
+    foreach ($sighted ? $trooperIds : [] as $trooperId) {
+        CrossSectionSighting::query()->firstOrCreate(
+            ['trooper_id' => $trooperId, 'section_practice_id' => $host->id],
+            ['week_start' => $host->week_start, 'source' => CrossSectionSighting::SOURCE_MANUAL],
+        );
+    }
+
     return app(MarkAttendanceHandler::class)->preMarkMakeups($host, $trooperIds, $by);
 }
 
@@ -69,6 +78,30 @@ it('pre-marks an auto makeup on the trooper\'s own rollcall that week', function
         ->and($row->source)->toBe(AttendanceSource::Auto)
         // Nothing on the host practice: they are not on its rollcall.
         ->and(markOn($this->hostPractice, $this->visitor))->toBeNull();
+});
+
+it('writes no makeup with no sighting of the trooper that week, nor an empty practice row', function () {
+    // A sighting of another week does not support this week's makeup either.
+    $lastWeek = SectionPractice::factory()->create(['section_id' => $this->host->id, 'week_start' => $this->week->subWeek()]);
+    CrossSectionSighting::query()->create(['trooper_id' => $this->visitor->id, 'section_practice_id' => $lastWeek->id, 'week_start' => $lastWeek->week_start, 'source' => CrossSectionSighting::SOURCE_MANUAL]);
+
+    $result = makeUp($this->hostPractice, [$this->visitor->id], sighted: false);
+
+    expect($result)->toEqual(new MakeupMarkResult(kept: 1))
+        ->and(homePracticeOf($this->home, $this->week))->toBeNull()
+        ->and(Attendance::query()->where('trooper_id', $this->visitor->id)->count())->toBe(0);
+});
+
+it('makes up only the troopers a sighting supports, in one call', function () {
+    $unseen = Trooper::factory()->create(['primary_section_id' => $this->home->id, 'status' => TrooperStatus::Combat]);
+    CrossSectionSighting::query()->create(['trooper_id' => $this->visitor->id, 'section_practice_id' => $this->hostPractice->id, 'week_start' => $this->week, 'source' => CrossSectionSighting::SOURCE_MANUAL]);
+
+    $result = makeUp($this->hostPractice, [$this->visitor->id, $unseen->id], sighted: false);
+
+    $home = homePracticeOf($this->home, $this->week);
+    expect($result)->toEqual(new MakeupMarkResult(marked: 1, kept: 1))
+        ->and(markOn($home, $this->visitor)->status)->toBe(AttendanceStatus::Makeup)
+        ->and(markOn($home, $unseen))->toBeNull();
 });
 
 it('never downgrades: a present at their own practice stays present', function (AttendanceSource $source) {

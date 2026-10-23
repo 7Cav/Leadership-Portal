@@ -246,6 +246,11 @@ it('rolls the whole batch back — practice, marks and audit — when a write fa
             return $this->inner->markMakeupAuto($practice, $trooperId);
         }
 
+        public function clearMakeupAuto(SectionPractice $practice, int $trooperId): ?Attendance
+        {
+            return $this->inner->clearMakeupAuto($practice, $trooperId);
+        }
+
         public function signRollcall(SectionPractice $practice, int $trooperId, RollcallSignature $rollcall): Attendance
         {
             return $this->inner->signRollcall($practice, $trooperId, $rollcall);
@@ -259,6 +264,11 @@ it('rolls the whole batch back — practice, marks and audit — when a write fa
         public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection
         {
             return $this->inner->countingMarks($unit, $firstWeek, $lastWeek, $includeDeparted);
+        }
+
+        public function countingMarksOf(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
+        {
+            return $this->inner->countingMarksOf($trooperIds, $firstWeek, $lastWeek);
         }
 
         public function weekProgress(array $sectionIds, CarbonInterface $weekStart, array $excusedTrooperIds = []): Collection
