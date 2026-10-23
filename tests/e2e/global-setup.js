@@ -23,4 +23,6 @@ export default function globalSetup() {
     execFileSync('php', ['artisan', 'db:seed', '--force', '--class=Database\\Seeders\\ReportScreenSeeder'], { env, stdio: 'inherit' });
     // A captured practice with two unmatched players for the drawer's own spec (Story 7.7).
     execFileSync('php', ['artisan', 'db:seed', '--force', '--class=Database\\Seeders\\CaptureReviewSeeder'], { env, stdio: 'inherit' });
+    // A guest seen at two of a section's practices, for the JSAM guests spec (2026-10-23).
+    execFileSync('php', ['artisan', 'db:seed', '--force', '--class=Database\\Seeders\\GuestPracticeSeeder'], { env, stdio: 'inherit' });
 }

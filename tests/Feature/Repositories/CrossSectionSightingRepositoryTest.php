@@ -3,6 +3,7 @@
 use App\Models\CrossSectionSighting;
 use App\Models\SectionPractice;
 use App\Models\Trooper;
+use App\Models\User;
 use App\Repositories\CrossSectionSightingRepository;
 use Carbon\CarbonImmutable;
 
@@ -53,4 +54,56 @@ it('keeps a sighting per practice, so the same trooper at two practices has two'
 it('records nothing for no troopers', function () {
     expect($this->repo->record($this->practice, [], $this->from, $this->until))->toBe(0)
         ->and(CrossSectionSighting::query()->count())->toBe(0);
+});
+
+it('records a leader\'s hand entry with no capture window, and never over an existing pair', function () {
+    [$guest, $seen] = Trooper::factory()->count(2)->create();
+    $leader = User::factory()->create();
+    $this->repo->record($this->practice, [$seen->id], $this->from, $this->until);
+
+    $row = $this->repo->recordManual($this->practice, $guest->id, $leader->id);
+
+    expect($row->source)->toBe(CrossSectionSighting::SOURCE_MANUAL)
+        ->and($row->fresh()->recorded_by)->toBe($leader->id)
+        ->and($row->fresh()->seen_from)->toBeNull()
+        ->and($row->fresh()->week_start->toIso8601String())->toBe('2026-10-03T00:00:00+00:00')
+        // The capture already saw them, and a second hand entry adds nothing either.
+        ->and($this->repo->recordManual($this->practice, $seen->id, $leader->id))->toBeNull()
+        ->and($this->repo->recordManual($this->practice, $guest->id, $leader->id))->toBeNull()
+        ->and(CrossSectionSighting::query()->where('trooper_id', $seen->id)->sole()->source)->toBe(CrossSectionSighting::SOURCE_CAPTURE);
+});
+
+it('removes only a hand entry, never a capture sighting', function () {
+    [$guest, $seen] = Trooper::factory()->count(2)->create();
+    $this->repo->record($this->practice, [$seen->id], $this->from, $this->until);
+    $this->repo->recordManual($this->practice, $guest->id, User::factory()->create()->id);
+
+    expect($this->repo->removeManual($this->practice->id, $seen->id))->toBeFalse()
+        ->and($this->repo->removeManual($this->practice->id, $guest->id))->toBeTrue()
+        ->and($this->repo->removeManual($this->practice->id, $guest->id))->toBeFalse()
+        ->and(CrossSectionSighting::query()->pluck('trooper_id')->all())->toBe([$seen->id]);
+});
+
+it('says whether a trooper is recorded at any practice of a week', function () {
+    $trooper = Trooper::factory()->create();
+    $this->repo->record($this->practice, [$trooper->id], $this->from, $this->until);
+
+    expect($this->repo->existsForTrooperInWeek($trooper->id, CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC')))->toBeTrue()
+        ->and($this->repo->existsForTrooperInWeek($trooper->id, CarbonImmutable::parse('2026-10-10 00:00:00', 'UTC')))->toBeFalse()
+        ->and($this->repo->existsForTrooperInWeek(Trooper::factory()->create()->id, CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC')))->toBeFalse();
+});
+
+it('lists a host practice\'s guests by username with who added each', function () {
+    $leader = User::factory()->create(['username' => 'Host.L']);
+    $zulu = Trooper::factory()->create(['username' => 'Zulu.Z']);
+    $alpha = Trooper::factory()->create(['username' => 'alpha.A']);
+    $this->repo->record($this->practice, [$zulu->id], $this->from, $this->until);
+    $this->repo->recordManual($this->practice, $alpha->id, $leader->id);
+    $this->repo->record(SectionPractice::factory()->create(['week_start' => '2026-10-03 00:00:00']), [Trooper::factory()->create()->id], $this->from, $this->until);
+
+    $rows = $this->repo->forHostPractice($this->practice->id);
+
+    expect($rows->pluck('trooper.username')->all())->toBe(['alpha.A', 'Zulu.Z'])
+        ->and($rows->first()->recordedBy->username)->toBe('Host.L')
+        ->and($rows->last()->recordedBy)->toBeNull();
 });

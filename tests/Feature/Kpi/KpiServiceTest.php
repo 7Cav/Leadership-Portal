@@ -205,6 +205,29 @@ it('only counts weeks inside the trailing 4-week window', function () {
         ->and($kpis->makeups)->toBe(1);
 });
 
+it('widens the same definitions to a longer window when a caller asks for one', function () {
+    $trooper = kpiTrooper($this->sectionA);
+    kpiMark($trooper, $this->sectionA, 11, AttendanceStatus::Missed, RollcallSignature::WillAttend);   // first week of 12
+    kpiMark($trooper, $this->sectionA, 12, AttendanceStatus::Missed, RollcallSignature::WillAttend);   // before it
+    kpiMark($trooper, $this->sectionA, 4, AttendanceStatus::Present, RollcallSignature::WillAttend);
+    kpiMark($trooper, $this->sectionA, 0, AttendanceStatus::Present, RollcallSignature::WillAttend);
+    // A leave covering a week inside the long window takes it out of both denominators, as in the 4-week one.
+    kpiLeave($trooper, kpiWeek(7)->toDateString(), kpiWeek(7)->addDays(6)->toDateString());
+
+    $long = $this->kpis->trooperAttendance($this->sectionA, kpiWeek(), 12)[$trooper->id];
+    $short = $this->kpis->trooperAttendance($this->sectionA, kpiWeek())[$trooper->id];
+
+    expect($long->practice)->toEqual(new Ratio(2, 3))
+        ->and($long->rollcall)->toEqual(new Ratio(3, 11))
+        ->and($long->missed)->toBe(1)
+        ->and($short->practice)->toEqual(new Ratio(1, 1))
+        ->and($short->rollcall)->toEqual(new Ratio(1, 4));
+});
+
+it('refuses a window shorter than one Cav week', function () {
+    expect(fn () => $this->kpis->trooperAttendance($this->sectionA, kpiWeek(), 0))->toThrow(InvalidArgumentException::class);
+});
+
 it('counts only the trooper\'s primary-section practice — one counting SP per trooper-week', function () {
     $trooper = kpiTrooper($this->sectionA);
     kpiMark($trooper, $this->sectionA, 0, AttendanceStatus::Missed);
