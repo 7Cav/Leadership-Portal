@@ -12,6 +12,7 @@ use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Audit\AuditEnvelope;
 use App\Support\Time\WeekOf;
+use Carbon\CarbonImmutable;
 
 /**
  * Sets or clears a platoon's training topic for one Cav week through the audited envelope (AD-16;
@@ -21,7 +22,10 @@ use App\Support\Time\WeekOf;
  *
  * Refused before anything is written: a unit outside the actor's scope or one they do not command
  * (a staff grant reads a unit, it does not write to it; an Admin may), a unit that is not a
- * platoon, a week before `WeekOf::floor()`, and a week whose platoon report is already sent.
+ * platoon, a week before `WeekOf::floor()`, and a week whose platoon report is already sent. The
+ * sent check runs once more under the report row's shared lock inside the write's transaction, so
+ * a send landing mid-write cannot slip past it; and a clear that a racing clear beat to it is the
+ * same clean no-op as clearing a week with no topic.
  */
 class SetPlatoonTrainingTopicHandler
 {
@@ -67,6 +71,8 @@ class SetPlatoonTrainingTopicHandler
             throw InvalidPlatoonTrainingTopicException::weekBeforeFloor($weekStart);
         }
 
+        // A cheap early refusal (a demo report counts as sent here too); checked again under a lock
+        // inside each write below.
         if ($this->reports->find($unit->id, $weekStart)?->status === WeeklyReportStatus::Sent) {
             throw InvalidPlatoonTrainingTopicException::reportSent();
         }
@@ -78,13 +84,24 @@ class SetPlatoonTrainingTopicHandler
                 return null;
             }
 
-            $this->audit->record(
-                actorId: $actor->id,
-                action: self::CLEARED,
-                reason: null,
-                reasonRequired: false,
-                mutation: fn () => $this->topics->clear($unit->id, $weekStart),
-            );
+            try {
+                $this->audit->record(
+                    actorId: $actor->id,
+                    action: self::CLEARED,
+                    reason: null,
+                    reasonRequired: false,
+                    mutation: function () use ($unit, $weekStart) {
+                        $this->refuseSentUnderLock($unit->id, $weekStart);
+
+                        // A racing clear that committed between the check above and this write
+                        // leaves nothing to remove: the same no-op as above, not an audited clear
+                        // of nothing.
+                        return $this->topics->clear($unit->id, $weekStart) ?? throw new TrainingTopicUnchangedException;
+                    },
+                );
+            } catch (TrainingTopicUnchangedException) {
+                // A racing clear got there first: the topic is gone either way.
+            }
 
             return null;
         }
@@ -94,7 +111,26 @@ class SetPlatoonTrainingTopicHandler
             action: self::SET,
             reason: null,
             reasonRequired: false,
-            mutation: fn () => $this->topics->set($unit->id, $weekStart, $subject, $command->enforced, $actor->id),
+            mutation: function () use ($unit, $weekStart, $subject, $command, $actor) {
+                $this->refuseSentUnderLock($unit->id, $weekStart);
+
+                return $this->topics->set($unit->id, $weekStart, $subject, $command->enforced, $actor->id);
+            },
         );
+    }
+
+    /**
+     * The sent check again, first inside the write's transaction: `isSentFor()` holds a shared lock
+     * on the platoon's report row until the transaction ends, so a send of the platoon's report
+     * either waits for the topic write to commit or is seen by it, never a topic changed under a
+     * week that was frozen in between (AD-12).
+     *
+     * @throws InvalidPlatoonTrainingTopicException when the platoon's report for the week is sent.
+     */
+    private function refuseSentUnderLock(int $unitId, CarbonImmutable $weekStart): void
+    {
+        if ($this->reports->isSentFor($unitId, $weekStart)) {
+            throw InvalidPlatoonTrainingTopicException::reportSent();
+        }
     }
 }

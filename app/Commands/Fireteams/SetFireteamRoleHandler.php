@@ -151,7 +151,13 @@ class SetFireteamRoleHandler
         return $leader;
     }
 
-    private function remove(User $actor, Unit $section, Trooper $trooper): ?FireteamAssignment
+    /**
+     * The read below picks the action to log; the repository then removes the row under a lock. A racing request
+     * that removed it in between leaves nothing to remove, the same no-op as finding no row here, and one that
+     * changed the trooper's role in between would make the logged action wrong, so the change is read once more and
+     * logged under the role the trooper has now. Either way the losing attempt rolls back without an entry.
+     */
+    private function remove(User $actor, Unit $section, Trooper $trooper, bool $retried = false): ?FireteamAssignment
     {
         $current = $this->fireteams->assignmentsIn($section->id)->get($trooper->id);
 
@@ -159,12 +165,24 @@ class SetFireteamRoleHandler
             return null;
         }
 
-        return $this->audit->record(
-            actorId: $actor->id,
-            action: $current->role === FireteamRole::Leader ? 'fireteam.leader_unset' : 'fireteam.member_unassigned',
-            reason: null,
-            reasonRequired: false,
-            mutation: fn () => $this->fireteams->remove($section->id, $trooper->id),
-        );
+        try {
+            return $this->audit->record(
+                actorId: $actor->id,
+                action: $current->role === FireteamRole::Leader ? 'fireteam.leader_unset' : 'fireteam.member_unassigned',
+                reason: null,
+                reasonRequired: false,
+                mutation: function () use ($section, $trooper, $current) {
+                    $removed = $this->fireteams->remove($section->id, $trooper->id);
+
+                    if ($removed?->role !== $current->role) {
+                        throw new FireteamUnchangedException;
+                    }
+
+                    return $removed;
+                },
+            );
+        } catch (FireteamUnchangedException) {
+            return $retried ? null : $this->remove($actor, $section, $trooper, retried: true);
+        }
     }
 }
