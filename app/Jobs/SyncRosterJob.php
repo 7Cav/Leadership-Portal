@@ -55,9 +55,6 @@ class SyncRosterJob implements ShouldBeUnique, ShouldQueue
     /** Seconds before the unique lock expires on its own, matching the overlap lock's expiry. */
     public int $uniqueFor = 3600;
 
-    /** Seconds before {@see isAlreadyQueued()}'s probe of the unique lock expires if it is never released. */
-    public const PROBE_LOCK_SECONDS = 10;
-
     /**
      * `$unitId` narrows the run to one echelon (a leader's manual sync); null is the whole roster.
      */
@@ -95,20 +92,15 @@ class SyncRosterJob implements ShouldBeUnique, ShouldQueue
     /**
      * Whether a sync of this scope is already queued, deferred or running, i.e. whether dispatching it now would be
      * silently dropped by {@see ShouldBeUnique}. Lets a caller tell the user so instead of reporting a sync that was
-     * never queued. Advisory: it is a check-then-dispatch, and the unique lock still decides. The probe lock expires
-     * on its own after a few seconds, so a process that dies between taking and releasing it cannot block the scope.
+     * never queued. Advisory: it is a check-then-dispatch, and the unique lock still decides.
+     *
+     * It only reads whether the unique lock is held (by an unexpired owner), and never takes it: a probe that took the
+     * lock for even a moment would make a scheduler tick or another "Sync now" dispatched in that moment find it held
+     * and be dropped as a duplicate of a sync that was never queued.
      */
     public function isAlreadyQueued(): bool
     {
-        $lock = Cache::lock(UniqueLock::getKey($this), self::PROBE_LOCK_SECONDS);
-
-        if ($lock->get()) {
-            $lock->release();
-
-            return false;
-        }
-
-        return true;
+        return Cache::lock(UniqueLock::getKey($this))->isLocked();
     }
 
     /**

@@ -11,9 +11,15 @@ use App\Models\Trooper;
 use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Models\WeeklyReport;
+use App\Repositories\PlatoonTrainingTopicRepository;
+use App\Repositories\PlatoonTrainingTopicRepository\Eloquent as EloquentPlatoonTrainingTopicRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
+use App\Repositories\WeeklyReportRepository\Eloquent as EloquentWeeklyReportRepository;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\DB;
 
 // A platoon leader sets the week's training topic for their sections (enforced or a default), as an
 // audited write that only the platoon's chain of command or an Admin may make.
@@ -27,8 +33,12 @@ beforeEach(function () {
 
     $this->moment = CarbonImmutable::parse('2026-10-07 18:00:00', 'UTC');
     $this->weekStart = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');
+    // A topic is refused before the week floor, which counts back from now: pin now to this week.
+    CarbonImmutable::setTestNow($this->moment);
     $this->leader = topicCommander($this->platoon->id, 801);
 });
+
+afterEach(fn () => CarbonImmutable::setTestNow());
 
 function topicCommander(int $unitId, int $positionId): User
 {
@@ -77,6 +87,83 @@ it('clears the topic with a blank subject, audited, and treats clearing nothing 
         ->and(PlatoonTrainingTopic::query()->exists())->toBeFalse()
         ->and(AuditLogEntry::query()->latest('id')->first()->action)->toBe(SetPlatoonTrainingTopicHandler::CLEARED);
 });
+
+it('treats a clear that a racing clear beat to it as the same clean no-op, not a 500', function () {
+    setTopic($this->leader, $this->platoon->id, $this->moment, 'Room clearing');
+    // The racing clear commits between this one's "is there a topic?" check and its own locked clear.
+    app()->instance(PlatoonTrainingTopicRepository::class, new class extends EloquentPlatoonTrainingTopicRepository
+    {
+        private bool $raced = false;
+
+        public function find(int $unitId, CarbonInterface $weekStart): ?PlatoonTrainingTopic
+        {
+            $found = parent::find($unitId, $weekStart);
+
+            if (! $this->raced) {
+                $this->raced = true;
+                $this->clear($unitId, $weekStart);
+            }
+
+            return $found;
+        }
+    });
+
+    expect(setTopic($this->leader, $this->platoon->id, $this->moment, null))->toBeNull()
+        ->and(PlatoonTrainingTopic::query()->exists())->toBeFalse()
+        ->and(AuditLogEntry::query()->pluck('action')->all())->toBe([SetPlatoonTrainingTopicHandler::SET]);
+});
+
+it('takes over a topic row a concurrent first set already inserted', function () {
+    $racer = topicCommander($this->company->id, 806);
+    $raced = false;
+    // The racing set's insert commits just before this one's.
+    DB::beforeExecuting(function (string $query) use ($racer, &$raced) {
+        if (! $raced && str_starts_with(strtolower($query), 'insert into') && str_contains($query, 'platoon_training_topics')) {
+            $raced = true;
+            PlatoonTrainingTopic::query()->create(['unit_id' => $this->platoon->id, 'week_start' => $this->weekStart, 'subject' => 'Racer', 'set_by' => $racer->id]);
+        }
+    });
+
+    $topic = setTopic($this->leader, $this->platoon->id, $this->moment, 'Room clearing', true);
+
+    expect(PlatoonTrainingTopic::query()->sole())
+        ->id->toBe($topic->id)
+        ->subject->toBe('Room clearing')
+        ->enforced->toBeTrue()
+        ->set_by->toBe($this->leader->id);
+});
+
+it('refuses a set or a clear when the platoon\'s report is sent between its check and its write', function (?string $subject) {
+    app(PlatoonTrainingTopicRepository::class)->set($this->platoon->id, $this->weekStart, 'Room clearing', false, $this->leader->id);
+    $sender = $this->leader;
+    // The send commits after the handler's early "already sent?" read.
+    app()->instance(WeeklyReportRepository::class, new class($sender->id) extends EloquentWeeklyReportRepository
+    {
+        private bool $raced = false;
+
+        public function __construct(private readonly int $senderId) {}
+
+        public function find(int $unitId, CarbonInterface $weekStart): ?WeeklyReport
+        {
+            $found = parent::find($unitId, $weekStart);
+
+            if (! $this->raced) {
+                $this->raced = true;
+                parent::send($unitId, $weekStart, [], null, $this->senderId, 'd', null);
+            }
+
+            return $found;
+        }
+    });
+
+    expect(fn () => setTopic($this->leader, $this->platoon->id, $this->moment, $subject))
+        ->toThrow(InvalidPlatoonTrainingTopicException::class);
+    expect(PlatoonTrainingTopic::query()->sole()->subject)->toBe('Room clearing')
+        ->and(AuditLogEntry::query()->exists())->toBeFalse();
+})->with([
+    'set' => ['Radio procedure'],
+    'clear' => [null],
+]);
 
 it('refuses anyone who does not command the platoon, writing nothing', function (Closure $actor) {
     expect(fn () => setTopic($actor($this), $this->platoon->id, $this->moment, 'Room clearing'))

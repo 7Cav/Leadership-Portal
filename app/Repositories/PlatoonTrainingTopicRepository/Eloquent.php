@@ -38,16 +38,23 @@ class Eloquent implements PlatoonTrainingTopicRepository
     {
         $weekStart = $this->assertWeekStart($weekStart);
 
+        // An upsert on the UNIQUE `(unit_id, week_start)` key, then a lock on the row it landed on,
+        // rather than a locked read and an insert: a `SELECT ... FOR UPDATE` on a missing key takes
+        // only a gap lock on MySQL, so two first sets of one week would both insert, and the loser
+        // would end in a duplicate-key error or a deadlock. The upsert takes an exclusive lock on the
+        // row whether it inserts or updates, so concurrent sets queue one at a time.
         return DB::transaction(function () use ($unitId, $weekStart, $subject, $enforced, $setBy) {
-            $topic = PlatoonTrainingTopic::query()
+            PlatoonTrainingTopic::query()->upsert(
+                [['unit_id' => $unitId, 'week_start' => $weekStart, 'subject' => $subject, 'enforced' => $enforced, 'set_by' => $setBy]],
+                ['unit_id', 'week_start'],
+                ['subject', 'enforced', 'set_by'],
+            );
+
+            return PlatoonTrainingTopic::query()
                 ->where('unit_id', $unitId)
                 ->where('week_start', $weekStart)
                 ->lockForUpdate()
-                ->first() ?? new PlatoonTrainingTopic(['unit_id' => $unitId, 'week_start' => $weekStart]);
-
-            $topic->fill(['subject' => $subject, 'enforced' => $enforced, 'set_by' => $setBy])->save();
-
-            return $topic;
+                ->sole();
         });
     }
 

@@ -147,8 +147,9 @@ class ReportController extends Controller
             'canWrite' => $this->scope->writeScope($request->user())->contains($unit->id),
             'topic' => $topic === null ? null : $this->topicProps($topic, $isLeaf ? $parent : $unit),
             // Only the platoon's own chain of command (or an Admin) sets it, until the platoon's
-            // report is sent. A staff grant reads, it does not write.
-            'canSetTopic' => $isPlatoon && ! $sent && $this->scope->commandsUnit($request->user(), $unit),
+            // report is sent, and not for a week before the floor (the write is a 404 there). A
+            // staff grant reads, it does not write.
+            'canSetTopic' => $isPlatoon && ! $sent && ! WeekOf::isBeforeFloor($weekStart) && $this->scope->commandsUnit($request->user(), $unit),
             // Carry-forward: the subject of the section's most recent sent report, offered on an
             // empty field for the leader to accept. Never saved unless they do.
             'suggestedSubject' => $isLeaf && ! $sent ? $history->first()?->training_subject : null,
@@ -225,7 +226,7 @@ class ReportController extends Controller
     public function topic(Request $request, SetPlatoonTrainingTopicHandler $handler, int $unit, string $week): RedirectResponse
     {
         $unit = $this->unitInScope($request, $unit);
-        $weekStart = $this->weekStart($week);
+        $weekStart = $this->writableWeekStart($week);
         $data = $request->validate([
             'subject' => ['nullable', 'string', 'max:255'],
             'enforced' => ['sometimes', 'boolean'],
@@ -238,7 +239,7 @@ class ReportController extends Controller
     {
         $unit = $this->unitInScope($request, $unit);
 
-        return $this->writeTopic($request, $handler, $unit, $this->weekStart($week), null, false);
+        return $this->writeTopic($request, $handler, $unit, $this->writableWeekStart($week), null, false);
     }
 
     private function writeTopic(Request $request, SetPlatoonTrainingTopicHandler $handler, Unit $unit, CarbonImmutable $weekStart, ?string $subject, bool $enforced): RedirectResponse

@@ -9,6 +9,7 @@ use App\Models\Unit;
 use App\Models\UnitType;
 use App\Repositories\FireteamRepository;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 
 // A section's unofficial fireteams and how a unit's rollcall post shows them (portal-owned, AD-22).
 
@@ -74,6 +75,45 @@ it('writes only the setting values it is given', function () {
 
     expect($this->repo->settingFor($this->section->id)->fireteam_order)->toBeNull()
         ->and($this->repo->settingFor($this->section->id)->show_fireteams)->toBeTrue();
+});
+
+/**
+ * Runs `$racer` once, just before the first INSERT into `$table` goes out: a concurrent first write that commits
+ * between this write's own read of the key and its insert.
+ */
+function fireteamRaceFirstInsert(string $table, Closure $racer): void
+{
+    $raced = false;
+
+    DB::beforeExecuting(function (string $query) use ($table, $racer, &$raced) {
+        if (! $raced && str_starts_with(strtolower($query), 'insert into') && str_contains($query, $table)) {
+            $raced = true;
+            $racer();
+        }
+    });
+}
+
+it('takes over a setting row a concurrent first write already inserted, keeping its other choices', function () {
+    fireteamRaceFirstInsert('fireteam_settings', fn () => FireteamSetting::query()->create(['unit_id' => $this->section->id, 'show_fireteams' => true]));
+
+    $setting = $this->repo->updateSetting($this->section->id, ['fireteam_order' => FireteamOrder::ByFireteam]);
+
+    expect(FireteamSetting::query()->sole()->id)->toBe($setting->id)
+        ->and($setting->fireteam_order)->toBe(FireteamOrder::ByFireteam)
+        ->and($setting->show_fireteams)->toBeTrue();
+});
+
+it('takes over an assignment row a concurrent first write already inserted', function () {
+    $this->repo->makeLeader($this->section->id, $this->ftl->id);
+    fireteamRaceFirstInsert('fireteam_assignments', fn () => FireteamAssignment::query()->create([
+        'section_id' => $this->section->id, 'trooper_id' => $this->member->id, 'role' => FireteamRole::Member, 'leader_trooper_id' => $this->ftl->id,
+    ]));
+
+    $leader = $this->repo->makeLeader($this->section->id, $this->member->id);
+
+    expect(FireteamAssignment::query()->where('trooper_id', $this->member->id)->sole()->id)->toBe($leader->id)
+        ->and($leader->role)->toBe(FireteamRole::Leader)
+        ->and($leader->leader_trooper_id)->toBeNull();
 });
 
 it('drops a unit\'s fireteams and setting with the unit', function () {

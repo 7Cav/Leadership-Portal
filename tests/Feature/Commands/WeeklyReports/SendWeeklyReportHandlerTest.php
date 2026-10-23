@@ -278,6 +278,36 @@ it('no-ops cleanly when a concurrent send freezes the report first', function ()
         ->and(AuditLogEntry::query()->count())->toBe(0); // the losing send aborted before writing its audit entry
 });
 
+it('computes the frozen snapshot after taking the report-row lock, inside the send\'s transaction', function () {
+    $late = $this->troopers[1];
+    $section = $this->section;
+    // A rollcall save that commits while the send waits for the report-row lock: it is the last
+    // thing to happen before the lock is granted, so the frozen numbers must include it.
+    $repo = new class($section, $late) extends EloquentWeeklyReportRepository
+    {
+        public ?int $lockedAtLevel = null;
+
+        public function __construct(private readonly Unit $section, private readonly Trooper $late) {}
+
+        public function lockForSend(int $unitId, CarbonInterface $weekStart): void
+        {
+            sendMark($this->section, $this->late, $weekStart, AttendanceStatus::Makeup);
+            $this->lockedAtLevel = DB::transactionLevel();
+
+            parent::lockForSend($unitId, $weekStart);
+        }
+    };
+    app()->instance(WeeklyReportRepository::class, $repo);
+    $outside = DB::transactionLevel(); // RefreshDatabase's own wrapping transaction
+
+    $result = sendReport($this->leader, $this->section->id, $this->moment);
+
+    $frozen = ReportSnapshot::fromArray($result->report->kpis);
+    expect($repo->lockedAtLevel)->toBeGreaterThan($outside) // taken inside the audited transaction
+        ->and($frozen->kpis)->toEqual(app(KpiService::class)->forUnit($this->section, $this->weekStart))
+        ->and($frozen->kpis->makeups)->toBe(1); // the late save is in the frozen numbers
+});
+
 it('rethrows rather than pass off a draft as the sent report when the race re-read is not sent', function () {
     $real = app(WeeklyReportRepository::class);
     // A re-read that cannot see the winner (a stale snapshot inside a caller's transaction) comes

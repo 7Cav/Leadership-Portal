@@ -185,6 +185,22 @@ it('refuses a staff grant holder, an unknown section and anyone outside the sect
     expect(FireteamAssignment::query()->count())->toBe(0)->and(AuditLogEntry::query()->count())->toBe(0);
 });
 
+it('answers the policy for a unit above any company with the same 403 as a missing id, unless the actor commands it (AD-8)', function () {
+    $battalion = app(UnitRepository::class)->create(UnitType::Battalion, '1st Battalion', '1-7', null);
+    $body = ['show' => false, 'order' => null, 'sl_asl_lead' => false];
+
+    $missing = $this->actingAs($this->slUser)->postJson('/rollcall/999999/fireteams/policy', $body)->assertForbidden();
+    $this->actingAs($this->slUser)->postJson("/rollcall/{$battalion->id}/fireteams/policy", $body)
+        ->assertForbidden()
+        ->assertJsonPath('message', fn (string $message) => $message === str_replace('999999', (string) $battalion->id, $missing->json('message')));
+
+    $this->actingAs(rollcallCommander($battalion, 190))->postJson("/rollcall/{$battalion->id}/fireteams/policy", $body)
+        ->assertStatus(422)
+        ->assertJsonPath('message', 'This section does not sit under a company, so there is no company policy to set.');
+
+    expect(AuditLogEntry::query()->count())->toBe(0);
+});
+
 it('sets the section\'s options and the company\'s policy, and the answer shows the policy winning', function () {
     $co = rollcallCommander($this->company, 196);
 

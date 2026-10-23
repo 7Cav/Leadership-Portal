@@ -20,8 +20,10 @@ use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\FireteamRepository;
+use App\Repositories\FireteamRepository\Eloquent as EloquentFireteamRepository;
 use App\Repositories\UnitRepository;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Collection;
 
 // A section's unofficial fireteams and how its rollcall post shows them: audited writes (AD-16) that only the leaders
 // who command the unit may make; a staff grant reads, it does not write.
@@ -109,6 +111,64 @@ describe('setting a trooper\'s fireteam role', function () {
         expect(AuditLogEntry::query()->latest('id')->first()->action)->toBe('fireteam.member_unassigned')
             ->and(setRole($this->sl, $this->section->id, $this->member->id, null))->toBeNull()
             ->and(AuditLogEntry::query()->count())->toBe($entries)
+            ->and(FireteamAssignment::query()->sole()->trooper_id)->toBe($this->ftl->id);
+    });
+
+    it('treats a take-out that a racing request beat to it as the same clean no-op, not a 500', function () {
+        setRole($this->sl, $this->section->id, $this->ftl->id, FireteamRole::Leader);
+        setRole($this->sl, $this->section->id, $this->member->id, FireteamRole::Member, $this->ftl->id);
+        $entries = AuditLogEntry::query()->count();
+        // The racing request's remove commits between this one's read of the row and its own locked remove.
+        app()->instance(FireteamRepository::class, new class($this->member->id) extends EloquentFireteamRepository
+        {
+            private bool $raced = false;
+
+            public function __construct(private readonly int $trooperId) {}
+
+            public function assignmentsIn(int $sectionId): Collection
+            {
+                $read = parent::assignmentsIn($sectionId);
+
+                if (! $this->raced) {
+                    $this->raced = true;
+                    $this->remove($sectionId, $this->trooperId);
+                }
+
+                return $read;
+            }
+        });
+
+        expect(setRole($this->sl, $this->section->id, $this->member->id, null))->toBeNull()
+            ->and(AuditLogEntry::query()->count())->toBe($entries)
+            ->and(FireteamAssignment::query()->sole()->trooper_id)->toBe($this->ftl->id);
+    });
+
+    it('logs a take-out under the role the trooper has once a racing request changed it', function () {
+        setRole($this->sl, $this->section->id, $this->ftl->id, FireteamRole::Leader);
+        setRole($this->sl, $this->section->id, $this->member->id, FireteamRole::Member, $this->ftl->id);
+        // The racing request makes the member an FTL after this one read them as a member.
+        app()->instance(FireteamRepository::class, new class($this->member->id) extends EloquentFireteamRepository
+        {
+            private bool $raced = false;
+
+            public function __construct(private readonly int $trooperId) {}
+
+            public function assignmentsIn(int $sectionId): Collection
+            {
+                $read = parent::assignmentsIn($sectionId);
+
+                if (! $this->raced) {
+                    $this->raced = true;
+                    $this->makeLeader($sectionId, $this->trooperId);
+                }
+
+                return $read;
+            }
+        });
+
+        expect(setRole($this->sl, $this->section->id, $this->member->id, null)?->role)->toBe(FireteamRole::Leader)
+            ->and(AuditLogEntry::query()->latest('id')->first()->action)->toBe('fireteam.leader_unset')
+            ->and(AuditLogEntry::query()->where('action', 'fireteam.member_unassigned')->exists())->toBeFalse()
             ->and(FireteamAssignment::query()->sole()->trooper_id)->toBe($this->ftl->id);
     });
 

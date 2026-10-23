@@ -159,6 +159,26 @@ it('refuses a second send and leaves the first snapshot and metadata untouched',
         ->and($stored->sent_at->equalTo(CarbonImmutable::parse('2026-10-09 21:15:00', 'UTC')))->toBeTrue();
 });
 
+it('locks a unit-week for a send without writing anything that outlives a rollback, and refuses a sent one', function () {
+    try {
+        DB::transaction(function () {
+            $this->repo->lockForSend($this->unit->id, $this->saturday);
+
+            expect($this->repo->find($this->unit->id, $this->saturday)->status)->toBe(WeeklyReportStatus::Draft); // the placeholder
+
+            throw new RuntimeException('the send failed after the lock');
+        });
+    } catch (RuntimeException) {
+    }
+
+    expect($this->repo->find($this->unit->id, $this->saturday))->toBeNull();
+
+    $this->repo->send($this->unit->id, $this->saturday, sixKpiSnapshot(), null, $this->sender->id, 'd', null);
+
+    expect(fn () => DB::transaction(fn () => $this->repo->lockForSend($this->unit->id, $this->saturday)))
+        ->toThrow(WeeklyReportAlreadySentException::class);
+});
+
 it('carries the unit and week on the already-sent refusal', function () {
     $this->repo->send($this->unit->id, $this->saturday, [], null, $this->sender->id, 'digest', null);
 
