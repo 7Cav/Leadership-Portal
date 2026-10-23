@@ -25,7 +25,10 @@ use App\Support\Time\WeekOf;
  * (the mark would not count there). A trooper who already holds a different identity on that game
  * is refused with the `has_other_identity` reason and that identity, so the screen can ask the
  * leader to replace or cancel (#176); only a command carrying `replace` overwrites it, through the
- * same audited writer (`game_identity.updated`, AD-16), and the pre-mark rule is unchanged. An
+ * same audited writer (`game_identity.updated`, AD-16), and the pre-mark rule is unchanged. The
+ * replace names the identity it replaces (`replacing`, the platform id the leader was shown): if
+ * the trooper's identity changed since, it is refused the same way with the new one, so the
+ * leader is asked again rather than overwriting an identity they never saw. An
  * identifier another trooper owns surfaces as {@see GameIdentityLinkException}, never reassigned,
  * whether or not `replace` is set: replacing only ever changes the chosen trooper's own row.
  */
@@ -72,13 +75,20 @@ class LinkUnmatchedPlayerHandler
             throw GameIdentityLinkException::alreadyLinked($command->platform, $player->platform_id);
         }
 
+        // The one identity this link may overwrite: the one the leader was shown and agreed to
+        // replace, or — without a replace, or a replace that does not say what it replaces — none
+        // at all (passing the player's own id lets only "no identity yet" or "already this one"
+        // through).
+        $replaceable = $command->replace && $command->replacing !== null ? $command->replacing : $player->platform_id;
         $held = $this->identities->forTrooper($trooper->id)->firstWhere('platform', $command->platform);
 
-        if ($held !== null && $held->platform_id !== $player->platform_id && ! $command->replace) {
+        if ($held !== null && $held->platform_id !== $player->platform_id && $held->platform_id !== $replaceable) {
             throw UnmatchedPlayerResolutionException::alreadyHasIdentity($held->player_name, $held->platform_id, $command->platform->label());
         }
 
-        $this->setIdentity->handle($actor, new SetTrooperGameIdentity($trooper->id, $command->platform, $player->player_name, $player->platform_id));
+        // The check above answers the common case without a write; the writer repeats it under
+        // lock inside its audited transaction, so a change landing between the two is refused too.
+        $this->setIdentity->handle($actor, new SetTrooperGameIdentity($trooper->id, $command->platform, $player->player_name, $player->platform_id, $replaceable));
 
         return $this->attendance->preMark($practice, [$trooper->id], $actor->id);
     }

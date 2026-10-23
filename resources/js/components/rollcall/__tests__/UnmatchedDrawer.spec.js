@@ -124,7 +124,7 @@ describe('UnmatchedDrawer', () => {
             expect(wrapper.emitted('linked')).toBeUndefined();
         });
 
-        it('sends the link again with replace when the leader chooses Replace, and emits the answer', async () => {
+        it('sends the link again with replace and the ID it showed when the leader chooses Replace, and emits the answer', async () => {
             post.mockResolvedValueOnce(HAS_OTHER).mockResolvedValueOnce(LINKED);
             await askToReplace();
 
@@ -132,10 +132,50 @@ describe('UnmatchedDrawer', () => {
             await flushPromises();
 
             expect(post).toHaveBeenLastCalledWith('/rollcall/12/unmatched/link', {
-                week: '2026-10-03', platform: 'hll', platform_id: '7656119000000001', trooper_id: 1, replace: true,
+                week: '2026-10-03', platform: 'hll', platform_id: '7656119000000001', trooper_id: 1, replace: true, replacing: '7656119000000099',
             });
             expect(wrapper.emitted('linked')[0][0]).toMatchObject({ player: PLAYERS[0], marked: true, trooper: { id: 1 } });
             expect(dialog()).toBeNull();
+        });
+
+        it('asks again with the new ID when the trooper\'s ID changed before Replace landed, and replaces only that one', async () => {
+            const CHANGED = {
+                ok: false,
+                status: 422,
+                data: { ...HAS_OTHER.data, message: 'That trooper is already linked to DubeAlt (7656119000000077) on Hell Let Loose. Replace it, or cancel to keep it.', current: { playerName: 'DubeAlt', platformId: '7656119000000077' } },
+            };
+            post.mockResolvedValueOnce(HAS_OTHER).mockResolvedValueOnce(CHANGED).mockResolvedValueOnce(LINKED);
+            const first = await askToReplace();
+
+            dialog().querySelector('[data-testid="replace-confirm"]').click();
+            await flushPromises();
+
+            expect(dialog()).not.toBeNull();
+            expect(dialog().querySelector('[data-testid="replace-question"]').textContent.replace(/\s+/g, ' ').trim()).toBe(
+                'PFC Dube.R is linked to DubeAlt (7656119000000077) on Hell Let Loose. Replace it with Dubes (7656119000000001)?',
+            );
+            expect(first.find('[data-testid="unmatched-error"]').exists()).toBe(false);
+            expect(wrapper.emitted('linked')).toBeUndefined();
+
+            dialog().querySelector('[data-testid="replace-confirm"]').click();
+            await flushPromises();
+
+            expect(post).toHaveBeenCalledTimes(3);
+            expect(post).toHaveBeenLastCalledWith('/rollcall/12/unmatched/link', {
+                week: '2026-10-03', platform: 'hll', platform_id: '7656119000000001', trooper_id: 1, replace: true, replacing: '7656119000000077',
+            });
+            expect(wrapper.emitted('linked')).toHaveLength(1);
+        });
+
+        it('shows the same ID refused again inline rather than asking in a loop', async () => {
+            post.mockResolvedValueOnce(HAS_OTHER).mockResolvedValueOnce(HAS_OTHER);
+            const first = await askToReplace();
+
+            dialog().querySelector('[data-testid="replace-confirm"]').click();
+            await flushPromises();
+
+            expect(dialog()).toBeNull();
+            expect(first.find('[data-testid="unmatched-error"]').text()).toBe(HAS_OTHER.data.message);
         });
 
         it('leaves everything as it was on Cancel', async () => {

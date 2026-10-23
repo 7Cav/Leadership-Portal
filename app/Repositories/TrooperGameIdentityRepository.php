@@ -35,6 +35,14 @@ interface TrooperGameIdentityRepository
     public function forTroopers(array $trooperIds): Collection;
 
     /**
+     * The trooper's identity on `$platform`, or null, read with a row lock held until the caller's
+     * transaction ends — for a write that must only go ahead if that identity is still the one a
+     * leader was shown (#176's replace), so a concurrent change cannot land between the check and
+     * the write. Call it inside a transaction; outside one the lock is released at once.
+     */
+    public function lockForTrooper(int $trooperId, GamePlatform $platform): ?TrooperGameIdentity;
+
+    /**
      * Link `$trooperId` to a player on `$platform`, replacing the trooper's own existing identity
      * for that platform (one per platform) rather than adding a second.
      *

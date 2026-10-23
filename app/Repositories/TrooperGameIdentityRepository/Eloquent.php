@@ -32,6 +32,15 @@ class Eloquent implements TrooperGameIdentityRepository
             : TrooperGameIdentity::query()->whereIn('trooper_id', $trooperIds)->orderBy('id')->get();
     }
 
+    public function lockForTrooper(int $trooperId, GamePlatform $platform): ?TrooperGameIdentity
+    {
+        return TrooperGameIdentity::query()
+            ->where('trooper_id', $trooperId)
+            ->where('platform', $platform->value)
+            ->lockForUpdate()
+            ->first();
+    }
+
     public function link(int $trooperId, GamePlatform $platform, string $playerName, string $platformId): TrooperGameIdentity
     {
         $owner = $this->findByPlatformId($platform, $platformId);

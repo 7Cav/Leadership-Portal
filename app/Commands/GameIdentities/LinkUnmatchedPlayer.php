@@ -13,6 +13,12 @@ use DateTimeImmutable;
  * `$replace` is the leader's answer to "replace or cancel" (#176): true only once they have seen the
  * different identity the trooper already holds on that game and chose to replace it. Without it a
  * held identity is never overwritten.
+ *
+ * `$replacing` is the platform id of the identity they were shown. A replace only ever overwrites
+ * that one: if the trooper's identity changed since the question (another leader, the Game
+ * identities screen), the handler refuses and asks again with the new one. `$replace` without
+ * `$replacing` replaces nothing — it is refused like a link without `$replace`, never treated as
+ * "overwrite whatever is there".
  */
 final readonly class LinkUnmatchedPlayer
 {
@@ -23,5 +29,6 @@ final readonly class LinkUnmatchedPlayer
         public string $platformId,
         public int $trooperId,
         public bool $replace = false,
+        public ?string $replacing = null,
     ) {}
 }
