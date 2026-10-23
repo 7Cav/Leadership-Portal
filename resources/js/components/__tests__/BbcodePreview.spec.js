@@ -21,6 +21,14 @@ describe('BbcodePreview', () => {
         expect(wrapper.findAll('span[style]').map((span) => span.attributes('style'))).toEqual(['color: #ff0000;', 'font-size: 18px;']);
     });
 
+    it('draws an image from outside 7cav.us as a link, never as an image', () => {
+        const wrapper = draw('[IMG]https://tracker.example/x.png[/IMG]');
+
+        expect(wrapper.find('img').exists()).toBe(false);
+        expect(wrapper.get('a').attributes()).toMatchObject({ href: 'https://tracker.example/x.png', rel: 'noopener noreferrer nofollow', target: '_blank' });
+        expect(wrapper.get('a').text()).toBe('https://tracker.example/x.png');
+    });
+
     it('draws a table with header and data cells, and keeps a rank insignia small in its cell', () => {
         const wrapper = draw('[TABLE][TR][TH]Name[/TH][/TR][TR][TD][IMG]https://7cav.us/data/roster_ranks/0/18.jpg[/IMG] Jay.JH[/TD][/TR][/TABLE]');
 

@@ -45,8 +45,19 @@ export function safeLink(value) {
     return checkedUrl(value, /^https?:\/\//i, ['http:', 'https:']);
 }
 
-/** An https address, written in full, as the src of an image; anything else is null. */
+// The hosts an [IMG] in the preview may load from: the 7cav.us forum and its subdomains, the same host the rank images
+// come from (`CavRosterEntry::RANK_IMAGE`, `rankIconOf`). A template is written by an Admin but shown to every leader,
+// so an image anywhere else would have each leader's browser call that host when they open the preview.
+const IMAGE_HOST = /^(?:[a-z0-9-]+\.)*7cav\.us$/;
+
+/** An https address on 7cav.us (or a subdomain), written in full, as the src of an image; anything else is null. */
 export function safeImage(value) {
+    const href = httpsAddress(value);
+
+    return href !== null && IMAGE_HOST.test(new URL(href).hostname) ? href : null;
+}
+
+function httpsAddress(value) {
     return checkedUrl(value, /^https:\/\//i, ['https:']);
 }
 
@@ -276,14 +287,17 @@ export function parseBbcode(source) {
             const close = closeOf(name, last);
             const address = close === -1 ? null : input.slice(last, close);
             const safe = address === null ? null : name === 'img' ? safeImage(address) : safeLink(address);
-            if (safe === null || size === null || TABLE_PARTS.has(top().kind) || stack.length > MAX_DEPTH) {
+            // An https image on another host is shown as a link to it, so the preview never loads it on its own.
+            const elsewhere = name === 'img' && safe === null && address !== null ? httpsAddress(address) : null;
+            const href = safe ?? elsewhere;
+            if (href === null || size === null || TABLE_PARTS.has(top().kind) || stack.length > MAX_DEPTH) {
                 literal(raw);
                 continue;
             }
             const node =
-                name === 'img'
-                    ? { type: 'element', tag: 'img', kind: 'img', attrs: { src: safe, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' }, style: size, children: [] }
-                    : { type: 'element', tag: 'a', kind: 'url', attrs: linkAttrs(safe), style: {}, children: [text(address.trim())] };
+                name === 'img' && elsewhere === null
+                    ? { type: 'element', tag: 'img', kind: 'img', attrs: { src: href, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' }, style: size, children: [] }
+                    : { type: 'element', tag: 'a', kind: 'url', attrs: linkAttrs(href), style: {}, children: [text(address.trim())] };
             top().children.push(node);
             last = close + name.length + 3;
             trimNext = false;
