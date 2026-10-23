@@ -51,6 +51,9 @@ test('held marks survive the next step and then browser Back', async ({ page }) 
     await expect(page).toHaveURL(/step=2/);
 
     expect((await save).status()).toBe(200);
+    // The step rebuilt from history reads the marks again instead of showing them as never made.
+    await expect(practiceStep(page)).toHaveAttribute('aria-label', /All marked/);
+    await expect(page.getByTestId('mark-all-present')).toHaveCount(0);
     // Nothing is left to send once the hold would have run out.
     await page.waitForTimeout(7_000);
     expect(saves).toHaveLength(1);

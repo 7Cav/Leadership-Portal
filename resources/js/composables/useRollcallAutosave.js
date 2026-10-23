@@ -48,6 +48,12 @@ export function unreachable(error) {
     };
 }
 
+// The save the last rollcall screen sent as it went away (`leave` below), so the screen that replaces it can wait for
+// it before reading the marks back from the server: browser Back between steps unmounts one screen and mounts the
+// next at once, and a read sent first could miss the marks still on their way.
+let leaving = Promise.resolve(true);
+export const whenLeft = () => leaving;
+
 // `post` is injectable for tests; it resolves `{ ok, status, data }` like `postJson`. `nameOf`
 // turns a trooper id into a name for messages. `onLeave` hears the troopers the server says are on
 // leave this week (a leave synced after the page loaded), so the page can lock their rows. `onRejected`
@@ -264,9 +270,12 @@ export function useRollcallAutosave({
 
     // The screen is going away: send every change now, held ones included, so a hold never outlives
     // the screen that would have sent it. The request is `keepalive`, since the page itself may be
-    // about to go too. Resolves as `flush` does; with nothing waiting there is nothing to send.
+    // about to go too. Resolves as `flush` does. With nothing waiting there is nothing to send, but a
+    // batch still on its way (a step change just before browser Back sent it) is waited for, so what
+    // reads the marks next sees it.
     function leave() {
-        if (locked.value || !pending.size) return Promise.resolve(!locked.value);
+        if (locked.value) return Promise.resolve(false);
+        if (!pending.size) return inFlight ? inFlight.then(() => state.value !== 'error' && state.value !== 'locked') : Promise.resolve(true);
 
         return flush({ includeHeld: true, keepalive: true });
     }
@@ -300,10 +309,10 @@ export function useRollcallAutosave({
         const visit = event?.detail?.visit;
         if (visit?.only?.length || visit?.except?.length) return;
 
-        const leaving = window.confirm('Some rollcall changes are not saved yet. Leave anyway?');
-        if (leaving) leave();
+        const goAnyway = window.confirm('Some rollcall changes are not saved yet. Leave anyway?');
+        if (goAnyway) leave();
 
-        return leaving;
+        return goAnyway;
     };
     // Back online after a dropped connection: send what is waiting.
     const online = () => state.value === 'error' && retry();
@@ -318,7 +327,7 @@ export function useRollcallAutosave({
     // (Inertia rebuilds the page from history) or to another page. The changes go now, not when
     // their timers would have fired, since those timers die with the screen.
     onBeforeUnmount(() => {
-        leave();
+        leaving = leave();
         gone = true;
         clearTimeout(timer);
         window.removeEventListener('beforeunload', beforeUnload);

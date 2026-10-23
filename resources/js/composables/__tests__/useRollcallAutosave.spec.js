@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, h } from 'vue';
 import { enableAutoUnmount, mount } from '@vue/test-utils';
-import { DEBOUNCE_MS, messageFor, useRollcallAutosave } from '../useRollcallAutosave';
+import { DEBOUNCE_MS, messageFor, useRollcallAutosave, whenLeft } from '../useRollcallAutosave';
 
 let visitGuard = null;
 vi.mock('@inertiajs/vue3', () => ({ router: { on: (event, callback) => ((visitGuard = callback), () => (visitGuard = null)) } }));
@@ -307,6 +307,43 @@ describe('rollcall autosave', () => {
         await vi.advanceTimersByTimeAsync(0);
         expect(post).toHaveBeenCalledTimes(2);
         expect(post).toHaveBeenLastCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 2, status: 'missed' }] }, { keepalive: true });
+    });
+
+    it('lets the screen that replaces it wait for the save it sent on the way out', async () => {
+        let answer;
+        const post = vi.fn().mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+        const save = setup(post);
+        let left = false;
+
+        save.queue(1, 'status', 'present', { holdMs: 6000 });
+        save.unmount();
+        whenLeft().then(() => (left = true));
+        await vi.advanceTimersByTimeAsync(0);
+        expect(left).toBe(false);
+
+        answer({ ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00' } });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(left).toBe(true);
+    });
+
+    it('also has the next screen wait for a batch already on its way when the screen went', async () => {
+        let answer;
+        const post = vi.fn().mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+        const save = setup(post);
+        let left = false;
+
+        save.queue(1, 'status', 'present', { holdMs: 6000 });
+        // A step change sends the held mark, and browser Back unmounts the screen before the answer.
+        save.flush({ includeHeld: true });
+        save.unmount();
+        whenLeft().then(() => (left = true));
+        await vi.advanceTimersByTimeAsync(0);
+        expect(post).toHaveBeenCalledTimes(1);
+        expect(left).toBe(false);
+
+        answer({ ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00' } });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(left).toBe(true);
     });
 
     it('does not hand an answer that arrives after the screen went to the page it left', async () => {

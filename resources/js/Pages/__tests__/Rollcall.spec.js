@@ -858,6 +858,36 @@ describe('Rollcall page', () => {
         });
     });
 
+    describe('going back a step with the browser (a screen rebuilt from history)', () => {
+        it('reads the marks again, and keeps the marks it opened with as this visit\'s changes', async () => {
+            page.url = '/rollcall/12?step=3';
+            window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+            // The history entry still has trooper 2 unmarked; the server has the present saved since.
+            const wrapper = factory({ troopers: [trooper(2, 'unsigned', null)] });
+            await flushPromises();
+
+            expect(reload).toHaveBeenCalledTimes(1);
+            const [options] = reload.mock.calls[0];
+            expect(options.only).toEqual(expect.arrayContaining(['troopers', 'practice', 'atRisk', 'weekStatus']));
+
+            await wrapper.setProps({ troopers: [trooper(2, 'unsigned', 'present')] });
+            options.onFinish();
+            await flushPromises();
+
+            const changes = wrapper.find('[data-testid="changes"]').text();
+            expect(changes).toContain('Trooper2.A');
+            expect(changes).toContain('Present');
+        });
+
+        it('does not read the marks again for a screen the server just answered', async () => {
+            page.url = '/rollcall/12?step=3';
+            factory();
+            await flushPromises();
+
+            expect(reload).not.toHaveBeenCalled();
+        });
+    });
+
     describe('failure paths (review)', () => {
         beforeEach(() => {
             toastError.mockClear();
