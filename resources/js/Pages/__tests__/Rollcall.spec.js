@@ -786,6 +786,71 @@ describe('Rollcall page', () => {
             expect(toastSuccess).toHaveBeenCalledWith('BBCode copied', { description: 'Paste it as a reply in the 2/1/A/1-7 rollcall thread.' });
         });
 
+        describe('a copy made before the marks changed', () => {
+            const finishList = (wrapper) => wrapper.findAll('aside li').map((item) => item.text());
+            const copyThenChange = async () => {
+                toastWarning.mockClear();
+                Object.defineProperty(navigator, 'clipboard', { value: { writeText: vi.fn().mockResolvedValue() }, configurable: true });
+                page.url = '/rollcall/12?step=3';
+                const wrapper = factory();
+                await wrapper.find('[data-testid="copy-bbcode"]').trigger('click');
+                await vi.waitFor(() => expect(wrapper.find('[data-testid="copy-bbcode"]').text()).toBe('Copy again'));
+                expect(wrapper.find('aside li').find('svg').exists()).toBe(true);
+
+                page.url = '/rollcall/12?step=2';
+                await wrapper.vm.$nextTick();
+                await wrapper.find('[data-trooper="3"] button[data-value="present"]').trigger('click');
+                page.url = '/rollcall/12?step=3';
+                await wrapper.vm.$nextTick();
+
+                return wrapper;
+            };
+
+            it('no longer counts as copied once the post it copied has changed', async () => {
+                const wrapper = await copyThenChange();
+
+                expect(wrapper.find('[data-testid="copy-bbcode"]').text()).toBe('Copy BBCode');
+                expect(finishList(wrapper)[0]).toContain('Copy the updated BBCode');
+                expect(wrapper.find('aside li').find('svg').exists()).toBe(false);
+            });
+
+            it('warns when the rollcall is marked posted from it, and asks for a repost', async () => {
+                const wrapper = await copyThenChange();
+                post.mockImplementation(async (url) =>
+                    url.endsWith('/posted')
+                        ? { ok: true, status: 200, data: { posted: { at: '2026-10-08T16:21:00+00:00', by: 'Vasquez.R' } } }
+                        : { ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00', atRisk: [] } },
+                );
+
+                await wrapper.find('[data-testid="mark-posted"]').trigger('click');
+                await vi.waitFor(() => expect(wrapper.find('[data-testid="posted-state"]').exists()).toBe(true));
+
+                expect(toastWarning).toHaveBeenCalledWith('Marked posted, but the copied BBCode is out of date', {
+                    description: 'Marks changed after you copied it. Copy it again, update the forum post, then mark it posted again.',
+                });
+                expect(toastSuccess).not.toHaveBeenCalledWith('Rollcall marked posted', expect.anything());
+                expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Repost the updated BBCode');
+            });
+
+            it('marks posted as current once the updated post is copied again', async () => {
+                const wrapper = await copyThenChange();
+                post.mockImplementation(async (url) =>
+                    url.endsWith('/posted')
+                        ? { ok: true, status: 200, data: { posted: { at: '2026-10-08T16:21:00+00:00', by: 'Vasquez.R' } } }
+                        : { ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00', atRisk: [] } },
+                );
+
+                await wrapper.find('[data-testid="copy-bbcode"]').trigger('click');
+                await vi.waitFor(() => expect(wrapper.find('[data-testid="copy-bbcode"]').text()).toBe('Copy again'));
+                await wrapper.find('[data-testid="mark-posted"]').trigger('click');
+                await vi.waitFor(() => expect(wrapper.find('[data-testid="posted-state"]').exists()).toBe(true));
+
+                expect(toastWarning).not.toHaveBeenCalled();
+                expect(toastSuccess).toHaveBeenCalledWith('Rollcall marked posted', expect.anything());
+                expect(wrapper.find('[data-testid="posted-state"]').text()).not.toContain('Repost the updated BBCode');
+            });
+        });
+
         it('says so when the clipboard is unavailable', async () => {
             vi.spyOn(console, 'error').mockImplementation(() => {});
             Object.defineProperty(navigator, 'clipboard', { value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) }, configurable: true });
