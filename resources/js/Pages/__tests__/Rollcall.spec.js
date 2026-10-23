@@ -244,6 +244,19 @@ describe('Rollcall page', () => {
         expect(wrapper.find('[data-testid="past-week-notice"]').exists()).toBe(true);
     });
 
+    // "Changes correct that week's record" beside a notice that nothing here can change would contradict it.
+    it.each([
+        ['a week before the week floor', { week: { ...WEEK, isCurrent: false, beforeFloor: true, next: '2026-10-10' } }, false],
+        ['a section seen through a staff grant', { canWrite: false }, false],
+        ['a view-as preview', {}, true],
+    ])('does not say a past week is being edited for %s, which is read-only', (_, props, viewAs) => {
+        if (viewAs) page.props.viewAs = { label: 'CPL Lindqvist.E', admin: false };
+        const wrapper = factory({ week: { ...WEEK, isCurrent: false, date: '2026-09-26', start: '2026-09-26T00:00:00+00:00', next: '2026-10-03' }, ...props });
+
+        expect(wrapper.find('[data-testid="read-only-notice"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="past-week-notice"]').exists()).toBe(false);
+    });
+
     describe('unfinished past weeks', () => {
         const STATUS = [
             { date: '2026-09-26', unmarked: 0, posted: true },

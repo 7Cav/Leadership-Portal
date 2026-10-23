@@ -920,8 +920,10 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
             <p>{{ lockedReason }} You can still copy the forum post and mark it posted.</p>
         </div>
 
+        <!-- Only where a change can be made: a read-only week (too far back, a staff grant, a view-as preview, a sent
+             report) already says why nothing here changes. -->
         <div
-            v-if="!week.isCurrent && !weekLocked"
+            v-if="!week.isCurrent && editable"
             role="status"
             class="mt-3 flex items-start gap-2.5 rounded-lg border border-warning/40 bg-warning/7 px-3.5 py-2.5 text-[13px]"
             data-testid="past-week-notice"
