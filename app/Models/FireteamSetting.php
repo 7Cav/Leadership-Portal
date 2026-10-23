@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * How a unit's rollcall post shows fireteams. On a section, its leaders' choice; on a company, a policy over its
@@ -27,6 +28,11 @@ class FireteamSetting extends Model
             'show_fireteams' => 'boolean',
             'sl_asl_lead_fireteams' => 'boolean',
         ];
+    }
+
+    public function unit(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class);
     }
 
     /**

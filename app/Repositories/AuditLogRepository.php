@@ -60,8 +60,11 @@ interface AuditLogRepository
      *
      * `withinUnit` keeps the entries about `$withinUnit` or anything in its subtree (the materialized-path prefix, AD-18):
      * the unit itself, a section practice or weekly report of one of its units, a template of one of its companies, a staff
-     * grant on one of its units, and a trooper (with their game identities and courses) whose section is in it now. The
-     * cache holds only a trooper's current section, so a trooper who has since moved counts under their new unit.
+     * grant on one of its units, a fireteam row of one of its sections, a fireteam setting or a platoon training topic of
+     * one of its units, a game-player dismissal of a player one of its sections' practices captured, and a trooper (with
+     * their game identities and courses) whose section is in it now. The cache holds only a trooper's current section,
+     * so a trooper who has since moved counts under their new unit. A target that has since been removed (a fireteam row
+     * taken out, a topic cleared, a dismissal undone) no longer places its entries under any unit.
      *
      * @return LengthAwarePaginator<int, AuditLogEntry>
      */
@@ -80,7 +83,8 @@ interface AuditLogRepository
      * What each entry is about, as it is stored now: the model behind each entry's `target_type`/`target_id`, keyed
      * `"{target_type}#{target_id}"`, with what a link to it needs loaded. One query per target type among the entries,
      * never one per entry. A target that no longer exists (a deleted unit, a removed identity) and a type with nowhere to
-     * link to (a user, a course) are left out.
+     * link to (a user, a course) are left out. A `GamePlayerDismissal` comes with a `latestCapture` relation set: the
+     * newest `PracticeCapturePlayer` that stored the player, with `practice.section` loaded, or null.
      *
      * @param  iterable<AuditLogEntry>  $entries
      * @return array<string, Model>

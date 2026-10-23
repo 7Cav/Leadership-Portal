@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * One trooper's fireteam role in a section: a fireteam leader (FTL), or a member of the FTL `leader_trooper_id` names.
@@ -20,5 +21,10 @@ class FireteamAssignment extends Model
             'trooper_id' => 'integer',
             'leader_trooper_id' => 'integer',
         ];
+    }
+
+    public function section(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class, 'section_id');
     }
 }

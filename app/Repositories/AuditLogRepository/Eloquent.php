@@ -3,7 +3,12 @@
 namespace App\Repositories\AuditLogRepository;
 
 use App\Models\AuditLogEntry;
+use App\Models\FireteamAssignment;
+use App\Models\FireteamSetting;
+use App\Models\GamePlayerDismissal;
+use App\Models\PlatoonTrainingTopic;
 use App\Models\PortalRoleGrant;
+use App\Models\PracticeCapturePlayer;
 use App\Models\SectionPractice;
 use App\Models\TemplateVersion;
 use App\Models\Trooper;
@@ -17,6 +22,7 @@ use App\Repositories\AuditLogRepository;
 use Carbon\Carbon;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -43,6 +49,12 @@ class Eloquent implements AuditLogRepository
         'TrooperCourse' => [TrooperCourse::class, ['trooper']],
         'TemplateVersion' => [TemplateVersion::class, ['company']],
         'PortalRoleGrant' => [PortalRoleGrant::class, []],
+        'FireteamAssignment' => [FireteamAssignment::class, ['section']],
+        'FireteamSetting' => [FireteamSetting::class, ['unit']],
+        'PlatoonTrainingTopic' => [PlatoonTrainingTopic::class, ['unit']],
+        // A dismissal belongs to no unit; it is linked through the latest practice that captured the player (see
+        // {@see withLatestCaptures()}).
+        'GamePlayerDismissal' => [GamePlayerDismissal::class, []],
     ];
 
     public function recordWithMutation(int $actorId, string $action, ?string $reason, Closure $mutation): mixed
@@ -177,13 +189,50 @@ class Eloquent implements AuditLogRepository
         $targets = [];
         foreach ($idsByType as $type => $ids) {
             [$class, $with] = self::TARGETS[$type];
+            $models = $class::query()->with($with)->whereKey(array_values($ids))->get();
 
-            foreach ($class::query()->with($with)->whereKey(array_values($ids))->get() as $model) {
+            if ($type === 'GamePlayerDismissal') {
+                $this->withLatestCaptures($models);
+            }
+
+            foreach ($models as $model) {
                 $targets["{$type}#{$model->getKey()}"] = $model;
             }
         }
 
         return $targets;
+    }
+
+    /**
+     * Sets each dismissal's `latestCapture` relation: the newest practice capture that stored the player (with its
+     * practice and section loaded), or null when none did. A dismissal is keyed by `(platform, platform_id)`, not by a
+     * unit, and the latest practice that saw the player is where a leader finds the dismissal and can undo it. One
+     * query for all the dismissals on the page.
+     *
+     * @param  EloquentCollection<int, GamePlayerDismissal>  $dismissals
+     */
+    private function withLatestCaptures(EloquentCollection $dismissals): void
+    {
+        $key = fn (PracticeCapturePlayer|GamePlayerDismissal $row) => "{$row->platform->value}|{$row->platform_id}";
+
+        $captures = PracticeCapturePlayer::query()
+            ->select('practice_capture_players.*')
+            ->join('section_practices', 'section_practices.id', '=', 'practice_capture_players.section_practice_id')
+            ->where(function ($query) use ($dismissals) {
+                foreach ($dismissals as $dismissal) {
+                    $query->orWhere(fn ($query) => $query
+                        ->where('practice_capture_players.platform', $dismissal->platform->value)
+                        ->where('practice_capture_players.platform_id', $dismissal->platform_id));
+                }
+            })
+            ->orderByDesc('section_practices.week_start')
+            ->orderByDesc('practice_capture_players.id')
+            ->with('practice.section')
+            ->get()
+            ->unique($key)
+            ->keyBy($key);
+
+        $dismissals->each(fn (GamePlayerDismissal $dismissal) => $dismissal->setRelation('latestCapture', $captures->get($key($dismissal))));
     }
 
     /**
@@ -205,7 +254,18 @@ class Eloquent implements AuditLogRepository
             ->orWhere($about('PortalRoleGrant', PortalRoleGrant::query()->whereIn('unit_id', $units())))
             ->orWhere($about('Trooper', Trooper::query()->whereIn('primary_section_id', $units())))
             ->orWhere($about('TrooperGameIdentity', TrooperGameIdentity::query()->whereIn('trooper_id', $troopers())))
-            ->orWhere($about('TrooperCourse', TrooperCourse::query()->whereIn('trooper_id', $troopers())));
+            ->orWhere($about('TrooperCourse', TrooperCourse::query()->whereIn('trooper_id', $troopers())))
+            ->orWhere($about('FireteamAssignment', FireteamAssignment::query()->whereIn('section_id', $units())))
+            ->orWhere($about('FireteamSetting', FireteamSetting::query()->whereIn('unit_id', $units())))
+            ->orWhere($about('PlatoonTrainingTopic', PlatoonTrainingTopic::query()->whereIn('unit_id', $units())))
+            // A dismissal has no unit of its own: it is about every section whose practice capture stored the player.
+            ->orWhere($about('GamePlayerDismissal', GamePlayerDismissal::query()->whereExists(fn ($query) => $query
+                ->selectRaw('1')
+                ->from('practice_capture_players')
+                ->join('section_practices', 'section_practices.id', '=', 'practice_capture_players.section_practice_id')
+                ->whereColumn('practice_capture_players.platform', 'game_player_dismissals.platform')
+                ->whereColumn('practice_capture_players.platform_id', 'game_player_dismissals.platform_id')
+                ->whereIn('section_practices.section_id', $units()))));
     }
 
     public function actors(): Collection
