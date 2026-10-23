@@ -7,11 +7,12 @@ use Database\Seeders\CaptureReviewSeeder;
 use Database\Seeders\DatabaseSeeder;
 use Database\Seeders\ReportRollupSeeder;
 use Database\Seeders\ReportScreenSeeder;
+use Database\Seeders\RollcallHeldMarksSeeder;
 
 // The demo seeders make sign-in-able users and staff grants over real units. Seeding production
 // by mistake must fail loudly and write nothing, while local, testing and e2e (the Playwright
-// server's global setup seeds ReportRollupSeeder, ReportScreenSeeder and CaptureReviewSeeder)
-// keep working.
+// server's global setup seeds ReportRollupSeeder, ReportScreenSeeder, CaptureReviewSeeder and
+// RollcallHeldMarksSeeder) keep working.
 
 it('refuses to seed outside local, testing and e2e, writing nothing', function (string $seeder, string $environment) {
     app()['env'] = $environment;
@@ -24,7 +25,7 @@ it('refuses to seed outside local, testing and e2e, writing nothing', function (
     expect(User::count())->toBe(0)
         ->and(Unit::count())->toBe(0)
         ->and(PortalRoleGrant::count())->toBe(0);
-})->with([ReportRollupSeeder::class, ReportScreenSeeder::class, CaptureReviewSeeder::class, DatabaseSeeder::class])->with(['production', 'staging']);
+})->with([ReportRollupSeeder::class, ReportScreenSeeder::class, CaptureReviewSeeder::class, RollcallHeldMarksSeeder::class, DatabaseSeeder::class])->with(['production', 'staging']);
 
 it('seeds the demo data in the environments that exist to be thrown away', function (string $seeder, string $username, string $environment) {
     app()['env'] = $environment;
@@ -36,6 +37,7 @@ it('seeds the demo data in the environments that exist to be thrown away', funct
     'report roll-up' => [ReportRollupSeeder::class, 'Hale.S'],
     'report screen' => [ReportScreenSeeder::class, 'Mercer.J'],
     'capture review' => [CaptureReviewSeeder::class, 'Hartmann.L'],
+    'rollcall held marks' => [RollcallHeldMarksSeeder::class, 'Quinn.A'],
 ])->with(['local', 'testing', 'e2e']);
 
 it('runs the default db:seed target', function () {

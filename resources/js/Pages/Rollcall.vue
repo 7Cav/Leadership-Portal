@@ -256,6 +256,17 @@ const UNDO_MS = 6000;
 // Undo toasts still open; marking posted saves their held changes early, so it closes them.
 const undoToasts = new Set();
 
+// Save the held changes now and close their Undo toasts: once a change is saved, Undo could only
+// answer "already saved". Marking posted and confirming need the marks on the server first, and
+// moving to another step commits them too: an Undo is for the step it was made on, and a hold must
+// not outlive it (the step change keeps this screen, but browser Back to a step rebuilds it).
+function commitHeld() {
+    for (const id of undoToasts) toast.dismiss(id);
+    undoToasts.clear();
+
+    return autosave.flush({ includeHeld: true });
+}
+
 function applyMany(entries, title) {
     if (!entries.length) return;
     const before = entries.map(({ trooper, value }) => ({ trooper, value, status: trooper.status, source: trooper.source }));
@@ -452,9 +463,7 @@ async function markPosted() {
     posting.value = true;
     try {
         // The post on the forum was made from the marks on screen, so they must be saved first.
-        for (const id of undoToasts) toast.dismiss(id);
-        undoToasts.clear();
-        if (!(await autosave.flush({ includeHeld: true }))) {
+        if (!(await commitHeld())) {
             toast.error('Changes are not saved yet', { description: autosave.error.value ?? autosave.lockedMessage.value });
 
             return;
@@ -488,9 +497,7 @@ const confirmationLabel = computed(() =>
 async function confirmPractice() {
     confirming.value = true;
     try {
-        for (const id of undoToasts) toast.dismiss(id);
-        undoToasts.clear();
-        if (!(await autosave.flush({ includeHeld: true }))) {
+        if (!(await commitHeld())) {
             toast.error('Changes are not saved yet', { description: autosave.error.value ?? autosave.lockedMessage.value });
 
             return;
@@ -529,6 +536,10 @@ const leaving = new Promise((resolve) => (leave = resolve));
 onBeforeUnmount(() => {
     left = true;
     leave();
+    // The autosave sends the held marks as the screen goes, so an Undo toast left open on the next
+    // page could not take them back.
+    for (const id of undoToasts) toast.dismiss(id);
+    undoToasts.clear();
 });
 
 const pause = (ms) =>
@@ -666,7 +677,10 @@ onMounted(() => {
     if (Number.isInteger(id) && id > 0) nextTick(() => focusTrooper(id));
 });
 
+// Moving to another step commits the marks held for Undo (see `commitHeld`): the save goes now, while
+// this screen is still here to show whether it worked.
 function go(n) {
+    if (autosave && n !== step.value) commitHeld();
     const params = new URLSearchParams(query.value);
     params.set('step', String(n));
     params.delete('focus');

@@ -23,4 +23,6 @@ export default function globalSetup() {
     execFileSync('php', ['artisan', 'db:seed', '--force', '--class=Database\\Seeders\\ReportScreenSeeder'], { env, stdio: 'inherit' });
     // A captured practice with two unmatched players for the drawer's own spec (Story 7.7).
     execFileSync('php', ['artisan', 'db:seed', '--force', '--class=Database\\Seeders\\CaptureReviewSeeder'], { env, stdio: 'inherit' });
+    // Sections with nobody marked yet, one per way of leaving with marks held for Undo.
+    execFileSync('php', ['artisan', 'db:seed', '--force', '--class=Database\\Seeders\\RollcallHeldMarksSeeder'], { env, stdio: 'inherit' });
 }

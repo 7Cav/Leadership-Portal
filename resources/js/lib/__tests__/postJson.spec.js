@@ -20,6 +20,18 @@ describe('postJson', () => {
         expect(init.redirect).toBe('manual');
         expect(init.headers['X-XSRF-TOKEN']).toBe('abc==');
         expect(init.body).toBe('{"week":"2026-10-03"}');
+        expect(init.keepalive).toBe(false);
+    });
+
+    it('asks the browser to finish sending a save the page may not outlive', async () => {
+        document.cookie = 'XSRF-TOKEN=abc';
+        const fetch = respond(200, { savedAt: 'x' });
+        vi.stubGlobal('fetch', fetch);
+
+        await postJson('/rollcall/12', { week: '2026-10-03' }, { keepalive: true });
+        const [, init] = fetch.mock.calls[0];
+        expect(init.keepalive).toBe(true);
+        expect(init.headers['X-XSRF-TOKEN']).toBe('abc');
     });
 
     it('reads a 200 that is not JSON (e.g. the login page) as a failure', async () => {
