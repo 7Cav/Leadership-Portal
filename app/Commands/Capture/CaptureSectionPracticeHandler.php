@@ -8,6 +8,7 @@ use App\Integration\Crcon\Data\CrconPresence;
 use App\Models\GamePlatform;
 use App\Models\SectionPractice;
 use App\Models\SyncRun;
+use App\Repositories\CrossSectionSightingRepository;
 use App\Repositories\PracticeCapturePlayerRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\SyncRunRepository;
@@ -26,7 +27,13 @@ use Throwable;
  *
  * - A player with no link is **unmatched**: recorded, surfaced, never assigned to anyone.
  * - A player linked to a trooper whose primary section is not this practice's is surfaced as
- *   **other-section**, never credited (AD-14: attendance counts in the primary section).
+ *   **other-section**, and never credited to *this* practice (AD-14: a trooper is on one rollcall,
+ *   their primary section's). Since 2026-10-23 being seen here is a **makeup** for their own
+ *   section: {@see MarkAttendanceHandler::preMarkMakeups()} pre-marks `makeup`/`auto` on their own
+ *   section's practice for this same Cav week, never downgrading a `present`, never overriding a
+ *   manual mark, and never writing into a locked, confirmed or before-floor week. Every such
+ *   sighting is also recorded once per trooper and practice in `cross_section_sightings`, whether or
+ *   not it changed their mark (groundwork for the Joint Service Achievement Medal candidates).
  * - If every source raises a typed failure the practice is **left un-captured** and the run is
  *   recorded failed as telemetry-unavailable — never interpreted as zero attendance. The run carries
  *   the practice id, so the rollcall screen can show when it was last tried (7.9). A source whose env
@@ -34,9 +41,11 @@ use Throwable;
  *
  * The matched troopers are then pre-marked `present`/`auto` through the one attendance writer
  * ({@see MarkAttendanceHandler::preMark()}, 7.6): manual marks win, nothing is ever written as `loa`,
- * other-section and unmatched players get no row. Every run opens a `sync_runs` row
+ * other-section players get no row on this practice (their makeup is on their own section's) and
+ * unmatched players get none anywhere. Every run opens a `sync_runs` row
  * (source `capture`) carrying `triggered_by` and the counts: `inserted` = players linked to a
- * trooper, `errored` = unmatched players (so unmatched ones read `partial`), and the summary text.
+ * trooper, `errored` = unmatched players (so unmatched ones read `partial`), and the summary text,
+ * which says how many other-section troopers got their makeup and how many were left as they were.
  * The stamp goes through the audit envelope when a user triggered the run; the audit log's actor is
  * a `users` FK, so a `'system'` run is covered by its `sync_runs` row (AD-16's carve-out for system
  * jobs). No authorization here: callers (scheduler, a later leader trigger) decide who may run it.
@@ -61,6 +70,7 @@ class CaptureSectionPracticeHandler
         private readonly TrooperGameIdentityRepository $identities,
         private readonly TrooperRepository $troopers,
         private readonly PracticeCapturePlayerRepository $capturePlayers,
+        private readonly CrossSectionSightingRepository $sightings,
         private readonly SyncRunRepository $syncRuns,
         private readonly WeeklyReportRepository $reports,
         private readonly AuditEnvelope $audit,
@@ -129,6 +139,12 @@ class CaptureSectionPracticeHandler
                     return $this->weekLocked($run, $practice);
                 }
 
+                // The other-section players: every sighting is recorded, then each trooper's own
+                // section's rollcall gets the makeup where it may.
+                $elsewhere = array_column($result->otherSection, 'trooperId');
+                $this->sightings->record($practice, $elsewhere, $presence->windowStart, $presence->windowEnd);
+                $makeups = $this->attendance->preMarkMakeups($practice, $elsewhere, $command->triggeredBy);
+
                 $stamp = fn () => $this->practices->stampCapture($practice, $source->serverRef, $presence->fetchedAt, $source->name);
                 is_int($command->triggeredBy)
                     ? $this->audit->record($command->triggeredBy, 'practice.captured', null, false, $stamp)
@@ -141,11 +157,17 @@ class CaptureSectionPracticeHandler
                     inactivated: 0,
                     errored: $result->unmatchedCount(),
                     error: sprintf(
-                        'practice %d, source %s: seen %d, matched %d (%d in another section), unmatched %d; %s',
+                        'practice %d, source %s: seen %d, matched %d (%d in another section), unmatched %d; %s%s',
                         $practice->id, $source->name, $result->seen(), $result->matchedCount(), count($result->otherSection), $result->unmatchedCount(),
                         $marks->confirmed
                             ? 'practice is confirmed, no marks changed'
                             : sprintf('pre-marked %d, left %d untouched (manual/loa)', $marks->marked, $marks->keptManual),
+                        $result->otherSection === []
+                            ? ''
+                            : sprintf(
+                                '; makeup on their own rollcall %d, left %d as they were (present/manual/loa), %d in a locked week',
+                                $makeups->marked, $makeups->kept, $makeups->locked,
+                            ),
                     ),
                 );
 

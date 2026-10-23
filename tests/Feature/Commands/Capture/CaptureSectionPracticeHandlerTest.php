@@ -107,7 +107,7 @@ it('matches on platform as well as id', function () {
     expect($result->matched)->toBe([])->and($result->unmatched)->toHaveCount(1);
 });
 
-it('surfaces a linked trooper from another section instead of crediting them', function () {
+it('surfaces a linked trooper from another section instead of crediting them to this practice', function () {
     $elsewhere = Trooper::factory()->create(['primary_section_id' => Unit::factory()->create(['type' => UnitType::Section])->id]);
     $unplaced = Trooper::factory()->create(['primary_section_id' => null]);
     linkIdentity($elsewhere, '76561190000000010');
@@ -121,7 +121,8 @@ it('surfaces a linked trooper from another section instead of crediting them', f
     expect($result->matched)->toBe([])
         ->and($result->otherSection)->toHaveCount(2)
         ->and($result->matchedCount())->toBe(2)
-        ->and($result->unmatched)->toBe([]);
+        ->and($result->unmatched)->toBe([])
+        ->and(Attendance::query()->where('section_practice_id', $this->practice->id)->count())->toBe(0);
 });
 
 it('treats an answered-but-empty window as captured with zero players', function () {
@@ -271,7 +272,7 @@ it('refuses a window outside the practice week', function () {
 
 // 7.6 / AD-14, AD-22: matched troopers are pre-marked present/auto; manual wins; never loa.
 
-it('pre-marks a matched trooper present with source auto and nobody else', function () {
+it('pre-marks a matched trooper present with source auto and nobody else on this practice', function () {
     $mine = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
     $elsewhere = Trooper::factory()->create(['primary_section_id' => Unit::factory()->create(['type' => UnitType::Section])->id]);
     linkIdentity($mine, '1');
@@ -279,11 +280,12 @@ it('pre-marks a matched trooper present with source auto and nobody else', funct
 
     runCapture($this, [answeringSource('crcon', [new CrconPlayer('A', '1'), new CrconPlayer('B', '2'), new CrconPlayer('C', '3')])]);
 
-    $row = Attendance::query()->sole();
+    $row = Attendance::query()->where('section_practice_id', $this->practice->id)->sole();
     expect($row->trooper_id)->toBe($mine->id)
-        ->and($row->section_practice_id)->toBe($this->practice->id)
         ->and($row->status)->toBe(AttendanceStatus::Present)
-        ->and($row->source)->toBe(AttendanceSource::Auto);
+        ->and($row->source)->toBe(AttendanceSource::Auto)
+        // The other section's trooper made up their own section's practice instead (2026-10-23).
+        ->and(Attendance::query()->where('trooper_id', $elsewhere->id)->sole()->status)->toBe(AttendanceStatus::Makeup);
 });
 
 it('leaves a manual mark of any status untouched, including its timestamps', function () {

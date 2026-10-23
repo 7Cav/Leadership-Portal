@@ -17,7 +17,7 @@ final readonly class CaptureResult
 {
     /**
      * @param  list<array{player: CrconPlayer, trooperId: int}>  $matched  linked to a trooper of this section
-     * @param  list<array{player: CrconPlayer, trooperId: int}>  $otherSection  linked, but to a trooper whose primary section is elsewhere — surfaced, never credited
+     * @param  list<array{player: CrconPlayer, trooperId: int}>  $otherSection  linked, but to a trooper whose primary section is elsewhere — surfaced, never credited to this practice; a makeup on their own section's
      * @param  list<CrconPlayer>  $unmatched  no link — surfaced for a human, never auto-assigned (AD-19)
      * @param  list<string>  $unavailableReasons
      */
