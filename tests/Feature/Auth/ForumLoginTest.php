@@ -49,7 +49,7 @@ beforeEach(function () {
     config()->set('services.sevencav', [
         'client_id' => 'test-client',
         'client_secret' => 'test-secret',
-        'redirect_uri' => 'http://localhost/oauth/callback/7cav',
+        'redirect_uri' => 'http://localhost/auth/callback',
         'base_url' => 'https://7cav.us',
         'authorize_url' => 'https://7cav.us/oauth2/authorize',
         'scopes' => ['user:read'],
@@ -90,7 +90,7 @@ it('establishes an authenticated session, regenerates the session id, and lands 
     $this->withSession(['forum_oauth_state' => 'valid-state']);
     $idBefore = session()->getId();
 
-    $response = $this->get('/oauth/callback/7cav?code=good-code&state=valid-state');
+    $response = $this->get('/auth/callback?code=good-code&state=valid-state');
 
     $response->assertRedirect(route('home'));
     $this->assertAuthenticated();
@@ -102,7 +102,7 @@ it('rejects a state mismatch (callback CSRF) with no partial session (AC #5)', f
     mockForum();
 
     $response = $this->withSession(['forum_oauth_state' => 'expected'])
-        ->get('/oauth/callback/7cav?code=good-code&state=attacker-supplied');
+        ->get('/auth/callback?code=good-code&state=attacker-supplied');
 
     $response->assertRedirect(route('login'));
     $response->assertSessionHas('error');
@@ -114,7 +114,7 @@ it('rejects a denied/errored consent with no partial session (AC #5)', function 
     mockForum();
 
     $response = $this->withSession(['forum_oauth_state' => 'valid-state'])
-        ->get('/oauth/callback/7cav?error=access_denied&state=valid-state');
+        ->get('/auth/callback?error=access_denied&state=valid-state');
 
     $response->assertRedirect(route('login'));
     $this->assertGuest();
@@ -125,7 +125,7 @@ it('handles a failed token exchange gracefully — back to login, never a 500 (A
     mockForum(tokenStatus: 400);
 
     $response = $this->withSession(['forum_oauth_state' => 'valid-state'])
-        ->get('/oauth/callback/7cav?code=bad-code&state=valid-state');
+        ->get('/auth/callback?code=bad-code&state=valid-state');
 
     $response->assertRedirect(route('login'));
     $response->assertSessionHas('error');
@@ -138,7 +138,7 @@ it('handles a failed profile fetch after a good token exchange — no partial se
     mockForum(profileStatus: 401);
 
     $response = $this->withSession(['forum_oauth_state' => 'valid-state'])
-        ->get('/oauth/callback/7cav?code=good-code&state=valid-state');
+        ->get('/auth/callback?code=good-code&state=valid-state');
 
     $response->assertRedirect(route('login'));
     $this->assertGuest();
@@ -149,7 +149,7 @@ it('handles a malformed token payload (200 but no access_token) — never a 500 
     mockForum(tokenResponse: MockResponse::make(['token_type' => 'Bearer'], 200));
 
     $response = $this->withSession(['forum_oauth_state' => 'valid-state'])
-        ->get('/oauth/callback/7cav?code=good-code&state=valid-state');
+        ->get('/auth/callback?code=good-code&state=valid-state');
 
     $response->assertRedirect(route('login'));
     $this->assertGuest();
@@ -160,7 +160,7 @@ it('handles a malformed profile payload (200 but no user_id) — never a 500 (AC
     mockForum(profileResponse: MockResponse::make(['me' => ['username' => 'NoId']], 200));
 
     $response = $this->withSession(['forum_oauth_state' => 'valid-state'])
-        ->get('/oauth/callback/7cav?code=good-code&state=valid-state');
+        ->get('/auth/callback?code=good-code&state=valid-state');
 
     $response->assertRedirect(route('login'));
     $this->assertGuest();
@@ -171,7 +171,7 @@ it('handles a non-JSON 2xx body (proxy/WAF HTML) — never a 500 (AC #5)', funct
     mockForum(tokenResponse: MockResponse::make('<html>502 Bad Gateway</html>', 200));
 
     $response = $this->withSession(['forum_oauth_state' => 'valid-state'])
-        ->get('/oauth/callback/7cav?code=good-code&state=valid-state');
+        ->get('/auth/callback?code=good-code&state=valid-state');
 
     $response->assertRedirect(route('login'));
     $this->assertGuest();
@@ -183,7 +183,7 @@ it('handles a 2xx body that is a JSON scalar rather than an object — never a 5
         mockForum(tokenResponse: MockResponse::make($body, 200, ['Content-Type' => 'application/json']));
 
         $response = $this->withSession(['forum_oauth_state' => 'valid-state'])
-            ->get('/oauth/callback/7cav?code=good-code&state=valid-state');
+            ->get('/auth/callback?code=good-code&state=valid-state');
 
         $response->assertRedirect(route('login'));
         $response->assertSessionHas('error');
@@ -202,7 +202,7 @@ it('handles the forum being unreachable (connection failure) — never a 500 (AC
     ));
 
     $response = $this->withSession(['forum_oauth_state' => 'valid-state'])
-        ->get('/oauth/callback/7cav?code=good-code&state=valid-state');
+        ->get('/auth/callback?code=good-code&state=valid-state');
 
     $response->assertRedirect(route('login'));
     $this->assertGuest();
@@ -211,7 +211,7 @@ it('handles the forum being unreachable (connection failure) — never a 500 (AC
 
 it('rejects a callback with neither code nor error — no session (AC #5)', function () {
     $response = $this->withSession(['forum_oauth_state' => 'valid-state'])
-        ->get('/oauth/callback/7cav?state=valid-state');
+        ->get('/auth/callback?state=valid-state');
 
     $response->assertRedirect(route('login'));
     $this->assertGuest();
@@ -220,10 +220,10 @@ it('rejects a callback with neither code nor error — no session (AC #5)', func
 
 it('updates the same identity row on re-login instead of duplicating (AC #7)', function () {
     mockForum(userId: 4, username: 'Old.Name');
-    $this->withSession(['forum_oauth_state' => 's1'])->get('/oauth/callback/7cav?code=c1&state=s1');
+    $this->withSession(['forum_oauth_state' => 's1'])->get('/auth/callback?code=c1&state=s1');
 
     mockForum(userId: 4, username: 'New.Name');
-    $this->withSession(['forum_oauth_state' => 's2'])->get('/oauth/callback/7cav?code=c2&state=s2');
+    $this->withSession(['forum_oauth_state' => 's2'])->get('/auth/callback?code=c2&state=s2');
 
     expect(User::count())->toBe(1);
     expect(User::first()->username)->toBe('New.Name');
@@ -231,7 +231,7 @@ it('updates the same identity row on re-login instead of duplicating (AC #7)', f
 
 it('stores no password anywhere — SSO-only identity (AC #4, #7)', function () {
     mockForum();
-    $this->withSession(['forum_oauth_state' => 's'])->get('/oauth/callback/7cav?code=c&state=s');
+    $this->withSession(['forum_oauth_state' => 's'])->get('/auth/callback?code=c&state=s');
 
     expect(Schema::hasColumn('users', 'password'))->toBeFalse();
     expect(Schema::hasColumn('users', 'remember_token'))->toBeFalse();
@@ -261,10 +261,10 @@ it('throttles the callback too, on a budget of its own', function () {
     // Each callback can spend a forum token exchange. A cancelled consent is the cheapest
     // callback to replay, and it must still count.
     for ($i = 1; $i <= 10; $i++) {
-        $this->get('/oauth/callback/7cav?error=access_denied')->assertRedirect(route('login'));
+        $this->get('/auth/callback?error=access_denied')->assertRedirect(route('login'));
     }
 
-    $this->get('/oauth/callback/7cav?error=access_denied')
+    $this->get('/auth/callback?error=access_denied')
         ->assertRedirect(route('login'))
         ->assertSessionHas('error', 'Too many sign-in attempts. Try again in a minute.');
 
@@ -289,7 +289,7 @@ it('sends an array-valued code back to the login screen instead of a 500', funct
 
     foreach (['code[]=x', 'code[a]=x'] as $query) {
         $response = $this->withSession(['forum_oauth_state' => 'valid-state'])
-            ->get("/oauth/callback/7cav?{$query}&state=valid-state");
+            ->get("/auth/callback?{$query}&state=valid-state");
 
         $response->assertRedirect(route('login'));
         $response->assertSessionHas('error', 'Sign-in was cancelled or could not be verified. Please try again.');

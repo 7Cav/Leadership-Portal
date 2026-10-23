@@ -149,7 +149,7 @@ function logInThroughTheForum(): string
     config()->set('services.sevencav', [
         'client_id' => 'test-client',
         'client_secret' => 'test-secret',
-        'redirect_uri' => 'http://localhost/oauth/callback/7cav',
+        'redirect_uri' => 'http://localhost/auth/callback',
         'base_url' => 'https://7cav.us',
         'authorize_url' => 'https://7cav.us/oauth2/authorize',
         'scopes' => ['user:read'],
@@ -193,7 +193,7 @@ function logInThroughTheForum(): string
     }
 
     test()->withSession(['forum_oauth_state' => 'valid-state'])
-        ->get('/oauth/callback/7cav?code=good-code&state=valid-state')
+        ->get('/auth/callback?code=good-code&state=valid-state')
         ->assertRedirect(route('home'));
 
     return session()->getId();
