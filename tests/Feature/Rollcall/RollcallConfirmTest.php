@@ -11,6 +11,8 @@ use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReport;
+use App\Repositories\SectionPracticeRepository;
+use App\Repositories\SectionPracticeRepository\Eloquent as EloquentSectionPracticeRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -137,6 +139,29 @@ it('leaves existing marks untouched when a confirmed practice is pre-marked', fu
     $result = app(MarkAttendanceHandler::class)->preMark($this->practice, [$this->ortega->id, $this->dube->id], $this->leader->id);
 
     expect($result->marked)->toBe(0)->and($result->confirmed)->toBeTrue()
+        ->and(AuditLogEntry::query()->where('action', 'attendance.auto_marked')->count())->toBe(0);
+});
+
+it('writes no empty audit entry when the practice is confirmed between the pre-check and the lock', function () {
+    $extra = Trooper::factory()->create();
+    $extra->forceFill(['primary_section_id' => $this->section->id])->save();
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => '2026-10-03'])->assertOk();
+    // The pre-check reads the practice as it was before the confirmation landed; the lock then finds it confirmed.
+    $unconfirmed = $this->practice->fresh()->forceFill(['confirmed_at' => null, 'confirmed_by' => null]);
+    app()->instance(SectionPracticeRepository::class, new class($unconfirmed) extends EloquentSectionPracticeRepository
+    {
+        public function __construct(private readonly SectionPractice $before) {}
+
+        public function findById(int $id): ?SectionPractice
+        {
+            return $this->before;
+        }
+    });
+
+    $result = app(MarkAttendanceHandler::class)->preMark($this->practice, [$extra->id], $this->leader->id);
+
+    expect($result->confirmed)->toBeTrue()->and($result->marked)->toBe(0)
+        ->and(Attendance::query()->where('trooper_id', $extra->id)->exists())->toBeFalse()
         ->and(AuditLogEntry::query()->where('action', 'attendance.auto_marked')->count())->toBe(0);
 });
 

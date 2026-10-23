@@ -213,8 +213,9 @@ class MarkAttendanceHandler
 
         // A confirmed practice (7.8) is locked for reporting: capture re-runs and links leave its
         // marks exactly as the leader confirmed them. A hand edit unlocks it.
-        // Checked here so a locked practice costs no audit entry, and again under a row lock inside
-        // the audited transaction, so a confirmation cannot land between the check and the writes.
+        // Checked here so a locked practice costs no transaction, and again under a row lock inside
+        // the audited transaction, so a confirmation cannot land between the check and the writes;
+        // one that did rolls the transaction back, so it costs no audit entry either.
         $locked = fn (?SectionPractice $current) => $current?->confirmed_at !== null;
 
         if ($locked($this->practices->findById($practice->id))) {
@@ -223,16 +224,17 @@ class MarkAttendanceHandler
 
         $written = [];
         $notPlaced = 0;
-        $confirmed = false;
-        $mutation = function () use ($practice, $trooperIds, $locked, &$written, &$notPlaced, &$confirmed) {
+        $mutation = function () use ($practice, $trooperIds, $locked, &$written, &$notPlaced) {
             if ($this->reports->isSentFor($practice->section_id, $practice->week_start)) {
                 throw RollcallWeekLockedException::for($practice->section_id, $practice->week_start);
             }
 
             $written = [];
 
-            if ($confirmed = $locked($this->practices->lockById($practice->id))) {
-                return new AuditedBatch($practice);
+            // Confirmed between the check above and this lock: nothing to write, and thrown rather than returned as
+            // an empty batch, so the audited transaction rolls back without an `attendance.auto_marked` entry.
+            if ($locked($this->practices->lockById($practice->id))) {
+                throw new PracticeConfirmedMeanwhileException($practice);
             }
 
             $placed = $this->troopers->servingIdsPlacedIn($practice->section_id, $trooperIds)->all();
@@ -262,9 +264,7 @@ class MarkAttendanceHandler
             }
         } catch (RollcallWeekLockedException) {
             return AutoMarkResult::weekLocked();
-        }
-
-        if ($confirmed) {
+        } catch (PracticeConfirmedMeanwhileException) {
             return new AutoMarkResult(marked: 0, keptManual: 0, notPlaced: 0, confirmed: true);
         }
 

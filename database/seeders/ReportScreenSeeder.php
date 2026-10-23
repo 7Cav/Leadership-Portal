@@ -28,7 +28,8 @@ use Illuminate\Database\Seeder;
  * `ReportRollupSeeder` under its own company and usernames (`Mercer.J` leads 2/1/B/1-7,
  * `Brennan.J` the platoon). Section 2 is left as this week's draft with open items; section 1 has
  * sent this week; section 3 has a draft. Exposes the users it made through `$sectionLeader` and
- * `$platoonLeader`. Refuses to run outside local, testing and e2e: its users hold staff grants.
+ * `$platoonLeader`. Refuses to run outside local, testing and e2e: its users lead their units by
+ * command billet, so they hold real scope wherever they are created.
  */
 class ReportScreenSeeder extends Seeder
 {
