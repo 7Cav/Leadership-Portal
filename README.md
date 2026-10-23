@@ -7,7 +7,8 @@ Running it on a server: see [Deploying](#deploying).
 ## Deploying
 
 A production install is the Laravel app plus two long-running pieces: a queue worker and the
-scheduler. All times below are UTC (`config/app.php` sets `timezone` to `UTC`).
+scheduler. To run all of it, MySQL and HTTPS included, with Docker Compose, see
+[docker/README.md](docker/README.md). All times below are UTC (`config/app.php` sets `timezone` to `UTC`).
 
 ### Environment
 
