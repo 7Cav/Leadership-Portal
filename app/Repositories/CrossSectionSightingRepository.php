@@ -20,9 +20,12 @@ interface CrossSectionSightingRepository
 {
     /**
      * Record that each of `$trooperIds` was seen at `$hostPractice` during the capture window, once
-     * per (trooper, host practice): a pair already recorded is left exactly as it is (the first
-     * sighting wins), so re-running a capture adds nothing. Insert-or-find under the UNIQUE key, so
-     * two runs racing on the same practice land on one row. Returns how many rows were added.
+     * per (trooper, host practice): a capture sighting already recorded is left exactly as it is (the
+     * first sighting wins), so re-running a capture adds nothing. A leader's hand entry for the pair
+     * becomes a capture sighting with this window, keeping its `recorded_by`: what the server saw is
+     * evidence no leader can take back, so it can no longer be removed by hand. Insert-or-find under
+     * the UNIQUE key, so two runs racing on the same practice land on one row. Returns how many rows
+     * were added (an upgraded hand entry is not one).
      *
      * @param  list<int>  $trooperIds
      */
@@ -56,6 +59,17 @@ interface CrossSectionSightingRepository
      * automatic makeup on their own rollcall once one entry is removed.
      */
     public function existsForTrooperInWeek(int $trooperId, CarbonInterface $weekStart): bool;
+
+    /**
+     * Which of `$trooperIds` are still recorded at any host practice of this Cav week, from either source, as a locking
+     * read (shared): what lets `MarkAttendanceHandler::preMarkMakeups()` write an
+     * automatic makeup only while a sighting supports it. Inside a transaction, the rows found cannot be removed until
+     * it ends, and a removal still in flight is waited for, so an Undo can never land between this read and the makeup.
+     *
+     * @param  list<int>  $trooperIds
+     * @return list<int>
+     */
+    public function trooperIdsSeenInWeek(array $trooperIds, CarbonInterface $weekStart): array;
 
     /**
      * The guests at `$unit`'s practices over `$firstWeek`..`$lastWeek` (whole Cav weeks, both included): each serving

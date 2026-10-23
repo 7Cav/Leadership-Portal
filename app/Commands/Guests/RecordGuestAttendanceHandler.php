@@ -34,7 +34,9 @@ use App\Support\Audit\AuditEnvelope;
  * week, never over `present`/`attached`/`loa` or any manual mark, never into a locked, confirmed or before-floor week,
  * skipped for leave and for a trooper no longer serving there). It is audited as `attendance.auto_marked` with the host
  * leader as the actor, on the guest's own practice, so the guest's own leader sees whose word it was and can change it.
- * As with a capture, the entry stands even when the makeup could not be written.
+ * As with a capture, the entry stands even when the makeup could not be written. The makeup is written only while a
+ * sighting of the guest that week still exists (read under a lock before their own practice's), so an Undo that lands
+ * between the entry's commit and the makeup leaves nothing behind.
  */
 class RecordGuestAttendanceHandler
 {

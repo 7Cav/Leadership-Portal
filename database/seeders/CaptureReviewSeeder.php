@@ -14,6 +14,7 @@ use App\Models\Unit;
 use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\CrossSectionSightingRepository;
 use App\Repositories\PracticeCapturePlayerRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Support\Time\WeekOf;
@@ -103,7 +104,9 @@ class CaptureReviewSeeder extends Seeder
         $practice = app(SectionPracticeRepository::class)->findOrCreate($section->id, WeekOf::start($now));
         app(MarkAttendanceHandler::class)->preMark($practice, [$ids['Okafor.D'], $ids['Lindqvist.E']]);
         app(SectionPracticeRepository::class)->stampCapture($practice, 'crcon-e2e-review', $now, 'crcon');
-        // Seen at 3rd Section's practice instead: an automatic makeup on this section's rollcall (2026-10-23).
+        // Seen at 3rd Section's practice instead: an automatic makeup on this section's rollcall (2026-10-23). A makeup
+        // stands on a sighting, so the sighting goes in first.
+        app(CrossSectionSightingRepository::class)->record($neighbour, [$ids['Mbatha.Z']], $now->subHours(2), $now->subHour());
         app(MarkAttendanceHandler::class)->preMarkMakeups($neighbour, [$ids['Mbatha.Z']]);
     }
 

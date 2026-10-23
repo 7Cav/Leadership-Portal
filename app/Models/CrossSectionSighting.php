@@ -12,7 +12,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * practice; `week_start` repeats its week (AD-11). Two sources, one row per trooper and host practice: `capture` (the
  * game server saw them; `seen_from`/`seen_until` are the capture window), written by the capture handler, and `manual`
  * (the host section's leader said so on their rollcall; no window, `recorded_by` is that leader), written by the
- * audited `RecordGuestAttendance` Command and removable only through `RemoveGuestAttendance`. Both go through
+ * audited `RecordGuestAttendance` Command and removable only through `RemoveGuestAttendance`. A hand entry the
+ * capture then sees becomes `capture`, with its window, and keeps `recorded_by`. Both go through
  * `CrossSectionSightingRepository`.
  */
 #[Fillable(['trooper_id', 'section_practice_id', 'week_start', 'seen_from', 'seen_until', 'source', 'recorded_by'])]

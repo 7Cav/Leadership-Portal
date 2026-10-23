@@ -22,20 +22,33 @@ class Eloquent implements CrossSectionSightingRepository
         $trooperIds = array_values(array_unique(array_map('intval', $trooperIds)));
         sort($trooperIds);
 
+        $window = [
+            'seen_from' => CarbonImmutable::instance($seenFrom)->utc(),
+            'seen_until' => CarbonImmutable::instance($seenUntil)->utc(),
+        ];
+
         foreach ($trooperIds as $trooperId) {
+            $key = ['trooper_id' => $trooperId, 'section_practice_id' => $hostPractice->id];
             // createOrFirst inserts under a savepoint and, on the UNIQUE key, reads the row that is
             // already there instead: an earlier run's sighting is found and left untouched.
             $row = CrossSectionSighting::query()->createOrFirst(
-                ['trooper_id' => $trooperId, 'section_practice_id' => $hostPractice->id],
-                [
-                    'week_start' => $hostPractice->week_start,
-                    'seen_from' => CarbonImmutable::instance($seenFrom)->utc(),
-                    'seen_until' => CarbonImmutable::instance($seenUntil)->utc(),
-                    'source' => CrossSectionSighting::SOURCE_CAPTURE,
-                ],
+                $key,
+                ['week_start' => $hostPractice->week_start, 'source' => CrossSectionSighting::SOURCE_CAPTURE] + $window,
             );
 
-            $added += $row->wasRecentlyCreated ? 1 : 0;
+            if ($row->wasRecentlyCreated) {
+                $added++;
+
+                continue;
+            }
+
+            // A leader's hand entry the server now confirms becomes the server's evidence, so an Undo can no longer
+            // take it (or the makeup it supports) back. Conditional, so a racing upgrade or removal is never undone;
+            // `recorded_by` stays, naming who added it first.
+            CrossSectionSighting::query()
+                ->where($key)
+                ->where('source', CrossSectionSighting::SOURCE_MANUAL)
+                ->update(['source' => CrossSectionSighting::SOURCE_CAPTURE] + $window);
         }
 
         return $added;
@@ -92,6 +105,28 @@ class Eloquent implements CrossSectionSightingRepository
             ->where('trooper_id', $trooperId)
             ->where('week_start', WeekOf::requireStart($weekStart))
             ->exists();
+    }
+
+    public function trooperIdsSeenInWeek(array $trooperIds, CarbonInterface $weekStart): array
+    {
+        $weekStart = WeekOf::requireStart($weekStart);
+        $trooperIds = array_values(array_unique(array_map('intval', $trooperIds)));
+
+        if ($trooperIds === []) {
+            return [];
+        }
+
+        return CrossSectionSighting::query()
+            ->whereIn('trooper_id', $trooperIds)
+            ->where('week_start', $weekStart)
+            ->orderBy('id')
+            ->sharedLock()
+            ->pluck('trooper_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
     }
 
     public function visitsWithin(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection

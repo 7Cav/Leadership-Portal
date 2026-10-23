@@ -10,6 +10,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\AuditedBatch;
+use App\Repositories\CrossSectionSightingRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
@@ -66,6 +67,7 @@ class MarkAttendanceHandler
         private readonly WeeklyReportRepository $reports,
         private readonly AuditEnvelope $audit,
         private readonly LoaCoverage $loaCoverage,
+        private readonly CrossSectionSightingRepository $sightings,
     ) {}
 
     /**
@@ -300,6 +302,12 @@ class MarkAttendanceHandler
      * {@see LoaCoverage} rule), is skipped. Placement and leave are read again inside the mutation,
      * which is what decides.
      *
+     * A makeup stands on a sighting: a trooper with no `cross_section_sightings` row in the host's Cav week (any host,
+     * either source) is skipped. Inside the mutation that is read as a locking read before their own practice's row lock,
+     * so a host leader's Undo ({@see withdrawMakeup()}) that removes the last sighting either finishes first, and no
+     * makeup is written, or waits until the makeup is in and then takes it back: a hand-added guest's makeup, written
+     * after the entry committed, can never be left behind with nothing supporting it.
+     *
      * A user-triggered run is audited as one `attendance.auto_marked` batch per own section, on
      * that section's practice; a `'system'` run is covered by its `sync_runs` row (AD-16). Sections
      * go in id order and troopers in id order within each, a fixed lock order.
@@ -364,9 +372,9 @@ class MarkAttendanceHandler
             return new MakeupMarkResult(locked: $all);
         }
 
-        // Nobody here could take a makeup: leave the section's week without a practice row rather
-        // than create an empty one.
-        if ($this->makeupCandidates($sectionId, $weekStart, $trooperIds) === []) {
+        // Nobody here could take a makeup (or nothing supports one any more): leave the section's week
+        // without a practice row rather than create an empty one.
+        if ($this->sightings->trooperIdsSeenInWeek($trooperIds, $weekStart) === [] || $this->makeupCandidates($sectionId, $weekStart, $trooperIds) === []) {
             return new MakeupMarkResult(kept: $all);
         }
 
@@ -374,6 +382,14 @@ class MarkAttendanceHandler
         $mutation = function () use ($sectionId, $weekStart, $trooperIds, &$written) {
             if ($this->reports->isSentFor($sectionId, $weekStart)) {
                 throw RollcallWeekLockedException::for($sectionId, $weekStart);
+            }
+
+            // Before the practice's lock (the order an Undo takes them in reverse would deadlock): the sightings that
+            // still support a makeup, held until this commits. An Undo that removed the last one meanwhile leaves none.
+            $supported = $this->sightings->trooperIdsSeenInWeek($trooperIds, $weekStart);
+
+            if ($supported === []) {
+                throw new NoAutoMakeupException;
             }
 
             $practice = $this->practices->findOrCreate($sectionId, $weekStart);
@@ -384,7 +400,7 @@ class MarkAttendanceHandler
 
             $written = [];
 
-            foreach ($this->makeupCandidates($sectionId, $weekStart, $trooperIds) as $trooperId) {
+            foreach (array_intersect($this->makeupCandidates($sectionId, $weekStart, $trooperIds), $supported) as $trooperId) {
                 $row = $this->attendance->markMakeupAuto($practice, $trooperId);
 
                 if ($row !== null) {
@@ -401,6 +417,8 @@ class MarkAttendanceHandler
                 : $mutation();
         } catch (RollcallWeekLockedException|PracticeConfirmedMeanwhileException) {
             return new MakeupMarkResult(locked: $all);
+        } catch (NoAutoMakeupException) {
+            return new MakeupMarkResult(kept: $all);
         }
 
         return new MakeupMarkResult(marked: count($written), kept: $all - count($written));

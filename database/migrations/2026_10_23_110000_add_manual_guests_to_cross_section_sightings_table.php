@@ -19,7 +19,8 @@ return new class extends Migration
      * `week_start` either way, which is what the candidates are counted by.
      *
      * Still one row per (trooper, host practice), whatever the source: a trooper the capture already saw at this
-     * practice cannot be added again by hand, and a hand-added guest the capture then sees stays the hand-added row.
+     * practice cannot be added again by hand, and a hand-added guest the capture then sees becomes the capture's row
+     * (keeping `recorded_by`), so it can no longer be removed by hand.
      */
     public function up(): void
     {

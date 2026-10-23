@@ -14,13 +14,17 @@ use App\Models\Loa;
 use App\Models\SectionPractice;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
+use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReport;
+use App\Repositories\CrossSectionSightingRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 // A hand-added guest (decided 2026-10-23) puts the same automatic makeup on the guest's own rollcall as a capture
 // sighting, through MarkAttendanceHandler::preMarkMakeups() and all its guards, on the host leader's word. Undoing it
@@ -175,4 +179,71 @@ it('keeps a makeup the entry never produced: their own mark was already there', 
 
     expect(withdrawGuest($this))->toBe(MakeupWithdrawal::Kept)
         ->and(homeMark($this)->status)->toBe(AttendanceStatus::Present);
+});
+
+// Review L1: the makeup is written after the entry commits. An Undo landing in that gap finds no makeup to take back,
+// so the makeup must see that its sighting is gone (read under a lock, inside its own transaction) and not be written.
+it('writes no makeup when an Undo removes the entry between its commit and the makeup', function () {
+    $real = app(CrossSectionSightingRepository::class);
+    $t = $this;
+    app()->instance(CrossSectionSightingRepository::class, new class($real, $t) implements CrossSectionSightingRepository
+    {
+        private bool $undone = false;
+
+        public function __construct(private readonly CrossSectionSightingRepository $inner, private readonly object $t) {}
+
+        public function trooperIdsSeenInWeek(array $trooperIds, CarbonInterface $weekStart): array
+        {
+            // The first read (before the makeup's transaction) still sees the entry; then the Undo lands, so the read
+            // under the lock does not.
+            $seen = $this->inner->trooperIdsSeenInWeek($trooperIds, $weekStart);
+
+            if (! $this->undone) {
+                $this->undone = true;
+                expect(withdrawGuest($this->t))->toBe(MakeupWithdrawal::Kept);
+            }
+
+            return $seen;
+        }
+
+        public function record(SectionPractice $hostPractice, array $trooperIds, DateTimeInterface $seenFrom, DateTimeInterface $seenUntil): int
+        {
+            return $this->inner->record($hostPractice, $trooperIds, $seenFrom, $seenUntil);
+        }
+
+        public function recordManual(SectionPractice $hostPractice, int $trooperId, int $recordedBy): ?CrossSectionSighting
+        {
+            return $this->inner->recordManual($hostPractice, $trooperId, $recordedBy);
+        }
+
+        public function removeManual(int $hostPracticeId, int $trooperId): bool
+        {
+            return $this->inner->removeManual($hostPracticeId, $trooperId);
+        }
+
+        public function find(int $hostPracticeId, int $trooperId): ?CrossSectionSighting
+        {
+            return $this->inner->find($hostPracticeId, $trooperId);
+        }
+
+        public function forHostPractice(int $hostPracticeId): Collection
+        {
+            return $this->inner->forHostPractice($hostPracticeId);
+        }
+
+        public function existsForTrooperInWeek(int $trooperId, CarbonInterface $weekStart): bool
+        {
+            return $this->inner->existsForTrooperInWeek($trooperId, $weekStart);
+        }
+
+        public function visitsWithin(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
+        {
+            return $this->inner->visitsWithin($unit, $firstWeek, $lastWeek);
+        }
+    });
+
+    expect(recordGuest($this))->toBe('kept')
+        ->and(CrossSectionSighting::query()->count())->toBe(0)
+        ->and(homeMark($this))->toBeNull()
+        ->and(AuditLogEntry::query()->where('action', 'attendance.auto_marked')->count())->toBe(0);
 });

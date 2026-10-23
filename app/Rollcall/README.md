@@ -72,10 +72,14 @@ The Joint Service Achievement Medal is for a trooper who attends several practic
 to while still attending their own, recommended by the commander of the unit that benefited. The portal never awards
 it; it shows the evidence.
 
-- **Sources.** A `cross_section_sightings` row is either `capture` (the game server saw them, written by the capture
-  handler) or `manual` (the host section's leader added them on their rollcall, `recorded_by` that leader). One row per
-  trooper and host practice whatever the source, so a trooper is one visit per practice: a capture of a trooper already
-  added by hand, or the reverse, adds nothing.
+- **Sources.** A `cross_section_sightings` row is either `manual` (the host section's leader added them on their
+  rollcall, `recorded_by` that leader) or `capture` (the game server saw them). For now guests come only from the host
+  leader: the capture window is the whole Cav week and the portal has no practice times yet, so the capture does not
+  record guests (decided 2026-10-23); `capture` rows written before that stay, and the server records guests again
+  once practices have set times. One row per trooper and host practice whatever the source, so a trooper is one visit
+  per practice. A capture of a trooper already added by hand turns that row into a `capture` one (keeping
+  `recorded_by`), so the server's evidence can never be undone by hand; a hand entry for a trooper the server already
+  saw adds nothing.
 - **Adding a guest by hand** (`RecordGuestAttendance`): gated by the host section's write scope (a staff grant and a
   view-as preview only read), refused for a week before `WeekOf::floor()`, a host week whose report was really sent
   (409, `locked`) and a confirmed host practice. The guest must be serving, placed in a section, and not in the host
@@ -84,7 +88,9 @@ it; it shows the evidence.
 - **The makeup it brings.** A hand-added guest gets the same automatic makeup on their own section's rollcall as a
   capture sighting, through `MarkAttendanceHandler::preMarkMakeups()` with all its guards (same Cav week, never over
   `present`/`attached`/`loa` or any manual mark, never into a locked, confirmed or before-floor week, skipped for
-  leave and for a trooper no longer serving there). It is audited as `attendance.auto_marked` with the host leader as
+  leave and for a trooper no longer serving there). It is written after the entry commits, and only while a sighting
+  of that trooper that Cav week still exists, read under a lock taken before their own practice's: an Undo that lands
+  in between leaves no makeup behind. It is audited as `attendance.auto_marked` with the host leader as
   the actor, so the guest's own leader can see whose word it was and change the mark.
 - **Undo** (`RemoveGuestAttendance`): only a `manual` entry, by someone who may write the host section, under the same
   host guards. A capture sighting cannot be removed by hand. The makeup is taken back (cleared to unmarked,
