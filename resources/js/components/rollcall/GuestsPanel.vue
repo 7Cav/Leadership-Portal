@@ -7,15 +7,16 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import RankBadge from '@/components/roster/RankBadge.vue';
-import { DEBOUNCE_MS, MIN_CHARS } from '@/composables/useTrooperSearch';
+import { DEBOUNCE_MS, MAX_CHARS, MIN_CHARS } from '@/composables/useTrooperSearch';
 import { messageFor, unreachable } from '@/composables/useRollcallAutosave';
 import { postJson, reloadPage, sessionEnded } from '@/lib/postJson';
 
 // The practice step's "Guests" area (JSAM evidence, decided 2026-10-23): troopers from other sections who attended
-// this section's practice, as the game server saw them or as the leader adds them by hand. A hand-added guest gets an
-// automatic makeup on their own section's rollcall, exactly as a server sighting does; only a hand-added one can be
-// undone. The server decides who may add (the section's write scope), finds the guests (outside the leader's scope,
-// name, rank and section only) and refuses a locked or confirmed week; this only shows its answers.
+// this section's practice, as the leader adds them by hand (the game server records guests again once practices have
+// set times; its older sightings still show, marked as such). A hand-added guest gets an automatic makeup on their own
+// section's rollcall; only a hand-added one can be undone. The server decides who may add (the section's write
+// scope), finds the guests (outside the leader's scope, name, rank and section only) and refuses a locked or confirmed
+// week; this only shows its answers.
 const props = defineProps({
     sectionId: { type: Number, required: true },
     // The practice's week (`YYYY-MM-DD`).
@@ -47,13 +48,23 @@ const MAKEUP_REMOVED = {
 // The picker: closed until "Add guest", then a username search with a pause before each request, as the shell's.
 const adding = ref(false);
 const query = ref('');
-const status = ref('idle'); // idle | loading | ready | error | throttled
+const status = ref('idle'); // idle | loading | ready | error | throttled | tooLong
 const results = ref([]);
 const more = ref(false);
 const busy = ref(null); // the trooper id being added or removed
 let timer = null;
 let controller = null;
 let latest = 0;
+
+// Characters as the server counts them (`mb_strlen`, one per code point), not as `String.length` does (UTF-16 units),
+// so the picker sends exactly the searches the server accepts, as the shell's search does.
+const charCount = (text) => [...text].length;
+
+function clearResults(next) {
+    results.value = [];
+    more.value = false;
+    status.value = next;
+}
 
 function cancel() {
     clearTimeout(timer);
@@ -80,6 +91,12 @@ async function search(q) {
             status.value = 'throttled';
             return;
         }
+        // The server's length check (2 to 64 characters) is not a broken connection. Only a search counted in range is
+        // sent, so a refusal means the server counted more (a space PHP's trim keeps): say too long.
+        if (response.status === 422) {
+            clearResults(charCount(q) < MIN_CHARS ? 'idle' : 'tooLong');
+            return;
+        }
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const body = await response.json();
         if (id !== latest) return;
@@ -96,11 +113,10 @@ async function search(q) {
 watch(query, (value) => {
     cancel();
     const q = value.trim();
-    if (q.length < MIN_CHARS) {
+    const length = charCount(q);
+    if (length < MIN_CHARS || length > MAX_CHARS) {
         latest++;
-        status.value = 'idle';
-        results.value = [];
-        more.value = false;
+        clearResults(length > MAX_CHARS ? 'tooLong' : 'idle');
         return;
     }
     status.value = 'loading';
@@ -159,7 +175,8 @@ async function undo(guest) {
                     <span class="text-xs font-normal text-muted-foreground tabular-nums">{{ list.length }}</span>
                 </h3>
                 <p class="mt-0.5 max-w-[62ch] text-xs text-muted-foreground">
-                    Troopers from other sections who attended. Each one counts as a makeup on their own section's rollcall.{{
+                    Add troopers from other sections who attended. Each one counts as a makeup on their own section's rollcall. The
+                    game server doesn't add guests yet; it will once practices have set times.{{
                         disabledReason ? ` ${disabledReason}.` : ''
                     }}
                 </p>
@@ -184,6 +201,7 @@ async function undo(guest) {
                     autofocus
                     autocomplete="off"
                     spellcheck="false"
+                    :maxlength="MAX_CHARS"
                     placeholder="Find a trooper from another section by name"
                     aria-label="Find a guest by name"
                     data-testid="guest-search"
@@ -196,6 +214,9 @@ async function undo(guest) {
             </p>
             <p v-else-if="status === 'error'" role="alert" class="mt-2 text-xs text-destructive" data-testid="guest-search-error">
                 The search did not load. Check your connection, then type again.
+            </p>
+            <p v-else-if="status === 'tooLong'" class="mt-2 text-xs text-muted-foreground" data-testid="guest-search-too-long">
+                That is longer than any name. Search with at most {{ MAX_CHARS }} characters.
             </p>
             <p v-else-if="status === 'throttled'" role="alert" class="mt-2 text-xs text-muted-foreground">Too many searches in a short time. Wait a moment, then keep typing.</p>
             <p v-else-if="!results.length" class="mt-2 text-xs text-muted-foreground" data-testid="guest-search-empty">

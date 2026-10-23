@@ -95,6 +95,42 @@ describe('GuestsPanel', () => {
         expect(toastSuccess).toHaveBeenCalledWith('Removed PFC Added.A', { description: 'The makeup it put on their own rollcall was taken back.' });
     });
 
+    // Review L5: the server's length refusal (422) is not a broken connection, as in the shell's search (#346).
+    it('reads the server refusing the length as too long, not as a broken connection', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValue({ status: 422, ok: false, json: () => Promise.resolve({ message: 'Search with 2 to 64 characters.' }) });
+        const wrapper = factory();
+
+        await search(wrapper, 'visitor');
+
+        expect(wrapper.find('[data-testid="guest-search-error"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="guest-search-too-long"]').text()).toContain('at most 64 characters');
+    });
+
+    it('says a search is too long instead of sending it, counting an emoji as one character', async () => {
+        answerSearch([]);
+        const wrapper = factory();
+
+        // 64 characters is fine even though the emoji make it longer than 64 UTF-16 units.
+        await search(wrapper, '\u{1F600}'.repeat(4) + 'a'.repeat(60));
+        expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+        expect(wrapper.find('[data-testid="guest-search-too-long"]').exists()).toBe(false);
+
+        await wrapper.find('[data-testid="guest-search"]').setValue('a'.repeat(65));
+        await vi.advanceTimersByTimeAsync(300);
+        await flushPromises();
+
+        expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+        expect(wrapper.find('[data-testid="guest-search-too-long"]').text()).toContain('at most 64 characters');
+        expect(wrapper.find('[data-testid="guest-search"]').attributes('maxlength')).toBe('64');
+    });
+
+    it('asks for hand entries and does not promise that the game server adds guests', () => {
+        const text = factory().text();
+
+        expect(text).toContain('Add troopers from other sections who attended.');
+        expect(text).toContain("The game server doesn't add guests yet; it will once practices have set times.");
+    });
+
     it('offers no add or undo to a read-only viewer, and says why', () => {
         const wrapper = factory({ editable: false, disabledReason: 'Read-only: a staff grant lets you view this section, not mark it' });
 

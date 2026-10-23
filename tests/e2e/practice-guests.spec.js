@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-// JSAM evidence (decided 2026-10-23), against GuestPracticeSeeder: Osei.K leads 1/1/D/1-7, where the game server saw
-// Faraday.M (1/2/D/1-7) at the last two practices. Osei adds him by hand for this week's practice: he is listed on the
+// JSAM evidence (decided 2026-10-23), against GuestPracticeSeeder: Osei.K leads 1/1/D/1-7, where he added Faraday.M
+// (1/2/D/1-7) as a guest at the last two practices. Osei adds him by hand for this week's practice: he is listed on the
 // rollcall as a hand-added guest, and with that third visit and a full own record he shows as a JSAM candidate on the
 // section's roster.
 
@@ -28,7 +28,8 @@ test('a section leader adds a guest from another section, who then shows as a JS
     await page.getByRole('button', { name: /^Step 2, Section practice/ }).click();
     await expect(page.getByTestId('guest-list').locator('li').filter({ hasText: 'Faraday.M' }).getByTestId('guest-source')).toHaveText('Added by Osei.K');
 
-    // The section's roster: three visits in the window, every own practice attended, so a candidate.
+    // The section's roster: three visits in the window, every own practice attended (this week's makeup is not one, and
+    // his own section has not practised this week, so it stays out), so a candidate.
     await page.goto('/roster');
     const guests = page.getByTestId('practice-guests');
     const faraday = guests.locator('tr').filter({ hasText: 'Faraday.M' });

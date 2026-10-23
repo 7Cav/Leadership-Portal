@@ -25,6 +25,6 @@ export default function globalSetup() {
     execFileSync('php', ['artisan', 'db:seed', '--force', '--class=Database\\Seeders\\CaptureReviewSeeder'], { env, stdio: 'inherit' });
     // Sections with nobody marked yet, one per way of leaving with marks held for Undo.
     execFileSync('php', ['artisan', 'db:seed', '--force', '--class=Database\\Seeders\\RollcallHeldMarksSeeder'], { env, stdio: 'inherit' });
-    // A guest seen at two of a section's practices, for the JSAM guests spec (2026-10-23).
+    // A guest added by hand at two of a section's practices, for the JSAM guests spec (2026-10-23).
     execFileSync('php', ['artisan', 'db:seed', '--force', '--class=Database\\Seeders\\GuestPracticeSeeder'], { env, stdio: 'inherit' });
 }

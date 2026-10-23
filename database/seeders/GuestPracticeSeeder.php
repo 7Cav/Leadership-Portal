@@ -21,9 +21,9 @@ use Illuminate\Database\Seeder;
 /**
  * Joint Service Achievement Medal evidence for the guests browser test (decided 2026-10-23), seeded by the e2e setup
  * under its own company and usernames. `Osei.K` leads 1st Section of Delta Company (1/1/D/1-7) by billet, so he may add
- * guests on its rollcall. `Faraday.M` serves in another platoon's section (1/2/D/1-7): the game server saw him at two of
- * 1st Section's practices in the last two weeks, and he attended his own section's practice every one of the last three
- * weeks. One more visit, added by hand this week, makes him a JSAM candidate on 1st Section's roster. Refuses to run
+ * guests on its rollcall. `Faraday.M` serves in another platoon's section (1/2/D/1-7): Osei added him as a guest at
+ * two of 1st Section's practices in the last two weeks (guests come from the host leader's hand for now, decided
+ * 2026-10-23), and he attended his own section's practice every one of the last three weeks. One more visit, added by hand this week, makes him a JSAM candidate on 1st Section's roster. Refuses to run
  * outside local, testing and e2e: its user leads a section by command billet, so he holds real scope wherever he is
  * created.
  */
@@ -47,7 +47,7 @@ class GuestPracticeSeeder extends Seeder
         $home = Unit::factory()->create(['type' => UnitType::Section, 'name' => '1st Section', 'callsign' => '1/2/D/1-7', 'parent_id' => $homePlatoon->id, 'path' => "6{$tag}/2/1/"]);
 
         $leader = $this->trooper('SGT', 'Osei.K', (int) "{$tag}0", $host);
-        User::factory()->create(['username' => 'Osei.K', 'cav_id' => $leader->cav_id]);
+        $user = User::factory()->create(['username' => 'Osei.K', 'cav_id' => $leader->cav_id]);
         UnitCommandMapping::factory()->create(['unit_id' => $host->id, 'cav_position_id' => (int) "{$tag}95"]);
         $leader->forceFill(['cav_position_id' => (int) "{$tag}95"])->save();
         $this->trooper('PFC', 'Lindgren.A', (int) "{$tag}1", $host);
@@ -56,9 +56,7 @@ class GuestPracticeSeeder extends Seeder
         $practices = app(SectionPracticeRepository::class);
 
         foreach ([1, 2] as $back) {
-            $practice = $practices->findOrCreate($host->id, $week->subWeeks($back));
-            $evening = $practice->week_start->addDays(4)->setTime(19, 0);
-            app(CrossSectionSightingRepository::class)->record($practice, [$guest->id], $evening, $evening->addMinutes(90));
+            app(CrossSectionSightingRepository::class)->recordManual($practices->findOrCreate($host->id, $week->subWeeks($back)), $guest->id, $user->id);
         }
 
         foreach ([1, 2, 3] as $back) {
