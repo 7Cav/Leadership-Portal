@@ -12,13 +12,15 @@ export const SOURCES = {
     unmarked: { label: 'Not marked', detail: 'No practice mark recorded yet.', icon: PhCircleDashed, tone: 'text-muted-foreground' },
 };
 
-// Which provenance a row shows. LOA wins (it is derived, not marked), then makeup (from `status`),
-// then the stored `source`. A row with a status but no source cannot be attributed, so it reads
-// as manual only when the source says so.
+// Which provenance a row shows. LOA wins (it is derived, not marked), then a hand-marked makeup (from
+// `status`), then the stored `source`. A makeup the capture wrote, because the trooper was seen at
+// another section's practice, reads as auto: the status buttons already say makeup, and "marked by hand"
+// would be wrong. A row with a status but no source cannot be attributed, so it reads as manual only
+// when the source says so.
 export function provenanceOf({ status, source }) {
     if (status === 'loa') return 'loa';
     if (status === null || status === undefined) return 'unmarked';
-    if (status === 'makeup') return 'makeup';
+    if (status === 'makeup' && source !== 'auto') return 'makeup';
     if (source === 'auto') return 'auto';
     if (source === 'manual') return 'manual';
 

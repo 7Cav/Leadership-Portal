@@ -34,3 +34,16 @@ test('a section leader reviews a captured practice, overrides an auto mark and c
     await expect(page.locator('[data-trooper]').filter({ hasText: 'Okafor.D' }).getByRole('button', { name: /^Missed/ })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('[data-trooper]').filter({ hasText: 'Okafor.D' }).locator('[data-provenance="manual"]')).toBeVisible();
 });
+
+// Decided 2026-10-23: Mbatha.Z (4th Section) was seen on the server during 3rd Section's practice, so the
+// capture pre-marked a makeup on his own section's rollcall, shown with the auto source rather than "by hand".
+test('a trooper seen at another section\'s practice shows on their own rollcall as an automatic makeup', async ({ page }) => {
+    await page.goto('/__e2e/login/Brandt.K?to=/rollcall');
+    await expect(page).toHaveURL(/\/rollcall\/\d+$/);
+    await page.getByRole('button', { name: /^Step 2, Section practice/ }).click();
+
+    const mbatha = page.locator('[data-trooper]').filter({ hasText: 'Mbatha.Z' });
+    await expect(mbatha.getByRole('button', { name: /^Makeup/ })).toHaveAttribute('aria-pressed', 'true');
+    await expect(mbatha.locator('[data-provenance="auto"]')).toBeVisible();
+    await expect(mbatha.locator('[data-provenance="makeup"]')).toHaveCount(0);
+});

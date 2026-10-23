@@ -10,6 +10,9 @@ describe('attendance provenance (3.9)', () => {
         expect(provenanceOf({ status: 'present', source: 'auto' })).toBe('auto');
         expect(provenanceOf({ status: 'missed', source: 'auto' })).toBe('auto');
         expect(provenanceOf({ status: 'makeup', source: 'manual' })).toBe('makeup');
+        expect(provenanceOf({ status: 'makeup', source: null })).toBe('makeup');
+        // Seen at another section's practice: the capture wrote it, so it is not "marked by hand".
+        expect(provenanceOf({ status: 'makeup', source: 'auto' })).toBe('auto');
         expect(provenanceOf({ status: 'loa', source: 'manual' })).toBe('loa');
         expect(provenanceOf({ status: null, source: null })).toBe('unmarked');
     });
@@ -18,6 +21,7 @@ describe('attendance provenance (3.9)', () => {
         ['present', 'manual', 'manual', 'Manual'],
         ['attached', 'auto', 'auto', 'Auto'],
         ['makeup', 'manual', 'makeup', 'Makeup'],
+        ['makeup', 'auto', 'auto', 'Auto'],
         [null, null, 'unmarked', 'Not marked'],
     ])('renders %s / %s as the %s indicator', (status, source, kind, label) => {
         const el = mount(AttendanceSourceIndicator, { props: { status, source } }).find('[data-provenance]');
