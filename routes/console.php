@@ -15,18 +15,43 @@ use App\Repositories\UserRepository;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
-// Roster sync (Story 2.4, AD-23). Cadence is Deferred to an S6 conversation — read from
-// config so changing it needs no code change. `SyncRosterJob` defaults `triggeredBy` to
-// `system`; the manual-trigger controller dispatches the same job with a user id instead.
-Schedule::job(new SyncRosterJob)->cron(config('sync.roster_cron'));
+// The syncs (Stories 2.4, 4.2), as commands so the scheduler and an operator start them the same way. Each queues
+// its job stamped as triggered by `system` (the manual-trigger controllers dispatch the same jobs with a user id);
+// `--now` runs it in the foreground instead, for a first sync or a check without a queue worker.
+Artisan::command('portal:sync-roster {--now : Run the sync in the foreground instead of queueing it}', function () {
+    $this->option('now') ? SyncRosterJob::dispatchSync() : SyncRosterJob::dispatch();
 
-// Leave sync (Story 4.2). Same shape, offset from the roster run. It only runs once the forum API key and the
-// leave sections are configured, so an install without them does not record a failed run every hour.
-Schedule::job(new SyncLoasJob)->cron(config('sync.loa_cron'))->when(fn () => SyncLoasJob::isConfigured());
+    $this->info($this->option('now') ? 'Roster sync finished.' : 'Roster sync queued.');
+
+    return 0;
+})->purpose('Sync the roster from the Cav API (queued unless --now)');
+
+// Refuses on an install without the forum API key and leave sections, instead of recording a failed run.
+Artisan::command('portal:sync-loas {--full : Re-read recent and open leave, not just threads newer than the last good run}
+    {--now : Run the sync in the foreground instead of queueing it}', function () {
+    if (! SyncLoasJob::isConfigured()) {
+        $this->error('The LOA sync is not configured. Set SEVENCAV_FORUM_API_KEY and SEVENCAV_FORUM_LOA_NODES in .env.');
+
+        return 1;
+    }
+
+    $full = (bool) $this->option('full');
+    $this->option('now') ? SyncLoasJob::dispatchSync('system', $full) : SyncLoasJob::dispatch('system', $full);
+
+    $this->info(($full ? 'Full LOA sync' : 'LOA sync').($this->option('now') ? ' finished.' : ' queued.'));
+
+    return 0;
+})->purpose('Sync leave (LOA/ELOA) threads from the forum (queued unless --now)');
+
+// Hourly roster sync, and the leave sync offset to a quarter past so the two do not start together. The leave
+// sync only runs once the forum key and the leave sections are configured, so an install without them does not
+// log a refused run every hour.
+Schedule::command('portal:sync-roster')->hourly();
+Schedule::command('portal:sync-loas')->hourlyAt(15)->when(fn () => SyncLoasJob::isConfigured());
 
 // A daily full run: the hourly ones only read threads newer than the last good run, so a post edited after that
 // (an LOA extended, say) is caught here. It skips leave that ended more than two weeks ago.
-Schedule::job(new SyncLoasJob('system', true))->cron(config('sync.loa_full_cron'))->when(fn () => SyncLoasJob::isConfigured());
+Schedule::command('portal:sync-loas --full')->dailyAt('03:30')->when(fn () => SyncLoasJob::isConfigured());
 
 // Bootstrap or remove an Admin without SQL (story 2.9). The user must already exist — i.e. have
 // signed in once via 7Cav SSO. Audited through `SetAdminFlag` (AD-16); see its docblock for why

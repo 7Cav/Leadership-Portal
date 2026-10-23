@@ -5,6 +5,7 @@ use App\Jobs\SyncRosterJob;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Queue\Job as QueueJobContract;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
@@ -74,31 +75,31 @@ it('carries who triggered it and whether it is a full run', function () {
         ->and((new SyncLoasJob(3, true))->full)->toBeTrue();
 });
 
-function loasEvent()
+/** The scheduled `portal:sync-loas` runs, the incremental one unless `$full`. */
+function loasEvent(bool $full = false)
 {
     test()->artisan('list');
 
-    return collect(app(Schedule::class)->events())->first(fn ($event) => $event->description === SyncLoasJob::class);
+    return collect(app(Schedule::class)->events())->first(fn ($event) => str_contains((string) $event->command, 'portal:sync-loas')
+        && str_contains((string) $event->command, '--full') === $full);
 }
 
 describe('on the schedule', function () {
 
-    it('is registered at the configured cadence, offset from the roster run', function () {
-        $event = loasEvent();
+    it('runs portal:sync-loas at a quarter past the hour, offset from the roster run', function () {
+        test()->artisan('list');
+        $roster = collect(app(Schedule::class)->events())->first(fn ($event) => str_contains((string) $event->command, 'portal:sync-roster'));
 
-        expect($event)->not->toBeNull()
-            ->and($event->getExpression())->toBe(config('sync.loa_cron'))
-            ->and(config('sync.loa_cron'))->not->toBe(config('sync.roster_cron'));
-    });
-
-    it('defaults to a quarter past the hour', function () {
-        expect(config('sync.loa_cron'))->toBe('15 * * * *');
+        expect(loasEvent())->not->toBeNull()
+            ->and(loasEvent()->getExpression())->toBe('15 * * * *')
+            ->and(loasEvent()->getExpression())->not->toBe($roster->getExpression());
     });
 
     it('does not run until the forum key and a leave section are configured', function (?string $key, array $nodes) {
         config(['services.sevencav.api_key' => $key, 'services.sevencav.loa_nodes' => $nodes]);
 
         expect(loasEvent()->filtersPass($this->app))->toBeFalse()
+            ->and(loasEvent(full: true)->filtersPass($this->app))->toBeFalse()
             ->and(SyncLoasJob::isConfigured())->toBeFalse();
     })->with([
         'nothing' => [null, []],
@@ -107,43 +108,57 @@ describe('on the schedule', function () {
         'no section' => ['forum-key', []],
     ]);
 
-    it('also has a daily full run, a different time from the hourly ones', function () {
-        $this->artisan('list');
-        $full = collect(app(Schedule::class)->events())->first(fn ($event) => $event->description === SyncLoasJob::class && $event->getExpression() === config('sync.loa_full_cron'));
+    it('runs once both are configured', function () {
+        config(['services.sevencav.api_key' => 'forum-key', 'services.sevencav.loa_nodes' => [180 => 'loa']]);
 
-        expect($full)->not->toBeNull()
-            ->and(config('sync.loa_full_cron'))->toBe('30 3 * * *')
-            ->and(config('sync.loa_full_cron'))->not->toBe(config('sync.loa_cron'));
+        expect(loasEvent()->filtersPass($this->app))->toBeTrue()
+            ->and(loasEvent(full: true)->filtersPass($this->app))->toBeTrue()
+            ->and(SyncLoasJob::isConfigured())->toBeTrue();
     });
 
-    it('runs the daily one as a full run, and only once configured', function () {
+    it('also has a daily full run at 03:30, a different time from the hourly ones', function () {
+        expect(loasEvent(full: true))->not->toBeNull()
+            ->and(loasEvent(full: true)->getExpression())->toBe('30 3 * * *');
+    });
+});
+
+describe('portal:sync-loas', function () {
+
+    beforeEach(fn () => config(['services.sevencav.api_key' => 'forum-key', 'services.sevencav.loa_nodes' => [180 => 'loa']]));
+
+    it('queues an incremental sync stamped as triggered by system', function () {
         Queue::fake();
-        $this->artisan('list');
-        $full = collect(app(Schedule::class)->events())->first(fn ($event) => $event->description === SyncLoasJob::class && $event->getExpression() === config('sync.loa_full_cron'));
 
-        config(['services.sevencav.api_key' => null, 'services.sevencav.loa_nodes' => []]);
-        expect($full->filtersPass($this->app))->toBeFalse();
+        $this->artisan('portal:sync-loas')->expectsOutput('LOA sync queued.')->assertSuccessful();
 
-        config(['services.sevencav.api_key' => 'forum-key', 'services.sevencav.loa_nodes' => [180 => 'loa']]);
-        expect($full->filtersPass($this->app))->toBeTrue();
+        Queue::assertPushed(SyncLoasJob::class, fn (SyncLoasJob $job) => $job->triggeredBy === 'system' && $job->full === false);
+    });
 
-        $full->run($this->app);
+    it('queues a full run with --full', function () {
+        Queue::fake();
+
+        $this->artisan('portal:sync-loas', ['--full' => true])->expectsOutput('Full LOA sync queued.')->assertSuccessful();
 
         Queue::assertPushed(SyncLoasJob::class, fn (SyncLoasJob $job) => $job->triggeredBy === 'system' && $job->full === true);
     });
 
-    it('runs once both are configured, stamped as triggered by system', function () {
-        config(['services.sevencav.api_key' => 'forum-key', 'services.sevencav.loa_nodes' => [180 => 'loa']]);
+    it('runs in the foreground with --now', function () {
+        Bus::fake();
+
+        $this->artisan('portal:sync-loas', ['--now' => true])->expectsOutput('LOA sync finished.')->assertSuccessful();
+
+        Bus::assertDispatchedSync(SyncLoasJob::class, fn (SyncLoasJob $job) => $job->triggeredBy === 'system' && $job->full === false);
+    });
+
+    it('refuses, queueing nothing, until the forum key and a leave section are configured', function () {
+        config(['services.sevencav.api_key' => null]);
         Queue::fake();
 
-        $event = loasEvent();
+        $this->artisan('portal:sync-loas')
+            ->expectsOutput('The LOA sync is not configured. Set SEVENCAV_FORUM_API_KEY and SEVENCAV_FORUM_LOA_NODES in .env.')
+            ->assertFailed();
 
-        expect($event->filtersPass($this->app))->toBeTrue()
-            ->and(SyncLoasJob::isConfigured())->toBeTrue();
-
-        $event->run($this->app);
-
-        Queue::assertPushed(SyncLoasJob::class, fn (SyncLoasJob $job) => $job->triggeredBy === 'system' && $job->full === false);
+        Queue::assertNothingPushed();
     });
 });
 
