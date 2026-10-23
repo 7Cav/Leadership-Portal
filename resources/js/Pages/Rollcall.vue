@@ -43,7 +43,8 @@ import UnmatchedDrawer from '@/components/rollcall/UnmatchedDrawer.vue';
 import { forumDate, forumDateTime } from '@/lib/forumDate';
 import ForumPost from '@/components/rollcall/ForumPost.vue';
 import { copyText } from '@/lib/clipboard';
-import { messageFor, unreachable, useRollcallAutosave } from '@/composables/useRollcallAutosave';
+import { messageFor, unreachable, useRollcallAutosave, whenLeft } from '@/composables/useRollcallAutosave';
+import { takeHistoryRestore } from '@/lib/historyRestore';
 import { orderTroopers } from '@/lib/fireteams';
 import { postJson } from '@/lib/postJson';
 import { rollcallPost } from '@/lib/rollcallBbcode';
@@ -126,6 +127,9 @@ const page = usePage();
 // leader's marks is not saved yet keeps that mark on screen: it saves after the server read the page.
 const rows = ref([]);
 const baseline = ref(new Map());
+// While the marks are read again after a history restore (below), the baseline the page opened with: the marks the
+// server answers then include this visit's own changes, which must not become the new "before".
+let keptBaseline = null;
 watch(
     () => props.troopers,
     (troopers) => {
@@ -138,7 +142,9 @@ watch(
 
             return row;
         });
-        baseline.value = new Map(troopers.map((trooper) => [trooper.id, { rollcall: trooper.rollcall, status: trooper.status, source: trooper.source }]));
+        baseline.value = new Map(
+            troopers.map((trooper) => [trooper.id, keptBaseline?.get(trooper.id) ?? { rollcall: trooper.rollcall, status: trooper.status, source: trooper.source }]),
+        );
     },
     { immediate: true },
 );
@@ -255,6 +261,17 @@ const UNDO_MS = 6000;
 
 // Undo toasts still open; marking posted saves their held changes early, so it closes them.
 const undoToasts = new Set();
+
+// Save the held changes now and close their Undo toasts: once a change is saved, Undo could only
+// answer "already saved". Marking posted and confirming need the marks on the server first, and
+// moving to another step commits them too: an Undo is for the step it was made on, and a hold must
+// not outlive it (the step change keeps this screen, but browser Back to a step rebuilds it).
+function commitHeld() {
+    for (const id of undoToasts) toast.dismiss(id);
+    undoToasts.clear();
+
+    return autosave.flush({ includeHeld: true });
+}
 
 function applyMany(entries, title) {
     if (!entries.length) return;
@@ -452,9 +469,7 @@ async function markPosted() {
     posting.value = true;
     try {
         // The post on the forum was made from the marks on screen, so they must be saved first.
-        for (const id of undoToasts) toast.dismiss(id);
-        undoToasts.clear();
-        if (!(await autosave.flush({ includeHeld: true }))) {
+        if (!(await commitHeld())) {
             toast.error('Changes are not saved yet', { description: autosave.error.value ?? autosave.lockedMessage.value });
 
             return;
@@ -488,9 +503,7 @@ const confirmationLabel = computed(() =>
 async function confirmPractice() {
     confirming.value = true;
     try {
-        for (const id of undoToasts) toast.dismiss(id);
-        undoToasts.clear();
-        if (!(await autosave.flush({ includeHeld: true }))) {
+        if (!(await commitHeld())) {
             toast.error('Changes are not saved yet', { description: autosave.error.value ?? autosave.lockedMessage.value });
 
             return;
@@ -529,6 +542,10 @@ const leaving = new Promise((resolve) => (leave = resolve));
 onBeforeUnmount(() => {
     left = true;
     leave();
+    // The autosave sends the held marks as the screen goes, so an Undo toast left open on the next
+    // page could not take them back.
+    for (const id of undoToasts) toast.dismiss(id);
+    undoToasts.clear();
 });
 
 const pause = (ms) =>
@@ -666,7 +683,27 @@ onMounted(() => {
     if (Number.isInteger(id) && id > 0) nextTick(() => focusTrooper(id));
 });
 
+// Browser Back or Forward rebuilds this screen from the history entry, whose marks are the ones the step was first
+// opened with: going back a step would show marks saved since as never made. Read them again from the server, once the
+// screen that was just left has sent what it still held, and keep the opening marks as this visit's "before". It is a
+// partial reload of what changes as the week is worked, so a mark set meanwhile neither trips the leave guard nor is
+// overwritten (the rows keep a mark not saved yet).
+const LIVE_PROPS = ['troopers', 'practice', 'atRisk', 'weekStatus', 'fireteams', 'unmatched', 'dismissed', 'capture', 'telemetry', 'locked', 'report'];
+// A save that never answers must not keep the marks stale for good: past a few seconds, read them anyway.
+const LEFT_WAIT_MS = 3000;
+onMounted(() => {
+    if (!autosave || !takeHistoryRestore()) return;
+    Promise.race([whenLeft(), pause(LEFT_WAIT_MS)]).then(() => {
+        if (left) return;
+        keptBaseline = baseline.value;
+        router.reload({ only: LIVE_PROPS, onFinish: () => nextTick(() => (keptBaseline = null)) });
+    });
+});
+
+// Moving to another step commits the marks held for Undo (see `commitHeld`): the save goes now, while
+// this screen is still here to show whether it worked.
 function go(n) {
+    if (autosave && n !== step.value) commitHeld();
     const params = new URLSearchParams(query.value);
     params.set('step', String(n));
     params.delete('focus');

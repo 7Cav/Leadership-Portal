@@ -19,12 +19,13 @@ const toastSuccess = vi.fn();
 vi.mock('@/lib/postJson', () => ({ postJson: (...args) => post(...args) }));
 const toastError = vi.fn();
 const toastWarning = vi.fn();
+const toastDismiss = vi.fn();
 vi.mock('vue-sonner', () => ({
     toast: {
         success: (...args) => toastSuccess(...args),
         error: (...args) => toastError(...args),
         warning: (...args) => toastWarning(...args),
-        dismiss: () => {},
+        dismiss: (...args) => toastDismiss(...args),
     },
 }));
 
@@ -376,6 +377,44 @@ describe('Rollcall page', () => {
             await vi.advanceTimersByTimeAsync(7000);
 
             expect(post).toHaveBeenCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 2, status: 'present' }] });
+        });
+
+        it('saves marks held for Undo as soon as the leader moves to another step, and closes the Undo', async () => {
+            page.url = '/rollcall/12?step=2';
+            toastSuccess.mockReturnValueOnce('undo-1');
+            toastDismiss.mockClear();
+            const wrapper = factory({ troopers: [trooper(2, 'unsigned', null), trooper(3, 'unsigned', null)] });
+
+            await wrapper.find('[data-testid="mark-all-present"]').trigger('click');
+            expect(post).not.toHaveBeenCalled();
+            await wrapper.find('[data-step="3"]').trigger('click');
+            await flushPromises();
+
+            expect(post).toHaveBeenCalledTimes(1);
+            expect(post).toHaveBeenCalledWith('/rollcall/12', {
+                week: '2026-10-03',
+                marks: [
+                    { trooper_id: 2, status: 'present' },
+                    { trooper_id: 3, status: 'present' },
+                ],
+            });
+            expect(toastDismiss).toHaveBeenCalledWith('undo-1');
+            expect(push).toHaveBeenCalledWith(expect.objectContaining({ url: '/rollcall/12?step=3' }));
+            await vi.advanceTimersByTimeAsync(7000);
+            expect(post).toHaveBeenCalledTimes(1);
+        });
+
+        it('saves marks held for Undo when the screen goes away (browser Back rebuilds it from history)', async () => {
+            page.url = '/rollcall/12?step=2';
+            toastSuccess.mockReturnValueOnce('undo-1');
+            toastDismiss.mockClear();
+            const wrapper = factory({ troopers: [trooper(2, 'unsigned', null)] });
+
+            await wrapper.find('[data-testid="mark-rest-missed"]').trigger('click');
+            wrapper.unmount();
+
+            expect(post).toHaveBeenCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 2, status: 'missed' }] }, { keepalive: true });
+            expect(toastDismiss).toHaveBeenCalledWith('undo-1');
         });
 
         it('marks every unmarked, non-LOA trooper missed in one action and leaves set marks alone', async () => {
@@ -819,6 +858,36 @@ describe('Rollcall page', () => {
         });
     });
 
+    describe('going back a step with the browser (a screen rebuilt from history)', () => {
+        it('reads the marks again, and keeps the marks it opened with as this visit\'s changes', async () => {
+            page.url = '/rollcall/12?step=3';
+            window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+            // The history entry still has trooper 2 unmarked; the server has the present saved since.
+            const wrapper = factory({ troopers: [trooper(2, 'unsigned', null)] });
+            await flushPromises();
+
+            expect(reload).toHaveBeenCalledTimes(1);
+            const [options] = reload.mock.calls[0];
+            expect(options.only).toEqual(expect.arrayContaining(['troopers', 'practice', 'atRisk', 'weekStatus']));
+
+            await wrapper.setProps({ troopers: [trooper(2, 'unsigned', 'present')] });
+            options.onFinish();
+            await flushPromises();
+
+            const changes = wrapper.find('[data-testid="changes"]').text();
+            expect(changes).toContain('Trooper2.A');
+            expect(changes).toContain('Present');
+        });
+
+        it('does not read the marks again for a screen the server just answered', async () => {
+            page.url = '/rollcall/12?step=3';
+            factory();
+            await flushPromises();
+
+            expect(reload).not.toHaveBeenCalled();
+        });
+    });
+
     describe('failure paths (review)', () => {
         beforeEach(() => {
             toastError.mockClear();
@@ -829,14 +898,16 @@ describe('Rollcall page', () => {
             page.url = '/rollcall/12?step=2';
             const wrapper = factory();
             await wrapper.find('[data-trooper="3"] button[data-value="present"]').trigger('click');
+            // Moving to the review step sends the mark at once; marking posted tries it again.
+            post.mockResolvedValueOnce({ ok: false, status: 500, data: null }).mockResolvedValueOnce({ ok: false, status: 500, data: null });
             await wrapper.find('[data-step="3"]').trigger('click');
-            post.mockResolvedValueOnce({ ok: false, status: 500, data: null });
+            await flushPromises();
 
             await wrapper.find('[data-testid="mark-posted"]').trigger('click');
             await vi.waitFor(() => expect(toastError).toHaveBeenCalledWith('Changes are not saved yet', expect.anything()));
 
-            expect(post).toHaveBeenCalledTimes(1);
-            expect(post.mock.calls[0][0]).toBe('/rollcall/12');
+            expect(post).toHaveBeenCalledTimes(2);
+            expect(post.mock.calls.map(([url]) => url)).toEqual(['/rollcall/12', '/rollcall/12']);
             expect(wrapper.find('[data-testid="posted-state"]').exists()).toBe(false);
         });
 

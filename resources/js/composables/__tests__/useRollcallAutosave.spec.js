@@ -1,16 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, h } from 'vue';
 import { enableAutoUnmount, mount } from '@vue/test-utils';
-import { DEBOUNCE_MS, messageFor, useRollcallAutosave } from '../useRollcallAutosave';
+import { DEBOUNCE_MS, messageFor, useRollcallAutosave, whenLeft } from '../useRollcallAutosave';
 
 let visitGuard = null;
 vi.mock('@inertiajs/vue3', () => ({ router: { on: (event, callback) => ((visitGuard = callback), () => (visitGuard = null)) } }));
 
+// The autosave, plus `unmount` for the screen going away.
 function setup(post) {
     let api;
-    mount(defineComponent({ setup: () => ((api = useRollcallAutosave({ url: '/rollcall/12', week: '2026-10-03', post, onSaved, onLeave, onLocked, nameOf: (id) => `Trooper${id}.A` })), () => h('div')) }));
+    const wrapper = mount(defineComponent({ setup: () => ((api = useRollcallAutosave({ url: '/rollcall/12', week: '2026-10-03', post, onSaved, onLeave, onLocked, nameOf: (id) => `Trooper${id}.A` })), () => h('div')) }));
 
-    return api;
+    return Object.assign(api, { unmount: () => wrapper.unmount() });
 }
 
 enableAutoUnmount(afterEach);
@@ -259,6 +260,131 @@ describe('rollcall autosave', () => {
         expect(visitGuard({ detail: { visit: { method: 'post' } } })).toBe(false);
         expect(confirm).toHaveBeenCalledWith('Some rollcall changes are not saved yet. Leave anyway?');
         vi.unstubAllGlobals();
+    });
+
+    it('sends queued and held changes at once, with keepalive, when the leader leaves anyway', async () => {
+        const post = vi.fn(() => ok());
+        const save = setup(post);
+        vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
+
+        save.queue(1, 'status', 'present', { holdMs: 6000 });
+        save.queue(2, 'rollcall', 'will_attend');
+        expect(visitGuard({ detail: { visit: { method: 'get', only: [], except: [] } } })).toBe(true);
+
+        expect(post).toHaveBeenCalledTimes(1);
+        expect(post).toHaveBeenCalledWith(
+            '/rollcall/12',
+            { week: '2026-10-03', marks: [{ trooper_id: 1, status: 'present' }, { trooper_id: 2, rollcall: 'will_attend' }] },
+            { keepalive: true },
+        );
+        vi.unstubAllGlobals();
+    });
+
+    it('sends held changes when the screen unmounts instead of dropping them with their timer', async () => {
+        const post = vi.fn(() => ok());
+        const save = setup(post);
+
+        save.queue(1, 'status', 'present', { holdMs: 6000 });
+        save.unmount();
+
+        expect(post).toHaveBeenCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 1, status: 'present' }] }, { keepalive: true });
+        await vi.advanceTimersByTimeAsync(7000);
+        expect(post).toHaveBeenCalledTimes(1);
+    });
+
+    it('sends what is left after the batch on its way when the screen unmounts mid-save', async () => {
+        let answer;
+        const post = vi.fn().mockReturnValueOnce(new Promise((resolve) => (answer = resolve))).mockImplementation(() => ok());
+        const save = setup(post);
+
+        save.queue(1, 'status', 'present');
+        await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+        save.queue(2, 'status', 'missed', { holdMs: 6000 });
+        save.unmount();
+        expect(post).toHaveBeenCalledTimes(1);
+
+        answer({ ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00' } });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(post).toHaveBeenCalledTimes(2);
+        expect(post).toHaveBeenLastCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 2, status: 'missed' }] }, { keepalive: true });
+    });
+
+    it('lets the screen that replaces it wait for the save it sent on the way out', async () => {
+        let answer;
+        const post = vi.fn().mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+        const save = setup(post);
+        let left = false;
+
+        save.queue(1, 'status', 'present', { holdMs: 6000 });
+        save.unmount();
+        whenLeft().then(() => (left = true));
+        await vi.advanceTimersByTimeAsync(0);
+        expect(left).toBe(false);
+
+        answer({ ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00' } });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(left).toBe(true);
+    });
+
+    it('also has the next screen wait for a batch already on its way when the screen went', async () => {
+        let answer;
+        const post = vi.fn().mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+        const save = setup(post);
+        let left = false;
+
+        save.queue(1, 'status', 'present', { holdMs: 6000 });
+        // A step change sends the held mark, and browser Back unmounts the screen before the answer.
+        save.flush({ includeHeld: true });
+        save.unmount();
+        whenLeft().then(() => (left = true));
+        await vi.advanceTimersByTimeAsync(0);
+        expect(post).toHaveBeenCalledTimes(1);
+        expect(left).toBe(false);
+
+        answer({ ok: true, status: 200, data: { savedAt: '2026-10-08T16:20:00+00:00' } });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(left).toBe(true);
+    });
+
+    it('does not hand an answer that arrives after the screen went to the page it left', async () => {
+        const post = vi.fn(() => Promise.resolve({ ok: false, status: 409, data: { locked: true, message: 'Locked.' } }));
+        const save = setup(post);
+
+        save.queue(1, 'status', 'present', { holdMs: 6000 });
+        save.unmount();
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(post).toHaveBeenCalledTimes(1);
+        expect(onLocked).not.toHaveBeenCalled();
+    });
+
+    it('sends everything still queued or held in one keepalive request when the tab closes, even mid-save', async () => {
+        const post = vi.fn().mockReturnValueOnce(new Promise(() => {})).mockImplementation(() => ok());
+        const save = setup(post);
+
+        save.queue(1, 'status', 'present');
+        await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+        save.queue(2, 'status', 'missed', { holdMs: 6000 });
+        save.queue(3, 'rollcall', 'cannot_attend');
+        window.dispatchEvent(new Event('pagehide'));
+
+        expect(post).toHaveBeenCalledTimes(2);
+        expect(post).toHaveBeenLastCalledWith(
+            '/rollcall/12',
+            { week: '2026-10-03', marks: [{ trooper_id: 2, status: 'missed' }, { trooper_id: 3, rollcall: 'cannot_attend' }] },
+            { keepalive: true },
+        );
+        expect(save.pendingCount.value).toBe(0);
+    });
+
+    it('sends nothing on the way out when nothing is waiting', () => {
+        const post = vi.fn(() => ok());
+        const save = setup(post);
+
+        window.dispatchEvent(new Event('pagehide'));
+        save.unmount();
+
+        expect(post).not.toHaveBeenCalled();
     });
 
     it('lets a partial reload of the page through without asking, even with unsaved changes', () => {
