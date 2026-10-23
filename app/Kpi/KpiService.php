@@ -39,10 +39,14 @@ use InvalidArgumentException;
  * - **SP**: practices marked present, makeup or attached ÷ the *held* practices (one row per
  *   section-week, AD-14's counting SP) of their *current* primary section. A practice is held
  *   once any attendance row on it carries a leader's SP mark (`loa`, derived from LOA data,
- *   does not count); a week with no practice row, or a row that
+ *   does not count, and neither does an automatic makeup); a week with no practice row, or a row that
  *   carries only rollcall signatures, is not eligible. In a held practice a trooper left
- *   unmarked is eligible but not attended — the leader saw the practice happen. A mark against
- *   another section's practice never counts, a makeup included.
+ *   unmarked is eligible but not attended — the leader saw the practice happen. A week the
+ *   trooper attended is always eligible for them, held or not: a trooper the capture saw at
+ *   another section's practice carries an automatic makeup on their own section's practice
+ *   (decided 2026-10-23), which credits their SP like a makeup a leader marks by hand, even in a
+ *   week their own section did not practise. A mark against another section's practice row never
+ *   counts, a makeup included; the makeup is always recorded on the trooper's own section's row.
  * - **missed**: practices explicitly marked `missed`. An unmarked trooper is never read as a miss
  *   — the service does not assert absence it was not told about (the AD-4 fail-safe).
  * - An **LOA-covered** week leaves both denominators and is never a miss. Coverage is `LoaCoverage` (4.4), the
@@ -193,7 +197,9 @@ final class KpiService
             ),
             practice: new Ratio(
                 $eligible->filter(fn (CountingMark $mark) => in_array($mark->status, self::ATTENDED, true))->count(),
-                $eligible->filter(fn (CountingMark $mark) => $mark->held)->count(),
+                // Held, or attended by this trooper: an automatic makeup does not hold the practice for the
+                // section, but the trooper who made it up still practised that week, so it counts for them.
+                $eligible->filter(fn (CountingMark $mark) => $mark->held || in_array($mark->status, self::ATTENDED, true))->count(),
             ),
             missed: $missed->count(),
             // Covered, not merely suppressed: a leave that needs review is never asserted as "on LOA".
