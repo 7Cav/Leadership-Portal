@@ -1,7 +1,14 @@
 <?php
 
 use App\Models\AuditLogEntry;
+use App\Models\FireteamAssignment;
+use App\Models\FireteamRole;
+use App\Models\FireteamSetting;
+use App\Models\GamePlatform;
+use App\Models\GamePlayerDismissal;
+use App\Models\PlatoonTrainingTopic;
 use App\Models\PortalRoleGrant;
+use App\Models\PracticeCapturePlayer;
 use App\Models\SectionPractice;
 use App\Models\TemplateVersion;
 use App\Models\Trooper;
@@ -23,6 +30,21 @@ function auditAbout($test, Model $target, string $action = 'unit.created'): Audi
         'target_type' => class_basename($target),
         'target_id' => (string) $target->getKey(),
     ]);
+}
+
+/**
+ * A dismissal of one player, captured by a practice of each section given, keyed by the practice's week.
+ *
+ * @param  array<string, Unit>  $capturedBy  `Y-m-d` week => section
+ */
+function auditDismissal($test, array $capturedBy, string $platformId = '7656119000000001', string $name = 'Stranger'): GamePlayerDismissal
+{
+    foreach ($capturedBy as $week => $section) {
+        $practice = SectionPractice::factory()->create(['section_id' => $section->id, 'week_start' => CarbonImmutable::parse("{$week} 00:00:00", 'UTC')]);
+        PracticeCapturePlayer::query()->create(['section_practice_id' => $practice->id, 'platform' => GamePlatform::Hll, 'player_name' => $name, 'platform_id' => $platformId]);
+    }
+
+    return GamePlayerDismissal::query()->create(['platform' => GamePlatform::Hll, 'platform_id' => $platformId, 'player_name' => $name, 'dismissed_by' => $test->actor->id]);
 }
 
 /**
@@ -229,6 +251,33 @@ describe('what each entry changed', function () {
             ->and($links[$entries['grant']->id])->toBe(['href' => '/settings/staff-grants', 'label' => 'Staff grants']);
     });
 
+    it('links the fireteam, training-topic and dismissal entries to the page that shows them', function () {
+        $assignment = FireteamAssignment::query()->create(['section_id' => $this->section->id, 'trooper_id' => $this->trooper->id, 'role' => FireteamRole::Leader]);
+        $display = FireteamSetting::query()->create(['unit_id' => $this->section->id, 'show_fireteams' => true]);
+        $policy = FireteamSetting::query()->create(['unit_id' => $this->company->id, 'show_fireteams' => false]);
+        $topic = PlatoonTrainingTopic::query()->create(['unit_id' => $this->platoon->id, 'week_start' => CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC'), 'subject' => 'Room clearing', 'set_by' => $this->actor->id]);
+        $dismissal = auditDismissal($this, ['2026-09-26' => $this->otherSection, '2026-10-03' => $this->section]);
+        $unseen = GamePlayerDismissal::query()->create(['platform' => GamePlatform::Hll, 'platform_id' => '7656119000000002', 'player_name' => 'Ghost', 'dismissed_by' => $this->actor->id]);
+
+        $entries = [
+            'assignment' => auditAbout($this, $assignment, 'fireteam.leader_set'),
+            'display' => auditAbout($this, $display, 'fireteam.options_set'),
+            'policy' => auditAbout($this, $policy, 'fireteam.policy_set'),
+            'topic' => auditAbout($this, $topic, 'platoon_training_topic.set'),
+            'dismissal' => auditAbout($this, $dismissal, 'game_player.dismissed'),
+            'unseen' => auditAbout($this, $unseen, 'game_player.dismissed'),
+        ];
+
+        $links = auditLinksOn($this);
+
+        expect($links[$entries['assignment']->id])->toBe(['href' => "/rollcall/{$this->section->id}", 'label' => '2/1/A/1-7 fireteams'])
+            ->and($links[$entries['display']->id])->toBe(['href' => "/rollcall/{$this->section->id}", 'label' => '2/1/A/1-7 fireteam display'])
+            ->and($links[$entries['policy']->id])->toBeNull() // set from any of its sections' rollcalls, no page of its own
+            ->and($links[$entries['topic']->id])->toBe(['href' => "/reports/{$this->platoon->id}/2026-10-03", 'label' => '1/A/1-7 training topic, week of 03Oct26'])
+            ->and($links[$entries['dismissal']->id])->toBe(['href' => "/rollcall/{$this->section->id}?week=2026-10-03", 'label' => 'Stranger dismissed, 2/1/A/1-7 rollcall, week of 03Oct26'])
+            ->and($links[$entries['unseen']->id])->toBeNull();
+    });
+
     it('links nothing when the target is gone or has no page of its own', function () {
         $deleted = AuditLogEntry::factory()->create(['actor_id' => $this->actor->id, 'action' => 'unit.deleted', 'target_type' => 'Unit', 'target_id' => '999999']);
         $user = auditAbout($this, $this->actor, 'user.admin_granted');
@@ -251,6 +300,10 @@ describe('what each entry changed', function () {
                 auditAbout($this, TemplateVersion::factory()->create(['company_id' => $this->company->id, 'version' => $perType * 10 + $n]), 'template_version.authored');
                 auditAbout($this, TrooperGameIdentity::factory()->create(), 'game_identity.linked');
                 auditAbout($this, $section);
+                auditAbout($this, FireteamAssignment::query()->create(['section_id' => $section->id, 'trooper_id' => Trooper::factory()->create()->id, 'role' => FireteamRole::Leader]), 'fireteam.leader_set');
+                auditAbout($this, FireteamSetting::query()->create(['unit_id' => $section->id, 'show_fireteams' => true]), 'fireteam.options_set');
+                auditAbout($this, PlatoonTrainingTopic::query()->create(['unit_id' => $section->id, 'week_start' => CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC'), 'subject' => 'Room clearing', 'set_by' => $this->actor->id]), 'platoon_training_topic.set');
+                auditAbout($this, auditDismissal($this, ['2026-10-03' => $section], "76561190000{$perType}{$n}"), 'game_player.dismissed');
             }
 
             DB::flushQueryLog();
@@ -287,6 +340,25 @@ describe('what each entry changed', function () {
 
         $this->actingAs($this->admin)->get('/settings/audit-log?unit_id='.$this->company->id)->assertInertia(fn ($page) => $page
             ->where('filters.unit_id', (string) $this->company->id)
+            ->where('entries.data', fn ($data) => collect($data)->pluck('id')->sort()->values()->all() === collect($inside)->pluck('id')->sort()->values()->all()));
+    });
+
+    it('keeps the fireteam, training-topic and dismissal entries about a unit and everything under it', function () {
+        $week = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');
+        $inside = [
+            auditAbout($this, FireteamAssignment::query()->create(['section_id' => $this->section->id, 'trooper_id' => $this->trooper->id, 'role' => FireteamRole::Leader]), 'fireteam.leader_set'),
+            auditAbout($this, FireteamSetting::query()->create(['unit_id' => $this->section->id, 'show_fireteams' => true]), 'fireteam.options_set'),
+            auditAbout($this, FireteamSetting::query()->create(['unit_id' => $this->company->id, 'show_fireteams' => false]), 'fireteam.policy_set'),
+            auditAbout($this, PlatoonTrainingTopic::query()->create(['unit_id' => $this->platoon->id, 'week_start' => $week, 'subject' => 'Room clearing', 'set_by' => $this->actor->id]), 'platoon_training_topic.set'),
+            auditAbout($this, auditDismissal($this, ['2026-10-03' => $this->section]), 'game_player.dismissed'),
+        ];
+        // The same kinds about another company, and a dismissal of a player no practice here captured.
+        auditAbout($this, FireteamAssignment::query()->create(['section_id' => $this->otherSection->id, 'trooper_id' => $this->outsider->id, 'role' => FireteamRole::Leader]), 'fireteam.leader_set');
+        auditAbout($this, FireteamSetting::query()->create(['unit_id' => $this->other->id, 'show_fireteams' => true]), 'fireteam.policy_set');
+        auditAbout($this, PlatoonTrainingTopic::query()->create(['unit_id' => $this->other->id, 'week_start' => $week, 'subject' => 'Radio procedure', 'set_by' => $this->actor->id]), 'platoon_training_topic.set');
+        auditAbout($this, auditDismissal($this, ['2026-10-03' => $this->otherSection], '7656119000000003', 'Elsewhere'), 'game_player.dismissed');
+
+        $this->actingAs($this->admin)->get('/settings/audit-log?unit_id='.$this->company->id)->assertInertia(fn ($page) => $page
             ->where('entries.data', fn ($data) => collect($data)->pluck('id')->sort()->values()->all() === collect($inside)->pluck('id')->sort()->values()->all()));
     });
 

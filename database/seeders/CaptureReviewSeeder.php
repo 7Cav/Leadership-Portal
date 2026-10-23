@@ -30,7 +30,7 @@ use Illuminate\Database\Seeder;
  * server did not see, for the review-and-confirm test (Story 7.8). A third (5/2/C/1-7, led by `Voss.H`)
  * holds a practice whose last capture failed, with an HLL-linked trooper so it can be retried, for the
  * telemetry-unavailable test (Story 7.9). Refuses to run outside local, testing and e2e: its users
- * hold staff grants.
+ * lead their sections by command billet, so they hold real scope wherever they are created.
  */
 class CaptureReviewSeeder extends Seeder
 {

@@ -5,6 +5,10 @@ namespace App\Http\Controllers\Settings;
 use App\Authorization\ScopeResolver;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLogEntry;
+use App\Models\FireteamAssignment;
+use App\Models\FireteamSetting;
+use App\Models\GamePlayerDismissal;
+use App\Models\PlatoonTrainingTopic;
 use App\Models\PortalRoleGrant;
 use App\Models\SectionPractice;
 use App\Models\TemplateVersion;
@@ -12,6 +16,7 @@ use App\Models\Trooper;
 use App\Models\TrooperCourse;
 use App\Models\TrooperGameIdentity;
 use App\Models\Unit;
+use App\Models\UnitType;
 use App\Models\WeeklyReport;
 use App\Repositories\AuditLogRepository;
 use App\Repositories\UnitRepository;
@@ -109,7 +114,9 @@ class AuditLogController extends Controller
     /**
      * Where to see what an entry changed, and what to call it: a section practice's rollcall week, a weekly report, a
      * unit's roster, a trooper's milpac (also for their game identities, courses and placement), a company's templates,
-     * or the staff grants. Null when the target is gone or has no page.
+     * the staff grants, a section's rollcall (for its fireteams and fireteam display), a platoon's report week (for its
+     * training topic), or the rollcall week where a dismissed player was last captured. Null when the target is gone or
+     * has no page.
      *
      * @return array{href: string, label: string}|null
      */
@@ -140,8 +147,45 @@ class AuditLogController extends Controller
                 'href' => route('settings.staff-grants', [], false),
                 'label' => 'Staff grants',
             ],
+            $target instanceof FireteamAssignment && $target->section !== null => [
+                'href' => route('rollcall.show', ['unit' => $target->section_id], false),
+                'label' => "{$unit($target->section)} fireteams",
+            ],
+            // A section's own display choices live on its rollcall. A company's policy has no page of its own: it is
+            // set from any of its sections' rollcalls, so it links nowhere.
+            $target instanceof FireteamSetting && $target->unit?->type === UnitType::Section => [
+                'href' => route('rollcall.show', ['unit' => $target->unit_id], false),
+                'label' => "{$unit($target->unit)} fireteam display",
+            ],
+            $target instanceof PlatoonTrainingTopic && $target->unit !== null => [
+                'href' => route('reports.show', ['unit' => $target->unit_id, 'week' => $target->week_start->toDateString()], false),
+                'label' => "{$unit($target->unit)} training topic, week of {$target->week_start->format('dMy')}",
+            ],
+            $target instanceof GamePlayerDismissal => $this->dismissalLink($target),
             default => null,
         };
+    }
+
+    /**
+     * A dismissal belongs to no unit, so it links to the rollcall week of the latest practice that captured the player,
+     * where it is listed with its undo. Null when no stored capture saw the player.
+     *
+     * @return array{href: string, label: string}|null
+     */
+    private function dismissalLink(GamePlayerDismissal $dismissal): ?array
+    {
+        $practice = $dismissal->getRelationValue('latestCapture')?->practice;
+
+        if ($practice?->section === null) {
+            return null;
+        }
+
+        $section = $practice->section->callsign ?? $practice->section->name;
+
+        return [
+            'href' => route('rollcall.show', ['unit' => $practice->section_id, 'week' => $practice->week_start->toDateString()], false),
+            'label' => "{$dismissal->player_name} dismissed, {$section} rollcall, week of {$practice->week_start->format('dMy')}",
+        ];
     }
 
     /**
