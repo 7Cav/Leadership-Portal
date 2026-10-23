@@ -57,6 +57,20 @@ interface AttendanceRepository
     public function markPracticeAuto(SectionPractice $practice, int $trooperId): ?Attendance;
 
     /**
+     * Auto-capture's makeup write (decided 2026-10-23): `status = makeup`, `source = auto` on the
+     * trooper's own section's practice, for a trooper the capture saw at another section's practice
+     * that week. It never downgrades and never overrides a leader: a row that already carries a
+     * `manual` mark of any status, an `loa` mark, or an attended mark (`present` or `attached`,
+     * whatever its source) is left untouched. An unmarked row (none yet, or rollcall-only) and an
+     * `auto` `missed` row become the makeup; an existing auto makeup is kept in place. The guard is
+     * evaluated against a locking read inside this write's own transaction, as in
+     * {@see markPracticeAuto()}, which is also what later replaces an auto makeup with `present` when
+     * the trooper's own practice is captured and sees them. Returns the row written or kept as the
+     * auto makeup, or null when it was left alone.
+     */
+    public function markMakeupAuto(SectionPractice $practice, int $trooperId): ?Attendance;
+
+    /**
      * Record the trooper's signature on the week's rollcall thread. Leaves `status`/`source` as
      * they were (both null on a new row — signed, practice not yet marked).
      */
@@ -82,7 +96,9 @@ interface AttendanceRepository
      * or not the trooper has an attendance row on it (no row reads as a null status and an
      * unsigned rollcall). Each mark says whether its practice was *held* — at least one attendance
      * row on it, from any trooper, carries a leader's SP mark (any `status` but `loa`, which is
-     * derived from LOA data); a row with only rollcall signatures or `loa` marks is not. A
+     * derived from LOA data); a row with only rollcall signatures or `loa` marks is not, and neither
+     * is one whose only marks are automatic makeups: an auto makeup records a practice the trooper
+     * attended elsewhere, and says nothing about whether their own section practised. A
      * row against any other section's practice is not a counting mark and is left out. Ordered by
      * trooper id, then week. One query, however large the subtree.
      *
@@ -106,7 +122,9 @@ interface AttendanceRepository
      * `$excusedTrooperIds` are troopers whose practice status is derived rather than marked (their leave covers the
      * week, 3.4, as `LoaCoverage` decides; the caller asks it, since a Repository cannot). Each counts as signed, as
      * marked and as on LOA, once, whether or not a row exists, and never as unsigned, so a section with someone on
-     * leave can reach its full strength on both steps. They never make the practice held.
+     * leave can reach its full strength on both steps. They never make the practice held, and
+     * neither does an automatic makeup (the rule {@see countingMarks()} uses); a trooper carrying one
+     * still counts as marked.
      *
      * @param  list<int>  $sectionIds
      * @param  list<int>  $excusedTrooperIds

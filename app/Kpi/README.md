@@ -47,6 +47,11 @@ the `Unit` it is handed), `Support/Time/` (the week window, AD-11), `Loa/` (LOA 
 **Reached from:** `Http/Controllers/` and `Commands/`. Read-only; it never writes. Callers pass
 only units the ScopeResolver permits (AD-8) — the service does not re-check scope.
 
+An automatic makeup (capture saw the trooper at another section's practice, 2026-10-23) is recorded on the
+trooper's own section's practice and credits their SP like a makeup marked by hand. It does not make that practice
+held for the rest of the section, so a section that did not practise is not shown as having held SP; the week still
+counts as eligible and attended for the trooper who made it up (a week a trooper attended is always eligible for them).
+
 LOA coverage is `Loa\LoaCoverage` (4.4), the one definition (4.8): for each week of the window it says
 covered, needs review or none, whether or not a practice row exists. A covered week, and a week a
 leave that needs review may apply to, leaves the window: no miss, out of both denominators. Only a

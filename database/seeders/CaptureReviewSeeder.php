@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Models\GamePlatform;
+use App\Models\SectionPractice;
 use App\Models\SyncRun;
 use App\Models\SyncRunStatus;
 use App\Models\Trooper;
@@ -27,7 +28,8 @@ use Illuminate\Database\Seeder;
  * "Halvorsen", is meant for `Halvorsen.K`, who already holds another HLL ID: the replace-or-cancel
  * question (#176). A second section
  * (4/2/C/1-7, led by `Brandt.K`) holds a captured practice with two auto pre-marks and one trooper the
- * server did not see, for the review-and-confirm test (Story 7.8). A third (5/2/C/1-7, led by `Voss.H`)
+ * server did not see, for the review-and-confirm test (Story 7.8), plus `Mbatha.Z`, seen at 3rd
+ * Section's practice instead and so carrying an automatic makeup (2026-10-23). A third (5/2/C/1-7, led by `Voss.H`)
  * holds a practice whose last capture failed, with an HLL-linked trooper so it can be retried, for the
  * telemetry-unavailable test (Story 7.9). Refuses to run outside local, testing and e2e: its users
  * lead their sections by command billet, so they hold real scope wherever they are created.
@@ -69,7 +71,7 @@ class CaptureReviewSeeder extends Seeder
             ['platform_id' => '76561198000009003', 'player_name' => 'Halvorsen', 'trooper_id' => null],
         ]);
 
-        $this->seedReviewSection($platoon, $tag, $now);
+        $this->seedReviewSection($platoon, $tag, $now, $practice);
         $this->seedDownSection($platoon, $tag, $now);
     }
 
@@ -84,12 +86,12 @@ class CaptureReviewSeeder extends Seeder
             ->forceFill(['cav_position_id' => $positionId])->save();
     }
 
-    private function seedReviewSection(Unit $platoon, string $tag, CarbonImmutable $now): void
+    private function seedReviewSection(Unit $platoon, string $tag, CarbonImmutable $now, SectionPractice $neighbour): void
     {
         $section = Unit::factory()->create(['type' => UnitType::Section, 'name' => '4th Section', 'callsign' => '4/2/C/1-7', 'parent_id' => $platoon->id, 'path' => "8{$tag}/1/2/"]);
         $ids = [];
 
-        foreach ([['SGT', 'Brandt.K'], ['SPC', 'Okafor.D'], ['PFC', 'Lindqvist.E'], ['PVT', 'Reyes.J']] as $i => [$rank, $username]) {
+        foreach ([['SGT', 'Brandt.K'], ['SPC', 'Okafor.D'], ['PFC', 'Lindqvist.E'], ['PVT', 'Reyes.J'], ['PFC', 'Mbatha.Z']] as $i => [$rank, $username]) {
             $cavId = (int) ($tag.'5'.$i);
             User::factory()->create(['username' => $username, 'cav_id' => $cavId]);
             $ids[$username] = Trooper::factory()->create([
@@ -101,6 +103,8 @@ class CaptureReviewSeeder extends Seeder
         $practice = app(SectionPracticeRepository::class)->findOrCreate($section->id, WeekOf::start($now));
         app(MarkAttendanceHandler::class)->preMark($practice, [$ids['Okafor.D'], $ids['Lindqvist.E']]);
         app(SectionPracticeRepository::class)->stampCapture($practice, 'crcon-e2e-review', $now, 'crcon');
+        // Seen at 3rd Section's practice instead: an automatic makeup on this section's rollcall (2026-10-23).
+        app(MarkAttendanceHandler::class)->preMarkMakeups($neighbour, [$ids['Mbatha.Z']]);
     }
 
     private function seedDownSection(Unit $platoon, string $tag, CarbonImmutable $now): void

@@ -49,7 +49,9 @@ use Carbon\CarbonImmutable;
  * so two overlapping submits cannot deadlock each other). Every practice mark is written with
  * `source = manual`, overwriting whatever was there — including an `auto` mark, since manual wins
  * on conflict (AD-22); the auto-capture path (Epic 7), whatever writes `source = auto`, is
- * the one that must not overwrite a manual mark — which is {@see preMark()}, below. A failure anywhere rolls back the practice row,
+ * the one that must not overwrite a manual mark — which is {@see preMark()}, below, and its
+ * makeup counterpart {@see preMarkMakeups()} for a trooper seen at another section's practice (still
+ * written only on the trooper's own section's practice). A failure anywhere rolls back the practice row,
  * every mark and the log entry together; the log records the batch once, targeting the practice,
  * with a digest over every row written.
  */
@@ -177,7 +179,9 @@ class MarkAttendanceHandler
      * capture resolved to this practice's section — the same writer as a manual mark, a second
      * *source* rather than a second writer. Manual wins: a trooper whose row already carries a
      * `manual` mark (or `loa`) is left exactly as it is, decided per row at write time by the
-     * repository. Re-running updates auto rows in place. Never writes `loa`, and skips a trooper
+     * repository. Re-running updates auto rows in place, an automatic makeup included: a trooper
+     * {@see preMarkMakeups()} credited for another section's practice who is then seen at their own
+     * becomes `present`. Never writes `loa`, and skips a trooper
      * no longer placed in the practice's section or no longer serving (a departed trooper keeps
      * their last placement). A trooper the LOA data covers that week is skipped too, by the same
      * {@see LoaCoverage} rule that refuses a manual mark: their status is derived as `loa`, and an
@@ -271,5 +275,157 @@ class MarkAttendanceHandler
         $marked = count($written);
 
         return new AutoMarkResult(marked: $marked, keptManual: count($trooperIds) - $notPlaced - $marked, notPlaced: $notPlaced);
+    }
+
+    /**
+     * Capture's makeup (decided by the product owner 2026-10-23, refining AD-14): a trooper is on
+     * exactly one rollcall, their primary section's, so a trooper the capture saw at *another*
+     * section's practice (`$host`) has made up their own section's practice. Each of `$trooperIds`
+     * gets `makeup` with `source = auto` on their own section's practice for the host's Cav week —
+     * the same week, never an older or a later one, found or created through
+     * {@see SectionPracticeRepository::findOrCreate()} — the same writer and second *source* as
+     * {@see preMark()}, through {@see AttendanceRepository::markMakeupAuto()}.
+     *
+     * It never downgrades and never overrides a leader: a manual mark of any status, an `loa` mark and
+     * an attended mark (`present`, `attached`) stay as they are, so a trooper present at their own
+     * practice keeps `present`; an unmarked trooper and an automatic `missed` become the makeup. When
+     * the trooper's own practice is captured later and sees them, {@see preMark()} replaces the auto
+     * makeup with `present`. A makeup a leader marks by hand is a manual mark like any other and
+     * counts the same. The usual guards hold per own section, decided before its practice row is
+     * created so a skipped trooper costs no empty row: nothing is written into a week before
+     * `WeekOf::floor()`, a week whose weekly report has been really sent (AD-12, checked again first
+     * inside the mutation, as in {@see preMark()}), or a practice confirmed by its leader (7.8, checked
+     * again under the row lock; one confirmed meanwhile rolls back without an audit entry). A
+     * trooper no longer serving in their section, or one whose leave covers the week (3.4, the same
+     * {@see LoaCoverage} rule), is skipped. Placement and leave are read again inside the mutation,
+     * which is what decides.
+     *
+     * A user-triggered run is audited as one `attendance.auto_marked` batch per own section, on
+     * that section's practice; a `'system'` run is covered by its `sync_runs` row (AD-16). Sections
+     * go in id order and troopers in id order within each, a fixed lock order.
+     *
+     * @param  list<int>  $trooperIds
+     */
+    public function preMarkMakeups(SectionPractice $host, array $trooperIds, int|string $triggeredBy = 'system'): MakeupMarkResult
+    {
+        $trooperIds = array_values(array_unique($trooperIds));
+        sort($trooperIds);
+
+        if ($trooperIds === []) {
+            return new MakeupMarkResult;
+        }
+
+        // The makeup lands in the host's week, so a host practice before the floor has no week to write to.
+        if (WeekOf::isBeforeFloor($host->week_start)) {
+            return new MakeupMarkResult(locked: count($trooperIds));
+        }
+
+        $troopers = $this->troopers->byIds($trooperIds);
+        $result = new MakeupMarkResult;
+        $bySection = [];
+
+        foreach ($trooperIds as $trooperId) {
+            $sectionId = $troopers->get($trooperId)?->primary_section_id;
+
+            // Unplaced (no section of their own to make up), or the host's own trooper, whom preMark() handles.
+            if ($sectionId === null || $sectionId === $host->section_id) {
+                $result = $result->plus(new MakeupMarkResult(kept: 1));
+
+                continue;
+            }
+
+            $bySection[$sectionId][] = $trooperId;
+        }
+
+        ksort($bySection);
+
+        foreach ($bySection as $sectionId => $ids) {
+            $result = $result->plus($this->makeupIn($sectionId, $host->week_start, $ids, $triggeredBy));
+        }
+
+        return $result;
+    }
+
+    /**
+     * {@see preMarkMakeups()} for the troopers of one own section.
+     *
+     * @param  list<int>  $trooperIds  in id order
+     */
+    private function makeupIn(int $sectionId, CarbonImmutable $weekStart, array $trooperIds, int|string $triggeredBy): MakeupMarkResult
+    {
+        $all = count($trooperIds);
+
+        // A primary section that is not a section unit has no practice to hold the makeup.
+        if ($this->units->find($sectionId)?->type !== UnitType::Section) {
+            return new MakeupMarkResult(kept: $all);
+        }
+
+        if ($this->reports->isSentFor($sectionId, $weekStart) || $this->practices->find($sectionId, $weekStart)?->confirmed_at !== null) {
+            return new MakeupMarkResult(locked: $all);
+        }
+
+        // Nobody here could take a makeup: leave the section's week without a practice row rather
+        // than create an empty one.
+        if ($this->makeupCandidates($sectionId, $weekStart, $trooperIds) === []) {
+            return new MakeupMarkResult(kept: $all);
+        }
+
+        $written = [];
+        $mutation = function () use ($sectionId, $weekStart, $trooperIds, &$written) {
+            if ($this->reports->isSentFor($sectionId, $weekStart)) {
+                throw RollcallWeekLockedException::for($sectionId, $weekStart);
+            }
+
+            $practice = $this->practices->findOrCreate($sectionId, $weekStart);
+
+            if ($this->practices->lockById($practice->id)?->confirmed_at !== null) {
+                throw new PracticeConfirmedMeanwhileException($practice);
+            }
+
+            $written = [];
+
+            foreach ($this->makeupCandidates($sectionId, $weekStart, $trooperIds) as $trooperId) {
+                $row = $this->attendance->markMakeupAuto($practice, $trooperId);
+
+                if ($row !== null) {
+                    $written[] = $row;
+                }
+            }
+
+            return new AuditedBatch($practice, ...$written);
+        };
+
+        try {
+            is_int($triggeredBy)
+                ? $this->audit->recordBatch($triggeredBy, 'attendance.auto_marked', null, false, $mutation)
+                : $mutation();
+        } catch (RollcallWeekLockedException|PracticeConfirmedMeanwhileException) {
+            return new MakeupMarkResult(locked: $all);
+        }
+
+        return new MakeupMarkResult(marked: count($written), kept: $all - count($written));
+    }
+
+    /**
+     * Which of `$trooperIds` may take an automatic mark on their section's practice this week: still
+     * serving and placed there, and not covered by leave (whose status is derived as `loa`, 3.4).
+     *
+     * @param  list<int>  $trooperIds
+     * @return list<int>
+     */
+    private function makeupCandidates(int $sectionId, CarbonImmutable $weekStart, array $trooperIds): array
+    {
+        $placed = $this->troopers->servingIdsPlacedIn($sectionId, $trooperIds)->all();
+
+        if ($placed === []) {
+            return [];
+        }
+
+        $covers = $this->loaCoverage->forTroopers($placed, $weekStart);
+
+        return array_values(array_filter(
+            $trooperIds,
+            fn (int $trooperId) => in_array($trooperId, $placed, true) && $covers[$trooperId]->derivedAttendanceStatus() === null,
+        ));
     }
 }

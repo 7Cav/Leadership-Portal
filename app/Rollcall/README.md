@@ -41,6 +41,31 @@ practice mark for them; if a leave syncs after the page loaded, the refusal says
 keeps saving their signature. A leave that needs review asserts nothing (AD-4): the row stays markable and only shows the
 badge. Home's "signed" and "marked" steps count a covered trooper as done.
 
+## Captured marks and makeups (Epic 7)
+
+A capture of a section's practice pre-marks the troopers it saw as `present` with the `auto` source (7.6), through
+the same writer as a leader's mark, and a leader's mark always wins. A trooper is on exactly one rollcall, their
+primary section's (AD-14). Since 2026-10-23 a trooper the capture sees at *another* section's practice has made up
+their own section's practice for that Cav week: `MarkAttendanceHandler::preMarkMakeups()` pre-marks `makeup` with
+the `auto` source on their own section's rollcall (creating that week's practice row if needed), and the card shows it
+with the auto source dot. The rules:
+
+- Same Cav week only (`WeekOf`, Saturday to Friday): a sighting never credits an older or a later week.
+- Never a downgrade: `present` or `attached` stays, so does a leader's manual mark of any status and an `loa` mark. An
+  unmarked trooper and an automatic `missed` become the makeup. When their own practice is captured later and sees
+  them, the auto makeup becomes `present`.
+- Nothing is written into a week whose own-section weekly report was really sent (AD-12), a practice its leader
+  confirmed (7.8), or a week before `WeekOf::floor()`. A trooper whose leave covers the week, or who no longer serves,
+  is skipped, as in the pre-mark.
+- A makeup a leader marks by hand counts the same in the KPIs. An automatic makeup alone does not make the section's
+  practice *held* (Home's "SP held" step, the counting marks): it records a practice attended elsewhere, so a section
+  that did not practise is not shown as having practised. The trooper's own SP still counts the week as attended
+  (see `Kpi/`). A makeup marked by hand still holds the practice, as before.
+
+Every such sighting is also recorded in `cross_section_sightings` (trooper, host practice, its week, the capture
+window, source `capture`), once per trooper and host practice, whether or not it changed the mark: groundwork for the
+Joint Service Achievement Medal candidates, with no screen yet. The capture handler is its one writer.
+
 **May depend on:** `Repositories/` (never the DB directly, AD-2) and `Models/`.
 **Reached from:** `Http/Controllers/`. Read-only: templates are written only by the audited
 `Commands/Templates` Commands. Who may look is the Controller's ScopeResolver gate (AD-8), not decided here.

@@ -13,7 +13,8 @@ use Carbon\CarbonImmutable;
  * trooper; `rollcall` is `Unsigned` until they sign, including when they have no attendance row
  * at all.
  * `held` is true once any attendance row on this practice carries a leader's SP mark (any
- * `status` but the LOA-derived `loa`) — a row with only rollcall signatures has not been held.
+ * `status` but the LOA-derived `loa`) — a row with only rollcall signatures has not been held, and
+ * neither has one whose only marks are automatic makeups (a practice attended elsewhere).
  */
 final readonly class CountingMark
 {

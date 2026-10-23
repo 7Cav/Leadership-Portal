@@ -326,3 +326,62 @@ it('turns a demo row real when it auto-marks over it', function () {
 
     expect(Attendance::query()->sole()->is_demo)->toBeFalse();
 });
+
+// 2026-10-23: capture's makeup write, for a trooper seen at another section's practice.
+
+it('writes an auto makeup over nothing, a rollcall-only row or an auto miss, and keeps an auto makeup in place', function (?AttendanceStatus $status, ?AttendanceSource $source) {
+    if ($status !== null || $source !== null) {
+        $this->repo->markPractice($this->practice, $this->trooper->id, $status, $source);
+    }
+    $this->repo->signRollcall($this->practice, $this->trooper->id, RollcallSignature::WillAttend);
+
+    $row = $this->repo->markMakeupAuto($this->practice, $this->trooper->id);
+
+    expect($row->status)->toBe(AttendanceStatus::Makeup)
+        ->and($row->source)->toBe(AttendanceSource::Auto)
+        ->and(Attendance::query()->sole()->rollcall)->toBe(RollcallSignature::WillAttend);
+})->with([
+    'no mark' => [null, null],
+    'auto missed' => [AttendanceStatus::Missed, AttendanceSource::Auto],
+    'auto makeup' => [AttendanceStatus::Makeup, AttendanceSource::Auto],
+]);
+
+it('never writes a makeup over a manual mark, loa, or an attended mark', function (AttendanceStatus $status, AttendanceSource $source) {
+    $this->repo->markPractice($this->practice, $this->trooper->id, $status, $source);
+
+    expect($this->repo->markMakeupAuto($this->practice, $this->trooper->id))->toBeNull();
+
+    $row = Attendance::query()->sole();
+    expect($row->status)->toBe($status)->and($row->source)->toBe($source);
+})->with([
+    'manual missed' => [AttendanceStatus::Missed, AttendanceSource::Manual],
+    'manual makeup' => [AttendanceStatus::Makeup, AttendanceSource::Manual],
+    'auto present' => [AttendanceStatus::Present, AttendanceSource::Auto],
+    'auto attached' => [AttendanceStatus::Attached, AttendanceSource::Auto],
+    'loa' => [AttendanceStatus::Loa, AttendanceSource::Auto],
+]);
+
+it('lets a later capture of the trooper\'s own practice replace the auto makeup with present', function () {
+    $this->repo->markMakeupAuto($this->practice, $this->trooper->id);
+
+    expect($this->repo->markPracticeAuto($this->practice, $this->trooper->id)->status)->toBe(AttendanceStatus::Present);
+});
+
+it('does not hold a practice whose only marks are automatic makeups, on Home or in the counting marks', function () {
+    $week = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');
+    $section = Unit::factory()->create(['type' => UnitType::Section, 'path' => '901/']);
+    [$visitor, $stayedHome] = Trooper::factory()->count(2)->create(['primary_section_id' => $section->id]);
+    $practices = app(SectionPracticeRepository::class);
+    $practice = $practices->findOrCreate($section->id, $week);
+    $this->repo->markMakeupAuto($practice, $visitor->id);
+
+    expect($this->repo->weekProgress([$section->id], $week)->get($section->id))
+        ->toEqual(new SectionWeekProgress($section->id, 2, 0, 1, false, onLoa: 0, unsigned: 2))
+        ->and($this->repo->countingMarks($section, $week, $week)->pluck('held')->unique()->all())->toBe([false]);
+
+    // A leader's mark of anyone, a hand-marked makeup included, holds it.
+    $this->repo->markPractice($practice, $stayedHome->id, AttendanceStatus::Makeup, AttendanceSource::Manual);
+
+    expect($this->repo->weekProgress([$section->id], $week)->get($section->id)->held)->toBeTrue()
+        ->and($this->repo->countingMarks($section, $week, $week)->pluck('held')->unique()->all())->toBe([true]);
+});

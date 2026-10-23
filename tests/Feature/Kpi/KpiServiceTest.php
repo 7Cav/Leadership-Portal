@@ -223,6 +223,49 @@ it('does not count a makeup done at another section\'s practice', function () {
     expect($this->kpis->forUnit($this->regiment, kpiWeek())->makeups)->toBe(0);
 });
 
+// Decided 2026-10-23: a trooper seen at another section's practice carries an automatic makeup on
+// their own section's practice. It credits their SP like a hand-marked one, but does not by itself
+// make their section's practice held.
+
+it('credits an automatic makeup to the trooper\'s SP, and does not hold the practice for the rest of the section', function () {
+    $visitor = kpiTrooper($this->sectionA);
+    $stayedHome = kpiTrooper($this->sectionA);
+    $practice = app(SectionPracticeRepository::class)->findOrCreate($this->sectionA->id, kpiWeek());
+    app(AttendanceRepository::class)->markMakeupAuto($practice, $visitor->id);
+
+    $rows = $this->kpis->trooperAttendance($this->sectionA, kpiWeek());
+    $kpis = $this->kpis->forUnit($this->sectionA, kpiWeek());
+
+    expect($rows[$visitor->id]->practice)->toEqual(new Ratio(1, 1))
+        ->and($rows[$stayedHome->id]->practice)->toEqual(new Ratio(0, 0))
+        ->and($kpis->makeups)->toBe(1)
+        ->and($kpis->sp30d)->toEqual(new Ratio(1, 1))
+        ->and(app(AttendanceRepository::class)->countingMarks($this->sectionA, kpiWeek(), kpiWeek())->every(fn ($mark) => $mark->held === false))->toBeTrue();
+});
+
+it('counts an automatic makeup in a practice the section did hold like any attended mark', function () {
+    $visitor = kpiTrooper($this->sectionA);
+    $missed = kpiTrooper($this->sectionA);
+    kpiMark($missed, $this->sectionA, 0, AttendanceStatus::Missed);
+    app(AttendanceRepository::class)->markMakeupAuto(app(SectionPracticeRepository::class)->findOrCreate($this->sectionA->id, kpiWeek()), $visitor->id);
+
+    $rows = $this->kpis->trooperAttendance($this->sectionA, kpiWeek());
+
+    expect($rows[$visitor->id]->practice)->toEqual(new Ratio(1, 1))
+        ->and($rows[$missed->id]->practice)->toEqual(new Ratio(0, 1));
+});
+
+it('still holds the practice with a makeup a leader marked by hand, as before', function () {
+    $visitor = kpiTrooper($this->sectionA);
+    $stayedHome = kpiTrooper($this->sectionA);
+    kpiMark($visitor, $this->sectionA, 0, AttendanceStatus::Makeup);
+
+    $rows = $this->kpis->trooperAttendance($this->sectionA, kpiWeek());
+
+    expect($rows[$visitor->id]->practice)->toEqual(new Ratio(1, 1))
+        ->and($rows[$stayedHome->id]->practice)->toEqual(new Ratio(0, 1));
+});
+
 it('measures a trooper who changed section mid-window against their current section only', function () {
     // No placement history in the cache: the earlier section's marks drop out and the new
     // section's earlier practices count as eligible. Pinned so a change here is deliberate.
