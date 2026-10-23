@@ -106,13 +106,17 @@ class RollcallFireteamController extends Controller
         }
 
         $section = $this->units->find($unit);
-        $company = $section === null ? null : $this->fireteams->companyOf($section);
+
+        // Authorization first: an id that names no unit, or a unit the actor does not command, is the same 403, so
+        // ids cannot be probed (AD-8). Only someone who commands the unit learns that it has no company above it.
+        if ($section === null || ! $this->scope->commandsUnit($request->user(), $section)) {
+            return response()->json(['message' => (new FireteamForbiddenException($unit))->getMessage()], 403);
+        }
+
+        $company = $this->fireteams->companyOf($section);
 
         if ($company === null) {
-            // An id that names no unit is refused like one outside command, so ids cannot be probed (AD-8).
-            return $section === null
-                ? response()->json(['message' => (new FireteamForbiddenException($unit))->getMessage()], 403)
-                : response()->json(['message' => 'This section does not sit under a company, so there is no company policy to set.'], 422);
+            return response()->json(['message' => 'This section does not sit under a company, so there is no company policy to set.'], 422);
         }
 
         return $this->attempt($request->user(), $unit, fn () => $handler->handle($request->user(), new SetCompanyFireteamPolicy(

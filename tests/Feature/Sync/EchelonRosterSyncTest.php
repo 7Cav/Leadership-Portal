@@ -402,16 +402,26 @@ it('does not let members who may not sync use up the requests leaders can make',
     Queue::assertPushed(SyncRosterJob::class, 1);
 });
 
-it('probes the unique lock with a short expiry, so a process dying mid-check cannot block the unit for a day', function () {
+it('probes the unique lock without ever taking it, so a dispatch landing mid-probe is not dropped', function () {
     $job = new SyncRosterJob(7, 42);
     $lock = Mockery::mock(Lock::class);
-    $lock->shouldReceive('get')->once()->andReturnTrue();
-    $lock->shouldReceive('release')->once()->andReturnTrue();
-    Cache::shouldReceive('lock')->once()
-        ->with(UniqueLock::getKey($job), Mockery::on(fn (int $seconds) => $seconds > 0 && $seconds <= 60))
-        ->andReturn($lock);
+    $lock->shouldReceive('isLocked')->once()->andReturnFalse();
+    $lock->shouldNotReceive('get');
+    $lock->shouldNotReceive('block');
+    Cache::shouldReceive('lock')->once()->with(UniqueLock::getKey($job))->andReturn($lock);
 
     expect($job->isAlreadyQueued())->toBeFalse();
+});
+
+it('reads a queued sync as queued and a free scope as free, leaving the lock as it found it', function () {
+    Queue::fake();
+    $job = new SyncRosterJob(7, 42);
+
+    expect($job->isAlreadyQueued())->toBeFalse();
+    SyncRosterJob::dispatch(7, 42); // the probe left the lock free, so this one queues
+
+    expect($job->isAlreadyQueued())->toBeTrue();
+    Queue::assertPushed(SyncRosterJob::class, 1);
 });
 
 it('decides overlapping syncs one at a time, so two leaders clicking at once start one Cav fetch', function () {

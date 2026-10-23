@@ -7,6 +7,7 @@ use App\Models\WeeklyReport;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
+use LogicException;
 
 /**
  * Sole DB access for `weekly_reports` (AD-2, AD-12, AD-22). Portal-owned: this repository is the
@@ -134,6 +135,22 @@ interface WeeklyReportRepository
         ?string $trainingSubject = null,
         array $unaccounted = [],
     ): WeeklyReport;
+
+    /**
+     * Lock the unit-week's row for update — creating a draft placeholder when none exists — and
+     * refuse it if already sent, inside the caller's open transaction, and write nothing else. The
+     * send path (5.6) takes this lock **before** it computes the KPI snapshot it freezes: a save
+     * holds `isSentFor()`'s shared lock on the same row until it commits, so once this returns
+     * every save that got in first has committed and is in the numbers, and every later one waits
+     * for the send and then finds the week locked (AD-12). `send()` in the same transaction then
+     * re-takes the lock it already holds.
+     *
+     * @throws InvalidArgumentException when `$unitId` is not a `units` row, or `$weekStart` is
+     *                                  not a Saturday 00:00 UTC.
+     * @throws WeeklyReportAlreadySentException when the unit-week is already sent.
+     * @throws LogicException when called outside a transaction, where the lock would end at once.
+     */
+    public function lockForSend(int $unitId, CarbonInterface $weekStart): void;
 
     /**
      * Whether `$unit` has any report, draft or sent, in any week — `weekly_reports.unit_id`
