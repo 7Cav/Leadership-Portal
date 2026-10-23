@@ -69,7 +69,9 @@ const body = (player) => ({ week: props.week, platform: player.platform, platfor
 
 // "Replace or cancel" (#176): the server refused a link because the chosen trooper already holds a different
 // identity on that game, and said which (`reason: has_other_identity`, `current`). Nothing is overwritten until the
-// leader answers: Replace sends the same link again with `replace: true`, Cancel leaves everything as it was.
+// leader answers: Replace sends the same link again with `replace: true` and `replacing`, the ID the dialog showed,
+// so the server overwrites only that one; Cancel leaves everything as it was. If the trooper's ID changed in the
+// meantime the server refuses the replace with the new `current`, and the dialog asks again with it.
 // `{ player, trooperId, current: { playerName, platformId } }` while the question is open, else null.
 const replacing = ref(null);
 const trooperName = (id) => {
@@ -78,7 +80,8 @@ const trooperName = (id) => {
     return trooper ? fullName(trooper) : `trooper ${id}`;
 };
 
-async function link(player, replace = false) {
+// `replace`: the platform ID the leader agreed to replace, or null for a plain link.
+async function link(player, replace = null) {
     const s = of(player);
     if (!props.editable || s.busy || s.trooperId === '') return;
 
@@ -94,10 +97,13 @@ async function link(player, replace = false) {
         const result = await postJson(`/rollcall/${props.sectionId}/unmatched/link`, {
             ...body(player),
             trooper_id: trooperId,
-            ...(replace ? { replace: true } : {}),
+            ...(replace !== null ? { replace: true, replacing: replace } : {}),
         }).catch(unreachable);
+        const current = result.data?.reason === 'has_other_identity' ? result.data.current : null;
         if (result.ok) emit('linked', { player, ...result.data });
-        else if (!replace && result.data?.reason === 'has_other_identity' && result.data.current) replacing.value = { player, trooperId, current: result.data.current };
+        // Asked for the first time, or asked again because the ID changed since the leader answered. The same ID
+        // refused twice would only loop the question, so it shows inline instead.
+        else if (current && current.platformId !== replace) replacing.value = { player, trooperId, current };
         else s.error = messageFor(result);
     } finally {
         s.busy = false;
@@ -129,7 +135,7 @@ async function confirmReplace() {
     replacing.value = null;
     if (!ask) return;
     of(ask.player).trooperId = String(ask.trooperId);
-    await link(ask.player, true);
+    await link(ask.player, ask.current.platformId);
 }
 
 async function dismiss(player) {

@@ -429,7 +429,9 @@ class RollcallController extends Controller
      * reason inline — including "Already linked to <trooper> on <game>". A trooper who already holds
      * another identity on that game is a 422 with `reason: has_other_identity` and that identity in
      * `current`, which the drawer turns into "replace or cancel"; the leader's "Replace" sends the
-     * same request again with `replace: true` (#176).
+     * same request again with `replace: true` and `replacing`, the platform id it was shown (#176).
+     * If the trooper's identity changed since, the answer is the same 422 with the new `current`,
+     * and the drawer asks again; `replace` without `replacing` is refused by validation.
      */
     public function linkUnmatched(Request $request, int $unit, LinkUnmatchedPlayerHandler $handler): JsonResponse
     {
@@ -439,6 +441,12 @@ class RollcallController extends Controller
             'platform_id' => ['required', 'string', 'max:255'],
             'trooper_id' => ['required', 'integer'],
             'replace' => ['sometimes', 'boolean'],
+            // A replace must say which identity it replaces (the one the leader was shown), so a
+            // change since the question is caught instead of overwritten. Without it the request is
+            // refused outright: a client that cannot say what it replaces must not replace anything.
+            'replacing' => ['required_if_accepted:replace', 'string', 'max:255'],
+        ], [
+            'replacing.required_if_accepted' => 'This replace does not say which ID it replaces, so nothing was changed. Reload the page and link the player again.',
         ]);
 
         if ($validator->fails()) {
@@ -452,6 +460,7 @@ class RollcallController extends Controller
         try {
             $result = $handler->handle($request->user(), new LinkUnmatchedPlayer(
                 $unit, $weekStart, $platform, $request->input('platform_id'), $trooperId, $request->boolean('replace'),
+                $request->boolean('replace') ? $request->input('replacing') : null,
             ));
         } catch (GameIdentityForbiddenException $e) {
             return response()->json(['message' => $e->getMessage()], 403);
