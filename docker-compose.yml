@@ -28,6 +28,13 @@ services:
       # Runs migrate --force and config/route/view/event caching on every start.
       AUTORUN_ENABLED: "true"
       AUTORUN_LARAVEL_STORAGE_LINK: "false"
+    # The image's own check asks for localhost, which production refuses (trustHosts allows only the APP_URL host).
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "-H", "Host: ${APP_DOMAIN}", "http://localhost:8080/up"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
   queue:
     <<: *app
