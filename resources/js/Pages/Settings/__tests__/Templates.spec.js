@@ -780,6 +780,24 @@ describe('Settings/Templates', () => {
                 expect(wrapper.get('[data-testid="template-preview-note"]').text()).toContain("2/1/E/2-7's 2 troopers and their marks this week");
             });
 
+            it("lists and labels the picked section's fireteams as its rollcall post does", async () => {
+                const ROLES = '[TABLE]{{#troopers}}[TR][TD]{{role}}[/TD][TD]{{display_name}}[/TD][/TR]{{/troopers}}[/TABLE]';
+                const trooper = (id, name, extra = {}) => ({ id, cavId: 10 + id, rank: 'Private', rankShort: 'PVT', rankIcon: null, name, displayName: `PVT ${name}`, rollcall: 'unsigned', status: null, role: null, leadsFireteam: false, fireteamLeaderId: null, ...extra });
+                vi.stubGlobal('fetch', respond(200, {
+                    ...ROLLCALL,
+                    troopers: [trooper(1, 'Adams.P'), trooper(2, 'Baker.Q', { fireteamLeaderId: 3 }), trooper(3, 'Cole.R', { role: 'ftl', leadsFireteam: true })],
+                    fireteams: { show: true, order: 'by_fireteam', slAslLead: false, alphabet: 'nato', can: { edit: false, editPolicy: false } },
+                }));
+                const wrapper = real({ active: { ...VERSION_2, body: ROLES } });
+
+                await pick(wrapper, '7');
+
+                // Cole.R leads Fireteam Alpha with Baker.Q under him; Adams.P is in no fireteam, so he comes last.
+                expect(wrapper.get('[data-testid="template-preview-post"]').findAll('td').map((cell) => cell.text())).toEqual([
+                    'FTL Alpha', 'PVT Cole.R', '', 'PVT Baker.Q', '', 'PVT Adams.P',
+                ]);
+            });
+
             it('goes back to the sample when the sample is picked again', async () => {
                 vi.stubGlobal('fetch', respond(200, ROLLCALL));
                 const wrapper = real();
