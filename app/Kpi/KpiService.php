@@ -64,6 +64,9 @@ final class KpiService
 
     private const ATTENDED = [AttendanceStatus::Present, AttendanceStatus::Makeup, AttendanceStatus::Attached];
 
+    /** Attended at their own section's practice ({@see ownSectionPractice()}): {@see ATTENDED} without the makeup. */
+    private const ATTENDED_AT_OWN = [AttendanceStatus::Present, AttendanceStatus::Attached];
+
     public function __construct(
         private readonly TrooperRepository $troopers,
         private readonly AttendanceRepository $attendance,
@@ -129,31 +132,72 @@ final class KpiService
      * per-trooper rows `forUnit()` sums, for a roster or at-risk flag to reuse. Three queries
      * regardless of subtree size.
      *
-     * `$windowWeeks` widens the trailing window for a caller that needs the same definitions over a
-     * longer span — the Joint Service Achievement Medal candidates read a guest's own SP over
-     * `portal.jsam.window_weeks` (decided 2026-10-23) — so a longer window still counts LOA weeks,
-     * held practices and automatic makeups exactly as here. Every other caller keeps the default
-     * {@see WINDOW_WEEKS}; the at-risk flag of a row is only meaningful over that one.
-     *
      * @return Collection<int, TrooperAttendance>
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function trooperAttendance(Unit $unit, CarbonInterface $weekStart): Collection
+    {
+        $weekStart = WeekOf::requireStart($weekStart);
+        $marks = $this->marksByTrooper($unit, $weekStart);
+
+        $troopers = $this->troopers->assignedWithin($unit);
+        $covers = $this->coversFor($troopers, $weekStart);
+
+        return $troopers->mapWithKeys(fn (int $trooperId) => [
+            $trooperId => $this->forTrooper($trooperId, $marks->get($trooperId, collect()), $weekStart, $covers[$trooperId]),
+        ]);
+    }
+
+    /**
+     * A trooper's attendance at their own section's practice, for the Joint Service Achievement Medal's "while still
+     * consistently attending their own" (decided by the product owner 2026-10-23), keyed by trooper id, over the
+     * trailing `$windowWeeks` Cav weeks ending with `$weekStart`. It is the SP above with one difference: a makeup is
+     * never attendance at their own section. A makeup (by hand or automatic) answers the weekly accountability, one
+     * section practice or a makeup, and so counts in the SP above; here it never counts as attended, so:
+     *
+     * - attended: `present` or `attached` at their own section's practice;
+     * - eligible: their own section's practice was held that week (AD-14's `held`, the same rule as above), whether
+     *   they attended it, missed it or made it up elsewhere; a week their own section did not practise stays out, even
+     *   when they made it up, so visits to other sections can never stand in for their own;
+     * - a week leave covers (`LoaCoverage`, or an `loa` mark) leaves the ratio exactly as above.
+     *
+     * For troopers from many sections at once in two queries (their counting marks and their leave), whichever
+     * sections they belong to. A trooper who is departed, unplaced or unknown gets `0/0`, which says nothing.
+     *
+     * @param  iterable<int>  $trooperIds
+     * @return Collection<int, Ratio>
      *
      * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC, or `$windowWeeks` is below 1.
      */
-    public function trooperAttendance(Unit $unit, CarbonInterface $weekStart, int $windowWeeks = self::WINDOW_WEEKS): Collection
+    public function ownSectionPractice(iterable $trooperIds, CarbonInterface $weekStart, int $windowWeeks): Collection
     {
         if ($windowWeeks < 1) {
             throw new InvalidArgumentException("The KPI window must span at least one Cav week, got {$windowWeeks}.");
         }
 
         $weekStart = WeekOf::requireStart($weekStart);
-        $marks = $this->marksByTrooper($unit, $weekStart, $windowWeeks);
+        $ids = collect($trooperIds)->map(fn ($id) => (int) $id)->unique()->sort()->values();
 
-        $troopers = $this->troopers->assignedWithin($unit);
-        $covers = $this->coversFor($troopers, $weekStart, $windowWeeks);
+        if ($ids->isEmpty()) {
+            return collect();
+        }
 
-        return $troopers->mapWithKeys(fn (int $trooperId) => [
-            $trooperId => $this->forTrooper($trooperId, $marks->get($trooperId, collect()), $weekStart, $covers[$trooperId], $windowWeeks),
-        ]);
+        $marks = $this->attendance
+            ->countingMarksOf($ids->all(), $weekStart->subWeeks($windowWeeks - 1), $weekStart)
+            ->groupBy(fn (CountingMark $mark) => $mark->trooperId);
+        $covers = $this->coversFor($ids, $weekStart, $windowWeeks);
+
+        return $ids->mapWithKeys(function (int $trooperId) use ($marks, $covers) {
+            $own = $marks->get($trooperId, collect());
+            $loaWeeks = $this->loaWeeks($own, $covers[$trooperId] ?? []);
+            $eligible = $own->reject(fn (CountingMark $mark) => $loaWeeks->contains($mark->weekStart->toDateString()));
+
+            return [$trooperId => new Ratio(
+                $eligible->filter(fn (CountingMark $mark) => $mark->held && in_array($mark->status, self::ATTENDED_AT_OWN, true))->count(),
+                $eligible->filter(fn (CountingMark $mark) => $mark->held)->count(),
+            )];
+        });
     }
 
     /**
@@ -161,10 +205,10 @@ final class KpiService
      *
      * @return Collection<int, Collection<int, CountingMark>>
      */
-    private function marksByTrooper(Unit $unit, CarbonImmutable $weekStart, int $windowWeeks = self::WINDOW_WEEKS): Collection
+    private function marksByTrooper(Unit $unit, CarbonImmutable $weekStart): Collection
     {
         return $this->attendance
-            ->countingMarks($unit, $weekStart->subWeeks($windowWeeks - 1), $weekStart)
+            ->countingMarks($unit, $weekStart->subWeeks(self::WINDOW_WEEKS - 1), $weekStart)
             ->groupBy(fn (CountingMark $mark) => $mark->trooperId);
     }
 
@@ -185,16 +229,11 @@ final class KpiService
      * @param  Collection<int, CountingMark>  $marks  this trooper's counting marks in the window
      * @param  array<string, LoaCover>  $covers  this trooper's LOA coverage per window week, keyed by `week_start` date
      */
-    private function forTrooper(int $trooperId, Collection $marks, CarbonImmutable $weekStart, array $covers, int $windowWeeks = self::WINDOW_WEEKS): TrooperAttendance
+    private function forTrooper(int $trooperId, Collection $marks, CarbonImmutable $weekStart, array $covers): TrooperAttendance
     {
-        // A week leaves the window when leave covers it, or when a leave that could not be read might: either way
-        // the trooper is not counted as missing it (AD-4). `$loaWeeks` is those weeks, whether or not a practice
-        // row exists for them, so the rollcall denominator drops them too.
-        $loaWeeks = collect($covers)
-            ->filter(fn ($cover) => $cover->suppressesAtRisk())
-            ->keys()
-            ->merge($marks->filter(fn (CountingMark $mark) => $this->isLoaCovered($mark))->map(fn (CountingMark $mark) => $mark->weekStart->toDateString()))
-            ->unique();
+        // `$loaWeeks` holds the weeks leave takes out whether or not a practice row exists for them, so the rollcall
+        // denominator drops them too.
+        $loaWeeks = $this->loaWeeks($marks, $covers);
         $eligible = $marks->reject(fn (CountingMark $mark) => $loaWeeks->contains($mark->weekStart->toDateString()));
         $thisWeek = $marks->filter(fn (CountingMark $mark) => $mark->weekStart->equalTo($weekStart));
         $missed = $eligible->filter(fn (CountingMark $mark) => $mark->status === AttendanceStatus::Missed);
@@ -203,7 +242,7 @@ final class KpiService
             trooperId: $trooperId,
             rollcall: new Ratio(
                 $eligible->filter(fn (CountingMark $mark) => $mark->rollcall !== RollcallSignature::Unsigned)->count(),
-                $windowWeeks - $loaWeeks->count(),
+                self::WINDOW_WEEKS - $loaWeeks->count(),
             ),
             practice: new Ratio(
                 $eligible->filter(fn (CountingMark $mark) => in_array($mark->status, self::ATTENDED, true))->count(),
@@ -218,6 +257,24 @@ final class KpiService
             makeups: $thisWeek->filter(fn (CountingMark $mark) => $mark->status === AttendanceStatus::Makeup)->count(),
             missedWeeks: $missed->map(fn (CountingMark $mark) => $mark->weekStart->toDateString())->sort()->values()->all(),
         );
+    }
+
+    /**
+     * The window weeks (`week_start` dates) that leave every denominator: a week leave covers, or one a leave that
+     * could not be read might cover, so the trooper is not counted as missing it (AD-4), and a week already marked
+     * `loa` ({@see isLoaCovered()}).
+     *
+     * @param  Collection<int, CountingMark>  $marks  one trooper's counting marks in the window
+     * @param  array<string, LoaCover>  $covers  that trooper's LOA coverage per window week
+     * @return Collection<int, string>
+     */
+    private function loaWeeks(Collection $marks, array $covers): Collection
+    {
+        return collect($covers)
+            ->filter(fn (LoaCover $cover) => $cover->suppressesAtRisk())
+            ->keys()
+            ->merge($marks->filter(fn (CountingMark $mark) => $this->isLoaCovered($mark))->map(fn (CountingMark $mark) => $mark->weekStart->toDateString()))
+            ->unique();
     }
 
     /**

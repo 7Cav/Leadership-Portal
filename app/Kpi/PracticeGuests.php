@@ -6,7 +6,6 @@ use App\Models\Trooper;
 use App\Models\Unit;
 use App\Repositories\CrossSectionSightingRepository;
 use App\Repositories\TrooperRepository;
-use App\Repositories\UnitRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonInterface;
 use InvalidArgumentException;
@@ -18,16 +17,19 @@ use InvalidArgumentException;
  * commander" (7Cav Awards and Decorations, 3.8.4). The portal never awards anything; it lists the guests and marks the
  * candidates.
  *
- * A guest of `$unit` is a serving trooper placed in a section outside `$unit` who was recorded (by the game-server
- * capture or by a host leader's hand) at a practice of a section under it during the last
+ * A guest of `$unit` is a serving trooper placed in a section outside `$unit` who was recorded at a practice of a
+ * section under it (by a host leader's hand; game-server sightings recorded before 2026-10-23 count too, and the
+ * capture records them again once practices have set times) during the last
  * {@see JsamCriteria::$windowWeeks} Cav weeks, ending with `$weekStart`. Their visits count the unit's host practices,
  * once each whatever the source, so the count the commander reads is the count the badge is decided on: a company sees
  * a guest's visits to all its sections, one of its sections only those to itself. A trooper who has since moved into
  * the unit is not its guest any more, and a departed trooper is left out.
  *
- * Their own SP % is never re-derived here: it is `KpiService::trooperAttendance()` for their own section over the same
- * window (AD-21), so LOA weeks, held practices and automatic makeups count exactly as on every other screen. One query
- * for the guests, one for their rows, and the KPI service's three per distinct own section.
+ * Their own SP % is never re-derived here: it is `KpiService::ownSectionPractice()` over the same window (AD-21), the
+ * shared SP without makeups (decided 2026-10-23): a makeup answers the weekly accountability but is not attendance at
+ * their own section, and a week their own section did not practise stays out, so visits can never stand in for their
+ * own. LOA weeks and held practices count exactly as on every other screen. One query for the guests, one for their
+ * rows, and the KPI service's two, however many sections they come from.
  *
  * Read-only. The caller passes only a unit the ScopeResolver permits (AD-8); a guest from outside that scope is shown by
  * name, rank, own section and these numbers only, never with a link to a milpac the viewer may not open.
@@ -37,7 +39,6 @@ final class PracticeGuests
     public function __construct(
         private readonly CrossSectionSightingRepository $sightings,
         private readonly TrooperRepository $troopers,
-        private readonly UnitRepository $units,
         private readonly KpiService $kpis,
     ) {}
 
@@ -64,16 +65,7 @@ final class PracticeGuests
         }
 
         $troopers = $this->troopers->byIds($visits->keys()->all());
-        $ownSp = [];
-
-        foreach ($troopers->groupBy('primary_section_id') as $sectionId => $group) {
-            $section = $this->units->find((int) $sectionId);
-            $rows = $section === null ? collect() : $this->kpis->trooperAttendance($section, $weekStart, $criteria->windowWeeks);
-
-            foreach ($group as $trooper) {
-                $ownSp[$trooper->id] = $rows->get($trooper->id)?->practice ?? new Ratio(0, 0);
-            }
-        }
+        $ownSp = $this->kpis->ownSectionPractice($troopers->keys(), $weekStart, $criteria->windowWeeks);
 
         $guests = $troopers->map(function (Trooper $trooper) use ($visits, $ownSp, $criteria) {
             $seen = $visits->get($trooper->id);
@@ -82,8 +74,8 @@ final class PracticeGuests
                 trooper: $trooper,
                 visits: $seen->visits,
                 lastWeek: $seen->lastWeek,
-                ownSp: $ownSp[$trooper->id],
-                candidate: $criteria->isCandidate($seen->visits, $ownSp[$trooper->id]),
+                ownSp: $ownSp->get($trooper->id, new Ratio(0, 0)),
+                candidate: $criteria->isCandidate($seen->visits, $ownSp->get($trooper->id, new Ratio(0, 0))),
             );
         })->values()->all();
 

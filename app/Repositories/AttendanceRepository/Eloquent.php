@@ -16,6 +16,7 @@ use App\Repositories\SectionWeekProgress;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -141,15 +142,52 @@ class Eloquent implements AttendanceRepository
 
     public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection
     {
+        $sections = Unit::query()->select('id')->where('path', 'like', "{$unit->path}%");
+        $population = $includeDeparted
+            ? Trooper::query()->whereIn('troopers.primary_section_id', $sections)
+            : Trooper::query()->assignedWithin($unit);
+
+        return $this->countingMarksFor($population, $sections, $firstWeek, $lastWeek);
+    }
+
+    public function countingMarksOf(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
+    {
+        WeekOf::requireStart($firstWeek);
+        WeekOf::requireStart($lastWeek);
+        $trooperIds = array_values(array_unique(array_map('intval', $trooperIds)));
+
+        if ($trooperIds === []) {
+            return collect();
+        }
+
+        $population = Trooper::query()
+            ->whereIn('troopers.id', $trooperIds)
+            ->whereIn('troopers.status', TrooperStatus::servingValues())
+            ->whereNotNull('troopers.primary_section_id');
+        $sections = Trooper::query()->select('primary_section_id')->whereIn('id', $trooperIds)->whereNotNull('primary_section_id');
+
+        return $this->countingMarksFor($population, $sections, $firstWeek, $lastWeek);
+    }
+
+    /**
+     * The one counting-marks query behind {@see countingMarks()} and {@see countingMarksOf()}: `$population` against the
+     * practices of their own primary sections in the window, with `$sections` (a one-column subquery of section ids)
+     * bounding the practices the held subquery reads.
+     *
+     * @param  Builder<Trooper>  $population
+     * @param  Builder<Unit>|Builder<Trooper>  $sections
+     * @return Collection<int, CountingMark>
+     */
+    private function countingMarksFor(Builder $population, Builder $sections, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
+    {
         // A practice is held once any row on it carries a leader's SP mark. Signatures alone do
         // not hold it, and neither does `loa` — derived from LOA data, it says nothing about
         // whether the practice ran — nor an automatic makeup, which records a practice attended
         // elsewhere and is written whether or not this section practised. Only practices in the
-        // window, of sections under `$unit`, can join below, so the subquery reads those and not
-        // the whole attendance history.
+        // window, of the population's sections, can join below, so the subquery reads those and
+        // not the whole attendance history.
         $from = WeekOf::requireStart($firstWeek);
         $to = WeekOf::requireStart($lastWeek);
-        $sections = Unit::query()->select('id')->where('path', 'like', "{$unit->path}%");
 
         $held = Attendance::query()
             ->select('attendance.section_practice_id')
@@ -160,10 +198,6 @@ class Eloquent implements AttendanceRepository
             ->where('attendance.status', '!=', AttendanceStatus::Loa->value)
             ->whereRaw(self::notAutoMakeupSql())
             ->groupBy('attendance.section_practice_id');
-
-        $population = $includeDeparted
-            ? Trooper::query()->whereIn('troopers.primary_section_id', $sections)
-            : Trooper::query()->assignedWithin($unit);
 
         return $population
             ->join('section_practices', 'section_practices.section_id', '=', 'troopers.primary_section_id')

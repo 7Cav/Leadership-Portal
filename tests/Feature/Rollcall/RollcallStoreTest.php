@@ -221,6 +221,11 @@ it('still answers saved when only the at-risk refresh fails, so the screen never
             throw new RuntimeException('kpi read failed');
         }
 
+        public function countingMarksOf(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
+        {
+            return $this->inner->countingMarksOf($trooperIds, $firstWeek, $lastWeek);
+        }
+
         public function weekProgress(array $sectionIds, CarbonInterface $weekStart, array $excusedTrooperIds = []): Collection
         {
             return $this->inner->weekProgress($sectionIds, $weekStart, $excusedTrooperIds);

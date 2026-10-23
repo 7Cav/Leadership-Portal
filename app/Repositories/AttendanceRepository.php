@@ -124,6 +124,19 @@ interface AttendanceRepository
     public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection;
 
     /**
+     * {@see countingMarks()} for a set of troopers instead of a subtree: each serving, placed trooper of `$trooperIds`
+     * against the practices of their own primary section, whichever sections those are, with `held` decided by the
+     * same rule. For a screen that measures troopers from many sections at once (the JSAM guests' own SP) in one
+     * query rather than one per section. A departed or unplaced trooper has no marks. Ordered by trooper id, then week.
+     *
+     * @param  list<int>  $trooperIds
+     * @return Collection<int, CountingMark>
+     *
+     * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
+     */
+    public function countingMarksOf(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection;
+
+    /**
      * Where each of `$sectionIds` stands for the week `$weekStart` (the home step matrix, AD-14):
      * troopers assigned, rollcalls signed, practice marks recorded, whether the practice was held,
      * and for the rollcall's section picker the troopers on LOA, the unsigned ones and when the

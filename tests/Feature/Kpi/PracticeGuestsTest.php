@@ -165,16 +165,58 @@ it('takes LOA weeks out of the guest\'s own SP through the KPI definition', func
     expect($row->ownSp)->toEqual(new Ratio(3, 4))->and($row->candidate)->toBeTrue();
 });
 
-it('counts an automatic makeup on the guest\'s own rollcall like any attended week', function () {
+/** The automatic makeup a visit puts on `$trooper`'s own section's rollcall `$weeksBack` weeks back. */
+function ownAutoMakeup(Trooper $trooper, int $weeksBack): void
+{
+    $practice = app(SectionPracticeRepository::class)->findOrCreate($trooper->primary_section_id, guestsWeek($weeksBack));
+    Attendance::factory()->create(['trooper_id' => $trooper->id, 'section_practice_id' => $practice->id, 'status' => AttendanceStatus::Makeup, 'source' => AttendanceSource::Auto]);
+}
+
+// Decided 2026-10-23 (M2): a makeup answers the weekly accountability but is not attendance at their own section, so
+// the own SP behind the badge never counts it, and a week their own section did not practise stays out.
+it('never makes a candidate of a guest whose own section never practised, however often they visited', function () {
     $guest = guestTrooper($this->away);
     foreach ([0, 1, 2] as $back) {
         guestVisit($guest, $this->host, $back);
-        $practice = app(SectionPracticeRepository::class)->findOrCreate($this->away->id, guestsWeek($back));
-        Attendance::factory()->create(['trooper_id' => $guest->id, 'section_practice_id' => $practice->id, 'status' => AttendanceStatus::Makeup, 'source' => AttendanceSource::Auto]);
+        ownAutoMakeup($guest, $back);
     }
-    ownMark($guest, 3, AttendanceStatus::Missed);
 
-    expect(guestsOf($this->host)[0]->ownSp)->toEqual(new Ratio(3, 4))->and(guestsOf($this->host)[0]->candidate)->toBeTrue();
+    $row = guestsOf($this->host)[0];
+
+    expect($row->ownSp)->toEqual(new Ratio(0, 0))->and($row->candidate)->toBeFalse();
+});
+
+it('makes a candidate of a guest with three of four real own practices besides the visits', function () {
+    $guest = guestTrooper($this->away);
+    ownRecord($guest, 3, 4);
+    // Visits in weeks their own section did not practise: the makeups they brought leave the own SP untouched.
+    foreach ([5, 6, 7] as $back) {
+        guestVisit($guest, $this->host, $back);
+        ownAutoMakeup($guest, $back);
+    }
+
+    $row = guestsOf($this->host)[0];
+
+    expect($row->ownSp)->toEqual(new Ratio(3, 4))->and($row->candidate)->toBeTrue();
+});
+
+it('counts a makeup in a week their own section did practise as an own practice not attended', function () {
+    $guest = guestTrooper($this->away);
+    $teammate = guestTrooper($this->away, username: 'Teammate.T');
+    ownRecord($guest, 2, 2);
+    foreach ([2, 3, 4] as $back) {
+        guestVisit($guest, $this->host, $back);
+    }
+    // Their own section held weeks 2 and 3 (a teammate present) while they made it up at the host's.
+    foreach ([2, 3] as $back) {
+        ownMark($teammate, $back, AttendanceStatus::Present);
+        ownAutoMakeup($guest, $back);
+    }
+    ownAutoMakeup($guest, 4);
+
+    $row = guestsOf($this->host)[0];
+
+    expect($row->ownSp)->toEqual(new Ratio(2, 4))->and($row->candidate)->toBeFalse();
 });
 
 it('leaves departed and unplaced troopers out', function () {

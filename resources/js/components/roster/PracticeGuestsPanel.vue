@@ -10,8 +10,12 @@ import { percentLabel } from '@/lib/roster';
 // "Guests at our practices" (JSAM evidence, decided 2026-10-23): troopers from outside this unit who attended its
 // sections' practices, how often, when last, and whether they also attend their own section. The Joint Service
 // Achievement Medal is recommended by the commander of the unit that benefited; the portal never awards it, it only
-// marks the candidates. Every number comes from RosterController (own SP from the shared KPI service); the panel is
-// read-only for every viewer, like the rest of the roster.
+// marks the candidates. Every number comes from RosterController (own-section SP from the shared KPI service, which
+// leaves makeups out); the panel is read-only for every viewer, like the rest of the roster. Guests come from the host
+// leaders adding them on their rollcall: the game server records them again once practices have set times.
+
+// Shown with the own-section SP: why it can be lower than the trooper's SP elsewhere.
+const OWN_SP_NOTE = 'Practices of their own section they attended, out of those it held. Makeups are not counted.';
 const props = defineProps({
     // `{ criteria: { minVisits, minOwnSpPercent, windowWeeks }, rows: [{ trooperId, name, displayName, rank, rankFull,
     // section: { id, designation } | null, visits, lastSeen, ownSp: [n, d], candidate }] }`.
@@ -45,14 +49,16 @@ const candidates = computed(() => rows.value.filter((row) => row.candidate).leng
                 {{ rows.length }} guest{{ rows.length === 1 ? '' : 's' }}<template v-if="candidates">, {{ candidates }} JSAM candidate{{ candidates === 1 ? '' : 's' }}</template>
             </span>
             <p class="w-full max-w-[80ch] text-xs text-muted-foreground" data-testid="practice-guests-criteria">
-                Troopers from other units seen at {{ unitLabel }}'s practices over the last {{ criteria.windowWeeks }} Cav weeks. A JSAM
-                candidate attended at least {{ criteria.minVisits }} of them and kept their own SP at {{ criteria.minOwnSpPercent }}% or more
-                over the same weeks. The portal only shows the evidence; the recommendation is yours.
+                Troopers from other units recorded as guests at {{ unitLabel }}'s practices over the last {{ criteria.windowWeeks }} Cav
+                weeks; section leaders add them on the rollcall. A JSAM candidate attended at least {{ criteria.minVisits }} of them and
+                {{ criteria.minOwnSpPercent }}% or more of their own section's practices over the same weeks (makeups don't count toward
+                their own). The portal only shows the evidence; the recommendation is yours.
             </p>
         </div>
 
         <EmptyState v-if="!rows.length" :icon="PhUsers" title="No guests yet" class="py-8" data-testid="practice-guests-empty">
-            Nobody from another unit has been seen at these practices in the last {{ criteria.windowWeeks }} Cav weeks.
+            Nobody from another unit was added as a guest at these practices in the last {{ criteria.windowWeeks }} Cav weeks. Section
+            leaders add guests on their rollcall.
         </EmptyState>
 
         <div v-else class="overflow-x-auto">
@@ -63,7 +69,7 @@ const candidates = computed(() => rows.value.filter((row) => row.candidate).leng
                         <th scope="col" class="px-2 py-2 font-medium">Own section</th>
                         <th scope="col" class="px-2 py-2 text-right font-medium">Visits</th>
                         <th scope="col" class="px-2 py-2 font-medium">Last seen</th>
-                        <th scope="col" class="px-2 py-2 text-right font-medium">Own SP</th>
+                        <th scope="col" class="px-2 py-2 text-right font-medium" :title="OWN_SP_NOTE">Own section SP</th>
                         <th scope="col" class="px-4 py-2"><span class="sr-only">JSAM</span></th>
                     </tr>
                 </thead>
@@ -78,7 +84,11 @@ const candidates = computed(() => rows.value.filter((row) => row.candidate).leng
                         <td class="px-2 py-2 font-mono text-xs text-muted-foreground">{{ row.section?.designation ?? 'No section' }}</td>
                         <td class="px-2 py-2 text-right tabular-nums" data-testid="practice-guest-visits">{{ row.visits }}</td>
                         <td class="px-2 py-2 text-muted-foreground tabular-nums">Week of {{ forumDate(row.lastSeen) }}</td>
-                        <td class="px-2 py-2 text-right tabular-nums" data-testid="practice-guest-sp" :title="row.ownSp[1] ? `${row.ownSp[0]} of ${row.ownSp[1]} practices` : 'No practice to count'">
+                        <td
+                            class="px-2 py-2 text-right tabular-nums"
+                            data-testid="practice-guest-sp"
+                            :title="row.ownSp[1] ? `${row.ownSp[0]} of ${row.ownSp[1]} own-section practices. Makeups are not counted.` : 'Their own section held no practice to count.'"
+                        >
                             {{ percentLabel(row.ownSp) }}
                         </td>
                         <td class="px-4 py-2 text-right">

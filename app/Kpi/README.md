@@ -52,14 +52,19 @@ trooper's own section's practice and credits their SP like a makeup marked by ha
 held for the rest of the section, so a section that did not practise is not shown as having held SP; the week still
 counts as eligible and attended for the trooper who made it up (a week a trooper attended is always eligible for them).
 
-`trooperAttendance()` takes an optional window (`$windowWeeks`, default `WINDOW_WEEKS`) so a caller that needs the
-same definitions over a longer span reads them here instead of re-deriving SP. Only `PracticeGuests` uses it.
+`ownSectionPractice()` (decided 2026-10-23) is the JSAM "consistently attending their own" check, kept here so it is
+one definition (AD-21): the SP above over a caller's window, for any set of troopers whatever their sections, with one
+difference. A makeup (by hand or automatic) answers the weekly accountability, so it counts in the SP everywhere else,
+but it is not attendance at the trooper's own section, so here it never counts as attended; a week their own section
+held counts as eligible even when they made it up elsewhere, and a week their own section did not hold stays out, so
+visits can never stand in for their own. LOA weeks leave it exactly as above. Only `PracticeGuests` uses it.
 
 `PracticeGuests` (decided 2026-10-23) is the roster's "Guests at our practices" read model, the Joint Service
 Achievement Medal evidence: the serving troopers from outside a unit recorded at its sections' practices
-(`cross_section_sightings`, capture or a host leader's hand entry, one visit per practice) over the last
-`portal.jsam.window_weeks` Cav weeks, with their visits, the last week seen and their own SP % over the same window
-from `trooperAttendance()` for their own section. `JsamCriteria` marks a candidate: visits at least
+(`cross_section_sightings`, one visit per practice: a host leader's hand entry, or a game-server sighting recorded
+before 2026-10-23; the capture records guests again once practices have set times) over the last
+`portal.jsam.window_weeks` Cav weeks, with their visits, the last week seen and their own-section SP % over the same
+window from `ownSectionPractice()`. `JsamCriteria` marks a candidate: visits at least
 `portal.jsam.min_visits` and own SP at least `portal.jsam.min_own_sp_percent` (compared on the ratio's parts; an SP
 with nothing eligible never qualifies). Visits count the viewed unit's practices only, so the number shown is the one
 the badge is decided on. The portal never awards the medal.
