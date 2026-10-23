@@ -9,15 +9,19 @@ use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Commands\Attendance\MarkRollcallPosted;
 use App\Commands\Attendance\MarkRollcallPostedHandler;
 use App\Commands\Capture\CaptureSources;
+use App\Commands\WeeklyReports\InvalidPlatoonTrainingTopicException;
 use App\Commands\WeeklyReports\InvalidReportContentException;
 use App\Commands\WeeklyReports\SaveReportDraft;
 use App\Commands\WeeklyReports\SaveReportDraftHandler;
 use App\Commands\WeeklyReports\SendWeeklyReport;
 use App\Commands\WeeklyReports\SendWeeklyReportHandler;
+use App\Commands\WeeklyReports\SetPlatoonTrainingTopic;
+use App\Commands\WeeklyReports\SetPlatoonTrainingTopicHandler;
 use App\Jobs\CaptureSectionPracticeJob;
 use App\Models\Attendance;
 use App\Models\AttendanceStatus;
 use App\Models\GamePlatform;
+use App\Models\PlatoonTrainingTopic;
 use App\Models\PracticeCapturePlayer;
 use App\Models\SectionPractice;
 use App\Models\SyncRun;
@@ -30,6 +34,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Models\WeeklyReportStatus;
+use App\Repositories\PlatoonTrainingTopicRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
@@ -165,6 +170,36 @@ it('sends a report at the floor and answers 404 for the week before it', functio
     expect(WeeklyReport::query()->sole())
         ->week_start->toDateString()->toBe(FLOOR_WEEK)
         ->status->toBe(WeeklyReportStatus::Sent);
+});
+
+it('sets and clears a platoon training topic at the floor and answers 404 for the week before it', function () {
+    $platoonLeader = User::factory()->create(['cav_id' => Trooper::factory()->create([
+        'cav_position_id' => UnitCommandMapping::factory()->create(['unit_id' => $this->platoon->id])->cav_position_id,
+    ])->cav_id]);
+    app(PlatoonTrainingTopicRepository::class)->set($this->platoon->id, floorWeek(BEFORE_FLOOR_WEEK), 'Old topic', false, $platoonLeader->id);
+    $url = fn (string $week) => "/reports/{$this->platoon->id}/{$week}/topic";
+
+    $this->actingAs($platoonLeader)->put($url(BEFORE_FLOOR_WEEK), ['subject' => 'Room clearing'])->assertNotFound();
+    $this->actingAs($platoonLeader)->delete($url(BEFORE_FLOOR_WEEK))->assertNotFound();
+    expect(PlatoonTrainingTopic::query()->sole()->subject)->toBe('Old topic');
+
+    $this->actingAs($platoonLeader)->get("/reports/{$this->platoon->id}/".BEFORE_FLOOR_WEEK)
+        ->assertInertia(fn (Assert $page) => $page->where('canSetTopic', false));
+
+    $this->actingAs($platoonLeader)->put($url(FLOOR_WEEK), ['subject' => 'Room clearing'])->assertRedirect()->assertSessionHasNoErrors();
+    expect(PlatoonTrainingTopic::query()->where('week_start', floorWeek(FLOOR_WEEK))->sole()->subject)->toBe('Room clearing');
+
+    $this->actingAs($platoonLeader)->delete($url(FLOOR_WEEK))->assertRedirect()->assertSessionHasNoErrors();
+    expect(PlatoonTrainingTopic::query()->where('week_start', floorWeek(FLOOR_WEEK))->exists())->toBeFalse();
+});
+
+it('refuses a platoon training topic for a week before the floor in its handler, called directly', function () {
+    expect(fn () => app(SetPlatoonTrainingTopicHandler::class)->handle(
+        User::factory()->admin()->create(),
+        new SetPlatoonTrainingTopic($this->platoon->id, floorWeek(BEFORE_FLOOR_WEEK), 'Room clearing', true),
+    ))->toThrow(InvalidPlatoonTrainingTopicException::class, 'too far back');
+
+    expect(PlatoonTrainingTopic::query()->exists())->toBeFalse();
 });
 
 it('shows a report below the floor read-only, a sent one as it was frozen, without creating a row', function () {

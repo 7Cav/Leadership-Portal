@@ -27,8 +27,12 @@ beforeEach(function () {
 
     $this->moment = CarbonImmutable::parse('2026-10-07 18:00:00', 'UTC');
     $this->weekStart = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');
+    // A topic is refused before the week floor, which counts back from now: pin now to this week.
+    CarbonImmutable::setTestNow($this->moment);
     $this->leader = topicCommander($this->platoon->id, 801);
 });
+
+afterEach(fn () => CarbonImmutable::setTestNow());
 
 function topicCommander(int $unitId, int $positionId): User
 {

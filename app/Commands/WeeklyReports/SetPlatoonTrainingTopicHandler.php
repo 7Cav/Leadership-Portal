@@ -21,7 +21,7 @@ use App\Support\Time\WeekOf;
  *
  * Refused before anything is written: a unit outside the actor's scope or one they do not command
  * (a staff grant reads a unit, it does not write to it; an Admin may), a unit that is not a
- * platoon, and a week whose platoon report is already sent.
+ * platoon, a week before `WeekOf::floor()`, and a week whose platoon report is already sent.
  */
 class SetPlatoonTrainingTopicHandler
 {
@@ -43,8 +43,9 @@ class SetPlatoonTrainingTopicHandler
      *
      * @throws PlatoonTrainingTopicForbiddenException when the actor does not command the unit, it
      *                                                is outside their scope, or does not exist.
-     * @throws InvalidPlatoonTrainingTopicException when the unit is not a platoon, or its report
-     *                                              for the week is already sent.
+     * @throws InvalidPlatoonTrainingTopicException when the unit is not a platoon, the week is
+     *                                              before `WeekOf::floor()`, or its report for the
+     *                                              week is already sent.
      */
     public function handle(User $actor, SetPlatoonTrainingTopic $command): ?PlatoonTrainingTopic
     {
@@ -59,6 +60,12 @@ class SetPlatoonTrainingTopicHandler
         }
 
         $weekStart = WeekOf::start($command->week);
+
+        // The same floor every rollcall and report write keeps: a topic is a write to the week's
+        // reports, so it may not reach a week too far back to report.
+        if (WeekOf::isBeforeFloor($weekStart)) {
+            throw InvalidPlatoonTrainingTopicException::weekBeforeFloor($weekStart);
+        }
 
         if ($this->reports->find($unit->id, $weekStart)?->status === WeeklyReportStatus::Sent) {
             throw InvalidPlatoonTrainingTopicException::reportSent();
