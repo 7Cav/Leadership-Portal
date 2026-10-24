@@ -103,16 +103,26 @@ it('refuses anyone who is not an Admin, however much scope they hold', function 
         ->and(AuditLogEntry::count())->toBe(0);
 });
 
-it('refuses a unit that is not a section', function (UnitType $type) {
+it('places a trooper on any unit, an HQ node or a group as well as a section (2026-10-24)', function (UnitType $type) {
     $admin = User::factory()->admin()->create();
     $unit = Unit::factory()->create(['type' => $type]);
     $trooper = Trooper::factory()->create(['primary_section_id' => null]);
 
-    expect(fn () => placeTrooper($admin, $trooper, $unit))->toThrow(InvalidTrooperPlacementException::class, 'not a section');
+    placeTrooper($admin, $trooper, $unit);
 
-    expect($trooper->fresh()->primary_section_id)->toBeNull()
-        ->and(AuditLogEntry::count())->toBe(0);
-})->with([UnitType::Regiment, UnitType::Battalion, UnitType::Company, UnitType::Platoon]);
+    expect($trooper->fresh()->primary_section_id)->toBe($unit->id)
+        ->and(AuditLogEntry::count())->toBe(1);
+})->with([UnitType::Regiment, UnitType::Battalion, UnitType::Company, UnitType::Platoon, UnitType::Group]);
+
+it('refuses a unit that does not exist', function () {
+    $admin = User::factory()->admin()->create();
+    $trooper = Trooper::factory()->create(['primary_section_id' => null]);
+
+    expect(fn () => app(PlaceTrooperInSectionHandler::class)->handle($admin, new PlaceTrooperInSection($trooper->id, 999999, 'Because.')))
+        ->toThrow(InvalidTrooperPlacementException::class, 'There is no unit 999999');
+
+    expect(AuditLogEntry::count())->toBe(0);
+});
 
 it('refuses a trooper who is already placed, leaving the existing placement alone', function () {
     $admin = User::factory()->admin()->create();

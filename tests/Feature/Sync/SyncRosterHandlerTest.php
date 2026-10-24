@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitBilletMappingRepository;
+use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitRepository;
 use App\Sync\EmptyRosterException;
 use App\Sync\RosterSyncScopeFactory;
@@ -71,6 +72,8 @@ function syncRosterHandler(): SyncRosterHandler
         app(SyncRunRepository::class),
         app(UnitBilletMappingRepository::class),
         app(RosterSyncScopeFactory::class),
+        app(UnitCommandMappingRepository::class),
+        app(UnitRepository::class),
     );
 }
 
@@ -586,7 +589,7 @@ it('leaves an existing primary_section_id untouched when the billet no longer re
     expect(Trooper::where('cav_id', 1)->sole()->primary_section_id)->toBe($section->id);
 });
 
-it('does not resolve a mapping that points at a non-section unit', function () {
+it('resolves a mapping that points at an HQ node, placing the trooper on it (2026-10-24)', function () {
     $platoon = Unit::factory()->create(['type' => UnitType::Platoon]);
     UnitBilletMapping::factory()->create(['unit_id' => $platoon->id, 'cav_position_id' => 773]);
 
@@ -598,7 +601,7 @@ it('does not resolve a mapping that points at a non-section unit', function () {
 
     syncRosterHandler()->handle();
 
-    expect(Trooper::where('cav_id', 1)->sole()->primary_section_id)->toBeNull();
+    expect(Trooper::where('cav_id', 1)->sole()->primary_section_id)->toBe($platoon->id);
 });
 
 it('produces the same mapping on a re-run when nothing changed (idempotent)', function () {

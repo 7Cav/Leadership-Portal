@@ -304,7 +304,7 @@ describe('Settings/OrgStructure', () => {
 
             const text = wrapper.find('[data-testid="import-result"]').text();
             expect(text).toContain('31 nodes');
-            expect(text).toContain('29 section mappings');
+            expect(text).toContain('29 placement mappings');
             expect(text).toContain('1 position title skipped');
             expect(text).toContain('Section Leader 3/2/C/1-7');
         });
@@ -314,7 +314,7 @@ describe('Settings/OrgStructure', () => {
                 props: { units: UNITS, isAdmin: true, importResult: { unitsCreated: 0, mappingsCreated: 0, mappingsDiffering: 2, skippedTitles: [] } },
             });
 
-            expect(wrapper.find('[data-testid="import-result"]').text()).toContain('2 existing mappings point at a different section');
+            expect(wrapper.find('[data-testid="import-result"]').text()).toContain('2 existing mappings point at a different unit');
         });
 
         // Story 1.16 adds command-billet mapping counts to the same flash. They appear only when
@@ -498,20 +498,28 @@ describe('Settings/OrgStructure', () => {
                 expect(mountAdmin().findAll('[data-testid="assign-trooper"]')).toHaveLength(2);
             });
 
-            it('disables Assign, and says why, while the tree has no sections', () => {
-                const wrapper = mountAdmin({ units: UNITS });
+            it('disables Assign, and says why, while the tree has no units', () => {
+                const wrapper = mountAdmin({ units: [] });
 
                 const button = wrapper.find('[data-testid="assign-trooper"]');
                 expect(button.attributes('disabled')).toBeDefined();
-                expect(wrapper.find('[data-testid="assign-disabled-reason"]').text()).toContain('no sections');
+                expect(wrapper.find('[data-testid="assign-disabled-reason"]').text()).toContain('no units');
             });
 
-            it('opens a form that lists only sections, in chain-of-command order', async () => {
+            // Since 2026-10-24 any unit takes a trooper: HQ staff sit on their HQ node, the rest in a group.
+            it('opens a form that lists every unit, in chain-of-command order', async () => {
                 const wrapper = mountAdmin();
                 await open(wrapper);
 
                 const options = wrapper.findAll('[data-testid="assign-section"] option').map((option) => option.text());
-                expect(options).toEqual(['Select a section', '1/1/A/2-7 · 1st Section (2nd Battalion / Alpha Company)', '2/1/A/2-7 · 2nd Section (2nd Battalion / Alpha Company)']);
+                expect(options).toEqual([
+                    'Select a unit',
+                    '7th Cavalry Regiment',
+                    '2-7 · 2nd Battalion',
+                    'A/2-7 · Alpha Company (2nd Battalion)',
+                    '1/1/A/2-7 · 1st Section (2nd Battalion / Alpha Company)',
+                    '2/1/A/2-7 · 2nd Section (2nd Battalion / Alpha Company)',
+                ]);
             });
 
             it('keeps only one form open at a time', async () => {

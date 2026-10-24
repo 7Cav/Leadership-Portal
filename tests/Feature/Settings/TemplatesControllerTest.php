@@ -244,8 +244,8 @@ describe('previewing with a real section', function () {
     it('offers an Admin every section under the company', function () {
         $this->actingAs($this->admin)->get('/settings/templates?company='.$this->alpha->id)->assertInertia(fn ($page) => $page
             ->where('previewSections', [
-                ['id' => $this->section->id, 'designation' => '2/1/A/1-7', 'name' => '2nd Section', 'platoon' => '1/A/1-7'],
-                ['id' => $this->sibling->id, 'designation' => '3/1/A/1-7', 'name' => '3rd Section', 'platoon' => '1/A/1-7'],
+                ['id' => $this->section->id, 'designation' => '2/1/A/1-7', 'name' => '2nd Section', 'platoon' => '1/A/1-7', 'label' => null],
+                ['id' => $this->sibling->id, 'designation' => '3/1/A/1-7', 'name' => '3rd Section', 'platoon' => '1/A/1-7', 'label' => null],
             ]));
     });
 

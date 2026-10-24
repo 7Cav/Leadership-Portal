@@ -27,4 +27,6 @@ export default function globalSetup() {
     execFileSync('php', ['artisan', 'db:seed', '--force', '--class=Database\\Seeders\\RollcallHeldMarksSeeder'], { env, stdio: 'inherit' });
     // A guest added by hand at two of a section's practices, for the JSAM guests spec (2026-10-23).
     execFileSync('php', ['artisan', 'db:seed', '--force', '--class=Database\\Seeders\\GuestPracticeSeeder'], { env, stdio: 'inherit' });
+    // Staff, ELOA and New Recruit groups on the org page (2026-10-24).
+    execFileSync('php', ['artisan', 'db:seed', '--force', '--class=Database\\Seeders\\OrgPlacementSeeder'], { env, stdio: 'inherit' });
 }
