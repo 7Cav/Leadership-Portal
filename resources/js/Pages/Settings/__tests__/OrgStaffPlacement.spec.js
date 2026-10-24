@@ -1,17 +1,19 @@
-import { describe, it, expect, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import { flushPromises, mount } from '@vue/test-utils';
 import OrgStructure from '../OrgStructure.vue';
 
 // Staff, ELOA and New Recruit placement on the org page (decided 2026-10-24): HQ staff counted in their unit, New
 // Recruits hidden until asked for, an ELOA trooper's "was", a unit's game label and a vacant lead.
 
 const labelPatch = vi.fn();
+const routerPost = vi.fn();
+const routerDelete = vi.fn();
 
 vi.mock('vue-sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
     Head: { template: '<head></head>' },
-    router: { delete: vi.fn(), post: vi.fn() },
+    router: { delete: (...args) => routerDelete(...args), post: (...args) => routerPost(...args) },
     useForm: (initial) => ({ ...initial, processing: false, errors: {}, post: vi.fn(), patch: 'label' in initial ? labelPatch : vi.fn(), clearErrors: vi.fn() }),
 }));
 
@@ -110,5 +112,72 @@ describe('Settings/OrgStructure placement', () => {
 
         expect(options.some((text) => text.includes('1/D/DEVCOM'))).toBe(true);
         expect(options.some((text) => text.includes('Extended Leave of Absence'))).toBe(true);
+    });
+
+    describe('acting lead', () => {
+        afterEach(() => {
+            vi.unstubAllGlobals();
+            routerPost.mockReset();
+            routerDelete.mockReset();
+        });
+
+        it('shows an acting lead as the unit\'s lead, marked acting', async () => {
+            const units = UNITS.map((unit) =>
+                unit.id === 2 ? { ...unit, lead: { displayName: 'SGT Taylor.C', billet: 'DEVCOM Lead', source: 'acting' }, lead_vacant: false, acting_lead: { id: 7, displayName: 'SGT Taylor.C' } } : unit,
+            );
+            const wrapper = mountPage({ units });
+
+            expect(wrapper.find('[data-testid="lead-vacant-2"]').exists()).toBe(false);
+            await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+            expect(wrapper.find('[data-testid="detail-lead"]').text()).toBe('Lead: SGT Taylor.C (acting)');
+            // Not an Admin: no acting-lead controls.
+            expect(wrapper.find('[data-testid="acting-lead"]').exists()).toBe(false);
+        });
+
+        it('lets an Admin search for a trooper and make them acting lead, with a reason', async () => {
+            vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ troopers: [{ id: 7, displayName: 'SGT Taylor.C', departed: false }, { id: 8, displayName: 'PVT Gone.X', departed: true }] }) })));
+            const wrapper = mountPage({ isAdmin: true });
+
+            await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+            const panel = wrapper.find('[data-testid="acting-lead"]');
+            expect(panel.text()).toContain('DEVCOM starter platoon');
+            expect(panel.find('[data-testid="acting-assign"]').attributes('disabled')).toBeDefined();
+
+            await panel.find('[data-testid="acting-search"]').setValue('Tay');
+            await panel.find('[data-testid="acting-search"]').trigger('input');
+            await flushPromises();
+            const results = wrapper.findAll('[data-testid="acting-result"]');
+            // A departed trooper cannot lead, so is not offered.
+            expect(results.map((result) => result.text())).toEqual(['SGT Taylor.C']);
+
+            await results[0].trigger('click');
+            await wrapper.find('[data-testid="acting-reason"]').setValue('Runs the 1st starter platoon.');
+            await wrapper.find('[data-testid="acting-assign"]').trigger('click');
+
+            expect(routerPost).toHaveBeenCalledWith('/settings/org-structure/2/acting-lead', { trooper_id: 7, reason: 'Runs the 1st starter platoon.' }, expect.any(Object));
+        });
+
+        it('lets an Admin remove an acting lead only with a reason', async () => {
+            const units = UNITS.map((unit) => (unit.id === 2 ? { ...unit, acting_lead: { id: 7, displayName: 'SGT Taylor.C' } } : unit));
+            const wrapper = mountPage({ isAdmin: true, units });
+
+            await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+            expect(wrapper.find('[data-testid="acting-lead-current"]').text()).toBe('SGT Taylor.C');
+            expect(wrapper.find('[data-testid="acting-remove"]').attributes('disabled')).toBeDefined();
+
+            await wrapper.find('[data-testid="acting-reason"]').setValue('Handed over.');
+            await wrapper.find('[data-testid="acting-remove"]').trigger('click');
+
+            expect(routerDelete).toHaveBeenCalledWith('/settings/org-structure/2/acting-lead', expect.objectContaining({ data: { reason: 'Handed over.' } }));
+        });
+
+        it('offers no acting lead on a group or the regiment', async () => {
+            const wrapper = mountPage({ isAdmin: true });
+
+            await wrapper.find('[data-testid="unit-row-4"]').trigger('click');
+            expect(wrapper.find('[data-testid="acting-lead"]').exists()).toBe(false);
+            await wrapper.find('[data-testid="unit-row-1"]').trigger('click');
+            expect(wrapper.find('[data-testid="acting-lead"]').exists()).toBe(false);
+        });
     });
 });

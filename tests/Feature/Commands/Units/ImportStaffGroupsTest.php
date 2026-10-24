@@ -26,6 +26,7 @@ function isgGroups(): array
             ['Regimental Information Management Officer', '9013'],
             ['Regimental Technical Aide', '9012'],
             ['Aide to the SecOps', '9014'],
+            ['Regimental Recruiting Oversight Officer', '9015'],
         ],
         'Support Attachment' => [
             ['S2 Lead Investigator', '9020'],
@@ -35,6 +36,8 @@ function isgGroups(): array
             ['FCC Analyst', '9024'],
             ['ODS Lead Instructor', '9025'],
             ['Cavalry Times Clerk', '9026'],
+            ['RDC Commander', '9027'],
+            ['DEVCOM Support Clerk', '9028'],
         ],
         'ACD Command' => [
             ['Reserve Commander', '9030'],
@@ -46,6 +49,11 @@ function isgGroups(): array
             $group['positions'][] = ['positionTitle' => $title, 'positionId' => $id, 'positionDisplayOrder' => 900 + $i, 'positionPossibleSecondary' => false];
         }
     }
+
+    $groups[] = [
+        'groupId' => '990', 'groupTitle' => 'JAG', 'groupDisplayOrder' => 990,
+        'positions' => [['positionTitle' => 'Judge Advocate', 'positionId' => '9040', 'positionDisplayOrder' => 1, 'positionPossibleSecondary' => false]],
+    ];
 
     return ['groups' => $groups];
 }
@@ -73,25 +81,51 @@ beforeEach(function () {
     app()->instance(CavApi::class, new CavApi(['base_url' => 'https://api.7cav.us', 'api_key' => 'cav7_test-key']));
 });
 
-it('creates the holding groups and the departments under their portfolios, each of its kind', function () {
+it('builds the default portfolio tree, nesting portfolios, with each group of its kind', function () {
     isgImport();
     $regiment = Unit::query()->where('type', UnitType::Regiment)->sole();
 
     foreach (['ELOA' => UnitKind::Eloa, 'RES' => UnitKind::Reserve, 'NR' => UnitKind::Recruit] as $callsign => $kind) {
-        expect(isgGroup($callsign)->kind)->toBe($kind)
-            ->and(isgGroup($callsign)->parent_id)->toBe($regiment->id);
+        expect(isgGroup($callsign)->kind)->toBe($kind);
     }
 
-    expect(isgGroup('S2')->parent_id)->toBe(isgGroup('SECOPS')->id)
-        ->and(isgGroup('MP')->parent_id)->toBe(isgGroup('SECOPS')->id)
+    expect(isgGroup('ELOA')->parent_id)->toBe($regiment->id)
+        ->and(isgGroup('NR')->parent_id)->toBe($regiment->id)
+        // Executive Officer → Reserve & Development Command → DEVCOM staff, Reservists.
+        ->and(isgGroup('XO')->parent_id)->toBe($regiment->id)
+        ->and(isgGroup('RDC')->parent_id)->toBe(isgGroup('XO')->id)
+        ->and(isgGroup('DEVCOM STAFF')->parent_id)->toBe(isgGroup('RDC')->id)
+        ->and(isgGroup('RES')->parent_id)->toBe(isgGroup('RDC')->id)
+        // Recruiting Oversight → RRD, RTC, S5, directly under the regiment; the Chief of Staff has no portfolio.
+        ->and(Unit::query()->where('callsign', 'COS')->exists())->toBeFalse()
+        ->and(isgGroup('RROO')->parent_id)->toBe($regiment->id)
         ->and(isgGroup('RRD')->parent_id)->toBe(isgGroup('RROO')->id)
+        ->and(isgGroup('S5')->parent_id)->toBe(isgGroup('RROO')->id)
+        // Security Operations → S2, MP, JAG; Information Management → S6.
+        ->and(isgGroup('S2')->parent_id)->toBe(isgGroup('SECOPS')->id)
+        ->and(isgGroup('MP')->parent_id)->toBe(isgGroup('SECOPS')->id)
+        ->and(isgGroup('JAG')->parent_id)->toBe(isgGroup('SECOPS')->id)
         ->and(isgGroup('S6')->parent_id)->toBe(isgGroup('IMO')->id)
         ->and(isgGroup('IMO')->parent_id)->toBe($regiment->id)
-        // No portfolio yet: directly under the regiment.
+        // Pending the product owner: directly under the regiment.
         ->and(isgGroup('S1')->parent_id)->toBe($regiment->id)
-        ->and(isgGroup('DEVCOM STAFF')->parent_id)->toBe($regiment->id)
+        ->and(isgGroup('S7')->parent_id)->toBe($regiment->id)
+        // ACD stays a line battalion under the regiment.
+        ->and(Unit::query()->where('type', UnitType::Battalion)->where('callsign', 'ACD')->sole()->parent_id)->toBe($regiment->id)
         ->and(isgGroup('S1')->kind)->toBe(UnitKind::Staff)
         ->and(isgGroup('SECOPS')->kind)->toBe(UnitKind::Staff);
+});
+
+it('names each portfolio\'s lead billet', function () {
+    isgImport();
+    $fixture = collect(isgGroups()['groups'])->flatMap(fn ($g) => $g['positions'])->pluck('positionId', 'positionTitle');
+
+    expect(isgGroup('XO')->lead_position_id)->toBe((int) $fixture['Regimental Executive Officer'])
+        ->and(isgGroup('RDC')->lead_position_id)->toBe(9027)
+        ->and(isgGroup('RROO')->lead_position_id)->toBe(9015)
+        ->and(isgGroup('SECOPS')->lead_position_id)->toBe(9011)
+        ->and(isgGroup('IMO')->lead_position_id)->toBe(9013)
+        ->and(isgGroup('S1')->lead_position_id)->toBeNull();
 });
 
 it('maps every staff billet to where it places its holder', function () {
@@ -103,10 +137,17 @@ it('maps every staff billet to where it places its holder', function () {
 
     expect($placements[9010])->toBe('regiment|7CAV')
         ->and($placements[9014])->toBe('regiment|7CAV')
-        // A portfolio officer is placed on the regiment and commands their portfolio.
+        // A portfolio officer is placed on the regiment and commands their portfolio; the XO keeps the regiment.
         ->and($placements[9011])->toBe('regiment|7CAV')
         ->and($commands[9011])->toBe('group|SECOPS')
         ->and($commands[9013])->toBe('group|IMO')
+        // The Chief of Staff is Regimental HQ staff on the regiment, commanding nothing.
+        ->and($commands)->not->toHaveKey(9010)
+        ->and($commands[(int) $fixture['Regimental Executive Officer']])->toBe('regiment|7CAV')
+        // The RDC Commander sits on, and commands, their portfolio.
+        ->and($placements[9027])->toBe('group|RDC')
+        ->and($commands[9027])->toBe('group|RDC')
+        ->and($placements[9040])->toBe('group|JAG')
         ->and($placements[9012])->toBe('group|S6')
         ->and($placements[9020])->toBe('group|S2')
         ->and($placements[9021])->toBe('group|MP')
@@ -120,9 +161,9 @@ it('maps every staff billet to where it places its holder', function () {
         ->and($placements[(int) $fixture['New Recruit']])->toBe('group|NR')
         // ACD's reserve command team sits on the battalion HQ.
         ->and($placements[9030])->toBe('battalion|ACD')
-        // DEVCOM Lead: placed with DEVCOM staff, commanding the DEVCOM line units.
+        // DEVCOM Lead: placed with DEVCOM staff, commanding nothing by billet (acting leads are assigned by hand).
         ->and($placements[9023])->toBe('group|DEVCOM STAFF')
-        ->and($commands[9023])->toBe('battalion|DEVCOM')
+        ->and($commands)->not->toHaveKey(9023)
         // Command billets keep their command mapping and get no placement row: the sync places them by it.
         ->and($placements)->not->toHaveKey((int) $fixture['Regimental Commanding Officer'])
         ->and($commands[(int) $fixture['Regimental Commanding Officer']])->toBe('regiment|7CAV');

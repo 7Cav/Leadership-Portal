@@ -76,7 +76,7 @@ beforeEach(function () {
     foreach ([700 => $this->section, 900 => $this->eloa, 901 => $this->reserve, 902 => $this->recruits, 903 => $this->s6, 904 => $this->regiment, 905 => $this->devcomStaff] as $position => $unit) {
         UnitBilletMapping::factory()->create(['unit_id' => $unit->id, 'cav_position_id' => $position]);
     }
-    foreach ([710 => $this->platoon, 711 => $this->company, 712 => $this->battalion, 713 => $this->regiment, 905 => $this->devcom] as $position => $unit) {
+    foreach ([710 => $this->platoon, 711 => $this->company, 712 => $this->battalion, 713 => $this->regiment] as $position => $unit) {
         UnitCommandMapping::factory()->create(['unit_id' => $unit->id, 'cav_position_id' => $position]);
     }
 });
@@ -106,7 +106,7 @@ it('places every kind of billet: section, HQ staff on their HQ node, departments
         ->and(spPlacedIn(6))->toBe($this->regiment->id)
         ->and(spPlacedIn(7))->toBe($this->s6->id)
         ->and(spPlacedIn(8))->toBe($this->recruits->id)
-        // The billet mapping (DEVCOM staff) wins over the command mapping (the DEVCOM line units).
+        // A DEVCOM Lead is rostered to DEVCOM staff.
         ->and(spPlacedIn(9))->toBe($this->devcomStaff->id)
         ->and(spPlacedIn(10))->toBe($this->reserve->id)
         ->and(spPlacedIn(11))->toBe($this->eloa->id)
@@ -149,14 +149,13 @@ it('records no "was" for a trooper moving into ELOA from a group', function () {
     expect(Trooper::where('cav_id', 3)->sole()->last_line_unit_id)->toBeNull();
 });
 
-it('gives the DEVCOM Lead the same rights over the DEVCOM line units as a Platoon Leader over a platoon', function () {
-    spSync(combat: ['9' => spRow('905', 'DEVCOM Lead', username: 'Sparrow.P'), '2' => spRow('710', 'Platoon Leader 1/A/1-7', username: 'Brennan.J')]);
+it('gives a DEVCOM Lead no command by billet, only what an Admin assigns as acting lead', function () {
+    spSync(combat: ['9' => spRow('905', 'DEVCOM Lead', username: 'Taylor.C'), '2' => spRow('710', 'Platoon Leader 1/A/1-7', username: 'Brennan.J')]);
     $lead = User::factory()->create(['cav_id' => 9]);
     $platoonLeader = User::factory()->create(['cav_id' => 2]);
     $scope = app(ScopeResolver::class);
 
-    expect($scope->writeScope($lead)->all())->toContain($this->devcomSection->id, $this->devcomPlatoon->id)
-        ->and($scope->writeScope($lead)->all())->not->toContain($this->section->id)
+    expect($scope->writeScope($lead)->all())->toBe([])
         ->and($scope->writeScope($platoonLeader)->all())->toContain($this->section->id, $this->platoon->id)
         // Leaders see their HQ staff: the PL sits on the platoon, inside the company commander's scope.
         ->and($scope->canSee(User::factory()->create(['cav_id' => 99]), Trooper::where('cav_id', 2)->sole()))->toBeFalse();
