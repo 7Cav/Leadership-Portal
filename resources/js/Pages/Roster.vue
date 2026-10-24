@@ -97,6 +97,18 @@ function syncUrl() {
 watch([view, openTrooperId], syncUrl);
 
 const root = computed(() => props.units[0] ?? null);
+
+// New Recruits are hidden until asked for (2026-10-24), unless the roster is opened on their group itself.
+const showRecruits = ref(false);
+const recruitIds = computed(
+    () => new Set(props.units.filter((u, index) => index > 0 && u.kind === "recruit").map((u) => u.id)),
+);
+const shownUnits = computed(() =>
+    showRecruits.value ? props.units : props.units.filter((u) => !recruitIds.value.has(u.id)),
+);
+const shownTroopers = computed(() =>
+    showRecruits.value ? props.troopers : props.troopers.filter((t) => !recruitIds.value.has(t.sectionId)),
+);
 const strength = computed(() => root.value?.kpis.strength ?? 0);
 const sectionCount = computed(
     () => props.units.filter((u) => u.type === "section").length,
@@ -285,6 +297,11 @@ function syncNow() {
                 >
                     Roster<span v-if="unit" class="text-muted-foreground"
                         >{{ " " }}{{ unit.callsign ?? unit.name }}</span
+                    ><span
+                        v-if="unit?.label"
+                        class="ml-2 rounded-sm border border-border px-1.5 align-middle text-xs font-semibold tracking-wide text-muted-foreground"
+                        data-testid="unit-label"
+                        >{{ unit.label }}</span
                     >
                 </h1>
                 <p
@@ -313,6 +330,18 @@ function syncNow() {
             </div>
 
             <div class="flex flex-wrap items-center gap-2 sm:ml-auto">
+                <label
+                    v-if="recruitIds.size"
+                    class="flex items-center gap-1.5 text-xs text-muted-foreground"
+                >
+                    <input
+                        v-model="showRecruits"
+                        type="checkbox"
+                        data-testid="show-recruits"
+                        class="size-3.5 accent-primary"
+                    />
+                    Show New Recruits
+                </label>
                 <DropdownMenu v-if="scopeOptions.length">
                     <DropdownMenuTrigger as-child>
                         <Button
@@ -358,6 +387,11 @@ function syncNow() {
                                 <span class="truncate text-muted-foreground">{{
                                     option.name
                                 }}</span>
+                                <span
+                                    v-if="option.label"
+                                    class="rounded-sm border border-border px-1 text-[10px] font-semibold text-muted-foreground"
+                                    >{{ option.label }}</span
+                                >
                                 <PhCheck
                                     v-if="option.id === unit?.id"
                                     class="ml-auto"
@@ -491,8 +525,8 @@ function syncNow() {
                 v-else-if="view === 'orbat'"
                 v-model:query="query"
                 v-model:filter="filter"
-                :units="units"
-                :troopers="troopers"
+                :units="shownUnits"
+                :troopers="shownTroopers"
                 :weeks="weeks"
                 :current-week="currentWeek"
                 :loading="navigating"
@@ -502,8 +536,8 @@ function syncNow() {
                 v-else
                 v-model:query="query"
                 v-model:filter="filter"
-                :units="units"
-                :troopers="troopers"
+                :units="shownUnits"
+                :troopers="shownTroopers"
                 :weeks="weeks"
                 :current-week="currentWeek"
                 :loading="navigating"

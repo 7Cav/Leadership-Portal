@@ -82,10 +82,12 @@ const depthOf = computed(() => {
 
     return depth;
 });
+// Every unit a trooper can be placed in under `unit`, itself included: sections, and since 2026-10-24 the HQ nodes
+// (a platoon's PL and PSG sit on the platoon) and groups.
 function sectionsUnder(unit) {
     if (unit.type === 'section') return [unit.id];
 
-    return (childrenOf.value.get(unit.id) ?? []).flatMap(sectionsUnder);
+    return [unit.id, ...(childrenOf.value.get(unit.id) ?? []).flatMap(sectionsUnder)];
 }
 
 // A column sort orders the troopers inside each section; the sections themselves keep the order of battle. Null is
@@ -152,6 +154,10 @@ const rows = computed(() => {
 
         if (unit.type !== 'section') {
             if (unit.id !== root.value.id) out.push({ kind: 'group', unit, depth: depthOf.value.get(unit.id), counts: counts(all) });
+            // HQ staff and group members sit on the unit itself, listed under its header.
+            for (const trooper of (membersBySection.value.get(unit.id) ?? []).filter(visible)) {
+                out.push({ kind: 'member', trooper, pinned: false, pinnedLast: false });
+            }
             continue;
         }
 
@@ -377,6 +383,7 @@ function clearAll() {
                                         <span>
                                             <span class="block text-[13px] leading-tight font-semibold">
                                                 {{ row.unit.name }} <span class="font-normal text-muted-foreground">{{ row.unit.callsign }}</span>
+                                                <span v-if="row.unit.label" class="ml-1 rounded-sm border border-border px-1 text-[10px] font-semibold text-muted-foreground" :data-testid="`label-${row.unit.id}`">{{ row.unit.label }}</span>
                                             </span>
                                             <span class="mt-0.5 block text-xs leading-tight text-muted-foreground">
                                                 {{ row.unit.leader ? `${row.unit.leader.displayName}` : 'No leader on the roster' }}
@@ -465,6 +472,7 @@ function clearAll() {
                                 <span class="inline-flex items-center gap-1.5 text-muted-foreground">
                                     <span v-if="row.trooper.role" class="inline-flex h-[1.0625rem] items-center rounded-sm bg-foreground px-1.5 text-[10px] font-semibold tracking-wide text-background">{{ row.trooper.role }}</span>
                                     <span><template v-for="(part, i) in highlightParts(row.trooper.billet ?? 'No billet', query)" :key="i"><mark v-if="part.hit" class="hl">{{ part.text }}</mark><template v-else>{{ part.text }}</template></template></span>
+                                    <span v-if="row.trooper.was" class="font-mono text-[11px]" :data-testid="`was-${row.trooper.id}`">was: {{ row.trooper.was }}</span>
                                 </span>
                             </td>
                             <td class="text-right text-muted-foreground tabular-nums" :title="row.trooper.joined ? `Joined ${row.trooper.joined}` : undefined" data-testid="tis">{{ tenure(row.trooper, row.trooper.joined) }}</td>
