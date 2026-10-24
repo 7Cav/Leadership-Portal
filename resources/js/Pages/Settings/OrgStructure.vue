@@ -105,6 +105,77 @@ watch(
     { immediate: true },
 );
 
+// Acting lead (Admin): a serving trooper who leads a unit the roster names no lead for, such as a DEVCOM starter
+// platoon run by a DEVCOM Lead. One per unit; audited with a required reason on the server.
+const actingQuery = ref('');
+const actingResults = ref([]);
+const actingPick = ref(null);
+const actingReason = ref('');
+const actingError = ref(null);
+const actingBusy = ref(false);
+const canTakeActingLead = computed(
+    () => selectedUnit.value !== null && selectedUnit.value.type !== 'group' && selectedUnit.value.type !== 'regiment',
+);
+
+watch(selectedUnit, () => {
+    actingQuery.value = '';
+    actingResults.value = [];
+    actingPick.value = null;
+    actingReason.value = '';
+    actingError.value = null;
+});
+
+async function searchActing() {
+    const q = actingQuery.value.trim();
+    actingPick.value = null;
+    if (q.length < 2) {
+        actingResults.value = [];
+        return;
+    }
+    try {
+        const response = await fetch(`/troopers/search?q=${encodeURIComponent(q)}`, {
+            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+        });
+        actingResults.value = response.ok ? ((await response.json()).troopers ?? []).filter((t) => !t.departed) : [];
+    } catch {
+        actingResults.value = [];
+    }
+}
+
+function actingOptions(onError) {
+    return {
+        preserveScroll: true,
+        onError: (errors) => (actingError.value = errors.acting_lead ?? errors.reason ?? errors.trooper_id ?? Object.values(errors)[0] ?? onError),
+        onFinish: () => (actingBusy.value = false),
+        onSuccess: () => {
+            actingPick.value = null;
+            actingReason.value = '';
+            actingQuery.value = '';
+            actingResults.value = [];
+        },
+    };
+}
+
+function assignActing() {
+    actingError.value = null;
+    actingBusy.value = true;
+    router.post(
+        `/settings/org-structure/${selectedUnit.value.id}/acting-lead`,
+        { trooper_id: actingPick.value.id, reason: actingReason.value.trim() },
+        actingOptions('The acting lead was not saved.'),
+    );
+}
+
+function removeActing() {
+    actingError.value = null;
+    actingBusy.value = true;
+    router.delete(`/settings/org-structure/${selectedUnit.value.id}/acting-lead`, {
+        data: { reason: actingReason.value.trim() },
+        ...actingOptions('The acting lead was not removed.'),
+    });
+}
+
 function submitLabel() {
     labelForm.patch(`/settings/org-structure/${selectedUnit.value.id}/label`, {
         preserveScroll: true,
@@ -576,7 +647,9 @@ function requestDelete(id) {
                         <Badge v-if="selectedUnit.label" variant="outline" data-testid="detail-label">{{ selectedUnit.label }}</Badge>
                     </h2>
                     <p v-if="selectedUnit.lead || selectedUnit.lead_vacant" data-testid="detail-lead" class="-mt-1.5 mb-3 text-[13px] text-muted-foreground">
-                        <template v-if="selectedUnit.lead">Lead: {{ selectedUnit.lead.displayName }}</template>
+                        <template v-if="selectedUnit.lead"
+                            >Lead: {{ selectedUnit.lead.displayName }}<template v-if="selectedUnit.lead.source === 'acting'"> (acting)</template></template
+                        >
                         <template v-else>Lead: vacant</template>
                     </p>
 
@@ -590,6 +663,58 @@ function requestDelete(id) {
                                 <span v-if="member.was" data-testid="member-was" class="font-mono text-[11px] text-muted-foreground">was: {{ member.was }}</span>
                             </li>
                         </ul>
+                    </section>
+
+                    <section v-if="isAdmin && canTakeActingLead" data-testid="acting-lead" aria-label="Acting lead" class="mb-4 rounded-lg border border-dashed border-border p-3">
+                        <h3 class="text-[13px] font-semibold">Acting lead</h3>
+                        <p class="mt-0.5 text-xs text-muted-foreground">
+                            For a unit whose lead is not in the roster data, such as a DEVCOM starter platoon run by a DEVCOM Lead. They get a
+                            Platoon Leader's command over this unit while they serve.
+                        </p>
+                        <p v-if="selectedUnit.acting_lead" data-testid="acting-lead-current" class="mt-2 text-[13px]">{{ selectedUnit.acting_lead.displayName }}</p>
+                        <div v-else class="mt-2 grid gap-1.5">
+                            <Label for="acting-search">Trooper</Label>
+                            <Input id="acting-search" v-model="actingQuery" data-testid="acting-search" type="text" placeholder="Search by username" @input="searchActing" />
+                            <ul v-if="actingResults.length" class="max-h-40 overflow-y-auto text-[13px]">
+                                <li v-for="result in actingResults" :key="result.id">
+                                    <button
+                                        type="button"
+                                        data-testid="acting-result"
+                                        class="w-full rounded-sm px-1.5 py-1 text-left hover:bg-accent"
+                                        :class="actingPick?.id === result.id && 'bg-accent font-medium'"
+                                        @click="actingPick = result"
+                                    >
+                                        {{ result.displayName }}
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="mt-2 grid gap-1.5">
+                            <Label for="acting-reason">Reason</Label>
+                            <Input id="acting-reason" v-model="actingReason" data-testid="acting-reason" type="text" maxlength="500" placeholder="Who confirmed it" />
+                        </div>
+                        <p v-if="actingError" data-testid="acting-error" role="alert" class="mt-1.5 text-xs text-destructive">{{ actingError }}</p>
+                        <div class="mt-2 flex justify-end">
+                            <Button
+                                v-if="selectedUnit.acting_lead"
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                data-testid="acting-remove"
+                                :disabled="actingBusy || !actingReason.trim()"
+                                @click="removeActing"
+                                >Remove acting lead</Button
+                            >
+                            <Button
+                                v-else
+                                type="button"
+                                size="sm"
+                                data-testid="acting-assign"
+                                :disabled="actingBusy || !actingPick || !actingReason.trim()"
+                                @click="assignActing"
+                                >Make acting lead</Button
+                            >
+                        </div>
                     </section>
 
                     <form v-if="isAdmin" data-testid="label-form" class="mb-4 flex items-end gap-2" @submit.prevent="submitLabel">

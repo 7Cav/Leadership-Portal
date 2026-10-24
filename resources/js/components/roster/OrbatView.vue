@@ -386,7 +386,7 @@ function clearAll() {
                                                 <span v-if="row.unit.label" class="ml-1 rounded-sm border border-border px-1 text-[10px] font-semibold text-muted-foreground" :data-testid="`label-${row.unit.id}`">{{ row.unit.label }}</span>
                                             </span>
                                             <span class="mt-0.5 block text-xs leading-tight text-muted-foreground">
-                                                {{ row.unit.leader ? `${row.unit.leader.displayName}` : 'No leader on the roster' }}
+                                                {{ row.unit.leader ? `${row.unit.leader.displayName}${row.unit.leader.source === 'acting' ? ' (acting)' : ''}` : 'No leader on the roster' }}
                                             </span>
                                         </span>
                                     </div>
