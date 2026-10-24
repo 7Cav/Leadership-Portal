@@ -4,6 +4,7 @@ namespace App\Repositories\UnitRepository;
 
 use App\Models\Trooper;
 use App\Models\Unit;
+use App\Models\UnitKind;
 use App\Models\UnitType;
 use App\Repositories\UnitPath;
 use App\Repositories\UnitRepository;
@@ -13,9 +14,9 @@ use Illuminate\Support\Facades\DB;
 
 class Eloquent implements UnitRepository
 {
-    public function create(UnitType $type, string $name, ?string $callsign, ?int $parentId): Unit
+    public function create(UnitType $type, string $name, ?string $callsign, ?int $parentId, UnitKind $kind = UnitKind::Line): Unit
     {
-        return DB::transaction(function () use ($type, $name, $callsign, $parentId) {
+        return DB::transaction(function () use ($type, $name, $callsign, $parentId, $kind) {
             $parentPath = $parentId !== null ? Unit::whereKey($parentId)->value('path') : '';
 
             // `forceFill`, not `create`: `parent_id` and `path` are deliberately outside
@@ -25,6 +26,7 @@ class Eloquent implements UnitRepository
             $unit->forceFill([
                 'parent_id' => $parentId,
                 'type' => $type,
+                'kind' => $kind,
                 'name' => $name,
                 'callsign' => $callsign,
                 'path' => '',
@@ -34,6 +36,18 @@ class Eloquent implements UnitRepository
 
             return $unit;
         });
+    }
+
+    public function setLabel(Unit $unit, ?string $label): Unit
+    {
+        $unit->update(['label' => $label]);
+
+        return $unit;
+    }
+
+    public function idsOfKind(UnitKind $kind): ScalarCollection
+    {
+        return Unit::query()->where('kind', $kind->value)->orderBy('id')->pluck('id');
     }
 
     public function tree(): Collection
@@ -63,6 +77,11 @@ class Eloquent implements UnitRepository
     public function subtree(Unit $unit): Collection
     {
         return Unit::query()->where('path', 'like', "{$unit->path}%")->orderBy('id')->get();
+    }
+
+    public function lineSubtree(Unit $unit): Collection
+    {
+        return Unit::query()->where('path', 'like', "{$unit->path}%")->where('kind', UnitKind::Line->value)->orderBy('id')->get();
     }
 
     public function owningCompany(Unit $unit): ?Unit
@@ -142,6 +161,16 @@ class Eloquent implements UnitRepository
         return Unit::query()->where('parent_id', $unit->id)->orderBy('id')->get();
     }
 
+    public function lineChildren(Unit $unit): Collection
+    {
+        return Unit::query()->where('parent_id', $unit->id)->where('kind', UnitKind::Line->value)->orderBy('id')->get();
+    }
+
+    public function hasLineChildren(Unit $unit): bool
+    {
+        return Unit::query()->where('parent_id', $unit->id)->where('kind', UnitKind::Line->value)->exists();
+    }
+
     public function sectionsAmong(iterable $unitIds): Collection
     {
         $ids = collect($unitIds)->values()->all();
@@ -161,7 +190,8 @@ class Eloquent implements UnitRepository
     {
         DB::transaction(function () use ($unit) {
             // The foreign key nulls `primary_section_id` on its own, but `placement_source` would be
-            // left saying who placed a trooper who is now unplaced. Cleared together, first.
+            // left saying who placed a trooper who is now unplaced. Cleared together, first. The ELOA
+            // "was" (`last_line_unit_id`) is nulled by its own foreign key.
             Trooper::query()
                 ->where('primary_section_id', $unit->id)
                 ->update(['primary_section_id' => null, 'placement_source' => null]);

@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\Unit;
+use App\Models\UnitKind;
 use App\Models\UnitType;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -19,9 +20,21 @@ interface UnitRepository
      * with no usable path, silently dropping it from every subtree query. The path can only be
      * known once the id exists, so the row is inserted first (with a placeholder) and then
      * updated with its final path before the transaction commits — no half-written row is ever
-     * visible outside it.
+     * visible outside it. `$kind` is `Line` for every echelon; the org import passes the kind of a group it creates.
      */
-    public function create(UnitType $type, string $name, ?string $callsign, ?int $parentId): Unit;
+    public function create(UnitType $type, string $name, ?string $callsign, ?int $parentId, UnitKind $kind = UnitKind::Line): Unit;
+
+    /**
+     * Set or clear the unit's game or team label (`WARDOGS`), shown next to its name.
+     */
+    public function setLabel(Unit $unit, ?string $label): Unit;
+
+    /**
+     * The ids of every group of `$kind`, e.g. the ELOA group the roster sync records a trooper's "was" for.
+     *
+     * @return ScalarCollection<int, int>
+     */
+    public function idsOfKind(UnitKind $kind): ScalarCollection;
 
     /**
      * Every unit in the tree, in depth-first path order so a caller can render it without
@@ -87,6 +100,14 @@ interface UnitRepository
     public function subtree(Unit $unit): Collection;
 
     /**
+     * {@see subtree()} without the groups (staff departments, ELOA, Reservists, New Recruits): the chain that reports
+     * (AD-13). A group has no report, so a roll-up never waits on one.
+     *
+     * @return Collection<int, Unit>
+     */
+    public function lineSubtree(Unit $unit): Collection;
+
+    /**
      * Take a row lock on the unit for the rest of the caller's transaction. A writer that inserts a
      * row keyed to the unit (a grant, a practice, a report) needs a shared lock on it for its
      * foreign-key check, so a delete that holds this lock cannot interleave with one: the checks
@@ -106,6 +127,16 @@ interface UnitRepository
      * @return Collection<int, Unit>
      */
     public function children(Unit $unit): Collection;
+
+    /**
+     * {@see children()} on the line only: the children a non-leaf report aggregates (AD-13). A group under the regiment
+     * is never one of them.
+     *
+     * @return Collection<int, Unit>
+     */
+    public function lineChildren(Unit $unit): Collection;
+
+    public function hasLineChildren(Unit $unit): bool;
 
     /**
      * The sections among `$unitIds` — e.g. a user's resolved scope — each with its `parent`

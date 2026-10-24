@@ -6,6 +6,8 @@ use App\Models\PlacementSource;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
+use App\Models\UnitKind;
+use App\Models\UnitType;
 use App\Repositories\TrooperRepository;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -81,17 +83,30 @@ class Eloquent implements TrooperRepository
             ->count();
     }
 
-    public function updatePrimarySections(array $cavIdToSectionId): int
+    public function updatePrimarySections(array $cavIdToSectionId, array $eloaUnitIds = []): int
     {
         $updated = 0;
+        $lineUnits = Unit::query()->select('id')->where('kind', UnitKind::Line->value);
 
-        // Grouped by target section rather than one UPDATE per trooper: a full-roster sync can
-        // resolve several hundred troopers into a handful of sections, and this turns that into
-        // one query per section instead of one per trooper.
+        // Grouped by target unit rather than one UPDATE per trooper: a full-roster sync can
+        // resolve several hundred troopers into a handful of units, and this turns that into
+        // one query per unit instead of one per trooper.
         foreach (collect($cavIdToSectionId)->groupBy(fn ($sectionId) => $sectionId, preserveKeys: true) as $sectionId => $cavIds) {
+            // The ELOA "was": moving into ELOA from a line unit keeps that unit; moving in from anywhere else (a group,
+            // unplaced, already on ELOA) keeps whatever was recorded; any other placement clears it. Listed before
+            // `primary_section_id` on purpose: MySQL assigns left to right and reads the new value in later
+            // assignments, so the old placement must be read first.
+            $was = in_array((int) $sectionId, array_map('intval', $eloaUnitIds), true)
+                ? DB::raw('CASE WHEN primary_section_id IN ('.$lineUnits->toRawSql().') THEN primary_section_id ELSE last_line_unit_id END')
+                : null;
+
             $updated += Trooper::query()
                 ->whereIn('cav_id', $cavIds->keys())
-                ->update(['primary_section_id' => $sectionId, 'placement_source' => PlacementSource::Sync->value]);
+                ->update([
+                    'last_line_unit_id' => $was,
+                    'primary_section_id' => $sectionId,
+                    'placement_source' => PlacementSource::Sync->value,
+                ]);
         }
 
         return $updated;
@@ -259,6 +274,7 @@ class Eloquent implements TrooperRepository
     public function placedWithin(Unit $unit): EloquentCollection
     {
         return Trooper::query()
+            ->with('lastLineUnit')
             ->whereIn('primary_section_id', Unit::query()->select('id')->where('path', 'like', "{$unit->path}%"))
             ->orderBy('id')
             ->get();
@@ -266,7 +282,21 @@ class Eloquent implements TrooperRepository
 
     public function activePlacedWithin(Unit $unit): EloquentCollection
     {
-        return Trooper::query()->assignedWithin($unit)->orderBy('id')->get();
+        return Trooper::query()->placedWithin($unit)->orderBy('id')->get();
+    }
+
+    public function servingPlacedIn(iterable $unitIds): EloquentCollection
+    {
+        $ids = collect($unitIds)->values()->all();
+
+        return $ids === [] ? new EloquentCollection : Trooper::query()
+            ->with('lastLineUnit')
+            ->whereIn('primary_section_id', $ids)
+            ->whereIn('status', TrooperStatus::servingValues())
+            ->orderByRaw('username is null')
+            ->orderBy('username')
+            ->orderBy('id')
+            ->get();
     }
 
     public function find(int $id): ?Trooper
@@ -297,7 +327,8 @@ class Eloquent implements TrooperRepository
         $escaped = strtr(mb_strtolower($term), ['!' => '!!', '%' => '!%', '_' => '!_']);
 
         return Trooper::query()
-            ->whereNotNull('primary_section_id')
+            // Placed in a section: HQ staff and groups have no rollcall to carry the makeup.
+            ->whereIn('primary_section_id', Unit::query()->select('id')->where('type', UnitType::Section->value))
             ->where('primary_section_id', '!=', $hostSectionId)
             ->whereIn('status', TrooperStatus::servingValues())
             ->whereRaw("LOWER(username) LIKE ? ESCAPE '!'", ["%{$escaped}%"])

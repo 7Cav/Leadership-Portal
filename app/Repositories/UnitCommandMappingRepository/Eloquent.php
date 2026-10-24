@@ -23,6 +23,11 @@ class Eloquent implements UnitCommandMappingRepository
         return UnitCommandMapping::query()->create(['unit_id' => $unitId, 'cav_position_id' => $cavPositionId]);
     }
 
+    public function commandedUnitIds(): Collection
+    {
+        return UnitCommandMapping::query()->distinct()->orderBy('unit_id')->pluck('unit_id')->map(fn ($id) => (int) $id);
+    }
+
     public function repoint(int $cavPositionId, int $unitId): void
     {
         UnitCommandMapping::query()->where('cav_position_id', $cavPositionId)->update(['unit_id' => $unitId]);

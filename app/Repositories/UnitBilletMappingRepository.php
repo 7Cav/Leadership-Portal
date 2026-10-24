@@ -7,7 +7,8 @@ use App\Models\UnitBilletMapping;
 use Illuminate\Support\Collection;
 
 /**
- * Sole DB access for the curated billet → section mapping (AD-2, 2.5). `Sync\SyncRosterHandler`
+ * Sole DB access for the curated billet → primary unit mapping (AD-2, 2.5): a section for the line and, since
+ * 2026-10-24, the HQ node or group a staff, ELOA, Reservist or New Recruit billet places its holder in. `Sync\SyncRosterHandler`
  * reads it; the org-structure import (2.9) is its only application writer so far, and only ever
  * adds rows (a correction today is a direct DB edit, which the import then leaves alone).
  */
@@ -25,7 +26,8 @@ interface UnitBilletMappingRepository
     public function sectionIdsByPositionId(): Collection;
 
     /**
-     * Every mapping as `cav_position_id => unit_id`, whatever unit type it points at. The import
+     * Every mapping as `cav_position_id => unit_id`, whatever unit type it points at: the roster sync's placement
+     * lookup (2026-10-24), ahead of the command mappings. The import
      * (2.9) never repoints an existing row — not even one it wrote itself that Cav has since moved
      * — so it uses this to skip mapped billets and to report the ones that now disagree with Cav.
      *

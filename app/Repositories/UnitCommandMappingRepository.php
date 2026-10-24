@@ -27,6 +27,14 @@ interface UnitCommandMappingRepository
     public function create(int $unitId, int $cavPositionId): UnitCommandMapping;
 
     /**
+     * The ids of every unit some billet commands, held or not: with {@see commandersOf()}, a unit here with no serving
+     * holder has a vacant lead (2026-10-24). A unit no billet commands has no lead to be vacant.
+     *
+     * @return Collection<int, int>
+     */
+    public function commandedUnitIds(): Collection;
+
+    /**
      * Point an existing billet's mapping at a different unit (a Cav reorg).
      */
     public function repoint(int $cavPositionId, int $unitId): void;
