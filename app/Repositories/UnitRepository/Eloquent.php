@@ -45,6 +45,13 @@ class Eloquent implements UnitRepository
         return $unit;
     }
 
+    public function setLeadPosition(Unit $unit, ?int $cavPositionId): Unit
+    {
+        $unit->forceFill(['lead_position_id' => $cavPositionId])->save();
+
+        return $unit;
+    }
+
     public function idsOfKind(UnitKind $kind): ScalarCollection
     {
         return Unit::query()->where('kind', $kind->value)->orderBy('id')->pluck('id');

@@ -30,6 +30,11 @@ interface UnitRepository
     public function setLabel(Unit $unit, ?string $label): Unit;
 
     /**
+     * Set the billet whose holder leads this unit (a staff portfolio's officer), or clear it.
+     */
+    public function setLeadPosition(Unit $unit, ?int $cavPositionId): Unit;
+
+    /**
      * The ids of every group of `$kind`, e.g. the ELOA group the roster sync records a trooper's "was" for.
      *
      * @return ScalarCollection<int, int>
