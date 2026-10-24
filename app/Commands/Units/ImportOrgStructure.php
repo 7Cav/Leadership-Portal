@@ -28,9 +28,10 @@ use Illuminate\Support\Facades\Log;
  * **Staff and holding groups (2026-10-24).** Every billet outside the line that places its holder gets a billet mapping
  * too: a non-command `Regimental HQ` billet → the regiment, a non-command `<bn> Command` billet → that battalion, a
  * non-command platoon or company billet → that node, and a staff, ELOA, Reservist or New Recruit billet → its group
- * ({@see StaffBillet}). Those groups (`UnitType::Group`) are created on first sight, a department under its default
- * portfolio, the holding groups under the regiment, and found again by callsign on every later run, never moved, so an
- * Admin's move of a department to another portfolio stands. Re-running the import never duplicates a group.
+ * ({@see StaffBillet}). Those groups (`UnitType::Group`) are created on first sight, a department or holding group
+ * under its default portfolio (portfolios nest), the rest under the regiment, and found again by callsign on every
+ * later run, never moved, so an Admin's move of a department to another portfolio stands. Re-running the import never
+ * duplicates a group. Each portfolio's `lead_position_id` (its officer's billet) is kept current on every run.
  *
  * Every leadership billet — in a line company, a `<bn> Command` group or Regimental HQ — is also
  * mapped to the unit it commands (story 1.16, {@see CommandBillet}), the input to the
@@ -91,7 +92,7 @@ class ImportOrgStructure
             throw OrgStructureImportFailedException::cavUnavailable($e);
         }
 
-        [$designations, $sectionByPositionId, $commandByPositionId, $skippedTitles, $ignoredGroups, $groupNodes] = $this->plan($groups);
+        [$designations, $sectionByPositionId, $commandByPositionId, $skippedTitles, $ignoredGroups, $groupNodes, $leadPositions] = $this->plan($groups);
 
         if ($designations === []) {
             Log::warning('Org-structure import aborted: Cav listed no line companies.', [
@@ -129,7 +130,7 @@ class ImportOrgStructure
                 action: 'org_structure.imported',
                 reason: null,
                 reasonRequired: false,
-                mutation: function () use ($designations, $groupNodes, $sectionByPositionId, $commandByPositionId, &$unitsCreated, &$sectionCounts, &$commandCounts): Unit {
+                mutation: function () use ($designations, $groupNodes, $leadPositions, $sectionByPositionId, $commandByPositionId, &$unitsCreated, &$sectionCounts, &$commandCounts): Unit {
                     $index = $this->existingUnitsByKey();
                     $regimentKey = CavDesignation::regiment()->key();
                     $root = $index[$regimentKey] ?? null;
@@ -162,6 +163,13 @@ class ImportOrgStructure
                         $parent = $index[$group->parentKey()];
                         $index[$key] = $this->units->create(UnitType::Group, $group->name, $group->callsign, $parent->id, $group->kind);
                         $unitsCreated++;
+                    }
+
+                    // Each portfolio's lead billet, derived data kept current on every run (2026-10-25).
+                    foreach ($leadPositions as $key => $positionId) {
+                        if (isset($index[$key]) && $index[$key]->lead_position_id !== $positionId) {
+                            $this->units->setLeadPosition($index[$key], $positionId);
+                        }
                     }
 
                     $sectionCounts = $this->addMappings(
@@ -291,10 +299,11 @@ class ImportOrgStructure
      *
      * Since 2026-10-24 the placement map (the second element) holds every billet that places its holder, not only
      * sections: a non-command HQ billet → its company, platoon, battalion or the regiment, and a holding or staff
-     * billet → its group ({@see StaffBillet}). The groups to ensure come last, each after its portfolio.
+     * billet → its group ({@see StaffBillet}). The groups to ensure come next, each after its portfolio, and last each
+     * portfolio's lead billet by group key.
      *
      * @param  list<CavPositionGroup>  $groups  in Cav display order
-     * @return array{0: array<string, CavDesignation>, 1: array<int, string>, 2: array<int, string>, 3: list<string>, 4: list<string>, 5: array<string, GroupDesignation>}
+     * @return array{0: array<string, CavDesignation>, 1: array<int, string>, 2: array<int, string>, 3: list<string>, 4: list<string>, 5: array<string, GroupDesignation>, 6: array<string, int>}
      */
     private function plan(array $groups): array
     {
@@ -304,6 +313,7 @@ class ImportOrgStructure
         $skippedTitles = [];
         $ignoredGroups = [];
         $groupNodes = [];
+        $leadPositions = [];
 
         foreach ($groups as $group) {
             $company = CavDesignation::companyGroup($group->title);
@@ -314,23 +324,31 @@ class ImportOrgStructure
 
                 foreach ($group->positions as $position) {
                     $commanded = CommandBillet::inCommandGroup($group->title, $position->title);
-                    $portfolio = $headquarters?->type === UnitType::Regiment ? StaffBillet::portfolioFor($position->title) : null;
+                    $portfolio = StaffBillet::portfolioFor($position->title);
 
                     if ($portfolio !== null) {
-                        // A regimental staff officer commands their portfolio; they are placed on the regiment below.
+                        // The portfolio's officer leads it. One who commands nothing above (SecOps, Recruiting
+                        // Oversight, IMO, RDC Commander) commands the portfolio; the XO keeps commanding the regiment.
                         $this->addGroup($groupNodes, $portfolio);
-                        $commandByPositionId[$position->id] ??= $portfolio->key();
-                    } elseif ($commanded !== null) {
-                        $commandByPositionId[$position->id] ??= $commanded->key();
+                        $leadPositions[$portfolio->key()] ??= $position->id;
                     }
 
-                    $placedIn = StaffBillet::groupFor($position->title);
+                    if ($commanded !== null) {
+                        $commandByPositionId[$position->id] ??= $commanded->key();
+                    } elseif ($portfolio !== null) {
+                        $commandByPositionId[$position->id] ??= $portfolio->key();
+                    }
+
+                    $placedIn = StaffBillet::groupFor($position->title, $group->title);
 
                     if ($placedIn !== null) {
                         $this->addGroup($groupNodes, $placedIn);
                         $sectionByPositionId[$position->id] ??= $placedIn->key();
                     } elseif ($headquarters !== null && ($commanded === null || $portfolio !== null)) {
                         $sectionByPositionId[$position->id] ??= $headquarters->key();
+                    } elseif ($portfolio !== null && $commanded === null) {
+                        // A portfolio officer outside Regimental HQ (the RDC Commander) sits on their portfolio.
+                        $sectionByPositionId[$position->id] ??= $portfolio->key();
                     }
                 }
 
@@ -365,7 +383,7 @@ class ImportOrgStructure
             }
         }
 
-        return [$designations, $sectionByPositionId, $commandByPositionId, $skippedTitles, $ignoredGroups, $groupNodes];
+        return [$designations, $sectionByPositionId, $commandByPositionId, $skippedTitles, $ignoredGroups, $groupNodes, $leadPositions];
     }
 
     /**

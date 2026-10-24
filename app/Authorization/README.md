@@ -23,8 +23,15 @@ as lapsed on the staff grants page, but none of its scope.
 Placement (2026-10-24) does not change who commands what, but it does change who a leader sees: `canSee()` asks
 whether the trooper's primary unit is in scope, so a platoon's PL and PSG (placed on the platoon), a company's HQ and a
 battalion's command team are visible to the leaders above them, and a staff department to the portfolio officer whose
-billet commands its portfolio node. ELOA, Reservists and New Recruits sit under the regiment, so only regimental scope
-and Admins see them. `DEVCOM Lead` commands the DEVCOM line units like a Platoon Leader commands a platoon.
+billet commands its portfolio node. ELOA and New Recruits sit under the regiment, so only regimental scope and Admins
+see them; the Reservists sit under Reserve & Development Command.
+
+**Acting leads** (2026-10-25). Some units' leads are not in the roster data: a `DEVCOM Lead` is rostered to DEVCOM staff
+and runs one or more DEVCOM starter platoons as their Platoon Leader. An Admin records that as an acting lead
+(`unit_acting_leads`, one per unit, audited with a reason). The roster-derived scope is then the billet's commanded unit
+plus every unit the user is acting lead of, each only while their trooper serves: `resolve()`, `writeScope()` and
+`commandsUnit()` treat an acting lead exactly like a Platoon Leader's command over that unit. A trooper who stops
+serving loses it on the next read; the row stays until an Admin removes it.
 
 **Write scope** is narrower than read scope: `ScopeResolver::writeScope()` is the full tree for an Admin,
 otherwise only the roster-derived subtree. A staff grant reads an echelon, it never writes to it, so a grant

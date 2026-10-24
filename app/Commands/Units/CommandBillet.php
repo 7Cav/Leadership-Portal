@@ -17,12 +17,12 @@ use App\Models\UnitType;
  *    `Sergeant Major`);
  *  - the `Regimental HQ` group: `Regimental Commanding Officer` / `Executive Officer` /
  *    `Command Sergeant Major` → the regiment;
- *  - `DEVCOM Lead` (2026-10-24), in whatever group Cav lists it outside the line companies → the DEVCOM line units (the
- *    `DEVCOM` battalion node and everything under it), and `DEVCOM Lead <platoon>` inside the DEVCOM company → that
- *    platoon, the same rights a Platoon Leader has over a platoon. The ADR shows only the single `DEVCOM Lead`; the
- *    per-platoon form is accepted should Cav add one;
- *  - a regimental staff officer's billet (SecOps, Recruiting Oversight, IMO, {@see StaffBillet::PORTFOLIOS}) → their
- *    portfolio node, so they see the departments under it.
+ *  - a regimental staff officer's billet that commands nothing above ({@see StaffBillet::PORTFOLIOS}: SecOps,
+ *    Recruiting Oversight, IMO, RDC Commander) → their portfolio node, so they see what is under it; the
+ *    import maps these, this class does not.
+ *
+ * `DEVCOM Lead` commands nothing by billet (decided 2026-10-25): its holders sit with DEVCOM staff and are made acting
+ * lead of the DEVCOM starter platoons they run by an Admin, since the roster does not say which.
  *
  * Matching is exact, like {@see CavDesignation}'s: a role at an echelon it does not command
  * (`Section Leader 1/A/1-7`), or any title not listed, confers nothing rather than being guessed
@@ -39,16 +39,7 @@ final class CommandBillet
         'Commander' => UnitType::Company,
         'Executive Officer' => UnitType::Company,
         'First Sergeant' => UnitType::Company,
-        // The DEVCOM lead of one DEVCOM platoon (`DEVCOM Lead 1/D/DEVCOM`), should Cav list one per platoon: the same
-        // rights over it as a Platoon Leader (decided 2026-10-24).
-        'DEVCOM Lead' => UnitType::Platoon,
     ];
-
-    /** The single `DEVCOM Lead` billet the ADR lists under Development Command: it commands the DEVCOM line units. */
-    private const DEVCOM_LEAD = 'DEVCOM Lead';
-
-    /** The battalion designation the import gives the DEVCOM line units (from the `D/DEVCOM` group). */
-    private const DEVCOM_BATTALION = 'DEVCOM';
 
     private const REGIMENTAL_GROUP = 'Regimental HQ';
 
@@ -100,8 +91,7 @@ final class CommandBillet
 
     /**
      * The unit a billet in a group that is not a line company commands: the regiment for a
-     * regimental title in `Regimental HQ`, the battalion its `<bn> Command` group names, or the DEVCOM
-     * battalion for `DEVCOM Lead`. Null
+     * regimental title in `Regimental HQ`, or the battalion its `<bn> Command` group names. Null
      * for every other billet — a regimental title listed in any other group included, since the
      * regiment is the widest scope there is.
      */
@@ -109,10 +99,6 @@ final class CommandBillet
     {
         $title = trim($title);
         $groupTitle = trim($groupTitle);
-
-        if ($title === self::DEVCOM_LEAD) {
-            return CavDesignation::battalion(self::DEVCOM_BATTALION);
-        }
 
         if ($groupTitle === self::REGIMENTAL_GROUP) {
             return in_array($title, self::REGIMENTAL_TITLES, true) ? CavDesignation::regiment() : null;

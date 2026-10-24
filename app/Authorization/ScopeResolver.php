@@ -8,6 +8,7 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Repositories\PortalRoleGrantRepository;
 use App\Repositories\TrooperRepository;
+use App\Repositories\UnitActingLeadRepository;
 use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
@@ -53,6 +54,7 @@ class ScopeResolver
         private readonly UserRepository $users,
         private readonly TrooperRepository $troopers,
         private readonly ViewAs $viewAs,
+        private readonly UnitActingLeadRepository $actingLeads,
     ) {}
 
     /**
@@ -94,7 +96,7 @@ class ScopeResolver
         }
 
         return $this->grantedUnitsWhileServing($user)
-            ->push($this->commands->commandedUnitFor($user))
+            ->merge($this->commandedUnits($user))
             ->filter()
             ->flatMap(fn ($unit) => $this->units->subtreeIds($unit))
             ->unique()
@@ -113,9 +115,25 @@ class ScopeResolver
             return $this->units->allIds();
         }
 
-        $commanded = $this->commands->commandedUnitFor($user);
+        return $this->commandedUnits($user)
+            ->flatMap(fn (Unit $unit) => $this->units->subtreeIds($unit))
+            ->unique()
+            ->values();
+    }
 
-        return $commanded === null ? collect() : $this->units->subtreeIds($commanded)->values();
+    /**
+     * The units the user commands: the one their synced billet commands, plus every unit an Admin made them acting
+     * lead of (decided 2026-10-25), each only while their trooper serves. An acting lead is exactly a Platoon
+     * Leader's command over that unit: read, write and the unit sync.
+     *
+     * @return Collection<int, Unit>
+     */
+    private function commandedUnits(User $user): Collection
+    {
+        return collect([$this->commands->commandedUnitFor($user)])
+            ->filter()
+            ->merge($this->actingLeads->unitsLedBy($user))
+            ->values();
     }
 
     /**
@@ -130,9 +148,7 @@ class ScopeResolver
             return true;
         }
 
-        $commanded = $this->commands->commandedUnitFor($user);
-
-        return $commanded !== null && $this->units->subtreeIds($commanded)->contains($unit->id);
+        return $this->commandedUnits($user)->contains(fn (Unit $commanded) => $this->units->subtreeIds($commanded)->contains($unit->id));
     }
 
     /**
