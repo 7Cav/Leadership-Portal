@@ -149,6 +149,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // controller, as for every other write here.
     Route::post('/settings/org-structure/import', [OrgStructureController::class, 'import'])->name('settings.org-structure.import');
     Route::patch('/settings/org-structure/{unit}', [OrgStructureController::class, 'update'])->name('settings.org-structure.update');
+    Route::patch('/settings/org-structure/{unit}/label', [OrgStructureController::class, 'label'])->name('settings.org-structure.label');
     Route::delete('/settings/org-structure/{unit}', [OrgStructureController::class, 'destroy'])->name('settings.org-structure.destroy');
 
     // Place a trooper the sync could not map into a section (Story 2.7). The Admin gate is checked in the

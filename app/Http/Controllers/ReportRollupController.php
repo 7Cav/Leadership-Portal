@@ -53,13 +53,14 @@ class ReportRollupController extends Controller
             $root = $this->units->find($unit);
             abort_if($root === null, 404);
             abort_unless($scope->contains($root->id), 403);
+            abort_unless($root->isLine(), 404);
             $roots = collect([$root]);
         } else {
             $roots = $this->topmost($scope);
         }
 
         // A leaf has no chain to review: its leader lands straight on their own report.
-        if ($roots->count() === 1 && ! $this->units->hasChildren($roots->first())) {
+        if ($roots->count() === 1 && ! $this->units->hasLineChildren($roots->first())) {
             return redirect('/reports/'.$roots->first()->id.'/'.$week->toDateString());
         }
 
@@ -127,7 +128,7 @@ class ReportRollupController extends Controller
         $ids = $scope->flip();
 
         return $this->units->tree()
-            ->filter(fn (Unit $unit) => $ids->has($unit->id) && ($unit->parent_id === null || ! $ids->has($unit->parent_id)))
+            ->filter(fn (Unit $unit) => $unit->isLine() && $ids->has($unit->id) && ($unit->parent_id === null || ! $ids->has($unit->parent_id)))
             ->sortBy('id')
             ->values()
             ->toBase();

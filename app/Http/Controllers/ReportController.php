@@ -95,7 +95,7 @@ class ReportController extends Controller
         $sent = $report?->status === WeeklyReportStatus::Sent;
         $history = $this->reports->sentBefore($unit->id, $weekStart, self::HISTORY_WEEKS);
         $isLeaf = $unit->type === UnitType::Section;
-        $children = $isLeaf ? collect() : $this->units->children($unit);
+        $children = $isLeaf ? collect() : $this->units->lineChildren($unit);
 
         $snapshot = null;
         $kpiError = null;
@@ -319,6 +319,9 @@ class ReportController extends Controller
         if ($unit === null) {
             abort(403, 'That unit is outside your scope.');
         }
+
+        // A group off the line has no weekly report (2026-10-24).
+        abort_unless($unit->isLine(), 404);
 
         return $unit;
     }

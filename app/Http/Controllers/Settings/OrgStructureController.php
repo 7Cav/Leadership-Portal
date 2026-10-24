@@ -8,12 +8,16 @@ use App\Commands\Units\DeleteUnit;
 use App\Commands\Units\ImportOrgStructure;
 use App\Commands\Units\InvalidUnitPlacementException;
 use App\Commands\Units\OrgStructureImportFailedException;
+use App\Commands\Units\SetUnitLabel;
 use App\Commands\Units\UnitHasDependentsException;
 use App\Commands\Units\UpdateUnit;
 use App\Http\Controllers\Controller;
+use App\Models\Trooper;
 use App\Models\Unit;
+use App\Models\UnitKind;
 use App\Models\UnitType;
 use App\Repositories\TrooperRepository;
+use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitRepository;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -36,6 +40,7 @@ class OrgStructureController extends Controller
     public function __construct(
         private readonly UnitRepository $units,
         private readonly TrooperRepository $troopers,
+        private readonly UnitCommandMappingRepository $commands,
     ) {}
 
     /**
@@ -45,28 +50,40 @@ class OrgStructureController extends Controller
     public function index(Request $request, ScopeResolver $scope): Response
     {
         $tree = $this->units->tree();
-        // Troopers assigned to each section, rolled up every branch: a unit's count is the troopers in
-        // any section under its path (the same subtree rule strength uses, AD-18, AD-21). The prefix
-        // test relies on the AD-18 convention that every `path` ends in "/", so "1/2/" can never match
-        // "1/20/".
-        $bySection = $this->troopers->countsBySection();
-        $sectionPaths = $tree->whereIn('id', $bySection->keys()->all())->pluck('path', 'id');
+        // Troopers placed in each unit, rolled up every branch: a unit's count is the serving troopers placed anywhere
+        // under its path, HQ staff on their HQ node and the groups included (2026-10-24, AD-18). New Recruits count on
+        // their own group only, never in an ancestor's: they are not yet part of any unit. The prefix test relies on
+        // the AD-18 convention that every `path` ends in "/", so "1/2/" can never match "1/20/".
+        $byUnit = $this->troopers->countsBySection();
+        $placedIn = $tree->whereIn('id', $byUnit->keys()->all())->keyBy('id');
+        $commanded = $this->commands->commandedUnitIds()->flip();
+        $leads = $this->commands->commandersOf($commanded->keys()->all());
 
-        $units = $tree->map(fn ($unit) => [
+        $units = $tree->map(fn (Unit $unit) => [
             'id' => $unit->id,
             'parent_id' => $unit->parent_id,
             'type' => $unit->type->value,
+            'kind' => ($unit->kind ?? UnitKind::Line)->value,
             'name' => $unit->name,
             'callsign' => $unit->callsign,
+            'label' => $unit->label,
             'path' => $unit->path,
-            'trooper_count' => $bySection
-                ->filter(fn (int $count, int $sectionId) => str_starts_with($sectionPaths->get($sectionId, ''), $unit->path))
+            'own_count' => $byUnit->get($unit->id, 0),
+            'trooper_count' => $byUnit
+                ->filter(fn (int $count, int $id) => str_starts_with($placedIn->get($id)->path, $unit->path)
+                    && ($placedIn->get($id)->kind !== UnitKind::Recruit || $unit->kind === UnitKind::Recruit))
                 ->sum(),
+            // The serving holder of the unit's command billet, or vacant when a billet commands it and nobody holds
+            // it. No history of a previous holder is kept. Null for a unit no billet commands.
+            'lead' => ($holder = $leads->get($unit->id)) === null ? null : ['displayName' => $holder->display_name, 'billet' => $holder->billet],
+            'lead_vacant' => $commanded->has($unit->id) && ! $leads->has($unit->id),
         ])->values();
 
         // Follows a view-as preview (Story 1.13): authoring controls hide as they would for the
         // previewed leader. The write gates below keep reading the real flag.
         $isAdmin = $scope->actsAsAdmin($request->user());
+        $visible = $scope->resolve($request->user())->flip();
+        $groupIds = $tree->filter(fn (Unit $unit) => ! $unit->isLine() && $visible->has($unit->id))->modelKeys();
 
         return Inertia::render('Settings/OrgStructure', [
             'units' => $units,
@@ -77,6 +94,18 @@ class OrgStructureController extends Controller
             'unplacedTroopers' => $isAdmin ? $this->troopers->unplaced(self::UNPLACED_LIMIT)->all() : null,
             // The true total, so the heading stays honest when the list above is capped.
             'unplacedTotal' => $isAdmin ? $this->troopers->unplacedCount() : null,
+            // Who is in each group the viewer may see (2026-10-24), keyed by unit id: a staff department, ELOA with
+            // each trooper's "was", Reservists, New Recruits. Scoped like every roster read (AD-8): a group outside
+            // the viewer's scope is absent, not empty.
+            'groupMembers' => $this->troopers->servingPlacedIn($groupIds)
+                ->groupBy('primary_section_id')
+                ->map(fn ($members) => $members->map(fn (Trooper $trooper) => [
+                    'id' => $trooper->id,
+                    'displayName' => $trooper->display_name,
+                    'billet' => $trooper->billet,
+                    'was' => $trooper->lastLineUnit === null ? null : ($trooper->lastLineUnit->callsign ?? $trooper->lastLineUnit->name),
+                ])->values()->all())
+                ->all(),
             // The outcome of an import just run (story 2.9), flashed by `import()` for one render.
             'importResult' => $request->session()->get('org_import'),
         ]);
@@ -140,6 +169,23 @@ class OrgStructureController extends Controller
             // above can't express — surfaced as a form error on `parent_id` (AC #3).
             throw ValidationException::withMessages(['parent_id' => $e->getMessage()]);
         }
+
+        return redirect()->route('settings.org-structure');
+    }
+
+    /**
+     * Set or clear a unit's game or team label (2026-10-24, DEVCOM's "WARDOGS"). Admin-only, server-side (AD-6);
+     * audited by {@see SetUnitLabel} (AD-16).
+     */
+    public function label(Request $request, int $unit, SetUnitLabel $command): RedirectResponse
+    {
+        $unit = $this->adminUnit($request, $unit);
+
+        $data = $request->validate([
+            'label' => ['nullable', 'string', 'max:'.SetUnitLabel::MAX_LENGTH],
+        ]);
+
+        $command->handle($request->user(), $unit, $data['label'] ?? null);
 
         return redirect()->route('settings.org-structure');
     }
