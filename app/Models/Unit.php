@@ -19,8 +19,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * not naming that class here — Deptrac forbids `Model → Repository` (AD-1), and pint's
  * `fully_qualified_strict_types` fixer turns any `{@see}` reference into a real `use` import,
  * which would quietly create that reverse edge.
+ *
+ * `kind` says whether the node is on the line or a group off it ({@see UnitKind}); it is written once, by the creating
+ * repository call, and never mass-assigned. `label` is an optional game or team label an Admin sets by hand (DEVCOM's
+ * "WARDOGS"), shown next to the name: nothing in Cav's data names it.
  */
-#[Fillable(['type', 'name', 'callsign'])]
+#[Fillable(['type', 'name', 'callsign', 'label'])]
 class Unit extends Model
 {
     /** @use HasFactory<UnitFactory> */
@@ -30,7 +34,13 @@ class Unit extends Model
     {
         return [
             'type' => UnitType::class,
+            'kind' => UnitKind::class,
         ];
+    }
+
+    public function isLine(): bool
+    {
+        return $this->kind === null || $this->kind->isLine();
     }
 
     public function parent(): BelongsTo

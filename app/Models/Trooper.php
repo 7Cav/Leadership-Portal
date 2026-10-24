@@ -22,6 +22,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * `#[Fillable]` here to keep a future non-sync writer from being tempted to mass-assign them
  * alongside the synced fields. `placement_source` says which of the two set the section.
  *
+ * Since 2026-10-24 `primary_section_id` holds the trooper's primary **unit**, not only a section: a section for the line,
+ * the HQ node itself for platoon, company, battalion and regimental staff, or a group (a staff department, ELOA,
+ * Reservists, New Recruits). The column keeps its name; anything that needs a section asks for a `section` type (see
+ * {@see assignedWithin()}). `last_line_unit_id` is the ELOA "was": the line unit the sync moved them out of into ELOA,
+ * written and cleared by the same placement step.
+ *
  * `cav_position_id` *is* synced: the trooper's primary Cav billet, overwritten on every run, so
  * the roster-derived command scope (1.16, `unit_command_mappings`) follows a billet change.
  *
@@ -85,16 +91,38 @@ class Trooper extends Model
         return $this->belongsTo(Unit::class, 'primary_section_id');
     }
 
+    public function lastLineUnit(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class, 'last_line_unit_id');
+    }
+
     /**
-     * Troopers currently assigned within `$unit`'s subtree: primary section anywhere under it (the
-     * materialized-path prefix, AD-18) and serving by `TrooperStatus::serving()`, so never `Inactive`
-     * (gone from every Cav roster, AD-4). An LOA or ELOA trooper is still assigned. The cache holds only the current placement, so this is
-     * "assigned now", not a history.
+     * Troopers currently assigned within `$unit`'s subtree: the measured population of the KPIs (AD-21). Primary unit
+     * is a **section** anywhere under it (the materialized-path prefix, AD-18) and serving by `TrooperStatus::serving()`,
+     * so never `Inactive` (gone from every Cav roster, AD-4). An LOA trooper is still assigned. HQ staff placed on a
+     * platoon, company, battalion or the regiment, and everyone in a group, are on no rollcall, so they are left out
+     * here: a non-leaf's live KPIs stay the sum of its sections' (decided 2026-10-24). {@see placedWithin()} counts
+     * them. The cache holds only the current placement, so this is "assigned now", not a history.
      *
      * @param  Builder<self>  $query
      */
     #[Scope]
     protected function assignedWithin(Builder $query, Unit $unit): void
+    {
+        $query->whereIn('troopers.status', TrooperStatus::servingValues())
+            ->whereIn('troopers.primary_section_id', Unit::query()->select('id')
+                ->where('path', 'like', "{$unit->path}%")
+                ->where('type', UnitType::Section->value));
+    }
+
+    /**
+     * Every serving trooper placed anywhere in `$unit`'s subtree, HQ staff and groups included: the headcount the org
+     * page and roster show as strength (decided 2026-10-24). Not a KPI population, see {@see assignedWithin()}.
+     *
+     * @param  Builder<self>  $query
+     */
+    #[Scope]
+    protected function placedWithin(Builder $query, Unit $unit): void
     {
         $query->whereIn('troopers.status', TrooperStatus::servingValues())
             ->whereIn('troopers.primary_section_id', Unit::query()->select('id')->where('path', 'like', "{$unit->path}%"));
