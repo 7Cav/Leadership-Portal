@@ -150,6 +150,8 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::post('/settings/org-structure/import', [OrgStructureController::class, 'import'])->name('settings.org-structure.import');
     Route::patch('/settings/org-structure/{unit}', [OrgStructureController::class, 'update'])->name('settings.org-structure.update');
     Route::patch('/settings/org-structure/{unit}/label', [OrgStructureController::class, 'label'])->name('settings.org-structure.label');
+    Route::post('/settings/org-structure/{unit}/acting-lead', [OrgStructureController::class, 'assignActingLead'])->name('settings.org-structure.acting-lead.store');
+    Route::delete('/settings/org-structure/{unit}/acting-lead', [OrgStructureController::class, 'removeActingLead'])->name('settings.org-structure.acting-lead.destroy');
     Route::delete('/settings/org-structure/{unit}', [OrgStructureController::class, 'destroy'])->name('settings.org-structure.destroy');
 
     // Place a trooper the sync could not map into a section (Story 2.7). The Admin gate is checked in the

@@ -22,6 +22,7 @@ use App\Repositories\CountingMark;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitCommandMappingRepository;
+use App\Repositories\UnitLeadRepository;
 use App\Repositories\UnitRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
@@ -57,6 +58,7 @@ class RosterController extends Controller
         private readonly KpiService $kpis,
         private readonly LoaProvenance $loaProvenance,
         private readonly PracticeGuests $practiceGuests,
+        private readonly UnitLeadRepository $leads,
     ) {}
 
     public function index(Request $request, ?int $unit = null): Response
@@ -184,13 +186,16 @@ class RosterController extends Controller
         $attendance = $this->kpis->trooperAttendance($unit, $week);
         $marks = $this->historyMarks($unit, $week);
         $leaders = $this->commands->commandersOf($subtree->pluck('id')->all());
+        // The unit headers name the unit's lead, acting leads and portfolio officers included (2026-10-25); the
+        // section roles (SL/ASL) still come from the command billet.
+        $unitLeads = $this->leads->leadsOf($subtree->pluck('id')->all());
 
         $paths = $subtree->mapWithKeys(fn (Unit $u) => [$u->id => $u->path]);
         $sectionOf = $placed->mapWithKeys(fn (Trooper $t) => [$t->id => $t->primary_section_id]);
         $recruitGroups = $subtree->filter(fn (Unit $u) => $u->kind === UnitKind::Recruit)->pluck('id')->all();
         $serving = $placed->filter(fn (Trooper $t) => $t->status->isServing());
 
-        $units = $subtree->map(function (Unit $u) use ($attendance, $sectionOf, $paths, $leaders, $serving, $recruitGroups) {
+        $units = $subtree->map(function (Unit $u) use ($attendance, $sectionOf, $paths, $unitLeads, $serving, $recruitGroups) {
             // The unit's troopers are those whose section sits anywhere under it.
             $within = $attendance->filter(function (TrooperAttendance $row) use ($sectionOf, $paths, $u) {
                 $section = $sectionOf->get($row->trooperId);
@@ -210,7 +215,7 @@ class RosterController extends Controller
             return [
                 ...$this->unitSummary($u),
                 'parentId' => $u->parent_id,
-                'leader' => ($leader = $leaders->get($u->id)) ? $this->person($leader) : null,
+                'leader' => ($lead = $unitLeads->get($u->id)) ? [...$this->person($lead->trooper), 'source' => $lead->source] : null,
                 'kpis' => [...$this->kpiProps($this->kpis->sum($within)), 'strength' => $headcount],
             ];
         })->values()->all();
