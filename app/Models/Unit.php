@@ -22,7 +22,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  *
  * `kind` says whether the node is on the line or a group off it ({@see UnitKind}); it is written once, by the creating
  * repository call, and never mass-assigned. `label` is an optional game or team label an Admin sets by hand (DEVCOM's
- * "WARDOGS"), shown next to the name: nothing in Cav's data names it.
+ * "WARDOGS"), shown next to the name: nothing in Cav's data names it. `lead_position_id` is the billet whose holder
+ * leads a regimental staff portfolio the import made (shown as its lead, or vacant); written by the import only.
  */
 #[Fillable(['type', 'name', 'callsign', 'label'])]
 class Unit extends Model
@@ -35,6 +36,7 @@ class Unit extends Model
         return [
             'type' => UnitType::class,
             'kind' => UnitKind::class,
+            'lead_position_id' => 'integer',
         ];
     }
 
