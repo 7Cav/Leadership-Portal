@@ -21,7 +21,9 @@ class InvalidUnitPlacementException extends RuntimeException
     public static function wrongRankUnderParent(UnitType $given, UnitType $parent): self
     {
         return new self(
-            "A {$given->value} cannot be placed under a {$parent->value} — it must sit exactly one rank below its parent.",
+            $given === UnitType::Group || $parent === UnitType::Group
+                ? "A {$given->value} cannot be placed under a {$parent->value}: a group sits under the regiment or a staff group, and nothing on the line sits under a group."
+                : "A {$given->value} cannot be placed under a {$parent->value} — it must sit exactly one rank below its parent.",
         );
     }
 

@@ -82,7 +82,8 @@ class SendWeeklyReportHandler
     {
         $unit = $this->scope->writeScope($actor)->contains($command->unitId) ? $this->units->find($command->unitId) : null;
 
-        if ($unit === null) {
+        // A group (a staff department, ELOA, Reservists, New Recruits) has no weekly report (2026-10-24).
+        if ($unit === null || ! $unit->isLine()) {
             throw new SendWeeklyReportForbiddenException($command->unitId);
         }
 

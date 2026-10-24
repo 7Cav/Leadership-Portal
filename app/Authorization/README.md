@@ -20,6 +20,12 @@ is a serving trooper (`users.cav_id` → a cached trooper on combat, reserve or 
 `TrooperStatus::serving()` allow-list the billet half uses): a holder who leaves keeps the row, shown
 as lapsed on the staff grants page, but none of its scope.
 
+Placement (2026-10-24) does not change who commands what, but it does change who a leader sees: `canSee()` asks
+whether the trooper's primary unit is in scope, so a platoon's PL and PSG (placed on the platoon), a company's HQ and a
+battalion's command team are visible to the leaders above them, and a staff department to the portfolio officer whose
+billet commands its portfolio node. ELOA, Reservists and New Recruits sit under the regiment, so only regimental scope
+and Admins see them. `DEVCOM Lead` commands the DEVCOM line units like a Platoon Leader commands a platoon.
+
 **Write scope** is narrower than read scope: `ScopeResolver::writeScope()` is the full tree for an Admin,
 otherwise only the roster-derived subtree. A staff grant reads an echelon, it never writes to it, so a grant
 holder sees the rollcall, reports and game identities of the granted units read-only. Every write handler

@@ -27,7 +27,7 @@ final class EchelonReportKpiSource implements ReportKpiSource
             return new ReportKpis($this->kpis->forUnit($unit, $weekStart));
         }
 
-        if (! $this->units->hasChildren($unit)) {
+        if (! $this->units->hasLineChildren($unit)) {
             throw ReportKpisUnavailableException::noChildren($unit);
         }
 

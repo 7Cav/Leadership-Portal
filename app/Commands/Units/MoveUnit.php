@@ -53,7 +53,7 @@ class MoveUnit
             throw InvalidUnitPlacementException::cyclicParent($unit->name, $newParent->name);
         }
 
-        if ($unit->type->rank() !== $newParent->type->rank() + 1) {
+        if (! $unit->type->canSitUnder($newParent->type) || ! CreateUnit::groupParentAllowed($unit->type, $newParent)) {
             throw InvalidUnitPlacementException::wrongRankUnderParent($unit->type, $newParent->type);
         }
 

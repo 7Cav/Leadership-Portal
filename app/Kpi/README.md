@@ -1,5 +1,13 @@
 # `Kpi/` — the one shared KPI service (AD-21)
 
+**Who is measured (2026-10-24).** The KPI population is the serving troopers placed in a **section**
+(`Trooper::assignedWithin`). HQ staff (placed on their platoon, company, battalion or the regiment) and everyone in a
+group (staff departments, ELOA, Reservists, New Recruits) are on no rollcall, so they are not measured: no SP, no RC,
+not in a report's strength. A non-leaf's live KPIs therefore stay the sum of its sections', and the report chain
+(`ReportChain`, `RollupKpis`, `EchelonReportKpiSource`) walks line units only, so a group never holds a roll-up up. The
+org page and roster show strength as the headcount instead: everyone serving placed under the unit, HQ staff and groups
+included, New Recruits on their own group only.
+
 `KpiService` is the **only** code that defines and computes the six canonical KPIs —
 strength, RC % · 30d, SP % · 30d, at-risk, on LOA, makeups — for a unit's subtree and a Cav
 week. The dashboard, the weekly report snapshot, the roll-up and Epic 4's at-risk flag all

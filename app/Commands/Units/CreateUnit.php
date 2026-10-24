@@ -3,6 +3,7 @@
 namespace App\Commands\Units;
 
 use App\Models\Unit;
+use App\Models\UnitKind;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\UnitRepository;
@@ -49,17 +50,29 @@ class CreateUnit
             // silently accept an inconsistent write.
             $parent = $this->units->find($parentId);
 
-            if ($type->rank() !== $parent->type->rank() + 1) {
+            if (! $type->canSitUnder($parent->type) || ! self::groupParentAllowed($type, $parent)) {
                 throw InvalidUnitPlacementException::wrongRankUnderParent($type, $parent->type);
             }
         }
+
+        // A group made by hand is a staff group: ELOA, Reservists and New Recruits are the import's own, found by callsign.
+        $kind = $type === UnitType::Group ? UnitKind::Staff : UnitKind::Line;
 
         return $this->audit->record(
             actorId: $actor->id,
             action: 'unit.created',
             reason: null,
             reasonRequired: false,
-            mutation: fn () => $this->units->create($type, $name, $callsign, $parentId),
+            mutation: fn () => $this->units->create($type, $name, $callsign, $parentId, $kind),
         );
+    }
+
+    /**
+     * A group nests only under a staff group (a department under its portfolio): never under ELOA, Reservists or New
+     * Recruits, which hold troopers, not units. Shared with {@see MoveUnit}.
+     */
+    public static function groupParentAllowed(UnitType $type, Unit $parent): bool
+    {
+        return $type !== UnitType::Group || $parent->type !== UnitType::Group || $parent->kind === UnitKind::Staff;
     }
 }

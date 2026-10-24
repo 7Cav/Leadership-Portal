@@ -46,7 +46,8 @@ final class RollupKpis
     public function forUnit(Unit $unit, CarbonInterface $weekStart): RollupResult
     {
         $weekStart = WeekOf::requireStart($weekStart);
-        $children = $this->units->children($unit);
+        // Line children only: a group under the regiment has no report to wait on (2026-10-24).
+        $children = $this->units->lineChildren($unit);
 
         if ($children->isEmpty()) {
             throw new InvalidArgumentException("Unit {$unit->id} has no children; a leaf report computes from attendance, not a roll-up.");
