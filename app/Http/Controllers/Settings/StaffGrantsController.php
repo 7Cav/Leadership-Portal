@@ -40,10 +40,13 @@ class StaffGrantsController extends Controller
     /**
      * Everyone authenticated may view the list (matches `OrgStructureController`'s read/write
      * split); only the Admin flag gates authoring (checked client-side for the hidden controls,
-     * and again below on write — AD-6).
+     * and again below on write — AD-6). The target-user picker lists every non-admin username, so
+     * it is sent only to someone acting as Admin; anyone else, an Admin previewing a leader
+     * included, gets an empty list (AD-6, AD-8).
      */
     public function index(Request $request, ScopeResolver $scope): Response
     {
+        $isAdmin = $scope->actsAsAdmin($request->user());
         $all = $this->grants->all();
         $tree = $this->units->tree();
         $byId = $tree->keyBy('id');
@@ -71,10 +74,12 @@ class StaffGrantsController extends Controller
             'label' => $this->label($unit, $byId),
         ])->values();
 
-        $users = $this->users->nonAdminUsers()->map(fn ($user) => [
-            'id' => $user->id,
-            'username' => $user->username,
-        ])->values();
+        $users = $isAdmin
+            ? $this->users->nonAdminUsers()->map(fn ($user) => [
+                'id' => $user->id,
+                'username' => $user->username,
+            ])->values()
+            : collect();
 
         return Inertia::render('Settings/StaffGrants', [
             'grants' => $grants,
@@ -82,7 +87,7 @@ class StaffGrantsController extends Controller
             'users' => $users,
             // Follows a view-as preview (Story 1.13): authoring controls hide as they would for the
             // previewed leader. The write gates below keep reading the real flag.
-            'isAdmin' => $scope->actsAsAdmin($request->user()),
+            'isAdmin' => $isAdmin,
         ]);
     }
 
