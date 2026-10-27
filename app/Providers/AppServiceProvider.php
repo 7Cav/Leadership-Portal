@@ -40,8 +40,9 @@ class AppServiceProvider extends ServiceProvider
         // The BattleMetrics presence seam (AD-3, Story 7.4). Key and server id come from config (env only, AD-23).
         $this->app->singleton(BattleMetricsApi::class, fn () => new BattleMetricsApi(config('services.battlemetrics')));
 
-        // Which sources a practice capture reads, by platform (Story 7.5): HLL from CRCON with
-        // BattleMetrics as fallback, Arma from BattleMetrics, WARDOGS from Nightwatch. 7.11 adds an entry here.
+        // Which sources a practice capture reads, by telemetry interface (Story 7.5, #388): CRCON with BattleMetrics
+        // as fallback, BattleMetrics, Nightwatch; a game follows the interface an Admin picked for it. A new source
+        // (7.11) is a new interface case and an entry in CaptureSources::default().
         $this->app->singleton(CaptureSources::class, fn ($app) => CaptureSources::default(
             $app->make(CrconApi::class),
             $app->make(BattleMetricsApi::class),

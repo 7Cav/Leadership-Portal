@@ -4,7 +4,6 @@ use App\Models\AuditLogEntry;
 use App\Models\FireteamAssignment;
 use App\Models\FireteamRole;
 use App\Models\FireteamSetting;
-use App\Models\GamePlatform;
 use App\Models\GamePlayerDismissal;
 use App\Models\PlatoonTrainingTopic;
 use App\Models\PortalRoleGrant;
@@ -41,10 +40,10 @@ function auditDismissal($test, array $capturedBy, string $platformId = '76561190
 {
     foreach ($capturedBy as $week => $section) {
         $practice = SectionPractice::factory()->create(['section_id' => $section->id, 'week_start' => CarbonImmutable::parse("{$week} 00:00:00", 'UTC')]);
-        PracticeCapturePlayer::query()->create(['section_practice_id' => $practice->id, 'platform' => GamePlatform::Hll, 'player_name' => $name, 'platform_id' => $platformId]);
+        PracticeCapturePlayer::query()->create(['section_practice_id' => $practice->id, 'game_id' => game('hll')->id, 'player_name' => $name, 'platform_id' => $platformId]);
     }
 
-    return GamePlayerDismissal::query()->create(['platform' => GamePlatform::Hll, 'platform_id' => $platformId, 'player_name' => $name, 'dismissed_by' => $test->actor->id]);
+    return GamePlayerDismissal::query()->create(['game_id' => game('hll')->id, 'platform_id' => $platformId, 'player_name' => $name, 'dismissed_by' => $test->actor->id]);
 }
 
 /**
@@ -257,7 +256,7 @@ describe('what each entry changed', function () {
         $policy = FireteamSetting::query()->create(['unit_id' => $this->company->id, 'show_fireteams' => false]);
         $topic = PlatoonTrainingTopic::query()->create(['unit_id' => $this->platoon->id, 'week_start' => CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC'), 'subject' => 'Room clearing', 'set_by' => $this->actor->id]);
         $dismissal = auditDismissal($this, ['2026-09-26' => $this->otherSection, '2026-10-03' => $this->section]);
-        $unseen = GamePlayerDismissal::query()->create(['platform' => GamePlatform::Hll, 'platform_id' => '7656119000000002', 'player_name' => 'Ghost', 'dismissed_by' => $this->actor->id]);
+        $unseen = GamePlayerDismissal::query()->create(['game_id' => game('hll')->id, 'platform_id' => '7656119000000002', 'player_name' => 'Ghost', 'dismissed_by' => $this->actor->id]);
 
         $entries = [
             'assignment' => auditAbout($this, $assignment, 'fireteam.leader_set'),

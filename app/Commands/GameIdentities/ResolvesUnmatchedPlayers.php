@@ -35,7 +35,7 @@ trait ResolvesUnmatchedPlayers
         }
 
         $practice = $practices->find($command->sectionId, WeekOf::start($command->week));
-        $player = $practice === null ? null : $captured->findUnmatched($practice->id, $command->platform, trim($command->platformId));
+        $player = $practice === null ? null : $captured->findUnmatched($practice->id, $command->game, trim($command->platformId));
 
         return [$practice ?? throw UnmatchedPlayerResolutionException::notListed(), $player ?? throw UnmatchedPlayerResolutionException::notListed()];
     }

@@ -20,7 +20,6 @@ use App\Commands\WeeklyReports\SetPlatoonTrainingTopicHandler;
 use App\Jobs\CaptureSectionPracticeJob;
 use App\Models\Attendance;
 use App\Models\AttendanceStatus;
-use App\Models\GamePlatform;
 use App\Models\PlatoonTrainingTopic;
 use App\Models\PracticeCapturePlayer;
 use App\Models\SectionPractice;
@@ -62,7 +61,7 @@ beforeEach(function () {
     ])->cav_id]);
     $this->trooper = Trooper::factory()->create();
     $this->trooper->forceFill(['primary_section_id' => $this->section->id])->save();
-    TrooperGameIdentity::factory()->create(['trooper_id' => $this->trooper->id, 'platform' => GamePlatform::Hll, 'platform_id' => '7656119000000009']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->trooper->id, 'game_id' => game('hll')->id, 'platform_id' => '7656119000000009']);
 });
 
 afterEach(fn () => Carbon::setTestNow());
@@ -138,7 +137,7 @@ it('links an unmatched player at the floor and refuses the week before it, which
     foreach ([BEFORE_FLOOR_WEEK, FLOOR_WEEK] as $week) {
         $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => floorWeek($week)]);
         PracticeCapturePlayer::query()->create([
-            'section_practice_id' => $practice->id, 'platform' => GamePlatform::Hll, 'player_name' => 'Ortega', 'platform_id' => '7656119000000001',
+            'section_practice_id' => $practice->id, 'game_id' => game('hll')->id, 'player_name' => 'Ortega', 'platform_id' => '7656119000000001',
         ]);
     }
 

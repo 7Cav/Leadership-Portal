@@ -11,6 +11,7 @@ use App\Http\Controllers\RollcallGuestController;
 use App\Http\Controllers\RosterController;
 use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\DemoDataController;
+use App\Http\Controllers\Settings\GamesController;
 use App\Http\Controllers\Settings\LoaSyncController;
 use App\Http\Controllers\Settings\OrgStructureController;
 use App\Http\Controllers\Settings\RosterSyncController;
@@ -33,7 +34,7 @@ use Illuminate\Support\Facades\Route;
 // route taking one of these ids cannot forget the constraint (RouteIdConstraintTest walks the
 // routes and fails on an id-like parameter missing from this list). Don't add `whereNumber()` or
 // `where()` for these on a route: it replaces the global pattern rather than adding to it.
-foreach (['unit', 'grant', 'trooper', 'version'] as $id) {
+foreach (['unit', 'grant', 'trooper', 'version', 'game'] as $id) {
     Route::pattern($id, '[0-9]{1,18}');
 }
 
@@ -118,7 +119,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::post('/rollcall/{unit}/guests/remove', [RollcallGuestController::class, 'destroy'])->middleware('throttle:audited-writes')->name('rollcall.guests.remove');
 
     // Game identities (Story 7.2): link troopers in scope to their in-game identity, one per
-    // platform. The controller reads repositories; each write is an audited Command whose handler
+    // game (`{platform}` is the game's slug, #388). The controller reads repositories; each write is an audited Command whose handler
     // checks the trooper against the viewer's scope (AD-8) — outside it is a 403.
     Route::get('/game-identities', [GameIdentityController::class, 'index'])->name('game-identities.index');
     Route::put('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'update'])->name('game-identities.update');
@@ -172,6 +173,15 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::post('/settings/templates/{version}/activate', [TemplatesController::class, 'activate'])->name('settings.templates.activate');
     // One section's rollcall for this week, to fill the template preview with (scope-gated in the controller, AD-8).
     Route::get('/settings/templates/preview/{unit}', [TemplatesController::class, 'previewSection'])->name('settings.templates.preview');
+
+    // The games the regiment plays (#388). Viewing is open to any authenticated user; the Admin gate on every write is
+    // enforced in the controller (AD-6). A game in use is retired, not deleted.
+    Route::get('/settings/games', [GamesController::class, 'index'])->name('settings.games');
+    Route::post('/settings/games', [GamesController::class, 'store'])->name('settings.games.store');
+    Route::patch('/settings/games/{game}', [GamesController::class, 'update'])->name('settings.games.update');
+    Route::post('/settings/games/{game}/retire', [GamesController::class, 'retire'])->name('settings.games.retire');
+    Route::delete('/settings/games/{game}/retire', [GamesController::class, 'reinstate'])->name('settings.games.reinstate');
+    Route::delete('/settings/games/{game}', [GamesController::class, 'destroy'])->name('settings.games.destroy');
 
     // Audit-log review (Story 1.14). The whole screen is Admin-only (AC #4) — the gate is
     // enforced in the controller, not route middleware, matching every other Admin gate here.

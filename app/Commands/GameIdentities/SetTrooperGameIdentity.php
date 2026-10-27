@@ -2,14 +2,14 @@
 
 namespace App\Commands\GameIdentities;
 
-use App\Models\GamePlatform;
+use App\Models\Game;
 
 /**
- * Link a trooper to a player on one platform, or correct the identity they already have there
+ * Link a trooper to a player in one game, or correct the identity they already have there
  * (a rename keeps the same row). Handled by {@see SetTrooperGameIdentityHandler}.
  *
  * `$replacing` makes the write conditional (#176): when set, it goes ahead only if the trooper's
- * identity on that platform, read under lock in the write's own transaction, is none, already
+ * identity in that game, read under lock in the write's own transaction, is none, already
  * `$platformId`, or exactly `$replacing` — the platform id the leader was shown when they chose to
  * replace it. Anything else means it changed since they were asked, and nothing is written. Null
  * (the Game identities screen, where the leader edits the row they see) writes unconditionally.
@@ -24,7 +24,7 @@ final readonly class SetTrooperGameIdentity
 
     public function __construct(
         public int $trooperId,
-        public GamePlatform $platform,
+        public Game $game,
         string $playerName,
         string $platformId,
         ?string $replacing = null,

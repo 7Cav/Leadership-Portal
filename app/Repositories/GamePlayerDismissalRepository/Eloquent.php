@@ -2,40 +2,40 @@
 
 namespace App\Repositories\GamePlayerDismissalRepository;
 
-use App\Models\GamePlatform;
+use App\Models\Game;
 use App\Models\GamePlayerDismissal;
 use App\Repositories\GamePlayerDismissalRepository;
 
 class Eloquent implements GamePlayerDismissalRepository
 {
-    public function dismiss(GamePlatform $platform, string $platformId, string $playerName, int $userId): GamePlayerDismissal
+    public function dismiss(Game $game, string $platformId, string $playerName, int $userId): GamePlayerDismissal
     {
         return GamePlayerDismissal::query()->updateOrCreate(
-            ['platform' => $platform->value, 'platform_id' => $platformId],
+            ['game_id' => $game->id, 'platform_id' => $platformId],
             ['player_name' => $playerName, 'dismissed_by' => $userId],
         );
     }
 
-    public function find(GamePlatform $platform, string $platformId): ?GamePlayerDismissal
+    public function find(Game $game, string $platformId): ?GamePlayerDismissal
     {
         return GamePlayerDismissal::query()
-            ->where('platform', $platform->value)
+            ->where('game_id', $game->id)
             ->where('platform_id', $platformId)
             ->first();
     }
 
-    public function forget(GamePlatform $platform, string $platformId): bool
+    public function forget(Game $game, string $platformId): bool
     {
         return GamePlayerDismissal::query()
-            ->where('platform', $platform->value)
+            ->where('game_id', $game->id)
             ->where('platform_id', $platformId)
             ->delete() > 0;
     }
 
-    public function dismissedAmong(GamePlatform $platform, array $platformIds): array
+    public function dismissedAmong(Game $game, array $platformIds): array
     {
         return $platformIds === [] ? [] : GamePlayerDismissal::query()
-            ->where('platform', $platform->value)
+            ->where('game_id', $game->id)
             ->whereIn('platform_id', $platformIds)
             ->pluck('platform_id')
             ->all();
