@@ -13,10 +13,16 @@ use Closure;
  *
  * Reason-required actions are rejected here, before the mutation ever runs — a rejected action
  * leaves no state change and no log entry.
+ *
+ * While an Admin acts as someone (#379), an action done as that person is recorded with the Admin as actor and the
+ * person as `on_behalf_of` ({@see ActingFor}), so the log always names who really did it.
  */
 class AuditEnvelope
 {
-    public function __construct(private readonly AuditLogRepository $auditLog) {}
+    public function __construct(
+        private readonly AuditLogRepository $auditLog,
+        private readonly ActingFor $acting,
+    ) {}
 
     /**
      * @throws ReasonRequiredException when `$reasonRequired` is true and no reason is given.
@@ -27,7 +33,9 @@ class AuditEnvelope
             throw ReasonRequiredException::forAction($action);
         }
 
-        return $this->auditLog->recordWithMutation($actorId, $action, $reason, $mutation);
+        [$actorId, $onBehalfOf] = $this->acting->attribute($actorId);
+
+        return $this->auditLog->recordWithMutation($actorId, $action, $reason, $mutation, $onBehalfOf);
     }
 
     /**
@@ -43,6 +51,8 @@ class AuditEnvelope
             throw ReasonRequiredException::forAction($action);
         }
 
-        return $this->auditLog->recordBatchWithMutation($actorId, $action, $reason, $mutation);
+        [$actorId, $onBehalfOf] = $this->acting->attribute($actorId);
+
+        return $this->auditLog->recordBatchWithMutation($actorId, $action, $reason, $mutation, $onBehalfOf);
     }
 }

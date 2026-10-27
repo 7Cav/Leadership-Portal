@@ -61,9 +61,9 @@ class Eloquent implements AuditLogRepository
         'GamePlayerDismissal' => [GamePlayerDismissal::class, []],
     ];
 
-    public function recordWithMutation(int $actorId, string $action, ?string $reason, Closure $mutation): mixed
+    public function recordWithMutation(int $actorId, string $action, ?string $reason, Closure $mutation, ?int $onBehalfOf = null): mixed
     {
-        return DB::transaction(function () use ($actorId, $action, $reason, $mutation) {
+        return DB::transaction(function () use ($actorId, $action, $reason, $mutation, $onBehalfOf) {
             $result = $mutation();
 
             if (! $result instanceof Model) {
@@ -74,15 +74,15 @@ class Eloquent implements AuditLogRepository
                 ));
             }
 
-            $this->append($actorId, $action, $reason, $result, $this->sortedAttributes($result));
+            $this->append($actorId, $action, $reason, $result, $this->sortedAttributes($result), $onBehalfOf);
 
             return $result;
         });
     }
 
-    public function recordBatchWithMutation(int $actorId, string $action, ?string $reason, Closure $mutation): AuditedBatch
+    public function recordBatchWithMutation(int $actorId, string $action, ?string $reason, Closure $mutation, ?int $onBehalfOf = null): AuditedBatch
     {
-        return DB::transaction(function () use ($actorId, $action, $reason, $mutation) {
+        return DB::transaction(function () use ($actorId, $action, $reason, $mutation, $onBehalfOf) {
             $batch = $mutation();
 
             if (! $batch instanceof AuditedBatch) {
@@ -108,7 +108,7 @@ class Eloquent implements AuditLogRepository
             $this->append($actorId, $action, $reason, $batch->target, [
                 'target' => $this->sortedAttributes($batch->target),
                 'members' => $members,
-            ]);
+            ], $onBehalfOf);
 
             return $batch;
         }, attempts: self::BATCH_ATTEMPTS);
@@ -144,10 +144,11 @@ class Eloquent implements AuditLogRepository
     /**
      * @param  array<mixed>  $digested  the content `content_digest` hashes
      */
-    private function append(int $actorId, string $action, ?string $reason, Model $target, array $digested): void
+    private function append(int $actorId, string $action, ?string $reason, Model $target, array $digested, ?int $onBehalfOf): void
     {
         AuditLogEntry::query()->forceCreate([
             'actor_id' => $actorId,
+            'on_behalf_of_id' => $onBehalfOf,
             'action' => $action,
             'target_type' => class_basename($target),
             'target_id' => (string) $target->getKey(),
@@ -168,7 +169,7 @@ class Eloquent implements AuditLogRepository
         int $perPage = 25,
     ): LengthAwarePaginator {
         return AuditLogEntry::query()
-            ->with('actor')
+            ->with(['actor', 'onBehalfOf'])
             ->when($actorId, fn ($query, $value) => $query->where('actor_id', $value))
             ->when($action, fn ($query, $value) => $query->where('action', $value))
             ->when($targetType, fn ($query, $value) => $query->where('target_type', $value))
