@@ -64,4 +64,4 @@ is stripped. A link to `/docs/{section}/{slug}` must name a guide that exists, a
 `public/guide-img` (not `public/docs`, which would shadow the `/docs` route).
 
 **May depend on:** `Authorization/` (the audience) and `Models/` (the `User`).
-**Reached from:** nothing yet; the docs routes (#409) read it from a controller.
+**Reached from:** `Http/Controllers/DocsController` (#409), which renders `DocsPages::home()` and `DocsPages::guide()`.
