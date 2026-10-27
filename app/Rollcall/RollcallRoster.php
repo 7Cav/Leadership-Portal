@@ -32,7 +32,7 @@ final class RollcallRoster
      * The sections a picker offers, with the platoon each sits under.
      *
      * @param  Collection<int, Unit>  $sections  sections with `parent` loaded ({@see UnitRepository::sectionsAmong()})
-     * @return list<array{id: int, designation: string, name: string, platoon: ?string}>
+     * @return list<array{id: int, designation: string, name: string, platoon: ?string, label: ?string}>
      */
     public function options(Collection $sections): array
     {
@@ -41,7 +41,7 @@ final class RollcallRoster
 
     /**
      * @param  Collection<int, Unit>  $sections  the sections in the viewer's scope, with `parent` loaded
-     * @return array{id: int, designation: string, name: string, platoon: ?string}
+     * @return array{id: int, designation: string, name: string, platoon: ?string, label: ?string}
      */
     public function section(Unit $section, Collection $sections): array
     {
@@ -52,6 +52,8 @@ final class RollcallRoster
             'designation' => $section->callsign ?? $section->name,
             'name' => $section->name,
             'platoon' => $parent ? ($parent->callsign ?? $parent->name) : null,
+            // The game or team label an Admin set (2026-10-24): the section's own, else its platoon's.
+            'label' => $section->label ?? $parent?->label,
         ];
     }
 

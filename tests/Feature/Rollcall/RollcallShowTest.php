@@ -321,8 +321,8 @@ it('gives anyone else a picker of the sections in their scope, grouped by platoo
             ->component('Rollcall')
             ->where('section', null)
             ->where('sections', [
-                ['id' => $this->section->id, 'designation' => '2/1/A/1-7', 'name' => '2nd Section', 'platoon' => '1/A/1-7', 'progress' => EMPTY_PROGRESS],
-                ['id' => $this->sibling->id, 'designation' => '3/1/A/1-7', 'name' => '3rd Section', 'platoon' => '1/A/1-7', 'progress' => EMPTY_PROGRESS],
+                ['id' => $this->section->id, 'designation' => '2/1/A/1-7', 'name' => '2nd Section', 'platoon' => '1/A/1-7', 'label' => null, 'progress' => EMPTY_PROGRESS],
+                ['id' => $this->sibling->id, 'designation' => '3/1/A/1-7', 'name' => '3rd Section', 'platoon' => '1/A/1-7', 'label' => null, 'progress' => EMPTY_PROGRESS],
             ]));
 });
 

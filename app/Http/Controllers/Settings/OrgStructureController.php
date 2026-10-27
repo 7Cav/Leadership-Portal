@@ -3,17 +3,28 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Authorization\ScopeResolver;
+use App\Commands\Units\ActingLeadForbiddenException;
+use App\Commands\Units\AssignActingLead;
+use App\Commands\Units\AssignActingLeadHandler;
 use App\Commands\Units\CreateUnit;
 use App\Commands\Units\DeleteUnit;
 use App\Commands\Units\ImportOrgStructure;
+use App\Commands\Units\InvalidActingLeadException;
 use App\Commands\Units\InvalidUnitPlacementException;
 use App\Commands\Units\OrgStructureImportFailedException;
+use App\Commands\Units\RemoveActingLead;
+use App\Commands\Units\RemoveActingLeadHandler;
+use App\Commands\Units\SetUnitLabel;
 use App\Commands\Units\UnitHasDependentsException;
 use App\Commands\Units\UpdateUnit;
 use App\Http\Controllers\Controller;
+use App\Models\Trooper;
 use App\Models\Unit;
+use App\Models\UnitKind;
 use App\Models\UnitType;
 use App\Repositories\TrooperRepository;
+use App\Repositories\UnitActingLeadRepository;
+use App\Repositories\UnitLeadRepository;
 use App\Repositories\UnitRepository;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -36,6 +47,8 @@ class OrgStructureController extends Controller
     public function __construct(
         private readonly UnitRepository $units,
         private readonly TrooperRepository $troopers,
+        private readonly UnitLeadRepository $leads,
+        private readonly UnitActingLeadRepository $actingLeads,
     ) {}
 
     /**
@@ -45,28 +58,47 @@ class OrgStructureController extends Controller
     public function index(Request $request, ScopeResolver $scope): Response
     {
         $tree = $this->units->tree();
-        // Troopers assigned to each section, rolled up every branch: a unit's count is the troopers in
-        // any section under its path (the same subtree rule strength uses, AD-18, AD-21). The prefix
-        // test relies on the AD-18 convention that every `path` ends in "/", so "1/2/" can never match
-        // "1/20/".
-        $bySection = $this->troopers->countsBySection();
-        $sectionPaths = $tree->whereIn('id', $bySection->keys()->all())->pluck('path', 'id');
+        // Troopers placed in each unit, rolled up every branch: a unit's count is the serving troopers placed anywhere
+        // under its path, HQ staff on their HQ node and the groups included (2026-10-24, AD-18). New Recruits count on
+        // their own group only, never in an ancestor's: they are not yet part of any unit. The prefix test relies on
+        // the AD-18 convention that every `path` ends in "/", so "1/2/" can never match "1/20/".
+        $byUnit = $this->troopers->countsBySection();
+        $placedIn = $tree->whereIn('id', $byUnit->keys()->all())->keyBy('id');
+        $leadable = $this->leads->leadableUnitIds()->flip();
+        $leads = $this->leads->leadsOf($tree->modelKeys());
+        $acting = $this->actingLeads->leadsOf($tree->modelKeys());
 
-        $units = $tree->map(fn ($unit) => [
+        $units = $tree->map(fn (Unit $unit) => [
             'id' => $unit->id,
             'parent_id' => $unit->parent_id,
             'type' => $unit->type->value,
+            'kind' => ($unit->kind ?? UnitKind::Line)->value,
             'name' => $unit->name,
             'callsign' => $unit->callsign,
+            'label' => $unit->label,
             'path' => $unit->path,
-            'trooper_count' => $bySection
-                ->filter(fn (int $count, int $sectionId) => str_starts_with($sectionPaths->get($sectionId, ''), $unit->path))
+            'own_count' => $byUnit->get($unit->id, 0),
+            'trooper_count' => $byUnit
+                ->filter(fn (int $count, int $id) => str_starts_with($placedIn->get($id)->path, $unit->path)
+                    && ($placedIn->get($id)->kind !== UnitKind::Recruit || $unit->kind === UnitKind::Recruit))
                 ->sum(),
+            // Who leads the unit now (`UnitLead`): a command billet's serving holder, a portfolio officer, or an acting
+            // lead an Admin assigned. Vacant when the unit should have a lead and nobody serving fills it; no history
+            // of a previous holder is kept.
+            'lead' => ($lead = $leads->get($unit->id)) === null ? null : [
+                'displayName' => $lead->trooper->display_name,
+                'billet' => $lead->trooper->billet,
+                'source' => $lead->source,
+            ],
+            'lead_vacant' => $leadable->has($unit->id) && ! $leads->has($unit->id),
+            'acting_lead' => ($actor = $acting->get($unit->id)) === null ? null : ['id' => $actor->id, 'displayName' => $actor->display_name],
         ])->values();
 
         // Follows a view-as preview (Story 1.13): authoring controls hide as they would for the
         // previewed leader. The write gates below keep reading the real flag.
         $isAdmin = $scope->actsAsAdmin($request->user());
+        $visible = $scope->resolve($request->user())->flip();
+        $groupIds = $tree->filter(fn (Unit $unit) => ! $unit->isLine() && $visible->has($unit->id))->modelKeys();
 
         return Inertia::render('Settings/OrgStructure', [
             'units' => $units,
@@ -77,6 +109,18 @@ class OrgStructureController extends Controller
             'unplacedTroopers' => $isAdmin ? $this->troopers->unplaced(self::UNPLACED_LIMIT)->all() : null,
             // The true total, so the heading stays honest when the list above is capped.
             'unplacedTotal' => $isAdmin ? $this->troopers->unplacedCount() : null,
+            // Who is in each group the viewer may see (2026-10-24), keyed by unit id: a staff department, ELOA with
+            // each trooper's "was", Reservists, New Recruits. Scoped like every roster read (AD-8): a group outside
+            // the viewer's scope is absent, not empty.
+            'groupMembers' => $this->troopers->servingPlacedIn($groupIds)
+                ->groupBy('primary_section_id')
+                ->map(fn ($members) => $members->map(fn (Trooper $trooper) => [
+                    'id' => $trooper->id,
+                    'displayName' => $trooper->display_name,
+                    'billet' => $trooper->billet,
+                    'was' => $trooper->lastLineUnit === null ? null : ($trooper->lastLineUnit->callsign ?? $trooper->lastLineUnit->name),
+                ])->values()->all())
+                ->all(),
             // The outcome of an import just run (story 2.9), flashed by `import()` for one render.
             'importResult' => $request->session()->get('org_import'),
         ]);
@@ -139,6 +183,69 @@ class OrgStructureController extends Controller
             // Cycle and echelon-rank violations are domain rules the request-shape validation
             // above can't express — surfaced as a form error on `parent_id` (AC #3).
             throw ValidationException::withMessages(['parent_id' => $e->getMessage()]);
+        }
+
+        return redirect()->route('settings.org-structure');
+    }
+
+    /**
+     * Set or clear a unit's game or team label (2026-10-24, DEVCOM's "WARDOGS"). Admin-only, server-side (AD-6);
+     * audited by {@see SetUnitLabel} (AD-16).
+     */
+    public function label(Request $request, int $unit, SetUnitLabel $command): RedirectResponse
+    {
+        $unit = $this->adminUnit($request, $unit);
+
+        $data = $request->validate([
+            'label' => ['nullable', 'string', 'max:'.SetUnitLabel::MAX_LENGTH],
+        ]);
+
+        $command->handle($request->user(), $unit, $data['label'] ?? null);
+
+        return redirect()->route('settings.org-structure');
+    }
+
+    /**
+     * Make a serving trooper the acting lead of a unit the roster names no lead for (2026-10-25). Admin-only,
+     * server-side (AD-6); audited with a required reason by {@see AssignActingLeadHandler} (AD-16).
+     */
+    public function assignActingLead(Request $request, int $unit, AssignActingLeadHandler $handler): RedirectResponse
+    {
+        $this->adminUnit($request, $unit);
+
+        $data = $request->validate([
+            'trooper_id' => ['required', 'integer'],
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        try {
+            $handler->handle($request->user(), new AssignActingLead($unit, (int) $data['trooper_id'], $data['reason']));
+        } catch (InvalidActingLeadException $e) {
+            throw ValidationException::withMessages(['acting_lead' => $e->getMessage()]);
+        } catch (ActingLeadForbiddenException $e) {
+            abort(403, $e->getMessage());
+        }
+
+        return redirect()->route('settings.org-structure');
+    }
+
+    /**
+     * Remove a unit's acting lead (2026-10-25). Admin-only (AD-6); audited with a required reason (AD-16).
+     */
+    public function removeActingLead(Request $request, int $unit, RemoveActingLeadHandler $handler): RedirectResponse
+    {
+        $this->adminUnit($request, $unit);
+
+        $data = $request->validate([
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        try {
+            $handler->handle($request->user(), new RemoveActingLead($unit, $data['reason']));
+        } catch (InvalidActingLeadException $e) {
+            throw ValidationException::withMessages(['acting_lead' => $e->getMessage()]);
+        } catch (ActingLeadForbiddenException $e) {
+            abort(403, $e->getMessage());
         }
 
         return redirect()->route('settings.org-structure');

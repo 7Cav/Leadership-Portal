@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Unit;
+use App\Models\UnitKind;
 use App\Models\UnitType;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -24,9 +25,18 @@ class UnitFactory extends Factory
         return [
             'parent_id' => null,
             'type' => UnitType::Section,
+            'kind' => UnitKind::Line,
             'name' => fake()->unique()->words(2, true),
             'callsign' => fake()->unique()->bothify('?/?/?'),
             'path' => fake()->unique()->numerify('###/'),
         ];
+    }
+
+    /**
+     * A group off the line (2026-10-24): a staff department, ELOA, Reservists or New Recruits.
+     */
+    public function group(UnitKind $kind = UnitKind::Staff): static
+    {
+        return $this->state(['type' => UnitType::Group, 'kind' => $kind]);
     }
 }

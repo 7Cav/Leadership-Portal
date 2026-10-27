@@ -5,7 +5,7 @@ namespace App\Commands\Troopers;
 use DomainException;
 
 /**
- * A placement the domain rules refuse: the target is not a section, or the trooper cannot be placed
+ * A placement the domain rules refuse: the target unit does not exist, or the trooper cannot be placed
  * (no such trooper, already placed, or no longer on a Cav roster). Domain rules, not request shape,
  * so a controller turns this into a form error rather than a 500.
  */
@@ -13,7 +13,7 @@ class InvalidTrooperPlacementException extends DomainException
 {
     public static function notASection(int $unitId): self
     {
-        return new self("Unit {$unitId} is not a section; a trooper can only be placed into a section.");
+        return new self("There is no unit {$unitId} to place the trooper into.");
     }
 
     public static function noSuchTrooper(int $trooperId): self
@@ -23,7 +23,7 @@ class InvalidTrooperPlacementException extends DomainException
 
     public static function alreadyPlaced(int $trooperId): self
     {
-        return new self("Trooper {$trooperId} is already placed in a section.");
+        return new self("Trooper {$trooperId} is already placed in a unit.");
     }
 
     public static function departed(int $trooperId): self

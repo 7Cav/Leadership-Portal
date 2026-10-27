@@ -3,7 +3,6 @@
 namespace App\Commands\Troopers;
 
 use App\Models\Trooper;
-use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
@@ -11,7 +10,9 @@ use App\Support\Audit\AuditEnvelope;
 use App\Support\Audit\ReasonRequiredException;
 
 /**
- * Place an unmapped trooper into a section by hand (2.7, AD-18). This is the one audited exception to
+ * Place an unmapped trooper into a unit by hand (2.7, AD-18). Since 2026-10-24 the target may be any unit: a section, an
+ * HQ node (a platoon, company, battalion or the regiment, for its staff) or a group (a staff department, ELOA,
+ * Reservists, New Recruits). The class keeps its name; `primary_section_id` now holds the primary unit. This is the one audited exception to
  * the roster sync being the sole writer of `troopers`: it writes only `primary_section_id` and
  * `placement_source = manual`, never a synced roster field (AD-4, AD-22).
  *
@@ -34,7 +35,7 @@ class PlaceTrooperInSectionHandler
 
     /**
      * @throws PlaceTrooperForbiddenException when the actor is not an Admin.
-     * @throws InvalidTrooperPlacementException when the target is not a section, or the trooper cannot be placed.
+     * @throws InvalidTrooperPlacementException when the target unit does not exist, or the trooper cannot be placed.
      * @throws ReasonRequiredException when the reason is blank.
      */
     public function handle(User $actor, PlaceTrooperInSection $command): Trooper
@@ -43,7 +44,7 @@ class PlaceTrooperInSectionHandler
             throw new PlaceTrooperForbiddenException;
         }
 
-        if ($this->units->find($command->sectionId)?->type !== UnitType::Section) {
+        if ($this->units->find($command->sectionId) === null) {
             throw InvalidTrooperPlacementException::notASection($command->sectionId);
         }
 

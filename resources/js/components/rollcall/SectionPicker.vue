@@ -43,13 +43,14 @@ function pick(section) {
                 <CommandItem
                     v-for="section in group.sections"
                     :key="section.id"
-                    :value="`${section.designation} ${section.name}`"
+                    :value="`${section.designation} ${section.name} ${section.label ?? ''}`"
                     :data-section="section.id"
                     @select="pick(section)"
                 >
                     <PhUsers class="text-muted-foreground" aria-hidden="true" />
                     <span class="font-medium">{{ section.designation }}</span>
                     <span v-if="section.name !== section.designation" class="text-muted-foreground">{{ section.name }}</span>
+                    <span v-if="section.label" class="rounded-sm border border-border px-1 text-[10px] font-semibold tracking-wide text-muted-foreground" data-testid="section-label">{{ section.label }}</span>
                     <span
                         v-if="section.status"
                         class="ml-auto inline-flex items-center gap-1 text-xs whitespace-nowrap"

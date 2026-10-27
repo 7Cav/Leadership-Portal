@@ -43,18 +43,21 @@ trait GuardsHostPractice
     }
 
     /**
-     * Who may be a guest at `$sectionId`'s practice: a serving trooper placed in a section of their own, which is not
+     * Who may be a guest at `$sectionId`'s practice: a serving trooper placed in a section of their own (never HQ staff or
+     * a group), which is not
      * the host section (a host trooper is marked on the rollcall itself). A departed trooper keeps their last placement,
      * so standing is checked, not only placement.
      *
      * @throws GuestAttendanceRefusedException
      */
-    private function refuseNonGuest(?Trooper $trooper, int $sectionId): Trooper
+    private function refuseNonGuest(?Trooper $trooper, int $sectionId, UnitRepository $units): Trooper
     {
         return match (true) {
             $trooper === null => throw GuestAttendanceRefusedException::unknownTrooper(),
             ! $trooper->status->isServing() => throw GuestAttendanceRefusedException::notServing($trooper->display_name),
-            $trooper->primary_section_id === null => throw GuestAttendanceRefusedException::notPlaced($trooper->display_name),
+            // HQ staff and groups (2026-10-24) have no rollcall of their own to carry the makeup, so they are not guests.
+            $trooper->primary_section_id === null,
+            $units->find($trooper->primary_section_id)?->type !== UnitType::Section => throw GuestAttendanceRefusedException::notPlaced($trooper->display_name),
             $trooper->primary_section_id === $sectionId => throw GuestAttendanceRefusedException::ownSection($trooper->display_name),
             default => $trooper,
         };

@@ -144,8 +144,11 @@ it('builds Regiment → Battalion → Company → Platoon → Section from the l
         ->and($battalion->parent_id)->toBe($root->id)
         ->and($section->path)->toBe("{$root->id}/{$battalion->id}/{$company->id}/{$platoon->id}/{$section->id}/");
 
-    expect($result->unitsCreated)->toBe(31)
-        ->and(Unit::count())->toBe(31);
+    // 31 line units, plus the S1 department, the ELOA, Reservists and New Recruits groups, and the Executive Officer
+    // and Reserve & Development Command portfolios the Reservists sit under (2026-10-25).
+    expect($result->unitsCreated)->toBe(37)
+        ->and(Unit::count())->toBe(37)
+        ->and(Unit::query()->where('type', UnitType::Group)->count())->toBe(6);
 });
 
 it('maps every section-level billet to its section by cav_position_id (AC #3)', function () {
@@ -156,24 +159,27 @@ it('maps every section-level billet to its section by cav_position_id (AC #3)', 
     expect($mappings[201])->toBe('1/1/A/1-7')
         ->and($mappings[202])->toBe('1/1/A/1-7')
         ->and($mappings[203])->toBe('1/1/A/1-7')
-        ->and($result->mappingsCreated)->toBe(29)
-        ->and(count($mappings))->toBe(29);
+        // 29 section billets, plus S1 1IC and 2IC, ELOA, Reservist and New Recruit placing into their groups, and the
+        // Regimental XO (a portfolio officer) placed on the regiment.
+        ->and($result->mappingsCreated)->toBe(35)
+        ->and(count($mappings))->toBe(35);
 
-    // Company- and platoon-level billets are not section billets — never mapped.
+    // Company- and platoon-level command billets get no placement row: the sync places them by their command mapping.
     expect($mappings)->not->toHaveKey(196)  // Commander A/1-7
         ->and($mappings)->not->toHaveKey(199); // Platoon Leader 1/A/1-7
 
-    // Every mapping lands on a section — the only kind 2.5's resolver accepts.
+    // The section mappings among them, unchanged.
     expect(app(UnitBilletMappingRepository::class)->sectionIdsByPositionId())->toHaveCount(29);
 });
 
-it('creates nothing for non-line groups (AC #4)', function () {
+it('creates no line node for non-line groups (AC #4), only the staff and holding groups (2026-10-24)', function () {
     iosImport();
 
-    // Exactly the line-company tree: 1 regiment + 5 battalions + 7 companies + 8 platoons +
-    // 10 sections. Any node from a non-line group would push this up.
-    expect(Unit::count())->toBe(31)
-        ->and(UnitBilletMapping::count())->toBe(29);
+    // The line-company tree (1 regiment + 5 battalions + 7 companies + 8 platoons + 10 sections) and
+    // the four groups the fixture's staff and holding billets place into.
+    expect(Unit::query()->where('type', '!=', UnitType::Group)->count())->toBe(31)
+        ->and(Unit::query()->where('type', UnitType::Group)->orderBy('id')->pluck('callsign')->all())->toBe(['XO', 'S1', 'NR', 'ELOA', 'RDC', 'RES'])
+        ->and(UnitBilletMapping::count())->toBe(35);
 
     $callsigns = Unit::query()->pluck('callsign')->all();
 
@@ -269,10 +275,10 @@ it('never deletes nodes or repoints mappings that are gone or changed upstream (
     $result = iosImport();
 
     expect($result->unitsCreated)->toBe(0)
-        ->and(Unit::count())->toBe(32)
+        ->and(Unit::count())->toBe(38)
         ->and(iosUnit(UnitType::Section, '9/1/A/1-7'))->not->toBeNull()
         ->and(iosMappings()[201])->toBe('9/1/A/1-7')
-        ->and(UnitBilletMapping::count())->toBe(29);
+        ->and(UnitBilletMapping::count())->toBe(35);
 });
 
 it('makes no write when Cav is unavailable (edge case)', function () {
@@ -427,8 +433,8 @@ it('maps every leadership billet to the unit it commands (1.16)', function () {
     }
 
     // Command groups still create no nodes, and the section mapping (2.5's input) is untouched.
-    expect(Unit::count())->toBe(31)
-        ->and(UnitBilletMapping::count())->toBe(29)
+    expect(Unit::count())->toBe(37)
+        ->and(UnitBilletMapping::count())->toBe(35)
         ->and(app(UnitBilletMappingRepository::class)->sectionIdsByPositionId())->toHaveCount(29);
 });
 

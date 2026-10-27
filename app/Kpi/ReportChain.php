@@ -46,7 +46,8 @@ final class ReportChain
     public function build(Unit $root, CarbonInterface $weekStart): ChainNode
     {
         $weekStart = WeekOf::requireStart($weekStart);
-        $units = $this->units->subtree($root);
+        // The reporting chain is the line: groups (staff, ELOA, Reservists, New Recruits) have no report (2026-10-24).
+        $units = $this->units->lineSubtree($root);
         $ids = $units->modelKeys();
         $reports = $this->reports->forUnits($ids, $weekStart);
         $priorReports = $this->reports->forUnits($ids, $weekStart->subWeek());

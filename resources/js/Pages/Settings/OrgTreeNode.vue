@@ -20,7 +20,8 @@ const emit = defineEmits(['select', 'toggle', 'addChild', 'delete']);
 // scope; a leaf (Section) can't have children so it gets no add-child tool.
 const ECHELON_ORDER = ['regiment', 'battalion', 'company', 'platoon', 'section'];
 const isRoot = computed(() => props.node.parent_id === null);
-const childType = computed(() => ECHELON_ORDER[ECHELON_ORDER.indexOf(props.node.type) + 1] ?? null);
+// A group (staff department, ELOA, Reservists, New Recruits) gets no add-child tool: groups are the import's.
+const childType = computed(() => (props.node.type === 'group' ? null : (ECHELON_ORDER[ECHELON_ORDER.indexOf(props.node.type) + 1] ?? null)));
 </script>
 
 <template>
@@ -57,6 +58,15 @@ const childType = computed(() => ECHELON_ORDER[ECHELON_ORDER.indexOf(props.node.
                 {{ node.name }}
                 <span v-if="node.callsign" class="ml-1.5 font-mono text-[11px] text-muted-foreground">{{ node.callsign }}</span>
             </span>
+            <!-- The game or team label an Admin set (DEVCOM's "WARDOGS"). -->
+            <span
+                v-if="node.label"
+                :data-testid="`unit-label-${node.id}`"
+                class="shrink-0 rounded-sm border border-border px-1 text-[10px] font-semibold tracking-wide text-muted-foreground"
+                >{{ node.label }}</span
+            >
+            <!-- A billet commands this unit and nobody serving holds it. No previous holder is remembered. -->
+            <span v-if="node.lead_vacant" :data-testid="`lead-vacant-${node.id}`" class="shrink-0 text-[11px] text-warning">Lead: vacant</span>
 
             <span class="ml-auto shrink-0 text-[11px] text-muted-foreground tabular-nums">{{ node.trooper_count }} {{ node.trooper_count === 1 ? 'trooper' : 'troopers' }}</span>
 

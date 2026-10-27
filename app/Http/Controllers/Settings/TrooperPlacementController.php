@@ -16,7 +16,8 @@ use Illuminate\Validation\ValidationException;
  * The gate is checked here first, like every other Settings write, and before anything about the
  * trooper is looked up, so a non-Admin learns nothing about which trooper ids exist. The trooper id is
  * taken as a plain number rather than route-model-bound for the same reason: binding would answer 404
- * before the gate ran. A rule the handler enforces (no such trooper, not a section, already placed,
+ * before the gate ran. `section_id` keeps its name but takes any unit: a section, an HQ node or a group (2026-10-24).
+ * A rule the handler enforces (no such trooper, no such unit, already placed,
  * departed) comes back as a form error, not a 500.
  */
 class TrooperPlacementController extends Controller
@@ -24,7 +25,7 @@ class TrooperPlacementController extends Controller
     public function store(Request $request, int $trooper, PlaceTrooperInSectionHandler $handler): RedirectResponse
     {
         if (! $request->user()->is_admin) {
-            abort(403, 'Only an Admin may place a trooper into a section.');
+            abort(403, 'Only an Admin may place a trooper into a unit.');
         }
 
         $data = $request->validate([

@@ -119,15 +119,15 @@ it('422s a section id that is missing or does not exist', function (array $paylo
     'not a number' => [['section_id' => 'abc']],
 ]);
 
-it('422s a unit that is not a section, as a form error, not a 500', function () {
+it('places a trooper on an HQ node too, since staff sit on their HQ (2026-10-24)', function () {
     $admin = User::factory()->admin()->create();
-    $platoon = app(UnitRepository::class)->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
+    $regiment = app(UnitRepository::class)->create(UnitType::Regiment, '7th Cavalry Regiment', null, null);
     $trooper = Trooper::factory()->create(['primary_section_id' => null]);
 
-    $this->actingAs($admin)->post(placementUrl($trooper), ['section_id' => $platoon->id, 'reason' => 'Because.'])
-        ->assertSessionHasErrors(['placement' => 'Unit '.$platoon->id.' is not a section; a trooper can only be placed into a section.']);
+    $this->actingAs($admin)->post(placementUrl($trooper), ['section_id' => $regiment->id, 'reason' => 'Regimental staff.'])
+        ->assertSessionHasNoErrors();
 
-    expect($trooper->fresh()->primary_section_id)->toBeNull();
+    expect($trooper->fresh()->primary_section_id)->toBe($regiment->id);
 });
 
 it('422s a trooper who is already placed, leaving the existing placement', function () {

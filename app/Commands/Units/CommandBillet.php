@@ -16,7 +16,13 @@ use App\Models\UnitType;
  *    that battalion (ACD spells its command team `Auxiliary Commander` / `Executive Officer` /
  *    `Sergeant Major`);
  *  - the `Regimental HQ` group: `Regimental Commanding Officer` / `Executive Officer` /
- *    `Command Sergeant Major` → the regiment.
+ *    `Command Sergeant Major` → the regiment;
+ *  - a regimental staff officer's billet that commands nothing above ({@see StaffBillet::PORTFOLIOS}: SecOps,
+ *    Recruiting Oversight, IMO, RDC Commander) → their portfolio node, so they see what is under it; the
+ *    import maps these, this class does not.
+ *
+ * `DEVCOM Lead` commands nothing by billet (decided 2026-10-25): its holders sit with DEVCOM staff and are made acting
+ * lead of the DEVCOM starter platoons they run by an Admin, since the roster does not say which.
  *
  * Matching is exact, like {@see CavDesignation}'s: a role at an echelon it does not command
  * (`Section Leader 1/A/1-7`), or any title not listed, confers nothing rather than being guessed
@@ -53,6 +59,23 @@ final class CommandBillet
 
     /** A battalion command group's title: `1-7 Command`, `ACD Command`. */
     private const COMMAND_GROUP = '#^(?<battalion>[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*) Command$#';
+
+    /**
+     * The HQ node a non-line group's staff belong to (2026-10-24): the regiment for `Regimental HQ`, the battalion for a
+     * `<bn> Command` group, null for any other group. The import places a non-command billet of such a group there
+     * (`Regimental Chief of Staff`, `Aide to the SecOps`, ACD's `Reserve Commander`), so the whole HQ is counted in its
+     * unit's strength; a command billet is already placed by its command mapping.
+     */
+    public static function headquartersOf(string $groupTitle): ?CavDesignation
+    {
+        $groupTitle = trim($groupTitle);
+
+        if ($groupTitle === self::REGIMENTAL_GROUP) {
+            return CavDesignation::regiment();
+        }
+
+        return preg_match(self::COMMAND_GROUP, $groupTitle, $m) === 1 ? CavDesignation::battalion($m['battalion']) : null;
+    }
 
     /**
      * The unit a billet in a line-company group commands — `$designation` itself, as

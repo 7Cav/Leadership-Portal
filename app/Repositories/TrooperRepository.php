@@ -78,21 +78,26 @@ interface TrooperRepository
      * even over a manual placement: once Cav can resolve a billet, the source of truth wins and the
      * manual placement is retired (2.7). The rule is deterministic, so it cannot flip-flop between runs.
      *
+     * The target is the trooper's primary unit: a section, an HQ node or a group (2026-10-24). A trooper moved into one
+     * of `$eloaUnitIds` from a line unit keeps that unit as their ELOA "was" (`last_line_unit_id`); one moved in from
+     * anywhere else keeps what was recorded (blank for a trooper first seen on ELOA); a placement anywhere else clears it.
+     *
      * @param  array<int, int>  $cavIdToSectionId  cav_id => units.id
+     * @param  list<int>  $eloaUnitIds  the ELOA group(s)
      */
-    public function updatePrimarySections(array $cavIdToSectionId): int;
+    public function updatePrimarySections(array $cavIdToSectionId, array $eloaUnitIds = []): int;
 
     /**
-     * How many troopers are currently assigned to each section, keyed by section id: not inactive
-     * (LOA still counts, as in strength), and only sections that have at least one. The Settings tree
-     * rolls these up its branches (2.7), so a placement is visible there at once.
+     * How many troopers are currently placed in each unit, keyed by unit id (a section, an HQ node or a group, despite
+     * the name): not inactive (LOA still counts, as in strength), and only units that have at least one. The Settings
+     * tree rolls these up its branches (2.7), so a placement is visible there at once.
      *
      * @return Collection<int, int>
      */
     public function countsBySection(): Collection;
 
     /**
-     * Place an unplaced trooper into `$sectionId` by hand (2.7), marking `placement_source = manual`.
+     * Place an unplaced trooper into `$sectionId` (any unit since 2026-10-24) by hand (2.7), marking `placement_source = manual`.
      * Touches only the two placement columns, never a synced roster field. One conditional write: it
      * applies only while the trooper is still unplaced and still on a roster, and returns the placed
      * trooper, or null when it did not apply (already placed, departed, or no such trooper), so two
@@ -123,8 +128,9 @@ interface TrooperRepository
     public function servingIdsPlacedIn(int $sectionId, array $trooperIds): Collection;
 
     /**
-     * The ids of the troopers currently assigned within `$unit`'s subtree — primary section
-     * anywhere under it, not inactive (LOA still counts) — ascending. Strength's population (5.1).
+     * The ids of the troopers currently assigned within `$unit`'s subtree — primary unit a section
+     * anywhere under it, not inactive (LOA still counts) — ascending. Strength's population (5.1): HQ staff and
+     * groups are on no rollcall and are not measured (2026-10-24, `Trooper::assignedWithin`).
      *
      * @return Collection<int, int>
      */
@@ -233,13 +239,22 @@ interface TrooperRepository
     public function placedWithin(Unit $unit): EloquentCollection;
 
     /**
-     * The troopers currently assigned within `$unit`'s subtree: the same set as {@see self::assignedWithin()}
-     * (primary section anywhere under it, not `Inactive`; LOA and ELOA still count), as models in id order, so
-     * "who counts as active" has one named home next to the query and no departed row is loaded to be dropped.
+     * The serving troopers placed anywhere in `$unit`'s subtree, HQ staff and groups included (not `Inactive`; LOA and
+     * ELOA still count), as models in id order, so "who counts as active" has one named home next to the query and no
+     * departed row is loaded to be dropped. Wider than {@see self::assignedWithin()}, which only measures sections.
      *
      * @return EloquentCollection<int, Trooper>
      */
     public function activePlacedWithin(Unit $unit): EloquentCollection;
+
+    /**
+     * The serving troopers placed directly in any of `$unitIds`, with their ELOA "was" unit loaded, by username: the
+     * members the org page lists for a group (2026-10-24). One query.
+     *
+     * @param  iterable<int>  $unitIds
+     * @return EloquentCollection<int, Trooper>
+     */
+    public function servingPlacedIn(iterable $unitIds): EloquentCollection;
 
     public function find(int $id): ?Trooper;
 
@@ -256,7 +271,8 @@ interface TrooperRepository
     public function searchByUsername(string $term, iterable $sectionIds, bool $withUnplaced, int $limit): EloquentCollection;
 
     /**
-     * The rollcall's guest picker (decided 2026-10-23): serving troopers placed in any section but `$hostSectionId`, whose
+     * The rollcall's guest picker (decided 2026-10-23): serving troopers placed in any section (never HQ staff or a group,
+     * who have no rollcall for the makeup) but `$hostSectionId`, whose
      * username contains `$term` (ignoring case, `%` and `_` matching themselves), for a host leader saying "X from another
      * section attended our practice". Deliberately not scope-filtered: a guest comes from outside the leader's scope by
      * definition. The caller exposes only what the picker needs (username, rank, own section), never the milpac. A

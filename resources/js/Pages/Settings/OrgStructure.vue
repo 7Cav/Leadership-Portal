@@ -39,7 +39,20 @@ const props = defineProps({
     unplacedTroopers: { type: Array, default: null },
     // The true count of unplaced troopers; the list above is capped, so this can be larger.
     unplacedTotal: { type: Number, default: null },
+    // Who is in each group the viewer may see, by unit id: `{ id, displayName, billet, was }`. `was` is the line
+    // unit an ELOA trooper left, or null.
+    groupMembers: { type: Object, default: () => ({}) },
 });
+
+// New Recruits are hidden until asked for: they are not yet part of any unit, and never in an ancestor's count.
+const showRecruits = ref(false);
+const hasRecruits = computed(() => props.units.some((unit) => unit.kind === 'recruit'));
+const hiddenIds = computed(() => {
+    if (showRecruits.value) return new Set();
+    const recruitPaths = props.units.filter((unit) => unit.kind === 'recruit').map((unit) => unit.path);
+    return new Set(props.units.filter((unit) => recruitPaths.some((path) => unit.path.startsWith(path))).map((unit) => unit.id));
+});
+const shownUnits = computed(() => props.units.filter((unit) => !hiddenIds.value.has(unit.id)));
 
 const unplacedCount = computed(() => props.unplacedTotal ?? props.unplacedTroopers?.length ?? 0);
 
@@ -51,7 +64,7 @@ function billetLabel(trooper) {
 }
 
 const tree = computed(() => {
-    const byId = new Map(props.units.map((unit) => [unit.id, { ...unit, children: [] }]));
+    const byId = new Map(shownUnits.value.map((unit) => [unit.id, { ...unit, children: [] }]));
     const roots = [];
 
     for (const unit of byId.values()) {
@@ -79,6 +92,96 @@ function toggleCollapsed(id) {
 
 const selectedId = ref(null);
 const selectedUnit = computed(() => props.units.find((unit) => unit.id === selectedId.value) ?? null);
+const selectedMembers = computed(() => (selectedUnit.value ? (props.groupMembers[selectedUnit.value.id] ?? null) : null));
+
+// Game or team label (Admin): its own small form, audited on the server.
+const labelForm = useForm({ label: '' });
+watch(
+    selectedUnit,
+    (unit) => {
+        labelForm.label = unit?.label ?? '';
+        labelForm.clearErrors();
+    },
+    { immediate: true },
+);
+
+// Acting lead (Admin): a serving trooper who leads a unit the roster names no lead for, such as a DEVCOM starter
+// platoon run by a DEVCOM Lead. One per unit; audited with a required reason on the server.
+const actingQuery = ref('');
+const actingResults = ref([]);
+const actingPick = ref(null);
+const actingReason = ref('');
+const actingError = ref(null);
+const actingBusy = ref(false);
+const canTakeActingLead = computed(
+    () => selectedUnit.value !== null && selectedUnit.value.type !== 'group' && selectedUnit.value.type !== 'regiment',
+);
+
+watch(selectedUnit, () => {
+    actingQuery.value = '';
+    actingResults.value = [];
+    actingPick.value = null;
+    actingReason.value = '';
+    actingError.value = null;
+});
+
+async function searchActing() {
+    const q = actingQuery.value.trim();
+    actingPick.value = null;
+    if (q.length < 2) {
+        actingResults.value = [];
+        return;
+    }
+    try {
+        const response = await fetch(`/troopers/search?q=${encodeURIComponent(q)}`, {
+            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+        });
+        actingResults.value = response.ok ? ((await response.json()).troopers ?? []).filter((t) => !t.departed) : [];
+    } catch {
+        actingResults.value = [];
+    }
+}
+
+function actingOptions(onError) {
+    return {
+        preserveScroll: true,
+        onError: (errors) => (actingError.value = errors.acting_lead ?? errors.reason ?? errors.trooper_id ?? Object.values(errors)[0] ?? onError),
+        onFinish: () => (actingBusy.value = false),
+        onSuccess: () => {
+            actingPick.value = null;
+            actingReason.value = '';
+            actingQuery.value = '';
+            actingResults.value = [];
+        },
+    };
+}
+
+function assignActing() {
+    actingError.value = null;
+    actingBusy.value = true;
+    router.post(
+        `/settings/org-structure/${selectedUnit.value.id}/acting-lead`,
+        { trooper_id: actingPick.value.id, reason: actingReason.value.trim() },
+        actingOptions('The acting lead was not saved.'),
+    );
+}
+
+function removeActing() {
+    actingError.value = null;
+    actingBusy.value = true;
+    router.delete(`/settings/org-structure/${selectedUnit.value.id}/acting-lead`, {
+        data: { reason: actingReason.value.trim() },
+        ...actingOptions('The acting lead was not removed.'),
+    });
+}
+
+function submitLabel() {
+    labelForm.patch(`/settings/org-structure/${selectedUnit.value.id}/label`, {
+        preserveScroll: true,
+        onHttpException: onHttpException('The label was not saved', (message) => toast.error(message)),
+    });
+}
 
 // Find a unit by name or callsign. Picking a match opens the branches above it, selects it,
 // scrolls it into view and moves focus to its row, which glows for a moment so the eye finds it.
@@ -88,7 +191,7 @@ const activeIndex = ref(0);
 const highlightId = ref(null);
 let highlightTimer = null;
 
-const search = computed(() => searchUnits(props.units, unitQuery.value));
+const search = computed(() => searchUnits(shownUnits.value, unitQuery.value));
 const listOpen = computed(() => searchOpen.value && unitQuery.value.trim() !== '');
 const activeOption = computed(() => (listOpen.value ? (search.value.results[activeIndex.value] ?? null) : null));
 const searchAnnouncement = computed(() => {
@@ -224,6 +327,15 @@ const editLegalParents = computed(() => {
         return [];
     }
 
+    // A group sits under the regiment or a staff group (a department under its portfolio), never under itself or
+    // anything below it; a line unit never sits under a group (`UnitType::canSitUnder()`).
+    if (selectedUnit.value.type === 'group') {
+        const own = selectedUnit.value.path;
+        return props.units.filter(
+            (unit) => (unit.type === 'regiment' || (unit.type === 'group' && unit.kind === 'staff')) && !unit.path.startsWith(own),
+        );
+    }
+
     return props.units.filter((unit) => RANK[unit.type] === RANK[selectedUnit.value.type] - 1);
 });
 
@@ -250,11 +362,11 @@ defineExpose({ form });
 
 // Import from the Cav position groups (Story 2.9). A plain `router.post()` — there is no form
 // state to carry — so a refused import's `errors.import` is caught here, as `deleteError` is.
-// Manual placement of an unplaced trooper (Story 2.7). One chip is open at a time. The sections are
-// the `section` echelon of the tree, listed by `path` so they read in chain-of-command order.
+// Manual placement of an unplaced trooper (Story 2.7). One chip is open at a time. Since 2026-10-24 any unit can take
+// a trooper: a section, an HQ node for its staff, or a group (a staff department, ELOA, Reservists, New Recruits).
+// Listed by `path` so they read in chain-of-command order.
 const sections = computed(() =>
-    props.units
-        .filter((unit) => unit.type === 'section')
+    [...props.units]
         .sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }))
         .map((unit) => ({ id: unit.id, label: sectionLabel(unit) })),
 );
@@ -423,10 +535,10 @@ function requestDelete(id) {
             <PhCheckCircle class="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
             <p>
                 Imported from the Cav roster: {{ importResult.unitsCreated }} {{ importResult.unitsCreated === 1 ? 'node' : 'nodes' }} and
-                {{ importResult.mappingsCreated }} section {{ importResult.mappingsCreated === 1 ? 'mapping' : 'mappings' }} created.
+                {{ importResult.mappingsCreated }} placement {{ importResult.mappingsCreated === 1 ? 'mapping' : 'mappings' }} created.
                 <template v-if="importResult.mappingsDiffering">
                     {{ importResult.mappingsDiffering }} existing {{ importResult.mappingsDiffering === 1 ? 'mapping points' : 'mappings point' }}
-                    at a different section than Cav now lists, kept as they are.
+                    at a different unit than Cav now lists, kept as they are.
                 </template>
                 <!-- Story 1.16's command-billet counts: shown only when the server sends them. -->
                 <template v-if="importResult.commandMappingsCreated !== undefined">
@@ -446,6 +558,10 @@ function requestDelete(id) {
                 <div class="flex items-center gap-2 px-4 pt-3.5 pb-2">
                     <h2 class="text-[15px] font-semibold">Chain of command</h2>
                     <span class="truncate text-xs text-muted-foreground">{{ units.length }} {{ units.length === 1 ? 'unit' : 'units' }}</span>
+                    <label v-if="hasRecruits" class="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                        <input v-model="showRecruits" type="checkbox" data-testid="show-recruits" class="size-3.5 accent-primary" />
+                        Show New Recruits
+                    </label>
                 </div>
                 <div v-if="units.length" class="relative px-4 pb-2" data-testid="unit-search">
                     <label for="unit-search" class="sr-only">Find a unit by name or callsign</label>
@@ -528,7 +644,87 @@ function requestDelete(id) {
                     <h2 class="mb-3 flex items-center gap-2 text-[15px] font-semibold">
                         <span class="truncate">{{ selectedUnit.name }}</span>
                         <Badge variant="outline" class="capitalize">{{ selectedUnit.type }}</Badge>
+                        <Badge v-if="selectedUnit.label" variant="outline" data-testid="detail-label">{{ selectedUnit.label }}</Badge>
                     </h2>
+                    <p v-if="selectedUnit.lead || selectedUnit.lead_vacant" data-testid="detail-lead" class="-mt-1.5 mb-3 text-[13px] text-muted-foreground">
+                        <template v-if="selectedUnit.lead"
+                            >Lead: {{ selectedUnit.lead.displayName }}<template v-if="selectedUnit.lead.source === 'acting'"> (acting)</template></template
+                        >
+                        <template v-else>Lead: vacant</template>
+                    </p>
+
+                    <!-- Who is in this group: staff department, ELOA (with where each trooper was), Reservists, New Recruits. -->
+                    <section v-if="selectedMembers" data-testid="group-members" aria-label="Troopers in this group" class="mb-4">
+                        <h3 class="text-[13px] font-semibold">{{ selectedMembers.length }} {{ selectedMembers.length === 1 ? 'trooper' : 'troopers' }}</h3>
+                        <ul class="mt-1.5 max-h-60 space-y-1 overflow-y-auto text-[13px]">
+                            <li v-for="member in selectedMembers" :key="member.id" data-testid="group-member" class="flex flex-wrap items-baseline gap-x-2">
+                                <span class="font-medium">{{ member.displayName }}</span>
+                                <span v-if="member.billet" class="text-xs text-muted-foreground">{{ member.billet }}</span>
+                                <span v-if="member.was" data-testid="member-was" class="font-mono text-[11px] text-muted-foreground">was: {{ member.was }}</span>
+                            </li>
+                        </ul>
+                    </section>
+
+                    <section v-if="isAdmin && canTakeActingLead" data-testid="acting-lead" aria-label="Acting lead" class="mb-4 rounded-lg border border-dashed border-border p-3">
+                        <h3 class="text-[13px] font-semibold">Acting lead</h3>
+                        <p class="mt-0.5 text-xs text-muted-foreground">
+                            For a unit whose lead is not in the roster data, such as a DEVCOM starter platoon run by a DEVCOM Lead. They get a
+                            Platoon Leader's command over this unit while they serve.
+                        </p>
+                        <p v-if="selectedUnit.acting_lead" data-testid="acting-lead-current" class="mt-2 text-[13px]">{{ selectedUnit.acting_lead.displayName }}</p>
+                        <div v-else class="mt-2 grid gap-1.5">
+                            <Label for="acting-search">Trooper</Label>
+                            <Input id="acting-search" v-model="actingQuery" data-testid="acting-search" type="text" placeholder="Search by username" @input="searchActing" />
+                            <ul v-if="actingResults.length" class="max-h-40 overflow-y-auto text-[13px]">
+                                <li v-for="result in actingResults" :key="result.id">
+                                    <button
+                                        type="button"
+                                        data-testid="acting-result"
+                                        class="w-full rounded-sm px-1.5 py-1 text-left hover:bg-accent"
+                                        :class="actingPick?.id === result.id && 'bg-accent font-medium'"
+                                        @click="actingPick = result"
+                                    >
+                                        {{ result.displayName }}
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="mt-2 grid gap-1.5">
+                            <Label for="acting-reason">Reason</Label>
+                            <Input id="acting-reason" v-model="actingReason" data-testid="acting-reason" type="text" maxlength="500" placeholder="Who confirmed it" />
+                        </div>
+                        <p v-if="actingError" data-testid="acting-error" role="alert" class="mt-1.5 text-xs text-destructive">{{ actingError }}</p>
+                        <div class="mt-2 flex justify-end">
+                            <Button
+                                v-if="selectedUnit.acting_lead"
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                data-testid="acting-remove"
+                                :disabled="actingBusy || !actingReason.trim()"
+                                @click="removeActing"
+                                >Remove acting lead</Button
+                            >
+                            <Button
+                                v-else
+                                type="button"
+                                size="sm"
+                                data-testid="acting-assign"
+                                :disabled="actingBusy || !actingPick || !actingReason.trim()"
+                                @click="assignActing"
+                                >Make acting lead</Button
+                            >
+                        </div>
+                    </section>
+
+                    <form v-if="isAdmin" data-testid="label-form" class="mb-4 flex items-end gap-2" @submit.prevent="submitLabel">
+                        <div class="grid flex-1 gap-1.5">
+                            <Label for="edit-label">Game or team label</Label>
+                            <Input id="edit-label" v-model="labelForm.label" data-testid="edit-label" type="text" maxlength="40" placeholder="e.g. WARDOGS" :aria-invalid="!!labelForm.errors.label" />
+                            <p v-if="labelForm.errors.label" class="text-xs text-destructive" data-testid="edit-error-label">{{ labelForm.errors.label }}</p>
+                        </div>
+                        <Button type="submit" variant="outline" data-testid="save-label" :disabled="labelForm.processing">Save label</Button>
+                    </form>
 
                     <!--
                       Editable for an Admin (AC #1, #2); read-only otherwise. Echelon isn't editable:
@@ -636,7 +832,7 @@ function requestDelete(id) {
                         </span>
                     </h3>
                     <EmptyState v-if="!unplacedTroopers.length" :icon="PhCheckCircle" title="All synced troopers are placed" class="py-4">
-                        Troopers the sync cannot map to a section will be listed here.
+                        Troopers the sync cannot map to a unit will be listed here.
                     </EmptyState>
                     <p v-else-if="unplacedCount > unplacedTroopers.length" data-testid="unplaced-capped" class="mt-1 text-xs text-muted-foreground">
                         Showing the first {{ unplacedTroopers.length }}.
@@ -689,18 +885,18 @@ function requestDelete(id) {
                                                 <Button type="button" variant="link" size="sm" class="h-auto p-0 text-xs" data-testid="assign-trooper" disabled>
                                                     Assign <PhCaretDown class="size-3" aria-hidden="true" />
                                                 </Button>
-                                                <span class="sr-only" data-testid="assign-disabled-reason">There are no sections to place into yet</span>
+                                                <span class="sr-only" data-testid="assign-disabled-reason">There are no units to place into yet</span>
                                             </span>
                                         </TooltipTrigger>
-                                        <TooltipContent>There are no sections to place into yet</TooltipContent>
+                                        <TooltipContent>There are no units to place into yet</TooltipContent>
                                     </Tooltip>
                                 </TooltipProvider>
                             </template>
                             <form v-else data-testid="assign-form" class="mt-2 space-y-2.5 border-t border-border pt-2.5" @submit.prevent="submitAssign(trooper)">
                                 <div class="grid gap-1">
-                                    <Label :for="`assign-section-${trooper.id}`">Section</Label>
+                                    <Label :for="`assign-section-${trooper.id}`">Unit</Label>
                                     <NativeSelect :id="`assign-section-${trooper.id}`" v-model="assignSection" data-testid="assign-section">
-                                        <option :value="null">Select a section</option>
+                                        <option :value="null">Select a unit</option>
                                         <option v-for="section in sections" :key="section.id" :value="section.id">{{ section.label }}</option>
                                     </NativeSelect>
                                 </div>
@@ -712,7 +908,7 @@ function requestDelete(id) {
                                         data-testid="assign-reason"
                                         type="text"
                                         maxlength="500"
-                                        placeholder="Why this section, e.g. who confirmed it"
+                                        placeholder="Why this unit, e.g. who confirmed it"
                                     />
                                 </div>
                                 <p v-if="assignError" data-testid="assign-error" role="alert" class="text-xs text-destructive">{{ assignError }}</p>

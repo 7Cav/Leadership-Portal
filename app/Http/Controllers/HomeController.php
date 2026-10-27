@@ -112,8 +112,9 @@ class HomeController extends Controller
     {
         $ids = $scope->flip();
 
+        // Line units only: a group has no report chain or KPIs of its own (2026-10-24).
         return $tree
-            ->filter(fn (Unit $unit) => $ids->has($unit->id) && ($unit->parent_id === null || ! $ids->has($unit->parent_id)))
+            ->filter(fn (Unit $unit) => $unit->isLine() && $ids->has($unit->id) && ($unit->parent_id === null || ! $ids->has($unit->parent_id)))
             ->sortBy('id')
             ->values()
             ->toBase();

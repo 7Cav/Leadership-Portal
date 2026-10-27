@@ -9,9 +9,12 @@ use App\Integration\Cav\Data\RosterRowError;
 use App\Integration\Cav\Data\RosterType;
 use App\Models\SyncRun;
 use App\Models\TrooperStatus;
+use App\Models\UnitKind;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitBilletMappingRepository;
+use App\Repositories\UnitCommandMappingRepository;
+use App\Repositories\UnitRepository;
 use Throwable;
 
 /**
@@ -25,6 +28,11 @@ use Throwable;
  * Every call opens and closes a `sync_runs` row (Story 2.3, AD-16's carve-out for system jobs —
  * this does not route through the per-Command audited-action envelope). `$triggeredBy` defaults
  * to `'system'` since the scheduler (2.4) is, for now, the only caller.
+ *
+ * Since 2026-10-24 the mapping places every trooper whose billet resolves, not only section billets: a billet mapping
+ * of any unit first (a section, a non-command HQ billet's HQ node, a staff department, ELOA, Reservists, New Recruits),
+ * then the command mapping (a Platoon Leader on their platoon, a Commander on their company, the RCO on the regiment).
+ * A trooper moved from a line unit into ELOA keeps it as their "was" ({@see TrooperRepository::updatePrimarySections()}).
  *
  * Mapping each trooper into their primary section (2.5) runs after the upsert above, as a second
  * write rather than inside the same transaction: 2.2's `TrooperRepository::sync()` contract is
@@ -59,6 +67,8 @@ class SyncRosterHandler
         private readonly SyncRunRepository $syncRuns,
         private readonly UnitBilletMappingRepository $billetMappings,
         private readonly RosterSyncScopeFactory $scopes,
+        private readonly UnitCommandMappingRepository $commandMappings,
+        private readonly UnitRepository $units,
     ) {}
 
     /**
@@ -126,7 +136,7 @@ class SyncRosterHandler
                 $scope->sectionIds,
             );
 
-            $this->troopers->updatePrimarySections($scope->filterSections($sections));
+            $this->troopers->updatePrimarySections($scope->filterSections($sections), $this->units->idsOfKind(UnitKind::Eloa)->all());
 
             // A unit run reports only its own troopers' bad rows: one elsewhere is not this unit's partial sync.
             $errors = $scope->filterErrors($result->errors);
@@ -217,24 +227,27 @@ class SyncRosterHandler
     }
 
     /**
-     * Resolve each fetched trooper's billet to a section unit id via the curated
-     * `unit_billet_mappings` table (2.5) — a trooper with no `positionId` (2.1, AC #6's per-field
-     * degrade) or whose billet has no mapping is simply absent from the returned map rather than
-     * carrying a null, so {@see TrooperRepository::updatePrimarySections()} leaves their existing
-     * value untouched instead of nulling it.
+     * Resolve each fetched trooper's billet to their primary unit id: the curated `unit_billet_mappings` table (2.5),
+     * whatever unit it points at, and else the billet's command mapping (1.16), so HQ staff land on the HQ they lead
+     * (2026-10-24). A trooper with no `positionId` (2.1, AC #6's per-field degrade) or whose billet maps nowhere is
+     * simply absent from the returned map rather than carrying a null, so
+     * {@see TrooperRepository::updatePrimarySections()} leaves their existing value untouched instead of nulling it.
      *
      * @param  list<CavRosterEntry>  $entries
      * @return array<int, int> cav_id => units.id
      */
     private function resolveSections(array $entries): array
     {
-        $sectionIdsByPosition = $this->billetMappings->sectionIdsByPositionId();
+        $placed = $this->billetMappings->unitIdsByPositionId();
+        $commanded = $this->commandMappings->unitIdsByPositionId();
 
         $resolved = [];
 
         foreach ($entries as $entry) {
-            if ($entry->positionId !== null && $sectionIdsByPosition->has($entry->positionId)) {
-                $resolved[$entry->cavId] = $sectionIdsByPosition->get($entry->positionId);
+            $unitId = $entry->positionId === null ? null : ($placed->get($entry->positionId) ?? $commanded->get($entry->positionId));
+
+            if ($unitId !== null) {
+                $resolved[$entry->cavId] = (int) $unitId;
             }
         }
 

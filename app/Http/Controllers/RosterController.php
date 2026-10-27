@@ -14,6 +14,7 @@ use App\Milpac\RosterProvenance;
 use App\Models\SyncRun;
 use App\Models\Trooper;
 use App\Models\Unit;
+use App\Models\UnitKind;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\AttendanceRepository;
@@ -21,6 +22,7 @@ use App\Repositories\CountingMark;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitCommandMappingRepository;
+use App\Repositories\UnitLeadRepository;
 use App\Repositories\UnitRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
@@ -56,6 +58,7 @@ class RosterController extends Controller
         private readonly KpiService $kpis,
         private readonly LoaProvenance $loaProvenance,
         private readonly PracticeGuests $practiceGuests,
+        private readonly UnitLeadRepository $leads,
     ) {}
 
     public function index(Request $request, ?int $unit = null): Response
@@ -183,11 +186,16 @@ class RosterController extends Controller
         $attendance = $this->kpis->trooperAttendance($unit, $week);
         $marks = $this->historyMarks($unit, $week);
         $leaders = $this->commands->commandersOf($subtree->pluck('id')->all());
+        // The unit headers name the unit's lead, acting leads and portfolio officers included (2026-10-25); the
+        // section roles (SL/ASL) still come from the command billet.
+        $unitLeads = $this->leads->leadsOf($subtree->pluck('id')->all());
 
         $paths = $subtree->mapWithKeys(fn (Unit $u) => [$u->id => $u->path]);
         $sectionOf = $placed->mapWithKeys(fn (Trooper $t) => [$t->id => $t->primary_section_id]);
+        $recruitGroups = $subtree->filter(fn (Unit $u) => $u->kind === UnitKind::Recruit)->pluck('id')->all();
+        $serving = $placed->filter(fn (Trooper $t) => $t->status->isServing());
 
-        $units = $subtree->map(function (Unit $u) use ($attendance, $sectionOf, $paths, $leaders) {
+        $units = $subtree->map(function (Unit $u) use ($attendance, $sectionOf, $paths, $unitLeads, $serving, $recruitGroups) {
             // The unit's troopers are those whose section sits anywhere under it.
             $within = $attendance->filter(function (TrooperAttendance $row) use ($sectionOf, $paths, $u) {
                 $section = $sectionOf->get($row->trooperId);
@@ -195,11 +203,20 @@ class RosterController extends Controller
                 return $section !== null && str_starts_with($paths->get($section, ''), $u->path);
             });
 
+            // Strength on the roster is the headcount (2026-10-24): everyone serving placed under the unit, HQ staff and
+            // groups included, New Recruits only on their own group. RC and SP stay the measured sections' (AD-21).
+            $headcount = $serving->filter(function (Trooper $t) use ($paths, $u, $recruitGroups) {
+                $own = $t->primary_section_id;
+
+                return str_starts_with($paths->get($own, ''), $u->path)
+                    && (! in_array($own, $recruitGroups, true) || $u->kind === UnitKind::Recruit);
+            })->count();
+
             return [
                 ...$this->unitSummary($u),
                 'parentId' => $u->parent_id,
-                'leader' => ($leader = $leaders->get($u->id)) ? $this->person($leader) : null,
-                'kpis' => $this->kpiProps($this->kpis->sum($within)),
+                'leader' => ($lead = $unitLeads->get($u->id)) ? [...$this->person($lead->trooper), 'source' => $lead->source] : null,
+                'kpis' => [...$this->kpiProps($this->kpis->sum($within)), 'strength' => $headcount],
             ];
         })->values()->all();
 
@@ -272,6 +289,8 @@ class RosterController extends Controller
             'status' => $t->status->value,
             'departed' => ! $t->status->isServing(),
             'sectionId' => $t->primary_section_id,
+            // ELOA's "was" (2026-10-24): the line unit they left, when the sync saw them move.
+            'was' => $t->relationLoaded('lastLineUnit') && $t->lastLineUnit !== null ? ($t->lastLineUnit->callsign ?? $t->lastLineUnit->name) : null,
             'role' => $t->roleUnder($sectionLeader),
             'joined' => $t->tis?->toDateString(),
             // Time in grade: the date of the trooper's last promotion, for the order of battle's TIG column and sort.
@@ -394,7 +413,14 @@ class RosterController extends Controller
      */
     private function unitSummary(Unit $u): array
     {
-        return ['id' => $u->id, 'type' => $u->type->value, 'name' => $u->name, 'callsign' => $u->callsign];
+        return [
+            'id' => $u->id,
+            'type' => $u->type->value,
+            'kind' => ($u->kind ?? UnitKind::Line)->value,
+            'name' => $u->name,
+            'callsign' => $u->callsign,
+            'label' => $u->label,
+        ];
     }
 
     /**
