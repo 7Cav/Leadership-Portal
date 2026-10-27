@@ -3,10 +3,11 @@
 use App\Commands\Capture\CaptureSources;
 use App\Jobs\CaptureSectionPracticeJob;
 use App\Models\AuditLogEntry;
-use App\Models\GamePlatform;
+use App\Models\Game;
 use App\Models\SectionPractice;
 use App\Models\SyncRun;
 use App\Models\SyncRunStatus;
+use App\Models\TelemetryInterface;
 use App\Models\Trooper;
 use App\Models\TrooperGameIdentity;
 use App\Models\Unit;
@@ -30,7 +31,7 @@ beforeEach(function () {
     $this->leader = User::factory()->commanding($this->section)->create(['username' => 'Vasquez.R']);
     $this->ortega = Trooper::factory()->create(['username' => 'Ortega.M']);
     $this->ortega->forceFill(['primary_section_id' => $this->section->id])->save();
-    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'platform' => GamePlatform::Hll, 'platform_id' => '7656119000000001']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'game_id' => game('hll')->id, 'platform_id' => '7656119000000001']);
     $this->practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => '2026-10-03 00:00:00']);
 });
 
@@ -133,14 +134,52 @@ it('shows a failure but offers no retry when no game can be read for the section
 it('picks the game most of the section has linked', function () {
     $second = Trooper::factory()->create();
     $second->forceFill(['primary_section_id' => $this->section->id])->save();
-    TrooperGameIdentity::factory()->create(['trooper_id' => $second->id, 'platform' => GamePlatform::Arma, 'platform_id' => 'a1']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $second->id, 'game_id' => game('arma')->id, 'platform_id' => 'a1']);
     $third = Trooper::factory()->create();
     $third->forceFill(['primary_section_id' => $this->section->id])->save();
-    TrooperGameIdentity::factory()->create(['trooper_id' => $third->id, 'platform' => GamePlatform::Arma, 'platform_id' => 'a2']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $third->id, 'game_id' => game('arma')->id, 'platform_id' => 'a2']);
     captureRun($this, SyncRunStatus::Failure);
 
     // Arma reads BattleMetrics only, which has no keys here: not configured, named for Arma.
     telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.state', 'not_configured')->where('telemetry.platformLabel', 'Arma Reforger'));
+});
+
+it('breaks a tie between games by the game added first: HLL over Arma', function () {
+    $second = Trooper::factory()->create();
+    $second->forceFill(['primary_section_id' => $this->section->id])->save();
+    TrooperGameIdentity::factory()->create(['trooper_id' => $second->id, 'game_id' => game('arma')->id, 'platform_id' => 'a1']);
+    captureRun($this, SyncRunStatus::Failure);
+
+    telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.platformLabel', 'Hell Let Loose'));
+});
+
+it('reads a game an Admin added through the interface picked for it (#388)', function () {
+    $squad = Game::factory()->create(['name' => 'Squad', 'interface' => TelemetryInterface::Crcon]);
+    TrooperGameIdentity::query()->update(['game_id' => $squad->id]);
+    captureRun($this, SyncRunStatus::Failure);
+
+    telemetryOf($this)->assertInertia(fn (Assert $page) => $page
+        ->where('telemetry.state', 'failed')
+        ->where('telemetry.platformLabel', 'Squad')
+        ->where('telemetry.feeds', ['crcon'])
+        ->where('telemetry.canRetry', true));
+});
+
+it('follows an Admin changing the game\'s interface: set to none, the game is not configured and cannot be retried (#388)', function () {
+    $this->actingAs(User::factory()->admin()->create())
+        ->patch('/settings/games/'.game('hll')->id, ['name' => 'Hell Let Loose', 'id_label' => 'Steam ID', 'interface' => 'none'])
+        ->assertRedirect();
+    captureRun($this, SyncRunStatus::Failure);
+
+    telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.state', 'not_configured')->where('telemetry.platformLabel', 'Hell Let Loose'));
+    tryAgain($this)->assertStatus(422)->assertJsonPath('message', 'Telemetry is not configured for Hell Let Loose. Mark attendance by hand.');
+});
+
+it('still reads a retired game: retiring stops new links, not the capture of the ones made (#388)', function () {
+    game('hll')->forceFill(['retired_at' => now()])->save();
+    captureRun($this, SyncRunStatus::Failure);
+
+    telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.platformLabel', 'Hell Let Loose')->where('telemetry.canRetry', true));
 });
 
 function tryAgain(object $test, array $body = ['week' => '2026-10-03'], ?User $as = null)
@@ -158,7 +197,7 @@ it('queues a capture of the practice for the leader, bounded to the week so far,
         $c = $job->command;
 
         return $c->sectionPracticeId === $this->practice->id
-            && $c->platform === GamePlatform::Hll
+            && $c->gameId === game('hll')->id
             && $c->triggeredBy === $this->leader->id
             && $c->windowStart->format('c') === '2026-10-03T00:00:00+00:00'
             && $c->windowEnd->format('c') === '2026-10-08T16:20:00+00:00';

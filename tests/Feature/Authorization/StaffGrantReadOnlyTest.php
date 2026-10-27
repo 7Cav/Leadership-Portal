@@ -28,7 +28,7 @@ beforeEach(function () {
 
     $this->member = Trooper::factory()->create(['username' => 'Member.M']);
     $this->member->forceFill(['primary_section_id' => $this->section->id])->save();
-    TrooperGameIdentity::factory()->create(['trooper_id' => $this->member->id, 'platform' => 'hll', 'platform_id' => '7656119000000001']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->member->id, 'platform_id' => '7656119000000001']);
 
     $this->staff = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $this->staff->id, 'unit_id' => $this->company->id]);

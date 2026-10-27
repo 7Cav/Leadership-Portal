@@ -16,14 +16,16 @@ use App\Support\Audit\AuditEnvelope;
  * in-game identity by hand (AD-19), and every link or correction is one audited action (AD-16).
  *
  * Refuses a trooper outside the actor's scope (AD-8) before anything else. A trooper holds one
- * identity per platform, so setting it again replaces theirs — a rename (same platform id, new
+ * identity per game, so setting it again replaces theirs — a rename (same platform id, new
  * name) updates the row, never adds one. Saving what is already stored is a no-op that records
  * nothing, so a double-click leaves one audit entry. An identifier already linked to another
  * trooper is refused by the repository and rolls the whole action back, log entry included.
- * Linking never touches `attendance`, and clears any dismissal of that identifier (7.7).
+ * Linking never touches `attendance`, and clears any dismissal of that identifier (7.7). A retired
+ * game is refused outright (#388), a correction of an identity it already has included: retiring
+ * a game freezes its links, and removing one stays possible.
  *
  * A command carrying `replacing` is a conditional write (#176, see {@see SetTrooperGameIdentity}):
- * if the trooper's identity on that platform has changed to something else since the leader was
+ * if the trooper's identity in that game has changed to something else since the leader was
  * shown it, the write is refused as `has_other_identity` with the identity they hold now, inside
  * the same transaction, so nothing is written and nothing is logged.
  */
@@ -41,6 +43,7 @@ class SetTrooperGameIdentityHandler
 
     /**
      * @throws GameIdentityForbiddenException when the trooper is outside the actor's scope.
+     * @throws GameRetiredException when the game is retired.
      * @throws GameIdentityLinkException when the platform id already belongs to another trooper.
      * @throws UnmatchedPlayerResolutionException `has_other_identity`, when `replacing` is set and
      *                                            the trooper's identity changed to another since.
@@ -49,7 +52,11 @@ class SetTrooperGameIdentityHandler
     {
         $this->authorizedTrooper($actor, $command->trooperId, $this->scope, $this->troopers);
 
-        $existing = $this->identities->forTrooper($command->trooperId)->firstWhere('platform', $command->platform);
+        if ($command->game->isRetired()) {
+            throw GameRetiredException::for($command->game);
+        }
+
+        $existing = $this->identities->forTrooper($command->trooperId)->firstWhere('game_id', $command->game->id);
 
         if ($existing?->player_name === $command->playerName && $existing->platform_id === $command->platformId) {
             return $existing;
@@ -67,16 +74,16 @@ class SetTrooperGameIdentityHandler
                 // committed before this check and is refused, or waits for this transaction. The
                 // refusal carries what the trooper holds now, so the screen can ask again.
                 if ($command->replacing !== null) {
-                    $held = $this->identities->lockForTrooper($command->trooperId, $command->platform);
+                    $held = $this->identities->lockForTrooper($command->trooperId, $command->game);
 
                     if ($held !== null && $held->platform_id !== $command->platformId && $held->platform_id !== $command->replacing) {
-                        throw UnmatchedPlayerResolutionException::alreadyHasIdentity($held->player_name, $held->platform_id, $command->platform->label());
+                        throw UnmatchedPlayerResolutionException::alreadyHasIdentity($held->player_name, $held->platform_id, $command->game->name);
                     }
                 }
 
-                $identity = $this->identities->link($command->trooperId, $command->platform, $command->playerName, $command->platformId);
+                $identity = $this->identities->link($command->trooperId, $command->game, $command->playerName, $command->platformId);
                 // Linking a player a leader once dismissed re-admits them (7.7), in the same transaction.
-                $this->dismissals->forget($command->platform, $command->platformId);
+                $this->dismissals->forget($command->game, $command->platformId);
 
                 return $identity;
             },

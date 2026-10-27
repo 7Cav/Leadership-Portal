@@ -7,7 +7,6 @@ use App\Integration\BattleMetrics\BattleMetricsApi;
 use App\Integration\Crcon\CrconApi;
 use App\Integration\Nightwatch\NightwatchApi;
 use App\Models\Attendance;
-use App\Models\GamePlatform;
 use App\Models\SectionPractice;
 use App\Models\SyncRun;
 use App\Models\SyncRunStatus;
@@ -39,7 +38,7 @@ function captureWardogs(object $test)
 {
     return app(CaptureSectionPracticeHandler::class)->handle(new CaptureSectionPractice(
         $test->practice->id,
-        GamePlatform::Wardogs,
+        game('wardogs')->id,
         CarbonImmutable::parse('2026-10-08 18:00:00', 'UTC')->toDateTimeImmutable(),
         CarbonImmutable::parse('2026-10-08 19:30:00', 'UTC')->toDateTimeImmutable(),
         'system',
@@ -48,10 +47,10 @@ function captureWardogs(object $test)
 
 it('captures a WARDOGS practice from Nightwatch, resolving via the wardogs identity', function () {
     $mine = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
-    TrooperGameIdentity::factory()->create(['trooper_id' => $mine->id, 'platform' => GamePlatform::Wardogs, 'platform_id' => '76561190000000111']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $mine->id, 'game_id' => game('wardogs')->id, 'platform_id' => '76561190000000111']);
     // Same id on another platform must not match a WARDOGS player.
     $other = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
-    TrooperGameIdentity::factory()->create(['trooper_id' => $other->id, 'platform' => GamePlatform::Hll, 'platform_id' => '76561190000000222']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $other->id, 'game_id' => game('hll')->id, 'platform_id' => '76561190000000222']);
 
     MockClient::global(['nw.test/api/public/stats/matches*' => MockResponse::make(['matches' => [[
         'id' => 'm-1', 'serverId' => 'srv-1', 'startedAtUtc' => '2026-10-08T17:30:00Z', 'endedAtUtc' => '2026-10-08T19:00:00Z', 'live' => false,

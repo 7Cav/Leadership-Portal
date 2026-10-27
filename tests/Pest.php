@@ -2,6 +2,7 @@
 
 use App\Integration\Forum\Requests\ExchangeCodeRequest;
 use App\Integration\Forum\Requests\FetchProfileRequest;
+use App\Models\Game;
 use App\Models\Trooper;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
@@ -91,6 +92,15 @@ expect()->extend('toBeIgnoringKeyOrder', function (mixed $expected) {
 function something()
 {
     // ..
+}
+
+/**
+ * One of the games the migration creates (`hll`, `arma`, `wardogs`, #388), as the stored row. Feature tests run on the
+ * migrated schema, so these three always exist; a game added on top is `Game::factory()`.
+ */
+function game(string $slug): Game
+{
+    return Game::query()->where('slug', $slug)->firstOrFail();
 }
 
 /**

@@ -34,7 +34,7 @@ class RemoveTrooperGameIdentityHandler
     {
         $this->authorizedTrooper($actor, $command->trooperId, $this->scope, $this->troopers);
 
-        $existing = $this->identities->forTrooper($command->trooperId)->firstWhere('platform', $command->platform);
+        $existing = $this->identities->forTrooper($command->trooperId)->firstWhere('game_id', $command->game->id);
 
         if ($existing === null) {
             return false;
@@ -46,7 +46,7 @@ class RemoveTrooperGameIdentityHandler
             reason: null,
             reasonRequired: false,
             mutation: function () use ($command, $existing) {
-                $this->identities->unlink($command->trooperId, $command->platform);
+                $this->identities->unlink($command->trooperId, $command->game);
 
                 return $existing;
             },

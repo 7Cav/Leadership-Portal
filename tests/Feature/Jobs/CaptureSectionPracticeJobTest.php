@@ -2,7 +2,6 @@
 
 use App\Commands\Capture\CaptureSectionPractice;
 use App\Jobs\CaptureSectionPracticeJob;
-use App\Models\GamePlatform;
 use Illuminate\Contracts\Queue\Job as QueueJobContract;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Facades\Cache;
@@ -13,7 +12,7 @@ function captureJob(int $practiceId): CaptureSectionPracticeJob
 {
     $now = new DateTimeImmutable;
 
-    return new CaptureSectionPracticeJob(new CaptureSectionPractice($practiceId, GamePlatform::Hll, $now, $now));
+    return new CaptureSectionPracticeJob(new CaptureSectionPractice($practiceId, game('hll')->id, $now, $now));
 }
 
 it('is queued and allows a released run to retry', function () {

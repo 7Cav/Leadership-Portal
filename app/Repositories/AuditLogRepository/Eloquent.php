@@ -5,6 +5,7 @@ namespace App\Repositories\AuditLogRepository;
 use App\Models\AuditLogEntry;
 use App\Models\FireteamAssignment;
 use App\Models\FireteamSetting;
+use App\Models\Game;
 use App\Models\GamePlayerDismissal;
 use App\Models\PlatoonTrainingTopic;
 use App\Models\PortalRoleGrant;
@@ -52,6 +53,7 @@ class Eloquent implements AuditLogRepository
         'FireteamAssignment' => [FireteamAssignment::class, ['section']],
         'FireteamSetting' => [FireteamSetting::class, ['unit']],
         'PlatoonTrainingTopic' => [PlatoonTrainingTopic::class, ['unit']],
+        'Game' => [Game::class, []],
         // A dismissal belongs to no unit; it is linked through the latest practice that captured the player (see
         // {@see withLatestCaptures()}).
         'GamePlayerDismissal' => [GamePlayerDismissal::class, []],
@@ -205,7 +207,7 @@ class Eloquent implements AuditLogRepository
 
     /**
      * Sets each dismissal's `latestCapture` relation: the newest practice capture that stored the player (with its
-     * practice and section loaded), or null when none did. A dismissal is keyed by `(platform, platform_id)`, not by a
+     * practice and section loaded), or null when none did. A dismissal is keyed by `(game_id, platform_id)`, not by a
      * unit, and the latest practice that saw the player is where a leader finds the dismissal and can undo it. One
      * query for all the dismissals on the page.
      *
@@ -213,7 +215,7 @@ class Eloquent implements AuditLogRepository
      */
     private function withLatestCaptures(EloquentCollection $dismissals): void
     {
-        $key = fn (PracticeCapturePlayer|GamePlayerDismissal $row) => "{$row->platform->value}|{$row->platform_id}";
+        $key = fn (PracticeCapturePlayer|GamePlayerDismissal $row) => "{$row->game_id}|{$row->platform_id}";
 
         $captures = PracticeCapturePlayer::query()
             ->select('practice_capture_players.*')
@@ -221,7 +223,7 @@ class Eloquent implements AuditLogRepository
             ->where(function ($query) use ($dismissals) {
                 foreach ($dismissals as $dismissal) {
                     $query->orWhere(fn ($query) => $query
-                        ->where('practice_capture_players.platform', $dismissal->platform->value)
+                        ->where('practice_capture_players.game_id', $dismissal->game_id)
                         ->where('practice_capture_players.platform_id', $dismissal->platform_id));
                 }
             })
@@ -263,7 +265,7 @@ class Eloquent implements AuditLogRepository
                 ->selectRaw('1')
                 ->from('practice_capture_players')
                 ->join('section_practices', 'section_practices.id', '=', 'practice_capture_players.section_practice_id')
-                ->whereColumn('practice_capture_players.platform', 'game_player_dismissals.platform')
+                ->whereColumn('practice_capture_players.game_id', 'game_player_dismissals.game_id')
                 ->whereColumn('practice_capture_players.platform_id', 'game_player_dismissals.platform_id')
                 ->whereIn('section_practices.section_id', $units()))));
     }

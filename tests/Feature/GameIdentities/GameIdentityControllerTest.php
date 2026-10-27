@@ -4,7 +4,7 @@ use App\Commands\GameIdentities\SetTrooperGameIdentity;
 use App\Commands\GameIdentities\SetTrooperGameIdentityHandler;
 use App\Models\Attendance;
 use App\Models\AuditLogEntry;
-use App\Models\GamePlatform;
+use App\Models\Game;
 use App\Models\Trooper;
 use App\Models\TrooperGameIdentity;
 use App\Models\TrooperStatus;
@@ -46,7 +46,7 @@ it('lists only the troopers in scope with their identities and every platform sl
     $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
         ->component('GameIdentities')
         ->has('platforms', 3)
-        ->where('platforms.0', ['value' => 'hll', 'label' => 'Hell Let Loose', 'idLabel' => 'Steam ID'])
+        ->where('platforms.0', ['value' => 'hll', 'label' => 'Hell Let Loose', 'idLabel' => 'Steam ID', 'retired' => false])
         ->has('troopers', 1)
         ->where('troopers.0.id', $this->mine->id)
         ->where('troopers.0.displayName', 'SGT Ortega.M')
@@ -119,6 +119,39 @@ it('validates the fields and the platform', function () {
     $this->actingAs($this->leader)->put(identityUrl($this->mine, 'quake'), ['player_name' => 'A', 'platform_id' => 'B'])->assertNotFound();
 });
 
+it('links a trooper on a game an Admin added, by its slug (#388)', function () {
+    $squad = Game::factory()->create(['slug' => 'squad', 'name' => 'Squad', 'id_label' => 'EOS ID']);
+
+    $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
+        ->has('platforms', 4)
+        ->where('platforms.3', ['value' => 'squad', 'label' => 'Squad', 'idLabel' => 'EOS ID', 'retired' => false]));
+
+    $this->actingAs($this->leader)->put(identityUrl($this->mine, 'squad'), ['player_name' => 'Ortega', 'platform_id' => 'eos-1'])->assertRedirect();
+
+    expect(TrooperGameIdentity::query()->sole()->game_id)->toBe($squad->id);
+});
+
+it('refuses a new link on a retired game, writing nothing, and still lists and removes the links it has (#388)', function () {
+    $retired = Game::factory()->retired()->create(['slug' => 'squad']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->mine->id, 'game_id' => $retired->id, 'player_name' => 'Old', 'platform_id' => 'eos-old']);
+
+    $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
+        ->where('platforms.3.retired', true)
+        ->where('troopers.0.identities.squad', ['playerName' => 'Old', 'platformId' => 'eos-old']));
+
+    $this->actingAs($this->leader)->put(identityUrl(placedTrooper($this->section), 'squad'), ['player_name' => 'New', 'platform_id' => 'eos-new'])
+        ->assertSessionHasErrors(['platform_id' => "{$retired->name} is retired, so no identity can be linked to it."]);
+    $this->actingAs($this->leader)->put(identityUrl($this->mine, 'squad'), ['player_name' => 'Renamed', 'platform_id' => 'eos-old'])
+        ->assertSessionHasErrors(['platform_id' => "{$retired->name} is retired, so no identity can be linked to it."]);
+
+    expect(TrooperGameIdentity::query()->sole()->player_name)->toBe('Old')
+        ->and(AuditLogEntry::query()->count())->toBe(0);
+
+    $this->actingAs($this->leader)->delete(identityUrl($this->mine, 'squad'))->assertRedirect();
+
+    expect(TrooperGameIdentity::query()->count())->toBe(0);
+});
+
 it('removes an identity, audited, leaving attendance untouched', function () {
     $this->actingAs($this->leader)->put(identityUrl($this->mine), ['player_name' => 'OrtegaCav', 'platform_id' => '7656']);
     $attendance = Attendance::factory()->create(['trooper_id' => $this->mine->id]);
@@ -147,7 +180,7 @@ it('denies every write for a trooper outside the scope, whatever the UI offered'
 });
 
 it('refuses an out-of-scope write at the Command as an AuthorizationException, like every other forbidden write', function () {
-    expect(fn () => app(SetTrooperGameIdentityHandler::class)->handle($this->leader, new SetTrooperGameIdentity($this->theirs->id, GamePlatform::Hll, 'X', '1')))
+    expect(fn () => app(SetTrooperGameIdentityHandler::class)->handle($this->leader, new SetTrooperGameIdentity($this->theirs->id, game('hll'), 'X', '1')))
         ->toThrow(AuthorizationException::class, "Trooper {$this->theirs->id} is outside your scope.");
 });
 

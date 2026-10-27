@@ -2,7 +2,7 @@
 
 namespace App\Commands\GameIdentities;
 
-use App\Models\GamePlatform;
+use App\Models\Game;
 use DateTimeImmutable;
 
 /**
@@ -14,7 +14,7 @@ final readonly class DismissUnmatchedPlayer
     public function __construct(
         public int $sectionId,
         public DateTimeImmutable $week,
-        public GamePlatform $platform,
+        public Game $game,
         public string $platformId,
     ) {}
 }

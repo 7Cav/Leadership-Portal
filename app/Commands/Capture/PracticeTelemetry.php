@@ -2,9 +2,10 @@
 
 namespace App\Commands\Capture;
 
-use App\Models\GamePlatform;
+use App\Models\Game;
 use App\Models\SectionPractice;
 use App\Models\SyncRunStatus;
+use App\Repositories\GameRepository;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
@@ -18,7 +19,8 @@ use DateTimeImmutable;
  * answered is not a failure here: the run succeeded, so the practice is captured.
  *
  * A section has no game of its own in the data, so its game is read from the identities linked to
- * its troopers: the one most of them have, HLL before Arma before WARDOGS on a tie.
+ * its troopers: the one most of them have, the game added first on a tie (HLL before Arma before
+ * WARDOGS). A retired game still counts: retiring stops new links, not the capture of the ones made.
  */
 class PracticeTelemetry
 {
@@ -27,18 +29,19 @@ class PracticeTelemetry
         private readonly SyncRunRepository $syncRuns,
         private readonly TrooperRepository $troopers,
         private readonly TrooperGameIdentityRepository $identities,
+        private readonly GameRepository $games,
     ) {}
 
-    public function platformOf(int $sectionId): ?GamePlatform
+    public function gameOf(int $sectionId): ?Game
     {
         $ids = $this->troopers->placedIn($sectionId)->pluck('id')->all();
-        $counts = $this->identities->forTroopers($ids)->countBy(fn ($identity) => $identity->platform->value);
+        $counts = $this->identities->forTroopers($ids)->countBy('game_id');
 
         $best = null;
 
-        foreach (GamePlatform::cases() as $platform) {
-            if (($counts[$platform->value] ?? 0) > ($counts[$best?->value] ?? 0)) {
-                $best = $platform;
+        foreach ($this->games->all() as $game) {
+            if (($counts[$game->id] ?? 0) > ($counts[$best?->id] ?? 0)) {
+                $best = $game;
             }
         }
 
@@ -51,10 +54,10 @@ class PracticeTelemetry
             return null;
         }
 
-        $platform = $this->platformOf($sectionId);
+        $game = $this->gameOf($sectionId);
 
-        if ($platform !== null && ! $this->sources->isConfigured($platform)) {
-            return CaptureTelemetry::notConfigured($platform);
+        if ($game !== null && ! $this->sources->isConfigured($game)) {
+            return CaptureTelemetry::notConfigured($game);
         }
 
         $run = $practice === null ? null : $this->syncRuns->latestForPractice('capture', $practice->id);
@@ -63,7 +66,7 @@ class PracticeTelemetry
             return null;
         }
 
-        return CaptureTelemetry::failed($platform, DateTimeImmutable::createFromInterface($run->finished_at ?? $run->started_at), $this->feedsOf($platform));
+        return CaptureTelemetry::failed($game, DateTimeImmutable::createFromInterface($run->finished_at ?? $run->started_at), $this->feedsOf($game));
     }
 
     /**
@@ -74,15 +77,15 @@ class PracticeTelemetry
      *
      * @return list<string>
      */
-    private function feedsOf(?GamePlatform $platform): array
+    private function feedsOf(?Game $game): array
     {
-        if ($platform === null) {
+        if ($game === null) {
             return [];
         }
 
         return array_values(array_map(
             fn (CaptureSource $source) => $source->name,
-            array_filter($this->sources->for($platform), fn (CaptureSource $source) => $source->configured),
+            array_filter($this->sources->for($game), fn (CaptureSource $source) => $source->configured),
         ));
     }
 }

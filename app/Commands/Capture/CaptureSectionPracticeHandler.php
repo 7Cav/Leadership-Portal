@@ -5,9 +5,10 @@ namespace App\Commands\Capture;
 use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Integration\Crcon\Data\CrconPlayer;
 use App\Integration\Crcon\Data\CrconPresence;
-use App\Models\GamePlatform;
+use App\Models\Game;
 use App\Models\SectionPractice;
 use App\Models\SyncRun;
+use App\Repositories\GameRepository;
 use App\Repositories\PracticeCapturePlayerRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\SyncRunRepository;
@@ -20,7 +21,7 @@ use InvalidArgumentException;
 use Throwable;
 
 /**
- * The capture run (7.5, AD-19): reads the practice window's presence from the platform's first
+ * The capture run (7.5, AD-19): reads the practice window's presence from the game's first
  * source that answers, stamps `server_ref`/`captured_at`/`capture_source` on the practice, and
  * resolves each observed player through `trooper_game_identities`.
  *
@@ -68,15 +69,19 @@ class CaptureSectionPracticeHandler
         private readonly SyncRunRepository $syncRuns,
         private readonly WeeklyReportRepository $reports,
         private readonly AuditEnvelope $audit,
+        private readonly GameRepository $games,
     ) {}
 
     /**
-     * @throws InvalidArgumentException when the practice does not exist.
+     * @throws InvalidArgumentException when the practice or the game does not exist.
      */
     public function handle(CaptureSectionPractice $command): CaptureResult
     {
         $practice = $this->practices->findById($command->sectionPracticeId)
             ?? throw new InvalidArgumentException("Section practice {$command->sectionPracticeId} does not exist.");
+        // Read now, not when the run was queued: an Admin may have changed the game's interface since (#388).
+        $game = $this->games->find($command->gameId)
+            ?? throw new InvalidArgumentException("Game {$command->gameId} does not exist.");
 
         // The window must fall inside the practice's own Cav week: a capture is bounded to the
         // practice, never an arbitrary span stamped onto it.
@@ -88,7 +93,7 @@ class CaptureSectionPracticeHandler
         // Sources whose env keys are unset are skipped, not failed (AD-23): with none set there is
         // nothing to attempt, so no run is opened and the practice stays fully manual (7.9). A source
         // that is set but down is the other case, and is recorded below.
-        $all = $this->sources->for($command->platform);
+        $all = $this->sources->for($game);
         $configured = array_values(array_filter($all, fn (CaptureSource $source) => $source->configured));
 
         if ($configured === []) {
@@ -122,8 +127,8 @@ class CaptureSectionPracticeHandler
                     continue;
                 }
 
-                $result = $this->resolve($presence, $source->name, $command, $practice->section_id);
-                $this->persistUnresolved($practice->id, $command->platform, $result);
+                $result = $this->resolve($presence, $source->name, $game, $practice->section_id);
+                $this->persistUnresolved($practice->id, $game, $result);
 
                 // Pre-mark before stamping, so a captured practice implies its marks were written;
                 // a failure here retries the whole run, and every write is idempotent.
@@ -180,9 +185,9 @@ class CaptureSectionPracticeHandler
      * straight back on this practice's list, and the drawer can show which of this practice's
      * players are dismissed ({@see PracticeCapturePlayerRepository::dismissedFor()}).
      */
-    private function persistUnresolved(int $practiceId, GamePlatform $platform, CaptureResult $result): void
+    private function persistUnresolved(int $practiceId, Game $game, CaptureResult $result): void
     {
-        $this->capturePlayers->replaceForPractice($practiceId, $platform, [
+        $this->capturePlayers->replaceForPractice($practiceId, $game, [
             ...array_map(fn (CrconPlayer $p) => ['platform_id' => $p->platformId, 'player_name' => $p->playerName, 'trooper_id' => null],
                 $result->unmatched),
             ...array_map(fn (array $row) => ['platform_id' => $row['player']->platformId, 'player_name' => $row['player']->playerName, 'trooper_id' => $row['trooperId']],
@@ -212,13 +217,13 @@ class CaptureSectionPracticeHandler
         return CaptureResult::weekLocked();
     }
 
-    private function resolve(CrconPresence $presence, string $source, CaptureSectionPractice $command, int $sectionId): CaptureResult
+    private function resolve(CrconPresence $presence, string $source, Game $game, int $sectionId): CaptureResult
     {
         $links = [];
         $unmatched = [];
 
         foreach ($presence->players as $player) {
-            $link = $this->identities->findByPlatformId($command->platform, $player->platformId);
+            $link = $this->identities->findByPlatformId($game, $player->platformId);
 
             if ($link === null) {
                 $unmatched[] = $player;
