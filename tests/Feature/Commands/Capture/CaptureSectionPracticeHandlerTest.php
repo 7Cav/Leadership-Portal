@@ -127,6 +127,19 @@ it('surfaces a linked trooper from another section instead of crediting them to 
         ->and(Attendance::query()->where('section_practice_id', $this->practice->id)->count())->toBe(0);
 });
 
+it('matches a linked trooper placed on an HQ node, but marks them nowhere', function () {
+    $platoon = Unit::factory()->create(['type' => UnitType::Platoon]);
+    $psg = Trooper::factory()->create(['primary_section_id' => $platoon->id]);
+    linkIdentity($psg, '76561190000000020');
+
+    $result = runCapture($this, [answeringSource('crcon', [new CrconPlayer('Hale', '76561190000000020')])]);
+
+    expect($result->matched)->toBe([])
+        ->and($result->otherSection)->toHaveCount(1)
+        ->and($result->unmatched)->toBe([])
+        ->and(Attendance::query()->count())->toBe(0);
+});
+
 it('treats an answered-but-empty window as captured with zero players', function () {
     $result = runCapture($this, [answeringSource('crcon', [])]);
 
