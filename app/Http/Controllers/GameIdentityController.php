@@ -31,6 +31,11 @@ use Inertia\Response;
  * ScopeResolver inside its handler (AD-8) — a trooper outside the viewer's scope is a 403 whatever
  * the page offered. A platform is rendered for every {@see GamePlatform} case, so a new game needs
  * no change here.
+ *
+ * Lists every serving trooper placed anywhere in the viewer's scope: a section, an HQ node (PL, PSG,
+ * CO, XO, 1SG and up) or a group (ELOA, Reservists, New Recruits, a staff department), since the
+ * placement change of 2026-10-24 puts HQ staff and groups off the sections. Linking someone who is
+ * not in a section only lets the capture recognise them; it still marks attendance in sections only.
  */
 class GameIdentityController extends Controller
 {
@@ -45,8 +50,9 @@ class GameIdentityController extends Controller
     {
         $scope = $this->scope->resolve($request->user());
         $writable = $this->scope->writeScope($request->user())->flip();
-        $sections = $this->units->sectionsAmong($scope)->keyBy('id');
-        $troopers = $this->troopers->placedInAny($sections->keys());
+        $inScope = $scope->flip();
+        $units = $this->units->tree()->filter(fn (Unit $unit) => $inScope->has($unit->id))->keyBy('id');
+        $troopers = $this->troopers->placedInAny($units->keys());
         $identities = $this->identities->forTroopers($troopers->modelKeys())->groupBy('trooper_id');
 
         return Inertia::render('GameIdentities', [
@@ -59,7 +65,7 @@ class GameIdentityController extends Controller
                 'id' => $trooper->id,
                 'displayName' => $trooper->display_name,
                 'billet' => $trooper->billet,
-                'section' => $this->designation($sections->get($trooper->primary_section_id)),
+                'section' => $this->designation($units->get($trooper->primary_section_id)),
                 // A staff grant shows the trooper but does not let the viewer change their links.
                 'editable' => $writable->has($trooper->primary_section_id),
                 'identities' => ($identities->get($trooper->id) ?? collect())
@@ -117,8 +123,8 @@ class GameIdentityController extends Controller
         return 'Already linked to '.($name ?? 'another trooper')." on {$platform->label()}.";
     }
 
-    private function designation(?Unit $section): ?string
+    private function designation(?Unit $unit): ?string
     {
-        return $section === null ? null : ($section->callsign ?? $section->name);
+        return $unit === null ? null : ($unit->callsign ?? $unit->name);
     }
 }
