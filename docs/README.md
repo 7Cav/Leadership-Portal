@@ -15,6 +15,7 @@ the Cav roster (or an Admin's assignment), not on a role someone types in.
 | [permissions.md](permissions.md) | S6, unit leadership | Who can see and change what, per command layer, with a full matrix and how scope is worked out |
 | [features.md](features.md) | S6, unit leadership | Every page and what it does, the background syncs, makeups, JSAM guests and the KPI definitions |
 | [operations.md](operations.md) | S6, whoever deploys | Deploy and after-deploy steps, the Import from Cav roster step, the env keys that matter |
+| [copywriting.md](copywriting.md) | Developers, coding agents | The rules and glossary for every piece of user-facing text in the portal |
 
 Each file ends with a short technical appendix for developers that names the code behind the rules.
 
