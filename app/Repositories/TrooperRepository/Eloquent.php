@@ -304,18 +304,30 @@ class Eloquent implements TrooperRepository
         return Trooper::query()->find($id);
     }
 
-    public function searchByUsername(string $term, iterable $sectionIds, bool $withUnplaced, int $limit): EloquentCollection
+    public function searchByUsername(array $terms, ?int $cavId, iterable $sectionIds, bool $withUnplaced, int $limit): EloquentCollection
     {
         // `!` escapes the LIKE wildcards: one escape character both SQLite and MySQL accept without quoting games.
-        $escaped = strtr(mb_strtolower($term), ['!' => '!!', '%' => '!%', '_' => '!_']);
+        $escaped = array_map(fn (string $term) => strtr(mb_strtolower($term), ['!' => '!!', '%' => '!%', '_' => '!_']), array_values($terms));
+
+        if ($escaped === [] && $cavId === null) {
+            return new EloquentCollection;
+        }
 
         return Trooper::query()
             ->where(fn (Builder $scope) => $scope
                 ->whereIn('primary_section_id', collect($sectionIds)->all())
                 ->when($withUnplaced, fn (Builder $q) => $q->orWhereNull('primary_section_id')))
-            ->whereRaw("LOWER(username) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
+            ->where(function (Builder $match) use ($escaped, $cavId) {
+                foreach ($escaped as $term) {
+                    $match->orWhereRaw("LOWER(username) LIKE ? ESCAPE '!'", ["%{$term}%"]);
+                }
+                if ($cavId !== null) {
+                    $match->orWhere('cav_id', $cavId);
+                }
+            })
             ->orderByRaw('CASE WHEN status IN ('.implode(', ', array_fill(0, count(TrooperStatus::serving()), '?')).') THEN 0 ELSE 1 END', TrooperStatus::servingValues())
-            ->orderByRaw("CASE WHEN LOWER(username) LIKE ? ESCAPE '!' THEN 0 ELSE 1 END", ["{$escaped}%"])
+            ->when($cavId !== null, fn (Builder $q) => $q->orderByRaw('CASE WHEN cav_id = ? THEN 0 ELSE 1 END', [$cavId]))
+            ->when($escaped !== [], fn (Builder $q) => $q->orderByRaw("CASE WHEN LOWER(username) LIKE ? ESCAPE '!' THEN 0 ELSE 1 END", ["{$escaped[0]}%"]))
             ->orderBy('username')
             ->orderBy('id')
             ->limit($limit)
