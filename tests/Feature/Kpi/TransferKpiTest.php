@@ -9,6 +9,7 @@ use App\Models\RollcallSignature;
 use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
+use App\Models\User;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TrooperRepository;
@@ -167,6 +168,39 @@ it('names the section of each week\'s mark', function () {
         xferWeek(1)->toDateString() => $this->sectionB->id,
         xferWeek(0)->toDateString() => $this->sectionB->id,
     ]);
+});
+
+it('charges a week moved away and back again to the section the trooper ended it in', function () {
+    $mover = xferTrooper($this->sectionA);
+    // Signed at A but no SP mark there: A's practice exists without being held. B (the stayer) held its practice.
+    xferMark($mover, $this->sectionA, 0, rollcall: RollcallSignature::WillAttend);
+    $this->travelTo(xferWeek()->addDays(4)->setTime(19, 0));
+    app(TrooperRepository::class)->updatePrimarySections([$mover->cav_id => $this->sectionB->id]);
+    $this->travelTo(xferWeek()->addDays(5)->setTime(19, 0));
+    app(TrooperRepository::class)->updatePrimarySections([$mover->cav_id => $this->sectionA->id]);
+    $this->travelBack();
+
+    $mark = app(AttendanceRepository::class)->countingMarksOf([$mover->id], xferWeek(), xferWeek())->sole();
+
+    expect($mark->sectionId)->toBe($this->sectionA->id)
+        ->and($mark->held)->toBeFalse();
+});
+
+it('shows the new section\'s report the same mark its KPIs count in the week of the move', function () {
+    $mover = xferTrooper($this->sectionA);
+    xferMark($mover, $this->sectionA, 0, AttendanceStatus::Present, RollcallSignature::WillAttend);
+    xferMove($this, $mover, $this->sectionB, 0);
+
+    $row = null;
+    $this->actingAs(User::factory()->admin()->create())
+        ->get("/reports/{$this->sectionB->id}/".xferWeek()->toDateString())
+        ->assertOk()
+        ->assertInertia(function ($page) use (&$row, $mover) {
+            $row = collect($page->toArray()['props']['troopers'])->firstWhere('id', $mover->id);
+        });
+
+    expect($row['status'])->toBe(AttendanceStatus::Present->value)
+        ->and($row['rollcall'])->toBe(RollcallSignature::WillAttend->value);
 });
 
 it('counts a trooper\'s RC only over the weeks they were in a section', function () {
