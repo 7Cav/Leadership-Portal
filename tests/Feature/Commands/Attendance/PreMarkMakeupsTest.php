@@ -14,7 +14,6 @@ use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
 use App\Models\CrossSectionSighting;
-use App\Models\GamePlatform;
 use App\Models\Loa;
 use App\Models\LoaType;
 use App\Models\SectionPractice;
@@ -208,7 +207,7 @@ it('does not pre-mark a trooper who no longer serves', function () {
 });
 
 it('replaces the auto makeup with present when their own practice is captured later and sees them', function () {
-    TrooperGameIdentity::factory()->create(['trooper_id' => $this->visitor->id, 'platform' => GamePlatform::Hll, 'platform_id' => '76561190000000077']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->visitor->id, 'game_id' => game('hll')->id, 'platform_id' => '76561190000000077']);
     makeUp($this->hostPractice, [$this->visitor->id]);
     $home = homePracticeOf($this->home, $this->week);
     expect(markOn($home, $this->visitor)->status)->toBe(AttendanceStatus::Makeup);
@@ -216,8 +215,8 @@ it('replaces the auto makeup with present when their own practice is captured la
     $start = CarbonImmutable::parse('2026-10-08 18:00:00', 'UTC')->toDateTimeImmutable();
     $end = CarbonImmutable::parse('2026-10-08 19:30:00', 'UTC')->toDateTimeImmutable();
     $source = new CaptureSource('crcon', 'crcon-server-1', fn ($s, $e) => new CrconPresence([new CrconPlayer('V', '76561190000000077')], $s, $e, CarbonImmutable::parse('2026-10-08 20:00:00', 'UTC')->toDateTimeImmutable()));
-    app()->instance(CaptureSources::class, new CaptureSources([GamePlatform::Hll->value => [$source]]));
-    app(CaptureSectionPracticeHandler::class)->handle(new CaptureSectionPractice($home->id, GamePlatform::Hll, $start, $end, 'system'));
+    app()->instance(CaptureSources::class, new CaptureSources(['crcon' => [$source]]));
+    app(CaptureSectionPracticeHandler::class)->handle(new CaptureSectionPractice($home->id, game('hll')->id, $start, $end, 'system'));
 
     $row = markOn($home, $this->visitor);
     expect($row->status)->toBe(AttendanceStatus::Present)->and($row->source)->toBe(AttendanceSource::Auto);

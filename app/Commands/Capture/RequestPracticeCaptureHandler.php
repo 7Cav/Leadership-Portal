@@ -72,11 +72,11 @@ class RequestPracticeCaptureHandler
             throw RollcallWeekLockedException::for($command->sectionId, $weekStart);
         }
 
-        $platform = $this->telemetry->platformOf($command->sectionId)
+        $game = $this->telemetry->gameOf($command->sectionId)
             ?? throw CaptureRetryRefusedException::noGameLinked();
 
-        if (! $this->sources->isConfigured($platform)) {
-            throw CaptureRetryRefusedException::notConfigured($platform);
+        if (! $this->sources->isConfigured($game)) {
+            throw CaptureRetryRefusedException::notConfigured($game);
         }
 
         $practice = $this->practices->find($command->sectionId, $weekStart);
@@ -104,7 +104,7 @@ class RequestPracticeCaptureHandler
 
         return new CaptureSectionPractice(
             $practice->id,
-            $platform,
+            $game->id,
             $practice->week_start->toDateTimeImmutable(),
             ($now->lessThan($weekEnd) ? $now : $weekEnd)->toDateTimeImmutable(),
             $actor->id,

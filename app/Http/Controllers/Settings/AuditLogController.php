@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditLogEntry;
 use App\Models\FireteamAssignment;
 use App\Models\FireteamSetting;
+use App\Models\Game;
 use App\Models\GamePlayerDismissal;
 use App\Models\PlatoonTrainingTopic;
 use App\Models\PortalRoleGrant;
@@ -117,8 +118,8 @@ class AuditLogController extends Controller
      * unit's roster, a trooper's milpac (also for their game identities, courses and placement, and for the portal user
      * they sign in as), a company's templates,
      * the staff grants, a section's rollcall (for its fireteams and fireteam display), a platoon's report week (for its
-     * training topic), or the rollcall week where a dismissed player was last captured. Null when the target is gone or
-     * has no page.
+     * training topic), the Games page (for a game), or the rollcall week where a dismissed player was last captured. Null
+     * when the target is gone or has no page.
      *
      * @return array{href: string, label: string}|null
      */
@@ -162,6 +163,10 @@ class AuditLogController extends Controller
             $target instanceof PlatoonTrainingTopic && $target->unit !== null => [
                 'href' => route('reports.show', ['unit' => $target->unit_id, 'week' => $target->week_start->toDateString()], false),
                 'label' => "{$unit($target->unit)} training topic, week of {$target->week_start->format('dMy')}",
+            ],
+            $target instanceof Game => [
+                'href' => route('settings.games', [], false),
+                'label' => "{$target->name} game",
             ],
             $target instanceof GamePlayerDismissal => $this->dismissalLink($target),
             // A user (a view-as target, a changed Admin flag) links to their trooper's milpac when they have one.

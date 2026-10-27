@@ -2,7 +2,7 @@
 
 namespace App\Commands\Capture;
 
-use App\Models\GamePlatform;
+use App\Models\Game;
 use DateTimeImmutable;
 
 /**
@@ -22,22 +22,22 @@ final readonly class CaptureTelemetry
      */
     private function __construct(
         public CaptureTelemetryState $state,
-        public ?GamePlatform $platform,
+        public ?Game $game,
         public ?DateTimeImmutable $lastAttemptAt,
         public bool $canRetry,
         public array $feeds = [],
     ) {}
 
-    public static function notConfigured(GamePlatform $platform): self
+    public static function notConfigured(Game $game): self
     {
-        return new self(CaptureTelemetryState::NotConfigured, $platform, null, false);
+        return new self(CaptureTelemetryState::NotConfigured, $game, null, false);
     }
 
     /**
      * @param  list<string>  $feeds
      */
-    public static function failed(?GamePlatform $platform, DateTimeImmutable $lastAttemptAt, array $feeds = []): self
+    public static function failed(?Game $game, DateTimeImmutable $lastAttemptAt, array $feeds = []): self
     {
-        return new self(CaptureTelemetryState::Failed, $platform, $lastAttemptAt, $platform !== null, $feeds);
+        return new self(CaptureTelemetryState::Failed, $game, $lastAttemptAt, $game !== null, $feeds);
     }
 }

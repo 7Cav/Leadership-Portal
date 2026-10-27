@@ -11,14 +11,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * left out of unmatched lists until it is linked to a trooper. Portal-owned (AD-22) — written only
  * through `GamePlayerDismissalRepository` by the audited dismiss Command.
  */
-#[Fillable(['platform', 'platform_id', 'player_name', 'dismissed_by'])]
+#[Fillable(['game_id', 'platform_id', 'player_name', 'dismissed_by'])]
 class GamePlayerDismissal extends Model
 {
-    protected function casts(): array
+    public function game(): BelongsTo
     {
-        return [
-            'platform' => GamePlatform::class,
-        ];
+        return $this->belongsTo(Game::class);
     }
 
     public function dismissedBy(): BelongsTo

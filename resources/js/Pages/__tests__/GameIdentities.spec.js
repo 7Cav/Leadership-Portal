@@ -63,6 +63,39 @@ describe('GameIdentities page', () => {
         expect(wrapper.get('[role="progressbar"]').attributes('aria-valuenow')).toBe('50');
     });
 
+    it('offers a retired game for no new link and leaves it out of coverage, but lists and removes its links (#388)', async () => {
+        const platforms = [...PLATFORMS, { value: 'squad', label: 'Squad', idLabel: 'EOS ID', retired: true }];
+        const troopers = [trooper(1, 'SGT Ortega.M', { hll: { playerName: 'OrtegaCav', platformId: '7656' }, squad: { playerName: 'Old', platformId: 'eos' } })];
+        const wrapper = mount(GameIdentities, { props: { platforms, troopers } });
+
+        expect(wrapper.get('[data-testid="coverage-linked"]').text()).toBe('1');
+        expect(wrapper.get('[data-testid="coverage-slots"]').text()).toBe('2');
+        expect(wrapper.get('[data-testid="row-1"]').text()).toContain('Missing Arma Reforger');
+        expect(wrapper.get('[data-testid="row-1"]').text()).not.toContain('Squad');
+
+        await wrapper.get('[data-testid="open-1"]').trigger('click');
+
+        expect(wrapper.findAll('[data-testid="identity-game"] option').map((option) => option.element.value)).toEqual(['hll', 'arma']);
+        expect(wrapper.get('[data-testid="identity-squad"]').text()).toContain('Squad (retired)');
+        expect(wrapper.find('[data-testid="edit-squad"]').exists()).toBe(false);
+
+        await wrapper.get('[data-testid="remove-squad"]').trigger('click');
+        await wrapper.get('[data-testid="confirm-remove-squad"]').trigger('click');
+
+        expect(del).toHaveBeenCalledWith('/game-identities/1/squad', expect.anything());
+    });
+
+    it('offers no link form when every game is retired, but still lists the links to remove', async () => {
+        const platforms = PLATFORMS.map((p) => ({ ...p, retired: true }));
+        const wrapper = mount(GameIdentities, { props: { platforms, troopers: [TROOPERS[0]] } });
+        await wrapper.get('[data-testid="view-everyone"]').trigger('click');
+        await wrapper.get('[data-testid="open-1"]').trigger('click');
+
+        expect(wrapper.find('[data-testid="identity-form"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="no-active-games"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="remove-hll"]').exists()).toBe(true);
+    });
+
     it('queues only troopers missing a game, saying which, and defaults to that view', () => {
         const wrapper = factory();
 

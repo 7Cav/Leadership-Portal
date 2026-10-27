@@ -66,7 +66,7 @@ describe('navigation', () => {
 });
 
 describe('resolveLayout', () => {
-    it.each(['Home', 'Settings/OrgStructure', 'Settings/StaffGrants', 'Settings/Templates', 'Settings/AuditLog', 'Settings/DemoData'])('wraps %s in the app shell', (name) => {
+    it.each(['Home', 'Settings/OrgStructure', 'Settings/StaffGrants', 'Settings/Templates', 'Settings/Games', 'Settings/AuditLog', 'Settings/DemoData'])('wraps %s in the app shell', (name) => {
         expect(resolveLayout(name)).toBe(AppLayout);
     });
 

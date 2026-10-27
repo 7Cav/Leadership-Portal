@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use App\Commands\Attendance\MarkAttendanceHandler;
-use App\Models\GamePlatform;
+use App\Models\Game;
 use App\Models\SectionPractice;
 use App\Models\SyncRun;
 use App\Models\SyncRunStatus;
@@ -60,14 +60,14 @@ class CaptureReviewSeeder extends Seeder
 
             // Already linked to another HLL account, so linking the captured "Halvorsen" to them asks to replace (#176).
             if ($username === 'Halvorsen.K') {
-                TrooperGameIdentity::factory()->create(['trooper_id' => $trooper->id, 'platform' => GamePlatform::Hll, 'player_name' => 'HalvoOld', 'platform_id' => '76561198000009099']);
+                TrooperGameIdentity::factory()->create(['trooper_id' => $trooper->id, 'player_name' => 'HalvoOld', 'platform_id' => '76561198000009099']);
             }
         }
         $this->leads('Hartmann.L', $section, (int) "{$tag}90");
 
         $practice = app(SectionPracticeRepository::class)->findOrCreate($section->id, WeekOf::start($now));
         app(SectionPracticeRepository::class)->stampCapture($practice, 'crcon-e2e', $now, 'crcon');
-        app(PracticeCapturePlayerRepository::class)->replaceForPractice($practice->id, GamePlatform::Hll, [
+        app(PracticeCapturePlayerRepository::class)->replaceForPractice($practice->id, Game::query()->where('slug', 'hll')->firstOrFail(), [
             ['platform_id' => '76561198000009001', 'player_name' => 'Dubes', 'trooper_id' => null],
             ['platform_id' => '76561198000009002', 'player_name' => 'RandoGuy88', 'trooper_id' => null],
             ['platform_id' => '76561198000009003', 'player_name' => 'Halvorsen', 'trooper_id' => null],
@@ -123,7 +123,7 @@ class CaptureReviewSeeder extends Seeder
             ]);
 
             if ($username === 'Park.J') {
-                TrooperGameIdentity::factory()->create(['trooper_id' => $trooper->id, 'platform' => GamePlatform::Hll, 'player_name' => 'Park', 'platform_id' => '76561198000009101']);
+                TrooperGameIdentity::factory()->create(['trooper_id' => $trooper->id, 'player_name' => 'Park', 'platform_id' => '76561198000009101']);
             }
         }
         $this->leads('Voss.H', $section, (int) "{$tag}92");

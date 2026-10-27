@@ -50,6 +50,7 @@ class LinkUnmatchedPlayerHandler
     /**
      * @throws GameIdentityForbiddenException
      * @throws UnmatchedPlayerResolutionException
+     * @throws GameRetiredException when the player's game is retired.
      * @throws GameIdentityLinkException when the platform id already belongs to another trooper.
      */
     public function handle(User $actor, LinkUnmatchedPlayer $command): AutoMarkResult
@@ -69,10 +70,10 @@ class LinkUnmatchedPlayerHandler
         // Checked before the replace question: a leader must not be asked to replace a trooper's
         // identity for a link that would then fail because someone else owns the player. The
         // repository's UNIQUE guard still decides a race between this read and the write.
-        $owner = $this->identities->findByPlatformId($command->platform, $player->platform_id);
+        $owner = $this->identities->findByPlatformId($command->game, $player->platform_id);
 
         if ($owner !== null && $owner->trooper_id !== $trooper->id) {
-            throw GameIdentityLinkException::alreadyLinked($command->platform, $player->platform_id);
+            throw GameIdentityLinkException::alreadyLinked($command->game, $player->platform_id);
         }
 
         // The one identity this link may overwrite: the one the leader was shown and agreed to
@@ -80,15 +81,15 @@ class LinkUnmatchedPlayerHandler
         // at all (passing the player's own id lets only "no identity yet" or "already this one"
         // through).
         $replaceable = $command->replace && $command->replacing !== null ? $command->replacing : $player->platform_id;
-        $held = $this->identities->forTrooper($trooper->id)->firstWhere('platform', $command->platform);
+        $held = $this->identities->forTrooper($trooper->id)->firstWhere('game_id', $command->game->id);
 
         if ($held !== null && $held->platform_id !== $player->platform_id && $held->platform_id !== $replaceable) {
-            throw UnmatchedPlayerResolutionException::alreadyHasIdentity($held->player_name, $held->platform_id, $command->platform->label());
+            throw UnmatchedPlayerResolutionException::alreadyHasIdentity($held->player_name, $held->platform_id, $command->game->name);
         }
 
         // The check above answers the common case without a write; the writer repeats it under
         // lock inside its audited transaction, so a change landing between the two is refused too.
-        $this->setIdentity->handle($actor, new SetTrooperGameIdentity($trooper->id, $command->platform, $player->player_name, $player->platform_id, $replaceable));
+        $this->setIdentity->handle($actor, new SetTrooperGameIdentity($trooper->id, $command->game, $player->player_name, $player->platform_id, $replaceable));
 
         return $this->attendance->preMark($practice, [$trooper->id], $actor->id);
     }
