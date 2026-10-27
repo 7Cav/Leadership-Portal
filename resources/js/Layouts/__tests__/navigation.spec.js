@@ -45,7 +45,27 @@ describe('navigation', () => {
 
     it('hides only the admin-only groups from a non-Admin', () => {
         expect(visibleGroups(false).map((group) => group.id)).toEqual(['leadership']);
-        expect(visibleGroups(true).map((group) => group.id)).toEqual(NAV_GROUPS.map((group) => group.id));
+        expect(visibleGroups(true, { docs: true }).map((group) => group.id)).toEqual(NAV_GROUPS.map((group) => group.id));
+    });
+
+    it('shows Help > Docs to every viewer, only while the docs are on (#411)', () => {
+        const ids = (isAdmin, features) => visibleGroups(isAdmin, features).map((group) => group.id);
+
+        expect(ids(false, { docs: true })).toEqual(['leadership', 'help']);
+        expect(ids(true, { docs: true })).toContain('help');
+        expect(ids(false, { docs: false })).not.toContain('help');
+        expect(ids(false)).not.toContain('help');
+    });
+
+    it('keeps Docs active on every guide, with the guide as the last crumb', () => {
+        expect(isActive('/docs', '/docs')).toBe(true);
+        expect(isActive('/docs/weekly-rollcall/run-rollcall', '/docs')).toBe(true);
+        expect(locate('/docs').nested).toBe(false);
+
+        const found = locate('/docs/weekly-rollcall/run-rollcall');
+        expect(found.item.label).toBe('Docs');
+        expect(found.group.crumb).toBe(false);
+        expect(found.nested).toBe(true);
     });
 
     it('shows Demo data only while the demoTools feature is on (#115)', () => {

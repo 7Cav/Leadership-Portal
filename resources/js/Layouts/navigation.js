@@ -1,4 +1,5 @@
 import {
+    PhBookOpenText,
     PhClipboardText,
     PhFileCode,
     PhFileText,
@@ -21,6 +22,8 @@ export const NAV_GROUPS = [
         id: 'leadership',
         label: 'Leadership',
         adminOnly: false,
+        // The breadcrumb starts at the item, not the group: 7CAV > Roster, not 7CAV > Leadership > Roster.
+        crumb: false,
         items: [
             { label: 'Home', href: '/home', icon: PhHouse },
             { label: 'Roster', href: '/roster', icon: PhUsersThree },
@@ -28,6 +31,14 @@ export const NAV_GROUPS = [
             { label: 'Reports', href: '/reports', icon: PhFileText },
             { label: 'Game identities', href: '/game-identities', icon: PhGameController },
         ],
+    },
+    {
+        // The guides (#411), for every signed-in viewer while DOCS_ENABLED is on. 7CAV > Docs > {guide}.
+        id: 'help',
+        label: 'Help',
+        adminOnly: false,
+        crumb: false,
+        items: [{ label: 'Docs', href: '/docs', icon: PhBookOpenText, feature: 'docs' }],
     },
     {
         // Shown to Admins only (AC). This hides navigation, nothing more: every Settings screen
@@ -66,6 +77,8 @@ function pathOf(url) {
 const CHILD_PAGES = [
     { prefix: '/troopers/', parent: '/roster' },
     { prefix: '/readiness/', parent: '/roster' },
+    // A guide sits under Docs, and names itself as the last crumb.
+    { prefix: '/docs/', parent: '/docs' },
 ];
 
 function childOf(url, href) {
