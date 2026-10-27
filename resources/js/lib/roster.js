@@ -27,10 +27,11 @@ export function rankIndex(rank) {
     return index === -1 ? -1 : index;
 }
 
-/** `officer`, `nco` or `enlisted` — the rank badge's tone. */
+/** `officer`, `warrant`, `nco` or `enlisted` — the rank badge's tone. */
 export function rankTier(rank) {
     const index = rankIndex(rank);
-    if (index >= RANK_ORDER.indexOf('WO1')) return 'officer';
+    if (index >= RANK_ORDER.indexOf('2LT')) return 'officer';
+    if (index >= RANK_ORDER.indexOf('WO1')) return 'warrant';
     if (index >= RANK_ORDER.indexOf('CPL')) return 'nco';
 
     return 'enlisted';

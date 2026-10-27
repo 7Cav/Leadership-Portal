@@ -123,6 +123,10 @@ describe('labels', () => {
 
     it('tiers ranks for the badge', () => {
         expect(rankTier('CPT')).toBe('officer');
+        expect(rankTier('2LT')).toBe('officer');
+        expect(rankTier('WO1')).toBe('warrant');
+        expect(rankTier('CW5')).toBe('warrant');
+        expect(rankTier('CSM')).toBe('nco');
         expect(rankTier('SGT')).toBe('nco');
         expect(rankTier('PFC')).toBe('enlisted');
         expect(rankTier('???')).toBe('enlisted');
