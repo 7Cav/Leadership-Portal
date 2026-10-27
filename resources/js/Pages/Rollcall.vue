@@ -238,7 +238,7 @@ const autosave = props.section
 
 // A week whose report has been sent is locked (AD-12), read-only the same way as a preview: the
 // server refuses every save for it. Known from the page load, or from a save refused because the
-// report was sent since. The forum post stays usable: copying it and marking it posted are fine.
+// report was sent since. Copying the forum post stays possible; marking it posted is refused too.
 const weekLocked = computed(() => props.locked || Boolean(autosave?.locked.value));
 const lockedReason = computed(() => (weekLocked.value ? (autosave?.lockedMessage.value ?? LOCKED_MESSAGE) : null));
 const editable = computed(() => !previewReason.value && !weekLocked.value);
@@ -513,6 +513,8 @@ async function markPosted() {
             }
         } else {
             toast.error('Could not mark the rollcall posted', { description: messageFor(result) });
+            // The report was sent since the page loaded: show the week as the server now has it.
+            if (result.status === 409 && result.data?.locked) router.reload();
         }
     } finally {
         posting.value = false;
@@ -947,7 +949,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
             data-testid="locked-notice"
         >
             <PhLockSimple class="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
-            <p>{{ lockedReason }} You can still copy the forum post and mark it posted.</p>
+            <p>{{ lockedReason }} You can still copy the forum post.</p>
         </div>
 
         <!-- Only where a change can be made: a read-only week (too far back, a staff grant, a view-as preview, a sent
@@ -1275,8 +1277,8 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                             <Button
                                 class="h-11 flex-1 sm:h-9 sm:flex-none"
                                 data-testid="mark-posted"
-                                :disabled="Boolean(previewReason) || posting"
-                                :title="previewReason ?? undefined"
+                                :disabled="Boolean(readOnlyReason) || posting"
+                                :title="readOnlyReason ?? undefined"
                                 @click="markPosted"
                             >
                                 <PhCheck />{{ posted ? 'Mark posted again' : 'Mark rollcall posted' }}
