@@ -42,6 +42,8 @@ section: weekly-rollcall
 order: 1
 audience: leader            # everyone, leader or admin
 page: /rollcall             # optional: the portal path this guide explains
+weekly: true                # optional: a weekly task, listed under "Every week" on docs home
+minutes: 5                  # optional: about how long it takes
 checklist:                  # optional: list it under "Start here"
   label: Run your first rollcall
   audience: leader          # never wider than the guide's own audience

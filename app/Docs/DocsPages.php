@@ -34,6 +34,8 @@ final class DocsPages
                 'section' => ['key' => $guide->section, 'title' => $sectionTitle],
                 'audience' => $guide->audience->value,
                 'page' => $guide->page,
+                'weekly' => $guide->weekly,
+                'minutes' => $guide->minutes,
                 'html' => $guide->html,
                 'headings' => $guide->headings,
                 'checklist' => $guide->checklist !== null && $reader->reads($guide->checklist->audience),
@@ -50,6 +52,7 @@ final class DocsPages
     {
         return [
             'audience' => $reader->value,
+            'feedbackUrl' => config('portal.docs_feedback_url') ?: null,
             'contents' => array_map(fn (array $group) => [
                 'key' => $group['section']->key,
                 'title' => $group['section']->title,
@@ -63,9 +66,9 @@ final class DocsPages
         ];
     }
 
-    /** @return array{title: string, summary: string, url: string} */
+    /** @return array{title: string, summary: string, url: string, audience: string, weekly: bool} */
     private function link(Guide $guide): array
     {
-        return ['title' => $guide->title, 'summary' => $guide->summary, 'url' => $guide->url()];
+        return ['title' => $guide->title, 'summary' => $guide->summary, 'url' => $guide->url(), 'audience' => $guide->audience->value, 'weekly' => $guide->weekly];
     }
 }

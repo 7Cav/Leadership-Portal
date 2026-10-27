@@ -34,7 +34,7 @@ use League\CommonMark\Renderer\HtmlRenderer;
  */
 final class GuideParser
 {
-    private const KEYS = ['title', 'summary', 'section', 'order', 'audience', 'page', 'checklist'];
+    private const KEYS = ['title', 'summary', 'section', 'order', 'audience', 'page', 'weekly', 'minutes', 'checklist'];
 
     private const REQUIRED = ['title', 'summary', 'section', 'order', 'audience'];
 
@@ -109,6 +109,8 @@ final class GuideParser
             order: $meta['order'],
             audience: $audience,
             page: $meta['page'] ?? null,
+            weekly: $meta['weekly'] ?? false,
+            minutes: $meta['minutes'] ?? null,
             checklist: $checklist,
             html: $this->renderer->renderDocument($document)->getContent(),
             headings: $headings,
@@ -148,6 +150,12 @@ final class GuideParser
         }
         if (array_key_exists('page', $meta) && (! is_string($meta['page']) || ! str_starts_with($meta['page'], '/'))) {
             $problems[] = '`page` must be a portal path starting with /';
+        }
+        if (array_key_exists('weekly', $meta) && ! is_bool($meta['weekly'])) {
+            $problems[] = '`weekly` must be true or false';
+        }
+        if (array_key_exists('minutes', $meta) && (! is_int($meta['minutes']) || $meta['minutes'] < 1)) {
+            $problems[] = '`minutes` must be a whole number of minutes';
         }
 
         if (array_key_exists('checklist', $meta)) {
