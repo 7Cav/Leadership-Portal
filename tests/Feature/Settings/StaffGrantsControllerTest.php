@@ -23,6 +23,17 @@ it('renders the grants list for any authenticated user', function () {
             ->where('isAdmin', false));
 });
 
+it('does not send the username list to a non-admin who opens the page by URL', function () {
+    User::factory()->count(3)->create();
+    $user = User::factory()->serving()->create();
+
+    $this->actingAs($user)->get('/settings/staff-grants')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('isAdmin', false)
+            ->where('users', []));
+});
+
 it('marks each grant by whether its holder is still serving, keeping a lapsed one listed', function () {
     $unit = Unit::factory()->create();
     $serving = User::factory()->serving()->create(['username' => 'Vasquez.R']);
