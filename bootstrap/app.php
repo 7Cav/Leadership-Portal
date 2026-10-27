@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\ActAsUser;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PreventCachingAuthenticatedResponses;
 use App\Http\Middleware\ReadOnlyWhileViewingAs;
@@ -50,6 +51,8 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->web(append: [
+            // Runs the request as the person an Admin is acting as (#379), before anything reads the user.
+            ActAsUser::class,
             HandleInertiaRequests::class,
             // Refuses writes while a view-as preview is active (Story 1.13). Runs after routing,
             // so it can let the view-as exit and logout routes through by name.

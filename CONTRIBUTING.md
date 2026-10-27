@@ -60,7 +60,7 @@ Route → Controller ─┬─ (write) Command → CommandHandler ─┐
 | Sync | `app/Sync/` | Repository, Model, Integration | One-writer cache sync handlers (AD-4, AD-22) — `Sync{Thing}Handler` |
 | Job | `app/Jobs/` | Sync, CommandHandler | Queued wrappers (AD-23): each runs a Sync handler, or the practice-capture Command's handler, off the request path. No DB or external access of its own |
 | Provider | `app/Providers/` | Controller, CommandHandler, Repository, Model, Integration, Authorization, DB, Kpi | DI composition root — bootstrap, not business logic |
-| Middleware | `app/Http/Middleware/` | Authorization | Request glue (e.g. Inertia shared props, the view-as read-only guard, security headers) |
+| Middleware | `app/Http/Middleware/` | Authorization, Support\Audit | Request glue (e.g. Inertia shared props, the view-as read-only guard, act as, security headers) |
 
 **Layers added consciously as their stories landed.** `Authorization/`, `Support/Audit/`, and
 `Sync/` were all placeholders in `deptrac.yaml` until each one's own story added it — with its
