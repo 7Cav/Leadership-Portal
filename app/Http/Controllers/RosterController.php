@@ -21,6 +21,7 @@ use App\Repositories\AttendanceRepository;
 use App\Repositories\CountingMark;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
+use App\Repositories\UnitActingLeadRepository;
 use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitLeadRepository;
 use App\Repositories\UnitRepository;
@@ -59,6 +60,7 @@ class RosterController extends Controller
         private readonly LoaProvenance $loaProvenance,
         private readonly PracticeGuests $practiceGuests,
         private readonly UnitLeadRepository $leads,
+        private readonly UnitActingLeadRepository $actingLeads,
     ) {}
 
     public function index(Request $request, ?int $unit = null): Response
@@ -148,7 +150,9 @@ class RosterController extends Controller
 
     /**
      * The unit to open when none is named: the one the user's roster billet commands, when it is
-     * still in scope (a view-as preview may have narrowed it away), else the top of their scope.
+     * still in scope (a view-as preview may have narrowed it away), else the unit they are acting
+     * lead of (the first in tree order when they act for several, the order the org page lists
+     * them in), else the top of their scope.
      * A regiment-wide scope lands on its first battalion instead — a whole regiment is too much
      * to read at once, and the switcher is right there to widen it.
      *
@@ -161,6 +165,13 @@ class RosterController extends Controller
 
         if ($commanded !== null && $scope->contains($commanded->id)) {
             return $commanded;
+        }
+
+        $actingFor = $this->actingLeads->unitsLedBy($user)->pluck('id')->flip();
+        $acting = $tree->first(fn (Unit $u) => $actingFor->has($u->id) && $scope->contains($u->id));
+
+        if ($acting !== null) {
+            return $acting;
         }
 
         $top = $tree->filter(fn (Unit $u) => $scope->contains($u->id))
