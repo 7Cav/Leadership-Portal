@@ -977,20 +977,32 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-step="3"]').attributes('aria-label')).toBe('Step 3, Review and post, Not posted yet');
         });
 
-        it('keeps the forum post usable on a locked week: copy and mark posted', async () => {
+        it('keeps copying the forum post on a locked week, but not marking it posted', async () => {
             const writeText = vi.fn().mockResolvedValue();
             Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
-            post.mockResolvedValueOnce({ ok: true, status: 200, data: { posted: { at: '2026-10-08T16:20:00+00:00', by: 'Vasquez.R' } } });
             const wrapper = factory({ locked: true });
 
-            expect(wrapper.find('[data-testid="locked-notice"]').text()).toContain('You can still copy the forum post and mark it posted.');
+            expect(wrapper.find('[data-testid="locked-notice"]').text()).toContain('You can still copy the forum post.');
+            expect(wrapper.find('[data-testid="locked-notice"]').text()).not.toContain('mark it posted');
             await wrapper.find('[data-testid="copy-bbcode"]').trigger('click');
             await vi.waitFor(() => expect(writeText).toHaveBeenCalled());
 
-            expect(wrapper.find('[data-testid="mark-posted"]').attributes('disabled')).toBeUndefined();
+            const markPosted = wrapper.find('[data-testid="mark-posted"]');
+            expect(markPosted.attributes('disabled')).toBeDefined();
+            expect(markPosted.attributes('title')).toBe('The report for this week has been sent, so its rollcall is locked.');
+        });
+
+        it('reloads the week when marking posted is refused because the report was sent since the page loaded', async () => {
+            reload.mockClear();
+            post.mockResolvedValue({ ok: false, status: 409, data: { message: 'The report for this week has been sent, so its rollcall is locked.', locked: true } });
+            const wrapper = factory();
+
             await wrapper.find('[data-testid="mark-posted"]').trigger('click');
-            await vi.waitFor(() => expect(wrapper.find('[data-testid="posted-state"]').exists()).toBe(true));
-            expect(post).toHaveBeenCalledWith('/rollcall/12/posted', { week: '2026-10-03' });
+            await flushPromises();
+
+            expect(toastError).toHaveBeenCalledWith('Could not mark the rollcall posted', { description: 'The report for this week has been sent, so its rollcall is locked.' });
+            expect(wrapper.find('[data-testid="posted-state"]').exists()).toBe(false);
+            expect(reload).toHaveBeenCalledTimes(1);
         });
 
         it('cannot be marked posted during a view-as preview', () => {

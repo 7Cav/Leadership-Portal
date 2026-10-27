@@ -4,11 +4,13 @@ use App\Commands\Attendance\InvalidAttendanceMarkException;
 use App\Commands\Attendance\MarkRollcallPosted;
 use App\Commands\Attendance\MarkRollcallPostedForbiddenException;
 use App\Commands\Attendance\MarkRollcallPostedHandler;
+use App\Commands\Attendance\RollcallWeekLockedException;
 use App\Models\AuditLogEntry;
 use App\Models\SectionPractice;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Models\WeeklyReport;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Carbon;
@@ -72,4 +74,25 @@ it('refuses a unit that is not a section', function () {
 
     expect(fn () => markPosted(User::factory()->admin()->create(), $platoon->id, $this->moment))
         ->toThrow(InvalidAttendanceMarkException::class);
+});
+
+// AD-12: a sent week is locked for marking posted, as for every other rollcall write.
+
+it('refuses a week whose section report has been sent, with no stamp and no audit entry', function () {
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => '2026-10-03']);
+
+    expect(fn () => markPosted($this->leader, $this->section->id, $this->moment))
+        ->toThrow(RollcallWeekLockedException::class);
+
+    expect(SectionPractice::query()->whereNotNull('rollcall_posted_at')->count())->toBe(0)
+        ->and(AuditLogEntry::query()->count())->toBe(0);
+});
+
+it('still marks a week posted whose report is a draft, a demo report, or another section\'s', function () {
+    WeeklyReport::factory()->create(['unit_id' => $this->section->id, 'week_start' => '2026-10-03']);
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => '2026-09-26', 'is_demo' => true]);
+    WeeklyReport::factory()->sent()->create(['unit_id' => Unit::factory()->create(['type' => UnitType::Section])->id, 'week_start' => '2026-10-03']);
+
+    expect(markPosted($this->leader, $this->section->id, $this->moment)->rollcall_posted_at)->not->toBeNull()
+        ->and(markPosted($this->leader, $this->section->id, CarbonImmutable::parse('2026-09-30 18:00:00', 'UTC'))->rollcall_posted_at)->not->toBeNull();
 });
