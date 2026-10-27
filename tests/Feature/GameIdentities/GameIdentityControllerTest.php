@@ -9,6 +9,7 @@ use App\Models\Trooper;
 use App\Models\TrooperGameIdentity;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
+use App\Models\UnitKind;
 use App\Models\UnitType;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -239,4 +240,56 @@ it('shows a platoon leader the troopers of every section beneath', function () {
 
     $this->actingAs($platoonLeader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page->has('troopers', 2));
     $this->actingAs($platoonLeader)->put(identityUrl($this->theirs), ['player_name' => 'N', 'platform_id' => '5'])->assertRedirect();
+});
+
+// Since HQ staff and groups are placed off the sections (2026-10-24), the page lists everyone placed in scope.
+
+it('lists HQ staff placed on a platoon for the platoon leader, and lets them be linked, replaced and removed', function () {
+    $platoonLeader = User::factory()->commanding($this->platoon)->create();
+    $psg = placedTrooper($this->platoon, ['username' => 'Hale.S', 'rank_short' => 'SFC']);
+    $this->platoon->forceFill(['callsign' => '1/A/1-7'])->save();
+
+    $this->actingAs($platoonLeader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
+        ->has('troopers', 3)
+        ->where('troopers', fn ($rows) => collect($rows)->firstWhere('id', $psg->id)['section'] === '1/A/1-7'
+            && collect($rows)->firstWhere('id', $psg->id)['editable'] === true));
+
+    $this->actingAs($platoonLeader)->put(identityUrl($psg), ['player_name' => 'Hale', 'platform_id' => '7656'])->assertRedirect();
+    $this->actingAs($platoonLeader)->put(identityUrl($psg), ['player_name' => 'Hale', 'platform_id' => '7657'])->assertRedirect();
+    expect(TrooperGameIdentity::query()->sole()->platform_id)->toBe('7657');
+
+    $this->actingAs($platoonLeader)->delete(identityUrl($psg))->assertRedirect();
+    expect(TrooperGameIdentity::query()->count())->toBe(0);
+});
+
+it('keeps HQ staff above a section leader off their page and out of their reach', function () {
+    $psg = placedTrooper($this->platoon, ['username' => 'Hale.S']);
+
+    $this->actingAs($this->leader)->get('/game-identities')
+        ->assertInertia(fn (Assert $page) => $page->has('troopers', 1)->where('troopers.0.id', $this->mine->id));
+    $this->actingAs($this->leader)->put(identityUrl($psg), ['player_name' => 'X', 'platform_id' => '1'])->assertForbidden();
+
+    expect(TrooperGameIdentity::query()->count())->toBe(0);
+});
+
+it('lists group members (ELOA, Reservists, New Recruits, staff departments) when the group is in scope', function () {
+    $regiment = Unit::factory()->create(['type' => UnitType::Regiment, 'path' => '900/']);
+    $members = collect([UnitKind::Eloa, UnitKind::Reserve, UnitKind::Recruit, UnitKind::Staff])->map(function (UnitKind $kind) use ($regiment) {
+        $group = Unit::factory()->create(['type' => UnitType::Group, 'kind' => $kind, 'parent_id' => $regiment->id]);
+        $group->forceFill(['path' => "900/{$group->id}/"])->save();
+
+        return placedTrooper($group);
+    });
+    $admin = User::factory()->serving()->create(['is_admin' => true]);
+
+    $this->actingAs($admin)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
+        ->has('troopers', 6)
+        ->where('troopers', fn ($rows) => $members->every(fn (Trooper $m) => collect($rows)->firstWhere('id', $m->id)['editable'] === true)));
+    $this->actingAs($admin)->put(identityUrl($members->first()), ['player_name' => 'E', 'platform_id' => '9'])->assertRedirect();
+
+    // A section leader's scope holds none of the groups.
+    $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page->has('troopers', 1));
+    $this->actingAs($this->leader)->put(identityUrl($members->last()), ['player_name' => 'X', 'platform_id' => '1'])->assertForbidden();
+
+    expect(TrooperGameIdentity::query()->count())->toBe(1);
 });

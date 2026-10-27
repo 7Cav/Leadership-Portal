@@ -9,7 +9,7 @@ use App\Repositories\TrooperRepository;
 
 /**
  * The scope gate shared by the link and unlink handlers (AD-8): a trooper may be changed only when
- * their primary section is in the actor's write scope — command authority, never a staff grant, and
+ * their primary unit (a section, an HQ node or a group) is in the actor's write scope — command authority, never a staff grant, and
  * a view-as preview narrows it, so a previewing leader cannot reach further than the target they are
  * viewing as.
  */
