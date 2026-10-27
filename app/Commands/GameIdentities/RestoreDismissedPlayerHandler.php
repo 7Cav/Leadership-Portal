@@ -38,7 +38,7 @@ class RestoreDismissedPlayerHandler
     {
         [, $player] = $this->listedPlayer($actor, $this->scope, $this->practices, $this->captured, $command);
 
-        $dismissal = $this->dismissals->find($command->platform, $player->platform_id)
+        $dismissal = $this->dismissals->find($command->game, $player->platform_id)
             ?? throw UnmatchedPlayerResolutionException::notDismissed();
 
         // The log entry's target is the dismissal that was dropped, as a removed identity's is.
@@ -48,7 +48,7 @@ class RestoreDismissedPlayerHandler
             reason: null,
             reasonRequired: false,
             mutation: function () use ($command, $player, $dismissal) {
-                $this->dismissals->forget($command->platform, $player->platform_id);
+                $this->dismissals->forget($command->game, $player->platform_id);
 
                 return $dismissal;
             },

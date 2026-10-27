@@ -13,7 +13,7 @@ use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
 use App\Models\CrossSectionSighting;
-use App\Models\GamePlatform;
+use App\Models\Game;
 use App\Models\GamePlayerDismissal;
 use App\Models\PracticeCapturePlayer;
 use App\Models\SectionPractice;
@@ -55,18 +55,19 @@ function failingSource(string $name): CaptureSource
     return new CaptureSource($name, "{$name}-server-1", fn () => throw new CaptureSourceUnavailable("{$name}: unreachable"));
 }
 
-function runCapture(object $test, array $sources, int|string $by = 'system', GamePlatform $platform = GamePlatform::Hll)
+function runCapture(object $test, array $sources, int|string $by = 'system', ?Game $game = null)
 {
-    app()->instance(CaptureSources::class, new CaptureSources([$platform->value => $sources]));
+    $game ??= game('hll');
+    app()->instance(CaptureSources::class, new CaptureSources([$game->interface->value => $sources]));
 
     return app(CaptureSectionPracticeHandler::class)->handle(
-        new CaptureSectionPractice($test->practice->id, $platform, $test->start, $test->end, $by),
+        new CaptureSectionPractice($test->practice->id, $game, $test->start, $test->end, $by),
     );
 }
 
-function linkIdentity(Trooper $trooper, string $platformId, GamePlatform $platform = GamePlatform::Hll): void
+function linkIdentity(Trooper $trooper, string $platformId, ?Game $game = null): void
 {
-    TrooperGameIdentity::factory()->create(['trooper_id' => $trooper->id, 'platform' => $platform, 'platform_id' => $platformId]);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $trooper->id, 'game_id' => ($game ?? game('hll'))->id, 'platform_id' => $platformId]);
 }
 
 it('stamps the practice and asks the source only for the practice window', function () {
@@ -102,7 +103,7 @@ it('resolves linked players, surfaces unmatched ones and never assigns them', fu
 
 it('matches on platform as well as id', function () {
     $mine = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
-    linkIdentity($mine, 'shared-id', GamePlatform::Arma);
+    linkIdentity($mine, 'shared-id', game('arma'));
 
     $result = runCapture($this, [answeringSource('crcon', [new CrconPlayer('X', 'shared-id')])]);
 
@@ -165,7 +166,7 @@ it('keeps an earlier stamp when a later re-run finds every source down', functio
 });
 
 it('is unavailable, not empty, when no source is configured for the game', function () {
-    $result = runCapture($this, [], platform: GamePlatform::Arma);
+    $result = runCapture($this, [], game: game('arma'));
 
     expect($result->captured)->toBeFalse()->and($this->practice->fresh()->capture_source)->toBeNull();
 });
@@ -258,7 +259,7 @@ it('refuses a practice that does not exist', function () {
     app()->instance(CaptureSources::class, new CaptureSources([]));
 
     expect(fn () => app(CaptureSectionPracticeHandler::class)->handle(
-        new CaptureSectionPractice(999999, GamePlatform::Hll, $this->start, $this->end),
+        new CaptureSectionPractice(999999, game('hll'), $this->start, $this->end),
     ))->toThrow(InvalidArgumentException::class)
         ->and(SyncRun::query()->count())->toBe(0);
 });
@@ -268,7 +269,7 @@ it('refuses a window outside the practice week', function () {
     $outside = CarbonImmutable::parse('2027-01-01 00:00:00', 'UTC')->toDateTimeImmutable();
 
     expect(fn () => app(CaptureSectionPracticeHandler::class)->handle(
-        new CaptureSectionPractice($this->practice->id, GamePlatform::Hll, $outside, $outside),
+        new CaptureSectionPractice($this->practice->id, game('hll'), $outside, $outside),
     ))->toThrow(InvalidArgumentException::class);
 });
 
@@ -432,7 +433,7 @@ it('stores the unmatched and other-section players of the practice, replaced on 
     $stored = PracticeCapturePlayer::query()->where('section_practice_id', $this->practice->id)->orderBy('platform_id')->get();
     expect($stored)->toHaveCount(2)
         ->and($stored[0]->only(['player_name', 'platform_id', 'trooper_id']))->toBe(['player_name' => 'Stranger', 'platform_id' => '76561190000000002', 'trooper_id' => null])
-        ->and($stored[0]->platform)->toBe(GamePlatform::Hll)
+        ->and($stored[0]->game_id)->toBe(game('hll')->id)
         ->and($stored[1]->trooper_id)->toBe($elsewhere->id);
 
     runCapture($this, [answeringSource('crcon', [])]);
@@ -440,7 +441,7 @@ it('stores the unmatched and other-section players of the practice, replaced on 
 });
 
 it('stores a player a leader already dismissed, but does not list them, so the dismissal can be undone here (#176)', function () {
-    GamePlayerDismissal::query()->create(['platform' => GamePlatform::Hll, 'platform_id' => '76561190000000002', 'player_name' => 'Rando', 'dismissed_by' => User::factory()->create()->id]);
+    GamePlayerDismissal::query()->create(['game_id' => game('hll')->id, 'platform_id' => '76561190000000002', 'player_name' => 'Rando', 'dismissed_by' => User::factory()->create()->id]);
 
     runCapture($this, [answeringSource('crcon', [new CrconPlayer('Rando', '76561190000000002'), new CrconPlayer('Other', '76561190000000003')])]);
 

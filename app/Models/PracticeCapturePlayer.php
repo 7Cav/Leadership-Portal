@@ -12,14 +12,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * section is elsewhere. Written only by the capture handler through `PracticeCapturePlayerRepository`,
  * replaced on every run.
  */
-#[Fillable(['section_practice_id', 'platform', 'player_name', 'platform_id', 'trooper_id'])]
+#[Fillable(['section_practice_id', 'game_id', 'player_name', 'platform_id', 'trooper_id'])]
 class PracticeCapturePlayer extends Model
 {
-    protected function casts(): array
+    public function game(): BelongsTo
     {
-        return [
-            'platform' => GamePlatform::class,
-        ];
+        return $this->belongsTo(Game::class);
     }
 
     public function practice(): BelongsTo

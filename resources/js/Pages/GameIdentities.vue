@@ -15,9 +15,11 @@ import { cn } from '@/lib/utils';
 // The link-identity screen (Story 7.2), binding design mockups/v2/link-identity.html variant C
 // "Needs-a-link queue": a coverage summary, a queue of the troopers still missing a game, and a
 // side panel for the one picked. A trooper holds one identity per platform (AD-19); the slots come
-// from `platforms`, so a new game appears here without a change to this page.
+// from `platforms`, so a new game appears here without a change to this page. A retired game (#388)
+// is offered for no new link and left out of the coverage; the links it already has stay listed and
+// can be removed.
 const props = defineProps({
-    // `[{ value, label, idLabel }]` — one per supported game.
+    // `[{ value, label, idLabel, retired }]` — one per game an Admin keeps.
     platforms: { type: Array, required: true },
     // `[{ id, displayName, billet, section, editable, identities: { [platform]: { playerName, platformId } } }]`
     // — the troopers in the viewer's scope, by name. `editable` is false for one the viewer only sees
@@ -33,22 +35,24 @@ const viewAs = computed(() => page.props.viewAs ?? null);
 
 const view = ref('needs');
 const selectedId = ref(null);
-const platform = ref(props.platforms[0]?.value ?? '');
+// The games a trooper can be newly linked on.
+const active = computed(() => props.platforms.filter((p) => !p.retired));
+const platform = ref(active.value[0]?.value ?? '');
 const removing = ref(null);
 const removeProcessing = ref(false);
 const notice = ref(null);
 
 const form = useForm({ player_name: '', platform_id: '' });
 
-const missingOf = (trooper) => props.platforms.filter((p) => !trooper.identities[p.value]);
+const missingOf = (trooper) => active.value.filter((p) => !trooper.identities[p.value]);
 const linkedOf = (trooper) => props.platforms.filter((p) => trooper.identities[p.value]);
 const platformOf = (value) => props.platforms.find((p) => p.value === value);
 
 const needsLink = computed(() => props.troopers.filter((trooper) => missingOf(trooper).length));
 const queue = computed(() => (view.value === 'needs' ? needsLink.value : props.troopers));
 
-const slots = computed(() => props.troopers.length * props.platforms.length);
-const linked = computed(() => props.troopers.reduce((sum, trooper) => sum + linkedOf(trooper).length, 0));
+const slots = computed(() => props.troopers.length * active.value.length);
+const linked = computed(() => props.troopers.reduce((sum, trooper) => sum + linkedOf(trooper).filter((p) => !p.retired).length, 0));
 const percent = computed(() => (slots.value ? Math.round((linked.value / slots.value) * 100) : 0));
 
 const selected = computed(() => props.troopers.find((trooper) => trooper.id === selectedId.value) ?? null);
@@ -72,7 +76,7 @@ function fill(trooper, value) {
 // Open the panel on a trooper: the first game they are missing, or their first game when full.
 function open(trooper) {
     selectedId.value = trooper.id;
-    fill(trooper, (missingOf(trooper)[0] ?? props.platforms[0]).value);
+    fill(trooper, (missingOf(trooper)[0] ?? active.value[0])?.value ?? '');
 }
 
 function close() {
@@ -259,12 +263,12 @@ function remove(value) {
                             >
                                 <div class="flex items-start justify-between gap-2">
                                     <div class="min-w-0">
-                                        <p class="text-xs text-muted-foreground">{{ p.label }}</p>
+                                        <p class="text-xs text-muted-foreground">{{ p.label }}<template v-if="p.retired"> (retired)</template></p>
                                         <p class="truncate text-[13px] font-medium">{{ selected.identities[p.value].playerName }}</p>
                                         <p class="truncate font-mono text-xs text-muted-foreground">{{ selected.identities[p.value].platformId }}</p>
                                     </div>
                                     <div v-if="removing !== p.value" class="flex shrink-0 gap-1">
-                                        <Button variant="outline" size="xs" :data-testid="`edit-${p.value}`" @click="fill(selected, p.value)">Edit</Button>
+                                        <Button v-if="!p.retired" variant="outline" size="xs" :data-testid="`edit-${p.value}`" @click="fill(selected, p.value)">Edit</Button>
                                         <Button
                                             variant="outline"
                                             size="xs"
@@ -289,7 +293,7 @@ function remove(value) {
                             <div class="grid gap-1.5">
                                 <Label for="identity-game">Game</Label>
                                 <NativeSelect id="identity-game" :model-value="platform" data-testid="identity-game" @update:model-value="fill(selected, $event)">
-                                    <option v-for="p in platforms" :key="p.value" :value="p.value">{{ p.label }}{{ selected.identities[p.value] ? ' (linked)' : '' }}</option>
+                                    <option v-for="p in active" :key="p.value" :value="p.value">{{ p.label }}{{ selected.identities[p.value] ? ' (linked)' : '' }}</option>
                                 </NativeSelect>
                             </div>
                             <div class="grid gap-1.5">

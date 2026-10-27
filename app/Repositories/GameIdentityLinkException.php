@@ -2,7 +2,7 @@
 
 namespace App\Repositories;
 
-use App\Models\GamePlatform;
+use App\Models\Game;
 use RuntimeException;
 use Throwable;
 
@@ -14,11 +14,11 @@ use Throwable;
  */
 class GameIdentityLinkException extends RuntimeException
 {
-    /** The `(platform, platform_id)` already belongs to another trooper — never silently reassigned. */
-    public static function alreadyLinked(GamePlatform $platform, string $platformId, ?Throwable $previous = null): self
+    /** The `(game_id, platform_id)` already belongs to another trooper — never silently reassigned. */
+    public static function alreadyLinked(Game $game, string $platformId, ?Throwable $previous = null): self
     {
         return new self(
-            "The {$platform->value} identity {$platformId} is already linked to another trooper.",
+            "The {$game->name} identity {$platformId} is already linked to another trooper.",
             previous: $previous,
         );
     }

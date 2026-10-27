@@ -2,7 +2,7 @@
 
 namespace App\Repositories;
 
-use App\Models\GamePlatform;
+use App\Models\Game;
 use App\Models\TrooperGameIdentity;
 use Illuminate\Support\Collection;
 
@@ -14,13 +14,13 @@ use Illuminate\Support\Collection;
 interface TrooperGameIdentityRepository
 {
     /**
-     * The trooper that owns `$platformId` on `$platform`, as the link row, or null — the capture
-     * resolver's lookup (indexed by the `(platform, platform_id)` unique key).
+     * The trooper that owns `$platformId` in `$game`, as the link row, or null — the capture
+     * resolver's lookup (indexed by the `(game_id, platform_id)` unique key).
      */
-    public function findByPlatformId(GamePlatform $platform, string $platformId): ?TrooperGameIdentity;
+    public function findByPlatformId(Game $game, string $platformId): ?TrooperGameIdentity;
 
     /**
-     * Every identity a trooper holds — at most one per platform.
+     * Every identity a trooper holds — at most one per game.
      *
      * @return Collection<int, TrooperGameIdentity>
      */
@@ -35,25 +35,25 @@ interface TrooperGameIdentityRepository
     public function forTroopers(array $trooperIds): Collection;
 
     /**
-     * The trooper's identity on `$platform`, or null, read with a row lock held until the caller's
+     * The trooper's identity in `$game`, or null, read with a row lock held until the caller's
      * transaction ends — for a write that must only go ahead if that identity is still the one a
      * leader was shown (#176's replace), so a concurrent change cannot land between the check and
      * the write. Call it inside a transaction; outside one the lock is released at once.
      */
-    public function lockForTrooper(int $trooperId, GamePlatform $platform): ?TrooperGameIdentity;
+    public function lockForTrooper(int $trooperId, Game $game): ?TrooperGameIdentity;
 
     /**
-     * Link `$trooperId` to a player on `$platform`, replacing the trooper's own existing identity
-     * for that platform (one per platform) rather than adding a second.
+     * Link `$trooperId` to a player in `$game`, replacing the trooper's own existing identity
+     * in that game (one per game) rather than adding a second.
      *
      * @throws GameIdentityLinkException when `$platformId` already belongs to a different trooper
-     *                                   on that platform; nothing is written and the existing
+     *                                   in that game; nothing is written and the existing
      *                                   link stays intact — never silently reassigned.
      */
-    public function link(int $trooperId, GamePlatform $platform, string $playerName, string $platformId): TrooperGameIdentity;
+    public function link(int $trooperId, Game $game, string $playerName, string $platformId): TrooperGameIdentity;
 
     /**
-     * Remove a trooper's identity on `$platform`. True when a link existed.
+     * Remove a trooper's identity in `$game`. True when a link existed.
      */
-    public function unlink(int $trooperId, GamePlatform $platform): bool;
+    public function unlink(int $trooperId, Game $game): bool;
 }

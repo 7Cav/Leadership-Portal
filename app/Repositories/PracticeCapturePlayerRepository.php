@@ -2,7 +2,7 @@
 
 namespace App\Repositories;
 
-use App\Models\GamePlatform;
+use App\Models\Game;
 use App\Models\PracticeCapturePlayer;
 use Illuminate\Support\Collection;
 
@@ -19,7 +19,7 @@ interface PracticeCapturePlayerRepository
      *
      * @param  list<array{platform_id: string, player_name: string, trooper_id: ?int}>  $players
      */
-    public function replaceForPractice(int $practiceId, GamePlatform $platform, array $players): void;
+    public function replaceForPractice(int $practiceId, Game $game, array $players): void;
 
     /**
      * The practice's players still needing a trooper: unmatched, not dismissed, and not linked
@@ -41,5 +41,5 @@ interface PracticeCapturePlayerRepository
     /**
      * One stored unmatched player of the practice, however it has been resolved since.
      */
-    public function findUnmatched(int $practiceId, GamePlatform $platform, string $platformId): ?PracticeCapturePlayer;
+    public function findUnmatched(int $practiceId, Game $game, string $platformId): ?PracticeCapturePlayer;
 }

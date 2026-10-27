@@ -4,15 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
 use App\Commands\GameIdentities\GameIdentityForbiddenException;
+use App\Commands\GameIdentities\GameRetiredException;
 use App\Commands\GameIdentities\RemoveTrooperGameIdentity;
 use App\Commands\GameIdentities\RemoveTrooperGameIdentityHandler;
 use App\Commands\GameIdentities\SetTrooperGameIdentity;
 use App\Commands\GameIdentities\SetTrooperGameIdentityHandler;
-use App\Models\GamePlatform;
+use App\Models\Game;
 use App\Models\Trooper;
 use App\Models\TrooperGameIdentity;
 use App\Models\Unit;
 use App\Repositories\GameIdentityLinkException;
+use App\Repositories\GameRepository;
 use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
@@ -29,8 +31,9 @@ use Inertia\Response;
  *
  * Reads go straight to the repositories; every write is an audited Command, scope-gated by the
  * ScopeResolver inside its handler (AD-8) — a trooper outside the viewer's scope is a 403 whatever
- * the page offered. A platform is rendered for every {@see GamePlatform} case, so a new game needs
- * no change here.
+ * the page offered. A platform is rendered for every game an Admin keeps ({@see GameRepository}),
+ * so a new game needs no change here. A retired game is sent flagged: the page keeps showing (and
+ * removing) the links it already has, and offers it for no new one (#388).
  */
 class GameIdentityController extends Controller
 {
@@ -39,6 +42,7 @@ class GameIdentityController extends Controller
         private readonly UnitRepository $units,
         private readonly TrooperRepository $troopers,
         private readonly TrooperGameIdentityRepository $identities,
+        private readonly GameRepository $games,
     ) {}
 
     public function index(Request $request): Response
@@ -50,11 +54,12 @@ class GameIdentityController extends Controller
         $identities = $this->identities->forTroopers($troopers->modelKeys())->groupBy('trooper_id');
 
         return Inertia::render('GameIdentities', [
-            'platforms' => array_map(fn (GamePlatform $platform) => [
-                'value' => $platform->value,
-                'label' => $platform->label(),
-                'idLabel' => $platform->idLabel(),
-            ], GamePlatform::cases()),
+            'platforms' => $this->games->all()->map(fn (Game $game) => [
+                'value' => $game->slug,
+                'label' => $game->name,
+                'idLabel' => $game->id_label,
+                'retired' => $game->isRetired(),
+            ])->values()->all(),
             'troopers' => $troopers->map(fn (Trooper $trooper) => [
                 'id' => $trooper->id,
                 'displayName' => $trooper->display_name,
@@ -63,7 +68,7 @@ class GameIdentityController extends Controller
                 // A staff grant shows the trooper but does not let the viewer change their links.
                 'editable' => $writable->has($trooper->primary_section_id),
                 'identities' => ($identities->get($trooper->id) ?? collect())
-                    ->mapWithKeys(fn (TrooperGameIdentity $identity) => [$identity->platform->value => [
+                    ->mapWithKeys(fn (TrooperGameIdentity $identity) => [$identity->game->slug => [
                         'playerName' => $identity->player_name,
                         'platformId' => $identity->platform_id,
                     ]])->all(),
@@ -72,31 +77,38 @@ class GameIdentityController extends Controller
     }
 
     /**
-     * Link the trooper on `$platform`, or correct the identity they already hold there. An
-     * identifier another trooper already owns comes back as a validation error on `platform_id`.
+     * Link the trooper on the game `$platform` names (its slug), or correct the identity they
+     * already hold there. An identifier another trooper already owns, or a retired game, comes
+     * back as a validation error on `platform_id`. An unknown game is a 404.
      */
-    public function update(Request $request, int $trooper, GamePlatform $platform, SetTrooperGameIdentityHandler $handler): RedirectResponse
+    public function update(Request $request, int $trooper, string $platform, SetTrooperGameIdentityHandler $handler): RedirectResponse
     {
+        $game = $this->games->findBySlug($platform) ?? abort(404);
+
         $data = $request->validate([
             'player_name' => ['required', 'string', 'max:255'],
             'platform_id' => ['required', 'string', 'max:255'],
         ]);
 
         try {
-            $handler->handle($request->user(), new SetTrooperGameIdentity($trooper, $platform, $data['player_name'], $data['platform_id']));
+            $handler->handle($request->user(), new SetTrooperGameIdentity($trooper, $game, $data['player_name'], $data['platform_id']));
         } catch (GameIdentityForbiddenException $e) {
             abort(403, $e->getMessage());
+        } catch (GameRetiredException $e) {
+            throw ValidationException::withMessages(['platform_id' => $e->getMessage()]);
         } catch (GameIdentityLinkException) {
-            throw ValidationException::withMessages(['platform_id' => $this->collisionMessage($platform, $data['platform_id'])]);
+            throw ValidationException::withMessages(['platform_id' => $this->collisionMessage($game, $data['platform_id'])]);
         }
 
         return back();
     }
 
-    public function destroy(Request $request, int $trooper, GamePlatform $platform, RemoveTrooperGameIdentityHandler $handler): RedirectResponse
+    public function destroy(Request $request, int $trooper, string $platform, RemoveTrooperGameIdentityHandler $handler): RedirectResponse
     {
+        $game = $this->games->findBySlug($platform) ?? abort(404);
+
         try {
-            $handler->handle($request->user(), new RemoveTrooperGameIdentity($trooper, $platform));
+            $handler->handle($request->user(), new RemoveTrooperGameIdentity($trooper, $game));
         } catch (GameIdentityForbiddenException $e) {
             abort(403, $e->getMessage());
         }
@@ -109,12 +121,12 @@ class GameIdentityController extends Controller
      * whose row to fix. Roster names are not secret within the portal, so an owner outside the
      * leader's scope is still named: the alternative is an error nobody can act on.
      */
-    private function collisionMessage(GamePlatform $platform, string $platformId): string
+    private function collisionMessage(Game $game, string $platformId): string
     {
-        $owner = $this->identities->findByPlatformId($platform, trim($platformId));
+        $owner = $this->identities->findByPlatformId($game, trim($platformId));
         $name = $owner === null ? null : $this->troopers->find($owner->trooper_id)?->display_name;
 
-        return 'Already linked to '.($name ?? 'another trooper')." on {$platform->label()}.";
+        return 'Already linked to '.($name ?? 'another trooper')." on {$game->name}.";
     }
 
     private function designation(?Unit $section): ?string

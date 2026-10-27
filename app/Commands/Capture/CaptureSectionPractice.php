@@ -2,7 +2,7 @@
 
 namespace App\Commands\Capture;
 
-use App\Models\GamePlatform;
+use App\Models\Game;
 use DateTimeImmutable;
 
 /**
@@ -15,7 +15,7 @@ final readonly class CaptureSectionPractice
 {
     public function __construct(
         public int $sectionPracticeId,
-        public GamePlatform $platform,
+        public Game $game,
         public DateTimeImmutable $windowStart,
         public DateTimeImmutable $windowEnd,
         public int|string $triggeredBy = 'system',

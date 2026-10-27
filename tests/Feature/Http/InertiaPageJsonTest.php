@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\GamePlatform;
 use App\Models\PortalRoleGrant;
 use App\Models\PracticeCapturePlayer;
 use App\Models\SectionPractice;
@@ -39,7 +38,7 @@ function rollcallWithCapturedPlayer(string $playerName): string
     $practice = SectionPractice::factory()->create(['section_id' => $section->id, 'week_start' => '2026-10-03 00:00:00']);
     $practice->forceFill(['captured_at' => '2026-10-08 12:00:00', 'capture_source' => 'crcon', 'server_ref' => 'crcon-1'])->save();
     PracticeCapturePlayer::query()->create([
-        'section_practice_id' => $practice->id, 'platform' => GamePlatform::Hll, 'player_name' => $playerName,
+        'section_practice_id' => $practice->id, 'game_id' => game('hll')->id, 'player_name' => $playerName,
         'platform_id' => '7656119000000001', 'trooper_id' => null,
     ]);
 

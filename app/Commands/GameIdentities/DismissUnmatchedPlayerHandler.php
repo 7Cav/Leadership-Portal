@@ -37,7 +37,7 @@ class DismissUnmatchedPlayerHandler
     {
         [, $player] = $this->listedPlayer($actor, $this->scope, $this->practices, $this->captured, $command);
 
-        if ($this->identities->findByPlatformId($command->platform, $player->platform_id) !== null) {
+        if ($this->identities->findByPlatformId($command->game, $player->platform_id) !== null) {
             throw UnmatchedPlayerResolutionException::notListed();
         }
 
@@ -46,7 +46,7 @@ class DismissUnmatchedPlayerHandler
             action: 'game_player.dismissed',
             reason: null,
             reasonRequired: false,
-            mutation: fn () => $this->dismissals->dismiss($command->platform, $player->platform_id, $player->player_name, $actor->id),
+            mutation: fn () => $this->dismissals->dismiss($command->game, $player->platform_id, $player->player_name, $actor->id),
         );
     }
 }

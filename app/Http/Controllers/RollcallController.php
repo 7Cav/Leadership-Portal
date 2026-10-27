@@ -25,6 +25,7 @@ use App\Commands\Capture\RequestPracticeCaptureHandler;
 use App\Commands\GameIdentities\DismissUnmatchedPlayer;
 use App\Commands\GameIdentities\DismissUnmatchedPlayerHandler;
 use App\Commands\GameIdentities\GameIdentityForbiddenException;
+use App\Commands\GameIdentities\GameRetiredException;
 use App\Commands\GameIdentities\LinkUnmatchedPlayer;
 use App\Commands\GameIdentities\LinkUnmatchedPlayerHandler;
 use App\Commands\GameIdentities\RestoreDismissedPlayer;
@@ -39,7 +40,7 @@ use App\Loa\LoaProvenance;
 use App\Milpac\RosterProvenance;
 use App\Models\Attendance;
 use App\Models\AttendanceStatus;
-use App\Models\GamePlatform;
+use App\Models\Game;
 use App\Models\PracticeCapturePlayer;
 use App\Models\RollcallSignature;
 use App\Models\SectionPractice;
@@ -51,6 +52,7 @@ use App\Models\WeeklyReportStatus;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\CountingMark;
 use App\Repositories\GameIdentityLinkException;
+use App\Repositories\GameRepository;
 use App\Repositories\PracticeCapturePlayerRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TrooperGameIdentityRepository;
@@ -130,6 +132,7 @@ class RollcallController extends Controller
         private readonly RollcallRoster $roster,
         private readonly SectionFireteams $fireteams,
         private readonly RollcallGuests $guests,
+        private readonly GameRepository $games,
     ) {}
 
     /**
@@ -439,7 +442,7 @@ class RollcallController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'week' => ['required', 'date_format:Y-m-d'],
-            'platform' => ['required', Rule::enum(GamePlatform::class)],
+            'platform' => ['required', 'string', 'exists:games,slug'],
             'platform_id' => ['required', 'string', 'max:255'],
             'trooper_id' => ['required', 'integer'],
             'replace' => ['sometimes', 'boolean'],
@@ -456,12 +459,12 @@ class RollcallController extends Controller
         }
 
         $weekStart = $this->requestedWeek($request->input('week'), WeekOf::start(CarbonImmutable::now()));
-        $platform = GamePlatform::from($request->input('platform'));
+        $game = $this->games->findBySlug($request->input('platform'));
         $trooperId = (int) $request->input('trooper_id');
 
         try {
             $result = $handler->handle($request->user(), new LinkUnmatchedPlayer(
-                $unit, $weekStart, $platform, $request->input('platform_id'), $trooperId, $request->boolean('replace'),
+                $unit, $weekStart, $game, $request->input('platform_id'), $trooperId, $request->boolean('replace'),
                 $request->boolean('replace') ? $request->input('replacing') : null,
             ));
         } catch (GameIdentityForbiddenException $e) {
@@ -471,8 +474,10 @@ class RollcallController extends Controller
                 ['message' => $e->getMessage(), 'reason' => $e->reason, 'current' => $e->current],
                 fn ($value) => $value !== null,
             ), 422);
+        } catch (GameRetiredException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
         } catch (GameIdentityLinkException) {
-            return response()->json(['message' => $this->collisionMessage($platform, $request->input('platform_id'))], 422);
+            return response()->json(['message' => $this->collisionMessage($game, $request->input('platform_id'))], 422);
         } catch (Throwable $e) {
             report($e);
 
@@ -511,7 +516,7 @@ class RollcallController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'week' => ['required', 'date_format:Y-m-d'],
-            'platform' => ['required', Rule::enum(GamePlatform::class)],
+            'platform' => ['required', 'string', 'exists:games,slug'],
             'platform_id' => ['required', 'string', 'max:255'],
         ]);
 
@@ -522,7 +527,7 @@ class RollcallController extends Controller
         $weekStart = $this->requestedWeek($request->input('week'), WeekOf::start(CarbonImmutable::now()));
 
         try {
-            $handler->handle($request->user(), new DismissUnmatchedPlayer($unit, $weekStart, GamePlatform::from($request->input('platform')), $request->input('platform_id')));
+            $handler->handle($request->user(), new DismissUnmatchedPlayer($unit, $weekStart, $this->games->findBySlug($request->input('platform')), $request->input('platform_id')));
         } catch (GameIdentityForbiddenException $e) {
             return response()->json(['message' => $e->getMessage()], 403);
         } catch (UnmatchedPlayerResolutionException $e) {
@@ -545,7 +550,7 @@ class RollcallController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'week' => ['required', 'date_format:Y-m-d'],
-            'platform' => ['required', Rule::enum(GamePlatform::class)],
+            'platform' => ['required', 'string', 'exists:games,slug'],
             'platform_id' => ['required', 'string', 'max:255'],
         ]);
 
@@ -556,7 +561,7 @@ class RollcallController extends Controller
         $weekStart = $this->requestedWeek($request->input('week'), WeekOf::start(CarbonImmutable::now()));
 
         try {
-            $handler->handle($request->user(), new RestoreDismissedPlayer($unit, $weekStart, GamePlatform::from($request->input('platform')), $request->input('platform_id')));
+            $handler->handle($request->user(), new RestoreDismissedPlayer($unit, $weekStart, $this->games->findBySlug($request->input('platform')), $request->input('platform_id')));
         } catch (GameIdentityForbiddenException $e) {
             return response()->json(['message' => $e->getMessage()], 403);
         } catch (UnmatchedPlayerResolutionException $e) {
@@ -574,12 +579,12 @@ class RollcallController extends Controller
      * "Already linked to SGT Ortega.M on Hell Let Loose." — the owner is named so the leader knows
      * whose row to fix (as on the link-identity screen, 7.2).
      */
-    private function collisionMessage(GamePlatform $platform, string $platformId): string
+    private function collisionMessage(Game $game, string $platformId): string
     {
-        $owner = $this->identities->findByPlatformId($platform, trim($platformId));
+        $owner = $this->identities->findByPlatformId($game, trim($platformId));
         $name = $owner === null ? null : $this->troopers->find($owner->trooper_id)?->display_name;
 
-        return 'Already linked to '.($name ?? 'another trooper')." on {$platform->label()}.";
+        return 'Already linked to '.($name ?? 'another trooper')." on {$game->name}.";
     }
 
     /**
@@ -874,8 +879,8 @@ class RollcallController extends Controller
         }
 
         $shape = fn (PracticeCapturePlayer $player) => [
-            'platform' => $player->platform->value,
-            'platformLabel' => $player->platform->label(),
+            'platform' => $player->game->slug,
+            'platformLabel' => $player->game->name,
             'playerName' => $player->player_name,
             'platformId' => $player->platform_id,
         ];
@@ -902,7 +907,7 @@ class RollcallController extends Controller
 
         return $state instanceof CaptureTelemetry ? [
             'state' => $state->state->value,
-            'platformLabel' => $state->platform?->label(),
+            'platformLabel' => $state->game?->name,
             'feeds' => $state->feeds,
             'lastAttemptAt' => $state->lastAttemptAt?->format(DATE_ATOM),
             'canRetry' => $state->canRetry,

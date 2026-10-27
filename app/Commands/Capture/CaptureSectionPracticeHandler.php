@@ -5,7 +5,7 @@ namespace App\Commands\Capture;
 use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Integration\Crcon\Data\CrconPlayer;
 use App\Integration\Crcon\Data\CrconPresence;
-use App\Models\GamePlatform;
+use App\Models\Game;
 use App\Models\SectionPractice;
 use App\Models\SyncRun;
 use App\Repositories\PracticeCapturePlayerRepository;
@@ -20,7 +20,7 @@ use InvalidArgumentException;
 use Throwable;
 
 /**
- * The capture run (7.5, AD-19): reads the practice window's presence from the platform's first
+ * The capture run (7.5, AD-19): reads the practice window's presence from the game's first
  * source that answers, stamps `server_ref`/`captured_at`/`capture_source` on the practice, and
  * resolves each observed player through `trooper_game_identities`.
  *
@@ -88,7 +88,7 @@ class CaptureSectionPracticeHandler
         // Sources whose env keys are unset are skipped, not failed (AD-23): with none set there is
         // nothing to attempt, so no run is opened and the practice stays fully manual (7.9). A source
         // that is set but down is the other case, and is recorded below.
-        $all = $this->sources->for($command->platform);
+        $all = $this->sources->for($command->game);
         $configured = array_values(array_filter($all, fn (CaptureSource $source) => $source->configured));
 
         if ($configured === []) {
@@ -123,7 +123,7 @@ class CaptureSectionPracticeHandler
                 }
 
                 $result = $this->resolve($presence, $source->name, $command, $practice->section_id);
-                $this->persistUnresolved($practice->id, $command->platform, $result);
+                $this->persistUnresolved($practice->id, $command->game, $result);
 
                 // Pre-mark before stamping, so a captured practice implies its marks were written;
                 // a failure here retries the whole run, and every write is idempotent.
@@ -180,9 +180,9 @@ class CaptureSectionPracticeHandler
      * straight back on this practice's list, and the drawer can show which of this practice's
      * players are dismissed ({@see PracticeCapturePlayerRepository::dismissedFor()}).
      */
-    private function persistUnresolved(int $practiceId, GamePlatform $platform, CaptureResult $result): void
+    private function persistUnresolved(int $practiceId, Game $game, CaptureResult $result): void
     {
-        $this->capturePlayers->replaceForPractice($practiceId, $platform, [
+        $this->capturePlayers->replaceForPractice($practiceId, $game, [
             ...array_map(fn (CrconPlayer $p) => ['platform_id' => $p->platformId, 'player_name' => $p->playerName, 'trooper_id' => null],
                 $result->unmatched),
             ...array_map(fn (array $row) => ['platform_id' => $row['player']->platformId, 'player_name' => $row['player']->playerName, 'trooper_id' => $row['trooperId']],
@@ -218,7 +218,7 @@ class CaptureSectionPracticeHandler
         $unmatched = [];
 
         foreach ($presence->players as $player) {
-            $link = $this->identities->findByPlatformId($command->platform, $player->platformId);
+            $link = $this->identities->findByPlatformId($command->game, $player->platformId);
 
             if ($link === null) {
                 $unmatched[] = $player;

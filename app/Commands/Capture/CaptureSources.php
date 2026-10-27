@@ -11,24 +11,27 @@ use App\Integration\Nightwatch\NightwatchFailureReason;
 use App\Integration\Nightwatch\NightwatchRequestRefused;
 use App\Integration\Nightwatch\NightwatchUnavailable;
 use App\Integration\Nightwatch\NightwatchWindowExpired;
-use App\Models\GamePlatform;
+use App\Models\Game;
+use App\Models\TelemetryInterface;
 use DateTimeImmutable;
 
 /**
- * Which sources a platform's practice is captured from, in order of preference: the first that
- * answers wins, the rest are the fallbacks. Adding a source (DCS 7.11) is one
- * more entry in this map — the handler does not change.
+ * Which sources a game's practice is captured from, in order of preference: the first that
+ * answers wins, the rest are the fallbacks. Keyed by telemetry interface, not by game (#388): a
+ * game follows whichever interface an Admin picked for it, so a new game needs no entry here.
+ * Adding a source (DCS 7.11) is one more interface and one more entry in this map — the handler
+ * does not change.
  */
 final class CaptureSources
 {
     /**
-     * @param  array<string, list<CaptureSource>>  $byPlatform  keyed by {@see GamePlatform} value
+     * @param  array<string, list<CaptureSource>>  $byInterface  keyed by {@see TelemetryInterface} value
      */
-    public function __construct(private readonly array $byPlatform) {}
+    public function __construct(private readonly array $byInterface) {}
 
     /**
-     * The production map: HLL reads CRCON and falls back to BattleMetrics; Arma reads BattleMetrics;
-     * WARDOGS reads Nightwatch.
+     * The production map: CRCON falls back to BattleMetrics (HLL's servers are on both); BattleMetrics
+     * and Nightwatch read only themselves; `none` has no source.
      *
      * @param  array<string, mixed>|null  $crconConfig
      * @param  array<string, mixed>|null  $battleMetricsConfig
@@ -83,9 +86,10 @@ final class CaptureSources
         );
 
         return new self([
-            GamePlatform::Hll->value => [$crconSource, $battleMetricsSource],
-            GamePlatform::Arma->value => [$battleMetricsSource],
-            GamePlatform::Wardogs->value => [$nightwatchSource],
+            TelemetryInterface::Crcon->value => [$crconSource, $battleMetricsSource],
+            TelemetryInterface::BattleMetrics->value => [$battleMetricsSource],
+            TelemetryInterface::Nightwatch->value => [$nightwatchSource],
+            TelemetryInterface::None->value => [],
         ]);
     }
 
@@ -102,19 +106,19 @@ final class CaptureSources
     }
 
     /**
-     * Whether any source of the platform has its keys set (AD-23). False means a capture would not
-     * be attempted at all. A platform with no source at all is not configured either.
+     * Whether any source of the game has its keys set (AD-23). False means a capture would not
+     * be attempted at all. A game with no source at all (interface `none`) is not configured either.
      */
-    public function isConfigured(GamePlatform $platform): bool
+    public function isConfigured(Game $game): bool
     {
-        return array_filter($this->for($platform), fn (CaptureSource $source) => $source->configured) !== [];
+        return array_filter($this->for($game), fn (CaptureSource $source) => $source->configured) !== [];
     }
 
     /**
      * @return list<CaptureSource>
      */
-    public function for(GamePlatform $platform): array
+    public function for(Game $game): array
     {
-        return $this->byPlatform[$platform->value] ?? [];
+        return $this->byInterface[$game->interface->value] ?? [];
     }
 }
