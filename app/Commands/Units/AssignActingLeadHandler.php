@@ -5,6 +5,7 @@ namespace App\Commands\Units;
 use App\Models\UnitActingLead;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\AuditedBatch;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitActingLeadRepository;
 use App\Repositories\UnitRepository;
@@ -19,7 +20,8 @@ use App\Support\Audit\ReasonRequiredException;
  *
  * Admin only, checked against the real flag (AD-6). The unit must be a line unit below the regiment; one acting lead
  * per unit, so a unit that has one is refused until it is removed; a trooper may lead several units. A personnel
- * action, so it is audited with a required reason (AD-16) as `unit.acting_lead_assigned`.
+ * action, so it is audited with a required reason (AD-16) as `unit.acting_lead_assigned`, targeting the unit (so the
+ * audit log's unit filter and link find it), with the new acting-lead row in the digest.
  */
 class AssignActingLeadHandler
 {
@@ -60,12 +62,19 @@ class AssignActingLeadHandler
             throw InvalidActingLeadException::alreadyLed($designation, $current->trooper->display_name);
         }
 
-        return $this->audit->record(
+        $lead = null;
+        $this->audit->recordBatch(
             actorId: $actor->id,
             action: 'unit.acting_lead_assigned',
             reason: $command->reason,
             reasonRequired: true,
-            mutation: fn () => $this->actingLeads->assign($unit->id, $trooper->id, $actor->id),
+            mutation: function () use ($unit, $trooper, $actor, &$lead) {
+                $lead = $this->actingLeads->assign($unit->id, $trooper->id, $actor->id);
+
+                return new AuditedBatch($unit, $lead);
+            },
         );
+
+        return $lead;
     }
 }

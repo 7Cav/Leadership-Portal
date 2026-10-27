@@ -4,6 +4,7 @@ namespace App\Commands\Units;
 
 use App\Models\UnitActingLead;
 use App\Models\User;
+use App\Repositories\AuditedBatch;
 use App\Repositories\UnitActingLeadRepository;
 use App\Repositories\UnitRepository;
 use App\Support\Audit\AuditEnvelope;
@@ -40,12 +41,21 @@ class RemoveActingLeadHandler
             throw InvalidActingLeadException::noneToRemove($designation);
         }
 
-        return $this->audit->record(
+        // Targets the unit, not the removed row, so the entry still matches the audit log's unit filter once the row is
+        // gone. The digest reads rows as stored, so it takes the trooper who led it rather than the deleted row.
+        $lead = null;
+        $this->audit->recordBatch(
             actorId: $actor->id,
             action: 'unit.acting_lead_removed',
             reason: $command->reason,
             reasonRequired: true,
-            mutation: fn () => $this->actingLeads->remove($unit->id) ?? throw InvalidActingLeadException::noneToRemove($designation),
+            mutation: function () use ($unit, $designation, &$lead) {
+                $lead = $this->actingLeads->remove($unit->id) ?? throw InvalidActingLeadException::noneToRemove($designation);
+
+                return new AuditedBatch($unit, $lead->trooper);
+            },
         );
+
+        return $lead;
     }
 }

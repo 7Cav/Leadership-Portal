@@ -86,6 +86,22 @@ it('ends the command when the trooper stops serving, and again on removal', func
         ->and(AuditLogEntry::where('action', 'unit.acting_lead_removed')->sole()->reason)->toBe('Handed over.');
 });
 
+it('audits assign and remove against the unit, so the audit log\'s unit filter still finds both after the removal', function () {
+    $this->actingAs($this->admin)->post(alUrl($this->p1), ['trooper_id' => $this->taylor->id, 'reason' => 'Starter platoon lead.']);
+    $this->actingAs($this->admin)->delete(alUrl($this->p1), ['reason' => 'Handed over.']);
+
+    $entries = AuditLogEntry::query()->whereIn('action', ['unit.acting_lead_assigned', 'unit.acting_lead_removed'])->get();
+    expect($entries)->toHaveCount(2)
+        ->and($entries->pluck('target_type')->unique()->values()->all())->toBe(['Unit'])
+        ->and($entries->pluck('target_id')->unique()->values()->all())->toBe([(string) $this->p1->id]);
+
+    $actions = null;
+    $this->actingAs($this->admin)->get('/settings/audit-log?unit_id='.$this->p1->id)->assertOk()->assertInertia(function ($page) use (&$actions) {
+        $actions = collect($page->toArray()['props']['entries']['data'])->pluck('action')->sort()->values()->all();
+    });
+    expect($actions)->toContain('unit.acting_lead_assigned')->toContain('unit.acting_lead_removed');
+});
+
 it('shows the acting lead as the unit\'s lead, and an unled platoon as vacant', function () {
     $this->actingAs($this->admin)->post(alUrl($this->p1), ['trooper_id' => $this->taylor->id, 'reason' => 'Starter platoon lead.']);
     $units = alUnits($this->actingAs($this->admin)->get('/settings/org-structure'));
