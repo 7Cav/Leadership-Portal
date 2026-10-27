@@ -55,6 +55,7 @@ class ScopeResolver
         private readonly TrooperRepository $troopers,
         private readonly ViewAs $viewAs,
         private readonly UnitActingLeadRepository $actingLeads,
+        private readonly ActingBillet $billet,
     ) {}
 
     /**
@@ -130,6 +131,13 @@ class ScopeResolver
      */
     private function commandedUnits(User $user): Collection
     {
+        // An Admin acting as a billet (#379 follow-up) commands that unit and nothing else: their stand-in has no milpac
+        // link, so no billet or acting lead of their own is found below.
+        $held = $this->billet->of($user);
+        if ($held !== null) {
+            return collect([$held]);
+        }
+
         return collect([$this->commands->commandedUnitFor($user)])
             ->filter()
             ->merge($this->actingLeads->unitsLedBy($user))

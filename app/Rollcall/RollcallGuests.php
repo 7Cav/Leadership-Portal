@@ -60,10 +60,13 @@ class RollcallGuests
             'rank' => $trooper->rank_short ?? $trooper->rank,
             'section' => $section instanceof Unit ? ($section->callsign ?? $section->name) : null,
             'source' => $row->source,
-            // "Hale.S for Vasquez.R" when an Admin acting as the leader added them (#379).
-            'recordedBy' => ! $row->isManual() ? null : ($row->recordedByAdmin === null
-                ? $row->recordedBy?->username
-                : "{$row->recordedByAdmin->username} for {$row->recordedBy?->username}"),
+            // "Hale.S for Vasquez.R" when an Admin acting as the leader added them, "Hale.S acting as Section Leader
+            // 2/1/A/1-7" when an Admin holding the billet did (#379).
+            'recordedBy' => ! $row->isManual() ? null : match (true) {
+                $row->recordedByAdmin !== null => "{$row->recordedByAdmin->username} for {$row->recordedBy?->username}",
+                $row->recordedAsUnit !== null => "{$row->recordedBy?->username} acting as {$row->recordedAsUnit->billet()}",
+                default => $row->recordedBy?->username,
+            },
         ];
     }
 

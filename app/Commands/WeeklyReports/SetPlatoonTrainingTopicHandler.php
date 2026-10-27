@@ -116,7 +116,7 @@ class SetPlatoonTrainingTopicHandler
             mutation: function () use ($unit, $weekStart, $subject, $command, $actor) {
                 $this->refuseSentUnderLock($unit->id, $weekStart);
 
-                return $this->topics->set($unit->id, $weekStart, $subject, $command->enforced, $actor->id, $this->acting->adminActingAs($actor->id));
+                return $this->topics->set($unit->id, $weekStart, $subject, $command->enforced, $actor->id, $this->acting->adminActingAs($actor->id), $this->acting->billetOf($actor->id));
             },
         );
     }

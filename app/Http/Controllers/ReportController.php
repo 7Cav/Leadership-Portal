@@ -390,8 +390,11 @@ class ReportController extends Controller
             'subject' => $topic->subject,
             'enforced' => $topic->enforced,
             'platoon' => $platoon === null ? null : $this->unitProps($platoon),
-            // "Hale.S for SGT Vasquez.R" when an Admin acting as the setter set it (#379).
-            'setBy' => ($topic->set_by_admin === null ? '' : $topic->setterAdmin?->username.' for ').($trooper?->display_name ?? $setter?->username),
+            // "Hale.S for SGT Vasquez.R" when an Admin acting as the setter set it, "Hale.S acting as Platoon Leader
+            // 1/A/1-7" when an Admin holding the billet did (#379).
+            'setBy' => ($topic->set_by_admin === null ? '' : $topic->setterAdmin?->username.' for ')
+                .($trooper?->display_name ?? $setter?->username)
+                .($topic->setAsUnit === null ? '' : ' acting as '.$topic->setAsUnit->billet()),
             'setAt' => $topic->updated_at?->toIso8601String(),
         ];
     }
@@ -623,15 +626,21 @@ class ReportController extends Controller
     }
 
     /**
-     * Who sent a report: the sender's label, or "Hale.S for SGT Mercer.J" when an Admin acting as them sent it (#379).
+     * Who sent a report: the sender's label, "Hale.S for SGT Mercer.J" when an Admin acting as them sent it, or
+     * "Hale.S acting as Section Leader 2/1/A/1-7" when an Admin holding the billet did (#379).
      *
      * @param  Collection<int, string>  $senders  {@see senderLabels()}
      */
     private function sentBy(WeeklyReport $report, Collection $senders): ?string
     {
         $sender = $senders->get($report->sent_by);
+        $billet = $report->sent_as_unit === null ? null : $this->units->find($report->sent_as_unit)?->billet();
 
-        return $report->sent_by_admin === null ? $sender : $senders->get($report->sent_by_admin).' for '.$sender;
+        return match (true) {
+            $report->sent_by_admin !== null => $senders->get($report->sent_by_admin).' for '.$sender,
+            $billet !== null => "{$sender} acting as {$billet}",
+            default => $sender,
+        };
     }
 
     /**

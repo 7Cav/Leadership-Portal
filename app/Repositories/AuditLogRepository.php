@@ -25,12 +25,13 @@ interface AuditLogRepository
      * digest for free rather than having to state them separately and risk the two drifting
      * apart.
      *
-     * `$onBehalfOf` is the user an Admin was acting as (#379), recorded beside the Admin as actor; null otherwise.
+     * `$onBehalfOf` is the user an Admin was acting as (#379), recorded beside the Admin as actor; `$onBehalfOfUnit` the
+     * unit whose billet they held; both null otherwise.
      *
      * @throws RuntimeException when `$mutation` doesn't return an Eloquent Model — a clear
      *                          contract violation, not a value this table can log meaningfully.
      */
-    public function recordWithMutation(int $actorId, string $action, ?string $reason, Closure $mutation, ?int $onBehalfOf = null): mixed;
+    public function recordWithMutation(int $actorId, string $action, ?string $reason, Closure $mutation, ?int $onBehalfOf = null, ?int $onBehalfOfUnit = null): mixed;
 
     /**
      * The batch form of {@see recordWithMutation()}: one transaction, one `audit_log` row, for an
@@ -47,7 +48,7 @@ interface AuditLogRepository
      *
      * @throws RuntimeException when `$mutation` doesn't return an {@see AuditedBatch}.
      */
-    public function recordBatchWithMutation(int $actorId, string $action, ?string $reason, Closure $mutation, ?int $onBehalfOf = null): AuditedBatch;
+    public function recordBatchWithMutation(int $actorId, string $action, ?string $reason, Closure $mutation, ?int $onBehalfOf = null, ?int $onBehalfOfUnit = null): AuditedBatch;
 
     /**
      * The 1.14 review screen's filtered, most-recent-first, paginated read. Every filter is

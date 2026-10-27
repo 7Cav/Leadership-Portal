@@ -34,7 +34,7 @@ beforeEach(function () {
 // user is swapped for the person acted as. A test's app instance would otherwise carry that swap to the next request.
 function startActing(object $test, ?User $as = null): void
 {
-    $test->actingAs($test->admin)->post('/act-as', ['user' => ($as ?? $test->leader)->id])->assertRedirect('/home');
+    $test->actingAs($test->admin)->post('/act-as', ['kind' => 'user', 'id' => ($as ?? $test->leader)->id])->assertRedirect('/home');
 }
 
 it('lets an Admin act as a person, recorded with the Admin as actor', function () {
@@ -54,7 +54,7 @@ it('runs every request as the person: their identity, the red bar, and no Admin 
         ->where('auth.user.id', $this->leader->id)
         ->where('auth.user.is_admin', false)
         ->where('auth.profile', null)
-        ->where('actingAs', ['label' => 'SGT Vasquez.R', 'admin' => 'Hale.S']));
+        ->where('actingAs', ['kind' => 'user', 'label' => 'SGT Vasquez.R', 'admin' => 'Hale.S']));
 
     $this->actingAs($this->admin)->get('/settings/audit-log')->assertForbidden();
 });
@@ -124,7 +124,7 @@ it('switches straight to another person, recording the first as stopped', functi
 it('refuses another Admin, the Admin themselves, someone who could not sign in, and a missing user', function (Closure $target) {
     $id = $target($this);
 
-    $this->actingAs($this->admin)->post('/act-as', ['user' => $id])->assertSessionHasErrors('act_as');
+    $this->actingAs($this->admin)->post('/act-as', ['kind' => 'user', 'id' => $id])->assertSessionHasErrors('act_as');
 
     expect(AuditLogEntry::count())->toBe(0);
     $this->actingAs($this->admin)->get('/home')->assertInertia(fn (Assert $page) => $page->where('auth.user.id', $this->admin->id)->where('actingAs', null));
@@ -141,7 +141,7 @@ it('refuses another Admin, the Admin themselves, someone who could not sign in, 
 ]);
 
 it('refuses a non-Admin outright', function () {
-    $this->actingAs($this->leader)->post('/act-as', ['user' => $this->admin->id])->assertForbidden();
+    $this->actingAs($this->leader)->post('/act-as', ['kind' => 'user', 'id' => $this->admin->id])->assertForbidden();
 
     expect(AuditLogEntry::count())->toBe(0);
 });

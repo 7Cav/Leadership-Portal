@@ -98,7 +98,7 @@ class RecordGuestAttendanceHandler
                 // A roster sync may have moved or departed them since the check above.
                 $this->refuseNonGuest($this->troopers->find($trooper->id), $command->sectionId, $this->units);
 
-                $sighting = $this->sightings->recordManual($practice, $trooper->id, $actor->id, $this->acting->adminActingAs($actor->id))
+                $sighting = $this->sightings->recordManual($practice, $trooper->id, $actor->id, $this->acting->adminActingAs($actor->id), $this->acting->billetOf($actor->id))
                     ?? throw GuestAttendanceRefusedException::alreadyListed($trooper->display_name);
 
                 return new AuditedBatch($practice, $sighting);

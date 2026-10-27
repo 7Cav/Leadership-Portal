@@ -33,14 +33,34 @@ describe('act as (#379)', () => {
         expect(mount(ActingAsBanner).find('[data-testid="acting-as-banner"]').exists()).toBe(false);
     });
 
-    it('offers "Act as them" only on a preview of a person who is not an Admin', () => {
-        page.props = { actingAs: null, viewAs: { kind: 'user', id: 4, label: 'SGT Vasquez.R', designation: null, unitName: null, admin: false } };
-        expect(mount(ViewAsBanner).find('[data-testid="act-as-open"]').exists()).toBe(true);
+    it('offers "Act as them" on a preview of a person who is not an Admin, to an Admin only', () => {
+        const person = { kind: 'user', id: 4, label: 'SGT Vasquez.R', designation: null, unitName: null, admin: false };
+        page.props = { auth: { user: { id: 1, is_admin: true } }, actingAs: null, viewAs: person };
+        expect(mount(ViewAsBanner).get('[data-testid="act-as-open"]').text()).toBe('Act as them');
 
-        page.props.viewAs = { ...page.props.viewAs, admin: true };
+        page.props.viewAs = { ...person, admin: true };
         expect(mount(ViewAsBanner).find('[data-testid="act-as-open"]').exists()).toBe(false);
+    });
 
-        page.props.viewAs = { kind: 'unit', id: 3, label: '1/1/A/1-7', designation: '1/1/A/1-7', unitName: '1st Section', admin: false };
+    it("offers 'Act as this billet' on an Admin's preview of a unit, never on a leader's", async () => {
+        const unit = { kind: 'unit', id: 3, label: '2/1/A/1-7', designation: '2/1/A/1-7', unitName: '2nd Section', admin: false };
+        page.props = { auth: { user: { id: 1, is_admin: true } }, actingAs: null, viewAs: unit };
+        const banner = mount(ViewAsBanner, { attachTo: document.body });
+        expect(banner.get('[data-testid="act-as-open"]').text()).toBe('Act as this billet');
+
+        await banner.get('[data-testid="act-as-open"]').trigger('click');
+        await document.querySelector('[data-testid="act-as-confirm"]').click();
+        expect(post).toHaveBeenCalledWith('/act-as', { kind: 'unit', id: 3 }, expect.any(Object));
+        banner.unmount();
+
+        page.props = { auth: { user: { id: 2, is_admin: false } }, actingAs: null, viewAs: unit };
         expect(mount(ViewAsBanner).find('[data-testid="act-as-open"]').exists()).toBe(false);
+    });
+
+    it("says a billet's changes are recorded as the Admin acting as the billet", () => {
+        page.props = { actingAs: { kind: 'unit', label: 'Section Leader 2/1/A/1-7', admin: 'Hale.S' }, viewAs: null };
+
+        expect(mount(ActingAsBanner).text()).toContain('Acting as Section Leader 2/1/A/1-7');
+        expect(mount(ActingAsBanner).text()).toContain('recorded as Hale.S acting as this billet');
     });
 });

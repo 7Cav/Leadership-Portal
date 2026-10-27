@@ -4,6 +4,7 @@ import { router } from '@inertiajs/vue3';
 import { PhEye } from '@phosphor-icons/vue';
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { useIdentity } from '@/composables/useIdentity';
 import { useViewAs } from '@/composables/useViewAs';
 
 // The view-as banner (Story 1.13, binding design: mockups/v2/shell-f.html `#viewAsBanner`). It
@@ -17,9 +18,13 @@ function leave() {
     exit({ onFinish: () => (leaving.value = false) });
 }
 
-// Act as (#379): from a preview of a person who is not an Admin, an Admin can take over with that person's
-// permissions. Only Admins can preview a person, so the offer needs no other check here; the server checks anyway.
-const canActAs = computed(() => viewAs.value?.kind === 'user' && !viewAs.value.admin);
+// Act as (#379): from a preview, an Admin can take over with its permissions, writes included. A person who is not an
+// Admin ("Act as them"), or a unit's billet with no person behind it ("Act as this billet"). Only an Admin is offered
+// either; the server checks anyway.
+const { isRealAdmin } = useIdentity();
+const actsOnBillet = computed(() => viewAs.value?.kind === 'unit');
+const canActAs = computed(() => isRealAdmin.value && ((viewAs.value?.kind === 'user' && !viewAs.value.admin) || actsOnBillet.value));
+const actLabel = computed(() => (actsOnBillet.value ? 'Act as this billet' : 'Act as them'));
 const confirming = ref(false);
 const starting = ref(false);
 const actError = ref(null);
@@ -29,7 +34,7 @@ function actAs() {
     actError.value = null;
     router.post(
         '/act-as',
-        { user: viewAs.value.id },
+        { kind: viewAs.value.kind, id: viewAs.value.id },
         {
             onSuccess: () => (confirming.value = false),
             onError: (errors) => (actError.value = errors.act_as ?? 'You cannot act as this person.'),
@@ -64,7 +69,7 @@ function actAs() {
             class="shrink-0 rounded-sm font-medium whitespace-nowrap underline underline-offset-2 outline-none hover:decoration-2 focus-visible:ring-2 focus-visible:ring-primary-foreground/70"
             @click="confirming = true"
         >
-            Act as them
+            {{ actLabel }}
         </button>
         <button
             type="button"
@@ -79,15 +84,21 @@ function actAs() {
 
     <AlertDialog :open="confirming" @update:open="(open) => (confirming = open)">
         <AlertDialogContent class="sm:max-w-md" data-testid="act-as-dialog">
-            <AlertDialogTitle class="text-base leading-snug font-semibold">Act as {{ viewAs?.label }}?</AlertDialogTitle>
-            <AlertDialogDescription class="text-[13px] text-muted-foreground">
+            <AlertDialogTitle class="text-base leading-snug font-semibold">
+                {{ actsOnBillet ? `Act as the leader of ${viewAs?.designation}?` : `Act as ${viewAs?.label}?` }}
+            </AlertDialogTitle>
+            <AlertDialogDescription v-if="actsOnBillet" class="text-[13px] text-muted-foreground">
+                You get exactly the permissions of that unit's leader, whoever holds the billet or if nobody does, and lose
+                your Admin ones until you stop. Everything you change is real and is recorded in your name, as that billet.
+            </AlertDialogDescription>
+            <AlertDialogDescription v-else class="text-[13px] text-muted-foreground">
                 You get exactly their permissions, and lose your Admin ones until you stop. Everything you change is real
                 and the audit log records it as you acting for them.
             </AlertDialogDescription>
             <p v-if="actError" role="alert" class="text-[12.5px] text-destructive" data-testid="act-as-error">{{ actError }}</p>
             <AlertDialogFooter class="flex-row flex-wrap justify-end gap-2">
                 <AlertDialogCancel :disabled="starting" class="mt-0">Cancel</AlertDialogCancel>
-                <Button variant="destructive" :disabled="starting" data-testid="act-as-confirm" @click="actAs">Act as them</Button>
+                <Button variant="destructive" :disabled="starting" data-testid="act-as-confirm" @click="actAs">{{ actLabel }}</Button>
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>

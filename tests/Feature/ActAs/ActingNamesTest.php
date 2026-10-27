@@ -47,7 +47,7 @@ function anCommander(int $unitId, int $positionId, string $username, string $ran
 
 function anActAs(object $test, User $user): void
 {
-    $test->actingAs($test->admin)->post('/act-as', ['user' => $user->id])->assertSessionHasNoErrors();
+    $test->actingAs($test->admin)->post('/act-as', ['kind' => 'user', 'id' => $user->id])->assertSessionHasNoErrors();
 }
 
 it('shows a report sent while acting as sent by the Admin for the leader', function () {

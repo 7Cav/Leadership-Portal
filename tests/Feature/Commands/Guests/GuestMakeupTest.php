@@ -211,9 +211,9 @@ it('writes no makeup when an Undo removes the entry between its commit and the m
             return $this->inner->record($hostPractice, $trooperIds, $seenFrom, $seenUntil);
         }
 
-        public function recordManual(SectionPractice $hostPractice, int $trooperId, int $recordedBy, ?int $recordedByAdmin = null): ?CrossSectionSighting
+        public function recordManual(SectionPractice $hostPractice, int $trooperId, int $recordedBy, ?int $recordedByAdmin = null, ?int $recordedAsUnit = null): ?CrossSectionSighting
         {
-            return $this->inner->recordManual($hostPractice, $trooperId, $recordedBy, $recordedByAdmin);
+            return $this->inner->recordManual($hostPractice, $trooperId, $recordedBy, $recordedByAdmin, $recordedAsUnit);
         }
 
         public function removeManual(int $hostPracticeId, int $trooperId): bool
