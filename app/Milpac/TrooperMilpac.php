@@ -31,12 +31,13 @@ final class TrooperMilpac
         private readonly TrooperCourseRepository $trooperCourses,
         private readonly RosterProvenance $rosterSync,
         private readonly ServiceTimeline $timeline,
+        private readonly PlacementHistory $placements,
     ) {}
 
     /**
      * @param  Collection<int, int>  $scope  the unit ids the viewer may read, from the ScopeResolver (AD-8)
      * @param  list<string>  $missedWeeks  the weeks the trooper missed a section practice in the KPI window, from the caller
-     * @return array{crumb: string, trooper: array<string, mixed>, actions: list<array{key: string, label: string, href: string}>, makeup: ?array{username: string, missedWeeks: list<string>}, timeline: array<string, mixed>, awards: array{available: bool, items: list<array{name: string, awardedAt: ?string, citation: ?string}>}, courses: array{groups: list<array{status: string, label: string, courses: list<array{code: string, name: string, awardedAt: ?string}>}>, qualified: int, total: int}, sync: array<string, mixed>}
+     * @return array{crumb: string, trooper: array<string, mixed>, actions: list<array{key: string, label: string, href: string}>, makeup: ?array{username: string, missedWeeks: list<string>}, transfers: list<array{at: string, from: ?string, to: ?string}>, timeline: array<string, mixed>, awards: array{available: bool, items: list<array{name: string, awardedAt: ?string, citation: ?string}>}, courses: array{groups: list<array{status: string, label: string, courses: list<array{code: string, name: string, awardedAt: ?string}>}>, qualified: int, total: int}, sync: array<string, mixed>}
      */
     public function for(Trooper $trooper, Collection $scope, array $missedWeeks = []): array
     {
@@ -55,6 +56,8 @@ final class TrooperMilpac
             'timeline' => $this->timeline->build($trooper, $rows, $awards['items'], $today),
             'actions' => $this->actions($trooper, $section, $scope),
             'makeup' => $this->makeup($trooper, $section, $scope, $missedWeeks),
+            // Their moves between units, newest first (2026-10-27).
+            'transfers' => $this->placements->transfersOf($trooper->id),
             // Where the ID block came from and how current it is (AD-20, AD-4), by the one roster rule.
             'sync' => $this->rosterSync->current()->toArray(),
         ];

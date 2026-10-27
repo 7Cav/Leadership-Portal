@@ -10,6 +10,7 @@ use App\Kpi\Ratio;
 use App\Kpi\TrooperAttendance;
 use App\Kpi\UnitKpis;
 use App\Loa\LoaProvenance;
+use App\Milpac\PlacementHistory;
 use App\Milpac\RosterProvenance;
 use App\Models\SyncRun;
 use App\Models\Trooper;
@@ -59,6 +60,7 @@ class RosterController extends Controller
         private readonly LoaProvenance $loaProvenance,
         private readonly PracticeGuests $practiceGuests,
         private readonly UnitLeadRepository $leads,
+        private readonly PlacementHistory $placementHistory,
     ) {}
 
     public function index(Request $request, ?int $unit = null): Response
@@ -129,10 +131,15 @@ class RosterController extends Controller
         $kpis = $this->kpis->trooperAttendance($section, $week)->get($found->id);
         $marks = $this->historyMarks($section, $week)->get($found->id, collect());
         $leader = $this->commands->commandersOf([$section->id])->get($section->id);
+        $row = $this->trooperRow($found, $kpis, $marks, $week, $leader);
+        // Each week's section by name, for the weeks they were somewhere else (2026-10-27).
+        $labels = $marks->pluck('sectionId')->filter()->unique()
+            ->mapWithKeys(fn (int $id) => [$id => ($unit = $this->units->find($id)) === null ? null : ($unit->callsign ?? $unit->name)]);
+        $row['weeks'] = array_map(fn (?array $w) => $w === null ? null : [...$w, 'section' => $labels->get($w['sectionId'])], $row['weeks']);
 
         return response()->json([
             'trooper' => [
-                ...$this->trooperRow($found, $kpis, $marks, $week, $leader),
+                ...$row,
                 'rankFull' => $found->rank,
                 'mos' => $found->mos,
                 'section' => $this->unitSummary($section),
@@ -140,6 +147,8 @@ class RosterController extends Controller
                 'milpacUrl' => Trooper::MILPAC_PROFILE_URL.$found->cav_id,
                 // The weeks behind `kpis.missed`, oldest first, for the Sheet's makeup PM link.
                 'missedWeeks' => $kpis?->missedWeeks ?? [],
+                // Their moves between units, newest first (2026-10-27).
+                'transfers' => $this->placementHistory->transfersOf($found->id),
             ],
             'weeks' => $this->weeks($week),
             'currentWeek' => $week->toDateString(),
@@ -313,6 +322,8 @@ class RosterController extends Controller
                     'status' => $mark->status?->value,
                     'source' => $mark->source?->value,
                     'held' => $mark->held,
+                    // The section whose practice this was: after a transfer, an earlier week is their old section's.
+                    'sectionId' => $mark->sectionId,
                 ];
             }, $this->weeks($week)),
         ];

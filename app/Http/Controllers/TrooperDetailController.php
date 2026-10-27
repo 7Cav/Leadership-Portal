@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
+use App\Kpi\AttendanceHistory;
 use App\Kpi\KpiService;
 use App\Milpac\TrooperMilpac;
 use App\Models\Trooper;
@@ -30,6 +31,7 @@ class TrooperDetailController extends Controller
         private readonly TrooperMilpac $milpac,
         private readonly UnitRepository $units,
         private readonly KpiService $kpis,
+        private readonly AttendanceHistory $history,
     ) {}
 
     public function show(Request $request, Trooper $trooper): Response
@@ -38,7 +40,12 @@ class TrooperDetailController extends Controller
 
         abort_unless($this->scope->canSee($user, $trooper), 404);
 
-        return Inertia::render('TrooperDetail', $this->milpac->for($trooper, $this->scope->resolve($user), $this->missedWeeks($trooper)));
+        return Inertia::render('TrooperDetail', [
+            ...$this->milpac->for($trooper, $this->scope->resolve($user), $this->missedWeeks($trooper)),
+            // Their attendance across every unit they were in (2026-10-27): anyone who may see the trooper now sees
+            // the weeks from before a transfer too. Past weekly reports stay with the unit that sent them.
+            'attendance' => $this->history->forTrooper($trooper, WeekOf::start(CarbonImmutable::now())),
+        ]);
     }
 
     /**
