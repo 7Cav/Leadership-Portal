@@ -292,12 +292,14 @@ describe('Admin screens during a preview', function () {
 
         $this->get('/settings/audit-log')->assertForbidden();
         $this->get('/settings/org-structure')->assertInertia(fn ($page) => $page->where('isAdmin', false));
-        $this->get('/settings/staff-grants')->assertInertia(fn ($page) => $page->where('isAdmin', false));
+        // The leader would not get the username list, so neither does the Admin previewing them.
+        $this->get('/settings/staff-grants')->assertInertia(fn ($page) => $page->where('isAdmin', false)->where('users', []));
 
         $this->delete('/view-as');
 
         $this->get('/settings/audit-log')->assertOk();
         $this->get('/settings/org-structure')->assertInertia(fn ($page) => $page->where('isAdmin', true));
+        $this->get('/settings/staff-grants')->assertInertia(fn ($page) => $page->where('isAdmin', true)->has('users', 1));
     });
 
     it('keeps the Admin view when the previewed person is an Admin too', function () {
