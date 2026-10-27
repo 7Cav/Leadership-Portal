@@ -3,9 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
-use App\Authorization\ViewAs;
 use App\Authorization\ViewAsKind;
 use App\Authorization\ViewAsTarget;
+use App\Commands\ViewAs\EnterViewAs;
+use App\Commands\ViewAs\ExitViewAs;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitRepository;
@@ -25,7 +26,6 @@ class ViewAsController extends Controller
 {
     public function __construct(
         private readonly ScopeResolver $scope,
-        private readonly ViewAs $viewAs,
     ) {}
 
     /**
@@ -80,10 +80,11 @@ class ViewAsController extends Controller
     }
 
     /**
-     * Start viewing as a unit or person. A target outside real authority — however the request
-     * was built — is refused with a validation error and nothing is stored (AC #3).
+     * Start viewing as a unit or person, recorded in the audit log. A target outside real
+     * authority — however the request was built — is refused with a validation error and nothing
+     * is stored or logged (AC #3).
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, EnterViewAs $enter): RedirectResponse
     {
         $data = $request->validate([
             'kind' => ['required', Rule::enum(ViewAsKind::class)],
@@ -92,7 +93,7 @@ class ViewAsController extends Controller
 
         $target = new ViewAsTarget(ViewAsKind::from($data['kind']), (int) $data['id']);
 
-        if ($this->scope->evaluate($request->user(), $target) === null) {
+        if (! $enter->handle($request->user(), $target)) {
             throw ValidationException::withMessages([
                 'view_as' => $target->kind === ViewAsKind::User
                     ? 'Only an Admin can view the portal as another person.'
@@ -100,17 +101,15 @@ class ViewAsController extends Controller
             ]);
         }
 
-        $this->viewAs->enter($request->user(), $target);
-
         return redirect()->back();
     }
 
     /**
-     * Back to the viewer's own, full real scope (AC #5).
+     * Back to the viewer's own, full real scope (AC #5), recorded in the audit log.
      */
-    public function destroy(): RedirectResponse
+    public function destroy(Request $request, ExitViewAs $exit): RedirectResponse
     {
-        $this->viewAs->exit();
+        $exit->handle($request->user());
 
         return redirect()->back();
     }

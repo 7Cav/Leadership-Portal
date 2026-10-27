@@ -18,6 +18,7 @@ use App\Models\TrooperCourse;
 use App\Models\TrooperGameIdentity;
 use App\Models\Unit;
 use App\Models\UnitType;
+use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Repositories\AuditLogRepository;
 use App\Repositories\UnitRepository;
@@ -114,7 +115,8 @@ class AuditLogController extends Controller
 
     /**
      * Where to see what an entry changed, and what to call it: a section practice's rollcall week, a weekly report, a
-     * unit's roster, a trooper's milpac (also for their game identities, courses and placement), a company's templates,
+     * unit's roster, a trooper's milpac (also for their game identities, courses and placement, and for the portal user
+     * they sign in as), a company's templates,
      * the staff grants, a section's rollcall (for its fireteams and fireteam display), a platoon's report week (for its
      * training topic), the Games page (for a game), or the rollcall week where a dismissed player was last captured. Null
      * when the target is gone or has no page.
@@ -167,6 +169,8 @@ class AuditLogController extends Controller
                 'label' => "{$target->name} game",
             ],
             $target instanceof GamePlayerDismissal => $this->dismissalLink($target),
+            // A user (a view-as target, a changed Admin flag) links to their trooper's milpac when they have one.
+            $target instanceof User && $target->getRelationValue('trooper') !== null => $this->trooperLink($target->getRelationValue('trooper')),
             default => null,
         };
     }

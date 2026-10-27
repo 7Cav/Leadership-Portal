@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AuditLogEntry;
 use App\Models\PortalRoleGrant;
 use App\Models\SyncRun;
 use App\Models\Trooper;
@@ -313,5 +314,116 @@ describe('Admin screens during a preview', function () {
         $this->actingAs($commander)->post('/view-as', ['kind' => 'unit', 'id' => $tree['platoon']->id]);
 
         $this->get('/settings/audit-log')->assertForbidden();
+    });
+});
+
+describe('audit log', function () {
+    $entries = fn () => AuditLogEntry::query()->orderBy('id')->get()
+        ->map(fn (AuditLogEntry $entry) => [$entry->actor_id, $entry->action, $entry->target_type, $entry->target_id])
+        ->all();
+
+    it('records starting and stopping a unit preview against the unit', function () use ($entries) {
+        $tree = vcTree();
+        $commander = vcLeaderOf($tree['company'], 100, 'Hale.S', 'CPT');
+
+        $this->actingAs($commander)->post('/view-as', ['kind' => 'unit', 'id' => $tree['platoon']->id])->assertSessionHasNoErrors();
+        $this->delete('/view-as');
+
+        $platoon = (string) $tree['platoon']->id;
+        expect($entries())->toBe([
+            [$commander->id, 'view_as.started', 'Unit', $platoon],
+            [$commander->id, 'view_as.stopped', 'Unit', $platoon],
+        ])->and(AuditLogEntry::query()->whereNotNull('reason')->exists())->toBeFalse()
+            ->and(AuditLogEntry::query()->pluck('content_digest')->unique()->all())
+            ->toBe([hash('sha256', json_encode(collect(Unit::query()->find($tree['platoon']->id)->getAttributes())->sortKeys()->all(), JSON_THROW_ON_ERROR))]);
+    });
+
+    it('records an Admin previewing a person against that user', function () use ($entries) {
+        $tree = vcTree();
+        $admin = User::factory()->admin()->create();
+        $leader = vcLeaderOf($tree['section'], 100, 'Vasquez.R', 'SGT');
+
+        $this->actingAs($admin)->post('/view-as', ['kind' => 'user', 'id' => $leader->id])->assertSessionHasNoErrors();
+        $this->delete('/view-as');
+
+        expect($entries())->toBe([
+            [$admin->id, 'view_as.started', 'User', (string) $leader->id],
+            [$admin->id, 'view_as.stopped', 'User', (string) $leader->id],
+        ]);
+    });
+
+    it('records the old target as stopped when switching sideways, and nothing for the same target twice', function () use ($entries) {
+        $tree = vcTree();
+        $commander = vcLeaderOf($tree['company'], 100, 'Hale.S', 'CPT');
+        $this->actingAs($commander)->post('/view-as', ['kind' => 'unit', 'id' => $tree['section']->id]);
+        $this->post('/view-as', ['kind' => 'unit', 'id' => $tree['section']->id]);
+
+        $this->post('/view-as', ['kind' => 'unit', 'id' => $tree['section2']->id])->assertSessionHasNoErrors();
+
+        expect($entries())->toBe([
+            [$commander->id, 'view_as.started', 'Unit', (string) $tree['section']->id],
+            [$commander->id, 'view_as.stopped', 'Unit', (string) $tree['section']->id],
+            [$commander->id, 'view_as.started', 'Unit', (string) $tree['section2']->id],
+        ]);
+    });
+
+    it('records a preview still on at sign-out as stopped', function () use ($entries) {
+        $tree = vcTree();
+        $admin = User::factory()->admin()->create();
+        $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $tree['platoon']->id]);
+
+        $this->post('/logout')->assertRedirect();
+
+        $this->assertGuest();
+        expect($entries())->toBe([
+            [$admin->id, 'view_as.started', 'Unit', (string) $tree['platoon']->id],
+            [$admin->id, 'view_as.stopped', 'Unit', (string) $tree['platoon']->id],
+        ]);
+    });
+
+    it('records nothing for a refused target or for leaving when no preview is on', function () {
+        $tree = vcTree();
+        $platoonLeader = vcLeaderOf($tree['platoon'], 100, 'Brennan.J', '1LT');
+
+        $this->actingAs($platoonLeader)->post('/view-as', ['kind' => 'unit', 'id' => $tree['company']->id])->assertSessionHasErrors('view_as');
+        $this->delete('/view-as');
+
+        expect(AuditLogEntry::query()->count())->toBe(0);
+    });
+
+    it('shows the entries on the audit log, linked, and under the unit filter', function () {
+        $tree = vcTree();
+        $admin = User::factory()->admin()->create();
+        $leader = vcLeaderOf($tree['section'], 100, 'Vasquez.R', 'SGT');
+        $trooper = Trooper::query()->where('cav_id', 100)->sole();
+        $trooper->forceFill(['primary_section_id' => $tree['section']->id, 'username' => 'Vasquez.R', 'rank_short' => 'SGT'])->save();
+
+        $this->actingAs($admin)->post('/view-as', ['kind' => 'user', 'id' => $leader->id]);
+        $this->delete('/view-as');
+        $this->post('/view-as', ['kind' => 'unit', 'id' => $tree['platoon']->id]);
+        $this->delete('/view-as');
+
+        $links = function (string $query) {
+            $data = null;
+            $this->get('/settings/audit-log'.$query)->assertOk()->assertInertia(function ($page) use (&$data) {
+                $data = $page->toArray()['props']['entries']['data'];
+            });
+
+            return $data;
+        };
+
+        $all = collect($links(''));
+        expect($all->pluck('action')->all())->toBe(['view_as.stopped', 'view_as.started', 'view_as.stopped', 'view_as.started'])
+            ->and($all->pluck('link')->unique()->values()->all())->toBe([
+                ['href' => "/roster/{$tree['platoon']->id}", 'label' => '1/A/1-7'],
+                ['href' => "/troopers/{$trooper->id}", 'label' => $trooper->fresh()->display_name],
+            ]);
+
+        // The section's filter finds the person preview (their trooper sits there) but not the platoon one; the
+        // platoon's finds both; the other battalion's finds neither.
+        expect(collect($links("?unit_id={$tree['section']->id}"))->pluck('target_type')->unique()->all())->toBe(['User'])
+            ->and($links("?unit_id={$tree['platoon']->id}"))->toHaveCount(4)
+            ->and($links("?unit_id={$tree['otherBattalion']->id}"))->toBe([])
+            ->and(collect($links('?action=view_as.started'))->pluck('action')->unique()->all())->toBe(['view_as.started']);
     });
 });
