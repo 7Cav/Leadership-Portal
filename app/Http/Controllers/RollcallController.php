@@ -85,10 +85,9 @@ use Throwable;
  * `WeekOf::floor()` is still shown, read-only (`week.beforeFloor`): its writes are refused.
  *
  * A week whose section report has been sent is locked (AD-12): `show` says so (`locked`) and the
- * screen turns read-only, and `store`, `confirm` and `retryCapture` refuse it with a 409 and
- * `locked` (the rule itself lives in their handlers; a capture run and a link's pre-mark skip the
- * week the same way). Marking the forum post posted (`posted`) stays open: it records when the
- * BBCode went up, not a fact the report froze.
+ * screen turns read-only, and `store`, `confirm`, `posted` and `retryCapture` refuse it with a
+ * 409 and `locked` (the rule itself lives in their handlers; a capture run and a link's pre-mark
+ * skip the week the same way).
  */
 class RollcallController extends Controller
 {
@@ -289,7 +288,8 @@ class RollcallController extends Controller
     /**
      * The leader has posted the week's BBCode to the forum thread and says so (3.10). The portal
      * itself never posts (AD-20); this only records when, and who, through the audited
-     * `MarkRollcallPosted` Command. Marking again after edits is allowed — the latest wins.
+     * `MarkRollcallPosted` Command. Marking again after edits is allowed — the latest wins. A week
+     * whose report was sent is refused with a 409 and `locked`, like the other rollcall writes (AD-12).
      */
     public function posted(Request $request, int $unit, MarkRollcallPostedHandler $handler): JsonResponse
     {
@@ -312,6 +312,8 @@ class RollcallController extends Controller
             return response()->json(['message' => $e->getMessage()], 403);
         } catch (InvalidAttendanceMarkException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
+        } catch (RollcallWeekLockedException $e) {
+            return response()->json(['message' => $e->getMessage(), 'locked' => true], 409);
         } catch (Throwable $e) {
             report($e);
 
