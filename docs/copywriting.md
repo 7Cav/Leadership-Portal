@@ -63,8 +63,14 @@ Exclamation marks: never. There is no exception.
 - Billets: capitalise the exact roster title ("the Section Leader", "a Platoon Leader's command over this unit").
   Lowercase a role used generically ("section leaders add guests on their rollcall", "the leaders who command this
   section").
+- The organisation: "7Cav" in running text ("your 7Cav milpac", "the 7Cav forum"). "7th Cavalry Regiment" only as the
+  name of the regiment unit (the top of the tree, the sidebar scope). "7th Cavalry Gaming Regiment" only in the login
+  footer. Not "7th Cavalry" alone. "Cav" stays in the fixed compounds "Cav roster" and "Cav week".
+- Section practice: lowercase in the UI ("mark who was at section practice"); "Section practice" only at the start of a
+  heading, label or button. Short form SP. Not "Section Practice" mid-sentence.
 - Ranks: short ranks are always caps as Cav writes them: PVT, PFC, SPC, CPL, SGT, SSG, SFC, MSG, 1SG, SGM, CSM, WO1,
-  CW2 to CW5, 2LT, 1LT, CPT, MAJ, LTC, COL. Full rank names: see Open decisions.
+  CW2 to CW5, 2LT, 1LT, CPT, MAJ, LTC, COL. Full rank names are title case, as Cav's data has them (`rankFull`):
+  "Staff Sergeant", "Private First Class", "Chief Warrant Officer 2". Any fallback map follows the same case.
 
 ### Punctuation
 
@@ -84,7 +90,8 @@ Exclamation marks: never. There is no exception.
 - Colons introduce a reason or a list: "Read-only: a staff grant lets you view this section, not mark it",
   "Waiting on 1/A/1-7, 2/A/1-7.".
 - Write "and", never "&". Write "for example" or "such as", not "e.g.". Write "compared with", not "vs".
-- Ellipsis: none on menu items or buttons that open a dialog. For in-progress text see Open decisions.
+- Ellipsis: none, neither "…" nor "...". Not on menu items or buttons that open a dialog, and not on in-progress
+  labels (see Loading and saving).
 - Middle dot "·" only as a separator in page titles (`Rollcall 2/1/A/1-7 · 7Cav Leadership Portal`) and in compact
   meta lines (`MOS · source · fetched at`). Never in a sentence.
 
@@ -263,8 +270,10 @@ New locks follow the same shape: "Read-only: <reason>" or "<thing> is locked bec
 
 - Saving state on autosave pages: "Saving", "Saved 22:16Z", "Unsaved changes", "Not saved" with "Retry".
 - Loading text names what loads: "Loading roster", "Loading the section", "Loading trooper" (screen readers).
-- A button that runs a job changes its label to the present participle of its verb while busy: "Importing", "Placing",
-  "Freezing". Punctuation: see Open decisions.
+- In-progress labels have no punctuation; the spinner shows progress. "Saving", "Importing", "Loading roster", not
+  "Saving..." or "Importing…".
+- A button that runs a job changes its label to the present participle of its verb while busy, with a spinner:
+  "Importing", "Placing", "Freezing".
 - A queued job says it is queued and when to look again: "Roster sync started" + "Reload in a minute to see the
   refreshed roster."
 
@@ -301,8 +310,8 @@ tests and comments. They include some route and key names, so read them as rough
 | rollcall | The weekly forum thread troopers sign, and the portal page for one section's week | Nav, Rollcall page, reports | rollcall 88 JS / 40 server; "roll call" 0 | roll call, roll-call, Roll Call |
 | rollcall post | The BBCode post the portal builds for the rollcall thread | Rollcall step 3 | "forum post" 5 | forum message |
 | sign, signature | A trooper answers the rollcall thread; the answer recorded for them | Rollcall step 1 | sign 44, signature 19 | RSVP, respond |
-| Will attend / Cannot attend / Unsigned | The three signature states | Rollcall cards, legend, report | "Unsigned" (`lib/rollcall.js:18`, `Rollcall.vue:1313`), "Not signed yet" (`TrooperCard.vue:148`, `CellLegend.vue:14`, `roster.js:77`) | Can't attend, Yes/No (BBCode only) |
-| section practice, SP | The section's weekly practice, and its attendance | Rollcall step 2, KPIs | "section practice" 11, SP 42 | Section Practice mid-sentence (see Open decisions), drill, training night |
+| Will attend / Cannot attend / Unsigned | The three signature states. "Unsigned" is the state name on buttons, chips, legends and counts; "Not signed yet" only as a sentence fragment in a tooltip or card hint | Rollcall cards, legend, report | "Unsigned" (`lib/rollcall.js:18`, `Rollcall.vue:1313`), "Not signed yet" (`TrooperCard.vue:148`, `CellLegend.vue:14`, `roster.js:77`) | Can't attend, Not signed yet (as a state label), Yes/No (BBCode only) |
+| section practice, SP | The section's weekly practice, and its attendance | Rollcall step 2, KPIs | "section practice" 11, SP 42 | Section Practice mid-sentence, drill, training night |
 | mark, practice mark | The recorded SP result for one trooper | Rollcall, roster | mark used throughout | status (UI), grade |
 | Present / Missed / Makeup / Attached / LOA / Not marked | The practice marks. LOA is derived, never set by hand | Rollcall cards, legend, report | Not marked 6 UI, Unmarked 1 UI (`ReportPreview.vue:174`) | Excused (not a mark; 0 uses), Absent, Unmarked |
 | makeup | A practice attended elsewhere that counts for the trooper's own section; verb "make up" | Rollcall, KPIs, guests | makeup 36 / 17; "make-up" 0 | make-up, make up (as a noun) |
@@ -341,7 +350,9 @@ tests and comments. They include some route and key names, so read them as rough
 | portfolio | A regimental staff officer's set of staff departments | Docs, Org structure tree | 0 UI | division, area |
 | HQ | A unit's headquarters node where its staff sit | Roster, Org structure | unit names only | headquarters (in labels) |
 | group | A non-line node: staff departments, ELOA, Reservists, New Recruits | Org structure | "Troopers in this group", "staff group" in server | pool, bucket |
-| New Recruits | The Cav group of recruits not yet in a section | Org structure, roster toggle | "New Recruits" 2, "New recruits" 2 (other meaning) | new recruits (for the group) |
+| New Recruits | The Cav group of recruits not yet in a section. Only ever this group | Org structure, roster toggle | "New Recruits" 2, "New recruits" 2 (other meaning) | new recruits (for the group), New recruit (for anything else) |
+| Joined recently | Roster badge and filter chip for a trooper who joined in the last 8 Cav weeks | Roster | "New recruit" (`OrbatView.vue:499`), "New recruits" (`FilterChips.vue:20`) | New recruit, New |
+| 7Cav | The organisation, in running text | Everywhere | 7Cav, "7th Cavalry" in server sign-in messages, "7th Cavalry Regiment" (regiment unit), "7th Cavalry Gaming Regiment" (login footer) | 7th Cavalry, 7CAV in text |
 | strength | Troopers placed in sections in a unit | KPIs | 28 / 18 | headcount (in UI), size |
 | Admin | The portal Admin flag, not a billet | Settings, messages | Admin 15 / 20, admin 3 / 5 | admin, administrator, S1 admin |
 | template | A company's rollcall BBCode template | Settings | 54 / 20 | format, layout |
@@ -356,41 +367,13 @@ tests and comments. They include some route and key names, so read them as rough
 | sync | A background read from Cav or the forum | Roster, LOA | 79 / 21 | refresh, import (except "Import from Cav roster") |
 | Import from Cav roster | The Admin step that builds the unit tree and billet mapping | Org structure | | sync (for this step) |
 
-## Open decisions
-
-These are genuine toss-ups. Until one is decided, keep the existing text and do not add a third form.
-
-1. Third signature state. Options: "Unsigned" (the button and summary label, `lib/rollcall.js:18`, features.md) or
-   "Not signed yet" (the card hint, roster legend and matrix). Recommendation: "Unsigned" as the state name on buttons,
-   chips and counts; "Not signed yet" only as a sentence fragment in tooltips.
-2. In-progress labels. Options: "Importing…" with the ellipsis character (`OrgStructure.vue:515`, `:918`,
-   `DemoData.vue:303`), "Saving..." with three periods (`Rollcall.vue:652`, `TelemetryBanner.vue:47`), or no
-   punctuation with a spinner ("Saving" in `Reports/Show.vue:339`, "Freezing" in `SendDialog.vue:123`, "Loading
-   roster"). Recommendation: no punctuation, the spinner already shows progress, and it matches the status text.
-3. Full rank names. Options: title case as Cav's data has it ("Staff Sergeant", from `rankFull`) or sentence case as the
-   fallback map has it ("Staff sergeant", `lib/roster.js:15`). Both show in the same rank tooltip. Recommendation: title
-   case, matching Cav and the forum.
-4. "New recruit" for a trooper who joined in the last 8 weeks. The roster badge and filter chip ("New recruit",
-   "New recruits", `OrbatView.vue:499`, `FilterChips.vue:20`) use the same words as the New Recruits group
-   ("Show New Recruits"). Options: keep both, or rename the badge and chip ("Joined recently", "New"). Recommendation:
-   rename the badge and chip to "Joined recently", after checking with S1 that "new recruit" has no fixed 7Cav meaning
-   for a placed trooper.
-5. Section practice capitalisation. The UI writes "section practice" in sentences and headings ("Section practice"
-   only at the start); features.md and code comments write "Section Practice (SP)" as a proper noun. Options: lowercase
-   as now, or a proper noun everywhere. Recommendation: lowercase in the UI (sentence case rule, UI majority), and let
-   the docs follow at the next docs pass, unless the 7Cav wiki treats it as a fixed name.
-6. Full name of the organisation. Options: "7th Cavalry Regiment" (sidebar scope, `AppSidebar.vue:68`), "7th Cavalry
-   Gaming Regiment" (login footer, `Login.vue:38`), "7th Cavalry" (server sign-in messages). Recommendation: "7Cav" in
-   running text, "7th Cavalry Regiment" as the regiment unit's name, and "7th Cavalry Gaming Regiment" only in the
-   footer as the legal name.
-
 ## Checklist for agents
 
 Run this before finishing any change that adds or edits user-facing text.
 
 1. Every new term is in the glossary with its canonical form; you used that form, not a variant.
 2. Sentence case on headings, buttons, labels, menu items, toasts and dialog titles.
-3. No em or en dash used as a dash, no curly quotes, no "&", no "e.g.", no "vs", no exclamation mark.
+3. No em or en dash used as a dash, no curly quotes, no ellipsis, no "&", no "e.g.", no "vs", no exclamation mark.
 4. No "please", "sorry", "we", "simply", "successfully", contractions or all-caps emphasis.
 5. No trailing period on buttons, labels, titles and single-line fragments; a period on every full sentence.
 6. Buttons start with a specific verb; destructive actions use an `AlertDialog` with a question title and a reason
@@ -414,7 +397,8 @@ The worst current offenders, for the copy revision. Do not copy these patterns. 
 | `resources/js/Pages/Auth/Login.vue:27-28` | Hype tagline "Run your platoon, not your spreadsheet." and claims features that do not exist (promotion proposals, medal write-ups, counseling) |
 | `resources/js/Pages/Auth/Login.vue:30-33` | Feature list with planned or missing features ("Promotion eligibility, auto-detected", "Medal & transfer post utilities"); "&" |
 | `app/Http/Controllers/Auth/ForumAuthController.php:97,103,110,120` | "Please try again"; "We could not complete sign-in" (first person) |
-| `app/Http/Controllers/Auth/ForumAuthController.php:138-139`, `app/Http/Middleware/EnsureServingMember.php:22` | "We couldn't", "isn't": first person and contractions |
+| `app/Http/Controllers/Auth/ForumAuthController.php:138-139`, `app/Http/Middleware/EnsureServingMember.php:22` | "We couldn't", "isn't": first person and contractions; "7th Cavalry roster" and "7th Cavalry milpac" where the rule says "Cav roster" and "7Cav milpac" |
+| `resources/js/Layouts/partials/AppSidebar.vue:58` | Sidebar product name "7th Cavalry"; running text says "7Cav" |
 | `app/Commands/Units/UnitHasDependentsException.php:18-53` | Em dashes in all six delete refusals, shown to Admins as toasts |
 | `app/Commands/Units/InvalidUnitPlacementException.php:26,33` | Em dashes; "re-parent" jargon |
 | `app/Commands/Attendance/InvalidAttendanceMarkException.php:37` | Em dash, lowercase "loa", raw trooper ID |
@@ -430,6 +414,10 @@ The worst current offenders, for the copy revision. Do not copy these patterns. 
 | `resources/js/components/rollcall/TelemetryBanner.vue:40`, `app/Commands/Capture/CaptureRetryRefusedException.php:18` | "Telemetry is not configured": internal term, the UI elsewhere says capture |
 | `resources/js/components/rollcall/TelemetryBanner.vue:29`, `resources/js/components/LoaBadge.vue:101`, `resources/js/composables/useIdentity.js:77` | Stamps end in " UTC" where the rest of the app uses `Z` |
 | `resources/js/Layouts/partials/UserMenu.vue:70` | "View as..." with three periods; "View as" everywhere else |
+| `resources/js/Pages/Rollcall.vue:652`, `resources/js/components/rollcall/TelemetryBanner.vue:47`, `resources/js/Pages/Settings/OrgStructure.vue:515,918`, `resources/js/Pages/Settings/DemoData.vue:303` | In-progress labels "Saving...", "Trying...", "Importing…", "Placing…", "Working…": drop the punctuation |
+| `resources/js/components/roster/OrbatView.vue:499`, `resources/js/components/roster/FilterChips.vue:20` | Badge "New recruit" and chip "New recruits" for troopers who joined in the last 8 weeks; rename to "Joined recently" |
+| `resources/js/lib/roster.js:15-21` | Rank fallback map in sentence case ("Staff sergeant"); Cav's data is title case |
+| `resources/js/components/roster/CellLegend.vue:14`, `resources/js/lib/roster.js:77` | "Not signed yet" as a legend and matrix state label (the rollcall is still open); state labels say "Unsigned", so this state needs a label built on it, such as "Unsigned, rollcall open" |
 | `GameIdentities.vue:162,203,236`, `StaffGrants.vue:127`, `Templates.vue:297,492`, `DemoData.vue:127,249`, `AuditLog.vue:168` (all under `resources/js/Pages`) | Empty-state titles end in a period |
 | `resources/js/components/rollcall/GuestsPanel.vue:179`, `resources/js/components/roster/PracticeGuestsPanel.vue:54` | Contractions "doesn't", "don't" |
 | `resources/js/components/roster/TrooperSheet.vue:162`, `resources/js/Pages/Settings/OrgStructure.vue:63`, `resources/js/components/roster/OrbatView.vue:459` | Missing billet reads "None reported", "No billet reported", "no billet"; elsewhere "No billet on record" |
