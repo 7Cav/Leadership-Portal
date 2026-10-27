@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Docs mockup</title>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
+<script>try{if(localStorage.getItem('mock-theme')==='dark'||(!localStorage.getItem('mock-theme')&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark')}catch(e){}</script>
+<style>
+@font-face{font-family:'Geist Variable';src:url('../../../node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2') format('woff2');font-weight:100 900;font-display:swap}
+@font-face{font-family:'Geist Mono Variable';src:url('../../../node_modules/@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2') format('woff2');font-weight:100 900;font-display:swap}
+:root{
+  --background:hsl(75 10% 97.5%);--foreground:hsl(75 14% 10%);--card:hsl(75 12% 99.5%);
+  --primary:hsl(43 87% 55%);--primary-foreground:hsl(75 20% 9%);
+  --secondary:hsl(75 9% 93.5%);--muted:hsl(75 9% 93.5%);--muted-foreground:hsl(75 6% 37%);
+  --accent:hsl(75 10% 92%);--border:hsl(75 9% 87%);--input:hsl(75 9% 82%);--ring:hsl(40 92% 38%);
+  --success:hsl(148 52% 30%);--warning:hsl(32 92% 38%);--info:hsl(206 64% 40%);
+  --sidebar:hsl(75 10% 95.5%);--sidebar-fg:hsl(75 12% 16%);--sidebar-accent:hsl(75 10% 90%);--sidebar-border:hsl(75 9% 86%);
+  --nav-icon:hsl(40 92% 38%);--gold-ink:hsl(40 92% 30%);
+  --shadow-panel:0 1px 2px hsl(75 20% 20% / .06),0 8px 24px -12px hsl(75 20% 20% / .18);
+  --r-badge:4px;--r-control:6px;--r-panel:10px;
+}
+:root.dark{
+  --background:hsl(75 8% 6.5%);--foreground:hsl(75 10% 92%);--card:hsl(75 7% 9%);
+  --primary:hsl(43 90% 58%);--primary-foreground:hsl(75 20% 8%);
+  --secondary:hsl(75 6% 13.5%);--muted:hsl(75 6% 13.5%);--muted-foreground:hsl(75 6% 63%);
+  --accent:hsl(75 6% 15%);--border:hsl(75 6% 17.5%);--input:hsl(75 6% 22%);--ring:hsl(43 90% 58%);
+  --success:hsl(148 45% 52%);--warning:hsl(36 90% 58%);--info:hsl(206 72% 64%);
+  --sidebar:hsl(75 8% 5%);--sidebar-fg:hsl(75 8% 86%);--sidebar-accent:hsl(75 6% 13%);--sidebar-border:hsl(75 6% 14%);
+  --nav-icon:hsl(43 90% 58%);--gold-ink:hsl(43 90% 62%);
+  --shadow-panel:0 1px 2px hsl(0 0% 0% / .3),0 12px 32px -12px hsl(0 0% 0% / .6);
+}
+*{box-sizing:border-box}
+html{color-scheme:light}html.dark{color-scheme:dark}
+body{margin:0;background:var(--background);color:var(--foreground);font:14px/1.55 'Geist Variable',ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+kbd{font:11px/16px 'Geist Mono Variable',monospace;border:1px solid var(--border);background:var(--muted);border-radius:var(--r-badge);padding:0 5px;color:var(--muted-foreground)}
+.mono{font-family:'Geist Mono Variable',monospace}
+
+/* shell, mirrors the real AppLayout: dark-olive sidebar, h-12 top bar, max-w-[1440px] main */
+.app{display:grid;grid-template-columns:240px minmax(0,1fr);min-height:100dvh}
+.sidebar{background:var(--sidebar);color:var(--sidebar-fg);border-right:1px solid var(--sidebar-border);position:sticky;top:0;height:100dvh;display:flex;flex-direction:column;padding:12px 8px}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 8px 14px;font-weight:600;letter-spacing:-.01em}
+.brand .mark{width:28px;height:28px;border-radius:var(--r-control);background:var(--primary);color:var(--primary-foreground);display:grid;place-items:center;font-weight:700;font-size:12px}
+.brand small{display:block;font-weight:400;color:var(--muted-foreground);font-size:12px;line-height:1.2}
+.nav-group{margin-top:10px}
+.nav-label{font-size:12px;color:var(--muted-foreground);padding:4px 10px}
+.nav a{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:var(--r-control);font-size:13.5px;position:relative}
+.nav a:hover{background:var(--sidebar-accent)}
+.nav a i{font-size:17px;color:var(--muted-foreground)}
+.nav a[aria-current="page"]{background:var(--sidebar-accent);font-weight:600}
+.nav a[aria-current="page"] i{color:var(--nav-icon)}
+.nav a[aria-current="page"]::before{content:"";position:absolute;left:-8px;top:7px;bottom:7px;width:3px;border-radius:0 3px 3px 0;background:var(--primary)}
+.side-foot{margin-top:auto;display:flex;align-items:center;gap:10px;padding:8px;border-top:1px solid var(--sidebar-border);font-size:13px}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--accent);display:grid;place-items:center;font-size:11px;font-weight:600}
+.inset{min-width:0;display:flex;flex-direction:column}
+.topbar{position:sticky;top:0;z-index:30;height:48px;display:flex;align-items:center;gap:8px;padding:0 16px;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--background) 90%,transparent);backdrop-filter:blur(8px)}
+.crumbs{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted-foreground);white-space:nowrap}
+.crumbs b{color:var(--foreground);font-weight:600}
+.spacer{margin-left:auto}
+.tbtn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border-radius:var(--r-control);border:0;background:transparent;color:var(--muted-foreground);font-size:13px}
+.tbtn:hover{background:var(--accent);color:var(--foreground)}
+.tbtn[aria-pressed="true"],.tbtn.on{background:var(--accent);color:var(--foreground)}
+.tbtn i{font-size:16px}
+main{width:100%;max-width:1440px;margin:0 auto;padding:20px 24px 64px}
+
+/* shared building blocks */
+.btn{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 14px;border-radius:var(--r-control);border:1px solid var(--input);background:var(--card);font-weight:500;font-size:13px;white-space:nowrap}
+.btn:hover{background:var(--accent)}
+.btn.primary{background:var(--primary);color:var(--primary-foreground);border-color:transparent}
+.btn.primary:hover{background:color-mix(in srgb,var(--primary) 88%,black)}
+.btn:active{transform:translateY(1px)}
+.tag{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;border-radius:var(--r-badge);background:var(--muted);color:var(--muted-foreground);font-size:12px;font-weight:500;white-space:nowrap}
+.tag.gold{background:color-mix(in srgb,var(--primary) 18%,transparent);color:var(--gold-ink)}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:var(--r-panel)}
+.shot{position:relative;border:1px solid var(--border);border-radius:var(--r-panel);overflow:hidden;background:
+  repeating-linear-gradient(135deg,transparent 0 11px,color-mix(in srgb,var(--foreground) 5%,transparent) 11px 12px),var(--muted);aspect-ratio:16/9}
+.shot .cap{position:absolute;left:12px;bottom:10px;font-size:12px;color:var(--muted-foreground);background:var(--card);border:1px solid var(--border);border-radius:var(--r-badge);padding:2px 8px}
+.pin{position:absolute;width:24px;height:24px;border-radius:50%;background:var(--primary);color:var(--primary-foreground);display:grid;place-items:center;font-size:12px;font-weight:700;box-shadow:0 0 0 4px color-mix(in srgb,var(--primary) 30%,transparent)}
+.note{display:flex;gap:10px;padding:12px 14px;border-radius:var(--r-panel);border:1px solid var(--border);background:var(--card);font-size:13.5px}
+.note i{font-size:18px;margin-top:1px;flex:none}
+.note.info i{color:var(--info)}.note.why i{color:var(--gold-ink)}
+.role-switch{display:inline-flex;border:1px solid var(--input);border-radius:var(--r-control);background:var(--card);padding:2px}
+.role-switch button{border:0;background:transparent;border-radius:4px;padding:3px 10px;font-size:12.5px;color:var(--muted-foreground)}
+.role-switch button[aria-pressed="true"]{background:var(--primary);color:var(--primary-foreground);font-weight:600}
+.mockbar{display:flex;align-items:center;gap:10px;padding:8px 12px;margin:-4px 0 16px;border:1px dashed var(--input);border-radius:var(--r-control);font-size:12.5px;color:var(--muted-foreground)}
+.search{display:flex;align-items:center;gap:10px;height:40px;padding:0 12px;border:1px solid var(--input);border-radius:var(--r-control);background:var(--card);color:var(--muted-foreground)}
+.search input{flex:1;border:0;background:transparent;font:inherit;color:var(--foreground);outline:0;min-width:0}
+.search:focus-within{border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in srgb,var(--ring) 25%,transparent)}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:no-preference){.rise{animation:rise .45s cubic-bezier(.16,1,.3,1) both}@keyframes rise{from{opacity:0;transform:translateY(6px)}}}
+@media (max-width:900px){.app{grid-template-columns:1fr}.sidebar{display:none}main{padding:16px}.crumbs .hide-sm{display:none}}
+
+.docs{display:grid;grid-template-columns:260px minmax(0,1fr) 220px;gap:36px;align-items:start}
+.tree{position:sticky;top:68px;max-height:calc(100dvh - 90px);overflow:auto;padding-right:4px}
+.tree .search{height:36px;margin-bottom:14px}
+.tree details{margin-bottom:6px}
+.tree summary{list-style:none;display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--r-control);font-weight:600;font-size:13px;cursor:pointer}
+.tree summary::-webkit-details-marker{display:none}
+.tree summary:hover{background:var(--accent)}
+.tree summary i.caret{font-size:12px;color:var(--muted-foreground);transition:transform .15s}
+.tree details[open] summary i.caret{transform:rotate(90deg)}
+.tree ul{list-style:none;margin:2px 0 6px 15px;padding:0 0 0 10px;border-left:1px solid var(--border)}
+.tree li a{display:block;padding:5px 8px;border-radius:var(--r-control);font-size:13px;color:var(--muted-foreground)}
+.tree li a:hover{background:var(--accent);color:var(--foreground)}
+.tree li a[aria-current="page"]{background:color-mix(in srgb,var(--primary) 16%,transparent);color:var(--foreground);font-weight:600}
+article{max-width:680px}
+article h1{font-size:30px;line-height:1.15;letter-spacing:-.025em;margin:6px 0 10px;font-weight:650}
+.lede{font-size:16px;color:var(--muted-foreground);max-width:60ch;margin:0 0 18px}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px}
+.came{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:var(--r-control);background:color-mix(in srgb,var(--primary) 12%,transparent);font-size:13px;margin-bottom:20px}
+.came a{margin-left:auto;font-weight:600;color:var(--gold-ink);white-space:nowrap}
+article h2{font-size:18px;letter-spacing:-.015em;margin:34px 0 8px;display:flex;gap:12px;align-items:baseline;scroll-margin-top:72px}
+article h2 .n{flex:none;width:26px;height:26px;border-radius:50%;background:var(--primary);color:var(--primary-foreground);display:grid;place-items:center;font-size:13px;font-weight:700;transform:translateY(-1px)}
+article p{margin:0 0 12px;max-width:62ch}
+article .shot{margin:14px 0 6px}
+.toc{position:sticky;top:68px;font-size:13px}
+.toc b{display:block;margin-bottom:8px;font-size:13px}
+.toc a{display:block;padding:4px 0 4px 12px;border-left:2px solid var(--border);color:var(--muted-foreground)}
+.toc a:hover,.toc a.on{border-color:var(--primary);color:var(--foreground)}
+.toc a.btn{margin-top:16px;width:100%;justify-content:center;padding:0 14px;border-left:1px solid transparent;display:inline-flex;color:var(--primary-foreground)}
+.pager{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:40px;padding-top:20px;border-top:1px solid var(--border)}
+.pager a{padding:12px 14px;border:1px solid var(--border);border-radius:var(--r-panel);background:var(--card)}
+.pager a:hover{border-color:var(--input)}
+.pager small{display:block;color:var(--muted-foreground);font-size:12px}
+.pager a:last-child{text-align:right}
+.fb{display:flex;align-items:center;gap:10px;margin-top:28px;font-size:13px;color:var(--muted-foreground)}
+@media (max-width:1180px){.docs{grid-template-columns:240px minmax(0,1fr)}.toc{display:none}}
+@media (max-width:780px){.docs{grid-template-columns:1fr}.tree{position:static;max-height:none}}
+
+.docs{grid-template-columns:260px minmax(0,1fr) 280px}
+.rail{position:sticky;top:68px;display:flex;flex-direction:column;gap:18px}
+.todo{padding:14px 14px 6px}
+.todo-head{display:flex;align-items:center;gap:10px}
+.todo-head b{font-size:14px;letter-spacing:-.01em}
+.todo-head .count{margin-left:auto;font-size:12.5px;color:var(--muted-foreground);font-variant-numeric:tabular-nums}
+.todo-head button{border:0;background:transparent;width:26px;height:26px;border-radius:var(--r-control);display:grid;place-items:center;color:var(--muted-foreground)}
+.todo-head button:hover{background:var(--accent);color:var(--foreground)}
+.todo-head button i{transition:transform .15s}
+.todo.shut .todo-head button i{transform:rotate(-90deg)}
+.todo .sub{font-size:12.5px;color:var(--muted-foreground);margin:2px 0 0}
+.bar{height:5px;border-radius:3px;background:var(--muted);overflow:hidden;margin:10px 0 6px}
+.bar span{display:block;height:100%;background:var(--primary);width:0;transition:width .3s cubic-bezier(.16,1,.3,1)}
+.todo ul{list-style:none;margin:0;padding:0}
+.todo.shut ul,.todo.shut .sub,.todo.shut .bar{display:none}
+.todo.shut{padding-bottom:12px}
+.todo li{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid var(--border)}
+.todo input{appearance:none;flex:none;width:18px;height:18px;margin-top:1px;border:1.5px solid var(--input);border-radius:var(--r-badge);background:var(--card);display:grid;place-items:center;cursor:pointer}
+.todo input:checked{background:var(--primary);border-color:var(--primary)}
+.todo input:checked::after{content:"";width:8px;height:4px;border-left:2px solid var(--primary-foreground);border-bottom:2px solid var(--primary-foreground);transform:rotate(-45deg) translate(1px,-1px)}
+.todo li a{flex:1;font-size:13px;line-height:1.35}
+.todo li a:hover{text-decoration:underline}
+.todo li input:checked + a{color:var(--muted-foreground);text-decoration:line-through}
+.todo .allset{display:none;margin:2px 0 10px;font-size:13px;color:var(--success);font-weight:600}
+.todo.complete .allset{display:flex;gap:6px;align-items:center}
+.hero-home h1{font-size:32px;line-height:1.1;letter-spacing:-.03em;margin:6px 0 6px;font-weight:650}
+.hero-home .search{height:46px;max-width:560px;margin:18px 0 26px;font-size:15px}
+.groupx{margin-bottom:24px}
+.groupx h3{font-size:15px;margin:0 0 8px;letter-spacing:-.01em}
+.rowsx a{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:var(--r-control)}
+.rowsx a:hover{background:var(--accent)}
+.rowsx i.ic{font-size:20px;color:var(--nav-icon);flex:none}
+.rowsx .t{font-weight:550}
+.rowsx small{display:block;color:var(--muted-foreground);font-size:12.5px;line-height:1.3}
+.rowsx .go{margin-left:auto;color:var(--muted-foreground)}
+.compactx{columns:2;column-gap:20px}
+.compactx a{break-inside:avoid;display:block;padding:6px 8px;border-radius:var(--r-control);font-size:13.5px;color:var(--muted-foreground)}
+.compactx a:hover{background:var(--accent);color:var(--foreground)}
+.donebar{display:flex;align-items:center;gap:12px;margin-top:28px;padding:14px 16px}
+.donebar span{flex:1;font-size:13.5px}
+.donebar .btn[aria-pressed="true"]{background:color-mix(in srgb,var(--success) 14%,transparent);border-color:var(--success);color:var(--success)}
+@media (max-width:1180px){.docs{grid-template-columns:240px minmax(0,1fr)}.rail{grid-column:1/-1;grid-row:1;position:static}.toc-wrap{display:none}}
+@media (max-width:780px){.docs{grid-template-columns:1fr}}
+</style></head>
+<body>
+<div class="app">
+<aside class="sidebar" aria-label="Primary">
+  <div class="brand"><span class="mark">7C</span><span>Leadership Portal<small>7th Cavalry Regiment</small></span></div>
+  <nav class="nav">
+    <div class="nav-group"><div class="nav-label">Leadership</div>
+      <a href="#"><i class="ph ph-house"></i>Home</a>
+      <a href="#"><i class="ph ph-users-three"></i>Roster</a>
+      <a href="#"><i class="ph ph-clipboard-text"></i>Rollcall</a>
+      <a href="#"><i class="ph ph-file-text"></i>Reports</a>
+      <a href="#"><i class="ph ph-game-controller"></i>Game identities</a>
+    </div>
+    <div class="nav-group"><div class="nav-label">Help</div>
+      <a href="#" aria-current="page"><i class="ph ph-book-open-text"></i>Docs</a>
+    </div>
+    <div class="nav-group" data-min="2"><div class="nav-label">Settings</div>
+      <a href="#"><i class="ph ph-tree-structure"></i>Org structure</a>
+      <a href="#"><i class="ph ph-key"></i>Staff grants</a>
+      <a href="#"><i class="ph ph-file-code"></i>Templates</a>
+      <a href="#"><i class="ph ph-joystick"></i>Games</a>
+      <a href="#"><i class="ph ph-list-magnifying-glass"></i>Audit log</a>
+    </div>
+  </nav>
+  <div class="side-foot"><span class="avatar">TH</span><span>T. Hartwell<br><span style="color:var(--muted-foreground);font-size:12px" id="whoami">Platoon leader</span></span></div>
+</aside>
+<div class="inset">
+  <header class="topbar">
+    <div class="crumbs"><span class="hide-sm">7CAV</span><i class="ph ph-caret-right hide-sm"></i><b>Docs</b><i class="ph ph-caret-right"></i><b>Overview</b></div>
+    <div class="spacer"></div>
+    <button class="tbtn"><i class="ph ph-magnifying-glass"></i><span class="hide-sm">Find trooper</span><kbd class="hide-sm">/</kbd></button>
+    <button class="tbtn on" aria-label="Help for this page" title="Help for this page"><i class="ph-bold ph-question"></i><span class="hide-sm">Help</span></button>
+    <button class="tbtn"><i class="ph ph-user-switch"></i><span class="hide-sm">View as</span></button>
+    <button class="tbtn" id="theme" aria-label="Toggle theme"><i class="ph ph-moon"></i></button>
+  </header>
+  <main id="main"><div class="mockbar"><i class="ph ph-flask"></i><span>Mockup control, not part of the product. Preview what this viewer sees:</span>
+<span class="role-switch" role="group" aria-label="Preview role"><button data-role="trooper">Trooper</button><button data-role="leader">Leadership billet</button><button data-role="admin">Admin</button></span></div>
+<div class="docs rise">
+ <nav class="tree" aria-label="Documentation">
+  <label class="search"><i class="ph ph-magnifying-glass"></i><input type="search" placeholder="Search the guides" aria-label="Search the guides"><kbd>Ctrl K</kbd></label>
+  <details open><summary><i class="ph-bold ph-caret-right caret"></i>Start here</summary><ul>
+    <li><a href="#" data-go="home" aria-current="page">Docs home</a></li><li><a href="#">Your first week</a></li>
+    <li><a href="#">What others can do</a></li>
+  </ul></details>
+  <details><summary><i class="ph-bold ph-caret-right caret"></i>The basics</summary><ul>
+    <li><a href="#">Sign in with your 7cav.us account</a></li>
+    <li><a href="#">Find a trooper and open a milpac</a></li>
+    <li><a href="#">Read the roster</a></li>
+    <li><a href="#">Preview with View as</a></li>
+    <li><a href="#">Glossary</a></li>
+  </ul></details>
+  <div data-min="1">
+  <details open><summary><i class="ph-bold ph-caret-right caret"></i>Weekly rollcall</summary><ul>
+    <li><a href="#" data-go="article">Run this week's rollcall</a></li>
+    <li><a href="#">Add a guest to practice</a></li>
+    <li><a href="#">Set up fireteams</a></li>
+    <li><a href="#">Link or dismiss an unmatched player</a></li>
+  </ul></details>
+  <details><summary><i class="ph-bold ph-caret-right caret"></i>Weekly report</summary><ul>
+    <li><a href="#">Write and send your report</a></li>
+    <li><a href="#">Set the platoon training topic</a></li>
+  </ul></details>
+  <details><summary><i class="ph-bold ph-caret-right caret"></i>Your troopers</summary><ul>
+    <li><a href="#">Link a trooper's in-game identity</a></li>
+    <li><a href="#">Check training readiness</a></li>
+    <li><a href="#">Sync your unit's roster</a></li>
+  </ul></details>
+  </div>
+  <div data-min="2">
+  <details><summary><i class="ph-bold ph-caret-right caret"></i>Admin</summary><ul>
+    <li><a href="#">Org structure and acting leads</a></li>
+    <li><a href="#">Staff grants</a></li>
+    <li><a href="#">Rollcall templates</a></li>
+    <li><a href="#">Games</a></li>
+    <li><a href="#">Place an unmapped trooper</a></li>
+    <li><a href="#">Roster and leave syncs</a></li>
+    <li><a href="#">Audit log</a></li>
+  </ul></details>
+  </div>
+ </nav>
+
+ <div style="min-width:0">
+  <section id="home" class="hero-home" style="max-width:680px">
+   <span class="tag gold"><i class="ph ph-book-open-text"></i>Docs</span>
+   <h1>What do you need to do?</h1>
+   <p class="lede" style="margin:0">Guides for the Leadership Portal, shown for your role: <b data-role-label>Platoon leader</b>.</p>
+   <label class="search"><i class="ph ph-magnifying-glass"></i><input type="search" placeholder="Search, for example: weekly report, guest, link player" aria-label="Search the guides"><kbd>Ctrl K</kbd></label>
+   <div class="groupx" data-min="1"><h3>Every week</h3><div class="rowsx panel" style="padding:6px">
+     <a href="#" data-go="article"><i class="ic ph ph-clipboard-text"></i><span><span class="t">Run this week's rollcall</span><small>Mark attendance, confirm, post</small></span><i class="go ph ph-arrow-right"></i></a>
+     <a href="#"><i class="ic ph ph-file-text"></i><span><span class="t">Write and send your report</span><small>Compose, save a draft, send</small></span><i class="go ph ph-arrow-right"></i></a>
+     <a href="#"><i class="ic ph ph-graduation-cap"></i><span><span class="t">Set the platoon training topic</span><small>Platoon chain of command only</small></span><i class="go ph ph-arrow-right"></i></a></div></div>
+   <div class="groupx" data-min="1"><h3>When it comes up</h3><div class="compactx"><a href="#">Add a guest to practice</a><a href="#">Set up fireteams</a><a href="#">Link or dismiss an unmatched player</a><a href="#">Link a trooper's in-game identity</a><a href="#">Check training readiness</a><a href="#">Sync your unit's roster</a></div></div>
+   <div class="groupx"><h3>For everyone</h3><div class="compactx"><a href="#">Find a trooper and open a milpac</a><a href="#">Read the roster</a><a href="#">Preview with View as</a><a href="#">Glossary</a><a href="#">What others can do</a></div></div>
+   <div class="groupx" data-min="2"><h3>Admin</h3><div class="compactx"><a href="#">Org structure and acting leads</a><a href="#">Staff grants</a><a href="#">Rollcall templates</a><a href="#">Games</a><a href="#">Place an unmapped trooper</a><a href="#">Roster and leave syncs</a><a href="#">Audit log</a></div></div>
+  </section>
+  <div id="art" hidden><article>
+  <div class="came"><i class="ph ph-arrow-bend-up-left"></i>You opened this from Rollcall.<a href="#">Back to Rollcall</a></div>
+  <span class="tag gold"><i class="ph ph-clipboard-text"></i>Weekly rollcall</span>
+  <h1>Run this week's rollcall</h1>
+  <p class="lede">Record who attended practice, confirm the list, and mark it posted so your platoon leader sees it in the report.</p>
+  <div class="meta"><span class="tag"><i class="ph ph-users"></i>Every leadership billet</span><span class="tag"><i class="ph ph-clock"></i>About 5 minutes</span><span class="tag"><i class="ph ph-repeat"></i>Once a week</span></div>
+
+  <div class="note why"><i class="ph-fill ph-lightbulb"></i><div><b>Why this matters.</b> The weekly report is built from your confirmed rollcall. An unconfirmed rollcall leaves your section blank in the roll-up.</div></div>
+
+  <h2 id="s1"><span class="n">1</span>Open Rollcall and pick your section</h2>
+  <p>Choose <b>Rollcall</b> in the sidebar. You land on your own section. If you lead more than one, use the section picker at the top of the page.</p>
+  <div class="shot"><span class="pin" style="left:6%;top:30%">1</span><span class="cap">Screenshot: Rollcall page, section picker</span></div>
+
+  <h2 id="s2"><span class="n">2</span>Mark each trooper</h2>
+  <p>Set every trooper to present, excused, or absent. Troopers on approved leave are already marked for you.</p>
+  <div class="shot"><span class="pin" style="left:48%;top:44%">2</span><span class="cap">Screenshot: attendance list</span></div>
+
+  <h2 id="s3"><span class="n">3</span>Check unmatched players</h2>
+  <p>Players seen in the game who aren't linked to a trooper appear in their own list. Link each one to a trooper, or dismiss them.</p>
+  <div class="note info" style="margin-top:12px"><i class="ph-fill ph-info"></i><div>Not sure who someone is? See <a href="#" style="text-decoration:underline">Link or dismiss an unmatched player</a>.</div></div>
+
+  <h2 id="s4"><span class="n">4</span>Confirm, then mark it posted</h2>
+  <p>Select <b>Confirm</b> when the list is right. After you've posted it on the forum, select <b>Mark as posted</b>.</p>
+  <div class="shot"><span class="pin" style="left:78%;top:70%">3</span><span class="cap">Screenshot: confirm and posted controls</span></div>
+
+  <div class="panel donebar"><i class="ph ph-check-circle" style="font-size:22px;color:var(--success)"></i><span><b>Done with this guide?</b> Tick it off your Start here list.</span><button class="btn" id="tickRollcall" aria-pressed="false">Tick it off</button></div>
+  <div class="fb"><span>Did this answer your question?</span><button class="btn"><i class="ph ph-thumbs-up"></i>Yes</button><button class="btn"><i class="ph ph-thumbs-down"></i>No</button></div>
+  <div class="pager"><a href="#"><small>Previous</small>Read the roster</a><a href="#"><small>Next</small>Add a guest to practice</a></div>
+ </article></div>
+ </div>
+
+ <div class="rail">
+  <section class="panel todo" id="todo" aria-labelledby="todoh">
+   <div class="todo-head"><b id="todoh">Start here</b><span class="count" id="todoCount">0 of 6</span><button id="todoToggle" aria-label="Collapse checklist" aria-expanded="true"><i class="ph-bold ph-caret-down"></i></button></div>
+   <p class="sub">First week as <span data-role-label>Platoon leader</span>. Saved on this device.</p>
+   <div class="bar"><span id="todoFill"></span></div>
+   <p class="allset"><i class="ph-fill ph-check-circle"></i>You're all set.</p>
+   <ul id="todoList">
+    <li><input type="checkbox" aria-label="Done"><a href="#">Sign in with your 7cav.us account</a></li>
+    <li><input type="checkbox" aria-label="Done"><a href="#">Find your troopers on the roster</a></li>
+    <li data-min="1"><input type="checkbox" id="chkRollcall" aria-label="Done"><a href="#" data-go="article">Run your first rollcall</a></li>
+    <li data-min="1"><input type="checkbox" aria-label="Done"><a href="#">Send your weekly report</a></li>
+    <li data-min="1"><input type="checkbox" aria-label="Done"><a href="#">Link your troopers' in-game names</a></li>
+    <li><input type="checkbox" aria-label="Done"><a href="#">Learn what others can do</a></li>
+   </ul>
+  </section>
+  <aside class="toc toc-wrap" aria-label="On this page">
+  <b>On this page</b>
+  <a href="#s1" class="on">Open Rollcall</a><a href="#s2">Mark each trooper</a><a href="#s3">Unmatched players</a><a href="#s4">Confirm and post</a>
+  <a class="btn primary" href="#"><i class="ph-bold ph-arrow-square-out"></i>Open Rollcall</a>
+ </aside>
+ </div>
+</div></main>
+</div></div>
+<script>
+const LEVELS={trooper:0,leader:1,admin:2};
+const WHO={trooper:'Trooper',leader:'Platoon leader',admin:'Admin'};
+function setRole(r){
+  const lvl=LEVELS[r];
+  document.querySelectorAll('[data-min]').forEach(el=>el.hidden=Number(el.dataset.min)>lvl);
+  document.querySelectorAll('.role-switch button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.role===r)));
+  const w=document.getElementById('whoami'); if(w) w.textContent=WHO[r];
+  document.querySelectorAll('[data-role-label]').forEach(el=>el.textContent=WHO[r]);
+  document.dispatchEvent(new CustomEvent('rolechange',{detail:r}));
+}
+document.querySelectorAll('.role-switch button').forEach(b=>b.addEventListener('click',()=>setRole(b.dataset.role)));
+document.getElementById('theme').addEventListener('click',()=>{const d=document.documentElement.classList.toggle('dark');try{localStorage.setItem('mock-theme',d?'dark':'light')}catch(e){}});
+setRole('leader');
+
+const key='mock-start-here-v4';let saved=[];try{saved=JSON.parse(localStorage.getItem(key)||'[]')}catch(e){}
+const boxes=[...document.querySelectorAll('#todoList input')];
+boxes.forEach((b,i)=>{b.checked=saved.includes(i);b.addEventListener('change',()=>{save();update()})});
+function save(){try{localStorage.setItem(key,JSON.stringify(boxes.flatMap((x,j)=>x.checked?[j]:[])))}catch(e){}}
+function update(){const vis=boxes.filter(b=>!b.closest('li').hidden);const done=vis.filter(b=>b.checked).length;
+ document.getElementById('todoFill').style.width=(vis.length?done/vis.length*100:0)+'%';
+ document.getElementById('todoCount').textContent=done+' of '+vis.length;
+ document.getElementById('todo').classList.toggle('complete',vis.length>0&&done===vis.length);
+ const t=document.getElementById('tickRollcall');t.setAttribute('aria-pressed',String(document.getElementById('chkRollcall').checked));
+ t.innerHTML=document.getElementById('chkRollcall').checked?'<i class="ph-bold ph-check"></i>Ticked off':'Tick it off'}
+document.addEventListener('rolechange',update);
+document.getElementById('todoToggle').addEventListener('click',e=>{const s=document.getElementById('todo').classList.toggle('shut');e.currentTarget.setAttribute('aria-expanded',String(!s))});
+document.getElementById('tickRollcall').addEventListener('click',()=>{const c=document.getElementById('chkRollcall');c.checked=!c.checked;save();update()});
+function view(v){const art=v==='article';document.getElementById('home').hidden=art;document.getElementById('art').hidden=!art;
+ document.querySelectorAll('.toc-wrap').forEach(t=>t.hidden=!art);
+ document.querySelectorAll('.tree a[aria-current]').forEach(a=>a.removeAttribute('aria-current'));
+ const cur=document.querySelector('.tree a[data-go="'+v+'"]');if(cur)cur.setAttribute('aria-current','page');
+ document.querySelector('.crumbs').lastElementChild.textContent=art?"Run this week's rollcall":'Overview';
+ scrollTo(0,0)}
+document.querySelectorAll('[data-go]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();view(a.dataset.go)}));
+view('home');update();
+</script></body></html>
