@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Authorization\ActAs;
 use App\Authorization\ServingSession;
+use App\Commands\ActAs\StopActingAs;
 use App\Commands\Auth\Admission;
 use App\Commands\Auth\AdmitServingMember;
 use App\Commands\Auth\BeginForumLogin;
@@ -268,8 +270,14 @@ class ForumAuthController extends Controller
      *
      * A view-as preview still on is recorded as stopped first (AD-16), while the user is still known.
      */
-    public function logout(Request $request, ExitViewAs $exitViewAs): RedirectResponse
+    public function logout(Request $request, ExitViewAs $exitViewAs, StopActingAs $stopActingAs): RedirectResponse
     {
+        // Acting as someone (#379) ends with the session, recorded as stopped like any other stop.
+        $admin = $request->attributes->get(ActAs::ADMIN_ATTRIBUTE);
+        if ($admin !== null) {
+            $stopActingAs->handle($admin);
+        }
+
         if ($request->user() !== null) {
             $exitViewAs->handle($request->user());
         }

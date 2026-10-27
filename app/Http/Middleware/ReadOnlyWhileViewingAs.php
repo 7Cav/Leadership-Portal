@@ -20,7 +20,7 @@ class ReadOnlyWhileViewingAs
     {
         $viewer = $request->user();
 
-        if ($viewer === null || $request->isMethodSafe() || $request->routeIs('view-as.store', 'view-as.destroy', 'logout')) {
+        if ($viewer === null || $request->isMethodSafe() || $request->routeIs('view-as.store', 'view-as.destroy', 'act-as.store', 'act-as.destroy', 'logout')) {
             return $next($request);
         }
 

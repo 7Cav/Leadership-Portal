@@ -16,3 +16,10 @@ runs.
 rows (e.g. a week's attendance marks, Story 3.3): the mutation returns an
 `App\Repositories\AuditedBatch`, and the batch logs once against its target with a digest
 over every row it wrote.
+
+## Acting for someone (#379)
+
+While an Admin acts as another person, each request runs as that person, so Commands pass the person's id as actor.
+`ActingFor` (set per request by the `ActAsUser` middleware) turns that into the Admin as `actor_id` and the person as
+`on_behalf_of_id`. Anything else written during the request (the Admin's own `act_as.started` and `act_as.stopped`) is
+recorded as is.

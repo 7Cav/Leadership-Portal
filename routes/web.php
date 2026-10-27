@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ActAsController;
 use App\Http\Controllers\Auth\ForumAuthController;
 use App\Http\Controllers\GameIdentityController;
 use App\Http\Controllers\HomeController;
@@ -137,6 +138,12 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/view-as/options', [ViewAsController::class, 'options'])->name('view-as.options');
     Route::post('/view-as', [ViewAsController::class, 'store'])->middleware('throttle:audited-writes')->name('view-as.store');
     Route::delete('/view-as', [ViewAsController::class, 'destroy'])->middleware('throttle:audited-writes')->name('view-as.destroy');
+
+    // Act as (#379): an Admin acts as another person with that person's permissions, writes included, under a red
+    // bar. Starting and stopping are audited, so they share the audited-writes throttle. Only the real Admin behind
+    // the request may start or stop it; the controller checks.
+    Route::post('/act-as', [ActAsController::class, 'store'])->middleware('throttle:audited-writes')->name('act-as.store');
+    Route::delete('/act-as', [ActAsController::class, 'destroy'])->middleware('throttle:audited-writes')->name('act-as.destroy');
 
     // Report roll-up workspace (Story 5.8): the chain of the viewer's scope for one week
     // (`?week=YYYY-MM-DD`), scope-gated in the controller (AD-8). Read-only; each unit's own

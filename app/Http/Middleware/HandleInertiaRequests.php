@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Authorization\ActAs;
 use App\Authorization\ScopeResolver;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -17,7 +18,10 @@ class HandleInertiaRequests extends Middleware
      */
     protected $rootView = 'app';
 
-    public function __construct(private readonly ScopeResolver $scope) {}
+    public function __construct(
+        private readonly ScopeResolver $scope,
+        private readonly ActAs $actAs,
+    ) {}
 
     /**
      * Determines the current asset version.
@@ -49,7 +53,8 @@ class HandleInertiaRequests extends Middleware
                 // carrying the source and fetch time so the UI can never show them as if the
                 // portal asserted them (AD-20 rule 1, NFR7). Null when enrichment did not
                 // run or the trooper holds no milpac — the page degrades to the bare username.
-                'profile' => $request->user() ? $request->session()->get('cav_profile') : null,
+                // While an Admin acts as someone (#379) the session's profile is the Admin's own, so none is shown.
+                'profile' => $request->user() && ! $this->acting($request) ? $request->session()->get('cav_profile') : null,
                 // Why it is absent, for Story 1.7's degraded messaging. The literal keys here
                 // duplicate ForumAuthController's constants because Deptrac lets Middleware reach
                 // only Authorization, never a Controller, so a feature test asserts each prop against a real login —
@@ -61,6 +66,11 @@ class HandleInertiaRequests extends Middleware
             // The active view-as preview (Story 1.13), re-validated against real authority on this
             // request (AD-9) — the shell's banner reads it. A stored target that no longer holds
             // is dropped by the resolver, so the banner and the scope never disagree.
+            // An Admin acting as someone (#379): who, for the red bar, and who the Admin really is.
+            'actingAs' => fn () => $this->acting($request) ? [
+                'label' => $this->actAs->label($request->user()),
+                'admin' => $request->attributes->get(ActAs::ADMIN_ATTRIBUTE)->username,
+            ] : null,
             'viewAs' => fn () => $request->user() ? $this->scope->activeViewAs($request->user())?->toArray() : null,
             // The 7cav.us forum's address, for links that open a forum page (the makeup PM opens the forum's own
             // "start conversation" form). The portal never writes to the forum; these are plain links.
@@ -73,5 +83,10 @@ class HandleInertiaRequests extends Middleware
                 'demoTools' => (bool) config('portal.demo_tools'),
             ],
         ];
+    }
+
+    private function acting(Request $request): bool
+    {
+        return $request->attributes->get(ActAs::ADMIN_ATTRIBUTE) !== null;
     }
 }

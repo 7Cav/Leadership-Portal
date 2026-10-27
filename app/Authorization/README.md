@@ -56,3 +56,9 @@ it on every authenticated request. A non-Admin with no milpac link is signed out
 record ends the session, except one admitted on Cav's live roster: that admission is noted in the
 session, bound to the user, and stands until a clean roster sync that started after it, so a trooper
 who re-enlisted since the last sync is not bounced in a loop.
+
+**Act as** (#379) is not a preview: `ActAs` keeps an Admin's choice of person in the session, and the `ActAsUser`
+middleware runs each request as that person, so every gate here answers for them, writes included. Only a real Admin
+may act, never as themselves or another Admin, and only as someone who could sign in right now; the choice is checked
+on every request and dropped when it no longer holds. Entries written meanwhile name the Admin acting on the person's
+behalf (`Support/Audit`).

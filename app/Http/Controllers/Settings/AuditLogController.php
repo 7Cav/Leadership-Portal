@@ -83,6 +83,8 @@ class AuditLogController extends Controller
         $entries = $entries->through(fn (AuditLogEntry $entry) => [
             'id' => $entry->id,
             'actor' => $entry->actor->username,
+            // The person an Admin was acting as when they did this (#379), shown as "Admin for person".
+            'onBehalfOf' => $entry->onBehalfOf?->username,
             'action' => $entry->action,
             'target_type' => $entry->target_type,
             'target_id' => $entry->target_id,

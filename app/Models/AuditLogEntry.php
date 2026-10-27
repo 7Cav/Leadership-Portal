@@ -39,4 +39,10 @@ class AuditLogEntry extends Model
     {
         return $this->belongsTo(User::class, 'actor_id');
     }
+
+    /** The user an Admin was acting as when they did this (#379), or null for an action done as themselves. */
+    public function onBehalfOf(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'on_behalf_of_id');
+    }
 }
