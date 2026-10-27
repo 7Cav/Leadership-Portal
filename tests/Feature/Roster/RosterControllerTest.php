@@ -9,6 +9,7 @@ use App\Models\SyncRunStatus;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
+use App\Models\UnitActingLead;
 use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
 use App\Models\User;
@@ -443,4 +444,33 @@ describe('trooper detail (Sheet)', function () {
     it('404s a trooper id too long for an integer rather than erroring', function () {
         $this->actingAs($this->leader)->getJson('/roster/troopers/99999999999999999999')->assertNotFound();
     });
+});
+
+// Acting leads (2026-10-25): the roster opens on the unit a leader leads, by billet or as acting lead.
+
+it('opens an acting lead with no command billet on the unit they act as lead of, not the top of a wider scope', function () {
+    $lead = rosterTrooper($this->section3, ['cav_position_id' => 999]);
+    $user = User::factory()->serving()->create(['cav_id' => $lead->cav_id]);
+    // A staff grant on the battalion makes the top of their scope the battalion.
+    PortalRoleGrant::factory()->create(['user_id' => $user->id, 'unit_id' => $this->battalion->id]);
+    UnitActingLead::query()->create(['unit_id' => $this->platoon2->id, 'trooper_id' => $lead->id, 'assigned_by' => null]);
+
+    $this->actingAs($user)->get('/roster')->assertInertia(fn ($page) => $page->where('unit.id', $this->platoon2->id));
+});
+
+it('opens an acting lead of several units on the first of them in designation order', function () {
+    $lead = rosterTrooper($this->section3, ['cav_position_id' => 999]);
+    $user = User::factory()->serving()->create(['cav_id' => $lead->cav_id]);
+    PortalRoleGrant::factory()->create(['user_id' => $user->id, 'unit_id' => $this->battalion->id]);
+    // Assigned out of order: the 2nd platoon first, then the 1st.
+    UnitActingLead::query()->create(['unit_id' => $this->platoon2->id, 'trooper_id' => $lead->id, 'assigned_by' => null]);
+    UnitActingLead::query()->create(['unit_id' => $this->platoon1->id, 'trooper_id' => $lead->id, 'assigned_by' => null]);
+
+    $this->actingAs($user)->get('/roster')->assertInertia(fn ($page) => $page->where('unit.id', $this->platoon1->id));
+});
+
+it('keeps a leader by billet on their billet\'s unit when they are also acting lead elsewhere', function () {
+    UnitActingLead::query()->create(['unit_id' => $this->platoon2->id, 'trooper_id' => $this->leaderTrooper->id, 'assigned_by' => null]);
+
+    $this->actingAs($this->leader)->get('/roster')->assertInertia(fn ($page) => $page->where('unit.id', $this->section1->id));
 });
