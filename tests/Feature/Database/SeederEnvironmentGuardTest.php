@@ -9,6 +9,7 @@ use Database\Seeders\GuestPracticeSeeder;
 use Database\Seeders\ReportRollupSeeder;
 use Database\Seeders\ReportScreenSeeder;
 use Database\Seeders\RollcallHeldMarksSeeder;
+use Database\Seeders\TransferHistorySeeder;
 
 // The demo seeders make sign-in-able users and staff grants over real units. Seeding production
 // by mistake must fail loudly and write nothing, while local, testing and e2e (the Playwright
@@ -26,7 +27,7 @@ it('refuses to seed outside local, testing and e2e, writing nothing', function (
     expect(User::count())->toBe(0)
         ->and(Unit::count())->toBe(0)
         ->and(PortalRoleGrant::count())->toBe(0);
-})->with([ReportRollupSeeder::class, ReportScreenSeeder::class, CaptureReviewSeeder::class, RollcallHeldMarksSeeder::class, GuestPracticeSeeder::class, DatabaseSeeder::class])->with(['production', 'staging']);
+})->with([ReportRollupSeeder::class, ReportScreenSeeder::class, CaptureReviewSeeder::class, RollcallHeldMarksSeeder::class, GuestPracticeSeeder::class, TransferHistorySeeder::class, DatabaseSeeder::class])->with(['production', 'staging']);
 
 it('seeds the demo data in the environments that exist to be thrown away', function (string $seeder, string $username, string $environment) {
     app()['env'] = $environment;
@@ -40,6 +41,7 @@ it('seeds the demo data in the environments that exist to be thrown away', funct
     'capture review' => [CaptureReviewSeeder::class, 'Hartmann.L'],
     'rollcall held marks' => [RollcallHeldMarksSeeder::class, 'Quinn.A'],
     'practice guests' => [GuestPracticeSeeder::class, 'Osei.K'],
+    'transfer history' => [TransferHistorySeeder::class, 'Okafor.B'],
 ])->with(['local', 'testing', 'e2e']);
 
 it('runs the default db:seed target', function () {

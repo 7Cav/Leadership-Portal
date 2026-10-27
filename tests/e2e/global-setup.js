@@ -29,4 +29,6 @@ export default function globalSetup() {
     execFileSync('php', ['artisan', 'db:seed', '--force', '--class=Database\\Seeders\\GuestPracticeSeeder'], { env, stdio: 'inherit' });
     // Staff, ELOA and New Recruit groups on the org page (2026-10-24).
     execFileSync('php', ['artisan', 'db:seed', '--force', '--class=Database\\Seeders\\OrgPlacementSeeder'], { env, stdio: 'inherit' });
+    // A trooper moved between sections, for the attendance-history spec (2026-10-27).
+    execFileSync('php', ['artisan', 'db:seed', '--force', '--class=Database\\Seeders\\TransferHistorySeeder'], { env, stdio: 'inherit' });
 }
