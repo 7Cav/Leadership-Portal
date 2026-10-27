@@ -58,6 +58,9 @@
     /* The active nav icon: gold reads too pale on the light sidebar, so it takes the ring's
        deeper gold here and the full primary in dark (mockup `.nav-item[aria-current]`). */
     --nav-active-icon: hsl(40 92% 38%);
+    /* Gold as text on a pale gold tint (the docs' section tag and back link): deeper than the nav icon so small text
+       keeps AA contrast (#410). */
+    --gold-ink: hsl(40 92% 30%);
 
     --chart-1: hsl(43 87% 50%);
     --chart-2: hsl(75 7% 42%);
@@ -102,6 +105,7 @@
     --sidebar-border: hsl(75 6% 14%);
     --sidebar-ring: hsl(43 90% 58%);
     --nav-active-icon: hsl(43 90% 58%);
+    --gold-ink: hsl(43 90% 62%);
 
     --chart-1: hsl(43 90% 58%);
     --chart-2: hsl(75 6% 62%);
@@ -138,6 +142,7 @@
     --color-success: var(--success);
     --color-warning: var(--warning);
     --color-info: var(--info);
+    --color-gold-ink: var(--gold-ink);
 
     /* The status palette by meaning (AC: good / warn / bad / info / neutral), for the
        attendance and report screens. Aliases of the tokens above, so one value per state. */
@@ -235,5 +240,112 @@
     *::after {
         transition-duration: 0s !important;
         animation: none !important;
+    }
+}
+
+/*
+ | A guide's body (#410): server-rendered markdown, so it is styled here rather than with utilities on each element.
+ | Each level-2 heading is a numbered step (the agreed design's gold circle), counted with a CSS counter so the
+ | markdown never carries the numbers. The two call-outs come from `> [!why]` and `> [!good-to-know]` (app/Docs).
+ */
+@layer components {
+    .docs-prose {
+        counter-reset: docs-step;
+        font-size: 14px;
+        line-height: 1.6;
+    }
+    .docs-prose > * + * {
+        margin-top: 0.75rem;
+    }
+    .docs-prose p,
+    .docs-prose li {
+        max-width: 62ch;
+    }
+    .docs-prose h2 {
+        counter-increment: docs-step;
+        display: flex;
+        align-items: baseline;
+        gap: 0.75rem;
+        margin-top: 2.25rem;
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: -0.015em;
+        scroll-margin-top: calc(var(--shell-top, 3rem) + 1.5rem);
+    }
+    .docs-prose h2::before {
+        content: counter(docs-step);
+        flex: none;
+        display: grid;
+        place-items: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 9999px;
+        background: var(--primary);
+        color: var(--primary-foreground);
+        font-size: 13px;
+        font-weight: 700;
+        transform: translateY(-1px);
+    }
+    .docs-prose h3 {
+        margin-top: 1.5rem;
+        font-size: 15px;
+        font-weight: 600;
+        scroll-margin-top: calc(var(--shell-top, 3rem) + 1.5rem);
+    }
+    .docs-prose ol,
+    .docs-prose ul {
+        padding-left: 1.25rem;
+    }
+    .docs-prose ol {
+        list-style: decimal;
+    }
+    .docs-prose ul {
+        list-style: disc;
+    }
+    .docs-prose li + li {
+        margin-top: 0.25rem;
+    }
+    .docs-prose li::marker {
+        color: var(--muted-foreground);
+    }
+    .docs-prose a {
+        text-decoration: underline;
+        text-underline-offset: 2px;
+    }
+    .docs-prose strong {
+        font-weight: 600;
+    }
+    .docs-prose code {
+        border-radius: var(--radius-sm);
+        background: var(--muted);
+        padding: 0 0.3rem;
+        font-family: var(--font-mono);
+        font-size: 12.5px;
+    }
+    .docs-prose img {
+        margin: 0.875rem 0 0.375rem;
+        width: 100%;
+        max-width: 680px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+    }
+    .docs-prose blockquote {
+        display: flex;
+        gap: 0.625rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        background: var(--card);
+        padding: 0.75rem 0.875rem;
+        font-size: 13.5px;
+    }
+    .docs-prose blockquote > * + * {
+        margin-top: 0.5rem;
+    }
+    .docs-prose blockquote.callout {
+        flex-direction: column;
+        border-left: 3px solid var(--info);
+    }
+    .docs-prose blockquote.callout-why {
+        border-left-color: var(--primary);
     }
 }

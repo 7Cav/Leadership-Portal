@@ -21,4 +21,7 @@ export const E2E_ENV = {
     // visibly (Story 7.9). The key is a placeholder, never a real credential.
     CRCON_BASE_URL: 'http://127.0.0.1:9',
     CRCON_API_KEY: 'e2e-placeholder',
+    // The docs (#410) are on, and read from a fixed set of test guides so editing a real guide never breaks a spec.
+    DOCS_ENABLED: 'true',
+    DOCS_PATH: fileURLToPath(new URL('../Fixtures/docs', import.meta.url)),
 };
