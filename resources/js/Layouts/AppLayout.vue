@@ -22,6 +22,7 @@ import 'vue-sonner/style.css';
 import AppSidebar from './partials/AppSidebar.vue';
 import KeyboardShortcuts from './partials/KeyboardShortcuts.vue';
 import TrooperSearch from './partials/TrooperSearch.vue';
+import ActingAsBanner from './partials/ActingAsBanner.vue';
 import ViewAsBanner from './partials/ViewAsBanner.vue';
 import ViewAsPicker from './partials/ViewAsPicker.vue';
 
@@ -32,6 +33,7 @@ const page = usePage();
 const { theme, toggleTheme, syncFromDocument } = useTheme();
 const { active: viewingAs, openPicker } = useViewAs();
 const { openSearch } = useTrooperSearch();
+const actingAs = computed(() => page.props.actingAs != null);
 
 // The page's own breadcrumb trail, from the nav it lives under. Scope crumbs (battalion,
 // company) join once unit scopes exist; for now the regiment is the only scope.
@@ -67,9 +69,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
 
         <!-- `--shell-top` is the sticky bar's height (header h-12, plus the h-9 view-as banner when it
              shows). A page's own sticky parts offset from it so they stop below the bar, not under it. -->
-        <SidebarInset class="min-w-0" :style="{ '--shell-top': viewingAs ? '5.25rem' : '3rem' }">
+        <SidebarInset class="min-w-0" :style="{ '--shell-top': `${3 + (viewingAs ? 2.25 : 0) + (actingAs ? 2.25 : 0)}rem` }">
             <!-- The banner shares the sticky bar with the header, so a view-as preview stays in sight. -->
             <div class="sticky top-0 z-30">
+                <ActingAsBanner />
                 <ViewAsBanner />
                 <header class="flex h-12 items-center gap-2 border-b border-border bg-background/90 px-3 backdrop-blur sm:px-4">
                     <SidebarTrigger aria-label="Toggle sidebar" />

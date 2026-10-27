@@ -144,7 +144,12 @@ function goTo(url) {
                 </TableHeader>
                 <TableBody>
                     <TableRow v-for="entry in entries.data" :key="entry.id" :data-testid="`entry-row-${entry.id}`" class="align-top">
-                        <TableCell class="px-4 font-medium">{{ entry.actor }}</TableCell>
+                        <TableCell class="px-4 font-medium">
+                            {{ entry.actor }}
+                            <span v-if="entry.onBehalfOf" class="block text-xs font-normal text-destructive" data-testid="on-behalf-of">
+                                acting as {{ entry.onBehalfOf }}
+                            </span>
+                        </TableCell>
                         <TableCell class="font-mono text-xs">{{ entry.action }}</TableCell>
                         <TableCell class="text-xs">
                             <Link
