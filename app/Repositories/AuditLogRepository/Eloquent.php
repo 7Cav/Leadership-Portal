@@ -5,6 +5,7 @@ namespace App\Repositories\AuditLogRepository;
 use App\Models\AuditLogEntry;
 use App\Models\FireteamAssignment;
 use App\Models\FireteamSetting;
+use App\Models\Game;
 use App\Models\GamePlayerDismissal;
 use App\Models\PlatoonTrainingTopic;
 use App\Models\PortalRoleGrant;
@@ -52,6 +53,7 @@ class Eloquent implements AuditLogRepository
         'FireteamAssignment' => [FireteamAssignment::class, ['section']],
         'FireteamSetting' => [FireteamSetting::class, ['unit']],
         'PlatoonTrainingTopic' => [PlatoonTrainingTopic::class, ['unit']],
+        'Game' => [Game::class, []],
         // A dismissal belongs to no unit; it is linked through the latest practice that captured the player (see
         // {@see withLatestCaptures()}).
         'GamePlayerDismissal' => [GamePlayerDismissal::class, []],

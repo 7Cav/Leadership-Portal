@@ -20,6 +20,8 @@ it('answers a 20-digit id with 404, not a 500', function (string $method, string
     'delete a unit' => ['DELETE', '/settings/org-structure/99999999999999999999'],
     'trooper sheet' => ['GET', '/roster/troopers/99999999999999999999'],
     'revoke a grant' => ['DELETE', '/settings/staff-grants/99999999999999999999'],
+    'edit a game' => ['PATCH', '/settings/games/99999999999999999999'],
+    'retire a game' => ['POST', '/settings/games/99999999999999999999/retire'],
     'sync a unit roster' => ['POST', '/units/99999999999999999999/roster-sync'],
     // Routes that once added their own `whereNumber()`, which replaced the global cap with `[0-9]+`.
     'weekly report' => ['GET', '/reports/99999999999999999999/2026-10-03'],
