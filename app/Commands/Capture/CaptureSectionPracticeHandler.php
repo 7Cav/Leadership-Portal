@@ -9,6 +9,7 @@ use App\Models\Game;
 use App\Models\SectionPractice;
 use App\Models\SyncRun;
 use App\Repositories\GameRepository;
+use App\Repositories\GameServerRepository;
 use App\Repositories\PracticeCapturePlayerRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\SyncRunRepository;
@@ -17,13 +18,16 @@ use App\Repositories\TrooperRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Audit\AuditEnvelope;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Throwable;
 
 /**
- * The capture run (7.5, AD-19): reads the practice window's presence from the game's first
- * source that answers, stamps `server_ref`/`captured_at`/`capture_source` on the practice, and
- * resolves each observed player through `trooper_game_identities`.
+ * The capture run (7.5, AD-19): reads the practice window's presence from every training server of
+ * the game ({@see CaptureSources}, #389), each through its first source that answers, merges them (a
+ * player seen on any server counts), stamps `server_ref` (every server that answered),
+ * `captured_at` and `capture_source` on the practice, and resolves each observed player through
+ * `trooper_game_identities`.
  *
  * - A player with no link is **unmatched**: recorded, surfaced, never assigned to anyone.
  * - A player linked to a trooper whose primary section is not this practice's is surfaced as
@@ -32,8 +36,9 @@ use Throwable;
  *   records no `cross_section_sightings` row: until the portal has practice time slots, the capture
  *   window is the whole Cav week so far and the game servers are shared by every section, so being
  *   seen does not mean they were at this practice (decided 2026-10-23). Makeups come from a leader.
- * - If every source raises a typed failure the practice is **left un-captured** and the run is
- *   recorded failed as telemetry-unavailable — never interpreted as zero attendance. The run carries
+ * - If any server's every source raises a typed failure the practice is **left un-captured** and the
+ *   run is recorded failed as telemetry-unavailable — never interpreted as zero attendance, and never
+ *   written as the smaller list the other servers gave. The run carries
  *   the practice id, so the rollcall screen can show when it was last tried (7.9). A source whose env
  *   keys are unset is skipped; when none is set nothing is attempted and no run is recorded.
  *
@@ -70,6 +75,7 @@ class CaptureSectionPracticeHandler
         private readonly WeeklyReportRepository $reports,
         private readonly AuditEnvelope $audit,
         private readonly GameRepository $games,
+        private readonly GameServerRepository $servers,
     ) {}
 
     /**
@@ -90,13 +96,13 @@ class CaptureSectionPracticeHandler
             throw new InvalidArgumentException("The capture window is not within the week of section practice {$practice->id}.");
         }
 
-        // Sources whose env keys are unset are skipped, not failed (AD-23): with none set there is
-        // nothing to attempt, so no run is opened and the practice stays fully manual (7.9). A source
-        // that is set but down is the other case, and is recorded below.
-        $all = $this->sources->for($game);
-        $configured = array_values(array_filter($all, fn (CaptureSource $source) => $source->configured));
+        // Sources whose env keys are unset are skipped, not failed (AD-23): with none set on any server there is
+        // nothing to attempt, so no run is opened and the practice stays fully manual (7.9). A source that is set
+        // but down is the other case, and is recorded below; so is a training server none of whose sources is set
+        // while another's is, since reading only the others would under-report (#389).
+        $servers = $this->sources->for($game);
 
-        if ($configured === []) {
+        if (! $this->sources->isConfigured($game)) {
             return CaptureResult::notConfigured();
         }
 
@@ -114,57 +120,64 @@ class CaptureSectionPracticeHandler
                 return $this->weekLocked($run, $practice);
             }
 
+            // Every server is read, even after one has failed, so each one's last read is current on the Servers page.
+            $answers = [];
             $reasons = [];
 
-            foreach ($configured as $source) {
-                try {
-                    $presence = ($source->fetch)($command->windowStart, $command->windowEnd);
-                } catch (CaptureSourceUnavailable $e) {
-                    $reasons[] = $e->getMessage();
-                    // A source that is down while a fallback answers must not go unnoticed (7.9).
-                    Log::warning('Capture source unavailable.', ['sectionPracticeId' => $practice->id, 'source' => $source->name, 'reason' => $e->getMessage()]);
+            foreach ($servers as $server) {
+                $answer = $this->read($server, $command, $practice->id, $run->id, $reasons);
 
-                    continue;
+                if ($answer !== null) {
+                    $answers[] = $answer;
                 }
-
-                $result = $this->resolve($presence, $source->name, $game, $practice->section_id);
-                $this->persistUnresolved($practice->id, $game, $result);
-
-                // Pre-mark before stamping, so a captured practice implies its marks were written;
-                // a failure here retries the whole run, and every write is idempotent.
-                $marks = $this->attendance->preMark($practice, array_column($result->matched, 'trooperId'), $command->triggeredBy);
-
-                if ($marks->weekLocked) {
-                    return $this->weekLocked($run, $practice);
-                }
-
-                $stamp = fn () => $this->practices->stampCapture($practice, $source->serverRef, $presence->fetchedAt, $source->name);
-                is_int($command->triggeredBy)
-                    ? $this->audit->record($command->triggeredBy, 'practice.captured', null, false, $stamp)
-                    : $stamp();
-
-                $this->syncRuns->complete(
-                    $run,
-                    inserted: $result->matchedCount(),
-                    updated: 0,
-                    inactivated: 0,
-                    errored: $result->unmatchedCount(),
-                    error: sprintf(
-                        'practice %d, source %s: seen %d, matched %d (%d in another section), unmatched %d; %s',
-                        $practice->id, $source->name, $result->seen(), $result->matchedCount(), count($result->otherSection), $result->unmatchedCount(),
-                        $marks->confirmed
-                            ? 'practice is confirmed, no marks changed'
-                            : sprintf('pre-marked %d, left %d untouched (manual/loa)', $marks->marked, $marks->keptManual),
-                    ),
-                );
-
-                return $result;
             }
 
-            $reasons = $reasons === [] ? ['no source is configured for this game'] : $reasons;
-            $this->syncRuns->fail($run, "telemetry unavailable (practice {$practice->id}): ".implode('; ', $reasons));
+            // One server that could not be read leaves the practice un-captured: the others' list would be smaller
+            // than who was there, and a smaller list reads as absence (#389).
+            if ($reasons !== [] || $answers === []) {
+                $reasons = $reasons === [] ? ['no source is configured for this game'] : $reasons;
+                $this->syncRuns->fail($run, "telemetry unavailable (practice {$practice->id}): ".implode('; ', $reasons));
 
-            return CaptureResult::unavailable($reasons);
+                return CaptureResult::unavailable($reasons);
+            }
+
+            $presence = $this->merge(array_column($answers, 'presence'));
+            $sourceName = implode(',', array_values(array_unique(array_map(fn (array $answer) => $answer['source']->name, $answers))));
+            // Every server that answered (#389), cut to the column's width; a practice has a handful at most.
+            $serverRef = Str::limit(implode(', ', array_map(fn (array $answer) => $answer['source']->serverRef, $answers)), 250);
+
+            $result = $this->resolve($presence, $sourceName, $game, $practice->section_id);
+            $this->persistUnresolved($practice->id, $game, $result);
+
+            // Pre-mark before stamping, so a captured practice implies its marks were written;
+            // a failure here retries the whole run, and every write is idempotent.
+            $marks = $this->attendance->preMark($practice, array_column($result->matched, 'trooperId'), $command->triggeredBy);
+
+            if ($marks->weekLocked) {
+                return $this->weekLocked($run, $practice);
+            }
+
+            $stamp = fn () => $this->practices->stampCapture($practice, $serverRef, $presence->fetchedAt, $sourceName);
+            is_int($command->triggeredBy)
+                ? $this->audit->record($command->triggeredBy, 'practice.captured', null, false, $stamp)
+                : $stamp();
+
+            $this->syncRuns->complete(
+                $run,
+                inserted: $result->matchedCount(),
+                updated: 0,
+                inactivated: 0,
+                errored: $result->unmatchedCount(),
+                error: sprintf(
+                    'practice %d, source %s: seen %d, matched %d (%d in another section), unmatched %d; %s',
+                    $practice->id, $sourceName, $result->seen(), $result->matchedCount(), count($result->otherSection), $result->unmatchedCount(),
+                    $marks->confirmed
+                        ? 'practice is confirmed, no marks changed'
+                        : sprintf('pre-marked %d, left %d untouched (manual/loa)', $marks->marked, $marks->keptManual),
+                ),
+            );
+
+            return $result;
         } catch (Throwable $e) {
             // Not a typed seam failure (e.g. a DB error): close the run as failed, then let the
             // job retry — a retry re-stamps and re-resolves, so a stamp that landed first is harmless.
@@ -175,6 +188,86 @@ class CaptureSectionPracticeHandler
 
             throw $e;
         }
+    }
+
+    /**
+     * Read one server: its sources in order, the first that answers being its answer, every attempt on a stored
+     * server recorded for the Servers page (#389). A source that is down while the fallback answers is logged, so it
+     * does not go unnoticed (7.9). When none answers, its reasons are added to `$reasons` and null is returned. A
+     * stored server none of whose sources has credentials cannot be read either; the legacy env server is never in
+     * that state here, since a game with no credentials at all is not captured.
+     *
+     * @param  list<string>  $reasons
+     * @return array{source: CaptureSource, presence: CrconPresence}|null
+     */
+    private function read(CaptureServer $server, CaptureSectionPractice $command, int $practiceId, int $runId, array &$reasons): ?array
+    {
+        // The legacy server's reasons stay as they always read ("crcon: unreachable"); a stored one's name the server.
+        $prefix = $server->gameServerId === null ? '' : "{$server->label}: ";
+        $sources = $server->configuredSources();
+
+        if ($sources === []) {
+            $reasons[] = "{$prefix}credentials not set";
+
+            if ($server->gameServerId !== null) {
+                $this->servers->recordRead($server->gameServerId, $runId, false, 'credentials not set');
+            }
+
+            return null;
+        }
+
+        $failures = [];
+
+        foreach ($sources as $source) {
+            try {
+                $presence = ($source->fetch)($command->windowStart, $command->windowEnd);
+            } catch (CaptureSourceUnavailable $e) {
+                $failures[] = $prefix.$e->getMessage();
+                Log::warning('Capture source unavailable.', ['sectionPracticeId' => $practiceId, 'source' => $source->name, 'server' => $server->label, 'reason' => $e->getMessage()]);
+
+                if ($source->gameServerId !== null) {
+                    $this->servers->recordRead($source->gameServerId, $runId, false, $e->getMessage());
+                }
+
+                continue;
+            }
+
+            if ($source->gameServerId !== null) {
+                $this->servers->recordRead($source->gameServerId, $runId, true, null);
+            }
+
+            return ['source' => $source, 'presence' => $presence];
+        }
+
+        array_push($reasons, ...$failures);
+
+        return null;
+    }
+
+    /**
+     * One presence from every server's: a player seen on any of them counts once (#389). The latest fetch time
+     * stands for the whole read.
+     *
+     * @param  list<CrconPresence>  $presences
+     */
+    private function merge(array $presences): CrconPresence
+    {
+        if (count($presences) === 1) {
+            return $presences[0];
+        }
+
+        /** @var array<string, CrconPlayer> $byPlatformId */
+        $byPlatformId = [];
+
+        foreach ($presences as $presence) {
+            foreach ($presence->players as $player) {
+                $byPlatformId[$player->platformId] ??= $player;
+            }
+        }
+
+        $fetchedAt = max(array_map(fn (CrconPresence $presence) => $presence->fetchedAt, $presences));
+
+        return new CrconPresence(array_values($byPlatformId), $presences[0]->windowStart, $presences[0]->windowEnd, $fetchedAt);
     }
 
     /**

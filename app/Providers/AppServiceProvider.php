@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Commands\Capture\CaptureSources;
+use App\Commands\Capture\TelemetryCredentials;
 use App\Integration\BattleMetrics\BattleMetricsApi;
 use App\Integration\Cav\CavApi;
 use App\Integration\Crcon\CrconApi;
@@ -10,6 +11,8 @@ use App\Integration\Forum\ForumApi;
 use App\Integration\Nightwatch\NightwatchApi;
 use App\Kpi\EchelonReportKpiSource;
 use App\Kpi\ReportKpiSource;
+use App\Models\TelemetryInterface;
+use App\Repositories\GameServerRepository;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -40,9 +43,17 @@ class AppServiceProvider extends ServiceProvider
         // The BattleMetrics presence seam (AD-3, Story 7.4). Key and server id come from config (env only, AD-23).
         $this->app->singleton(BattleMetricsApi::class, fn () => new BattleMetricsApi(config('services.battlemetrics')));
 
-        // Which sources a practice capture reads, by telemetry interface (Story 7.5, #388): CRCON with BattleMetrics
-        // as fallback, BattleMetrics, Nightwatch; a game follows the interface an Admin picked for it. A new source
-        // (7.11) is a new interface case and an entry in CaptureSources::default().
+        // Whether each telemetry interface has its credentials set in env (AD-23, #389), without handing them out.
+        $this->app->singleton(TelemetryCredentials::class, fn () => new TelemetryCredentials([
+            TelemetryInterface::Crcon->value => config('services.crcon'),
+            TelemetryInterface::BattleMetrics->value => config('services.battlemetrics'),
+            TelemetryInterface::Nightwatch->value => config('services.nightwatch'),
+        ]));
+
+        // Which servers a practice capture reads (Story 7.5, #388, #389): a game's selected training servers, each by
+        // its own interface, or, with none selected, the legacy env server of the interface an Admin picked for the
+        // game (CRCON with BattleMetrics as fallback, BattleMetrics, Nightwatch). A new source (7.11) is a new
+        // interface case and an entry in CaptureSources::default().
         $this->app->singleton(CaptureSources::class, fn ($app) => CaptureSources::default(
             $app->make(CrconApi::class),
             $app->make(BattleMetricsApi::class),
@@ -50,6 +61,8 @@ class AppServiceProvider extends ServiceProvider
             config('services.battlemetrics'),
             $app->make(NightwatchApi::class),
             config('services.nightwatch'),
+            $app->make(GameServerRepository::class),
+            $app->make(TelemetryCredentials::class),
         ));
 
         // The Nightwatch WARDOGS presence seam (AD-3, Story 7.10). Key and server ids come from config (env only, AD-23).

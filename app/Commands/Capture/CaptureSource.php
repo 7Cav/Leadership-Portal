@@ -10,7 +10,8 @@ use Closure;
  * `server_ref` naming the server, and a callable `fn (DateTimeImmutable $start, DateTimeImmutable $end): CrconPresence`
  * that throws {@see CaptureSourceUnavailable} when it cannot answer. `$configured` is false when the
  * source's env keys are unset (AD-23): the run skips it without calling out, because an absent key is
- * "not set up", not an outage (7.9).
+ * "not set up", not an outage (7.9). `$gameServerId` is the stored server it reads (#389), so the read can be
+ * recorded against it; null for the legacy env server.
  */
 final readonly class CaptureSource
 {
@@ -22,5 +23,6 @@ final readonly class CaptureSource
         public string $serverRef,
         public Closure $fetch,
         public bool $configured = true,
+        public ?int $gameServerId = null,
     ) {}
 }

@@ -83,9 +83,15 @@ class PracticeTelemetry
             return [];
         }
 
-        return array_values(array_map(
-            fn (CaptureSource $source) => $source->name,
-            array_filter($this->sources->for($game), fn (CaptureSource $source) => $source->configured),
-        ));
+        // Across every server the game reads (#389), each feed named once.
+        $names = [];
+
+        foreach ($this->sources->for($game) as $server) {
+            foreach ($server->configuredSources() as $source) {
+                $names[$source->name] = true;
+            }
+        }
+
+        return array_keys($names);
     }
 }
