@@ -314,9 +314,9 @@ it('locks only the sent unit-week: another section\'s sent report, or another we
     expect(Attendance::query()->count())->toBe(1);
 });
 
-it('still lets a locked week\'s rollcall be marked posted', function () {
+it('refuses marking a locked week\'s rollcall posted too', function () {
     WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->week]);
 
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted", ['week' => '2026-10-03'])
-        ->assertOk()->assertJsonPath('posted.by', $this->leader->username);
+        ->assertStatus(409)->assertJsonPath('locked', true);
 });
