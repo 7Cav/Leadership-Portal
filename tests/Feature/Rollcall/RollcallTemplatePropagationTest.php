@@ -247,6 +247,6 @@ describe('the flow composes within the leader\'s scope', function () {
     it('sends no template with the section picker', function () {
         $this->actingAs($this->admin);
 
-        expect($this->get(route('rollcall.show'))->viewData('page')['props'])->not->toHaveKey('template');
+        expect($this->get(route('rollcall.show', ['pick' => 1]))->viewData('page')['props'])->not->toHaveKey('template');
     });
 });

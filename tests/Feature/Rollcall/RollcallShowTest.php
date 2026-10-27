@@ -17,6 +17,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Repositories\SectionPracticeRepository;
+use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -305,17 +306,39 @@ it('does not follow the remembered section during a view-as preview', function (
     $admin = User::factory()->admin()->create();
     $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->platoon->id]);
 
-    $this->actingAs($admin)->withCookie("rollcall_section_{$admin->id}", (string) $this->section->id)
+    $this->actingAs($admin)->withCookie("rollcall_section_{$admin->id}", (string) $this->sibling->id)
         ->get('/rollcall')
-        ->assertOk()
-        ->assertInertia(fn ($page) => $page->where('section', null)->has('sections', 2));
+        ->assertRedirect("/rollcall/{$this->section->id}");
+});
+
+it('lands anyone with several sections and no remembered one on the first section of the first platoon', function () {
+    $platoonLeader = User::factory()->serving()->create();
+    PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
+
+    $this->actingAs($platoonLeader)->get('/rollcall?week=2026-09-30')
+        ->assertRedirect("/rollcall/{$this->section->id}?week=2026-09-26");
+});
+
+it('picks that first section by designation, not by the order the units were created in', function () {
+    // Bravo's 2nd Platoon came first, then its 1st Platoon with the 2nd Section before the 1st.
+    $units = app(UnitRepository::class);
+    $company = $units->create(UnitType::Company, 'Bravo Company', 'B/1-7', null);
+    $second = $units->create(UnitType::Platoon, '2nd Platoon', '2/B/1-7', $company->id);
+    $units->create(UnitType::Section, '1st Section', '1/2/B/1-7', $second->id);
+    $first = $units->create(UnitType::Platoon, '1st Platoon', '1/B/1-7', $company->id);
+    $units->create(UnitType::Section, '2nd Section', '2/1/B/1-7', $first->id);
+    $wanted = $units->create(UnitType::Section, '1st Section', '1/1/B/1-7', $first->id);
+    $commander = User::factory()->serving()->create();
+    PortalRoleGrant::factory()->create(['user_id' => $commander->id, 'unit_id' => $company->id]);
+
+    $this->actingAs($commander)->get('/rollcall')->assertRedirect("/rollcall/{$wanted->id}");
 });
 
 it('gives anyone else a picker of the sections in their scope, grouped by platoon', function () {
     $platoonLeader = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $platoonLeader->id, 'unit_id' => $this->platoon->id]);
 
-    $this->actingAs($platoonLeader)->get('/rollcall')
+    $this->actingAs($platoonLeader)->get('/rollcall?pick=1')
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('Rollcall')
@@ -341,12 +364,12 @@ it('tells the picker where each section stands for the week shown', function () 
     $lastWeek = SectionPractice::factory()->create(['section_id' => $this->sibling->id, 'week_start' => $this->week->subWeek()]);
     $lastWeek->forceFill(['rollcall_posted_at' => '2026-10-01 20:00:00'])->save();
 
-    $this->actingAs($platoonLeader)->get('/rollcall')
+    $this->actingAs($platoonLeader)->get('/rollcall?pick=1')
         ->assertInertia(fn ($page) => $page
             ->where('sections.0.progress', ['strength' => 4, 'onLoa' => 1, 'unsigned' => 2, 'unmarked' => 2, 'started' => true, 'posted' => false])
             ->where('sections.1.progress', ['strength' => 1, 'onLoa' => 0, 'unsigned' => 1, 'unmarked' => 1, 'started' => false, 'posted' => false]));
 
-    $this->actingAs($platoonLeader)->get('/rollcall?week=2026-09-26')
+    $this->actingAs($platoonLeader)->get('/rollcall?pick=1&week=2026-09-26')
         ->assertInertia(fn ($page) => $page->where('sections.1.progress.posted', true)->where('sections.0.progress.started', false));
 
     // The switcher on a section's page lists the same states.
@@ -366,7 +389,7 @@ it('counts a trooper whose synced leave covers the week as on LOA in the picker,
     $practice = SectionPractice::factory()->create(['section_id' => $this->section->id, 'week_start' => $this->week]);
     Attendance::factory()->create(['trooper_id' => $present->id, 'section_practice_id' => $practice->id, 'rollcall' => RollcallSignature::WillAttend, 'status' => AttendanceStatus::Present]);
 
-    $this->actingAs($platoonLeader)->get('/rollcall')
+    $this->actingAs($platoonLeader)->get('/rollcall?pick=1')
         ->assertInertia(fn ($page) => $page
             ->where('sections.0.progress', ['strength' => 3, 'onLoa' => 1, 'unsigned' => 1, 'unmarked' => 1, 'started' => true, 'posted' => false]));
 });
