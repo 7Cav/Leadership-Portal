@@ -10,6 +10,7 @@ use App\Commands\Auth\CavEnrichmentException;
 use App\Commands\Auth\CompleteForumLogin;
 use App\Commands\Auth\EnrichCavProfile;
 use App\Commands\Auth\ForumLoginException;
+use App\Commands\ViewAs\ExitViewAs;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use DateTimeInterface;
@@ -264,9 +265,15 @@ class ForumAuthController extends Controller
      * because `history.encrypt` is on in config/inertia.php: with it off there is no key to
      * discard and the plaintext pages repaint. It runs last because the flag lives in the
      * new session.
+     *
+     * A view-as preview still on is recorded as stopped first (AD-16), while the user is still known.
      */
-    public function logout(Request $request): RedirectResponse
+    public function logout(Request $request, ExitViewAs $exitViewAs): RedirectResponse
     {
+        if ($request->user() !== null) {
+            $exitViewAs->handle($request->user());
+        }
+
         Auth::logout();
 
         $request->session()->invalidate();

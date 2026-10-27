@@ -131,10 +131,11 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
 
     // View-as switcher (Story 1.13, AD-9). The picker reads its options as JSON; entering and
     // leaving are POST/DELETE so they carry CSRF protection. Every target is checked against real
-    // authority by the ScopeResolver, here and again on every later request.
+    // authority by the ScopeResolver, here and again on every later request. Entering and leaving are audited, so
+    // they share the audited-writes throttle: a leader looping them cannot flood the audit log.
     Route::get('/view-as/options', [ViewAsController::class, 'options'])->name('view-as.options');
-    Route::post('/view-as', [ViewAsController::class, 'store'])->name('view-as.store');
-    Route::delete('/view-as', [ViewAsController::class, 'destroy'])->name('view-as.destroy');
+    Route::post('/view-as', [ViewAsController::class, 'store'])->middleware('throttle:audited-writes')->name('view-as.store');
+    Route::delete('/view-as', [ViewAsController::class, 'destroy'])->middleware('throttle:audited-writes')->name('view-as.destroy');
 
     // Report roll-up workspace (Story 5.8): the chain of the viewer's scope for one week
     // (`?week=YYYY-MM-DD`), scope-gated in the controller (AD-8). Read-only; each unit's own

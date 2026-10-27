@@ -367,6 +367,20 @@ describe('audit log', function () {
         ]);
     });
 
+    it('records a preview still on at sign-out as stopped', function () use ($entries) {
+        $tree = vcTree();
+        $admin = User::factory()->admin()->create();
+        $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $tree['platoon']->id]);
+
+        $this->post('/logout')->assertRedirect();
+
+        $this->assertGuest();
+        expect($entries())->toBe([
+            [$admin->id, 'view_as.started', 'Unit', (string) $tree['platoon']->id],
+            [$admin->id, 'view_as.stopped', 'Unit', (string) $tree['platoon']->id],
+        ]);
+    });
+
     it('records nothing for a refused target or for leaving when no preview is on', function () {
         $tree = vcTree();
         $platoonLeader = vcLeaderOf($tree['platoon'], 100, 'Brennan.J', '1LT');
