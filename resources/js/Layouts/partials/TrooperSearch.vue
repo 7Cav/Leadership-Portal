@@ -12,7 +12,8 @@ import RankBadge from '@/components/roster/RankBadge.vue';
 import { DEBOUNCE_MS, MAX_CHARS, MIN_CHARS, useTrooperSearch } from '@/composables/useTrooperSearch';
 import { reloadPage, sessionEnded } from '@/lib/postJson';
 
-// The shell's trooper search: type part of a name, pick a trooper, land on their milpac. The server answers with only
+// The shell's trooper search: type part of a username (a leading rank and a space for the dot are fine, and a number
+// finds that milpac id), pick a trooper, land on their milpac. The server answers with only
 // the troopers in the viewer's scope (the milpac's own rule), so nothing here decides who may be seen. The list is
 // the server's, not filtered again here, which is why the input is a bare ListboxFilter and not CommandInput (that
 // one would also filter the rows by their text).
@@ -22,6 +23,8 @@ const query = ref('');
 const status = ref('idle'); // idle | loading | ready | error | throttled | tooLong
 const results = ref([]);
 const more = ref(false);
+// Whether the server limited the answer to the viewer's units (anyone but an acting Admin), so an empty list can say so.
+const scoped = ref(true);
 
 let timer = null;
 let controller = null;
@@ -73,6 +76,7 @@ async function run(q) {
         if (id !== latest) return;
         results.value = body.troopers;
         more.value = body.more;
+        scoped.value = body.scoped !== false;
         status.value = 'ready';
     } catch (error) {
         if (error?.name === 'AbortError' || id !== latest) return;
@@ -125,7 +129,7 @@ function choose(trooper) {
             class="top-[12vh] translate-y-0 gap-0 overflow-hidden rounded-lg bg-popover p-0 shadow-panel sm:max-w-[560px]"
         >
             <DialogTitle class="sr-only">Find a trooper</DialogTitle>
-            <DialogDescription class="sr-only">Search the troopers in your scope by name, then open their page.</DialogDescription>
+            <DialogDescription class="sr-only">Search the troopers in your units by username, then open their page.</DialogDescription>
 
             <Command class="rounded-none bg-transparent">
                 <div class="flex h-12 items-center gap-2 border-b px-3">
@@ -134,8 +138,8 @@ function choose(trooper) {
                         v-model="query"
                         auto-focus
                         :maxlength="MAX_CHARS"
-                        placeholder="Find a trooper by name"
-                        aria-label="Search troopers by name"
+                        placeholder="Find a trooper by username, such as SGT Vasquez.R"
+                        aria-label="Search troopers by username"
                         autocomplete="off"
                         spellcheck="false"
                         data-testid="trooper-search-input"
@@ -144,7 +148,7 @@ function choose(trooper) {
                 </div>
 
                 <p v-if="status === 'idle'" class="px-4 py-8 text-center text-[13px] text-muted-foreground" data-testid="trooper-search-hint">
-                    Type at least {{ MIN_CHARS }} letters of a name.
+                    Type at least {{ MIN_CHARS }} letters of a username.
                 </p>
 
                 <div v-else-if="status === 'loading'" class="space-y-1 p-2" aria-busy="true" data-testid="trooper-search-loading">
@@ -170,9 +174,12 @@ function choose(trooper) {
                     Too many searches in a short time. Wait a moment, then keep typing.
                 </p>
 
-                <p v-else-if="!results.length" class="px-6 py-8 text-center text-[13px] text-muted-foreground" data-testid="trooper-search-empty">
-                    No trooper in your scope matches “{{ query.trim() }}”.
-                </p>
+                <div v-else-if="!results.length" class="px-6 py-8 text-center text-[13px] text-muted-foreground" data-testid="trooper-search-empty">
+                    <p>No trooper in your view matches “{{ query.trim() }}”.</p>
+                    <p v-if="scoped" class="mx-auto mt-1 max-w-[46ch] text-[12px]" data-testid="trooper-search-scope-note">
+                        Only troopers in your units are shown.
+                    </p>
+                </div>
 
                 <CommandList v-else class="max-h-[min(420px,60vh)] p-1" data-testid="trooper-search-results">
                     <CommandGroup heading="Troopers">
