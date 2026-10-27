@@ -268,5 +268,7 @@ it('refuses every fireteam write during a view-as preview, and the page offers n
     $this->actingAs($admin)->postJson("/rollcall/{$this->section->id}/fireteams/options", ['show' => true])->assertForbidden();
     $this->actingAs($admin)->postJson("/rollcall/{$this->section->id}/fireteams/policy", ['show' => false, 'order' => null, 'sl_asl_lead' => false])->assertForbidden();
 
-    expect(FireteamAssignment::query()->count())->toBe(0)->and(AuditLogEntry::query()->count())->toBe(0);
+    // Starting the preview is itself audited; nothing else is.
+    expect(FireteamAssignment::query()->count())->toBe(0)
+        ->and(AuditLogEntry::query()->pluck('action')->all())->toBe(['view_as.started']);
 });

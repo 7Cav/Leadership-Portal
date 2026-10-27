@@ -6,11 +6,11 @@ use App\Authorization\ScopeResolver;
 use App\Authorization\ViewAs;
 use App\Authorization\ViewAsKind;
 use App\Authorization\ViewAsTarget;
+use App\Models\Unit;
 use App\Models\User;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
 use App\Support\Audit\AuditEnvelope;
-use Illuminate\Database\Eloquent\Model;
 
 /**
  * Start viewing the portal as a unit or a person (Story 1.13), recorded as `view_as.started` against the unit or user
@@ -69,7 +69,7 @@ class EnterViewAs
         return true;
     }
 
-    private function subjectOf(ViewAsTarget $target): ?Model
+    private function subjectOf(ViewAsTarget $target): Unit|User|null
     {
         return $target->kind === ViewAsKind::User ? $this->users->find($target->id) : $this->units->find($target->id);
     }
