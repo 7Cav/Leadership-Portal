@@ -11,7 +11,7 @@ use App\Support\Audit\AuditEnvelope;
 
 /**
  * A leader undoes a dismissal (#176, extends Story 7.7, AD-19): one audited action (AD-16),
- * `game_player.restored`, that drops the `(platform, platform_id)` dismissal, so the player is listed
+ * `game_player.restored`, that drops the `(game_id, platform_id)` dismissal, so the player is listed
  * again on this practice and on every later one that sees them. Scope-gated like the dismissal
  * (AD-8), through the same lookup: the section must be in the actor's write scope and the player one
  * this practice's capture stored, so a leader cannot clear a dismissal for a player their section

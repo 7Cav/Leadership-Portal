@@ -459,7 +459,8 @@ class RollcallController extends Controller
         }
 
         $weekStart = $this->requestedWeek($request->input('week'), WeekOf::start(CarbonImmutable::now()));
-        $game = $this->games->findBySlug($request->input('platform'));
+        // Checked by `exists` above; a game deleted since is a 404, answered before the try below would call it a 500.
+        $game = $this->games->findBySlug($request->input('platform')) ?? abort(404);
         $trooperId = (int) $request->input('trooper_id');
 
         try {
@@ -525,9 +526,10 @@ class RollcallController extends Controller
         }
 
         $weekStart = $this->requestedWeek($request->input('week'), WeekOf::start(CarbonImmutable::now()));
+        $game = $this->games->findBySlug($request->input('platform')) ?? abort(404);
 
         try {
-            $handler->handle($request->user(), new DismissUnmatchedPlayer($unit, $weekStart, $this->games->findBySlug($request->input('platform')), $request->input('platform_id')));
+            $handler->handle($request->user(), new DismissUnmatchedPlayer($unit, $weekStart, $game, $request->input('platform_id')));
         } catch (GameIdentityForbiddenException $e) {
             return response()->json(['message' => $e->getMessage()], 403);
         } catch (UnmatchedPlayerResolutionException $e) {
@@ -559,9 +561,10 @@ class RollcallController extends Controller
         }
 
         $weekStart = $this->requestedWeek($request->input('week'), WeekOf::start(CarbonImmutable::now()));
+        $game = $this->games->findBySlug($request->input('platform')) ?? abort(404);
 
         try {
-            $handler->handle($request->user(), new RestoreDismissedPlayer($unit, $weekStart, $this->games->findBySlug($request->input('platform')), $request->input('platform_id')));
+            $handler->handle($request->user(), new RestoreDismissedPlayer($unit, $weekStart, $game, $request->input('platform_id')));
         } catch (GameIdentityForbiddenException $e) {
             return response()->json(['message' => $e->getMessage()], 403);
         } catch (UnmatchedPlayerResolutionException $e) {

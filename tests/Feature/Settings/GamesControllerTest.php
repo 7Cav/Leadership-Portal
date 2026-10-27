@@ -1,5 +1,6 @@
 <?php
 
+use App\Commands\Games\DeleteGame;
 use App\Models\AuditLogEntry;
 use App\Models\Game;
 use App\Models\GamePlayerDismissal;
@@ -8,6 +9,8 @@ use App\Models\SectionPractice;
 use App\Models\TelemetryInterface;
 use App\Models\TrooperGameIdentity;
 use App\Models\User;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Inertia\Testing\AssertableInertia as Assert;
 
 // #388: an Admin keeps the list of games and picks how each one's attendance is read (AD-3, AD-6, AD-16).
@@ -154,7 +157,44 @@ it('answers every write from a non-Admin with 403, changing nothing', function (
 
 it('answers a game that does not exist with 404', function () {
     $this->actingAs($this->admin)->patch('/settings/games/999999', addGame())->assertNotFound();
+    $this->actingAs($this->admin)->post('/settings/games/999999/retire')->assertNotFound();
+    $this->actingAs($this->admin)->delete('/settings/games/999999/retire')->assertNotFound();
     $this->actingAs($this->admin)->delete('/settings/games/999999')->assertNotFound();
+});
+
+it('refuses a rename into another game\'s name, and keeps a game\'s own name on an edit', function () {
+    $this->actingAs($this->admin)->patch('/settings/games/'.game('arma')->id, ['name' => 'Hell Let Loose', 'id_label' => 'Player ID', 'interface' => 'battlemetrics'])
+        ->assertSessionHasErrors('name');
+    $this->actingAs($this->admin)->patch('/settings/games/'.game('hll')->id, ['name' => 'Hell Let Loose', 'id_label' => 'Steam64', 'interface' => 'crcon'])
+        ->assertSessionHasNoErrors();
+
+    expect(game('arma')->name)->toBe('Arma Reforger')->and(game('hll')->id_label)->toBe('Steam64');
+});
+
+it('records nothing when an active game is brought back', function () {
+    $this->actingAs($this->admin)->delete('/settings/games/'.game('hll')->id.'/retire')->assertRedirect();
+
+    expect(AuditLogEntry::query()->count())->toBe(0);
+});
+
+it('never changes a game\'s slug, whatever writes it', function () {
+    $hll = game('hll');
+
+    expect(fn () => $hll->update(['slug' => 'hell-let-loose']))->toThrow(LogicException::class, "A game's slug never changes")
+        ->and(game('hll')->exists)->toBeTrue();
+});
+
+it('keeps two games from sharing a name at the database', function () {
+    expect(fn () => Game::factory()->create(['name' => 'Hell Let Loose']))->toThrow(UniqueConstraintViolationException::class);
+});
+
+it('answers a delete of a game deleted a moment ago with 404, writing no second audit entry', function () {
+    $squad = Game::factory()->create();
+    $stale = Game::query()->findOrFail($squad->id);
+    $squad->delete();
+
+    expect(fn () => app(DeleteGame::class)->handle($this->admin, $stale))->toThrow(ModelNotFoundException::class)
+        ->and(AuditLogEntry::query()->count())->toBe(0);
 });
 
 it('links an audited game change to the Games page in the audit log', function () {

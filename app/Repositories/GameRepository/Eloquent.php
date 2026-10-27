@@ -67,7 +67,8 @@ class Eloquent implements GameRepository
     public function delete(Game $game): Game
     {
         return DB::transaction(function () use ($game) {
-            Game::query()->whereKey($game->id)->lockForUpdate()->first();
+            // Gone already (another Admin deleted it a moment ago): a 404, not a second `game.deleted` entry.
+            Game::query()->whereKey($game->id)->lockForUpdate()->firstOrFail();
 
             foreach (self::USERS as $model) {
                 if ($model::query()->where('game_id', $game->id)->exists()) {
@@ -78,7 +79,12 @@ class Eloquent implements GameRepository
             try {
                 $game->delete();
             } catch (QueryException $e) {
-                // A row naming the game landed after the check: the foreign key refuses the delete.
+                // A row naming the game landed after the check: the foreign key refuses the delete (SQLSTATE 23000,
+                // integrity constraint). Anything else (a deadlock, a lost connection) is not "in use" and is rethrown.
+                if ($e->getCode() !== '23000') {
+                    throw $e;
+                }
+
                 throw GameInUseException::for($game, $e);
             }
 

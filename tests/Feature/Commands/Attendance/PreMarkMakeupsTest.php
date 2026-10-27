@@ -216,7 +216,7 @@ it('replaces the auto makeup with present when their own practice is captured la
     $end = CarbonImmutable::parse('2026-10-08 19:30:00', 'UTC')->toDateTimeImmutable();
     $source = new CaptureSource('crcon', 'crcon-server-1', fn ($s, $e) => new CrconPresence([new CrconPlayer('V', '76561190000000077')], $s, $e, CarbonImmutable::parse('2026-10-08 20:00:00', 'UTC')->toDateTimeImmutable()));
     app()->instance(CaptureSources::class, new CaptureSources(['crcon' => [$source]]));
-    app(CaptureSectionPracticeHandler::class)->handle(new CaptureSectionPractice($home->id, game('hll'), $start, $end, 'system'));
+    app(CaptureSectionPracticeHandler::class)->handle(new CaptureSectionPractice($home->id, game('hll')->id, $start, $end, 'system'));
 
     $row = markOn($home, $this->visitor);
     expect($row->status)->toBe(AttendanceStatus::Present)->and($row->source)->toBe(AttendanceSource::Auto);

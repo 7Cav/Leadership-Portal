@@ -61,7 +61,7 @@ function runCapture(object $test, array $sources, int|string $by = 'system', ?Ga
     app()->instance(CaptureSources::class, new CaptureSources([$game->interface->value => $sources]));
 
     return app(CaptureSectionPracticeHandler::class)->handle(
-        new CaptureSectionPractice($test->practice->id, $game, $test->start, $test->end, $by),
+        new CaptureSectionPractice($test->practice->id, $game->id, $test->start, $test->end, $by),
     );
 }
 
@@ -259,8 +259,27 @@ it('refuses a practice that does not exist', function () {
     app()->instance(CaptureSources::class, new CaptureSources([]));
 
     expect(fn () => app(CaptureSectionPracticeHandler::class)->handle(
-        new CaptureSectionPractice(999999, game('hll'), $this->start, $this->end),
+        new CaptureSectionPractice(999999, game('hll')->id, $this->start, $this->end),
     ))->toThrow(InvalidArgumentException::class)
+        ->and(SyncRun::query()->count())->toBe(0);
+});
+
+it('reads the game\'s interface when the run starts, not when it was queued (#388)', function () {
+    app()->instance(CaptureSources::class, new CaptureSources(['crcon' => [answeringSource('crcon', [])], 'nightwatch' => [answeringSource('nightwatch', [])]]));
+    $queued = new CaptureSectionPractice($this->practice->id, game('hll')->id, $this->start, $this->end);
+    game('hll')->forceFill(['interface' => 'nightwatch'])->save();
+
+    app(CaptureSectionPracticeHandler::class)->handle($queued);
+
+    expect($this->practice->fresh()->capture_source)->toBe('nightwatch');
+});
+
+it('refuses a game that no longer exists, so the job fails instead of retrying', function () {
+    app()->instance(CaptureSources::class, new CaptureSources([]));
+
+    expect(fn () => app(CaptureSectionPracticeHandler::class)->handle(
+        new CaptureSectionPractice($this->practice->id, 999999, $this->start, $this->end),
+    ))->toThrow(InvalidArgumentException::class, 'Game 999999 does not exist.')
         ->and(SyncRun::query()->count())->toBe(0);
 });
 
@@ -269,7 +288,7 @@ it('refuses a window outside the practice week', function () {
     $outside = CarbonImmutable::parse('2027-01-01 00:00:00', 'UTC')->toDateTimeImmutable();
 
     expect(fn () => app(CaptureSectionPracticeHandler::class)->handle(
-        new CaptureSectionPractice($this->practice->id, game('hll'), $outside, $outside),
+        new CaptureSectionPractice($this->practice->id, game('hll')->id, $outside, $outside),
     ))->toThrow(InvalidArgumentException::class);
 });
 

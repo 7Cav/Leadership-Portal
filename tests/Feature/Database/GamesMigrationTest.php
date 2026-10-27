@@ -4,7 +4,9 @@ use App\Models\Game;
 use App\Models\SectionPractice;
 use App\Models\TelemetryInterface;
 use App\Models\Trooper;
+use App\Models\TrooperGameIdentity;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -78,12 +80,35 @@ it('rolls back to the platform enum and forward again, keeping every row on its 
     expect(DB::table('trooper_game_identities')->value('game_id'))->toBe(Game::query()->where('slug', 'wardogs')->value('id'));
 });
 
-it('refuses to roll back while a row uses a game added since, and changes nothing', function () {
+it('refuses to roll back while a row in any of the three tables uses a game added since, and changes nothing', function () {
     $added = Game::factory()->create(['slug' => 'squad']);
     DB::table('trooper_game_identities')->insert(['trooper_id' => Trooper::factory()->create()->id, 'game_id' => $added->id, 'player_name' => 'S', 'platform_id' => 'eos']);
+    DB::table('practice_capture_players')->insert(['section_practice_id' => SectionPractice::factory()->create()->id, 'game_id' => $added->id, 'player_name' => 'S', 'platform_id' => 'eos']);
+    DB::table('game_player_dismissals')->insert(['game_id' => $added->id, 'platform_id' => 'eos', 'player_name' => 'S', 'dismissed_by' => User::factory()->create()->id]);
 
-    expect(fn () => gamesMigration()->down())->toThrow(RuntimeException::class, '1 row(s) use a game the platform enum cannot hold (squad)');
+    expect(fn () => gamesMigration()->down())->toThrow(RuntimeException::class, '3 row(s) use a game the platform enum cannot hold (squad)');
 
     expect(Schema::hasTable('games'))->toBeTrue()
         ->and(DB::table('trooper_game_identities')->value('game_id'))->toBe($added->id);
+});
+
+it('refuses to move a row whose platform names no game, before changing anything', function () {
+    gamesMigration()->down();
+    // SQLite does not enforce the enum; a non-strict MySQL stores '' for a bad value. Either way the backfill would
+    // leave `game_id` null.
+    DB::table('game_player_dismissals')->insert(['platform' => '', 'platform_id' => '1', 'player_name' => 'D', 'dismissed_by' => User::factory()->create()->id]);
+
+    expect(fn () => gamesMigration()->up())->toThrow(RuntimeException::class, 'Cannot move game_player_dismissals onto the games table: 1 row(s)');
+
+    expect(Schema::hasTable('games'))->toBeFalse()
+        ->and(Schema::hasColumn('trooper_game_identities', 'platform'))->toBeTrue();
+
+    DB::table('game_player_dismissals')->delete();
+    gamesMigration()->up();
+})->skip(fn () => DB::getDriverName() !== 'sqlite', 'a strict MySQL refuses the bad enum value at the insert');
+
+it('refuses at the database to delete a game something uses', function () {
+    TrooperGameIdentity::factory()->create(['game_id' => game('hll')->id]);
+
+    expect(fn () => DB::table('games')->where('slug', 'hll')->delete())->toThrow(QueryException::class);
 });

@@ -114,11 +114,11 @@ it('refuses to link a player of a retired game, and changes nothing (#388)', fun
         ->and(Attendance::query()->count())->toBe(0);
 });
 
-it('refuses a game that does not exist', function () {
-    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this, ['platform' => 'quake']))
+it('refuses a game that does not exist, to link, dismiss or undo', function (string $action) {
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/{$action}", linkBody($this, ['platform' => 'quake']))
         ->assertStatus(422)
         ->assertJsonValidationErrors('platform');
-});
+})->with(['link', 'dismiss', 'restore']);
 
 it('refuses to link without a trooper chosen: the system never picks one (AD-19)', function () {
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this, ['trooper_id' => null]))

@@ -85,6 +85,17 @@ describe('GameIdentities page', () => {
         expect(del).toHaveBeenCalledWith('/game-identities/1/squad', expect.anything());
     });
 
+    it('offers no link form when every game is retired, but still lists the links to remove', async () => {
+        const platforms = PLATFORMS.map((p) => ({ ...p, retired: true }));
+        const wrapper = mount(GameIdentities, { props: { platforms, troopers: [TROOPERS[0]] } });
+        await wrapper.get('[data-testid="view-everyone"]').trigger('click');
+        await wrapper.get('[data-testid="open-1"]').trigger('click');
+
+        expect(wrapper.find('[data-testid="identity-form"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="no-active-games"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="remove-hll"]').exists()).toBe(true);
+    });
+
     it('queues only troopers missing a game, saying which, and defaults to that view', () => {
         const wrapper = factory();
 

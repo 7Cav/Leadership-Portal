@@ -22,8 +22,13 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => {
                 ...data,
                 errors: {},
                 processing: false,
-                post: (...args) => post(...args),
-                patch: (...args) => patch(...args),
+                // The fields as they stand when the form is sent, passed last so a test can check what was posted.
+                post(...args) {
+                    post(...args, { name: this.name, id_label: this.id_label, interface: this.interface });
+                },
+                patch(...args) {
+                    patch(...args, { name: this.name, id_label: this.id_label, interface: this.interface });
+                },
                 clearErrors() {},
                 reset() {
                     Object.assign(this, data);
@@ -89,7 +94,11 @@ describe('Settings/Games', () => {
         await wrapper.get('[data-testid="game-interface"]').setValue('battlemetrics');
         await wrapper.get('[data-testid="game-form"]').trigger('submit');
 
-        expect(post).toHaveBeenCalledWith('/settings/games', expect.objectContaining({ preserveScroll: true }));
+        expect(post).toHaveBeenCalledWith('/settings/games', expect.objectContaining({ preserveScroll: true }), {
+            name: 'Squad 44',
+            id_label: 'EOS ID',
+            interface: 'battlemetrics',
+        });
         expect(patch).not.toHaveBeenCalled();
     });
 
@@ -101,8 +110,10 @@ describe('Settings/Games', () => {
         expect(wrapper.get('[data-testid="game-interface"]').element.value).toBe('crcon');
         expect(wrapper.get('[data-testid="submit-game"]').text()).toBe('Save changes');
 
+        await wrapper.get('[data-testid="game-id_label"]').setValue('Steam64');
+        await wrapper.get('[data-testid="game-interface"]').setValue('none');
         await wrapper.get('[data-testid="game-form"]').trigger('submit');
-        expect(patch).toHaveBeenCalledWith('/settings/games/1', expect.anything());
+        expect(patch).toHaveBeenCalledWith('/settings/games/1', expect.anything(), { name: 'Hell Let Loose', id_label: 'Steam64', interface: 'none' });
 
         await wrapper.get('[data-testid="cancel-edit"]').trigger('click');
         expect(wrapper.get('[data-testid="submit-game"]').text()).toBe('Add game');

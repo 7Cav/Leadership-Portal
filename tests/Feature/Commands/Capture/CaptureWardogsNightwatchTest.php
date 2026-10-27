@@ -38,7 +38,7 @@ function captureWardogs(object $test)
 {
     return app(CaptureSectionPracticeHandler::class)->handle(new CaptureSectionPractice(
         $test->practice->id,
-        game('wardogs'),
+        game('wardogs')->id,
         CarbonImmutable::parse('2026-10-08 18:00:00', 'UTC')->toDateTimeImmutable(),
         CarbonImmutable::parse('2026-10-08 19:30:00', 'UTC')->toDateTimeImmutable(),
         'system',

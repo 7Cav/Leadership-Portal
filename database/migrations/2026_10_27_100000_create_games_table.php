@@ -42,7 +42,7 @@ return new class extends Migration
      * (AD-22): no source re-fetches it, so it belongs on the backup list. One writer, the audited `app/Commands/Games`
      * Commands through `GameRepository`. `interface` names which of the portal's built-in telemetry seams reads the
      * game's attendance (AD-3: the seams stay code, an Admin only picks one); `retired_at` set means the game can no
-     * longer be newly linked or assigned, while what already uses it stays.
+     * longer be newly linked to a trooper, while what already uses it stays.
      *
      * The three games the enum held are created here with the names, id labels and interfaces `GamePlatform` gave
      * them, and every identity, capture player and dismissal is moved onto its game by `game_id`. The literals keep
@@ -50,11 +50,22 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Every row must land on a game, or `game_id` cannot be made NOT NULL. MySQL DDL is not transactional, so a
+        // row the backfill would miss is refused here, before anything changes, not halfway through.
+        foreach (array_keys(self::TABLES) as $name) {
+            $unknown = DB::table($name)->whereNotIn('platform', ['hll', 'arma', 'wardogs'])->count();
+
+            if ($unknown > 0) {
+                throw new RuntimeException("Cannot move {$name} onto the games table: {$unknown} row(s) have a platform that is not hll, arma or wardogs. Fix or delete them first.");
+            }
+        }
+
         Schema::create('games', function (Blueprint $table) {
             $table->id();
             // Stable: routes and the rollcall's requests name a game by it, so a rename never changes it.
             $table->string('slug')->unique();
-            $table->string('name');
+            // Unique, so the game pickers can tell every game apart.
+            $table->string('name')->unique();
             // What the game's player identifier is called to a leader ("Steam ID", "Player ID").
             $table->string('id_label');
             $table->string('interface');

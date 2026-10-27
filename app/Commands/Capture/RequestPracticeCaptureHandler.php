@@ -104,7 +104,7 @@ class RequestPracticeCaptureHandler
 
         return new CaptureSectionPractice(
             $practice->id,
-            $game,
+            $game->id,
             $practice->week_start->toDateTimeImmutable(),
             ($now->lessThan($weekEnd) ? $now : $weekEnd)->toDateTimeImmutable(),
             $actor->id,

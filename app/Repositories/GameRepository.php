@@ -4,11 +4,13 @@ namespace App\Repositories;
 
 use App\Models\Game;
 use App\Models\TelemetryInterface;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Collection;
 
 /**
  * Sole DB access for `games` (AD-2, #388). Portal-owned (AD-22): the audited `app/Commands/Games` Commands are its
- * one writer; everything that names a game (identities, captures, dismissals) reads it from here.
+ * one writer, and lookups by id or slug go through here (identities, captures and dismissals load theirs through
+ * their `game` relation).
  */
 interface GameRepository
 {
@@ -44,6 +46,7 @@ interface GameRepository
      * foreign keys refuse it anyway, so a link landing in between cannot be orphaned.
      *
      * @throws GameInUseException when anything uses the game; nothing is deleted.
+     * @throws ModelNotFoundException when the game is already gone.
      */
     public function delete(Game $game): Game;
 }

@@ -12,7 +12,7 @@ function captureJob(int $practiceId): CaptureSectionPracticeJob
 {
     $now = new DateTimeImmutable;
 
-    return new CaptureSectionPracticeJob(new CaptureSectionPractice($practiceId, game('hll'), $now, $now));
+    return new CaptureSectionPracticeJob(new CaptureSectionPractice($practiceId, game('hll')->id, $now, $now));
 }
 
 it('is queued and allows a released run to retry', function () {

@@ -30,7 +30,7 @@ final class CaptureSources
     public function __construct(private readonly array $byInterface) {}
 
     /**
-     * The production map: CRCON falls back to BattleMetrics (HLL's servers are on both); BattleMetrics
+     * The production map: CRCON falls back to BattleMetrics (the CRCON server is also tracked there); BattleMetrics
      * and Nightwatch read only themselves; `none` has no source.
      *
      * @param  array<string, mixed>|null  $crconConfig
@@ -85,12 +85,19 @@ final class CaptureSources
             self::filled($nightwatchConfig, 'base_url', 'api_key', 'server_ids'),
         );
 
-        return new self([
-            TelemetryInterface::Crcon->value => [$crconSource, $battleMetricsSource],
-            TelemetryInterface::BattleMetrics->value => [$battleMetricsSource],
-            TelemetryInterface::Nightwatch->value => [$nightwatchSource],
-            TelemetryInterface::None->value => [],
-        ]);
+        // An exhaustive `match`, so a new interface case without its sources fails here (and in CaptureSourcesTest)
+        // instead of reading as "not configured" on every rollcall of a game that uses it.
+        $byInterface = [];
+        foreach (TelemetryInterface::cases() as $interface) {
+            $byInterface[$interface->value] = match ($interface) {
+                TelemetryInterface::Crcon => [$crconSource, $battleMetricsSource],
+                TelemetryInterface::BattleMetrics => [$battleMetricsSource],
+                TelemetryInterface::Nightwatch => [$nightwatchSource],
+                TelemetryInterface::None => [],
+            };
+        }
+
+        return new self($byInterface);
     }
 
     /** True when every named key is set — the same test each seam applies before it will call out. */

@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 
 // The link-identity screen (Story 7.2), binding design mockups/v2/link-identity.html variant C
 // "Needs-a-link queue": a coverage summary, a queue of the troopers still missing a game, and a
-// side panel for the one picked. A trooper holds one identity per platform (AD-19); the slots come
+// side panel for the one picked. A trooper holds one identity per game (AD-19); the slots come
 // from `platforms`, so a new game appears here without a change to this page. A retired game (#388)
 // is offered for no new link and left out of the coverage; the links it already has stay listed and
 // can be removed.
@@ -289,7 +289,10 @@ function remove(value) {
                             </li>
                         </ul>
 
-                        <form class="grid gap-3" data-testid="identity-form" @submit.prevent="save">
+                        <p v-if="!active.length" class="text-xs text-muted-foreground" data-testid="no-active-games">
+                            Every game is retired, so no identity can be linked. An Admin can add or bring back a game under Settings, Games.
+                        </p>
+                        <form v-else class="grid gap-3" data-testid="identity-form" @submit.prevent="save">
                             <div class="grid gap-1.5">
                                 <Label for="identity-game">Game</Label>
                                 <NativeSelect id="identity-game" :model-value="platform" data-testid="identity-game" @update:model-value="fill(selected, $event)">

@@ -141,7 +141,7 @@ it('refuses a new link on a retired game, writing nothing, and still lists and r
     $this->actingAs($this->leader)->put(identityUrl(placedTrooper($this->section), 'squad'), ['player_name' => 'New', 'platform_id' => 'eos-new'])
         ->assertSessionHasErrors(['platform_id' => "{$retired->name} is retired, so no identity can be linked to it."]);
     $this->actingAs($this->leader)->put(identityUrl($this->mine, 'squad'), ['player_name' => 'Renamed', 'platform_id' => 'eos-old'])
-        ->assertSessionHasErrors('platform_id');
+        ->assertSessionHasErrors(['platform_id' => "{$retired->name} is retired, so no identity can be linked to it."]);
 
     expect(TrooperGameIdentity::query()->sole()->player_name)->toBe('Old')
         ->and(AuditLogEntry::query()->count())->toBe(0);

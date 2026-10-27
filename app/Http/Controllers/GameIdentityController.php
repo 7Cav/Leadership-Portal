@@ -27,7 +27,7 @@ use Inertia\Response;
 /**
  * The link-identity screen (Story 7.2, binding design: mockups/v2/link-identity.html variant C,
  * "Needs-a-link queue"): a leader links the troopers in their scope to their in-game identities,
- * one per platform (AD-19), and edits or removes those links.
+ * one per game (AD-19), and edits or removes those links.
  *
  * Reads go straight to the repositories; every write is an audited Command, scope-gated by the
  * ScopeResolver inside its handler (AD-8) — a trooper outside the viewer's scope is a 403 whatever

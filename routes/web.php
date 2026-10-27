@@ -119,7 +119,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::post('/rollcall/{unit}/guests/remove', [RollcallGuestController::class, 'destroy'])->middleware('throttle:audited-writes')->name('rollcall.guests.remove');
 
     // Game identities (Story 7.2): link troopers in scope to their in-game identity, one per
-    // platform. The controller reads repositories; each write is an audited Command whose handler
+    // game (`{platform}` is the game's slug, #388). The controller reads repositories; each write is an audited Command whose handler
     // checks the trooper against the viewer's scope (AD-8) — outside it is a 403.
     Route::get('/game-identities', [GameIdentityController::class, 'index'])->name('game-identities.index');
     Route::put('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'update'])->name('game-identities.update');
