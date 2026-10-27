@@ -10,7 +10,7 @@ use App\Models\RollcallSignature;
 use App\Models\Unit;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\CountingMark;
-use App\Repositories\TrooperRepository;
+use App\Repositories\CountingWindow;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -28,16 +28,21 @@ use InvalidArgumentException;
  * including — `week_start`, stepped in whole weeks from a `WeekOf` boundary (AD-11).
  *
  * The population is every trooper currently assigned within the unit's subtree
- * (`TrooperRepository::assignedWithin`) — the cache has no placement history, so a trooper who
- * changed section mid-window is measured entirely against their current section, and a past week
- * recomputed after the move can differ from the snapshot frozen before it. Per trooper, over the
- * window:
+ * (`TrooperRepository::assignedWithin`). Each trooper's weeks are read against the section they
+ * were placed in that week (`TrooperPlacementRepository`, decided 2026-10-27: after a transfer
+ * the new leadership sees the trooper's signing, practice marks and LOAs from before the move),
+ * so their marks at the old section still count and the new section's practices from before
+ * they joined never do. A unit's KPIs stay the sum of its current members' rows, their weeks
+ * elsewhere included: the same rows the roster shows per trooper, so one definition (AD-21), and
+ * a sent report keeps the numbers frozen when it was sent. A trooper with no placement history
+ * reads as placed in their current section for every week. Per trooper, over the window:
  *
  * - **RC** (MVP amendment, #23): weeks with a signed rollcall (`will_attend` or `cannot_attend`)
- *   ÷ assigned weeks — all {@see WINDOW_WEEKS}, whether or not a practice was held. A signature
+ *   ÷ assigned weeks: the window weeks they were placed in a section, whether or not a practice
+ *   was held (all {@see WINDOW_WEEKS} for a trooper in a section the whole window). A signature
  *   is recorded against the section-week's practice row, so a week with no row counts unsigned.
  * - **SP**: practices marked present, makeup or attached ÷ the *held* practices (one row per
- *   section-week, AD-14's counting SP) of their *current* primary section. A practice is held
+ *   section-week, AD-14's counting SP) of the section they were placed in that week. A practice is held
  *   once any attendance row on it carries a leader's SP mark (`loa`, derived from LOA data,
  *   does not count, and neither does an automatic makeup); a week with no practice row, or a row that
  *   carries only rollcall signatures, is not eligible. In a held practice a trooper left
@@ -68,7 +73,6 @@ final class KpiService
     private const ATTENDED_AT_OWN = [AttendanceStatus::Present, AttendanceStatus::Attached];
 
     public function __construct(
-        private readonly TrooperRepository $troopers,
         private readonly AttendanceRepository $attendance,
         private readonly LoaCoverage $loa,
     ) {}
@@ -83,10 +87,10 @@ final class KpiService
 
     /**
      * `forUnit()` for every section under `$unit` at once, keyed by section id — the same
-     * per-trooper rows, split by the section each trooper is placed in, in three queries however
-     * many sections (5.8's roll-up of a whole battalion): marks, placement and LOA coverage (4.8). A section with no
+     * per-trooper rows, split by the section each trooper is placed in, in a fixed number of queries however
+     * many sections (5.8's roll-up of a whole battalion): where everyone was placed, their marks, and LOA coverage (4.8). A section with no
      * assigned trooper is absent; its KPIs are `UnitKpis::none()`. Equal, section by section, to `forUnit()`: a
-     * trooper's marks only ever count against their own section's practice.
+     * trooper's row is counted in their current section, their weeks elsewhere included.
      *
      * @return Collection<int, UnitKpis>
      *
@@ -95,14 +99,15 @@ final class KpiService
     public function forSectionsWithin(Unit $unit, CarbonInterface $weekStart): Collection
     {
         $weekStart = WeekOf::requireStart($weekStart);
-        $marks = $this->marksByTrooper($unit, $weekStart);
-        $sections = $this->troopers->sectionsOfAssignedWithin($unit);
+        $window = $this->window($unit, $weekStart);
+        $marks = $this->byTrooper($window);
+        $sections = collect($window->sections);
         $covers = $this->coversFor($sections->keys(), $weekStart);
 
         return $sections
             ->map(fn (int $sectionId, int $trooperId) => [
                 'section' => $sectionId,
-                'row' => $this->forTrooper($trooperId, $marks->get($trooperId, collect()), $weekStart, $covers[$trooperId]),
+                'row' => $this->forTrooper($trooperId, $marks->get($trooperId, collect()), $weekStart, $covers[$trooperId], $window->placements->weeksOf($trooperId)),
             ])
             ->groupBy('section')
             ->map(fn (Collection $rows) => $this->sum($rows->pluck('row')));
@@ -129,8 +134,8 @@ final class KpiService
 
     /**
      * Every trooper assigned within the unit's subtree, keyed and ordered by trooper id — the
-     * per-trooper rows `forUnit()` sums, for a roster or at-risk flag to reuse. Three queries
-     * regardless of subtree size.
+     * per-trooper rows `forUnit()` sums, for a roster or at-risk flag to reuse. A fixed number of
+     * queries regardless of subtree size.
      *
      * @return Collection<int, TrooperAttendance>
      *
@@ -139,13 +144,13 @@ final class KpiService
     public function trooperAttendance(Unit $unit, CarbonInterface $weekStart): Collection
     {
         $weekStart = WeekOf::requireStart($weekStart);
-        $marks = $this->marksByTrooper($unit, $weekStart);
-
-        $troopers = $this->troopers->assignedWithin($unit);
+        $window = $this->window($unit, $weekStart);
+        $marks = $this->byTrooper($window);
+        $troopers = collect(array_keys($window->sections));
         $covers = $this->coversFor($troopers, $weekStart);
 
         return $troopers->mapWithKeys(fn (int $trooperId) => [
-            $trooperId => $this->forTrooper($trooperId, $marks->get($trooperId, collect()), $weekStart, $covers[$trooperId]),
+            $trooperId => $this->forTrooper($trooperId, $marks->get($trooperId, collect()), $weekStart, $covers[$trooperId], $window->placements->weeksOf($trooperId)),
         ]);
     }
 
@@ -201,15 +206,20 @@ final class KpiService
     }
 
     /**
-     * The window's counting marks of every trooper assigned within `$unit`, grouped by trooper.
-     *
+     * The window's counting marks of every trooper assigned within `$unit`, with each trooper's current section and the
+     * weeks they were in a section: one read of the facts (two queries).
+     */
+    private function window(Unit $unit, CarbonImmutable $weekStart): CountingWindow
+    {
+        return $this->attendance->countingWindow($unit, $weekStart->subWeeks(self::WINDOW_WEEKS - 1), $weekStart);
+    }
+
+    /**
      * @return Collection<int, Collection<int, CountingMark>>
      */
-    private function marksByTrooper(Unit $unit, CarbonImmutable $weekStart): Collection
+    private function byTrooper(CountingWindow $window): Collection
     {
-        return $this->attendance
-            ->countingMarks($unit, $weekStart->subWeeks(self::WINDOW_WEEKS - 1), $weekStart)
-            ->groupBy(fn (CountingMark $mark) => $mark->trooperId);
+        return $window->marks->groupBy(fn (CountingMark $mark) => $mark->trooperId);
     }
 
     /**
@@ -228,8 +238,9 @@ final class KpiService
     /**
      * @param  Collection<int, CountingMark>  $marks  this trooper's counting marks in the window
      * @param  array<string, LoaCover>  $covers  this trooper's LOA coverage per window week, keyed by `week_start` date
+     * @param  list<string>  $assignedWeeks  the window weeks they were placed in a section
      */
-    private function forTrooper(int $trooperId, Collection $marks, CarbonImmutable $weekStart, array $covers): TrooperAttendance
+    private function forTrooper(int $trooperId, Collection $marks, CarbonImmutable $weekStart, array $covers, array $assignedWeeks): TrooperAttendance
     {
         // `$loaWeeks` holds the weeks leave takes out whether or not a practice row exists for them, so the rollcall
         // denominator drops them too.
@@ -242,7 +253,8 @@ final class KpiService
             trooperId: $trooperId,
             rollcall: new Ratio(
                 $eligible->filter(fn (CountingMark $mark) => $mark->rollcall !== RollcallSignature::Unsigned)->count(),
-                self::WINDOW_WEEKS - $loaWeeks->count(),
+                // Only the weeks they were in a section: a week before they joined one is not theirs to sign.
+                count(array_diff($assignedWeeks, $loaWeeks->all())),
             ),
             practice: new Ratio(
                 $eligible->filter(fn (CountingMark $mark) => in_array($mark->status, self::ATTENDED, true))->count(),

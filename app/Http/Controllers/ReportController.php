@@ -24,7 +24,6 @@ use App\Kpi\UnitKpis;
 use App\Kpi\WeeklyReportKpis;
 use App\Loa\LoaProvenance;
 use App\Milpac\RosterProvenance;
-use App\Models\Attendance;
 use App\Models\PlatoonTrainingTopic;
 use App\Models\Trooper;
 use App\Models\UnaccountedReason;
@@ -34,8 +33,8 @@ use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Models\WeeklyReportStatus;
 use App\Repositories\AttendanceRepository;
+use App\Repositories\CountingMark;
 use App\Repositories\PlatoonTrainingTopicRepository;
-use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
@@ -79,7 +78,6 @@ class ReportController extends Controller
         private readonly KpiService $kpis,
         private readonly RollupKpis $rollups,
         private readonly TrooperRepository $troopers,
-        private readonly SectionPracticeRepository $practices,
         private readonly AttendanceRepository $attendance,
         private readonly RosterProvenance $rosterSync,
         private readonly UserRepository $users,
@@ -498,19 +496,20 @@ class ReportController extends Controller
     /**
      * Each assigned trooper's facts for the week, as the readiness checklist and the preview's
      * roster read them: rollcall signature, SP mark and its source (AD-20), and the shared
-     * service's at-risk/LOA/missed reading (AD-21).
+     * service's at-risk/LOA/missed reading (AD-21). The mark is the week's one counting mark
+     * (AD-14), the same the KPIs count: in the week of a transfer it may sit at the section the
+     * trooper left, so the row and the numbers above it agree.
      *
      * @param  Collection<int, Trooper>  $roster
      * @return list<array<string, mixed>>
      */
     private function trooperRows(Unit $section, CarbonImmutable $weekStart, Collection $roster): array
     {
-        $practice = $this->practices->find($section->id, $weekStart);
-        $marks = $practice === null ? collect() : $this->attendance->forPractice($practice)->keyBy('trooper_id');
+        $marks = $this->attendance->countingMarksOf($roster->pluck('id')->all(), $weekStart, $weekStart, includeDeparted: true)->keyBy('trooperId');
         $kpis = $this->kpis->trooperAttendance($section, $weekStart);
 
         return $roster->map(function (Trooper $trooper) use ($marks, $kpis) {
-            /** @var Attendance|null $mark */
+            /** @var CountingMark|null $mark */
             $mark = $marks->get($trooper->id);
             /** @var TrooperAttendance|null $reading */
             $reading = $kpis->get($trooper->id);

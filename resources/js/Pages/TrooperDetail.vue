@@ -4,6 +4,7 @@ import { Head, Link, usePage } from '@inertiajs/vue3';
 import { PhArrowLeft, PhArrowSquareOut, PhEnvelopeSimple, PhSignOut, PhWarning } from '@phosphor-icons/vue';
 import InlineNotice from '@/components/InlineNotice.vue';
 import MilpacPanel from '@/components/milpac/MilpacPanel.vue';
+import TransferList from '@/components/roster/TransferList.vue';
 import TimeAgo from '@/components/TimeAgo.vue';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +13,7 @@ import { Card } from '@/components/ui/card';
 import { forumDate, forumDateTime } from '@/lib/forumDate';
 import { initialsOf } from '@/lib/initials';
 import { makeupPmUrl } from '@/lib/makeupPm';
-import { trooperStatusOf } from '@/lib/roster';
+import { historyCell, RC_STATES, SP_STATES, trooperStatusOf, weekLabel } from '@/lib/roster';
 
 // One trooper's milpac (Stories 6.3 to 6.7): the ID block from the cached Cav roster, the courses and
 // qualifications panel, the awards history and the service-record timeline. Everything is shaped on the server (`Milpac\TrooperMilpac`) and drawn here; the
@@ -27,7 +28,23 @@ const props = defineProps({
     // `{ username, missedWeeks }` when the viewer may send this trooper a makeup PM, else null.
     makeup: { type: Object, default: null },
     sync: { type: Object, required: true },
+    // Their moves between units, newest first (2026-10-27).
+    transfers: { type: Array, default: () => [] },
+    // `Kpi\AttendanceHistory`: the last 20 Cav weeks, oldest first, each with the section they were in that week.
+    attendance: { type: Array, default: () => [] },
 });
+
+// The attendance history newest first, wherever it was recorded: after a transfer the new leadership sees the weeks
+// at the old section too (decided 2026-10-27).
+const historyRows = computed(() => {
+    const current = props.attendance.at(-1)?.week;
+
+    return props.attendance
+        .map((week) => ({ ...week, ...historyCell(week, { current: week.week === current }), current: week.week === current }))
+        .reverse();
+});
+const RC_TONE = { ok: 'success', cn: 'warning', bad: 'danger' };
+const SP_TONE = { ok: 'success', mk: 'success', at: 'info', bad: 'danger' };
 
 const status = computed(() => trooperStatusOf(props.trooper.status));
 // The makeup PM opens the forum's own "start conversation" form, pre-filled; the leader sends it there.
@@ -171,6 +188,37 @@ const staleNotice = computed(() => {
                     </div>
                 </dl>
         </Card>
+
+        <MilpacPanel v-if="attendance.length" title="Attendance history" class="w-full max-w-xl" data-testid="attendance-panel">
+            <div v-if="transfers.length" class="border-b border-border px-4 py-3">
+                <h3 class="mb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Transfers</h3>
+                <TransferList :transfers="transfers" />
+            </div>
+            <!-- Capped like the service record; a focusable scroll region so the keyboard can reach the rest. -->
+            <div class="max-h-96 overflow-y-auto" tabindex="0" aria-label="Attendance by Cav week, newest first">
+                <table class="w-full text-left text-[13px]" data-testid="attendance-history">
+                    <thead class="sticky top-0 bg-card text-[11px] text-muted-foreground">
+                        <tr class="border-b border-border">
+                            <th scope="col" class="px-4 py-1.5 font-medium">Week</th>
+                            <th scope="col" class="px-2 py-1.5 font-medium">Section</th>
+                            <th scope="col" class="px-2 py-1.5 font-medium">Rollcall</th>
+                            <th scope="col" class="px-2 py-1.5 pr-4 font-medium">Section practice</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="row in historyRows" :key="row.week" class="border-b border-border align-top last:border-0" data-testid="attendance-week">
+                            <td class="px-4 py-2 whitespace-nowrap">
+                                <span class="font-medium tabular-nums">{{ weekLabel(row.week) }}</span>
+                                <span v-if="row.current" class="block text-[11px] text-muted-foreground">This week</span>
+                            </td>
+                            <td class="px-2 py-2" data-testid="attendance-section">{{ row.section?.label ?? 'None' }}</td>
+                            <td class="px-2 py-2"><Badge :variant="RC_TONE[row.rc] ?? 'outline'">{{ RC_STATES[row.rc] }}</Badge></td>
+                            <td class="px-2 py-2 pr-4"><Badge :variant="SP_TONE[row.sp] ?? 'outline'">{{ SP_STATES[row.sp] }}</Badge></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </MilpacPanel>
 
         <MilpacPanel title="Courses &amp; qualifications" class="w-full max-w-xl" data-testid="courses-panel">
             <template v-if="courses.total" #count>

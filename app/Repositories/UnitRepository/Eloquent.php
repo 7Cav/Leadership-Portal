@@ -2,18 +2,25 @@
 
 namespace App\Repositories\UnitRepository;
 
+use App\Models\PlacementSource;
 use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitKind;
 use App\Models\UnitType;
+use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\UnitPath;
 use App\Repositories\UnitRepository;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as ScalarCollection;
 use Illuminate\Support\Facades\DB;
 
 class Eloquent implements UnitRepository
 {
+    public function __construct(
+        private readonly TrooperPlacementRepository $placements,
+    ) {}
+
     public function create(UnitType $type, string $name, ?string $callsign, ?int $parentId, UnitKind $kind = UnitKind::Line): Unit
     {
         return DB::transaction(function () use ($type, $name, $callsign, $parentId, $kind) {
@@ -199,9 +206,18 @@ class Eloquent implements UnitRepository
             // The foreign key nulls `primary_section_id` on its own, but `placement_source` would be
             // left saying who placed a trooper who is now unplaced. Cleared together, first. The ELOA
             // "was" (`last_line_unit_id`) is nulled by its own foreign key.
+            $placed = Trooper::query()->where('primary_section_id', $unit->id)->pluck('id');
+
             Trooper::query()
                 ->where('primary_section_id', $unit->id)
                 ->update(['primary_section_id' => null, 'placement_source' => null]);
+
+            // They leave the unit now; their placement history keeps the stretch, with no unit once it is gone.
+            $this->placements->record(
+                $placed->mapWithKeys(fn (int $id) => [$id => [$unit->id, null]])->all(),
+                PlacementSource::Manual,
+                CarbonImmutable::now(),
+            );
 
             $unit->delete();
         });

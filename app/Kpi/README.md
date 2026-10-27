@@ -8,6 +8,15 @@ not in a report's strength. A non-leaf's live KPIs therefore stay the sum of its
 org page and roster show strength as the headcount instead: everyone serving placed under the unit, HQ staff and groups
 included, New Recruits on their own group only.
 
+**Transfers (2026-10-27).** Each week of the window is read against the section the trooper was placed in that week,
+from the placement history (`trooper_placements`, written by the roster sync and the Admin's manual placement). Their
+marks at an old section still count after a move, the new section's practices from before they joined never do, and
+RC counts only the weeks they were in a section. In the week of a move it is still one counting mark (AD-14): the
+practice they attended, else the one they were marked at, else the later one. A unit's KPIs stay the sum of its current
+members' rows, earlier weeks elsewhere included, so the roster and the totals never disagree. A trooper with no history
+reads as placed in their current section for every week, as before. `AttendanceHistory` shows the same marks week by
+week on the milpac, with each week's section and LOA.
+
 `KpiService` is the **only** code that defines and computes the six canonical KPIs —
 strength, RC % · 30d, SP % · 30d, at-risk, on LOA, makeups — for a unit's subtree and a Cav
 week. The dashboard, the weekly report snapshot, the roll-up and Epic 4's at-risk flag all

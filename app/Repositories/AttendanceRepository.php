@@ -103,15 +103,20 @@ interface AttendanceRepository
     /**
      * The counting marks (AD-14) of every trooper currently assigned within `$unit`'s subtree
      * (`Trooper::assignedWithin`) over the whole weeks `$firstWeek` through `$lastWeek`
-     * inclusive: one per trooper per practice their *primary* section held in that span, whether
-     * or not the trooper has an attendance row on it (no row reads as a null status and an
-     * unsigned rollcall). Each mark says whether its practice was *held* — at least one attendance
+     * inclusive: one per trooper per week, against the practice of the section they were placed in
+     * that week (`TrooperPlacementRepository::sectionsByWeek`, 2026-10-27; their current section
+     * for a trooper with no placement history), whether or not the trooper has an attendance row
+     * on it (no row reads as a null status and an unsigned rollcall). A week with no practice row
+     * at that section has no mark, and so does a week they were placed in no section. After a
+     * transfer their marks at the old section stay theirs, and the new section's earlier practices
+     * are not. In the week of the move, the practice they attended, else the one they were marked
+     * at, else the later one; a rollcall signed at either counts. Each mark says whether its practice was *held* — at least one attendance
      * row on it, from any trooper, carries a leader's SP mark (any `status` but `loa`, which is
      * derived from LOA data); a row with only rollcall signatures or `loa` marks is not, and neither
      * is one whose only marks are automatic makeups: an auto makeup records a practice the trooper
      * attended elsewhere, and says nothing about whether their own section practised. A
-     * row against any other section's practice is not a counting mark and is left out. Ordered by
-     * trooper id, then week. One query, however large the subtree.
+     * row against a practice of a section they were not placed in that week is not a counting mark
+     * and is left out. Ordered by trooper id, then week. Two queries, however large the subtree.
      *
      * `$includeDeparted` widens the population to departed (`inactive`) troopers still placed in
      * the subtree, so the roster (2.8) can show a departed trooper's history. The KPI service
@@ -124,17 +129,26 @@ interface AttendanceRepository
     public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection;
 
     /**
+     * {@see countingMarks()} with what the KPI service needs beside the marks, in the same two queries: every trooper
+     * of the population with their current section, and the weeks each was placed in a section (2026-10-27).
+     *
+     * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
+     */
+    public function countingWindow(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): CountingWindow;
+
+    /**
      * {@see countingMarks()} for a set of troopers instead of a subtree: each serving, placed trooper of `$trooperIds`
-     * against the practices of their own primary section, whichever sections those are, with `held` decided by the
-     * same rule. For a screen that measures troopers from many sections at once (the JSAM guests' own SP) in one
-     * query rather than one per section. A departed or unplaced trooper has no marks. Ordered by trooper id, then week.
+     * against the practices of the sections they were placed in, whichever sections those are, with `held` decided by
+     * the same rule. For a screen that measures troopers from many sections at once (the JSAM guests' own SP) in one
+     * read rather than one per section. An unplaced trooper has no marks, and neither has a departed one unless
+     * `$includeDeparted` (a milpac showing a departed trooper's history). Ordered by trooper id, then week.
      *
      * @param  list<int>  $trooperIds
      * @return Collection<int, CountingMark>
      *
      * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
      */
-    public function countingMarksOf(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection;
+    public function countingMarksOf(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection;
 
     /**
      * Where each of `$sectionIds` stands for the week `$weekStart` (the home step matrix, AD-14):

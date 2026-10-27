@@ -139,8 +139,8 @@ it('reads one counting mark per held practice of the trooper\'s primary section 
     $marks = $this->repo->countingMarks($section, $week->subWeek(), $week);
 
     expect($marks->all())->toEqual([
-        new CountingMark($trooper->id, $week->subWeek(), null, RollcallSignature::Unsigned, held: false),
-        new CountingMark($trooper->id, $week, AttendanceStatus::Makeup, RollcallSignature::Unsigned, held: true, source: AttendanceSource::Manual),
+        new CountingMark($trooper->id, $week->subWeek(), null, RollcallSignature::Unsigned, held: false, sectionId: $section->id),
+        new CountingMark($trooper->id, $week, AttendanceStatus::Makeup, RollcallSignature::Unsigned, held: true, source: AttendanceSource::Manual, sectionId: $section->id),
     ]);
 });
 

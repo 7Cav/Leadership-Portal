@@ -19,6 +19,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Repositories\AttendanceRepository;
+use App\Repositories\CountingWindow;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -266,9 +267,14 @@ it('rolls the whole batch back — practice, marks and audit — when a write fa
             return $this->inner->countingMarks($unit, $firstWeek, $lastWeek, $includeDeparted);
         }
 
-        public function countingMarksOf(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
+        public function countingWindow(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): CountingWindow
         {
-            return $this->inner->countingMarksOf($trooperIds, $firstWeek, $lastWeek);
+            return $this->inner->countingWindow($unit, $firstWeek, $lastWeek, $includeDeparted);
+        }
+
+        public function countingMarksOf(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection
+        {
+            return $this->inner->countingMarksOf($trooperIds, $firstWeek, $lastWeek, $includeDeparted);
         }
 
         public function weekProgress(array $sectionIds, CarbonInterface $weekStart, array $excusedTrooperIds = []): Collection

@@ -143,6 +143,32 @@ export function weekLabel(weekStart) {
     return forumDate(`${weekStart}T00:00:00Z`);
 }
 
+/**
+ * One move from the placement history (`Milpac\PlacementHistory`, 2026-10-27), as the milpac and the Sheet word it:
+ * "Moved from 2/1/A/1-7 to 1/2/A/1-7, 12Oct26". `from` is null for a first placement, `to` when they were left
+ * unplaced.
+ */
+export function transferLabel(move) {
+    const date = forumDate(move.at);
+    if (move.from && move.to) return `Moved from ${move.from} to ${move.to}, ${date}`;
+    if (move.to) return `Placed in ${move.to}, ${date}`;
+
+    return `Left ${move.from}, ${date}`;
+}
+
+/**
+ * How one milpac attendance week (`Kpi\AttendanceHistory`) renders, as the same RC and SP states as a roster week. A
+ * week in no section (before they joined one, on HQ staff or in a group) is `out`; a week leave covers is `loa`
+ * whatever the marks say.
+ */
+export function historyCell(week, { current = false } = {}) {
+    if (week.loa) return { rc: 'loa', sp: 'loa' };
+    if (!week.section) return { rc: 'out', sp: 'out' };
+
+    // No practice row at that section that week: nothing was posted or held.
+    return weekCell(week.rollcall === null ? null : week, week.week, { current });
+}
+
 /** The trooper joined within the last 8 Cav weeks (the order-of-battle strip's window). */
 export function isNewRecruit(trooper, currentWeek) {
     if (!trooper.joined) return false;

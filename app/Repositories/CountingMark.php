@@ -8,7 +8,7 @@ use App\Models\RollcallSignature;
 use Carbon\CarbonImmutable;
 
 /**
- * One trooper-week against the practice their primary section held that week (AD-14) — the raw
+ * One trooper-week against the practice of the section they were placed in that week (AD-14, 2026-10-27) — the raw
  * fact the KPI service (5.1) reads. `status` is null while the practice is unmarked for this
  * trooper; `rollcall` is `Unsigned` until they sign, including when they have no attendance row
  * at all.
@@ -26,5 +26,7 @@ final readonly class CountingMark
         public bool $held,
         /** Who recorded the SP mark — `manual` or `auto` — null while unmarked (2.8's cell source). */
         public ?AttendanceSource $source = null,
+        /** The section whose practice this is: the one the trooper was placed in that week, which after a transfer may not be their current one. */
+        public ?int $sectionId = null,
     ) {}
 }

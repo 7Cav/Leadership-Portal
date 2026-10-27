@@ -13,6 +13,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Repositories\AttendanceRepository;
+use App\Repositories\CountingWindow;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
@@ -221,9 +222,14 @@ it('still answers saved when only the at-risk refresh fails, so the screen never
             throw new RuntimeException('kpi read failed');
         }
 
-        public function countingMarksOf(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
+        public function countingWindow(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): CountingWindow
         {
-            return $this->inner->countingMarksOf($trooperIds, $firstWeek, $lastWeek);
+            throw new RuntimeException('kpi read failed');
+        }
+
+        public function countingMarksOf(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection
+        {
+            return $this->inner->countingMarksOf($trooperIds, $firstWeek, $lastWeek, $includeDeparted);
         }
 
         public function weekProgress(array $sectionIds, CarbonInterface $weekStart, array $excusedTrooperIds = []): Collection

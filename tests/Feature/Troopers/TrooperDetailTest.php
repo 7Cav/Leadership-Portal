@@ -4,7 +4,9 @@ use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\Course;
 use App\Models\CourseStatus;
+use App\Models\Loa;
 use App\Models\PortalRoleGrant;
+use App\Models\RollcallSignature;
 use App\Models\SyncRun;
 use App\Models\SyncRunStatus;
 use App\Models\Trooper;
@@ -16,6 +18,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\SectionPracticeRepository;
+use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
@@ -599,5 +602,43 @@ describe('the makeup PM (Command Brief principle 2)', function () {
         $this->actingAs(User::factory()->admin()->create());
 
         milpacOpen($this, Trooper::factory()->create(['username' => 'Reyes.M']))->assertInertia(fn ($page) => $page->where('makeup', null));
+    });
+});
+
+// Decided by the product owner 2026-10-27: "When you transfer to a new area, the new leadership can see your history,
+// it's linked to your profile." Anyone who may see the trooper now sees their signing, practice marks and LOAs from
+// before the move, week by week with the section, and the move itself.
+describe('attendance across transfers', function () {
+    it('shows the weeks at the old section to the new leadership, each with its section, and the move', function () {
+        $trooper = milpacTrooper($this->section2);
+        $old = app(SectionPracticeRepository::class)->findOrCreate($this->section2->id, CarbonImmutable::parse('2026-09-19 00:00:00', 'UTC'));
+        app(AttendanceRepository::class)->markPractice($old, $trooper->id, AttendanceStatus::Present, AttendanceSource::Manual);
+        app(AttendanceRepository::class)->signRollcall($old, $trooper->id, RollcallSignature::WillAttend);
+        $this->travelTo(CarbonImmutable::parse('2026-09-30 18:00:00', 'UTC'));
+        app(TrooperRepository::class)->updatePrimarySections([$trooper->cav_id => $this->section1->id]);
+        $this->travelTo(CarbonImmutable::parse('2026-10-08 12:00:00', 'UTC'));
+        Loa::factory()->create(['trooper_id' => $trooper->id, 'starts_at' => '2026-09-12', 'ends_at' => '2026-09-14']);
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page
+            ->where('transfers', [['at' => '2026-09-30T18:00:00Z', 'from' => '2/1/A/1-7', 'to' => '1/1/A/1-7']])
+            ->has('attendance', 20)
+            ->where('attendance.19.week', '2026-10-03')
+            ->where('attendance.19.section', ['id' => $this->section1->id, 'label' => '1/1/A/1-7'])
+            ->where('attendance.17.week', '2026-09-19')
+            ->where('attendance.17.section', ['id' => $this->section2->id, 'label' => '2/1/A/1-7'])
+            ->where('attendance.17.status', 'present')
+            ->where('attendance.17.rollcall', 'will_attend')
+            ->where('attendance.16.week', '2026-09-12')
+            ->where('attendance.16.loa', true)
+            ->where('attendance.16.status', null));
+    });
+
+    it('shows no transfers and the current section for a trooper who never moved', function () {
+        $trooper = milpacTrooper($this->section1);
+
+        milpacOpen($this->actingAs($this->leader), $trooper)->assertInertia(fn ($page) => $page
+            ->where('transfers', [])
+            ->where('attendance.0.section.id', $this->section1->id)
+            ->where('attendance.0.status', null));
     });
 });
