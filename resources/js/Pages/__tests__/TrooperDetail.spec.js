@@ -127,6 +127,41 @@ describe('TrooperDetail', () => {
         });
     });
 
+    // Decided 2026-10-27: the new leadership sees the trooper's history from before a transfer.
+    describe('attendance across transfers', () => {
+        const history = () =>
+            Array.from({ length: 20 }, (_, i) => {
+                const date = new Date(Date.UTC(2026, 4, 23 + i * 7)).toISOString().slice(0, 10);
+                const base = { week: date, section: { id: 3, label: '1/1/E/2-7' }, rollcall: null, status: null, source: null, held: false, loa: false };
+                if (i === 17) return { ...base, section: { id: 9, label: '2/1/A/1-7' }, rollcall: 'will_attend', status: 'present', source: 'manual', held: true };
+                if (i === 16) return { ...base, section: { id: 9, label: '2/1/A/1-7' }, loa: true };
+                if (i < 5) return { ...base, section: null };
+
+                return base;
+            });
+
+        it('lists the transfers and every week newest first with its section, rollcall, practice and LOA', () => {
+            const wrapper = page({ transfers: [{ at: '2026-09-30T18:00:00Z', from: '2/1/A/1-7', to: '1/1/E/2-7' }], attendance: history() });
+            const rows = wrapper.findAll('[data-testid="attendance-week"]');
+
+            expect(wrapper.get('[data-testid="transfers"]').text()).toBe('Moved from 2/1/A/1-7 to 1/1/E/2-7, 30Sep26');
+            expect(rows).toHaveLength(20);
+            expect(rows[0].text()).toContain('This week');
+            expect(rows[2].text()).toContain('19Sep26');
+            expect(rows[2].get('[data-testid="attendance-section"]').text()).toBe('2/1/A/1-7');
+            expect(rows[2].text()).toContain('Will attend');
+            expect(rows[2].text()).toContain('Present');
+            expect(rows[3].text()).toContain('On LOA');
+            expect(rows[19].get('[data-testid="attendance-section"]').text()).toBe('None');
+            expect(rows[19].text()).toContain('Not in the unit yet');
+        });
+
+        it('leaves the transfers out for a trooper who never moved, and the panel out with no history', () => {
+            expect(page({ attendance: history() }).find('[data-testid="transfers"]').exists()).toBe(false);
+            expect(page().find('[data-testid="attendance-panel"]').exists()).toBe(false);
+        });
+    });
+
     describe('page structure', () => {
         it('names the person once: the h1 is the name and the card heading is the billet', () => {
             const wrapper = page();

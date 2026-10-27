@@ -5,6 +5,7 @@ import {
     compareOrbat,
     FILTERS,
     highlightParts,
+    historyCell,
     isNewRecruit,
     matchesQuery,
     monthsSince,
@@ -17,6 +18,7 @@ import {
     shortDuration,
     SORTS,
     sourceLabel,
+    transferLabel,
     weekCell,
     weekLabel,
     writeOrbatSort,
@@ -325,5 +327,28 @@ describe('time in service and grade', () => {
         expect(shortDuration(7)).toBe('7m');
         expect(shortDuration(0)).toBe('<1m');
         expect(shortDuration(null)).toBe('—');
+    });
+});
+
+// Decided 2026-10-27: the milpac and the Sheet show a trooper's moves and their attendance across every unit.
+describe('transfers and the attendance history', () => {
+    it('words a move, a first placement and a trooper left unplaced, with the forum date', () => {
+        expect(transferLabel({ at: '2026-10-12T18:00:00Z', from: '2/1/A/1-7', to: '1/2/A/1-7' })).toBe('Moved from 2/1/A/1-7 to 1/2/A/1-7, 12Oct26');
+        expect(transferLabel({ at: '2026-10-12T18:00:00Z', from: null, to: '1/2/A/1-7' })).toBe('Placed in 1/2/A/1-7, 12Oct26');
+        expect(transferLabel({ at: '2026-10-12T18:00:00Z', from: '2/1/A/1-7', to: null })).toBe('Left 2/1/A/1-7, 12Oct26');
+    });
+
+    const week = (overrides = {}) => ({ week: '2026-09-19', section: { id: 4, label: '2/1/A/1-7' }, rollcall: 'will_attend', status: 'present', source: 'manual', held: true, loa: false, ...overrides });
+
+    it('reads a week at the old section like a roster week', () => {
+        expect(historyCell(week())).toEqual({ rc: 'ok', sp: 'ok' });
+        expect(historyCell(week({ rollcall: 'unsigned', status: 'missed' }))).toEqual({ rc: 'bad', sp: 'bad' });
+    });
+
+    it('shows leave over the marks, a week in no section as out, and a week with no practice row as nothing posted', () => {
+        expect(historyCell(week({ loa: true, status: null }))).toEqual({ rc: 'loa', sp: 'loa' });
+        expect(historyCell(week({ section: null, rollcall: null, status: null, held: false }))).toEqual({ rc: 'out', sp: 'out' });
+        expect(historyCell(week({ rollcall: null, status: null, held: false }))).toEqual({ rc: 'nil', sp: 'nil' });
+        expect(historyCell(week({ rollcall: null, status: null, held: false }), { current: true })).toEqual({ rc: 'open', sp: 'pending' });
     });
 });

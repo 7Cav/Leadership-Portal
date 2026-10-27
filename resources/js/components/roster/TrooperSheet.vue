@@ -12,6 +12,7 @@ import { forumDate } from '@/lib/forumDate';
 import { makeupPmUrl } from '@/lib/makeupPm';
 import { percentLabel, percentTone, RC_STATES, sourceLabel, SP_STATES, weekCell, weekLabel } from '@/lib/roster';
 import RankBadge from './RankBadge.vue';
+import TransferList from './TransferList.vue';
 import WeekCell from './WeekCell.vue';
 
 // The trooper Sheet both roster views open (roster-s2/s3 `openTrooper`): identity and billet, the
@@ -70,6 +71,9 @@ const cells = computed(() =>
     })),
 );
 const recent = computed(() => cells.value.slice(-8).reverse());
+// After a transfer, an earlier week was at another section (2026-10-27): its rows name that section.
+const sectionLabel = computed(() => trooper.value?.section?.callsign ?? trooper.value?.section?.name ?? null);
+const elsewhere = (mark) => (mark?.section && mark.section !== sectionLabel.value ? mark.section : null);
 
 // A trooper who missed a practice in the KPI window can be sent a makeup PM: a link that opens the forum's own
 // "start conversation" form, pre-filled, for the leader to send there. None without a forum username.
@@ -146,13 +150,18 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                             <span
                                 v-for="cell in cells"
                                 :key="cell.week"
-                                :title="`Week of ${weekLabel(cell.week)}. Rollcall: ${RC_STATES[cell.rc]}. SP: ${SP_STATES[cell.sp]}.`"
+                                :title="`Week of ${weekLabel(cell.week)}${elsewhere(cell.mark) ? ` at ${elsewhere(cell.mark)}` : ''}. Rollcall: ${RC_STATES[cell.rc]}. SP: ${SP_STATES[cell.sp]}.`"
                                 :class="cell.week === current && 'rounded-[4px] outline outline-[1.5px] outline-offset-2 outline-primary'"
                             >
                                 <WeekCell :rc="cell.rc" :sp="cell.sp" size="xs" />
                             </span>
                         </div>
                         <div class="mt-1 flex justify-between text-[11px] text-muted-foreground"><span>{{ weekLabel(weeks[0]) }}</span><span>This week</span></div>
+                    </div>
+
+                    <div v-if="trooper.transfers?.length">
+                        <h3 class="mb-2 text-xs text-muted-foreground">Transfers</h3>
+                        <TransferList :transfers="trooper.transfers" />
                     </div>
 
                     <dl class="grid grid-cols-[7.5rem_1fr] gap-y-2">
@@ -188,6 +197,7 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                                     <td class="py-2 pr-3 whitespace-nowrap">
                                         <span class="font-medium tabular-nums">{{ weekLabel(cell.week) }}</span>
                                         <span v-if="cell.week === current" class="block text-[11px] text-muted-foreground">This week</span>
+                                        <span v-if="elsewhere(cell.mark)" class="block text-[11px] text-muted-foreground" data-testid="sheet-week-section">At {{ elsewhere(cell.mark) }}</span>
                                     </td>
                                     <td class="py-2 pr-3"><Badge :variant="RC_TONE[cell.rc] ?? 'outline'">{{ RC_STATES[cell.rc] }}</Badge></td>
                                     <td class="py-2">
