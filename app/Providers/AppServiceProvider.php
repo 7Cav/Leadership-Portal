@@ -125,6 +125,11 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('audited-writes', fn (Request $request) => Limit::perMinute(60)
             ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
 
+        // Fetching the game servers (#389) asks every telemetry interface over HTTP on the request, so it is capped
+        // per Admin like the manual syncs.
+        RateLimiter::for('server-fetch', fn (Request $request) => Limit::perMinute(5)
+            ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
+
         // Manual leave sync (Story 4.2), on the same terms. SyncLoasJob is unique too, but a full
         // run reads a year of forum threads, so asking for one is capped the same way, per Admin.
         RateLimiter::for('loa-sync', fn (Request $request) => Limit::perMinute(5)

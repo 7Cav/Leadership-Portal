@@ -110,8 +110,9 @@ return [
 
     /*
     | BattleMetrics — the read-only Arma Reforger presence seam, and HLL fallback (Story 7.4, AD-3).
-    | Machine credential read from env only (AD-23). The base URL defaults to the public API;
-    | the server id names the unit's own game server, so unset values are reported as misconfigured.
+    | Machine credential read from env only (AD-23). The base URL defaults to the public API.
+    | `server_id` is the legacy single server, read only for a game with no server selected on the
+    | Servers page (#389); a selected server carries its own id in the portal.
     */
     'battlemetrics' => [
         'base_url' => env('BATTLEMETRICS_BASE_URL', 'https://api.battlemetrics.com'),
@@ -121,7 +122,8 @@ return [
 
     /*
     | Nightwatch — the read-only WARDOGS presence seam (Story 7.10, AD-3). Machine credential
-    | read from env only (AD-23). `server_ids` is a comma list of the workspace's server ids.
+    | read from env only (AD-23). `server_ids` is a comma list of the workspace's server ids: the
+    | legacy list, read only for a game with no server selected on the Servers page (#389).
     */
     'nightwatch' => [
         'base_url' => env('NIGHTWATCH_BASE_URL', 'https://nightwatch.to/api/public/stats'),

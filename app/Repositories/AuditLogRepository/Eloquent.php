@@ -7,6 +7,7 @@ use App\Models\FireteamAssignment;
 use App\Models\FireteamSetting;
 use App\Models\Game;
 use App\Models\GamePlayerDismissal;
+use App\Models\GameServer;
 use App\Models\PlatoonTrainingTopic;
 use App\Models\PortalRoleGrant;
 use App\Models\PracticeCapturePlayer;
@@ -56,6 +57,7 @@ class Eloquent implements AuditLogRepository
         // A user is linked through their trooper, matched on `cav_id` (see {@see withTroopers()}).
         'User' => [User::class, []],
         'Game' => [Game::class, []],
+        'GameServer' => [GameServer::class, []],
         // A dismissal belongs to no unit; it is linked through the latest practice that captured the player (see
         // {@see withLatestCaptures()}).
         'GamePlayerDismissal' => [GamePlayerDismissal::class, []],

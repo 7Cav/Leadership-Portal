@@ -9,6 +9,7 @@ use App\Models\FireteamAssignment;
 use App\Models\FireteamSetting;
 use App\Models\Game;
 use App\Models\GamePlayerDismissal;
+use App\Models\GameServer;
 use App\Models\PlatoonTrainingTopic;
 use App\Models\PortalRoleGrant;
 use App\Models\SectionPractice;
@@ -118,7 +119,7 @@ class AuditLogController extends Controller
      * unit's roster, a trooper's milpac (also for their game identities, courses and placement, and for the portal user
      * they sign in as), a company's templates,
      * the staff grants, a section's rollcall (for its fireteams and fireteam display), a platoon's report week (for its
-     * training topic), the Games page (for a game), or the rollcall week where a dismissed player was last captured. Null
+     * training topic), the Games page (for a game), the Servers page (for a game server), or the rollcall week where a dismissed player was last captured. Null
      * when the target is gone or has no page.
      *
      * @return array{href: string, label: string}|null
@@ -167,6 +168,10 @@ class AuditLogController extends Controller
             $target instanceof Game => [
                 'href' => route('settings.games', [], false),
                 'label' => "{$target->name} game",
+            ],
+            $target instanceof GameServer => [
+                'href' => route('settings.servers', [], false),
+                'label' => "{$target->name} server",
             ],
             $target instanceof GamePlayerDismissal => $this->dismissalLink($target),
             // A user (a view-as target, a changed Admin flag) links to their trooper's milpac when they have one.

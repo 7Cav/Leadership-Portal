@@ -7,8 +7,9 @@ namespace App\Models;
  * The seams stay code, one `Integration/` seam each (AD-3); an Admin picks one for a game, never defines a new one.
  * The capture's source map, `App\Commands\Capture\CaptureSources`, maps each to the sources a capture tries.
  *
- * Each interface reads the server(s) configured for it in env (AD-23), not one per game: picking BattleMetrics for a
- * new game reads the BattleMetrics server already configured. Per-game servers are a later change (#389).
+ * A game's servers are picked on the Servers page (#389) and each is read by its own interface; credentials stay in
+ * env, one set per interface (AD-23). A game with no server selected reads its interface's legacy env server, and a
+ * game set to `none` is not captured at all.
  */
 enum TelemetryInterface: string
 {
