@@ -14,6 +14,8 @@ use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\TemplateVersionRepository;
+use App\Repositories\UnitCommandMappingRepository;
+use App\Repositories\UnitDesignationOrder;
 use App\Repositories\UnitRepository;
 use App\Rollcall\RollcallRoster;
 use App\Rollcall\SectionFireteams;
@@ -48,18 +50,20 @@ class TemplatesController extends Controller
         private readonly TemplateVersionRepository $versions,
         private readonly UnitRepository $units,
         private readonly RollcallRoster $roster,
+        private readonly UnitCommandMappingRepository $commands,
     ) {}
 
     public function index(Request $request, ScopeResolver $scope): Response
     {
-        $companies = $this->visibleCompanies($request->user(), $scope);
+        $tree = $this->units->tree();
+        $companies = $this->visibleCompanies($request->user(), $scope, $tree);
         $selected = $companies->firstWhere('id', $request->integer('company'));
 
         // Anyone but an Admin gets the same 403 for a company outside their scope and for an id that is no company at
-        // all, so the answer says nothing about which ids exist. An Admin asking for a non-company lands on the first.
+        // all, so the answer says nothing about which ids exist. An Admin asking for a non-company lands on their own.
         abort_if($selected === null && $request->filled('company') && ! $scope->actsAsAdmin($request->user()), 403, 'This company is outside your scope.');
 
-        $selected ??= $companies->first();
+        $selected ??= $this->ownCompany($request->user(), $scope, $companies, $tree) ?? $companies->first();
         $history = $selected === null ? collect() : $this->versions->history($selected->id, self::TYPE);
         $activeId = $selected === null ? null : $this->versions->activeFor($selected->id, self::TYPE)?->id;
         $active = $history->first(fn (TemplateVersion $version) => $version->id === $activeId);
@@ -85,8 +89,9 @@ class TemplatesController extends Controller
             // previewed leader. The write gates below read the real flag.
             'isAdmin' => $scope->actsAsAdmin($request->user()),
             // The sections the preview can be filled from instead of the sample: those under the company that the viewer
-            // could open on the rollcall page. Their rows load only when one is picked ({@see previewSection()}).
-            'previewSections' => $selected === null ? [] : $this->roster->options($this->sectionsUnder($selected, $request->user(), $scope)),
+            // could open on the rollcall page, in designation order. The page fills the preview with the first one (the
+            // first section of the first platoon); a section's rows load only when it is shown ({@see previewSection()}).
+            'previewSections' => $selected === null ? [] : $this->roster->options(UnitDesignationOrder::sort($this->sectionsUnder($selected, $request->user(), $scope), $tree)),
         ]);
     }
 
@@ -178,15 +183,16 @@ class TemplatesController extends Controller
     }
 
     /**
-     * The companies the viewer may read the templates of, in tree order: every company for an acting Admin, otherwise
-     * those with at least one unit of the viewer's read scope (view-as included) at or under them.
+     * The companies the viewer may read the templates of, in designation order ({@see UnitDesignationOrder}): every
+     * company for an acting Admin, otherwise those with at least one unit of the viewer's read scope (view-as included)
+     * at or under them.
      *
+     * @param  Collection<int, Unit>  $tree
      * @return Collection<int, Unit>
      */
-    private function visibleCompanies(User $user, ScopeResolver $scope): Collection
+    private function visibleCompanies(User $user, ScopeResolver $scope, Collection $tree): Collection
     {
-        $tree = $this->units->tree();
-        $companies = $tree->filter(fn (Unit $unit) => $unit->type === UnitType::Company)->values();
+        $companies = UnitDesignationOrder::sort($tree->filter(fn (Unit $unit) => $unit->type === UnitType::Company)->values(), $tree);
 
         if ($scope->actsAsAdmin($user)) {
             return $companies;
@@ -198,6 +204,32 @@ class TemplatesController extends Controller
         return $companies
             ->filter(fn (Unit $company) => $paths->contains(fn (string $path) => str_starts_with($path, $company->path)))
             ->values();
+    }
+
+    /**
+     * The company the page opens on when none is asked for: the one the viewer's command billet sits in (their company,
+     * or the company above their platoon or section), else the first company their scope (view-as included) reaches
+     * into. Null when neither applies, which leaves the first company.
+     *
+     * @param  Collection<int, Unit>  $companies  in designation order
+     * @param  Collection<int, Unit>  $tree
+     */
+    private function ownCompany(User $user, ScopeResolver $scope, Collection $companies, Collection $tree): ?Unit
+    {
+        $readable = $scope->resolve($user)->flip();
+        $commanded = $this->commands->commandedUnitFor($user);
+
+        if ($commanded !== null && $readable->has($commanded->id)) {
+            $own = $companies->first(fn (Unit $company) => str_starts_with($commanded->path, $company->path));
+
+            if ($own !== null) {
+                return $own;
+            }
+        }
+
+        $paths = $tree->filter(fn (Unit $unit) => $readable->has($unit->id))->pluck('path');
+
+        return $companies->first(fn (Unit $company) => $paths->contains(fn (string $path) => str_starts_with($path, $company->path)));
     }
 
     /**
