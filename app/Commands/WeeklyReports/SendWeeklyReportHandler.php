@@ -12,6 +12,7 @@ use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportAlreadySentException;
 use App\Repositories\WeeklyReportRepository;
+use App\Support\Audit\ActingFor;
 use App\Support\Audit\AuditEnvelope;
 use App\Support\Audit\ReasonRequiredException;
 use App\Support\Time\WeekOf;
@@ -66,6 +67,7 @@ class SendWeeklyReportHandler
         private readonly WeeklyReportKpis $snapshots,
         private readonly AuditEnvelope $audit,
         private readonly PlatoonTrainingTopicRepository $topics,
+        private readonly ActingFor $acting,
     ) {}
 
     /**
@@ -136,6 +138,8 @@ class SendWeeklyReportHandler
                         $templateVersionId,
                         $trainingSubject,
                         $content->unaccounted,
+                        // An Admin acting as the sender (#379) is named beside them.
+                        $this->acting->adminActingAs($actor->id),
                     );
                 },
             );

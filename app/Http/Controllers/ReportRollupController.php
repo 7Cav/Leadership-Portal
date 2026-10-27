@@ -137,7 +137,7 @@ class ReportRollupController extends Controller
     /** @return list<int> */
     private static function senderIds(ChainNode $node): array
     {
-        $ids = $node->report?->sent_by === null ? [] : [$node->report->sent_by];
+        $ids = array_values(array_filter([$node->report?->sent_by, $node->report?->sent_by_admin]));
 
         foreach ($node->children as $child) {
             array_push($ids, ...self::senderIds($child));
@@ -172,7 +172,10 @@ class ReportRollupController extends Controller
             'notes' => $node->report?->notes,
             'savedAt' => $node->report?->updated_at?->toIso8601String(),
             'sentAt' => $node->report?->sent_at?->toIso8601String(),
-            'sentBy' => $node->report?->sent_by === null ? null : $senders->get($node->report->sent_by),
+            'sentBy' => $node->report?->sent_by === null ? null : (
+                // "Hale.S for Mercer.J" when an Admin acting as the sender sent it (#379).
+                $node->report->sent_by_admin === null ? '' : $senders->get($node->report->sent_by_admin).' for '
+            ).$senders->get($node->report->sent_by),
             'reportUrl' => '/reports/'.$node->unit->id.'/'.$week->toDateString(),
             'children' => array_map(fn (ChainNode $child) => $this->present($child, $week, $senders), $node->children),
         ];

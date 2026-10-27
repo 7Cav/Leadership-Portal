@@ -60,7 +60,10 @@ class RollcallGuests
             'rank' => $trooper->rank_short ?? $trooper->rank,
             'section' => $section instanceof Unit ? ($section->callsign ?? $section->name) : null,
             'source' => $row->source,
-            'recordedBy' => $row->isManual() ? $row->recordedBy?->username : null,
+            // "Hale.S for Vasquez.R" when an Admin acting as the leader added them (#379).
+            'recordedBy' => ! $row->isManual() ? null : ($row->recordedByAdmin === null
+                ? $row->recordedBy?->username
+                : "{$row->recordedByAdmin->username} for {$row->recordedBy?->username}"),
         ];
     }
 
