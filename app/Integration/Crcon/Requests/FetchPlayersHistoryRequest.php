@@ -13,7 +13,7 @@ use Saloon\Traits\Body\HasJsonBody;
  * `POST {base}/api/get_players_history`.
  *
  * Read-only despite the verb — CRCON's history endpoint takes its filters as a JSON body, and
- * this is a query, not a command. It is the only request class in `Integration/Crcon`; no
+ * this is a query, not a command. With the public info (#389), the only request class in `Integration/Crcon`; no
  * server-administration endpoint (kick, ban, message, map change) is modelled anywhere.
  */
 class FetchPlayersHistoryRequest extends Request implements HasBody

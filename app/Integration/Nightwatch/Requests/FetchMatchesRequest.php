@@ -9,9 +9,8 @@ use Saloon\Http\Request;
  * Reads the recent matches (last 48 hours) on one server, each with its full scoreboard:
  * `GET {base}/matches?limit=N&server=<id>`.
  *
- * The only request class in `Integration/Nightwatch`. The community quest POST endpoints and
- * anything else that writes are deliberately not modelled. (`GET /servers/live` also exists, for
- * a future short poll; it is not needed here.)
+ * With the server listing (`GET /servers/live`, #389), the only request class in `Integration/Nightwatch`.
+ * The community quest POST endpoints and anything else that writes are deliberately not modelled.
  */
 class FetchMatchesRequest extends Request
 {

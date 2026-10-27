@@ -9,7 +9,7 @@ use App\Repositories\GameRepository;
 use App\Support\Audit\AuditEnvelope;
 
 /**
- * Delete a game nothing uses — one added by mistake (#388). A game an identity, a captured player or a dismissal
+ * Delete a game nothing uses — one added by mistake (#388). A game an identity, a captured player, a dismissal or a game server
  * uses is refused and must be retired instead; the check runs inside the audited transaction, under a lock, so a
  * refused delete leaves no log entry. Admin-only, gated by the controller (AD-6). Audited (AD-16).
  */

@@ -10,8 +10,8 @@ use Saloon\Http\Request;
  * Reads the sessions on one server that overlap a window:
  * `GET {base}/servers/{id}/relationships/sessions`, with the players' identifiers included.
  *
- * The only request class in `Integration/BattleMetrics`; nothing that changes BattleMetrics
- * state (flags, notes, bans) is modelled anywhere. Later pages repeat the endpoint with the
+ * With the server listing (#389), the only request class in `Integration/BattleMetrics`; nothing that
+ * changes BattleMetrics state (flags, notes, bans) is modelled anywhere. Later pages repeat the endpoint with the
  * query of the `links.next` URL BattleMetrics returned, passed as `$nextQuery` (Saloon refuses
  * an absolute URL as an endpoint, which also keeps the key on the configured host).
  */
