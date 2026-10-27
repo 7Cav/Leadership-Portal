@@ -127,6 +127,46 @@ final class GuideLibrary
     }
 
     /**
+     * The URL of the guide the "?" help opens on a portal path (#411), or null to open docs home. A guide's `page` matches the
+     * path exactly, with `{name}` standing for one segment (`/reports/{unit}/{week}`) and `{name?}` for an optional
+     * one; failing that, the page the path sits beneath (`/rollcall` for `/rollcall/12`). Among several, the most
+     * specific page wins: the most fixed segments.
+     */
+    public function guideFor(Audience $reader, string $path): ?string
+    {
+        $path = '/'.trim(strtok($path, '?#') ?: '/', '/');
+
+        $best = null;
+        $bestScore = -1;
+        foreach ($this->pages($reader) as $page => $url) {
+            $score = $this->pageScore($page, $path);
+            if ($score > $bestScore) {
+                [$best, $bestScore] = [$url, $score];
+            }
+        }
+
+        return $best;
+    }
+
+    /** How well `$page` matches `$path`: -1 for not at all; an exact match beats any page the path only sits beneath. */
+    private function pageScore(string $page, string $path): int
+    {
+        $segments = array_values(array_filter(explode('/', $page), fn (string $s) => $s !== ''));
+        $fixed = count(array_filter($segments, fn (string $s) => ! str_starts_with($s, '{')));
+        $pattern = implode('', array_map(fn (string $s) => match (true) {
+            str_ends_with($s, '?}') => '(?:/[^/]+)?',
+            str_starts_with($s, '{') => '/[^/]+',
+            default => '/'.preg_quote($s, '#'),
+        }, $segments));
+
+        if (preg_match("#^{$pattern}$#", $path) === 1) {
+            return 1000 + $fixed;
+        }
+
+        return preg_match("#^{$pattern}/#", $path) === 1 ? $fixed : -1;
+    }
+
+    /**
      * The guides either side of `$guide` in the reader's contents order, for the previous and next links. Crosses
      * sections, so the last guide of one leads to the first of the next.
      *

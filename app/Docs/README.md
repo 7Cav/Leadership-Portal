@@ -25,6 +25,8 @@ and mtimes) and answers, for one `Audience`:
 - `find($section, $slug)`: one guide, or null. A guide the reader may not read is null too, exactly like a missing one;
 - `checklist()`: the "Start here" items listed for the reader, by `checklist.order`;
 - `pages()`: each portal path a readable guide explains, mapped to its URL, for the "?" help.
+- `guideFor($path)`: the URL of the guide the "?" help opens on a portal path (exact match first, `{name}` for one
+  segment, then the page the path sits beneath), or null for docs home.
 
 `problems()` lists everything wrong with the files on disk. A guide with a problem is left out, and
 `tests/Feature/Docs/GuidesOnDiskTest.php` fails the build on any.

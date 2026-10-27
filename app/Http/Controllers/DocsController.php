@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Docs\DocsPages;
+use App\Docs\GuideLibrary;
 use App\Docs\ViewerAudience;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -20,6 +22,7 @@ class DocsController extends Controller
     public function __construct(
         private readonly ViewerAudience $audience,
         private readonly DocsPages $pages,
+        private readonly GuideLibrary $library,
     ) {}
 
     public function index(Request $request): Response
@@ -27,6 +30,25 @@ class DocsController extends Controller
         abort_unless((bool) config('portal.docs'), 404);
 
         return Inertia::render('Docs/Index', $this->pages->home($this->audience->of($request->user())));
+    }
+
+    /**
+     * The "?" help in the top bar (#411): the viewer's best guide for the page they were on (`?from=/rollcall`), or docs
+     * home when none matches or the only match is a guide they may not read. The guide is told where they came from so
+     * it can offer the way back. Only a path on this portal is passed on, never `//elsewhere`.
+     */
+    public function help(Request $request): RedirectResponse
+    {
+        abort_unless((bool) config('portal.docs'), 404);
+
+        $from = (string) $request->query('from', '');
+        if (! str_starts_with($from, '/') || str_starts_with($from, '//') || str_starts_with($from, '/\\')) {
+            return redirect('/docs');
+        }
+
+        $guide = $this->library->guideFor($this->audience->of($request->user()), $from);
+
+        return redirect($guide === null ? '/docs' : $guide.'?'.http_build_query(['from' => strtok($from, '#')]));
     }
 
     public function show(Request $request, string $section, string $slug): Response

@@ -26,3 +26,17 @@ test('a guide for another audience is not found', async ({ page }) => {
 
     expect(response.status()).toBe(404);
 });
+
+// #411: the "?" in the top bar opens the guide for the page the leader is on, and the guide offers the way back.
+test('Help on the rollcall opens the rollcall guide, which leads back to the rollcall', async ({ page }) => {
+    await page.goto('/__e2e/login/Mercer.J?to=/rollcall');
+
+    await page.getByRole('link', { name: 'Help for this page' }).click();
+    await expect(page).toHaveURL(/\/docs\/weekly-rollcall\/run-rollcall\?from=%2Frollcall/);
+    await expect(page.getByTestId('breadcrumb-current')).toHaveText("Run this week's rollcall");
+    await expect(page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Docs' })).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByTestId('came-from')).toContainText('You opened this from Rollcall.');
+
+    await page.getByTestId('came-from').getByRole('link', { name: 'Back to Rollcall' }).click();
+    await expect(page).toHaveURL(/\/rollcall/);
+});
