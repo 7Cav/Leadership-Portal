@@ -239,6 +239,28 @@ class ScopeResolver
     }
 
     /**
+     * Whether the user holds a leadership billet as a read sees it: they command at least one unit (a synced billet,
+     * an acting lead, or Admin), never through a staff grant alone. A preview answers for whoever it shows: a unit
+     * preview is that unit's leader, a person preview is that person's own command. Not {@see writeScope()}: a person
+     * preview narrows the Admin's tree to the person's read scope, grants included, so a grant holder would pass.
+     */
+    public function leads(User $user): bool
+    {
+        $preview = $this->activeViewAs($user);
+        if ($preview === null) {
+            return $this->commandScope($user)->isNotEmpty();
+        }
+
+        if ($preview->target->kind === ViewAsKind::Unit) {
+            return $preview->scope->isNotEmpty();
+        }
+
+        $previewed = $this->users->find($preview->target->id);
+
+        return $previewed !== null && $this->commandScope($previewed)->isNotEmpty();
+    }
+
+    /**
      * Whether the user may see this trooper (AD-8, one gate for every screen that shows one): a trooper placed
      * in a section is visible when that section is in the user's effective scope, which a view-as preview
      * narrows (AD-9). A trooper the sync has not placed anywhere belongs to no scope, so only an Admin (as the
