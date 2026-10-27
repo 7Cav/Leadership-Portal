@@ -23,7 +23,8 @@ use App\Rollcall\TemplateSyntax;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 
-// Story 3.5: the Admin template screen. Viewing is open; every write is Admin-only on the server (AD-6, AD-16, AD-17).
+// Story 3.5: the Admin template screen. An Admin views every company and anyone else only the companies in their
+// scope; every write is Admin-only on the server (AD-6, AD-8, AD-16, AD-17).
 
 beforeEach(function () {
     $this->company = Unit::factory()->create(['type' => UnitType::Company, 'name' => 'Echo Company', 'callsign' => 'E/2-7']);
@@ -49,11 +50,13 @@ describe('viewing', function () {
         $this->get('/settings/templates')->assertRedirect(route('login'));
     });
 
-    it('shows any authenticated user the active template and its history, read-only', function () {
+    it('shows a leader in the company the active template and its history, read-only', function () {
         authorTemplate($this, 'first body');
         authorTemplate($this, 'second body');
+        $leader = User::factory()->serving()->create();
+        PortalRoleGrant::factory()->create(['user_id' => $leader->id, 'unit_id' => $this->company->id]);
 
-        $this->actingAs(User::factory()->serving()->create())->get('/settings/templates')->assertOk()->assertInertia(fn ($page) => $page
+        $this->actingAs($leader)->get('/settings/templates')->assertOk()->assertInertia(fn ($page) => $page
             ->component('Settings/Templates')
             ->where('isAdmin', false)
             ->where('company', $this->company->id)
@@ -98,6 +101,16 @@ describe('viewing', function () {
         $section = Unit::factory()->create(['type' => UnitType::Section]);
 
         $this->actingAs($this->admin)->get('/settings/templates?company='.$section->id)->assertInertia(fn ($page) => $page->where('company', $this->company->id));
+    });
+
+    it('shows a signed-in user with no scope no company at all', function () {
+        authorTemplate($this, 'echo body');
+
+        $this->actingAs(User::factory()->serving()->create())->get('/settings/templates')->assertOk()->assertInertia(fn ($page) => $page
+            ->where('companies', [])
+            ->where('company', null)
+            ->where('active', null)
+            ->where('history', []));
     });
 
     it('says plainly when a company has no template yet', function () {
@@ -256,8 +269,7 @@ describe('previewing with a real section', function () {
             ->has('previewSections', 1)
             ->where('previewSections.0.id', $this->section->id));
 
-        $this->actingAs($this->leader)->get('/settings/templates?company='.$this->bravo->id)->assertInertia(fn ($page) => $page
-            ->where('previewSections', []));
+        $this->actingAs($this->leader)->get('/settings/templates?company='.$this->bravo->id)->assertForbidden();
     });
 
     it('answers the section, this week and the same trooper rows the rollcall page sends', function () {
@@ -343,6 +355,53 @@ describe('previewing with a real section', function () {
     });
 });
 
+describe('which companies a viewer may read', function () {
+    beforeEach(function () {
+        $this->alpha = Unit::factory()->create(['type' => UnitType::Company, 'name' => 'Alpha Company', 'callsign' => 'A/1-7', 'path' => '900/']);
+        $this->platoon = Unit::factory()->create(['type' => UnitType::Platoon, 'parent_id' => $this->alpha->id, 'name' => '1st Platoon', 'callsign' => '1/A/1-7', 'path' => '900/901/']);
+        $this->section = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'name' => '2nd Section', 'callsign' => '2/1/A/1-7', 'path' => '900/901/902/']);
+        $this->bravo = Unit::factory()->create(['type' => UnitType::Company, 'name' => 'Bravo Company', 'callsign' => 'B/1-7', 'path' => '910/']);
+        $this->company->forceFill(['path' => '920/'])->save();
+
+        authorTemplate($this, 'alpha body', $this->alpha);
+        authorTemplate($this, 'bravo body', $this->bravo);
+
+        $this->leader = User::factory()->serving()->create();
+        PortalRoleGrant::factory()->create(['user_id' => $this->leader->id, 'unit_id' => $this->section->id]);
+    });
+
+    it('lists only the companies a leader\'s scope reaches into, and opens their own by default', function () {
+        $this->actingAs($this->leader)->get('/settings/templates')->assertOk()->assertInertia(fn ($page) => $page
+            ->where('companies', [['id' => $this->alpha->id, 'name' => 'Alpha Company', 'callsign' => 'A/1-7']])
+            ->where('company', $this->alpha->id)
+            ->where('active.body', 'alpha body'));
+    });
+
+    it('refuses a leader another company\'s template and history, or an id that is no company, with 403', function (string $unit) {
+        $this->actingAs($this->leader)->get('/settings/templates?company='.$this->{$unit}->id)->assertForbidden();
+    })->with(['bravo', 'company', 'platoon']);
+
+    it('refuses an unknown company id with the same 403', function () {
+        $this->actingAs($this->leader)->get('/settings/templates?company=99999')->assertForbidden();
+    });
+
+    it('shows an Admin every company', function () {
+        $this->actingAs($this->admin)->get('/settings/templates?company='.$this->bravo->id)->assertOk()->assertInertia(fn ($page) => $page
+            ->has('companies', 3)
+            ->where('company', $this->bravo->id)
+            ->where('active.body', 'bravo body'));
+    });
+
+    it('narrows an Admin previewing a leader to that leader\'s companies', function () {
+        $this->actingAs($this->admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->section->id])->assertSessionHasNoErrors();
+
+        $this->get('/settings/templates')->assertInertia(fn ($page) => $page
+            ->has('companies', 1)
+            ->where('company', $this->alpha->id));
+        $this->get('/settings/templates?company='.$this->bravo->id)->assertForbidden();
+    });
+});
+
 function templatesLeaderOf(Unit $unit, int $cavId): User
 {
     UnitCommandMapping::factory()->create(['unit_id' => $unit->id, 'cav_position_id' => $cavId + 10000]);
@@ -388,8 +447,9 @@ describe('which company and section it opens on', function () {
         $this->actingAs($staff)->get('/settings/templates')->assertInertia(fn ($page) => $page->where('company', $this->bravo->id));
     });
 
-    it('still opens the company asked for', function () {
+    it('still opens the company asked for, when it is in scope', function () {
         $leader = templatesLeaderOf($this->bravo, 4242);
+        PortalRoleGrant::factory()->create(['user_id' => $leader->id, 'unit_id' => $this->alpha->id]);
 
         $this->actingAs($leader)->get('/settings/templates?company='.$this->alpha->id)->assertInertia(fn ($page) => $page->where('company', $this->alpha->id));
     });

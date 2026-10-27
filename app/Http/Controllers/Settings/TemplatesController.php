@@ -37,8 +37,9 @@ use Inertia\Response;
  * directly, as the other settings screens do, and writes through the audited {@see AuthorTemplateVersion} and
  * {@see ActivateTemplateVersion} Commands (AD-16).
  *
- * Viewing is open to any authenticated user, matching org-structure and staff grants. Only the Admin flag gates
- * writing, and it is checked here on every write, whatever the page shows (AD-6). The rollcall screen itself never
+ * An Admin sees every company. Anyone else sees only the companies their read scope reaches into (AD-8), so a leader
+ * reads their own company's template and history and no one else's; asking for another company is a 403. Only the
+ * Admin flag gates writing, and it is checked here on every write, whatever the page shows (AD-6). The rollcall screen itself never
  * edits a template (3.11): authoring lives here.
  */
 class TemplatesController extends Controller
@@ -55,11 +56,14 @@ class TemplatesController extends Controller
     public function index(Request $request, ScopeResolver $scope): Response
     {
         $tree = $this->units->tree();
-        $companies = UnitDesignationOrder::sort($tree->filter(fn (Unit $unit) => $unit->type === UnitType::Company)->values(), $tree);
+        $companies = $this->visibleCompanies($request->user(), $scope, $tree);
+        $selected = $companies->firstWhere('id', $request->integer('company'));
 
-        $selected = $companies->firstWhere('id', $request->integer('company'))
-            ?? $this->ownCompany($request->user(), $scope, $companies, $tree)
-            ?? $companies->first();
+        // Anyone but an Admin gets the same 403 for a company outside their scope and for an id that is no company at
+        // all, so the answer says nothing about which ids exist. An Admin asking for a non-company lands on their own.
+        abort_if($selected === null && $request->filled('company') && ! $scope->actsAsAdmin($request->user()), 403, 'This company is outside your scope.');
+
+        $selected ??= $this->ownCompany($request->user(), $scope, $companies, $tree) ?? $companies->first();
         $history = $selected === null ? collect() : $this->versions->history($selected->id, self::TYPE);
         $activeId = $selected === null ? null : $this->versions->activeFor($selected->id, self::TYPE)?->id;
         $active = $history->first(fn (TemplateVersion $version) => $version->id === $activeId);
@@ -176,6 +180,30 @@ class TemplatesController extends Controller
         $command->handle($request->user(), $version, $data['reason']);
 
         return redirect()->route('settings.templates', ['company' => $version->company_id]);
+    }
+
+    /**
+     * The companies the viewer may read the templates of, in designation order ({@see UnitDesignationOrder}): every
+     * company for an acting Admin, otherwise those with at least one unit of the viewer's read scope (view-as included)
+     * at or under them.
+     *
+     * @param  Collection<int, Unit>  $tree
+     * @return Collection<int, Unit>
+     */
+    private function visibleCompanies(User $user, ScopeResolver $scope, Collection $tree): Collection
+    {
+        $companies = UnitDesignationOrder::sort($tree->filter(fn (Unit $unit) => $unit->type === UnitType::Company)->values(), $tree);
+
+        if ($scope->actsAsAdmin($user)) {
+            return $companies;
+        }
+
+        $readable = $scope->resolve($user)->flip();
+        $paths = $tree->filter(fn (Unit $unit) => $readable->has($unit->id))->pluck('path');
+
+        return $companies
+            ->filter(fn (Unit $company) => $paths->contains(fn (string $path) => str_starts_with($path, $company->path)))
+            ->values();
     }
 
     /**
