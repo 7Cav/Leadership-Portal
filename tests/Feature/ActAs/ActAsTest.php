@@ -85,6 +85,30 @@ it('stops acting, recorded with the Admin as actor, and the Admin is themselves 
     $this->actingAs($this->admin)->get('/settings/audit-log')->assertOk();
 });
 
+it('ends a preview opened while acting when acting stops, recorded as the Admin acting for them', function () {
+    startActing($this);
+    $this->actingAs($this->admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->section->id]);
+
+    $this->actingAs($this->admin)->delete('/act-as');
+
+    $stopped = AuditLogEntry::where('action', 'view_as.stopped')->sole();
+    expect($stopped->actor_id)->toBe($this->admin->id)
+        ->and($stopped->on_behalf_of_id)->toBe($this->leader->id)
+        ->and(AuditLogEntry::orderBy('id')->pluck('action')->all())->toBe(['act_as.started', 'view_as.started', 'view_as.stopped', 'act_as.stopped']);
+
+    startActing($this);
+    $this->actingAs($this->admin)->get('/home')->assertInertia(fn (Assert $page) => $page->where('viewAs', null));
+});
+
+it('records nothing on anyone\'s behalf once the Admin is themselves again', function () {
+    startActing($this);
+    $this->actingAs($this->admin)->delete('/act-as');
+
+    $this->actingAs($this->admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->other->id])->assertSessionHasNoErrors();
+
+    expect(AuditLogEntry::where('action', 'view_as.started')->sole()->on_behalf_of_id)->toBeNull();
+});
+
 it('switches straight to another person, recording the first as stopped', function () {
     Trooper::factory()->create(['cav_id' => 902, 'status' => TrooperStatus::Combat]);
     $second = User::factory()->create(['cav_id' => 902]);

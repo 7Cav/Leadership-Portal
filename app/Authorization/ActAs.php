@@ -14,7 +14,9 @@ use Illuminate\Contracts\Session\Session;
  *
  * Checked again on every request ({@see target()}): only a real Admin may act, never as themselves or another Admin,
  * and only as someone the sign-in gate would let in right now ({@see ServingSession}). A stored choice that fails is
- * dropped, and the Admin is themselves again.
+ * dropped, and the Admin is themselves again. That drop writes no `act_as.stopped` entry (this layer never writes the
+ * audit log); the change that caused it, an Admin flag granted or revoked, or the roster sync, is recorded where it
+ * happened.
  */
 class ActAs
 {

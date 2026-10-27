@@ -28,6 +28,9 @@ class ActAsUser
         $user = $admin === null ? null : $this->actAs->target($admin);
 
         if ($admin === null || $user === null) {
+            // Never carry an earlier request's acting into this one, in a worker that serves several.
+            $this->acting->clear();
+
             return $next($request);
         }
 
