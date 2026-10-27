@@ -14,6 +14,8 @@ use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\TemplateVersionRepository;
+use App\Repositories\UnitCommandMappingRepository;
+use App\Repositories\UnitDesignationOrder;
 use App\Repositories\UnitRepository;
 use App\Rollcall\RollcallRoster;
 use App\Rollcall\SectionFireteams;
@@ -47,15 +49,17 @@ class TemplatesController extends Controller
         private readonly TemplateVersionRepository $versions,
         private readonly UnitRepository $units,
         private readonly RollcallRoster $roster,
+        private readonly UnitCommandMappingRepository $commands,
     ) {}
 
     public function index(Request $request, ScopeResolver $scope): Response
     {
-        $companies = $this->units->tree()
-            ->filter(fn (Unit $unit) => $unit->type === UnitType::Company)
-            ->values();
+        $tree = $this->units->tree();
+        $companies = UnitDesignationOrder::sort($tree->filter(fn (Unit $unit) => $unit->type === UnitType::Company)->values(), $tree);
 
-        $selected = $companies->firstWhere('id', $request->integer('company')) ?? $companies->first();
+        $selected = $companies->firstWhere('id', $request->integer('company'))
+            ?? $this->ownCompany($request->user(), $scope, $companies, $tree)
+            ?? $companies->first();
         $history = $selected === null ? collect() : $this->versions->history($selected->id, self::TYPE);
         $activeId = $selected === null ? null : $this->versions->activeFor($selected->id, self::TYPE)?->id;
         $active = $history->first(fn (TemplateVersion $version) => $version->id === $activeId);
@@ -81,8 +85,9 @@ class TemplatesController extends Controller
             // previewed leader. The write gates below read the real flag.
             'isAdmin' => $scope->actsAsAdmin($request->user()),
             // The sections the preview can be filled from instead of the sample: those under the company that the viewer
-            // could open on the rollcall page. Their rows load only when one is picked ({@see previewSection()}).
-            'previewSections' => $selected === null ? [] : $this->roster->options($this->sectionsUnder($selected, $request->user(), $scope)),
+            // could open on the rollcall page, in designation order. The page fills the preview with the first one (the
+            // first section of the first platoon); a section's rows load only when it is shown ({@see previewSection()}).
+            'previewSections' => $selected === null ? [] : $this->roster->options(UnitDesignationOrder::sort($this->sectionsUnder($selected, $request->user(), $scope), $tree)),
         ]);
     }
 
@@ -171,6 +176,32 @@ class TemplatesController extends Controller
         $command->handle($request->user(), $version, $data['reason']);
 
         return redirect()->route('settings.templates', ['company' => $version->company_id]);
+    }
+
+    /**
+     * The company the page opens on when none is asked for: the one the viewer's command billet sits in (their company,
+     * or the company above their platoon or section), else the first company their scope (view-as included) reaches
+     * into. Null when neither applies, which leaves the first company.
+     *
+     * @param  Collection<int, Unit>  $companies  in designation order
+     * @param  Collection<int, Unit>  $tree
+     */
+    private function ownCompany(User $user, ScopeResolver $scope, Collection $companies, Collection $tree): ?Unit
+    {
+        $readable = $scope->resolve($user)->flip();
+        $commanded = $this->commands->commandedUnitFor($user);
+
+        if ($commanded !== null && $readable->has($commanded->id)) {
+            $own = $companies->first(fn (Unit $company) => str_starts_with($commanded->path, $company->path));
+
+            if ($own !== null) {
+                return $own;
+            }
+        }
+
+        $paths = $tree->filter(fn (Unit $unit) => $readable->has($unit->id))->pluck('path');
+
+        return $companies->first(fn (Unit $company) => $paths->contains(fn (string $path) => str_starts_with($path, $company->path)));
     }
 
     /**
