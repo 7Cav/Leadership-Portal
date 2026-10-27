@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countsOf, displayName, feedLabel, fullName, initials, isLocked, landingStep, practiceGroups, sectionStatus, signatureGroups, stepsOf, unlinkedLabel, weeksNeedingWork } from '../rollcall';
+import { captureSourceLabel, countsOf, displayName, feedLabel, fullName, initials, isLocked, landingStep, practiceGroups, sectionStatus, signatureGroups, stepsOf, unlinkedLabel, weeksNeedingWork } from '../rollcall';
 
 const t = (id, rollcall, status, extra = {}) => ({ id, cavId: 1000 + id, rank: 'PFC', name: `Trooper${id}.A`, rollcall, status, source: null, priorStatus: null, ...extra });
 
@@ -51,6 +51,12 @@ describe('rollcall vocabulary', () => {
         expect(feedLabel({ platformLabel: 'WARDOGS', feeds: ['nightwatch'] })).toBe('WARDOGS server (Nightwatch)');
         expect(feedLabel({ platformLabel: 'Arma Reforger', feeds: [] })).toBe('Arma Reforger server');
         expect(feedLabel({ platformLabel: null, feeds: [] })).toBe('Game server');
+    });
+
+    it('names every feed a capture read from, and "the game server" when none is recorded (#389)', () => {
+        expect(captureSourceLabel('crcon')).toBe('CRCON');
+        expect(captureSourceLabel('crcon,battlemetrics')).toBe('CRCON + BattleMetrics');
+        expect(captureSourceLabel(null)).toBe('the game server');
     });
 
     it('opens on the first step with work left', () => {

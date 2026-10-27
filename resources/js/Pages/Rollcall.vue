@@ -51,7 +51,7 @@ import { postJson } from '@/lib/postJson';
 import { rollcallPost } from '@/lib/rollcallBbcode';
 import { displayKeys, isShortcut, keyLabel, shortcutIndex, SHORTCUTS } from '@/lib/shortcuts';
 import {
-    CAPTURE_SOURCES,
+    captureSourceLabel,
     countsOf,
     displayName,
     feedLabel,
@@ -523,8 +523,7 @@ async function markPosted() {
 
 // Capture review (7.8): where the marks came from and when (AD-20), and the leader's confirmation
 // of them. Confirming is its own audited save, so held and pending marks are saved first.
-// A capture with no source recorded reads as "the game server", never as "null".
-const captureLabel = computed(() => (props.capture ? (CAPTURE_SOURCES[props.capture.source] ?? props.capture.source ?? 'the game server') : null));
+const captureLabel = computed(() => (props.capture ? captureSourceLabel(props.capture.source) : null));
 const capturedLabel = computed(() => (props.capture ? `${forumDateTime(props.capture.capturedAt)}Z` : null));
 const confirmation = ref(props.practice?.confirmation ?? null);
 const confirming = ref(false);

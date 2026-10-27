@@ -3,12 +3,15 @@
 namespace App\Integration\BattleMetrics;
 
 use App\Integration\BattleMetrics\Requests\FetchServerSessionsRequest;
+use App\Integration\BattleMetrics\Requests\ListRconServersRequest;
 use App\Integration\Crcon\Data\CrconPlayer;
 use App\Integration\Crcon\Data\CrconPresence;
+use App\Integration\ListedServer;
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
+use Saloon\Http\Request;
 use Throwable;
 
 /**
@@ -20,8 +23,8 @@ use Throwable;
  * {@see CrconPlayer}) so the capture run treats both sources uniformly with no per-source
  * branch. Which source an HLL practice uses is the orchestrator's choice, not this seam's.
  *
- * **Read-only by construction** (proposal §9.4): the only request class is a session-history
- * GET. The key reaches this class only via injected config (AD-23).
+ * **Read-only by construction** (proposal §9.4): the request classes are a session-history GET and
+ * the listing of the key's own servers (#389). The key reaches this class only via injected config (AD-23).
  *
  * **Every failure leaves through {@see BattleMetricsUnavailable}** — unreachable, timeout, HTTP
  * error, bad key, malformed body, missing config. An empty presence therefore always means
@@ -49,11 +52,12 @@ class BattleMetricsApi
     public function __construct(private readonly ?array $config = []) {}
 
     /**
-     * Who was on the configured server at any point in `[$start, $end]`, one entry per platform id.
+     * Who was on the server at any point in `[$start, $end]`, one entry per platform id. `$serverId` names the server
+     * (one an Admin selected, #389); omitted, it is the env's `BATTLEMETRICS_SERVER_ID`.
      *
      * @throws BattleMetricsUnavailable when BattleMetrics cannot be read for any reason
      */
-    public function fetchPresence(DateTimeInterface $start, DateTimeInterface $end): CrconPresence
+    public function fetchPresence(DateTimeInterface $start, DateTimeInterface $end, ?string $serverId = null): CrconPresence
     {
         $windowStart = DateTimeImmutable::createFromInterface($start)->setTimezone(new DateTimeZone('UTC'));
         $windowEnd = DateTimeImmutable::createFromInterface($end)->setTimezone(new DateTimeZone('UTC'));
@@ -62,7 +66,13 @@ class BattleMetricsApi
             throw BattleMetricsUnavailable::malformed('the practice window ends before it starts');
         }
 
-        [$baseUrl, $apiKey, $serverId] = $this->settings();
+        [$baseUrl, $apiKey] = $this->settings();
+        $serverId = $serverId === null ? $this->configuredServerId() : trim($serverId);
+
+        if ($serverId === '') {
+            throw BattleMetricsUnavailable::misconfigured('the server id is empty');
+        }
+
         $baseHost = parse_url($baseUrl, PHP_URL_HOST);
 
         // Resolved only after paging: a player's identifier may arrive on a different page than
@@ -106,25 +116,12 @@ class BattleMetricsApi
                 $names[(string) $playerId] ??= is_string($name) ? trim($name) : '';
             }
 
-            $next = $payload['links']['next'] ?? null;
+            $nextQuery = $this->nextQuery($payload, $baseHost, $nextQuery);
 
-            if ($next === null || $next === '') {
+            if ($nextQuery === null) {
                 $complete = true;
                 break;
             }
-
-            // The key rides every request, so never follow a pagination link off the API host.
-            if (! is_string($next) || parse_url($next, PHP_URL_HOST) !== $baseHost) {
-                throw BattleMetricsUnavailable::malformed('the next-page link left the BattleMetrics host');
-            }
-
-            parse_str((string) parse_url($next, PHP_URL_QUERY), $query);
-
-            if ($query === $nextQuery) {
-                throw BattleMetricsUnavailable::malformed('the next-page link did not advance');
-            }
-
-            $nextQuery = $query;
         }
 
         // A truncated list would under-report attendance, so it is a failure, not a short answer.
@@ -144,7 +141,78 @@ class BattleMetricsApi
     }
 
     /**
-     * @return array{0: string, 1: string, 2: string}
+     * The servers the API key has RCON access to, which are the regiment's own (#389), by id and name.
+     *
+     * @return list<ListedServer>
+     *
+     * @throws BattleMetricsUnavailable when BattleMetrics cannot be read for any reason
+     */
+    public function listServers(): array
+    {
+        [$baseUrl, $apiKey] = $this->settings();
+        $baseHost = parse_url($baseUrl, PHP_URL_HOST);
+
+        /** @var array<string, ListedServer> $byId */
+        $byId = [];
+        $nextQuery = null;
+
+        for ($page = 1; $page <= self::MAX_PAGES; $page++) {
+            $payload = $this->fetchPage($baseUrl, $apiKey, new ListRconServersRequest($nextQuery));
+
+            foreach ($payload['data'] as $server) {
+                $id = is_array($server) ? ($server['id'] ?? null) : null;
+                $name = is_array($server) ? ($server['attributes']['name'] ?? null) : null;
+
+                if ((! is_string($id) && ! is_int($id)) || trim((string) $id) === '') {
+                    throw BattleMetricsUnavailable::malformed('a server carried no id');
+                }
+
+                $id = trim((string) $id);
+                $byId[$id] ??= new ListedServer($id, is_string($name) && trim($name) !== '' ? trim($name) : "BattleMetrics server {$id}");
+            }
+
+            $nextQuery = $this->nextQuery($payload, $baseHost, $nextQuery);
+
+            if ($nextQuery === null) {
+                return array_values($byId);
+            }
+        }
+
+        // A short listing would hide a server from the Admin, so it is a failure, not a short answer.
+        throw BattleMetricsUnavailable::malformed('the server listing did not finish paging');
+    }
+
+    /**
+     * The query of the payload's `links.next`, or null on the last page.
+     *
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>|null  $previous
+     * @return array<string, mixed>|null
+     */
+    private function nextQuery(array $payload, mixed $baseHost, ?array $previous): ?array
+    {
+        $next = $payload['links']['next'] ?? null;
+
+        if ($next === null || $next === '') {
+            return null;
+        }
+
+        // The key rides every request, so never follow a pagination link off the API host.
+        if (! is_string($next) || parse_url($next, PHP_URL_HOST) !== $baseHost) {
+            throw BattleMetricsUnavailable::malformed('the next-page link left the BattleMetrics host');
+        }
+
+        parse_str((string) parse_url($next, PHP_URL_QUERY), $query);
+
+        if ($query === $previous) {
+            throw BattleMetricsUnavailable::malformed('the next-page link did not advance');
+        }
+
+        return $query;
+    }
+
+    /**
+     * @return array{0: string, 1: string}
      */
     private function settings(): array
     {
@@ -154,25 +222,30 @@ class BattleMetricsApi
             throw BattleMetricsUnavailable::misconfigured('BATTLEMETRICS_API_KEY is empty');
         }
 
-        $serverId = $this->config['server_id'] ?? null;
-
-        if (! is_string($serverId) || trim($serverId) === '') {
-            throw BattleMetricsUnavailable::misconfigured('BATTLEMETRICS_SERVER_ID is empty');
-        }
-
         $baseUrl = $this->config['base_url'] ?? null;
 
         if (! is_string($baseUrl) || trim($baseUrl) === '') {
             throw BattleMetricsUnavailable::misconfigured('BATTLEMETRICS_BASE_URL is empty');
         }
 
-        return [trim($baseUrl), $apiKey, trim($serverId)];
+        return [trim($baseUrl), $apiKey];
+    }
+
+    private function configuredServerId(): string
+    {
+        $serverId = $this->config['server_id'] ?? null;
+
+        if (! is_string($serverId) || trim($serverId) === '') {
+            throw BattleMetricsUnavailable::misconfigured('BATTLEMETRICS_SERVER_ID is empty');
+        }
+
+        return trim($serverId);
     }
 
     /**
      * @return array{data: array<int|string, mixed>, included?: mixed, links?: array<string, mixed>}
      */
-    private function fetchPage(string $baseUrl, #[\SensitiveParameter] string $apiKey, FetchServerSessionsRequest $request): array
+    private function fetchPage(string $baseUrl, #[\SensitiveParameter] string $apiKey, Request $request): array
     {
         try {
             $response = $this->connector($baseUrl, $apiKey)->send($request);

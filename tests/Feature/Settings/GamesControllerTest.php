@@ -4,6 +4,7 @@ use App\Commands\Games\DeleteGame;
 use App\Models\AuditLogEntry;
 use App\Models\Game;
 use App\Models\GamePlayerDismissal;
+use App\Models\GameServer;
 use App\Models\PracticeCapturePlayer;
 use App\Models\SectionPractice;
 use App\Models\TelemetryInterface;
@@ -125,7 +126,7 @@ it('deletes a game nothing uses, audited', function () {
         ->and(AuditLogEntry::query()->sole()->action)->toBe('game.deleted');
 });
 
-it('refuses to delete a game in use by an identity, a captured player or a dismissal, and changes nothing', function (Closure $use) {
+it('refuses to delete a game in use by an identity, a captured player, a dismissal or a server, and changes nothing', function (Closure $use) {
     $game = Game::factory()->create();
     $use($game, $this->admin);
 
@@ -138,6 +139,7 @@ it('refuses to delete a game in use by an identity, a captured player or a dismi
     'identity' => [fn (Game $game) => TrooperGameIdentity::factory()->create(['game_id' => $game->id])],
     'captured player' => [fn (Game $game) => PracticeCapturePlayer::query()->create(['section_practice_id' => SectionPractice::factory()->create()->id, 'game_id' => $game->id, 'player_name' => 'P', 'platform_id' => '1'])],
     'dismissal' => [fn (Game $game, User $by) => GamePlayerDismissal::query()->create(['game_id' => $game->id, 'platform_id' => '1', 'player_name' => 'P', 'dismissed_by' => $by->id])],
+    'server' => [fn (Game $game) => GameServer::factory()->create(['game_id' => $game->id])],
 ]);
 
 it('answers every write from a non-Admin with 403, changing nothing', function (string $method, Closure $path, array $body) {

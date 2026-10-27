@@ -4,6 +4,7 @@ namespace App\Repositories\GameRepository;
 
 use App\Models\Game;
 use App\Models\GamePlayerDismissal;
+use App\Models\GameServer;
 use App\Models\PracticeCapturePlayer;
 use App\Models\TelemetryInterface;
 use App\Models\TrooperGameIdentity;
@@ -16,7 +17,7 @@ use Illuminate\Support\Facades\DB;
 class Eloquent implements GameRepository
 {
     /** The models whose rows name a game: one in use by any of them is retired, never deleted. */
-    private const USERS = [TrooperGameIdentity::class, PracticeCapturePlayer::class, GamePlayerDismissal::class];
+    private const USERS = [TrooperGameIdentity::class, PracticeCapturePlayer::class, GamePlayerDismissal::class, GameServer::class];
 
     public function all(): Collection
     {

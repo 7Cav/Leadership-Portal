@@ -15,6 +15,7 @@ use App\Http\Controllers\Settings\GamesController;
 use App\Http\Controllers\Settings\LoaSyncController;
 use App\Http\Controllers\Settings\OrgStructureController;
 use App\Http\Controllers\Settings\RosterSyncController;
+use App\Http\Controllers\Settings\ServersController;
 use App\Http\Controllers\Settings\StaffGrantsController;
 use App\Http\Controllers\Settings\TemplatesController;
 use App\Http\Controllers\Settings\TrooperPlacementController;
@@ -34,7 +35,7 @@ use Illuminate\Support\Facades\Route;
 // route taking one of these ids cannot forget the constraint (RouteIdConstraintTest walks the
 // routes and fails on an id-like parameter missing from this list). Don't add `whereNumber()` or
 // `where()` for these on a route: it replaces the global pattern rather than adding to it.
-foreach (['unit', 'grant', 'trooper', 'version', 'game'] as $id) {
+foreach (['unit', 'grant', 'trooper', 'version', 'game', 'server'] as $id) {
     Route::pattern($id, '[0-9]{1,18}');
 }
 
@@ -183,6 +184,12 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::post('/settings/games/{game}/retire', [GamesController::class, 'retire'])->name('settings.games.retire');
     Route::delete('/settings/games/{game}/retire', [GamesController::class, 'reinstate'])->name('settings.games.reinstate');
     Route::delete('/settings/games/{game}', [GamesController::class, 'destroy'])->name('settings.games.destroy');
+
+    // The game servers the telemetry APIs list (#389). The whole screen is Admin-only, gated in the controller (AD-6).
+    // Fetching asks every interface over HTTP on the request, so it is capped per Admin like the manual syncs.
+    Route::get('/settings/servers', [ServersController::class, 'index'])->name('settings.servers');
+    Route::post('/settings/servers/fetch', [ServersController::class, 'fetch'])->middleware('throttle:server-fetch')->name('settings.servers.fetch');
+    Route::patch('/settings/servers/{server}', [ServersController::class, 'update'])->name('settings.servers.update');
 
     // Audit-log review (Story 1.14). The whole screen is Admin-only (AC #4) — the gate is
     // enforced in the controller, not route middleware, matching every other Admin gate here.

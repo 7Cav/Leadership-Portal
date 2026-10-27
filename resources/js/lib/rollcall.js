@@ -119,6 +119,17 @@ export function unlinkedLabel(count) {
 // What a game's server feeds are called on screen, by `capture_source` value (7.8, 7.9).
 export const CAPTURE_SOURCES = { crcon: 'CRCON', battlemetrics: 'BattleMetrics', nightwatch: 'Nightwatch' };
 
+// Where a capture's marks came from (7.8): every feed that answered, since a game read from several training servers
+// stores them comma-joined (#389). With none recorded it is "the game server", never "null".
+export function captureSourceLabel(source) {
+    if (!source) return 'the game server';
+
+    return source
+        .split(',')
+        .map((feed) => CAPTURE_SOURCES[feed] ?? feed)
+        .join(' + ');
+}
+
 // Which feed could not be read, for the telemetry banner and its retry (7.9, #176): "Hell Let Loose server (CRCON)",
 // so a down feed never reads as an empty server. With no game known for the section it is the plain "Game server".
 export function feedLabel(telemetry) {

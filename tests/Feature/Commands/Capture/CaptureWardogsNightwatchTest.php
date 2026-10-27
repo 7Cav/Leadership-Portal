@@ -3,6 +3,7 @@
 use App\Commands\Capture\CaptureSectionPractice;
 use App\Commands\Capture\CaptureSectionPracticeHandler;
 use App\Commands\Capture\CaptureSources;
+use App\Commands\Capture\TelemetryCredentials;
 use App\Integration\BattleMetrics\BattleMetricsApi;
 use App\Integration\Crcon\CrconApi;
 use App\Integration\Nightwatch\NightwatchApi;
@@ -14,6 +15,7 @@ use App\Models\Trooper;
 use App\Models\TrooperGameIdentity;
 use App\Models\Unit;
 use App\Models\UnitType;
+use App\Repositories\GameServerRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 use Saloon\Http\Faking\MockClient;
@@ -29,7 +31,7 @@ beforeEach(function () {
     $crcon = ['base_url' => 'https://crcon.example.test', 'api_key' => null];
     $bm = ['server_id' => '1', 'api_key' => null];
     $nw = ['base_url' => 'https://nw.test/api/public/stats', 'api_key' => 'test-key', 'server_ids' => 'srv-1'];
-    app()->instance(CaptureSources::class, CaptureSources::default(new CrconApi($crcon), new BattleMetricsApi($bm), $crcon, $bm, new NightwatchApi($nw), $nw));
+    app()->instance(CaptureSources::class, CaptureSources::default(new CrconApi($crcon), new BattleMetricsApi($bm), $crcon, $bm, new NightwatchApi($nw), $nw, app(GameServerRepository::class), new TelemetryCredentials(['crcon' => $crcon, 'battlemetrics' => $bm, 'nightwatch' => $nw])));
 });
 
 afterEach(fn () => Carbon::setTestNow());

@@ -4,11 +4,14 @@ namespace App\Integration\Nightwatch;
 
 use App\Integration\Crcon\Data\CrconPlayer;
 use App\Integration\Crcon\Data\CrconPresence;
+use App\Integration\ListedServer;
+use App\Integration\Nightwatch\Requests\FetchLiveServersRequest;
 use App\Integration\Nightwatch\Requests\FetchMatchesRequest;
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
+use Saloon\Http\Request;
 use Throwable;
 
 /**
@@ -24,8 +27,8 @@ use Throwable;
  * a player counts as present if they are on the scoreboard of any match overlapping the window
  * (`matchStart < windowEnd AND matchEnd > windowStart`; a live match ends "now"). Someone who
  * joined a match for a minute at the edge of the window counts. Matching is by SteamID64 only
- * (`platform_id`); the name is display data. `GET /servers/live` (current state) is the fallback
- * for a future short poll if 7.5 ever needs to capture beyond retention.
+ * (`platform_id`); the name is display data. `GET /servers/live` (current state) lists the
+ * workspace's servers for the Servers page (#389).
  *
  * **Retention:** matches are kept 48 hours. A window that ended longer ago raises
  * {@see NightwatchWindowExpired}, never an empty list.
@@ -54,8 +57,8 @@ class NightwatchApi
 
     /**
      * Who was on the workspace's WARDOGS server(s) at any point in `[$start, $end]`, one entry per
-     * SteamID64. `$serverId` narrows to one configured server (a section's Tac 1 or Tac 2);
-     * omitted, every configured server counts.
+     * SteamID64. `$serverId` reads that one server (one an Admin selected, #389); omitted, every
+     * server in the env's `NIGHTWATCH_SERVER_IDS` counts.
      *
      * @throws NightwatchWindowExpired when the window ended beyond Nightwatch's retention
      * @throws NightwatchUnavailable when Nightwatch cannot be read for any other reason
@@ -70,14 +73,11 @@ class NightwatchApi
             throw NightwatchUnavailable::malformed('the practice window ends before it starts');
         }
 
-        [$baseUrl, $apiKey, $serverIds] = $this->settings();
+        [$baseUrl, $apiKey] = $this->settings();
+        $serverIds = $serverId === null ? $this->configuredServerIds() : [trim($serverId)];
 
-        if ($serverId !== null) {
-            if (! in_array($serverId, $serverIds, true)) {
-                throw NightwatchUnavailable::misconfigured("server {$serverId} is not in NIGHTWATCH_SERVER_IDS");
-            }
-
-            $serverIds = [$serverId];
+        if ($serverIds === ['']) {
+            throw NightwatchUnavailable::misconfigured('the server id is empty');
         }
 
         if ($windowEnd < $now->modify('-'.self::RETENTION_HOURS.' hours')) {
@@ -129,7 +129,45 @@ class NightwatchApi
     }
 
     /**
-     * @return array{0: string, 1: string, 2: list<string>}
+     * The workspace's servers, by id and name (#389). Nightwatch documents no listing of a workspace's servers beyond
+     * `/servers/live`, so its shape is read defensively: a `servers` list, or a bare list, of objects carrying an
+     * `id` (or `serverId`) and a `name` (or `serverName`). Anything else is a malformed answer, never an empty list.
+     *
+     * @return list<ListedServer>
+     *
+     * @throws NightwatchUnavailable when Nightwatch cannot be read for any reason
+     */
+    public function listServers(): array
+    {
+        [$baseUrl, $apiKey] = $this->settings();
+        $payload = $this->send($baseUrl, $apiKey, new FetchLiveServersRequest);
+        // A bare list counts only when it has entries: `[]` is also what `{}` and an empty body decode to.
+        $servers = $payload !== [] && array_is_list($payload) ? $payload : ($payload['servers'] ?? null);
+
+        if (! is_array($servers) || ! array_is_list($servers)) {
+            throw NightwatchUnavailable::malformed('no `servers` list in the body');
+        }
+
+        /** @var array<string, ListedServer> $byId */
+        $byId = [];
+
+        foreach ($servers as $server) {
+            $id = is_array($server) ? ($server['id'] ?? $server['serverId'] ?? null) : null;
+
+            if ((! is_string($id) && ! is_int($id)) || trim((string) $id) === '') {
+                throw NightwatchUnavailable::malformed('a server carried no id');
+            }
+
+            $id = trim((string) $id);
+            $name = $server['name'] ?? $server['serverName'] ?? null;
+            $byId[$id] ??= new ListedServer($id, is_string($name) && trim($name) !== '' ? trim($name) : "Nightwatch server {$id}");
+        }
+
+        return array_values($byId);
+    }
+
+    /**
+     * @return array{0: string, 1: string}
      */
     private function settings(): array
     {
@@ -145,6 +183,14 @@ class NightwatchApi
             throw NightwatchUnavailable::misconfigured('NIGHTWATCH_BASE_URL is empty');
         }
 
+        return [trim($baseUrl), $apiKey];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function configuredServerIds(): array
+    {
         $ids = array_values(array_filter(
             array_map('trim', explode(',', (string) ($this->config['server_ids'] ?? ''))),
             fn (string $id) => $id !== '',
@@ -154,7 +200,7 @@ class NightwatchApi
             throw NightwatchUnavailable::misconfigured('NIGHTWATCH_SERVER_IDS is empty');
         }
 
-        return [trim($baseUrl), $apiKey, array_values(array_unique($ids))];
+        return array_values(array_unique($ids));
     }
 
     /**
@@ -162,28 +208,9 @@ class NightwatchApi
      */
     private function fetchMatches(string $baseUrl, #[\SensitiveParameter] string $apiKey, string $serverId, DateTimeImmutable $windowStart): array
     {
-        try {
-            $response = $this->connector($baseUrl, $apiKey)->send(new FetchMatchesRequest($serverId));
-        } catch (NightwatchRequestRefused $e) {
-            throw $e;
-        } catch (Throwable $e) {
-            // Broad on purpose: transport errors and PSR-7 URI errors for a malformed base URL
-            // must both leave as the typed failure, never as a raw exception.
-            throw NightwatchUnavailable::unreachable($e);
-        }
+        $payload = $this->send($baseUrl, $apiKey, new FetchMatchesRequest($serverId));
 
-        if ($response->failed()) {
-            throw NightwatchUnavailable::httpError($response->status());
-        }
-
-        try {
-            $payload = $response->json();
-        } catch (Throwable) {
-            // A valid JSON scalar raises a TypeError inside Saloon, not a JsonException.
-            throw NightwatchUnavailable::malformed('the body was not JSON');
-        }
-
-        if (! is_array($payload) || ! isset($payload['matches']) || ! is_array($payload['matches'])) {
+        if (! isset($payload['matches']) || ! is_array($payload['matches'])) {
             throw NightwatchUnavailable::malformed('no `matches` list in the body');
         }
 
@@ -204,6 +231,41 @@ class NightwatchApi
         }
 
         return $payload['matches'];
+    }
+
+    /**
+     * Send one request and return its JSON body.
+     *
+     * @return array<int|string, mixed>
+     */
+    private function send(string $baseUrl, #[\SensitiveParameter] string $apiKey, Request $request): array
+    {
+        try {
+            $response = $this->connector($baseUrl, $apiKey)->send($request);
+        } catch (NightwatchRequestRefused $e) {
+            throw $e;
+        } catch (Throwable $e) {
+            // Broad on purpose: transport errors and PSR-7 URI errors for a malformed base URL
+            // must both leave as the typed failure, never as a raw exception.
+            throw NightwatchUnavailable::unreachable($e);
+        }
+
+        if ($response->failed()) {
+            throw NightwatchUnavailable::httpError($response->status());
+        }
+
+        try {
+            $payload = $response->json();
+        } catch (Throwable) {
+            // A valid JSON scalar raises a TypeError inside Saloon, not a JsonException.
+            throw NightwatchUnavailable::malformed('the body was not JSON');
+        }
+
+        if (! is_array($payload)) {
+            throw NightwatchUnavailable::malformed('the body was not a JSON object or list');
+        }
+
+        return $payload;
     }
 
     /**
