@@ -77,7 +77,7 @@ describe('TrooperSearch', () => {
         const fetchMock = respond(() => json(RESULTS));
         wrapper = await open();
 
-        expect(inBody('[data-testid="trooper-search-hint"]').textContent).toContain('at least 2');
+        expect(inBody('[data-testid="trooper-search-hint"]').textContent).toContain('Type at least 2 letters of a username');
 
         await type(' v ');
         await settle();
@@ -157,14 +157,37 @@ describe('TrooperSearch', () => {
         expect(useTrooperSearch().searchOpen.value).toBe(false);
     });
 
-    it('says plainly when nobody in scope matches', async () => {
-        respond(() => json({ troopers: [], more: false }));
+    it('says plainly when nobody in view matches, and that only their own units are searched', async () => {
+        respond(() => json({ troopers: [], more: false, scoped: true }));
         wrapper = await open();
 
         await type('zz');
         await settle();
 
-        expect(inBody('[data-testid="trooper-search-empty"]').textContent).toContain('No trooper in your scope matches “zz”');
+        expect(inBody('[data-testid="trooper-search-empty"]').textContent).toContain('No trooper in your view matches “zz”');
+        expect(inBody('[data-testid="trooper-search-scope-note"]').textContent).toContain('Only troopers in your units are shown');
+    });
+
+    it('leaves the units note out for an Admin, who searches everyone', async () => {
+        respond(() => json({ troopers: [], more: false, scoped: false }));
+        wrapper = await open();
+
+        await type('zz');
+        await settle();
+
+        expect(inBody('[data-testid="trooper-search-empty"]')).not.toBeNull();
+        expect(inBody('[data-testid="trooper-search-scope-note"]')).toBeNull();
+    });
+
+    it('sends a rank and a space as typed, leaving the matching to the server', async () => {
+        const fetchMock = respond(() => json(RESULTS));
+        wrapper = await open();
+
+        await type('SGT Vasquez R');
+        await settle();
+
+        expect(fetchMock.mock.calls[0][0]).toBe('/troopers/search?q=SGT%20Vasquez%20R');
+        expect(allInBody('[data-testid^="trooper-search-result-"]')).toHaveLength(2);
     });
 
     it('keeps only the newest answer when an older one arrives late', async () => {

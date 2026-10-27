@@ -89,7 +89,7 @@ describe('who it offers', function () {
     it('leaves out-of-scope troopers out of the response body entirely', function () {
         $body = searchFor($this, $this->viewers['section leader'], 'xqz.other')->assertOk()->getContent();
 
-        expect(json_decode($body, true))->toBe(['troopers' => [], 'more' => false])
+        expect(json_decode($body, true))->toBe(['troopers' => [], 'more' => false, 'scoped' => true])
             ->and($body)->not->toContain('Xqz.Other')
             ->and($body)->not->toContain('1/2/A/1-7');
     });
@@ -153,6 +153,54 @@ describe('how it matches', function () {
         ])
             ->and($rows['Xqz.Gone']['departed'])->toBeTrue()
             ->and($rows['Xqz.Unplaced']['section'])->toBeNull();
+    });
+});
+
+describe('how 7Cav writes a name', function () {
+    beforeEach(function () {
+        $this->vasquez = searchTrooper($this->section1, ['username' => 'Vasquez.R', 'rank_short' => 'SGT']);
+        $this->spaced = searchTrooper($this->section1, ['username' => 'Kim Lee', 'rank_short' => 'PFC']);
+        $this->nameless = searchTrooper($this->section1, ['username' => null, 'rank_short' => 'PVT', 'cav_id' => 48213]);
+    });
+
+    $names = fn ($test, string $q, string $viewer = 'admin') => collect(searchFor($test, $test->viewers[$viewer], $q)->assertOk()->json('troopers'))->pluck('name')->all();
+
+    it('ignores a leading rank and reads a space as the username\'s dot', function (string $q) use ($names) {
+        expect($names($this, $q))->toBe(['Vasquez.R']);
+    })->with(['SGT Vasquez', 'sgt vasquez', 'Vasquez R', 'SGT Vasquez R', 'Sgt. Vasquez.R', 'cpl vasq', '  SGT   Vasquez  ']);
+
+    it('keeps a rank that is the whole search as text to match', function () use ($names) {
+        searchTrooper($this->section1, ['username' => 'Sgtson.A']);
+
+        expect($names($this, 'SGT'))->toBe(['Sgtson.A']);
+    });
+
+    it('still finds a username that has a space of its own', function () use ($names) {
+        expect($names($this, 'kim lee'))->toBe(['Kim Lee'])
+            ->and($names($this, 'PFC Kim Lee'))->toBe(['Kim Lee']);
+    });
+
+    it('finds a trooper by their exact cav id, which is how one with no username is named', function (string $q) {
+        $rows = searchFor($this, $this->viewers['admin'], $q)->assertOk()->json('troopers');
+
+        expect(collect($rows)->pluck('id')->all())->toBe([$this->nameless->id])
+            ->and($rows[0]['displayName'])->toBe('PVT #48213');
+    })->with(['48213', '#48213']);
+
+    it('matches a cav id only exactly, never as part of one', function () use ($names) {
+        expect($names($this, '4821'))->toBe([]);
+    });
+
+    it('keeps the scope rule for a cav id search', function () {
+        $outside = searchTrooper($this->section3, ['username' => null, 'cav_id' => 59001]);
+
+        expect(searchFor($this, $this->viewers['section leader'], '59001')->assertOk()->json('troopers'))->toBe([])
+            ->and(collect(searchFor($this, $this->viewers['admin'], '59001')->json('troopers'))->pluck('id')->all())->toBe([$outside->id]);
+    });
+
+    it('says whether the list is limited to the viewer\'s units', function () {
+        expect(searchFor($this, $this->viewers['section leader'], 'vasquez')->json('scoped'))->toBeTrue()
+            ->and(searchFor($this, $this->viewers['admin'], 'vasquez')->json('scoped'))->toBeFalse();
     });
 });
 
