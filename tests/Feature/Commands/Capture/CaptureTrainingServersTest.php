@@ -6,6 +6,7 @@ use App\Commands\Capture\CaptureServer;
 use App\Commands\Capture\CaptureSource;
 use App\Commands\Capture\CaptureSources;
 use App\Commands\Capture\CaptureSourceUnavailable;
+use App\Commands\Capture\PracticeTelemetry;
 use App\Integration\Crcon\Data\CrconPlayer;
 use App\Integration\Crcon\Data\CrconPresence;
 use App\Models\Attendance;
@@ -129,6 +130,36 @@ it('counts a training server without credentials as unreadable while another one
     expect($result->captured)->toBeFalse()
         ->and($result->unavailableReasons)->toBe(['Training B: credentials not set'])
         ->and(GameServerRead::query()->where('game_server_id', $this->b->id)->sole()->reason)->toBe('credentials not set');
+});
+
+it('leaves the practice un-captured when a CRCON server and its twin both fail, though another server answered', function () {
+    $twin = GameServer::factory()->create(['selected' => true]);
+    trooperOn($this, '1');
+
+    $result = captureServers($this, [
+        new CaptureServer($this->a->id, 'Training A', [serverFailing($this->a, 'crcon'), serverFailing($twin, 'battlemetrics')]),
+        new CaptureServer($this->b->id, 'Training B', [serverAnswering($this->b, 'battlemetrics', [new CrconPlayer('One', '1')])]),
+    ]);
+
+    expect($result->captured)->toBeFalse()
+        ->and($result->unavailableReasons)->toBe(['Training A: crcon: unreachable', 'Training A: battlemetrics: unreachable'])
+        ->and(Attendance::query()->count())->toBe(0)
+        ->and($this->practice->fresh()->captured_at)->toBeNull()
+        ->and(GameServerRead::query()->where('game_server_id', $this->a->id)->sole()->succeeded)->toBeFalse()
+        ->and(GameServerRead::query()->where('game_server_id', $twin->id)->sole()->succeeded)->toBeFalse()
+        ->and(GameServerRead::query()->where('game_server_id', $this->b->id)->sole()->succeeded)->toBeTrue();
+});
+
+it('names on the rollcall banner the feed that failed, not the one that answered', function () {
+    $this->a->update(['interface' => 'crcon', 'external_id' => 'crcon']);
+    trooperOn($this, '1');
+
+    captureServers($this, [
+        new CaptureServer($this->a->id, 'Training A', [serverAnswering($this->a, 'crcon', [])]),
+        new CaptureServer($this->b->id, 'Training B', [serverFailing($this->b, 'battlemetrics')]),
+    ]);
+
+    expect(app(PracticeTelemetry::class)->stateFor($this->section->id, $this->practice->fresh())->feeds)->toBe(['battlemetrics']);
 });
 
 it('attempts nothing and records no run when no training server has credentials', function () {

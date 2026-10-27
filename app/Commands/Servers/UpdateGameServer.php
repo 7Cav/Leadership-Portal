@@ -44,6 +44,11 @@ class UpdateGameServer
             throw InvalidGameServerException::fallbackNotBattleMetrics();
         }
 
+        // A fallback must stay selected (it is read in its CRCON server's place), so it is released there first.
+        if (! $selected && $server->selected && ($user = $this->servers->fallbackUsersOf($server)->first()) !== null) {
+            throw InvalidGameServerException::stillAFallback($server->name, $user->name);
+        }
+
         if ($server->selected === $selected && $server->game_id === $game?->id && $server->type === $type
             && $server->fallback_server_id === $fallback?->id) {
             return $server;

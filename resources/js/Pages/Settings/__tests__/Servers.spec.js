@@ -131,6 +131,27 @@ describe('Settings/Servers', () => {
         expect(routerPost).toHaveBeenCalledWith('/settings/servers/fetch', {}, expect.any(Object));
     });
 
+    it('keeps unsaved edits in other rows when one row is saved and the list comes back', async () => {
+        const wrapper = factory();
+        await wrapper.get('[data-testid="type-3"]').setValue('training');
+
+        // Row 2 was saved as training; row 3's edit has not been saved yet.
+        await wrapper.setProps({ servers: SERVERS.map((s) => (s.id === 2 ? { ...s, type: 'training' } : s)) });
+
+        expect(wrapper.get('[data-testid="type-3"]').element.value).toBe('training');
+        expect(wrapper.get('[data-testid="type-2"]').element.value).toBe('training');
+        expect(wrapper.get('[data-testid="save-2"]').attributes('disabled')).toBeDefined();
+    });
+
+    it('shows a successful last read and a server not read yet', () => {
+        const wrapper = factory({
+            servers: [server(5, { gameId: 1, type: 'training', selected: true, lastRead: { succeeded: true, reason: null, at: '2026-10-27T20:00:00Z' } }), server(6, { gameId: 1, type: 'training', selected: true })],
+        });
+
+        expect(wrapper.get('[data-testid="last-read-5"]').text()).toMatch(/^Read .+Z$/);
+        expect(wrapper.get('[data-testid="last-read-6"]').text()).toBe('Not read yet');
+    });
+
     it('gives a newly fetched server a row once the list comes back', async () => {
         const wrapper = factory();
         await wrapper.setProps({ servers: [...SERVERS, server(4, { name: 'New one' })] });

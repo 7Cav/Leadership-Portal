@@ -49,7 +49,7 @@ final class CaptureSources
      * @param  array<string, mixed>|null  $battleMetricsConfig
      * @param  array<string, mixed>|null  $nightwatchConfig
      */
-    public static function default(CrconApi $crcon, BattleMetricsApi $battleMetrics, ?array $crconConfig, ?array $battleMetricsConfig, NightwatchApi $nightwatch, ?array $nightwatchConfig, ?GameServerRepository $servers = null, ?TelemetryCredentials $credentials = null): self
+    public static function default(CrconApi $crcon, BattleMetricsApi $battleMetrics, ?array $crconConfig, ?array $battleMetricsConfig, NightwatchApi $nightwatch, ?array $nightwatchConfig, GameServerRepository $servers, TelemetryCredentials $credentials): self
     {
         $source = function (TelemetryInterface $interface, ?string $serverId, ?int $gameServerId, bool $configured) use ($crcon, $battleMetrics, $nightwatch, $crconConfig, $battleMetricsConfig, $nightwatchConfig): CaptureSource {
             return match ($interface) {
@@ -119,10 +119,6 @@ final class CaptureSources
             };
         }
 
-        if ($servers === null || $credentials === null) {
-            return new self($byInterface);
-        }
-
         $serverSource = fn (GameServer $server) => $source($server->interface, $server->external_id, $server->id, $credentials->areSet($server->interface));
 
         return new self($byInterface, function (Game $game) use ($servers, $serverSource): ?array {
@@ -138,7 +134,7 @@ final class CaptureSources
         });
     }
 
-    /** True when every named key is set — the same test each seam applies before it will call out. */
+    /** True when every named key is set: the legacy env server's check, which also needs its server id(s). */
     private static function filled(?array $config, string ...$keys): bool
     {
         foreach ($keys as $key) {

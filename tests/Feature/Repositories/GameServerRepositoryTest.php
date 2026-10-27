@@ -88,6 +88,22 @@ it('records reads and returns the latest one per server', function () {
         ->and(mb_strlen($last[$b->id]->reason))->toBeLessThanOrEqual(253);
 });
 
+it('names the interfaces of the servers a run failed to read, each once', function () {
+    $crcon = GameServer::factory()->create(['interface' => TelemetryInterface::Crcon, 'external_id' => 'crcon']);
+    $bm = GameServer::factory()->create();
+    $other = GameServer::factory()->create(['interface' => TelemetryInterface::Nightwatch]);
+    $run = app(SyncRunRepository::class)->open('capture', 'system');
+    $earlier = app(SyncRunRepository::class)->open('capture', 'system');
+
+    servers()->recordRead($crcon->id, $run->id, false, 'crcon: unreachable');
+    servers()->recordRead($bm->id, $run->id, true, null);
+    servers()->recordRead($crcon->id, $run->id, false, 'crcon: unreachable');
+    servers()->recordRead($other->id, $earlier->id, false, 'nightwatch: unreachable');
+
+    expect(servers()->failedInterfacesOf($run->id))->toBe(['crcon'])
+        ->and(servers()->failedInterfacesOf(999999))->toBe([]);
+});
+
 it('updates the Admin\'s choices', function () {
     $crcon = GameServer::factory()->create(['interface' => TelemetryInterface::Crcon, 'external_id' => 'crcon']);
     $twin = GameServer::factory()->create();

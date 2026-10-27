@@ -141,9 +141,10 @@ class NightwatchApi
     {
         [$baseUrl, $apiKey] = $this->settings();
         $payload = $this->send($baseUrl, $apiKey, new FetchLiveServersRequest);
-        $servers = array_is_list($payload) ? $payload : ($payload['servers'] ?? null);
+        // A bare list counts only when it has entries: `[]` is also what `{}` and an empty body decode to.
+        $servers = $payload !== [] && array_is_list($payload) ? $payload : ($payload['servers'] ?? null);
 
-        if (! is_array($servers)) {
+        if (! is_array($servers) || ! array_is_list($servers)) {
             throw NightwatchUnavailable::malformed('no `servers` list in the body');
         }
 

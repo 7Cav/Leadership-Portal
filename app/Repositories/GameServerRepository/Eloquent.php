@@ -26,13 +26,21 @@ class Eloquent implements GameServerRepository
 
     public function trainingServersFor(Game $game): Collection
     {
+        $training = fn ($query) => $query->where('game_id', $game->id)->where('selected', true)->where('type', GameServerType::Training);
+
         return GameServer::query()
             ->with('fallback')
-            ->where('game_id', $game->id)
-            ->where('selected', true)
-            ->where('type', GameServerType::Training)
+            ->where($training)
+            // A training server that is another's fallback is the same game server seen through BattleMetrics: it is
+            // read only when that server cannot be, never as a server of its own that must also answer.
+            ->whereNotIn('id', GameServer::query()->where($training)->whereNotNull('fallback_server_id')->select('fallback_server_id'))
             ->orderBy('id')
             ->get();
+    }
+
+    public function fallbackUsersOf(GameServer $server): Collection
+    {
+        return GameServer::query()->where('fallback_server_id', $server->id)->orderBy('id')->get();
     }
 
     public function hasSelectedFor(Game $game): bool
@@ -86,6 +94,19 @@ class Eloquent implements GameServerRepository
             'reason' => $reason === null ? null : Str::limit($reason, 250),
             'read_at' => now(),
         ]);
+    }
+
+    public function failedInterfacesOf(int $syncRunId): array
+    {
+        return GameServerRead::query()
+            ->join('game_servers', 'game_servers.id', '=', 'game_server_reads.game_server_id')
+            ->where('game_server_reads.sync_run_id', $syncRunId)
+            ->where('game_server_reads.succeeded', false)
+            ->orderBy('game_server_reads.id')
+            ->pluck('game_servers.interface')
+            ->unique()
+            ->values()
+            ->all();
     }
 
     public function lastReads(): array

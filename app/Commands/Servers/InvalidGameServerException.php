@@ -22,6 +22,11 @@ class InvalidGameServerException extends RuntimeException
         return new self('Only a CRCON server can have a BattleMetrics fallback.');
     }
 
+    public static function stillAFallback(string $server, string $user): self
+    {
+        return new self("{$server} is the fallback of {$user}. Remove it there before deselecting it.");
+    }
+
     public static function fallbackNotBattleMetrics(): self
     {
         return new self('The fallback must be a selected BattleMetrics server.');

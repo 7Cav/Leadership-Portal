@@ -19,6 +19,9 @@ class GameServer extends Model
     /** @use HasFactory<GameServerFactory> */
     use HasFactory;
 
+    /** The columns' defaults, so a server just fetched reads as stored: unselected and public. */
+    protected $attributes = ['type' => 'public', 'selected' => false];
+
     protected function casts(): array
     {
         return [
@@ -37,11 +40,5 @@ class GameServer extends Model
     public function fallback(): BelongsTo
     {
         return $this->belongsTo(self::class, 'fallback_server_id');
-    }
-
-    /** Read for its game's attendance: selected, assigned to a game, and a training server. */
-    public function isReadForAttendance(): bool
-    {
-        return $this->selected && $this->game_id !== null && $this->type === GameServerType::Training;
     }
 }

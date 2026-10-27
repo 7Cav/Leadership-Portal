@@ -12,6 +12,10 @@ use App\Models\GameServer;
 use App\Models\GameServerType;
 use App\Models\TelemetryInterface;
 use App\Repositories\GameServerRepository;
+use Carbon\CarbonImmutable;
+use Saloon\Http\Faking\MockClient;
+use Saloon\Http\Faking\MockResponse;
+use Saloon\Http\PendingRequest;
 
 // 7.5 / #388 / #389: the servers a game's practice is read from, each with its sources in order. Unconfigured seams
 // fail typed, without any HTTP.
@@ -120,6 +124,49 @@ describe('with servers selected for the game', function () {
             ->and($servers[1]->configuredSources())->toBe([]);
     });
 
+    it('leaves out a training server that is another\'s fallback: it is read only in that server\'s place', function () {
+        $twin = GameServer::factory()->trainingFor(game('hll')->id)->create(['external_id' => '777']);
+        $crcon = GameServer::factory()->trainingFor(game('hll')->id)->create(['interface' => TelemetryInterface::Crcon, 'external_id' => 'crcon', 'fallback_server_id' => $twin->id]);
+
+        $servers = defaultSources()->for(game('hll'));
+
+        expect(array_map(fn (CaptureServer $s) => $s->gameServerId, $servers))->toBe([$crcon->id])
+            ->and(sourceNames($servers))->toBe([['crcon', 'battlemetrics']]);
+    });
+
+    it('sends each selected server\'s read to that server, never to the env one', function () {
+        $env = ['base_url' => 'https://bm.test', 'api_key' => 'k', 'server_id' => '4242'];
+        $nw = ['base_url' => 'https://nw.test/api/public/stats', 'api_key' => 'k', 'server_ids' => 'srv-env'];
+        $twin = GameServer::factory()->create(['external_id' => '777', 'selected' => true]);
+        GameServer::factory()->trainingFor(game('hll')->id)->create(['interface' => TelemetryInterface::Crcon, 'external_id' => 'crcon', 'fallback_server_id' => $twin->id]);
+        GameServer::factory()->trainingFor(game('arma')->id)->create(['external_id' => '31337']);
+        GameServer::factory()->trainingFor(game('wardogs')->id)->create(['interface' => TelemetryInterface::Nightwatch, 'external_id' => 'srv-9']);
+        $asked = [];
+        $session = ['data' => [], 'links' => []];
+        MockClient::global([
+            'bm.test/*' => function (PendingRequest $request) use (&$asked, $session) {
+                $asked[] = $request->getUri()->getPath();
+
+                return MockResponse::make($session);
+            },
+            'nw.test/*' => function (PendingRequest $request) use (&$asked) {
+                $asked[] = $request->query()->get('server');
+
+                return MockResponse::make(['matches' => []]);
+            },
+        ]);
+        CarbonImmutable::setTestNow('2026-10-10 22:00:00');
+        $sources = defaultSources(bm: $env, nw: $nw);
+        $window = [new DateTimeImmutable('2026-10-10 19:00:00'), new DateTimeImmutable('2026-10-10 21:00:00')];
+
+        ($sources->for(game('hll'))[0]->sources[1]->fetch)(...$window);
+        ($sources->for(game('arma'))[0]->sources[0]->fetch)(...$window);
+        ($sources->for(game('wardogs'))[0]->sources[0]->fetch)(...$window);
+        CarbonImmutable::setTestNow();
+
+        expect($asked)->toBe(['/servers/777/relationships/sessions', '/servers/31337/relationships/sessions', 'srv-9']);
+    });
+
     it('needs no BATTLEMETRICS_SERVER_ID: a selected server reads its own id', function () {
         GameServer::factory()->trainingFor(game('arma')->id)->create(['external_id' => '31337']);
 
@@ -131,7 +178,7 @@ describe('with servers selected for the game', function () {
 
 it('records a Nightwatch base URL outside /api/public/stats as misconfigured, so the job does not retry it', function () {
     $nw = ['base_url' => 'https://nightwatch.example.test/api/v2', 'api_key' => 'NWKEY-0123456789-REST', 'server_ids' => 'srv-a'];
-    $sources = CaptureSources::default(new CrconApi([]), new BattleMetricsApi([]), [], [], new NightwatchApi($nw), $nw);
+    $sources = CaptureSources::default(new CrconApi([]), new BattleMetricsApi([]), [], [], new NightwatchApi($nw), $nw, app(GameServerRepository::class), new TelemetryCredentials(['nightwatch' => $nw]));
     $now = new DateTimeImmutable;
 
     expect(fn () => ($sources->for(game('wardogs'))[0]->sources[0]->fetch)($now->modify('-1 hour'), $now))

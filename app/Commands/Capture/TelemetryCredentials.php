@@ -35,10 +35,4 @@ final class TelemetryCredentials
 
         return true;
     }
-
-    /** The interface's env config, for the legacy single-server read. */
-    public function configOf(TelemetryInterface $interface): ?array
-    {
-        return $this->configByInterface[$interface->value] ?? null;
-    }
 }

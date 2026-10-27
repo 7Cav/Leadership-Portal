@@ -154,6 +154,85 @@ it('refuses choices that do not fit together, writing nothing', function (Closur
     'an unknown type' => [fn () => [GameServer::factory()->create(), serverUpdate(['type' => 'private'])], 'type', 'The selected type is invalid.'],
 ]);
 
+it('deselects a server, audited, and it is no longer read', function () {
+    $server = GameServer::factory()->trainingFor(game('arma')->id)->create();
+
+    $this->actingAs($this->admin)->patch("/settings/servers/{$server->id}", serverUpdate(['selected' => false]))->assertSessionHasNoErrors();
+
+    expect($server->fresh()->selected)->toBeFalse()
+        ->and(app(GameServerRepository::class)->trainingServersFor(game('arma')))->toBeEmpty()
+        ->and(AuditLogEntry::query()->sole()->action)->toBe('game_server.updated');
+});
+
+it('clears a CRCON server\'s fallback', function () {
+    $twin = GameServer::factory()->create(['selected' => true, 'game_id' => game('hll')->id]);
+    $crcon = GameServer::factory()->trainingFor(game('hll')->id)->create(['interface' => TelemetryInterface::Crcon, 'external_id' => 'crcon', 'fallback_server_id' => $twin->id]);
+
+    $this->actingAs($this->admin)->patch("/settings/servers/{$crcon->id}", serverUpdate(['game_id' => game('hll')->id]))->assertSessionHasNoErrors();
+
+    expect($crcon->fresh()->fallback_server_id)->toBeNull();
+});
+
+it('refuses to deselect a server that is still a fallback, until it is released there', function () {
+    $twin = GameServer::factory()->create(['selected' => true, 'game_id' => game('hll')->id, 'name' => 'HLL on BM']);
+    $crcon = GameServer::factory()->trainingFor(game('hll')->id)->create(['interface' => TelemetryInterface::Crcon, 'external_id' => 'crcon', 'name' => 'HLL CRCON', 'fallback_server_id' => $twin->id]);
+
+    $this->actingAs($this->admin)->patch("/settings/servers/{$twin->id}", serverUpdate(['selected' => false, 'game_id' => game('hll')->id]))
+        ->assertSessionHasErrors(['server' => 'HLL on BM is the fallback of HLL CRCON. Remove it there before deselecting it.']);
+
+    expect($twin->fresh()->selected)->toBeTrue();
+
+    $this->actingAs($this->admin)->patch("/settings/servers/{$crcon->id}", serverUpdate(['game_id' => game('hll')->id]));
+    $this->actingAs($this->admin)->patch("/settings/servers/{$twin->id}", serverUpdate(['selected' => false, 'game_id' => game('hll')->id]))->assertSessionHasNoErrors();
+
+    expect($twin->fresh()->selected)->toBeFalse();
+});
+
+it('refuses a server as its own fallback, a fallback that is gone, and one that is not BattleMetrics', function () {
+    $crcon = GameServer::factory()->create(['interface' => TelemetryInterface::Crcon, 'external_id' => 'crcon']);
+    $nightwatch = GameServer::factory()->create(['interface' => TelemetryInterface::Nightwatch, 'selected' => true, 'game_id' => game('wardogs')->id]);
+
+    $this->actingAs($this->admin)->patch("/settings/servers/{$crcon->id}", serverUpdate(['game_id' => game('hll')->id, 'fallback_server_id' => $crcon->id]))->assertSessionHasErrors('fallback_server_id');
+    $this->actingAs($this->admin)->patch("/settings/servers/{$crcon->id}", serverUpdate(['game_id' => game('hll')->id, 'fallback_server_id' => 999999]))
+        ->assertSessionHasErrors(['fallback_server_id' => 'That server no longer exists.']);
+    $this->actingAs($this->admin)->patch("/settings/servers/{$crcon->id}", serverUpdate(['game_id' => game('hll')->id, 'fallback_server_id' => $nightwatch->id]))
+        ->assertSessionHasErrors(['server' => 'The fallback must be a selected BattleMetrics server.']);
+
+    expect($crcon->fresh()->fallback_server_id)->toBeNull();
+});
+
+it('leaves the stored servers of an interface without credentials untouched', function () {
+    $stored = GameServer::factory()->trainingFor(game('wardogs')->id)->create(['interface' => TelemetryInterface::Nightwatch]);
+    MockClient::global([
+        'crcon.test/api/get_public_info' => MockResponse::make(['result' => ['name' => '7Cav HLL'], 'failed' => false, 'error' => null]),
+        'bm.test/servers*' => MockResponse::make(['data' => [['type' => 'server', 'id' => '11', 'attributes' => ['name' => 'x']]], 'links' => []]),
+    ]);
+
+    $this->actingAs($this->admin)->post('/settings/servers/fetch');
+
+    expect($stored->fresh()->missing_since)->toBeNull();
+});
+
+it('reports an empty listing while servers are stored, flagging none of them missing', function (mixed $body) {
+    config()->set('services.nightwatch', ['base_url' => 'https://nw.test/api/public/stats', 'api_key' => 'k', 'server_ids' => null]);
+    app()->forgetInstance(NightwatchApi::class);
+    app()->forgetInstance(TelemetryCredentials::class);
+    $stored = GameServer::factory()->trainingFor(game('wardogs')->id)->create(['interface' => TelemetryInterface::Nightwatch]);
+    MockClient::global([
+        'crcon.test/*' => MockResponse::make(['result' => ['name' => '7Cav HLL'], 'failed' => false, 'error' => null]),
+        'bm.test/*' => MockResponse::make(['data' => [], 'links' => []]),
+        'nw.test/*' => MockResponse::make($body),
+    ]);
+
+    $this->actingAs($this->admin)->post('/settings/servers/fetch')
+        ->assertSessionHas('servers_fetch', fn (array $outcomes) => $outcomes[2]['interface'] === 'nightwatch' && $outcomes[2]['status'] === 'failed');
+
+    expect($stored->fresh()->missing_since)->toBeNull();
+})->with([
+    'servers: []' => [['servers' => []]],
+    'an empty object' => [[]],
+]);
+
 it('keeps a server on a game retired since it was assigned', function () {
     $server = GameServer::factory()->trainingFor(game('arma')->id)->create();
     game('arma')->update(['retired_at' => now()]);

@@ -102,6 +102,9 @@ describe('Nightwatch', function () {
         expect(fn () => $api()->listServers())->toThrow(fn (NightwatchUnavailable $e) => expect($e->reason)->toBe(NightwatchFailureReason::Malformed));
     })->with([
         'no servers key' => [['data' => []]],
+        // `{}`, `[]` and an empty body all decode to [], which is no listing at all.
+        'an empty body' => [[]],
+        'servers not a list' => [['servers' => ['a' => ['id' => 'srv-1']]]],
         'server without id' => [['servers' => [['name' => 'x']]]],
     ]);
 

@@ -64,6 +64,14 @@ class FetchGameServers
                 continue;
             }
 
+            // An empty listing while servers are stored is far likelier a key that lost its scope, or an answer that
+            // changed shape, than every server gone at once: it is reported, and flags nothing missing.
+            if ($listed === [] && $this->servers->all()->contains(fn ($server) => $server->interface === $interface)) {
+                $outcomes[] = ['interface' => $value, 'status' => 'failed', 'message' => 'It listed no servers, so the stored ones were left as they are.'];
+
+                continue;
+            }
+
             $stored = $this->servers->storeListing($interface, array_map(
                 fn (ListedServer $server) => ['external_id' => $server->externalId, 'name' => $server->name],
                 $listed,

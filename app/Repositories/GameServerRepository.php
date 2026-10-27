@@ -25,12 +25,20 @@ interface GameServerRepository
     public function find(int $id): ?GameServer;
 
     /**
-     * The game's servers a capture reads: selected, training, with their fallback loaded. In id order, so a run reads
+     * The game's servers a capture reads: selected, training, with their fallback loaded. A server that is the
+     * fallback of another of them is left out: it is read only in that server's place. In id order, so a run reads
      * them in the same order every time.
      *
      * @return Collection<int, GameServer>
      */
     public function trainingServersFor(Game $game): Collection;
+
+    /**
+     * The servers that name this one as their fallback.
+     *
+     * @return Collection<int, GameServer>
+     */
+    public function fallbackUsersOf(GameServer $server): Collection;
 
     /** Whether any selected server is assigned to the game, of either type. With none, it reads the legacy env keys. */
     public function hasSelectedFor(Game $game): bool;
@@ -48,6 +56,14 @@ interface GameServerRepository
     public function update(GameServer $server, bool $selected, ?int $gameId, GameServerType $type, ?int $fallbackServerId): GameServer;
 
     public function recordRead(int $serverId, ?int $syncRunId, bool $succeeded, ?string $reason): void;
+
+    /**
+     * The interfaces (their values) of the stored servers a capture run failed to read, each once, in the order read.
+     * Empty for a run that read only the legacy env server, which records no reads.
+     *
+     * @return list<string>
+     */
+    public function failedInterfacesOf(int $syncRunId): array;
 
     /**
      * The latest read of each server that has one, keyed by server id.

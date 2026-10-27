@@ -36,15 +36,21 @@ const selectedFor = (game) => props.servers.filter((server) => server.selected &
 // A CRCON server's fallback is a selected BattleMetrics server: the same game server, tracked there.
 const fallbackOptions = computed(() => props.servers.filter((server) => server.interface === 'battlemetrics' && server.selected));
 
-// Each row's choices, edited in place and saved with the row's own button. Rebuilt whenever the server sends the list
-// again (after a save or a fetch), so a newly fetched server has a row and a saved one shows what was stored.
+// Each row's choices, edited in place and saved with the row's own button. When the server sends the list again (after
+// a save or a fetch), a new server gets a row and a row whose stored choices changed shows them; any other row keeps
+// what the Admin has typed but not yet saved.
+const stored = (server) => ({ selected: server.selected, game_id: server.gameId, type: server.type, fallback_server_id: server.fallbackId });
 const drafts = reactive({});
 watch(
     () => props.servers,
-    (servers) => {
-        for (const id of Object.keys(drafts)) delete drafts[id];
+    (servers, previous = []) => {
+        const before = Object.fromEntries(previous.map((server) => [server.id, JSON.stringify(stored(server))]));
+
+        for (const id of Object.keys(drafts)) {
+            if (!servers.some((server) => String(server.id) === id)) delete drafts[id];
+        }
         for (const server of servers) {
-            drafts[server.id] = { selected: server.selected, game_id: server.gameId, type: server.type, fallback_server_id: server.fallbackId };
+            if (!drafts[server.id] || before[server.id] !== JSON.stringify(stored(server))) drafts[server.id] = stored(server);
         }
     },
     { immediate: true },
