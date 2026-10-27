@@ -201,9 +201,11 @@ const SAMPLE = sampleContext();
 const typedBody = refDebounced(toRef(form, 'body'), 250);
 const previewSource = computed(() => (showEditor.value ? typedBody.value : (props.active?.body ?? '')));
 
-// The preview can instead be filled with one of the company's real sections for this week. Its rows are asked for only
-// when it is picked, from the same builder as the rollcall page, and made into the template's values by the same
-// `rollcallContext()` the rollcall page uses, so the preview is the post that section would copy now.
+// The preview is filled with one of the company's real sections for this week: the first one the viewer can open (the
+// first section of the first platoon, as the server orders them) when the page opens, or the one picked. Its rows are
+// asked for from the same builder as the rollcall page, and made into the template's values by the same
+// `rollcallContext()` the rollcall page uses, so the preview is the post that section would copy now. The sample stays
+// for a company with no section the viewer can open, while a section loads, and when it is picked.
 const previewWith = ref('');
 const realSection = ref(null);
 const realState = ref('idle');
@@ -216,8 +218,7 @@ const REAL_FAILURES = {
     error: 'The section could not be loaded. Try again in a moment.',
 };
 
-async function choosePreview(event) {
-    const id = event.target.value;
+async function loadPreview(id) {
     const request = ++realRequest;
     previewWith.value = id;
     realSection.value = null;
@@ -242,16 +243,15 @@ async function choosePreview(event) {
     }
 }
 
-// Another company has other sections, so the preview goes back to the sample.
+const choosePreview = (event) => loadPreview(event.target.value);
+const firstSection = () => (props.previewSections.length ? String(props.previewSections[0].id) : '');
+
+// Another company has other sections, so the preview starts again from that company's first one.
 watch(
     () => props.company,
-    () => {
-        realRequest++;
-        previewWith.value = '';
-        realSection.value = null;
-        realState.value = 'idle';
-    },
+    () => loadPreview(firstSection()),
 );
+loadPreview(firstSection());
 
 const previewContext = computed(() => (realState.value === 'ready' ? realSection.value : SAMPLE));
 const preview = computed(() => (previewSource.value.trim() === '' ? null : render(previewSource.value, previewContext.value)));

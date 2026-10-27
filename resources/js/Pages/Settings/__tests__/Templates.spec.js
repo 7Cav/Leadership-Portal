@@ -752,16 +752,37 @@ describe('Settings/Templates', () => {
                 await flushPromises();
             };
 
-            it("offers the company's sections next to the sample, and starts on the sample", () => {
+            it("offers the company's sections next to the sample, and starts on the first of them", async () => {
+                const fetch = respond(200, ROLLCALL);
+                vi.stubGlobal('fetch', fetch);
                 const wrapper = real();
                 const options = wrapper.findAll('[data-testid="template-preview-with"] option');
 
                 expect(options.map((option) => option.text())).toEqual(['Sample section', '2/1/E/2-7 2nd Section, this week', '3/1/E/2-7 3rd Section, this week']);
-                expect(wrapper.get('[data-testid="template-preview-with"]').element.value).toBe('');
+                expect(wrapper.get('[data-testid="template-preview-with"]').element.value).toBe('7');
+                // The sample stands in while the section loads.
+                expect(wrapper.get('[data-testid="template-preview-post"] strong').text()).toBe('1/E/2-7');
+
+                await flushPromises();
+
+                expect(fetch).toHaveBeenCalledTimes(1);
+                expect(fetch).toHaveBeenCalledWith('/settings/templates/preview/7?company=1', expect.anything());
+                expect(wrapper.get('[data-testid="template-preview-post"] strong').text()).toBe('2/1/E/2-7');
+                expect(wrapper.get('[data-testid="template-preview-note"]').text()).toContain("2/1/E/2-7's 2 troopers");
+            });
+
+            it('keeps the sample, and asks for nothing, when the company has no section the viewer can open', async () => {
+                const fetch = respond(200, ROLLCALL);
+                vi.stubGlobal('fetch', fetch);
+                const wrapper = page({ active: { ...VERSION_2, body: TABLE } });
+                await flushPromises();
+
+                expect(fetch).not.toHaveBeenCalled();
                 expect(wrapper.get('[data-testid="template-preview-post"] strong').text()).toBe('1/E/2-7');
             });
 
             it('offers no picker when the company has no section the viewer can open', () => {
+                vi.stubGlobal('fetch', respond(200, ROLLCALL));
                 expect(page().find('[data-testid="template-preview-with"]').exists()).toBe(false);
             });
 
@@ -837,7 +858,7 @@ describe('Settings/Templates', () => {
                 expect(wrapper.get('[data-testid="template-preview-post"] strong').text()).toBe('3/1/E/2-7');
             });
 
-            it('goes back to the sample when another company opens', async () => {
+            it('goes back to the sample when another company with no section in view opens', async () => {
                 vi.stubGlobal('fetch', respond(200, ROLLCALL));
                 const wrapper = real();
 
@@ -846,6 +867,19 @@ describe('Settings/Templates', () => {
 
                 expect(wrapper.get('[data-testid="template-preview-post"] strong').text()).toBe('1/E/2-7');
                 expect(wrapper.find('[data-testid="template-preview-with"]').exists()).toBe(false);
+            });
+
+            it("starts again from the other company's first section when another company opens", async () => {
+                const fetch = respond(200, ROLLCALL);
+                vi.stubGlobal('fetch', fetch);
+                const wrapper = real();
+                await flushPromises();
+
+                await wrapper.setProps({ company: 2, previewSections: [{ id: 30, designation: '1/1/F/2-7', name: '1st Section', platoon: '1/F/2-7' }] });
+                await flushPromises();
+
+                expect(fetch).toHaveBeenLastCalledWith('/settings/templates/preview/30?company=2', expect.anything());
+                expect(wrapper.get('[data-testid="template-preview-with"]').element.value).toBe('30');
             });
         });
     });

@@ -13,10 +13,12 @@ use App\Models\SectionPractice;
 use App\Models\TemplateVersion;
 use App\Models\Trooper;
 use App\Models\Unit;
+use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\FireteamRepository;
 use App\Repositories\TemplateVersionRepository;
+use App\Repositories\UnitRepository;
 use App\Rollcall\TemplateSyntax;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
@@ -338,5 +340,64 @@ describe('previewing with a real section', function () {
 
     it('requires authentication', function () {
         $this->get("/settings/templates/preview/{$this->section->id}?company={$this->alpha->id}")->assertRedirect(route('login'));
+    });
+});
+
+function templatesLeaderOf(Unit $unit, int $cavId): User
+{
+    UnitCommandMapping::factory()->create(['unit_id' => $unit->id, 'cav_position_id' => $cavId + 10000]);
+    Trooper::factory()->create(['cav_id' => $cavId, 'cav_position_id' => $cavId + 10000]);
+
+    return User::factory()->serving()->create(['cav_id' => $cavId]);
+}
+
+describe('which company and section it opens on', function () {
+    beforeEach(function () {
+        // Created out of designation order: Bravo before Alpha, and in Alpha the 2nd Platoon and a 2nd Section first.
+        $units = app(UnitRepository::class);
+        $this->company->delete();
+        $battalion = $units->create(UnitType::Battalion, '1st Battalion', '1-7', null);
+        $this->bravo = $units->create(UnitType::Company, 'Bravo Company', 'B/1-7', $battalion->id);
+        $this->bravoPlatoon = $units->create(UnitType::Platoon, '1st Platoon', '1/B/1-7', $this->bravo->id);
+        $this->bravoSection = $units->create(UnitType::Section, '1st Section', '1/1/B/1-7', $this->bravoPlatoon->id);
+        $this->alpha = $units->create(UnitType::Company, 'Alpha Company', 'A/1-7', $battalion->id);
+        $secondPlatoon = $units->create(UnitType::Platoon, '2nd Platoon', '2/A/1-7', $this->alpha->id);
+        $this->alphaLate = $units->create(UnitType::Section, '1st Section', '1/2/A/1-7', $secondPlatoon->id);
+        $firstPlatoon = $units->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', $this->alpha->id);
+        $this->alphaSecond = $units->create(UnitType::Section, '2nd Section', '2/1/A/1-7', $firstPlatoon->id);
+        $this->alphaFirst = $units->create(UnitType::Section, '1st Section', '1/1/A/1-7', $firstPlatoon->id);
+    });
+
+    it('lists the companies in designation order and opens an Admin with no billet on the first', function () {
+        $this->actingAs($this->admin)->get('/settings/templates')->assertInertia(fn ($page) => $page
+            ->where('companies.0.callsign', 'A/1-7')
+            ->where('companies.1.callsign', 'B/1-7')
+            ->where('company', $this->alpha->id));
+    });
+
+    it('opens on the company the viewer\'s billet sits under, not the first one', function (string $unit) {
+        $leader = templatesLeaderOf($unit === 'company' ? $this->bravo : ($unit === 'platoon' ? $this->bravoPlatoon : $this->bravoSection), 4242);
+
+        $this->actingAs($leader)->get('/settings/templates')->assertInertia(fn ($page) => $page->where('company', $this->bravo->id));
+    })->with(['company', 'platoon', 'section']);
+
+    it('falls back to the first company the viewer\'s scope reaches into', function () {
+        $staff = User::factory()->serving()->create();
+        PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $this->bravoSection->id]);
+
+        $this->actingAs($staff)->get('/settings/templates')->assertInertia(fn ($page) => $page->where('company', $this->bravo->id));
+    });
+
+    it('still opens the company asked for', function () {
+        $leader = templatesLeaderOf($this->bravo, 4242);
+
+        $this->actingAs($leader)->get('/settings/templates?company='.$this->alpha->id)->assertInertia(fn ($page) => $page->where('company', $this->alpha->id));
+    });
+
+    it('lists the preview sections in designation order, so the first is the first section of the first platoon', function () {
+        $this->actingAs($this->admin)->get('/settings/templates?company='.$this->alpha->id)->assertInertia(fn ($page) => $page
+            ->where('previewSections.0.id', $this->alphaFirst->id)
+            ->where('previewSections.1.id', $this->alphaSecond->id)
+            ->where('previewSections.2.id', $this->alphaLate->id));
     });
 });
