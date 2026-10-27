@@ -135,7 +135,8 @@ final class GuideLibrary
     /** @return array{sections: list<Section>, guides: list<Guide>, problems: list<string>} */
     private function load(): array
     {
-        return $this->loaded ??= Cache::rememberForever('docs.guides.'.$this->fingerprint(), fn () => $this->parseAll());
+        // A week, not forever: every edit leaves a key behind, and an old one should not sit in the store for good.
+        return $this->loaded ??= Cache::remember('docs.guides.'.$this->fingerprint(), now()->addWeek(), fn () => $this->parseAll());
     }
 
     private function fingerprint(): string
