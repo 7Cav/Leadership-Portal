@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ActAsController;
 use App\Http\Controllers\Auth\ForumAuthController;
+use App\Http\Controllers\DocsController;
 use App\Http\Controllers\GameIdentityController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ReportController;
@@ -126,6 +127,15 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/game-identities', [GameIdentityController::class, 'index'])->name('game-identities.index');
     Route::put('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'update'])->name('game-identities.update');
     Route::delete('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'destroy'])->name('game-identities.destroy');
+
+    // The in-portal guides (#409). Docs home and one guide, filtered to what the viewer may read (the controller asks
+    // the ScopeResolver, so view-as applies); every docs route answers 404 while `portal.docs` is off. Guide ids are
+    // slugs, never numbers. `/documentation` is an alias, sent on permanently with the rest of its path.
+    Route::get('/docs', [DocsController::class, 'index'])->name('docs.index');
+    Route::get('/docs/{section}/{slug}', [DocsController::class, 'show'])
+        ->where(['section' => '[a-z0-9-]+', 'slug' => '[a-z0-9-]+'])->name('docs.show');
+    Route::permanentRedirect('/documentation', '/docs');
+    Route::permanentRedirect('/documentation/{path}', '/docs/{path}')->where('path', '.*');
 
     // Logout (Story 1.5). POST, so it carries CSRF protection and can't be triggered by a
     // prefetched link or a cross-site <img>.
