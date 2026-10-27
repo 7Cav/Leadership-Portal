@@ -1,0 +1,200 @@
+# Permissions
+
+## In short
+
+- Who you are in the portal comes from your primary billet on the Cav roster, read fresh on every page load. A
+  leadership billet gives you the unit it commands and everything under it. Nobody types in roles.
+- Admin is a separate flag on a portal user, set from the server console. Admins see and change everything, and are the
+  only ones who can edit the org structure, staff grants and rollcall templates, or read the audit log.
+- A staff grant (given by an Admin) lets someone read a unit and everything under it. It never lets them change
+  anything there.
+- "View as" previews the portal as a unit (or, for Admins, as a person). It only narrows what you see, and every change
+  is refused while it is on.
+- Writes also stop at a few hard edges whatever your rank: weeks older than the week floor, weeks whose section report
+  was sent, and practices a leader confirmed.
+
+## The command layers
+
+| Layer | Billets (exact titles on the Cav roster) | Unit commanded |
+| --- | --- | --- |
+| Admin | Not a billet: the `is_admin` flag, set with `php artisan portal:admin` | The whole tree |
+| Regiment command | `Regimental Commanding Officer`, `Regimental Executive Officer`, `Regimental Command Sergeant Major` in the `Regimental HQ` group | The regiment (the whole tree) |
+| Regimental staff portfolio officer | `Regimental Security Operations Officer` (SecOps), `Regimental Recruiting Oversight Officer`, `Regimental Information Management Officer` (IMO), `RDC Commander` | Their portfolio node and the staff groups under it |
+| Battalion command | `<bn> Commanding Officer`, `<bn> Executive Officer`, `<bn> Sergeant Major` in a `<bn> Command` group (ACD also: `Auxiliary Commander`, `Auxiliary Executive Officer`, `Auxiliary Sergeant Major`) | The battalion |
+| Company command | `Commander`, `Executive Officer`, `First Sergeant` of a line company (`Commander A/1-7`) | The company |
+| Platoon | `Platoon Leader`, `Platoon Sergeant` of a platoon (`Platoon Leader 1/A/1-7`) | The platoon |
+| Acting lead | Not a billet: an Admin assigns a serving trooper to a line unit below the regiment | That unit (one or more), exactly like a Platoon Leader over it |
+| Section | `Section Leader`, `Assistant Section Leader` of a section | The section |
+| Trooper with no command billet | Any other billet | Nothing |
+| Staff grant holder | Any billet, plus a grant on the Staff grants page | Read-only on the granted unit(s); write scope only from their own billet |
+
+Notes:
+
+- Matching is exact. A leadership title at the wrong echelon (`Section Leader 1/A/1-7` names a platoon) or any title
+  not in the list gives nothing.
+- The Regimental Executive Officer leads the "Executive Officer" portfolio (which holds Reserve & Development Command)
+  but already commands the whole regiment.
+- The default portfolio tree: Reserve & Development Command (RDC Commander) sits under the Executive Officer portfolio
+  and holds DEVCOM staff and the Reservists. Recruiting Oversight holds RRD, RTC and S5. Security Operations holds S2,
+  MP and JAG. Information Management holds S6. S1, S3, S7 and WAG sit directly under the regiment. An Admin can move a
+  department to another portfolio; the import never moves it back.
+- `DEVCOM Lead` commands nothing by billet. An Admin makes them acting lead of the DEVCOM starter platoons they run.
+- Every layer's scope is the commanded unit plus everything under it. A company commander therefore has the same
+  rights as the platoon and section leaders in that company, on every unit in it.
+
+## Permission matrix
+
+Column key: Adm = Admin, Rgt = Regiment command, Pf = portfolio officer, Bn = Battalion command, Co = Company
+command, Plt = Platoon Leader or Platoon Sergeant, Act = acting lead, Sec = Section Leader or Assistant Section
+Leader, None = trooper with no command billet, Grant = staff grant (on the granted units), VA = Admin in view as.
+
+Cell key: All = the whole tree. Own = the unit you command and everything under it. Read = can look, cannot change.
+No = refused (the page answers 403 or 404, or the control is not shown).
+
+### Pages you can open
+
+| Page or read | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Home dashboard (line units in scope) | All | All | Empty (1) | Own | Own | Own | Own | Own | Empty | Read | Target |
+| Roster, trooper sheet, readiness matrix | All | All | Own | Own | Own | Own | Own | Own | Empty | Read | Target |
+| A trooper's milpac page | All, plus unplaced | All | Own | Own | Own | Own | Own | Own | No (2) | Read | Target |
+| Find trooper (shell search) | All, plus unplaced | All | Own | Own | Own | Own | Own | Own | Nothing found | Read | Target |
+| Rollcall (sections in scope) | All | All | None (1) | Own | Own | Own | Own | Own | Empty picker | Read | Target |
+| Reports and roll-ups (line units) | All | All | None (1) | Own | Own | Own | Own | Own | None | Read | Target |
+| Game identities (every serving trooper placed in scope: sections, HQ staff, groups) | All | All | Own | Own | Own | Own | Own | Own | None | Read | Target |
+| Settings menu in the sidebar | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
+| Org structure page (whole tree and unit leads) | Yes | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes |
+| Org structure: members of staff groups, ELOA, Reservists, New Recruits | All | All | Own | Own | Own | Own | Own | Own | No | Read | Target |
+| Org structure: troopers the sync could not place | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
+| Staff grants page (every grant; the username picker only for an acting Admin) | Yes | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes |
+| Templates page (a company's template and history) | All | All | No | Own (4) | Own (4) | Own (4) | Own (4) | Own (4) | No | Read (4) | Target (4) |
+| Games page (the games, their id labels and telemetry interfaces) | Yes | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes |
+| Template preview filled from a real section | All | All | No | Own | Own | Own | Own | Own | No | Read | Target |
+| Audit log | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
+| Demo data page (only when `DEMO_TOOLS=true`) | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
+
+(1) Portfolio officers command staff groups. Groups have no rollcall, reports or KPIs, so these pages show nothing
+for their portfolio. They see their staff on the roster and the org page.
+(2) A trooper with no command billet and no grant has an empty scope, so even their own milpac page answers 404.
+(3) Not in the sidebar for non-Admins, but any signed-in user can open it by URL and read it. Only Admins see the
+editing controls.
+(4) The companies your read scope reaches into, opening on your own. Asking for any other company by URL answers 403.
+Only Admins see the editing controls.
+
+### Rollcall writes
+
+| Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Mark signatures and SP attendance (incl. Mark all present) | All | All | No | Own | Own | Own | Own | Own | No | No | No |
+| Confirm practice | All | All | No | Own | Own | Own | Own | Own | No | No | No |
+| Mark rollcall posted | All | All | No | Own | Own | Own | Own | Own | No | No | No |
+| Capture "Try again" | All | All | No | Own | Own | Own | Own | Own | No | No | No |
+| Unmatched player: link, dismiss, restore | All | All | No | Own | Own | Own | Own | Own | No | No | No |
+| Guests (JSAM): search, add, remove | All | All | No | Own | Own | Own | Own | Own | No | No | No |
+| Fireteams: mark FTLs, fill fireteams, section display options | All | All | No | Own | Own | Own | Own | Own | No | No | No |
+| Company fireteam policy | All | All | No | Own | Own | No | If acting lead of the company or above | No | No | No | No |
+
+### Reports
+
+| Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Save a report draft | All | All | No | Own | Own | Own | Own | Own | No | No | No |
+| Send (freeze) a report, incl. "Send anyway" | All | All | No | Own | Own | Own | Own | Own | No | No | No |
+| Set or clear the platoon training topic | All | All | No | Own | Own | Own | Own (if it covers the platoon) | No | No | No | No |
+
+"Own" includes every report below you: a company commander can draft and send a section's report in their company.
+
+### Settings and admin actions
+
+| Action | Adm | Everyone else | VA |
+| --- | --- | --- | --- |
+| Org structure: create, rename or move a unit, delete an empty unit | Yes | No | No |
+| Org structure: Import from Cav roster | Yes | No | No |
+| Org structure: place a trooper the sync could not place | Yes | No | No |
+| Org structure: set or clear a unit's game or team label | Yes | No | No |
+| Org structure: assign or remove an acting lead | Yes | No | No |
+| Staff grants: grant or revoke | Yes | No | No |
+| Templates: save a new version, activate an older one | Yes | No | No |
+| Games: add, edit, retire, reinstate or delete a game (a game in use can only be retired) | Yes | No | No |
+| Demo data: generate or purge (only when `DEMO_TOOLS=true`) | Yes | No | No |
+| Whole-roster sync ("Sync now" on the roster) | Yes | No | No |
+| Manual LOA sync (route only, no button in the UI) | Yes | No | No |
+
+### Game identities and syncs
+
+| Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Set or remove a trooper's game identity | All | All | Own | Own | Own | Own | Own | Own | No | No | No |
+| Sync my unit's troopers from Cav (roster page) | Any unit | Own | Own | Own | Own | Own | Own | Own | No | No | No |
+| View as a unit | Any | Own | Own | Own | Own | Own | Own | Own | No | Granted units | Switch target |
+| View as a person | Yes | No | No | No | No | No | No | No | No | No | Switch target |
+
+## How scope is worked out
+
+1. Admin: if your user has the Admin flag, your scope is the whole tree. Stop here.
+2. Billet: the portal takes your linked milpac, reads your primary billet from the last roster sync and looks up which
+   unit that billet commands. The Import from Cav roster step writes that billet to unit mapping (see
+   [operations.md](operations.md)). Your scope is that unit and everything under it.
+3. Acting leads: every unit an Admin made you acting lead of is added, each with its subtree.
+4. Staff grants: every unit you were granted is added to your read scope, each with its subtree.
+5. View as: if a preview is on, your scope is cut down to the target. It is checked again on every request, so a
+   preview stops on its own when you lose the authority it relied on.
+
+Read scope is all of the above. Write scope leaves out staff grants: only Admin, your billet and your acting leads let
+you change anything. While view as is on, every write is refused.
+
+Because the billet is read on every request, a roster sync that moves you to a new billet moves your scope with it on
+your next click. Nothing has to be revoked by hand.
+
+### Departed users
+
+- Signing in needs the Admin flag or a serving milpac (combat, reserve or ELOA roster). Cav's live roster is asked at
+  sign-in; if Cav cannot answer, the last roster sync decides.
+- Every page load checks again. A non-Admin whose milpac shows as departed is signed out. Someone admitted on Cav's
+  live roster ahead of the cache stays signed in until the next clean whole-roster sync.
+- A departed trooper's billet, acting leads and staff grants stop counting on the next request. The rows stay, so an
+  Admin sees a lapsed grant flagged on the Staff grants page and can revoke it on the record. If the trooper returns
+  to a serving roster, they count again.
+- An Admin is never signed out by roster data.
+
+### Where everyone stops: locks
+
+| Lock | What it stops |
+| --- | --- |
+| Week floor (`PORTAL_WEEK_FLOOR_WEEKS`, default 20 Cav weeks back) | Marking, confirming, marking posted, capture, linking unmatched players, guests, report drafts and sends, the platoon topic. Older reports open read-only. |
+| Future weeks | Marking, confirming, posting and capture for a week that has not started. |
+| Section report sent for the week | That section's rollcall marks, confirming, marking posted, capture "Try again", guests at that practice and automatic makeups into that week. The sent report itself is frozen. A platoon's topic is locked once the platoon's report is sent. |
+| Practice confirmed by a leader | Capture re-runs and linked players no longer change its marks. A leader's own hand edit still saves and clears the confirmation. |
+| Leave covering the week | That trooper's practice mark (the row posts as LOA). Their signature can still be saved. |
+
+Copying the forum post stays possible on a locked week; marking it posted does not.
+
+### Rate limits
+
+All per signed-in user (sign-in is per IP address), per minute.
+
+| Limit | Applies to |
+| --- | --- |
+| 10 per IP, per route | The two sign-in steps |
+| 60 | Find trooper and the guest picker search |
+| 60, shared | Fireteam changes, company fireteam policy, unmatched dismiss and restore, guest add and remove, platoon topic set and clear, starting and leaving view as |
+| 10 | Capture "Try again"; the same practice also only once a minute |
+| 5 | Whole-roster sync, manual LOA sync (Admins) |
+| 3 | Unit roster sync; also a 5 minute cooldown on that unit and every unit above and below it (Admins skip the cooldown) |
+
+## Technical appendix
+
+| Rule | Where in the code |
+| --- | --- |
+| Read scope, write scope, `commandsUnit()`, `canSee()`, view as | `app/Authorization/ScopeResolver.php` |
+| Billet to unit mapping rules | `app/Commands/Units/CommandBillet.php`, `StaffBillet.php` (portfolios), written by `ImportOrgStructure.php` into `unit_command_mappings` |
+| Acting leads | `unit_acting_leads`, `AssignActingLeadHandler`, `RemoveActingLeadHandler` |
+| View as is read-only | `app/Http/Middleware/ReadOnlyWhileViewingAs.php` (every non-GET except `view-as.store`, `view-as.destroy`, `logout`) |
+| Sign-in and session standing | `app/Commands/Auth/AdmitServingMember.php`, `app/Authorization/ServingSession.php`, `EnsureServingMember` middleware |
+| Admin-only checks | In the controllers (`OrgStructureController`, `StaffGrantsController`, `TemplatesController`, `TrooperPlacementController`, `RosterSyncController`, `LoaSyncController`, `AuditLogController`, `DemoDataController`) and again in some handlers. There are no Laravel policies. |
+| Write gates | Each handler under `app/Commands/*` checks `writeScope()` (attendance, capture, guests, game identities, reports) or `commandsUnit()` (fireteams, company policy, platoon topic) |
+| Week floor | `app/Support/Time/WeekOf.php` (`floor()`, `isBeforeFloor()`), `config/portal.php` |
+| Rate limiters | `app/Providers/AppServiceProvider.php`, unit sync cooldown in `UnitRosterSyncController` |
+
+`actsAsAdmin()` is the Admin check for reads: it is false while an Admin previews a non-Admin, so Admin-only pages
+follow the preview. Writes check the real `is_admin` flag, and the middleware refuses them during a preview anyway.
