@@ -15,6 +15,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\SectionPracticeRepository;
+use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -192,8 +193,8 @@ it('lays out 20 Cav weeks of marks per trooper with each mark\'s source, null wh
     $row = collect($this->actingAs($this->leader)->get('/roster')->viewData('page')['props']['troopers'])->firstWhere('id', $t->id);
 
     expect($row['weeks'])->toHaveCount(20)
-        ->and($row['weeks'][19])->toBe(['rollcall' => 'will_attend', 'status' => 'present', 'source' => 'auto', 'held' => true])
-        ->and($row['weeks'][0])->toBe(['rollcall' => 'cannot_attend', 'status' => 'attached', 'source' => 'manual', 'held' => true])
+        ->and($row['weeks'][19])->toBe(['rollcall' => 'will_attend', 'status' => 'present', 'source' => 'auto', 'held' => true, 'sectionId' => $this->section1->id])
+        ->and($row['weeks'][0])->toBe(['rollcall' => 'cannot_attend', 'status' => 'attached', 'source' => 'manual', 'held' => true, 'sectionId' => $this->section1->id])
         ->and($row['weeks'][10])->toBeNull();
 });
 
@@ -347,6 +348,32 @@ it('reads a battalion in a constant number of queries, however many sections and
 });
 
 describe('trooper detail (Sheet)', function () {
+    // Decided 2026-10-27: after a transfer the new leadership sees the trooper's history from before the move.
+    it('shows the new leadership the weeks from before a transfer, each with its section, and the move itself', function () {
+        $t = rosterTrooper($this->section3);
+        rosterMark($t, $this->section3, 2, AttendanceStatus::Present, RollcallSignature::WillAttend);
+        $this->travelTo(rosterWeek(1)->addDays(4)->setTime(18, 0));
+        app(TrooperRepository::class)->updatePrimarySections([$t->cav_id => $this->section1->id]);
+        $this->travelTo(CarbonImmutable::parse(ROSTER_NOW, 'UTC'));
+        rosterMark($t, $this->section1, 0, AttendanceStatus::Present, RollcallSignature::WillAttend);
+
+        $this->actingAs($this->leader)->getJson("/roster/troopers/{$t->id}")
+            ->assertOk()
+            ->assertJsonPath('trooper.weeks.17.status', 'present')
+            ->assertJsonPath('trooper.weeks.17.rollcall', 'will_attend')
+            ->assertJsonPath('trooper.weeks.17.section', '1/2/A/1-7')
+            ->assertJsonPath('trooper.weeks.19.section', '1/1/A/1-7')
+            ->assertJsonPath('trooper.kpis.sp', [2, 2])
+            ->assertJsonPath('trooper.kpis.rc', [2, 4])
+            ->assertJsonPath('trooper.transfers', [['at' => '2026-09-30T18:00:00Z', 'from' => '1/2/A/1-7', 'to' => '1/1/A/1-7']]);
+    });
+
+    it('lists no transfers for a trooper who never moved', function () {
+        $t = rosterTrooper($this->section1);
+
+        $this->actingAs($this->leader)->getJson("/roster/troopers/{$t->id}")->assertJsonPath('trooper.transfers', []);
+    });
+
     it('returns identity, section, leader, KPIs, marks and the milpac link for an in-scope trooper', function () {
         $t = rosterTrooper($this->section1, ['cav_id' => 4242, 'mos' => '68W', 'tig' => '2026-01-02']);
         rosterMark($t, $this->section1, 0, AttendanceStatus::Makeup, RollcallSignature::CannotAttend);

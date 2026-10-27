@@ -304,9 +304,10 @@ it('still holds the practice with a makeup a leader marked by hand, as before', 
         ->and($rows[$stayedHome->id]->practice)->toEqual(new Ratio(0, 1));
 });
 
-it('measures a trooper who changed section mid-window against their current section only', function () {
-    // No placement history in the cache: the earlier section's marks drop out and the new
-    // section's earlier practices count as eligible. Pinned so a change here is deliberate.
+it('measures a trooper whose move the placement history never saw against their current section only', function () {
+    // Moved around the history (written straight to the column): the earlier section's marks drop out and the new
+    // section's earlier practices count as eligible, the rule from before the history. A move the sync or a manual
+    // placement makes is recorded and read week by week (TransferKpiTest). Pinned so a change here is deliberate.
     $trooper = kpiTrooper($this->sectionA);
     kpiMark($trooper, $this->sectionA, 3, AttendanceStatus::Missed);
     kpiMark($trooper, $this->sectionA, 2, AttendanceStatus::Missed);

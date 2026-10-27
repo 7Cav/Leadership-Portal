@@ -11,6 +11,7 @@ use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\TrooperRepository\Eloquent as TrooperEloquent;
 use App\Support\Audit\ReasonRequiredException;
@@ -166,7 +167,10 @@ it('rolls the audit entry back with the placement when the trooper was placed in
     // row, but by the time the conditional write runs the database has them placed.
     app()->instance(TrooperRepository::class, new class($other->id) extends TrooperEloquent
     {
-        public function __construct(private readonly int $otherSectionId) {}
+        public function __construct(private readonly int $otherSectionId)
+        {
+            parent::__construct(app(TrooperPlacementRepository::class));
+        }
 
         public function find(int $id): ?Trooper
         {

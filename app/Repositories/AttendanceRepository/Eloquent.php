@@ -12,7 +12,9 @@ use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\CountingMark;
+use App\Repositories\CountingWindow;
 use App\Repositories\SectionWeekProgress;
+use App\Repositories\TrooperPlacementRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -23,6 +25,10 @@ use Illuminate\Support\Facades\DB;
 
 class Eloquent implements AttendanceRepository
 {
+    public function __construct(
+        private readonly TrooperPlacementRepository $placements,
+    ) {}
+
     /**
      * The row is not an automatic makeup, so it can hold its practice (see countingMarks()). Only
      * ever applied to a row whose `status` is set; a null `source` (a mark that predates sources)
@@ -142,15 +148,19 @@ class Eloquent implements AttendanceRepository
 
     public function countingMarks(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection
     {
-        $sections = Unit::query()->select('id')->where('path', 'like', "{$unit->path}%");
-        $population = $includeDeparted
-            ? Trooper::query()->whereIn('troopers.primary_section_id', $sections)
-            : Trooper::query()->assignedWithin($unit);
-
-        return $this->countingMarksFor($population, $sections, $firstWeek, $lastWeek);
+        return $this->countingWindow($unit, $firstWeek, $lastWeek, $includeDeparted)->marks;
     }
 
-    public function countingMarksOf(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
+    public function countingWindow(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): CountingWindow
+    {
+        $population = $includeDeparted
+            ? Trooper::query()->whereIn('troopers.primary_section_id', Unit::query()->select('id')->where('path', 'like', "{$unit->path}%"))
+            : Trooper::query()->assignedWithin($unit);
+
+        return $this->countingMarksFor($population, $firstWeek, $lastWeek);
+    }
+
+    public function countingMarksOf(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection
     {
         WeekOf::requireStart($firstWeek);
         WeekOf::requireStart($lastWeek);
@@ -162,71 +172,116 @@ class Eloquent implements AttendanceRepository
 
         $population = Trooper::query()
             ->whereIn('troopers.id', $trooperIds)
-            ->whereIn('troopers.status', TrooperStatus::servingValues())
-            ->whereNotNull('troopers.primary_section_id');
-        $sections = Trooper::query()->select('primary_section_id')->whereIn('id', $trooperIds)->whereNotNull('primary_section_id');
+            ->when(! $includeDeparted, fn (Builder $query) => $query->whereIn('troopers.status', TrooperStatus::servingValues()));
 
-        return $this->countingMarksFor($population, $sections, $firstWeek, $lastWeek);
+        return $this->countingMarksFor($population, $firstWeek, $lastWeek)->marks;
     }
 
     /**
-     * The one counting-marks query behind {@see countingMarks()} and {@see countingMarksOf()}: `$population` against the
-     * practices of their own primary sections in the window, with `$sections` (a one-column subquery of section ids)
-     * bounding the practices the held subquery reads.
+     * The one counting-marks read behind {@see countingMarks()}, {@see CountingWindow()} and {@see countingMarksOf()}:
+     * each trooper of `$population`, week by week, against the practice of the section they were placed in that week
+     * (`TrooperPlacementRepository::sectionsByWeek`, 2026-10-27), so their marks follow them through a transfer and a
+     * new section's practices from before they joined are never theirs. Two queries however large the population:
+     * where the troopers were placed, then those sections' practices in the window with their held flag and the
+     * population's rows on them.
+     *
+     * In the week of a move the trooper was placed in two sections. Still one counting mark (AD-14): the practice they
+     * attended, else the one they were marked at, else the one they were placed in last. A rollcall they signed at
+     * either section counts as signed.
      *
      * @param  Builder<Trooper>  $population
-     * @param  Builder<Unit>|Builder<Trooper>  $sections
-     * @return Collection<int, CountingMark>
      */
-    private function countingMarksFor(Builder $population, Builder $sections, CarbonInterface $firstWeek, CarbonInterface $lastWeek): Collection
+    private function countingMarksFor(Builder $population, CarbonInterface $firstWeek, CarbonInterface $lastWeek): CountingWindow
     {
-        // A practice is held once any row on it carries a leader's SP mark. Signatures alone do
-        // not hold it, and neither does `loa` — derived from LOA data, it says nothing about
-        // whether the practice ran — nor an automatic makeup, which records a practice attended
-        // elsewhere and is written whether or not this section practised. Only practices in the
-        // window, of the population's sections, can join below, so the subquery reads those and
-        // not the whole attendance history.
         $from = WeekOf::requireStart($firstWeek);
         $to = WeekOf::requireStart($lastWeek);
+        $placements = $this->placements->sectionsByWeek($population, $from, $to);
+        $sectionIds = $placements->sectionIds();
 
+        if ($sectionIds === []) {
+            return new CountingWindow(collect(), $placements->current, $placements);
+        }
+
+        // A practice is held once any row on it carries a leader's SP mark. Signatures alone do
+        // not hold it, and neither does `loa` (derived from LOA data, it says nothing about
+        // whether the practice ran) nor an automatic makeup, which records a practice attended
+        // elsewhere and is written whether or not this section practised. Only practices in the
+        // window, of the sections the population was placed in, are read.
         $held = Attendance::query()
             ->select('attendance.section_practice_id')
             ->join('section_practices', 'section_practices.id', '=', 'attendance.section_practice_id')
             ->whereBetween('section_practices.week_start', [$from, $to])
-            ->whereIn('section_practices.section_id', $sections)
+            ->whereIn('section_practices.section_id', $sectionIds)
             ->whereNotNull('attendance.status')
             ->where('attendance.status', '!=', AttendanceStatus::Loa->value)
             ->whereRaw(self::notAutoMakeupSql())
             ->groupBy('attendance.section_practice_id');
 
-        return $population
-            ->join('section_practices', 'section_practices.section_id', '=', 'troopers.primary_section_id')
-            ->leftJoinSub($held, 'held', 'held.section_practice_id', '=', 'section_practices.id')
-            ->leftJoin('attendance', function ($join) {
-                $join->on('attendance.section_practice_id', '=', 'section_practices.id')
-                    ->on('attendance.trooper_id', '=', 'troopers.id');
-            })
+        $trooperIds = array_keys($placements->weeks);
+
+        // Each practice once with no row, or once per row of the population on it.
+        $found = SectionPractice::query()
+            ->whereIn('section_practices.section_id', $sectionIds)
             ->whereBetween('section_practices.week_start', [$from, $to])
-            ->orderBy('troopers.id')
-            ->orderBy('section_practices.week_start')
+            ->leftJoinSub($held, 'held', 'held.section_practice_id', '=', 'section_practices.id')
+            ->leftJoin('attendance', function ($join) use ($trooperIds) {
+                $join->on('attendance.section_practice_id', '=', 'section_practices.id')
+                    ->whereIn('attendance.trooper_id', $trooperIds);
+            })
             ->toBase()
             ->get([
-                'troopers.id as trooper_id',
+                'section_practices.id',
+                'section_practices.section_id',
                 'section_practices.week_start',
+                DB::raw('held.section_practice_id is not null as held'),
+                'attendance.trooper_id',
                 'attendance.status',
                 'attendance.rollcall',
                 'attendance.source',
-                DB::raw('held.section_practice_id is not null as held'),
-            ])
-            ->map(fn (object $row) => new CountingMark(
-                trooperId: (int) $row->trooper_id,
-                weekStart: CarbonImmutable::parse($row->week_start, 'UTC'),
-                status: $row->status === null ? null : AttendanceStatus::from($row->status),
-                // Null only when the left join found no attendance row: nobody signed for them.
-                rollcall: $row->rollcall === null ? RollcallSignature::Unsigned : RollcallSignature::from($row->rollcall),
-                held: (bool) $row->held,
-                source: $row->source === null ? null : AttendanceSource::from($row->source),
-            ));
+            ]);
+
+        $practices = $found->keyBy(fn (object $row) => $row->section_id.'|'.CarbonImmutable::parse($row->week_start, 'UTC')->toDateString());
+        $rows = $found->whereNotNull('trooper_id')->keyBy(fn (object $row) => $row->trooper_id.'|'.$row->id);
+
+        $statusOf = fn (array $option) => $option['row']?->status === null ? null : AttendanceStatus::from($option['row']->status);
+        $signed = fn (array $option) => $option['row'] !== null && $option['row']->rollcall !== null && $option['row']->rollcall !== RollcallSignature::Unsigned->value;
+        $marks = [];
+
+        foreach ($placements->weeks as $trooperId => $weeks) {
+            ksort($weeks);
+
+            foreach ($weeks as $week => $sections) {
+                $options = collect($sections)
+                    ->map(fn (int $sectionId) => $practices->get($sectionId.'|'.$week))
+                    ->filter()
+                    ->map(fn (object $practice) => ['practice' => $practice, 'row' => $rows->get($trooperId.'|'.$practice->id)])
+                    ->values();
+
+                // No practice row that week at any section they were in: no counting mark, as before.
+                if ($options->isEmpty()) {
+                    continue;
+                }
+
+                $chosen = $options->last(fn (array $option) => in_array($statusOf($option), [AttendanceStatus::Present, AttendanceStatus::Makeup, AttendanceStatus::Attached], true))
+                    ?? $options->last(fn (array $option) => $statusOf($option) !== null)
+                    ?? $options->last();
+                $signedAt = $signed($chosen) ? $chosen : $options->first($signed);
+                $row = $chosen['row'];
+
+                $marks[] = new CountingMark(
+                    trooperId: (int) $trooperId,
+                    weekStart: CarbonImmutable::parse($week, 'UTC'),
+                    status: $statusOf($chosen),
+                    // Unsigned when they have no row, or signed at none of the week's practices.
+                    rollcall: $signedAt === null ? RollcallSignature::Unsigned : RollcallSignature::from($signedAt['row']->rollcall),
+                    held: (bool) $chosen['practice']->held,
+                    source: $row?->source === null ? null : AttendanceSource::from($row->source),
+                    sectionId: (int) $chosen['practice']->section_id,
+                );
+            }
+        }
+
+        return new CountingWindow(collect($marks), $placements->current, $placements);
     }
 
     /**

@@ -71,6 +71,34 @@ describe('Trooper sheet', () => {
         expect(recent[1].textContent).toContain('No rollcall posted');
     });
 
+    // Decided 2026-10-27: after a transfer the new leadership sees the weeks from before the move and the move itself.
+    it('lists the trooper\'s transfers and names the old section on the weeks spent there', async () => {
+        const weeks = WEEKS.map((w, i) => {
+            if (i === 19) return { rollcall: 'will_attend', status: 'present', source: 'manual', held: true, sectionId: 3, section: '2/1/A/1-7' };
+            if (i === 17) return { rollcall: 'will_attend', status: 'present', source: 'manual', held: true, sectionId: 9, section: '1/2/A/1-7' };
+
+            return null;
+        });
+        respond(200, detail({ weeks, transfers: [{ at: '2026-09-30T18:00:00Z', from: '1/2/A/1-7', to: '2/1/A/1-7' }] }));
+        factory();
+        await flushPromises();
+
+        const sheet = document.body.querySelector('[data-testid="trooper-sheet"]');
+        expect(sheet.querySelector('[data-testid="transfers"]').textContent).toContain('Moved from 1/2/A/1-7 to 2/1/A/1-7, 30Sep26');
+        const recent = sheet.querySelectorAll('[data-testid="sheet-recent"] tbody tr');
+        expect(recent[0].querySelector('[data-testid="sheet-week-section"]')).toBeNull();
+        expect(recent[2].querySelector('[data-testid="sheet-week-section"]').textContent).toBe('At 1/2/A/1-7');
+        expect(recent[2].textContent).toContain('Present');
+    });
+
+    it('shows no transfers block for a trooper who never moved', async () => {
+        respond(200, detail({ transfers: [] }));
+        factory();
+        await flushPromises();
+
+        expect(document.body.querySelector('[data-testid="transfers"]')).toBeNull();
+    });
+
     it('links to the section rollcall and to milpac in a new tab', async () => {
         respond(200, detail());
         factory();
