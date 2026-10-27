@@ -47,16 +47,20 @@ Related pages reached from the roster:
 
 - Milpac page (`/troopers/<id>`): the trooper's ID block (rank, billet, MOS, time in service and grade, section),
   courses, a service record timeline, quick links to their section roster, rollcall and platoon readiness matrix, and
-  a makeup PM link when they missed a practice. Awards are not synced from Cav yet and the page says so. Departed
-  troopers still render, marked departed.
+  a makeup PM link when they missed a practice, and their transfers between units (newest first; also on the roster
+  Sheet). Their attendance history follows them: after a transfer the new leadership sees the trooper's past rollcall
+  signing, practice attendance and leave, but never the old unit's sent reports. Transfers from before this was
+  recorded do not show. Awards are not synced from Cav yet and the page says so. Departed troopers still render,
+  marked departed.
 - Training readiness matrix (`/readiness/<unit>`): troopers by courses for one unit.
-- Find trooper: the search in the shell (also the `/` key) finds troopers in your scope by forum username and opens
-  their milpac page. Departed troopers are flagged.
+- Find trooper: the search in the shell (also the `/` key) finds troopers in your scope and opens their milpac page.
+  Type a username, with or without a leading rank and with a space for the dot ("SGT Vasquez R"), or a cav id
+  ("#1234"). An empty result says whether it was limited to your units. Departed troopers are flagged.
 
 ### Rollcall
 
-One section's week, in three steps. With no section chosen it shows a section picker; the portal remembers the last
-section you opened. A week selector moves back through past weeks (down to the week floor) and flags unfinished ones.
+One section's week, in three steps. It opens on the last section you opened, else the section your billet commands,
+else the first section of the first platoon in your scope. A week selector moves back through past weeks (down to the week floor) and flags unfinished ones.
 
 1. Signatures: for each trooper, Will attend, Cannot attend or Unsigned, as signed on the forum's rollcall thread.
 2. Section practice: Present, Missed, Makeup or Attached. "Mark all present", "Mark the rest missed" and "use last
@@ -108,9 +112,12 @@ on none.
 
 ### Game identities
 
-Link each trooper in your scope to their in-game identity, one per game: Hell Let Loose, Arma Reforger and WARDOGS. A
-"needs a link" queue lists troopers with none. The capture uses these links to recognise players, and the section's
-game is the one most of its troopers have a link for. Only troopers placed in a section are listed.
+Link each trooper in your scope to their in-game identity, one per game. The games are the ones an Admin keeps on the
+Games page (Hell Let Loose, Arma Reforger and WARDOGS to start with); a retired game keeps its links but takes no new
+ones. A "needs a link" queue lists troopers with none. The capture uses these links to recognise players, and the
+section's game is the one most of its troopers have a link for. Every serving trooper placed in your scope is listed:
+section members, HQ staff and group members (ELOA, Reservists, New Recruits, staff departments). Linking someone
+outside a section only lets the capture recognise them; attendance is still marked in sections only.
 
 ## Settings menu (Admins)
 
@@ -118,11 +125,12 @@ game is the one most of its troopers have a link for. Only troopers placed in a 
 | --- | --- |
 | Org structure | The unit tree with each unit's lead (billet holder, portfolio officer or acting lead, or vacant) and headcount. Admins can add, rename, move and delete units (a unit with anything attached cannot be deleted), run Import from Cav roster, set a game or team label on a unit (shown next to its name), assign or remove an acting lead (reason required), and place a trooper the sync could not place. Staff groups list their members; ELOA shows each trooper's last line unit ("was"). |
 | Staff grants | Grant a non-Admin user read access to a unit and everything under it, or revoke it, with a reason. Lapsed grants (holder no longer serving) are flagged. |
-| Templates | One rollcall BBCode template per company. Each save is a new version with a reason; any older version can be activated again. Preview with sample data or a real section's current week. The template language is a small Mustache subset (`{{name}}`, repeated and conditional blocks, `upper` and `lower`); mistakes are refused on save. |
-| Audit log | Every audited change: who, what, when, the reason, filterable by actor, action, target, date and unit (including everything under it). |
+| Templates | One rollcall BBCode template per company. A non-Admin sees only the companies in their scope, opening on their own. Each save is a new version with a reason; any older version can be activated again. The preview fills itself from the company's first section in your scope (sample data when there is none), or any other section you pick. The template language is a small Mustache subset (`{{name}}`, repeated and conditional blocks, `upper` and `lower`); mistakes are refused on save. |
+| Games | The games the regiment plays: name, what the player id is called, and which telemetry interface reads its attendance (CRCON, BattleMetrics, Nightwatch or none). Add, edit, retire or reinstate a game; delete one only while nothing uses it. |
+| Audit log | Every audited change (and every view as start and stop): who, what, when, the reason, filterable by actor, action, target, date and unit (including everything under it). |
 | Demo data | Only when `DEMO_TOOLS=true`. Generate 1 to 12 completed weeks of demo signatures, marks and sent reports for a unit's real troopers, or purge them. Never touches a week that holds real records. |
 
-Non-Admins do not see the Settings menu. They can still open Org structure, Staff grants and Templates by URL, read only.
+Non-Admins do not see the Settings menu. They can still open Org structure, Staff grants, Templates and Games by URL, read only (Templates only for the companies in their scope).
 
 ## Background jobs
 
@@ -132,7 +140,7 @@ All run on the queue; a queue worker must be running. Times are UTC.
 | --- | --- | --- | --- |
 | Roster sync | Hourly on the hour; Admin "Sync now"; leader unit sync | Reads the Cav roster, updates troopers (rank, billet, status), places each trooper by billet, marks leavers departed. A unit sync only writes that unit's troopers. | `CAV_API_KEY`, `CAV_API_BASE_URL` |
 | LOA sync | Hourly at :15 (new threads), daily at 03:30 (full re-read of recent leave) | Reads LOA and ELOA threads from the configured forum sections. ELOA start and end dates come from the linked PAF thread. Posts it cannot read are stored as "needs review", never guessed. First run reads a year back. | `SEVENCAV_FORUM_API_KEY`, `SEVENCAV_FORUM_LOA_NODES`, `SEVENCAV_FORUM_PAF_NODE`, `LOA_SYNC_REQUEST_DELAY_MS`. Skipped while the key or sections are unset. |
-| Practice capture | When a leader clicks "Try again" on the rollcall. That button only shows after a failed capture, and nothing in the code schedules a first capture. | Reads who was on the game server during the Cav week so far, pre-marks linked troopers in the section as Present (a leader's mark always wins), lists unmatched players. | Hell Let Loose: CRCON (`CRCON_BASE_URL`, `CRCON_API_KEY`), falling back to BattleMetrics. Arma Reforger: BattleMetrics (`BATTLEMETRICS_API_KEY`, `BATTLEMETRICS_SERVER_ID`). WARDOGS: Nightwatch (`NIGHTWATCH_API_KEY`, `NIGHTWATCH_SERVER_IDS`). A game with no keys shows "not configured". |
+| Practice capture | When a leader clicks "Try again" on the rollcall. That button only shows after a failed capture, and nothing in the code schedules a first capture. | Reads who was on the game server during the Cav week so far, pre-marks linked troopers in the section as Present (a leader's mark always wins), lists unmatched players. | Each game's telemetry interface, picked on the Games page. CRCON (`CRCON_BASE_URL`, `CRCON_API_KEY`) falls back to BattleMetrics; BattleMetrics (`BATTLEMETRICS_API_KEY`, `BATTLEMETRICS_SERVER_ID`); Nightwatch (`NIGHTWATCH_API_KEY`, `NIGHTWATCH_SERVER_IDS`). Each interface reads the servers set in env, not one per game. A game with no keys, or interface "none", shows "not configured". |
 
 The capture does not record other sections' troopers as guests or makeups for now: without set practice times the
 window is the whole week and the servers are shared, so being online does not mean being at that practice.
@@ -188,18 +196,14 @@ the sum of its direct children's sent reports.
 
 From the backlog of 2026-10-27. None of these exist in the code today.
 
-- Find trooper: fix it showing no troopers; possibly rename it if it also shows units.
-- Rollcall generator defaults to the first platoon under the viewer's scope.
 - Battalion HQ switch to stop company commanders setting rollcall for every section in their company.
 - A regiment-wide default rollcall template that always shows in Templates; company commanders choosing which templates
-  their rollcalls may use; DEVCOM 1IC (CO of D/DEVCOM) setting DEVCOM's templates.
+  their rollcalls may use; the DEVCOM 1IC acting as DEVCOM's battalion commander and the 2IC as its XO.
 - Admin "act as": a full impersonation with that person's permissions (red bar), able to send reports.
 - Monthly Training Plans: written by platoon leaders, reviewed by the company, filling in the weeks' subjects.
 - Moving a platoon to another company keeps its saved settings and templates.
-- Attendance history that shows transfers, so new leadership sees signing, attendance and LOAs but not past reports.
 - LOR and DCS tracker with automatic upload.
-- Warrant Officers shown in the NCO colour on the roster.
-- View as entries in the audit log, and an Admin-only page-visit log for reproducing bugs.
+- An Admin-only page-visit log for reproducing bugs.
 
 ## Technical appendix
 
@@ -211,5 +215,5 @@ From the backlog of 2026-10-27. None of these exist in the code today.
 | KPIs, JSAM | `app/Kpi/KpiService.php`, `PracticeGuests`, `JsamCriteria`, `config/portal.php` (`jsam`) |
 | Leave | `app/Loa/LoaCoverage.php`, `app/Sync/SyncLoasHandler.php` |
 | Roster sync and placement | `app/Sync/SyncRosterHandler.php`, `RosterSyncScope*`, `app/Jobs/SyncRosterJob.php` |
-| Capture | `app/Commands/Capture/` (`CaptureSources` is the game to source map), `app/Jobs/CaptureSectionPracticeJob.php`, `app/Integration/` |
+| Capture | `app/Commands/Capture/` (`CaptureSources` maps each telemetry interface to its sources), `app/Commands/Games/`, `app/Jobs/CaptureSectionPracticeJob.php`, `app/Integration/` |
 | Reports | `app/Commands/WeeklyReports/`, `app/Kpi/RollupKpis.php`, `ReportChain.php`, `resources/js/lib/report.js` |

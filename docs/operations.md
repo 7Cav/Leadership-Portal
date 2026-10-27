@@ -93,7 +93,8 @@ Names only. Every key is documented in `.env.example` and `.env.production.examp
 | Portal rules | `PORTAL_WEEK_FLOOR_WEEKS` (default 20), `JSAM_MIN_VISITS` (3), `JSAM_MIN_OWN_SP_PERCENT` (75), `JSAM_WINDOW_WEEKS` (12) |
 | Demo | `DEMO_TOOLS` (keep false in production) |
 
-A game with no capture keys set shows "not configured" on the rollcall instead of failing.
+Which of these a game uses is set per game on Settings > Games. A game whose interface has no keys set (or is set to
+none) shows "not configured" on the rollcall instead of failing.
 
 ## Technical appendix
 

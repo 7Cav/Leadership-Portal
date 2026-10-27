@@ -61,22 +61,25 @@ No = refused (the page answers 403 or 404, or the control is not shown).
 | Find trooper (shell search) | All, plus unplaced | All | Own | Own | Own | Own | Own | Own | Nothing found | Read | Target |
 | Rollcall (sections in scope) | All | All | None (1) | Own | Own | Own | Own | Own | Empty picker | Read | Target |
 | Reports and roll-ups (line units) | All | All | None (1) | Own | Own | Own | Own | Own | None | Read | Target |
-| Game identities (troopers placed in sections) | All | All | None (1) | Own | Own | Own | Own | Own | None | Read | Target |
+| Game identities (every serving trooper placed in scope: sections, HQ staff, groups) | All | All | Own | Own | Own | Own | Own | Own | None | Read | Target |
 | Settings menu in the sidebar | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
 | Org structure page (whole tree and unit leads) | Yes | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes |
 | Org structure: members of staff groups, ELOA, Reservists, New Recruits | All | All | Own | Own | Own | Own | Own | Own | No | Read | Target |
 | Org structure: troopers the sync could not place | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
-| Staff grants page (every grant) | Yes | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes |
-| Templates page (every company's template and history) | Yes | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes |
+| Staff grants page (every grant; the username picker only for an acting Admin) | Yes | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes |
+| Templates page (a company's template and history) | All | All | No | Own (4) | Own (4) | Own (4) | Own (4) | Own (4) | No | Read (4) | Target (4) |
+| Games page (the games, their id labels and telemetry interfaces) | Yes | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes |
 | Template preview filled from a real section | All | All | No | Own | Own | Own | Own | Own | No | Read | Target |
 | Audit log | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
 | Demo data page (only when `DEMO_TOOLS=true`) | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
 
-(1) Portfolio officers command staff groups. Groups have no rollcall, reports, KPIs or game identities, so these
-pages show nothing for their portfolio. They see their staff on the roster and the org page.
+(1) Portfolio officers command staff groups. Groups have no rollcall, reports or KPIs, so these pages show nothing
+for their portfolio. They see their staff on the roster and the org page.
 (2) A trooper with no command billet and no grant has an empty scope, so even their own milpac page answers 404.
 (3) Not in the sidebar for non-Admins, but any signed-in user can open it by URL and read it. Only Admins see the
 editing controls.
+(4) The companies your read scope reaches into, opening on your own. Asking for any other company by URL answers 403.
+Only Admins see the editing controls.
 
 ### Rollcall writes
 
@@ -112,6 +115,7 @@ editing controls.
 | Org structure: assign or remove an acting lead | Yes | No | No |
 | Staff grants: grant or revoke | Yes | No | No |
 | Templates: save a new version, activate an older one | Yes | No | No |
+| Games: add, edit, retire, reinstate or delete a game (a game in use can only be retired) | Yes | No | No |
 | Demo data: generate or purge (only when `DEMO_TOOLS=true`) | Yes | No | No |
 | Whole-roster sync ("Sync now" on the roster) | Yes | No | No |
 | Manual LOA sync (route only, no button in the UI) | Yes | No | No |
@@ -120,7 +124,7 @@ editing controls.
 
 | Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Set or remove a trooper's game identity | All | All | No | Own | Own | Own | Own | Own | No | No | No |
+| Set or remove a trooper's game identity | All | All | Own | Own | Own | Own | Own | Own | No | No | No |
 | Sync my unit's troopers from Cav (roster page) | Any unit | Own | Own | Own | Own | Own | Own | Own | No | No | No |
 | View as a unit | Any | Own | Own | Own | Own | Own | Own | Own | No | Granted units | Switch target |
 | View as a person | Yes | No | No | No | No | No | No | No | No | No | Switch target |
@@ -159,12 +163,11 @@ your next click. Nothing has to be revoked by hand.
 | --- | --- |
 | Week floor (`PORTAL_WEEK_FLOOR_WEEKS`, default 20 Cav weeks back) | Marking, confirming, marking posted, capture, linking unmatched players, guests, report drafts and sends, the platoon topic. Older reports open read-only. |
 | Future weeks | Marking, confirming, posting and capture for a week that has not started. |
-| Section report sent for the week | That section's rollcall marks, confirming, capture "Try again", guests at that practice and automatic makeups into that week. The sent report itself is frozen. A platoon's topic is locked once the platoon's report is sent. |
+| Section report sent for the week | That section's rollcall marks, confirming, marking posted, capture "Try again", guests at that practice and automatic makeups into that week. The sent report itself is frozen. A platoon's topic is locked once the platoon's report is sent. |
 | Practice confirmed by a leader | Capture re-runs and linked players no longer change its marks. A leader's own hand edit still saves and clears the confirmation. |
 | Leave covering the week | That trooper's practice mark (the row posts as LOA). Their signature can still be saved. |
 
-Marking the rollcall posted is refused only before the week floor and for future weeks; it is not locked by a sent
-report.
+Copying the forum post stays possible on a locked week; marking it posted does not.
 
 ### Rate limits
 
