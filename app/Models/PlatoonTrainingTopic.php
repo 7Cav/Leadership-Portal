@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * `week_start` is always a Saturday 00:00 UTC (AD-11). `set_by` is who set it last.
  */
-#[Fillable(['unit_id', 'week_start', 'subject', 'enforced', 'set_by'])]
+#[Fillable(['unit_id', 'week_start', 'subject', 'enforced', 'set_by', 'set_by_admin'])]
 class PlatoonTrainingTopic extends Model
 {
     protected function casts(): array
@@ -33,5 +33,11 @@ class PlatoonTrainingTopic extends Model
     public function setter(): BelongsTo
     {
         return $this->belongsTo(User::class, 'set_by');
+    }
+
+    /** The Admin who set this topic while acting as `set_by` (#379), or null. */
+    public function setterAdmin(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'set_by_admin');
     }
 }

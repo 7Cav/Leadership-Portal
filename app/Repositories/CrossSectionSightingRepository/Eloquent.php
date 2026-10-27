@@ -54,7 +54,7 @@ class Eloquent implements CrossSectionSightingRepository
         return $added;
     }
 
-    public function recordManual(SectionPractice $hostPractice, int $trooperId, int $recordedBy): ?CrossSectionSighting
+    public function recordManual(SectionPractice $hostPractice, int $trooperId, int $recordedBy, ?int $recordedByAdmin = null): ?CrossSectionSighting
     {
         // The same insert-or-find as a capture: a pair the capture (or another leader) already recorded is found and
         // left as it is, so a hand entry never overwrites what the server saw.
@@ -64,6 +64,7 @@ class Eloquent implements CrossSectionSightingRepository
                 'week_start' => $hostPractice->week_start,
                 'source' => CrossSectionSighting::SOURCE_MANUAL,
                 'recorded_by' => $recordedBy,
+                'recorded_by_admin' => $recordedByAdmin,
             ],
         );
 
@@ -90,7 +91,7 @@ class Eloquent implements CrossSectionSightingRepository
     public function forHostPractice(int $hostPracticeId): Collection
     {
         return CrossSectionSighting::query()
-            ->with(['trooper', 'recordedBy'])
+            ->with(['trooper', 'recordedBy', 'recordedByAdmin'])
             ->where('section_practice_id', $hostPracticeId)
             ->orderBy('id')
             ->get()

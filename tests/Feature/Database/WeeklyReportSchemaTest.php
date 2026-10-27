@@ -42,7 +42,7 @@ it('makes (unit_id, week_start) unique', function () {
     expect($uniques)->toContain(['unit_id', 'week_start']);
 });
 
-it('points unit_id at units, sent_by at users and template_version_id at template_versions', function () {
+it('points unit_id at units, sent_by and sent_by_admin at users and template_version_id at template_versions', function () {
     $targets = collect(Schema::getForeignKeys('weekly_reports'))
         ->mapWithKeys(fn (array $fk) => [$fk['columns'][0] => $fk['foreign_table'].'.'.$fk['foreign_columns'][0]])
         ->sortKeys()
@@ -50,6 +50,8 @@ it('points unit_id at units, sent_by at users and template_version_id at templat
 
     expect($targets)->toBe([
         'sent_by' => 'users.id',
+        // The Admin who sent it while acting as `sent_by` (#379).
+        'sent_by_admin' => 'users.id',
         'template_version_id' => 'template_versions.id',
         'unit_id' => 'units.id',
     ]);

@@ -12,6 +12,7 @@ use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
+use App\Support\Audit\ActingFor;
 use App\Support\Audit\AuditEnvelope;
 
 /**
@@ -51,6 +52,7 @@ class RecordGuestAttendanceHandler
         private readonly WeeklyReportRepository $reports,
         private readonly AuditEnvelope $audit,
         private readonly MarkAttendanceHandler $attendance,
+        private readonly ActingFor $acting,
     ) {}
 
     /**
@@ -96,7 +98,7 @@ class RecordGuestAttendanceHandler
                 // A roster sync may have moved or departed them since the check above.
                 $this->refuseNonGuest($this->troopers->find($trooper->id), $command->sectionId, $this->units);
 
-                $sighting = $this->sightings->recordManual($practice, $trooper->id, $actor->id)
+                $sighting = $this->sightings->recordManual($practice, $trooper->id, $actor->id, $this->acting->adminActingAs($actor->id))
                     ?? throw GuestAttendanceRefusedException::alreadyListed($trooper->display_name);
 
                 return new AuditedBatch($practice, $sighting);

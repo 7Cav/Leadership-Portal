@@ -33,6 +33,16 @@ class ActingFor
     }
 
     /**
+     * The Admin acting as `$actorId` on this request, or null when `$actorId` is acting in their own name. For the
+     * records that name who did something (a report's sender, a guest's adder, a topic's setter), which keep the person
+     * and name the Admin beside them.
+     */
+    public function adminActingAs(int $actorId): ?int
+    {
+        return $this->admin !== null && $actorId === $this->user ? $this->admin : null;
+    }
+
+    /**
      * Who an entry is recorded against: an action done as the person acted for is the Admin's, on their behalf;
      * anything else (the Admin's own start and stop, a job) is recorded as is.
      *

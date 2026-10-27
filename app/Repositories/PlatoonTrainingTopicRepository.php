@@ -36,7 +36,7 @@ interface PlatoonTrainingTopicRepository
      *
      * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
      */
-    public function set(int $unitId, CarbonInterface $weekStart, string $subject, bool $enforced, int $setBy): PlatoonTrainingTopic;
+    public function set(int $unitId, CarbonInterface $weekStart, string $subject, bool $enforced, int $setBy, ?int $setByAdmin = null): PlatoonTrainingTopic;
 
     /**
      * Remove the platoon's topic for the week. Returns the removed row (as it was), or null when

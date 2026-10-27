@@ -118,6 +118,8 @@ interface WeeklyReportRepository
      * @param  array<string, mixed>  $kpis
      * @param  list<array{trooper_id: int, reason: string}>  $unaccounted
      *
+     * `$sentByAdmin` is the Admin who sent it while acting as `$sentBy` (#379), named beside them; null otherwise.
+     *
      * @throws InvalidArgumentException when `$unitId` is not a `units` row, `$sentBy` is not a
      *                                  `users` row, `$templateVersionId` is not a
      *                                  `template_versions` row, or `$weekStart` is not a Saturday
@@ -134,6 +136,7 @@ interface WeeklyReportRepository
         ?int $templateVersionId,
         ?string $trainingSubject = null,
         array $unaccounted = [],
+        ?int $sentByAdmin = null,
     ): WeeklyReport;
 
     /**

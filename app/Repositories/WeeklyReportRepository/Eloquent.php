@@ -117,6 +117,7 @@ class Eloquent implements WeeklyReportRepository
         ?int $templateVersionId,
         ?string $trainingSubject = null,
         array $unaccounted = [],
+        ?int $sentByAdmin = null,
     ): WeeklyReport {
         if (! User::query()->whereKey($sentBy)->exists()) {
             throw new InvalidArgumentException("User {$sentBy} does not exist; a sent report records its sender.");
@@ -134,6 +135,7 @@ class Eloquent implements WeeklyReportRepository
             'unaccounted' => $unaccounted,
             'sent_at' => CarbonImmutable::now('UTC'),
             'sent_by' => $sentBy,
+            'sent_by_admin' => $sentByAdmin,
             'content_digest' => $contentDigest,
             'template_version_id' => $templateVersionId,
         ]);

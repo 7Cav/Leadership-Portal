@@ -38,7 +38,7 @@ interface CrossSectionSightingRepository
      * `$recordedBy`). Insert-or-find under the same UNIQUE key as {@see record()}: returns the new row, or null when the
      * pair is already recorded, from either source, which is then left as it is.
      */
-    public function recordManual(SectionPractice $hostPractice, int $trooperId, int $recordedBy): ?CrossSectionSighting;
+    public function recordManual(SectionPractice $hostPractice, int $trooperId, int $recordedBy, ?int $recordedByAdmin = null): ?CrossSectionSighting;
 
     /**
      * Delete the hand-added entry for `$trooperId` at the host practice. A capture sighting is never deleted here,

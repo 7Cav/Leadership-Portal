@@ -371,7 +371,7 @@ class ReportController extends Controller
             'unaccounted' => $report?->unaccounted ?? [],
             'savedAt' => $report?->updated_at?->toIso8601String(),
             'sentAt' => $report?->sent_at?->toIso8601String(),
-            'sentBy' => $report?->sent_by === null ? null : $senders->get($report->sent_by),
+            'sentBy' => $report?->sent_by === null ? null : $this->sentBy($report, $senders),
         ];
     }
 
@@ -390,7 +390,8 @@ class ReportController extends Controller
             'subject' => $topic->subject,
             'enforced' => $topic->enforced,
             'platoon' => $platoon === null ? null : $this->unitProps($platoon),
-            'setBy' => $trooper?->display_name ?? $setter?->username,
+            // "Hale.S for SGT Vasquez.R" when an Admin acting as the setter set it (#379).
+            'setBy' => ($topic->set_by_admin === null ? '' : $topic->setterAdmin?->username.' for ').($trooper?->display_name ?? $setter?->username),
             'setAt' => $topic->updated_at?->toIso8601String(),
         ];
     }
@@ -611,7 +612,7 @@ class ReportController extends Controller
         return [
             'week' => $report->week_start->toIso8601String(),
             'sentAt' => $report->sent_at?->toIso8601String(),
-            'sentBy' => $senders->get($report->sent_by),
+            'sentBy' => $this->sentBy($report, $senders),
             'kpis' => $snapshot === null ? null : $this->kpiProps($snapshot->kpis),
             'delta' => $snapshot?->delta === null ? null : $this->deltaProps($snapshot->delta),
             'missingChildren' => $snapshot->missingChildren ?? [],
@@ -622,8 +623,20 @@ class ReportController extends Controller
     }
 
     /**
-     * `RANK Name` for each sender: the roster name of the trooper their account is linked to, or
-     * their forum username when the roster has none.
+     * Who sent a report: the sender's label, or "Hale.S for SGT Mercer.J" when an Admin acting as them sent it (#379).
+     *
+     * @param  Collection<int, string>  $senders  {@see senderLabels()}
+     */
+    private function sentBy(WeeklyReport $report, Collection $senders): ?string
+    {
+        $sender = $senders->get($report->sent_by);
+
+        return $report->sent_by_admin === null ? $sender : $senders->get($report->sent_by_admin).' for '.$sender;
+    }
+
+    /**
+     * `RANK Name` for each sender, and each Admin who sent one while acting as them: the roster name of the trooper
+     * their account is linked to, or their forum username when the roster has none.
      *
      * @param  Collection<int, WeeklyReport>  $sent
      * @return Collection<int, string> user id => label
@@ -631,6 +644,7 @@ class ReportController extends Controller
     private function senderLabels(Collection $sent): Collection
     {
         $users = $sent->map(fn (WeeklyReport $r) => $r->relationLoaded('sender') ? $r->sender : $this->users->find($r->sent_by))
+            ->merge($sent->pluck('sent_by_admin')->filter()->unique()->map(fn ($id) => $this->users->find((int) $id)))
             ->filter()
             ->unique('id');
         $troopers = $this->troopers->byCavId($users->pluck('cav_id')->filter()->values()->all());

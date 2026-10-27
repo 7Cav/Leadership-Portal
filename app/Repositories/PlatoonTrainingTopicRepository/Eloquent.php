@@ -17,7 +17,7 @@ class Eloquent implements PlatoonTrainingTopicRepository
     public function find(int $unitId, CarbonInterface $weekStart): ?PlatoonTrainingTopic
     {
         return PlatoonTrainingTopic::query()
-            ->with('setter')
+            ->with(['setter', 'setterAdmin'])
             ->where('unit_id', $unitId)
             ->where('week_start', $this->assertWeekStart($weekStart))
             ->first();
@@ -34,7 +34,7 @@ class Eloquent implements PlatoonTrainingTopicRepository
         return $this->find($section->parent_id, $weekStart);
     }
 
-    public function set(int $unitId, CarbonInterface $weekStart, string $subject, bool $enforced, int $setBy): PlatoonTrainingTopic
+    public function set(int $unitId, CarbonInterface $weekStart, string $subject, bool $enforced, int $setBy, ?int $setByAdmin = null): PlatoonTrainingTopic
     {
         $weekStart = $this->assertWeekStart($weekStart);
 
@@ -43,11 +43,11 @@ class Eloquent implements PlatoonTrainingTopicRepository
         // only a gap lock on MySQL, so two first sets of one week would both insert, and the loser
         // would end in a duplicate-key error or a deadlock. The upsert takes an exclusive lock on the
         // row whether it inserts or updates, so concurrent sets queue one at a time.
-        return DB::transaction(function () use ($unitId, $weekStart, $subject, $enforced, $setBy) {
+        return DB::transaction(function () use ($unitId, $weekStart, $subject, $enforced, $setBy, $setByAdmin) {
             PlatoonTrainingTopic::query()->upsert(
-                [['unit_id' => $unitId, 'week_start' => $weekStart, 'subject' => $subject, 'enforced' => $enforced, 'set_by' => $setBy]],
+                [['unit_id' => $unitId, 'week_start' => $weekStart, 'subject' => $subject, 'enforced' => $enforced, 'set_by' => $setBy, 'set_by_admin' => $setByAdmin]],
                 ['unit_id', 'week_start'],
-                ['subject', 'enforced', 'set_by'],
+                ['subject', 'enforced', 'set_by', 'set_by_admin'],
             );
 
             return PlatoonTrainingTopic::query()

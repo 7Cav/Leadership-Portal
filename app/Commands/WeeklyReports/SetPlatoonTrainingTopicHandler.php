@@ -10,6 +10,7 @@ use App\Models\WeeklyReportStatus;
 use App\Repositories\PlatoonTrainingTopicRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
+use App\Support\Audit\ActingFor;
 use App\Support\Audit\AuditEnvelope;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
@@ -39,6 +40,7 @@ class SetPlatoonTrainingTopicHandler
         private readonly WeeklyReportRepository $reports,
         private readonly PlatoonTrainingTopicRepository $topics,
         private readonly AuditEnvelope $audit,
+        private readonly ActingFor $acting,
     ) {}
 
     /**
@@ -114,7 +116,7 @@ class SetPlatoonTrainingTopicHandler
             mutation: function () use ($unit, $weekStart, $subject, $command, $actor) {
                 $this->refuseSentUnderLock($unit->id, $weekStart);
 
-                return $this->topics->set($unit->id, $weekStart, $subject, $command->enforced, $actor->id);
+                return $this->topics->set($unit->id, $weekStart, $subject, $command->enforced, $actor->id, $this->acting->adminActingAs($actor->id));
             },
         );
     }
