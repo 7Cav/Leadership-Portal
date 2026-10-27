@@ -16,6 +16,7 @@
 #   Milpac         → Repository, Model                     # what the Epic 6 pages show: the milpac and the readiness matrix
 #   Loa            → Repository, Model, Support\Time       # LOA source/staleness reader and week coverage (Epic 4)
 #   Rollcall       → Repository, Model                     # the template a unit resolves to (Epic 3)
+#   Docs           → Authorization, Model                  # the in-portal guides, read from resources/docs (#408)
 #   Job            → Sync, CommandHandler                  # queued jobs invoke a Sync handler (Story 2.4) or a capture Command (Story 7.5)
 #   Sync           → Repository, Model, Integration        # one-writer cache sync handlers (AD-4)
 #   Authorization  → Repository, Model                     # ScopeResolver, the single scope gate (AD-8)
@@ -88,6 +89,10 @@ deptrac:
       collectors:
         - type: directory
           value: app/Rollcall/.*
+    - name: Docs
+      collectors:
+        - type: directory
+          value: app/Docs/.*
     # Queued jobs (Story 2.4): the scheduler and a manual-trigger controller both dispatch a
     # Job, which does nothing but invoke a Sync handler (or, since Story 7.5, the capture
     # Command's handler) — the async wrapper AD-23 requires around a slow external call,
@@ -190,6 +195,12 @@ deptrac:
     # roster pre-filled for a week and the BBCode. Read-only. Controller reaches it from the rollcall page (Story 3.11).
     Rollcall:
       - Repository
+      - Model
+    # The in-portal guides (#408): markdown files in resources/docs, not database rows, so not a Repository. Reads only
+    # those files and public/guide-img; never the DB or an external system. Authorization because which guides a
+    # viewer may read follows their real authority (AD-8) and view-as (AD-9), through the ScopeResolver only.
+    Docs:
+      - Authorization
       - Model
     # One-writer cache sync handler (AD-4, AD-22): reads the source of truth through
     # Integration and persists only through its Repository — the same write-side shape

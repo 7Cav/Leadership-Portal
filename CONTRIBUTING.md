@@ -57,6 +57,7 @@ Route → Controller ─┬─ (write) Command → CommandHandler ─┐
 | Milpac | `app/Milpac/` | Repository, Model | Read-only props for the Epic 6 pages: the trooper detail page (the milpac) and the unit training-readiness matrix |
 | Loa | `app/Loa/` | Repository, Model, Support\Time | Read-only LOA logic: the source and last-sync every LOA value shows (AD-20), and the one definition of LOA coverage (AD-21) |
 | Rollcall | `app/Rollcall/` | Repository, Model | Read-only logic behind the rollcall screen (Epic 3): the template a unit resolves to, and later the pre-filled roster and the BBCode |
+| Docs | `app/Docs/` | Authorization, Model | The in-portal guides (#408): markdown files in `resources/docs`, parsed and filtered by what the viewer may read. Reads files, never the DB |
 | Sync | `app/Sync/` | Repository, Model, Integration | One-writer cache sync handlers (AD-4, AD-22) — `Sync{Thing}Handler` |
 | Job | `app/Jobs/` | Sync, CommandHandler | Queued wrappers (AD-23): each runs a Sync handler, or the practice-capture Command's handler, off the request path. No DB or external access of its own |
 | Provider | `app/Providers/` | Controller, CommandHandler, Repository, Model, Integration, Authorization, DB, Kpi | DI composition root — bootstrap, not business logic |
