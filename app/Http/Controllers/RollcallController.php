@@ -56,6 +56,7 @@ use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitCommandMappingRepository;
+use App\Repositories\UnitDesignationOrder;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Rollcall\RollcallGuests;
@@ -628,8 +629,10 @@ class RollcallController extends Controller
     }
 
     /**
-     * The section a user opens the rollcall on without choosing: the one their billet commands, or
-     * the only section in their scope. Null leaves the choice to the picker.
+     * The section a user opens the rollcall on without choosing: the one their billet commands, else
+     * the first section of the first platoon in their scope, in designation order
+     * ({@see UnitDesignationOrder}). Null only when their scope holds no section, which leaves the
+     * (empty) picker.
      *
      * @param  Collection<int, Unit>  $sections  the sections in the user's scope
      */
@@ -641,7 +644,9 @@ class RollcallController extends Controller
             return $commanded;
         }
 
-        return $sections->count() === 1 ? $sections->first() : null;
+        return $sections->count() <= 1
+            ? $sections->first()
+            : UnitDesignationOrder::sort($sections, $this->units->tree())->first();
     }
 
     /**
