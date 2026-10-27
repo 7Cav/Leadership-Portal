@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Schema;
 
 function trooperPlacementsMigration(): object
 {
-    return require database_path('migrations/2026_10_27_100000_create_trooper_placements_table.php');
+    return require database_path('migrations/2026_10_27_110000_create_trooper_placements_table.php');
 }
 
 it('backfills one open row per placed trooper, from the beginning, with their placement source', function () {

@@ -141,7 +141,10 @@ class Eloquent implements TrooperPlacementRepository
                     ->filter(fn (array $row) => ($row['from'] === null || $row['from']->lessThan($end))
                         && ($row['until'] === null || $row['until']->greaterThan($week)))
                     ->pluck('unit')
+                    // A section met twice (A, B, back to A) keeps its last place, so "placed last" is where they ended.
+                    ->reverse()
                     ->unique()
+                    ->reverse()
                     ->values()
                     ->all();
 
