@@ -213,7 +213,7 @@ it('leaves the stored servers of an interface without credentials untouched', fu
     expect($stored->fresh()->missing_since)->toBeNull();
 });
 
-it('reports an empty listing while servers are stored, flagging none of them missing', function (mixed $body) {
+it('reports an empty or shapeless listing while servers are stored, flagging none of them missing', function (mixed $body, string $status) {
     config()->set('services.nightwatch', ['base_url' => 'https://nw.test/api/public/stats', 'api_key' => 'k', 'server_ids' => null]);
     app()->forgetInstance(NightwatchApi::class);
     app()->forgetInstance(TelemetryCredentials::class);
@@ -225,12 +225,12 @@ it('reports an empty listing while servers are stored, flagging none of them mis
     ]);
 
     $this->actingAs($this->admin)->post('/settings/servers/fetch')
-        ->assertSessionHas('servers_fetch', fn (array $outcomes) => $outcomes[2]['interface'] === 'nightwatch' && $outcomes[2]['status'] === 'failed');
+        ->assertSessionHas('servers_fetch', fn (array $outcomes) => $outcomes[2]['interface'] === 'nightwatch' && $outcomes[2]['status'] === $status);
 
     expect($stored->fresh()->missing_since)->toBeNull();
 })->with([
-    'servers: []' => [['servers' => []]],
-    'an empty object' => [[]],
+    'servers: [] (an empty listing)' => [['servers' => []], 'empty'],
+    'an empty object (no listing at all)' => [[], 'failed'],
 ]);
 
 it('keeps a server on a game retired since it was assigned', function () {

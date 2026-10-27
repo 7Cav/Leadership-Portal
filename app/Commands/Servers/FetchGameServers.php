@@ -38,7 +38,8 @@ class FetchGameServers
 
     /**
      * One outcome per interface, in a fixed order: `listed` with how many it listed, added and found missing;
-     * `not_configured` when its credentials are unset; `failed` with why.
+     * `not_configured` when its credentials are unset; `failed` with why; `empty` when it listed nothing while servers
+     * of it are stored, which are then left as they are.
      *
      * @return list<array{interface: string, status: string, listed?: int, added?: int, missing?: int, message?: string}>
      */
@@ -67,7 +68,7 @@ class FetchGameServers
             // An empty listing while servers are stored is far likelier a key that lost its scope, or an answer that
             // changed shape, than every server gone at once: it is reported, and flags nothing missing.
             if ($listed === [] && $this->servers->all()->contains(fn ($server) => $server->interface === $interface)) {
-                $outcomes[] = ['interface' => $value, 'status' => 'failed', 'message' => 'It listed no servers, so the stored ones were left as they are.'];
+                $outcomes[] = ['interface' => $value, 'status' => 'empty'];
 
                 continue;
             }

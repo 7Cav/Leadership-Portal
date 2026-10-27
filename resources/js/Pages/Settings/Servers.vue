@@ -25,7 +25,8 @@ const props = defineProps({
     interfaces: { type: Array, required: true },
     // `[{ value, label }]`: training, public.
     types: { type: Array, required: true },
-    // What the last fetch found per interface, flashed once: `[{ interface, status, listed?, added?, missing?, message? }]`.
+    // What the last fetch found per interface, flashed once: `[{ interface, status, listed?, added?, missing?, message? }]`,
+    // `status` one of listed, not_configured, failed, empty.
     fetchResult: { type: Array, default: null },
 });
 
@@ -96,6 +97,7 @@ function fetchLine(outcome) {
     const name = interfaceLabel(outcome.interface);
 
     if (outcome.status === 'not_configured') return `${name}: credentials not set, not asked.`;
+    if (outcome.status === 'empty') return `${name}: listed no servers, so its stored servers were left as they are.`;
     if (outcome.status === 'failed') return `${name}: could not be read. ${outcome.message} Stored servers were left as they are.`;
 
     const parts = [`${outcome.listed} listed`];

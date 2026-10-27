@@ -122,6 +122,9 @@ describe('Settings/Servers', () => {
                 { interface: 'nightwatch', status: 'not_configured' },
             ],
         });
+        const empty = factory({ fetchResult: [{ interface: 'nightwatch', status: 'empty' }] });
+
+        expect(empty.get('[data-testid="fetch-nightwatch"]').text()).toBe('Nightwatch: listed no servers, so its stored servers were left as they are.');
 
         expect(wrapper.get('[data-testid="fetch-crcon"]').text()).toBe('CRCON: 1 listed.');
         expect(wrapper.get('[data-testid="fetch-battlemetrics"]').text()).toContain('could not be read. BattleMetrics answered with an error (HTTP 503). Stored servers were left as they are.');
