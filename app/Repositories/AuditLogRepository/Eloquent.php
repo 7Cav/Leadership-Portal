@@ -52,6 +52,8 @@ class Eloquent implements AuditLogRepository
         'FireteamAssignment' => [FireteamAssignment::class, ['section']],
         'FireteamSetting' => [FireteamSetting::class, ['unit']],
         'PlatoonTrainingTopic' => [PlatoonTrainingTopic::class, ['unit']],
+        // A user is linked through their trooper, matched on `cav_id` (see {@see withTroopers()}).
+        'User' => [User::class, []],
         // A dismissal belongs to no unit; it is linked through the latest practice that captured the player (see
         // {@see withLatestCaptures()}).
         'GamePlayerDismissal' => [GamePlayerDismissal::class, []],
@@ -195,6 +197,10 @@ class Eloquent implements AuditLogRepository
                 $this->withLatestCaptures($models);
             }
 
+            if ($type === 'User') {
+                $this->withTroopers($models);
+            }
+
             foreach ($models as $model) {
                 $targets["{$type}#{$model->getKey()}"] = $model;
             }
@@ -236,6 +242,20 @@ class Eloquent implements AuditLogRepository
     }
 
     /**
+     * Sets each user's `trooper` relation: the trooper with the same `cav_id`, or null when the user has none. One query
+     * for all the users on the page.
+     *
+     * @param  EloquentCollection<int, User>  $users
+     */
+    private function withTroopers(EloquentCollection $users): void
+    {
+        $cavIds = $users->pluck('cav_id')->filter()->unique()->values()->all();
+        $troopers = $cavIds === [] ? collect() : Trooper::query()->whereIn('cav_id', $cavIds)->get()->keyBy('cav_id');
+
+        $users->each(fn (User $user) => $user->setRelation('trooper', $user->cav_id !== null ? $troopers->get($user->cav_id) : null));
+    }
+
+    /**
      * Entries whose target sits in `$unit`'s subtree (see the interface). Every branch is a subquery over the path prefix,
      * so the filter costs the same however large the subtree. `target_id` is a string column, so ids are compared as text.
      *
@@ -258,6 +278,8 @@ class Eloquent implements AuditLogRepository
             ->orWhere($about('FireteamAssignment', FireteamAssignment::query()->whereIn('section_id', $units())))
             ->orWhere($about('FireteamSetting', FireteamSetting::query()->whereIn('unit_id', $units())))
             ->orWhere($about('PlatoonTrainingTopic', PlatoonTrainingTopic::query()->whereIn('unit_id', $units())))
+            // A user (a view-as target, a changed Admin flag) is about the unit their trooper is placed in.
+            ->orWhere($about('User', User::query()->whereIn('cav_id', Trooper::query()->select('cav_id')->whereNotNull('cav_id')->whereIn('primary_section_id', $units()))))
             // A dismissal has no unit of its own: it is about every section whose practice capture stored the player.
             ->orWhere($about('GamePlayerDismissal', GamePlayerDismissal::query()->whereExists(fn ($query) => $query
                 ->selectRaw('1')
