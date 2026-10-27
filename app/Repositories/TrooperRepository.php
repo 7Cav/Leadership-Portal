@@ -82,6 +82,9 @@ interface TrooperRepository
      * of `$eloaUnitIds` from a line unit keeps that unit as their ELOA "was" (`last_line_unit_id`); one moved in from
      * anywhere else keeps what was recorded (blank for a trooper first seen on ELOA); a placement anywhere else clears it.
      *
+     * Every trooper whose unit changes gets the move in the placement history (`TrooperPlacementRepository`, 2026-10-27)
+     * in the same transaction.
+     *
      * @param  array<int, int>  $cavIdToSectionId  cav_id => units.id
      * @param  list<int>  $eloaUnitIds  the ELOA group(s)
      */
@@ -102,7 +105,7 @@ interface TrooperRepository
      * applies only while the trooper is still unplaced and still on a roster, and returns the placed
      * trooper, or null when it did not apply (already placed, departed, or no such trooper), so two
      * concurrent placements cannot both win. The returned model is the post-update row, and what the
-     * audit envelope's digest is computed from.
+     * audit envelope's digest is computed from. The placement goes into the placement history in the same transaction.
      */
     public function place(int $trooperId, int $sectionId): ?Trooper;
 

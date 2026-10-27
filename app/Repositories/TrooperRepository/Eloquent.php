@@ -8,7 +8,9 @@ use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitKind;
 use App\Models\UnitType;
+use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\TrooperRepository;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
@@ -16,6 +18,10 @@ use Illuminate\Support\Facades\DB;
 
 class Eloquent implements TrooperRepository
 {
+    public function __construct(
+        private readonly TrooperPlacementRepository $placements,
+    ) {}
+
     public function sync(array $rows, array $activeCavIds, array $unreadableCavIds = [], ?array $withinSectionIds = null): array
     {
         return DB::transaction(function () use ($rows, $activeCavIds, $unreadableCavIds, $withinSectionIds) {
@@ -85,7 +91,17 @@ class Eloquent implements TrooperRepository
 
     public function updatePrimarySections(array $cavIdToSectionId, array $eloaUnitIds = []): int
     {
+        return DB::transaction(fn () => $this->applyPrimarySections($cavIdToSectionId, $eloaUnitIds));
+    }
+
+    /**
+     * @param  array<int, int>  $cavIdToSectionId
+     * @param  list<int>  $eloaUnitIds
+     */
+    private function applyPrimarySections(array $cavIdToSectionId, array $eloaUnitIds): int
+    {
         $updated = 0;
+        $at = CarbonImmutable::now();
         $lineUnits = Unit::query()->select('id')->where('kind', UnitKind::Line->value);
 
         // Grouped by target unit rather than one UPDATE per trooper: a full-roster sync can
@@ -100,6 +116,12 @@ class Eloquent implements TrooperRepository
                 ? DB::raw('CASE WHEN primary_section_id IN ('.$lineUnits->toRawSql().') THEN primary_section_id ELSE last_line_unit_id END')
                 : null;
 
+            // Who actually moves, read before the write, for the placement history (2026-10-27).
+            $moving = Trooper::query()
+                ->whereIn('cav_id', $cavIds->keys())
+                ->where(fn (Builder $query) => $query->whereNull('primary_section_id')->orWhere('primary_section_id', '!=', $sectionId))
+                ->pluck('primary_section_id', 'id');
+
             $updated += Trooper::query()
                 ->whereIn('cav_id', $cavIds->keys())
                 ->update([
@@ -107,6 +129,12 @@ class Eloquent implements TrooperRepository
                     'primary_section_id' => $sectionId,
                     'placement_source' => PlacementSource::Sync->value,
                 ]);
+
+            $this->placements->record(
+                $moving->map(fn (?int $from) => [$from, (int) $sectionId])->all(),
+                PlacementSource::Sync,
+                $at,
+            );
         }
 
         return $updated;
@@ -128,13 +156,21 @@ class Eloquent implements TrooperRepository
         // One conditional UPDATE rather than read-then-write: it only lands while the trooper is
         // still unplaced and still on a roster, so two Admins placing the same trooper at once
         // cannot both win, and neither can overwrite a placement the sync just made.
-        $placed = Trooper::query()
-            ->whereKey($trooperId)
-            ->whereNull('primary_section_id')
-            ->whereIn('status', TrooperStatus::servingValues())
-            ->update(['primary_section_id' => $sectionId, 'placement_source' => PlacementSource::Manual->value]);
+        return DB::transaction(function () use ($trooperId, $sectionId) {
+            $placed = Trooper::query()
+                ->whereKey($trooperId)
+                ->whereNull('primary_section_id')
+                ->whereIn('status', TrooperStatus::servingValues())
+                ->update(['primary_section_id' => $sectionId, 'placement_source' => PlacementSource::Manual->value]);
 
-        return $placed === 1 ? Trooper::find($trooperId) : null;
+            if ($placed !== 1) {
+                return null;
+            }
+
+            $this->placements->record([$trooperId => [null, $sectionId]], PlacementSource::Manual, CarbonImmutable::now());
+
+            return Trooper::find($trooperId);
+        });
     }
 
     public function idsPlacedIn(int $sectionId, array $trooperIds): Collection
