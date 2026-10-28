@@ -20,8 +20,9 @@ use App\Support\Audit\AuditEnvelope;
  * as stopped), since the two never run together. Switching straight to someone else records the old one as stopped.
  * Refused, storing and logging nothing, unless {@see ActAs} allows it: for an Admin acting as nobody, a person who
  * could sign in (an Admin without their Admin rights) or any unit that exists; for a leader, or an Admin acting as one,
- * only a serving billet holder strictly below them in their own write scope. Nobody who acts as a person starts
- * another without stopping first, except an Admin through a leader, who stays inside that leader's scope.
+ * only a serving billet holder strictly below them in their own write scope or junior to them in their own command
+ * team. Nobody who acts as a person starts another without stopping first, except an Admin through a leader, who stays
+ * inside that leader's scope.
  */
 class StartActingAs
 {

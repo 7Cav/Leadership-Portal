@@ -92,4 +92,15 @@ interface UnitCommandMappingRepository
      * @return Collection<int, Trooper>
      */
     public function commandersOf(array $unitIds): Collection;
+
+    /**
+     * Every serving trooper whose billet maps to each of `$unitIds`, keyed by unit id, each list in trooper id order:
+     * the unit's whole command team (CO, XO and 1SG; PL and PSG; SL and ASL), with the same serving-roster allow-list.
+     * What {@see commandersOf()} picks the lead from, and what act as reads to tell whether a leader has anyone junior
+     * in their own team. A unit no serving trooper's billet maps to is absent. One query.
+     *
+     * @param  list<int>  $unitIds
+     * @return Collection<int, Collection<int, Trooper>>
+     */
+    public function teamsOf(array $unitIds): Collection;
 }

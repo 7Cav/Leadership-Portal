@@ -40,7 +40,8 @@ export function rankTier(rank) {
 
 // The command team in chain-of-command order (#444): the commanding billet, then the second in command, then the
 // senior NCO. A unit lists only its own team (a company its CO, XO and 1SG; a platoon its PL and PSG; a section its SL
-// and ASL), so the echelons can share the three places.
+// and ASL), so the echelons can share the three places. CommandRole::seniority() is the same order on the server, where
+// act as reads it: keep the two in step.
 const ROLE_ORDER = { CO: 0, PL: 0, SL: 0, XO: 1, PSG: 1, ASL: 1, '1SG': 2, SGM: 2, CSM: 2 };
 
 // A trooper's place by their billet tag (#443): an acting lead stands where the billet they act for does, and everyone

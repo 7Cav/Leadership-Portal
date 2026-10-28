@@ -160,3 +160,24 @@ it('names nobody while the Section Leader billet is vacant, not the assistant', 
 
     expect(app(UnitCommandMappingRepository::class)->commandersOf([$section->id])->all())->toBe([]);
 });
+
+it('lists each unit\'s serving command team, keyed by unit, in one query', function () {
+    $section = Unit::factory()->create(['type' => UnitType::Section]);
+    $vacant = Unit::factory()->create(['type' => UnitType::Section]);
+    foreach ([[$section, 201], [$section, 202], [$vacant, 301]] as [$unit, $positionId]) {
+        UnitCommandMapping::factory()->create(['unit_id' => $unit->id, 'cav_position_id' => $positionId]);
+    }
+    $sl = Trooper::factory()->create(['cav_position_id' => 201, 'billet' => 'Section Leader 1/1/A/1-7']);
+    $asl = Trooper::factory()->create(['cav_position_id' => 202, 'billet' => 'Assistant Section Leader 1/1/A/1-7']);
+    Trooper::factory()->create(['cav_position_id' => 301, 'status' => TrooperStatus::Inactive]);
+
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+    $teams = app(UnitCommandMappingRepository::class)->teamsOf([$section->id, $vacant->id]);
+    DB::disableQueryLog();
+
+    expect(DB::getQueryLog())->toHaveCount(1)
+        ->and($teams->keys()->all())->toBe([$section->id])
+        ->and($teams[$section->id]->pluck('id')->all())->toBe([$sl->id, $asl->id])
+        ->and(app(UnitCommandMappingRepository::class)->teamsOf([])->all())->toBe([]);
+});

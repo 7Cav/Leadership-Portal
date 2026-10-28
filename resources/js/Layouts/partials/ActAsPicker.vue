@@ -81,7 +81,7 @@ function start() {
             class="top-[12vh] translate-y-0 gap-0 overflow-hidden rounded-lg bg-popover p-0 shadow-panel sm:max-w-[560px]"
         >
             <DialogTitle class="sr-only">Act as</DialogTitle>
-            <DialogDescription class="sr-only">Choose a serving billet holder below you to act as them, with exactly their permissions.</DialogDescription>
+            <DialogDescription class="sr-only">Choose a serving billet holder below you, or junior to you in your command team, to act as them, with exactly their permissions.</DialogDescription>
 
             <div v-if="chosen" class="space-y-3 p-4" data-testid="act-as-picker-confirm">
                 <p class="text-base leading-snug font-semibold">Act as {{ chosen.label }}?</p>
@@ -120,7 +120,7 @@ function start() {
                 <div v-else-if="nothingToOffer" class="flex flex-col items-center gap-1.5 px-6 py-10 text-center" data-testid="act-as-empty">
                     <p class="text-[13.5px] font-medium">Nobody to act as</p>
                     <p class="max-w-[46ch] text-[12.5px] text-muted-foreground">
-                        You can act as a serving billet holder below you in your own scope, and there is none right now.
+                        You can act as a serving billet holder below you, or junior to you in your own command team, and there is none right now.
                     </p>
                 </div>
 

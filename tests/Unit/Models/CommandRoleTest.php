@@ -51,3 +51,20 @@ it('names the billet that leads each echelon, and none for a group', function ()
         ->and(CommandRole::leadOf(UnitType::Section))->toBe(CommandRole::Sl)
         ->and(CommandRole::leadOf(UnitType::Group))->toBeNull();
 });
+
+it('orders each command team as the roster lists it, and is senior only to those after it', function () {
+    expect(CommandRole::Co->seniority())->toBe(0)
+        ->and(CommandRole::Pl->seniority())->toBe(0)
+        ->and(CommandRole::Sl->seniority())->toBe(0)
+        ->and(CommandRole::Xo->seniority())->toBe(1)
+        ->and(CommandRole::Psg->seniority())->toBe(1)
+        ->and(CommandRole::Asl->seniority())->toBe(1)
+        ->and(CommandRole::FirstSergeant->seniority())->toBe(2)
+        ->and(CommandRole::SergeantMajor->seniority())->toBe(2)
+        ->and(CommandRole::CommandSergeantMajor->seniority())->toBe(2)
+        ->and(CommandRole::Co->isSeniorTo(CommandRole::Xo))->toBeTrue()
+        ->and(CommandRole::Xo->isSeniorTo(CommandRole::CommandSergeantMajor))->toBeTrue()
+        ->and(CommandRole::Sl->isSeniorTo(CommandRole::Asl))->toBeTrue()
+        ->and(CommandRole::Asl->isSeniorTo(CommandRole::Sl))->toBeFalse()
+        ->and(CommandRole::Co->isSeniorTo(CommandRole::Co))->toBeFalse();
+});
