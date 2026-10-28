@@ -109,7 +109,7 @@ Exclamation marks: never. There is no exception.
 - Always agree the noun with the count. Use the `plural()` helper in `lib/report.js` or a ternary; never "trooper(s)".
   "1 guest", "2 guests", "1 week needs work", "3 weeks need work".
 - A count of zero reads as a sentence, not "0 troopers": "No guests recorded for this practice."
-- Lists of names: comma separated, "and" before the last only in prose sentences ("Pick a reason for Taylor.C and
+- Lists of names: comma separated, "and" before the last only in prose sentences ("Choose a reason for Taylor.C and
   Jay.JH"); in "Waiting on ..." lines plain commas are fine.
 
 ### Dates and times
@@ -231,9 +231,9 @@ Info: neutral results with nothing to fix, such as a demo data summary.
 - Placeholder: an example or what to type, never the only label: "Find a trooper by name", "Search by username",
   "Why this unit, such as who confirmed it".
 - Validation messages say what is wrong and how to fix it, in the field's own words: "A reason is required to revoke a
-  grant.", "Search with 2 to 64 characters." Laravel's default messages ("The reason field is required.") are
-  acceptable until the copy revision adds custom ones; when you add a rule with a user-facing field, add a custom
-  message in this style.
+  grant.", "Search with 2 to 64 characters.", "Keep the reason to 500 characters." Every rule on a field the user types
+  into has a custom message in this style (`'reason.required' => ...` in the controller's `validate()` call); do not
+  rely on Laravel's default "The reason field is required.".
 - A refused write explains the rule and the way out: "This practice is confirmed, so its guests can no longer change."
   "Your platoon set this week's training topic and locked it, so it cannot be changed here. Reload the page to see
   it."
@@ -308,25 +308,25 @@ tests and comments. They include some route and key names, so read them as rough
 | Canonical | Meaning | Where | Variants found | Avoid |
 | --- | --- | --- | --- | --- |
 | rollcall | The weekly forum thread troopers sign, and the portal page for one section's week | Nav, Rollcall page, reports | rollcall 88 JS / 40 server; "roll call" 0 | roll call, roll-call, Roll Call |
-| rollcall post | The BBCode post the portal builds for the rollcall thread | Rollcall step 3 | "forum post" 5 | forum message |
+| rollcall post | The BBCode post the portal builds for the rollcall thread | Rollcall step 3 | "Rollcall post" (step 3 heading) | forum message |
 | sign, signature | A trooper answers the rollcall thread; the answer recorded for them | Rollcall step 1 | sign 44, signature 19 | RSVP, respond |
-| Will attend / Cannot attend / Unsigned | The three signature states. "Unsigned" is the state name on buttons, chips, legends and counts; while the rollcall is still open the legend and matrix say "Unsigned (rollcall open)"; "Not signed yet" only as a sentence fragment in a tooltip or card hint | Rollcall cards, legend, report | "Unsigned" (`lib/rollcall.js:18`, `Rollcall.vue:1313`), "Not signed yet" (`TrooperCard.vue:148`, `CellLegend.vue:14`, `roster.js:77`) | Can't attend, Not signed yet (as a state label), Yes/No (BBCode only) |
+| Will attend / Cannot attend / Unsigned | The three signature states. "Unsigned" is the state name on buttons, chips, legends and counts; while the rollcall is still open the legend and matrix say "Unsigned (rollcall open)"; "Not signed yet" only as a sentence fragment in a tooltip or card hint | Rollcall cards, legend, report | "Unsigned", "Unsigned (rollcall open)" (legend, matrix), "Not signed yet" (`TrooperCard.vue` hint) | Can't attend, Not signed yet (as a state label), Yes/No (BBCode only) |
 | section practice, SP | The section's weekly practice, and its attendance | Rollcall step 2, KPIs | "section practice" 11, SP 42 | Section Practice mid-sentence, drill, training night |
 | mark, practice mark | The recorded SP result for one trooper | Rollcall, roster | mark used throughout | status (UI), grade |
-| Present / Missed / Makeup / Attached / LOA / Not marked | The practice marks. LOA is derived, never set by hand | Rollcall cards, legend, report | Not marked 6 UI, Unmarked 1 UI (`ReportPreview.vue:174`) | Excused (not a mark; 0 uses), Absent, Unmarked |
+| Present / Missed / Makeup / Attached / LOA / Not marked | The practice marks. LOA is derived, never set by hand | Rollcall cards, legend, report | Not marked | Excused (not a mark; 0 uses), Absent, Unmarked |
 | makeup | A practice attended elsewhere that counts for the trooper's own section; verb "make up" | Rollcall, KPIs, guests | makeup 36 / 17; "make-up" 0 | make-up, make up (as a noun) |
 | unaccounted trooper | Missed with no makeup, needs a reason on the report | Section report | Unaccounted 17 / 13 | unexcused |
 | reason | Fixed list reason for an unaccounted trooper; also the audit reason on Admin actions | Report, Settings | | excuse |
 | at-risk | 2 or more Missed marks in the 30 day window | KPIs, roster, Home | at-risk 7 UI, "at risk" 4 UI | "at risk" as a label |
-| capture | Reading who was on the game server and pre-marking from it | Rollcall banner, sources | capture 16 / 23, telemetry 3 UI (`TelemetryBanner.vue:40`) | telemetry, scrape, auto-attendance |
+| capture | Reading who was on the game server and pre-marking from it | Rollcall banner, sources | capture 16 / 23 | telemetry, scrape, auto-attendance |
 | game server | The source of a capture | Source dots, legend | 8 / 2 | server (alone) |
-| unmatched player | A player the capture saw that no trooper is linked to | Rollcall drawer | unmatched (toasts, server), "unlinked players" (`lib/rollcall.js:116`), "Not matched to a trooper" (drawer title) | unlinked player, unknown player |
+| unmatched player | A player the capture saw that no trooper is linked to | Rollcall drawer | unmatched (toasts, server, drawer title "Unmatched players") | unlinked player, unknown player |
 | link, dismiss, restore | What a leader does with an unmatched player | Rollcall drawer | Undo for restore | ignore, hide |
 | game identity | A trooper's in-game name and ID for one game | Nav, Game identities page | game identity 7; "player name" for the name field | account, gamertag |
 | confirm (a practice) | A leader states the captured marks are right | Rollcall | Confirm practice, Confirmed by | approve, verify |
 | guest | A serving trooper from another section recorded at this section's practice | Rollcall, roster | guest 54 / 15 | visitor |
 | JSAM candidate | A guest who meets the JSAM thresholds | Roster guests panel | 1 | nominee, eligible |
-| own section SP | SP at the trooper's own section only, makeups not counted (JSAM) | Roster guests panel | "own-section practices" 1 | own SP |
+| own section SP | SP at the trooper's own section only, makeups not counted (JSAM) | Roster guests panel | "practices of their own section" 1 | own SP |
 | report, weekly report | A unit's weekly report | Reports | report everywhere | AAR, submission |
 | send | Freeze a report and pass it up the chain | Report buttons, toasts | send 151 / 24; submit only as HTML type | submit, file, publish |
 | frozen, snapshot | A sent report, read back as sent | Report history | freeze 11, snapshot 10 | locked copy |
@@ -339,7 +339,7 @@ tests and comments. They include some route and key names, so read them as rough
 | Cav week | Saturday 00:00 UTC to the next Saturday 00:00 UTC | Everywhere | Cav week 6, "week of" 27 | calendar week, Mon to Sun |
 | week floor | Weeks older than this are read-only (`PORTAL_WEEK_FLOOR_WEEKS`) | Docs; UI says "too far back" | UI: "too far back" 2 / 6 | locked week, archived |
 | LOA, ELOA | Leave of absence and extended leave of absence, from forum threads | Rollcall, roster | LOA 39, "on LOA" 19, "on leave" 1, "leave of absence" 1 | absence, away |
-| on LOA | A trooper whose leave covers the week | Rollcall, KPIs | "on leave" in `useRollcallAutosave.js:266` | on leave (in labels) |
+| on LOA | A trooper whose leave covers the week | Rollcall, KPIs | on LOA | on leave (in labels) |
 | needs review | A leave post the sync could not read | LOA badge | | invalid, error |
 | trooper | Any 7Cav member on the roster | Everywhere | trooper 426 / 135; member 21 (fireteam members, "Not a member?") | soldier, user (except portal accounts), member (for a trooper) |
 | user | A portal account (sign-in, staff grant holder) | Staff grants, menus | user 19 / 37 | member |
@@ -354,14 +354,14 @@ tests and comments. They include some route and key names, so read them as rough
 | portfolio | A regimental staff officer's set of staff departments | Docs, Org structure tree | 0 UI | division, area |
 | HQ | A unit's headquarters node where its staff sit | Roster, Org structure | unit names only | headquarters (in labels) |
 | group | A non-line node: staff departments, ELOA, Reservists, New Recruits | Org structure | "Troopers in this group", "staff group" in server | pool, bucket |
-| New Recruits | The Cav group of recruits not yet in a section. Only ever this group | Org structure, roster toggle | "New Recruits" 2, "New recruits" 2 (other meaning) | new recruits (for the group), New recruit (for anything else) |
-| Joined recently | Roster badge and filter chip for a trooper who joined in the last 8 Cav weeks | Roster | "New recruit" (`OrbatView.vue:499`), "New recruits" (`FilterChips.vue:20`) | New recruit, New |
-| 7Cav | The organisation, in running text | Everywhere | 7Cav, "7th Cavalry" in server sign-in messages, "7th Cavalry Regiment" (regiment unit), "7th Cavalry Gaming Regiment" (login footer) | 7th Cavalry, 7CAV in text |
+| New Recruits | The Cav group of recruits not yet in a section. Only ever this group | Org structure, roster toggle | "New Recruits" 2 | new recruits (for the group), New recruit (for anything else) |
+| Joined recently | Roster badge and filter chip for a trooper who joined in the last 8 Cav weeks | Roster | "Joined recently" (badge, chip, count badge) | New recruit, New |
+| 7Cav | The organisation, in running text | Everywhere | 7Cav, "7th Cavalry Regiment" (regiment unit), "7th Cavalry Gaming Regiment" (login footer) | 7th Cavalry, 7CAV in text |
 | strength | Troopers placed in sections in a unit | KPIs | 28 / 18 | headcount (in UI), size |
 | activity log | Settings page listing the pages each user opened, for retracing a bug report. Not the audit log, which lists changes | Settings | | page log, visit log, browsing history |
 | Admin | The portal Admin flag, not a billet | Settings, messages | Admin 15 / 20, admin 3 / 5 | admin, administrator, S1 admin |
 | template | A company's rollcall BBCode template | Settings | 54 / 20 | format, layout |
-| org structure | The unit tree | Nav, Settings | "Org structure" 4, "Organization structure" 2 | ORBAT (that is the roster view) |
+| org structure | The unit tree | Nav, Settings | "Org structure" | ORBAT (that is the roster view) |
 | order of battle | The roster's unit view | Roster | 4 | ORBAT |
 | attendance matrix | The roster's 20 week grid | Roster | | heatmap |
 | fireteam, fireteam leader (FTL) | Sub-group of a section and its leader | Rollcall | fireteam 56 / 26, FTL 8 | fire team |
@@ -395,37 +395,5 @@ Run this before finishing any change that adds or edits user-facing text.
 
 ## Appendix: known deviations
 
-The worst current offenders, for the copy revision. Do not copy these patterns. Line numbers are from October 2026.
-
-| Where | Problem |
-| --- | --- |
-| `resources/js/Pages/Auth/Login.vue:27-28` | Hype tagline "Run your platoon, not your spreadsheet." and claims features that do not exist (promotion proposals, medal write-ups, counseling) |
-| `resources/js/Pages/Auth/Login.vue:30-33` | Feature list with planned or missing features ("Promotion eligibility, auto-detected", "Medal & transfer post utilities"); "&" |
-| `app/Http/Controllers/Auth/ForumAuthController.php:97,103,110,120` | "Please try again"; "We could not complete sign-in" (first person) |
-| `app/Http/Controllers/Auth/ForumAuthController.php:138-139`, `app/Http/Middleware/EnsureServingMember.php:22` | "We couldn't", "isn't": first person and contractions; "7th Cavalry roster" and "7th Cavalry milpac" where the rule says "Cav roster" and "7Cav milpac" |
-| `resources/js/Layouts/partials/AppSidebar.vue:58` | Sidebar product name "7th Cavalry"; running text says "7Cav" |
-| `app/Commands/Units/UnitHasDependentsException.php:18-53` | Em dashes in all six delete refusals, shown to Admins as toasts |
-| `app/Commands/Units/InvalidUnitPlacementException.php:26,33` | Em dashes; "re-parent" jargon |
-| `app/Commands/Attendance/InvalidAttendanceMarkException.php:37` | Em dash, lowercase "loa", raw trooper ID |
-| `app/Commands/Attendance/MarkAttendanceForbiddenException.php:17` and the other `*ForbiddenException` classes | "You may not ... section 42: it is outside your scope." Raw IDs instead of the designation |
-| `app/Commands/GameIdentities/GameIdentityForbiddenException.php:18,23` | "Trooper 412 is outside your scope." Raw ID |
-| `resources/js/Pages/Reports/Show.vue:299,305` | "It has NOT been sent": all-caps emphasis |
-| `resources/js/components/reports/SendDialog.vue:123` | "Freeze & send": ampersand |
-| `resources/js/Pages/TrooperDetail.vue:175` | "Courses & qualifications": ampersand |
-| `resources/js/lib/reportRollup.js:152` | Pasted reminder says "Please send it from the Leadership Portal" |
-| `resources/js/Pages/Settings/OrgStructure.vue:497,502` | Page title and heading "Organization structure"; the nav says "Org structure" |
-| `resources/js/Pages/Roster.vue:485-487` | "an admin", "ask an S1 admin": lowercase, and Admins are not necessarily S1 |
-| `resources/js/Pages/Reports/Rollup.vue:239-240`, `resources/js/Pages/Reports/RollupReport.vue:156` | Lowercase "admin" |
-| `resources/js/components/rollcall/TelemetryBanner.vue:40`, `app/Commands/Capture/CaptureRetryRefusedException.php:18` | "Telemetry is not configured": internal term, the UI elsewhere says capture |
-| `resources/js/components/rollcall/TelemetryBanner.vue:29`, `resources/js/components/LoaBadge.vue:101`, `resources/js/composables/useIdentity.js:77` | Stamps end in " UTC" where the rest of the app uses `Z` |
-| `resources/js/Layouts/partials/UserMenu.vue:70` | "View as..." with three periods; "View as" everywhere else |
-| `resources/js/Pages/Rollcall.vue:652`, `resources/js/components/rollcall/TelemetryBanner.vue:47`, `resources/js/Pages/Settings/OrgStructure.vue:515,918`, `resources/js/Pages/Settings/DemoData.vue:303` | In-progress labels "Saving...", "Trying...", "Importing…", "Placing…", "Working…": drop the punctuation |
-| `resources/js/components/roster/OrbatView.vue:499`, `resources/js/components/roster/FilterChips.vue:20` | Badge "New recruit" and chip "New recruits" for troopers who joined in the last 8 weeks; rename to "Joined recently" |
-| `resources/js/lib/roster.js:15-21` | Rank fallback map in sentence case ("Staff sergeant"); Cav's data is title case |
-| `resources/js/components/roster/CellLegend.vue:14`, `resources/js/lib/roster.js:77` | "Not signed yet" as a legend and matrix state label (the rollcall is still open); state labels say "Unsigned", so this state is labelled "Unsigned (rollcall open)" |
-| `GameIdentities.vue:162,203,236`, `StaffGrants.vue:127`, `Templates.vue:297,492`, `DemoData.vue:127,249`, `AuditLog.vue:168` (all under `resources/js/Pages`) | Empty-state titles end in a period |
-| `resources/js/components/rollcall/GuestsPanel.vue:179`, `resources/js/components/roster/PracticeGuestsPanel.vue:54` | Contractions "doesn't", "don't" |
-| `resources/js/components/roster/TrooperSheet.vue:162`, `resources/js/Pages/Settings/OrgStructure.vue:63`, `resources/js/components/roster/OrbatView.vue:459` | Missing billet reads "None reported", "No billet reported", "no billet"; elsewhere "No billet on record" |
-| `resources/js/components/reports/ReportPreview.vue:174`, `resources/js/lib/rollcall.js:116` | "Unmarked" and "unlinked players" where the glossary says "Not marked" and "unmatched player" |
-| `resources/js/components/reports/HistoryPanel.vue:97`, `resources/js/lib/report.js:83` | "Changes vs ...": "vs" |
-| `resources/js/components/reports/ReadinessChecklist.vue:118`, `resources/js/Pages/Settings/DemoData.vue:82`, `resources/js/components/milpac/ReadinessMark.vue:35` | "Pick a reason" (elsewhere "Choose"); "(HTTP 500)" (elsewhere "(error 500)"); en dash as the empty placeholder (elsewhere "—") |
+None. The copy revision (#387) fixed every item that was listed here. Add a row here when you find text that breaks
+this guide and cannot fix it in the same change.
