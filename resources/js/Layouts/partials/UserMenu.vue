@@ -1,6 +1,6 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
-import { PhArrowCounterClockwise, PhArrowsClockwise, PhDotsThreeVertical, PhMoon, PhSignOut, PhSun, PhUserSwitch } from '@phosphor-icons/vue';
+import { PhArrowCounterClockwise, PhArrowsClockwise, PhDotsThreeVertical, PhMoon, PhSignOut, PhSun, PhUserFocus, PhUserSwitch } from '@phosphor-icons/vue';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
     DropdownMenu,
@@ -13,6 +13,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
+import { useActAs } from '@/composables/useActAs';
 import { useIdentity } from '@/composables/useIdentity';
 import { useTheme } from '@/composables/useTheme';
 import { useViewAs } from '@/composables/useViewAs';
@@ -22,6 +23,7 @@ import { useViewAs } from '@/composables/useViewAs';
 const { name, billet, identity, provenance, provenanceDetail, initials } = useIdentity();
 const { theme, setTheme } = useTheme();
 const { active: viewingAs, openPicker, exit: exitViewAs } = useViewAs();
+const { canActAs, openPicker: openActAsPicker } = useActAs();
 </script>
 
 <template>
@@ -72,6 +74,11 @@ const { active: viewingAs, openPicker, exit: exitViewAs } = useViewAs();
                     <DropdownMenuItem v-if="viewingAs" data-testid="view-as-menu-exit" @select="exitViewAs()">
                         <PhArrowCounterClockwise class="size-4 text-muted-foreground" />
                         Exit view as
+                    </DropdownMenuItem>
+                    <!-- Act as (#432): a leader steps into a billet holder below them, with their permissions. -->
+                    <DropdownMenuItem v-if="canActAs" data-testid="act-as" @select="openActAsPicker">
+                        <PhUserFocus class="size-4 text-muted-foreground" />
+                        Act as...
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
 

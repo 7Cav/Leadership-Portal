@@ -18,7 +18,10 @@ class HandleInertiaRequests extends Middleware
      */
     protected $rootView = 'app';
 
-    public function __construct(private readonly ScopeResolver $scope) {}
+    public function __construct(
+        private readonly ScopeResolver $scope,
+        private readonly ActAs $actAs,
+    ) {}
 
     /**
      * Determines the current asset version.
@@ -70,6 +73,9 @@ class HandleInertiaRequests extends Middleware
                 'label' => $request->attributes->get(ActAs::ACTING_ATTRIBUTE)->label,
                 'admin' => $request->attributes->get(ActAs::ADMIN_ATTRIBUTE)->username,
             ] : null,
+            // Whether the shell offers the act-as picker (#432): a leader with people below them, or an Admin acting as
+            // one. Navigation only: every start is checked again by ActAs.
+            'canActAs' => fn () => $request->user() ? $this->actAs->offers($request->attributes->get(ActAs::ADMIN_ATTRIBUTE) ?? $request->user()) : false,
             'viewAs' => fn () => $request->user() ? $this->scope->activeViewAs($request->user())?->toArray() : null,
             // The 7cav.us forum's address, for links that open a forum page (the makeup PM opens the forum's own
             // "start conversation" form). The portal never writes to the forum; these are plain links.

@@ -19,7 +19,7 @@ over every row it wrote.
 
 ## Acting for someone (#379)
 
-While an Admin acts as another person, each request runs as that person, so Commands pass the person's id as actor.
-`ActingFor` (set per request by the `ActAsUser` middleware) turns that into the Admin as `actor_id` and the person as
-`on_behalf_of_id`. Anything else written during the request (the Admin's own `act_as.started` and `act_as.stopped`) is
-recorded as is.
+While an Admin, or a leader acting as a billet holder below them (#432), acts as another person, each request runs as
+that person, so Commands pass the person's id as actor. `ActingFor` (set per request by the `ActAsUser` middleware)
+turns that into the real user as `actor_id` and the person as `on_behalf_of_id`. Anything else written during the
+request (their own `act_as.started` and `act_as.stopped`) is recorded as is.

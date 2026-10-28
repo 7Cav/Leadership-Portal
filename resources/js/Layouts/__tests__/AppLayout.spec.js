@@ -25,9 +25,9 @@ const ENRICHED = {
     fetched_at: '2026-08-03T09:14:00+00:00',
 };
 
-function mountLayout({ url = '/home', user = { id: 1, username: 'Hale.S', is_admin: false }, profile = null, viewAs = null, crumb = undefined } = {}) {
+function mountLayout({ url = '/home', user = { id: 1, username: 'Hale.S', is_admin: false }, profile = null, viewAs = null, crumb = undefined, canActAs = false } = {}) {
     mockPage.url = url;
-    mockPage.props = { auth: { user, profile }, viewAs, crumb };
+    mockPage.props = { auth: { user, profile }, viewAs, crumb, canActAs };
 
     return mount(AppLayout, {
         slots: { default: '<p data-testid="page-body">Page body</p>' },
@@ -407,6 +407,20 @@ describe('AppLayout', () => {
             await flushPromises();
 
             expect(mockRouter.delete).toHaveBeenCalledWith('/view-as', expect.anything());
+        });
+
+        it('offers Act as in the user menu only to a leader with people below them (#432)', async () => {
+            wrapper = mountLayout({ canActAs: true });
+            await openMenu(wrapper, 'user-menu');
+
+            expect(inBody('[data-testid="act-as"]').textContent).toContain('Act as');
+        });
+
+        it('hides Act as from everyone else', async () => {
+            wrapper = mountLayout({ canActAs: false });
+            await openMenu(wrapper, 'user-menu');
+
+            expect(inBody('[data-testid="act-as"]')).toBeNull();
         });
 
         it('opens the picker from the top-bar control', async () => {
