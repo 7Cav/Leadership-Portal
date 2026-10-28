@@ -38,7 +38,7 @@ Your scope's units and troopers, from the cached Cav roster.
   units with no troopers (see "Units with no troopers"); one opened by its link still shows.
 - Billet tags: a trooper who holds a command billet of their unit is tagged with its short name: CO, XO and 1SG on a
   company; PL and PSG on a platoon; SL and ASL on a section; CO, XO and SGM on a battalion; CO, XO and CSM at the
-  regiment. An acting lead shows as acting ("Acting PL") while they lead the unit. Everyone else has no tag. The
+  regiment (DEVCOM's 1IC and 2IC as its CO and XO). An acting lead shows as acting ("Acting PL") while they lead the unit. Everyone else has no tag. The
   readiness matrix uses the same tags.
 - Unit leads: the name under each unit is its commanding billet: the CO of a company, battalion or the regiment, the
   PL of a platoon, the SL of a section (or an acting lead, or a portfolio's officer). With that billet vacant the

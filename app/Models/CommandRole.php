@@ -55,6 +55,9 @@ enum CommandRole: string
             '/^Auxiliary Commander$/i' => self::Co,
             '/(^|\s)Executive Officer$/i' => self::Xo,
             '/(^|\s)Sergeant Major$/i' => self::SergeantMajor,
+            // DEVCOM's command team act as its battalion commander and executive officer (#377).
+            '/^DEVCOM 1IC$/i' => self::Co,
+            '/^DEVCOM 2IC$/i' => self::Xo,
         ],
         'regiment' => [
             '/^Regimental Commanding Officer$/i' => self::Co,

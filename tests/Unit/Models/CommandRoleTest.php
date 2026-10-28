@@ -21,6 +21,8 @@ it('names each echelon\'s command billets by their short name', function (string
     ['Auxiliary Commander', UnitType::Battalion, 'CO'],
     ['Auxiliary Executive Officer', UnitType::Battalion, 'XO'],
     ['Auxiliary Sergeant Major', UnitType::Battalion, 'SGM'],
+    ['DEVCOM 1IC', UnitType::Battalion, 'CO'],
+    ['DEVCOM 2IC', UnitType::Battalion, 'XO'],
     ['Regimental Commanding Officer', UnitType::Regiment, 'CO'],
     ['Regimental Executive Officer', UnitType::Regiment, 'XO'],
     ['Regimental Command Sergeant Major', UnitType::Regiment, 'CSM'],
@@ -36,6 +38,8 @@ it('names nothing for a title that is not one of the echelon\'s command billets'
     ['Company Clerk A/1-7', UnitType::Company],
     ['Regimental Security Operations Officer', UnitType::Group],
     ['Regimental Chief of Staff', UnitType::Regiment],
+    ['DEVCOM Support Clerk', UnitType::Battalion],
+    ['DEVCOM 1IC', UnitType::Company],
     [null, UnitType::Company],
 ]);
 
