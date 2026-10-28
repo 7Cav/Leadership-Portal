@@ -124,6 +124,7 @@ it('answers 429 after 60 of the shared writes in a minute from one user, across 
         fn () => $this->deleteJson("/reports/{$platoon->id}/{$week}/topic"),
         fn () => $this->putJson('/game-identities/999999/squad', []),
         fn () => $this->deleteJson('/game-identities/999999/squad'),
+        fn () => $this->putJson("/units/{$platoon->id}/guidon", []),
     ];
     $user = User::factory()->serving()->create();
     $other = User::factory()->serving()->create();

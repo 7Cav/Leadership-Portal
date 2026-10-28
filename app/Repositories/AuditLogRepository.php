@@ -63,7 +63,7 @@ interface AuditLogRepository
      *
      * `withinUnit` keeps the entries about `$withinUnit` or anything in its subtree (the materialized-path prefix, AD-18):
      * the unit itself, a section practice or weekly report of one of its units, a template of one of its companies, a staff
-     * grant on one of its units, a fireteam row of one of its sections, a fireteam setting or a platoon training topic of
+     * grant on one of its units, a fireteam row of one of its sections, a fireteam setting, a platoon training topic or a guidon of
      * one of its units, a game-player dismissal of a player one of its sections' practices captured, and a trooper (with
      * their game identities and courses, and the portal user with their `cav_id`) whose section is in it now. The cache
      * holds only a trooper's current section, so a trooper who has since moved counts under their new unit. A target that has since been removed (a fireteam row

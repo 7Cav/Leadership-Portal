@@ -7,6 +7,7 @@ import {
     PhCaretRight,
     PhCaretUpDown,
     PhCheck,
+    PhFlag,
     PhGridFour,
     PhListBullets,
     PhLockSimple,
@@ -15,6 +16,12 @@ import {
 } from "@phosphor-icons/vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -29,9 +36,11 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import EmptyState from "@/components/EmptyState.vue";
+import Guidon from "@/components/Guidon.vue";
 import LoaSyncNote from "@/components/LoaSyncNote.vue";
 import MatrixView from "@/components/roster/MatrixView.vue";
 import OrbatView from "@/components/roster/OrbatView.vue";
+import GuidonGenerator from "@/components/roster/GuidonGenerator.vue";
 import PracticeGuestsPanel from "@/components/roster/PracticeGuestsPanel.vue";
 import TrooperSheet from "@/components/roster/TrooperSheet.vue";
 import { useNow } from "@/composables/useNow";
@@ -208,6 +217,9 @@ const unitSyncLabel = computed(() => {
         : `This unit synced ${at}${run.status === "partial" ? ", some rows skipped" : ""}`;
 });
 
+// The guidon generator (#446), for those who may save this unit's guidon (the server sends `can.editGuidon`).
+const guidonOpen = ref(false);
+
 const syncing = ref(false);
 function syncNow() {
     if (viewAs.value || syncing.value) return;
@@ -299,7 +311,12 @@ function syncNow() {
                 >
                     Roster<span v-if="unit" class="text-muted-foreground"
                         >{{ " " }}{{ unit.callsign ?? unit.name }}</span
-                    ><span
+                    ><Guidon
+                        v-if="unit?.guidon"
+                        :design="unit.guidon"
+                        :height="20"
+                        class="ml-2"
+                    /><span
                         v-if="unit?.label"
                         class="ml-2 rounded-sm border border-border px-1.5 align-middle text-xs font-semibold tracking-wide text-muted-foreground"
                         data-testid="unit-label"
@@ -386,6 +403,7 @@ function syncNow() {
                                 <span class="font-medium">{{
                                     option.callsign ?? option.name
                                 }}</span>
+                                <Guidon :design="option.guidon" :height="12" />
                                 <span class="truncate text-muted-foreground">{{
                                     option.name
                                 }}</span>
@@ -435,6 +453,16 @@ function syncNow() {
                     <PhWarning v-else />
                     {{ unitSyncLabel }}
                 </Badge>
+
+                <Button
+                    v-if="can.editGuidon"
+                    variant="outline"
+                    size="sm"
+                    data-testid="roster-guidon"
+                    @click="guidonOpen = true"
+                >
+                    <PhFlag />Edit guidon
+                </Button>
 
                 <template v-if="can.sync || can.syncUnit">
                     <Tooltip v-if="viewAs">
@@ -562,6 +590,17 @@ function syncNow() {
             <LoaSyncNote v-if="loaSync" :sync="loaSync" />
         </template>
     </div>
+
+    <Dialog v-if="can.editGuidon" v-model:open="guidonOpen">
+        <DialogContent class="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
+            <DialogTitle>Guidon of {{ unit.callsign ?? unit.name }}</DialogTitle>
+            <DialogDescription>
+                Pick the two colors and the text, then save. The saved guidon
+                shows next to the unit in the portal.
+            </DialogDescription>
+            <GuidonGenerator :unit="unit" @saved="guidonOpen = false" />
+        </DialogContent>
+    </Dialog>
 
     <TrooperSheet
         :trooper-id="openTrooperId"

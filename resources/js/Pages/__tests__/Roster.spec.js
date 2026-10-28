@@ -77,6 +77,19 @@ describe('Roster page', () => {
         expect(replace).toHaveBeenLastCalledWith(expect.objectContaining({ url: '/roster/1?view=matrix', preserveState: true }));
     });
 
+    it('shows a saved guidon next to the unit and in the picker, and nothing for a unit with none (#446)', () => {
+        const guidon = { primary: '#1f2a44', secondary: '#ffffff', topLeft: '2/7', bottomRight: 'A' };
+        const withGuidon = factory({ unit: { id: 1, type: 'company', name: 'Alpha Company', callsign: 'A/2-7', guidon } });
+
+        expect(withGuidon.find('#roster-title [data-testid="guidon"]').exists()).toBe(true);
+        expect(factory().find('[data-testid="guidon"]').exists()).toBe(false);
+    });
+
+    it('offers Edit guidon only when the server says the viewer may save it', () => {
+        expect(factory().find('[data-testid="roster-guidon"]').exists()).toBe(false);
+        expect(factory({ can: { sync: false, editGuidon: true }, unit: { id: 1, type: 'company', name: 'Alpha Company', callsign: 'A/2-7', guidon: null } }).find('[data-testid="roster-guidon"]').text()).toBe('Edit guidon');
+    });
+
     it('titles the tab with the unit and the portal name', () => {
         expect(factory().find('head').attributes('data-title')).toBe('Roster 1/A/1-7 · 7Cav Leadership Portal');
     });

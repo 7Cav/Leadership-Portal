@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { PhCaretDown, PhCaretRight, PhPencilSimple, PhPlus, PhTrash } from '@phosphor-icons/vue';
+import Guidon from '@/components/Guidon.vue';
 
 defineOptions({ name: 'OrgTreeNode' });
 
@@ -54,6 +55,8 @@ const childType = computed(() => (props.node.type === 'group' ? null : (ECHELON_
             </button>
             <span v-else class="size-5" aria-hidden="true"></span>
 
+            <!-- The unit's saved guidon (#446); nothing for a unit with none. -->
+            <Guidon :design="node.guidon" :height="12" />
             <span class="min-w-0 truncate">
                 {{ node.name }}
                 <span v-if="node.callsign" class="ml-1.5 font-mono text-[11px] text-muted-foreground">{{ node.callsign }}</span>

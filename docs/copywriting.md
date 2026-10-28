@@ -366,6 +366,7 @@ tests and comments. They include some route and key names, so read them as rough
 | attendance matrix | The roster's 20 week grid | Roster | | heatmap |
 | fireteam, fireteam leader (FTL) | Sub-group of a section and its leader | Rollcall | fireteam 56 / 26, FTL 8 | fire team |
 | callsign | A unit's short name | Org structure, roster | 53 / 17 | call sign, nickname |
+| guidon | A unit's swallowtail flag: two colors split on the diagonal, with text on each half | Roster, Org structure | | flag, banner, pennant |
 | designation | A unit's Cav code such as `2/1/A/1-7` | Toasts, reports | 28 / 9 | unit code |
 | sign in, sign out | Start or end a portal session | Login, user menu | sign in 7 UI; "log in" only in code | log in, log out, login (as a verb) |
 | Departed | A trooper no longer on any Cav roster | Roster, search | | discharged, removed |

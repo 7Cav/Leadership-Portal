@@ -24,6 +24,7 @@ use App\Models\UnitKind;
 use App\Models\UnitType;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitActingLeadRepository;
+use App\Repositories\UnitGuidonRepository;
 use App\Repositories\UnitLeadRepository;
 use App\Repositories\UnitRepository;
 use Illuminate\Http\RedirectResponse;
@@ -69,7 +70,7 @@ class OrgStructureController extends Controller
      * Everyone authenticated may view the tree (AC #3); only the Admin flag gates authoring
      * (checked client-side for the hidden control, and again below on write — AC #5).
      */
-    public function index(Request $request, ScopeResolver $scope): Response
+    public function index(Request $request, ScopeResolver $scope, UnitGuidonRepository $guidons): Response
     {
         $tree = $this->units->tree();
         // Troopers placed in each unit, rolled up every branch: a unit's count is the serving troopers placed anywhere
@@ -81,6 +82,7 @@ class OrgStructureController extends Controller
         $leadable = $this->leads->leadableUnitIds()->flip();
         $leads = $this->leads->leadsOf($tree->modelKeys());
         $acting = $this->actingLeads->leadsOf($tree->modelKeys());
+        $guidonOf = $guidons->all();
 
         $units = $tree->map(fn (Unit $unit) => [
             'id' => $unit->id,
@@ -90,6 +92,8 @@ class OrgStructureController extends Controller
             'name' => $unit->name,
             'callsign' => $unit->callsign,
             'label' => $unit->label,
+            // The unit's saved guidon (#446), drawn next to its name; null when it has none.
+            'guidon' => $guidonOf->get($unit->id)?->design(),
             'path' => $unit->path,
             'own_count' => $byUnit->get($unit->id, 0),
             'trooper_count' => $byUnit
