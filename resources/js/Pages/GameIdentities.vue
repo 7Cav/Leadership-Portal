@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { PhGameController, PhLockSimple, PhUsersThree } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
@@ -78,18 +78,53 @@ function fill(trooper, value) {
     form.id_kind = trooper.identities[value]?.idKind ?? platformOf(value)?.idKinds[0] ?? '';
 }
 
+const panel = ref(null);
+const queueList = ref(null);
+
+// The panel sits beside the list from the `lg` breakpoint (sticky), and under it below that.
+const sideBySide = () => window.matchMedia?.('(min-width: 1024px)').matches ?? false;
+
 // Open the panel on a trooper: the first game they are missing, or their first game when full.
+// Then bring it into view: below `lg` it is under the whole list, so scroll to it; beside the list
+// it is sticky and already there. Focus goes to the first field (the panel when there is no form).
 function open(trooper) {
     selectedId.value = trooper.id;
     fill(trooper, (missingOf(trooper)[0] ?? active.value[0])?.value ?? '');
+
+    nextTick(() => {
+        const el = panel.value;
+        if (!el) return;
+        // A panel left scrolled down for the last trooper starts from its top again, so the field is in sight.
+        el.scrollTop = 0;
+        const wide = sideBySide();
+        (el.querySelector('form select, form input, form textarea') ?? el).focus({ preventScroll: !wide });
+        if (!wide) el.scrollIntoView({ block: 'start' });
+    });
 }
 
-function close() {
+const rowIndex = (id) => queue.value.findIndex((trooper) => trooper.id === id);
+
+// Back to the trooper's row after the panel closes, so the next one is a step away. A trooper who
+// just left the "needs a link" queue has no row any more: land on whoever took their place.
+function returnTo(index) {
+    if (index < 0) return;
+
+    nextTick(() => {
+        const rows = queueList.value?.querySelectorAll('[data-testid^="row-"]') ?? [];
+        const row = rows[Math.min(index, rows.length - 1)];
+        if (!row) return;
+        row.querySelector('button')?.focus({ preventScroll: true });
+        row.scrollIntoView({ block: 'nearest' });
+    });
+}
+
+function close(index = rowIndex(selectedId.value)) {
     notice.value = null;
     selectedId.value = null;
     removing.value = null;
     form.reset();
     form.clearErrors();
+    returnTo(index);
 }
 
 function setView(value) {
@@ -97,8 +132,8 @@ function setView(value) {
 }
 
 // The trooper left the list while the panel was open (moved or departed since the page loaded).
-function gone() {
-    close();
+function gone(index) {
+    close(index);
     notice.value = 'That trooper is no longer in your scope.';
 }
 
@@ -106,16 +141,19 @@ function save() {
     const trooper = selected.value;
     if (!trooper || !editable.value) return;
 
+    // Where the row sits now, before a save changes the queue.
+    const index = rowIndex(trooper.id);
+
     form.put(`/game-identities/${trooper.id}/${platform.value}`, {
         preserveScroll: true,
         onSuccess: () => {
             // The props are fresh: carry on to the next missing game, or finish with this trooper.
             notice.value = null;
             const fresh = props.troopers.find((t) => t.id === trooper.id);
-            if (!fresh) return gone();
+            if (!fresh) return gone(index);
             const next = missingOf(fresh)[0];
             if (next) fill(fresh, next.value);
-            else if (view.value === 'needs') close();
+            else if (view.value === 'needs') close(index);
             else fill(fresh, platform.value);
         },
         onError: (errors) => {
@@ -134,6 +172,7 @@ function remove(value) {
 
     if (removeProcessing.value) return;
     removeProcessing.value = true;
+    const index = rowIndex(trooper.id);
 
     router.delete(`/game-identities/${trooper.id}/${value}`, {
         preserveScroll: true,
@@ -142,7 +181,7 @@ function remove(value) {
             removing.value = null;
             const fresh = props.troopers.find((t) => t.id === trooper.id);
             if (fresh) fill(fresh, value);
-            else gone();
+            else gone(index);
         },
         onError: () => (notice.value = 'This could not be removed. Reload the page and try again.'),
         onFinish: () => (removeProcessing.value = false),
@@ -172,7 +211,8 @@ function remove(value) {
             Troopers placed in the units you command appear here, ready to link to their game identities.
         </EmptyState>
 
-        <Card v-else class="min-w-0 gap-0 overflow-hidden py-0">
+        <!-- overflow-clip, not -hidden: hidden makes the card a scroll container and the panel could not stick to the page. -->
+        <Card v-else class="min-w-0 gap-0 overflow-clip py-0">
             <div class="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-border px-4 py-3.5" data-testid="coverage">
                 <p class="text-[13px] text-muted-foreground">
                     <b class="text-xl font-semibold text-foreground" data-testid="coverage-linked">{{ linked }}</b>
@@ -208,7 +248,7 @@ function remove(value) {
             </div>
 
             <div class="grid lg:grid-cols-[minmax(0,1fr)_340px]">
-                <div class="min-w-0 py-1" data-testid="queue">
+                <div ref="queueList" class="min-w-0 py-1" data-testid="queue">
                     <EmptyState v-if="!queue.length" :icon="PhGameController" title="Everyone is linked." class="py-10" data-testid="queue-empty">
                         Every trooper in your scope has an identity on every game.
                     </EmptyState>
@@ -217,7 +257,7 @@ function remove(value) {
                             v-for="trooper in queue"
                             :key="trooper.id"
                             :data-testid="`row-${trooper.id}`"
-                            :class="cn('flex items-center justify-between gap-3 px-4 py-2.5', selectedId === trooper.id && 'bg-muted shadow-[inset_3px_0_0_var(--primary)]')"
+                            :class="cn('flex scroll-mt-[calc(var(--shell-top,3rem)+0.5rem)] items-center justify-between gap-3 px-4 py-2.5',selectedId === trooper.id && 'bg-muted shadow-[inset_3px_0_0_var(--primary)]')"
                         >
                             <div class="min-w-0">
                                 <p class="truncate text-[13px] font-medium">{{ trooper.displayName }}</p>
@@ -241,7 +281,17 @@ function remove(value) {
                     </ul>
                 </div>
 
-                <aside class="border-t border-border bg-background p-4 lg:border-t-0 lg:border-l" data-testid="panel" :aria-label="selected ? `Game identities for ${selected.displayName}` : 'Game identity details'">
+                <!-- The column carries the divider and runs the list's full height; the aside inside it sticks below the
+                     shell bar (--shell-top) while the list scrolls, and scrolls inside itself when taller than the screen.
+                     Below `lg` it sits under the list and open() scrolls to it, clear of the sticky bar. -->
+                <div class="border-t border-border lg:border-t-0 lg:border-l">
+                    <aside
+                        ref="panel"
+                        tabindex="-1"
+                        class="scroll-mt-[calc(var(--shell-top,3rem)+0.5rem)] bg-background p-4 outline-none lg:sticky lg:top-[calc(var(--shell-top,3rem)+0.5rem)] lg:max-h-[calc(100dvh-var(--shell-top,3rem)-1rem)] lg:overflow-y-auto lg:overscroll-contain"
+                        data-testid="panel"
+                        :aria-label="selected ? `Game identities for ${selected.displayName}` : 'Game identity details'"
+                    >
                     <EmptyState v-if="!selected" :icon="PhGameController" title="Pick a trooper." class="py-8">
                         Choose one from the list to add or change their game identities.
                     </EmptyState>
@@ -266,12 +316,13 @@ function remove(value) {
                                 :data-testid="`identity-${p.value}`"
                                 class="rounded-md border border-border bg-card px-2.5 py-2"
                             >
-                                <div class="flex items-start justify-between gap-2">
-                                    <div class="min-w-0">
+                                <div class="flex flex-wrap items-start justify-between gap-2">
+                                    <!-- Wraps, never truncates: the full name and ID must be checkable against the game. flex-wrap drops Edit/Remove below the text when it is too narrow. -->
+                                    <div class="min-w-0 flex-1 basis-32">
                                         <p class="text-xs text-muted-foreground">{{ p.label }}<template v-if="p.retired"> (retired)</template></p>
                                         <p v-if="hasKinds(p)" class="text-xs text-muted-foreground" :data-testid="`kind-${p.value}`">{{ selected.identities[p.value].idKind }}</p>
-                                        <p class="truncate text-[13px] font-medium">{{ selected.identities[p.value].playerName }}</p>
-                                        <p class="truncate font-mono text-xs text-muted-foreground">{{ selected.identities[p.value].platformId }}</p>
+                                        <p class="text-[13px] font-medium break-words">{{ selected.identities[p.value].playerName }}</p>
+                                        <p class="font-mono text-xs break-all text-muted-foreground">{{ selected.identities[p.value].platformId }}</p>
                                     </div>
                                     <div v-if="removing !== p.value" class="flex shrink-0 gap-1">
                                         <Button v-if="!p.retired" variant="outline" size="xs" :data-testid="`edit-${p.value}`" @click="fill(selected, p.value)">Edit</Button>
@@ -341,11 +392,12 @@ function remove(value) {
                             </div>
                             <div class="flex gap-2">
                                 <Button type="submit" data-testid="identity-save" :disabled="form.processing || !editable">{{ existing ? 'Save changes' : 'Save identity' }}</Button>
-                                <Button type="button" variant="outline" data-testid="identity-cancel" @click="close">Cancel</Button>
+                                <Button type="button" variant="outline" data-testid="identity-cancel" @click="close()">Cancel</Button>
                             </div>
                         </form>
                     </div>
-                </aside>
+                    </aside>
+                </div>
             </div>
         </Card>
     </div>

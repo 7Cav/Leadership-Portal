@@ -6,6 +6,7 @@ use App\Authorization\ScopeResolver;
 use App\Kpi\ChainNode;
 use App\Kpi\ChildReport;
 use App\Kpi\ChildReportStatus;
+use App\Kpi\Headcount;
 use App\Kpi\KpiService;
 use App\Kpi\ReportChain;
 use App\Kpi\TrooperAttendance;
@@ -63,6 +64,7 @@ class HomeController extends Controller
         private readonly KpiService $kpis,
         private readonly ReportChain $chain,
         private readonly LoaCoverage $loaCoverage,
+        private readonly Headcount $headcount,
     ) {}
 
     public function show(Request $request): Response
@@ -85,7 +87,7 @@ class HomeController extends Controller
                 'start' => $weekStart->toIso8601String(),
                 'reportDue' => WeekOf::reportDue($weekStart)->toIso8601String(),
             ],
-            'kpis' => $roots->isEmpty() ? null : $this->kpiProps($attendance, $scope, $weekStart),
+            'kpis' => $roots->isEmpty() ? null : $this->kpiProps($attendance, $roots, $scope, $weekStart),
             'attention' => $roots->isEmpty() ? null : $this->attentionProps($attendance, $chains, $scope, $weekStart),
             'steps' => $this->stepProps($scope, $weekStart),
             'units' => $chains->flatMap(function (ChainNode $chain, int $i) use ($roots, $attendance, $paths, $weekStart) {
@@ -127,11 +129,16 @@ class HomeController extends Controller
      * sum would read as a headcount dip that never happened, so it stays a gap (AD-12). On LOA and
      * at-risk move with leave, so the leave data's source and last sync go with them (4.3, AD-20).
      *
+     * The live figures also carry the `headcount` (#424): everyone serving under the scope's roots, HQ staff and groups
+     * included. It is a count beside the strength the rates are over, which stays the sections', and the history never
+     * has one (a past week's headcount lives only in the report it was frozen into).
+     *
      * @param  Collection<int, Collection<int, TrooperAttendance>>  $attendance  each root's per-trooper rows
+     * @param  Collection<int, Unit>  $roots
      * @param  Collection<int, int>  $scope
      * @return array<string, mixed>
      */
-    private function kpiProps(Collection $attendance, Collection $scope, CarbonImmutable $weekStart): array
+    private function kpiProps(Collection $attendance, Collection $roots, Collection $scope, CarbonImmutable $weekStart): array
     {
         $current = $attendance->reduce(
             fn (UnitKpis $sum, Collection $rows) => $sum->plus($this->kpis->sum($rows)),
@@ -139,7 +146,8 @@ class HomeController extends Controller
         );
 
         return [
-            'current' => self::kpiShape($current),
+            // Roots are disjoint subtrees, so their headcounts add.
+            'current' => [...self::kpiShape($current), 'headcount' => $roots->sum(fn (Unit $root) => $this->headcount->forUnit($root))],
             'history' => $this->history($this->units->sectionsAmong($scope), $weekStart),
             'roster' => $this->rosterProps(),
             'loaSync' => $this->loaProvenance->current()->toArray(),

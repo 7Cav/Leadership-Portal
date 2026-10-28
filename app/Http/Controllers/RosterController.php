@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
+use App\Kpi\Headcount;
 use App\Kpi\KpiService;
 use App\Kpi\PracticeGuest;
 use App\Kpi\PracticeGuests;
@@ -63,6 +64,7 @@ class RosterController extends Controller
         private readonly UnitLeadRepository $leads,
         private readonly UnitActingLeadRepository $actingLeads,
         private readonly PlacementHistory $placementHistory,
+        private readonly Headcount $headcount,
     ) {}
 
     public function index(Request $request, ?int $unit = null): Response
@@ -212,10 +214,14 @@ class RosterController extends Controller
 
         $paths = $subtree->mapWithKeys(fn (Unit $u) => [$u->id => $u->path]);
         $sectionOf = $placed->mapWithKeys(fn (Trooper $t) => [$t->id => $t->primary_section_id]);
-        $recruitGroups = $subtree->filter(fn (Unit $u) => $u->kind === UnitKind::Recruit)->pluck('id')->all();
-        $serving = $placed->filter(fn (Trooper $t) => $t->status->isServing());
+        // Strength on the roster is the headcount (2026-10-24), the one definition in {@see Headcount}. RC and SP stay the
+        // measured sections' (AD-21).
+        $headcounts = $this->headcount->perUnit(
+            $subtree,
+            $placed->filter(fn (Trooper $t) => $t->status->isServing())->countBy('primary_section_id'),
+        );
 
-        $units = $subtree->map(function (Unit $u) use ($attendance, $sectionOf, $paths, $unitLeads, $serving, $recruitGroups) {
+        $units = $subtree->map(function (Unit $u) use ($attendance, $sectionOf, $paths, $unitLeads, $headcounts) {
             // The unit's troopers are those whose section sits anywhere under it.
             $within = $attendance->filter(function (TrooperAttendance $row) use ($sectionOf, $paths, $u) {
                 $section = $sectionOf->get($row->trooperId);
@@ -223,20 +229,11 @@ class RosterController extends Controller
                 return $section !== null && str_starts_with($paths->get($section, ''), $u->path);
             });
 
-            // Strength on the roster is the headcount (2026-10-24): everyone serving placed under the unit, HQ staff and
-            // groups included, New Recruits only on their own group. RC and SP stay the measured sections' (AD-21).
-            $headcount = $serving->filter(function (Trooper $t) use ($paths, $u, $recruitGroups) {
-                $own = $t->primary_section_id;
-
-                return str_starts_with($paths->get($own, ''), $u->path)
-                    && (! in_array($own, $recruitGroups, true) || $u->kind === UnitKind::Recruit);
-            })->count();
-
             return [
                 ...$this->unitSummary($u),
                 'parentId' => $u->parent_id,
                 'leader' => ($lead = $unitLeads->get($u->id)) ? [...$this->person($lead->trooper), 'source' => $lead->source] : null,
-                'kpis' => [...$this->kpiProps($this->kpis->sum($within)), 'strength' => $headcount],
+                'kpis' => [...$this->kpiProps($this->kpis->sum($within)), 'strength' => $headcounts->get($u->id, 0)],
             ];
         })->values()->all();
 
