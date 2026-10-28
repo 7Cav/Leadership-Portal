@@ -87,6 +87,35 @@ it('flags an LOR for other conduct within 30 days of another as the possible rep
     ]);
 });
 
+it('flags a DCS for other conduct within 30 days of an LOR for it, the 30th day included, and not on the 31st', function () {
+    expect(standingKeys([standingEntry(1, 0, 'lor'), standingEntry(2, 30, 'dcs')]))->toBe([1 => [], 2 => ['dcs-after-lor']])
+        ->and(standingKeys([standingEntry(1, 0, 'lor'), standingEntry(2, 31, 'dcs')]))->toBe([1 => [], 2 => []])
+        // A record with no kind is other conduct, on either side.
+        ->and(standingKeys([standingEntry(1, 0, 'lor', null), standingEntry(2, 12, 'dcs', null)]))->toBe([1 => [], 2 => ['dcs-after-lor']]);
+
+    expect(CounselingStanding::flags([standingEntry(1, 0, 'lor'), standingEntry(2, 5, 'dcs')])[2][0]['message'])
+        ->toBe('Within 30 days of an LOR: the regulation calls for a repeat LOR, not a DCS, if it is for the same issue.');
+});
+
+it('weighs a DCS against an LOR on the same day by when each was filed, and a late filing by its date', function () {
+    expect(standingKeys([standingEntry(1, 10, 'lor'), standingEntry(2, 10, 'dcs')]))->toBe([1 => [], 2 => ['dcs-after-lor']])
+        ->and(standingKeys([standingEntry(1, 10, 'dcs'), standingEntry(2, 10, 'lor')]))->toBe([1 => [], 2 => []])
+        // The LOR was filed after the DCS but carries an earlier date.
+        ->and(standingKeys([standingEntry(1, 20, 'dcs'), standingEntry(2, 0, 'lor')]))->toBe([2 => [], 1 => ['dcs-after-lor']]);
+});
+
+it('flags a DCS within 30 days of an LOR and 90 days of a DCS with both', function () {
+    expect(standingKeys([standingEntry(1, 0, 'dcs'), standingEntry(2, 10, 'lor'), standingEntry(3, 20, 'dcs')]))
+        ->toBe([1 => [], 2 => [], 3 => ['dcs-after-lor', 'dcs-repeat']]);
+});
+
+it('keeps the ladders apart for a DCS after an LOR, and leaves a missed practice to its own ladder's flag', function () {
+    expect(standingKeys([standingEntry(1, 0, 'lor', 'missed_practice'), standingEntry(2, 10, 'dcs')]))->toBe([1 => [], 2 => []])
+        ->and(standingKeys([standingEntry(1, 0, 'lor'), standingEntry(2, 10, 'dcs', 'missed_practice')]))->toBe([1 => [], 2 => []])
+        // A DCS for a miss within 60 days of an LOR for one is already flagged: a second LOR is called for.
+        ->and(standingKeys([standingEntry(1, 0, 'lor', 'missed_practice'), standingEntry(2, 10, 'dcs', 'missed_practice')]))->toBe([1 => [], 2 => ['missed-second-lor']]);
+});
+
 it('sends a third LOR within 90 days on any matters to an Article 15', function () {
     $entries = [standingEntry(1, 0, 'lor', 'missed_practice'), standingEntry(2, 40, 'lor'), standingEntry(3, 90, 'lor')];
 
@@ -104,6 +133,16 @@ it('forecasts a new record\'s flags by the date it is given, as date ranges up t
         ['1970-01-01', []],
         [standingDate(0), ['dcs-repeat']],
         [standingDate(91), []],
+    ]);
+});
+
+it('forecasts a DCS for other conduct dated within 30 days of an LOR as flagged, up to the 30th day', function () {
+    $ranges = CounselingStanding::forecast([standingEntry(1, 0, 'lor')], CounselingType::Dcs, CounselingKind::Conduct, CarbonImmutable::parse(standingDate(100), 'UTC'));
+
+    expect(array_map(fn (array $range) => [$range['from'], array_column($range['flags'], 'key')], $ranges))->toBe([
+        ['1970-01-01', []],
+        [standingDate(0), ['dcs-after-lor']],
+        [standingDate(31), []],
     ]);
 });
 
@@ -138,5 +177,7 @@ it('says a record with no kind was ruled as other conduct only where that change
     // As a missed practice, the DCS 10 days later would be a second miss within 30 days.
     expect(CounselingStanding::kindMatters([standingEntry(1, 0, 'dcs', null), standingEntry(2, 10, 'dcs', 'missed_practice')], 1))->toBeTrue()
         ->and(CounselingStanding::kindMatters([standingEntry(1, 0, 'dcs', null)], 1))->toBeFalse()
-        ->and(CounselingStanding::kindMatters([standingEntry(1, 0, 'dcs', null), standingEntry(2, 200, 'dcs', 'missed_practice')], 1))->toBeFalse();
+        ->and(CounselingStanding::kindMatters([standingEntry(1, 0, 'dcs', null), standingEntry(2, 200, 'dcs', 'missed_practice')], 1))->toBeFalse()
+        // As other conduct, the LOR puts the DCS 10 days later inside its 30 days.
+        ->and(CounselingStanding::kindMatters([standingEntry(1, 0, 'lor', null), standingEntry(2, 10, 'dcs')], 1))->toBeTrue();
 });

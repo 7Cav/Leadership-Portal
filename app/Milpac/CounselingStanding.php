@@ -17,7 +17,8 @@ use Carbon\CarbonImmutable;
  *
  *  - **Other conduct** (and a record with no kind, filed before the portal asked): a repeat within 90 days of a DCS
  *    calls for an LOR, if it was for the same issue (the portal cannot tell, so the flag says "if"). A repeat within
- *    30 days of an LOR is the one repeat LOR, which goes to an Article 15, again if it was for the same issue.
+ *    30 days of an LOR is the one repeat LOR, which goes to an Article 15, again if it was for the same issue, so a DCS
+ *    in those 30 days is flagged as the wrong step (S6, 2026-10-28).
  *  - **Missed section practice or rollcall**: a second miss within 30 days of the last calls for an LOR (31 days or
  *    more: another DCS); a miss within 60 days of an LOR calls for a second LOR; a second LOR within 60 days of the
  *    first goes to an Article 15, company first, then battalion.
@@ -201,6 +202,10 @@ final class CounselingStanding
             }
 
             return $flags;
+        }
+
+        if ($ofType($ladder($within(self::LOR_REPEAT_DAYS)), CounselingType::Lor) !== []) {
+            $flags[] = ['key' => 'dcs-after-lor', 'message' => 'Within 30 days of an LOR: the regulation calls for a repeat LOR, not a DCS, if it is for the same issue.'];
         }
 
         if ($ofType($ladder($within(self::DCS_REPEAT_DAYS)), CounselingType::Dcs) !== []) {
