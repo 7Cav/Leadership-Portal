@@ -51,13 +51,21 @@ than `STALE_AFTER_HOURS` (6). The source label is `milpac`.
 
 Read-only over `sync_runs`; `Sync/SyncRosterHandler` is the one writer.
 
+## Billet tags (#443)
+
+`BilletTags::of($troopers)` returns, keyed by trooper id, the tag the roster, its Sheet and the readiness matrix print
+next to a leader: the short name of the command billet they hold in the unit they are placed in (`Models\CommandRole`:
+CO, XO and 1SG on a company; PL and PSG on a platoon; SL and ASL on a section; CO, XO and SGM on a battalion; CO, XO
+and CSM at the regiment), or `Acting PL` and the like while an Admin's acting lead leads that unit. Everyone else has
+no tag. Display only: scope reads the billet's commanded unit, never the tag.
+
 ## The readiness matrix (Story 6.9)
 
 `ReadinessMatrix::for($unit)` returns the props of the `TrainingReadinessMatrix` page for one unit:
 
 - `troopers`: the active troopers (Combat, Reserve and ELOA, never Inactive) placed anywhere in the unit's subtree,
-  each with a status per course and a `role` (`SL`, `ASL` or null) from `Trooper::roleUnder()`, the same rule the
-  roster uses, so the page lists the leader first without guessing from billet text. A trooper with no row for a
+  each with a status per course and a `role`, the billet tag from `BilletTags` above, the same rule the roster
+  uses, so the page lists the leader first without guessing from billet text. A trooper with no row for a
   course reads `none`, the same as a stored `none`. Rows arrive in id order; the page orders them (the roster's
   `compareBillet`: role, then rank, then name).
 - `courses`: the whole catalog in its one order (`sort_order`, then `code`). Every course is a column even when

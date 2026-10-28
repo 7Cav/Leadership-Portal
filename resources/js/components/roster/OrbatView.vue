@@ -50,8 +50,8 @@ import RankBadge from './RankBadge.vue';
 import WeekCell from './WeekCell.vue';
 
 // Order of battle (binding mockup roster-s2.html): the subtree as platoon headers and collapsible
-// sections, SL and ASL pinned on top, each trooper with an 8-week rollcall/SP strip, RC/SP 30d and
-// flags. Searching highlights hits and opens every section that has one.
+// sections, the tagged leaders (SL, ASL, an acting lead) pinned on top, each trooper with an 8-week
+// rollcall/SP strip, RC/SP 30d and flags. Searching highlights hits and opens every section that has one.
 const props = defineProps({
     units: { type: Array, required: true },
     troopers: { type: Array, required: true },
@@ -92,7 +92,7 @@ function sectionsUnder(unit) {
 }
 
 // A column sort orders the troopers inside each section; the sections themselves keep the order of battle. Null is
-// the default billet order (SL, ASL, then rank). The choice is remembered per browser.
+// the default billet order (SL, ASL, other tagged leaders, then rank). The choice is remembered per browser.
 const sort = ref(readOrbatSort());
 function sortBy(key) {
     sort.value = nextOrbatSort(sort.value, key);
@@ -167,7 +167,7 @@ const rows = computed(() => {
             out.push({ kind: 'section', unit, open, total: all.filter((t) => !t.departed).length, shown: shown.length, members: all, counts: counts(all) });
         }
         if (open || unit.id === root.value.id) {
-            // The SL and ASL are pinned on top only in the default order; a column sort puts them where they fall.
+            // Tagged leaders (#443) are pinned on top only in the default order; a column sort puts them where they fall.
             shown.forEach((trooper, index) => {
                 const pinned = !sort.value && !!trooper.role;
                 out.push({ kind: 'member', trooper, pinned, pinnedLast: pinned && !shown[index + 1]?.role });

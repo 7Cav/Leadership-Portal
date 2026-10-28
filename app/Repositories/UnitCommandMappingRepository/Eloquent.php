@@ -56,6 +56,20 @@ class Eloquent implements UnitCommandMappingRepository
             ->keyBy('commander_cav_id');
     }
 
+    public function commandedUnitsByTrooperId(array $trooperIds): Collection
+    {
+        if ($trooperIds === []) {
+            return collect();
+        }
+
+        return $this->commandedUnits()
+            ->addSelect('troopers.id as commander_trooper_id')
+            ->whereIn('troopers.id', $trooperIds)
+            ->get()
+            ->keyBy(fn (Unit $unit) => (int) $unit->getAttribute('commander_trooper_id'))
+            ->toBase();
+    }
+
     /**
      * Units joined to the serving trooper whose primary billet commands them — an allow-list of
      * standings ({@see TrooperStatus::serving()}, shared with the grant and sign-in checks), so a

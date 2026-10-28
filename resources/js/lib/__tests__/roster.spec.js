@@ -81,6 +81,15 @@ describe('ordering and matching', () => {
         expect([pvt, spc, asl, sl].sort(compareBillet)).toEqual([sl, asl, spc, pvt]);
     });
 
+    // #443: every echelon's command team carries its own tag now, not "SL".
+    it('sorts an acting SL where the SL goes, and any other tagged leader ahead of the untagged', () => {
+        const acting = { role: 'Acting SL', rank: 'SPC', name: 'Oduya.N' };
+        const psg = { role: 'PSG', rank: 'SFC', name: 'Hale.S' };
+        const senior = { role: null, rank: 'MSG', name: 'Ward.T' };
+
+        expect([senior, pvt, psg, asl, acting].sort(compareBillet)).toEqual([acting, asl, psg, senior, pvt]);
+    });
+
     it('sorts at-risk first by most misses', () => {
         const risky = { ...pvt, kpis: { atRisk: true, missed: 3 } };
         const lessRisky = { ...spc, kpis: { atRisk: true, missed: 2 } };

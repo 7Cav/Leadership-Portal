@@ -36,8 +36,13 @@ Your scope's units and troopers, from the cached Cav roster.
   LOA weeks shown).
 - A unit picker for any unit in scope, and a breadcrumb trail up the chain. The ORBAT and the picker leave out line
   units with no troopers (see "Units with no troopers"); one opened by its link still shows.
-- Trooper sheet: click a trooper for their section, leader, KPIs and 20 weeks of marks with where each mark came from.
-  It links to the trooper's milpac page and their section's rollcall.
+- Billet tags: a trooper who holds a command billet of their unit is tagged with its short name: CO, XO and 1SG on a
+  company; PL and PSG on a platoon; SL and ASL on a section; CO, XO and SGM on a battalion; CO, XO and CSM at the
+  regiment. An acting lead shows as acting ("Acting PL") while they lead the unit. Everyone else has no tag. The
+  readiness matrix uses the same tags.
+- Trooper sheet: click a trooper for their unit, their billet tag and who leads the unit ("leads this platoon as PL"
+  for the lead themselves), KPIs and 20 weeks of marks with where each mark came from. It links to the trooper's
+  milpac page and their section's rollcall.
 - Acting leads and portfolio leads are marked; HQ staff appear on their HQ node (platoon, company, battalion or
   regiment).
 - Guests at our practices: troopers from outside the unit recorded at its sections' practices, with visits, last week

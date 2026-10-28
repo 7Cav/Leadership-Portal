@@ -86,7 +86,8 @@ it('requires authentication', function () {
 });
 
 it('opens a section leader on their own section with rank, name, billet and status (2.8)', function () {
-    $asl = rosterTrooper($this->section1, ['rank_short' => 'CPL', 'rank' => 'Corporal', 'billet' => 'Assistant Section Leader', 'status' => TrooperStatus::Reserve]);
+    UnitCommandMapping::factory()->create(['unit_id' => $this->section1->id, 'cav_position_id' => 502]);
+    $asl = rosterTrooper($this->section1, ['cav_position_id' => 502, 'rank_short' => 'CPL', 'rank' => 'Corporal', 'billet' => 'Assistant Section Leader', 'status' => TrooperStatus::Reserve]);
     rosterTrooper($this->section2);
 
     $this->actingAs($this->leader)->get('/roster')
