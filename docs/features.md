@@ -199,7 +199,8 @@ Arma's Player ID, take any value. The hint under the ID field says what the chos
 stored without hidden characters (zero-width spaces, direction marks and the like), normalised and trimmed; a value
 with nothing left is refused. A name that mixes alphabets, such as Latin and Cyrillic, is saved with a "Check this
 name" marker, since a letter may be a look-alike. Linking an unmatched player from the rollcall takes the ID the server
-reported as it is.
+reported as it is, saved as the first of the game's kinds whose shape it has (an Epic ID as an Epic ID), or as the
+game's default kind when it fits none.
 
 ### Counseling (DCS and LOR)
 
