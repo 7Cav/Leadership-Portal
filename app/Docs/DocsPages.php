@@ -38,7 +38,8 @@ final class DocsPages
                 'minutes' => $guide->minutes,
                 'html' => $guide->html,
                 'headings' => $guide->headings,
-                'checklist' => $guide->checklist !== null && $reader->reads($guide->checklist->audience),
+                // The guide's Start here item id when it is on this reader's list, for "Tick it off" (#412).
+                'checklist' => $guide->checklist !== null && $reader->reads($guide->checklist->audience) ? "{$guide->section}/{$guide->slug}" : null,
             ],
             'previous' => $previous ? $this->link($previous) : null,
             'next' => $next ? $this->link($next) : null,

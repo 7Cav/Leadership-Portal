@@ -39,7 +39,7 @@ const GUIDE = {
         { id: 'open-rollcall', text: 'Open Rollcall' },
         { id: 'mark-each-trooper', text: 'Mark each trooper' },
     ],
-    checklist: true,
+    checklist: null,
 };
 
 const show = (props = {}) =>

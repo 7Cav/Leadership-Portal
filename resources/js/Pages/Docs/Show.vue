@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import DocsLayout from '@/components/docs/DocsLayout.vue';
 import GuideFeedback from '@/components/docs/GuideFeedback.vue';
 import OnThisPage from '@/components/docs/OnThisPage.vue';
+import StartHere from '@/components/docs/StartHere.vue';
+import TickItOff from '@/components/docs/TickItOff.vue';
 import { locate } from '@/Layouts/navigation';
 import { audienceLabel, cameFrom, openablePage } from '@/lib/docs';
 
@@ -20,7 +22,8 @@ const props = defineProps({
     checklist: { type: Array, required: true },
     // Where "Was this helpful? No" sends the reader, or null.
     feedbackUrl: { type: String, default: null },
-    // `{ title, summary, url, section: { key, title }, audience, page, weekly, minutes, html, headings, checklist }`
+    // `{ title, summary, url, section: { key, title }, audience, page, weekly, minutes, html, headings, checklist }`;
+    // `checklist` is the guide's Start here item id when it is on this reader's list, else null.
     guide: { type: Object, required: true },
     previous: { type: Object, default: null },
     next: { type: Object, default: null },
@@ -76,6 +79,8 @@ const open = computed(() => {
             <!-- eslint-disable-next-line vue/no-v-html -- server-rendered markdown, raw HTML stripped (#408) -->
             <div class="docs-prose" data-testid="guide-body" v-html="guide.html" />
 
+            <TickItOff v-if="guide.checklist" :id="guide.checklist" :checklist="checklist" />
+
             <GuideFeedback :url="feedbackUrl" />
 
             <nav v-if="previous || next" class="mt-10 grid grid-cols-1 gap-3 border-t border-border pt-5 sm:grid-cols-2" aria-label="More guides">
@@ -95,6 +100,7 @@ const open = computed(() => {
         </article>
 
         <template #rail>
+            <StartHere :checklist="checklist" :audience="audience" :current="guide.url" />
             <OnThisPage :headings="guide.headings" :open="open" />
         </template>
     </DocsLayout>

@@ -68,7 +68,7 @@ it('opens a guide with its body, steps, neighbors and breadcrumb', function () {
         ->where('guide.weekly', true)
         ->where('guide.minutes', 5)
         ->where('feedbackUrl', null)
-        ->where('guide.checklist', true)
+        ->where('guide.checklist', 'weekly-rollcall/run-rollcall')
         ->where('guide.headings.0.id', 'open-rollcall-and-pick-your-section')
         ->where('guide.html', fn (string $html) => str_contains($html, '<strong>Why this matters.</strong>'))
         ->where('previous.url', '/docs/basics/sign-in')

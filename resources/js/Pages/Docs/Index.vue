@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { PhArrowRight, PhBookOpenText, PhClipboardText, PhFileText, PhUsersThree } from '@phosphor-icons/vue';
 import DocsLayout from '@/components/docs/DocsLayout.vue';
+import StartHere from '@/components/docs/StartHere.vue';
 import { homeGroups, roleLabel } from '@/lib/docs';
 
 // Docs home (#410, agreed design): "What do you need to do?", the viewer's role, and their guides grouped as Every
@@ -64,5 +65,9 @@ const ICONS = { 'weekly-rollcall': PhClipboardText, 'weekly-report': PhFileText,
 
             <p v-if="!groups.length" class="text-sm text-muted-foreground">No guides have been written for your role yet.</p>
         </section>
+
+        <template v-if="checklist.length" #rail>
+            <StartHere :checklist="checklist" :audience="audience" />
+        </template>
     </DocsLayout>
 </template>
