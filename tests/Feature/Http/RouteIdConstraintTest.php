@@ -50,6 +50,9 @@ it('answers a 20-digit id with 404, not a 500', function (string $method, string
     'correct a counseling record' => ['PATCH', '/counseling/99999999999999999999'],
     'delete a counseling record' => ['DELETE', '/counseling/99999999999999999999'],
     'download a counseling document' => ['GET', '/counseling/99999999999999999999/document'],
+    'switch a template' => ['POST', '/settings/templates/99999999999999999999/switch'],
+    'make a company default' => ['POST', '/settings/templates/99999999999999999999/company-active'],
+    'pick a section template' => ['POST', '/rollcall/99999999999999999999/template'],
 ]);
 
 it('still routes an 18-digit id, which an int can hold', function () {
@@ -67,7 +70,7 @@ it('still routes an 18-digit id, which an int can hold', function () {
 });
 
 it('caps every id-like route parameter at 18 digits, so a new route cannot forget it', function () {
-    $capped = ['unit', 'grant', 'trooper', 'version'];
+    $capped = ['unit', 'grant', 'trooper', 'version', 'template'];
 
     $uncapped = collect(Route::getRoutes()->getRoutes())
         ->flatMap(fn ($route) => $route->parameterNames())
@@ -85,7 +88,7 @@ it('caps every id-like route parameter at 18 digits, so a new route cannot forge
 it('keeps the 18-digit cap on every route, so no route-level where() replaces it', function () {
     // The global patterns are merged into a route when it is created; a later `whereNumber()` or
     // `where()` on that route overwrites them. Check what each route actually matches with.
-    $capped = ['unit', 'grant', 'trooper', 'version'];
+    $capped = ['unit', 'grant', 'trooper', 'version', 'template'];
 
     $loosened = collect(Route::getRoutes()->getRoutes())
         ->flatMap(fn ($route) => collect($route->parameterNames())

@@ -2,248 +2,364 @@
 
 use App\Commands\Templates\ActivateTemplateVersion;
 use App\Commands\Templates\AuthorTemplateVersion;
+use App\Commands\Templates\CreateTemplate;
 use App\Commands\Templates\InvalidTemplateException;
+use App\Commands\Templates\PickSectionTemplate;
+use App\Commands\Templates\SetCompanyTemplate;
+use App\Commands\Templates\SwitchTemplate;
+use App\Commands\Templates\TemplateForbiddenException;
 use App\Models\ArtifactType;
 use App\Models\AuditLogEntry;
+use App\Models\PortalRoleGrant;
+use App\Models\Template;
 use App\Models\TemplateVersion;
+use App\Models\Trooper;
 use App\Models\Unit;
+use App\Models\UnitCommandMapping;
+use App\Models\UnitTemplateChoice;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\TemplateUnchangedException;
 use App\Repositories\TemplateVersionRepository;
-use App\Support\Audit\AuditEnvelope;
+use App\Repositories\UnitRepository;
+use App\Rollcall\TemplateSyntax;
 use App\Support\Audit\ReasonRequiredException;
-use Illuminate\Support\Collection;
 
-/**
- * A repository whose first read of the active version still shows what a racing request saw before the other one
- * committed, so the Commands' cheap pre-check passes and only the repository's own check under its lock can stop
- * the second write.
- */
-function staleActiveRepository(TemplateVersionRepository $real, ?TemplateVersion $seen): TemplateVersionRepository
-{
-    return new class($real, $seen) implements TemplateVersionRepository
-    {
-        private bool $firstRead = true;
-
-        public function __construct(private TemplateVersionRepository $real, private ?TemplateVersion $seen) {}
-
-        public function author(int $companyId, ArtifactType $type, string $body, int $createdBy): TemplateVersion
-        {
-            return $this->real->author($companyId, $type, $body, $createdBy);
-        }
-
-        public function activate(TemplateVersion $version, int $activatedBy): TemplateVersion
-        {
-            return $this->real->activate($version, $activatedBy);
-        }
-
-        public function activeFor(int $companyId, ArtifactType $type): ?TemplateVersion
-        {
-            if ($this->firstRead) {
-                $this->firstRead = false;
-
-                return $this->seen;
-            }
-
-            return $this->real->activeFor($companyId, $type);
-        }
-
-        public function history(int $companyId, ArtifactType $type): Collection
-        {
-            return $this->real->history($companyId, $type);
-        }
-
-        public function find(int $id): ?TemplateVersion
-        {
-            return $this->real->find($id);
-        }
-
-        public function hasTemplatesFor(Unit $company): bool
-        {
-            return $this->real->hasTemplatesFor($company);
-        }
-    };
-}
-
-// Story 3.5 / AD-16, AD-17: an edit is a new audited version with a reason, and a rollback only moves the pointer.
+// Story 3.5, #375 / AD-8, AD-16, AD-17: a company's command manages its own templates (an edit is a new audited
+// version with a reason, a rollback only moves the pointer), switches them on or off for its sections and picks the
+// company default; a section leader picks among the switched-on ones; only an Admin edits the regiment default.
+// Tree: 7CAV ─ 1-7 ─┬─ A/1-7 ─ 1/A/1-7 ─┬─ 1/1/A/1-7
+//                   │                  └─ 2/1/A/1-7
+//                   └─ B/1-7 ─ 1/B/1-7 ── 1/1/B/1-7
 
 beforeEach(function () {
-    $this->company = Unit::factory()->create(['type' => UnitType::Company]);
+    $units = app(UnitRepository::class);
+    $this->regiment = $units->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);
+    $this->battalion = $units->create(UnitType::Battalion, '1st Battalion', '1-7', $this->regiment->id);
+    $this->company = $units->create(UnitType::Company, 'Alpha Company', 'A/1-7', $this->battalion->id);
+    $this->platoon = $units->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', $this->company->id);
+    $this->section = $units->create(UnitType::Section, '1st Section', '1/1/A/1-7', $this->platoon->id);
+    $this->sibling = $units->create(UnitType::Section, '2nd Section', '2/1/A/1-7', $this->platoon->id);
+    $this->other = $units->create(UnitType::Company, 'Bravo Company', 'B/1-7', $this->battalion->id);
+    $otherPlatoon = $units->create(UnitType::Platoon, '1st Platoon', '1/B/1-7', $this->other->id);
+    $this->otherSection = $units->create(UnitType::Section, '1st Section', '1/1/B/1-7', $otherPlatoon->id);
+
     $this->admin = User::factory()->admin()->create();
+    $this->co = templateCommander($this->company, 301);
+    $this->xo = templateCommander($this->company, 302);
+    $this->bn = templateCommander($this->battalion, 303);
+    $this->otherCo = templateCommander($this->other, 304);
+    $this->pl = templateCommander($this->platoon, 305);
+    $this->sl = templateCommander($this->section, 306);
+
     $this->author = app(AuthorTemplateVersion::class);
     $this->activate = app(ActivateTemplateVersion::class);
+    $this->create = app(CreateTemplate::class);
+    $this->switch = app(SwitchTemplate::class);
+    $this->setActive = app(SetCompanyTemplate::class);
+    $this->pick = app(PickSectionTemplate::class);
     $this->repo = app(TemplateVersionRepository::class);
     $this->type = ArtifactType::RollcallBbcode;
+    $this->default = $this->repo->regimentDefault($this->type);
+    $this->audited = fn () => AuditLogEntry::query()->count();
 });
 
-describe('authoring', function () {
-    it('creates version 1 for a company with no template, activates it and records who and why', function () {
-        $version = $this->author->handle($this->admin, $this->company, $this->type, 'first body', 'First draft of the standard');
+/** A user whose synced billet commands `$unit`. */
+function templateCommander(Unit $unit, int $positionId): User
+{
+    UnitCommandMapping::factory()->create(['unit_id' => $unit->id, 'cav_position_id' => $positionId]);
+    $trooper = Trooper::factory()->create(['cav_position_id' => $positionId]);
 
+    return User::factory()->create(['cav_id' => $trooper->cav_id]);
+}
+
+describe('the regiment default', function () {
+    it('exists from the migration, seeded from the starter, with no company and no author', function () {
+        expect($this->default)->not->toBeNull()
+            ->and($this->default->company_id)->toBeNull()
+            ->and($this->default->name)->toBe('Regiment default')
+            ->and($this->default->activeVersion->body)->toBe(TemplateSyntax::STARTER)
+            ->and($this->default->activeVersion->created_by)->toBeNull();
+    });
+
+    it('is edited by an Admin, as a new audited version', function () {
+        $version = $this->author->handle($this->admin, $this->default, 'regiment v2', 'Tidy the header');
+
+        expect($version->version)->toBe(2)
+            ->and($this->repo->regimentDefault($this->type)->activeVersion->id)->toBe($version->id)
+            ->and(AuditLogEntry::query()->sole()->action)->toBe('template_version.authored');
+    });
+
+    it('is refused to everyone else, a company or battalion commander included, and writes nothing', function (string $who) {
+        expect(fn () => $this->author->handle($this->{$who}, $this->default, 'mine now', 'why'))->toThrow(TemplateForbiddenException::class, 'Only an Admin');
+
+        $old = $this->default->activeVersion;
+        expect(fn () => $this->activate->handle($this->{$who}, $old, 'why'))->toThrow(TemplateForbiddenException::class);
+        expect(($this->audited)())->toBe(0)->and(TemplateVersion::query()->count())->toBe(1);
+    })->with(['co', 'bn', 'sl']);
+
+    it('cannot be switched off or made a company default', function () {
+        expect(fn () => $this->switch->handle($this->admin, $this->default, false))->toThrow(InvalidTemplateException::class, 'always available')
+            ->and(fn () => $this->setActive->handle($this->admin, $this->default))->toThrow(InvalidTemplateException::class);
+    });
+});
+
+describe('creating a company template', function () {
+    it('lets the company command add a named template, switched on, as the company default when it has none, audited with a reason', function () {
+        $template = $this->create->handle($this->co, $this->company, $this->type, 'Standard', '[B]{{unit}}[/B]', 'Our own post');
         $entry = AuditLogEntry::query()->sole();
 
-        expect($version->version)->toBe(1)
-            ->and($this->repo->activeFor($this->company->id, $this->type)->id)->toBe($version->id)
-            ->and($entry->action)->toBe('template_version.authored')
-            ->and($entry->actor_id)->toBe($this->admin->id)
-            ->and($entry->reason)->toBe('First draft of the standard')
-            ->and($entry->target_type)->toBe('TemplateVersion')
-            ->and((int) $entry->target_id)->toBe($version->id);
+        expect($template->company_id)->toBe($this->company->id)
+            ->and($template->enabled)->toBeTrue()
+            ->and($template->activeVersion->version)->toBe(1)
+            ->and($this->repo->choiceFor($this->company->id, $this->type)->template_id)->toBe($template->id)
+            ->and($entry->action)->toBe('template.created')
+            ->and($entry->actor_id)->toBe($this->co->id)
+            ->and($entry->reason)->toBe('Our own post')
+            ->and($entry->target_type)->toBe('Template');
     });
 
-    it('writes an edit as a new version and leaves the earlier one unchanged', function () {
-        $first = $this->author->handle($this->admin, $this->company, $this->type, 'first body', 'one');
-        $second = $this->author->handle($this->admin, $this->company, $this->type, 'second body', 'two');
+    it('leaves the company default alone when the company already has one', function () {
+        $first = $this->create->handle($this->co, $this->company, $this->type, 'Standard', 'one', 'why');
+        $this->create->handle($this->xo, $this->company, $this->type, 'Training week', 'two', 'why');
+
+        expect($this->repo->choiceFor($this->company->id, $this->type)->template_id)->toBe($first->id)
+            ->and($this->repo->templatesOf($this->company->id, $this->type)->pluck('name')->all())->toBe(['Standard', 'Training week']);
+    });
+
+    it('lets the XO, the battalion command above and an Admin do it too', function (string $who) {
+        expect($this->create->handle($this->{$who}, $this->company, $this->type, "By {$who}", 'body', 'why')->company_id)->toBe($this->company->id);
+    })->with(['xo', 'bn', 'admin']);
+
+    it("refuses another company's command, a platoon or section leader, and a staff grant, writing nothing", function (string $who) {
+        if ($who === 'grant') {
+            $this->grant = User::factory()->serving()->create();
+            PortalRoleGrant::factory()->create(['user_id' => $this->grant->id, 'unit_id' => $this->company->id]);
+        }
+
+        expect(fn () => $this->create->handle($this->{$who}, $this->company, $this->type, 'Mine', 'body', 'why'))->toThrow(TemplateForbiddenException::class);
+        expect(Template::query()->whereNotNull('company_id')->count())->toBe(0)->and(($this->audited)())->toBe(0);
+    })->with(['otherCo', 'pl', 'sl', 'grant']);
+
+    it('refuses a unit that is not a company, a blank, too long or taken name, and a bad body', function (Closure $call, string $message) {
+        $this->create->handle($this->co, $this->company, $this->type, 'Standard', 'body', 'why');
+
+        expect(fn () => $call($this))->toThrow(InvalidTemplateException::class, $message);
+        expect(Template::query()->whereNotNull('company_id')->count())->toBe(1);
+    })->with([
+        'a platoon' => [fn ($t) => $t->create->handle($t->admin, $t->platoon, $t->type, 'X', 'body', 'why'), 'not a company'],
+        'a blank name' => [fn ($t) => $t->create->handle($t->co, $t->company, $t->type, '   ', 'body', 'why'), 'needs a name'],
+        'a long name' => [fn ($t) => $t->create->handle($t->co, $t->company, $t->type, str_repeat('n', 61), 'body', 'why'), 'at most 60'],
+        'a taken name' => [fn ($t) => $t->create->handle($t->co, $t->company, $t->type, ' standard ', 'body', 'why'), 'already has'],
+        'an empty body' => [fn ($t) => $t->create->handle($t->co, $t->company, $t->type, 'New', '  ', 'why'), 'needs some text'],
+        'a bad body' => [fn ($t) => $t->create->handle($t->co, $t->company, $t->type, 'New', '{{colour}}', 'why'), 'Unknown name'],
+    ]);
+
+    it('requires a reason', function () {
+        expect(fn () => $this->create->handle($this->co, $this->company, $this->type, 'Standard', 'body', ' '))->toThrow(ReasonRequiredException::class);
+        expect(Template::query()->whereNotNull('company_id')->count())->toBe(0);
+    });
+});
+
+describe('editing and rolling back', function () {
+    beforeEach(function () {
+        $this->template = $this->create->handle($this->co, $this->company, $this->type, 'Standard', 'first body', 'why');
+    });
+
+    it('writes an edit as a new version, leaves the earlier one unchanged and records who and why', function () {
+        $second = $this->author->handle($this->co, $this->template->refresh(), 'second body', 'Add the FTL column');
+        $entry = AuditLogEntry::query()->latest('id')->first();
 
         expect($second->version)->toBe(2)
-            ->and($this->repo->find($first->id)->body)->toBe('first body')
-            ->and($this->repo->activeFor($this->company->id, $this->type)->body)->toBe('second body')
-            ->and(AuditLogEntry::query()->count())->toBe(2);
+            ->and($this->repo->findTemplate($this->template->id)->activeVersion->body)->toBe('second body')
+            ->and($this->repo->historyOf($this->template)->pluck('body')->all())->toBe(['second body', 'first body'])
+            ->and($entry->action)->toBe('template_version.authored')
+            ->and($entry->actor_id)->toBe($this->co->id)
+            ->and($entry->reason)->toBe('Add the FTL column')
+            ->and($entry->target_type)->toBe('TemplateVersion');
     });
+
+    it("refuses another company's command and the leaders beneath, and writes nothing", function (string $who) {
+        expect(fn () => $this->author->handle($this->{$who}, $this->template, 'hijack', 'why'))->toThrow(TemplateForbiddenException::class);
+        expect(TemplateVersion::query()->where('template_id', $this->template->id)->count())->toBe(1);
+    })->with(['otherCo', 'pl', 'sl']);
 
     it('requires a reason, and a rejected edit leaves no version and no log entry', function (?string $reason) {
-        expect(fn () => $this->author->handle($this->admin, $this->company, $this->type, 'body', $reason))->toThrow(ReasonRequiredException::class);
+        expect(fn () => $this->author->handle($this->co, $this->template, 'body', $reason))->toThrow(ReasonRequiredException::class);
 
-        expect(TemplateVersion::query()->count())->toBe(0)
-            ->and(AuditLogEntry::query()->count())->toBe(0);
+        expect(TemplateVersion::query()->where('template_id', $this->template->id)->count())->toBe(1)->and(($this->audited)())->toBe(1);
     })->with([[null], [''], ['   ']]);
 
-    it('refuses a unit that is not a company', function () {
-        $platoon = Unit::factory()->create(['type' => UnitType::Platoon]);
-
-        expect(fn () => $this->author->handle($this->admin, $platoon, $this->type, 'body', 'why'))->toThrow(InvalidTemplateException::class, 'not a company')
-            ->and(TemplateVersion::query()->count())->toBe(0);
-    });
-
-    it('refuses an empty or whitespace-only body', function (string $body) {
-        expect(fn () => $this->author->handle($this->admin, $this->company, $this->type, $body, 'why'))->toThrow(InvalidTemplateException::class, 'needs some text');
-    })->with(['', '   ', "\n\t\n"]);
-
-    it('refuses a body over the length limit, and accepts one exactly at it', function () {
-        $atLimit = str_repeat('a', AuthorTemplateVersion::MAX_BODY_LENGTH);
-
-        expect(fn () => $this->author->handle($this->admin, $this->company, $this->type, $atLimit.'a', 'why'))->toThrow(InvalidTemplateException::class, 'at most');
-
-        expect($this->author->handle($this->admin, $this->company, $this->type, $atLimit, 'why')->version)->toBe(1);
-    });
-
-    it('refuses a body whose placeholders are unknown or unbalanced, and writes nothing', function (string $body) {
-        expect(fn () => $this->author->handle($this->admin, $this->company, $this->type, $body, 'why'))->toThrow(InvalidTemplateException::class);
-        expect(TemplateVersion::query()->count())->toBe(0);
-    })->with(['an unknown name' => '{{colour}}', 'an unclosed loop' => '{{#troopers}}{{name}}', 'a row value outside the loop' => '{{name}}']);
-
-    it('reports a bad template against the body field', function () {
+    it('refuses a body that is empty, over the limit, or with unknown or unbalanced codes, against the body field', function (string $body) {
         $thrown = null;
 
         try {
-            $this->author->handle($this->admin, $this->company, $this->type, '{{colour}}', 'why');
+            $this->author->handle($this->co, $this->template, $body, 'why');
         } catch (InvalidTemplateException $e) {
             $thrown = $e;
         }
 
-        expect($thrown)->not->toBeNull()->and($thrown->field)->toBe('body')->and($thrown->getMessage())->toBe('Unknown name "colour".');
-    });
+        expect($thrown?->field)->toBe('body')->and(TemplateVersion::query()->where('template_id', $this->template->id)->count())->toBe(1);
+    })->with(['empty' => '  ', 'too long' => str_repeat('a', AuthorTemplateVersion::MAX_BODY_LENGTH + 1), 'unknown' => '{{colour}}', 'unclosed' => '{{#troopers}}{{name}}']);
 
-    it('treats saving the active text again as a no-op: no new version, no log entry', function () {
-        $first = $this->author->handle($this->admin, $this->company, $this->type, 'same body', 'one');
-        $again = $this->author->handle($this->admin, $this->company, $this->type, 'same body', 'two');
+    it('accepts a body exactly at the limit, and keeps it exactly as written', function () {
+        $tail = "[B]✓[/B]\r\n  [TD]✗[/TD]";
+        $body = str_repeat('a', AuthorTemplateVersion::MAX_BODY_LENGTH - mb_strlen($tail)).$tail;
 
-        expect($again->id)->toBe($first->id)
-            ->and(TemplateVersion::query()->count())->toBe(1)
-            ->and(AuditLogEntry::query()->count())->toBe(1);
-    });
-
-    it('stops a double submit that raced past the pre-check: the repository decides under its lock, so no second version and no second log entry', function () {
-        $first = $this->author->handle($this->admin, $this->company, $this->type, 'same body', 'one');
-        $racer = new AuthorTemplateVersion(staleActiveRepository($this->repo, null), app(AuditEnvelope::class));
-
-        $again = $racer->handle($this->admin, $this->company, $this->type, 'same body', 'two');
-
-        expect($again->id)->toBe($first->id)
-            ->and(TemplateVersion::query()->count())->toBe(1)
-            ->and(AuditLogEntry::query()->count())->toBe(1);
-    });
-
-    it('refuses, in the repository, to write a version whose body is the active one already', function () {
-        $first = $this->repo->author($this->company->id, $this->type, 'same body', $this->admin->id);
-
-        expect(fn () => $this->repo->author($this->company->id, $this->type, 'same body', $this->admin->id))
-            ->toThrow(TemplateUnchangedException::class);
-
-        expect(TemplateVersion::query()->count())->toBe(1)->and($this->repo->activeFor($this->company->id, $this->type)->id)->toBe($first->id);
-    });
-
-    it('does save text that matches an older version but not the active one, as a new version', function () {
-        $this->author->handle($this->admin, $this->company, $this->type, 'a', 'one');
-        $this->author->handle($this->admin, $this->company, $this->type, 'b', 'two');
-        $third = $this->author->handle($this->admin, $this->company, $this->type, 'a', 'three');
-
-        expect($third->version)->toBe(3);
-    });
-
-    it('keeps the body exactly as written, including BBCode, line breaks and unicode', function () {
-        $body = "[CENTER][B]{{unit}}[/B][/CENTER]\r\n[TABLE]\n  [TR][TD]✓ ✗[/TD][/TR]\n[/TABLE]";
-
-        $version = $this->author->handle($this->admin, $this->company, $this->type, $body, 'why');
+        $version = $this->author->handle($this->co, $this->template, $body, 'why');
 
         expect($this->repo->find($version->id)->body)->toBe($body);
     });
-});
 
-describe('activating', function () {
-    it('moves the pointer back to an older version, audited with a reason, and writes no new version', function () {
-        $first = $this->author->handle($this->admin, $this->company, $this->type, 'first body', 'one');
-        $this->author->handle($this->admin, $this->company, $this->type, 'second body', 'two');
+    it('treats saving the active text again as a no-op: no new version, no log entry', function () {
+        $again = $this->author->handle($this->co, $this->template->refresh(), 'first body', 'again');
 
-        $this->activate->handle($this->admin, $first, 'The second edit broke the table');
+        expect($again->id)->toBe($this->template->active_version_id)->and(($this->audited)())->toBe(1);
+    });
 
+    it('stops a double submit that raced past the pre-check: the repository decides under its lock', function () {
+        $stale = $this->template->refresh();
+        $this->author->handle($this->co, $stale, 'second body', 'one');
+
+        // The page still holds version 1 as active, so the cheap check passes; the repository refuses under its lock.
+        $again = $this->author->handle($this->co, $stale, 'second body', 'two');
+
+        expect($again->version)->toBe(2)
+            ->and(TemplateVersion::query()->where('template_id', $this->template->id)->count())->toBe(2)
+            ->and(AuditLogEntry::query()->where('action', 'template_version.authored')->count())->toBe(1);
+    });
+
+    it('rolls back by moving the pointer, audited with a reason, writing no new version', function () {
+        $first = $this->template->activeVersion;
+        $this->author->handle($this->co, $this->template->refresh(), 'second body', 'two');
+
+        $this->activate->handle($this->xo, $first, 'The second edit broke the table');
         $entry = AuditLogEntry::query()->latest('id')->first();
 
-        expect($this->repo->activeFor($this->company->id, $this->type)->id)->toBe($first->id)
-            ->and(TemplateVersion::query()->count())->toBe(2)
+        expect($this->repo->findTemplate($this->template->id)->active_version_id)->toBe($first->id)
+            ->and(TemplateVersion::query()->where('template_id', $this->template->id)->count())->toBe(2)
             ->and($entry->action)->toBe('template_version.activated')
-            ->and($entry->reason)->toBe('The second edit broke the table')
-            ->and((int) $entry->target_id)->toBe($first->id);
+            ->and($entry->reason)->toBe('The second edit broke the table');
     });
 
-    it('requires a reason, and a rejected activation moves nothing', function () {
-        $first = $this->author->handle($this->admin, $this->company, $this->type, 'first body', 'one');
-        $second = $this->author->handle($this->admin, $this->company, $this->type, 'second body', 'two');
+    it('requires a reason to roll back, refuses another company, and ignores activating the active one', function () {
+        $first = $this->template->activeVersion;
+        $second = $this->author->handle($this->co, $this->template->refresh(), 'second body', 'two');
 
-        expect(fn () => $this->activate->handle($this->admin, $first, null))->toThrow(ReasonRequiredException::class);
+        expect(fn () => $this->activate->handle($this->co, $first, null))->toThrow(ReasonRequiredException::class)
+            ->and(fn () => $this->activate->handle($this->otherCo, $first, 'why'))->toThrow(TemplateForbiddenException::class);
 
-        expect($this->repo->activeFor($this->company->id, $this->type)->id)->toBe($second->id)
-            ->and(AuditLogEntry::query()->count())->toBe(2);
+        $this->activate->handle($this->co, $second, 'again');
+
+        expect($this->repo->findTemplate($this->template->id)->active_version_id)->toBe($second->id)->and(($this->audited)())->toBe(2);
     });
 
-    it('stops a double-click that raced past the pre-check from recording a second activation', function () {
-        $first = $this->author->handle($this->admin, $this->company, $this->type, 'first body', 'one');
-        $this->author->handle($this->admin, $this->company, $this->type, 'second body', 'two');
-        $this->activate->handle($this->admin, $first, 'roll back');
-        $racer = new ActivateTemplateVersion(staleActiveRepository($this->repo, $this->repo->find($first->id + 1)), app(AuditEnvelope::class));
+    it('refuses, in the repository, a second activation that raced past the pre-check', function () {
+        $first = $this->template->activeVersion;
+        $this->author->handle($this->co, $this->template->refresh(), 'second body', 'two');
+        $this->repo->activate($first, $this->co->id);
 
-        $racer->handle($this->admin, $first, 'roll back again');
-
-        expect(AuditLogEntry::query()->where('action', 'template_version.activated')->count())->toBe(1)
-            ->and($this->repo->activeFor($this->company->id, $this->type)->id)->toBe($first->id);
-    });
-
-    it('treats activating the version that is already active as a no-op that is not logged', function () {
-        $first = $this->author->handle($this->admin, $this->company, $this->type, 'first body', 'one');
-
-        $this->activate->handle($this->admin, $first, 'again');
-
-        expect(AuditLogEntry::query()->count())->toBe(1);
+        expect(fn () => $this->repo->activate($first, $this->co->id))->toThrow(TemplateUnchangedException::class);
     });
 });
 
-it('lets two companies hold different active versions without cross-bleed', function () {
-    $other = Unit::factory()->create(['type' => UnitType::Company]);
+describe('switching templates on and off, and the company default', function () {
+    beforeEach(function () {
+        $this->standard = $this->create->handle($this->co, $this->company, $this->type, 'Standard', 'standard', 'why');
+        $this->training = $this->create->handle($this->co, $this->company, $this->type, 'Training week', 'training', 'why');
+    });
 
-    $this->author->handle($this->admin, $this->company, $this->type, 'alpha standard', 'why');
-    $this->author->handle($this->admin, $other, $this->type, 'bravo standard', 'why');
+    it('switches a template off and on again, each audited, and a repeat is not logged', function () {
+        $off = $this->switch->handle($this->co, $this->training, false);
+        $this->switch->handle($this->co, $off, false);
+        $on = $this->switch->handle($this->xo, $off, true);
+
+        expect($on->enabled)->toBeTrue()
+            ->and(AuditLogEntry::query()->whereIn('action', ['template.switched_off', 'template.switched_on'])->pluck('action')->all())->toBe(['template.switched_off', 'template.switched_on']);
+    });
+
+    it("refuses another company's command and the leaders beneath", function (string $who) {
+        expect(fn () => $this->switch->handle($this->{$who}, $this->training, false))->toThrow(TemplateForbiddenException::class)
+            ->and(fn () => $this->setActive->handle($this->{$who}, $this->training))->toThrow(TemplateForbiddenException::class);
+
+        expect($this->training->refresh()->enabled)->toBeTrue()
+            ->and($this->repo->choiceFor($this->company->id, $this->type)->template_id)->toBe($this->standard->id);
+    })->with(['otherCo', 'pl', 'sl']);
+
+    it('makes another template the company default, audited, and a repeat is not logged', function () {
+        $this->setActive->handle($this->co, $this->training);
+        $this->setActive->handle($this->co, $this->training);
+
+        expect($this->repo->choiceFor($this->company->id, $this->type)->template_id)->toBe($this->training->id)
+            ->and(AuditLogEntry::query()->where('action', 'template.company_active_set')->count())->toBe(1)
+            ->and(AuditLogEntry::query()->where('action', 'template.company_active_set')->sole()->target_type)->toBe('UnitTemplateChoice');
+    });
+});
+
+describe("a section leader's pick", function () {
+    beforeEach(function () {
+        $this->standard = $this->create->handle($this->co, $this->company, $this->type, 'Standard', 'standard', 'why');
+        $this->training = $this->create->handle($this->co, $this->company, $this->type, 'Training week', 'training', 'why');
+        $this->bravo = $this->create->handle($this->otherCo, $this->other, $this->type, 'Bravo own', 'bravo', 'why');
+    });
+
+    it('picks a switched-on template for their section, audited, and the pick persists', function () {
+        $this->pick->handle($this->sl, $this->section->id, $this->training->id);
+        $entry = AuditLogEntry::query()->latest('id')->first();
+
+        expect($this->repo->choiceFor($this->section->id, $this->type)->template_id)->toBe($this->training->id)
+            ->and($this->repo->choiceFor($this->sibling->id, $this->type))->toBeNull()
+            ->and($entry->action)->toBe('template.picked')
+            ->and($entry->actor_id)->toBe($this->sl->id)
+            ->and($entry->target_type)->toBe('UnitTemplateChoice');
+    });
+
+    it('may pick the regiment default, and clear the pick to follow the company again', function () {
+        $this->pick->handle($this->sl, $this->section->id, $this->default->id);
+        expect($this->repo->choiceFor($this->section->id, $this->type)->template_id)->toBe($this->default->id);
+
+        $this->pick->handle($this->sl, $this->section->id, null);
+        $this->pick->handle($this->sl, $this->section->id, null);
+
+        expect($this->repo->choiceFor($this->section->id, $this->type))->toBeNull()
+            ->and(AuditLogEntry::query()->where('action', 'template.pick_cleared')->count())->toBe(1);
+    });
+
+    it("refuses a switched-off template, another company's and an id that names none, with the same answer", function (Closure $id) {
+        $this->switch->handle($this->co, $this->training, false);
+
+        expect(fn () => $this->pick->handle($this->sl, $this->section->id, $id($this)))->toThrow(InvalidTemplateException::class, 'not switched on');
+        expect($this->repo->choiceFor($this->section->id, $this->type))->toBeNull();
+    })->with([
+        'switched off' => [fn ($t) => $t->training->id],
+        "another company's" => [fn ($t) => $t->bravo->id],
+        'missing' => [fn () => 999999],
+    ]);
+
+    it('refuses a section outside write scope, or a staff grant, whether or not it exists', function () {
+        $grantee = User::factory()->serving()->create();
+        PortalRoleGrant::factory()->create(['user_id' => $grantee->id, 'unit_id' => $this->company->id]);
+
+        expect(fn () => $this->pick->handle($this->sl, $this->sibling->id, $this->standard->id))->toThrow(TemplateForbiddenException::class)
+            ->and(fn () => $this->pick->handle($this->sl, 999999, $this->standard->id))->toThrow(TemplateForbiddenException::class)
+            ->and(fn () => $this->pick->handle($grantee, $this->section->id, $this->standard->id))->toThrow(TemplateForbiddenException::class);
+    });
+
+    it('lets the command above pick for a section, and refuses a unit that is no section', function () {
+        $this->pick->handle($this->co, $this->section->id, $this->standard->id);
+
+        expect($this->repo->choiceFor($this->section->id, $this->type)->template_id)->toBe($this->standard->id)
+            ->and(fn () => $this->pick->handle($this->co, $this->platoon->id, $this->standard->id))->toThrow(InvalidTemplateException::class, 'not a section');
+    });
+});
+
+it('never lets two companies bleed into each other', function () {
+    $alpha = $this->create->handle($this->co, $this->company, $this->type, 'Alpha', 'alpha standard', 'why');
+    $bravo = $this->create->handle($this->otherCo, $this->other, $this->type, 'Bravo', 'bravo standard', 'why');
 
     expect($this->repo->activeFor($this->company->id, $this->type)->body)->toBe('alpha standard')
-        ->and($this->repo->activeFor($other->id, $this->type)->body)->toBe('bravo standard');
+        ->and($this->repo->activeFor($this->other->id, $this->type)->body)->toBe('bravo standard')
+        ->and($this->repo->templatesOf($this->company->id, $this->type)->pluck('id')->all())->toBe([$alpha->id])
+        ->and(UnitTemplateChoice::query()->count())->toBe(2)
+        ->and($bravo->company_id)->toBe($this->other->id);
 });

@@ -39,8 +39,9 @@ checklist:
 ## Copy the post and put it on the forum
 
 1. In step 3, **Review and post**, check the changes you made on this visit.
-2. Choose **Copy BBCode** and paste it into the forum's rollcall thread yourself. The portal never posts to the forum.
-3. If you change a mark after copying, the page tells you the copy is out of date. Copy it again.
+2. If your company switched on more than one template, pick the one your section uses. Your pick is kept for later weeks.
+3. Choose **Copy BBCode** and paste it into the forum's rollcall thread yourself. The portal never posts to the forum.
+4. If you change a mark after copying, the page tells you the copy is out of date. Copy it again.
 
 ## Mark it posted
 

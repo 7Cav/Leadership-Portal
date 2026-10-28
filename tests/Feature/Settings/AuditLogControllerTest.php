@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\ArtifactType;
 use App\Models\AuditLogEntry;
 use App\Models\FireteamAssignment;
 use App\Models\FireteamRole;
@@ -17,6 +18,7 @@ use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReport;
+use App\Repositories\TemplateVersionRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -246,7 +248,7 @@ describe('what each entry changed', function () {
             ->and($links[$entries['trooper']->id])->toBe(['href' => "/troopers/{$this->trooper->id}", 'label' => 'SGT Vasquez.R'])
             ->and($links[$entries['identity']->id])->toBe(['href' => "/troopers/{$this->trooper->id}", 'label' => 'SGT Vasquez.R'])
             ->and($links[$entries['course']->id])->toBe(['href' => "/troopers/{$this->trooper->id}", 'label' => 'SGT Vasquez.R'])
-            ->and($links[$entries['template']->id])->toBe(['href' => "/settings/templates?company={$this->company->id}", 'label' => 'A/1-7 template, version 3'])
+            ->and($links[$entries['template']->id])->toBe(['href' => "/settings/templates?company={$this->company->id}&template={$template->template_id}", 'label' => 'A/1-7 template "Company template", version 3'])
             ->and($links[$entries['grant']->id])->toBe(['href' => '/settings/staff-grants', 'label' => 'Staff grants']);
     });
 
@@ -400,5 +402,37 @@ describe('what each entry changed', function () {
                 ['id' => $this->other->id, 'label' => 'B/1-7 Bravo Company', 'depth' => 0],
                 ['id' => $this->otherSection->id, 'label' => '1/1/B/1-7 1st Section', 'depth' => 1],
             ]));
+    });
+});
+
+describe('template entries (#375)', function () {
+    beforeEach(function () {
+        $this->admin = User::factory()->admin()->create();
+        $this->actor = User::factory()->create();
+        $this->company = Unit::factory()->create(['type' => UnitType::Company, 'name' => 'Alpha Company', 'callsign' => 'A/1-7', 'path' => '750/']);
+        $this->section = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->company->id, 'name' => '1st Section', 'callsign' => '1/1/A/1-7', 'path' => '750/751/']);
+    });
+
+    it('links a template, the regiment default, a company default and a section pick to where they are changed', function () {
+        $repo = app(TemplateVersionRepository::class);
+        $template = $repo->createTemplate($this->company->id, ArtifactType::RollcallBbcode, 'Training week', 'body', $this->actor->id);
+        $default = $repo->regimentDefault(ArtifactType::RollcallBbcode);
+        $entries = [
+            'template' => auditAbout($this, $template, 'template.created'),
+            'default' => auditAbout($this, $default->activeVersion, 'template_version.authored'),
+            'company' => auditAbout($this, $repo->choiceFor($this->company->id, ArtifactType::RollcallBbcode), 'template.company_active_set'),
+            'pick' => auditAbout($this, $repo->choose($this->section, $template, $this->actor->id), 'template.picked'),
+        ];
+
+        $links = auditLinksOn($this);
+
+        expect($links[$entries['template']->id])->toBe(['href' => "/settings/templates?company={$this->company->id}&template={$template->id}", 'label' => 'A/1-7 template "Training week"'])
+            ->and($links[$entries['default']->id])->toBe(['href' => "/settings/templates?template={$default->id}", 'label' => 'Regiment default template, version 1'])
+            ->and($links[$entries['company']->id])->toBe(['href' => "/settings/templates?company={$this->company->id}", 'label' => 'A/1-7 active template'])
+            ->and($links[$entries['pick']->id])->toBe(['href' => "/rollcall/{$this->section->id}", 'label' => '1/1/A/1-7 rollcall template']);
+
+        // The unit filter finds them under the company.
+        $filtered = auditLinksOn($this, "?unit_id={$this->company->id}");
+        expect(array_keys($filtered))->toContain($entries['template']->id, $entries['company']->id, $entries['pick']->id);
     });
 });

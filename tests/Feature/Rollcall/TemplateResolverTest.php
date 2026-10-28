@@ -8,8 +8,10 @@ use App\Repositories\TemplateVersionRepository;
 use App\Repositories\UnitRepository;
 use App\Rollcall\TemplateResolution;
 use App\Rollcall\TemplateResolver;
+use App\Rollcall\TemplateSource;
 
-// Story 3.6 / AD-17, AD-18: a unit renders from its owning company's active template, found by walking up the tree.
+// Story 3.6, #375 / AD-17, AD-18: a unit renders from its section's pick, else its owning company's active template,
+// else the regiment default, found by walking up the tree.
 // Fixture tree: 7CAV ─ 1-7 ─┬─ A/1-7 ─┬─ 1/A ─┬─ 1/1/A (section)
 //                           │         │       └─ 2/1/A (section)
 //                           │         └─ 2/A ─── 1/2/A (section)
@@ -113,22 +115,39 @@ describe('walking up to the owning company', function () {
     });
 });
 
-describe('when nothing resolves', function () {
-    it('says the company has no active template, rather than a blank body or an error', function () {
+describe('when the company has nothing that applies', function () {
+    it('falls back to the regiment default, never a blank body or an error', function () {
         $resolved = $this->resolver->forUnit($this->alphaSection1);
+        $default = $this->versions->regimentDefault($this->type);
 
-        expect($resolved->isResolved())->toBeFalse()
-            ->and($resolved->state)->toBe(TemplateResolution::NoActiveTemplate)
+        expect($resolved->isResolved())->toBeTrue()
+            ->and($resolved->source)->toBe(TemplateSource::RegimentDefault)
             ->and($resolved->companyId)->toBe($this->alpha->id)
-            ->and($resolved->version)->toBeNull()
-            ->and($resolved->versionId())->toBeNull();
+            ->and($resolved->versionId())->toBe($default->active_version_id);
     });
 
-    it('says no active template for one company while another has one', function () {
+    it('uses the regiment default for one company while another has its own', function () {
         author($this->bravo, 'bravo standard');
 
-        expect($this->resolver->forUnit($this->alphaSection1)->state)->toBe(TemplateResolution::NoActiveTemplate)
-            ->and($this->resolver->forUnit($this->bravoSection)->state)->toBe(TemplateResolution::Resolved);
+        expect($this->resolver->forUnit($this->alphaSection1)->source)->toBe(TemplateSource::RegimentDefault)
+            ->and($this->resolver->forUnit($this->bravoSection)->source)->toBe(TemplateSource::Company);
+    });
+
+    it('uses the regiment default when the company switched its active template off', function () {
+        $version = author($this->alpha, 'alpha standard');
+        $this->versions->setEnabled($version->template, false);
+
+        expect($this->resolver->forUnit($this->alphaSection1)->source)->toBe(TemplateSource::RegimentDefault);
+    });
+
+    it('says no active template only if even the regiment default has no version', function () {
+        DB::table('templates')->whereNull('company_id')->update(['active_version_id' => null]);
+
+        $resolved = $this->resolver->forUnit($this->alphaSection1);
+
+        expect($resolved->state)->toBe(TemplateResolution::NoActiveTemplate)
+            ->and($resolved->companyId)->toBe($this->alpha->id)
+            ->and($resolved->versionId())->toBeNull();
     });
 
     it('says a unit above every company has no owning company', function () {
@@ -151,28 +170,86 @@ describe('when nothing resolves', function () {
     });
 });
 
-it('hands a render the version id and a prop shape that names the state', function () {
+it('hands a render the version id and a prop shape that names the state and where it came from', function () {
     $version = author($this->alpha, "[B]body[/B]\nline two");
+    $default = $this->versions->regimentDefault($this->type);
 
     expect($this->resolver->forUnit($this->alphaSection1)->toArray())->toBe([
         'state' => 'resolved',
         'companyId' => $this->alpha->id,
+        'templateId' => $version->template_id,
+        'name' => 'Company template',
+        'source' => 'company',
         'versionId' => $version->id,
         'version' => 1,
         'body' => "[B]body[/B]\nline two",
     ])->and($this->resolver->forUnit($this->bravoSection)->toArray())->toBe([
-        'state' => 'no_active_template',
+        'state' => 'resolved',
         'companyId' => $this->bravo->id,
-        'versionId' => null,
-        'version' => null,
-        'body' => null,
+        'templateId' => $default->id,
+        'name' => 'Regiment default',
+        'source' => 'default',
+        'versionId' => $default->active_version_id,
+        'version' => 1,
+        'body' => $default->activeVersion->body,
     ])->and($this->resolver->forUnit($this->battalion)->toArray())->toBe([
         'state' => 'no_owning_company',
         'companyId' => null,
+        'templateId' => null,
+        'name' => null,
+        'source' => null,
         'versionId' => null,
         'version' => null,
         'body' => null,
     ]);
+});
+
+describe("a section's pick (#375)", function () {
+    beforeEach(function () {
+        $this->standard = author($this->alpha, 'standard')->template;
+        $this->training = $this->versions->createTemplate($this->alpha->id, $this->type, 'Training week', 'training', $this->author->id);
+        $this->bravoOwn = author($this->bravo, 'bravo')->template;
+    });
+
+    it('renders a section from its pick, and its siblings from the company default', function () {
+        $this->versions->choose($this->alphaSection1, $this->training, $this->author->id);
+
+        $picked = $this->resolver->forUnit($this->alphaSection1);
+
+        expect($picked->source)->toBe(TemplateSource::Picked)
+            ->and($picked->version->body)->toBe('training')
+            ->and($this->resolver->forUnit($this->alphaSection2)->version->body)->toBe('standard')
+            ->and($this->resolver->forUnit($this->alphaSection2)->source)->toBe(TemplateSource::Company);
+    });
+
+    it('drops a pick its company switched off, back to the company default', function () {
+        $this->versions->choose($this->alphaSection1, $this->training, $this->author->id);
+        $this->versions->setEnabled($this->training, false);
+
+        expect($this->resolver->forUnit($this->alphaSection1)->version->body)->toBe('standard');
+    });
+
+    it("never renders another company's template, even if a pick names it", function () {
+        $this->versions->choose($this->alphaSection1, $this->bravoOwn, $this->author->id);
+
+        expect($this->resolver->forUnit($this->alphaSection1)->version->body)->toBe('standard');
+    });
+
+    it('lists the regiment default first, then the switched-on templates of the company only', function () {
+        $this->versions->setEnabled($this->standard, false);
+
+        expect($this->resolver->optionsFor($this->alphaSection1)->pluck('name')->all())->toBe(['Regiment default', 'Training week'])
+            ->and($this->resolver->optionsFor($this->bravoSection)->pluck('name')->all())->toBe(['Regiment default', 'Company template'])
+            ->and($this->resolver->optionsFor($this->battalion)->all())->toBe([]);
+    });
+
+    it('shows a pick the section may no longer use as no pick', function () {
+        $this->versions->choose($this->alphaSection1, $this->training, $this->author->id);
+        expect($this->resolver->pickerFor($this->alphaSection1)['picked'])->toBe($this->training->id);
+
+        $this->versions->setEnabled($this->training, false);
+        expect($this->resolver->pickerFor($this->alphaSection1)['picked'])->toBeNull();
+    });
 });
 
 it('reads a fresh answer each time, so an activation shows on the next render and nothing is cached', function () {
@@ -197,14 +274,18 @@ it('resolves in a constant number of queries however deep the unit sits', functi
         return count(DB::getQueryLog());
     };
 
-    expect($count($this->alphaSection1))->toBe($count($this->alpha))->toBe(3);
+    // The section's own pick is one more read than the company's, whatever the depth.
+    expect($count($this->alphaSection1))->toBe($count($this->alphaSection3))->toBeLessThanOrEqual(10)
+        ->and($count($this->alphaPlatoon1))->toBe($count($this->alpha));
 });
 
 it('is read-only: resolving writes nothing', function () {
     author($this->alpha, 'alpha standard');
-    $before = [DB::table('template_versions')->count(), DB::table('active_template_versions')->count(), DB::table('audit_log')->count()];
+    $counts = fn () => [DB::table('template_versions')->count(), DB::table('templates')->count(), DB::table('unit_template_choices')->count(), DB::table('audit_log')->count()];
+    $before = $counts();
 
     $this->resolver->forUnit($this->alphaSection1);
+    $this->resolver->pickerFor($this->alphaSection1);
 
-    expect([DB::table('template_versions')->count(), DB::table('active_template_versions')->count(), DB::table('audit_log')->count()])->toBe($before);
+    expect($counts())->toBe($before);
 });

@@ -13,17 +13,20 @@ use App\Models\GameServer;
 use App\Models\PlatoonTrainingTopic;
 use App\Models\PortalRoleGrant;
 use App\Models\SectionPractice;
+use App\Models\Template;
 use App\Models\TemplateVersion;
 use App\Models\TrainingPlan;
 use App\Models\Trooper;
 use App\Models\TrooperCourse;
 use App\Models\TrooperGameIdentity;
 use App\Models\Unit;
+use App\Models\UnitTemplateChoice;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Repositories\AuditLogRepository;
 use App\Repositories\UnitRepository;
+use Closure;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -125,7 +128,7 @@ class AuditLogController extends Controller
     /**
      * Where to see what an entry changed, and what to call it: a section practice's rollcall week, a weekly report, a
      * unit's roster, a trooper's milpac (also for their game identities, courses and placement, and for the portal user
-     * they sign in as), a company's templates,
+     * they sign in as), a template (a company's or the regiment default), a section's template pick,
      * the staff grants, a platoon's training plan, a section's rollcall (for its fireteams and fireteam display), a platoon's report week (for its
      * training topic), the Games page (for a game), the Servers page (for a game server), or the rollcall week where a dismissed player was last captured. Null
      * when the target is gone or has no page.
@@ -151,9 +154,22 @@ class AuditLogController extends Controller
             ],
             $target instanceof Trooper => $this->trooperLink($target),
             ($target instanceof TrooperGameIdentity || $target instanceof TrooperCourse) && $target->trooper !== null => $this->trooperLink($target->trooper),
-            $target instanceof TemplateVersion && $target->company !== null => [
-                'href' => route('settings.templates', ['company' => $target->company_id], false),
-                'label' => "{$unit($target->company)} template, version {$target->version}",
+            $target instanceof TemplateVersion && $target->template !== null => [
+                'href' => route('settings.templates', array_filter(['company' => $target->company_id, 'template' => $target->template_id]), false),
+                'label' => "{$this->templateLabel($target->template, $unit)}, version {$target->version}",
+            ],
+            $target instanceof Template => [
+                'href' => route('settings.templates', array_filter(['company' => $target->company_id, 'template' => $target->id]), false),
+                'label' => $this->templateLabel($target, $unit),
+            ],
+            // A section's pick is made on its rollcall; a company's active template on the Templates page.
+            $target instanceof UnitTemplateChoice && $target->unit?->type === UnitType::Section => [
+                'href' => route('rollcall.show', ['unit' => $target->unit_id], false),
+                'label' => "{$unit($target->unit)} rollcall template",
+            ],
+            $target instanceof UnitTemplateChoice && $target->unit !== null => [
+                'href' => route('settings.templates', ['company' => $target->unit_id], false),
+                'label' => "{$unit($target->unit)} active template",
             ],
             $target instanceof PortalRoleGrant => [
                 'href' => route('settings.staff-grants', [], false),
@@ -190,6 +206,18 @@ class AuditLogController extends Controller
             $target instanceof User && $target->getRelationValue('trooper') !== null => $this->trooperLink($target->getRelationValue('trooper')),
             default => null,
         };
+    }
+
+    /**
+     * `A/1-7 template "Training week"`, or "Regiment default template" for the one with no company.
+     *
+     * @param  Closure(?Unit): ?string  $unit
+     */
+    private function templateLabel(Template $template, Closure $unit): string
+    {
+        return $template->isRegimentDefault()
+            ? 'Regiment default template'
+            : "{$unit($template->company)} template \"{$template->name}\"";
     }
 
     /**

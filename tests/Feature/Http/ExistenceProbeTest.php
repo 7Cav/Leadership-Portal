@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\PortalRoleGrant;
+use App\Models\Template;
 use App\Models\TemplateVersion;
 use App\Models\Unit;
 use App\Models\User;
@@ -57,5 +58,7 @@ function probeRoutes(): array
         'delete a unit' => ['DELETE', '/settings/org-structure/%d', fn () => Unit::factory()->create()->id, []],
         'revoke a grant' => ['DELETE', '/settings/staff-grants/%d', fn () => PortalRoleGrant::factory()->create()->id, ['reason' => 'why']],
         'activate a template version' => ['POST', '/settings/templates/%d/activate', fn () => TemplateVersion::factory()->create()->id, ['reason' => 'why']],
+        'switch a template' => ['POST', '/settings/templates/%d/switch', fn () => Template::factory()->create()->id, ['enabled' => false]],
+        'make a company default' => ['POST', '/settings/templates/%d/company-active', fn () => Template::factory()->create()->id, []],
     ];
 }

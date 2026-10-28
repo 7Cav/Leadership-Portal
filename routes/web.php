@@ -11,6 +11,7 @@ use App\Http\Controllers\ReportRollupController;
 use App\Http\Controllers\RollcallController;
 use App\Http\Controllers\RollcallFireteamController;
 use App\Http\Controllers\RollcallGuestController;
+use App\Http\Controllers\RollcallTemplateController;
 use App\Http\Controllers\RosterController;
 use App\Http\Controllers\Settings\ActivityLogController;
 use App\Http\Controllers\Settings\AuditLogController;
@@ -40,7 +41,7 @@ use Illuminate\Support\Facades\Route;
 // route taking one of these ids cannot forget the constraint (RouteIdConstraintTest walks the
 // routes and fails on an id-like parameter missing from this list). Don't add `whereNumber()` or
 // `where()` for these on a route: it replaces the global pattern rather than adding to it.
-foreach (['unit', 'grant', 'trooper', 'version', 'game', 'server', 'counseling'] as $id) {
+foreach (['unit', 'grant', 'trooper', 'version', 'game', 'server', 'counseling', 'template'] as $id) {
     Route::pattern($id, '[0-9]{1,18}');
 }
 
@@ -144,6 +145,8 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/rollcall/{unit}/guests/search', [RollcallGuestController::class, 'search'])->middleware('throttle:trooper-search')->name('rollcall.guests.search');
     Route::post('/rollcall/{unit}/guests', [RollcallGuestController::class, 'store'])->middleware('throttle:audited-writes')->name('rollcall.guests.store');
     Route::post('/rollcall/{unit}/guests/remove', [RollcallGuestController::class, 'destroy'])->middleware('throttle:audited-writes')->name('rollcall.guests.remove');
+    // The section's pick of rollcall template (#375): an audited Command gated by the section's write scope.
+    Route::post('/rollcall/{unit}/template', RollcallTemplateController::class)->middleware('throttle:audited-writes')->name('rollcall.template.pick');
 
     // Game identities (Story 7.2): link troopers in scope to their in-game identity, one per
     // game (`{platform}` is the game's slug, #388). The controller reads repositories; each write is an audited Command whose handler
@@ -212,11 +215,16 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::post('/settings/staff-grants', [StaffGrantsController::class, 'store'])->name('settings.staff-grants.store');
     Route::delete('/settings/staff-grants/{grant}', [StaffGrantsController::class, 'destroy'])->name('settings.staff-grants.destroy');
 
-    // Rollcall template authoring (Story 3.5, AD-17). Viewing is open to any authenticated user; the Admin gate on
-    // every write is enforced in the controller (AD-6). A save is always a new immutable version.
+    // Rollcall template authoring (Story 3.5, #375, AD-17). Viewing is open to any authenticated user (the controller
+    // shows a non-Admin only the companies in their scope); each write is an audited Command that checks the actor
+    // commands the company, or is an Admin for the regiment default. A save is always a new immutable version. Every
+    // request writes an audit row, so they share the per-user throttle.
     Route::get('/settings/templates', [TemplatesController::class, 'index'])->name('settings.templates');
-    Route::post('/settings/templates', [TemplatesController::class, 'store'])->name('settings.templates.store');
-    Route::post('/settings/templates/{version}/activate', [TemplatesController::class, 'activate'])->name('settings.templates.activate');
+    Route::post('/settings/templates', [TemplatesController::class, 'store'])->middleware('throttle:audited-writes')->name('settings.templates.store');
+    Route::post('/settings/templates/new', [TemplatesController::class, 'create'])->middleware('throttle:audited-writes')->name('settings.templates.create');
+    Route::post('/settings/templates/{version}/activate', [TemplatesController::class, 'activate'])->middleware('throttle:audited-writes')->name('settings.templates.activate');
+    Route::post('/settings/templates/{template}/switch', [TemplatesController::class, 'switch'])->middleware('throttle:audited-writes')->name('settings.templates.switch');
+    Route::post('/settings/templates/{template}/company-active', [TemplatesController::class, 'companyActive'])->middleware('throttle:audited-writes')->name('settings.templates.company-active');
     // One section's rollcall for this week, to fill the template preview with (scope-gated in the controller, AD-8).
     Route::get('/settings/templates/preview/{unit}', [TemplatesController::class, 'previewSection'])->name('settings.templates.preview');
 

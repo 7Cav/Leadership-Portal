@@ -43,6 +43,7 @@ import TrooperCard from '@/components/rollcall/TrooperCard.vue';
 import UnmatchedDrawer from '@/components/rollcall/UnmatchedDrawer.vue';
 import { forumDate, forumDateTime } from '@/lib/forumDate';
 import ForumPost from '@/components/rollcall/ForumPost.vue';
+import TemplatePick from '@/components/rollcall/TemplatePick.vue';
 import { copyText } from '@/lib/clipboard';
 import { messageFor, unreachable, useRollcallAutosave, whenLeft } from '@/composables/useRollcallAutosave';
 import { takeHistoryRestore } from '@/lib/historyRestore';
@@ -110,9 +111,11 @@ const props = defineProps({
     // Troopers from other sections recorded at this practice (JSAM evidence, 2026-10-23), by the capture or by hand:
     // `[{ trooperId, name, displayName, rank, section, source, recordedBy }]`.
     guests: { type: Array, default: () => [] },
-    // The company's active rollcall template, resolved on this request (3.6, 3.11):
-    // `{ state, companyId, versionId, version, body }`. Null for the picker.
+    // The rollcall template this section renders from, resolved on this request (3.6, 3.11, #375):
+    // `{ state, companyId, templateId, name, source, versionId, version, body }`. Null for the picker.
     template: { type: Object, default: null },
+    // The templates the section may pick from and its pick (#375): `{ options: [{ id, name, isRegimentDefault, version }], picked }`.
+    templatePicker: { type: Object, default: null },
     // Whether the viewer may write here: false for a section they only see through a staff grant,
     // which reads but never marks, confirms or posts (the server refuses those writes).
     canWrite: { type: Boolean, default: false },
@@ -461,10 +464,41 @@ const changes = computed(() =>
     }),
 );
 
-// The forum post (3.10, 3.11): the company's active template filled with the current marks, generated
-// client-side and copied by the leader. The portal makes no outbound call on copy or on marking posted (AD-20).
+// The section's template and its pick (#375). A pick is saved at once and answers with the template the section now
+// resolves to, so the post follows it without a reload.
+const currentTemplate = ref(props.template);
+const templatePicker = ref(props.templatePicker);
+watch(
+    () => [props.template, props.templatePicker],
+    () => {
+        currentTemplate.value = props.template;
+        templatePicker.value = props.templatePicker;
+    },
+);
+const pickingTemplate = ref(false);
+// Picking is not week data, so a sent week does not lock it; a preview and a read-only section do.
+const templatePickDisabled = computed(() => previewReason.value ?? (props.canWrite ? null : 'Only the section and its command can pick its template'));
+
+async function pickTemplate(id) {
+    pickingTemplate.value = true;
+    try {
+        const result = await postJson(`/rollcall/${props.section.id}/template`, { template_id: id }).catch(unreachable);
+        if (result.ok && result.data?.template) {
+            currentTemplate.value = result.data.template;
+            templatePicker.value = result.data.templatePicker;
+            toast.success('Template changed', { description: `The post now uses ${result.data.template.name}.` });
+        } else {
+            toast.error('Could not change the template', { description: messageFor(result) });
+        }
+    } finally {
+        pickingTemplate.value = false;
+    }
+}
+
+// The forum post (3.10, 3.11): the section's template filled with the current marks, generated client-side and copied
+// by the leader. The portal makes no outbound call on copy or on marking posted (AD-20).
 const post = computed(() =>
-    props.section ? rollcallPost(props.template, { section: props.section, week: props.week, troopers: rows.value, fireteams: fireteams.value ?? {} }) : null,
+    props.section ? rollcallPost(currentTemplate.value, { section: props.section, week: props.week, troopers: rows.value, fireteams: fireteams.value ?? {} }) : null,
 );
 const bbcode = computed(() => (post.value?.state === 'ready' ? post.value.text : ''));
 // The BBCode as the leader last copied it. "Copied" holds only while the post on screen is still that text: a mark or a
@@ -1265,6 +1299,14 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                             :editable="editable"
                             :disabled-reason="readOnlyReason"
                             @updated="onFireteams"
+                        />
+                        <TemplatePick
+                            v-if="templatePicker"
+                            :picker="templatePicker"
+                            :template="currentTemplate"
+                            :disabled-reason="templatePickDisabled"
+                            :saving="pickingTemplate"
+                            @pick="pickTemplate"
                         />
                         <ForumPost :post="post" />
 
