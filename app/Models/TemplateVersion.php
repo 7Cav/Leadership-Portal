@@ -10,14 +10,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use LogicException;
 
 /**
- * One immutable version of a company's template for one kind of artifact (Story 3.5, AD-17). The body is written
- * once: changing it is a new row with the next version number, never an update, so the history stays reproducible.
- * An update of an existing row is refused here, at the model, as well as by the repository never issuing one.
+ * One immutable version of a {@see Template} (Story 3.5, #375, AD-17). The body is written once: changing it is a new
+ * row with the next version number of its template, never an update, so the history stays reproducible. An update of
+ * an existing row is refused here, at the model, as well as by the repository never issuing one.
  *
- * Portal-owned (AD-22). Which version is current lives in {@see ActiveTemplateVersion}, not on this row, so
- * activating a version never changes it.
+ * `company_id` repeats the template's owner (null for the regiment default) so a company's history is one indexed
+ * read. Portal-owned (AD-22). Which version is current lives on the template (`active_version_id`), not on this row,
+ * so activating a version never changes it.
  */
-#[Fillable(['company_id', 'artifact_type', 'version', 'body', 'created_by'])]
+#[Fillable(['template_id', 'company_id', 'artifact_type', 'version', 'body', 'created_by'])]
 class TemplateVersion extends Model
 {
     /** @use HasFactory<TemplateVersionFactory> */
@@ -33,7 +34,7 @@ class TemplateVersion extends Model
         });
 
         // Query-builder updates and deletes bypass model events, so these two guards are not the whole defence:
-        // the database's `restrictOnDelete` on the pointer and the unique (company, type, version) index are.
+        // the database's `restrictOnDelete` on the pointer and the unique (template, version) index are.
         static::deleting(function (): never {
             throw new LogicException('A template version is immutable (AD-17): it is never deleted, only superseded.');
         });
@@ -42,10 +43,17 @@ class TemplateVersion extends Model
     protected function casts(): array
     {
         return [
+            'template_id' => 'integer',
+            'company_id' => 'integer',
             'artifact_type' => ArtifactType::class,
             'version' => 'integer',
             'created_at' => 'immutable_datetime',
         ];
+    }
+
+    public function template(): BelongsTo
+    {
+        return $this->belongsTo(Template::class);
     }
 
     public function company(): BelongsTo

@@ -75,8 +75,9 @@ BBCODE;
         // grant only reads). Their trooper is placed in no section, so no unit's strength moves.
         User::factory()->commanding($company, ['username' => 'Hale.S'])->create(['username' => 'Hale.S']);
 
-        // The company's rollcall template (Story 3.11): every section under it renders its forum post from it, and an
-        // Admin (`Pike.S`) edits it from Settings. A company without one shows no post.
+        // The company's rollcall template (Story 3.11, #375): every section under it renders its forum post from it, and
+        // its command (`Hale.S`) or an Admin (`Pike.S`) edits it from Settings. A company without one uses the regiment
+        // default.
         $admin = User::factory()->serving()->admin()->create(['username' => 'Pike.S']);
         app(TemplateVersionRepository::class)->author($company->id, ArtifactType::RollcallBbcode, self::ROLLCALL_TEMPLATE, $admin->id);
 

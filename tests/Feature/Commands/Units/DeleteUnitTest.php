@@ -139,7 +139,7 @@ it('refuses to delete a company that holds template versions, naming them', func
         ->toThrow(UnitHasDependentsException::class, 'Cannot delete "Alpha Company" — it has template versions, and that template history must not be orphaned.');
 
     expect(Unit::find($company->id))->not->toBeNull()
-        ->and(TemplateVersion::count())->toBe(1)
+        ->and(TemplateVersion::query()->where('company_id', $company->id)->count())->toBe(1)
         ->and(AuditLogEntry::count())->toBe(0);
 });
 
