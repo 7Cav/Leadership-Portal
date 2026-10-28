@@ -61,6 +61,24 @@ it('lists the unmatched players of a captured practice, with the capture seam fo
         ->where('unmatched.0', ['platform' => 'hll', 'platformLabel' => 'Hell Let Loose (WW2)', 'playerName' => 'Ortega', 'platformId' => '76561190000000001']));
 });
 
+it('writes out hidden characters in a captured player name, so an override cannot reorder the text around it, and keeps the ID as reported', function () {
+    $this->seen->forceFill(['player_name' => "Smith.J\u{202E}\u{200B}"])->save();
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")->assertInertia(fn (Assert $page) => $page
+        ->where('unmatched.0.playerName', 'Smith.J[U+202E][U+200B]')
+        ->where('unmatched.0.platformId', '76561190000000001'));
+});
+
+it('writes out hidden characters in the name of the identity a trooper already holds, keeping its ID as stored for the replace', function () {
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'game_id' => game('hll')->id, 'player_name' => 'OrtegaMain', 'platform_id' => '76561190000000099']);
+    TrooperGameIdentity::query()->toBase()->update(['player_name' => "Ortega\u{202E}Main"]);
+
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this))
+        ->assertStatus(422)
+        ->assertJsonPath('current', ['playerName' => 'Ortega[U+202E]Main', 'platformId' => '76561190000000099'])
+        ->assertJsonPath('message', 'That trooper is already linked to Ortega[U+202E]Main (76561190000000099) on Hell Let Loose (WW2). Replace it, or cancel to keep it.');
+});
+
 it('shows no drawer data for a practice that was never captured', function () {
     $this->practice->forceFill(['captured_at' => null, 'capture_source' => null, 'server_ref' => null])->save();
 

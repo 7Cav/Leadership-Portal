@@ -43,6 +43,7 @@ use App\Milpac\RosterProvenance;
 use App\Models\Attendance;
 use App\Models\AttendanceStatus;
 use App\Models\Game;
+use App\Models\GameIdentityText;
 use App\Models\PracticeCapturePlayer;
 use App\Models\RollcallSignature;
 use App\Models\SectionPractice;
@@ -908,7 +909,10 @@ class RollcallController extends Controller
         $shape = fn (PracticeCapturePlayer $player) => [
             'platform' => $player->game->slug,
             'platformLabel' => $player->game->name,
-            'playerName' => $player->player_name,
+            // As the game server sent it, with any hidden character written out (as Settings > Games shows them), so a
+            // direction override or zero-width character in a player's name cannot disguise it or reorder the text
+            // around it. The ID is sent as reported: the drawer posts it back to link or dismiss that player.
+            'playerName' => GameIdentityText::reveal($player->player_name),
             'platformId' => $player->platform_id,
         ];
 

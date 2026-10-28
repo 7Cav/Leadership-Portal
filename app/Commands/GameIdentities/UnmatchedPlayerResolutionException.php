@@ -2,6 +2,7 @@
 
 namespace App\Commands\GameIdentities;
 
+use App\Models\GameIdentityText;
 use Carbon\CarbonInterface;
 use RuntimeException;
 
@@ -13,6 +14,9 @@ use RuntimeException;
  * `reason` marks the one refusal the leader can answer on the spot: `has_other_identity`, with the
  * identity the trooper holds now in `current` (`playerName`, `platformId`), so the screen asks
  * "replace or cancel" instead of only showing the message (#176). The others have no reason.
+ * The name, and the ID inside the message, are shown with any hidden character written out
+ * ({@see GameIdentityText::reveal()}), so a direction override cannot reorder the sentence; the
+ * `current` platform ID stays as stored, since the screen sends it back as `replacing`.
  */
 class UnmatchedPlayerResolutionException extends RuntimeException
 {
@@ -44,10 +48,13 @@ class UnmatchedPlayerResolutionException extends RuntimeException
 
     public static function alreadyHasIdentity(string $playerName, string $platformId, string $gameLabel): self
     {
+        $name = GameIdentityText::reveal($playerName);
+        $shownId = GameIdentityText::reveal($platformId);
+
         return new self(
-            "That trooper is already linked to {$playerName} ({$platformId}) on {$gameLabel}. Replace it, or cancel to keep it.",
+            "That trooper is already linked to {$name} ({$shownId}) on {$gameLabel}. Replace it, or cancel to keep it.",
             self::HAS_OTHER_IDENTITY,
-            ['playerName' => $playerName, 'platformId' => $platformId],
+            ['playerName' => $name, 'platformId' => $platformId],
         );
     }
 

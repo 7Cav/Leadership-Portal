@@ -124,6 +124,23 @@ describe('UnmatchedDrawer', () => {
             expect(wrapper.emitted('linked')).toBeUndefined();
         });
 
+        it('isolates every name and ID in the question, so a direction override in a name cannot reorder the ID beside it', async () => {
+            post.mockResolvedValueOnce({ ...HAS_OTHER, data: { ...HAS_OTHER.data, current: { playerName: 'Dube[U+202E]Main', platformId: '7656119000000099' } } });
+            await askToReplace();
+
+            const question = dialog().querySelector('[data-testid="replace-question"]');
+            const isolated = (id) => question.querySelector(`[data-testid="${id}"]`);
+            for (const id of ['replace-trooper', 'replace-current-name', 'replace-current-id', 'replace-new-name', 'replace-new-id']) {
+                expect(isolated(id).tagName).toBe('BDI');
+            }
+            expect(isolated('replace-current-name').textContent).toBe('Dube[U+202E]Main');
+            expect(isolated('replace-current-id').textContent).toBe('7656119000000099');
+            expect(isolated('replace-new-name').textContent).toBe('Dubes');
+            expect(isolated('replace-new-id').textContent).toBe('7656119000000001');
+            // The title names the trooper the same way.
+            expect(dialog().querySelector('bdi').textContent).toBe('PFC Dube.R');
+        });
+
         it('sends the link again with replace and the ID it showed when the leader chooses Replace, and emits the answer', async () => {
             post.mockResolvedValueOnce(HAS_OTHER).mockResolvedValueOnce(LINKED);
             await askToReplace();

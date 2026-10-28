@@ -8,6 +8,7 @@ use App\Models\AuditLogEntry;
 use App\Models\FireteamAssignment;
 use App\Models\FireteamSetting;
 use App\Models\Game;
+use App\Models\GameIdentityText;
 use App\Models\GamePlayerDismissal;
 use App\Models\GameServer;
 use App\Models\PlatoonTrainingTopic;
@@ -247,7 +248,7 @@ class AuditLogController extends Controller
 
         return [
             'href' => route('rollcall.show', ['unit' => $practice->section_id, 'week' => $practice->week_start->toDateString()], false),
-            'label' => "{$dismissal->player_name} dismissed, {$section} rollcall, week of {$practice->week_start->format('dMy')}",
+            'label' => GameIdentityText::reveal($dismissal->player_name)." dismissed, {$section} rollcall, week of {$practice->week_start->format('dMy')}",
         ];
     }
 
