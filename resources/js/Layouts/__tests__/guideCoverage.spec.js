@@ -31,6 +31,7 @@ const AWAITING_GUIDE = [
     '/settings/staff-grants',
     '/settings/templates',
     '/settings/games',
+    '/settings/servers',
     '/settings/audit-log',
 ];
 
