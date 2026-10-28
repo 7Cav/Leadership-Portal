@@ -8,7 +8,7 @@ use RuntimeException;
 /**
  * A template change asks for something the portal will not store. Thrown before anything is written, and lives in the
  * CommandHandler layer so the controllers can turn it into a form error on the right field (Controller →
- * CommandHandler). `$field` names that field: the company, the name, the body or the template.
+ * CommandHandler). `$field` names that field: the company or section, the name, the body or the template.
  */
 class InvalidTemplateException extends RuntimeException
 {
@@ -17,9 +17,10 @@ class InvalidTemplateException extends RuntimeException
         parent::__construct($message);
     }
 
-    public static function notACompany(Unit $unit): self
+    /** `$field` is the form field that named the unit: `company_id`, or `section_id` for a section's own. */
+    public static function notAnOwner(Unit $unit, string $field = 'company_id'): self
     {
-        return new self("{$unit->name} is a {$unit->type->value}, not a company; a template belongs to a company.", 'company_id');
+        return new self("{$unit->name} is a {$unit->type->value}; a template belongs to a company or a section.", $field);
     }
 
     public static function emptyBody(): self
@@ -48,9 +49,10 @@ class InvalidTemplateException extends RuntimeException
         return new self("A template name can be at most {$max} characters.", 'name');
     }
 
-    public static function duplicateName(string $name): self
+    /** `$owner` says whose: "company" or "section". */
+    public static function duplicateName(string $name, string $owner = 'company'): self
     {
-        return new self("This company already has a template called \"{$name}\".", 'name');
+        return new self("This {$owner} already has a template called \"{$name}\".", 'name');
     }
 
     public static function regimentDefaultAlwaysOn(): self
@@ -63,6 +65,12 @@ class InvalidTemplateException extends RuntimeException
         return new self("That template is not one of this company's own.", 'template_id');
     }
 
+    /** A section's own template is only for that section, which may always use it: there is nothing to switch. */
+    public static function sectionTemplateAlwaysOn(): self
+    {
+        return new self("A section's own template is always available to that section and cannot be switched off.", 'template_id');
+    }
+
     public static function notASection(Unit $unit): self
     {
         return new self("{$unit->name} is not a section; only a section chooses its template.", 'unit');
@@ -70,6 +78,6 @@ class InvalidTemplateException extends RuntimeException
 
     public static function notAvailable(): self
     {
-        return new self('That template is not switched on for this section. Choose another.', 'template_id');
+        return new self('That template is not available to this section. Choose another.', 'template_id');
     }
 }

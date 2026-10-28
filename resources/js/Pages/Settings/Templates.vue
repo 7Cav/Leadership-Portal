@@ -27,9 +27,10 @@ import { copyText } from '@/lib/clipboard';
 
 // Rollcall template authoring (Story 3.5, #375, AD-17). Everything is shaped by `Settings\TemplatesController`. A
 // company keeps named templates, the regiment default always shows beside them, and the company's command chooses which
-// its sections may use. A save is always a new version and a rollback only moves the template's active pointer: the
-// page has no way to change a version that exists. The server checks who may write on every request (`canManage` and
-// `canManageCompany` only decide what is shown).
+// its sections may use. A section may keep templates of its own, for its rollcall only: choosing one of the company's
+// sections lists and edits those instead. A save is always a new version and a rollback only moves the template's
+// active pointer: the page has no way to change a version that exists. The server checks who may write on every
+// request (`canManage`, `canManageCompany` and `canManageSection` only decide what is shown).
 //
 // While someone previews a leader (view-as, 1.13) the editor stays on the page but disabled, with the reason on a
 // tooltip, as on the roster: the page explains why it cannot act instead of silently losing the controls.
@@ -37,7 +38,12 @@ const props = defineProps({
     artifactType: { type: Object, required: true },
     companies: { type: Array, required: true },
     company: { type: Number, default: null },
-    // The regiment default first, then the company's own: `[{ id, name, isRegimentDefault, enabled, isCompanyActive, version }]`.
+    // The company's sections the viewer may read, to open one's own templates: `[{ id, designation, name, platoon }]`,
+    // and the one open, or null for the company's templates.
+    sections: { type: Array, default: () => [] },
+    section: { type: Number, default: null },
+    // The regiment default first, then the company's own, or the open section's own:
+    // `[{ id, name, isRegimentDefault, enabled, isCompanyActive, version }]`.
     templates: { type: Array, default: () => [] },
     // The template open in the editor.
     template: { type: Number, default: null },
@@ -48,11 +54,11 @@ const props = defineProps({
     // A template to start from (Story 3.10).
     starter: { type: String, required: true },
     isAdmin: { type: Boolean, required: true },
-    // Whether the viewer may edit the open template and roll it back, and add and switch the company's templates.
+    // Whether the viewer may edit the open template and roll it back, add and switch the company's templates, and add
+    // the open section's.
     canManage: { type: Boolean, default: false },
     canManageCompany: { type: Boolean, default: false },
-    // Whether the company's own command may set its templates, and whether the viewer may switch that (#376).
-    policy: { type: Object, default: () => ({ companyEdits: true, canSet: false }) },
+    canManageSection: { type: Boolean, default: false },
     // The company's sections the viewer could open on the rollcall page, to preview with instead of the sample:
     // `[{ id, designation, name, platoon }]`.
     previewSections: { type: Array, default: () => [] },
@@ -67,7 +73,7 @@ const form = useForm({
 // Another company or template, or a new active version after a save or rollback, starts the editor from that version's
 // text.
 watch(
-    () => [props.company, props.template, props.active?.id],
+    () => [props.company, props.section, props.template, props.active?.id],
     () => {
         form.template_id = props.template;
         form.body = props.active?.body ?? '';
@@ -92,13 +98,26 @@ function chooseCompany(event) {
     router.get('/settings/templates', { company: event.target.value }, { preserveScroll: true });
 }
 
+// Whose templates are listed: the company's, or one of its sections' own. Asks first when the editor holds a draft.
+const ownerKey = ref(0);
+const owner = () => (props.section === null ? { company: props.company } : { section: props.section });
+function chooseOwner(event) {
+    if (unsaved.value && !window.confirm('Your template changes are not saved. Switch and lose them?')) {
+        ownerKey.value++;
+
+        return;
+    }
+
+    router.get('/settings/templates', event.target.value === '' ? { company: props.company } : { section: event.target.value }, { preserveScroll: true });
+}
+
 // The template open in the editor, and opening another, asking first when the editor holds unsaved text.
 const openTemplate = computed(() => props.templates.find((item) => item.id === props.template) ?? null);
 function openOther(item) {
     if (item.id === props.template) return;
     if (unsaved.value && !window.confirm('Your template changes are not saved. Open another template and lose them?')) return;
 
-    router.get('/settings/templates', { company: props.company, template: item.id }, { preserveScroll: true });
+    router.get('/settings/templates', { ...owner(), template: item.id }, { preserveScroll: true });
 }
 
 // Switching a template on or off for the company's sections, and making one the company's default. Each is one audited
@@ -119,13 +138,11 @@ function companyWrite(url, data, failed) {
 }
 const switchTemplate = (item) => companyWrite(`/settings/templates/${item.id}/switch`, { enabled: !item.enabled }, 'The template was not switched');
 const makeCompanyDefault = (item) => companyWrite(`/settings/templates/${item.id}/company-active`, {}, 'The company default was not changed');
-// Battalion command turns the company's own template editing off or on (#376).
-const switchPolicy = () =>
-    companyWrite(`/settings/templates/policy/${props.company}`, { company_edits: !props.policy.companyEdits }, 'Template editing was not changed');
 
 // A new template starts as a copy of the one open (or the starter), under a name, with a reason for the record.
 const creating = ref(false);
-const createForm = useForm({ company_id: props.company, name: '', body: '', reason: '' });
+// A section's goes to the section (`section_id`), a company's to the company.
+const createForm = useForm({ company_id: props.company, section_id: props.section, name: '', body: '', reason: '' });
 function startCreate() {
     createForm.reset();
     createForm.clearErrors();
@@ -133,6 +150,7 @@ function startCreate() {
 }
 function create() {
     createForm.company_id = props.company;
+    createForm.section_id = props.section;
     createForm.body = props.active?.body ?? props.starter;
     createForm.post('/settings/templates/new', {
         preserveScroll: true,
@@ -154,7 +172,8 @@ const { active: previewing, subject: previewSubject } = useViewAs();
 // Every write is refused during a preview, so the controls show but stay disabled then.
 const readOnlyPreview = computed(() => previewing.value);
 const showEditor = computed(() => props.canManage || previewing.value);
-const showCompanyControls = computed(() => props.canManageCompany || previewing.value);
+// Adding a template to what is open: the company's command for the company, the section's for a section's own.
+const showCompanyControls = computed(() => (props.section === null ? props.canManageCompany : props.canManageSection) || previewing.value);
 const readOnlyReason = computed(() => `Read-only while viewing as ${previewSubject.value}`);
 
 // A rollback needs its own reason (AD-16): it is asked for in a dialog with a labelled field, an inline error and a
@@ -312,9 +331,10 @@ async function loadPreview(id) {
 const choosePreview = (event) => loadPreview(event.target.value);
 const firstSection = () => (props.previewSections.length ? String(props.previewSections[0].id) : '');
 
-// Another company has other sections, so the preview starts again from that company's first one.
+// Another company has other sections, so the preview starts again from that company's first one; a section's own
+// templates fill the preview with that section.
 watch(
-    () => props.company,
+    () => [props.company, props.section],
     () => loadPreview(firstSection()),
 );
 loadPreview(firstSection());
@@ -343,8 +363,9 @@ function confirmStarter() {
 }
 
 // A company with none of its own templates switched on falls back to the regiment default (#375).
-const nothingSwitchedOn = computed(() => props.templates.every((item) => item.isRegimentDefault || !item.enabled));
-const NO_TEXT_READER = "The company's command can write it here.";
+const nothingSwitchedOn = computed(() => props.section === null && props.templates.every((item) => item.isRegimentDefault || !item.enabled));
+const NO_TEXT_READER = computed(() => (props.section === null ? "The company's command can write it here." : "The section's command can write it here."));
+const openSection = computed(() => props.sections.find((item) => item.id === props.section) ?? null);
 
 const companyLabel = (company) => (company.callsign ? `${company.callsign} ${company.name}` : company.name);
 </script>
@@ -358,8 +379,8 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                 <h1 class="text-xl font-semibold tracking-tight">Templates</h1>
                 <p class="mt-1 max-w-[80ch] text-[13px] text-muted-foreground">
                     The {{ artifactType.label }} a section's rollcall post renders from. A company keeps its own templates and switches on the ones its
-                    sections may use; a section uses its pick, else the company default, else the regiment default. An edit saves a new version and
-                    makes it the active one; older versions are kept as they were.
+                    sections may use, and a section can keep its own; a section uses its pick, else the company default, else the regiment default.
+                    An edit saves a new version and makes it the active one; older versions are kept as they were.
                 </p>
             </div>
             <Badge v-if="isAdmin" variant="outline" class="gap-1"><PhLockSimple aria-hidden="true" />Admin</Badge>
@@ -370,11 +391,20 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
         </EmptyState>
 
         <template v-else>
-            <div class="grid max-w-sm gap-1.5">
-                <Label for="template-company">Company</Label>
-                <NativeSelect id="template-company" :key="pickerKey" data-testid="company-select" :model-value="company" @change="chooseCompany">
-                    <option v-for="item in companies" :key="item.id" :value="item.id">{{ companyLabel(item) }}</option>
-                </NativeSelect>
+            <div class="flex flex-wrap items-end gap-3">
+                <div class="grid w-full max-w-sm gap-1.5">
+                    <Label for="template-company">Company</Label>
+                    <NativeSelect id="template-company" :key="pickerKey" data-testid="company-select" :model-value="company" @change="chooseCompany">
+                        <option v-for="item in companies" :key="item.id" :value="item.id">{{ companyLabel(item) }}</option>
+                    </NativeSelect>
+                </div>
+                <div v-if="sections.length" class="grid w-full max-w-sm gap-1.5">
+                    <Label for="template-owner">Templates of</Label>
+                    <NativeSelect id="template-owner" :key="ownerKey" data-testid="owner-select" :model-value="section === null ? '' : String(section)" @change="chooseOwner">
+                        <option value="">The company</option>
+                        <option v-for="item in sections" :key="item.id" :value="String(item.id)">{{ sectionLabel(item) }}</option>
+                    </NativeSelect>
+                </div>
             </div>
 
             <Card class="min-w-0 gap-0 py-0" data-testid="template-list">
@@ -394,30 +424,14 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                         <Button v-else variant="outline" size="sm" data-testid="new-template" @click="startCreate"><PhPlus aria-hidden="true" />New template</Button>
                     </template>
                 </div>
-                <div
-                    v-if="!policy.companyEdits || policy.canSet"
-                    class="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border px-4 py-2.5 text-[13px]"
-                    data-testid="template-policy"
-                >
-                    <p class="min-w-[16rem] flex-1 text-muted-foreground" data-testid="template-policy-note">
-                        <template v-if="policy.companyEdits">The company's command sets its own templates.</template>
-                        <template v-else>
-                            Battalion command has turned off this company's own template editing. The battalion or an Admin sets its templates.
-                        </template>
-                    </p>
-                    <Button
-                        v-if="policy.canSet"
-                        variant="outline"
-                        size="sm"
-                        :disabled="readOnlyPreview || busy !== null"
-                        :title="readOnlyPreview ? readOnlyReason : undefined"
-                        data-testid="template-policy-switch"
-                        @click="switchPolicy"
-                    >
-                        {{ policy.companyEdits ? 'Turn off company editing' : 'Turn on company editing' }}
-                    </Button>
-                </div>
-                <ul class="border-t border-border">
+                <p v-if="openSection" class="border-t border-border px-4 py-2.5 text-[13px] text-muted-foreground" data-testid="section-note">
+                    {{ sectionLabel(openSection) }}'s own templates. Only this section's rollcall can use them, and its leader picks one there beside
+                    the company's and the regiment default.
+                </p>
+                <p v-if="openSection && !templates.length" class="border-t border-border px-4 py-2.5 text-[13px] text-muted-foreground" data-testid="no-section-templates">
+                    This section has no templates of its own yet.
+                </p>
+                <ul v-if="templates.length" class="border-t border-border">
                     <li
                         v-for="item in templates"
                         :key="item.id"
@@ -438,7 +452,7 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                         <Badge v-if="item.isCompanyActive" variant="success" data-testid="badge-company-default">Company default</Badge>
                         <Badge v-if="!item.enabled" variant="outline" class="text-muted-foreground" data-testid="badge-off">Off for sections</Badge>
                         <span v-if="item.version" class="text-xs text-muted-foreground">Version {{ item.version }}</span>
-                        <div v-if="showCompanyControls && !item.isRegimentDefault" class="ml-auto flex flex-wrap items-center gap-1">
+                        <div v-if="showCompanyControls && section === null && !item.isRegimentDefault" class="ml-auto flex flex-wrap items-center gap-1">
                             <Button
                                 variant="ghost"
                                 size="sm"
@@ -468,7 +482,7 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                 </p>
             </Card>
 
-            <div class="grid items-start gap-5 lg:grid-cols-[1.2fr_0.8fr]">
+            <div v-if="section === null || template !== null" class="grid items-start gap-5 lg:grid-cols-[1.2fr_0.8fr]">
                 <Card class="min-w-0 gap-0 p-4">
                     <div class="mb-3 flex items-center justify-between gap-2">
                         <h2 class="text-[15px] font-semibold" data-testid="open-template-name">{{ openTemplate?.name ?? 'Active template' }}</h2>
@@ -758,7 +772,13 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
             <AlertDialogContent class="sm:max-w-md" data-testid="create-dialog">
                 <AlertDialogTitle class="text-base leading-snug font-semibold">New template</AlertDialogTitle>
                 <AlertDialogDescription class="text-[13px] text-muted-foreground">
-                    It starts as a copy of {{ openTemplate?.name ?? 'the default' }}, switched on for this company's sections. Edit it once it is saved.
+                    <template v-if="openSection">
+                        It starts as a copy of {{ openTemplate?.name ?? 'the default' }}, for {{ sectionLabel(openSection) }}'s rollcall only. Pick it there
+                        to use it. Edit it once it is saved.
+                    </template>
+                    <template v-else>
+                        It starts as a copy of {{ openTemplate?.name ?? 'the default' }}, switched on for this company's sections. Edit it once it is saved.
+                    </template>
                 </AlertDialogDescription>
                 <form class="space-y-3" @submit.prevent="create">
                     <div class="grid gap-1.5">

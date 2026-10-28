@@ -13,10 +13,12 @@ use App\Support\Audit\ActingFor;
 use App\Support\Audit\AuditEnvelope;
 
 /**
- * A company's command adds a named template to its company (#375, AD-17), with its first version. The template starts
- * switched on, and becomes the company's active template when it has none, so a company's first template is used as
- * soon as it is saved. Only whoever commands the company may ({@see TemplateAuthority}); the regiment default is the
- * one template no one creates. Audited with a reason always required (AD-16), as an edit is.
+ * A company's or a section's command adds a named template to that unit (#375, AD-17), with its first version. A
+ * company's template starts switched on, and becomes the company's active template when it has none, so a company's
+ * first template is used as soon as it is saved. A section's template is only for that section: its leader picks it on
+ * the rollcall like any other, and it moves with the section. Only whoever commands the unit may
+ * ({@see TemplateAuthority}); the regiment default is the one template no one creates. Audited with a reason always
+ * required (AD-16), as an edit is.
  */
 class CreateTemplate
 {
@@ -30,24 +32,23 @@ class CreateTemplate
     ) {}
 
     /**
-     * @throws TemplateForbiddenException when the actor does not command the company.
-     * @throws InvalidTemplateException when the unit is not a company, or the name or body is not acceptable.
+     * @param  Unit  $owner  the company or section the template is for
+     *
+     * @throws TemplateForbiddenException when the actor does not command the unit.
+     * @throws InvalidTemplateException when the unit is not a company or a section, or the name or body is not acceptable.
      */
-    public function handle(User $actor, Unit $company, ArtifactType $type, string $name, string $body, ?string $reason): Template
+    public function handle(User $actor, Unit $owner, ArtifactType $type, string $name, string $body, ?string $reason): Template
     {
-        // Authority first, so someone who commands nothing here cannot tell a company from any other unit.
-        if (! $this->authority->commands($actor, $company)) {
-            throw TemplateForbiddenException::company();
+        // Authority first, so someone who commands nothing here cannot tell a company or section from any other unit.
+        if (! $this->authority->commands($actor, $owner)) {
+            throw $owner->type === UnitType::Section ? TemplateForbiddenException::sectionTemplates() : TemplateForbiddenException::company();
         }
 
-        if ($company->type !== UnitType::Company) {
-            throw InvalidTemplateException::notACompany($company);
+        if (! $this->authority->managesUnit($actor, $owner)) {
+            throw InvalidTemplateException::notAnOwner($owner);
         }
 
-        // The battalion may have switched the company's own template editing off (#376).
-        if (! $this->authority->managesCompany($actor, $company)) {
-            throw TemplateForbiddenException::lockedByBattalion();
-        }
+        $whose = $owner->type === UnitType::Section ? 'section' : 'company';
 
         $name = trim($name);
 
@@ -59,12 +60,12 @@ class CreateTemplate
             throw InvalidTemplateException::nameTooLong(self::MAX_NAME_LENGTH);
         }
 
-        // Two templates of one company with the same name could not be told apart in the section leader's list.
-        $taken = $this->versions->templatesOf($company->id, $type)
+        // Two templates of one unit with the same name could not be told apart in the section leader's list.
+        $taken = $this->versions->templatesOf($owner->id, $type)
             ->contains(fn (Template $template) => mb_strtolower($template->name) === mb_strtolower($name));
 
         if ($taken) {
-            throw InvalidTemplateException::duplicateName($name);
+            throw InvalidTemplateException::duplicateName($name, $whose);
         }
 
         AuthorTemplateVersion::checkBody($body);
@@ -75,11 +76,11 @@ class CreateTemplate
                 action: 'template.created',
                 reason: $reason,
                 reasonRequired: true,
-                mutation: fn () => $this->versions->createTemplate($company->id, $type, $name, $body, $actor->id, $this->acting->adminActingAs($actor->id), $this->acting->billetOf($actor->id)),
+                mutation: fn () => $this->versions->createTemplate($owner->id, $type, $name, $body, $actor->id, $this->acting->adminActingAs($actor->id), $this->acting->billetOf($actor->id)),
             );
         } catch (TemplateNameTakenException) {
             // A twin submit that raced past the check above: the repository refused it under its lock.
-            throw InvalidTemplateException::duplicateName($name);
+            throw InvalidTemplateException::duplicateName($name, $whose);
         }
     }
 }

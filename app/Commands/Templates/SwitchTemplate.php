@@ -12,7 +12,7 @@ use App\Support\Audit\AuditEnvelope;
  * A company's command switches one of its templates on or off for its sections' rollcalls (#375, AD-17). A section
  * leader picks only from the switched-on ones; a section whose pick is switched off falls back to the company's active
  * template, and a company with nothing switched on to the regiment default, never a blank post. The regiment default
- * is always on. Only whoever commands the company may ({@see TemplateAuthority}). Audited (AD-16); switching a template
+ * is always on, and so is a section's own template for that section. Only whoever commands the company may ({@see TemplateAuthority}). Audited (AD-16); switching a template
  * the way it already is changes nothing and is not logged.
  */
 class SwitchTemplate
@@ -25,7 +25,7 @@ class SwitchTemplate
 
     /**
      * @throws TemplateForbiddenException when the actor does not command the template's company.
-     * @throws InvalidTemplateException when the template is the regiment default.
+     * @throws InvalidTemplateException when the template is the regiment default or a section's own.
      */
     public function handle(User $actor, Template $template, bool $enabled): Template
     {
@@ -33,8 +33,12 @@ class SwitchTemplate
             throw InvalidTemplateException::regimentDefaultAlwaysOn();
         }
 
+        if ($template->isSectionTemplate()) {
+            throw InvalidTemplateException::sectionTemplateAlwaysOn();
+        }
+
         if (! $this->authority->manages($actor, $template)) {
-            throw $this->authority->refusal($actor, $template);
+            throw $this->authority->refusal($template);
         }
 
         if ($template->enabled === $enabled) {

@@ -3,8 +3,8 @@ import { computed } from 'vue';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 
-// The section's choice of rollcall template (#375): one of the templates its company switched on, the regiment default,
-// or none, which follows the company default. `picker` is `TemplateResolver::pickerFor()`'s answer and `template` the
+// The section's choice of rollcall template (#375): one of the section's own templates, one of those its company switched
+// on, the regiment default, or none, which follows the company default. `picker` is `TemplateResolver::pickerFor()`'s answer and `template` the
 // one the post now renders from. Saving the pick is the page's job: this only says which one was chosen.
 const props = defineProps({
     picker: { type: Object, required: true },
@@ -24,10 +24,14 @@ const SOURCE_NOTES = {
 
 const value = computed(() => (props.picker.picked === null ? '' : String(props.picker.picked)));
 const note = computed(() => SOURCE_NOTES[props.template?.source] ?? null);
-const optionLabel = (option) => (option.isRegimentDefault ? `${option.name} (regiment)` : option.name);
+const optionLabel = (option) => {
+    if (option.isRegimentDefault) return `${option.name} (regiment)`;
 
-// A platoon moved here from another company gets copies of its templates (#378). Where the new company's battalion sets
-// its templates the copies start switched off, and the section is told what its post uses now.
+    return option.isSection ? `${option.name} (this section)` : option.name;
+};
+
+// A platoon moved here from another company gets copies of its templates (#378). When the new company switches a copy
+// off, the section is told what its post uses now.
 const moved = computed(() => props.picker.moved ?? null);
 
 function choose(event) {
@@ -59,8 +63,7 @@ function choose(event) {
         </p>
         <p v-if="moved" role="status" class="basis-full rounded-md border border-warning/40 bg-warning/7 px-3 py-2 text-xs" data-testid="template-moved">
             <template v-if="moved.from">This platoon moved here from {{ moved.from }}. </template>Its template came along as
-            {{ moved.copy }}, which is switched off here<template v-if="moved.locked">, as this company's battalion sets its
-            templates</template>. The post now uses {{ moved.using ?? 'no template' }}.
+            {{ moved.copy }}, which is switched off here. The post now uses {{ moved.using ?? 'no template' }}.
         </p>
     </div>
 </template>

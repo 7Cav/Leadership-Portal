@@ -24,12 +24,24 @@ function templatesMigration(): object
     return require database_path('migrations/2026_10_29_100000_create_templates_table.php');
 }
 
+/** The later migration that gives a template a section owner: rolled back first and run again after, as `migrate` would. */
+function sectionOwnerMigration(): object
+{
+    // As above: it rebuilds both tables on SQLite.
+    if (DB::getDriverName() === 'sqlite') {
+        DB::statement('PRAGMA defer_foreign_keys = ON');
+    }
+
+    return require database_path('migrations/2026_10_31_100000_add_section_id_to_template_tables.php');
+}
+
 it('carries each company history over as its one active template, and seeds the regiment default once', function () {
     $alpha = Unit::factory()->create(['type' => UnitType::Company]);
     $bravo = Unit::factory()->create(['type' => UnitType::Company]);
     $author = User::factory()->create();
     $activator = User::factory()->create();
 
+    sectionOwnerMigration()->down();
     templatesMigration()->down();
 
     expect(Schema::hasTable('templates'))->toBeFalse()->and(Schema::hasTable('active_template_versions'))->toBeTrue();
@@ -47,6 +59,7 @@ it('carries each company history over as its one active template, and seeds the 
     ]);
 
     templatesMigration()->up();
+    sectionOwnerMigration()->up();
 
     $repo = app(TemplateVersionRepository::class);
     $alphaTemplates = $repo->templatesOf($alpha->id, ArtifactType::RollcallBbcode);

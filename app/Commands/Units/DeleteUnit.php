@@ -22,7 +22,7 @@ use App\Support\Audit\AuditEnvelope;
  *
  * Every table with a `restrictOnDelete` foreign key to `units` is checked here, up front: child
  * units, billet mappings (2.9), staff grants (1.12), section practices (3.3), weekly reports
- * (5.6), template versions with their active pointer (3.5) and training plans (#380). A new table
+ * (5.6), a company's or a section's templates and their versions (3.5, #375) and training plans (#380). A new table
  * taking that kind of key to `units` needs its check added below. Platoon training topics cascade
  * in the database, but are refused too: a topic is part of its week's report record. Troopers (`primary_section_id`) are `nullOnDelete`
  * and command mappings are `cascadeOnDelete`, so neither blocks.

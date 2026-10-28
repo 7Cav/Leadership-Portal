@@ -238,7 +238,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
 
     // Rollcall template authoring (Story 3.5, #375, AD-17). Viewing is open to any authenticated user (the controller
     // shows a non-Admin only the companies in their scope); each write is an audited Command that checks the actor
-    // commands the company, or is an Admin for the regiment default. A save is always a new immutable version. Every
+    // commands the company, or the section for its own templates, or is an Admin for the regiment default. A save is always a new immutable version. Every
     // request writes an audit row, so they share the per-user throttle.
     Route::get('/settings/templates', [TemplatesController::class, 'index'])->name('settings.templates');
     Route::post('/settings/templates', [TemplatesController::class, 'store'])->middleware('throttle:audited-writes')->name('settings.templates.store');
@@ -246,8 +246,6 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::post('/settings/templates/{version}/activate', [TemplatesController::class, 'activate'])->middleware('throttle:audited-writes')->name('settings.templates.activate');
     Route::post('/settings/templates/{template}/switch', [TemplatesController::class, 'switch'])->middleware('throttle:audited-writes')->name('settings.templates.switch');
     Route::post('/settings/templates/{template}/company-active', [TemplatesController::class, 'companyActive'])->middleware('throttle:audited-writes')->name('settings.templates.company-active');
-    // Battalion command switches a company's own template editing on or off (#376).
-    Route::post('/settings/templates/policy/{unit}', [TemplatesController::class, 'policy'])->middleware('throttle:audited-writes')->name('settings.templates.policy');
     // One section's rollcall for this week, to fill the template preview with (scope-gated in the controller, AD-8).
     Route::get('/settings/templates/preview/{unit}', [TemplatesController::class, 'previewSection'])->name('settings.templates.preview');
 

@@ -4,16 +4,18 @@ Read-only logic behind the weekly rollcall, so no screen re-derives it.
 
 - `TemplateResolver::forUnit($unit)` → `ResolvedTemplate` (3.6, #375, AD-17): which rollcall template version applies
   to a unit. It walks up the org tree to the owning company (the unit itself when it is a company) and takes the
-  section's pick while the company has it switched on, else the company's active template if it is switched on, else
-  the regiment-wide default, with the template and version ids so a render can record exactly which one it used
-  (`source`: `picked`, `company` or `default`). A unit under one company never borrows another company's template.
+  section's pick while it is still available (one of the section's own templates, one the company has switched on, or
+  the regiment default), else the company's active template if it is switched on, else the regiment-wide default, with
+  the template and version ids so a render can record exactly which one it used (`source`: `picked`, `company` or
+  `default`). A section's own templates are only ever offered to and used by that section, and a unit under one
+  company never borrows another company's template.
   `TemplateResolution` is the outcome: `resolved`, `no_active_template` (not even the regiment default has a version)
   or `no_owning_company` (the unit sits above every company). Both "none" cases are explicit states, never a blank
   body. Resolution happens on every call, never from a cached copy, so a company's change shows on the next render.
   `optionsFor()` and `pickerFor()` are what the rollcall's template picker offers. A platoon or section moved to
   another company renders from copies of the templates its sections used, made for the new company by the move (#378),
-  never from the old company's; when a copy is switched off (the new company's battalion sets its templates),
-  `pickerFor()` says where it came from and which template the post uses now.
+  never from the old company's; when a copy has been switched off since, `pickerFor()` says where it came from and which
+  template the post uses now. A section's own templates move with it and are never copied.
 
 - `TemplateSyntax::check($body)` (3.10, AD-17): the grammar a rollcall template must follow, checked when an Admin saves
   one. The language is Mustache's core and cannot run code: `{{name}}` prints a value, `{{#troopers}}...{{/troopers}}`
@@ -37,7 +39,8 @@ no built-in post: a company with no template, a section under no company, or a s
 what is missing instead. The template is resolved on every render and never cached, so an edit or rollback changes
 every section using that template on its next load, and no other company's. Marks are data and the template is
 presentation: a template change between load and save does not affect what is saved. A leader picks a template here but
-has no way to edit one; authoring is the company's command's (and an Admin's) in Settings, Templates (3.5, #375).
+has no way to edit one; authoring is the company's or the section's command's (and an Admin's) in Settings, Templates
+(3.5, #375).
 
 Leave comes from `Loa/LoaCoverage`, the one definition (3.4, 4.4, AD-21), sent per trooper as `loa` (`LoaCover::toArray()`)
 with the LOA source and last sync (`loaSync`, AD-20). Nothing stores an `loa` mark: a covered trooper's row is locked, listed

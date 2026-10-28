@@ -147,7 +147,7 @@ describe('creating a company template', function () {
         expect(fn () => $call($this))->toThrow(InvalidTemplateException::class, $message);
         expect(Template::query()->whereNotNull('company_id')->count())->toBe(1);
     })->with([
-        'a platoon' => [fn ($t) => $t->create->handle($t->admin, $t->platoon, $t->type, 'X', 'body', 'why'), 'not a company'],
+        'a platoon' => [fn ($t) => $t->create->handle($t->admin, $t->platoon, $t->type, 'X', 'body', 'why'), 'belongs to a company or a section'],
         'a blank name' => [fn ($t) => $t->create->handle($t->co, $t->company, $t->type, '   ', 'body', 'why'), 'needs a name'],
         'a long name' => [fn ($t) => $t->create->handle($t->co, $t->company, $t->type, str_repeat('n', 61), 'body', 'why'), 'at most 60'],
         'a taken name' => [fn ($t) => $t->create->handle($t->co, $t->company, $t->type, ' standard ', 'body', 'why'), 'already has'],
@@ -328,7 +328,7 @@ describe("a section leader's pick", function () {
     it("refuses a switched-off template, another company's and an id that names none, with the same answer", function (Closure $id) {
         $this->switch->handle($this->co, $this->training, false);
 
-        expect(fn () => $this->pick->handle($this->sl, $this->section->id, $id($this)))->toThrow(InvalidTemplateException::class, 'not switched on');
+        expect(fn () => $this->pick->handle($this->sl, $this->section->id, $id($this)))->toThrow(InvalidTemplateException::class, 'not available to this section');
         expect($this->repo->choiceFor($this->section->id, $this->type))->toBeNull();
     })->with([
         'switched off' => [fn ($t) => $t->training->id],

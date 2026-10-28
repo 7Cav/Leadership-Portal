@@ -37,7 +37,7 @@ class ActivateTemplateVersion
         }
 
         if (! $this->authority->manages($actor, $template)) {
-            throw $this->authority->refusal($actor, $template);
+            throw $this->authority->refusal($template);
         }
 
         if ($template->active_version_id === $version->id) {

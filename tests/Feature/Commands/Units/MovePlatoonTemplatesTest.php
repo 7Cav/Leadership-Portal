@@ -2,7 +2,6 @@
 
 use App\Commands\Templates\ActivateTemplateVersion;
 use App\Commands\Templates\AuthorTemplateVersion;
-use App\Commands\Templates\SetCompanyTemplatePolicy;
 use App\Commands\Templates\SwitchTemplate;
 use App\Commands\Templates\TemplateAuthority;
 use App\Commands\Units\MoveUnit;
@@ -28,8 +27,8 @@ use Carbon\CarbonImmutable;
 // #378 / AD-16, AD-17: a platoon moved to another company keeps its settings and what its posts render. The templates
 // its sections used are copied into the new company, which owns and manages the copies, and the sections' picks move to
 // them, so the old company's later edits never reach them; fireteam settings, labels and acting leads stay on their
-// units; the move and what was copied are audited. Where the new company's battalion sets its templates (#376), the
-// copies start switched off, and the platoon is told which template it now uses.
+// units; the move and what was copied are audited. When the new company switches a copy off, the platoon is told which
+// template it now uses. A section's own templates move with it and are never copied.
 // Tree: 7CAV ─ 1-7 ─┬─ A/1-7 ─ 1/A/1-7 ─┬─ 1/1/A/1-7 (picks Training)
 //                   │                  └─ 2/1/A/1-7 (company default: Company template)
 //                   └─ B/1-7 ─ 1/B/1-7 ─ 1/1/B/1-7 (company default: Company template)
@@ -237,45 +236,66 @@ it('copies again on the way back, so each company owns what its sections render'
         ->and($this->resolver->forUnit($this->picker)->version->body)->toBe('alpha training');
 });
 
-describe('when the new company\'s battalion sets its templates (#376)', function () {
+describe('when the new company switches a copy off', function () {
     beforeEach(function () {
-        app(SetCompanyTemplatePolicy::class)->handle($this->admin, $this->bravo, false);
         ($this->move)($this->platoon, $this->bravo);
-    });
-
-    it('makes the copies switched off, so the sections follow the new company', function () {
-        $copy = copyOf($this->training, $this->bravo);
-
-        expect($this->resolver->forUnit($this->picker->refresh())->version->body)->toBe('bravo standard')
-            ->and($copy->enabled)->toBeFalse()
-            ->and($this->resolver->optionsFor($this->picker)->pluck('id')->all())->not->toContain($copy->id);
+        app(SwitchTemplate::class)->handle($this->admin, copyOf($this->training, $this->bravo), false);
     });
 
     it('tells the platoon which template it now uses, on its rollcall', function () {
         $this->travelTo(CarbonImmutable::parse('2026-10-08 12:00:00', 'UTC'));
 
         $this->actingAs($this->admin)->get(route('rollcall.show', $this->picker->id))->assertOk()->assertInertia(fn ($page) => $page
-            ->where('templatePicker.moved', ['from' => 'A/1-7', 'copy' => 'Training (from A/1-7)', 'locked' => true, 'using' => 'Company template'])
+            ->where('templatePicker.moved', ['from' => 'A/1-7', 'copy' => 'Training (from A/1-7)', 'using' => 'Company template'])
             ->where('template.body', 'bravo standard'));
     });
 
-    it('lets the battalion switch a copy on, which the section then uses', function () {
-        $battalion = moveCommander($this->battalion, 403);
-
-        app(SwitchTemplate::class)->handle($battalion, copyOf($this->training, $this->bravo), true);
+    it('lets the company command switch it back on, which the section then uses', function () {
+        app(SwitchTemplate::class)->handle(moveCommander($this->bravo, 404), copyOf($this->training, $this->bravo), true);
 
         expect($this->resolver->forUnit($this->picker->refresh())->version->body)->toBe('alpha training')
             ->and($this->resolver->pickerFor($this->picker)['moved'])->toBeNull();
     });
+});
 
-    it('leaves the copies to the company once the battalion hands template editing back', function () {
-        app(SetCompanyTemplatePolicy::class)->handle($this->admin, $this->bravo, true);
-        $bravoCo = moveCommander($this->bravo, 404);
+describe("a section's own templates", function () {
+    beforeEach(function () {
+        $this->own = $this->repo->createTemplate($this->picker->id, $this->type, 'Ours', 'our own', $this->author->id);
+        $this->repo->choose($this->picker, $this->own, $this->admin->id);
+    });
 
-        expect($this->resolver->pickerFor($this->picker->refresh())['moved']['locked'])->toBeFalse();
+    it('move with the section to another company, still picked and used, and are not copied', function () {
+        ($this->move)($this->platoon, $this->bravo);
 
-        app(SwitchTemplate::class)->handle($bravoCo, copyOf($this->training, $this->bravo), true);
+        $resolved = $this->resolver->forUnit($this->picker->refresh());
 
-        expect($this->resolver->forUnit($this->picker->refresh())->version->body)->toBe('alpha training');
+        expect($resolved->template->id)->toBe($this->own->id)
+            ->and($resolved->version->body)->toBe('our own')
+            ->and($resolved->source)->toBe(TemplateSource::Picked)
+            ->and($this->own->refresh()->section_id)->toBe($this->picker->id)
+            ->and(Template::query()->where('copied_from_id', $this->own->id)->exists())->toBeFalse()
+            // The other section still had the company default, which is copied as before, and only that one.
+            ->and(Template::query()->where('company_id', $this->bravo->id)->whereNotNull('copied_from_id')->pluck('copied_from_id')->all())->toBe([$this->standard->id])
+            ->and($this->resolver->optionsFor($this->picker)->pluck('id')->all())->toContain($this->own->id);
+    });
+
+    it('move with a section moved on its own, and with a move to another platoon of the same company', function () {
+        $second = app(UnitRepository::class)->create(UnitType::Platoon, '2nd Platoon', '2/A/1-7', $this->alpha->id);
+
+        ($this->move)($this->picker, $second);
+        expect($this->resolver->forUnit($this->picker->refresh())->template->id)->toBe($this->own->id);
+
+        ($this->move)($this->picker, $this->bravoPlatoon);
+        expect($this->resolver->forUnit($this->picker->refresh())->template->id)->toBe($this->own->id)
+            ->and(Template::query()->whereNotNull('copied_from_id')->count())->toBe(0);
+    });
+
+    it('stay the section\'s to manage after the move: its new company command manages them, the old one does not', function () {
+        ($this->move)($this->platoon, $this->bravo);
+        $authority = app(TemplateAuthority::class);
+
+        expect($authority->manages(moveCommander($this->bravo, 405), $this->own->refresh()))->toBeTrue()
+            ->and($authority->manages(moveCommander($this->alpha, 406), $this->own))->toBeFalse()
+            ->and($authority->manages(moveCommander($this->picker, 407), $this->own))->toBeTrue();
     });
 });

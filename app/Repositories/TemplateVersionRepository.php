@@ -3,7 +3,6 @@
 namespace App\Repositories;
 
 use App\Models\ArtifactType;
-use App\Models\CompanyTemplatePolicy;
 use App\Models\Template;
 use App\Models\TemplateVersion;
 use App\Models\Unit;
@@ -12,32 +11,34 @@ use Illuminate\Support\Collection;
 use InvalidArgumentException;
 
 /**
- * Sole DB access for `templates`, `template_versions`, `unit_template_choices` and `company_template_policies` (AD-2,
- * AD-17, AD-22). Portal-owned:
+ * Sole DB access for `templates`, `template_versions` and `unit_template_choices` (AD-2, AD-17, AD-22). Portal-owned:
  * the audited `Commands/Templates` Commands are its writers.
  *
- * A company keeps named templates (#375), and the regiment-wide default is the one template with no company. A
+ * A company keeps named templates (#375), a section may keep its own, and the regiment-wide default is the one template
+ * with neither. A unit's id names it whatever its type, so the calls that take an owner's id take a company's or a
+ * section's alike. A
  * version row is written once and never updated: an edit is a new row with the next version number of its template,
  * and the template's `active_version_id` is the pointer that moves, so activating never touches a version. A unit's
  * choice of template is one row per unit and kind: a company's active template, or a section leader's pick.
  *
- * Every write for a company's templates locks that company's `units` row first, so they run one at a time; the regiment
- * default's writes lock its template row instead.
+ * Every write for a unit's templates locks that unit's `units` row first (the company, or the section for its own), so
+ * they run one at a time; the regiment default's writes lock its template row instead.
  *
- * Each "who" (`$createdBy`, `$chosenBy`, `$setBy`, `$copiedBy`) comes with the Admin acting as that person and the unit
+ * Each "who" (`$createdBy`, `$chosenBy`, `$copiedBy`) comes with the Admin acting as that person and the unit
  * whose billet an Admin held (#379, as `ActingFor` tells the Commands), both null for a write in one's own name.
  */
 interface TemplateVersionRepository
 {
     /**
-     * Create a named template with its first version, active, in one transaction. A company template starts switched
-     * on, and becomes the company's active template when the company has none yet, so a company's first template
-     * takes effect as soon as it is saved, as an edit always did.
+     * Create a named template with its first version, active, in one transaction, owned by `$ownerId`: a company or a
+     * section. A company template starts switched on, and becomes the company's active template when the company has
+     * none yet, so a company's first template takes effect as soon as it is saved, as an edit always did. A section's
+     * template is never picked for it here: its leader picks it, as any other.
      *
-     * @throws InvalidArgumentException when `$companyId` is not a `units` row of type company.
-     * @throws TemplateNameTakenException when the company has a template of that name (case aside): nothing is written.
+     * @throws InvalidArgumentException when `$ownerId` is not a `units` row of type company or section.
+     * @throws TemplateNameTakenException when the owner has a template of that name (case aside): nothing is written.
      */
-    public function createTemplate(int $companyId, ArtifactType $type, string $name, string $body, int $createdBy, ?int $createdByAdmin = null, ?int $createdAsUnit = null): Template;
+    public function createTemplate(int $ownerId, ArtifactType $type, string $name, string $body, int $createdBy, ?int $createdByAdmin = null, ?int $createdAsUnit = null): Template;
 
     /**
      * Write a new version of the template and make it the template's active one, in one transaction. The version
@@ -113,11 +114,12 @@ interface TemplateVersionRepository
     public function history(int $companyId, ArtifactType $type): Collection;
 
     /**
-     * The company's own templates of this kind, oldest first, each with its active version loaded.
+     * The unit's own templates of this kind (a company's, or a section's), oldest first, each with its active version
+     * loaded.
      *
      * @return Collection<int, Template>
      */
-    public function templatesOf(int $companyId, ArtifactType $type): Collection;
+    public function templatesOf(int $ownerId, ArtifactType $type): Collection;
 
     /** The regiment-wide default of this kind, with its active version loaded, or null when there is none. */
     public function regimentDefault(ArtifactType $type): ?Template;
@@ -127,29 +129,17 @@ interface TemplateVersionRepository
     public function find(int $id): ?TemplateVersion;
 
     /**
-     * Whether the company holds any template, of any kind. `templates` and `template_versions` both restrict a
-     * company's delete; a version always belongs to one of the company's templates, so checking the templates covers
-     * both.
+     * Whether the unit (a company, or a section) holds any template of its own, of any kind. `templates` and
+     * `template_versions` both restrict the owner's delete; a version always belongs to one of the owner's templates,
+     * so checking the templates covers both.
      */
-    public function hasTemplatesFor(Unit $company): bool;
-
-    /**
-     * Whether the company's own command may set its templates (#376): true unless its battalion command switched that
-     * off.
-     */
-    public function companyEditsTemplates(int $companyId): bool;
-
-    /**
-     * Record whether the company's own command may set its templates. Returns the policy as it now stands.
-     *
-     * @throws TemplateUnchangedException when it is set that way already (a company with no row counts as on).
-     */
-    public function setCompanyEditsTemplates(Unit $company, bool $edits, int $setBy, ?int $setByAdmin = null, ?int $setAsUnit = null): CompanyTemplatePolicy;
+    public function hasTemplatesFor(Unit $unit): bool;
 
     /**
      * Copy `$source` into the company as a template of its own (#378), in one transaction under the company's lock: one
      * version, version 1, holding the source's active version's body and author (with any Admin and billet beside it), made the copy's active one. The copy
-     * remembers its source (`copied_from_id`) and is switched on or off as `$enabled` says. Unlike
+     * remembers its source (`copied_from_id`) and is switched on or off as `$enabled` says. Only a company template is
+     * copied: a section's own moves with the section. Unlike
      * {@see createTemplate()} it never becomes the company's active template, so the company's other sections render
      * what they did. When `$name` is taken (case aside) the copy is numbered: `$name (2)`, `$name (3)`, and so on, so
      * `$name` should leave room for that within the 60-character limit.

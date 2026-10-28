@@ -7,7 +7,8 @@
 - Admin is a separate flag on a portal user, set from the server console. Admins see and change everything, and are the
   only ones who can edit the org structure, staff grants and the regiment default rollcall template, or read the audit
   log and the activity log.
-- A company's command (and the command above it) manages that company's own rollcall templates.
+- A company's command (and the command above it) manages that company's own rollcall templates, and a section's command
+  (and the command above it) manages the section's own.
 - A staff grant (given by an Admin) lets someone read a unit and everything under it. It never lets them change
   anything there.
 - "View as" previews the portal as a unit (or, for Admins, as a person). It only narrows what you see, and every change
@@ -41,7 +42,7 @@ Notes:
   MP and JAG. Information Management holds S6. S1, S3, S7 and WAG sit directly under the regiment. An Admin can move a
   department to another portfolio; the import never moves it back.
 - `DEVCOM 1IC` commands DEVCOM as its battalion commander and `DEVCOM 2IC` as its XO, so both have battalion command
-  over DEVCOM, D/DEVCOM and its platoons and sections, rollcall templates and the template switch included. The org
+  over DEVCOM, D/DEVCOM and its platoons and sections, rollcall templates included. The org
   page names the 1IC as DEVCOM's lead; when that billet is vacant the lead shows vacant, and the 2IC keeps their rights.
 - `DEVCOM Lead` commands nothing by billet. An Admin makes them acting lead of the DEVCOM starter platoons they run.
 - Every billet of a command team has the same scope: the XO, 1SG, PSG, ASL, SGM and CSM command their unit exactly as
@@ -75,7 +76,7 @@ No = refused (the page answers 403 or 404, or the control is not shown).
 | Org structure: members of staff groups, ELOA, Reservists, New Recruits | All | All | Own | Own | Own | Own | Own | Own | No | Read | Target |
 | Org structure: troopers the sync could not place | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
 | Staff grants page (every grant; the username picker only for an acting Admin) | Yes | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes |
-| Templates page (a company's templates, the regiment default, history) | All | All | No | Own (4) | Own (4) | Own (4) | Own (4) | Own (4) | No | Read (4) | Target (4) |
+| Templates page (a company's templates, the regiment default, a section's own, history) | All | All | No | Own (4) | Own (4) | Own (4) | Own (4) | Own (4) | No | Read (4) | Target (4) |
 | Games page (the games, their ID kinds and telemetry interfaces) | Yes | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes |
 | Games page: identities to check (every saved identity that breaks the ID shape or name rules) | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
 | Template preview filled from a real section | All | All | No | Own | Own | Own | Own | Own | No | Read | Target |
@@ -88,8 +89,9 @@ for their portfolio. They see their staff on the roster and the org page.
 (2) A trooper with no command billet and no grant has an empty scope, so even their own milpac page answers 404.
 (3) Not in the sidebar for non-Admins, but any signed-in user can open it by URL and read it. Only Admins see the
 editing controls.
-(4) The companies your read scope reaches into, opening on your own. Asking for any other company by URL answers 403.
-The editing controls show only to those who may use them (see "Rollcall templates" below).
+(4) The companies your read scope reaches into, opening on your own, and the sections of those in your scope. Asking
+for any other company or section by URL answers 403. The editing controls show only to those who may use them (see
+"Rollcall templates" below).
 
 ### Rollcall writes
 
@@ -103,35 +105,32 @@ The editing controls show only to those who may use them (see "Rollcall template
 | Guests (JSAM): search, add, remove | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Fireteams: mark FTLs, fill fireteams, section display options | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Company fireteam policy | All | All | No | Own | Own | No | If acting lead of the company or above | No | No | No | No |
-| Pick the section's rollcall template (from the switched-on ones) | All | All | No | Own | Own | Own | Own | Own | No | No | No |
+| Pick the section's rollcall template (its own, the company's switched-on ones, the regiment default) | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 
 ### Rollcall templates
 
 | Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Company templates: add, edit (new version), roll back, switch on or off for sections, make the company default | All | All | No | Own companies | Own company, unless its battalion turned this off | No | If acting lead of the company or above (a company lead loses it while it is off) | No | No | No | No |
-| Switch a company's own template editing on or off | All | All | No | Own companies | No | No | If acting lead of the battalion or above | No | No | No | No |
+| Company templates: add, edit (new version), roll back, switch on or off for sections, make the company default | All | All | No | Own companies | Own company | No | If acting lead of the company or above | No | No | No | No |
+| A section's own templates: add, edit (new version), roll back | All | All | No | Own sections | Own sections | Own sections | If acting lead of the section or above | Own section | No | No | No |
 | Regiment default template: edit, roll back | Yes | No | No | No | No | No | No | No | No | No | No |
 
 "Own company" is `commandsUnit()` on the company: its Commander, Executive Officer and First Sergeant, plus the
-battalion and regiment command above. Another company's command gets 403. The regiment default is always available to
-every section and cannot be switched off. A section uses its pick, else the company default if it is switched on, else
-the regiment default. Every one of these writes is in the audit log.
-
-Battalion command (`<bn> Commanding Officer`, `Executive Officer`, `Sergeant Major`, and the regiment command above)
-can turn a company's own template editing off. It is on by default. While it is off, the company's command can still
-read the templates but not add, edit, roll back, switch or choose them; the battalion command and Admins do that
-instead, and the Templates page tells the company why. Marking, confirming, posting, fireteams, reports and a section's
-pick of template are not affected.
+battalion and regiment command above. "Own section" is `commandsUnit()` on the section: its Section Leader and
+Assistant Section Leader, plus the platoon, company, battalion and regiment command above. Another company's or
+section's command gets 403. A section's own templates are only offered to and used by that section's rollcall; they
+cannot be switched off or made a company default. The regiment default is always available to every section and cannot
+be switched off. A section uses its pick, else the company default if it is switched on, else the regiment default.
+Every one of these writes is in the audit log. Battalion command no longer has a switch over a company's own template
+editing: the company's command always manages its own.
 
 When an Admin moves a platoon or section to another company, each template its sections used (picked or the old
 company's default) is copied into the new company as one of its own, named like "Training (from A/1-7)" with the
 version that was in use, and the sections' picks move to the copies. From then on the new company's command manages
 the copies like any of its templates, and the old company's command has no say over them: its later edits, rollbacks
-and switches never reach the moved sections. If the new company's battalion sets its templates, the copies start
-switched off, the sections follow the new company, and the rollcall says which template the post now uses; the
-battalion (or the company, once editing is handed back) can switch a copy on. Fireteam settings, labels and acting
-leads stay on the units. The move and what was copied are in the audit log (`unit.moved`, `unit.settings_carried`).
+and switches never reach the moved sections. If the new company later switches a copy off, the sections follow the new
+company and the rollcall says which template the post now uses. A section's own templates belong to the section, so
+they move with it and are not copied. Fireteam settings, labels and acting leads stay on the units. The move and what was copied are in the audit log (`unit.moved`, `unit.settings_carried`).
 
 ### Reports
 
@@ -272,7 +271,7 @@ only sign out has none, since it ends the session and signing back in is limited
 | 60 | Find trooper and the guest picker search |
 | 240 | Rollcall mark autosave. The screen waits 0.7 seconds after a change and sends one batch at a time, so marking a whole section in seconds stays far below this. |
 | 120 | Report draft autosave |
-| 60, shared | Every other audited write: saving a guidon, fireteam changes, company fireteam policy, linking, dismissing and restoring unmatched players, confirming a practice, marking a rollcall posted, guest add and remove, staff practice add and remove, setting and removing a game identity, platoon topic set and clear, training plan save, approve and send back, every template write and a section's template pick, starting and leaving view as and act as, correcting and deleting a DCS or LOR, and the Admin settings writes (org structure, acting leads, trooper placement, staff grants, games, servers, demo data) |
+| 60, shared | Every other audited write: saving a guidon, fireteam changes, company fireteam policy, linking, dismissing and restoring unmatched players, confirming a practice, marking a rollcall posted, guest add and remove, staff practice add and remove, setting and removing a game identity, platoon topic set and clear, training plan save, approve and send back, every template write (a company's or a section's) and a section's template pick, starting and leaving view as and act as, correcting and deleting a DCS or LOR, and the Admin settings writes (org structure, acting leads, trooper placement, staff grants, games, servers, demo data) |
 | 10 | Sending a report |
 | 20 | Loading the act as picker's list |
 | 30 | Loading the sidebar unit switcher's list (the units in your scope; read only, it changes nothing) |
@@ -292,7 +291,7 @@ only sign out has none, since it ends the session and signing back in is limited
 | View as is read-only | `app/Http/Middleware/ReadOnlyWhileViewingAs.php` (every non-GET except `view-as.store`, `view-as.destroy`, `logout`) |
 | Sign-in and session standing | `app/Commands/Auth/AdmitServingMember.php`, `app/Authorization/ServingSession.php`, `EnsureServingMember` middleware |
 | Admin-only checks | In the controllers (`OrgStructureController`, `StaffGrantsController`, `TrooperPlacementController`, `RosterSyncController`, `LoaSyncController`, `AuditLogController`, `DemoDataController`) and again in some handlers. There are no Laravel policies. |
-| Write gates | Each handler under `app/Commands/*` checks `writeScope()` (attendance, capture, guests, game identities, reports, a section's template pick) or `commandsUnit()` (fireteams, company policy, platoon topic, guidon, training plans, the review on the owning company in `TrainingPlanRules`, company templates through `Commands/Templates/TemplateAuthority`) |
+| Write gates | Each handler under `app/Commands/*` checks `writeScope()` (attendance, capture, guests, game identities, reports, a section's template pick) or `commandsUnit()` (fireteams, company policy, platoon topic, guidon, training plans, the review on the owning company in `TrainingPlanRules`, company and section templates through `Commands/Templates/TemplateAuthority`) |
 | Staff practices | `app/Authorization/StaffPracticeAccess.php` on `commandsUnit()`; checked in each `app/Commands/StaffPractices` handler |
 | Counseling (DCS, LOR) | `app/Authorization/CounselingAccess.php` on `ScopeResolver::commandingUnitsOver()`, `writeScope()` and `canSee()`; checked again in each `app/Commands/Counseling` handler and on the download |
 | Week floor | `app/Support/Time/WeekOf.php` (`floor()`, `isBeforeFloor()`), `config/portal.php` |

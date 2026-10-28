@@ -3,7 +3,6 @@
 namespace App\Repositories\TemplateVersionRepository;
 
 use App\Models\ArtifactType;
-use App\Models\CompanyTemplatePolicy;
 use App\Models\Template;
 use App\Models\TemplateVersion;
 use App\Models\Unit;
@@ -12,6 +11,7 @@ use App\Models\UnitType;
 use App\Repositories\TemplateNameTakenException;
 use App\Repositories\TemplateUnchangedException;
 use App\Repositories\TemplateVersionRepository;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -25,16 +25,16 @@ class Eloquent implements TemplateVersionRepository
     /** What a company's template is called when it is made for it by {@see author()}. */
     private const COMPANY_TEMPLATE_NAME = 'Company template';
 
-    public function createTemplate(int $companyId, ArtifactType $type, string $name, string $body, int $createdBy, ?int $createdByAdmin = null, ?int $createdAsUnit = null): Template
+    public function createTemplate(int $ownerId, ArtifactType $type, string $name, string $body, int $createdBy, ?int $createdByAdmin = null, ?int $createdAsUnit = null): Template
     {
         $who = [$createdBy, $createdByAdmin, $createdAsUnit];
 
-        return DB::transaction(function () use ($companyId, $type, $name, $body, $who) {
-            $this->lockCompany($companyId);
+        return DB::transaction(function () use ($ownerId, $type, $name, $body, $who) {
+            $owner = $this->lockOwner($ownerId);
 
             // Decided under the lock, so two quick submits of one name cannot both pass the Command's own check.
             $taken = Template::query()
-                ->where('company_id', $companyId)
+                ->where($this->ownerColumn($owner), $ownerId)
                 ->where('artifact_type', $type->value)
                 ->whereRaw('lower(name) = ?', [mb_strtolower($name)])
                 ->exists();
@@ -43,7 +43,7 @@ class Eloquent implements TemplateVersionRepository
                 throw new TemplateNameTakenException($name);
             }
 
-            return $this->newTemplate($companyId, $type, $name, $body, $who);
+            return $this->newTemplate($owner, $type, $name, $body, $who);
         });
     }
 
@@ -63,12 +63,12 @@ class Eloquent implements TemplateVersionRepository
         $who = [$createdBy, $createdByAdmin, $createdAsUnit];
 
         return $this->retrying(fn () => DB::transaction(function () use ($companyId, $type, $body, $who) {
-            $this->lockCompany($companyId);
+            $company = $this->lockCompany($companyId);
 
             $choice = $this->choiceFor($companyId, $type);
 
             if ($choice === null) {
-                return $this->newTemplate($companyId, $type, self::COMPANY_TEMPLATE_NAME, $body, $who)->activeVersion;
+                return $this->newTemplate($company, $type, self::COMPANY_TEMPLATE_NAME, $body, $who)->activeVersion;
             }
 
             return $this->appendVersion(Template::query()->whereKey($choice->template_id)->lockForUpdate()->firstOrFail(), $body, $who);
@@ -188,11 +188,11 @@ class Eloquent implements TemplateVersionRepository
         return $choice?->template?->company_id === $companyId ? $this->historyOf($choice->template) : collect();
     }
 
-    public function templatesOf(int $companyId, ArtifactType $type): Collection
+    public function templatesOf(int $ownerId, ArtifactType $type): Collection
     {
         return Template::query()
             ->with('activeVersion')
-            ->where('company_id', $companyId)
+            ->where(fn ($query) => $this->ownedBy($query, $ownerId))
             ->where('artifact_type', $type->value)
             ->orderBy('id')
             ->get();
@@ -203,6 +203,7 @@ class Eloquent implements TemplateVersionRepository
         return Template::query()
             ->with('activeVersion')
             ->whereNull('company_id')
+            ->whereNull('section_id')
             ->where('artifact_type', $type->value)
             ->orderBy('id')
             ->first();
@@ -218,9 +219,9 @@ class Eloquent implements TemplateVersionRepository
         return TemplateVersion::query()->find($id);
     }
 
-    public function hasTemplatesFor(Unit $company): bool
+    public function hasTemplatesFor(Unit $unit): bool
     {
-        return Template::query()->where('company_id', $company->getKey())->exists();
+        return Template::query()->where(fn ($query) => $this->ownedBy($query, $unit->getKey()))->exists();
     }
 
     public function copyTemplate(Template $source, int $companyId, string $name, bool $enabled, int $copiedBy, ?int $copiedByAdmin = null, ?int $copiedAsUnit = null): Template
@@ -241,7 +242,7 @@ class Eloquent implements TemplateVersionRepository
                 'company_id' => $companyId,
                 'artifact_type' => $source->artifact_type,
                 // Decided under the lock, so two copies made at once cannot take one name.
-                'name' => $this->freeName($companyId, $source->artifact_type, $name),
+                'name' => $this->freeName('company_id', $companyId, $source->artifact_type, $name),
                 'enabled' => $enabled,
                 'created_by' => $copiedBy,
                 'created_by_admin' => $copiedByAdmin,
@@ -257,47 +258,20 @@ class Eloquent implements TemplateVersionRepository
         });
     }
 
-    public function companyEditsTemplates(int $companyId): bool
-    {
-        return CompanyTemplatePolicy::query()->where('company_id', $companyId)->value('company_edits_templates') ?? true;
-    }
-
-    public function setCompanyEditsTemplates(Unit $company, bool $edits, int $setBy, ?int $setByAdmin = null, ?int $setAsUnit = null): CompanyTemplatePolicy
-    {
-        return DB::transaction(function () use ($company, $edits, $setBy, $setByAdmin, $setAsUnit) {
-            $this->lockCompany($company->id);
-
-            $policy = CompanyTemplatePolicy::query()->where('company_id', $company->id)->first();
-
-            if (($policy?->company_edits_templates ?? true) === $edits) {
-                throw new TemplateUnchangedException($policy, "Company {$company->id} is set that way already.");
-            }
-
-            $policy ??= new CompanyTemplatePolicy(['company_id' => $company->id]);
-            $policy->fill([
-                'company_edits_templates' => $edits,
-                'set_by' => $setBy,
-                'set_by_admin' => $setByAdmin,
-                'set_as_unit' => $setAsUnit,
-            ])->save();
-
-            return $policy;
-        });
-    }
-
     /**
-     * A new template with version 1 active, made the company's active template when it has none. Runs inside the
-     * caller's transaction, under the company lock.
+     * A new template with version 1 active, owned by the company or the section. A company's is made its active
+     * template when it has none; a section's waits for its leader's pick. Runs inside the caller's transaction, under
+     * the owner's lock.
      *
      * @param  array{0: int, 1: ?int, 2: ?int}  $who  who wrote it, the Admin acting as them and the billet's unit
      */
-    private function newTemplate(int $companyId, ArtifactType $type, string $name, string $body, array $who): Template
+    private function newTemplate(Unit $owner, ArtifactType $type, string $name, string $body, array $who): Template
     {
         [$createdBy, $createdByAdmin, $createdAsUnit] = $who;
 
         $template = new Template;
         $template->forceFill([
-            'company_id' => $companyId,
+            $this->ownerColumn($owner) => $owner->id,
             'artifact_type' => $type,
             'name' => $name,
             'enabled' => true,
@@ -309,11 +283,15 @@ class Eloquent implements TemplateVersionRepository
         $version = $this->insertVersion($template, 1, $body, $who);
         $this->point($template, $version);
 
-        $hasActive = UnitTemplateChoice::query()->where('unit_id', $companyId)->where('artifact_type', $type->value)->exists();
+        if ($owner->type !== UnitType::Company) {
+            return $template->setRelation('activeVersion', $version);
+        }
+
+        $hasActive = UnitTemplateChoice::query()->where('unit_id', $owner->id)->where('artifact_type', $type->value)->exists();
 
         if (! $hasActive) {
             UnitTemplateChoice::query()->create([
-                'unit_id' => $companyId,
+                'unit_id' => $owner->id,
                 'artifact_type' => $type,
                 'template_id' => $template->id,
                 'chosen_by' => $createdBy,
@@ -325,11 +303,11 @@ class Eloquent implements TemplateVersionRepository
         return $template->setRelation('activeVersion', $version);
     }
 
-    /** `$name`, or the first of `$name (2)`, `$name (3)`... that the company does not hold yet (case aside). */
-    private function freeName(int $companyId, ArtifactType $type, string $name): string
+    /** `$name`, or the first of `$name (2)`, `$name (3)`... that the owner does not hold yet (case aside). */
+    private function freeName(string $column, int $ownerId, ArtifactType $type, string $name): string
     {
         $taken = Template::query()
-            ->where('company_id', $companyId)
+            ->where($column, $ownerId)
             ->where('artifact_type', $type->value)
             ->pluck('name')
             ->map(fn (string $held) => mb_strtolower($held))
@@ -380,6 +358,7 @@ class Eloquent implements TemplateVersionRepository
         return TemplateVersion::query()->create([
             'template_id' => $template->id,
             'company_id' => $template->company_id,
+            'section_id' => $template->section_id,
             'artifact_type' => $template->artifact_type,
             'version' => $number,
             'body' => $body,
@@ -412,14 +391,14 @@ class Eloquent implements TemplateVersionRepository
     }
 
     /**
-     * Take the lock every write to this template goes through: its company's `units` row for a company template (so
-     * all of one company's template writes run one at a time), the template row itself for the regiment default.
-     * Returns the template as stored, read under the lock.
+     * Take the lock every write to this template goes through: its owner's `units` row for a company's or a section's
+     * template (so all of one unit's template writes run one at a time), the template row itself for the regiment
+     * default. Returns the template as stored, read under the lock.
      */
     private function lockTemplate(Template $template): Template
     {
-        if ($template->company_id !== null) {
-            $this->lockCompany($template->company_id);
+        if ($template->ownerId() !== null) {
+            $this->lockOwner($template->ownerId());
         }
 
         return Template::query()->whereKey($template->id)->lockForUpdate()->firstOrFail();
@@ -432,13 +411,48 @@ class Eloquent implements TemplateVersionRepository
      *
      * @throws InvalidArgumentException when `$companyId` is not a `units` row of type company.
      */
-    private function lockCompany(int $companyId): void
+    private function lockCompany(int $companyId): Unit
     {
-        $company = Unit::query()->whereKey($companyId)->where('type', UnitType::Company->value)->lockForUpdate()->first(['id']);
+        $company = Unit::query()->whereKey($companyId)->where('type', UnitType::Company->value)->lockForUpdate()->first(['id', 'type']);
 
         if ($company === null) {
             throw new InvalidArgumentException("Unit {$companyId} is not a company; templates belong to a company (AD-17).");
         }
+
+        return $company;
+    }
+
+    /**
+     * As {@see lockCompany()}, for the unit that owns a template: a company, or a section for its own.
+     *
+     * @throws InvalidArgumentException when `$ownerId` is not a `units` row of type company or section.
+     */
+    private function lockOwner(int $ownerId): Unit
+    {
+        $owner = Unit::query()->whereKey($ownerId)->whereIn('type', [UnitType::Company->value, UnitType::Section->value])->lockForUpdate()->first(['id', 'type']);
+
+        if ($owner === null) {
+            throw new InvalidArgumentException("Unit {$ownerId} is not a company or a section; templates belong to one (AD-17).");
+        }
+
+        return $owner;
+    }
+
+    /** The `templates` column that names an owner of this unit's type. */
+    private function ownerColumn(Unit $owner): string
+    {
+        return $owner->type === UnitType::Section ? 'section_id' : 'company_id';
+    }
+
+    /**
+     * Templates owned by the unit, a company or a section. A unit's id is unique across types, so either column naming
+     * it is that unit's.
+     *
+     * @param  Builder<Template>  $query
+     */
+    private function ownedBy(Builder $query, int $ownerId): void
+    {
+        $query->where('company_id', $ownerId)->orWhere('section_id', $ownerId);
     }
 
     /** Move the template's active-version pointer to this version. */
