@@ -71,11 +71,12 @@ class Trooper extends Model
     }
 
     /**
-     * The trooper's role in their section, for screens that list a unit leader-first: `ASL` when their billet title
-     * says assistant section leader (all Cav tells us about the second-in-command), `SL` when they hold the section's
+     * The trooper's role in their section, for the rollcall and its fireteams: `ASL` when their billet title says
+     * assistant section leader (all Cav tells us about the second-in-command), `SL` when they hold the section's
      * command billet (1.16's mapping, passed in as `$sectionLeader`), otherwise null. The assistant's billet maps to
      * the section too, so the title is read first: an assistant named while the Section Leader billet is vacant is
-     * still the ASL. One definition, so the roster, the readiness matrix and the rollcall never disagree about who leads.
+     * still the ASL. The roster and the readiness matrix tag every echelon's command team instead
+     * (`Milpac\BilletTags`, #443), which reads the same SL and ASL for a section.
      */
     public function roleUnder(?self $sectionLeader): ?string
     {

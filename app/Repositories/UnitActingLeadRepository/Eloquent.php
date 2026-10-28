@@ -46,6 +46,25 @@ class Eloquent implements UnitActingLeadRepository
             ->toBase();
     }
 
+    public function unitsLedByTroopers(array $trooperIds): Collection
+    {
+        if ($trooperIds === []) {
+            return collect();
+        }
+
+        return Unit::query()
+            ->select('units.*', 'unit_acting_leads.trooper_id as acting_trooper_id')
+            ->join('unit_acting_leads', 'unit_acting_leads.unit_id', '=', 'units.id')
+            ->join('troopers', 'troopers.id', '=', 'unit_acting_leads.trooper_id')
+            ->whereIn('troopers.id', $trooperIds)
+            ->whereIn('troopers.status', TrooperStatus::servingValues())
+            ->orderBy('units.id')
+            ->get()
+            ->groupBy(fn (Unit $unit) => (int) $unit->getAttribute('acting_trooper_id'))
+            ->map(fn ($units) => $units->toBase())
+            ->toBase();
+    }
+
     public function forUnit(int $unitId): ?UnitActingLead
     {
         return UnitActingLead::query()->with('trooper')->where('unit_id', $unitId)->first();

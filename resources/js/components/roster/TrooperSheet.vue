@@ -74,6 +74,9 @@ const recent = computed(() => cells.value.slice(-8).reverse());
 // After a transfer, an earlier week was at another section (2026-10-27): its rows name that section.
 const sectionLabel = computed(() => trooper.value?.section?.callsign ?? trooper.value?.section?.name ?? null);
 const elsewhere = (mark) => (mark?.section && mark.section !== sectionLabel.value ? mark.section : null);
+// The unit line names the trooper's billet tag (#443): "leads this platoon as PL" for the unit's lead, otherwise their
+// tag (an XO, a PSG, an ASL) and who leads the unit.
+const leadsUnit = computed(() => !!trooper.value?.sectionLeader && trooper.value.sectionLeader.id === trooper.value.id);
 
 // A trooper who missed a practice in the KPI window can be sent a makeup PM: a link that opens the forum's own
 // "start conversation" form, pre-filled, for the leader to send there. None without a forum username.
@@ -171,10 +174,10 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                         <dd>{{ trooper.billet ?? 'No billet on record' }}</dd>
                         <dt class="text-muted-foreground">MOS</dt>
                         <dd>{{ trooper.mos ?? 'No MOS on record' }}</dd>
-                        <dt class="text-muted-foreground">Section</dt>
-                        <dd>
-                            {{ trooper.section.callsign ?? trooper.section.name }}<template v-if="trooper.sectionLeader && trooper.role !== 'SL'">, led by {{ trooper.sectionLeader.displayName }}</template>
-                            <template v-else-if="trooper.role === 'SL'">, leads this section</template>
+                        <dt class="text-muted-foreground">Unit</dt>
+                        <dd data-testid="sheet-unit">
+                            {{ trooper.section.callsign ?? trooper.section.name }}<template v-if="leadsUnit">, leads this {{ trooper.section.type }}<template v-if="trooper.role"> as {{ trooper.role }}</template></template>
+                            <template v-else><template v-if="trooper.role">, {{ trooper.role }}</template><template v-if="trooper.sectionLeader">, led by {{ trooper.sectionLeader.displayName }}<template v-if="trooper.sectionLeader.source === 'acting'"> (acting)</template></template></template>
                         </dd>
                         <dt class="text-muted-foreground">Joined 7Cav</dt>
                         <dd class="tabular-nums">{{ trooper.joined ? forumDate(trooper.joined) : 'Unknown' }}</dd>

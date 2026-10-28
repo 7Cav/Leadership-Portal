@@ -68,6 +68,16 @@ interface UnitCommandMappingRepository
     public function commandedUnitsByCavId(array $cavIds): Collection;
 
     /**
+     * The unit each of `$trooperIds` holds a command billet of, keyed by trooper id, with the same serving-roster
+     * allow-list: what the roster's billet tag (#443) is read from. A trooper whose billet commands nothing is absent.
+     * One query.
+     *
+     * @param  list<int>  $trooperIds
+     * @return Collection<int, Unit>
+     */
+    public function commandedUnitsByTrooperId(array $trooperIds): Collection;
+
+    /**
      * The serving trooper holding each unit's command billet, keyed by unit id — the leader a
      * roster's platoon and section headers name (2.8). A unit with no mapping, or whose billet no
      * serving trooper holds, is absent. One query for any number of units. A section's Assistant

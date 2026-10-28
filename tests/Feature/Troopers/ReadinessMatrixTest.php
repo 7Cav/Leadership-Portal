@@ -54,7 +54,7 @@ beforeEach(function () {
     $this->section3 = $units->create(UnitType::Section, '1st Section, 2nd Platoon', '1/2/A/1-7', $this->platoon2->id);
 
     UnitCommandMapping::factory()->create(['unit_id' => $this->section1->id, 'cav_position_id' => 501]);
-    $leaderTrooper = readinessTrooper($this->section1, ['cav_position_id' => 501, 'username' => 'Lead.Er', 'rank_short' => 'PVT']);
+    $leaderTrooper = readinessTrooper($this->section1, ['cav_position_id' => 501, 'username' => 'Lead.Er', 'rank_short' => 'PVT', 'billet' => 'Section Leader 1/1/A/1-7']);
     $this->leader = User::factory()->create(['cav_id' => $leaderTrooper->cav_id]);
     $this->platoonStaff = User::factory()->serving()->create();
     PortalRoleGrant::factory()->create(['user_id' => $this->platoonStaff->id, 'unit_id' => $this->platoon1->id]);
@@ -192,8 +192,9 @@ describe('the grid', function () {
 });
 
 describe('the role', function () {
-    it('names the section leader SL from the command mapping, the assistant ASL from the billet, and others null', function () {
-        $asl = readinessTrooper($this->section1, ['username' => 'Asl.One', 'rank_short' => 'SPC', 'billet' => 'Assistant Section Leader']);
+    it('tags the section leader SL and the assistant ASL from their command billets, and others null', function () {
+        UnitCommandMapping::factory()->create(['unit_id' => $this->section1->id, 'cav_position_id' => 511]);
+        $asl = readinessTrooper($this->section1, ['cav_position_id' => 511, 'username' => 'Asl.One', 'rank_short' => 'SPC', 'billet' => 'Assistant Section Leader 1/1/A/1-7']);
         $trainingLeader = readinessTrooper($this->section1, ['username' => 'Train.Er', 'rank_short' => 'SPC', 'billet' => 'Training Leader']);
 
         readinessOpen($this->actingAs($this->leader), $this->section1)->assertInertia(fn ($page) => $page
@@ -208,7 +209,7 @@ describe('the role', function () {
 
     it('finds each section\'s leader on its own when a platoon spans several sections', function () {
         UnitCommandMapping::factory()->create(['unit_id' => $this->section2->id, 'cav_position_id' => 502]);
-        $second = readinessTrooper($this->section2, ['cav_position_id' => 502, 'username' => 'Second.Lead', 'rank_short' => 'PVT']);
+        $second = readinessTrooper($this->section2, ['cav_position_id' => 502, 'username' => 'Second.Lead', 'rank_short' => 'PVT', 'billet' => 'Section Leader 2/1/A/1-7']);
         readinessTrooper($this->section2, ['username' => 'Plain.Man', 'rank_short' => 'PVT']);
 
         readinessOpen($this->actingAs($this->platoonStaff), $this->platoon1)->assertInertia(fn ($page) => $page

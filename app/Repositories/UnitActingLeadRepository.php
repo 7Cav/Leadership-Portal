@@ -33,6 +33,15 @@ interface UnitActingLeadRepository
     public function leadsOf(array $unitIds): Collection;
 
     /**
+     * The units each of `$trooperIds` is acting lead of while serving, grouped by trooper id, each list in unit id
+     * order. One query.
+     *
+     * @param  list<int>  $trooperIds
+     * @return Collection<int, Collection<int, Unit>>
+     */
+    public function unitsLedByTroopers(array $trooperIds): Collection;
+
+    /**
      * The acting-lead row of `$unitId`, serving or not, with its trooper loaded.
      */
     public function forUnit(int $unitId): ?UnitActingLead;

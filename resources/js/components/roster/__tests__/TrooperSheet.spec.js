@@ -157,6 +157,43 @@ describe('Trooper sheet', () => {
         expect(document.body.textContent).toContain('PVT Reyes.M');
     });
 
+    // #443: the unit line names the billet the trooper holds there, on every echelon.
+    it("says the unit's lead leads it, and names their billet", async () => {
+        respond(200, detail({ id: 12, role: 'SL', sectionLeader: { id: 12, rank: 'PVT', name: 'Reyes.M', displayName: 'PVT Reyes.M', source: 'billet' } }));
+        factory();
+        await flushPromises();
+
+        const line = document.body.querySelector('[data-testid="sheet-unit"]').textContent.replace(/\s+/g, ' ').trim();
+        expect(line).toBe('2/1/A/1-7, leads this section as SL');
+    });
+
+    it("names an XO's billet and who leads the company", async () => {
+        respond(200, detail({ role: 'XO', section: { id: 7, type: 'company', name: 'Alpha Company', callsign: 'A/1-7' }, sectionLeader: { id: 30, rank: 'CPT', name: 'Cole.D', displayName: 'CPT Cole.D', source: 'billet' } }));
+        factory();
+        await flushPromises();
+
+        const line = document.body.querySelector('[data-testid="sheet-unit"]').textContent.replace(/\s+/g, ' ').trim();
+        expect(line).toBe('A/1-7, XO, led by CPT Cole.D');
+    });
+
+    it('shows an acting lead as acting, not as the billet holder', async () => {
+        respond(200, detail({ role: 'Acting PL', section: { id: 5, type: 'platoon', name: '1st Platoon', callsign: '1/A/1-7' }, sectionLeader: { id: 12, rank: 'PVT', name: 'Reyes.M', displayName: 'PVT Reyes.M', source: 'acting' } }));
+        factory();
+        await flushPromises();
+
+        const line = document.body.querySelector('[data-testid="sheet-unit"]').textContent.replace(/\s+/g, ' ').trim();
+        expect(line).toBe('1/A/1-7, leads this platoon as Acting PL');
+    });
+
+    it("marks the unit's lead as acting for a trooper they lead", async () => {
+        respond(200, detail({ section: { id: 5, type: 'platoon', name: '1st Platoon', callsign: '1/A/1-7' }, sectionLeader: { id: 40, rank: 'SGT', name: 'Oduya.N', displayName: 'SGT Oduya.N', source: 'acting' } }));
+        factory();
+        await flushPromises();
+
+        const line = document.body.querySelector('[data-testid="sheet-unit"]').textContent.replace(/\s+/g, ' ').trim();
+        expect(line).toBe('1/A/1-7, led by SGT Oduya.N (acting)');
+    });
+
     it('stays closed with no trooper selected', () => {
         globalThis.fetch = vi.fn();
         factory(null);

@@ -40,10 +40,18 @@ export function rankTier(rank) {
 
 const ROLE_ORDER = { SL: 0, ASL: 1 };
 
-/** Billet order: SL, then ASL, then by rank (senior first), then name. */
+// A trooper's place by their billet tag (#443): an acting lead stands where the billet they act for does, any other
+// tagged leader after the SL and ASL, and everyone without a tag last.
+function roleRank(role) {
+    if (!role) return 3;
+
+    return ROLE_ORDER[role.replace(/^Acting /, '')] ?? 2;
+}
+
+/** Billet order: SL, then ASL, then the other tagged leaders, then by rank (senior first), then name. */
 export function compareBillet(a, b) {
     return (
-        (ROLE_ORDER[a.role] ?? 2) - (ROLE_ORDER[b.role] ?? 2) ||
+        roleRank(a.role) - roleRank(b.role) ||
         rankIndex(b.rank) - rankIndex(a.rank) ||
         (a.name ?? '').localeCompare(b.name ?? '')
     );

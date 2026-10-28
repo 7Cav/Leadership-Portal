@@ -11,6 +11,7 @@ use App\Kpi\Ratio;
 use App\Kpi\TrooperAttendance;
 use App\Kpi\UnitKpis;
 use App\Loa\LoaProvenance;
+use App\Milpac\BilletTags;
 use App\Milpac\PlacementHistory;
 use App\Milpac\RosterProvenance;
 use App\Models\SyncRun;
@@ -65,6 +66,7 @@ class RosterController extends Controller
         private readonly UnitActingLeadRepository $actingLeads,
         private readonly PlacementHistory $placementHistory,
         private readonly Headcount $headcount,
+        private readonly BilletTags $billetTags,
     ) {}
 
     public function index(Request $request, ?int $unit = null): Response
@@ -137,8 +139,9 @@ class RosterController extends Controller
         $week = WeekOf::start(CarbonImmutable::now());
         $kpis = $this->kpis->trooperAttendance($section, $week)->get($found->id);
         $marks = $this->historyMarks($section, $week)->get($found->id, collect());
-        $leader = $this->commands->commandersOf([$section->id])->get($section->id);
-        $row = $this->trooperRow($found, $kpis, $marks, $week, $leader);
+        // The unit's lead as its roster header names it, acting leads included, and the trooper's own billet tag (#443).
+        $lead = $this->leads->leadsOf([$section->id])->get($section->id);
+        $row = $this->trooperRow($found, $kpis, $marks, $week, $this->billetTags->of(collect([$found]))->get($found->id));
         // Each week's section by name, for the weeks they were somewhere else (2026-10-27).
         $labels = $marks->pluck('sectionId')->filter()->unique()
             ->mapWithKeys(fn (int $id) => [$id => ($unit = $this->units->find($id)) === null ? null : ($unit->callsign ?? $unit->name)]);
@@ -150,7 +153,7 @@ class RosterController extends Controller
                 'rankFull' => $found->rank,
                 'mos' => $found->mos,
                 'section' => $this->unitSummary($section),
-                'sectionLeader' => $leader ? $this->person($leader) : null,
+                'sectionLeader' => $lead ? [...$this->person($lead->trooper), 'source' => $lead->source] : null,
                 'milpacUrl' => Trooper::MILPAC_PROFILE_URL.$found->cav_id,
                 // The weeks behind `kpis.missed`, oldest first, for the Sheet's makeup PM link.
                 'missedWeeks' => $kpis?->missedWeeks ?? [],
@@ -215,9 +218,9 @@ class RosterController extends Controller
         $placed = $this->troopers->placedWithin($unit);
         $attendance = $this->kpis->trooperAttendance($unit, $week);
         $marks = $this->historyMarks($unit, $week);
-        $leaders = $this->commands->commandersOf($subtree->pluck('id')->all());
-        // The unit headers name the unit's lead, acting leads and portfolio officers included (2026-10-25); the
-        // section roles (SL/ASL) still come from the command billet.
+        // The unit headers name the unit's lead, acting leads and portfolio officers included (2026-10-25); each
+        // trooper's tag is the command billet they hold in their unit, or their acting lead (#443).
+        $tags = $this->billetTags->of($placed);
         $unitLeads = $this->leads->leadsOf($subtree->pluck('id')->all());
 
         $paths = $subtree->mapWithKeys(fn (Unit $u) => [$u->id => $u->path]);
@@ -250,7 +253,7 @@ class RosterController extends Controller
             $attendance->get($t->id),
             $marks->get($t->id, collect()),
             $week,
-            $leaders->get($t->primary_section_id),
+            $tags->get($t->id),
         ))->values()->all();
 
         return ['units' => $units, 'troopers' => $troopers];
@@ -298,7 +301,7 @@ class RosterController extends Controller
      * @param  Collection<int, CountingMark>  $marks  this trooper's marks over the history window
      * @return array<string, mixed>
      */
-    private function trooperRow(Trooper $t, ?TrooperAttendance $kpis, Collection $marks, CarbonImmutable $week, ?Trooper $sectionLeader): array
+    private function trooperRow(Trooper $t, ?TrooperAttendance $kpis, Collection $marks, CarbonImmutable $week, ?string $role): array
     {
         $byWeek = $marks->keyBy(fn (CountingMark $m) => $m->weekStart->toDateString());
 
@@ -316,7 +319,9 @@ class RosterController extends Controller
             'sectionId' => $t->primary_section_id,
             // ELOA's "was" (2026-10-24): the line unit they left, when the sync saw them move.
             'was' => $t->relationLoaded('lastLineUnit') && $t->lastLineUnit !== null ? ($t->lastLineUnit->callsign ?? $t->lastLineUnit->name) : null,
-            'role' => $t->roleUnder($sectionLeader),
+            // The short name of the command billet they hold in their unit (`CO`, `PSG`, `SL`...), `Acting PL` and the
+            // like for an acting lead, else null ({@see BilletTags}, #443).
+            'role' => $role,
             'joined' => $t->tis?->toDateString(),
             // Time in grade: the date of the trooper's last promotion, for the order of battle's TIG column and sort.
             'tig' => $t->tig?->toDateString(),

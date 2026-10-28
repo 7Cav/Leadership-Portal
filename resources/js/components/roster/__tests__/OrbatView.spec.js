@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import OrbatView from '../OrbatView.vue';
 import { handleSlash } from '@/composables/useSlashShortcut';
-import { CURRENT, roster, WEEKS } from './fixture';
+import { CURRENT, roster, trooper, WEEKS } from './fixture';
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
@@ -38,6 +38,22 @@ describe('Order of battle (roster-s2)', () => {
 
         expect(rows).toEqual(['section-2', 'trooper-10', 'trooper-11', 'section-3', 'trooper-13', 'trooper-12']);
         expect(wrapper.find('[data-testid="trooper-10"]').text()).toContain('SL');
+    });
+
+    // #443: the tag is the billet's short name, an acting lead's "Acting PL" and the like.
+    it("prints each trooper's billet tag as sent, and none for an untagged trooper", () => {
+        const wrapper = factory({ troopers: [
+            trooper(10, 2, { name: 'Abernathy.L', rank: 'SGT', role: 'Acting SL', billet: 'Rifleman' }),
+            trooper(11, 2, { name: 'Ferreira.D', rank: 'CPL', role: 'ASL', billet: 'Assistant Section Leader' }),
+            trooper(14, 2, { name: 'Moss.K', billet: 'Rifleman' }),
+            trooper(15, 1, { name: 'Hale.S', rank: 'SFC', role: 'PSG', billet: 'Platoon Sergeant 1/A/1-7' }),
+        ] });
+        const tag = (id) => wrapper.find(`[data-testid="trooper-${id}"] td:nth-child(2) .bg-foreground`);
+
+        expect(tag(10).text()).toBe('Acting SL');
+        expect(tag(11).text()).toBe('ASL');
+        expect(tag(14).exists()).toBe(false);
+        expect(tag(15).text()).toBe('PSG');
     });
 
     it('draws an 8-week strip with the current week outlined', () => {

@@ -9,7 +9,6 @@ use App\Models\Unit;
 use App\Repositories\CourseRepository;
 use App\Repositories\TrooperCourseRepository;
 use App\Repositories\TrooperRepository;
-use App\Repositories\UnitCommandMappingRepository;
 use Illuminate\Support\Collection;
 
 /**
@@ -17,9 +16,9 @@ use Illuminate\Support\Collection;
  * subtree as rows, the whole course catalog as columns, and each cell the trooper's status on that course.
  * Read-only, and it never decides who may look: the caller gates the unit with the ScopeResolver (AD-8) first.
  *
- * Each row carries the trooper's `role` (`SL`, `ASL` or null), decided in one place with the roster
- * (`Trooper::roleUnder()`), so the page can list a unit leader-first without guessing from billet text. The page
- * owns the ordering (it reuses the roster's `compareBillet`), so rows arrive in id order.
+ * Each row carries the trooper's `role`, the billet tag the roster shows (`CO`, `PL`, `SL`, `Acting PL`... or null),
+ * decided in one place with the roster ({@see BilletTags}), so the page can list a unit leader-first without guessing
+ * from billet text. The page owns the ordering (it reuses the roster's `compareBillet`), so rows arrive in id order.
  *
  * Every course in the catalog is a column even when no trooper holds or needs it, so a bottleneck cannot vanish
  * from view. A trooper with no row for a course reads `none`, the same as a stored `none`.
@@ -34,7 +33,7 @@ final class ReadinessMatrix
         private readonly TrooperRepository $troopers,
         private readonly TrooperCourseRepository $trooperCourses,
         private readonly CourseRepository $courses,
-        private readonly UnitCommandMappingRepository $commands,
+        private readonly BilletTags $tags,
     ) {}
 
     /**
@@ -49,7 +48,7 @@ final class ReadinessMatrix
     public function for(Unit $unit): array
     {
         $troopers = $this->troopers->activePlacedWithin($unit);
-        $leaders = $this->commands->commandersOf($troopers->pluck('primary_section_id')->unique()->values()->all());
+        $tags = $this->tags->of($troopers);
 
         $statuses = $this->trooperCourses->forTroopers($troopers->pluck('id')->all())
             ->groupBy('trooper_id')
@@ -62,7 +61,7 @@ final class ReadinessMatrix
             'displayName' => $trooper->display_name,
             'rankShort' => $trooper->rank_short,
             'billet' => $trooper->billet,
-            'role' => $trooper->roleUnder($leaders->get($trooper->primary_section_id)),
+            'role' => $tags->get($trooper->id),
             'statuses' => $courses->mapWithKeys(fn ($course) => [
                 $course->id => ($statuses->get($trooper->id)?->get($course->id) ?? CourseStatus::None)->value,
             ])->all(),
