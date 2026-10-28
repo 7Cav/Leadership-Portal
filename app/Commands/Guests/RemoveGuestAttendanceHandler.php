@@ -60,7 +60,8 @@ class RemoveGuestAttendanceHandler
         $sighting = $practice === null ? null : $this->sightings->find($practice->id, $command->trooperId);
         $trooper = $this->troopers->find($command->trooperId);
 
-        if ($sighting === null || $trooper === null) {
+        // A staff member's own entry (#448) is not a guest, so there is none here to remove.
+        if ($sighting === null || $trooper === null || $sighting->isStaff()) {
             throw GuestAttendanceRefusedException::notListed();
         }
 

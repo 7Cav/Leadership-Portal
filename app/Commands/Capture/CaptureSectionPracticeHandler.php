@@ -35,7 +35,9 @@ use Throwable;
  *   section's). The capture does not give them a makeup on their own section's rollcall either, and
  *   records no `cross_section_sightings` row: until the portal has practice time slots, the capture
  *   window is the whole Cav week so far and the game servers are shared by every section, so being
- *   seen does not mean they were at this practice (decided 2026-10-23). Makeups come from a leader.
+ *   seen does not mean they were at this practice (decided 2026-10-23). Makeups come from a leader. A staff member
+ *   (HQ staff or a staff department, on no rollcall) is surfaced the same way, and that stored row is what their milpac
+ *   lists as seen on the game server (#448, `Milpac\StaffPracticeHistory`).
  * - If any server's every source raises a typed failure the practice is **left un-captured** and the
  *   run is recorded failed as telemetry-unavailable — never interpreted as zero attendance, and never
  *   written as the smaller list the other servers gave. The run carries

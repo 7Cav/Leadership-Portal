@@ -99,6 +99,31 @@ describe('Trooper sheet', () => {
         expect(document.body.querySelector('[data-testid="transfers"]')).toBeNull();
     });
 
+    // #448: a staff member's attended section practices show on the Sheet, read only.
+    it('lists a staff member\'s section practices, read only, and none for a trooper without any', async () => {
+        respond(200, detail({
+            staffPractices: [
+                { week: '2026-10-03', sectionId: 4, section: '1/1/A/1-7', source: 'entered', enteredBy: 'Reyes.M', selfReported: true },
+                { week: '2026-09-26', sectionId: 5, section: '2/1/A/1-7', source: 'capture', enteredBy: null, selfReported: false },
+            ],
+        }));
+        factory();
+        await flushPromises();
+
+        const rows = document.body.querySelectorAll('[data-testid="sheet-staff-practices"] [data-testid="staff-practice"]');
+        expect(rows).toHaveLength(2);
+        expect(rows[0].textContent).toContain('Week of 03Oct26, 1/1/A/1-7');
+        expect(rows[0].textContent).toContain('Self-reported by Reyes.M');
+        expect(rows[1].textContent).toContain('Seen on the game server');
+        expect(document.body.querySelector('[data-testid="staff-practice-remove"]')).toBeNull();
+
+        document.body.innerHTML = '';
+        respond(200, detail({ staffPractices: [] }));
+        factory();
+        await flushPromises();
+        expect(document.body.querySelector('[data-testid="sheet-staff-practices"]')).toBeNull();
+    });
+
     it('links to the section rollcall and to milpac in a new tab', async () => {
         respond(200, detail());
         factory();

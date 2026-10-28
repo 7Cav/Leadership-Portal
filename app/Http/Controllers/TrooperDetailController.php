@@ -4,13 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Authorization\CounselingAccess;
 use App\Authorization\ScopeResolver;
+use App\Authorization\StaffPracticeAccess;
 use App\Kpi\AttendanceHistory;
 use App\Kpi\KpiService;
 use App\Milpac\CounselingHistory;
+use App\Milpac\StaffPracticeHistory;
 use App\Milpac\TrooperMilpac;
 use App\Models\CounselingRecord;
 use App\Models\CounselingType;
 use App\Models\Trooper;
+use App\Models\Unit;
+use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\UnitRepository;
 use App\Support\Time\WeekOf;
@@ -39,7 +43,12 @@ class TrooperDetailController extends Controller
         private readonly AttendanceHistory $history,
         private readonly CounselingAccess $access,
         private readonly CounselingHistory $counselingHistory,
+        private readonly StaffPracticeAccess $staffAccess,
+        private readonly StaffPracticeHistory $staffHistory,
     ) {}
+
+    /** How many Cav weeks back, the current one included, the staff practice form offers (never before the floor). */
+    public const STAFF_PRACTICE_WEEKS = 12;
 
     public function show(Request $request, Trooper $trooper): Response
     {
@@ -53,6 +62,7 @@ class TrooperDetailController extends Controller
             // the weeks from before a transfer too. Past weekly reports stay with the unit that sent them.
             'attendance' => $this->history->forTrooper($trooper, WeekOf::start(CarbonImmutable::now())),
             'counseling' => $this->counseling($user, $trooper),
+            'staffPractices' => $this->staffPractices($user, $trooper),
         ]);
     }
 
@@ -88,6 +98,48 @@ class TrooperDetailController extends Controller
                 CounselingType::Dcs->value => $writable && $permissions->filesDcs,
                 CounselingType::Lor->value => $writable && $permissions->filesLor,
             ],
+        ];
+    }
+
+    /**
+     * The section practices a staff member attended (#448), with what this viewer may do: enter one (the staff member,
+     * their staff leader, an Admin) and remove an entry. Null for someone who is not staff and has no entries, so the
+     * panel only shows where it means something. Nothing is offered during a view-as preview, since writes are refused
+     * then (AD-9). The form offers every section of the regiment and the last weeks down to the floor.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function staffPractices(User $user, Trooper $trooper): ?array
+    {
+        $staff = $this->staffAccess->staffUnit($trooper) !== null;
+        $entries = $this->staffHistory->for($trooper, $staff);
+
+        if (! $staff && $entries === []) {
+            return null;
+        }
+
+        $writable = $this->scope->activeViewAs($user) === null;
+        $canRecord = $writable && $this->staffAccess->mayRecord($user, $trooper);
+        $canRemove = $writable && $this->staffAccess->mayRemove($user, $trooper);
+        $floor = WeekOf::floor();
+
+        $weeks = [];
+        for ($week = WeekOf::start(CarbonImmutable::now()); count($weeks) < self::STAFF_PRACTICE_WEEKS && $week->greaterThanOrEqualTo($floor); $week = $week->subWeek()) {
+            $weeks[] = $week->toDateString();
+        }
+
+        return [
+            'entries' => array_map(fn (array $entry) => [
+                ...$entry,
+                'removable' => $canRemove && $entry['source'] === 'entered' && $entry['week'] >= $floor->toDateString(),
+            ], $entries),
+            'canRecord' => $canRecord,
+            'sections' => $canRecord ? $this->units->tree()
+                ->filter(fn (Unit $unit) => $unit->type === UnitType::Section)
+                ->map(fn (Unit $unit) => ['id' => $unit->id, 'label' => $unit->callsign ?? $unit->name])
+                ->values()
+                ->all() : [],
+            'weeks' => $canRecord ? $weeks : [],
         ];
     }
 
