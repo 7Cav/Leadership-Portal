@@ -108,6 +108,17 @@ it('renders the "Why this matters" and "Good to know" call-outs, on the marker\'
         ->and($html)->not->toContain('[!');
 });
 
+it('renders a table', function () {
+    docWrite($this->docs, 'basics/roles.md', docMeta('basics'), "| Who | Can do |
+| --- | --- |
+| Section Leader | Rollcall |
+");
+
+    $html = docLibrary($this)->find(Audience::Everyone, 'basics', 'roles')->html;
+
+    expect($html)->toContain('<table>')->toContain('<th>Who</th>')->toContain('<td>Section Leader</td>');
+});
+
 it('never renders raw HTML or a script link from a guide', function () {
     docWrite($this->docs, 'basics/unsafe.md', docMeta('basics'), "<script>alert(1)</script>\n\nHi <b onclick=\"x()\">there</b>.\n\n[Click](javascript:alert(1))\n");
 
