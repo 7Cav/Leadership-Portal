@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 
 // #428: an Admin gives Hell Let Loose Steam, Epic and Xbox ID kinds, a section leader's identity form then asks for
-// the kind first, and the Admin puts the game back to one kind. Nothing is linked, so the other game-identity flows
-// that share this seeded database are unaffected.
+// the kind first, and the Admin puts the game back to one kind. Nothing is linked, but the game's kinds change for
+// everyone while it runs, so playwright.config.js runs it after the other specs, not beside them.
 
 test('an Admin gives a game several ID kinds and the identity form asks for the kind first', async ({ browser }) => {
     const admin = await (await browser.newContext()).newPage();
@@ -20,7 +20,8 @@ test('an Admin gives a game several ID kinds and the identity form asks for the 
     const leader = await (await browser.newContext()).newPage();
     await leader.goto('/__e2e/login/Vasquez.R?to=/game-identities');
     await leader.locator('[data-testid^="open-"]').first().click();
-    await expect(leader.getByTestId('identity-game')).toHaveValue('hll');
+    // Whichever trooper opens first, and whatever they are already linked on, pick the game under test.
+    await leader.getByTestId('identity-game').selectOption('hll');
     await expect(leader.getByTestId('identity-kind')).toHaveValue('Steam ID');
     await expect(leader.getByTestId('identity-id')).toHaveAttribute('placeholder', 'Paste the Steam ID');
 
