@@ -8,6 +8,7 @@ use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitKind;
 use App\Models\UnitType;
+use App\Models\User;
 use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\TrooperRepository;
 use Carbon\CarbonImmutable;
@@ -338,6 +339,16 @@ class Eloquent implements TrooperRepository
     public function find(int $id): ?Trooper
     {
         return Trooper::query()->find($id);
+    }
+
+    public function servingWithoutAccount(): EloquentCollection
+    {
+        return Trooper::query()
+            ->whereIn('status', TrooperStatus::servingValues())
+            ->whereNotNull('cav_id')
+            ->whereNotIn('cav_id', User::query()->select('cav_id')->whereNotNull('cav_id'))
+            ->orderBy('username')
+            ->get();
     }
 
     public function searchByUsername(array $terms, ?int $cavId, iterable $sectionIds, bool $withUnplaced, int $limit): EloquentCollection

@@ -30,7 +30,8 @@ class ViewAsController extends Controller
 
     /**
      * What the picker may offer: the units inside the viewer's real scope (a leaf leader gets
-     * only their own section, AC #6) and, for an Admin, every other portal user.
+     * only their own section, AC #6) and, for an Admin, every other portal user and every serving
+     * trooper who has no account yet (`kind` says which; `account` is false for the latter).
      */
     public function options(
         Request $request,
@@ -54,20 +55,28 @@ class ViewAsController extends Controller
         $people = null;
         if ($viewer->is_admin) {
             $others = $users->all()->reject(fn ($user) => $user->id === $viewer->id);
-            $cavIds = $others->pluck('cav_id')->filter()->values()->all();
+            // Troopers who have never signed in have no account, but can still be previewed from their billet.
+            $unregistered = $troopers->servingWithoutAccount();
+            $cavIds = $others->pluck('cav_id')->merge($unregistered->pluck('cav_id'))->filter()->values()->all();
             $ranks = $troopers->ranksByCavId($cavIds);
             $commanded = $commands->commandedUnitsByCavId($cavIds);
+            $designation = fn (?int $cavId) => ($unit = $cavId !== null ? $commanded->get($cavId) : null) ? ($unit->callsign ?? $unit->name) : null;
 
-            $people = $others->map(function ($user) use ($ranks, $commanded) {
-                $unit = $user->cav_id !== null ? $commanded->get($user->cav_id) : null;
-
-                return [
-                    'id' => $user->id,
-                    'label' => trim(($user->cav_id !== null ? $ranks->get($user->cav_id) : '').' '.$user->username),
-                    'designation' => $unit ? ($unit->callsign ?? $unit->name) : null,
-                    'admin' => $user->is_admin,
-                ];
-            })->values();
+            $people = $others->map(fn ($user) => [
+                'kind' => 'user',
+                'id' => $user->id,
+                'label' => trim(($user->cav_id !== null ? $ranks->get($user->cav_id) : '').' '.$user->username),
+                'designation' => $designation($user->cav_id),
+                'admin' => $user->is_admin,
+                'account' => true,
+            ])->merge($unregistered->map(fn ($trooper) => [
+                'kind' => 'trooper',
+                'id' => $trooper->id,
+                'label' => $trooper->display_name,
+                'designation' => $designation($trooper->cav_id),
+                'admin' => false,
+                'account' => false,
+            ]))->values();
         }
 
         $active = $this->scope->activeViewAs($viewer);
@@ -95,9 +104,9 @@ class ViewAsController extends Controller
 
         if (! $enter->handle($request->user(), $target)) {
             throw ValidationException::withMessages([
-                'view_as' => $target->kind === ViewAsKind::User
-                    ? 'Only an Admin can view the portal as another person.'
-                    : 'You can only view as a unit inside your own scope.',
+                'view_as' => $target->kind === ViewAsKind::Unit
+                    ? 'You can only view as a unit inside your own scope.'
+                    : 'Only an Admin can view the portal as another person.',
             ]);
         }
 

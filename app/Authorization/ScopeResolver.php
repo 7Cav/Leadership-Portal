@@ -258,7 +258,9 @@ class ScopeResolver
      *
      *  - a **unit** must exist and sit inside the viewer's real scope; the preview is its subtree;
      *  - a **user** may be previewed by an Admin only, never by themselves; the preview is that
-     *    user's own real scope (which an Admin's full tree always contains).
+     *    user's own real scope (which an Admin's full tree always contains);
+     *  - a **trooper** with no portal account, by an Admin only, while they serve; the preview is
+     *    what their billet and acting leads would give them ({@see rosterAccount()}).
      *
      * Either way the result is intersected with the viewer's real scope, here and only here.
      */
@@ -269,6 +271,7 @@ class ScopeResolver
         $preview = match ($target->kind) {
             ViewAsKind::Unit => $this->asUnit($real, $target),
             ViewAsKind::User => $viewer->is_admin ? $this->asUser($viewer, $target) : null,
+            ViewAsKind::Trooper => $viewer->is_admin ? $this->asTrooper($target) : null,
         };
 
         // The one place every kind passes through: whatever a target would see is cut down to
@@ -317,6 +320,50 @@ class ScopeResolver
             designation: $unit ? ($unit->callsign ?? $unit->name) : null,
             unitName: $unit?->name,
             admin: $user->is_admin,
+        );
+    }
+
+    /**
+     * A serving trooper who has never signed in, as the account they would have: unsaved, never an Admin, with no grants,
+     * carrying only their milpac link, so their billet and acting leads give exactly the scope they would sign in with.
+     * Null when the trooper does not exist, has left, or already has an account (preview that account instead).
+     */
+    public function rosterAccount(int $trooperId): ?User
+    {
+        $trooper = $this->troopers->find($trooperId);
+        if ($trooper === null || ! $trooper->status?->isServing() || $this->users->withCavId((int) $trooper->cav_id) !== null) {
+            return null;
+        }
+
+        $account = new User;
+        $account->forceFill(['username' => $trooper->username, 'cav_id' => $trooper->cav_id, 'is_admin' => false]);
+
+        return $account;
+    }
+
+    /** The unit a roster account would lead: their billet's, else the first they are acting lead of; null for none. */
+    public function ledBy(User $account): ?Unit
+    {
+        return $this->commandedUnits($account)->first();
+    }
+
+    private function asTrooper(ViewAsTarget $target): ?ActiveViewAs
+    {
+        $account = $this->rosterAccount($target->id);
+        if ($account === null) {
+            return null;
+        }
+
+        $unit = $this->ledBy($account);
+        $trooper = $this->troopers->find($target->id);
+
+        return new ActiveViewAs(
+            target: $target,
+            scope: $this->realScope($account),
+            label: $trooper->display_name,
+            designation: $unit ? ($unit->callsign ?? $unit->name) : null,
+            unitName: $unit?->name,
+            admin: false,
         );
     }
 }

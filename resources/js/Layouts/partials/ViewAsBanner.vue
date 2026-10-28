@@ -22,9 +22,14 @@ function leave() {
 // another Admin is acted as without their Admin rights), or a unit's billet with no person behind it ("Act as this
 // billet"). Only an Admin is offered either; the server checks anyway.
 const { isRealAdmin } = useIdentity();
-const actsOnBillet = computed(() => viewAs.value?.kind === 'unit');
-const canActAs = computed(() => isRealAdmin.value && (viewAs.value?.kind === 'user' || actsOnBillet.value));
-const actLabel = computed(() => (actsOnBillet.value ? 'Act as this billet' : 'Act as them'));
+// Someone on the roster who has never signed in has no account to act for, so acting as them is acting as the billet
+// they hold; with none, there is nothing to act as.
+const throughBillet = computed(() => viewAs.value?.kind === 'trooper');
+const actsOnBillet = computed(() => viewAs.value?.kind === 'unit' || throughBillet.value);
+const canActAs = computed(
+    () => isRealAdmin.value && (viewAs.value?.kind === 'user' || viewAs.value?.kind === 'unit' || (throughBillet.value && Boolean(viewAs.value.designation))),
+);
+const actLabel = computed(() => (throughBillet.value ? 'Act as their billet' : actsOnBillet.value ? 'Act as this billet' : 'Act as them'));
 const confirming = ref(false);
 const starting = ref(false);
 const actError = ref(null);
@@ -54,7 +59,7 @@ function actAs() {
         <PhEye class="size-4 shrink-0" weight="bold" aria-hidden="true" />
         <p class="min-w-0 flex-1 truncate">
             Viewing as <strong class="font-semibold">{{ subject }}</strong>
-            <template v-if="viewAs.kind === 'user' && viewAs.designation">
+            <template v-if="viewAs.kind !== 'unit' && viewAs.designation">
                 <span class="font-mono text-[12.5px]"> · {{ viewAs.designation }}</span>
             </template>
             <template v-else-if="viewAs.kind === 'unit' && viewAs.unitName !== viewAs.designation">
@@ -88,6 +93,7 @@ function actAs() {
                 {{ actsOnBillet ? `Act as the leader of ${viewAs?.designation}?` : `Act as ${viewAs?.label}?` }}
             </AlertDialogTitle>
             <AlertDialogDescription v-if="actsOnBillet" class="text-[13px] text-muted-foreground">
+                <template v-if="throughBillet">{{ viewAs?.label }} has never signed in, so you act as the billet they hold.</template>
                 You get exactly the permissions of that unit's leader, whoever holds the billet or if nobody does, and lose
                 your Admin ones until you stop. Everything you change is real and is recorded in your name, as that billet.
             </AlertDialogDescription>

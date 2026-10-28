@@ -211,6 +211,8 @@ class ActAs
         $acting = $stored === null || $this->viaUnreadable($actor) ? null : match ($stored->kind) {
             ViewAsKind::User => $this->asPerson($actor, $stored->id, $via),
             ViewAsKind::Unit => $this->asBillet($actor, $stored->id, $via),
+            // Never stored: acting as a trooper with no account is stored as their billet.
+            ViewAsKind::Trooper => null,
         };
 
         if ($stored !== null && $acting === null) {
