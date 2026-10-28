@@ -36,11 +36,14 @@ export function openablePage(page) {
 }
 
 // Where the reader came from when the "?" help opened this guide (`?from=/rollcall`): a path on this portal only,
-// never `//elsewhere` or a full URL, so the back link can never leave the site. Null when there is none.
+// never `//elsewhere` or a full URL, so the back link can never leave the site. Null when there is none. A browser
+// drops tabs and line breaks from a URL and reads `\` as `/`, so `/<tab>/evil.example` would become `//evil.example`:
+// any control character or backslash refuses it, and what is left must still resolve to this portal.
 export function cameFrom(url) {
     const query = (url ?? '').split('?')[1] ?? '';
     const from = new URLSearchParams(query.split('#')[0]).get('from');
-    if (!from || !from.startsWith('/') || from.startsWith('//') || from.startsWith('/\\')) return null;
+    if (!from || !from.startsWith('/') || from.startsWith('//') || /[\u0000-\u001F\u007F\\]/.test(from)) return null;
+    if (typeof window !== 'undefined' && new URL(from, window.location.origin).origin !== window.location.origin) return null;
 
     const found = locate(from);
 

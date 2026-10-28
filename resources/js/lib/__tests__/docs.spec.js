@@ -56,5 +56,10 @@ describe('cameFrom', () => {
         expect(cameFrom('/docs/x/y?from=//evil.example')).toBeNull();
         expect(cameFrom('/docs/x/y?from=https://evil.example')).toBeNull();
         expect(cameFrom('/docs/x/y?from=/\\evil.example')).toBeNull();
+        // A browser drops tabs and line breaks from a URL, so these would become `//evil.example`.
+        expect(cameFrom('/docs/x/y?from=/%09/evil.example')).toBeNull();
+        expect(cameFrom('/docs/x/y?from=/%0A/evil.example')).toBeNull();
+        expect(cameFrom('/docs/x/y?from=/%0D/evil.example')).toBeNull();
+        expect(cameFrom('/docs/x/y?from=/rollcall%5C..')).toBeNull();
     });
 });
