@@ -435,3 +435,14 @@ describe('template entries (#375)', function () {
         expect(array_keys($filtered))->toContain($entries['template']->id, $entries['company']->id, $entries['pick']->id);
     });
 });
+
+it('links a company template editing switch to the company templates, and finds it under the company (#376)', function () {
+    $this->admin = User::factory()->admin()->create();
+    $this->actor = User::factory()->create();
+    $company = Unit::factory()->create(['type' => UnitType::Company, 'name' => 'Alpha Company', 'callsign' => 'A/1-7', 'path' => '760/']);
+    $policy = app(TemplateVersionRepository::class)->setCompanyEditsTemplates($company, false, $this->actor->id);
+    $entry = auditAbout($this, $policy, 'template_policy.set');
+
+    expect(auditLinksOn($this)[$entry->id])->toBe(['href' => "/settings/templates?company={$company->id}", 'label' => 'A/1-7 template editing'])
+        ->and(array_keys(auditLinksOn($this, "?unit_id={$company->id}")))->toContain($entry->id);
+});
