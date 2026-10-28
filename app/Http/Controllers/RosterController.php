@@ -73,11 +73,17 @@ class RosterController extends Controller
         private readonly UnitGuidonRepository $guidons,
     ) {}
 
-    /** @var Collection<int, UnitGuidon>|null every saved guidon by unit id, read once per request */
+    /**
+     * Every saved guidon by unit id, read once per request. Each action resets it first: the route keeps this
+     * controller between requests, so a stale copy would otherwise outlive the request that read it.
+     *
+     * @var Collection<int, UnitGuidon>|null
+     */
     private ?Collection $guidonsByUnit = null;
 
     public function index(Request $request, ?int $unit = null): Response
     {
+        $this->guidonsByUnit = null;
         $user = $request->user();
         $scope = $this->scope->resolve($user);
         $tree = $this->units->tree();
@@ -138,6 +144,7 @@ class RosterController extends Controller
      */
     public function trooper(Request $request, int $trooper): JsonResponse
     {
+        $this->guidonsByUnit = null;
         $found = $this->troopers->find($trooper);
 
         // One answer for "no such trooper", "not placed" and "outside your scope" (AD-8): 404, the same gate the
