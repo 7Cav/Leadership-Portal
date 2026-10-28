@@ -37,7 +37,8 @@ use Illuminate\Support\Collection;
  *    makes them writable again.
  *
  * Writes are judged on real authority narrowed by an active view-as preview ({@see ScopeResolver::writeScope()}); the
- * `ReadOnlyWhileViewingAs` middleware refuses them during a preview anyway. Reads follow the preview through `canSee`.
+ * `ReadOnlyWhileViewingAs` middleware refuses them during a preview anyway. Reads follow the preview through `canSee`,
+ * and an Admin's DCS read through {@see ScopeResolver::actsAsAdmin()}, so previewing a non-Admin shows what they see.
  */
 class CounselingAccess
 {
@@ -66,8 +67,12 @@ class CounselingAccess
         // Left the Cav (not on the serving allow-list, or no standing at all): read-only for everyone (2026-10-28).
         $departed = ! ($trooper->status?->isServing() ?? false);
 
+        // A read follows a view-as preview: an Admin previewing someone who is not one sees the DCSs that person's
+        // command would show, not every DCS. Writes keep the real flag; a preview refuses them anyway.
+        $readsAsAdmin = $this->scope->actsAsAdmin($user);
+
         return new CounselingPermissions(
-            seesDcs: $canSee && ($admin || $issuing[CounselingType::Dcs->value] !== null),
+            seesDcs: $canSee && ($readsAsAdmin || $issuing[CounselingType::Dcs->value] !== null),
             seesLor: $canSee,
             filesDcs: ! $departed && ! $self && ($admin || $issuing[CounselingType::Dcs->value] !== null),
             filesLor: ! $departed && ! $self && ($admin || $issuing[CounselingType::Lor->value] !== null),
