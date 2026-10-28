@@ -139,6 +139,20 @@ npm audit --audit-level=high  # supply-chain gate — must report no high/critic
 - Commit messages describe the change plainly — Conventional Commits style
   (`feat:`, `chore:`, `fix:`) as used in the history.
 
+## 7. Documentation
+
+The in-portal guides at `/docs` are markdown files in `resources/docs`, one per task, each for an audience
+(`everyone`, `leader` or `admin`). `resources/docs/README.md` explains the layout, the front-matter fields, how to add
+a guide and how to take screenshots that show no real trooper.
+
+- **A pull request that changes what a screen does updates that screen's guide**, in the same diff. Say in the PR
+  if no guide is affected, and why.
+- A new screen in the sidebar needs a guide (`page:` pointing at it) or a line in
+  `resources/js/Layouts/__tests__/guideCoverage.spec.js` saying why it has none; that test fails until it has one or
+  the other.
+- `tests/Feature/Docs/GuidesOnDiskTest.php` fails the build on a broken guide: bad front matter, a dead link to
+  another guide, a missing image.
+
 ---
 
 Questions about *why* a rule exists → the `AD-n` it cites (ask a maintainer for the spine). Questions
