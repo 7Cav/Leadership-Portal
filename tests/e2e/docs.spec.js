@@ -44,6 +44,8 @@ test('Help on the rollcall opens the rollcall guide, which leads back to the rol
 // #413: Ctrl K opens the search on any docs page; a typo still finds the guide, and Enter opens it.
 test('a leader finds a guide with Ctrl K, despite a typo, and opens it with Enter', async ({ page }) => {
     await page.goto('/__e2e/login/Mercer.J?to=/docs');
+    // The shortcut listens once the page has mounted.
+    await expect(page.getByTestId('docs-home')).toBeVisible();
 
     await page.keyboard.press('Control+k');
     await page.getByTestId('docs-search-input').fill('rolcall');
