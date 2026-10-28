@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import { PhWarningOctagon } from '@phosphor-icons/vue';
 
-// The act-as bar (#379): red, not the view-as gold, because here every click is real. An Admin is acting with
+// The act-as bar (#379): red, not the view-as gold, because here every click is real. An Admin, or a leader acting as someone below them (#432), is acting with
 // someone else's permissions and everything they change is recorded as them acting for that person. It rides in the
 // sticky top bar with the header, so it never scrolls away.
 const page = usePage();

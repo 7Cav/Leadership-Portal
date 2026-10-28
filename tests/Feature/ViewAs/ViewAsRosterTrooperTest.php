@@ -80,3 +80,23 @@ it('refuses to act as a trooper with no account who holds no billet', function (
 
     expect(AuditLogEntry::count())->toBe(0);
 });
+
+it('refuses a leader who targets a trooper with no account, as it refuses a leader targeting a billet', function () {
+    // Acting as a billet is for an Admin acting as nobody; a trooper with no account is acted as through their billet.
+    UnitCommandMapping::factory()->create(['unit_id' => app(UnitRepository::class)->tree()->firstWhere('name', '7th Cavalry Regiment')->id, 'cav_position_id' => 4000]);
+    Trooper::factory()->create(['cav_id' => 805, 'cav_position_id' => 4000, 'username' => 'Colonel.A', 'status' => TrooperStatus::Combat]);
+    $leader = User::factory()->create(['cav_id' => 805, 'username' => 'Colonel.A']);
+
+    $this->actingAs($leader)->post('/act-as', ['kind' => 'trooper', 'id' => $this->roscoe->id])->assertForbidden();
+
+    expect(AuditLogEntry::where('action', 'act_as.started')->count())->toBe(0);
+    $this->actingAs($leader)->get('/home')->assertInertia(fn (Assert $page) => $page->where('actingAs', null));
+});
+
+it('refuses an Admin who is already acting as someone, so a trooper with no account cannot be chained onto it', function () {
+    $this->actingAs($this->admin)->post('/act-as', ['kind' => 'user', 'id' => $this->member->id])->assertRedirect('/home');
+
+    $this->actingAs($this->admin)->post('/act-as', ['kind' => 'trooper', 'id' => $this->roscoe->id])->assertSessionHasErrors('act_as');
+
+    expect(AuditLogEntry::where('action', 'act_as.started')->count())->toBe(1);
+});

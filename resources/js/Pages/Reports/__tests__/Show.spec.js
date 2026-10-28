@@ -392,7 +392,7 @@ describe('Reports/Show', () => {
         expect(text.split('\n').slice(0, 3)).toEqual([
             '2nd Section (2/1/A/1-7) weekly report, week of 03Oct26',
             'Sent Thu 08Oct26 16:24Z by SGT Vasquez.R',
-            'Strength 2',
+            'In rollcall 2',
         ]);
         expect(text).toContain('Trained: Land nav');
         expect(text).toContain('Notes:\nGood.');

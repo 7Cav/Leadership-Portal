@@ -139,9 +139,11 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::post('/view-as', [ViewAsController::class, 'store'])->middleware('throttle:audited-writes')->name('view-as.store');
     Route::delete('/view-as', [ViewAsController::class, 'destroy'])->middleware('throttle:audited-writes')->name('view-as.destroy');
 
-    // Act as (#379): an Admin acts as another person with that person's permissions, writes included, under a red
-    // bar. Starting and stopping are audited, so they share the audited-writes throttle. Only the real Admin behind
-    // the request may start or stop it; the controller checks.
+    // Act as (#379, #432): an Admin, or a leader for the billet holders below them, acts as another person with that
+    // person's permissions, writes included, under a red bar. The picker reads its options as JSON. Starting and
+    // stopping are audited, so they share the audited-writes throttle. Only the real user behind the request may start
+    // or stop it, and who may be acted as is checked on every request; the controller and ActAs check.
+    Route::get('/act-as/options', [ActAsController::class, 'options'])->name('act-as.options');
     Route::post('/act-as', [ActAsController::class, 'store'])->middleware('throttle:audited-writes')->name('act-as.store');
     Route::delete('/act-as', [ActAsController::class, 'destroy'])->middleware('throttle:audited-writes')->name('act-as.destroy');
 

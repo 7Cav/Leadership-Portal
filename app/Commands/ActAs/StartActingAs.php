@@ -15,11 +15,13 @@ use App\Repositories\UserRepository;
 use App\Support\Audit\AuditEnvelope;
 
 /**
- * An Admin starts acting as a person or a billet (#379), recorded as `act_as.started` against that user or unit
- * (AD-16) with the Admin as actor. A view-as preview the Admin had open ends first (recorded as stopped), since the two
- * never run together. Switching straight to someone else records the old one as stopped. Refused, storing and logging
- * nothing, unless {@see ActAs} allows it: a real Admin; for a person, not themselves, someone who could sign in (an
- * Admin without their Admin rights); for a billet, any unit that exists.
+ * An Admin or a leader starts acting as a person, or an Admin as a billet (#379, #432), recorded as `act_as.started`
+ * against that user or unit (AD-16) with whoever starts as actor. A view-as preview they had open ends first (recorded
+ * as stopped), since the two never run together. Switching straight to someone else records the old one as stopped.
+ * Refused, storing and logging nothing, unless {@see ActAs} allows it: for an Admin acting as nobody, a person who
+ * could sign in (an Admin without their Admin rights) or any unit that exists; for a leader, or an Admin acting as one,
+ * only a serving billet holder strictly below them in their own write scope. Nobody who acts as a person starts
+ * another without stopping first, except an Admin through a leader, who stays inside that leader's scope.
  */
 class StartActingAs
 {
@@ -35,11 +37,17 @@ class StartActingAs
     ) {}
 
     /**
-     * @return bool false when the Admin may not act as that person or billet
+     * @param  User  $admin  who starts: the real signed-in user, an Admin or a leader
+     * @return bool false when they may not act as that person or billet
      */
     public function handle(User $admin, ViewAsTarget $target): bool
     {
+        if ($this->actAs->nested($admin)) {
+            return false;
+        }
+
         // Someone who has never signed in has no account to act for: acting as them is acting as the billet they hold.
+        // It is converted before the checks below, so it is held to the same rule as acting as any billet.
         if ($target->kind === ViewAsKind::Trooper) {
             $account = $this->scope->rosterAccount($target->id);
             $billet = $account === null ? null : $this->scope->ledBy($account);
@@ -49,18 +57,20 @@ class StartActingAs
             $target = new ViewAsTarget(ViewAsKind::Unit, $billet->id);
         }
 
+        // Already acting as this target and it still holds: nothing to start, nothing to record.
+        $via = $this->actAs->viaFor($admin);
+        if ($via == $target) {
+            return true;
+        }
+
         $subject = $this->subjectOf($target);
         $allowed = match (true) {
-            $subject instanceof User => $this->actAs->allows($admin, $subject),
-            $subject instanceof Unit => $this->actAs->allowsBillet($admin),
+            $subject instanceof User => $this->actAs->allows($admin, $subject, $via),
+            $subject instanceof Unit => $this->actAs->allowsBillet($admin, $via),
             default => false,
         };
         if (! $allowed) {
             return false;
-        }
-
-        if ($this->actAs->storedFor($admin) == $target) {
-            return true;
         }
 
         $this->stop->handle($admin);
@@ -73,8 +83,8 @@ class StartActingAs
             action: 'act_as.started',
             reason: null,
             reasonRequired: false,
-            mutation: function () use ($admin, $target, $subject) {
-                $this->actAs->start($admin, $target);
+            mutation: function () use ($admin, $target, $subject, $via) {
+                $this->actAs->start($admin, $target, $via);
 
                 return $subject;
             },

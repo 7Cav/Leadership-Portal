@@ -96,6 +96,8 @@ it('freezes the live KPIs, the delta and the notes, and marks the report sent', 
         ->and(ReportSnapshot::fromArray($report->kpis))->toEqual(new ReportSnapshot(
             app(KpiService::class)->forUnit($this->section, $this->weekStart),
             null, // the section's first report
+            [],
+            2, // the headcount frozen with it (#424)
         ))
         ->and($report->notes)->toBe('Two new recruits.')
         ->and($report->sent_by)->toBe($this->leader->id)

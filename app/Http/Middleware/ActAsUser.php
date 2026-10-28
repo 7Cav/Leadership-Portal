@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Runs the request as whoever an Admin is acting as (#379): a person, or a stand-in holding a billet ({@see ActAs}).
- * The session stays the Admin's: only this request's user is swapped, so every gate (the ScopeResolver, each
+ * Runs the request as whoever an Admin, or a leader acting as someone below them (#432), is acting as: a person, or a
+ * stand-in holding a billet ({@see ActAs}). The session stays the real user's: only this request's user is swapped, so every gate (the ScopeResolver, each
  * Command's checks) sees exactly those permissions, Admin screens included as refused. The real Admin is kept on the
  * request ({@see ActAs::ADMIN_ATTRIBUTE}) for the act-as stop route, the serving check and sign-out, and handed to
  * {@see ActingFor} so each audit entry names the Admin and who or what they acted as.
