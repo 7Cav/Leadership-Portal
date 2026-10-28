@@ -2,6 +2,7 @@
 
 namespace App\Commands\Units;
 
+use App\Commands\Templates\CarryUnitTemplates;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
@@ -16,12 +17,16 @@ use App\Support\Audit\AuditEnvelope;
  * {@see UnitRepository::move()}, since Deptrac keeps DB access there. A no-op move (the
  * requested parent is already the unit's current parent) never reaches `AuditEnvelope` — no
  * state changes, so nothing is logged.
+ *
+ * A platoon or section that lands under another company keeps its settings and templates (#378): the templates its
+ * sections used are carried along, in the same transaction and audited with the move ({@see CarryUnitTemplates}).
  */
 class MoveUnit
 {
     public function __construct(
         private readonly UnitRepository $units,
         private readonly AuditEnvelope $audit,
+        private readonly CarryUnitTemplates $carry,
     ) {}
 
     /**
@@ -57,12 +62,20 @@ class MoveUnit
             throw InvalidUnitPlacementException::wrongRankUnderParent($unit->type, $newParent->type);
         }
 
+        // Read while the unit still sits under its old company: what its sections render from there.
+        [$fromCompany, $templates] = $this->carry->usedBy($unit);
+
         return $this->audit->record(
             actorId: $actor->id,
             action: 'unit.moved',
             reason: null,
             reasonRequired: false,
-            mutation: fn () => $this->units->move($unit, $newParentId),
+            mutation: function () use ($actor, $unit, $newParentId, $fromCompany, $templates) {
+                $moved = $this->units->move($unit, $newParentId);
+                $this->carry->afterMove($actor, $moved, $fromCompany, $templates);
+
+                return $moved;
+            },
         );
     }
 }
