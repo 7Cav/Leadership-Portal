@@ -152,7 +152,8 @@ on none.
   included and empty line units left out. Choosing one opens the page you are on for that unit (its roster, a
   section's rollcall, or its report or roll-up for the same week), else that unit's roster. It is navigation only: it
   never changes what you can see or do.
-- View as (in the top bar): previews the portal as a unit's leader, or for an Admin as a person. Starting or switching
+- View as (in the top bar): previews the portal as a unit's leader, or for an Admin as a person. Its list of units
+  leaves out empty line units, except the one you are viewing as now. Starting or switching
   a preview opens the page you were on for the unit you picked when there is one (its roster, its rollcall or the
   rollcall landing, its report for the same week or the reports landing, its readiness matrix, and its roster from a
   trooper page), else Home. In a person preview, the roster and the rollcall open where that person would land.
@@ -166,7 +167,8 @@ in it, it is left out of:
 
 - the report chain: it is not a child that has to send, so it is not in "Every unit has sent", not in "Sent without"
   and not listed as "Not in at send", and the roll-up workspace does not draw it;
-- the roster's ORBAT and unit picker, and the sidebar's unit switcher;
+- the roster's ORBAT and unit picker, the sidebar's unit switcher, and the View as list (the unit you view as now stays
+  listed);
 - the rollcall's landing (its section picker still lists them, marked "No troopers");
 - Home's progress lanes and step matrix, the unit table, the sparkline's "every section sent" test, and Needs attention.
 

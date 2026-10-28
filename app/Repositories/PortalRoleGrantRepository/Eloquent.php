@@ -21,6 +21,21 @@ class Eloquent implements PortalRoleGrantRepository
             ->pluck('unit');
     }
 
+    public function grantedUnitIdsByUserId(array $userIds): Collection
+    {
+        if ($userIds === []) {
+            return collect();
+        }
+
+        return PortalRoleGrant::query()
+            ->whereIn('user_id', $userIds)
+            ->orderBy('id')
+            ->get(['user_id', 'unit_id'])
+            ->groupBy(fn (PortalRoleGrant $grant) => (int) $grant->user_id)
+            ->map(fn ($grants) => $grants->map(fn (PortalRoleGrant $grant) => (int) $grant->unit_id)->values()->toBase())
+            ->toBase();
+    }
+
     public function all(): EloquentCollection
     {
         return PortalRoleGrant::query()->with(['user', 'unit'])->orderBy('id')->get();

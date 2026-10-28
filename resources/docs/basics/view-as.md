@@ -11,7 +11,7 @@ audience: everyone
 ## Start a preview
 
 1. Choose **View as** in the top bar.
-2. Pick a unit you lead, or a unit under it. Admins can also pick a person.
+2. Pick a unit you lead, or a unit under it. Admins can also pick a person. A unit with no troopers in it or under it is not listed.
 3. A gold bar at the top says who you are viewing as.
 4. You stay on the same page, for the unit you picked: from a battalion's roster you land on the roster of the section you picked. A page that has no version for that unit opens Home.
 

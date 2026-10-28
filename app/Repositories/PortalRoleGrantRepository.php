@@ -25,6 +25,15 @@ interface PortalRoleGrantRepository
     public function grantedUnitsFor(User $user): Collection;
 
     /**
+     * {@see grantedUnitsFor()} for many users at once, as unit ids grouped by user id: one query, for a list that
+     * works out many people's scope together (the act as picker, #496). A user with no grant is absent.
+     *
+     * @param  list<int>  $userIds
+     * @return Collection<int, Collection<int, int>>
+     */
+    public function grantedUnitIdsByUserId(array $userIds): Collection;
+
+    /**
      * Every grant, for the Admin grants listing (Story 1.12) — eager-loaded so the controller
      * never lazy-loads `user`/`unit` off a row (AD-2's `preventLazyLoading()` outside
      * production).

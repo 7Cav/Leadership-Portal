@@ -3,10 +3,12 @@
 namespace App\Authorization;
 
 use App\Models\SyncRun;
+use App\Models\TrooperStatus;
 use App\Models\User;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
 use Illuminate\Contracts\Session\Session;
+use Illuminate\Support\Collection;
 
 /**
  * Keeps the sign-in gate (`Commands\Auth\AdmitServingMember`) true for the length of a session: the
@@ -61,8 +63,36 @@ class ServingSession
             return true;
         }
 
-        $status = $this->troopers->statusOf((int) $user->cav_id);
+        return $this->endsWith($user, $this->troopers->statusOf((int) $user->cav_id));
+    }
 
+    /**
+     * {@see mustEnd()} for many users at once: the ids of those it would answer true for, with their standings read in
+     * one query (#496), for a list that must leave out anyone who could not sign in (the act as picker).
+     *
+     * @param  Collection<int, User>  $users
+     * @return Collection<int, int> user ids
+     */
+    public function mustEndAmong(Collection $users): Collection
+    {
+        $cavIds = $users
+            ->filter(fn (User $user) => ! $user->is_admin && $user->cav_id !== null)
+            ->map(fn (User $user) => (int) $user->cav_id)
+            ->unique()
+            ->values()
+            ->all();
+        $troopers = $this->troopers->byCavId($cavIds);
+
+        return $users
+            ->filter(fn (User $user) => ! $user->is_admin
+                && ($user->cav_id === null || $this->endsWith($user, $troopers->get((int) $user->cav_id)?->status)))
+            ->map(fn (User $user) => (int) $user->id)
+            ->values();
+    }
+
+    /** {@see mustEnd()} for a linked user who is not an Admin, given their cached trooper's standing (null for none). */
+    private function endsWith(User $user, ?TrooperStatus $status): bool
+    {
         if ($status === null || $status->isServing()) {
             return false;
         }

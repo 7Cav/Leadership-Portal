@@ -105,6 +105,71 @@ class ScopeResolver
     }
 
     /**
+     * {@see realScope()} for many users at once, keyed by user id: the same three sources and the same rules, read in a
+     * fixed number of queries however many users are asked about (#496). The tree is read once and every subtree is
+     * worked out from it, where {@see realScope()} asks the database for each. What the act as picker reads, which
+     * would otherwise run a batch of queries per person below a leader.
+     *
+     * @param  Collection<int, User>  $users
+     * @return Collection<int, Collection<int, int>> unit ids by user id
+     */
+    public function realScopes(Collection $users): Collection
+    {
+        if ($users->isEmpty()) {
+            return collect();
+        }
+
+        $tree = $this->units->tree();
+        // By the unit's own path, as subtreeIds() matches it; worked out once per path, as many people share a unit.
+        $subtrees = [];
+        $subtree = function (Unit $unit) use ($tree, &$subtrees) {
+            return $subtrees[$unit->path] ??= $tree->filter(fn (Unit $node) => str_starts_with($node->path, $unit->path))->pluck('id');
+        };
+
+        // Only a user linked to a milpac who is not an Admin has a billet, acting leads or grants to read.
+        $linked = $users->filter(fn (User $user) => ! $user->is_admin && $user->cav_id !== null);
+        $cavIds = $linked->map(fn (User $user) => (int) $user->cav_id)->unique()->values()->all();
+        $troopers = $this->troopers->byCavId($cavIds);
+        $billets = $cavIds === [] ? collect() : $this->commands->commandedUnitsByCavId($cavIds);
+        $acting = $this->actingLeads->unitsLedByTroopers($troopers->pluck('id')->map(fn ($id) => (int) $id)->values()->all());
+        // A grant counts only while its holder serves (grantedUnitsWhileServing()), so only theirs are read.
+        $serving = $linked
+            ->filter(fn (User $user) => $troopers->get((int) $user->cav_id)?->status?->isServing() ?? false)
+            ->map(fn (User $user) => (int) $user->id)
+            ->values();
+        $grants = $this->grants->grantedUnitIdsByUserId($serving->all());
+        $servingIds = $serving->flip();
+        $byId = $tree->keyBy('id');
+
+        return $users->mapWithKeys(function (User $user) use ($tree, $subtree, $troopers, $billets, $acting, $servingIds, $grants, $byId) {
+            if ($user->is_admin) {
+                return [$user->id => $tree->pluck('id')->values()];
+            }
+
+            $granted = $servingIds->has($user->id)
+                ? $grants->get($user->id, collect())->map(fn (int $id) => $byId->get($id))
+                : collect();
+            // As commandedUnits(): a billet held on this request is the only command, else the synced billet and
+            // the acting leads, none for a user with no milpac link.
+            $held = $this->billet->of($user);
+            $trooper = $user->cav_id === null ? null : $troopers->get((int) $user->cav_id);
+            $commanded = match (true) {
+                $held !== null => collect([$held]),
+                $user->cav_id === null => collect(),
+                default => collect([$billets->get((int) $user->cav_id)])
+                    ->merge($trooper === null ? collect() : $acting->get((int) $trooper->id, collect())),
+            };
+
+            return [$user->id => $granted
+                ->merge($commanded)
+                ->filter()
+                ->flatMap($subtree)
+                ->unique()
+                ->values()];
+        });
+    }
+
+    /**
      * Real command authority, ignoring view-as and grants: the full tree for an Admin, otherwise
      * the subtree of the unit the user's synced billet commands (empty when it commands none).
      *
