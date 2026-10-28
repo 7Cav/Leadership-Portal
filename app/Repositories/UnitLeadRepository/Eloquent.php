@@ -36,8 +36,14 @@ class Eloquent implements UnitLeadRepository
             $leads->put($unitId, new UnitLead($trooper, UnitLead::PORTFOLIO));
         }
 
+        // A unit whose lead billet is named (a portfolio, DEVCOM's 1IC, #377) is led by that billet's holder alone: when
+        // it is vacant the unit shows vacant, not whichever other billet commands it (DEVCOM's 2IC).
+        $named = Unit::query()->whereIn('id', $unitIds)->whereNotNull('lead_position_id')->pluck('id')->map(fn ($id) => (int) $id)->flip();
+
         foreach ($this->commands->commandersOf($unitIds) as $unitId => $trooper) {
-            $leads->put($unitId, new UnitLead($trooper, UnitLead::BILLET));
+            if (! $named->has($unitId)) {
+                $leads->put($unitId, new UnitLead($trooper, UnitLead::BILLET));
+            }
         }
 
         return $leads;
