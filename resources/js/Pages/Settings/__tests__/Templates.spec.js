@@ -1003,3 +1003,36 @@ describe('Settings/Templates: the company list (#375)', () => {
         expect(wrapper.get('[data-testid="switch-7"]').attributes('disabled')).toBeDefined();
     });
 });
+
+describe('Settings/Templates: the battalion switch (#376)', () => {
+    it('says the company sets its own templates and offers battalion command the switch', async () => {
+        const wrapper = page({ policy: { companyEdits: true, canSet: true } });
+
+        expect(wrapper.get('[data-testid="template-policy-note"]').text()).toBe("The company's command sets its own templates.");
+        await wrapper.get('[data-testid="template-policy-switch"]').trigger('click');
+
+        expect(routerPost).toHaveBeenCalledWith('/settings/templates/policy/1', { company_edits: false }, expect.objectContaining({ preserveScroll: true }));
+    });
+
+    it("tells the company's command why it has no controls while the battalion has editing off", () => {
+        const wrapper = page({ policy: { companyEdits: false, canSet: false }, canManage: false, canManageCompany: false });
+
+        expect(wrapper.get('[data-testid="template-policy-note"]').text()).toContain('Battalion command has turned off');
+        expect(wrapper.find('[data-testid="template-policy-switch"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="new-template"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="template-form"]').exists()).toBe(false);
+    });
+
+    it('shows nothing about the switch to a company that sets its own and a viewer who cannot change it', () => {
+        expect(page().find('[data-testid="template-policy"]').exists()).toBe(false);
+    });
+
+    it('offers battalion command the switch back on', async () => {
+        const wrapper = page({ policy: { companyEdits: false, canSet: true } });
+
+        expect(wrapper.get('[data-testid="template-policy-switch"]').text()).toBe('Turn on company editing');
+        await wrapper.get('[data-testid="template-policy-switch"]').trigger('click');
+
+        expect(routerPost).toHaveBeenCalledWith('/settings/templates/policy/1', { company_edits: true }, expect.anything());
+    });
+});

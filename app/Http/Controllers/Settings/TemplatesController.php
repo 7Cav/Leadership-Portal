@@ -8,6 +8,7 @@ use App\Commands\Templates\AuthorTemplateVersion;
 use App\Commands\Templates\CreateTemplate;
 use App\Commands\Templates\InvalidTemplateException;
 use App\Commands\Templates\SetCompanyTemplate;
+use App\Commands\Templates\SetCompanyTemplatePolicy;
 use App\Commands\Templates\SwitchTemplate;
 use App\Commands\Templates\TemplateAuthority;
 use App\Http\Controllers\Controller;
@@ -44,7 +45,8 @@ use Inertia\Response;
  * An Admin sees every company. Anyone else sees only the companies their read scope reaches into (AD-8), so a leader
  * reads their own company's templates and no one else's; asking for another company is a 403. Who may write is the
  * Commands' {@see TemplateAuthority}: a company's command (CO, XO, 1SG, the command above it, an acting lead of the
- * company) for that company's templates, and only an Admin for the regiment default. The page gets the same answer to
+ * company) for that company's templates, unless its battalion switched that off (#376), and only an Admin for the
+ * regiment default. The page gets the same answer to
  * show or hide its controls, but the Commands decide. The rollcall screen never edits a template (3.11): it only picks
  * one.
  */
@@ -86,6 +88,7 @@ class TemplatesController extends Controller
         $history = $template === null ? collect() : $this->versions->historyOf($template);
         $active = $history->first(fn (TemplateVersion $version) => $version->id === $template->active_version_id);
         $managesCompany = $selected !== null && $this->authority->managesCompany($user, $selected);
+        $companyEdits = $selected === null || $this->versions->companyEditsTemplates($selected->id);
 
         return Inertia::render('Settings/Templates', [
             'artifactType' => ['value' => self::TYPE->value, 'label' => self::TYPE->label()],
@@ -122,6 +125,12 @@ class TemplatesController extends Controller
             // refuses every write then anyway.
             'canManage' => $template !== null && $this->authority->manages($user, $template),
             'canManageCompany' => $managesCompany,
+            // Whether the company's own command may set its templates, and whether this viewer may switch that (#376):
+            // the battalion command above the company and Admins.
+            'policy' => [
+                'companyEdits' => $companyEdits,
+                'canSet' => $selected !== null && $this->authority->commandsAbove($user, $selected),
+            ],
             // The sections the preview can be filled from instead of the sample: those under the company that the viewer
             // could open on the rollcall page, in designation order. The page fills the preview with the first one (the
             // first section of the first platoon); a section's rows load only when it is shown ({@see previewSection()}).
@@ -268,6 +277,25 @@ class TemplatesController extends Controller
         }
 
         return $this->back($template);
+    }
+
+    /**
+     * Switch the company's own template editing on or off (#376). The command above the company or an Admin, checked by
+     * the Command; anyone else gets the same 403 for a unit that exists and one that does not.
+     */
+    public function policy(Request $request, int $unit, SetCompanyTemplatePolicy $command): RedirectResponse
+    {
+        $company = $this->units->find($unit) ?? $this->missing($request->user());
+
+        $data = $request->validate(['company_edits' => ['required', 'boolean']]);
+
+        try {
+            $command->handle($request->user(), $company, (bool) $data['company_edits']);
+        } catch (InvalidTemplateException $e) {
+            throw ValidationException::withMessages([$e->field => $e->getMessage()]);
+        }
+
+        return redirect()->route('settings.templates', ['company' => $company->id]);
     }
 
     /**

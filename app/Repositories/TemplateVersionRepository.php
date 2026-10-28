@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\ArtifactType;
+use App\Models\CompanyTemplatePolicy;
 use App\Models\Template;
 use App\Models\TemplateVersion;
 use App\Models\Unit;
@@ -11,7 +12,8 @@ use Illuminate\Support\Collection;
 use InvalidArgumentException;
 
 /**
- * Sole DB access for `templates`, `template_versions` and `unit_template_choices` (AD-2, AD-17, AD-22). Portal-owned:
+ * Sole DB access for `templates`, `template_versions`, `unit_template_choices` and `company_template_policies` (AD-2,
+ * AD-17, AD-22). Portal-owned:
  * the audited `Commands/Templates` Commands are its writers.
  *
  * A company keeps named templates (#375), and the regiment-wide default is the one template with no company. A
@@ -127,4 +129,17 @@ interface TemplateVersionRepository
      * both.
      */
     public function hasTemplatesFor(Unit $company): bool;
+
+    /**
+     * Whether the company's own command may set its templates (#376): true unless its battalion command switched that
+     * off.
+     */
+    public function companyEditsTemplates(int $companyId): bool;
+
+    /**
+     * Record whether the company's own command may set its templates. Returns the policy as it now stands.
+     *
+     * @throws TemplateUnchangedException when it is set that way already (a company with no row counts as on).
+     */
+    public function setCompanyEditsTemplates(Unit $company, bool $edits, int $setBy): CompanyTemplatePolicy;
 }

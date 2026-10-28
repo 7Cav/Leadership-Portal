@@ -32,8 +32,12 @@ class ActivateTemplateVersion
     {
         $template = $this->versions->findTemplate($version->template_id);
 
-        if ($template === null || ! $this->authority->manages($actor, $template)) {
-            throw $template?->isRegimentDefault() ? TemplateForbiddenException::regimentDefault() : TemplateForbiddenException::company();
+        if ($template === null) {
+            throw TemplateForbiddenException::company();
+        }
+
+        if (! $this->authority->manages($actor, $template)) {
+            throw $this->authority->refusal($actor, $template);
         }
 
         if ($template->active_version_id === $version->id) {

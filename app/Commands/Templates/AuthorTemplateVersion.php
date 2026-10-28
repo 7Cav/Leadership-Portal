@@ -39,7 +39,7 @@ class AuthorTemplateVersion
     public function handle(User $actor, Template $template, string $body, ?string $reason): TemplateVersion
     {
         if (! $this->authority->manages($actor, $template)) {
-            throw $template->isRegimentDefault() ? TemplateForbiddenException::regimentDefault() : TemplateForbiddenException::company();
+            throw $this->authority->refusal($actor, $template);
         }
 
         self::checkBody($body);

@@ -35,7 +35,7 @@ class SetCompanyTemplate
         }
 
         if (! $this->authority->manages($actor, $template)) {
-            throw TemplateForbiddenException::company();
+            throw $this->authority->refusal($actor, $template);
         }
 
         $company = $this->units->find($template->company_id);

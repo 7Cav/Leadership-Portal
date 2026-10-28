@@ -3,6 +3,7 @@
 namespace App\Repositories\AuditLogRepository;
 
 use App\Models\AuditLogEntry;
+use App\Models\CompanyTemplatePolicy;
 use App\Models\FireteamAssignment;
 use App\Models\FireteamSetting;
 use App\Models\Game;
@@ -54,6 +55,7 @@ class Eloquent implements AuditLogRepository
         'TrooperCourse' => [TrooperCourse::class, ['trooper']],
         'TemplateVersion' => [TemplateVersion::class, ['company', 'template.company']],
         'Template' => [Template::class, ['company']],
+        'CompanyTemplatePolicy' => [CompanyTemplatePolicy::class, ['company']],
         'UnitTemplateChoice' => [UnitTemplateChoice::class, ['unit']],
         'PortalRoleGrant' => [PortalRoleGrant::class, []],
         'FireteamAssignment' => [FireteamAssignment::class, ['section']],
@@ -284,6 +286,7 @@ class Eloquent implements AuditLogRepository
             ->orWhere($about('WeeklyReport', WeeklyReport::query()->whereIn('unit_id', $units())))
             ->orWhere($about('TemplateVersion', TemplateVersion::query()->whereIn('company_id', $units())))
             ->orWhere($about('Template', Template::query()->whereIn('company_id', $units())))
+            ->orWhere($about('CompanyTemplatePolicy', CompanyTemplatePolicy::query()->whereIn('company_id', $units())))
             ->orWhere($about('UnitTemplateChoice', UnitTemplateChoice::query()->whereIn('unit_id', $units())))
             ->orWhere($about('PortalRoleGrant', PortalRoleGrant::query()->whereIn('unit_id', $units())))
             ->orWhere($about('Trooper', Trooper::query()->whereIn('primary_section_id', $units())))

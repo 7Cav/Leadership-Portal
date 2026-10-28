@@ -102,13 +102,20 @@ The editing controls show only to those who may use them (see "Rollcall template
 
 | Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Company templates: add, edit (new version), roll back, switch on or off for sections, make the company default | All | All | No | Own companies | Own company | No | If acting lead of the company or above | No | No | No | No |
+| Company templates: add, edit (new version), roll back, switch on or off for sections, make the company default | All | All | No | Own companies | Own company, unless its battalion turned this off | No | If acting lead of the company or above (a company lead loses it while it is off) | No | No | No | No |
+| Switch a company's own template editing on or off | All | All | No | Own companies | No | No | If acting lead of the battalion or above | No | No | No | No |
 | Regiment default template: edit, roll back | Yes | No | No | No | No | No | No | No | No | No | No |
 
 "Own company" is `commandsUnit()` on the company: its Commander, Executive Officer and First Sergeant, plus the
 battalion and regiment command above. Another company's command gets 403. The regiment default is always available to
 every section and cannot be switched off. A section uses its pick, else the company default if it is switched on, else
 the regiment default. Every one of these writes is in the audit log.
+
+Battalion command (`<bn> Commanding Officer`, `Executive Officer`, `Sergeant Major`, and the regiment command above)
+can turn a company's own template editing off. It is on by default. While it is off, the company's command can still
+read the templates but not add, edit, roll back, switch or choose them; the battalion command and Admins do that
+instead, and the Templates page tells the company why. Marking, confirming, posting, fireteams, reports and a section's
+pick of template are not affected.
 
 ### Reports
 
