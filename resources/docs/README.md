@@ -1,6 +1,6 @@
 # Writing the guides
 
-The guides at `/docs` in the portal are the markdown files in this folder. Change a screen's behaviour, change its
+The guides at `/docs` in the portal are the markdown files in this folder. Change a screen's behavior, change its
 guide in the same pull request.
 
 ## Where a guide goes
