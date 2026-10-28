@@ -16,7 +16,10 @@ function templatesMigration(): object
 {
     // The test runs inside a transaction, where SQLite cannot switch its foreign keys off for the table rebuilds the
     // migration makes; deferring them to the commit is the in-transaction way, which `migrate` itself does not need.
-    DB::statement('PRAGMA defer_foreign_keys = ON');
+    // MySQL has no PRAGMA and alters its tables in place.
+    if (DB::getDriverName() === 'sqlite') {
+        DB::statement('PRAGMA defer_foreign_keys = ON');
+    }
 
     return require database_path('migrations/2026_10_29_100000_create_templates_table.php');
 }
