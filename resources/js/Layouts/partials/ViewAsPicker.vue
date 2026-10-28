@@ -130,18 +130,20 @@ function backToMine() {
                     <CommandGroup v-if="hasPeople && options.people.length" heading="People">
                         <CommandItem
                             v-for="person in options.people"
-                            :key="`user-${person.id}`"
-                            :value="`user:${person.id}`"
-                            :data-testid="`view-as-user-${person.id}`"
+                            :key="`${person.kind ?? 'user'}-${person.id}`"
+                            :value="`${person.kind ?? 'user'}:${person.id}`"
+                            :data-testid="`view-as-${person.kind ?? 'user'}-${person.id}`"
                             class="gap-2.5 py-2 text-[13.5px]"
-                            @select="choose('user', person.id)"
+                            @select="choose(person.kind ?? 'user', person.id)"
                         >
                             <PhUser class="size-4" aria-hidden="true" />
                             <span class="min-w-0 truncate">{{ person.label }}</span>
                             <Badge v-if="person.admin" variant="outline" class="shrink-0 text-[11px]">Admin</Badge>
+                            <!-- On the roster but never signed in: previewed from their billet. -->
+                            <Badge v-if="person.account === false" variant="outline" class="shrink-0 text-[11px] text-muted-foreground">No account yet</Badge>
                             <span v-if="person.designation" class="ml-auto shrink-0 font-mono text-[12px] text-muted-foreground">{{ person.designation }}</span>
                             <PhCheck
-                                v-if="isCurrent('user', person.id)"
+                                v-if="isCurrent(person.kind ?? 'user', person.id)"
                                 :class="['size-4 text-foreground', person.designation ? '' : 'ml-auto']"
                                 aria-label="Current view"
                             />
