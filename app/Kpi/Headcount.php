@@ -66,19 +66,24 @@ final class Headcount
      * when a trooper is placed in it, by the roster sync or by hand. The org page lists every unit and does not use it.
      * The report chain asks for more, a unit under it that reports ({@see reportingLineUnits()}).
      *
+     * `$keep` are unit ids kept whatever their headcount: the view as list passes the unit being viewed as now, so it
+     * stays in the list after it empties.
+     *
      * Two queries whatever is passed: the serving troopers by unit, and the tree to place them in.
      *
      * @template TCollection of Collection<int, Unit>
      *
      * @param  TCollection  $units
+     * @param  list<int>  $keep
      * @return TCollection
      */
-    public function withoutEmptyLineUnits(Collection $units): Collection
+    public function withoutEmptyLineUnits(Collection $units, array $keep = []): Collection
     {
+        $keep = array_flip($keep);
         $placed = $this->placedIn($this->units->tree(), $this->troopers->countsBySection(), []);
 
         return $units
-            ->filter(fn (Unit $unit) => ! $unit->isLine() || $placed->contains(fn (Unit $holder) => self::counts($holder, $unit)))
+            ->filter(fn (Unit $unit) => ! $unit->isLine() || isset($keep[$unit->id]) || $placed->contains(fn (Unit $holder) => self::counts($holder, $unit)))
             ->values();
     }
 
