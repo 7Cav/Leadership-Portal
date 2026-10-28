@@ -20,15 +20,18 @@ use Inertia\Testing\AssertableInertia as Assert;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
 
-// Admin by billet (decided by the S6, 2026-10-28): whoever serves on the regiment node as Regimental HQ staff is an
-// Admin while an existing Admin has approved their billet and the billet still carries the title and group that were
-// confirmed. Tied to the billet, read on every request, never written to `users.is_admin`.
+// Admin by billet (decided by the S6, 2026-10-28): whoever serves in a Regimental HQ or S6 HQ billet is an Admin while
+// an existing Admin has approved the billet and it still carries the title and group that were confirmed, in a group
+// that may make an Admin. Where the holder is placed does not matter. Tied to the billet, read on every request, never
+// written to `users.is_admin`.
 // Fixture tree: 7CAV ─┬─ 1-7 ─ A/1-7 ─ 1/A/1-7 ─ 1/1/A/1-7
 //                     └─ ELOA, NR, S6 (groups)
 
 const RHQA_CHIEF = 'Regimental Chief of Staff';
 
 const RHQA_GROUP = 'Regimental HQ';
+
+const RHQA_S6_GROUP = 'S6 HQ';
 
 function rhqaPlaced(?Unit $at, array $attributes = []): Trooper
 {
@@ -135,14 +138,21 @@ describe('who is an Admin by billet', function () {
         expect(rhqaIsAdmin($this->chief))->toBeFalse();
     });
 
-    it('loses Admin on the next request once moved off the regiment', function () {
+    it('stays an Admin wherever the holder is placed, as the billet decides and not the placement', function (?string $where) {
+        $at = match ($where) {
+            null => null,
+            'section' => $this->section,
+            'battalion HQ' => $this->battalion,
+            default => $this->groups[$where],
+        };
+        $this->chiefTrooper->forceFill(['primary_section_id' => $at?->id])->save();
+
+        expect(rhqaIsAdmin($this->chief))->toBeTrue();
         $this->actingAs($this->chief)->get('/settings/audit-log')->assertOk();
-
-        $this->chiefTrooper->forceFill(['primary_section_id' => $this->section->id])->save();
-
-        $this->actingAs($this->chief)->get('/settings/audit-log')->assertForbidden();
-        expect(rhqaIsAdmin($this->chief))->toBeFalse();
-    });
+        expect(app(ScopeResolver::class)->adminIdsAmong(collect([$this->chief->fresh()]))->all())->toBe([$this->chief->id])
+            ->and(app(ScopeResolver::class)->realScopes(collect([$this->chief->fresh()]))->get($this->chief->id)->all())
+            ->toEqualCanonicalizing(Unit::query()->pluck('id')->all());
+    })->with(['S6', 'section', 'battalion HQ', 'unplaced' => [null]]);
 
     it('loses Admin on the next request once no longer serving', function () {
         $this->actingAs($this->chief)->get('/settings/audit-log')->assertOk();
@@ -173,7 +183,8 @@ describe('who is an Admin by billet', function () {
         $this->actingAs($this->chief)->get('/settings/audit-log')->assertOk();
     })->with([
         'a new title' => [['Regimental Chief of Staff (Acting)', null]],
-        'a new group' => [[RHQA_CHIEF, 'Regimental Headquarters']],
+        // Moved to the other Admin billet group: still approvable, and approved again before it counts.
+        'a new group' => [[RHQA_CHIEF, RHQA_S6_GROUP]],
     ]);
 
     it('is not an Admin when the holder\'s own synced title no longer matches the confirmed one', function () {
@@ -182,15 +193,15 @@ describe('who is an Admin by billet', function () {
         expect(rhqaIsAdmin($this->chief))->toBeFalse();
     });
 
-    it('never makes ELOA, S6, New Recruits or a battalion HQ member an Admin, even with an approved row', function (string $where) {
-        $at = $where === 'battalion HQ' ? $this->battalion : $this->groups[$where];
-        $trooper = rhqaPlaced($at, ['billet' => 'Staff Officer', 'cav_position_id' => 9500, 'status' => $where === 'ELOA' ? TrooperStatus::Eloa : TrooperStatus::Combat]);
-        rhqaBillet(9500, 'Staff Officer');
+    it('never makes the holder of an approved billet an Admin when its group is not an Admin billet group', function (string $group) {
+        // Placed on the regiment itself, so only the group can be what refuses it.
+        $trooper = rhqaPlaced($this->regiment, ['billet' => 'Staff Officer', 'cav_position_id' => 9500]);
+        rhqaBillet(9500, 'Staff Officer', group: $group);
         $user = User::factory()->create(['cav_id' => $trooper->cav_id]);
 
         expect(rhqaIsAdmin($user))->toBeFalse();
         $this->actingAs($user)->get('/settings/audit-log')->assertForbidden();
-    })->with(['ELOA', 'S6', 'New Recruits', 'battalion HQ']);
+    })->with(['Support Attachment', '1-7 Command', 'Extended Leave of Absence', 'New Recruits']);
 });
 
 describe('never stored', function () {
@@ -421,23 +432,161 @@ describe('confirming billets', function () {
             ->assertSessionHasErrors(['adminBillet' => 'This billet is already approved with these names.']);
     });
 
-    it('shows Admins the billets and how many wait, and nobody else', function () {
+    it('shows Admins the approved billets on top and the pending and rejected ones below, and nobody else', function () {
+        $rejected = rhqaBillet(9017, 'Regimental Adjutant General', AdminBilletStatus::Rejected);
+        $this->chiefBillet->forceFill(['decided_by' => $this->admin->id, 'decided_at' => now()])->save();
+
         $this->actingAs($this->admin)->get('/settings/staff-grants')->assertInertia(fn (Assert $page) => $page
+            // The badge counts the pending ones only.
             ->where('adminBilletsPending', 1)
+            ->has('adminViaBillet', 1)
+            ->where('adminViaBillet.0.id', $this->chiefBillet->id)
+            ->where('adminViaBillet.0.title', RHQA_CHIEF)
+            ->where('adminViaBillet.0.group', RHQA_GROUP)
+            ->where('adminViaBillet.0.holders', [$this->chiefTrooper->display_name])
+            ->where('adminViaBillet.0.decidedBy', 'Hale.S')
+            ->where('adminViaBillet.0.approvedAs', null)
+            ->where('adminViaBillet.0.adminGroup', true)
+            ->where('adminViaBillet.0.own', false)
             ->has('adminBillets', 2)
             ->where('adminBillets.0.id', $this->financeBillet->id)
             ->where('adminBillets.0.status', 'pending')
             ->where('adminBillets.0.holders', [$this->financeTrooper->display_name])
-            ->where('adminBillets.1.id', $this->chiefBillet->id)
-            ->where('adminBillets.1.own', false)
-            ->where('regimentalHq', fn ($rows) => collect($rows)->firstWhere('id', $this->chiefTrooper->id)['admin'] === true
-                && collect($rows)->firstWhere('id', $this->financeTrooper->id)['admin'] === false));
+            ->where('adminBillets.0.approvedAs', null)
+            ->where('adminBillets.1.id', $rejected->id)
+            ->where('adminBillets.1.status', 'rejected')
+            ->where('regimentalHq', fn ($rows) => collect($rows)->pluck('id')->sort()->values()->all()
+                === collect([$this->chiefTrooper->id, $this->financeTrooper->id])->sort()->values()->all()));
 
         $this->actingAs($this->chief)->get('/settings/staff-grants')->assertInertia(fn (Assert $page) => $page
-            ->where('adminBillets.1.own', true));
+            ->where('adminViaBillet.0.own', true));
 
         $this->actingAs($this->leader)->get('/settings/staff-grants')->assertInertia(fn (Assert $page) => $page
             ->where('adminBilletsPending', 0)
+            ->where('adminViaBillet', [])
             ->where('adminBillets', []));
+    });
+
+    it('lists every holder of an approved billet, and the approved names under a renamed one waiting again', function () {
+        $second = rhqaPlaced($this->section, ['billet' => RHQA_CHIEF, 'cav_position_id' => 9010]);
+        app(AdminBilletRepository::class)->observe([9016 => ['Regimental Finance Officer', RHQA_GROUP]], createMissing: false);
+        $this->financeBillet->forceFill(['title' => 'Finance Officer', 'group_title' => RHQA_GROUP])->save();
+
+        $this->actingAs($this->admin)->get('/settings/staff-grants')->assertInertia(fn (Assert $page) => $page
+            ->where('adminViaBillet.0.holders', fn ($holders) => collect($holders)->sort()->values()->all()
+                === collect([$this->chiefTrooper->display_name, $second->display_name])->sort()->values()->all())
+            ->where('adminBillets.0.id', $this->financeBillet->id)
+            ->where('adminBillets.0.approvedAs', ['title' => 'Finance Officer', 'group' => RHQA_GROUP]));
+    });
+
+    it('revokes an approved billet from the top list with a reason, audited, and its holder is no longer an Admin', function () {
+        $this->actingAs($this->admin)->post("/settings/staff-grants/admin-billets/{$this->chiefBillet->id}/reject", ['reason' => 'Left the job to the XO'])
+            ->assertRedirect(route('settings.staff-grants'))
+            ->assertSessionHasNoErrors();
+
+        expect($this->chiefBillet->fresh())
+            ->status->toBe(AdminBilletStatus::Rejected)
+            ->decided_by->toBe($this->admin->id)
+            ->and(rhqaIsAdmin($this->chief))->toBeFalse();
+        $entry = AuditLogEntry::query()->where('action', 'admin_billet.rejected')->sole();
+        expect($entry->actor_id)->toBe($this->admin->id)
+            ->and((string) $entry->target_id)->toBe((string) $this->chiefBillet->id)
+            ->and($entry->reason)->toBe('Left the job to the XO');
+
+        $this->actingAs($this->admin)->get('/settings/staff-grants')->assertInertia(fn (Assert $page) => $page
+            ->where('adminViaBillet', [])
+            ->where('adminBillets', fn ($rows) => collect($rows)->firstWhere('id', $this->chiefBillet->id)['status'] === 'rejected'));
+    });
+
+    it('refuses a revoke without a reason, and a revoke of the billet the Admin holds', function () {
+        $this->actingAs($this->admin)->post("/settings/staff-grants/admin-billets/{$this->chiefBillet->id}/reject", ['reason' => ''])
+            ->assertSessionHasErrors('reason');
+
+        // The chief holds it: revoking their own billet is refused, as approving it would be.
+        $this->actingAs($this->chief)->post("/settings/staff-grants/admin-billets/{$this->chiefBillet->id}/reject", ['reason' => 'Mine'])
+            ->assertSessionHasErrors(['adminBillet' => 'You hold this billet, so another Admin has to decide on it.']);
+
+        expect($this->chiefBillet->fresh()->status)->toBe(AdminBilletStatus::Approved)
+            ->and(AuditLogEntry::query()->where('action', 'admin_billet.rejected')->count())->toBe(0);
+    });
+});
+
+describe('S6 HQ billets', function () {
+    beforeEach(function () {
+        // An S6 HQ member: placed in the S6 department by the org import, never on the regiment.
+        $this->s6Trooper = rhqaPlaced($this->groups['S6'], ['username' => 'Wire.S', 'billet' => 'S6 1IC', 'cav_position_id' => 9600]);
+        $this->s6 = User::factory()->create(['cav_id' => $this->s6Trooper->cav_id, 'username' => 'Wire.S']);
+    });
+
+    it('makes the holder of an approved S6 HQ billet an Admin, placed in the S6 department', function () {
+        rhqaBillet(9600, 'S6 1IC', group: RHQA_S6_GROUP);
+
+        expect(rhqaIsAdmin($this->s6))->toBeTrue()
+            ->and(rhqaStoredFlag($this->s6))->toBeFalse()
+            ->and(app(ScopeResolver::class)->adminIdsAmong(User::query()->get())->all())->toContain($this->s6->id);
+        $this->actingAs($this->s6)->get('/settings/audit-log')->assertOk();
+        // Admin by billet, not the regiment-wide read: that stays with Regimental HQ staff placed on the regiment.
+        expect(app(ScopeResolver::class)->regimentalHqStaff()->pluck('id')->all())->not->toContain($this->s6Trooper->id);
+    });
+
+    it('is not an Admin while the S6 HQ billet waits or after it is rejected', function (AdminBilletStatus $status) {
+        rhqaBillet(9600, 'S6 1IC', $status, RHQA_S6_GROUP);
+
+        expect(rhqaIsAdmin($this->s6))->toBeFalse();
+        $this->actingAs($this->s6)->get('/settings/audit-log')->assertForbidden();
+    })->with([
+        'pending' => [AdminBilletStatus::Pending],
+        'rejected' => [AdminBilletStatus::Rejected],
+    ]);
+
+    it('lets an Admin approve an S6 HQ billet, audited', function () {
+        $billet = rhqaBillet(9600, 'S6 1IC', AdminBilletStatus::Pending, RHQA_S6_GROUP);
+
+        $this->actingAs($this->admin)->post("/settings/staff-grants/admin-billets/{$billet->id}/approve", ['reason' => 'S6 runs the portal'])
+            ->assertSessionHasNoErrors();
+
+        expect(rhqaIsAdmin($this->s6))->toBeTrue()
+            ->and(AuditLogEntry::query()->where('action', 'admin_billet.approved')->where('target_id', $billet->id)->count())->toBe(1);
+    });
+
+    it('ends Admin when the S6 billet moves to a group that cannot make an Admin, and refuses to approve it there', function () {
+        $billet = rhqaBillet(9600, 'S6 1IC', group: RHQA_S6_GROUP);
+        $this->actingAs($this->s6)->get('/settings/audit-log')->assertOk();
+
+        app(AdminBilletRepository::class)->observe([9600 => ['S6 1IC', 'Support Attachment']], createMissing: false);
+
+        expect($billet->fresh())->status->toBe(AdminBilletStatus::Pending)->group_title->toBe(RHQA_S6_GROUP);
+        $this->actingAs($this->s6)->get('/settings/audit-log')->assertForbidden();
+
+        $this->actingAs($this->admin)->post("/settings/staff-grants/admin-billets/{$billet->id}/approve", ['reason' => 'Still the S6 1IC'])
+            ->assertSessionHasErrors(['adminBillet' => 'This billet is no longer in a group whose billets can make an Admin, so it cannot be approved.']);
+        expect($billet->fresh()->status)->toBe(AdminBilletStatus::Pending)
+            ->and(rhqaIsAdmin($this->s6))->toBeFalse();
+
+        // The row says so: the names now, the approved ones under them, and that its group cannot make an Admin.
+        $this->actingAs($this->admin)->get('/settings/staff-grants')->assertInertia(fn (Assert $page) => $page
+            ->where('adminBillets', fn ($rows) => ($row = collect($rows)->firstWhere('id', $billet->id)) !== null
+                && $row['group'] === 'Support Attachment'
+                && $row['approvedAs'] === ['title' => 'S6 1IC', 'group' => RHQA_S6_GROUP]
+                && $row['adminGroup'] === false));
+    });
+
+    it('ends Admin when the group is taken off the Admin billet groups, and shows the approved row as such', function () {
+        $billet = rhqaBillet(9600, 'S6 1IC', group: RHQA_S6_GROUP);
+        config()->set('portal.admin_billet_groups', [RHQA_GROUP]);
+
+        expect(rhqaIsAdmin($this->s6))->toBeFalse()
+            ->and(rhqaIsAdmin($this->chief))->toBeTrue();
+        $this->actingAs($this->admin)->get('/settings/staff-grants')->assertInertia(fn (Assert $page) => $page
+            ->where('adminViaBillet', fn ($rows) => collect($rows)->firstWhere('id', $billet->id)['adminGroup'] === false));
+    });
+
+    it('never makes a stand-in for an S6 HQ billet Admin an Admin', function () {
+        rhqaBillet(9600, 'S6 1IC', group: RHQA_S6_GROUP);
+
+        $this->actingAs($this->admin)->post('/act-as', ['kind' => 'user', 'id' => $this->s6->id])->assertRedirect('/home');
+
+        $this->actingAs($this->admin)->get('/settings/audit-log')->assertForbidden();
+        expect(app(ScopeResolver::class)->isAdmin(app(ActAs::class)->withoutAdmin($this->s6->fresh())))->toBeFalse();
     });
 });

@@ -6,8 +6,8 @@ use DomainException;
 
 /**
  * A decision on an Admin billet the domain rules refuse: the row is gone, it is the decider's own billet, it already
- * stands as asked, or its group has not been seen yet. Domain rules, not request shape, so the controller turns this
- * into a form error.
+ * stands as asked, its group has not been seen yet, or its group cannot make an Admin. Domain rules, not request
+ * shape, so the controller turns this into a form error.
  */
 class InvalidAdminBilletDecisionException extends DomainException
 {
@@ -34,5 +34,10 @@ class InvalidAdminBilletDecisionException extends DomainException
     public static function namesUnknown(): self
     {
         return new self('This billet\'s title or group is not known yet. Run the org import, then approve it.');
+    }
+
+    public static function notAdminGroup(): self
+    {
+        return new self('This billet is no longer in a group whose billets can make an Admin, so it cannot be approved.');
     }
 }

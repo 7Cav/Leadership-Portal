@@ -67,7 +67,7 @@ class ViewAsController extends Controller
             $cavIds = $others->pluck('cav_id')->merge($unregistered->pluck('cav_id'))->filter()->values()->all();
             $ranks = $troopers->ranksByCavId($cavIds);
             $commanded = $commands->commandedUnitsByCavId($cavIds);
-            // Admins by flag or by an approved Regimental HQ billet, read for everyone at once.
+            // Admins by flag or by an approved Admin billet, read for everyone at once.
             $admins = $this->scope->adminIdsAmong($others)->flip();
             $designation = fn (?int $cavId) => ($unit = $cavId !== null ? $commanded->get($cavId) : null) ? ($unit->callsign ?? $unit->name) : null;
 

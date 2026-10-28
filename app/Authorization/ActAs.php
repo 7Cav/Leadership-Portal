@@ -44,8 +44,8 @@ use Illuminate\Support\Collection;
  * reach through a leader can never exceed that leader's scope. They stop to be an Admin again. The session key's
  * `admin` is the real signed-in user, who for a leader is not an Admin.
  *
- * "Admin" here is always {@see ScopeResolver::isAdmin()}: the flag or an approved Regimental HQ billet (decided by the
- * S6, 2026-10-28), so an Admin by billet acts as anyone a flag Admin may, a leader can never act as one, and an Admin
+ * "Admin" here is always {@see ScopeResolver::isAdmin()}: the flag or an approved Regimental HQ or S6 HQ billet (decided
+ * by the S6, 2026-10-28), so an Admin by billet acts as anyone a flag Admin may, a leader can never act as one, and an Admin
  * acting as one gets that person's non-Admin view only, exactly as for a flag Admin.
  *
  * Checked again on every request ({@see target()}). A stored choice that fails is dropped, and the Admin is
@@ -157,8 +157,8 @@ class ActAs
         }
 
         // A flag Admin is left out here; an Admin by billet below, as realScopes() gives them the whole tree, which never
-        // fits below a leader (withinAndNotOver()). A team junior is never an Admin by billet: that needs a Regimental HQ
-        // placement, and the regimental command team are Admins themselves, who reach people through view as instead.
+        // fits below a leader (withinAndNotOver()). A team junior who is an Admin by billet (a regimental command team
+        // billet an Admin approved) is left out by the subtree check below, as their scope is the whole tree.
         $below = $this->scope->strictlyBelow($commanded);
         $from = $this->measuredFrom($actor, $via);
         $fromCavId = $from?->cav_id === null ? null : (int) $from->cav_id;

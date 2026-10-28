@@ -52,8 +52,8 @@ class HandleInertiaRequests extends Middleware
             // Authenticatable avoids a static App\Models\User reference, so this glue
             // layer stays terminal in the Deptrac graph.
             'auth' => [
-                // `is_admin` is whether this request's user is an Admin, by the flag or by an approved Regimental HQ
-                // billet (ScopeResolver::isAdmin(), decided by the S6 2026-10-28), worked out on this request and never
+                // `is_admin` is whether this request's user is an Admin, by the flag or by an approved Admin billet
+                // (ScopeResolver::isAdmin(), decided by the S6 2026-10-28), worked out on this request and never
                 // the stored column alone. While an Admin acts as someone it answers for who the request runs as.
                 'user' => $request->user() ? [
                     ...$request->user()->only(['id', 'username']),
@@ -86,7 +86,7 @@ class HandleInertiaRequests extends Middleware
             // Whether the shell offers the act-as picker (#432): a leader with people below them, or an Admin acting as
             // one. Navigation only: every start is checked again by ActAs.
             'canActAs' => fn () => $request->user() ? $this->actAs->offers($request->attributes->get(ActAs::ADMIN_ATTRIBUTE) ?? $request->user()) : false,
-            // How many Regimental HQ billets wait for an Admin to confirm them (decided by the S6, 2026-10-28), for the
+            // How many Admin billets wait for an Admin to confirm them (decided by the S6, 2026-10-28), for the
             // sidebar's notice on Staff grants. Only to someone acting as Admin; zero for everyone else.
             'adminBilletsPending' => fn () => $request->user() && $this->scope->actsAsAdmin($request->user()) ? $this->adminBillets->pendingCount() : 0,
             'viewAs' => fn () => $request->user() ? $this->scope->activeViewAs($request->user())?->toArray() : null,

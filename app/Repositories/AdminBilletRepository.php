@@ -7,8 +7,8 @@ use App\Models\AdminBilletStatus;
 use Illuminate\Support\Collection;
 
 /**
- * Sole DB access for the Regimental HQ billets that make their holder an Admin (AD-2, decided by the S6, 2026-10-28).
- * Read by ScopeResolver's Admin rule and the Staff grants page; the names Cav shows are recorded by the org import and
+ * Sole DB access for the Regimental HQ and S6 HQ billets that make their holder an Admin (AD-2, decided by the S6,
+ * 2026-10-28). Read by ScopeResolver's Admin rule and the Staff grants page; the names Cav shows are recorded by the org import and
  * the roster sync ({@see observe()}), and a decision only by the audited `DecideAdminBillet` Command.
  */
 interface AdminBilletRepository
@@ -37,7 +37,7 @@ interface AdminBilletRepository
      * Record the names Cav shows now for these positions, `position id => [title, group title]`, a null group meaning
      * "not known here" (the roster sync sees titles only), which keeps the group last seen. A row whose names differ
      * from what was confirmed goes back to `pending`; a rejected one goes back to `pending` only when a name changed
-     * since. A position with no row gets a `pending` one when `$createMissing` (the import's Regimental HQ billets),
+     * since. A position with no row gets a `pending` one when `$createMissing` (the import's Admin billet groups),
      * and is skipped otherwise. Nothing is ever approved here. Returns how many rows were created or changed.
      *
      * @param  array<int, array{0: string, 1: ?string}>  $seen

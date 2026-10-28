@@ -236,3 +236,30 @@ it('lists every Regimental HQ billet as pending, approves none, and sends a rena
         ->toBe([AdminBilletStatus::Pending, 'Regimental Chief of Staff (Acting)', 'Regimental Chief of Staff'])
         ->and([$moved->status, $moved->proposed_group_title])->toBe([AdminBilletStatus::Pending, 'Support Attachment']);
 });
+
+it('lists every S6 HQ billet as pending too, placing its holders in the S6 department, and approves none', function () {
+    $groups = isgGroups();
+    $groups['groups'][] = [
+        'groupId' => '991', 'groupTitle' => 'S6 HQ', 'groupDisplayOrder' => 991,
+        'positions' => [
+            ['positionTitle' => 'S6 1IC', 'positionId' => '9050', 'positionDisplayOrder' => 1, 'positionPossibleSecondary' => false],
+            ['positionTitle' => 'S6 Developer', 'positionId' => '9051', 'positionDisplayOrder' => 2, 'positionPossibleSecondary' => false],
+        ],
+    ];
+    MockClient::destroyGlobal();
+    MockClient::global(['api.7cav.us/api/v1/milpacs/position/groups' => MockResponse::make($groups)]);
+    app(ImportOrgStructure::class)->handle(User::factory()->admin()->create());
+
+    $rows = AdminBillet::query()->get()->keyBy('cav_position_id');
+    foreach ([9050 => 'S6 1IC', 9051 => 'S6 Developer'] as $positionId => $title) {
+        expect([$rows->get($positionId)?->status, $rows->get($positionId)?->proposed_title, $rows->get($positionId)?->proposed_group_title, $rows->get($positionId)?->title])
+            ->toBe([AdminBilletStatus::Pending, $title, 'S6 HQ', null]);
+    }
+
+    // Placed in the S6 department, not on the regiment: Admin by billet does not depend on it.
+    expect(isgPlacements()[9050])->toBe('group|S6')
+        ->and(isgPlacements()[9051])->toBe('group|S6')
+        // Regimental HQ is still listed; other groups' billets still are not.
+        ->and($rows->get(9010)?->proposed_group_title)->toBe('Regimental HQ')
+        ->and($rows->has(9020))->toBeFalse();
+});
