@@ -109,7 +109,7 @@ it('flags a DCS within 30 days of an LOR and 90 days of a DCS with both', functi
         ->toBe([1 => [], 2 => [], 3 => ['dcs-after-lor', 'dcs-repeat']]);
 });
 
-it('keeps the ladders apart for a DCS after an LOR, and leaves a missed practice to its own ladder's flag', function () {
+it('keeps the ladders apart for a DCS after an LOR, and leaves a missed practice to the flag of its own ladder', function () {
     expect(standingKeys([standingEntry(1, 0, 'lor', 'missed_practice'), standingEntry(2, 10, 'dcs')]))->toBe([1 => [], 2 => []])
         ->and(standingKeys([standingEntry(1, 0, 'lor'), standingEntry(2, 10, 'dcs', 'missed_practice')]))->toBe([1 => [], 2 => []])
         // A DCS for a miss within 60 days of an LOR for one is already flagged: a second LOR is called for.
