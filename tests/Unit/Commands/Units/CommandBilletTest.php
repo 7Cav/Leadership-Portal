@@ -82,3 +82,20 @@ it('confers no command for any other billet outside a line company', function (s
     ['Start-Up Games', 'Section Leader Star Citizen Start-Up'],
     ['Discharged', 'Discharged'],
 ]);
+
+it('maps DEVCOM 1IC and 2IC to the DEVCOM battalion in whichever group Cav lists them (#377)', function (string $group, string $title) {
+    $designation = CommandBillet::inCommandGroup($group, $title);
+
+    expect($designation?->type)->toBe(UnitType::Battalion)
+        ->and($designation->callsign())->toBe('DEVCOM')
+        ->and(CommandBillet::devcomCommand($title)?->key())->toBe($designation->key());
+})->with([
+    ['DEVCOM STAFF', 'DEVCOM 1IC'],
+    ['DEVCOM STAFF', 'DEVCOM 2IC'],
+    ['Development Command', ' DEVCOM 1IC '],
+]);
+
+it('maps no other DEVCOM billet, matching the titles exactly (#377)', function (string $title) {
+    expect(CommandBillet::devcomCommand($title))->toBeNull()
+        ->and(CommandBillet::inCommandGroup('DEVCOM STAFF', $title))->toBeNull();
+})->with(['DEVCOM Lead', 'DEVCOM 3IC', 'DEVCOM Support Clerk', 'devcom 1ic', 'DEVCOM 1IC Aide']);

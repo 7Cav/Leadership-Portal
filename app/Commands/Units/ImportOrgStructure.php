@@ -323,6 +323,14 @@ class ImportOrgStructure
                 $headquarters = CommandBillet::headquartersOf($group->title);
 
                 foreach ($group->positions as $position) {
+                    if (CommandBillet::devcomCommand($position->title) !== null) {
+                        // DEVCOM's command team (#377): placed by its command mapping, as a battalion's is, never in
+                        // the DEVCOM staff group its title would otherwise name; the 1IC's billet names the lead.
+                        $this->addDevcomCommand($commandByPositionId, $leadPositions, $position->id, $position->title);
+
+                        continue;
+                    }
+
                     $commanded = CommandBillet::inCommandGroup($group->title, $position->title);
                     $portfolio = StaffBillet::portfolioFor($position->title);
 
@@ -358,6 +366,13 @@ class ImportOrgStructure
             $this->addWithAncestors($designations, $company);
 
             foreach ($group->positions as $position) {
+                if (CommandBillet::devcomCommand($position->title) !== null) {
+                    // Listed in a line group (D/DEVCOM) it still commands the DEVCOM battalion, not the company (#377).
+                    $this->addDevcomCommand($commandByPositionId, $leadPositions, $position->id, $position->title);
+
+                    continue;
+                }
+
                 $designation = CavDesignation::fromPositionTitle($position->title, $company);
 
                 if ($designation === null) {
@@ -384,6 +399,24 @@ class ImportOrgStructure
         }
 
         return [$designations, $sectionByPositionId, $commandByPositionId, $skippedTitles, $ignoredGroups, $groupNodes, $leadPositions];
+    }
+
+    /**
+     * Map a DEVCOM command billet to the DEVCOM battalion, and the 1IC's billet as the battalion's named lead, so its
+     * holder is shown as the lead (or the lead as vacant) and never the 2IC (#377). Commands never create nodes: with no
+     * DEVCOM line company in the groups there is no battalion, and the billet is logged as unplaced.
+     *
+     * @param  array<int, string>  $commandByPositionId
+     * @param  array<string, int>  $leadPositions
+     */
+    private function addDevcomCommand(array &$commandByPositionId, array &$leadPositions, int $positionId, string $title): void
+    {
+        $battalion = CommandBillet::devcomCommand($title);
+        $commandByPositionId[$positionId] ??= $battalion->key();
+
+        if (trim($title) === CommandBillet::DEVCOM_LEAD_TITLE) {
+            $leadPositions[$battalion->key()] ??= $positionId;
+        }
     }
 
     /**

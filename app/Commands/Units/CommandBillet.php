@@ -21,6 +21,10 @@ use App\Models\UnitType;
  *    Recruiting Oversight, IMO, RDC Commander) → their portfolio node, so they see what is under it; the
  *    import maps these, this class does not.
  *
+ *  - `DEVCOM 1IC` / `DEVCOM 2IC` → the DEVCOM battalion, as its commander and executive officer (#377), in whichever
+ *    group Cav lists them. DEVCOM sits at battalion level with D/DEVCOM under it. The 1IC is the one who leads it, so a
+ *    vacant 1IC billet shows the DEVCOM lead as vacant while the 2IC keeps their command.
+ *
  * `DEVCOM Lead` commands nothing by billet (decided 2026-10-25): its holders sit with DEVCOM staff and are made acting
  * lead of the DEVCOM starter platoons they run by an Admin, since the roster does not say which.
  *
@@ -57,6 +61,14 @@ final class CommandBillet
 
     private const AUXILIARY_BATTALION = 'ACD';
 
+    /** DEVCOM's command team (#377): its battalion commander and XO, by exact title. */
+    private const DEVCOM_TITLES = ['DEVCOM 1IC', 'DEVCOM 2IC'];
+
+    /** The DEVCOM billet that leads the battalion: the org page names its holder, or shows it vacant. */
+    public const DEVCOM_LEAD_TITLE = 'DEVCOM 1IC';
+
+    private const DEVCOM_BATTALION = 'DEVCOM';
+
     /** A battalion command group's title: `1-7 Command`, `ACD Command`. */
     private const COMMAND_GROUP = '#^(?<battalion>[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*) Command$#';
 
@@ -90,6 +102,15 @@ final class CommandBillet
     }
 
     /**
+     * The DEVCOM battalion for its command team's billets (`DEVCOM 1IC`, `DEVCOM 2IC`), in any group Cav lists them in,
+     * a line group included; null for any other title (#377).
+     */
+    public static function devcomCommand(string $title): ?CavDesignation
+    {
+        return in_array(trim($title), self::DEVCOM_TITLES, true) ? CavDesignation::battalion(self::DEVCOM_BATTALION) : null;
+    }
+
+    /**
      * The unit a billet in a group that is not a line company commands: the regiment for a
      * regimental title in `Regimental HQ`, or the battalion its `<bn> Command` group names. Null
      * for every other billet — a regimental title listed in any other group included, since the
@@ -99,6 +120,10 @@ final class CommandBillet
     {
         $title = trim($title);
         $groupTitle = trim($groupTitle);
+
+        if (($devcom = self::devcomCommand($title)) !== null) {
+            return $devcom;
+        }
 
         if ($groupTitle === self::REGIMENTAL_GROUP) {
             return in_array($title, self::REGIMENTAL_TITLES, true) ? CavDesignation::regiment() : null;
