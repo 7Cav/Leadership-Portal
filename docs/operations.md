@@ -86,6 +86,7 @@ Names only. Every key is documented in `.env.example` and `.env.production.examp
 | Area | Keys |
 | --- | --- |
 | App | `APP_ENV`, `APP_DEBUG`, `APP_KEY`, `APP_URL`, `APP_DOMAIN` (Docker only), `TRUSTED_PROXIES` |
+| Security headers | `CSP_REPORT_ONLY` (false: the content security policy is enforced; see below) |
 | Database | `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `DB_ROOT_PASSWORD` (Docker only) |
 | Queue and sessions | `QUEUE_CONNECTION`, `DB_QUEUE_RETRY_AFTER` (must be above 900), `SESSION_LIFETIME`, `SESSION_SECURE_COOKIE` (leave unset) |
 | Sign-in (7cav.us OAuth) | `SEVENCAV_OAUTH_CLIENT_ID`, `SEVENCAV_OAUTH_CLIENT_SECRET`, `SEVENCAV_OAUTH_REDIRECT_URI`, `SEVENCAV_FORUM_BASE_URL`, `SEVENCAV_OAUTH_AUTHORIZE_URL`, `SEVENCAV_OAUTH_SCOPES` |
@@ -120,6 +121,36 @@ The copy runs on the queue (`UploadCounselingDocumentJob`), up to 5 tries. With 
 sent and records show "Portal only". A record that shows "Drive copy failed" after the last try needs its document
 uploaded by hand; the queue worker's log names the record id and why, never the key. The portal only uploads: it
 cannot read, share or delete anything on the Drive, so deleting a record in the portal leaves the Drive copy.
+
+## Content security policy
+
+Every response carries a `Content-Security-Policy` that lists what a page may load (`SetSecurityHeaders`, sources
+in `config/csp.php`). With the default config it reads, on one line:
+
+```
+default-src 'self'; script-src 'self' 'nonce-<per request>'; style-src 'self' 'unsafe-inline';
+img-src 'self' data: https://7cav.us https://*.7cav.us; font-src 'self'; connect-src 'self'; object-src 'none';
+base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+```
+
+- Scripts come only from the portal: the built bundles, and the inline theme script and Vite's tags by a nonce that
+  changes on every request. Inline styles are allowed, since Vue sets style attributes; a style cannot run code.
+- Images: the portal, `data:` (the guidon) and 7cav.us with its subdomains (rank insignia, BBCode preview images).
+- Sign-in is a link to `/auth/redirect`, which redirects to 7cav.us, and sign-out posts to the portal, so
+  `form-action 'self'` is enough.
+- While `npm run dev` runs on a local machine (`APP_ENV=local` and `public/hot` present), the Vite dev server's
+  origin and websocket are allowed as well. Nowhere else.
+- A debug error page (`APP_DEBUG=true` and a 5xx) only gets `frame-ancestors 'none'`, so the framework's error page
+  still works on a dev box.
+
+To allow another host, add it to the directive that needs it in `config/csp.php` and run `php artisan config:cache`
+(or restart the containers). If a page looks broken after a change, the browser console names the blocked source
+("Refused to load ...").
+
+Rolling out: the policy ships enforced, and the browser suite fails on any violation. To watch it for a release
+first, set `CSP_REPORT_ONLY=true`: browsers then log what they would block in the console and block nothing, while
+`frame-ancestors 'none'` stays enforced. There is no report endpoint, so check the console on the main pages, then
+set it back to false.
 
 ## Technical appendix
 
