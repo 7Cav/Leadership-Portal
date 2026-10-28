@@ -10,8 +10,10 @@ use App\Models\Unit;
 use App\Models\UnitBilletMapping;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\PlatoonTrainingTopicRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TemplateVersionRepository;
+use App\Repositories\TrainingPlanRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Time\WeekOf;
@@ -99,9 +101,17 @@ it('refuses to delete a unit that still has a dependent, naming it', function (C
         fn (Unit $unit) => app(WeeklyReportRepository::class)->send($unit->id, WeekOf::start(CarbonImmutable::now()), [], null, User::factory()->create()->id, 'digest', null),
         'it has weekly reports',
     ],
+    'a training plan' => [
+        fn (Unit $unit) => app(TrainingPlanRepository::class)->save($unit->id, '2026-11', ['2026-11-07' => 'Room clearing'], false, User::factory()->create()->id),
+        'it has training plans, and that plan history must not be orphaned.',
+    ],
+    'a weekly training topic' => [
+        fn (Unit $unit) => app(PlatoonTrainingTopicRepository::class)->set($unit->id, WeekOf::start(CarbonImmutable::now()), 'Room clearing', false, User::factory()->create()->id),
+        'it has weekly training topics, which are part of its report history.',
+    ],
 ]);
 
-it('is not blocked by a grant, practice or report on a different unit', function () {
+it('is not blocked by a grant, practice, report, plan or topic on a different unit', function () {
     $actor = User::factory()->admin()->create();
     $repo = app(UnitRepository::class);
     $doomed = $repo->create(UnitType::Section, 'Nightriders', '1/1/E/2-7', null);
@@ -110,6 +120,8 @@ it('is not blocked by a grant, practice or report on a different unit', function
     PortalRoleGrant::factory()->create(['unit_id' => $other->id]);
     app(SectionPracticeRepository::class)->findOrCreate($other->id, $week);
     app(WeeklyReportRepository::class)->saveDraft($other->id, $week, [], null);
+    app(TrainingPlanRepository::class)->save($other->id, '2026-11', ['2026-11-07' => 'Room clearing'], false, $actor->id);
+    app(PlatoonTrainingTopicRepository::class)->set($other->id, $week, 'Room clearing', false, $actor->id);
 
     app(DeleteUnit::class)->handle($actor, $doomed);
 

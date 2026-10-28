@@ -4,9 +4,11 @@ namespace App\Commands\Units;
 
 use App\Models\Unit;
 use App\Models\User;
+use App\Repositories\PlatoonTrainingTopicRepository;
 use App\Repositories\PortalRoleGrantRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TemplateVersionRepository;
+use App\Repositories\TrainingPlanRepository;
 use App\Repositories\UnitBilletMappingRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
@@ -20,8 +22,9 @@ use App\Support\Audit\AuditEnvelope;
  *
  * Every table with a `restrictOnDelete` foreign key to `units` is checked here, up front: child
  * units, billet mappings (2.9), staff grants (1.12), section practices (3.3), weekly reports
- * (5.6) and template versions with their active pointer (3.5). A new table taking that kind of
- * key to `units` needs its check added below. Troopers (`primary_section_id`) are `nullOnDelete`
+ * (5.6), template versions with their active pointer (3.5) and training plans (#380). A new table
+ * taking that kind of key to `units` needs its check added below. Platoon training topics cascade
+ * in the database, but are refused too: a topic is part of its week's report record. Troopers (`primary_section_id`) are `nullOnDelete`
  * and command mappings are `cascadeOnDelete`, so neither blocks.
  *
  * Returns the deleted `Unit` (rather than void) so `AuditEnvelope` has a target to log — its
@@ -37,13 +40,15 @@ class DeleteUnit
         private readonly SectionPracticeRepository $practices,
         private readonly WeeklyReportRepository $reports,
         private readonly TemplateVersionRepository $templates,
+        private readonly TrainingPlanRepository $plans,
+        private readonly PlatoonTrainingTopicRepository $topics,
         private readonly AuditEnvelope $audit,
     ) {}
 
     /**
      * @throws UnitHasDependentsException when the unit still has child units, billet mappings,
-     *                                    staff grants, recorded practices, weekly reports or
-     *                                    template versions.
+     *                                    staff grants, recorded practices, weekly reports,
+     *                                    template versions, training plans or training topics.
      */
     public function handle(User $actor, Unit $unit): Unit
     {
@@ -88,6 +93,17 @@ class DeleteUnit
 
                 if ($this->templates->hasTemplatesFor($unit)) {
                     throw UnitHasDependentsException::hasTemplates($unit->name);
+                }
+
+                // A plan, and the topics it or a leader wrote, are planning history its reports read,
+                // so they keep the platoon in the tree as its reports do. Topics cascade in the
+                // database, so this check is the only thing that keeps them.
+                if ($this->plans->hasPlansFor($unit)) {
+                    throw UnitHasDependentsException::hasTrainingPlans($unit->name);
+                }
+
+                if ($this->topics->hasTopicsFor($unit)) {
+                    throw UnitHasDependentsException::hasTrainingTopics($unit->name);
                 }
 
                 $this->units->delete($unit);

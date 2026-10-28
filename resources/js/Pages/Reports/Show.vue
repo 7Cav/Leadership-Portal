@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import {
+    PhCalendarBlank,
     PhCaretLeft,
     PhCaretRight,
     PhClockCounterClockwise,
@@ -433,6 +434,15 @@ function useSuggestion() {
             </span>
             <Link href="/reports" class="inline-flex h-[1.625rem] items-center gap-1.5 rounded-sm px-2.5 text-muted-foreground hover:text-foreground">
                 <PhStack aria-hidden="true" />Command roll-up
+            </Link>
+            <!-- The month's training plan (#380): a platoon's own, or above one, every platoon's beneath. -->
+            <Link
+                v-if="!unit.isLeaf && !week.beforeFloor"
+                :href="`/reports/${unit.id}/plans/${weekDate.slice(0, 7)}`"
+                class="inline-flex h-[1.625rem] items-center gap-1.5 rounded-sm px-2.5 text-muted-foreground hover:text-foreground"
+                data-testid="training-plan-link"
+            >
+                <PhCalendarBlank aria-hidden="true" />Training plan
             </Link>
         </nav>
 

@@ -45,4 +45,11 @@ interface PlatoonTrainingTopicRepository
      * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
      */
     public function clear(int $unitId, CarbonInterface $weekStart): ?PlatoonTrainingTopic;
+
+    /**
+     * Whether `$unit` has a training topic for any week. A topic is part of its week's report
+     * record, so `DeleteUnit` refuses a unit that has one rather than let
+     * `platoon_training_topics.unit_id` cascade it away.
+     */
+    public function hasTopicsFor(Unit $unit): bool;
 }

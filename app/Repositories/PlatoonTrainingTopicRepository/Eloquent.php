@@ -75,6 +75,11 @@ class Eloquent implements PlatoonTrainingTopicRepository
         });
     }
 
+    public function hasTopicsFor(Unit $unit): bool
+    {
+        return PlatoonTrainingTopic::query()->where('unit_id', $unit->getKey())->exists();
+    }
+
     /** The same rule as `WeeklyReportRepository`: `$weekStart` must already be a week boundary (AD-11). */
     private function assertWeekStart(CarbonInterface $weekStart): CarbonImmutable
     {

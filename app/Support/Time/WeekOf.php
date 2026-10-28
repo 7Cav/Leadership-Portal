@@ -96,6 +96,33 @@ final class WeekOf
     }
 
     /**
+     * The Cav weeks of a month (#380): every week whose Saturday 00:00 UTC opener falls in `$month` (`YYYY-MM`),
+     * earliest first. Four or five of them, and each week belongs to exactly one month this way, so a monthly
+     * training plan never shares a week with the next one.
+     *
+     * @return list<CarbonImmutable>
+     *
+     * @throws InvalidArgumentException when `$month` is not a `YYYY-MM` month.
+     */
+    public static function inMonth(string $month): array
+    {
+        $first = preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month) === 1
+            ? CarbonImmutable::createFromFormat('!Y-m-d', "{$month}-01", 'UTC')
+            : false;
+
+        if ($first === false) {
+            throw new InvalidArgumentException("A month is YYYY-MM; got {$month}.");
+        }
+
+        $weeks = [];
+        for ($saturday = $first->isSaturday() ? $first : $first->next(CarbonInterface::SATURDAY); $saturday->month === $first->month; $saturday = $saturday->addWeek()) {
+            $weeks[] = $saturday;
+        }
+
+        return $weeks;
+    }
+
+    /**
      * `$weekStart` itself, as its UTC instant, when it already is a week boundary — the guard for
      * a caller *handed* a `week_start` rather than deriving one. Validates rather than derives, so
      * a wrong date is refused instead of silently snapped to some other week.

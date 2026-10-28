@@ -334,6 +334,8 @@ tests and comments. They include some route and key names, so read them as rough
 | roll-up | Noun: the combined view of reports below a unit. Verb: "roll up" | Reports | roll-up 4 / 4, "rollup" only in code | rollup, roll up (as a noun) |
 | training subject | What a section trained this week, on its report | Section report | 7 JS | training topic (on a section) |
 | training topic | The platoon's subject for its sections for the week, default or enforced | Platoon report | 1 JS / 6 server | training subject (for the platoon) |
+| training plan | A platoon's subjects for each Cav week of one month, reviewed by its company | Training plan page | new (#380) | training schedule, monthly plan |
+| approve, send back (a training plan) | What the company does with a platoon's training plan; "Sent back" is the status, "Waiting for approval" the one before | Training plan page | new (#380) | reject, decline, return |
 | Cav week | Saturday 00:00 UTC to the next Saturday 00:00 UTC | Everywhere | Cav week 6, "week of" 27 | calendar week, Mon to Sun |
 | week floor | Weeks older than this are read-only (`PORTAL_WEEK_FLOOR_WEEKS`) | Docs; UI says "too far back" | UI: "too far back" 2 / 6 | locked week, archived |
 | LOA, ELOA | Leave of absence and extended leave of absence, from forum threads | Rollcall, roster | LOA 39, "on LOA" 19, "on leave" 1, "leave of absence" 1 | absence, away |

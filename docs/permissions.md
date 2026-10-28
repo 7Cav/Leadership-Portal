@@ -103,8 +103,14 @@ Only Admins see the editing controls.
 | Save a report draft | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Send (freeze) a report, incl. "Send anyway" | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Set or clear the platoon training topic | All | All | No | Own | Own | Own | Own (if it covers the platoon) | No | No | No | No |
+| Read a platoon's monthly training plan | All | All | No | Own | Own | Own | Own | No | No | Read | Target |
+| Write a platoon's monthly training plan | All | All | No | Own | Own | Own | Own (if it covers the platoon) | No | No | No | No |
+| Approve or send back a training plan | All | All | No | Own | Own | No (5) | If acting lead of the company or above | No | No | No | No |
 
 "Own" includes every report below you: a company commander can draft and send a section's report in their company.
+
+(5) The review belongs to the command of the company the platoon is in, or above it. A platoon leader cannot approve
+their own plan unless they also command the company.
 
 ### Settings and admin actions
 
@@ -163,9 +169,9 @@ your next click. Nothing has to be revoked by hand.
 
 | Lock | What it stops |
 | --- | --- |
-| Week floor (`PORTAL_WEEK_FLOOR_WEEKS`, default 20 Cav weeks back) | Marking, confirming, marking posted, capture, linking unmatched players, guests, report drafts and sends, the platoon topic. Older reports open read-only. |
+| Week floor (`PORTAL_WEEK_FLOOR_WEEKS`, default 20 Cav weeks back) | Marking, confirming, marking posted, capture, linking unmatched players, guests, report drafts and sends, the platoon topic, a training plan's weeks. Older reports open read-only. |
 | Future weeks | Marking, confirming, posting and capture for a week that has not started. |
-| Section report sent for the week | That section's rollcall marks, confirming, marking posted, capture "Try again", guests at that practice and automatic makeups into that week. The sent report itself is frozen. A platoon's topic is locked once the platoon's report is sent. |
+| Section report sent for the week | That section's rollcall marks, confirming, marking posted, capture "Try again", guests at that practice and automatic makeups into that week. The sent report itself is frozen. A platoon's topic, and that week's subject in its training plan, are locked once the platoon's report is sent. |
 | Practice confirmed by a leader | Capture re-runs and linked players no longer change its marks. A leader's own hand edit still saves and clears the confirmation. |
 | Leave covering the week | That trooper's practice mark (the row posts as LOA). Their signature can still be saved. |
 
@@ -179,7 +185,7 @@ All per signed-in user (sign-in is per IP address), per minute.
 | --- | --- |
 | 10 per IP, per route | The two sign-in steps |
 | 60 | Find trooper and the guest picker search |
-| 60, shared | Fireteam changes, company fireteam policy, unmatched dismiss and restore, guest add and remove, platoon topic set and clear, starting and leaving view as |
+| 60, shared | Fireteam changes, company fireteam policy, unmatched dismiss and restore, guest add and remove, platoon topic set and clear, training plan save, approve and send back, starting and leaving view as |
 | 10 | Capture "Try again"; the same practice also only once a minute |
 | 5 | Whole-roster sync, manual LOA sync (Admins) |
 | 3 | Unit roster sync; also a 5 minute cooldown on that unit and every unit above and below it (Admins skip the cooldown) |
@@ -194,7 +200,7 @@ All per signed-in user (sign-in is per IP address), per minute.
 | View as is read-only | `app/Http/Middleware/ReadOnlyWhileViewingAs.php` (every non-GET except `view-as.store`, `view-as.destroy`, `logout`) |
 | Sign-in and session standing | `app/Commands/Auth/AdmitServingMember.php`, `app/Authorization/ServingSession.php`, `EnsureServingMember` middleware |
 | Admin-only checks | In the controllers (`OrgStructureController`, `StaffGrantsController`, `TemplatesController`, `TrooperPlacementController`, `RosterSyncController`, `LoaSyncController`, `AuditLogController`, `DemoDataController`) and again in some handlers. There are no Laravel policies. |
-| Write gates | Each handler under `app/Commands/*` checks `writeScope()` (attendance, capture, guests, game identities, reports) or `commandsUnit()` (fireteams, company policy, platoon topic) |
+| Write gates | Each handler under `app/Commands/*` checks `writeScope()` (attendance, capture, guests, game identities, reports) or `commandsUnit()` (fireteams, company policy, platoon topic, training plans; the review on the owning company, in `TrainingPlanRules`) |
 | Week floor | `app/Support/Time/WeekOf.php` (`floor()`, `isBeforeFloor()`), `config/portal.php` |
 | Rate limiters | `app/Providers/AppServiceProvider.php`, unit sync cooldown in `UnitRosterSyncController` |
 

@@ -140,3 +140,16 @@ it('steps a week boundary to the week before and the week after', function () {
 it('refuses to step from a moment that is not a week boundary', function (string $method) {
     expect(fn () => WeekOf::$method(CarbonImmutable::parse('2026-10-04 00:00:00', 'UTC')))->toThrow(InvalidArgumentException::class);
 })->with(['previous', 'next']);
+
+// #380: a monthly training plan holds every Cav week whose Saturday falls in the month.
+it('lists the weeks of a month by the Saturday that opens each', function (string $month, array $weeks) {
+    expect(array_map(fn (CarbonImmutable $week) => $week->toIso8601String(), WeekOf::inMonth($month)))->toBe($weeks);
+})->with([
+    'four Saturdays, the first on the 7th' => ['2026-11', ['2026-11-07T00:00:00+00:00', '2026-11-14T00:00:00+00:00', '2026-11-21T00:00:00+00:00', '2026-11-28T00:00:00+00:00']],
+    'five, the first on the 1st' => ['2026-08', ['2026-08-01T00:00:00+00:00', '2026-08-08T00:00:00+00:00', '2026-08-15T00:00:00+00:00', '2026-08-22T00:00:00+00:00', '2026-08-29T00:00:00+00:00']],
+    'five, the last on the 31st' => ['2026-10', ['2026-10-03T00:00:00+00:00', '2026-10-10T00:00:00+00:00', '2026-10-17T00:00:00+00:00', '2026-10-24T00:00:00+00:00', '2026-10-31T00:00:00+00:00']],
+]);
+
+it('refuses a month that is not YYYY-MM', function (string $month) {
+    WeekOf::inMonth($month);
+})->throws(InvalidArgumentException::class)->with(['2026-13', '2026-1', '26-01', '2026-00', 'nonsense']);
