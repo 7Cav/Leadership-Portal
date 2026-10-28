@@ -354,6 +354,7 @@ tests and comments. They include some route and key names, so read them as rough
 | Joined recently | Roster badge and filter chip for a trooper who joined in the last 8 Cav weeks | Roster | "New recruit" (`OrbatView.vue:499`), "New recruits" (`FilterChips.vue:20`) | New recruit, New |
 | 7Cav | The organisation, in running text | Everywhere | 7Cav, "7th Cavalry" in server sign-in messages, "7th Cavalry Regiment" (regiment unit), "7th Cavalry Gaming Regiment" (login footer) | 7th Cavalry, 7CAV in text |
 | strength | Troopers placed in sections in a unit | KPIs | 28 / 18 | headcount (in UI), size |
+| activity log | Settings page listing the pages each user opened, for retracing a bug report. Not the audit log, which lists changes | Settings | | page log, visit log, browsing history |
 | Admin | The portal Admin flag, not a billet | Settings, messages | Admin 15 / 20, admin 3 / 5 | admin, administrator, S1 admin |
 | template | A company's rollcall BBCode template | Settings | 54 / 20 | format, layout |
 | org structure | The unit tree | Nav, Settings | "Org structure" 4, "Organization structure" 2 | ORBAT (that is the roster view) |

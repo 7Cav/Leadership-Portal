@@ -4,6 +4,7 @@ import {
     PhFileCode,
     PhFileText,
     PhFlask,
+    PhFootprints,
     PhGameController,
     PhHardDrives,
     PhHouse,
@@ -53,6 +54,7 @@ export const NAV_GROUPS = [
             { label: 'Games', href: '/settings/games', icon: PhJoystick },
             { label: 'Servers', href: '/settings/servers', icon: PhHardDrives },
             { label: 'Audit log', href: '/settings/audit-log', icon: PhListMagnifyingGlass },
+            { label: 'Activity log', href: '/settings/activity-log', icon: PhFootprints },
             // Only while DEMO_TOOLS is on (#115): `feature` names the shared `features` flag it needs.
             { label: 'Demo data', href: '/settings/demo-data', icon: PhFlask, feature: 'demoTools' },
         ],

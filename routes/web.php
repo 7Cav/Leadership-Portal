@@ -11,6 +11,7 @@ use App\Http\Controllers\RollcallController;
 use App\Http\Controllers\RollcallFireteamController;
 use App\Http\Controllers\RollcallGuestController;
 use App\Http\Controllers\RosterController;
+use App\Http\Controllers\Settings\ActivityLogController;
 use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\DemoDataController;
 use App\Http\Controllers\Settings\GamesController;
@@ -214,6 +215,10 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // Audit-log review (Story 1.14). The whole screen is Admin-only (AC #4) — the gate is
     // enforced in the controller, not route middleware, matching every other Admin gate here.
     Route::get('/settings/audit-log', [AuditLogController::class, 'index'])->name('settings.audit-log');
+
+    // The activity log (#382): the pages each person opened, for retracing a bug report. Admin-only, gated in the
+    // controller like the audit log. Read-only, so no throttle.
+    Route::get('/settings/activity-log', [ActivityLogController::class, 'index'])->name('settings.activity-log');
 
     // Manual roster sync trigger (Story 2.4), posted by the roster screen's "Sync now" control
     // (2.8); there is no GET view of its own. The Admin gate is enforced in the controller (AD-6),

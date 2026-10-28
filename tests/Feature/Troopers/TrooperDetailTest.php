@@ -227,7 +227,8 @@ describe('the ID block (6.3)', function () {
 
         milpacOpen($this->actingAs($this->leader), $trooper)->assertOk();
 
-        expect(array_filter($writes, fn (string $sql) => ! str_contains($sql, 'sessions')))->toBe([]);
+        // The session and the activity log's record of the visit (#382) are the only writes a page view makes.
+        expect(array_filter($writes, fn (string $sql) => ! str_contains($sql, 'sessions') && ! str_contains($sql, 'page_visits')))->toBe([]);
     });
 });
 

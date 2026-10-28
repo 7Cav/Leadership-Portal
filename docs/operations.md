@@ -33,7 +33,8 @@ php artisan queue:restart
 
 1. Check the containers are up: `docker compose ps`.
 2. Check the schedule is loaded: `php artisan schedule:list` (roster sync hourly, LOA sync hourly at :15 and a full
-   run daily at 03:30, the LOA ones only once the forum key and sections are set).
+   run daily at 03:30, the LOA ones only once the forum key and sections are set; the activity log prune daily at
+   04:15).
 3. If this deploy changes the org import or billet rules (as the HQ staff placement, staff portfolios and acting leads
    change did), run the import step below.
 
@@ -74,6 +75,7 @@ Never run a bare `db:seed` or `migrate --seed` in production; see the main READM
 | `php artisan portal:sync-roster [--now]` | Queue (or run now) a whole-roster sync |
 | `php artisan portal:sync-loas [--full] [--now]` | Queue (or run now) the LOA sync; refuses while the forum key or sections are unset |
 | `php artisan portal:admin <username> [--revoke] [--force]` | Grant or remove the Admin flag (audited) |
+| `php artisan portal:prune-page-visits` | Delete activity log page visits older than 30 days (scheduled daily) |
 | `php artisan portal:demo-history <unit> [--weeks=N] [--purge] [--as=<admin>]` | Demo history, only with `DEMO_TOOLS=true` |
 
 ## Env keys that matter

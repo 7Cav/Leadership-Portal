@@ -26,7 +26,7 @@
 #   Model          → DB
 #   Integration    → External                              # sole path out — Saloon lives here (AD-3)
 #   Provider       → Controller, CommandHandler, Repository, Model, Integration, Authorization, DB, Kpi  # DI composition root
-#   Middleware     → Authorization, Support\Audit  # shares + guards the view-as preview (Story 1.13); runs a request as the person an Admin acts as (#379)
+#   Middleware     → Authorization, Support\Audit, Repository  # shares + guards the view-as preview (Story 1.13); runs a request as the person an Admin acts as (#379); logs page visits (#382)
 # Integration is reached from CommandHandler and Sync (and wired by Provider), nothing else.
 # Everything else is forbidden: Controller → Integration (external calls stay out of
 # controllers), Controller → DB, and any reverse edge all fail the build.
@@ -264,3 +264,6 @@ deptrac:
       # Acting as someone (#379): the middleware tells the audit envelope who is really acting on this request, so
       # each entry names the Admin acting on the person's behalf (AD-16).
       - Support\Audit
+      # The activity log (#382): the page-visit middleware stores each visit through PageVisitRepository after the
+      # response. A visit is a read, not a state change, so it has no Command and no audit entry (AD-16).
+      - Repository

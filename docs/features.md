@@ -130,6 +130,7 @@ outside a section only lets the capture recognise them; attendance is still mark
 | Templates | One rollcall BBCode template per company. A non-Admin sees only the companies in their scope, opening on their own. Each save is a new version with a reason; any older version can be activated again. The preview fills itself from the company's first section in your scope (sample data when there is none), or any other section you pick. The template language is a small Mustache subset (`{{name}}`, repeated and conditional blocks, `upper` and `lower`); mistakes are refused on save. |
 | Games | The games the regiment plays: name, the kinds of player ID it asks for (the first is the default), and which telemetry interface reads its attendance (CRCON, BattleMetrics, Nightwatch or none). Add, edit, retire or reinstate a game; delete one only while nothing uses it. |
 | Audit log | Every audited change (and every view as start and stop): who, what, when, the reason, filterable by actor, action, target, date and unit (including everything under it). |
+| Activity log | The pages each user opened and when, newest first, filterable by user and date range, to retrace a bug report. Shows when an Admin was acting as or viewing as someone. Addresses and times only (sensitive query values and every sign-in query are dropped), never form contents. Kept 30 days. |
 | Demo data | Only when `DEMO_TOOLS=true`. Generate 1 to 12 completed weeks of demo signatures, marks and sent reports for a unit's real troopers, or purge them. Never touches a week that holds real records. |
 
 Non-Admins do not see the Settings menu. They can still open Org structure, Staff grants, Templates and Games by URL, read only (Templates only for the companies in their scope).
@@ -146,6 +147,9 @@ All run on the queue; a queue worker must be running. Times are UTC.
 
 The capture does not record other sections' troopers as guests or makeups for now: without set practice times the
 window is the whole week and the servers are shared, so being online does not mean being at that practice.
+
+Activity log pruning runs from the scheduler itself, not the queue: daily at 04:15 `portal:prune-page-visits` deletes
+page visits older than 30 days, in chunks.
 
 The org import (Settings, Org structure, Import from Cav roster) is not scheduled; an Admin runs it.
 
