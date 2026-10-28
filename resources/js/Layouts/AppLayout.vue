@@ -17,6 +17,7 @@ import { handleSlash, slashClaimed } from '@/composables/useSlashShortcut';
 import { useTheme } from '@/composables/useTheme';
 import { useTrooperSearch } from '@/composables/useTrooperSearch';
 import { useViewAs } from '@/composables/useViewAs';
+import { scopeLabel } from '@/lib/scopeSwitch';
 import { isActive, locate } from './navigation';
 import 'vue-sonner/style.css';
 import AppSidebar from './partials/AppSidebar.vue';
@@ -36,8 +37,10 @@ const { active: viewingAs, openPicker } = useViewAs();
 const { openSearch } = useTrooperSearch();
 const actingAs = computed(() => page.props.actingAs != null);
 
-// The page's own breadcrumb trail, from the nav it lives under. Scope crumbs (battalion,
-// company) join once unit scopes exist; for now the regiment is the only scope.
+// The trail starts at the top of the viewer's scope as this request sees it (#426): 1/1/A/1-7 for a section leader,
+// 7CAV for an Admin. Then the page's own crumbs, from the nav it lives under.
+const scopeCrumb = computed(() => scopeLabel(page.props.scopeTop));
+
 const trail = computed(() => {
     const found = locate(page.url);
     if (!found) return [];
@@ -86,7 +89,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
 
                     <Breadcrumb class="min-w-0">
                         <BreadcrumbList class="flex-nowrap gap-1.5 text-[13px] whitespace-nowrap sm:gap-1.5">
-                            <BreadcrumbItem class="hidden sm:inline-flex">7CAV</BreadcrumbItem>
+                            <BreadcrumbItem class="hidden sm:inline-flex" data-testid="breadcrumb-scope">{{ scopeCrumb }}</BreadcrumbItem>
                             <template v-for="(crumb, index) in trail" :key="crumb">
                                 <BreadcrumbSeparator class="hidden sm:block" />
                                 <!-- On a phone only the current page shows; its trail and separators collapse. -->

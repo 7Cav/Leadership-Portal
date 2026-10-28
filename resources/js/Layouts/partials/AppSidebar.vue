@@ -1,5 +1,6 @@
 <script setup>
-import { Link, usePage } from '@inertiajs/vue3';
+import { computed, ref, watch } from 'vue';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import { PhCaretUpDown, PhCheck } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -7,7 +8,6 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
-    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -24,12 +24,48 @@ import {
 } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useIdentity } from '@/composables/useIdentity';
+import { currentUnitId, scopeLabel, unitHref } from '@/lib/scopeSwitch';
 import { isActive, visibleGroups } from '../navigation';
 import UserMenu from './UserMenu.vue';
 
 const page = usePage();
 const { isAdmin } = useIdentity();
 const { isMobile, setOpenMobile } = useSidebar();
+
+// The top of the scope, shared on every page; the full list is read only when the menu opens, since an Admin's is the
+// whole regiment. Read again on each opening: view as or act as may have changed the scope since.
+const tops = computed(() => page.props.scopeTop ?? []);
+const label = computed(() => scopeLabel(tops.value));
+const scopeName = computed(() => (tops.value.length === 1 ? tops.value[0].name : tops.value.length ? `${tops.value.length} units` : 'Leadership Portal'));
+const currentId = computed(() => currentUnitId(page.props));
+
+const menuOpen = ref(false);
+const status = ref('idle'); // idle | loading | ready | error
+const units = ref([]);
+
+async function load() {
+    status.value = 'loading';
+    try {
+        const response = await fetch('/scope/units', {
+            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        units.value = (await response.json()).units ?? [];
+        status.value = 'ready';
+    } catch {
+        status.value = 'error';
+    }
+}
+
+watch(menuOpen, (isOpen) => {
+    if (isOpen) load();
+});
+
+function open(unit) {
+    closeOnMobile();
+    router.visit(unitHref(unit, page.url));
+}
 
 // The mobile sidebar is a sheet over the page: close it when a nav link is followed (including
 // the page already open), or it would sit on top of the page the viewer asked for.
@@ -42,36 +78,48 @@ function closeOnMobile() {
     <Sidebar collapsible="icon">
         <SidebarHeader class="border-b border-sidebar-border p-2">
             <!--
-              Scope switcher (shell-f.html `#unitSwitcher`). Only the regiment exists as a scope
-              until unit scopes (Story 1.16) and view-as (Story 1.13) land, so the menu says so
-              rather than offering choices that do nothing.
+              The unit switcher (shell-f.html `#unitSwitcher`, #426): the top of the viewer's scope as this request
+              sees it (view as and act as included), and a menu of every unit in that scope to open a page for.
+              Navigation only: it never changes scope, and each page checks the unit again.
             -->
             <SidebarMenu>
                 <SidebarMenuItem>
-                    <DropdownMenu>
+                    <DropdownMenu v-model:open="menuOpen">
                         <DropdownMenuTrigger as-child>
-                            <SidebarMenuButton size="lg" data-testid="scope-switcher" aria-label="Scope: 7th Cavalry Regiment">
+                            <SidebarMenuButton size="lg" data-testid="scope-switcher" :aria-label="`Scope: ${scopeName}`">
                                 <span class="grid size-8 shrink-0 place-items-center rounded-md bg-foreground">
                                     <img src="/assets/cav-shield.png" alt="" class="size-6 object-contain" />
                                 </span>
                                 <span class="grid min-w-0 flex-1 leading-tight">
-                                    <span class="truncate text-[13px] font-semibold">7Cav</span>
-                                    <span class="truncate text-xs text-muted-foreground">Leadership Portal</span>
+                                    <span class="truncate text-[13px] font-semibold" data-testid="scope-switcher-label">{{ label }}</span>
+                                    <span class="truncate text-xs text-muted-foreground">{{ scopeName }}</span>
                                 </span>
                                 <PhCaretUpDown class="ml-auto size-4 text-muted-foreground" />
                             </SidebarMenuButton>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent class="w-64" align="start" :side-offset="6">
-                            <DropdownMenuLabel class="text-xs font-normal text-muted-foreground">Scope</DropdownMenuLabel>
-                            <DropdownMenuItem class="gap-2">
-                                <span class="font-medium">7CAV</span>
-                                <span class="text-muted-foreground">7th Cavalry Regiment</span>
-                                <PhCheck class="ml-auto size-4" aria-label="Current scope" />
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <p class="px-2 py-1.5 text-xs text-muted-foreground">
-                                Switching to a battalion, company or platoon is coming soon.
+                        <DropdownMenuContent class="w-72" align="start" :side-offset="6" data-testid="scope-switcher-menu">
+                            <DropdownMenuLabel class="text-xs font-normal text-muted-foreground">Open a unit</DropdownMenuLabel>
+                            <p v-if="status === 'loading'" class="px-2 py-1.5 text-xs text-muted-foreground" role="status">Loading your units</p>
+                            <p v-else-if="status === 'error'" class="px-2 py-1.5 text-xs text-muted-foreground" role="alert">
+                                Your units could not be loaded. Close the menu and open it again.
                             </p>
+                            <p v-else-if="status === 'ready' && units.length === 0" class="px-2 py-1.5 text-xs text-muted-foreground">
+                                No units in your scope.
+                            </p>
+                            <div v-else-if="status === 'ready'" class="max-h-[60vh] overflow-y-auto">
+                                <DropdownMenuItem
+                                    v-for="unit in units"
+                                    :key="unit.id"
+                                    class="gap-2"
+                                    :style="{ paddingLeft: `${0.5 + Math.min(unit.depth, 6) * 0.75}rem` }"
+                                    :data-unit="unit.id"
+                                    @select="open(unit)"
+                                >
+                                    <span class="font-medium">{{ unit.designation }}</span>
+                                    <span v-if="unit.name !== unit.designation" class="truncate text-muted-foreground">{{ unit.name }}</span>
+                                    <PhCheck v-if="unit.id === currentId" class="ml-auto size-4" aria-label="Unit on screen" />
+                                </DropdownMenuItem>
+                            </div>
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </SidebarMenuItem>

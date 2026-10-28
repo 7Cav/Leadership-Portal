@@ -13,6 +13,7 @@ use App\Http\Controllers\RollcallFireteamController;
 use App\Http\Controllers\RollcallGuestController;
 use App\Http\Controllers\RollcallTemplateController;
 use App\Http\Controllers\RosterController;
+use App\Http\Controllers\ScopeUnitsController;
 use App\Http\Controllers\Settings\ActivityLogController;
 use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\DemoDataController;
@@ -186,6 +187,10 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // authority by the ScopeResolver, here and again on every later request. Entering and leaving are audited, so
     // they share the audited-writes throttle: a leader looping them cannot flood the audit log.
     Route::get('/view-as/options', [ViewAsController::class, 'options'])->name('view-as.options');
+
+    // The sidebar's unit switcher (#426): the units in the viewer's scope, read when its menu opens. Navigation only;
+    // an Admin's list is the whole regiment, so it has a small limit of its own.
+    Route::get('/scope/units', ScopeUnitsController::class)->middleware('throttle:scope-units')->name('scope.units');
     Route::post('/view-as', [ViewAsController::class, 'store'])->middleware('throttle:audited-writes')->name('view-as.store');
     Route::delete('/view-as', [ViewAsController::class, 'destroy'])->middleware('throttle:audited-writes')->name('view-as.destroy');
 
