@@ -56,6 +56,19 @@ describe('Order of battle (roster-s2)', () => {
         expect(tag(15).text()).toBe('PSG');
     });
 
+    // #444: the default billet order lists a unit's command team in chain-of-command order.
+    it('lists the platoon HQ as PL then PSG, and the section as SL then ASL, whatever their ranks', () => {
+        const wrapper = factory({ troopers: [
+            trooper(15, 1, { name: 'Hale.S', rank: 'SFC', role: 'PSG' }),
+            trooper(16, 1, { name: 'Brennan.J', rank: '2LT', role: 'PL' }),
+            trooper(11, 2, { name: 'Ferreira.D', rank: 'SSG', role: 'ASL' }),
+            trooper(10, 2, { name: 'Abernathy.L', rank: 'SGT', role: 'SL' }),
+        ] });
+        const rows = wrapper.findAll('tbody tr').map((tr) => tr.attributes('data-testid'));
+
+        expect(rows).toEqual(['trooper-16', 'trooper-15', 'section-2', 'trooper-10', 'trooper-11', 'section-3']);
+    });
+
     it('draws an 8-week strip with the current week outlined', () => {
         const strip = factory().find('[data-testid="trooper-11"]').findAll('.strip-wk');
 

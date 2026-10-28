@@ -82,12 +82,59 @@ describe('ordering and matching', () => {
     });
 
     // #443: every echelon's command team carries its own tag now, not "SL".
-    it('sorts an acting SL where the SL goes, and any other tagged leader ahead of the untagged', () => {
+    it('sorts an acting SL where the SL goes, ahead of the ASL and the untagged', () => {
         const acting = { role: 'Acting SL', rank: 'SPC', name: 'Oduya.N' };
-        const psg = { role: 'PSG', rank: 'SFC', name: 'Hale.S' };
         const senior = { role: null, rank: 'MSG', name: 'Ward.T' };
 
-        expect([senior, pvt, psg, asl, acting].sort(compareBillet)).toEqual([acting, asl, psg, senior, pvt]);
+        expect([senior, pvt, asl, acting].sort(compareBillet)).toEqual([acting, asl, senior, pvt]);
+    });
+
+    // #444: the command team in chain-of-command order, whatever their ranks, then everyone by rank.
+    describe('the command team', () => {
+        const senior = { role: null, rank: 'COL', name: 'Abbott.A' };
+
+        it('lists a company, battalion or the regiment as CO, XO, then the senior NCO', () => {
+            const co = { role: 'CO', rank: 'CPT', name: 'Zane.Z' };
+            const xo = { role: 'XO', rank: 'CPT', name: 'Adams.A' };
+            const first = { role: '1SG', rank: '1SG', name: 'Brook.B' };
+            expect([senior, first, xo, co].sort(compareBillet)).toEqual([co, xo, first, senior]);
+
+            const rco = { role: 'CO', rank: 'COL', name: 'Young.Y' };
+            const rxo = { role: 'XO', rank: 'COL', name: 'Allen.A' };
+            const csm = { role: 'CSM', rank: 'CSM', name: 'Baker.B' };
+            expect([csm, rxo, rco].sort(compareBillet)).toEqual([rco, rxo, csm]);
+
+            const bnCo = { role: 'CO', rank: 'LTC', name: 'Young.Y' };
+            const sgm = { role: 'SGM', rank: 'SGM', name: 'Baker.B' };
+            const bnXo = { role: 'XO', rank: 'MAJ', name: 'Allen.A' };
+            expect([sgm, bnXo, bnCo].sort(compareBillet)).toEqual([bnCo, bnXo, sgm]);
+        });
+
+        it('lists a platoon as PL then PSG, an acting PL where the PL goes', () => {
+            const pl = { role: 'PL', rank: '2LT', name: 'Young.Y' };
+            const psg = { role: 'PSG', rank: 'SFC', name: 'Allen.A' };
+            const acting = { role: 'Acting PL', rank: 'SSG', name: 'Young.Y' };
+
+            expect([senior, psg, pl].sort(compareBillet)).toEqual([pl, psg, senior]);
+            expect([senior, psg, acting].sort(compareBillet)).toEqual([acting, psg, senior]);
+        });
+
+        it('keeps the XO first while the CO billet is vacant', () => {
+            const xo = { role: 'XO', rank: '1LT', name: 'Adams.A' };
+            const first = { role: '1SG', rank: '1SG', name: 'Brook.B' };
+
+            expect([senior, first, xo].sort(compareBillet)).toEqual([xo, first, senior]);
+        });
+
+        it('leaves a column sort to put the command team where they fall, only breaking ties by it', () => {
+            const co = { role: 'CO', rank: 'CPT', name: 'Zane.Z' };
+            const xo = { role: 'XO', rank: 'CPT', name: 'Adams.A' };
+            const first = { role: '1SG', rank: '1SG', name: 'Brook.B' };
+            const list = [co, xo, first, senior];
+
+            expect([...list].sort(compareOrbat({ key: 'name', dir: 'asc' }))).toEqual([senior, xo, first, co]);
+            expect([...list].sort(compareOrbat({ key: 'rank', dir: 'asc' }))).toEqual([first, co, xo, senior]);
+        });
     });
 
     it('sorts at-risk first by most misses', () => {

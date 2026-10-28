@@ -69,12 +69,14 @@ it('counts HQ staff in their unit and every ancestor, and New Recruits only on t
 });
 
 it('shows a held lead by name and an unheld one as vacant, with no previous holder', function () {
+    ospPlace($this->company, ['username' => 'Cole.D', 'billet' => 'Commander A/1-7', 'cav_position_id' => 720]);
     $units = ospUnits($this->actingAs($this->admin)->get('/settings/org-structure'));
 
-    expect($units[$this->platoon->id]['lead']['displayName'])->toContain('Hollis.P')
-        ->and($units[$this->platoon->id]['lead_vacant'])->toBeFalse()
-        ->and($units[$this->company->id]['lead'])->toBeNull()
-        ->and($units[$this->company->id]['lead_vacant'])->toBeTrue()
+    expect($units[$this->company->id]['lead']['displayName'])->toContain('Cole.D')
+        ->and($units[$this->company->id]['lead_vacant'])->toBeFalse()
+        // The Platoon Leader billet is vacant: the PSG who holds his own billet does not lead in its place (#444).
+        ->and($units[$this->platoon->id]['lead'])->toBeNull()
+        ->and($units[$this->platoon->id]['lead_vacant'])->toBeTrue()
         // No billet commands the section: no lead to be vacant.
         ->and($units[$this->section->id]['lead_vacant'])->toBeFalse();
 });
