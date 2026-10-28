@@ -127,13 +127,16 @@ class ActAs
         $others = $this->users->all()->reject(fn (User $user) => $user->id === $actor->id || $user->is_admin || $user->cav_id === null);
         $held = $this->commands->commandedUnitsByCavId($others->pluck('cav_id')->all());
         $placement = $this->placementOf($this->measuredFrom($actor, $this->viaFor($actor)));
+        $billeted = $others->filter(fn (User $user) => $held->has($user->cav_id) && $below->contains($held->get($user->cav_id)->id));
 
-        // The units below are worked out once; each person is then only checked for what is theirs: standing and reach.
-        return $others
-            ->filter(fn (User $user) => $held->has($user->cav_id)
-                && $below->contains($held->get($user->cav_id)->id)
-                && ! $this->serving->mustEnd($user)
-                && $this->withinAndNotOver($this->scope->realScope($user), $below, $placement))
+        // The same checks as allows(), each person's standing and reach read for all of them at once (#496): a fixed
+        // number of queries however many people are below, not a batch per person.
+        $ending = $this->serving->mustEndAmong($billeted)->flip();
+        $scopes = $this->scope->realScopes($billeted);
+
+        return $billeted
+            ->filter(fn (User $user) => ! $ending->has($user->id)
+                && $this->withinAndNotOver($scopes->get($user->id, collect()), $below, $placement))
             ->values();
     }
 
