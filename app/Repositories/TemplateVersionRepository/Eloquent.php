@@ -244,7 +244,7 @@ class Eloquent implements TemplateVersionRepository
         });
     }
 
-        public function companyEditsTemplates(int $companyId): bool
+    public function companyEditsTemplates(int $companyId): bool
     {
         return CompanyTemplatePolicy::query()->where('company_id', $companyId)->value('company_edits_templates') ?? true;
     }
