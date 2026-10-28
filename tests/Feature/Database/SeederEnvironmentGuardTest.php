@@ -6,6 +6,7 @@ use App\Models\User;
 use Database\Seeders\CaptureReviewSeeder;
 use Database\Seeders\CounselingSeeder;
 use Database\Seeders\DatabaseSeeder;
+use Database\Seeders\GameIdentitySectionSeeder;
 use Database\Seeders\GuestPracticeSeeder;
 use Database\Seeders\ReportRollupSeeder;
 use Database\Seeders\ReportScreenSeeder;
@@ -29,7 +30,7 @@ it('refuses to seed outside local, testing and e2e, writing nothing', function (
     expect(User::count())->toBe(0)
         ->and(Unit::count())->toBe(0)
         ->and(PortalRoleGrant::count())->toBe(0);
-})->with([ReportRollupSeeder::class, ReportScreenSeeder::class, CaptureReviewSeeder::class, RollcallHeldMarksSeeder::class, GuestPracticeSeeder::class, TransferHistorySeeder::class, CounselingSeeder::class, DatabaseSeeder::class])->with(['production', 'staging']);
+})->with([ReportRollupSeeder::class, ReportScreenSeeder::class, CaptureReviewSeeder::class, RollcallHeldMarksSeeder::class, GuestPracticeSeeder::class, TransferHistorySeeder::class, CounselingSeeder::class, GameIdentitySectionSeeder::class, DatabaseSeeder::class])->with(['production', 'staging']);
 
 it('seeds the demo data in the environments that exist to be thrown away', function (string $seeder, string $username, string $environment) {
     // The counseling seeder writes its documents to the private disk.

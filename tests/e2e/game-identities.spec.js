@@ -1,14 +1,26 @@
 import { expect, test } from '@playwright/test';
+import { randomBytes } from 'node:crypto';
+import { freshSection, steamId } from './fresh-section.js';
 
-// Every test here links identities on Vasquez.R's one seeded section, and the first counts them,
-// so they share state and run in order on one worker.
-test.describe.configure({ mode: 'serial' });
+// Story 7.2. Every test links identities, so each one gets a section of its own (GameIdentitySectionSeeder): eight
+// troopers linked to no game, under a leader of its own. A retry or a --repeat-each copy starts as clean as the first
+// run, and tests on other workers never see each other's links, so they run in parallel like the rest of the suite.
+let leader;
+test.beforeEach(() => {
+    leader = freshSection();
+});
 
-// Story 7.2 happy path. Vasquez.R commands one seeded section of eight troopers
-// (ReportRollupSeeder), none of them linked to a game yet.
+// Save the form and wait for the save to land: the page then moves the form on from the game it saved, to the trooper's
+// next missing game, or closes the panel when none is left. Typing before then goes into a form that the save's own
+// refill is about to clear.
+async function saveAndMoveOn(page) {
+    const game = await page.getByTestId('identity-game').inputValue();
+    await page.getByTestId('identity-save').click();
+    await expect.poll(() => page.evaluate(() => document.querySelector('[data-testid="identity-game"]')?.value ?? null)).not.toBe(game);
+}
 
 test('a section leader links their troopers, hits a collision, then edits and removes an identity', async ({ page }) => {
-    await page.goto('/__e2e/login/Vasquez.R?to=/home');
+    await page.goto(`/__e2e/login/${leader}?to=/home`);
     await page.getByTestId('nav-Game identities').click();
 
     await expect(page).toHaveURL(/\/game-identities$/);
@@ -20,28 +32,29 @@ test('a section leader links their troopers, hits a collision, then edits and re
     const rows = page.locator('[data-testid^="row-"]');
     await expect(rows).toHaveCount(8);
     const firstName = (await page.getByTestId(/^row-/).first().locator('p').first().textContent()).trim();
+    const steam = steamId();
 
     // Link all four games for the first trooper: the queue then drops them.
     await rows.first().getByRole('button', { name: 'Add identity' }).click();
     await expect(page.getByTestId('identity-game')).toHaveValue('hll');
     await page.getByTestId('identity-name').fill('QueueOne');
-    await page.getByTestId('identity-id').fill('76561198000000001');
+    await page.getByTestId('identity-id').fill(steam);
     await page.getByTestId('identity-save').click();
     await expect(page.getByTestId('coverage-linked')).toHaveText('1');
     await expect(page.getByTestId('identity-game')).toHaveValue('arma');
     await page.getByTestId('identity-name').fill('QueueOne_Arma');
-    await page.getByTestId('identity-id').fill('arma-0001');
+    await page.getByTestId('identity-id').fill(steamId());
     await page.getByTestId('identity-save').click();
     await expect(page.getByTestId('coverage-linked')).toHaveText('2');
     await expect(page.getByTestId('identity-game')).toHaveValue('wardogs');
     await page.getByTestId('identity-name').fill('QueueOne_Wardogs');
-    await page.getByTestId('identity-id').fill('76561198000000002');
+    await page.getByTestId('identity-id').fill(steamId());
     await page.getByTestId('identity-save').click();
     await expect(page.getByTestId('coverage-linked')).toHaveText('3');
     // Still queued: Hell Let Loose: Vietnam is its own game, and the same ID there as on WW2 is no collision (#431).
     await expect(page.getByTestId('identity-game')).toHaveValue('hll-vietnam');
     await page.getByTestId('identity-name').fill('QueueOne_Vietnam');
-    await page.getByTestId('identity-id').fill('76561198000000001');
+    await page.getByTestId('identity-id').fill(steam);
     await page.getByTestId('identity-save').click();
     await expect(page.getByTestId('coverage-linked')).toHaveText('4');
     await expect(rows).toHaveCount(7);
@@ -49,7 +62,7 @@ test('a section leader links their troopers, hits a collision, then edits and re
     // The same Steam ID on another trooper is a readable error on the field, not a 500.
     await rows.first().getByRole('button', { name: 'Add identity' }).click();
     await page.getByTestId('identity-name').fill('Copycat');
-    await page.getByTestId('identity-id').fill('76561198000000001');
+    await page.getByTestId('identity-id').fill(steam);
     await page.getByTestId('identity-save').click();
     await expect(page.getByTestId('error-platform_id')).toContainText(`Already linked to ${firstName} on Hell Let Loose (WW2)`);
     await expect(page.getByTestId('coverage-linked')).toHaveText('4');
@@ -74,15 +87,15 @@ test('a section leader links their troopers, hits a collision, then edits and re
 // #429: a linked identity wraps in full inside its box at every width, never cut off or scrolling the page.
 for (const [label, width, height] of [['phone', 375, 800], ['tablet', 820, 1000], ['desktop', 1440, 900]]) {
     test(`a long linked identity wraps in full with Edit and Remove reachable on ${label}`, async ({ page }) => {
-        const longId = 'e'.repeat(32);
+        const longId = randomBytes(16).toString('hex'); // 32 characters, unbroken, and no other test's
         const longName = `=7Cav=PFC.${'Austin'.repeat(7)}`; // unbroken, longer than the panel is wide
         await page.setViewportSize({ width, height });
-        await page.goto('/__e2e/login/Vasquez.R?to=/game-identities');
+        await page.goto(`/__e2e/login/${leader}?to=/game-identities`);
 
         await page.locator('[data-testid^="open-"]').last().click();
         await page.getByTestId('identity-game').selectOption('hll');
         await page.getByTestId('identity-name').fill(longName);
-        // 32 hex characters is the shape of an Epic ID (#450), the longest ID the server accepts on this game.
+        // 32 hex characters is the shape of an Epic ID, the longest ID this game takes.
         await page.getByTestId('identity-kind').selectOption('Epic ID');
         await page.getByTestId('identity-id').fill(longId);
         await page.getByTestId('identity-save').click();
@@ -108,7 +121,7 @@ for (const [label, width, height] of [['phone', 375, 800], ['tablet', 820, 1000]
 }
 
 // #427: the identity panel stays in view while you work down the list. The viewport heights are short
-// on purpose, so the eight seeded troopers overflow the screen the way a long real list does.
+// on purpose, so the section's eight troopers overflow the screen the way a long real list does.
 const rect = (page, selector) =>
     page.evaluate((s) => {
         const r = document.querySelector(s).getBoundingClientRect();
@@ -119,7 +132,7 @@ const rect = (page, selector) =>
 for (const [label, width, height] of [['phone', 375, 500], ['tablet', 820, 600], ['desktop', 1440, 520]]) {
     test(`picking a trooper down the list brings the panel into view, focuses its first field and returns to the row on ${label}`, async ({ page }) => {
         await page.setViewportSize({ width, height });
-        await page.goto('/__e2e/login/Vasquez.R?to=/game-identities');
+        await page.goto(`/__e2e/login/${leader}?to=/game-identities`);
         await page.getByTestId('view-everyone').click();
 
         const lastOpen = page.locator('[data-testid^="open-"]').last();
@@ -160,26 +173,25 @@ for (const [label, width, height] of [['phone', 375, 500], ['tablet', 820, 600],
 
 test('saving the last missing game of a trooper lands on the row that took their place, in view, on phone', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 500 });
-    await page.goto('/__e2e/login/Vasquez.R?to=/game-identities');
+    await page.goto(`/__e2e/login/${leader}?to=/game-identities`);
 
+    const rows = page.locator('[data-testid^="row-"]');
+    await expect(rows).toHaveCount(8);
     const lastOpen = page.locator('[data-testid^="open-"]').last();
-    // Count the queue once it has rendered: counted straight after the visit it can still be empty.
-    await expect(lastOpen).toBeVisible();
-    const before = await page.locator('[data-testid^="row-"]').count();
     await lastOpen.scrollIntoViewIfNeeded();
     await lastOpen.click();
 
-    // Link every game still missing; the last save drops the trooper from the "needs a link" queue.
-    const stamp = Date.now();
-    for (let i = 0; i < 3 && (await page.getByTestId('identity-form').count()); i++) {
-        await page.getByTestId('identity-name').fill(`Land_${stamp}_${i}`);
-        // A Steam ID's shape (#450) on the games that check it; Arma's Player ID takes it too.
-        await page.getByTestId('identity-id').fill(`7656119${String(stamp).slice(-9)}${i}`);
-        await page.getByTestId('identity-save').click();
-        await page.waitForTimeout(400);
+    // Link every game, each save landing before the next is typed; the last one drops the trooper from the "needs a
+    // link" queue and closes the panel.
+    const games = await page.getByTestId('identity-game').locator('option').count();
+    for (let i = 0; i < games; i++) {
+        await page.getByTestId('identity-name').fill(`Land_${i}`);
+        await page.getByTestId('identity-id').fill(steamId());
+        await saveAndMoveOn(page);
     }
 
-    await expect(page.locator('[data-testid^="row-"]')).toHaveCount(before - 1);
+    await expect(page.getByTestId('identity-form')).toHaveCount(0);
+    await expect(rows).toHaveCount(7);
     const focused = page.locator('[data-testid^="open-"]:focus');
     await expect(focused).toHaveCount(1);
     const row = await focused.evaluate((el) => {
@@ -193,16 +205,15 @@ test('saving the last missing game of a trooper lands on the row that took their
 
 test('a panel taller than the screen scrolls inside itself and keeps Save reachable on desktop', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 460 });
-    await page.goto('/__e2e/login/Vasquez.R?to=/game-identities');
+    await page.goto(`/__e2e/login/${leader}?to=/game-identities`);
     await page.getByTestId('view-everyone').click();
     await page.locator('[data-testid^="open-"]').nth(1).click();
 
-    const stamp = Date.now();
-    for (const [game, id] of [['hll', `76561${stamp}`], ['arma', `arma-${stamp}`], ['wardogs', `76562${stamp}`]]) {
+    for (const game of ['hll', 'arma', 'wardogs']) {
         await page.getByTestId('identity-game').selectOption(game);
         await page.getByTestId('identity-name').fill(`Tall_${game}`);
-        await page.getByTestId('identity-id').fill(id);
-        await page.getByTestId('identity-save').click();
+        await page.getByTestId('identity-id').fill(steamId());
+        await saveAndMoveOn(page);
         await expect(page.getByTestId(`identity-${game}`)).toBeVisible();
     }
 
@@ -216,7 +227,9 @@ test('a panel taller than the screen scrolls inside itself and keeps Save reacha
     expect(box.overflowY).toBe('auto');
     expect(box.bottom).toBeLessThanOrEqual(box.vh + 0.5);
 
-    // The first identity is reachable at the top, and Save at the bottom once the panel scrolls.
+    // The first identity is reachable at the top, and Save at the bottom once the panel scrolls. Moving on to the next
+    // game focuses its ID field, which scrolls the panel down, so each end is scrolled to before it is checked.
+    await page.getByTestId('edit-hll').scrollIntoViewIfNeeded();
     await expect(page.getByTestId('edit-hll')).toBeInViewport();
     await page.getByTestId('identity-save').scrollIntoViewIfNeeded();
     await expect(page.getByTestId('identity-save')).toBeInViewport();
