@@ -176,6 +176,28 @@ it('maps each page to the readable guide for the narrowest audience the reader h
         ->and($library->pages(Audience::Admin)['/settings/games'])->toBe('/docs/admin/games');
 });
 
+it('finds the guide the "?" help opens on a portal path', function () {
+    docWrite($this->docs, 'basics/roster.md', docMeta('basics', 'everyone', ['page' => '/roster']));
+    docWrite($this->docs, 'weekly-rollcall/run.md', docMeta('weekly-rollcall', 'leader', ['page' => '/rollcall']));
+    docWrite($this->docs, 'weekly-rollcall/report.md', docMeta('weekly-rollcall', 'leader', ['order' => 2, 'page' => '/reports/{unit}/{week}']));
+    docWrite($this->docs, 'weekly-rollcall/rollup.md', docMeta('weekly-rollcall', 'leader', ['order' => 3, 'page' => '/reports/{unit?}']));
+    docWrite($this->docs, 'admin/games.md', docMeta('admin', 'admin', ['page' => '/settings/games']));
+    $library = docLibrary($this);
+
+    expect($library->guideFor(Audience::Leader, '/rollcall'))->toBe('/docs/weekly-rollcall/run')
+        ->and($library->guideFor(Audience::Leader, '/rollcall/12?week=2026-10-24'))->toBe('/docs/weekly-rollcall/run')
+        ->and($library->guideFor(Audience::Leader, '/rollcall/'))->toBe('/docs/weekly-rollcall/run')
+        ->and($library->guideFor(Audience::Leader, '/reports/4/2026-10-24'))->toBe('/docs/weekly-rollcall/report')
+        ->and($library->guideFor(Audience::Leader, '/reports'))->toBe('/docs/weekly-rollcall/rollup')
+        ->and($library->guideFor(Audience::Leader, '/reports/4'))->toBe('/docs/weekly-rollcall/rollup')
+        ->and($library->guideFor(Audience::Leader, '/roster/7'))->toBe('/docs/basics/roster')
+        ->and($library->guideFor(Audience::Leader, '/rollcalls'))->toBeNull()
+        ->and($library->guideFor(Audience::Leader, '/home'))->toBeNull()
+        ->and($library->guideFor(Audience::Leader, '/settings/games'))->toBeNull()
+        ->and($library->guideFor(Audience::Admin, '/settings/games'))->toBe('/docs/admin/games')
+        ->and($library->guideFor(Audience::Everyone, '/rollcall'))->toBeNull();
+});
+
 it('names every broken guide and leaves it out', function (string $path, array $meta, string $body, string $problem) {
     docWrite($this->docs, 'basics/fine.md', docMeta('basics'));
     docWrite($this->docs, $path, $meta, $body);

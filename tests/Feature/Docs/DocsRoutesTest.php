@@ -119,6 +119,31 @@ it('follows view as: an Admin previewing a section reads it as that section\'s l
     $this->actingAs($this->admin)->get('/docs/admin/games')->assertNotFound();
 });
 
+it('opens the viewer\'s guide for the page the "?" help was pressed on, and says where they came from', function () {
+    $this->actingAs($this->leader)->get('/docs/help?from=/rollcall/12')->assertRedirect('/docs/weekly-rollcall/run-rollcall?from=%2Frollcall%2F12');
+    $this->actingAs($this->admin)->get('/docs/help?from=/settings/games')->assertRedirect('/docs/admin/games?from=%2Fsettings%2Fgames');
+});
+
+it('opens docs home from a page with no guide the viewer may read, never a 404', function (string $who, string $from) {
+    $this->actingAs($this->{$who})->get('/docs/help?from='.urlencode($from))->assertRedirect('/docs');
+})->with([
+    'trooper on a leader page' => ['trooper', '/rollcall'],
+    'leader on an Admin page' => ['leader', '/settings/games'],
+    'a page with no guide' => ['admin', '/home'],
+    'no page given' => ['admin', ''],
+    'another site' => ['admin', '//evil.example/rollcall'],
+    'a full URL' => ['admin', 'https://evil.example/rollcall'],
+    'a tab a browser drops' => ['admin', "/\t/evil.example"],
+    'a line break' => ['admin', "/\n/evil.example"],
+    'a backslash' => ['admin', '/rollcall\\..'],
+]);
+
+it('answers 404 on the "?" help while the docs are off', function () {
+    config(['portal.docs' => false]);
+
+    $this->actingAs($this->admin)->get('/docs/help?from=/rollcall')->assertNotFound();
+});
+
 it('passes the feedback link S6 set to every docs page', function () {
     config(['portal.docs_feedback_url' => 'https://7cav.us/threads/portal-docs.1/']);
 

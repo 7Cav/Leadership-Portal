@@ -25,9 +25,9 @@ const ENRICHED = {
     fetched_at: '2026-08-03T09:14:00+00:00',
 };
 
-function mountLayout({ url = '/home', user = { id: 1, username: 'Hale.S', is_admin: false }, profile = null, viewAs = null, crumb = undefined, canActAs = false } = {}) {
+function mountLayout({ url = '/home', user = { id: 1, username: 'Hale.S', is_admin: false }, profile = null, viewAs = null, crumb = undefined, canActAs = false, features = {} } = {}) {
     mockPage.url = url;
-    mockPage.props = { auth: { user, profile }, viewAs, crumb, canActAs };
+    mockPage.props = { auth: { user, profile }, viewAs, crumb, canActAs, features };
 
     return mount(AppLayout, {
         slots: { default: '<p data-testid="page-body">Page body</p>' },
@@ -155,6 +155,36 @@ describe('AppLayout', () => {
             expect(wrapper.find('[data-testid="breadcrumb-current"]').text()).toBe('SPC Milkovic.D');
             expect(wrapper.find('nav[aria-label="breadcrumb"]').text()).toContain('Roster');
             expect(wrapper.find('[data-testid="nav-Roster"]').attributes('aria-current')).toBe('page');
+        });
+    });
+
+    describe('help (#411)', () => {
+        it('puts Help between Find trooper and View as, opening the guide for this page', () => {
+            wrapper = mountLayout({ url: '/rollcall/12?week=2026-10-24', features: { docs: true } });
+
+            const buttons = wrapper.findAll('header [data-testid]').map((el) => el.attributes('data-testid'));
+            expect(buttons.indexOf('help-trigger')).toBeGreaterThan(buttons.indexOf('trooper-search-trigger'));
+            expect(buttons.indexOf('help-trigger')).toBeLessThan(buttons.indexOf('view-as-trigger'));
+
+            const help = wrapper.find('[data-testid="help-trigger"]');
+            expect(help.attributes('href')).toBe('/docs/help?from=%2Frollcall%2F12%3Fweek%3D2026-10-24');
+            expect(help.attributes('aria-label')).toBe('Help for this page');
+        });
+
+        it('shows no Help and no Docs entry while the docs are off', () => {
+            wrapper = mountLayout({ features: { docs: false } });
+
+            expect(wrapper.find('[data-testid="help-trigger"]').exists()).toBe(false);
+            expect(wrapper.find('nav[aria-label="Primary"] a[href="/docs"]').exists()).toBe(false);
+        });
+
+        it('lists Docs under Help for a viewer with no billet, and reads a guide as Docs / guide', () => {
+            wrapper = mountLayout({ url: '/docs/basics/sign-in', crumb: 'Sign in with your 7cav.us account', features: { docs: true } });
+
+            expect(wrapper.find('nav[aria-label="Primary"] a[href="/docs"]').attributes('aria-current')).toBe('page');
+            expect(wrapper.find('[data-testid="breadcrumb-current"]').text()).toBe('Sign in with your 7cav.us account');
+            expect(wrapper.find('nav[aria-label="breadcrumb"]').text()).toContain('Docs');
+            expect(wrapper.find('nav[aria-label="breadcrumb"]').text()).not.toContain('Help');
         });
     });
 

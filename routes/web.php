@@ -132,6 +132,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // the ScopeResolver, so view-as applies); every docs route answers 404 while `portal.docs` is off. Guide ids are
     // slugs, never numbers. `/documentation` is an alias, sent on permanently with the rest of its path.
     Route::get('/docs', [DocsController::class, 'index'])->name('docs.index');
+    Route::get('/docs/help', [DocsController::class, 'help'])->name('docs.help');
     Route::get('/docs/{section}/{slug}', [DocsController::class, 'show'])
         ->where(['section' => '[a-z0-9-]+', 'slug' => '[a-z0-9-]+'])->name('docs.show');
     Route::permanentRedirect('/documentation', '/docs');

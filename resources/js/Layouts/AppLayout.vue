@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted } from 'vue';
-import { usePage } from '@inertiajs/vue3';
-import { PhMagnifyingGlass, PhMoon, PhSun, PhUserSwitch } from '@phosphor-icons/vue';
+import { Link, usePage } from '@inertiajs/vue3';
+import { PhMagnifyingGlass, PhMoon, PhQuestion, PhSun, PhUserSwitch } from '@phosphor-icons/vue';
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -17,7 +17,7 @@ import { handleSlash, slashClaimed } from '@/composables/useSlashShortcut';
 import { useTheme } from '@/composables/useTheme';
 import { useTrooperSearch } from '@/composables/useTrooperSearch';
 import { useViewAs } from '@/composables/useViewAs';
-import { locate } from './navigation';
+import { isActive, locate } from './navigation';
 import 'vue-sonner/style.css';
 import AppSidebar from './partials/AppSidebar.vue';
 import KeyboardShortcuts from './partials/KeyboardShortcuts.vue';
@@ -42,11 +42,16 @@ const trail = computed(() => {
     const found = locate(page.url);
     if (!found) return [];
 
-    const trail = found.group.id === 'leadership' ? [found.item.label] : [found.group.label, found.item.label];
+    const trail = found.group.crumb === false ? [found.item.label] : [found.group.label, found.item.label];
 
     // A page nested under a nav item names its own last crumb (the trooper's name) in a `crumb` prop.
     return found.nested && page.props.crumb ? [...trail, page.props.crumb] : trail;
 });
+
+// The "?" help (#411): the server opens the viewer's guide for this page, or docs home when none matches.
+const docsOn = computed(() => page.props.features?.docs === true);
+const helpHref = computed(() => `/docs/help?from=${encodeURIComponent(page.url)}`);
+const onDocs = computed(() => isActive(page.url, '/docs'));
 
 // app.blade.php themes <html> before this module loads; pick that up so the toggle starts right.
 onMounted(syncFromDocument);
@@ -114,6 +119,19 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
                                 aria-hidden="true"
                                 >/</kbd
                             >
+                        </Button>
+                        <!-- Help (#411): between Find trooper and View as, only while the docs are on. -->
+                        <Button
+                            v-if="docsOn"
+                            as-child
+                            variant="ghost"
+                            size="sm"
+                            :class="onDocs ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'"
+                        >
+                            <Link :href="helpHref" data-testid="help-trigger" title="Help for this page" aria-label="Help for this page">
+                                <PhQuestion weight="bold" />
+                                <span class="hidden sm:inline" aria-hidden="true">Help</span>
+                            </Link>
                         </Button>
                         <!-- View as (Story 1.13): in the top bar on every page, as the issue asks (UX-DR2). -->
                         <Button
