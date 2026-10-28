@@ -261,11 +261,12 @@ function remove(value) {
                                 :data-testid="`identity-${p.value}`"
                                 class="rounded-md border border-border bg-card px-2.5 py-2"
                             >
-                                <div class="flex items-start justify-between gap-2">
-                                    <div class="min-w-0">
+                                <div class="flex flex-wrap items-start justify-between gap-2">
+                                    <!-- Wraps, never truncates: the full name and ID must be checkable against the game. flex-wrap drops Edit/Remove below the text when it is too narrow. -->
+                                    <div class="min-w-0 flex-1 basis-32">
                                         <p class="text-xs text-muted-foreground">{{ p.label }}<template v-if="p.retired"> (retired)</template></p>
-                                        <p class="truncate text-[13px] font-medium">{{ selected.identities[p.value].playerName }}</p>
-                                        <p class="truncate font-mono text-xs text-muted-foreground">{{ selected.identities[p.value].platformId }}</p>
+                                        <p class="text-[13px] font-medium break-words">{{ selected.identities[p.value].playerName }}</p>
+                                        <p class="font-mono text-xs break-all text-muted-foreground">{{ selected.identities[p.value].platformId }}</p>
                                     </div>
                                     <div v-if="removing !== p.value" class="flex shrink-0 gap-1">
                                         <Button v-if="!p.retired" variant="outline" size="xs" :data-testid="`edit-${p.value}`" @click="fill(selected, p.value)">Edit</Button>

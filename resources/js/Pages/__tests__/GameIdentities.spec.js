@@ -180,6 +180,28 @@ describe('GameIdentities page', () => {
         expect(del).toHaveBeenCalledWith('/game-identities/3/arma', expect.objectContaining({ preserveScroll: true }));
     });
 
+    it('wraps a linked identity instead of cutting it off, keeping Edit and Remove reachable (#429)', async () => {
+        const id = 'a'.repeat(32);
+        const troopers = [trooper(1, 'SGT Ortega.M', { hll: { playerName: '=7Cav=PFC.Austin.C', platformId: id } })];
+        const wrapper = mount(GameIdentities, { props: { platforms: PLATFORMS, troopers } });
+        await wrapper.get('[data-testid="view-everyone"]').trigger('click');
+        await wrapper.get('[data-testid="open-1"]').trigger('click');
+
+        const box = wrapper.get('[data-testid="identity-hll"]');
+        const [name, platformId] = box.findAll('p').slice(1);
+
+        expect(name.text()).toBe('=7Cav=PFC.Austin.C');
+        expect(platformId.text()).toBe(id);
+        for (const text of [name, platformId]) {
+            expect(text.classes()).not.toContain('truncate');
+            expect(text.classes().some((c) => c === 'break-words' || c === 'break-all')).toBe(true);
+        }
+        // The row wraps, so the actions drop below the text rather than being squeezed out.
+        expect(box.get('div').classes()).toContain('flex-wrap');
+        expect(box.get('[data-testid="edit-hll"]').element.parentElement.classList.contains('shrink-0')).toBe(true);
+        expect(box.find('[data-testid="remove-hll"]').exists()).toBe(true);
+    });
+
     it('closes the panel on Cancel', async () => {
         const wrapper = factory();
         await wrapper.get('[data-testid="open-2"]').trigger('click');
