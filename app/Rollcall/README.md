@@ -2,13 +2,15 @@
 
 Read-only logic behind the weekly rollcall, so no screen re-derives it.
 
-- `TemplateResolver::forUnit($unit)` → `ResolvedTemplate` (3.6, AD-17): which rollcall template version applies to a
-  unit. It walks up the org tree to the owning company (the unit itself when it is a company) and returns that
-  company's active version, with the version id so a render can record exactly which one it used. Every unit under one
-  company resolves to the same version and a unit under another company never borrows it.
-  `TemplateResolution` is the outcome: `resolved`, `no_active_template` (the company has not authored one yet) or
-  `no_owning_company` (the unit sits above every company). Both "none" cases are explicit states, never a blank body.
-  Resolution happens on every call, never from a cached copy, so an Admin's activation shows on the next render.
+- `TemplateResolver::forUnit($unit)` → `ResolvedTemplate` (3.6, #375, AD-17): which rollcall template version applies
+  to a unit. It walks up the org tree to the owning company (the unit itself when it is a company) and takes the
+  section's pick while the company has it switched on, else the company's active template if it is switched on, else
+  the regiment-wide default, with the template and version ids so a render can record exactly which one it used
+  (`source`: `picked`, `company` or `default`). A unit under one company never borrows another company's template.
+  `TemplateResolution` is the outcome: `resolved`, `no_active_template` (not even the regiment default has a version)
+  or `no_owning_company` (the unit sits above every company). Both "none" cases are explicit states, never a blank
+  body. Resolution happens on every call, never from a cached copy, so a company's change shows on the next render.
+  `optionsFor()` and `pickerFor()` are what the rollcall's template picker offers.
 
 - `TemplateSyntax::check($body)` (3.10, AD-17): the grammar a rollcall template must follow, checked when an Admin saves
   one. The language is Mustache's core and cannot run code: `{{name}}` prints a value, `{{#troopers}}...{{/troopers}}`
@@ -29,10 +31,10 @@ company's active template, resolved on that request (3.6, the `template` prop wi
 autosaved through the audited `MarkAttendance` Command), each stored mark shows where it came from (3.9), and the forum post
 is rendered in the browser from the template and the current marks, ready to copy (3.10, `lib/rollcallBbcode.js`). There is
 no built-in post: a company with no template, a section under no company, or a stored template that no longer renders shows
-what is missing instead. The template is resolved on every render and never cached, so an Admin's edit or rollback changes
-every section under the company on its next load, and no other company's. Marks are data and the template is presentation:
-a template change between load and save does not affect what is saved. A leader has no way to edit a template from here;
-authoring is Admin-only in Settings, Templates (3.5).
+what is missing instead. The template is resolved on every render and never cached, so an edit or rollback changes
+every section using that template on its next load, and no other company's. Marks are data and the template is
+presentation: a template change between load and save does not affect what is saved. A leader picks a template here but
+has no way to edit one; authoring is the company's command's (and an Admin's) in Settings, Templates (3.5, #375).
 
 Leave comes from `Loa/LoaCoverage`, the one definition (3.4, 4.4, AD-21), sent per trooper as `loa` (`LoaCover::toArray()`)
 with the LOA source and last sync (`loaSync`, AD-20). Nothing stores an `loa` mark: a covered trooper's row is locked, listed
