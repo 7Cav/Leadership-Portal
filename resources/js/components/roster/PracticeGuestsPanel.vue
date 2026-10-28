@@ -51,7 +51,7 @@ const candidates = computed(() => rows.value.filter((row) => row.candidate).leng
             <p class="w-full max-w-[80ch] text-xs text-muted-foreground" data-testid="practice-guests-criteria">
                 Troopers from other units recorded as guests at {{ unitLabel }}'s practices over the last {{ criteria.windowWeeks }} Cav
                 weeks; section leaders add them on the rollcall. A JSAM candidate attended at least {{ criteria.minVisits }} of them and
-                {{ criteria.minOwnSpPercent }}% or more of their own section's practices over the same weeks (makeups don't count toward
+                {{ criteria.minOwnSpPercent }}% or more of their own section's practices over the same weeks (makeups do not count toward
                 their own). The portal only shows the evidence; the recommendation is yours.
             </p>
         </div>
@@ -87,7 +87,7 @@ const candidates = computed(() => rows.value.filter((row) => row.candidate).leng
                         <td
                             class="px-2 py-2 text-right tabular-nums"
                             data-testid="practice-guest-sp"
-                            :title="row.ownSp[1] ? `${row.ownSp[0]} of ${row.ownSp[1]} own-section practices. Makeups are not counted.` : 'Their own section held no practice to count.'"
+                            :title="row.ownSp[1] ? `${row.ownSp[0]} of ${row.ownSp[1]} practices of their own section. Makeups are not counted.` : 'Their own section held no practice to count.'"
                         >
                             {{ percentLabel(row.ownSp) }}
                         </td>

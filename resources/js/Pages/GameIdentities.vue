@@ -159,10 +159,10 @@ function save() {
         onError: (errors) => {
             // Validation and collisions show on their fields; anything else (a refused or expired
             // request) gets a message of its own rather than a silent form.
-            if (!errors.player_name && !errors.platform_id && !errors.id_kind) notice.value = 'This could not be saved. Reload the page and try again.';
+            if (!errors.player_name && !errors.platform_id && !errors.id_kind) notice.value = 'Could not save the game identity. Reload the page and try again.';
         },
         // A refused or expired request is an HTTP exception, not a validation error: it says why in the same notice.
-        onHttpException: onHttpException('This was not saved', (message) => (notice.value = message)),
+        onHttpException: onHttpException('Could not save the game identity', (message) => (notice.value = message)),
     });
 }
 
@@ -183,7 +183,7 @@ function remove(value) {
             if (fresh) fill(fresh, value);
             else gone(index);
         },
-        onError: () => (notice.value = 'This could not be removed. Reload the page and try again.'),
+        onError: () => (notice.value = 'Could not remove the game identity. Reload the page and try again.'),
         onFinish: () => (removeProcessing.value = false),
     });
 }
@@ -207,7 +207,7 @@ function remove(value) {
 
         <p v-if="notice" role="alert" class="rounded-md bg-destructive/10 px-3 py-2 text-[13px] text-destructive" data-testid="notice">{{ notice }}</p>
 
-        <EmptyState v-if="!troopers.length" :icon="PhGameController" title="No troopers in your scope." class="rounded-lg border border-border py-10">
+        <EmptyState v-if="!troopers.length" :icon="PhGameController" title="No troopers in your scope" class="rounded-lg border border-border py-10">
             Troopers placed in the units you command appear here, ready to link to their game identities.
         </EmptyState>
 
@@ -249,7 +249,7 @@ function remove(value) {
 
             <div class="grid lg:grid-cols-[minmax(0,1fr)_340px]">
                 <div ref="queueList" class="min-w-0 py-1" data-testid="queue">
-                    <EmptyState v-if="!queue.length" :icon="PhGameController" title="Everyone is linked." class="py-10" data-testid="queue-empty">
+                    <EmptyState v-if="!queue.length" :icon="PhGameController" title="Everyone is linked" class="py-10" data-testid="queue-empty">
                         Every trooper in your scope has an identity on every game.
                     </EmptyState>
                     <ul v-else class="divide-y divide-border">
@@ -292,7 +292,7 @@ function remove(value) {
                         data-testid="panel"
                         :aria-label="selected ? `Game identities for ${selected.displayName}` : 'Game identity details'"
                     >
-                    <EmptyState v-if="!selected" :icon="PhGameController" title="Pick a trooper." class="py-8">
+                    <EmptyState v-if="!selected" :icon="PhGameController" title="Choose a trooper" class="py-8">
                         Choose one from the list to add or change their game identities.
                     </EmptyState>
 

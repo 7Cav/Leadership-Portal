@@ -12,13 +12,13 @@ export const RANK_ORDER = [
 ];
 
 export const RANK_NAMES = {
-    RCT: 'Recruit', PVT: 'Private', PFC: 'Private first class', SPC: 'Specialist', CPL: 'Corporal',
-    SGT: 'Sergeant', SSG: 'Staff sergeant', SFC: 'Sergeant first class', MSG: 'Master sergeant',
-    '1SG': 'First sergeant', SGM: 'Sergeant major', CSM: 'Command sergeant major',
-    WO1: 'Warrant officer 1', CW2: 'Chief warrant officer 2', CW3: 'Chief warrant officer 3',
-    CW4: 'Chief warrant officer 4', CW5: 'Chief warrant officer 5', '2LT': 'Second lieutenant',
-    '1LT': 'First lieutenant', CPT: 'Captain', MAJ: 'Major', LTC: 'Lieutenant colonel', COL: 'Colonel',
-    BG: 'Brigadier general', MG: 'Major general', LTG: 'Lieutenant general', GEN: 'General',
+    RCT: 'Recruit', PVT: 'Private', PFC: 'Private First Class', SPC: 'Specialist', CPL: 'Corporal',
+    SGT: 'Sergeant', SSG: 'Staff Sergeant', SFC: 'Sergeant First Class', MSG: 'Master Sergeant',
+    '1SG': 'First Sergeant', SGM: 'Sergeant Major', CSM: 'Command Sergeant Major',
+    WO1: 'Warrant Officer 1', CW2: 'Chief Warrant Officer 2', CW3: 'Chief Warrant Officer 3',
+    CW4: 'Chief Warrant Officer 4', CW5: 'Chief Warrant Officer 5', '2LT': 'Second Lieutenant',
+    '1LT': 'First Lieutenant', CPT: 'Captain', MAJ: 'Major', LTC: 'Lieutenant Colonel', COL: 'Colonel',
+    BG: 'Brigadier General', MG: 'Major General', LTG: 'Lieutenant General', GEN: 'General',
 };
 
 export function rankIndex(rank) {
@@ -75,7 +75,7 @@ export const RC_STATES = {
     ok: 'Will attend',
     cn: 'Cannot attend',
     bad: 'Unsigned',
-    open: 'Not signed yet',
+    open: 'Unsigned (rollcall open)',
     nil: 'No rollcall posted',
     loa: 'On LOA',
     out: 'Not in the unit yet',

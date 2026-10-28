@@ -31,7 +31,7 @@ describe('ReadinessMark', () => {
     });
 
     it('hides every glyph from assistive tech', () => {
-        expect(mark({ status: 'none' }).get('[aria-hidden="true"]').text()).toBe('–');
+        expect(mark({ status: 'none' }).get('[aria-hidden="true"]').text()).toBe('—');
         expect(mark({ status: 'qualified' }).get('svg').attributes('aria-hidden')).toBe('true');
     });
 

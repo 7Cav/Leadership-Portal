@@ -86,7 +86,7 @@ describe('Order of battle (roster-s2)', () => {
     it('offers to clear a filter that matches nobody', async () => {
         const wrapper = factory({ query: 'nobody' });
 
-        expect(wrapper.text()).toContain('No troopers match “nobody”');
+        expect(wrapper.text()).toContain('No troopers match "nobody"');
         await wrapper.findAll('button').find((b) => b.text() === 'Clear filter').trigger('click');
         expect(wrapper.emitted('update:query').at(-1)).toEqual(['']);
     });

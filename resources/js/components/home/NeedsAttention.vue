@@ -42,7 +42,7 @@ const groups = computed(() =>
         </div>
 
         <EmptyState v-if="!groups.length" :icon="PhCheckCircle" title="All clear" class="py-12" data-testid="all-clear">
-            No report is holding up the chain and no trooper is at risk this week.
+            No report is holding up the chain and no trooper is at-risk this week.
         </EmptyState>
 
         <div v-else class="p-1.5 pb-2">
@@ -97,7 +97,7 @@ const groups = computed(() =>
                     </li>
                 </ul>
                 <p v-if="group.total > group.items.length" class="px-3 pt-1 pb-1 text-xs text-muted-foreground">
-                    {{ group.total - group.items.length }} more.
+                    {{ group.total - group.items.length }} more
                     <Link :href="group.all" class="underline underline-offset-2 hover:text-foreground">{{ group.allLabel }}</Link>
                 </p>
             </section>

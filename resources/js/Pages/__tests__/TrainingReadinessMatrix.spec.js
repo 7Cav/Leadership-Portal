@@ -32,7 +32,7 @@ const page = (props = {}) => mount(TrainingReadinessMatrix, { props: { unit, cou
 
 describe('TrainingReadinessMatrix', () => {
     it('titles the page with the unit', () => {
-        expect(page().get('[data-testid="matrix-title"]').text()).toBe('Training readiness · 1/A/1-7 1st Platoon');
+        expect(page().get('[data-testid="matrix-title"]').text()).toBe('Training readiness 1/A/1-7 1st Platoon');
     });
 
     it('has a column for every course, with the full name reachable without a mouse', () => {
@@ -136,10 +136,10 @@ describe('TrainingReadinessMatrix', () => {
     it('explains every mark in a legend', () => {
         const legend = page().get('[data-testid="legend"]').text();
 
-        expect(legend).toContain('qualified');
-        expect(legend).toContain('in progress');
-        expect(legend).toContain('required, not held');
-        expect(legend).toContain('not held');
+        expect(legend).toContain('Qualified');
+        expect(legend).toContain('In progress');
+        expect(legend).toContain('Required, not held');
+        expect(legend).toContain('Not held');
     });
 
     it('says coverage is a plain ratio, not a reported KPI', () => {

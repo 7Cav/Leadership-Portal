@@ -17,6 +17,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { forumDate } from '@/lib/forumDate';
 import { vStickyHead } from '@/lib/stickyHead';
 import EmptyState from '@/components/EmptyState.vue';
 import { useSlashClaim } from '@/composables/useSlashShortcut';
@@ -363,7 +364,7 @@ function clearAll() {
                 <tbody v-else-if="!shownCount">
                     <tr>
                         <td colspan="8" class="py-14">
-                            <EmptyState :icon="PhMagnifyingGlass" :title="query.trim() ? `No troopers match “${query.trim()}”` : 'No troopers match this filter'" class="sticky left-0 w-[min(100%,calc(100vw-3rem))]">
+                            <EmptyState :icon="PhMagnifyingGlass" :title="query.trim() ? `No troopers match &quot;${query.trim()}&quot;` : 'No troopers match this filter'" class="sticky left-0 w-[min(100%,calc(100vw-3rem))]">
                                 Check the spelling, or try a rank like SGT or a billet like medic.
                             </EmptyState>
                             <div class="mt-3 flex justify-center"><Button variant="outline" size="sm" @click="clearAll">Clear filter</Button></div>
@@ -398,7 +399,7 @@ function clearAll() {
                                     <span class="inline-flex gap-1">
                                         <Badge v-if="row.counts.risk" variant="danger" class="tabular-nums">{{ row.counts.risk }} at-risk</Badge>
                                         <Badge v-if="row.counts.loa" variant="outline" class="tabular-nums"><PhLockSimple />{{ row.counts.loa }} LOA</Badge>
-                                        <Badge v-if="row.counts.fresh" variant="info" class="tabular-nums">{{ row.counts.fresh }} new</Badge>
+                                        <Badge v-if="row.counts.fresh" variant="info" class="tabular-nums">{{ row.counts.fresh }} joined recently</Badge>
                                         <span v-if="!row.counts.risk && !row.counts.loa && !row.counts.fresh" class="text-xs text-muted-foreground">No flags</span>
                                     </span>
                                 </div>
@@ -443,7 +444,7 @@ function clearAll() {
                                 <span class="inline-flex gap-1">
                                     <Badge v-if="row.counts.risk" variant="danger" class="tabular-nums">{{ row.counts.risk }} at-risk</Badge>
                                     <Badge v-if="row.counts.loa" variant="outline" class="tabular-nums"><PhLockSimple />{{ row.counts.loa }} LOA</Badge>
-                                    <Badge v-if="row.counts.fresh" variant="info" class="tabular-nums">{{ row.counts.fresh }} new</Badge>
+                                    <Badge v-if="row.counts.fresh" variant="info" class="tabular-nums">{{ row.counts.fresh }} joined recently</Badge>
                                     <span v-if="!row.counts.risk && !row.counts.loa && !row.counts.fresh" class="text-xs text-muted-foreground">None</span>
                                 </span>
                             </td>
@@ -456,7 +457,7 @@ function clearAll() {
                             tabindex="0"
                             data-member
                             :data-testid="`trooper-${row.trooper.id}`"
-                            :aria-label="`${row.trooper.displayName}, ${row.trooper.billet ?? 'no billet'}${row.trooper.kpis?.atRisk ? ', at risk' : ''}. Open details.`"
+                            :aria-label="`${row.trooper.displayName}, ${row.trooper.billet ?? 'no billet on record'}${row.trooper.kpis?.atRisk ? ', at-risk' : ''}. Open details.`"
                             @click="emit('open', row.trooper.id)"
                             @keydown="onRowKey($event, row.trooper)"
                         >
@@ -471,12 +472,12 @@ function clearAll() {
                             <td>
                                 <span class="inline-flex items-center gap-1.5 text-muted-foreground">
                                     <span v-if="row.trooper.role" class="inline-flex h-[1.0625rem] items-center rounded-sm bg-foreground px-1.5 text-[10px] font-semibold tracking-wide text-background">{{ row.trooper.role }}</span>
-                                    <span><template v-for="(part, i) in highlightParts(row.trooper.billet ?? 'No billet', query)" :key="i"><mark v-if="part.hit" class="hl">{{ part.text }}</mark><template v-else>{{ part.text }}</template></template></span>
+                                    <span><template v-for="(part, i) in highlightParts(row.trooper.billet ?? 'No billet on record', query)" :key="i"><mark v-if="part.hit" class="hl">{{ part.text }}</mark><template v-else>{{ part.text }}</template></template></span>
                                     <span v-if="row.trooper.was" class="font-mono text-[11px]" :data-testid="`was-${row.trooper.id}`">was: {{ row.trooper.was }}</span>
                                 </span>
                             </td>
-                            <td class="text-right text-muted-foreground tabular-nums" :title="row.trooper.joined ? `Joined ${row.trooper.joined}` : undefined" data-testid="tis">{{ tenure(row.trooper, row.trooper.joined) }}</td>
-                            <td class="text-right text-muted-foreground tabular-nums" :title="row.trooper.tig ? `In grade since ${row.trooper.tig}` : undefined" data-testid="tig">{{ tenure(row.trooper, row.trooper.tig) }}</td>
+                            <td class="text-right text-muted-foreground tabular-nums" :title="row.trooper.joined ? `Joined ${forumDate(row.trooper.joined)}` : undefined" data-testid="tis">{{ tenure(row.trooper, row.trooper.joined) }}</td>
+                            <td class="text-right text-muted-foreground tabular-nums" :title="row.trooper.tig ? `In grade since ${forumDate(row.trooper.tig)}` : undefined" data-testid="tig">{{ tenure(row.trooper, row.trooper.tig) }}</td>
                             <td>
                                 <span class="inline-flex gap-[3px] rounded-sm px-[3px] py-0.5" role="img" :aria-label="stripLabel(row.trooper)">
                                     <span
@@ -496,7 +497,7 @@ function clearAll() {
                                 <span class="inline-flex gap-1">
                                     <Badge v-if="row.trooper.kpis?.atRisk" variant="danger" data-testid="flag-at-risk"><PhWarning />At-risk, {{ row.trooper.kpis.missed }} missed</Badge>
                                     <Badge v-if="row.trooper.kpis?.onLoa" variant="outline"><PhLockSimple />LOA</Badge>
-                                    <Badge v-if="!row.trooper.departed && isNewRecruit(row.trooper, currentWeek)" variant="info" :title="`Joined ${row.trooper.joined}`"><PhUserPlus />New recruit</Badge>
+                                    <Badge v-if="!row.trooper.departed && isNewRecruit(row.trooper, currentWeek)" variant="info" :title="`Joined ${forumDate(row.trooper.joined)}`"><PhUserPlus />Joined recently</Badge>
                                     <Badge v-if="row.trooper.departed" variant="outline"><PhSignOut />Departed</Badge>
                                 </span>
                             </td>
@@ -510,7 +511,7 @@ function clearAll() {
             <span id="orbat-showing" class="tabular-nums" aria-live="polite">
                 <template v-if="loading">Loading roster</template>
                 <template v-else-if="searching">{{ shownCount }} of {{ scopedCount }} troopers match<template v-if="sectionsShown"> in {{ sectionsShown }} section{{ sectionsShown === 1 ? '' : 's' }}</template></template>
-                <template v-else>Showing {{ shownCount }} troopers</template>
+                <template v-else>Showing {{ shownCount }} trooper{{ shownCount === 1 ? '' : 's' }}</template>
             </span>
         </div>
 

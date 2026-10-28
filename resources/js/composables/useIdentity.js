@@ -74,7 +74,7 @@ export function useIdentity() {
     // it must never hide the attribution.
     const provenanceDetail = computed(
         () =>
-            [profile.value?.rank_full, fetchedAt.value && `fetched ${forumDateTime(fetchedAt.value)} UTC`]
+            [profile.value?.rank_full, fetchedAt.value && `fetched ${forumDateTime(fetchedAt.value)}Z`]
                 .filter(Boolean)
                 .join(', ') || null,
     );

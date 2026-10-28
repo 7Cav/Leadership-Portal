@@ -31,10 +31,10 @@ const rows = computed(() =>
 const coverageByCourse = computed(() => Object.fromEntries(props.coverage.map((entry) => [entry.courseId, entry])));
 
 const LEGEND = [
-    { status: 'qualified', label: 'qualified' },
-    { status: 'in_progress', label: 'in progress' },
-    { status: 'required', label: 'required, not held' },
-    { status: 'none', label: 'not held' },
+    { status: 'qualified', label: 'Qualified' },
+    { status: 'in_progress', label: 'In progress' },
+    { status: 'required', label: 'Required, not held' },
+    { status: 'none', label: 'Not held' },
 ];
 </script>
 
@@ -44,11 +44,11 @@ const LEGEND = [
     <div class="flex flex-col gap-5">
         <div class="flex flex-wrap items-end justify-between gap-3">
             <div class="min-w-0">
-                <h1 id="matrix-title" class="text-xl font-semibold tracking-tight sm:text-[22px]" data-testid="matrix-title">Training readiness · {{ unitLabel }}</h1>
+                <h1 id="matrix-title" class="text-xl font-semibold tracking-tight sm:text-[22px]" data-testid="matrix-title">Training readiness <span class="text-muted-foreground">{{ unitLabel }}</span></h1>
                 <p class="mt-1 text-[13px] text-muted-foreground">Who holds which course across the unit, so gaps show without opening each trooper.</p>
             </div>
             <Link :href="`/roster/${unit.id}`" class="inline-flex items-center gap-1 text-[13px] text-primary hover:underline" data-testid="back-to-roster">
-                <PhArrowLeft class="size-3.5" aria-hidden="true" />Back to the roster
+                <PhArrowLeft class="size-3.5" aria-hidden="true" />Back to roster
             </Link>
         </div>
 
@@ -121,7 +121,7 @@ const LEGEND = [
 
                 <EmptyState v-if="!rows.length" :icon="PhUsersThree" title="No active troopers in this unit" class="border-t border-border py-12" data-testid="matrix-empty">
                     Troopers appear here once the roster places them in a section of this unit.
-                    <Link :href="`/roster/${unit.id}`" class="text-primary hover:underline">Back to the roster</Link>
+                    <Link :href="`/roster/${unit.id}`" class="text-primary hover:underline">Back to roster</Link>
                 </EmptyState>
             </TooltipProvider>
         </Card>

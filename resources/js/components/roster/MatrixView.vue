@@ -400,7 +400,7 @@ function clearAll() {
                                         <span class="nm-name truncate font-medium">{{ displayName(row.trooper) }}</span>
                                         <PhLockSimple v-if="row.trooper.kpis?.onLoa" class="text-muted-foreground" aria-label="On LOA" />
                                     </span>
-                                    <span class="block max-w-[12rem] truncate pl-[2.35rem] text-xs text-muted-foreground">{{ row.trooper.departed ? 'Departed' : row.trooper.billet ?? 'No billet' }}</span>
+                                    <span class="block max-w-[12rem] truncate pl-[2.35rem] text-xs text-muted-foreground">{{ row.trooper.departed ? 'Departed' : row.trooper.billet ?? 'No billet on record' }}</span>
                                 </button>
                             </td>
                             <td v-for="(i, k) in range" :key="i" class="wk" :class="weeks[i] === currentWeek && 'is-now'" role="gridcell">

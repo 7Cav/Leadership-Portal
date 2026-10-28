@@ -168,10 +168,12 @@ describe('Roster page', () => {
         const options = post.mock.calls[0][2];
 
         expect(options.onHttpException({ status: 403 })).toBe(false);
-        expect(toastError).toHaveBeenLastCalledWith('Only an Admin or this unit\'s leader can start a roster sync.');
+        expect(toastError).toHaveBeenLastCalledWith('Could not start the roster sync', {
+            description: 'Only an Admin or this unit\'s leader can start a roster sync.',
+        });
 
         options.onNetworkError(new Error('offline'));
-        expect(toastError.mock.calls.at(-1)[0]).toContain('Could not reach the portal');
+        expect(toastError.mock.calls.at(-1)[1].description).toContain('Could not reach the portal');
 
         options.onSuccess();
         expect(toastSuccess).toHaveBeenCalledWith('Roster sync started', expect.any(Object));

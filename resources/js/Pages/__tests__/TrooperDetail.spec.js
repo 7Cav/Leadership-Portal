@@ -59,7 +59,7 @@ describe('TrooperDetail', () => {
             expect(wrapper.get('[data-testid="trooper-name"]').text()).toBe('SPC Milkovic.D');
             expect(wrapper.get('[data-testid="trooper-subtitle"]').text()).toContain('Assistant Section Leader');
             expect(wrapper.get('[data-testid="trooper-subtitle"]').text()).toContain('1/1/E/2-7 Nightriders');
-            expect(wrapper.get('[data-testid="trooper-subtitle"]').text()).toContain('Profile #4374');
+            expect(wrapper.get('[data-testid="trooper-subtitle"]').text()).toContain('Milpac ID #4374');
             expect(wrapper.get('[data-testid="milpac-link"]').attributes('href')).toBe('https://7cav.us/rosters/profile?uniqueid=4374');
             expect(wrapper.get('[data-testid="milpac-link"]').attributes('rel')).toContain('noopener');
             expect(wrapper.get('[data-testid="milpac-link"]').text()).toContain('opens in a new tab');
@@ -202,14 +202,14 @@ describe('TrooperDetail', () => {
             const wrapper = page();
 
             expect(wrapper.get('[data-testid="source-line"]').text()).toContain('Source: milpac');
-            expect(wrapper.get('[data-testid="last-synced"]').text()).toBe('08Oct26 09:30 UTC (45 min ago)');
+            expect(wrapper.get('[data-testid="last-synced"]').text()).toBe('08Oct26 09:30Z (45 min ago)');
             expect(wrapper.find('[data-testid="stale-notice"]').exists()).toBe(false);
         });
 
         it('says the record is the last good copy when a later sync failed', () => {
             const wrapper = page({ sync: sync({ stale: true, lastAttempt: { status: 'failure', at: '2026-10-08T11:00:00+00:00' } }) });
 
-            expect(wrapper.get('[data-testid="stale-notice"]').text()).toContain('failed on 08Oct26 11:00 UTC');
+            expect(wrapper.get('[data-testid="stale-notice"]').text()).toContain('failed on 08Oct26 11:00Z');
             expect(wrapper.get('[data-testid="stale-notice"]').text()).toContain('last successful sync');
         });
 
@@ -265,7 +265,7 @@ describe('TrooperDetail', () => {
         });
 
         it('draws the panel with the shared milpac panel header', () => {
-            expect(page().get('[data-testid="courses-panel"] h2').text()).toBe('Courses & qualifications');
+            expect(page().get('[data-testid="courses-panel"] h2').text()).toBe('Courses and qualifications');
         });
 
         it('suppresses a group that has nothing in it', () => {
