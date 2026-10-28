@@ -60,6 +60,10 @@ const rosterAt = computed(() => (roster.value.syncedAt && rosterText.value.lengt
                     <span class="text-2xl font-semibold tracking-tight tabular-nums">{{ tile.value }}</span>
                     <DeltaBadge :change="tile.change" />
                 </dd>
+                <!-- The headcount with HQ staff and groups, labelled apart from the rollcall figure above (#424). -->
+                <dd v-if="tile.kpi.key === 'strength' && kpis.current.headcount != null" class="mt-0.5 text-[11px] text-muted-foreground" data-testid="headcount">
+                    Headcount <b class="font-semibold text-foreground tabular-nums">{{ kpis.current.headcount }}</b>, with staff
+                </dd>
                 <dd class="mt-2 min-h-7">
                     <Sparkline v-if="tile.trend" :series="tile.series" :label="tile.kpi.label" :format="tile.format" />
                     <span v-else class="text-[11px] text-muted-foreground" data-testid="building-history">Building history</span>

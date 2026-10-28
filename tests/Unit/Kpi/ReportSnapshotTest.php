@@ -26,6 +26,19 @@ it('stores a roll-up\'s missing children, and reads a snapshot without them as c
         ->and(ReportSnapshot::fromArray([...$kpis->toArray(), 'delta' => null])->missingChildren)->toBe([]);
 });
 
+it('stores the headcount beside the KPIs, and reads a snapshot without one as having none (#424)', function () {
+    $kpis = new UnitKpis(8, new Ratio(20, 32), new Ratio(5, 8), 1, 0, 2);
+    $snapshot = new ReportSnapshot($kpis, null, [], 11);
+
+    expect($snapshot->toArray()['headcount'])->toBe(11)
+        ->and(ReportSnapshot::fromArray($snapshot->toArray())->headcount)->toBe(11)
+        ->and(ReportSnapshot::fromArray([...$kpis->toArray(), 'delta' => null])->headcount)->toBeNull();
+});
+
+it('refuses a headcount that is not a count', function (mixed $headcount) {
+    ReportSnapshot::fromArray([...(new UnitKpis(3, new Ratio(0, 12), new Ratio(0, 0), 0, 0, 0))->toArray(), 'delta' => null, 'headcount' => $headcount]);
+})->with(['negative' => [-1], 'a string' => ['11'], 'a float' => [1.5]])->throws(InvalidArgumentException::class);
+
 it('stores a null delta for a first report, and reads it back as null', function () {
     $snapshot = new ReportSnapshot(new UnitKpis(3, new Ratio(0, 12), new Ratio(0, 0), 0, 0, 0), null);
 
