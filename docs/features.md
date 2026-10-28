@@ -125,8 +125,8 @@ on none.
     Unaccounted troopers explained, Training subject filled, Notes reviewed), a reason for each unaccounted trooper from
     a fixed list, the training subject (last sent subject offered as a suggestion), notes, history and an 8 week trend.
   - Platoon and higher: the same, but the KPIs are the sum of the direct children's sent reports, with each child's
-    status. The "Every unit has sent" check names who is holding up the chain. A child with no troopers is not one of
-    them (see "Units with no troopers").
+    status. The "Every unit has sent" check names who is holding up the chain. A child with no troopers, or with only
+    HQ staff, is not one of them (see "Units with no troopers").
   - Platoon training topic: the platoon's chain of command sets a subject for its sections for the week, either as a
     default the sections can change or enforced (locked on every section's report).
   - Monthly training plan (`/reports/<platoon>/plans/<YYYY-MM>`, "Training plan" on a platoon's report): the
@@ -173,14 +173,21 @@ in it, it is left out of:
 - Home's progress lanes and step matrix, the unit table, the sparkline's "every section sent" test, and Needs attention.
 
 It comes back on all of them as soon as a trooper is placed in it or under it, by the roster sync or by an Admin, with
-no other step. HQ staff count: a company whose only trooper is its commander has troopers. So do troopers on leave: a
-section whose only members are on LOA still counts. A report already sent keeps what it froze, so a unit listed as
-missing at send stays listed on that report. Org structure keeps listing every unit.
+no other step. Troopers on leave count: a section whose only members are on LOA still counts. A report already sent
+keeps what it froze, so a unit listed as missing at send stays listed on that report. Org structure keeps listing every
+unit.
 
-The report chain asks about the report's own week: a unit counts for a week when it had troopers at any point of it
-(from the placement history), or sent that week's report. So a section that sends and is then emptied by a move, or
-whose last trooper leaves the Cav, still rolls up into its platoon for that week, and drops out from the first week it
-is empty.
+HQ staff count for the roster and Home, but not for the report chain, because they are on no rollcall and have no
+report of their own. A platoon whose only troopers are its PL and PSG, with every section empty, is shown on the
+roster and the unit switcher, but it has no report to send: it is not a child its company waits on, Home's unit table
+and Needs attention leave it out as the report chain does, and its own report says there is nothing to roll up. The same goes for a company whose only troopers are its HQ. In
+the report chain, a section counts when it has troopers, and a platoon, company or battalion counts when a unit under
+it does.
+
+The report chain asks about the report's own week: a section counts for a week when it had troopers at any point of it
+(from the placement history), and any unit counts when it sent that week's report. So a section that sends and is then
+emptied by a move, or whose last trooper leaves the Cav, still rolls up into its platoon for that week, and keeps its
+platoon and company in that week's chain, and drops out from the first week it is empty.
 
 ### Game identities
 
@@ -348,4 +355,4 @@ the sum of its direct children's sent reports.
 | Training plans | `app/Commands/TrainingPlans/`, `TrainingPlanController`, `resources/js/Pages/Reports/TrainingPlan.vue`, `resources/js/lib/trainingPlan.js` |
 | Staff practices | `app/Commands/StaffPractices/`, `app/Authorization/StaffPracticeAccess.php`, `app/Milpac/StaffPracticeHistory.php`, `resources/js/components/milpac/StaffPracticesPanel.vue` (stored in `cross_section_sightings` with source `staff`) |
 | Counseling | `app/Commands/Counseling/`, `app/Authorization/CounselingAccess.php`, `app/Milpac/CounselingHistory.php`, `app/Milpac/CounselingStanding.php`, `app/Integration/GoogleDrive/`, `app/Jobs/UploadCounselingDocumentJob.php`, `resources/js/components/milpac/CounselingPanel.vue` |
-| Units with no troopers | `app/Kpi/Headcount.php` (`withoutEmptyLineUnits`) |
+| Units with no troopers | `app/Kpi/Headcount.php` (`withoutEmptyLineUnits` for the roster and Home, `reportingLineUnits` for the report chain) |

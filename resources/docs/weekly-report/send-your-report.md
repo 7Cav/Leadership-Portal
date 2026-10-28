@@ -41,4 +41,4 @@ checklist:
 2. Choose **Freeze and send**, give a reason for the record, and confirm.
 3. If something is still open and the report must go out anyway, choose **Send anyway**. What was open is recorded with it.
 
-> [!good-to-know] A platoon's or higher unit's report adds up the sent reports of the units below it. A unit that has not sent yet is left out of the numbers and named, so send yours on time.
+> [!good-to-know] A platoon's or higher unit's report adds up the sent reports of the units below it. A unit that has not sent yet is left out of the numbers and named, so send yours on time. A unit with nobody in any section under it, such as a platoon whose only troopers are its leaders, has no report to send, and the unit above it does not wait on it.
