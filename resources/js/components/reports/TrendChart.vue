@@ -104,7 +104,7 @@ const weekLabel = (v) => `Week of ${forumDate(v.week)}${v.current ? (props.live 
                 :height="H"
                 class="block overflow-visible"
                 role="img"
-                aria-label="Rollcall and SP percentage over the last eight weeks; values in the table that follows"
+                aria-label="Rollcall and SP percentage over the last 8 weeks; values in the table that follows"
                 @pointermove="onMove"
                 @pointerleave="hover = null"
             >

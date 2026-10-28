@@ -102,7 +102,7 @@ function copySummary() {
     );
 }
 
-const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id === id)) || `Unit ${id}`;
+const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id === id)) || 'A unit no longer below this one';
 </script>
 
 <template>
@@ -151,7 +151,7 @@ const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id ===
             <div v-if="troopers" class="border-t border-border px-5 py-4">
                 <h3 class="mb-1 text-[13px] font-semibold">Troopers</h3>
                 <EmptyState v-if="!troopers.length" :icon="PhStack" title="No troopers in this section" class="py-6">
-                    Troopers appear here once the roster maps them into this section.
+                    Troopers appear here once the roster places them in this section.
                 </EmptyState>
                 <div v-else class="overflow-x-auto">
                     <Table class="text-[13px]" data-testid="trooper-table">
@@ -172,7 +172,7 @@ const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id ===
                                 </TableCell>
                                 <TableCell>
                                     <Badge v-if="t.status" :variant="SP[t.status][1]">{{ SP[t.status][0] }}</Badge>
-                                    <Badge v-else variant="warning">Unmarked</Badge>
+                                    <Badge v-else variant="warning">Not marked</Badge>
                                 </TableCell>
                                 <TableCell class="min-w-[12rem] text-xs whitespace-normal text-muted-foreground">{{ noteFor(t) }}</TableCell>
                             </TableRow>

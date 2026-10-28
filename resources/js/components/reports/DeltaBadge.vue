@@ -16,6 +16,6 @@ const icon = computed(() => ({ up: PhTrendUp, down: PhTrendDown })[props.change?
 
 <template>
     <Badge v-if="change" :variant="variant" class="tabular-nums" data-testid="delta">
-        <component :is="icon" v-if="icon" aria-hidden="true" />{{ change.text }}<span class="sr-only">{{ change.unit ? ` ${change.unit}` : '' }} vs the last sent report</span>
+        <component :is="icon" v-if="icon" aria-hidden="true" />{{ change.text }}<span class="sr-only">{{ change.unit ? ` ${change.unit}` : '' }} compared with the last sent report</span>
     </Badge>
 </template>

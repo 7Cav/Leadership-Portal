@@ -61,7 +61,7 @@ const blank = computed(() => !reason.value.trim());
                         </AlertDialogTitle>
                         <AlertDialogDescription class="mt-1 text-[13px] text-muted-foreground">
                             The draft becomes a fixed snapshot in the portal for {{ destination }}. Nothing is posted outside the
-                            portal, and you cannot edit the report afterwards.
+                            portal, and you cannot edit the report afterward.
                         </AlertDialogDescription>
                     </div>
                 </div>
@@ -75,7 +75,7 @@ const blank = computed(() => !reason.value.trim());
                     <div class="space-y-1">
                         <p v-if="openChecks.length">Still open: {{ openChecks.map((c) => c.title.toLowerCase()).join(', ') }}.</p>
                         <p v-if="missingUnits.length">
-                            Holding up the chain: {{ missingUnits.join(', ') }}. Their numbers stay out of this report.
+                            Waiting on {{ missingUnits.join(', ') }}. Their numbers stay out of this report.
                         </p>
                     </div>
                 </div>
@@ -120,7 +120,7 @@ const blank = computed(() => !reason.value.trim());
                 <Button :disabled="blank || processing" data-testid="send-confirm" @click="emit('confirm', reason.trim())">
                     <PhCircleNotch v-if="processing" class="animate-spin" aria-hidden="true" />
                     <PhPaperPlaneTilt v-else aria-hidden="true" />
-                    {{ processing ? 'Freezing' : anyway ? 'Send anyway' : 'Freeze & send' }}
+                    {{ processing ? 'Freezing' : anyway ? 'Send anyway' : 'Freeze and send' }}
                 </Button>
             </AlertDialogFooter>
         </AlertDialogContent>

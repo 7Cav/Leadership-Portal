@@ -28,7 +28,7 @@ describe('training plan wording', () => {
 
     it('explains a locked week', () => {
         expect(lockedNote('sent')).toContain('report is sent');
-        expect(lockedNote('floor')).toBe('Too far back to change.');
+        expect(lockedNote('floor')).toBe('Read-only, this week is too far back to change.');
         expect(lockedNote(null)).toBeNull();
     });
 

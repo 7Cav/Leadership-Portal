@@ -80,7 +80,7 @@ export function unitLabel(unit) {
 
 // What the deltas are measured against (5.4), as one sentence under the KPI grid.
 export function baselineText(baseline) {
-    if (baseline?.kind === 'prior') return `Change vs your sent report for ${forumDate(baseline.week)}.`;
+    if (baseline?.kind === 'prior') return `Change compared with your sent report for ${forumDate(baseline.week)}.`;
     if (baseline?.kind === 'no_prior') {
         return `No prior baseline: last week was not sent. The last sent report is ${forumDate(baseline.week)}.`;
     }
@@ -161,7 +161,7 @@ export function readinessChecks({ isLeaf, troopers, children, content, reviewed 
                 explained === unaccounted.length
                     ? 'Every miss without a makeup has a reason command can read.'
                     : `${unaccounted.length - explained} ${unaccounted.length - explained === 1 ? 'miss has' : 'misses have'} no reason yet.`,
-            next: `Pick a reason for ${unaccounted.filter((t) => !reasons.get(t.id)).map((t) => t.name).join(' and ')}`,
+            next: `Choose a reason for ${unaccounted.filter((t) => !reasons.get(t.id)).map((t) => t.name).join(' and ')}`,
         },
         {
             id: 'subject',

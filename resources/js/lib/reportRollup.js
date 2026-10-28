@@ -149,5 +149,5 @@ export function reminderText(node, { weekStart, reportDue, origin, now = Date.no
     const unit = node.callsign ? `${node.name} (${node.callsign})` : node.name;
 
     return `Reminder: the ${unit} weekly report for the week of ${forumDate(weekStart)} ${deadline}. `
-        + `Please send it from the Leadership Portal: ${origin}${node.reportUrl}`;
+        + `Send it from the Leadership Portal: ${origin}${node.reportUrl}`;
 }

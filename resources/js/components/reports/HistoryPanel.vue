@@ -94,7 +94,7 @@ const DIFF = { added: 'text-foreground', removed: 'text-muted-foreground line-th
                 </div>
                 <div class="inline-flex gap-0.5 rounded-md bg-muted p-0.5" role="group" aria-label="History view">
                     <button
-                        v-for="[value, label, icon] in [['diff', previous ? `Changes vs ${forumDate(previous.week)}` : 'Changes', PhGitDiff], ['full', 'Full snapshot', PhFileText]]"
+                        v-for="[value, label, icon] in [['diff', previous ? `Changes compared with ${forumDate(previous.week)}` : 'Changes', PhGitDiff], ['full', 'Full snapshot', PhFileText]]"
                         :key="value"
                         type="button"
                         :aria-pressed="mode === value"
@@ -107,7 +107,7 @@ const DIFF = { added: 'text-foreground', removed: 'text-muted-foreground line-th
             </div>
 
             <div v-if="!current.kpis" class="border-t border-border px-5 py-4 text-[13px] text-muted-foreground">
-                This snapshot cannot be read.
+                This snapshot cannot be read. An Admin needs to look at it.
             </div>
 
             <template v-else-if="mode === 'diff'">

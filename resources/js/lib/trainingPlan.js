@@ -42,7 +42,7 @@ export function planNextStep(plan, enforced) {
 // Why a week's subject cannot change, or null when it can.
 export function lockedNote(locked) {
     if (locked === 'sent') return "This week's report is sent, so its subject stays as it was.";
-    if (locked === 'floor') return 'Too far back to change.';
+    if (locked === 'floor') return 'Read-only, this week is too far back to change.';
 
     return null;
 }

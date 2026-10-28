@@ -25,7 +25,7 @@ test('a commander walks the chain, opens a report and copies a reminder', async 
     await page.keyboard.press('Enter');
     const panel = page.getByTestId('report-panel');
     await expect(panel.getByRole('heading', { name: '1/A/1-7' })).toBeVisible();
-    await expect(panel.getByTestId('holding')).toContainText('Holding up the chain');
+    await expect(panel.getByTestId('holding')).toContainText('Waiting on');
 
     await sent.click();
     await expect(panel.getByRole('heading', { name: '1/1/A/1-7' })).toBeVisible();

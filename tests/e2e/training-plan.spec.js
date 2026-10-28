@@ -48,6 +48,6 @@ test('a platoon leader plans the month and the company commander sends it back, 
     await expect(page.getByTestId('plan-history')).toContainText('Approved by CPT Kerr.A');
 
     await page.getByRole('link', { name: 'Open report' }).first().click();
-    await expect(page.getByLabel('Training topic for my sections')).toHaveValue('Room clearing, two-man entries');
+    await expect(page.getByLabel('Training topic for your sections')).toHaveValue('Room clearing, two-man entries');
     await expect(page.getByTestId('topic-status')).toContainText('Locked on every section report this week.');
 });

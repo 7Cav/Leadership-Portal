@@ -112,7 +112,7 @@ describe('Reports/Rollup', () => {
         await rows()[1].trigger('keydown', { key: 'Enter' });
         expect(rows()[1].attributes('aria-selected')).toBe('true');
         expect(panel().find('h2').text()).toBe('1/A/1-7');
-        expect(panel().find('[data-testid="holding"]').text()).toContain('Holding up the chain');
+        expect(panel().find('[data-testid="holding"]').text()).toContain('Waiting on');
         expect(panel().find('[data-testid="holding"]').text()).toContain('2/1/A/1-7');
     });
 

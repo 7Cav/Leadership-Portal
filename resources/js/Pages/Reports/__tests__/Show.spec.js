@@ -295,7 +295,7 @@ describe('Reports/Show', () => {
 
         await wrapper.get('[data-testid="send-anyway"]').trigger('click');
         await flushPromises();
-        expect(document.querySelector('[data-testid="send-warning"]').textContent).toContain('Holding up the chain: 2/1/A/1-7');
+        expect(document.querySelector('[data-testid="send-warning"]').textContent).toContain('Waiting on 2/1/A/1-7');
     });
 
     it('says when there is no attendance yet rather than showing a misleading zero', () => {

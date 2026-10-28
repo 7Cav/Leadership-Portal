@@ -171,7 +171,7 @@ function saveDraft() {
 
 function saveFailed(description) {
     save.state = 'error';
-    toast.error('Draft not saved', { description });
+    toast.error('Could not save the draft', { description });
 }
 
 // A 419 is an expired session on a page left open a long time; anything else is the server's.
@@ -297,13 +297,13 @@ function confirmSend(reason) {
             rearm();
         },
         onHttpException: (response) => {
-            sendError.value = httpProblem(response, 'The portal could not send the report. It has NOT been sent; try again.');
+            sendError.value = httpProblem(response, 'The portal could not send the report. It has not been sent; try again.');
             rearm();
 
             return false;
         },
         onNetworkError: () => {
-            sendError.value = 'Could not reach the portal. The report has NOT been sent; try again.';
+            sendError.value = 'Could not reach the portal. The report has not been sent; try again.';
             rearm();
 
             return false;
@@ -463,7 +463,7 @@ function useSuggestion() {
                 >
                     <PhInfo class="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
                     <p>
-                        No attendance yet this week. The numbers below are zero until rollcall is signed and practice is marked;
+                        No attendance yet this week. The numbers below are zero until rollcall is signed and section practice is marked;
                         the draft fills in as you go.
                     </p>
                 </div>
@@ -490,7 +490,7 @@ function useSuggestion() {
                                     <dd>{{ report.trainingSubject || 'Not filled in' }}</dd>
                                 </template>
                                 <template v-if="kpis">
-                                    <dt class="text-muted-foreground">Key numbers</dt>
+                                    <dt class="text-muted-foreground">Key figures</dt>
                                     <dd class="tabular-nums">
                                         RC {{ percentText(kpis.rc) }}, SP {{ percentText(kpis.sp) }}, {{ kpis.atRisk }} at-risk
                                     </dd>
@@ -598,7 +598,7 @@ function useSuggestion() {
                                                 {{
                                                     staleReview
                                                         ? 'You edited the notes after confirming. Read them once more, then tick again.'
-                                                        : 'Editing the notes afterwards clears this, so the check stays honest.'
+                                                        : 'Editing the notes afterward clears this, so the check stays honest.'
                                                 }}
                                             </p>
                                         </div>
@@ -655,7 +655,7 @@ function useSuggestion() {
                                     Next:
                                     <button type="button" class="underline underline-offset-2 hover:text-foreground" @click="jumpToNext">{{ openChecks[0].next }}</button>
                                 </template>
-                                <template v-else>Goes to {{ parentLabel ?? 'command' }}. The snapshot cannot be edited afterwards.</template>
+                                <template v-else>Goes to {{ parentLabel ?? 'command' }}. The snapshot cannot be edited afterward.</template>
                             </p>
                         </div>
                     </div>
@@ -679,7 +679,7 @@ function useSuggestion() {
                         >
                             <PhPaperPlaneTilt v-if="!openChecks.length" aria-hidden="true" />
                             <PhLockSimple v-else aria-hidden="true" />
-                            Freeze &amp; send
+                            Freeze and send
                         </Button>
                     </div>
                 </div>
