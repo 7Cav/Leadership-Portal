@@ -3,7 +3,7 @@ import { discordPlain, NOTES_MAX, reportSummary, trimNotes } from '../reportSumm
 
 const SECTION = { id: 5, name: '2nd Section', callsign: '2/1/A/1-7', isLeaf: true };
 const WEEK = { start: '2026-10-03T00:00:00+00:00' };
-const KPIS = { strength: 9, rc: { numerator: 22, denominator: 25 }, sp: { numerator: 3, denominator: 4 }, atRisk: 2, onLoa: 1, makeups: 0 };
+const KPIS = { strength: 9, headcount: 12, rc: { numerator: 22, denominator: 25 }, sp: { numerator: 3, denominator: 4 }, atRisk: 2, onLoa: 1, makeups: 0 };
 const DELTA = { strength: 1, rcBp: 500, spBp: -300, atRisk: 1, onLoa: 0, makeups: 0 };
 
 const sent = (overrides = {}) =>
@@ -26,7 +26,8 @@ describe('reportSummary', () => {
             [
                 '2nd Section (2/1/A/1-7) weekly report, week of 03Oct26',
                 'Sent Thu 08Oct26 16:24Z by SGT Vasquez.R',
-                'Strength 9 (+1)',
+                'Headcount 12, staff and groups included',
+                'In rollcall 9 (+1)',
                 'RC 88% (+5 pts), SP 75% (-3 pts), last 30 days',
                 'At-risk 2 (+1), on LOA 1, makeups 0',
                 'Trained: Room clearing',
@@ -41,10 +42,17 @@ describe('reportSummary', () => {
         expect(sent({ sent: false, sentAt: null, sentBy: null }).split('\n')[1]).toBe('Draft, not sent yet');
     });
 
+    it('leaves the headcount line out of a report frozen before it existed', () => {
+        const { headcount, ...legacy } = KPIS;
+
+        expect(sent({ kpis: legacy })).not.toContain('Headcount');
+        expect(sent({ kpis: legacy })).toContain('In rollcall 9 (+1)');
+    });
+
     it('leaves the changes out when there is nothing to compare with', () => {
         const text = sent({ delta: null });
 
-        expect(text).toContain('Strength 9\n');
+        expect(text).toContain('In rollcall 9\n');
         expect(text).toContain('RC 88%, SP 75%, last 30 days');
         expect(text).toContain('At-risk 2, on LOA 1');
     });

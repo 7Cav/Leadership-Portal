@@ -1,5 +1,6 @@
 <?php
 
+use App\Kpi\Headcount;
 use App\Kpi\KpiService;
 use App\Kpi\Ratio;
 use App\Kpi\ReportKpisUnavailableException;
@@ -15,6 +16,7 @@ use App\Models\SyncRunStatus;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
+use App\Models\UnitKind;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\AttendanceRepository;
@@ -95,6 +97,24 @@ function dashboard(User $user): Closure
 }
 
 describe('KPI tiles (Story 5.9)', function () {
+    it('shows the headcount beside the measured strength: staff and groups in, New Recruits only on their own group (#424)', function () {
+        // HQ staff on the platoon and on the company, a staff department under the company, and a recruit in its own group.
+        $staff = app(UnitRepository::class)->create(UnitType::Group, 'S1 Staff', 'S1', $this->alpha->id, UnitKind::Staff);
+        $recruits = app(UnitRepository::class)->create(UnitType::Group, 'New Recruits', 'NR', $this->alpha->id, UnitKind::Recruit);
+        foreach ([$this->p1, $this->alpha, $staff, $recruits] as $unit) {
+            Trooper::factory()->create(['primary_section_id' => $unit->id]);
+        }
+
+        dashboard($this->commander)(fn ($page) => $page
+            ->where('kpis.current.strength', 7)
+            ->where('kpis.current.headcount', 10)
+            ->etc());
+    });
+
+    it('keeps the history to the measured figures, with no headcount', function () {
+        dashboard($this->commander)(fn ($page) => $page->missing('kpis.history.0.kpis.headcount')->etc());
+    });
+
     it('shows the six KPIs live for the viewer\'s whole scope, from the shared KPI service', function () {
         markWeek($this->s11, $this->s11Troopers[0], $this->week, AttendanceStatus::Present);
         markWeek($this->s11, $this->s11Troopers[1], $this->week, AttendanceStatus::Missed, RollcallSignature::Unsigned);
@@ -372,7 +392,7 @@ describe('Subordinate units (Story 5.11)', function () {
             ->where('units.0.kpis', homeKpiShape($kpis->forUnit($this->alpha, $this->week)))
             ->where('units.1.kpis', homeKpiShape($kpis->forUnit($this->bravo, $this->week)))
             ->where('units.2.kpis', homeKpiShape($kpis->forUnit($charlie, $this->week)))
-            ->where('kpis.current', homeKpiShape($kpis->forUnit($this->battalion, $this->week))));
+            ->where('kpis.current', [...homeKpiShape($kpis->forUnit($this->battalion, $this->week)), 'headcount' => app(Headcount::class)->forUnit($this->battalion)]));
     });
 
     it('shows a sent unit as its frozen snapshot, and a leaf-only viewer their own section', function () {
