@@ -5,6 +5,7 @@ namespace App\Repositories\TemplateVersionRepository;
 use App\Models\ArtifactType;
 use App\Models\CompanyTemplatePolicy;
 use App\Models\Template;
+use App\Models\TemplateCarry;
 use App\Models\TemplateVersion;
 use App\Models\Unit;
 use App\Models\UnitTemplateChoice;
@@ -210,6 +211,47 @@ class Eloquent implements TemplateVersionRepository
     public function hasTemplatesFor(Unit $company): bool
     {
         return Template::query()->where('company_id', $company->getKey())->exists();
+    }
+
+    public function carry(Unit $unit, iterable $templates, ?int $fromCompanyId, int $carriedBy): array
+    {
+        return DB::transaction(function () use ($unit, $templates, $fromCompanyId, $carriedBy) {
+            Unit::query()->whereKey($unit->id)->lockForUpdate()->first(['id']);
+
+            $written = [];
+
+            foreach ($templates as $template) {
+                $exists = TemplateCarry::query()->where('unit_id', $unit->id)->where('template_id', $template->id)->exists();
+
+                if (! $exists) {
+                    $written[] = TemplateCarry::query()->create([
+                        'unit_id' => $unit->id,
+                        'template_id' => $template->id,
+                        'from_company_id' => $fromCompanyId,
+                        'carried_by' => $carriedBy,
+                    ]);
+                }
+            }
+
+            return $written;
+        });
+    }
+
+    public function carriedTo(Unit $unit, ArtifactType $type): Collection
+    {
+        $path = Unit::query()->whereKey($unit->id)->value('path');
+        $chain = array_values(array_filter(explode('/', (string) $path), fn (string $id) => $id !== ''));
+
+        if ($chain === []) {
+            return collect();
+        }
+
+        return TemplateCarry::query()
+            ->with(['template.activeVersion', 'fromCompany'])
+            ->whereIn('unit_id', $chain)
+            ->whereHas('template', fn ($query) => $query->where('artifact_type', $type->value))
+            ->orderBy('id')
+            ->get();
     }
 
     public function companyEditsTemplates(int $companyId): bool

@@ -5,6 +5,7 @@ namespace App\Repositories;
 use App\Models\ArtifactType;
 use App\Models\CompanyTemplatePolicy;
 use App\Models\Template;
+use App\Models\TemplateCarry;
 use App\Models\TemplateVersion;
 use App\Models\Unit;
 use App\Models\UnitTemplateChoice;
@@ -12,8 +13,8 @@ use Illuminate\Support\Collection;
 use InvalidArgumentException;
 
 /**
- * Sole DB access for `templates`, `template_versions`, `unit_template_choices` and `company_template_policies` (AD-2,
- * AD-17, AD-22). Portal-owned:
+ * Sole DB access for `templates`, `template_versions`, `unit_template_choices`, `company_template_policies` and
+ * `template_carries` (AD-2, AD-17, AD-22). Portal-owned:
  * the audited `Commands/Templates` Commands are its writers.
  *
  * A company keeps named templates (#375), and the regiment-wide default is the one template with no company. A
@@ -142,4 +143,21 @@ interface TemplateVersionRepository
      * @throws TemplateUnchangedException when it is set that way already (a company with no row counts as on).
      */
     public function setCompanyEditsTemplates(Unit $company, bool $edits, int $setBy): CompanyTemplatePolicy;
+
+    /**
+     * Carry `$templates` along with a moved platoon or section (#378): one row per unit and template, an existing one
+     * kept as it is. Returns the rows written now, in template order; empty when every one was carried already.
+     *
+     * @param  iterable<Template>  $templates
+     * @return list<TemplateCarry>
+     */
+    public function carry(Unit $unit, iterable $templates, ?int $fromCompanyId, int $carriedBy): array;
+
+    /**
+     * The templates carried to `$unit` or any unit above it (read from its stored path, so a stale model cannot ask
+     * about its old place), each with its active version and the carry's origin company loaded, oldest carry first.
+     *
+     * @return Collection<int, TemplateCarry>
+     */
+    public function carriedTo(Unit $unit, ArtifactType $type): Collection;
 }
