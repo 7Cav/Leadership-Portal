@@ -7,8 +7,10 @@ use App\Commands\Demo\PurgeDemoHistoryHandler;
 use App\Commands\Users\SetAdminFlag;
 use App\Jobs\SyncLoasJob;
 use App\Jobs\SyncRosterJob;
+use App\Models\PageVisit;
 use App\Models\Trooper;
 use App\Models\User;
+use App\Repositories\PageVisitRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
@@ -52,6 +54,18 @@ Schedule::command('portal:sync-loas')->hourlyAt(15)->when(fn () => SyncLoasJob::
 // A daily full run: the hourly ones only read threads newer than the last good run, so a post edited after that
 // (an LOA extended, say) is caught here. It skips leave that ended more than two weeks ago.
 Schedule::command('portal:sync-loas --full')->dailyAt('03:30')->when(fn () => SyncLoasJob::isConfigured());
+
+// The activity log keeps 30 days (#382). Deleted in chunks so the prune never holds a long lock on a table every page
+// view writes to. Daily, at a quiet hour away from the 03:30 leave sync.
+Artisan::command('portal:prune-page-visits', function (PageVisitRepository $visits) {
+    $deleted = $visits->pruneBefore(now()->subDays(PageVisit::RETENTION_DAYS));
+
+    $this->info("Deleted {$deleted} page ".($deleted === 1 ? 'visit' : 'visits').' older than '.PageVisit::RETENTION_DAYS.' days.');
+
+    return 0;
+})->purpose('Delete activity-log page visits older than '.PageVisit::RETENTION_DAYS.' days');
+
+Schedule::command('portal:prune-page-visits')->dailyAt('04:15');
 
 // Bootstrap or remove an Admin without SQL (story 2.9). The user must already exist — i.e. have
 // signed in once via 7Cav SSO. Audited through `SetAdminFlag` (AD-16); see its docblock for why
