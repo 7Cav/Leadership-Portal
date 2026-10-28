@@ -133,6 +133,9 @@ it('opens docs home from a page with no guide the viewer may read, never a 404',
     'no page given' => ['admin', ''],
     'another site' => ['admin', '//evil.example/rollcall'],
     'a full URL' => ['admin', 'https://evil.example/rollcall'],
+    'a tab a browser drops' => ['admin', "/\t/evil.example"],
+    'a line break' => ['admin', "/\n/evil.example"],
+    'a backslash' => ['admin', '/rollcall\\..'],
 ]);
 
 it('answers 404 on the "?" help while the docs are off', function () {

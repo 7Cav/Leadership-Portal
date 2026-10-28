@@ -35,14 +35,15 @@ class DocsController extends Controller
     /**
      * The "?" help in the top bar (#411): the viewer's best guide for the page they were on (`?from=/rollcall`), or docs
      * home when none matches or the only match is a guide they may not read. The guide is told where they came from so
-     * it can offer the way back. Only a path on this portal is passed on, never `//elsewhere`.
+     * it can offer the way back. Only a path on this portal is passed on, never `//elsewhere`, and never one with a control
+     * character or backslash, which a browser drops or reads as `/` and so could turn into `//elsewhere`.
      */
     public function help(Request $request): RedirectResponse
     {
         abort_unless((bool) config('portal.docs'), 404);
 
         $from = (string) $request->query('from', '');
-        if (! str_starts_with($from, '/') || str_starts_with($from, '//') || str_starts_with($from, '/\\')) {
+        if (! str_starts_with($from, '/') || str_starts_with($from, '//') || preg_match('/[\x00-\x1F\x7F\\\\]/', $from) === 1) {
             return redirect('/docs');
         }
 
