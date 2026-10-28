@@ -51,6 +51,8 @@ const props = defineProps({
     // Whether the viewer may edit the open template and roll it back, and add and switch the company's templates.
     canManage: { type: Boolean, default: false },
     canManageCompany: { type: Boolean, default: false },
+    // Whether the company's own command may set its templates, and whether the viewer may switch that (#376).
+    policy: { type: Object, default: () => ({ companyEdits: true, canSet: false }) },
     // The company's sections the viewer could open on the rollcall page, to preview with instead of the sample:
     // `[{ id, designation, name, platoon }]`.
     previewSections: { type: Array, default: () => [] },
@@ -117,6 +119,9 @@ function companyWrite(url, data, failed) {
 }
 const switchTemplate = (item) => companyWrite(`/settings/templates/${item.id}/switch`, { enabled: !item.enabled }, 'The template was not switched');
 const makeCompanyDefault = (item) => companyWrite(`/settings/templates/${item.id}/company-active`, {}, 'The company default was not changed');
+// Battalion command turns the company's own template editing off or on (#376).
+const switchPolicy = () =>
+    companyWrite(`/settings/templates/policy/${props.company}`, { company_edits: !props.policy.companyEdits }, 'Template editing was not changed');
 
 // A new template starts as a copy of the one open (or the starter), under a name, with a reason for the record.
 const creating = ref(false);
@@ -388,6 +393,29 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                         </TooltipProvider>
                         <Button v-else variant="outline" size="sm" data-testid="new-template" @click="startCreate"><PhPlus aria-hidden="true" />New template</Button>
                     </template>
+                </div>
+                <div
+                    v-if="!policy.companyEdits || policy.canSet"
+                    class="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border px-4 py-2.5 text-[13px]"
+                    data-testid="template-policy"
+                >
+                    <p class="min-w-[16rem] flex-1 text-muted-foreground" data-testid="template-policy-note">
+                        <template v-if="policy.companyEdits">The company's command sets its own templates.</template>
+                        <template v-else>
+                            Battalion command has turned off this company's own template editing. The battalion or an Admin sets its templates.
+                        </template>
+                    </p>
+                    <Button
+                        v-if="policy.canSet"
+                        variant="outline"
+                        size="sm"
+                        :disabled="readOnlyPreview || busy !== null"
+                        :title="readOnlyPreview ? readOnlyReason : undefined"
+                        data-testid="template-policy-switch"
+                        @click="switchPolicy"
+                    >
+                        {{ policy.companyEdits ? 'Turn off company editing' : 'Turn on company editing' }}
+                    </Button>
                 </div>
                 <ul class="border-t border-border">
                     <li
