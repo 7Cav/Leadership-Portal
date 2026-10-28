@@ -246,7 +246,7 @@ describe('what each entry changed', function () {
             ->and($links[$entries['trooper']->id])->toBe(['href' => "/troopers/{$this->trooper->id}", 'label' => 'SGT Vasquez.R'])
             ->and($links[$entries['identity']->id])->toBe(['href' => "/troopers/{$this->trooper->id}", 'label' => 'SGT Vasquez.R'])
             ->and($links[$entries['course']->id])->toBe(['href' => "/troopers/{$this->trooper->id}", 'label' => 'SGT Vasquez.R'])
-            ->and($links[$entries['template']->id])->toBe(['href' => "/settings/templates?company={$this->company->id}", 'label' => 'A/1-7 template, version 3'])
+            ->and($links[$entries['template']->id])->toBe(['href' => "/settings/templates?company={$this->company->id}&template={$template->template_id}", 'label' => 'A/1-7 template "Company template", version 3'])
             ->and($links[$entries['grant']->id])->toBe(['href' => '/settings/staff-grants', 'label' => 'Staff grants']);
     });
 

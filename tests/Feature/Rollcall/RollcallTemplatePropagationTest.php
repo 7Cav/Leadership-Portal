@@ -14,8 +14,8 @@ use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Route;
 
-// Story 3.11: the chain binds end to end. A company's active template is resolved on every render, so one Admin edit
-// changes the output of every section under that company on the next load, and nothing else. "Now" is Thursday 2026-10-08.
+// Story 3.11, #375: the chain binds end to end. A section's template is resolved on every render, so one edit of the
+// company's template changes the output of every section using it on the next load, and nothing else. "Now" is Thursday 2026-10-08.
 // Fixture tree: 7CAV ─ 1-7 ─┬─ A/1-7 ─┬─ 1/A ─┬─ 1/1/A (section)
 //                           │         │       └─ 2/1/A (section)
 //                           │         └─ 2/A ─── 1/2/A (section)
@@ -94,11 +94,11 @@ describe('one edit reaches every section under the company', function () {
     });
 
     it('applies an Admin\'s edit made through the settings screen to the very next rollcall load', function () {
-        ($this->author)($this->alpha, '[B]alpha one[/B]');
+        $first = ($this->author)($this->alpha, '[B]alpha one[/B]');
         $this->actingAs($this->admin);
         expect(bindTemplate($this, $this->alphaSections[0])['version'])->toBe(1);
 
-        $this->post('/settings/templates', ['company_id' => $this->alpha->id, 'body' => '[B]{{unit}} two[/B]', 'reason' => 'Standard changed'])->assertRedirect();
+        $this->post('/settings/templates', ['template_id' => $first->template_id, 'body' => '[B]{{unit}} two[/B]', 'reason' => 'Standard changed'])->assertRedirect();
 
         foreach ($this->alphaSections as $section) {
             expect(bindTemplate($this, $section))->toMatchArray(['version' => 2, 'body' => '[B]{{unit}} two[/B]', 'state' => 'resolved']);
@@ -128,51 +128,52 @@ describe('one edit reaches every section under the company', function () {
 
     it('resolves at render time, so a company that gets its first template shows it without anything else changing', function () {
         $this->actingAs($this->admin);
-        expect(bindTemplate($this, $this->bravoSection)['state'])->toBe('no_active_template');
+        expect(bindTemplate($this, $this->bravoSection)['source'])->toBe('default');
 
         ($this->author)($this->bravo, 'now there is one');
 
-        expect(bindTemplate($this, $this->bravoSection))->toMatchArray(['state' => 'resolved', 'body' => 'now there is one']);
+        expect(bindTemplate($this, $this->bravoSection))->toMatchArray(['state' => 'resolved', 'source' => 'company', 'body' => 'now there is one']);
     });
 
-    it('says no active template for one company while another has one', function () {
+    it('gives a company with no template of its own the regiment default, never a blank post', function () {
         ($this->author)($this->alpha, 'alpha standard');
         $this->actingAs($this->admin);
 
-        expect(bindTemplate($this, $this->alphaSections[0])['state'])->toBe('resolved')
-            ->and(bindTemplate($this, $this->bravoSection)['state'])->toBe('no_active_template');
+        expect(bindTemplate($this, $this->alphaSections[0])['source'])->toBe('company')
+            ->and(bindTemplate($this, $this->bravoSection))->toMatchArray(['state' => 'resolved', 'source' => 'default', 'name' => 'Regiment default']);
     });
 
     it('refuses to store a template that a rollcall could not render, so it never reaches a section', function () {
-        ($this->author)($this->alpha, 'standard');
+        $standard = ($this->author)($this->alpha, 'standard');
         $this->actingAs($this->admin);
 
-        $this->post('/settings/templates', ['company_id' => $this->alpha->id, 'body' => '{{#troopers}}{{nme}}{{/troopers}}', 'reason' => 'Typo'])
+        $this->post('/settings/templates', ['template_id' => $standard->template_id, 'body' => '{{#troopers}}{{nme}}{{/troopers}}', 'reason' => 'Typo'])
             ->assertSessionHasErrors('body');
 
-        expect(TemplateVersion::query()->count())->toBe(1)
+        expect(TemplateVersion::query()->where('template_id', $standard->template_id)->count())->toBe(1)
             ->and(bindTemplate($this, $this->alphaSections[0])['body'])->toBe('standard');
     });
 });
 
-describe('the leader has no way to edit it', function () {
+describe('the section leader picks a template but has no way to edit one', function () {
     it('refuses a section leader\'s attempt to write a template, whatever they send', function () {
         $leader = bindLeader($this->alphaSections[0]);
-
-        $this->actingAs($leader)->post('/settings/templates', ['company_id' => $this->alpha->id, 'body' => 'mine', 'reason' => 'why'])->assertForbidden();
         $version = ($this->author)($this->alpha, 'standard');
+
+        $this->actingAs($leader)->post('/settings/templates', ['template_id' => $version->template_id, 'body' => 'mine', 'reason' => 'why'])->assertForbidden();
+        $this->post('/settings/templates/new', ['company_id' => $this->alpha->id, 'name' => 'Mine', 'body' => 'mine', 'reason' => 'why'])->assertForbidden();
         $this->post("/settings/templates/{$version->id}/activate", ['reason' => 'why'])->assertForbidden();
 
-        expect(TemplateVersion::query()->count())->toBe(1);
+        expect(TemplateVersion::query()->whereNotNull('company_id')->count())->toBe(1);
     });
 
-    it('offers no template-writing route under the rollcall, and the page carries no authoring control', function () {
+    it('offers only the pick under the rollcall, and the page carries no authoring control', function () {
         $writes = collect(Route::getRoutes()->getRoutes())
             ->filter(fn ($route) => str_starts_with($route->uri(), 'rollcall') && ! in_array('GET', $route->methods(), true))
             ->map(fn ($route) => $route->getName())->sort()->values()->all();
 
         expect($writes)->not->toContain('settings.templates.store')
-            ->and(collect($writes)->filter(fn ($name) => str_contains($name, 'template')))->toBeEmpty();
+            ->and(collect($writes)->filter(fn ($name) => str_contains($name, 'template'))->values()->all())->toBe(['rollcall.template.pick']);
 
         ($this->author)($this->alpha, 'standard');
         $props = bindProps($this->actingAs(bindLeader($this->alphaSections[0])), $this->alphaSections[0]);
@@ -248,5 +249,50 @@ describe('the flow composes within the leader\'s scope', function () {
         $this->actingAs($this->admin);
 
         expect($this->get(route('rollcall.show', ['pick' => 1]))->viewData('page')['props'])->not->toHaveKey('template');
+    });
+});
+
+describe("the section leader's pick (#375)", function () {
+    beforeEach(function () {
+        $this->standard = ($this->author)($this->alpha, 'standard {{unit}}')->template;
+        $this->training = $this->versions->createTemplate($this->alpha->id, $this->type, 'Training week', 'training {{unit}}', $this->admin->id);
+        $this->section = $this->alphaSections[0];
+        $this->leader = bindLeader($this->section);
+    });
+
+    it('offers the switched-on templates on the rollcall and saves the pick, which the next load renders', function () {
+        $this->actingAs($this->leader);
+        expect(bindProps($this, $this->section)['templatePicker'])->toBe([
+            'options' => [
+                ['id' => $this->versions->regimentDefault($this->type)->id, 'name' => 'Regiment default', 'isRegimentDefault' => true, 'version' => 1],
+                ['id' => $this->standard->id, 'name' => 'Company template', 'isRegimentDefault' => false, 'version' => 1],
+                ['id' => $this->training->id, 'name' => 'Training week', 'isRegimentDefault' => false, 'version' => 1],
+            ],
+            'picked' => null,
+        ]);
+
+        $this->postJson(route('rollcall.template.pick', $this->section->id), ['template_id' => $this->training->id])
+            ->assertOk()
+            ->assertJsonPath('template.name', 'Training week')
+            ->assertJsonPath('template.source', 'picked')
+            ->assertJsonPath('templatePicker.picked', $this->training->id);
+
+        expect(bindTemplate($this, $this->section)['body'])->toBe('training {{unit}}')
+            ->and(bindTemplate($this->actingAs($this->admin), $this->alphaSections[1])['body'])->toBe('standard {{unit}}')
+            ->and(AuditLogEntry::query()->where('action', 'template.picked')->count())->toBe(1);
+
+        $this->actingAs($this->leader)->postJson(route('rollcall.template.pick', $this->section->id), ['template_id' => null])->assertOk()->assertJsonPath('template.source', 'company');
+    });
+
+    it('answers 403 outside scope and 422 for a template the section may not use', function () {
+        $this->actingAs($this->leader);
+        $bravo = ($this->author)($this->bravo, 'bravo')->template;
+
+        $this->postJson(route('rollcall.template.pick', $this->alphaSections[1]->id), ['template_id' => $this->training->id])->assertForbidden();
+        $this->postJson(route('rollcall.template.pick', 999999), ['template_id' => $this->training->id])->assertForbidden();
+        $this->postJson(route('rollcall.template.pick', $this->section->id), ['template_id' => $bravo->id])->assertUnprocessable();
+        $this->postJson(route('rollcall.template.pick', $this->section->id), [])->assertUnprocessable();
+
+        expect(AuditLogEntry::query()->where('action', 'template.picked')->count())->toBe(0);
     });
 });

@@ -12,12 +12,14 @@ use App\Models\PlatoonTrainingTopic;
 use App\Models\PortalRoleGrant;
 use App\Models\PracticeCapturePlayer;
 use App\Models\SectionPractice;
+use App\Models\Template;
 use App\Models\TemplateVersion;
 use App\Models\TrainingPlan;
 use App\Models\Trooper;
 use App\Models\TrooperCourse;
 use App\Models\TrooperGameIdentity;
 use App\Models\Unit;
+use App\Models\UnitTemplateChoice;
 use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Repositories\AuditedBatch;
@@ -50,7 +52,9 @@ class Eloquent implements AuditLogRepository
         'Trooper' => [Trooper::class, []],
         'TrooperGameIdentity' => [TrooperGameIdentity::class, ['trooper']],
         'TrooperCourse' => [TrooperCourse::class, ['trooper']],
-        'TemplateVersion' => [TemplateVersion::class, ['company']],
+        'TemplateVersion' => [TemplateVersion::class, ['company', 'template.company']],
+        'Template' => [Template::class, ['company']],
+        'UnitTemplateChoice' => [UnitTemplateChoice::class, ['unit']],
         'PortalRoleGrant' => [PortalRoleGrant::class, []],
         'FireteamAssignment' => [FireteamAssignment::class, ['section']],
         'FireteamSetting' => [FireteamSetting::class, ['unit']],
@@ -279,6 +283,8 @@ class Eloquent implements AuditLogRepository
             ->orWhere($about('SectionPractice', SectionPractice::query()->whereIn('section_id', $units())))
             ->orWhere($about('WeeklyReport', WeeklyReport::query()->whereIn('unit_id', $units())))
             ->orWhere($about('TemplateVersion', TemplateVersion::query()->whereIn('company_id', $units())))
+            ->orWhere($about('Template', Template::query()->whereIn('company_id', $units())))
+            ->orWhere($about('UnitTemplateChoice', UnitTemplateChoice::query()->whereIn('unit_id', $units())))
             ->orWhere($about('PortalRoleGrant', PortalRoleGrant::query()->whereIn('unit_id', $units())))
             ->orWhere($about('Trooper', Trooper::query()->whereIn('primary_section_id', $units())))
             ->orWhere($about('TrooperGameIdentity', TrooperGameIdentity::query()->whereIn('trooper_id', $troopers())))

@@ -23,8 +23,9 @@ use App\Rollcall\TemplateSyntax;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 
-// Story 3.5: the Admin template screen. An Admin views every company and anyone else only the companies in their
-// scope; every write is Admin-only on the server (AD-6, AD-8, AD-16, AD-17).
+// Story 3.5, #375: the template screen. An Admin views every company and anyone else only the companies in their
+// scope; a company's command writes its own company's templates and only an Admin the regiment default, checked on
+// the server (AD-8, AD-16, AD-17).
 
 beforeEach(function () {
     $this->company = Unit::factory()->create(['type' => UnitType::Company, 'name' => 'Echo Company', 'callsign' => 'E/2-7']);
@@ -42,7 +43,7 @@ function previewTrooper(Unit $section, array $attributes = []): Trooper
 
 function authorTemplate($test, string $body, ?Unit $company = null): TemplateVersion
 {
-    return app(AuthorTemplateVersion::class)->handle($test->admin, $company ?? $test->company, ArtifactType::RollcallBbcode, $body, 'seed');
+    return app(TemplateVersionRepository::class)->author(($company ?? $test->company)->id, ArtifactType::RollcallBbcode, $body, $test->admin->id);
 }
 
 describe('viewing', function () {
@@ -109,14 +110,20 @@ describe('viewing', function () {
         $this->actingAs(User::factory()->serving()->create())->get('/settings/templates')->assertOk()->assertInertia(fn ($page) => $page
             ->where('companies', [])
             ->where('company', null)
-            ->where('active', null)
-            ->where('history', []));
+            ->has('templates', 1)
+            ->where('templates.0.isRegimentDefault', true)
+            ->where('canManage', false)
+            ->where('canManageCompany', false));
     });
 
-    it('says plainly when a company has no template yet', function () {
+    it('opens a company with no template of its own on the regiment default, which it uses', function () {
+        $default = $this->repo->regimentDefault(ArtifactType::RollcallBbcode);
+
         $this->actingAs($this->admin)->get('/settings/templates')->assertInertia(fn ($page) => $page
-            ->where('active', null)
-            ->where('history', []));
+            ->where('templates', [['id' => $default->id, 'name' => 'Regiment default', 'isRegimentDefault' => true, 'enabled' => true, 'isCompanyActive' => false, 'version' => 1]])
+            ->where('template', $default->id)
+            ->where('active.body', TemplateSyntax::STARTER)
+            ->has('history', 1));
     });
 
     it('renders with no companies at all', function () {
@@ -125,7 +132,7 @@ describe('viewing', function () {
         $this->actingAs($this->admin)->get('/settings/templates')->assertOk()->assertInertia(fn ($page) => $page
             ->where('companies', [])
             ->where('company', null)
-            ->where('active', null));
+            ->where('canManageCompany', false));
     });
 
     it('follows a view-as preview for the controls it shows, and the real flag for writes', function () {
@@ -137,70 +144,68 @@ describe('viewing', function () {
 });
 
 describe('saving a new version', function () {
-    it('lets an Admin save an edit, which becomes version 1 and the active one', function () {
+    beforeEach(function () {
+        $this->first = authorTemplate($this, 'first body');
+        $this->template = $this->first->template;
+    });
+
+    it('lets an Admin save an edit, which becomes the next version and the active one', function () {
         $this->actingAs($this->admin)->post('/settings/templates', [
-            'company_id' => $this->company->id,
+            'template_id' => $this->template->id,
             'body' => '[CENTER]{{unit}}[/CENTER]',
             'reason' => 'First authoring',
-        ])->assertRedirect(route('settings.templates', ['company' => $this->company->id]));
+        ])->assertRedirect(route('settings.templates', ['company' => $this->company->id, 'template' => $this->template->id]));
 
         $active = $this->repo->activeFor($this->company->id, ArtifactType::RollcallBbcode);
 
-        expect($active->version)->toBe(1)
+        expect($active->version)->toBe(2)
             ->and($active->body)->toBe('[CENTER]{{unit}}[/CENTER]')
             ->and(AuditLogEntry::query()->sole()->reason)->toBe('First authoring');
     });
 
-    it('refuses a non-Admin on the server, whatever the page showed, and writes nothing', function () {
+    it('refuses anyone who does not command the company on the server, whatever the page showed, and writes nothing', function () {
         $this->actingAs(User::factory()->serving()->create())->post('/settings/templates', [
-            'company_id' => $this->company->id,
+            'template_id' => $this->template->id,
             'body' => 'body',
             'reason' => 'why',
         ])->assertForbidden();
 
-        expect(TemplateVersion::query()->count())->toBe(0)
+        expect(TemplateVersion::query()->where('template_id', $this->template->id)->count())->toBe(1)
             ->and(AuditLogEntry::query()->count())->toBe(0);
     });
 
     it('refuses a signed-out request', function () {
-        $this->post('/settings/templates', ['company_id' => $this->company->id, 'body' => 'b', 'reason' => 'r'])->assertRedirect(route('login'));
+        $this->post('/settings/templates', ['template_id' => $this->template->id, 'body' => 'b', 'reason' => 'r'])->assertRedirect(route('login'));
     });
 
-    it('refuses even a view-as preview of a leader: the write reads the real Admin flag, and the previewed state is read-only', function () {
+    it('refuses even a view-as preview: the previewed state is read-only', function () {
         $leader = Unit::factory()->create(['type' => UnitType::Section]);
         $this->actingAs($this->admin)->post('/view-as', ['kind' => 'unit', 'id' => $leader->id])->assertSessionHasNoErrors();
 
-        $this->post('/settings/templates', ['company_id' => $this->company->id, 'body' => 'b', 'reason' => 'r']);
+        $this->post('/settings/templates', ['template_id' => $this->template->id, 'body' => 'b', 'reason' => 'r']);
 
-        expect(TemplateVersion::query()->count())->toBe(0);
+        expect(TemplateVersion::query()->where('template_id', $this->template->id)->count())->toBe(1);
     });
 
-    it('validates the company, body and reason', function (array $payload, string $field) {
-        $this->actingAs($this->admin)->post('/settings/templates', $payload + ['company_id' => $this->company->id, 'body' => 'body', 'reason' => 'why'])
+    it('validates the template, body and reason', function (array $payload, string $field) {
+        $this->actingAs($this->admin)->post('/settings/templates', $payload + ['template_id' => $this->template->id, 'body' => 'body', 'reason' => 'why'])
             ->assertSessionHasErrors($field);
 
-        expect(TemplateVersion::query()->count())->toBe(0);
+        expect(TemplateVersion::query()->where('template_id', $this->template->id)->count())->toBe(1);
     })->with([
         'no body' => [['body' => ''], 'body'],
         'no reason' => [['reason' => ''], 'reason'],
         'reason too long' => [['reason' => str_repeat('r', 1001)], 'reason'],
-        'unknown company' => [['company_id' => 999999], 'company_id'],
+        'unknown template' => [['template_id' => 999999], 'template_id'],
         'body too long' => [['body' => str_repeat('b', AuthorTemplateVersion::MAX_BODY_LENGTH + 1)], 'body'],
     ]);
 
-    it('refuses a unit that is not a company with a form error on the company', function () {
-        $platoon = Unit::factory()->create(['type' => UnitType::Platoon]);
-
-        $this->actingAs($this->admin)->post('/settings/templates', ['company_id' => $platoon->id, 'body' => 'b', 'reason' => 'r'])
-            ->assertSessionHasErrors('company_id');
-    });
-
     it('keeps the earlier version when an Admin saves a second edit', function () {
-        $first = authorTemplate($this, 'first body');
+        $first = $this->first;
 
-        $this->actingAs($this->admin)->post('/settings/templates', ['company_id' => $this->company->id, 'body' => 'second body', 'reason' => 'tweak']);
+        $this->actingAs($this->admin)->post('/settings/templates', ['template_id' => $this->template->id, 'body' => 'second body', 'reason' => 'tweak']);
 
-        expect(TemplateVersion::query()->count())->toBe(2)
+        expect(TemplateVersion::query()->where('template_id', $this->template->id)->count())->toBe(2)
             ->and($this->repo->find($first->id)->body)->toBe('first body')
             ->and($this->repo->activeFor($this->company->id, ArtifactType::RollcallBbcode)->body)->toBe('second body');
     });
@@ -212,13 +217,13 @@ describe('making an older version active', function () {
         authorTemplate($this, 'second body');
 
         $this->actingAs($this->admin)->post("/settings/templates/{$first->id}/activate", ['reason' => 'The edit broke the table'])
-            ->assertRedirect(route('settings.templates', ['company' => $this->company->id]));
+            ->assertRedirect(route('settings.templates', ['company' => $this->company->id, 'template' => $first->template_id]));
 
         expect($this->repo->activeFor($this->company->id, ArtifactType::RollcallBbcode)->id)->toBe($first->id)
-            ->and(TemplateVersion::query()->count())->toBe(2);
+            ->and(TemplateVersion::query()->where('template_id', $first->template_id)->count())->toBe(2);
     });
 
-    it('refuses a non-Admin on the server and moves nothing', function () {
+    it('refuses anyone who does not command the company on the server and moves nothing', function () {
         $first = authorTemplate($this, 'first body');
         $second = authorTemplate($this, 'second body');
 
@@ -459,5 +464,118 @@ describe('which company and section it opens on', function () {
             ->where('previewSections.0.id', $this->alphaFirst->id)
             ->where('previewSections.1.id', $this->alphaSecond->id)
             ->where('previewSections.2.id', $this->alphaLate->id));
+    });
+});
+
+describe("the company's command manages its own templates (#375)", function () {
+    beforeEach(function () {
+        $units = app(UnitRepository::class);
+        $this->company->delete();
+        $battalion = $units->create(UnitType::Battalion, '1st Battalion', '1-7', null);
+        $this->alpha = $units->create(UnitType::Company, 'Alpha Company', 'A/1-7', $battalion->id);
+        $this->bravo = $units->create(UnitType::Company, 'Bravo Company', 'B/1-7', $battalion->id);
+        $platoon = $units->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', $this->alpha->id);
+        $this->section = $units->create(UnitType::Section, '1st Section', '1/1/A/1-7', $platoon->id);
+        $this->co = templatesLeaderOf($this->alpha, 5101);
+        $this->bravoCo = templatesLeaderOf($this->bravo, 5102);
+        $this->sl = templatesLeaderOf($this->section, 5103);
+        $this->standard = authorTemplate($this, 'standard', $this->alpha)->template;
+        $this->bravoOwn = authorTemplate($this, 'bravo', $this->bravo)->template;
+        $this->default = $this->repo->regimentDefault(ArtifactType::RollcallBbcode);
+    });
+
+    it('shows the company command its templates beside the regiment default, with the controls', function () {
+        $this->actingAs($this->co)->get('/settings/templates')->assertOk()->assertInertia(fn ($page) => $page
+            ->where('company', $this->alpha->id)
+            ->where('templates.0.id', $this->default->id)
+            ->where('templates.1', ['id' => $this->standard->id, 'name' => 'Company template', 'isRegimentDefault' => false, 'enabled' => true, 'isCompanyActive' => true, 'version' => 1])
+            ->has('templates', 2)
+            ->where('template', $this->standard->id)
+            ->where('canManage', true)
+            ->where('canManageCompany', true));
+
+        // The regiment default is in every company's list, but only an Admin edits it.
+        $this->actingAs($this->co)->get("/settings/templates?template={$this->default->id}")->assertInertia(fn ($page) => $page
+            ->where('template', $this->default->id)
+            ->where('canManage', false)
+            ->where('canManageCompany', true));
+        $this->actingAs($this->admin)->get("/settings/templates?company={$this->alpha->id}&template={$this->default->id}")->assertInertia(fn ($page) => $page
+            ->where('canManage', true));
+    });
+
+    it("shows a section leader the company's templates read-only", function () {
+        $this->actingAs($this->sl)->get('/settings/templates')->assertOk()->assertInertia(fn ($page) => $page
+            ->where('company', $this->alpha->id)
+            ->where('canManage', false)
+            ->where('canManageCompany', false));
+    });
+
+    it("answers 404 for a template that is not the company's own or the default, existing or not", function () {
+        $this->actingAs($this->co)->get("/settings/templates?template={$this->bravoOwn->id}")->assertNotFound();
+        $this->actingAs($this->co)->get('/settings/templates?template=999999')->assertNotFound();
+    });
+
+    it('lets the company command add, edit, switch and choose its templates, each audited', function () {
+        $this->actingAs($this->co)->post('/settings/templates/new', ['company_id' => $this->alpha->id, 'name' => 'Training week', 'body' => 'training', 'reason' => 'For training weeks'])
+            ->assertSessionHasNoErrors()->assertRedirect();
+        $training = $this->repo->templatesOf($this->alpha->id, ArtifactType::RollcallBbcode)->firstWhere('name', 'Training week');
+
+        $this->post('/settings/templates', ['template_id' => $training->id, 'body' => 'training v2', 'reason' => 'tweak'])->assertSessionHasNoErrors();
+        $this->post("/settings/templates/{$this->standard->id}/switch", ['enabled' => false])->assertSessionHasNoErrors();
+        $this->post("/settings/templates/{$training->id}/company-active")->assertSessionHasNoErrors()
+            ->assertRedirect(route('settings.templates', ['company' => $this->alpha->id, 'template' => $training->id]));
+
+        expect($this->repo->findTemplate($training->id)->activeVersion->body)->toBe('training v2')
+            ->and($this->standard->refresh()->enabled)->toBeFalse()
+            ->and($this->repo->choiceFor($this->alpha->id, ArtifactType::RollcallBbcode)->template_id)->toBe($training->id)
+            ->and(AuditLogEntry::query()->orderBy('id')->pluck('action')->all())->toBe(['template.created', 'template_version.authored', 'template.switched_off', 'template.company_active_set']);
+    });
+
+    it("refuses another company's command, a section leader and the regiment default to a CO, writing nothing", function () {
+        $this->actingAs($this->bravoCo)->post('/settings/templates/new', ['company_id' => $this->alpha->id, 'name' => 'X', 'body' => 'x', 'reason' => 'why'])->assertForbidden();
+        $this->post('/settings/templates', ['template_id' => $this->standard->id, 'body' => 'x', 'reason' => 'why'])->assertForbidden();
+        $this->post("/settings/templates/{$this->standard->id}/switch", ['enabled' => false])->assertForbidden();
+        $this->post("/settings/templates/{$this->standard->id}/company-active")->assertForbidden();
+        $this->post("/settings/templates/{$this->standard->active_version_id}/activate", ['reason' => 'why'])->assertForbidden();
+        $this->actingAs($this->sl)->post("/settings/templates/{$this->standard->id}/switch", ['enabled' => false])->assertForbidden();
+        $this->actingAs($this->co)->post('/settings/templates', ['template_id' => $this->default->id, 'body' => 'x', 'reason' => 'why'])->assertForbidden();
+
+        expect(AuditLogEntry::query()->count())->toBe(0)->and($this->standard->refresh()->enabled)->toBeTrue();
+    });
+
+    it('answers a missing id like a forbidden one for anyone but an Admin', function (string $path, array $body) {
+        $this->actingAs($this->co)->post(sprintf($path, 999999), $body)->assertForbidden();
+        $this->actingAs($this->admin)->post(sprintf($path, 999999), $body)->assertNotFound();
+    })->with([
+        'switch' => ['/settings/templates/%d/switch', ['enabled' => false]],
+        'company default' => ['/settings/templates/%d/company-active', []],
+        'activate' => ['/settings/templates/%d/activate', ['reason' => 'why']],
+    ]);
+
+    it('answers a missing company or template in a form like a forbidden one for anyone but an Admin', function () {
+        $this->actingAs($this->co)->post('/settings/templates/new', ['company_id' => 999999, 'name' => 'X', 'body' => 'x', 'reason' => 'why'])->assertForbidden();
+        $this->post('/settings/templates', ['template_id' => 999999, 'body' => 'x', 'reason' => 'why'])->assertForbidden();
+        $this->actingAs($this->admin)->post('/settings/templates/new', ['company_id' => 999999, 'name' => 'X', 'body' => 'x', 'reason' => 'why'])->assertSessionHasErrors('company_id');
+    });
+
+    it('turns a refused name, body or reason into a form error on its field', function (array $payload, string $field) {
+        $this->actingAs($this->co)->post('/settings/templates/new', $payload + ['company_id' => $this->alpha->id, 'name' => 'New', 'body' => 'body', 'reason' => 'why'])
+            ->assertSessionHasErrors($field);
+    })->with([
+        'a taken name' => [['name' => 'company template'], 'name'],
+        'a long name' => [['name' => str_repeat('n', 61)], 'name'],
+        'a bad body' => [['body' => '{{colour}}'], 'body'],
+        'no reason' => [['reason' => ''], 'reason'],
+    ]);
+
+    it('refuses a unit that is not a company with a form error on the company', function () {
+        $platoon = app(UnitRepository::class)->tree()->firstWhere('callsign', '1/A/1-7');
+
+        $this->actingAs($this->admin)->post('/settings/templates/new', ['company_id' => $platoon->id, 'name' => 'X', 'body' => 'b', 'reason' => 'r'])
+            ->assertSessionHasErrors('company_id');
+    });
+
+    it('refuses to switch the regiment default off with a form error', function () {
+        $this->actingAs($this->admin)->post("/settings/templates/{$this->default->id}/switch", ['enabled' => false])->assertSessionHasErrors('template_id');
     });
 });
