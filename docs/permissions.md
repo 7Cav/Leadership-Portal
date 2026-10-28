@@ -120,6 +120,11 @@ read the templates but not add, edit, roll back, switch or choose them; the batt
 instead, and the Templates page tells the company why. Marking, confirming, posting, fireteams, reports and a section's
 pick of template are not affected.
 
+When an Admin moves a platoon or section to another company, the templates its sections used go with it and stay
+available to its sections there (while the new company sets its own templates). Fireteam settings, labels, acting
+leads and template picks stay on the units. The move and what came along are in the audit log (`unit.moved`,
+`unit.settings_carried`).
+
 ### Reports
 
 | Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
