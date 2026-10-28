@@ -45,6 +45,8 @@ final readonly class CounselingPermissions
     /**
      * Whether the viewer may correct or delete `$record`: they must see it, and be an Admin or command the unit it was
      * filed through (that unit's subtree is in their write scope, so the issuer and the chain above them qualify).
+     * A leader must also still reach the trooper from above: one the trooper now commands, or who now shares the
+     * trooper's command, no longer changes what was filed before.
      */
     public function changes(CounselingRecord $record): bool
     {
@@ -52,6 +54,12 @@ final readonly class CounselingPermissions
             return false;
         }
 
-        return $this->admin || ($record->issuer_unit_id !== null && in_array((int) $record->issuer_unit_id, $this->writeScope, true));
+        if ($this->admin) {
+            return true;
+        }
+
+        return $this->issuingUnit(CounselingType::Dcs) !== null
+            && $record->issuer_unit_id !== null
+            && in_array((int) $record->issuer_unit_id, $this->writeScope, true);
     }
 }

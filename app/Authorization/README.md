@@ -81,5 +81,8 @@ leader could not reach; one level only, and a stop makes the Admin themselves ag
 delete a trooper's DCSs and LORs, on top of `ScopeResolver::commandingUnitsOver()` (the user's commands that reach the
 trooper's unit, lowest first), `writeScope()` and `canSee()`. A DCS is filed by any command reaching the trooper and seen
 by the same people; an LOR is filed only by line command from platoon level up and seen by everyone who can see the
-trooper. A command the trooper shares (an ASL and their SL) never counts. A record may be changed by an Admin or by the
-commanders of the unit it was filed through. The rules are in `docs/permissions.md`.
+trooper. A command the trooper shares (an ASL and their SL) never counts, nor does one inside the trooper's own command
+(their SL, when they are acting lead of the platoon). A record may be changed by an Admin or by the commanders of the
+unit it was filed through who still counsel the trooper. "Themselves" includes the person really signed in while they
+act as someone (`RealActor`, set by the `ActAsUser` middleware), so acting as a billet or a person never reaches their
+own records. The rules are in `docs/permissions.md`.

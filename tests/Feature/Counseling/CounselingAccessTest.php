@@ -1,6 +1,7 @@
 <?php
 
 use App\Authorization\CounselingAccess;
+use App\Authorization\RealActor;
 use App\Models\CounselingRecord;
 use App\Models\CounselingType;
 use App\Models\PortalRoleGrant;
@@ -175,4 +176,55 @@ it('gives nothing on a trooper the sync has not placed, except to an Admin', fun
         ->and(counselingFor($this->users['co'], $unplaced)->seesLor)->toBeFalse()
         ->and(counselingFor($this->users['admin'], $unplaced)->filesLor)->toBeTrue()
         ->and(counselingFor($this->users['admin'], $unplaced)->seesDcs)->toBeTrue();
+});
+
+it('gives nobody inside a trooper\'s own command a say over their counseling', function () {
+    // A rifleman of 1st Section made acting Platoon Leader of their own platoon.
+    UnitActingLead::query()->forceCreate(['unit_id' => $this->platoon->id, 'trooper_id' => $this->rifleman->id]);
+    $bySection = CounselingRecord::factory()->create(['trooper_id' => $this->rifleman->id, 'issuer_unit_id' => $this->section1->id]);
+    $byPlatoon = CounselingRecord::factory()->lor()->create(['trooper_id' => $this->rifleman->id, 'issuer_unit_id' => $this->platoon->id]);
+
+    foreach (['sl1', 'asl1', 'pl', 'psg'] as $below) {
+        $permissions = counselingFor($this->users[$below], $this->rifleman);
+
+        expect($permissions->filesDcs)->toBeFalse("{$below} files a DCS")
+            ->and($permissions->filesLor)->toBeFalse("{$below} files an LOR")
+            ->and($permissions->seesDcs)->toBeFalse("{$below} sees a DCS")
+            ->and($permissions->changes($bySection))->toBeFalse("{$below} changes the DCS")
+            ->and($permissions->changes($byPlatoon))->toBeFalse("{$below} changes the LOR");
+    }
+
+    $co = counselingFor($this->users['co'], $this->rifleman);
+    expect($co->filesLor)->toBeTrue()
+        ->and($co->seesDcs)->toBeTrue()
+        ->and($co->issuingUnit(CounselingType::Lor))->toBe($this->company->id)
+        ->and($co->changes($bySection))->toBeTrue();
+});
+
+it('counts a billet the same way: a Platoon Leader placed in a section is not counseled by its Section Leader', function () {
+    $pl = ($this->trooperOf)('pl');
+    $pl->forceFill(['primary_section_id' => $this->section1->id])->save();
+
+    expect(counselingFor($this->users['sl1'], $pl)->filesDcs)->toBeFalse()
+        ->and(counselingFor($this->users['sl1'], $pl)->seesDcs)->toBeFalse()
+        ->and(counselingFor($this->users['co'], $pl)->filesLor)->toBeTrue();
+});
+
+it('treats the person really signed in as themselves while they act as someone else', function () {
+    $sl = ($this->trooperOf)('sl1');
+    $record = CounselingRecord::factory()->create(['trooper_id' => $sl->id, 'issuer_unit_id' => $this->platoon->id]);
+    // The Section Leader is acting as their Platoon Leader (whatever let them): the request runs as the PL.
+    app(RealActor::class)->set($this->users['sl1']);
+
+    $permissions = counselingFor($this->users['pl'], $sl);
+    expect($permissions->self)->toBeTrue()
+        ->and($permissions->filesDcs)->toBeFalse()
+        ->and($permissions->filesLor)->toBeFalse()
+        ->and($permissions->seesDcs)->toBeFalse()
+        ->and($permissions->changes($record))->toBeFalse()
+        // Everyone else is judged as the PL.
+        ->and(counselingFor($this->users['pl'], $this->rifleman)->filesLor)->toBeTrue();
+
+    app(RealActor::class)->clear();
+    expect(counselingFor($this->users['pl'], $sl)->filesLor)->toBeTrue();
 });

@@ -141,7 +141,10 @@ their own plan unless they also command the company.
 
 "Own" here is your command (billet or acting lead), never a staff grant. A command the trooper holds too does not
 count: an ASL does not counsel their Section Leader, a Platoon Sergeant does not counsel their Platoon Leader, and
-nobody files on themselves. The echelon above does.
+nobody files on themselves. Neither does a command inside the trooper's own: if a rifleman is made acting Platoon
+Leader of their own platoon, their Section Leader no longer files on them, sees their DCSs or changes their records.
+The echelon above does. Acting as a billet or a person changes none of this for the person really signed in: they
+still cannot file on themselves, see their own DCSs or change their own records.
 
 | Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -155,7 +158,8 @@ nobody files on themselves. The echelon above does.
 staff comes from regiment command or an Admin.
 (6) An Admin's preview shows every DCS in the previewed scope.
 (7) The leaders who command the unit the record was filed through: the issuer, anyone sharing that billet's unit, and
-everyone above. A record an Admin filed (no unit) is the Admins' alone.
+everyone above, as long as they still counsel the trooper by the rules above. A record an Admin filed (no unit) is the
+Admins' alone.
 
 A record the viewer may not see is left out of the page entirely, and its download answers 404 like a record that does
 not exist. The 90-day warnings are worked out from the records the viewer sees, so they never give a DCS away.
