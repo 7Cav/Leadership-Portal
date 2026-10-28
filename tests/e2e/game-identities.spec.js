@@ -82,6 +82,8 @@ for (const [label, width, height] of [['phone', 375, 800], ['tablet', 820, 1000]
         await page.locator('[data-testid^="open-"]').last().click();
         await page.getByTestId('identity-game').selectOption('hll');
         await page.getByTestId('identity-name').fill(longName);
+        // 32 hex characters is the shape of an Epic ID (#450), the longest ID the server accepts on this game.
+        await page.getByTestId('identity-kind').selectOption('Epic ID');
         await page.getByTestId('identity-id').fill(longId);
         await page.getByTestId('identity-save').click();
 
@@ -169,7 +171,8 @@ test('saving the last missing game of a trooper lands on the row that took their
     const stamp = Date.now();
     for (let i = 0; i < 3 && (await page.getByTestId('identity-form').count()); i++) {
         await page.getByTestId('identity-name').fill(`Land_${stamp}_${i}`);
-        await page.getByTestId('identity-id').fill(`land-${stamp}-${i}`);
+        // A Steam ID's shape (#450) on the games that check it; Arma's Player ID takes it too.
+        await page.getByTestId('identity-id').fill(`7656119${String(stamp).slice(-9)}${i}`);
         await page.getByTestId('identity-save').click();
         await page.waitForTimeout(400);
     }

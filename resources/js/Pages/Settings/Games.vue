@@ -15,12 +15,16 @@ import { onHttpException } from '@/lib/httpError';
 
 // The games the regiment plays (#388): the list on the left, and the add/edit form alongside for an Admin (the
 // Staff grants layout). A game in use can be retired, not deleted, so Delete is offered only for one nothing uses.
+// An Admin also sees the identities saved before #450 that break its rules, to fix on Game identities.
 const props = defineProps({
-    // `[{ id, slug, name, idKinds, interface, retired, inUse }]`, in the order they were added.
+    // `[{ id, slug, name, idKinds, checkedKinds, interface, retired, inUse }]`, in the order they were added;
+    // `checkedKinds` are the kinds whose IDs the server checks for a shape.
     games: { type: Array, required: true },
     // `[{ value, label }]`: the telemetry interfaces the portal has built in.
     interfaces: { type: Array, required: true },
     isAdmin: { type: Boolean, required: true },
+    // Admin only: `[{ id, trooper, game, idKind, playerName, platformId, problems }]`, hidden characters written out.
+    identitiesToCheck: { type: Array, default: () => [] },
 });
 
 const editingId = ref(null);
@@ -119,7 +123,12 @@ const remove = (game) => act('delete', `/settings/games/${game.id}`, `${game.nam
                                     <Badge v-if="game.retired" variant="outline" :data-testid="`retired-${game.slug}`">Retired</Badge>
                                 </span>
                             </TableCell>
-                            <TableCell :data-testid="`kinds-${game.slug}`">{{ game.idKinds.join(', ') }}</TableCell>
+                            <TableCell>
+                                <span :data-testid="`kinds-${game.slug}`">{{ game.idKinds.join(', ') }}</span>
+                                <span v-if="game.checkedKinds?.length" class="block text-xs text-muted-foreground" :data-testid="`checked-kinds-${game.slug}`">
+                                    Shape checked: {{ game.checkedKinds.join(', ') }}
+                                </span>
+                            </TableCell>
                             <TableCell :data-testid="`interface-${game.slug}`">{{ interfaceLabel(game.interface) }}</TableCell>
                             <TableCell class="px-4 text-right whitespace-nowrap">
                                 <template v-if="isAdmin">
@@ -207,5 +216,39 @@ const remove = (game) => act('delete', `/settings/games/${game.id}`, `${game.nam
                 </form>
             </Card>
         </div>
+
+        <Card v-if="isAdmin && identitiesToCheck.length" class="min-w-0 gap-0 py-0" data-testid="identities-to-check">
+            <div class="px-4 pt-3.5 pb-2">
+                <h2 class="text-[15px] font-semibold">Identities to check</h2>
+                <p class="mt-1 text-xs text-muted-foreground">
+                    Saved before these checks existed. Nothing here was changed. Fix each one on Game identities.
+                </p>
+            </div>
+            <Table class="text-[13px]">
+                <TableHeader>
+                    <TableRow class="hover:bg-transparent">
+                        <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">Trooper</TableHead>
+                        <TableHead class="h-8 text-xs font-medium text-muted-foreground">Game</TableHead>
+                        <TableHead class="h-8 text-xs font-medium text-muted-foreground">Player name and ID</TableHead>
+                        <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">What to check</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    <TableRow v-for="row in identitiesToCheck" :key="row.id" :data-testid="`check-${row.id}`">
+                        <TableCell class="px-4 align-top font-medium">{{ row.trooper ?? 'Unknown trooper' }}</TableCell>
+                        <TableCell class="align-top">{{ row.game }}<span class="block text-xs text-muted-foreground">{{ row.idKind }}</span></TableCell>
+                        <TableCell class="align-top whitespace-normal">
+                            <bdi class="block break-words">{{ row.playerName }}</bdi>
+                            <bdi class="block font-mono text-xs break-all text-muted-foreground">{{ row.platformId }}</bdi>
+                        </TableCell>
+                        <TableCell class="px-4 align-top whitespace-normal">
+                            <ul class="grid gap-0.5 text-xs">
+                                <li v-for="problem in row.problems" :key="problem">{{ problem }}</li>
+                            </ul>
+                        </TableCell>
+                    </TableRow>
+                </TableBody>
+            </Table>
+        </Card>
     </div>
 </template>

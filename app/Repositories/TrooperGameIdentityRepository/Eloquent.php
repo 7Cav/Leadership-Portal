@@ -32,6 +32,11 @@ class Eloquent implements TrooperGameIdentityRepository
             : TrooperGameIdentity::query()->with('game')->whereIn('trooper_id', $trooperIds)->orderBy('id')->get();
     }
 
+    public function all(): Collection
+    {
+        return TrooperGameIdentity::query()->with(['game', 'trooper'])->orderBy('id')->get();
+    }
+
     public function lockForTrooper(int $trooperId, Game $game): ?TrooperGameIdentity
     {
         return TrooperGameIdentity::query()

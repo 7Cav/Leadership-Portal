@@ -35,6 +35,13 @@ interface TrooperGameIdentityRepository
     public function forTroopers(array $trooperIds): Collection;
 
     /**
+     * Every identity on every game, with its game and trooper: the Admin's list of identities to check (#450).
+     *
+     * @return Collection<int, TrooperGameIdentity>
+     */
+    public function all(): Collection;
+
+    /**
      * The trooper's identity in `$game`, or null, read with a row lock held until the caller's
      * transaction ends — for a write that must only go ahead if that identity is still the one a
      * leader was shown (#176's replace), so a concurrent change cannot land between the check and

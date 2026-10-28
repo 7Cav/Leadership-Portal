@@ -3,6 +3,7 @@
 namespace App\Commands\GameIdentities;
 
 use App\Authorization\ScopeResolver;
+use App\Models\IdKindFormat;
 use App\Models\TrooperGameIdentity;
 use App\Models\User;
 use App\Repositories\GameIdentityLinkException;
@@ -30,6 +31,9 @@ use App\Support\Audit\AuditEnvelope;
  * Changing only the kind is an update and audited; the one-owner rule on a platform id ignores the kind, so the
  * same id is never linked twice on a game. The kind is part of the identity row, so it is in the audit entry's digest.
  *
+ * A name or ID that is empty once cleaned is refused, and so is an ID without its kind's shape ({@see IdKindFormat},
+ * #450), unless a game server reported it; an Epic ID is stored lower case. Both are checked before anything is written.
+ *
  * A command carrying `replacing` is a conditional write (#176, see {@see SetTrooperGameIdentity}):
  * if the trooper's identity in that game has changed to something else since the leader was
  * shown it, the write is refused as `has_other_identity` with the identity they hold now, inside
@@ -52,6 +56,7 @@ class SetTrooperGameIdentityHandler
      * @throws GameIdentityForbiddenException when the trooper is outside the actor's scope.
      * @throws GameRetiredException when the game is retired.
      * @throws UnknownIdKindException when the command names a kind the game does not have.
+     * @throws InvalidGameIdentityException when the name or ID is empty once cleaned, or the ID lacks its kind's shape.
      * @throws GameIdentityLinkException when the platform id already belongs to another trooper.
      * @throws UnmatchedPlayerResolutionException `has_other_identity`, when `replacing` is set and
      *                                            the trooper's identity changed to another since.
@@ -64,6 +69,14 @@ class SetTrooperGameIdentityHandler
             throw GameRetiredException::for($command->game);
         }
 
+        if ($command->playerName === '') {
+            throw InvalidGameIdentityException::emptyName();
+        }
+
+        if ($command->platformId === '') {
+            throw InvalidGameIdentityException::emptyId();
+        }
+
         $existing = $this->identities->forTrooper($command->trooperId)->firstWhere('game_id', $command->game->id);
 
         // A different id is a different player id, so it does not inherit the old one's kind.
@@ -74,7 +87,18 @@ class SetTrooperGameIdentityHandler
             throw UnknownIdKindException::for($command->game, $idKind);
         }
 
-        if ($existing?->player_name === $command->playerName && $existing->platform_id === $command->platformId && $existing->id_kind === $idKind) {
+        $platformId = $command->platformId;
+        $format = $command->reportedByServer ? null : IdKindFormat::for($idKind);
+
+        if ($format !== null) {
+            $platformId = $format->canonical($platformId);
+
+            if (! $format->accepts($platformId)) {
+                throw InvalidGameIdentityException::badFormat($format);
+            }
+        }
+
+        if ($existing?->player_name === $command->playerName && $existing->platform_id === $platformId && $existing->id_kind === $idKind) {
             return $existing;
         }
 
@@ -83,7 +107,7 @@ class SetTrooperGameIdentityHandler
             action: $existing === null ? 'game_identity.linked' : 'game_identity.updated',
             reason: null,
             reasonRequired: false,
-            mutation: function () use ($command, $idKind) {
+            mutation: function () use ($command, $idKind, $platformId) {
                 // The kind is checked again against the game as stored, with its row locked shared, so a kind an
                 // Admin removed since the check above (UpdateGame takes the lock exclusive) is refused, not stored.
                 $game = $this->games->lock($command->game->id, exclusive: false);
@@ -100,14 +124,14 @@ class SetTrooperGameIdentityHandler
                 if ($command->replacing !== null) {
                     $held = $this->identities->lockForTrooper($command->trooperId, $command->game);
 
-                    if ($held !== null && $held->platform_id !== $command->platformId && $held->platform_id !== $command->replacing) {
+                    if ($held !== null && $held->platform_id !== $platformId && $held->platform_id !== $command->replacing) {
                         throw UnmatchedPlayerResolutionException::alreadyHasIdentity($held->player_name, $held->platform_id, $command->game->name);
                     }
                 }
 
-                $identity = $this->identities->link($command->trooperId, $command->game, $command->playerName, $command->platformId, $idKind);
+                $identity = $this->identities->link($command->trooperId, $command->game, $command->playerName, $platformId, $idKind);
                 // Linking a player a leader once dismissed re-admits them (7.7), in the same transaction.
-                $this->dismissals->forget($command->game, $command->platformId);
+                $this->dismissals->forget($command->game, $platformId);
 
                 return $identity;
             },

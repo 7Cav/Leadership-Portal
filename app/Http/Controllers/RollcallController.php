@@ -26,6 +26,7 @@ use App\Commands\GameIdentities\DismissUnmatchedPlayer;
 use App\Commands\GameIdentities\DismissUnmatchedPlayerHandler;
 use App\Commands\GameIdentities\GameIdentityForbiddenException;
 use App\Commands\GameIdentities\GameRetiredException;
+use App\Commands\GameIdentities\InvalidGameIdentityException;
 use App\Commands\GameIdentities\LinkUnmatchedPlayer;
 use App\Commands\GameIdentities\LinkUnmatchedPlayerHandler;
 use App\Commands\GameIdentities\RestoreDismissedPlayer;
@@ -481,7 +482,7 @@ class RollcallController extends Controller
                 ['message' => $e->getMessage(), 'reason' => $e->reason, 'current' => $e->current],
                 fn ($value) => $value !== null,
             ), 422);
-        } catch (GameRetiredException $e) {
+        } catch (GameRetiredException|InvalidGameIdentityException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         } catch (GameIdentityLinkException) {
             return response()->json(['message' => $this->collisionMessage($game, $request->input('platform_id'))], 422);

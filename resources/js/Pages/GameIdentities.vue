@@ -18,11 +18,14 @@ import { cn } from '@/lib/utils';
 // from `platforms`, so a new game appears here without a change to this page. A retired game (#388)
 // is offered for no new link and left out of the coverage; the links it already has stay listed and
 // can be removed. A game may ask for several kinds of player ID (#428: Steam, Epic, Xbox): with more than one, the
-// form asks for the kind first, and the ID field's label and placeholder follow it.
+// form asks for the kind first, and the ID field's label and placeholder follow it. A kind with a known shape (#450)
+// shows its hint under the ID field; the server checks it, this page never does. A name that mixes alphabets carries
+// a "check this name" marker. Names are shown in <bdi>, so a stored direction mark cannot reorder the text around them.
 const props = defineProps({
-    // `[{ value, label, idKinds, retired }]` — one per game an Admin keeps; `idKinds` lists its ID kinds, the first being the default.
+    // `[{ value, label, idKinds, idHints, retired }]` — one per game an Admin keeps; `idKinds` lists its ID kinds, the first
+    // being the default, and `idHints` the shape of each kind the server checks, by kind.
     platforms: { type: Array, required: true },
-    // `[{ id, displayName, billet, section, editable, identities: { [platform]: { playerName, platformId, idKind } } }]`
+    // `[{ id, displayName, billet, section, editable, identities: { [platform]: { playerName, platformId, idKind, mixedScripts } } }]`
     // — the troopers in the viewer's scope, by name. `editable` is false for one the viewer only sees
     // through a staff grant.
     troopers: { type: Array, required: true },
@@ -60,6 +63,8 @@ const selected = computed(() => props.troopers.find((trooper) => trooper.id === 
 const platformMeta = computed(() => platformOf(platform.value));
 const existing = computed(() => selected.value?.identities[platform.value] ?? null);
 const kinds = computed(() => platformMeta.value?.idKinds ?? []);
+// The shape the server checks the chosen kind's ID against, or nothing for a kind it does not check.
+const idHint = computed(() => platformMeta.value?.idHints?.[form.id_kind || kinds.value[0]] ?? null);
 // A game with one kind shows no kind picker and behaves as it always did.
 const hasKinds = (p) => p.idKinds.length > 1;
 const editable = computed(() => !viewAs.value && Boolean(selected.value?.editable));
@@ -265,7 +270,7 @@ function remove(value) {
                                     <template v-if="view === 'needs'">Missing {{ joinNames(missingOf(trooper)) }}</template>
                                     <template v-else-if="linkedOf(trooper).length">
                                         <span v-for="(p, index) in linkedOf(trooper)" :key="p.value">
-                                            <template v-if="index">, </template>{{ p.label }}: {{ trooper.identities[p.value].playerName }}<template v-if="hasKinds(p)"> ({{ trooper.identities[p.value].idKind }})</template>
+                                            <template v-if="index">, </template>{{ p.label }}: <bdi>{{ trooper.identities[p.value].playerName }}</bdi><template v-if="trooper.identities[p.value].mixedScripts"> (check this name)</template><template v-if="hasKinds(p)"> ({{ trooper.identities[p.value].idKind }})</template>
                                         </span>
                                         <template v-if="missingOf(trooper).length"> · Missing {{ joinNames(missingOf(trooper)) }}</template>
                                     </template>
@@ -321,7 +326,18 @@ function remove(value) {
                                     <div class="min-w-0 flex-1 basis-32">
                                         <p class="text-xs text-muted-foreground">{{ p.label }}<template v-if="p.retired"> (retired)</template></p>
                                         <p v-if="hasKinds(p)" class="text-xs text-muted-foreground" :data-testid="`kind-${p.value}`">{{ selected.identities[p.value].idKind }}</p>
-                                        <p class="text-[13px] font-medium break-words">{{ selected.identities[p.value].playerName }}</p>
+                                        <p class="text-[13px] font-medium break-words">
+                                            <bdi>{{ selected.identities[p.value].playerName }}</bdi>
+                                            <Badge
+                                                v-if="selected.identities[p.value].mixedScripts"
+                                                variant="outline"
+                                                class="ml-1.5 border-warning text-warning"
+                                                :data-testid="`check-name-${p.value}`"
+                                                title="This name mixes alphabets, so a letter may be a look-alike. Check it against the game."
+                                            >
+                                                Check this name
+                                            </Badge>
+                                        </p>
                                         <p class="font-mono text-xs break-all text-muted-foreground">{{ selected.identities[p.value].platformId }}</p>
                                     </div>
                                     <div v-if="removing !== p.value" class="flex shrink-0 gap-1">
@@ -378,8 +394,9 @@ function remove(value) {
                                     autocomplete="off"
                                     class="font-mono"
                                     :aria-invalid="!!form.errors.platform_id"
-                                    :aria-describedby="form.errors.platform_id ? 'identity-id-error' : undefined"
+                                    :aria-describedby="form.errors.platform_id ? 'identity-id-error' : idHint ? 'identity-id-hint' : undefined"
                                 />
+                                <p v-if="idHint && !form.errors.platform_id" id="identity-id-hint" class="text-xs text-muted-foreground" data-testid="identity-id-hint">{{ idHint }}</p>
                                 <p
                                     v-if="form.errors.platform_id"
                                     id="identity-id-error"
