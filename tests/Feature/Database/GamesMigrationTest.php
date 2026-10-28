@@ -19,6 +19,25 @@ function gamesMigration(): object
     return require database_path('migrations/2026_10_27_100000_create_games_table.php');
 }
 
+function gameServersMigration(): object
+{
+    return require database_path('migrations/2026_10_28_100000_create_game_servers_table.php');
+}
+
+// `game_servers` (#389) points at `games`. SQLite does not mind the games migration dropping the table under it, but
+// MySQL refuses (error 3730), so a rollback of `games` takes the table pointing at it down first and brings it back after.
+function rollBackGames(): void
+{
+    gameServersMigration()->down();
+    gamesMigration()->down();
+}
+
+function migrateGamesForward(): void
+{
+    gamesMigration()->up();
+    gameServersMigration()->up();
+}
+
 it('creates the three current games with their names, id labels and interfaces', function () {
     expect(Game::query()->orderBy('id')->get()->map(fn (Game $game) => [$game->slug, $game->name, $game->id_label, $game->interface, $game->retired_at])->all())
         ->toBe([
@@ -33,7 +52,7 @@ it('points every existing identity, capture player and dismissal at the game its
     $user = User::factory()->create();
     $practice = SectionPractice::factory()->create();
 
-    gamesMigration()->down();
+    rollBackGames();
 
     foreach (['hll', 'arma', 'wardogs'] as $platform) {
         DB::table('trooper_game_identities')->insert(['trooper_id' => $trooper->id, 'platform' => $platform, 'player_name' => 'P', 'platform_id' => "id-{$platform}"]);
@@ -41,7 +60,7 @@ it('points every existing identity, capture player and dismissal at the game its
         DB::table('game_player_dismissals')->insert(['platform' => $platform, 'platform_id' => "id-{$platform}", 'player_name' => 'D', 'dismissed_by' => $user->id]);
     }
 
-    gamesMigration()->up();
+    migrateGamesForward();
 
     $slugOf = Game::query()->pluck('slug', 'id');
 
@@ -69,13 +88,13 @@ it('rolls back to the platform enum and forward again, keeping every row on its 
     $wardogs = Game::query()->where('slug', 'wardogs')->firstOrFail();
     DB::table('trooper_game_identities')->insert(['trooper_id' => Trooper::factory()->create()->id, 'game_id' => $wardogs->id, 'player_name' => 'W', 'platform_id' => '7656']);
 
-    gamesMigration()->down();
+    rollBackGames();
 
     expect(Schema::hasTable('games'))->toBeFalse()
         ->and(Schema::hasColumn('trooper_game_identities', 'game_id'))->toBeFalse()
         ->and(DB::table('trooper_game_identities')->value('platform'))->toBe('wardogs');
 
-    gamesMigration()->up();
+    migrateGamesForward();
 
     expect(DB::table('trooper_game_identities')->value('game_id'))->toBe(Game::query()->where('slug', 'wardogs')->value('id'));
 });
@@ -93,7 +112,7 @@ it('refuses to roll back while a row in any of the three tables uses a game adde
 });
 
 it('refuses to move a row whose platform names no game, before changing anything', function () {
-    gamesMigration()->down();
+    rollBackGames();
     // SQLite does not enforce the enum; a non-strict MySQL stores '' for a bad value. Either way the backfill would
     // leave `game_id` null.
     DB::table('game_player_dismissals')->insert(['platform' => '', 'platform_id' => '1', 'player_name' => 'D', 'dismissed_by' => User::factory()->create()->id]);
@@ -104,7 +123,7 @@ it('refuses to move a row whose platform names no game, before changing anything
         ->and(Schema::hasColumn('trooper_game_identities', 'platform'))->toBeTrue();
 
     DB::table('game_player_dismissals')->delete();
-    gamesMigration()->up();
+    migrateGamesForward();
 })->skip(fn () => DB::getDriverName() !== 'sqlite', 'a strict MySQL refuses the bad enum value at the insert');
 
 it('refuses at the database to delete a game something uses', function () {
