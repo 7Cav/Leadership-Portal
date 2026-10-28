@@ -7,6 +7,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useActAs } from '@/composables/useActAs';
+import { onHttpException } from '@/lib/httpError';
 
 // The act-as picker (#432): a leader steps into a serving billet holder below them. The list is fetched each time it
 // opens and holds only people the server would accept right now; it is a convenience, since the server checks the choice
@@ -63,6 +64,8 @@ function start() {
                 submitError.value = errors.act_as ?? 'You cannot act as this person.';
                 load();
             },
+            // A refusal (403) or the write limit (429) is said in plain words here, not in Inertia's error dialog.
+            onHttpException: onHttpException('Acting as them did not start', (message) => (submitError.value = message)),
             onException: () => (submitError.value = 'Could not start acting. Try again.'),
             onFinish: () => (starting.value = false),
         },

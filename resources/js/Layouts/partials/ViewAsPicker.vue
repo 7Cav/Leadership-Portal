@@ -7,6 +7,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useViewAs } from '@/composables/useViewAs';
+import { onHttpException } from '@/lib/httpError';
 
 // The view-as picker (Story 1.13). A search-first dialog, after the ⌘K "View as" sub-mode in
 // mockups/v2/shell-d.html: units in the viewer's own scope, and for an Admin every other person.
@@ -57,6 +58,7 @@ function choose(kind, id) {
     enter(kind, id, {
         onSuccess: () => (pickerOpen.value = false),
         onError: (errors) => (submitError.value = errors.view_as ?? 'That view is not available to you.'),
+        onHttpException: onHttpException('The preview did not start', (message) => (submitError.value = message)),
         onFinish: () => (pending.value = false),
     });
 }
@@ -65,6 +67,7 @@ function backToMine() {
     pending.value = true;
     exit({
         onSuccess: () => (pickerOpen.value = false),
+        onHttpException: onHttpException('The preview did not end', (message) => (submitError.value = message)),
         onFinish: () => (pending.value = false),
     });
 }
