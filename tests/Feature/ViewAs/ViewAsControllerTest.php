@@ -7,6 +7,7 @@ use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitCommandMapping;
+use App\Models\UnitKind;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\UnitRepository;
@@ -43,10 +44,19 @@ function vcLeaderOf(Unit $unit, int $cavId, string $username, ?string $rank = nu
     return User::factory()->create(['cav_id' => $cavId, 'username' => $username]);
 }
 
+/** A serving trooper with no account placed in each unit, so it has troopers (#442) and the picker lists it. */
+function vcPlace(Unit ...$units): void
+{
+    foreach ($units as $unit) {
+        Trooper::factory()->create(['primary_section_id' => $unit->id]);
+    }
+}
+
 describe('options', function () {
     it('offers a leader exactly the units in their real scope, and no people', function () {
         $tree = vcTree();
         $platoonLeader = vcLeaderOf($tree['platoon'], 100, 'Brennan.J', '1LT');
+        vcPlace($tree['section'], $tree['section2']);
 
         $this->actingAs($platoonLeader)->getJson('/view-as/options')
             ->assertOk()
@@ -66,6 +76,7 @@ describe('options', function () {
     it('offers a leaf leader only their own section (AC #6)', function () {
         $tree = vcTree();
         $sectionLeader = vcLeaderOf($tree['section'], 100, 'Vasquez.R', 'SGT');
+        vcPlace($tree['section']);
 
         $this->actingAs($sectionLeader)->getJson('/view-as/options')
             ->assertJsonCount(1, 'units')
@@ -80,14 +91,17 @@ describe('options', function () {
             ->assertJsonPath('people', null);
     });
 
-    it('offers an Admin every unit and every other person, with rank and commanded unit', function () {
+    it('offers an Admin every unit with troopers and every other person, with rank and commanded unit', function () {
         $tree = vcTree();
         $admin = User::factory()->admin()->create(['username' => 'Gryspeert.J']);
         $leader = vcLeaderOf($tree['section'], 100, 'Vasquez.R', 'SGT');
         $plain = User::factory()->create(['username' => 'Doyle.K']);
+        // The leader's own trooper, so the people list stays the two accounts: the second section and the other
+        // battalion stay empty and are left out.
+        Trooper::query()->where('cav_id', 100)->update(['primary_section_id' => $tree['section']->id]);
 
         $this->actingAs($admin)->getJson('/view-as/options')
-            ->assertJsonCount(7, 'units')
+            ->assertJsonPath('units.*.id', [$tree['regiment']->id, $tree['battalion']->id, $tree['company']->id, $tree['platoon']->id, $tree['section']->id])
             ->assertJsonPath('people', [
                 ['kind' => 'user', 'id' => $plain->id, 'label' => 'Doyle.K', 'designation' => null, 'admin' => false, 'account' => true],
                 ['kind' => 'user', 'id' => $leader->id, 'label' => 'SGT Vasquez.R', 'designation' => '1/1/A/1-7', 'admin' => false, 'account' => true],
@@ -105,6 +119,37 @@ describe('options', function () {
 
     it('requires authentication', function () {
         $this->get('/view-as/options')->assertRedirect('/login');
+    });
+
+    it('leaves out line units with no troopers, as the roster and Home do (#496)', function () {
+        $tree = vcTree();
+        $commander = vcLeaderOf($tree['company'], 100, 'Hale.S', 'CPT');
+        vcPlace($tree['section']);
+
+        $this->actingAs($commander)->getJson('/view-as/options')
+            ->assertJsonPath('units.*.id', [$tree['company']->id, $tree['platoon']->id, $tree['section']->id]);
+    });
+
+    it('keeps a group with no troopers, as the roster does', function () {
+        $repo = app(UnitRepository::class);
+        $regiment = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);
+        $group = $repo->create(UnitType::Group, 'S1', 'S1', $regiment->id, UnitKind::Staff);
+        $admin = User::factory()->admin()->create();
+
+        $this->actingAs($admin)->getJson('/view-as/options')
+            ->assertJsonPath('units.*.id', [$group->id]);
+    });
+
+    it('still lets a viewer view as an empty unit named by id, and keeps it in the list while they do', function () {
+        $tree = vcTree();
+        $commander = vcLeaderOf($tree['company'], 100, 'Hale.S', 'CPT');
+        vcPlace($tree['section']);
+
+        $this->actingAs($commander)->post('/view-as', ['kind' => 'unit', 'id' => $tree['section2']->id])->assertSessionHasNoErrors();
+
+        $this->getJson('/view-as/options')
+            ->assertJsonPath('units.*.id', [$tree['company']->id, $tree['platoon']->id, $tree['section']->id, $tree['section2']->id])
+            ->assertJsonPath('current', ['kind' => 'unit', 'id' => $tree['section2']->id]);
     });
 });
 
@@ -273,6 +318,7 @@ describe('read-only preview', function () {
     it('lets a viewer switch sideways to another unit in real scope without exiting first', function () {
         $tree = vcTree();
         $commander = vcLeaderOf($tree['company'], 100, 'Hale.S', 'CPT');
+        vcPlace($tree['section'], $tree['section2']);
         $this->actingAs($commander)->post('/view-as', ['kind' => 'unit', 'id' => $tree['section']->id]);
 
         $this->post('/view-as', ['kind' => 'unit', 'id' => $tree['section2']->id])->assertSessionHasNoErrors();

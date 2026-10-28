@@ -7,6 +7,7 @@ use App\Authorization\ViewAsKind;
 use App\Authorization\ViewAsTarget;
 use App\Commands\ViewAs\EnterViewAs;
 use App\Commands\ViewAs\ExitViewAs;
+use App\Kpi\Headcount;
 use App\Models\UnitType;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitCommandMappingRepository;
@@ -33,6 +34,9 @@ class ViewAsController extends Controller
      * What the picker may offer: the units inside the viewer's real scope (a leaf leader gets
      * only their own section, AC #6) and, for an Admin, every other portal user and every serving
      * trooper who has no account yet (`kind` says which; `account` is false for the latter).
+     *
+     * A line unit with no troopers is left out, as the roster and Home leave it out (#442, #496), unless it is the
+     * one the viewer views as now. Only the list: a unit named by id is still checked by {@see EnterViewAs} alone.
      */
     public function options(
         Request $request,
@@ -40,12 +44,14 @@ class ViewAsController extends Controller
         UserRepository $users,
         TrooperRepository $troopers,
         UnitCommandMappingRepository $commands,
+        Headcount $headcount,
     ): JsonResponse {
         $viewer = $request->user();
         $real = $this->scope->realScope($viewer)->flip();
+        $active = $this->scope->activeViewAs($viewer);
+        $current = $active?->target->kind === ViewAsKind::Unit ? [$active->target->id] : [];
 
-        $unitOptions = $units->tree()
-            ->filter(fn ($unit) => $real->has($unit->id))
+        $unitOptions = $headcount->withoutEmptyLineUnits($units->tree()->filter(fn ($unit) => $real->has($unit->id)), keep: $current)
             ->map(fn ($unit) => [
                 'id' => $unit->id,
                 'designation' => $unit->callsign ?? $unit->name,
@@ -79,8 +85,6 @@ class ViewAsController extends Controller
                 'account' => false,
             ]))->values();
         }
-
-        $active = $this->scope->activeViewAs($viewer);
 
         return response()->json([
             'units' => $unitOptions,
