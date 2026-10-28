@@ -13,6 +13,9 @@ import {
     ORBAT_SORT_STORAGE_KEY,
     percent,
     percentLabel,
+    RANK_NAMES,
+    RANK_ORDER,
+    rankIndex,
     rankTier,
     readOrbatSort,
     shortDuration,
@@ -23,6 +26,7 @@ import {
     weekLabel,
     writeOrbatSort,
 } from '../roster';
+import insigniaSource from '../rankInsignia.js?raw';
 
 const mark = (overrides = {}) => ({ rollcall: 'will_attend', status: 'present', source: 'manual', held: true, ...overrides });
 
@@ -134,6 +138,27 @@ describe('labels', () => {
         expect(rankTier('???')).toBe('enlisted');
     });
 
+    it('draws a General of the Army as the senior-most officer', () => {
+        expect(rankTier('GOA')).toBe('officer');
+        expect(rankIndex('GOA')).toBeGreaterThan(rankIndex('GEN'));
+        expect(RANK_ORDER.at(-1)).toBe('GOA');
+        expect(RANK_NAMES.GOA).toBe('General of the Army');
+    });
+
+    // rankInsignia.js names every rank the Cav roster has, one per insignia image; each needs a place in the order and
+    // a name, or its badge falls to the enlisted look and sorts below a recruit.
+    it('knows every rank the Cav roster uses', () => {
+        const cavRanks = [...insigniaSource.matchAll(/^\s+\d+: \[[^\]]+\], \/\/ (.+)$/gm)].map((m) => m[1].toLowerCase());
+        const named = Object.fromEntries(Object.entries(RANK_NAMES).map(([short, name]) => [name.toLowerCase(), short]));
+
+        expect(cavRanks).toHaveLength(28);
+        for (const rank of cavRanks) {
+            expect(named[rank], rank).toBeDefined();
+            expect(RANK_ORDER, rank).toContain(named[rank]);
+        }
+        expect(Object.keys(RANK_NAMES).sort()).toEqual([...RANK_ORDER].sort());
+    });
+
     it('calls a trooper who joined in the last 8 weeks a new recruit', () => {
         expect(isNewRecruit({ joined: '2026-09-01' }, '2026-10-03')).toBe(true);
         expect(isNewRecruit({ joined: '2026-01-01' }, '2026-10-03')).toBe(false);
@@ -192,6 +217,13 @@ describe('order of battle column sorts', () => {
 
         expect(names(list, { key: 'rank', dir: 'desc' })).toEqual(['Cpt', 'Cw2', 'Sgt', 'Pvt']);
         expect(names(list, { key: 'rank', dir: 'asc' })).toEqual(['Pvt', 'Sgt', 'Cw2', 'Cpt']);
+    });
+
+    it('puts a General of the Army above a General, and an unknown rank below everyone in the billet order', () => {
+        const list = [t('Unknown', { rank: 'XYZ' }), t('Gen', { rank: 'GEN' }), t('Rct', { rank: 'RCT' }), t('Goa', { rank: 'GOA' })];
+
+        expect(names(list, { key: 'rank', dir: 'desc' })).toEqual(['Goa', 'Gen', 'Rct', 'Unknown']);
+        expect([...list].sort(compareBillet).map((x) => x.name)).toEqual(['Goa', 'Gen', 'Rct', 'Unknown']);
     });
 
     it('sorts by name, ignoring case, and by milpac id for a trooper with no name', () => {
