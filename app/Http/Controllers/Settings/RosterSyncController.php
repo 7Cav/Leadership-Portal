@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Authorization\ScopeResolver;
 use App\Http\Controllers\Controller;
 use App\Jobs\SyncRosterJob;
 use Illuminate\Http\RedirectResponse;
@@ -15,11 +16,11 @@ class RosterSyncController extends Controller
 {
     /**
      * Dispatch `SyncRosterJob` through the identical queued path the scheduler uses (AC #1,
-     * #3). Admin only, read from the real `is_admin` flag as the org-structure writes do (AD-6).
+     * #3). Admin only, read from the real Admin rule (`ScopeResolver::isAdmin()`) as the org-structure writes do (AD-6).
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, ScopeResolver $scope): RedirectResponse
     {
-        if (! $request->user()->is_admin) {
+        if (! $scope->isAdmin($request->user())) {
             abort(403, 'Only an Admin may start a roster sync by hand.');
         }
 

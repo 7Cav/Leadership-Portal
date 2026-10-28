@@ -2,11 +2,13 @@
 
 namespace App\Authorization;
 
+use App\Models\AdminBillet;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\AdminBilletRepository;
 use App\Repositories\PortalRoleGrantRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitActingLeadRepository;
@@ -21,7 +23,9 @@ use Illuminate\Support\Collection;
  *
  * Real authority is deny-by-default: it starts empty and only ever grows, from three sources —
  *
- *  - **Admin** (a user-profile attribute, AD-7, never a grant) short-circuits to the full tree.
+ *  - **Admin** short-circuits to the full tree: the `users.is_admin` flag (AD-7, never a grant), or an approved
+ *    Regimental HQ billet (decided by the S6, 2026-10-28; {@see isAdmin()}). Every "is this user an Admin" question in
+ *    the portal is asked of {@see isAdmin()}, never of the flag alone.
  *  - **Roster-derived** (AD-7, Story 1.16) — the unit the user's synced primary Cav billet
  *    commands (`troopers.cav_position_id` → `unit_command_mappings`, written by the org import):
  *    a Section Leader gets their section, a Platoon Leader their platoon, a Commander their
@@ -63,7 +67,94 @@ class ScopeResolver
         private readonly ViewAs $viewAs,
         private readonly UnitActingLeadRepository $actingLeads,
         private readonly ActingBillet $billet,
+        private readonly AdminBilletRepository $adminBillets,
     ) {}
+
+    /**
+     * Whether the user is an Admin right now, the one definition every Admin check reads (decided by the S6, 2026-10-28):
+     *
+     *  - the `users.is_admin` flag, a person's own, set and cleared only by the audited flag Command; or
+     *  - **Admin by billet**: a serving trooper placed directly on the regiment (Regimental HQ staff,
+     *    {@see isRegimentalHqPlacement()}, the same rule #499's read scope uses) whose Cav position an Admin approved in
+     *    `admin_billets`, while the billet's title and group are still the ones that were confirmed
+     *    ({@see AdminBillet::confirmsHolder()}). It belongs to the billet, not the person: moved off the regiment, no
+     *    longer serving, or the billet renamed (back to pending), and it is gone on the next request.
+     *
+     * Read fresh on every call, never cached past it and never written to `users.is_admin`. A copy the request runs as
+     * or previews ({@see User::$notAdminByBillet}: an Admin acting as this person, a roster account) is an Admin by its
+     * flag attribute only, so acting as or previewing a billet Admin never confers Admin, as for a flag Admin.
+     */
+    public function isAdmin(User $user): bool
+    {
+        return (bool) $user->is_admin || $this->isAdminByBillet($user);
+    }
+
+    /** The billet half of {@see isAdmin()}: false for a flag Admin who holds no approved billet. At most three queries. */
+    public function isAdminByBillet(User $user): bool
+    {
+        if ($user->cav_id === null || $user->notAdminByBillet) {
+            return false;
+        }
+
+        $trooper = $this->troopers->byCavId([(int) $user->cav_id])->get((int) $user->cav_id);
+        $placed = $trooper?->primary_section_id === null ? null : $this->units->find((int) $trooper->primary_section_id);
+
+        return $trooper !== null && $this->billetAdminCavIds(collect([$trooper]), collect([$placed])->filter()->keyBy('id'))->isNotEmpty();
+    }
+
+    /**
+     * {@see isAdmin()} for many users at once: the ids of the Admins among them, by flag or by billet. Two queries for
+     * the troopers and the tree, a third only when one of them sits on the regiment; none when every user is a flag
+     * Admin or has no milpac link. For lists that must treat a billet Admin as an Admin (the staff grants user picker).
+     *
+     * @param  Collection<int, User>  $users
+     * @return Collection<int, int> user ids
+     */
+    public function adminIdsAmong(Collection $users): Collection
+    {
+        $flagged = $users->filter(fn (User $user) => (bool) $user->is_admin);
+        $linked = $users->filter(fn (User $user) => ! $user->is_admin && ! $user->notAdminByBillet && $user->cav_id !== null);
+        if ($linked->isEmpty()) {
+            return $flagged->map(fn (User $user) => (int) $user->id)->values();
+        }
+
+        $troopers = $this->troopers->byCavId($linked->map(fn (User $user) => (int) $user->cav_id)->unique()->values()->all());
+        $byBillet = $this->billetAdminCavIds($troopers->values(), $this->units->tree()->keyBy('id'))->flip();
+
+        return $flagged
+            ->merge($linked->filter(fn (User $user) => $byBillet->has((int) $user->cav_id)))
+            ->map(fn (User $user) => (int) $user->id)
+            ->unique()
+            ->values();
+    }
+
+    /**
+     * The cav ids of the troopers among `$troopers` who are Admins by billet, given the units they may be placed on by
+     * id: serving, placed on the regiment itself, and holding a position whose `admin_billets` row confirms them. One
+     * query for those rows, none when nobody is on the regiment. The one place the billet rule is applied.
+     *
+     * @param  Collection<int, Trooper>  $troopers
+     * @param  Collection<int, Unit>  $unitsById
+     * @return Collection<int, int>
+     */
+    private function billetAdminCavIds(Collection $troopers, Collection $unitsById): Collection
+    {
+        $onRegiment = $troopers->filter(fn (Trooper $trooper) => ($trooper->status?->isServing() ?? false)
+            && $trooper->cav_id !== null
+            && $trooper->cav_position_id !== null
+            && $trooper->primary_section_id !== null
+            && self::isRegimentalHqPlacement($unitsById->get((int) $trooper->primary_section_id)));
+        if ($onRegiment->isEmpty()) {
+            return collect();
+        }
+
+        $rows = $this->adminBillets->forPositions($onRegiment->map(fn (Trooper $trooper) => (int) $trooper->cav_position_id)->unique()->values()->all());
+
+        return $onRegiment
+            ->filter(fn (Trooper $trooper) => $rows->get((int) $trooper->cav_position_id)?->confirmsHolder($trooper->billet) ?? false)
+            ->map(fn (Trooper $trooper) => (int) $trooper->cav_id)
+            ->values();
+    }
 
     /**
      * The effective scope every read filters through: the user's real authority, narrowed to
@@ -99,7 +190,7 @@ class ScopeResolver
      */
     public function realScope(User $user): Collection
     {
-        if ($user->is_admin) {
+        if ($this->isAdmin($user)) {
             return $this->units->allIds();
         }
 
@@ -134,7 +225,8 @@ class ScopeResolver
             return $subtrees[$unit->path] ??= $tree->filter(fn (Unit $node) => str_starts_with($node->path, $unit->path))->pluck('id');
         };
 
-        // Only a user linked to a milpac who is not an Admin has a billet, acting leads or grants to read.
+        // Only a user linked to a milpac who is not a flag Admin has a billet, acting leads or grants to read, or an
+        // Admin billet to hold.
         $linked = $users->filter(fn (User $user) => ! $user->is_admin && $user->cav_id !== null);
         $cavIds = $linked->map(fn (User $user) => (int) $user->cav_id)->unique()->values()->all();
         $troopers = $this->troopers->byCavId($cavIds);
@@ -149,9 +241,11 @@ class ScopeResolver
         $grants = $this->grants->grantedUnitIdsByUserId($serving->all());
         $servingIds = $serving->flip();
         $byId = $tree->keyBy('id');
+        // As isAdmin(): the flag, or an approved Regimental HQ billet, read from the troopers and tree already in hand.
+        $billetAdmins = $this->billetAdminCavIds($troopers->values(), $byId)->flip();
 
-        return $users->mapWithKeys(function (User $user) use ($tree, $subtree, $troopers, $billets, $acting, $servingIds, $grants, $byId) {
-            if ($user->is_admin) {
+        return $users->mapWithKeys(function (User $user) use ($tree, $subtree, $troopers, $billets, $acting, $servingIds, $grants, $byId, $billetAdmins) {
+            if ($user->is_admin || (! $user->notAdminByBillet && $user->cav_id !== null && $billetAdmins->has((int) $user->cav_id))) {
                 return [$user->id => $tree->pluck('id')->values()];
             }
 
@@ -190,7 +284,7 @@ class ScopeResolver
      */
     private function commandScope(User $user): Collection
     {
-        if ($user->is_admin) {
+        if ($this->isAdmin($user)) {
             return $this->units->allIds();
         }
 
@@ -257,7 +351,7 @@ class ScopeResolver
      */
     public function commandsUnit(User $user, Unit $unit): bool
     {
-        if ($user->is_admin) {
+        if ($this->isAdmin($user)) {
             return true;
         }
 
@@ -294,7 +388,8 @@ class ScopeResolver
      *    places every Regimental HQ billet (`CommandBillet::headquartersOf()`). Holding groups and staff departments are
      *    their own units under the regiment, so their members never match.
      *
-     * Admins never reach here. The bulk realScopes() (#498) must apply the same two sources.
+     * Admins never reach here, by flag or by billet, so the regiment only matters for Regimental HQ staff whose billet is
+     * not (or no longer) an approved Admin billet. The bulk realScopes() (#498) must apply the same two sources.
      *
      * @return Collection<int, Unit>
      */
@@ -337,7 +432,10 @@ class ScopeResolver
         return $this->troopers->servingPlacedIn($regimentIds);
     }
 
-    /** Whether a trooper placed on `$unit` is Regimental HQ staff: placed on the regiment node itself, nothing below it. */
+    /**
+     * Whether a trooper placed on `$unit` is Regimental HQ staff: placed on the regiment node itself, nothing below it.
+     * The one placement rule both the Regimental HQ read scope and Admin by billet ({@see isAdminByBillet()}) use.
+     */
     private static function isRegimentalHqPlacement(?Unit $unit): bool
     {
         return $unit?->type === UnitType::Regiment;
@@ -365,14 +463,15 @@ class ScopeResolver
     }
 
     /**
-     * Whether the user should be treated as an Admin on a read (Story 1.13): their real flag,
-     * unless a view-as preview of a non-Admin is active — then the preview shows what that leader
-     * sees, Admin-only screens included. Narrows only: a non-Admin never becomes one here. Writes
-     * keep checking the real flag; a preview refuses them anyway.
+     * Whether the user should be treated as an Admin on a read (Story 1.13): whether they are one
+     * ({@see isAdmin()}, the flag or an approved billet), unless a view-as preview of a non-Admin is
+     * active — then the preview shows what that leader sees, Admin-only screens included. Narrows
+     * only: a non-Admin never becomes one here. Writes keep checking {@see isAdmin()}; a preview
+     * refuses them anyway.
      */
     public function actsAsAdmin(User $user): bool
     {
-        return $user->is_admin && ($this->activeViewAs($user)?->admin ?? true);
+        return $this->isAdmin($user) && ($this->activeViewAs($user)?->admin ?? true);
     }
 
     /**
@@ -448,8 +547,8 @@ class ScopeResolver
 
         $preview = match ($target->kind) {
             ViewAsKind::Unit => $this->asUnit($real, $target),
-            ViewAsKind::User => $viewer->is_admin ? $this->asUser($viewer, $target) : null,
-            ViewAsKind::Trooper => $viewer->is_admin ? $this->asTrooper($target) : null,
+            ViewAsKind::User => $this->isAdmin($viewer) ? $this->asUser($viewer, $target) : null,
+            ViewAsKind::Trooper => $this->isAdmin($viewer) ? $this->asTrooper($target) : null,
         };
 
         // The one place every kind passes through: whatever a target would see is cut down to
@@ -497,12 +596,14 @@ class ScopeResolver
             label: trim("{$rank} {$user->username}"),
             designation: $unit ? ($unit->callsign ?? $unit->name) : null,
             unitName: $unit?->name,
-            admin: $user->is_admin,
+            // A previewed billet Admin shows the Admin screens, as a previewed flag Admin does: the viewer is one anyway.
+            admin: $this->isAdmin($user),
         );
     }
 
     /**
-     * A serving trooper who has never signed in, as the account they would have: unsaved, never an Admin, with no grants,
+     * A serving trooper who has never signed in, as the account they would have: unsaved, never an Admin (by flag or by
+     * billet: the preview stays the narrower of the two), with no grants,
      * carrying only their milpac link, so their billet and acting leads give exactly the scope they would sign in with.
      * Null when the trooper does not exist, has left, or already has an account (preview that account instead).
      */
@@ -515,6 +616,7 @@ class ScopeResolver
 
         $account = new User;
         $account->forceFill(['username' => $trooper->username, 'cav_id' => $trooper->cav_id, 'is_admin' => false]);
+        $account->notAdminByBillet = true;
 
         return $account;
     }

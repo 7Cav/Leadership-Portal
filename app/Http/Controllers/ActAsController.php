@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Authorization\ActAs;
+use App\Authorization\ScopeResolver;
 use App\Authorization\ViewAsKind;
 use App\Authorization\ViewAsTarget;
 use App\Commands\ActAs\StartActingAs;
@@ -25,7 +26,10 @@ use Illuminate\Validation\ValidationException;
  */
 class ActAsController extends Controller
 {
-    public function __construct(private readonly ActAs $actAs) {}
+    public function __construct(
+        private readonly ActAs $actAs,
+        private readonly ScopeResolver $scope,
+    ) {}
 
     /**
      * Who the picker offers to the signed-in leader: serving billet holders strictly below them (#432), the same list
@@ -61,9 +65,9 @@ class ActAsController extends Controller
         $target = new ViewAsTarget(ViewAsKind::from($data['kind']), (int) $data['id']);
 
         // A billet is an Admin's; a person, an Admin's or a leader's. Anyone else has no act-as to refuse a choice of.
-        abort_unless($actor->is_admin || ($target->kind === ViewAsKind::User && $this->actAs->leads($actor)), 403);
+        abort_unless($this->scope->isAdmin($actor) || ($target->kind === ViewAsKind::User && $this->actAs->leads($actor)), 403);
 
-        $held = ! $actor->is_admin || $this->actAs->viaFor($actor) !== null;
+        $held = ! $this->scope->isAdmin($actor) || $this->actAs->viaFor($actor) !== null;
         if (! $start->handle($actor, $target)) {
             throw ValidationException::withMessages([
                 'act_as' => match (true) {

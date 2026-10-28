@@ -169,7 +169,7 @@ class GenerateDemoHistoryHandler
 
     private function authorizedUnit(User $actor, int $unitId): Unit
     {
-        if (! $actor->is_admin) {
+        if (! $this->scope->isAdmin($actor)) {
             throw DemoHistoryForbiddenException::notAdmin();
         }
 

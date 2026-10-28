@@ -147,6 +147,15 @@ function closeOnMobile() {
                                 >
                                     <component :is="item.icon" />
                                     <span>{{ item.label }}</span>
+                                    <!-- Something on that screen waits for an Admin (the Admin billets to confirm). -->
+                                    <Badge
+                                        v-if="item.count && page.props[item.count] > 0"
+                                        variant="warning"
+                                        class="ml-auto group-data-[collapsible=icon]:hidden"
+                                        :data-testid="`nav-count-${item.label}`"
+                                    >
+                                        {{ page.props[item.count] }}<span class="sr-only"> waiting for an Admin</span>
+                                    </Badge>
                                 </Link>
                             </SidebarMenuButton>
 

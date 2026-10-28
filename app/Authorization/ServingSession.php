@@ -45,7 +45,8 @@ class ServingSession
     /**
      * Whether the user's session has to end now:
      *
-     *  - an **Admin** never;
+     *  - an **Admin** by the flag never. An Admin by billet (`ScopeResolver::isAdmin()`) is one only while serving, so
+     *    they are answered like any member below, and a departed one is signed out;
      *  - a non-Admin with **no milpac link** always: sign-in admits nobody without one, so this is an Admin
      *    whose flag was revoked, or a user whose link moved to another account;
      *  - a linked user whose trooper the cache **does not hold** is let through: sign-in may have admitted

@@ -71,6 +71,7 @@ class TemplatesController extends Controller
         private readonly RollcallRoster $roster,
         private readonly UnitCommandMappingRepository $commands,
         private readonly TemplateAuthority $authority,
+        private readonly ScopeResolver $scopeResolver,
     ) {}
 
     public function index(Request $request, ScopeResolver $scope): Response
@@ -306,7 +307,7 @@ class TemplatesController extends Controller
      */
     private function missing(User $user, ?string $field = null): never
     {
-        abort_unless($user->is_admin, 403, 'You may not change this template.');
+        abort_unless($this->scopeResolver->isAdmin($user), 403, 'You may not change this template.');
 
         if ($field !== null) {
             throw ValidationException::withMessages([$field => 'That record no longer exists. Reload the page.']);

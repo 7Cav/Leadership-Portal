@@ -25,9 +25,9 @@ const ENRICHED = {
     fetched_at: '2026-08-03T09:14:00+00:00',
 };
 
-function mountLayout({ url = '/home', user = { id: 1, username: 'Hale.S', is_admin: false }, profile = null, viewAs = null, crumb = undefined, canActAs = false, features = {} } = {}) {
+function mountLayout({ url = '/home', user = { id: 1, username: 'Hale.S', is_admin: false }, profile = null, viewAs = null, crumb = undefined, canActAs = false, features = {}, adminBilletsPending = 0 } = {}) {
     mockPage.url = url;
-    mockPage.props = { auth: { user, profile }, viewAs, crumb, canActAs, features };
+    mockPage.props = { auth: { user, profile }, viewAs, crumb, canActAs, features, adminBilletsPending };
 
     return mount(AppLayout, {
         slots: { default: '<p data-testid="page-body">Page body</p>' },
@@ -89,6 +89,18 @@ describe('AppLayout', () => {
             expect(settings.find('a[href="/settings/staff-grants"]').exists()).toBe(true);
             expect(settings.find('a[href="/settings/audit-log"]').exists()).toBe(true);
             expect(settings.find('a[href="/settings/activity-log"]').exists()).toBe(true);
+        });
+
+        it('shows an Admin how many billets wait for confirmation beside Staff grants, and nothing when none do', () => {
+            wrapper = mountLayout({ user: { id: 1, username: 'Hale.S', is_admin: true }, adminBilletsPending: 2 });
+
+            const count = wrapper.find('[data-testid="nav-count-Staff grants"]');
+            expect(count.text()).toBe('2 waiting for an Admin');
+            expect(wrapper.find('[data-testid="nav-count-Org structure"]').exists()).toBe(false);
+            wrapper.unmount();
+
+            wrapper = mountLayout({ user: { id: 1, username: 'Hale.S', is_admin: true }, adminBilletsPending: 0 });
+            expect(wrapper.find('[data-testid="nav-count-Staff grants"]').exists()).toBe(false);
         });
 
         // The full table of is_admin values lives in composables/__tests__/useIdentity.spec.js.

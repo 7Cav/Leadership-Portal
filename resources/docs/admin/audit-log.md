@@ -17,7 +17,7 @@ page: /settings/audit-log
 
 ## Read an entry
 
-1. **Actor** is who did it. When an Admin acted as someone, the entry also says who or which billet, such as "acting as Vasquez.R".
+1. **Actor** is who did it. When an Admin acted as someone, the entry also says who or which billet, such as "acting as Vasquez.R". An Admin by billet (a Regimental HQ billet an Admin approved) shows as the actor like any other Admin; approving or rejecting such a billet is recorded as `admin_billet.approved` or `admin_billet.rejected`.
 2. **Action** is what happened, such as `weekly_report.sent`. **Target** links to the thing it changed.
 3. **Reason** is the reason given, where the action asks for one.
 4. **Digest** is a fingerprint of the change, so a record can be proven unchanged since.

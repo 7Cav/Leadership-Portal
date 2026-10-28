@@ -30,7 +30,7 @@ use Inertia\Response;
  * are Commands, the Admin's choices audited (AD-16).
  *
  * The whole screen is Admin-only, like the audit log. Viewing follows a view-as preview (an Admin previewing a leader
- * sees what that leader would: a 403); the writes check the real `is_admin` flag (AD-6) before anything else, so a
+ * sees what that leader would: a 403); the writes check the real Admin rule, `ScopeResolver::isAdmin()` (AD-6), before anything else, so a
  * non-Admin gets a 403 whether or not the server exists.
  */
 class ServersController extends Controller
@@ -39,6 +39,7 @@ class ServersController extends Controller
         private readonly GameServerRepository $servers,
         private readonly GameRepository $games,
         private readonly TelemetryCredentials $credentials,
+        private readonly ScopeResolver $scope,
     ) {}
 
     public function index(Request $request, ScopeResolver $scope, CaptureSources $sources): Response
@@ -122,7 +123,7 @@ class ServersController extends Controller
 
     private function authorizeAdmin(Request $request): void
     {
-        if (! $request->user()->is_admin) {
+        if (! $this->scope->isAdmin($request->user())) {
             abort(403, 'Only an Admin may manage game servers.');
         }
     }

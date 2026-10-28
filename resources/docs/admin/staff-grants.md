@@ -17,11 +17,24 @@ page: /settings/staff-grants
 
 > [!good-to-know] A grant only counts while its holder is a serving trooper. When they leave the Cav, it stops counting at once and is shown as lapsed.
 
-> [!good-to-know] Regimental HQ staff, such as the Chief of Staff and the Adjutants General, already read the whole regiment without a grant, for as long as they hold a Regimental HQ billet.
+> [!good-to-know] Regimental HQ staff, such as the Chief of Staff and the Adjutants General, need no grant. They read the whole regiment, and are Admins once an Admin approves their billet.
 
-## See who reads the whole regiment
+## See Regimental HQ staff
 
-Under **Regimental HQ staff**, the page lists every serving trooper who reads the whole regiment because of a Regimental HQ billet, with their name and billet. The list is read-only: this access comes from their billet, not a grant, so there is nothing to revoke here and it is not in the audit log. It changes as soon as someone is placed on the regiment or moved off it.
+Under **Regimental HQ staff (Admin by billet)**, the page lists every serving trooper placed on the regiment by a Regimental HQ billet, with their name, billet and whether they are an Admin now. They are Admins because of their billet, not a grant: they lose it as soon as they leave the billet or stop serving, and while their billet waits for approval they only read the whole regiment. There is nothing to revoke here.
+
+## Approve an Admin billet
+
+Every Regimental HQ billet the org import finds is listed under **Admin billets**, as waiting for an Admin. Each row shows the billet's title and group now, who holds it, and the names last approved.
+
+1. Choose **Approve** to make whoever holds the billet an Admin, or **Reject** to leave it a plain Regimental HQ billet.
+2. Give a reason. It goes to the audit log.
+
+> [!good-to-know] When Cav renames a billet or its group, the billet waits here again and its holder stops being an Admin until someone approves the new names. A rejected billet stays rejected until its name changes.
+
+> [!good-to-know] You cannot approve or reject the billet you hold yourself. Ask another Admin.
+
+While any billet waits, Admins see a count beside **Staff grants** in the sidebar.
 
 ## Revoke a grant
 

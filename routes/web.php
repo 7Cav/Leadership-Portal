@@ -44,7 +44,7 @@ use Illuminate\Support\Facades\Route;
 // route taking one of these ids cannot forget the constraint (RouteIdConstraintTest walks the
 // routes and fails on an id-like parameter missing from this list). Don't add `whereNumber()` or
 // `where()` for these on a route: it replaces the global pattern rather than adding to it.
-foreach (['unit', 'grant', 'trooper', 'version', 'game', 'server', 'counseling', 'template'] as $id) {
+foreach (['unit', 'grant', 'trooper', 'version', 'game', 'server', 'counseling', 'template', 'billet'] as $id) {
     Route::pattern($id, '[0-9]{1,18}');
 }
 
@@ -211,7 +211,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
 
     // Chain of command (Story 1.8, edit/delete in 1.9). Viewing is open to any authenticated
     // user (AC #3); every write is Admin-only, checked in the controller against the real
-    // `is_admin` flag (AD-6), not by route middleware. Every write is audited, so they share the audited-writes
+    // Admin rule, `ScopeResolver::isAdmin()` (the flag or an approved Regimental HQ billet, AD-6), not by route middleware. Every write is audited, so they share the audited-writes
     // throttle; the import reads Cav on the request, so it shares the roster sync's bucket instead.
     Route::get('/settings/org-structure', [OrgStructureController::class, 'index'])->name('settings.org-structure');
     Route::post('/settings/org-structure', [OrgStructureController::class, 'store'])->middleware('throttle:audited-writes')->name('settings.org-structure.store');
@@ -235,6 +235,9 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/settings/staff-grants', [StaffGrantsController::class, 'index'])->name('settings.staff-grants');
     Route::post('/settings/staff-grants', [StaffGrantsController::class, 'store'])->middleware('throttle:audited-writes')->name('settings.staff-grants.store');
     Route::delete('/settings/staff-grants/{grant}', [StaffGrantsController::class, 'destroy'])->middleware('throttle:audited-writes')->name('settings.staff-grants.destroy');
+    // Confirming a Regimental HQ billet as an Admin billet (decided by the S6, 2026-10-28), Admin only, audited.
+    Route::post('/settings/staff-grants/admin-billets/{billet}/approve', [StaffGrantsController::class, 'approveAdminBillet'])->middleware('throttle:audited-writes')->name('settings.staff-grants.admin-billets.approve');
+    Route::post('/settings/staff-grants/admin-billets/{billet}/reject', [StaffGrantsController::class, 'rejectAdminBillet'])->middleware('throttle:audited-writes')->name('settings.staff-grants.admin-billets.reject');
 
     // Rollcall template authoring (Story 3.5, #375, AD-17). Viewing is open to any authenticated user (the controller
     // shows a non-Admin only the companies in their scope); each write is an audited Command that checks the actor

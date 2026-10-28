@@ -2,6 +2,7 @@
 
 namespace App\Commands\Courses;
 
+use App\Authorization\ScopeResolver;
 use App\Models\CourseStatus;
 use App\Models\TrooperCourse;
 use App\Models\User;
@@ -16,7 +17,7 @@ use InvalidArgumentException;
 /**
  * Set where a trooper stands on a course (Story 6.2). The one writer of `trooper_courses`, so every change is
  * audited (AD-16), with the actor, the action and the row's resulting state in the same transaction as the
- * write. Admin only, checked here against the real flag (AD-6) before anything is written, so a caller that
+ * write. Admin only, checked here against `ScopeResolver::isAdmin()` (AD-6) before anything is written, so a caller that
  * forgot its own gate still cannot reach the table.
  *
  * A trooper has one row per course. The first time sets it; after that the same call moves it, and the audit
@@ -43,6 +44,7 @@ class SetTrooperCourseStatus
         private readonly TrooperRepository $troopers,
         private readonly CourseRepository $courses,
         private readonly AuditEnvelope $audit,
+        private readonly ScopeResolver $scope,
     ) {}
 
     /**
@@ -58,7 +60,7 @@ class SetTrooperCourseStatus
         ?CarbonInterface $awardedAt = null,
         ?string $reason = null,
     ): TrooperCourse {
-        if (! $actor->is_admin) {
+        if (! $this->scope->isAdmin($actor)) {
             throw CourseWriteForbiddenException::setTrooperCourseStatus();
         }
 

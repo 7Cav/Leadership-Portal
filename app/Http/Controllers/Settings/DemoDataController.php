@@ -124,12 +124,12 @@ class DemoDataController extends Controller
     }
 
     /**
-     * The real Admin flag, checked before the request is validated: validating first would answer a
+     * The real Admin rule (`ScopeResolver::isAdmin()`, the flag or an approved Regimental HQ billet), checked before the request is validated: validating first would answer a
      * non-Admin 422 for a unit id that does not exist and 403 for one that does. The handlers check
      * the flag again, as the boundary.
      */
     private function ensureAdmin(Request $request): void
     {
-        abort_unless($request->user()->is_admin, 403, 'Only an Admin may manage demo data.');
+        abort_unless($this->scope->isAdmin($request->user()), 403, 'Only an Admin may manage demo data.');
     }
 }

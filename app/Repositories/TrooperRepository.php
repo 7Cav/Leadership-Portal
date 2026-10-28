@@ -259,6 +259,15 @@ interface TrooperRepository
      */
     public function servingPlacedIn(iterable $unitIds): EloquentCollection;
 
+    /**
+     * The serving troopers whose primary billet is any of `$positionIds`, grouped by `cav_position_id`, each group by
+     * username: who holds each Regimental HQ billet on the Staff grants page. One query, none for an empty list.
+     *
+     * @param  list<int>  $positionIds
+     * @return Collection<int, Collection<int, Trooper>>
+     */
+    public function servingHoldingPositions(array $positionIds): Collection;
+
     public function find(int $id): ?Trooper;
 
     /**

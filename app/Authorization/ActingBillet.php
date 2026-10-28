@@ -29,9 +29,12 @@ class ActingBillet
         [$this->userId, $this->unit] = [null, null];
     }
 
-    /** The unit `$user` leads on this request through a held billet, or null. Never for an Admin acting as themselves. */
+    /**
+     * The unit `$user` leads on this request through a held billet, or null. Never for an Admin acting as themselves: a
+     * flag Admin carries the flag, an Admin by billet a milpac link, and the stand-in has neither ({@see ActAs::standIn()}).
+     */
     public function of(User $user): ?Unit
     {
-        return ! $user->is_admin && $user->id === $this->userId ? $this->unit : null;
+        return ! $user->is_admin && $user->cav_id === null && $user->id === $this->userId ? $this->unit : null;
     }
 }

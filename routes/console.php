@@ -1,5 +1,6 @@
 <?php
 
+use App\Authorization\ScopeResolver;
 use App\Commands\Demo\GenerateDemoHistory;
 use App\Commands\Demo\GenerateDemoHistoryHandler;
 use App\Commands\Demo\PurgeDemoHistory;
@@ -163,6 +164,7 @@ Artisan::command('portal:demo-history {unit : A unit designation (A/1-7) or id}
     UserRepository $users,
     GenerateDemoHistoryHandler $generator,
     PurgeDemoHistoryHandler $purger,
+    ScopeResolver $scope,
 ) {
     if (! config('portal.demo_tools')) {
         $this->error('Demo tools are disabled. Set DEMO_TOOLS=true in .env to use them.');
@@ -187,7 +189,7 @@ Artisan::command('portal:demo-history {unit : A unit designation (A/1-7) or id}
     $actors = $as === null ? collect([$users->firstAdmin()])->filter() : $users->withUsername((string) $as);
     $actor = $actors->count() === 1 ? $actors->first() : null;
 
-    if ($actor === null || ! $actor->is_admin) {
+    if ($actor === null || ! $scope->isAdmin($actor)) {
         $this->error($as === null
             ? 'There is no Admin to record as the actor. Run php artisan portal:admin <username> first.'
             : "'{$as}' is not exactly one Admin user.");

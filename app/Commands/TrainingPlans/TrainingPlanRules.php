@@ -50,7 +50,7 @@ class TrainingPlanRules
         // The echelon rules put every line platoon under a company; one that somehow has none is left to an Admin.
         $company = $this->units->owningCompany($platoon);
 
-        return $company === null ? $actor->is_admin : $this->scope->commandsUnit($actor, $company);
+        return $company === null ? $this->scope->isAdmin($actor) : $this->scope->commandsUnit($actor, $company);
     }
 
     /** Whether a plan may be written for `$month` (`YYYY-MM`): it has a week from the floor on, and is within a year. */

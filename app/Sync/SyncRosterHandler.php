@@ -10,6 +10,7 @@ use App\Integration\Cav\Data\RosterType;
 use App\Models\SyncRun;
 use App\Models\TrooperStatus;
 use App\Models\UnitKind;
+use App\Repositories\AdminBilletRepository;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitBilletMappingRepository;
@@ -55,6 +56,10 @@ use Throwable;
  * placed in the subtree, a trooper whose billet moved them out is written through to their new section, and the run
  * is recorded under its own source so the global "last synced" stamp never claims a roster-wide refresh an
  * echelon sync did not do.
+ *
+ * A Regimental HQ billet that makes its holder an Admin (`admin_billets`, decided by the S6, 2026-10-28) is checked
+ * against the title Cav shows now: renamed, it goes back to pending and its holder stops being an Admin until an Admin
+ * confirms the new name. The roster carries no group title; the org import records that.
  */
 class SyncRosterHandler
 {
@@ -69,6 +74,7 @@ class SyncRosterHandler
         private readonly RosterSyncScopeFactory $scopes,
         private readonly UnitCommandMappingRepository $commandMappings,
         private readonly UnitRepository $units,
+        private readonly AdminBilletRepository $adminBillets,
     ) {}
 
     /**
@@ -137,6 +143,9 @@ class SyncRosterHandler
             );
 
             $this->troopers->updatePrimarySections($scope->filterSections($sections), $this->units->idsOfKind(UnitKind::Eloa)->all());
+
+            // Only billets that already have a row: the import creates them, as it is what sees the group.
+            $this->adminBillets->observe($this->titlesByPosition($scope->filterEntries($result->troopers)), createMissing: false);
 
             // A unit run reports only its own troopers' bad rows: one elsewhere is not this unit's partial sync.
             $errors = $scope->filterErrors($result->errors);
@@ -252,6 +261,26 @@ class SyncRosterHandler
         }
 
         return $resolved;
+    }
+
+    /**
+     * The billet title each position carries on this roster, `position id => [title, null]` (the roster has no group
+     * title), for {@see AdminBilletRepository::observe()}. A row with no position or no readable title says nothing.
+     *
+     * @param  list<CavRosterEntry>  $entries
+     * @return array<int, array{0: string, 1: null}>
+     */
+    private function titlesByPosition(array $entries): array
+    {
+        $titles = [];
+
+        foreach ($entries as $entry) {
+            if ($entry->positionId !== null && $entry->billet !== null) {
+                $titles[$entry->positionId] ??= [$entry->billet, null];
+            }
+        }
+
+        return $titles;
     }
 
     /**
