@@ -138,6 +138,11 @@ no other step. HQ staff count: a company whose only trooper is its commander has
 section whose only members are on LOA still counts. A report already sent keeps what it froze, so a unit listed as
 missing at send stays listed on that report. Org structure keeps listing every unit.
 
+The report chain asks about the report's own week: a unit counts for a week when it had troopers at any point of it
+(from the placement history), or sent that week's report. So a section that sends and is then emptied by a move, or
+whose last trooper leaves the Cav, still rolls up into its platoon for that week, and drops out from the first week it
+is empty.
+
 ### Game identities
 
 Link each trooper in your scope to their in-game identity, one per game. The games are the ones an Admin keeps on the
