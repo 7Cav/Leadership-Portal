@@ -187,7 +187,9 @@ reported as it is.
 On a trooper's milpac page, the Counseling panel holds their Developmental Counseling Statements (DCS) and Letters of
 Reprimand (LOR), newest first. Who may file and see which is in [permissions.md](permissions.md#counseling-dcs-and-lor).
 
-- File a record: the type, the date it was given, the reason and the signed document, a PDF of 10 MB or less. The file
+- File a record: the type, what it is for (a missed section practice or rollcall, or other conduct), the date it was
+  given, the reason and the signed document, a PDF of 10 MB or less. What it is for is required, and stays as filed
+  like the type; a record filed before the portal asked has none and is ruled as other conduct. The file
   is checked by its content, not its name, and kept on the portal's private disk. It downloads only from the record,
   for someone who may see it, named after the record (`LOR 2026-10-20 Novak.E.pdf`). Filing the same record again
   (same type, date, reason and document) within 10 minutes is refused as already filed, so a double click never
@@ -195,9 +197,20 @@ Reprimand (LOR), newest first. Who may file and see which is in [permissions.md]
 - Google Drive: when the service account is set up (see [operations.md](operations.md#env-keys-that-matter)), a queued
   job copies the document to the 7Cav Google Drive folder and retries on failure. Each record shows "Drive copy
   pending", "Copied to Drive", "Drive copy failed" or "Portal only" (Drive not set up; the record is kept anyway).
-- 90-day rules, counted back from today: the panel warns at a second DCS in 90 days (the next step is an LOR), a second
-  LOR in 90 days (the trooper may be removed as SL or ASL) and a third (an Article 15). The filing form says what one
-  more record would mean. An older record stays on file, marked as no longer counting.
+- The regulations' rules, measured between records by their dates as the 7Cav wiki does: each record is weighed
+  against the ones dated before it, and a record that crossed a threshold shows the flag it earned, which stays with
+  it as time passes. Other conduct: a repeat within 90 days of a DCS (an LOR is next if it was for the same issue), and
+  an LOR within 30 days of another (the one repeat LOR, an Article 15, if it was for the same issue). Missed section
+  practice or rollcall: a second miss within 30 days of the last (an LOR is called for; from 31 days, another DCS), a
+  miss within 60 days of an LOR (a second LOR), and a second LOR within 60 days of the first (an Article 15, company
+  then battalion). LORs on any matter: a 2nd within 90 days (removal as SL or ASL is authorized) and a 3rd (an Article
+  15). "Within" includes the last day, and records on the same date count in the order they were filed. For 30 days
+  after an LOR the panel shows "No favorable action until" the date. The filing form says what flags the new record
+  would earn, from its date and what it is for, against the records dated before it. Flags are worked out from the
+  records the viewer sees.
+- A trooper who has left the Cav: their records are read-only for everyone, Admins included. Nothing can be filed,
+  corrected or deleted, and the panel says why; whoever saw the records still sees and downloads them. If the trooper
+  serves again, the records can be changed again.
 - Correct or delete: the date and reason can be corrected, never the type or the document; a record can be deleted
   with its document. Both need a reason and are audited, as is filing. A copy already on Google Drive stays there.
 
@@ -292,5 +305,5 @@ the sum of its direct children's sent reports.
 | Capture | `app/Commands/Capture/` (`CaptureSources` maps each telemetry interface to its sources), `app/Commands/Games/`, `app/Jobs/CaptureSectionPracticeJob.php`, `app/Integration/` |
 | Reports | `app/Commands/WeeklyReports/`, `app/Kpi/RollupKpis.php`, `ReportChain.php`, `resources/js/lib/report.js` |
 | Training plans | `app/Commands/TrainingPlans/`, `TrainingPlanController`, `resources/js/Pages/Reports/TrainingPlan.vue`, `resources/js/lib/trainingPlan.js` |
-| Counseling | `app/Commands/Counseling/`, `app/Authorization/CounselingAccess.php`, `app/Milpac/CounselingHistory.php`, `app/Integration/GoogleDrive/`, `app/Jobs/UploadCounselingDocumentJob.php`, `resources/js/components/milpac/CounselingPanel.vue` |
+| Counseling | `app/Commands/Counseling/`, `app/Authorization/CounselingAccess.php`, `app/Milpac/CounselingHistory.php`, `app/Milpac/CounselingStanding.php`, `app/Integration/GoogleDrive/`, `app/Jobs/UploadCounselingDocumentJob.php`, `resources/js/components/milpac/CounselingPanel.vue` |
 | Units with no troopers | `app/Kpi/Headcount.php` (`withoutEmptyLineUnits`) |

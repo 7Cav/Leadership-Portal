@@ -88,4 +88,6 @@ trooper. A command the trooper shares (an ASL and their SL) never counts, nor do
 (their SL, when they are acting lead of the platoon). A record may be changed by an Admin or by the commanders of the
 unit it was filed through who still counsel the trooper. "Themselves" includes the person really signed in while they
 act as someone (`RealActor`, set by the `ActAsUser` middleware), so acting as a billet or a person never reaches their
-own records. The rules are in `docs/permissions.md`.
+own records. A trooper who has left the Cav (not on `TrooperStatus::serving()`) has read-only counseling: `departed`
+turns off filing and changing for everyone, Admins included, while seeing is unchanged. The rules are in
+`docs/permissions.md`.

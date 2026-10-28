@@ -14,7 +14,7 @@ use Throwable;
 
 /**
  * Delete a counseling record (#381), on the same terms as a correction ({@see CorrectCounselingRecordHandler}): the
- * issuer's chain of command or an Admin, with a required reason. One audited action (`counseling.deleted`, AD-16)
+ * issuer's chain of command or an Admin, with a required reason, and never on a trooper who has left the Cav. One audited action (`counseling.deleted`, AD-16)
  * whose digest is the row as it was deleted, its file's SHA-256 included, so the log still proves what was removed.
  *
  * The document on the private disk goes once the row is gone. A file that cannot be removed then is logged by record
@@ -42,6 +42,10 @@ class DeleteCounselingRecordHandler
 
         if (! $permissions->sees($record->type)) {
             throw new CounselingRecordNotFoundException;
+        }
+
+        if ($permissions->departed) {
+            throw CounselingForbiddenException::departed($record->trooper);
         }
 
         if (! $permissions->changes($record)) {

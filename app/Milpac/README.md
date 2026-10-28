@@ -80,11 +80,16 @@ courses.
 
 ## Counseling (#381)
 
-`CounselingHistory::for($trooper, $seesDcs, $seesLor, $changes)` returns the milpac's `counseling` prop: the DCSs and
-LORs the viewer may see, newest first (`{id, type, typeLabel, date, reason, issuer, document: {name, size},
-driveStatus, counts, countsUntil, canChange}`), the counts inside the 90-day window, and the warnings the regulations
-call for (a second DCS: an LOR is next; a second LOR: removal as SL or ASL; a third LOR: an Article 15). The window
-counts back 90 days from today, UTC; an older record is listed with `counts: false`. Who sees which type and who may
-change a record come in from the controller (`Authorization\CounselingAccess`), and a type the viewer may not see is
-never read into the result, so neither the records nor the warnings can give it away. The controller adds `sees` and
-`canFile`.
+`CounselingHistory::for($trooper, $seesDcs, $seesLor, $changes, $files)` returns the milpac's `counseling` prop: the
+DCSs and LORs the viewer may see, newest first (`{id, type, typeLabel, kind, kindLabel, kindAssumed, date, reason,
+issuer, document: {name, size}, driveStatus, flags, canChange}`), the `warnings` banner (no favorable action, for 30
+days after the latest LOR) and, for each type in `$files` and each kind, the `forecast` the filing form reads.
+
+`CounselingStanding` holds the rules (2026-10-28, after the 7Cav wiki), pure and unit-tested: each record is weighed
+against the records dated before it, on the ladder it is for (`CounselingKind`: a missed section practice or rollcall,
+or other conduct; no kind is ruled as other conduct), so a flag stays with a record whatever today is. The forecast is
+a list of date ranges, each with the flags a new record dated in it would earn, so the form never works the rules out
+itself. Who sees which type and who may change a record come in from the controller
+(`Authorization\CounselingAccess`), and a type the viewer may not see is never read into the result, so neither the
+records nor the flags can give it away. The controller adds `sees`, `canFile` and `departed` (the trooper has left the
+Cav: read-only for everyone).

@@ -58,7 +58,8 @@ class TrooperDetailController extends Controller
 
     /**
      * The DCSs and LORs this viewer may see (#381), with what they may do: file either type, and change each record.
-     * During a view-as preview nothing is offered, since every write is refused then (AD-9).
+     * During a view-as preview nothing is offered, since every write is refused then (AD-9), and nothing on a trooper
+     * who has left the Cav, whose records are read-only.
      *
      * @return array<string, mixed>
      */
@@ -66,6 +67,7 @@ class TrooperDetailController extends Controller
     {
         $permissions = $this->access->for($user, $trooper);
         $writable = $this->scope->activeViewAs($user) === null;
+        $files = array_values(array_filter(CounselingType::cases(), fn (CounselingType $type) => $writable && $permissions->files($type)));
 
         return [
             ...$this->counselingHistory->for(
@@ -73,7 +75,10 @@ class TrooperDetailController extends Controller
                 $permissions->seesDcs,
                 $permissions->seesLor,
                 fn (CounselingRecord $record) => $writable && $permissions->changes($record),
+                $files,
             ),
+            // Left the Cav: the records are read-only for everyone, and the panel says so.
+            'departed' => $permissions->departed,
             // Which types the list can hold for this viewer, so an empty list says what it is empty of.
             'sees' => [
                 CounselingType::Dcs->value => $permissions->seesDcs,

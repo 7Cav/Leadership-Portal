@@ -18,6 +18,7 @@ beforeEach(function () {
     $this->rifleman = $this->tree['rifleman'];
     $this->file = fn (array $overrides = []) => [
         'type' => 'dcs',
+        'kind' => 'conduct',
         'counseled_on' => now()->subDays(3)->toDateString(),
         'reason' => 'Missed two section practices without notice.',
         'document' => counselingPdf(),

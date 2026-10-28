@@ -4,9 +4,9 @@ use App\Authorization\ViewAs;
 use App\Authorization\ViewAsKind;
 use App\Authorization\ViewAsTarget;
 use App\Http\Middleware\HandleInertiaRequests;
-use App\Milpac\CounselingHistory;
 use App\Models\CounselingRecord;
 use App\Models\DriveUploadStatus;
+use App\Models\TrooperStatus;
 use App\Models\Unit;
 use Illuminate\Support\Facades\Storage;
 
@@ -48,13 +48,16 @@ it('lists every record, newest first, with its issuer, document and Drive status
             'issuer' => 'Mercer.J',
             'document' => ['name' => 'lor.pdf', 'size' => 2048],
             'driveStatus' => 'skipped',
-            'counts' => true,
+            'kind' => null,
+            'kindLabel' => null,
+            'kindAssumed' => false,
+            'flags' => [],
             'canChange' => true,
         ])
         ->and($props['records'][1]['typeLabel'])->toBe('Developmental Counseling Statement')
         ->and($props['records'][1]['driveStatus'])->toBe('uploaded')
         ->and($props['canFile'])->toBe(['dcs' => true, 'lor' => true])
-        ->and($props['windowDays'])->toBe(90);
+        ->and($props['departed'])->toBeFalse();
 });
 
 it('keeps a DCS out of the page entirely for someone who may only see LORs', function () {
@@ -70,12 +73,13 @@ it('keeps a DCS out of the page entirely for someone who may only see LORs', fun
         ->not->toContain('Secret developmental counseling text.')
         ->not->toContain('secret-dcs.pdf')
         ->not->toContain('Another private counseling.')
-        // Two DCSs in 90 days would warn; the warning must not give them away either.
-        ->not->toContain('lor-due');
+        // Two DCSs in 90 days would be flagged; the flag must not give them away either.
+        ->not->toContain('dcs-repeat');
 
     $props = counselingProps('grant', $this);
     expect(collect($props['records'])->pluck('type')->all())->toBe(['lor'])
-        ->and($props['counts'])->toBe(['dcs' => 0, 'lor' => 1])
+        ->and($props['records'][0]['flags'])->toBe([])
+        ->and($props['forecast'])->toBe([])
         ->and($props['canFile'])->toBe(['dcs' => false, 'lor' => false])
         ->and($props['records'][0]['canChange'])->toBeFalse();
 });
@@ -93,47 +97,89 @@ it('shows the trooper\'s own Section Leader their DCSs, and lets them file a DCS
         ->and(collect($props['records'])->firstWhere('type', 'lor')['canChange'])->toBeFalse();
 });
 
-it('warns when a second DCS falls within 90 days of one: the next step is an LOR', function () {
-    ($this->record)('dcs', 80);
-    ($this->record)('dcs', 2);
+it('flags a DCS dated within 90 days of an earlier one, by their dates, and keeps the flag as today moves on', function () {
+    ($this->record)('dcs', 80, ['kind' => 'conduct', 'reason' => 'First.']);
+    ($this->record)('dcs', 2, ['kind' => 'conduct', 'reason' => 'Second.']);
 
-    $props = counselingProps('pl', $this);
+    $flags = fn () => collect(counselingProps('pl', $this)['records'])->pluck('flags', 'reason')->all();
+    $expected = ['Second.' => [['key' => 'dcs-repeat', 'message' => 'Repeat within 90 days of a DCS: an LOR is the next step if it was for the same issue.']], 'First.' => []];
 
-    expect($props['counts'])->toBe(['dcs' => 2, 'lor' => 0])
-        ->and($props['warnings'])->toBe([['key' => 'lor-due', 'message' => '2 Developmental Counseling Statements in 90 days. A repeat within 90 days of a DCS calls for a Letter of Reprimand.']]);
+    expect($flags())->toBe($expected);
+
+    // A year on, nothing expired: the records were still 78 days apart.
+    $this->travel(365)->days();
+    expect($flags())->toBe($expected);
 });
 
-it('keeps a DCS older than 90 days on the record, but no longer counts it toward the warning', function () {
-    ($this->record)('dcs', 91, ['reason' => 'An old counseling.']);
-    ($this->record)('dcs', 2);
+it('weighs a record filed late with an earlier date by its date, and shows what each record is for', function () {
+    ($this->record)('dcs', 10, ['kind' => 'missed_practice', 'reason' => 'Filed first, dated later.']);
+    ($this->record)('dcs', 25, ['kind' => 'missed_practice', 'reason' => 'Filed second, dated earlier.']);
 
-    $props = counselingProps('pl', $this);
-    $old = collect($props['records'])->firstWhere('reason', 'An old counseling.');
+    $records = collect(counselingProps('pl', $this)['records'])->keyBy('reason');
 
-    expect($props['records'])->toHaveCount(2)
-        ->and($old['counts'])->toBeFalse()
-        ->and($old['countsUntil'])->toBe(now('UTC')->subDays(1)->toDateString())
-        ->and($props['counts'])->toBe(['dcs' => 1, 'lor' => 0])
-        ->and($props['warnings'])->toBe([]);
+    expect($records['Filed first, dated later.']['flags'][0]['key'])->toBe('missed-lor')
+        ->and($records['Filed second, dated earlier.']['flags'])->toBe([])
+        ->and($records['Filed first, dated later.']['kind'])->toBe('missed_practice')
+        ->and($records['Filed first, dated later.']['kindLabel'])->toBe('Missed section practice or rollcall');
 });
 
-it('warns at a second LOR in 90 days that the trooper may be removed as SL or ASL, and at a third of an Article 15', function () {
-    ($this->record)('lor', 60);
-    ($this->record)('lor', 10);
+it('shows no favorable action for 30 days after the latest LOR, and not on the 31st', function () {
+    ($this->record)('lor', 0);
+    $given = now('UTC');
+    $until = now('UTC')->addDays(30);
 
-    expect(counselingProps('pl', $this)['warnings'])->toBe([['key' => 'removal', 'message' => '2 Letters of Reprimand in 90 days. The trooper may be removed as Section Leader or Assistant Section Leader.']]);
+    $this->travel(30)->days();
+    expect(counselingProps('pl', $this)['warnings'])->toBe([[
+        'key' => 'no-favorable-action',
+        'message' => 'No favorable action until '.$until->format('dMy').', 30 days after the LOR of '.$given->format('dMy').'.',
+        'until' => $until->toDateString(),
+    ]]);
 
-    ($this->record)('lor', 1);
-
-    expect(counselingProps('pl', $this)['warnings'])->toBe([['key' => 'article-15', 'message' => '3 Letters of Reprimand in 90 days. The regulations call for an Article 15.']]);
+    $this->travel(1)->days();
+    expect(counselingProps('pl', $this)['warnings'])->toBe([]);
 });
 
-it('counts the 90th day back and not the 91st', function () {
-    expect(CounselingHistory::windowStart()->toDateString())->toBe(now('UTC')->subDays(90)->toDateString());
+it('sends the filing form a forecast for each type the viewer may file and each kind, from the records they see', function () {
+    ($this->record)('dcs', 10, ['kind' => 'conduct']);
 
-    ($this->record)('lor', 90);
-    ($this->record)('lor', 1);
-    expect(counselingProps('pl', $this)['counts']['lor'])->toBe(2);
+    $sl = counselingProps('sl', $this);
+    expect(array_keys($sl['forecast']))->toBe(['dcs'])
+        ->and(array_keys($sl['forecast']['dcs']))->toBe(['missed_practice', 'conduct'])
+        ->and($sl['forecast']['dcs']['conduct'])->toBe([
+            ['from' => '1970-01-01', 'flags' => []],
+            ['from' => now('UTC')->subDays(10)->toDateString(), 'flags' => [['key' => 'dcs-repeat', 'message' => 'Repeat within 90 days of a DCS: an LOR is the next step if it was for the same issue.']]],
+        ])
+        ->and($sl['forecast']['dcs']['missed_practice'])->toBe([['from' => '1970-01-01', 'flags' => []]]);
+
+    expect(array_keys(counselingProps('pl', $this)['forecast']))->toBe(['dcs', 'lor']);
+});
+
+it('says a record from before the portal asked what it is for was ruled as other conduct, only where that changes a flag', function () {
+    ($this->record)('dcs', 20, ['kind' => null, 'reason' => 'Legacy, near a miss.']);
+    ($this->record)('dcs', 10, ['kind' => 'missed_practice', 'reason' => 'A miss.']);
+    ($this->record)('dcs', 300, ['kind' => null, 'reason' => 'Legacy, alone.']);
+
+    $records = collect(counselingProps('pl', $this)['records'])->keyBy('reason');
+
+    expect($records['Legacy, near a miss.']['kindAssumed'])->toBeTrue()
+        ->and($records['Legacy, alone.']['kindAssumed'])->toBeFalse()
+        ->and($records['A miss.']['kindAssumed'])->toBeFalse();
+});
+
+it('shows a departed trooper\'s records read-only: listed as before, nothing to file or change, Admins included', function () {
+    ($this->record)('lor', 3);
+    ($this->record)('dcs', 5);
+    $this->rifleman->forceFill(['status' => TrooperStatus::Inactive])->save();
+
+    foreach (['admin', 'pl'] as $who) {
+        $props = counselingProps($who, $this);
+
+        expect($props['departed'])->toBeTrue()
+            ->and($props['records'])->toHaveCount(2)
+            ->and(collect($props['records'])->pluck('canChange')->unique()->all())->toBe([false])
+            ->and($props['canFile'])->toBe(['dcs' => false, 'lor' => false])
+            ->and($props['forecast'])->toBe([]);
+    }
 });
 
 it('offers no filing or changes during a view-as preview, while still showing what the target sees', function () {

@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Models\CounselingKind;
 use App\Models\CounselingRecord;
 use App\Models\CounselingType;
 use App\Models\DriveUploadStatus;
@@ -21,6 +22,7 @@ interface CounselingRecordRepository
     public function create(
         int $trooperId,
         CounselingType $type,
+        CounselingKind $kind,
         CarbonImmutable $counseledOn,
         string $reason,
         int $issuedBy,

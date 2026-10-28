@@ -17,7 +17,8 @@ use Throwable;
 
 /**
  * File a DCS or LOR on a trooper (#381). Refused before anything is written: an unknown trooper or one the actor cannot
- * see ({@see CounselingRecordNotFoundException}), an actor whose command does not reach the trooper at the echelon the
+ * see ({@see CounselingRecordNotFoundException}), a trooper who has left the Cav (their records are read-only for
+ * everyone, Admins included; 403), an actor whose command does not reach the trooper at the echelon the
  * type needs ({@see CounselingAccess}, 403), a date in the future, no reason, and a document that is not a real PDF of
  * at most 10 MB ({@see CounselingRules}).
  *
@@ -58,6 +59,10 @@ class FileCounselingRecordHandler
             throw new CounselingRecordNotFoundException;
         }
 
+        if ($permissions->departed) {
+            throw CounselingForbiddenException::departed($trooper);
+        }
+
         if (! $permissions->files($command->type)) {
             throw CounselingForbiddenException::file($command->type);
         }
@@ -78,6 +83,7 @@ class FileCounselingRecordHandler
                     : $this->records->create(
                         trooperId: $trooper->id,
                         type: $command->type,
+                        kind: $command->kind,
                         counseledOn: $counseledOn,
                         reason: $reason,
                         issuedBy: $actor->id,

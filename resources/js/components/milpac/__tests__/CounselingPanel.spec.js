@@ -47,17 +47,19 @@ const record = (overrides = {}) => ({
     issuer: 'Okafor.B',
     document: { name: 'Brandt DCS.pdf', size: 34 * 1024 },
     driveStatus: 'uploaded',
-    counts: true,
-    countsUntil: '2027-01-18',
+    kind: 'missed_practice',
+    kindLabel: 'Missed section practice or rollcall',
+    kindAssumed: false,
+    flags: [],
     canChange: false,
     ...overrides,
 });
 
 const counseling = (overrides = {}) => ({
     records: [],
-    counts: { dcs: 0, lor: 0 },
     warnings: [],
-    windowDays: 90,
+    forecast: {},
+    departed: false,
     sees: { dcs: true, lor: true },
     canFile: { dcs: false, lor: false },
     ...overrides,
@@ -68,21 +70,23 @@ const panel = (overrides = {}) => mount(CounselingPanel, { props: { trooperId: 7
 describe('CounselingPanel', () => {
     beforeEach(() => sent.mockReset());
 
-    it('lists each record with its type, date, 90-day standing, reason, issuer, document and Drive status', () => {
-        const wrapper = panel({ records: [record(), record({ id: 12, type: 'lor', typeLabel: 'Letter of Reprimand', counts: false, driveStatus: 'skipped' })] });
+    it('lists each record with its type, date, what it is for, reason, issuer, document and Drive status', () => {
+        const wrapper = panel({ records: [record(), record({ id: 12, type: 'lor', typeLabel: 'Letter of Reprimand', kind: null, kindLabel: null, driveStatus: 'skipped' })] });
         const [dcs, lor] = wrapper.findAll('[data-testid="counseling-record"]');
 
         expect(wrapper.get('[data-testid="counseling-count"]').text()).toBe('2');
         expect(dcs.get('[data-testid="counseling-type-badge"]').text()).toBe('DCS: Developmental Counseling Statement');
         expect(dcs.get('[data-testid="counseling-date-text"]').text()).toBe('20Oct26');
-        expect(dcs.get('[data-testid="counseling-window"]').text()).toBe('Counts until 18Jan27');
+        expect(dcs.get('[data-testid="counseling-kind-text"]').text()).toBe('Missed section practice or rollcall');
+        expect(dcs.find('[data-testid="counseling-flags"]').exists()).toBe(false);
         expect(dcs.get('[data-testid="counseling-reason-text"]').text()).toContain('No notice given.');
         expect(dcs.get('[data-testid="counseling-issuer"]').text()).toBe('Filed by Okafor.B');
         expect(dcs.get('[data-testid="counseling-download"]').attributes('href')).toBe('/counseling/11/document');
         expect(dcs.get('[data-testid="counseling-download"]').text()).toContain('Brandt DCS.pdf');
         expect(dcs.get('[data-testid="counseling-download"]').text()).toContain('(34 KB)');
         expect(dcs.get('[data-testid="counseling-drive"]').text()).toBe('Copied to Drive');
-        expect(lor.get('[data-testid="counseling-window"]').text()).toBe('Older than 90 days, no longer counts');
+        expect(lor.find('[data-testid="counseling-kind-text"]').exists()).toBe(false);
+        expect(lor.find('[data-testid="counseling-kind-assumed"]').exists()).toBe(false);
         expect(lor.get('[data-testid="counseling-drive"]').text()).toBe('Portal only');
     });
 
@@ -93,10 +97,30 @@ describe('CounselingPanel', () => {
         expect(wrapper.get('[data-testid="counseling-reason-text"]').text()).toBe('<img src=x onerror=alert(1)>');
     });
 
-    it('shows the warnings the server worked out', () => {
-        const wrapper = panel({ warnings: [{ key: 'article-15', message: '3 Letters of Reprimand in 90 days. The regulations call for an Article 15.' }] });
+    it('shows the banner and the flags on each record that the server worked out', () => {
+        const wrapper = panel({
+            warnings: [{ key: 'no-favorable-action', message: 'No favorable action until 27Nov26, 30 days after the LOR of 28Oct26.', until: '2026-11-27' }],
+            records: [
+                record({ type: 'lor', flags: [{ key: 'lor-article-15', message: '3 LORs within 90 days: Article 15.' }] }),
+                record({ id: 12, kind: null, kindLabel: null, kindAssumed: true, flags: [] }),
+            ],
+        });
+        const [flagged, legacy] = wrapper.findAll('[data-testid="counseling-record"]');
 
-        expect(wrapper.get('[data-testid="counseling-warning-article-15"]').text()).toContain('call for an Article 15');
+        expect(wrapper.get('[data-testid="counseling-warning-no-favorable-action"]').text()).toBe('No favorable action until 27Nov26, 30 days after the LOR of 28Oct26.');
+        expect(flagged.get('[data-testid="counseling-flag-lor-article-15"]').text()).toBe('3 LORs within 90 days: Article 15.');
+        expect(legacy.find('[data-testid="counseling-flags"]').exists()).toBe(false);
+        expect(legacy.get('[data-testid="counseling-kind-assumed"]').text()).toContain('the other conduct rules apply to it');
+    });
+
+    it("says a departed trooper's records are read-only, and offers nothing to file or change", () => {
+        const wrapper = panel({ departed: true, records: [record({ canChange: false })] });
+
+        expect(wrapper.get('[data-testid="counseling-departed"]').text()).toContain('no longer serving, so their counseling records are read-only');
+        expect(wrapper.find('[data-testid="counseling-file-open"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="counseling-edit"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="counseling-download"]').exists()).toBe(true);
+        expect(panel().find('[data-testid="counseling-departed"]').exists()).toBe(false);
     });
 
     it('says what an empty list is empty of', () => {
@@ -107,18 +131,57 @@ describe('CounselingPanel', () => {
     it('offers filing only when the server allows it, and only the types it allows', async () => {
         expect(panel().find('[data-testid="counseling-file-open"]').exists()).toBe(false);
 
-        const wrapper = panel({ canFile: { dcs: true, lor: false }, counts: { dcs: 1, lor: 0 } });
+        const wrapper = panel({ canFile: { dcs: true, lor: false } });
         await wrapper.get('[data-testid="counseling-file-open"]').trigger('click');
 
         const options = wrapper.findAll('[data-testid="counseling-type"] option');
         expect(options.map((option) => option.attributes('value'))).toEqual(['dcs']);
-        expect(wrapper.get('[data-testid="counseling-hint"]').text()).toContain('calls for a Letter of Reprimand');
+    });
+
+    it("says what the record would be flagged with, by the date and what it is for, from the server's forecast", async () => {
+        const lorDue = { key: 'missed-lor', message: 'Second miss within 30 days of the last: an LOR is called for.' };
+        const wrapper = panel({
+            canFile: { dcs: true, lor: false },
+            forecast: {
+                dcs: {
+                    missed_practice: [{ from: '1970-01-01', flags: [] }, { from: '2026-01-10', flags: [lorDue] }, { from: '2026-02-10', flags: [] }],
+                    conduct: [{ from: '1970-01-01', flags: [] }],
+                },
+            },
+        });
+        await wrapper.get('[data-testid="counseling-file-open"]').trigger('click');
+
+        expect(wrapper.get('[data-testid="counseling-kind"]').element.value).toBe('');
+        expect(wrapper.find('[data-testid="counseling-hint"]').exists()).toBe(false);
+
+        await wrapper.get('[data-testid="counseling-kind"]').setValue('missed_practice');
+        await wrapper.get('[data-testid="counseling-date"]').setValue('2026-01-20');
+        expect(wrapper.get('[data-testid="counseling-hint-missed-lor"]').text()).toBe('Second miss within 30 days of the last: an LOR is called for.');
+
+        await wrapper.get('[data-testid="counseling-date"]').setValue('2026-02-10');
+        expect(wrapper.find('[data-testid="counseling-hint"]').exists()).toBe(false);
+
+        await wrapper.get('[data-testid="counseling-date"]').setValue('2026-01-20');
+        await wrapper.get('[data-testid="counseling-kind"]').setValue('conduct');
+        expect(wrapper.find('[data-testid="counseling-hint"]').exists()).toBe(false);
+    });
+
+    it('asks what the record is for before sending anything', async () => {
+        const wrapper = panel({ canFile: { dcs: true, lor: false } });
+        await wrapper.get('[data-testid="counseling-file-open"]').trigger('click');
+        await wrapper.get('[data-testid="counseling-reason"]').setValue('Missed practice.');
+        await wrapper.get('[data-testid="counseling-form"]').trigger('submit');
+        await nextTick();
+
+        expect(sent).not.toHaveBeenCalled();
+        expect(wrapper.get('[data-testid="counseling-error-kind"]').text()).toBe('Choose what the record is for.');
     });
 
     it('files a record with its PDF as form data', async () => {
         const wrapper = panel({ canFile: { dcs: true, lor: true } });
         await wrapper.get('[data-testid="counseling-file-open"]').trigger('click');
         await wrapper.get('[data-testid="counseling-type"]').setValue('lor');
+        await wrapper.get('[data-testid="counseling-kind"]').setValue('conduct');
         await wrapper.get('[data-testid="counseling-reason"]').setValue('Disrespect toward an NCO.');
         const file = new File(['%PDF-1.4'], 'lor.pdf', { type: 'application/pdf' });
         const input = wrapper.get('[data-testid="counseling-document"]');
@@ -131,6 +194,7 @@ describe('CounselingPanel', () => {
         expect(method).toBe('post');
         expect(url).toBe('/troopers/7/counseling');
         expect(data.type).toBe('lor');
+        expect(data.kind).toBe('conduct');
         expect(data.reason).toBe('Disrespect toward an NCO.');
         expect(toRaw(data.document)).toBe(file);
         expect(options.forceFormData).toBe(true);
@@ -139,6 +203,7 @@ describe('CounselingPanel', () => {
     it('stops a missing or non-PDF file before sending anything', async () => {
         const wrapper = panel({ canFile: { dcs: true, lor: false } });
         await wrapper.get('[data-testid="counseling-file-open"]').trigger('click');
+        await wrapper.get('[data-testid="counseling-kind"]').setValue('missed_practice');
         await wrapper.get('[data-testid="counseling-form"]').trigger('submit');
         await nextTick();
 
