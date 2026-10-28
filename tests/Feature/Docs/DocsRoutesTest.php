@@ -144,6 +144,21 @@ it('answers 404 on the "?" help while the docs are off', function () {
     $this->actingAs($this->admin)->get('/docs/help?from=/rollcall')->assertNotFound();
 });
 
+it("ships a search index of only the viewer's guides, as plain text", function () {
+    $this->actingAs($this->leader)->get('/docs')->assertInertia(fn (Assert $page) => $page
+        ->has('search', 2)
+        ->where('search.1', [
+            'title' => "Run this week's rollcall",
+            'summary' => 'Mark attendance, confirm, post.',
+            'url' => '/docs/weekly-rollcall/run-rollcall',
+            'section' => 'Weekly rollcall',
+            'headings' => ['Open Rollcall and pick your section', 'Mark each trooper'],
+            'text' => 'Why this matters. The weekly report is built from your confirmed rollcall. Open Rollcall and pick your section Choose Rollcall in the sidebar. Mark each trooper Set every trooper to present, excused or absent.',
+        ]));
+
+    $this->actingAs($this->trooper)->get('/docs/basics/sign-in')->assertInertia(fn (Assert $page) => $page->has('search', 1)->where('search.0.url', '/docs/basics/sign-in'));
+});
+
 it('passes the feedback link S6 set to every docs page', function () {
     config(['portal.docs_feedback_url' => 'https://7cav.us/threads/portal-docs.1/']);
 

@@ -22,6 +22,8 @@ const props = defineProps({
     checklist: { type: Array, required: true },
     // Where "Was this helpful? No" sends the reader, or null.
     feedbackUrl: { type: String, default: null },
+    // `[{ title, summary, url, section, headings, text }]`: the search index (#413).
+    search: { type: Array, required: true },
     // `{ title, summary, url, section: { key, title }, audience, page, weekly, minutes, html, headings, checklist }`;
     // `checklist` is the guide's Start here item id when it is on this reader's list, else null.
     guide: { type: Object, required: true },
@@ -44,7 +46,7 @@ const open = computed(() => {
 <template>
     <Head :title="`${guide.title} · Docs · 7Cav Leadership Portal`" />
 
-    <DocsLayout :contents="contents" :current="guide.url">
+    <DocsLayout :contents="contents" :current="guide.url" :search="search">
         <article class="max-w-[680px]" data-testid="guide">
             <div v-if="from" class="mb-5 flex items-center gap-2.5 rounded-md bg-primary/12 px-3 py-2 text-[13px]" data-testid="came-from">
                 <PhArrowBendUpLeft aria-hidden="true" />
