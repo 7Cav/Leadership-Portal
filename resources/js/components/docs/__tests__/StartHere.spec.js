@@ -34,6 +34,8 @@ async function tick(wrapper, index) {
 
 describe('Start here', () => {
     beforeEach(() => {
+        // A wide screen unless a test says otherwise: on a narrow one the card starts collapsed.
+        vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: false });
         localStorage.clear();
         resetStartHere();
         page.props = { auth: { user: { id: 7 } }, viewAs: null };
@@ -104,7 +106,7 @@ describe('Start here', () => {
     });
 
     it('starts collapsed on a narrow screen until the viewer chooses', () => {
-        vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: true });
+        window.matchMedia.mockReturnValue({ matches: true });
 
         expect(hidden(card())).toBe(true);
     });
