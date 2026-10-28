@@ -161,6 +161,8 @@ test('saving the last missing game of a trooper lands on the row that took their
     await page.goto('/__e2e/login/Vasquez.R?to=/game-identities');
 
     const lastOpen = page.locator('[data-testid^="open-"]').last();
+    // Count the queue once it has rendered: counted straight after the visit it can still be empty.
+    await expect(lastOpen).toBeVisible();
     const before = await page.locator('[data-testid^="row-"]').count();
     await lastOpen.scrollIntoViewIfNeeded();
     await lastOpen.click();
