@@ -4,6 +4,7 @@ use App\Integration\Forum\Requests\ExchangeCodeRequest;
 use App\Integration\Forum\Requests\FetchProfileRequest;
 use App\Models\Game;
 use App\Models\Trooper;
+use App\Models\Unit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Saloon\Http\Faking\MockClient;
@@ -101,6 +102,18 @@ function something()
 function game(string $slug): Game
 {
     return Game::query()->where('slug', $slug)->firstOrFail();
+}
+
+/**
+ * Place one serving trooper on each unit, so it has troopers (#442) and stays in the report chain, the roster and
+ * Home: a line unit nobody is placed in or under is left out of all three. On a platoon or higher the trooper is HQ
+ * staff, in the headcount and in no section's KPIs.
+ */
+function manUnits(Unit ...$units): void
+{
+    foreach ($units as $unit) {
+        Trooper::factory()->create(['primary_section_id' => $unit->id]);
+    }
 }
 
 /**

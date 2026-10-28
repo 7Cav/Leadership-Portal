@@ -16,6 +16,11 @@ use Illuminate\Support\Collection;
  * It is not a KPI population. The six KPIs (AD-21) are over the troopers in sections, the people on a rollcall, and
  * stay the sum of the sections; this is a count beside them that no rate, at-risk flag or roll-up reads, so it never
  * has to equal a sum of children (a platoon's HQ staff are in the platoon's headcount and in no section's).
+ *
+ * It is also what "has troopers" means (#442): a unit has troopers when its headcount is above zero. A line unit with
+ * none is left out of the report chain, the roster and Home ({@see withoutEmptyLineUnits()}) until someone is placed
+ * in it or under it. A trooper on leave is still serving and still placed, so a unit whose only members are on LOA has
+ * troopers.
  */
 final class Headcount
 {
@@ -41,9 +46,38 @@ final class Headcount
     {
         return $subtree->mapWithKeys(fn (Unit $unit) => [
             $unit->id => $subtree
-                ->filter(fn (Unit $placed) => str_starts_with($placed->path, $unit->path)
-                    && ($placed->kind !== UnitKind::Recruit || $unit->kind === UnitKind::Recruit))
+                ->filter(fn (Unit $placed) => self::counts($placed, $unit))
                 ->sum(fn (Unit $placed) => $servingBySection->get($placed->id, 0)),
         ]);
+    }
+
+    /**
+     * `$units` without the line units that have no troopers (#442): nobody serving placed in them or anywhere under
+     * them. Groups are kept whatever their headcount, as is every unit's order. The one test every screen that leaves
+     * empty units out applies (the report chain, the roster, Home), so a unit comes back on all of them at once when a
+     * trooper is placed in it, by the roster sync or by hand. The org page lists every unit and does not use it.
+     *
+     * Two queries whatever is passed: the serving troopers by unit, and the tree to place them in.
+     *
+     * @template TCollection of Collection<int, Unit>
+     *
+     * @param  TCollection  $units
+     * @return TCollection
+     */
+    public function withoutEmptyLineUnits(Collection $units): Collection
+    {
+        $servingBySection = $this->troopers->countsBySection();
+        $placed = $this->units->tree()->filter(fn (Unit $unit) => $servingBySection->get($unit->id, 0) > 0);
+
+        return $units
+            ->filter(fn (Unit $unit) => ! $unit->isLine() || $placed->contains(fn (Unit $holder) => self::counts($holder, $unit)))
+            ->values();
+    }
+
+    /** Whether troopers placed in `$placed` count towards `$unit`: it is `$unit` or under it, and New Recruits only count on their own group. */
+    private static function counts(Unit $placed, Unit $unit): bool
+    {
+        return str_starts_with($placed->path, $unit->path)
+            && ($placed->kind !== UnitKind::Recruit || $unit->kind === UnitKind::Recruit);
     }
 }

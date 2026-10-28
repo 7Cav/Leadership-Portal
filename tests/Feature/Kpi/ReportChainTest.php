@@ -63,6 +63,8 @@ beforeEach(function () {
     $this->s11 = $units->create(UnitType::Section, '1st Section', '1/1/A/1-7', $this->p1->id);
     $this->s21 = $units->create(UnitType::Section, '2nd Section', '2/1/A/1-7', $this->p1->id);
     $this->s12 = $units->create(UnitType::Section, '1st Section', '1/2/A/1-7', $this->p2->id);
+    // Someone in every section, so none is an empty unit left out of the chain (#442).
+    manUnits($this->s11, $this->s21, $this->s12);
 
     $this->reports = app(WeeklyReportRepository::class);
     $this->sender = User::factory()->create();
@@ -117,7 +119,7 @@ it('shows an unsent section\'s live KPIs from the shared service, with the delta
         ->and($node->report->notes)->toBe('draft notes');
 });
 
-it('gives no delta when last week was not sent, and none-KPIs for an empty section', function () {
+it('gives no delta when last week was not sent', function () {
     $this->reports->saveDraft($this->s12->id, chainWeek(1), [], null);
 
     $node = chainIndex($this->chain->build($this->company, chainWeek()))[$this->s12->id];
@@ -125,7 +127,31 @@ it('gives no delta when last week was not sent, and none-KPIs for an empty secti
     expect($node->status)->toBe(ChildReportStatus::NotStarted)
         ->and($node->report)->toBeNull()
         ->and($node->delta)->toBeNull()
-        ->and($node->kpis)->toEqual(UnitKpis::none());
+        ->and($node->kpis)->toEqual(app(KpiService::class)->forUnit($this->s12, chainWeek()));
+});
+
+// #442: a line unit with nobody in it or under it has nobody to report on.
+it('leaves out a unit with no troopers in it or under it, so it holds nobody up', function () {
+    $empty = app(UnitRepository::class)->create(UnitType::Platoon, '3rd Platoon', '3/A/1-7', $this->company->id);
+    app(UnitRepository::class)->create(UnitType::Section, '1st Section', '1/3/A/1-7', $empty->id);
+    ($this->send)($this->p1, chainKpis(2, [2, 8], [1, 2]));
+    ($this->send)($this->p2, chainKpis(1, [1, 4], [1, 1]));
+
+    $company = $this->chain->build($this->company, chainWeek());
+
+    expect(array_map(fn (ChainNode $n) => $n->unit->id, $company->children))->toBe([$this->p1->id, $this->p2->id])
+        ->and(array_keys(chainIndex($company)))->not->toContain($empty->id)
+        ->and($company->isHolding())->toBeFalse()
+        ->and($company->kpis)->toEqual(chainKpis(3, [3, 12], [2, 3]));
+});
+
+it('still draws the root it was asked for when nobody is in it', function () {
+    $empty = app(UnitRepository::class)->create(UnitType::Platoon, '3rd Platoon', '3/A/1-7', $this->company->id);
+    app(UnitRepository::class)->create(UnitType::Section, '1st Section', '1/3/A/1-7', $empty->id);
+
+    $root = $this->chain->build($empty, chainWeek());
+
+    expect($root->unit->id)->toBe($empty->id)->and($root->children)->toBe([]);
 });
 
 it('rolls an unsent non-leaf up from its children\'s sent snapshots only, and marks it holding', function () {
@@ -166,8 +192,9 @@ it('flags a sent unit whose descendant is still open', function () {
         ->and($node->open)->toBeTrue();
 });
 
-// Five reads of its own, plus the LOA coverage of the window (4.8): one more, however many units.
-it('reads a whole battalion in six queries, however many units it holds', function () {
+// Seven reads of its own (two of them which units have troopers, #442), plus the LOA coverage of the window (4.8):
+// one more, however many units.
+it('reads a whole battalion in eight queries, however many units it holds', function () {
     $units = app(UnitRepository::class);
     $count = function (Unit $root) {
         DB::flushQueryLog();
@@ -178,10 +205,6 @@ it('reads a whole battalion in six queries, however many units it holds', functi
 
         return $queries;
     };
-
-    // One trooper is placed first, so the baseline already includes the LOA coverage read, which only runs
-    // when someone is assigned.
-    Trooper::factory()->create()->forceFill(['primary_section_id' => $this->s11->id])->save();
 
     $small = $count($this->battalion);
 
@@ -199,7 +222,7 @@ it('reads a whole battalion in six queries, however many units it holds', functi
         }
     }
 
-    expect($small)->toBe(6)->and($count($this->battalion))->toBe(6);
+    expect($small)->toBe(8)->and($count($this->battalion))->toBe(8);
 });
 
 it('shows a unit with an unreadable sent snapshot as unknown, never a plausible zero, and still builds the rest of the chain', function () {

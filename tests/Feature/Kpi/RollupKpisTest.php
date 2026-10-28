@@ -45,6 +45,8 @@ beforeEach(function () {
     $this->second = $units->create(UnitType::Platoon, '2nd Platoon', '2/A/1-7', $this->company->id);
     $this->third = $units->create(UnitType::Platoon, '3rd Platoon', '3/A/1-7', $this->company->id);
     $this->squad = $units->create(UnitType::Section, '1st Squad', '1/1/A/1-7', $this->first->id);
+    // Each platoon has its HQ staff, so none is an empty unit left out of the roll-up (#442).
+    manUnits($this->first, $this->second, $this->third);
 
     $this->reports = app(WeeklyReportRepository::class);
     $this->sender = User::factory()->create();
@@ -156,6 +158,7 @@ it('refuses a sent snapshot it cannot read as unavailable KPIs, rather than coun
 it('reads any number of children in a constant number of queries', function () {
     foreach (range(1, 12) as $i) {
         $platoon = app(UnitRepository::class)->create(UnitType::Platoon, "Platoon {$i}", null, $this->company->id);
+        manUnits($platoon);
         if ($i % 2) {
             ($this->send)($platoon, rollupKpis(2, [1, 2], [1, 2]));
         }
@@ -169,7 +172,8 @@ it('reads any number of children in a constant number of queries', function () {
 
     expect($result->children)->toHaveCount(15)
         ->and($result->kpis->strength)->toBe(12)
-        ->and($queries)->toBeLessThanOrEqual(2);
+        // The children, which of them have troopers (two), and their reports.
+        ->and($queries)->toBeLessThanOrEqual(4);
 });
 
 // 5.8: fromReports trusts the caller's collections only as far as it can check them.

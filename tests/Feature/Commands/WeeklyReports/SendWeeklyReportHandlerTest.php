@@ -369,6 +369,7 @@ it('refuses a unit that does not exist, even for an admin (no unit is in anyone\
 it('sends a non-leaf report as the roll-up of its sent children, freezing the ones it went without (5.7)', function () {
     $platoonLeader = User::factory()->commanding($this->platoon)->create();
     $sent = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => '700/702/']);
+    manUnits($sent);
     $sentKpis = new UnitKpis(4, new Ratio(12, 16), new Ratio(3, 4), 1, 0, 1);
     app(WeeklyReportRepository::class)->send($sent->id, $this->weekStart, (new ReportSnapshot($sentKpis, null))->toArray(), null, $platoonLeader->id, 'd', null);
     app(WeeklyReportRepository::class)->saveDraft($this->section->id, $this->weekStart, [], null); // a still-draft child

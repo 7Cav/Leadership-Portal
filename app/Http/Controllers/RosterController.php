@@ -72,10 +72,13 @@ class RosterController extends Controller
         $user = $request->user();
         $scope = $this->scope->resolve($user);
         $tree = $this->units->tree();
+        // The order of battle, the unit picker and the default unit leave out a line unit with nobody in it or under it
+        // (#442). One opened by id still renders, as the unit asked for.
+        $shown = $this->headcount->withoutEmptyLineUnits($tree);
 
         // One answer for "no such unit" and "outside your scope" (AD-8), so unit ids cannot be probed.
         $selected = $unit === null
-            ? $this->defaultUnit($user, $tree, $scope)
+            ? $this->defaultUnit($user, $shown, $scope)
             : ($scope->contains($unit) ? $tree->firstWhere('id', $unit) : null);
         abort_if($unit !== null && $selected === null, 403, 'That unit is outside your scope.');
 
@@ -86,10 +89,10 @@ class RosterController extends Controller
         return Inertia::render('Roster', [
             'unit' => $selected ? $this->unitSummary($selected) : null,
             'trail' => $selected ? $this->trail($selected, $tree, $scope) : [],
-            'scopeOptions' => $this->scopeOptions($tree, $scope),
+            'scopeOptions' => $this->scopeOptions($shown, $scope),
             'weeks' => $this->weeks($week),
             'currentWeek' => $week->toDateString(),
-            ...($selected ? $this->roster($selected, $week) : ['units' => [], 'troopers' => []]),
+            ...($selected ? $this->roster($selected, $week, $shown) : ['units' => [], 'troopers' => []]),
             'guests' => $selected ? $this->guestProps($selected, $week, $tree) : null,
             // Source and freshness of the cached roster (AD-20): the one rule every roster page shares, plus the unit
             // leader's own last sync of this echelon, kept apart from the roster-wide stamp.
@@ -199,11 +202,16 @@ class RosterController extends Controller
     }
 
     /**
+     * @param  Collection<int, Unit>  $shown  the tree without its empty line units (#442)
      * @return array{units: list<array<string, mixed>>, troopers: list<array<string, mixed>>}
      */
-    private function roster(Unit $unit, CarbonImmutable $week): array
+    private function roster(Unit $unit, CarbonImmutable $week, Collection $shown): array
     {
-        $subtree = $this->depthFirst($this->units->subtree($unit), $unit);
+        $shownIds = $shown->pluck('id')->flip();
+        $subtree = $this->depthFirst(
+            $this->units->subtree($unit)->filter(fn (Unit $u) => $u->id === $unit->id || $shownIds->has($u->id)),
+            $unit,
+        );
         $placed = $this->troopers->placedWithin($unit);
         $attendance = $this->kpis->trooperAttendance($unit, $week);
         $marks = $this->historyMarks($unit, $week);
