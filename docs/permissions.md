@@ -5,7 +5,8 @@
 - Who you are in the portal comes from your primary billet on the Cav roster, read fresh on every page load. A
   leadership billet gives you the unit it commands and everything under it. Nobody types in roles.
 - Admin is a separate flag on a portal user, set from the server console. Admins see and change everything, and are the
-  only ones who can edit the org structure, staff grants and rollcall templates, or read the audit log.
+  only ones who can edit the org structure, staff grants and rollcall templates, or read the audit log and the
+  activity log.
 - A staff grant (given by an Admin) lets someone read a unit and everything under it. It never lets them change
   anything there.
 - "View as" previews the portal as a unit (or, for Admins, as a person). It only narrows what you see, and every change
@@ -71,6 +72,7 @@ No = refused (the page answers 403 or 404, or the control is not shown).
 | Games page (the games, their ID kinds and telemetry interfaces) | Yes | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes |
 | Template preview filled from a real section | All | All | No | Own | Own | Own | Own | Own | No | Read | Target |
 | Audit log | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
+| Activity log (pages each user opened) | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
 | Demo data page (only when `DEMO_TOOLS=true`) | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
 
 (1) Portfolio officers command staff groups. Groups have no rollcall, reports or KPIs, so these pages show nothing
