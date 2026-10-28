@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { PhArrowLeft, PhArrowSquareOut, PhEnvelopeSimple, PhSignOut, PhWarning } from '@phosphor-icons/vue';
 import InlineNotice from '@/components/InlineNotice.vue';
+import CounselingPanel from '@/components/milpac/CounselingPanel.vue';
 import MilpacPanel from '@/components/milpac/MilpacPanel.vue';
 import TransferList from '@/components/roster/TransferList.vue';
 import TimeAgo from '@/components/TimeAgo.vue';
@@ -32,6 +33,8 @@ const props = defineProps({
     transfers: { type: Array, default: () => [] },
     // `Kpi\AttendanceHistory`: the last 20 Cav weeks, oldest first, each with the section they were in that week.
     attendance: { type: Array, default: () => [] },
+    // `Milpac/CounselingHistory`: the DCSs and LORs this viewer may see, with what they may do (#381).
+    counseling: { type: Object, default: null },
 });
 
 // The attendance history newest first, wherever it was recorded: after a transfer the new leadership sees the weeks
@@ -219,6 +222,8 @@ const staleNotice = computed(() => {
                 </table>
             </div>
         </MilpacPanel>
+
+        <CounselingPanel v-if="counseling" :trooper-id="trooper.id" :counseling="counseling" class="w-full max-w-xl" />
 
         <MilpacPanel title="Courses &amp; qualifications" class="w-full max-w-xl" data-testid="courses-panel">
             <template v-if="courses.total" #count>

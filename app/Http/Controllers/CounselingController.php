@@ -61,9 +61,11 @@ class CounselingController extends Controller
             // `mimetypes` sniffs the file's content (finfo), not its name or the type the browser sent.
             'document' => ['required', 'file', 'max:'.(CounselingRules::DOCUMENT_MAX_BYTES / 1024), 'mimetypes:application/pdf'],
         ], [
+            'document.required' => 'Attach the signed document as a PDF.',
             'document.mimetypes' => 'Attach the signed document as a PDF.',
             'document.max' => 'The document must be 10 MB or smaller.',
             'counseled_on.before_or_equal' => 'The date cannot be in the future.',
+            'reason.required' => 'Give the reason for the record.',
         ]);
 
         $record = $this->handle(fn () => $handler->handle($request->user(), new FileCounselingRecord(
@@ -88,7 +90,7 @@ class CounselingController extends Controller
             'counseled_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:today', 'after_or_equal:'.CounselingRules::EARLIEST],
             'reason' => ['required', 'string', 'max:'.CounselingRules::REASON_MAX],
             'audit_reason' => ['required', 'string', 'max:500'],
-        ], ['counseled_on.before_or_equal' => 'The date cannot be in the future.']);
+        ], ['counseled_on.before_or_equal' => 'The date cannot be in the future.', 'audit_reason.required' => 'Say why the record is corrected.']);
 
         $record = $this->handle(fn () => $handler->handle($request->user(), new CorrectCounselingRecord(
             recordId: $counseling,
@@ -102,7 +104,7 @@ class CounselingController extends Controller
 
     public function destroy(Request $request, int $counseling, DeleteCounselingRecordHandler $handler): RedirectResponse
     {
-        $data = $request->validate(['audit_reason' => ['required', 'string', 'max:500']]);
+        $data = $request->validate(['audit_reason' => ['required', 'string', 'max:500']], ['audit_reason.required' => 'Say why the record is deleted.']);
 
         $record = $this->handle(fn () => $handler->handle($request->user(), new DeleteCounselingRecord($counseling, $data['audit_reason'])));
 

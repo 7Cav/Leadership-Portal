@@ -74,6 +74,11 @@ class TrooperDetailController extends Controller
                 $permissions->seesLor,
                 fn (CounselingRecord $record) => $writable && $permissions->changes($record),
             ),
+            // Which types the list can hold for this viewer, so an empty list says what it is empty of.
+            'sees' => [
+                CounselingType::Dcs->value => $permissions->seesDcs,
+                CounselingType::Lor->value => $permissions->seesLor,
+            ],
             'canFile' => [
                 CounselingType::Dcs->value => $writable && $permissions->filesDcs,
                 CounselingType::Lor->value => $writable && $permissions->filesLor,

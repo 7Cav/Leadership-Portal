@@ -480,4 +480,13 @@ describe('TrooperDetail', () => {
             expect(page({ actions }).find('[data-testid="action-makeup-pm"]').exists()).toBe(false);
         });
     });
+
+    describe('counseling (#381)', () => {
+        it('shows the counseling panel when the server sent one, and none otherwise', () => {
+            const counseling = { records: [], counts: { dcs: 0, lor: 0 }, warnings: [], windowDays: 90, sees: { dcs: true, lor: true }, canFile: { dcs: false, lor: false } };
+
+            expect(page({ counseling }).find('[data-testid="counseling-panel"]').exists()).toBe(true);
+            expect(page().find('[data-testid="counseling-panel"]').exists()).toBe(false);
+        });
+    });
 });
