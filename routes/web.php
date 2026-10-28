@@ -225,6 +225,8 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::post('/settings/templates/{version}/activate', [TemplatesController::class, 'activate'])->middleware('throttle:audited-writes')->name('settings.templates.activate');
     Route::post('/settings/templates/{template}/switch', [TemplatesController::class, 'switch'])->middleware('throttle:audited-writes')->name('settings.templates.switch');
     Route::post('/settings/templates/{template}/company-active', [TemplatesController::class, 'companyActive'])->middleware('throttle:audited-writes')->name('settings.templates.company-active');
+    // Battalion command switches a company's own template editing on or off (#376).
+    Route::post('/settings/templates/policy/{unit}', [TemplatesController::class, 'policy'])->middleware('throttle:audited-writes')->name('settings.templates.policy');
     // One section's rollcall for this week, to fill the template preview with (scope-gated in the controller, AD-8).
     Route::get('/settings/templates/preview/{unit}', [TemplatesController::class, 'previewSection'])->name('settings.templates.preview');
 

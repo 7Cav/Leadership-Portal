@@ -579,3 +579,54 @@ describe("the company's command manages its own templates (#375)", function () {
         $this->actingAs($this->admin)->post("/settings/templates/{$this->default->id}/switch", ['enabled' => false])->assertSessionHasErrors('template_id');
     });
 });
+
+describe('battalion command switches a company\'s own template editing (#376)', function () {
+    beforeEach(function () {
+        $units = app(UnitRepository::class);
+        $this->company->delete();
+        $battalion = $units->create(UnitType::Battalion, '1st Battalion', '1-7', null);
+        $this->alpha = $units->create(UnitType::Company, 'Alpha Company', 'A/1-7', $battalion->id);
+        $this->co = templatesLeaderOf($this->alpha, 5201);
+        $this->bn = templatesLeaderOf($battalion, 5202);
+        $this->standard = authorTemplate($this, 'standard', $this->alpha)->template;
+    });
+
+    it('shows the switch to battalion command, and the company command only the note', function () {
+        $this->actingAs($this->bn)->get('/settings/templates')->assertInertia(fn ($page) => $page
+            ->where('company', $this->alpha->id)
+            ->where('policy', ['companyEdits' => true, 'canSet' => true])
+            ->where('canManageCompany', true));
+
+        $this->actingAs($this->co)->get('/settings/templates')->assertInertia(fn ($page) => $page
+            ->where('policy', ['companyEdits' => true, 'canSet' => false])
+            ->where('canManageCompany', true));
+    });
+
+    it('turns it off, after which the company command sees why and gets no controls, and a write is refused', function () {
+        $this->actingAs($this->bn)->post("/settings/templates/policy/{$this->alpha->id}", ['company_edits' => false])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('settings.templates', ['company' => $this->alpha->id]));
+
+        $this->actingAs($this->co)->get('/settings/templates')->assertInertia(fn ($page) => $page
+            ->where('policy', ['companyEdits' => false, 'canSet' => false])
+            ->where('canManage', false)
+            ->where('canManageCompany', false));
+
+        $this->post('/settings/templates', ['template_id' => $this->standard->id, 'body' => 'mine', 'reason' => 'why'])->assertForbidden();
+        $this->post("/settings/templates/{$this->standard->id}/switch", ['enabled' => false])->assertForbidden();
+
+        $this->actingAs($this->bn)->get('/settings/templates')->assertInertia(fn ($page) => $page->where('canManageCompany', true));
+        $this->post('/settings/templates', ['template_id' => $this->standard->id, 'body' => 'battalion', 'reason' => 'why'])->assertSessionHasNoErrors();
+
+        expect(AuditLogEntry::query()->pluck('action')->all())->toBe(['template_policy.set', 'template_version.authored']);
+    });
+
+    it('refuses the company command the switch, and answers a missing unit like a forbidden one for anyone but an Admin', function () {
+        $this->actingAs($this->co)->post("/settings/templates/policy/{$this->alpha->id}", ['company_edits' => false])->assertForbidden();
+        $this->post('/settings/templates/policy/999999', ['company_edits' => false])->assertForbidden();
+        $this->actingAs($this->admin)->post('/settings/templates/policy/999999', ['company_edits' => false])->assertNotFound();
+        $this->post("/settings/templates/policy/{$this->alpha->id}", [])->assertSessionHasErrors('company_edits');
+
+        expect(AuditLogEntry::query()->count())->toBe(0);
+    });
+});

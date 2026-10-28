@@ -53,6 +53,7 @@ it('answers a 20-digit id with 404, not a 500', function (string $method, string
     'switch a template' => ['POST', '/settings/templates/99999999999999999999/switch'],
     'make a company default' => ['POST', '/settings/templates/99999999999999999999/company-active'],
     'pick a section template' => ['POST', '/rollcall/99999999999999999999/template'],
+    'switch a company template editing' => ['POST', '/settings/templates/policy/99999999999999999999'],
 ]);
 
 it('still routes an 18-digit id, which an int can hold', function () {

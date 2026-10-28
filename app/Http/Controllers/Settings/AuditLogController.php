@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Settings;
 use App\Authorization\ScopeResolver;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLogEntry;
+use App\Models\CompanyTemplatePolicy;
 use App\Models\FireteamAssignment;
 use App\Models\FireteamSetting;
 use App\Models\Game;
@@ -157,6 +158,10 @@ class AuditLogController extends Controller
             $target instanceof TemplateVersion && $target->template !== null => [
                 'href' => route('settings.templates', array_filter(['company' => $target->company_id, 'template' => $target->template_id]), false),
                 'label' => "{$this->templateLabel($target->template, $unit)}, version {$target->version}",
+            ],
+            $target instanceof CompanyTemplatePolicy && $target->company !== null => [
+                'href' => route('settings.templates', ['company' => $target->company_id], false),
+                'label' => "{$unit($target->company)} template editing",
             ],
             $target instanceof Template => [
                 'href' => route('settings.templates', array_filter(['company' => $target->company_id, 'template' => $target->id]), false),
