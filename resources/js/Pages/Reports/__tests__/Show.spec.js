@@ -127,6 +127,20 @@ describe('Reports/Show', () => {
         );
     });
 
+    it('says a draft save refused by the rate limit is kept, not lost (#453)', async () => {
+        vi.useFakeTimers();
+        const { toast } = await import('vue-sonner');
+        put.mockImplementation((url, data, options) => options.onHttpException({ status: 429 }));
+        const wrapper = mountShow();
+
+        await wrapper.get('#training-subject').setValue('Room clearing');
+        vi.advanceTimersByTime(900);
+
+        expect(toast.error).toHaveBeenCalledWith('Could not save the draft', {
+            description: 'Too many requests in a minute. Your changes are kept here; try again in a moment.',
+        });
+    });
+
     it('guards leaving while an edit waits out the debounce, and not once it is saved', async () => {
         vi.useFakeTimers();
         const confirm = vi.fn().mockReturnValue(false);

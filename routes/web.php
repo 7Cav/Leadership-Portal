@@ -67,13 +67,14 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
 
     // The weekly report for one unit-week (Stories 5.3–5.5): compose a section's draft, or a
     // non-leaf unit's roll-up; save the draft; freeze and send it. Scope is checked in the
-    // controller (403 outside it); `{week}` is the Saturday that opens the Cav week.
+    // controller (403 outside it); `{week}` is the Saturday that opens the Cav week. The draft autosave and the send
+    // are audited, each with a bucket of its own (report-drafts, report-sends).
     Route::get('/reports/{unit}/{week}', [ReportController::class, 'show'])
         ->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.show');
     Route::put('/reports/{unit}/{week}', [ReportController::class, 'draft'])
-        ->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.draft');
+        ->where('week', '\d{4}-\d{2}-\d{2}')->middleware('throttle:report-drafts')->name('reports.draft');
     Route::post('/reports/{unit}/{week}/send', [ReportController::class, 'send'])
-        ->where('week', '\d{4}-\d{2}-\d{2}')->name('reports.send');
+        ->where('week', '\d{4}-\d{2}-\d{2}')->middleware('throttle:report-sends')->name('reports.send');
     // The training topic a platoon sets for its sections this week. Who may set it (the platoon's
     // chain of command, or an Admin) is checked in the Command's handler. No `whereNumber('unit')`:
     // it would replace the 18-digit global pattern above.
@@ -122,15 +123,17 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/readiness/{unit}', [TrainingReadinessMatrixController::class, 'show'])->name('readiness.matrix');
 
     // Weekly rollcall of one section (Stories 3.7–3.10). Scope is enforced in the controller
-    // through the ScopeResolver (AD-8): an out-of-scope section is a 403, not a hidden link.
+    // through the ScopeResolver (AD-8): an out-of-scope section is a 403, not a hidden link. Every write here is
+    // audited and throttled per user: the mark autosave on a generous bucket of its own (rollcall-marks), sized for
+    // marking a whole section in seconds, and the rest on the shared audited-writes one.
     Route::get('/rollcall/{unit?}', [RollcallController::class, 'show'])->name('rollcall.show');
-    Route::post('/rollcall/{unit}', [RollcallController::class, 'store'])->name('rollcall.store');
-    Route::post('/rollcall/{unit}/unmatched/link', [RollcallController::class, 'linkUnmatched'])->name('rollcall.unmatched.link');
+    Route::post('/rollcall/{unit}', [RollcallController::class, 'store'])->middleware('throttle:rollcall-marks')->name('rollcall.store');
+    Route::post('/rollcall/{unit}/unmatched/link', [RollcallController::class, 'linkUnmatched'])->middleware('throttle:audited-writes')->name('rollcall.unmatched.link');
     Route::post('/rollcall/{unit}/unmatched/dismiss', [RollcallController::class, 'dismissUnmatched'])->middleware('throttle:audited-writes')->name('rollcall.unmatched.dismiss');
     Route::post('/rollcall/{unit}/unmatched/restore', [RollcallController::class, 'restoreUnmatched'])->middleware('throttle:audited-writes')->name('rollcall.unmatched.restore');
     Route::post('/rollcall/{unit}/capture', [RollcallController::class, 'retryCapture'])->middleware('throttle:practice-capture')->name('rollcall.capture');
-    Route::post('/rollcall/{unit}/confirm', [RollcallController::class, 'confirm'])->name('rollcall.confirm');
-    Route::post('/rollcall/{unit}/posted', [RollcallController::class, 'posted'])->name('rollcall.posted');
+    Route::post('/rollcall/{unit}/confirm', [RollcallController::class, 'confirm'])->middleware('throttle:audited-writes')->name('rollcall.confirm');
+    Route::post('/rollcall/{unit}/posted', [RollcallController::class, 'posted'])->middleware('throttle:audited-writes')->name('rollcall.posted');
     // Fireteams on the rollcall (the owner's order, 2026-10-16): each write is an audited Command whose handler checks
     // the actor commands the section (or, for the policy, its company); a staff grant reads, it does not write. These,
     // the unmatched dismiss and restore, the topic and the guest add and remove share one per-user throttle, since each
@@ -150,10 +153,11 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
 
     // Game identities (Story 7.2): link troopers in scope to their in-game identity, one per
     // game (`{platform}` is the game's slug, #388). The controller reads repositories; each write is an audited Command whose handler
-    // checks the trooper against the viewer's scope (AD-8) — outside it is a 403.
+    // checks the trooper against the viewer's scope (AD-8) — outside it is a 403. Both writes share the audited-writes
+    // throttle.
     Route::get('/game-identities', [GameIdentityController::class, 'index'])->name('game-identities.index');
-    Route::put('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'update'])->name('game-identities.update');
-    Route::delete('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'destroy'])->name('game-identities.destroy');
+    Route::put('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'update'])->middleware('throttle:audited-writes')->name('game-identities.update');
+    Route::delete('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'destroy'])->middleware('throttle:audited-writes')->name('game-identities.destroy');
 
     // The in-portal guides (#409). Docs home and one guide, filtered to what the viewer may read (the controller asks
     // the ScopeResolver, so view-as applies); every docs route answers 404 while `portal.docs` is off. Guide ids are
@@ -166,7 +170,8 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::permanentRedirect('/documentation/{path}', '/docs/{path}')->where('path', '.*');
 
     // Logout (Story 1.5). POST, so it carries CSRF protection and can't be triggered by a
-    // prefetched link or a cross-site <img>.
+    // prefetched link or a cross-site <img>. Not throttled: it may record a view as or act as ending, but each one ends
+    // the session, and signing back in is throttled per IP (AuditedWriteThrottleTest lists it as the one exception).
     Route::post('/logout', [ForumAuthController::class, 'logout'])->name('logout');
 
     // View-as switcher (Story 1.13, AD-9). The picker reads its options as JSON; entering and
@@ -181,7 +186,9 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // person's permissions, writes included, under a red bar. The picker reads its options as JSON. Starting and
     // stopping are audited, so they share the audited-writes throttle. Only the real user behind the request may start
     // or stop it, and who may be acted as is checked on every request; the controller and ActAs check.
-    Route::get('/act-as/options', [ActAsController::class, 'options'])->name('act-as.options');
+    // The picker's list is a heavy read (several queries per billet holder below the viewer), so it has a small limit
+    // of its own.
+    Route::get('/act-as/options', [ActAsController::class, 'options'])->middleware('throttle:act-as-options')->name('act-as.options');
     Route::post('/act-as', [ActAsController::class, 'store'])->middleware('throttle:audited-writes')->name('act-as.store');
     Route::delete('/act-as', [ActAsController::class, 'destroy'])->middleware('throttle:audited-writes')->name('act-as.destroy');
 
@@ -192,28 +199,30 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
 
     // Chain of command (Story 1.8, edit/delete in 1.9). Viewing is open to any authenticated
     // user (AC #3); every write is Admin-only, checked in the controller against the real
-    // `is_admin` flag (AD-6), not by route middleware.
+    // `is_admin` flag (AD-6), not by route middleware. Every write is audited, so they share the audited-writes
+    // throttle; the import reads Cav on the request, so it shares the roster sync's bucket instead.
     Route::get('/settings/org-structure', [OrgStructureController::class, 'index'])->name('settings.org-structure');
-    Route::post('/settings/org-structure', [OrgStructureController::class, 'store'])->name('settings.org-structure.store');
+    Route::post('/settings/org-structure', [OrgStructureController::class, 'store'])->middleware('throttle:audited-writes')->name('settings.org-structure.store');
     // Import the tree + billet mapping from the Cav position groups (Story 2.9). Admin gate in the
     // controller, as for every other write here.
-    Route::post('/settings/org-structure/import', [OrgStructureController::class, 'import'])->name('settings.org-structure.import');
-    Route::patch('/settings/org-structure/{unit}', [OrgStructureController::class, 'update'])->name('settings.org-structure.update');
-    Route::patch('/settings/org-structure/{unit}/label', [OrgStructureController::class, 'label'])->name('settings.org-structure.label');
-    Route::post('/settings/org-structure/{unit}/acting-lead', [OrgStructureController::class, 'assignActingLead'])->name('settings.org-structure.acting-lead.store');
-    Route::delete('/settings/org-structure/{unit}/acting-lead', [OrgStructureController::class, 'removeActingLead'])->name('settings.org-structure.acting-lead.destroy');
-    Route::delete('/settings/org-structure/{unit}', [OrgStructureController::class, 'destroy'])->name('settings.org-structure.destroy');
+    Route::post('/settings/org-structure/import', [OrgStructureController::class, 'import'])->middleware('throttle:roster-sync')->name('settings.org-structure.import');
+    Route::patch('/settings/org-structure/{unit}', [OrgStructureController::class, 'update'])->middleware('throttle:audited-writes')->name('settings.org-structure.update');
+    Route::patch('/settings/org-structure/{unit}/label', [OrgStructureController::class, 'label'])->middleware('throttle:audited-writes')->name('settings.org-structure.label');
+    Route::post('/settings/org-structure/{unit}/acting-lead', [OrgStructureController::class, 'assignActingLead'])->middleware('throttle:audited-writes')->name('settings.org-structure.acting-lead.store');
+    Route::delete('/settings/org-structure/{unit}/acting-lead', [OrgStructureController::class, 'removeActingLead'])->middleware('throttle:audited-writes')->name('settings.org-structure.acting-lead.destroy');
+    Route::delete('/settings/org-structure/{unit}', [OrgStructureController::class, 'destroy'])->middleware('throttle:audited-writes')->name('settings.org-structure.destroy');
 
     // Place a trooper the sync could not map into a section (Story 2.7). The Admin gate is checked in the
     // controller first and again in the Command's handler; the required reason and the audited write live
     // in the handler (AD-6, AD-16), not in the route.
-    Route::post('/settings/org-structure/troopers/{trooper}/placement', [TrooperPlacementController::class, 'store'])->name('settings.trooper-placement.store');
+    Route::post('/settings/org-structure/troopers/{trooper}/placement', [TrooperPlacementController::class, 'store'])->middleware('throttle:audited-writes')->name('settings.trooper-placement.store');
 
     // Staff grants (Story 1.12). Viewing is open to any authenticated user, matching
-    // org-structure; the Admin gate on every write is enforced in the controller (AD-6).
+    // org-structure; the Admin gate on every write is enforced in the controller (AD-6). Audited, so throttled like
+    // every audited write.
     Route::get('/settings/staff-grants', [StaffGrantsController::class, 'index'])->name('settings.staff-grants');
-    Route::post('/settings/staff-grants', [StaffGrantsController::class, 'store'])->name('settings.staff-grants.store');
-    Route::delete('/settings/staff-grants/{grant}', [StaffGrantsController::class, 'destroy'])->name('settings.staff-grants.destroy');
+    Route::post('/settings/staff-grants', [StaffGrantsController::class, 'store'])->middleware('throttle:audited-writes')->name('settings.staff-grants.store');
+    Route::delete('/settings/staff-grants/{grant}', [StaffGrantsController::class, 'destroy'])->middleware('throttle:audited-writes')->name('settings.staff-grants.destroy');
 
     // Rollcall template authoring (Story 3.5, #375, AD-17). Viewing is open to any authenticated user (the controller
     // shows a non-Admin only the companies in their scope); each write is an audited Command that checks the actor
@@ -231,19 +240,21 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/settings/templates/preview/{unit}', [TemplatesController::class, 'previewSection'])->name('settings.templates.preview');
 
     // The games the regiment plays (#388). Viewing is open to any authenticated user; the Admin gate on every write is
-    // enforced in the controller (AD-6). A game in use is retired, not deleted.
+    // enforced in the controller (AD-6). A game in use is retired, not deleted. Each write is audited and shares the
+    // audited-writes throttle.
     Route::get('/settings/games', [GamesController::class, 'index'])->name('settings.games');
-    Route::post('/settings/games', [GamesController::class, 'store'])->name('settings.games.store');
-    Route::patch('/settings/games/{game}', [GamesController::class, 'update'])->name('settings.games.update');
-    Route::post('/settings/games/{game}/retire', [GamesController::class, 'retire'])->name('settings.games.retire');
-    Route::delete('/settings/games/{game}/retire', [GamesController::class, 'reinstate'])->name('settings.games.reinstate');
-    Route::delete('/settings/games/{game}', [GamesController::class, 'destroy'])->name('settings.games.destroy');
+    Route::post('/settings/games', [GamesController::class, 'store'])->middleware('throttle:audited-writes')->name('settings.games.store');
+    Route::patch('/settings/games/{game}', [GamesController::class, 'update'])->middleware('throttle:audited-writes')->name('settings.games.update');
+    Route::post('/settings/games/{game}/retire', [GamesController::class, 'retire'])->middleware('throttle:audited-writes')->name('settings.games.retire');
+    Route::delete('/settings/games/{game}/retire', [GamesController::class, 'reinstate'])->middleware('throttle:audited-writes')->name('settings.games.reinstate');
+    Route::delete('/settings/games/{game}', [GamesController::class, 'destroy'])->middleware('throttle:audited-writes')->name('settings.games.destroy');
 
     // The game servers the telemetry APIs list (#389). The whole screen is Admin-only, gated in the controller (AD-6).
-    // Fetching asks every interface over HTTP on the request, so it is capped per Admin like the manual syncs.
+    // Fetching asks every interface over HTTP on the request, so it is capped per Admin like the manual syncs. Editing a
+    // server is audited, so it shares the audited-writes throttle.
     Route::get('/settings/servers', [ServersController::class, 'index'])->name('settings.servers');
     Route::post('/settings/servers/fetch', [ServersController::class, 'fetch'])->middleware('throttle:server-fetch')->name('settings.servers.fetch');
-    Route::patch('/settings/servers/{server}', [ServersController::class, 'update'])->name('settings.servers.update');
+    Route::patch('/settings/servers/{server}', [ServersController::class, 'update'])->middleware('throttle:audited-writes')->name('settings.servers.update');
 
     // Audit-log review (Story 1.14). The whole screen is Admin-only (AC #4) — the gate is
     // enforced in the controller, not route middleware, matching every other Admin gate here.
@@ -268,10 +279,11 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::post('/settings/loa-sync', [LoaSyncController::class, 'store'])->middleware('throttle:loa-sync')->name('settings.loa-sync.store');
 
     // Demo history for the real roster (#115). Admin-only; every route 404s unless
-    // `portal.demo_tools` is on (DEMO_TOOLS=true) — both gates are enforced in the controller.
+    // `portal.demo_tools` is on (DEMO_TOOLS=true) — both gates are enforced in the controller. Generating and purging
+    // are audited, so they share the audited-writes throttle.
     Route::get('/settings/demo-data', [DemoDataController::class, 'index'])->name('settings.demo-data');
-    Route::post('/settings/demo-data', [DemoDataController::class, 'store'])->name('settings.demo-data.store');
-    Route::delete('/settings/demo-data', [DemoDataController::class, 'destroy'])->name('settings.demo-data.destroy');
+    Route::post('/settings/demo-data', [DemoDataController::class, 'store'])->middleware('throttle:audited-writes')->name('settings.demo-data.store');
+    Route::delete('/settings/demo-data', [DemoDataController::class, 'destroy'])->middleware('throttle:audited-writes')->name('settings.demo-data.destroy');
 });
 
 // Browser-test sign-in (Story 5.8). The real login is a 7cav.us OAuth round-trip a test cannot

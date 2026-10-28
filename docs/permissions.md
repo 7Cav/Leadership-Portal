@@ -238,16 +238,22 @@ Copying the forum post stays possible on a locked week; marking it posted does n
 
 ### Rate limits
 
-All per signed-in user (sign-in is per IP address), per minute.
+All per signed-in user (sign-in is per IP address), per minute. Every write the audit log records has one of these;
+only sign out has none, since it ends the session and signing back in is limited.
 
 | Limit | Applies to |
 | --- | --- |
 | 10 per IP, per route | The two sign-in steps |
 | 60 | Find trooper and the guest picker search |
-| 60, shared | Fireteam changes, company fireteam policy, unmatched dismiss and restore, guest add and remove, platoon topic set and clear, training plan save, approve and send back, every template write and a section's template pick, starting and leaving view as, correcting and deleting a DCS or LOR |
+| 240 | Rollcall mark autosave. The screen waits 0.7 seconds after a change and sends one batch at a time, so marking a whole section in seconds stays far below this. |
+| 120 | Report draft autosave |
+| 60, shared | Every other audited write: fireteam changes, company fireteam policy, linking, dismissing and restoring unmatched players, confirming a practice, marking a rollcall posted, guest add and remove, setting and removing a game identity, platoon topic set and clear, training plan save, approve and send back, every template write and a section's template pick, starting and leaving view as and act as, correcting and deleting a DCS or LOR, and the Admin settings writes (org structure, acting leads, trooper placement, staff grants, games, servers, demo data) |
+| 10 | Sending a report |
+| 20 | Loading the act as picker's list |
 | 10 | Capture "Try again"; the same practice also only once a minute |
 | 10 | Filing a DCS or LOR (each one uploads a PDF of up to 10 MB) |
-| 5 | Whole-roster sync, manual LOA sync (Admins) |
+| 5, shared | Whole-roster sync and the org-structure import, which both read Cav on the request (Admins) |
+| 5 | Manual LOA sync, fetching game servers (Admins) |
 | 3 | Unit roster sync; also a 5 minute cooldown on that unit and every unit above and below it (Admins skip the cooldown) |
 
 ## Technical appendix
