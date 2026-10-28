@@ -87,6 +87,25 @@ it('gives Regimental HQ staff read scope over the whole regiment, and no write a
         ->and($scope->canSee($this->chief, $this->troopers['unplaced']))->toBeFalse();
 });
 
+it('gives the same read scope in bulk as one at a time, so the act as picker follows the rule too', function () {
+    $scope = app(ScopeResolver::class);
+    $eloa = User::factory()->create(['cav_id' => $this->troopers['ELOA']->cav_id]);
+    $member = User::factory()->create(['cav_id' => $this->troopers['own battalion']->cav_id]);
+    $users = collect([$this->chief, $eloa, $member]);
+
+    $bulk = $scope->realScopes($users);
+
+    foreach ($users as $user) {
+        expect($bulk->get($user->id)->all())->toEqualCanonicalizing($scope->realScope($user)->all());
+    }
+    expect($bulk->get($this->chief->id)->all())->toEqualCanonicalizing($this->allUnits);
+
+    // No longer serving: neither gives the regiment.
+    $this->chiefTrooper->forceFill(['status' => TrooperStatus::Inactive])->save();
+    expect($scope->realScopes(collect([$this->chief]))->get($this->chief->id)->all())->toBe([])
+        ->and($scope->realScope($this->chief)->all())->toBe([]);
+});
+
 it('finds troopers across the regiment for Regimental HQ staff, and opens their milpac', function () {
     $names = collect($this->actingAs($this->chief)->getJson(route('troopers.search', ['q' => 'xqz']))->assertOk()->json('troopers'))
         ->pluck('name')->all();

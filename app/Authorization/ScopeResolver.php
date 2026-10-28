@@ -103,7 +103,7 @@ class ScopeResolver
             return $this->units->allIds();
         }
 
-        // The bulk realScopes() (#498) must add the same read-only units: change both together.
+        // realScopes() must add the same read-only units: change both together.
         return $this->readOnlyUnitsWhileServing($user)
             ->merge($this->commandedUnits($user))
             ->filter()
@@ -140,7 +140,8 @@ class ScopeResolver
         $troopers = $this->troopers->byCavId($cavIds);
         $billets = $cavIds === [] ? collect() : $this->commands->commandedUnitsByCavId($cavIds);
         $acting = $this->actingLeads->unitsLedByTroopers($troopers->pluck('id')->map(fn ($id) => (int) $id)->values()->all());
-        // A grant counts only while its holder serves (grantedUnitsWhileServing()), so only theirs are read.
+        // A grant, and the regiment for Regimental HQ staff, count only while the holder serves
+        // (readOnlyUnitsWhileServing()), so only theirs are read.
         $serving = $linked
             ->filter(fn (User $user) => $troopers->get((int) $user->cav_id)?->status?->isServing() ?? false)
             ->map(fn (User $user) => (int) $user->id)
@@ -154,13 +155,17 @@ class ScopeResolver
                 return [$user->id => $tree->pluck('id')->values()];
             }
 
+            $trooper = $user->cav_id === null ? null : $troopers->get((int) $user->cav_id);
+            // As readOnlyUnitsWhileServing(): while serving, their grants and, for Regimental HQ staff placed on the
+            // regiment itself, the regiment. realScope() must add the same: change both together.
+            $placed = $trooper?->primary_section_id === null ? null : $byId->get((int) $trooper->primary_section_id);
             $granted = $servingIds->has($user->id)
                 ? $grants->get($user->id, collect())->map(fn (int $id) => $byId->get($id))
+                    ->push($placed?->type === UnitType::Regiment ? $placed : null)
                 : collect();
             // As commandedUnits(): a billet held on this request is the only command, else the synced billet and
             // the acting leads, none for a user with no milpac link.
             $held = $this->billet->of($user);
-            $trooper = $user->cav_id === null ? null : $troopers->get((int) $user->cav_id);
             $commanded = match (true) {
                 $held !== null => collect([$held]),
                 $user->cav_id === null => collect(),
