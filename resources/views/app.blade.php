@@ -7,9 +7,10 @@
     {{--
       Apply the saved light/dark choice before first paint (Story 1.15), falling back to the OS
       setting. Must run before the stylesheet renders anything, hence inline and synchronous.
-      The key matches THEME_STORAGE_KEY in resources/js/composables/useTheme.js.
+      The key matches THEME_STORAGE_KEY in resources/js/composables/useTheme.js. The nonce is what
+      lets it run under the content security policy (SetSecurityHeaders, #485).
     --}}
-    <script>
+    <script nonce="{{ Vite::cspNonce() }}">
         (function () {
             var theme = null;
             try { theme = localStorage.getItem('portal-theme'); } catch (e) {}

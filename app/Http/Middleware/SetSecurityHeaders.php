@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use Closure;
+use Illuminate\Foundation\Vite;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -20,10 +21,16 @@ use Symfony\Component\HttpFoundation\Response;
  *   localhost it would pin that host to HTTPS in the developer's browser for a year. Behind a
  *   TLS-terminating proxy, `secure()` is only true once the proxy is trusted (TrustProxies).
  *
- * The CSP carries `frame-ancestors` alone on purpose. A full policy would have to allow the
- * inline pre-paint theme script in resources/views/app.blade.php (by hash or nonce) and Vite's
- * dev server, and that is its own piece of work. `frame-ancestors` restricts nothing a page
- * loads, so it cannot break one.
+ * The content security policy (#485) lists what a page may load, from config/csp.php, so a script
+ * someone managed to inject would not run. Scripts come from this host or carry the request's
+ * nonce: Vite prints it on the tags @vite writes, and app.blade.php on its inline theme script. Two
+ * exceptions:
+ * - On a local machine while `npm run dev` runs (Vite's hot file exists), the dev server's origin
+ *   and its websocket are allowed too, since the page loads its scripts, styles and updates there.
+ * - A debug error page (APP_DEBUG and a 5xx) gets `frame-ancestors 'none'` alone, as before: the
+ *   framework's error page draws itself with inline scripts.
+ * With `CSP_REPORT_ONLY` the policy goes out as Content-Security-Policy-Report-Only, and the
+ * enforced header keeps `frame-ancestors 'none'`, which a report-only policy ignores.
  *
  * Any header a response already carries is left as it is: a route that needs a different
  * policy (say, an embeddable page) sets its own and this does not undo it.
@@ -37,18 +44,30 @@ class SetSecurityHeaders
     /** One year, the usual HSTS floor for a host that is HTTPS-only for good. */
     private const HSTS_MAX_AGE = 31536000;
 
+    private const FRAME_ANCESTORS = "frame-ancestors 'none'";
+
+    public function __construct(private readonly Vite $vite) {}
+
     public function handle(Request $request, Closure $next): Response
     {
+        // Before the page renders, so the tags @vite prints and the theme script carry it.
+        $nonce = $this->vite->useCspNonce();
+
         $response = $next($request);
 
         $headers = [
             'X-Frame-Options' => 'DENY',
-            'Content-Security-Policy' => "frame-ancestors 'none'",
+            'Content-Security-Policy' => self::FRAME_ANCESTORS,
             'X-Content-Type-Options' => 'nosniff',
             'Referrer-Policy' => 'strict-origin-when-cross-origin',
             'Permissions-Policy' => 'camera=(), microphone=(), geolocation=()',
             'Cross-Origin-Opener-Policy' => 'same-origin',
         ];
+
+        $debugErrorPage = config('app.debug') && $response->getStatusCode() >= 500;
+        if (! $debugErrorPage && ! $response->headers->has('Content-Security-Policy')) {
+            $headers[config('csp.report_only') ? 'Content-Security-Policy-Report-Only' : 'Content-Security-Policy'] = $this->policy($nonce);
+        }
 
         if (app()->isProduction() && $request->secure()) {
             $headers['Strict-Transport-Security'] = 'max-age='.self::HSTS_MAX_AGE;
@@ -61,5 +80,51 @@ class SetSecurityHeaders
         }
 
         return $response;
+    }
+
+    private function policy(string $nonce): string
+    {
+        $directives = config('csp.directives', []);
+        $directives['script-src'][] = "'nonce-{$nonce}'";
+
+        [$devServer, $devSocket] = $this->devServer() ?? [null, null];
+        if ($devServer !== null) {
+            foreach (['script-src', 'style-src', 'img-src', 'font-src', 'connect-src'] as $name) {
+                $directives[$name][] = $devServer;
+            }
+            $directives['connect-src'][] = $devSocket;
+        }
+
+        $parts = [];
+        foreach ($directives as $name => $sources) {
+            $parts[] = trim($name.' '.implode(' ', array_unique($sources)));
+        }
+
+        return implode('; ', $parts);
+    }
+
+    /**
+     * The Vite dev server's origin and its websocket's, only on a local machine while `npm run dev`
+     * runs: null in every other environment, even with a hot file left behind.
+     *
+     * @return array{string, string}|null
+     */
+    private function devServer(): ?array
+    {
+        if (! app()->isLocal() || ! $this->vite->isRunningHot()) {
+            return null;
+        }
+
+        $url = parse_url(trim((string) file_get_contents($this->vite->hotFile())));
+        if (! is_array($url) || ! isset($url['scheme'], $url['host'])) {
+            return null;
+        }
+
+        $authority = $url['host'].(isset($url['port']) ? ':'.$url['port'] : '');
+
+        return [
+            "{$url['scheme']}://{$authority}",
+            ($url['scheme'] === 'https' ? 'wss' : 'ws')."://{$authority}",
+        ];
     }
 }

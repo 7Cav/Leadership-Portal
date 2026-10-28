@@ -26,6 +26,10 @@ export default defineConfig({
         alias: { '@': fileURLToPath(new URL('./resources/js', import.meta.url)) },
     },
     server: {
+        // Vite's default, written out so the hot file names `localhost` rather than the address it bound to: on a
+        // machine where that is `::1`, the URL would be `http://[::1]:5173`, and a content security policy cannot
+        // name an IPv6 address, so the dev server's scripts would be refused (SetSecurityHeaders, #485).
+        host: 'localhost',
         watch: {
             ignored: ['**/storage/framework/views/**'],
         },
