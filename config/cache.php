@@ -1,5 +1,9 @@
 <?php
 
+use App\Docs\Audience;
+use App\Docs\ChecklistItem;
+use App\Docs\Guide;
+use App\Docs\Section;
 use Illuminate\Support\Str;
 
 return [
@@ -127,10 +131,17 @@ return [
     |
     | This value determines the classes that can be unserialized from cache
     | storage. By default, no PHP classes will be unserialized from your
-    | cache to prevent gadget chain attacks if your APP_KEY is leaked.
+    | cache to prevent gadget chain attacks if your APP_KEY is leaked. The parsed
+    | guides are the exception: they are immutable value objects with no behavior
+    | beyond reading their own fields, cached by GuideLibrary and read back as is.
     |
     */
 
-    'serializable_classes' => false,
+    'serializable_classes' => [
+        Guide::class,
+        Section::class,
+        ChecklistItem::class,
+        Audience::class,
+    ],
 
 ];

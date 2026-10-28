@@ -4,6 +4,7 @@ use App\Docs\Audience;
 use App\Docs\Guide;
 use App\Docs\GuideLibrary;
 use App\Docs\GuideParser;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Symfony\Component\Yaml\Yaml;
 
@@ -286,4 +287,16 @@ it('parses the files once and again only when one changes', function () {
     touch($file, $stamp + 10);
     clearstatcache();
     expect(docLibrary($this)->guides()[0]->title)->toBe('Other');
+});
+
+it('reads the parsed guides back from a cache that serializes, as production does', function () {
+    // The array store keeps objects as they are unless told to serialize; the file store production uses does not.
+    config(['cache.stores.array.serialize' => true]);
+    Cache::purge('array');
+    docWrite($this->docs, 'weekly-rollcall/run-rollcall.md', docMeta('weekly-rollcall'), "## Mark it\n\nDo it.");
+
+    docLibrary($this)->guides();
+    $second = docLibrary($this);
+
+    expect($second->guides())->toHaveCount(1)->and($second->guides()[0])->toBeInstanceOf(Guide::class);
 });
