@@ -227,7 +227,9 @@ test('a panel taller than the screen scrolls inside itself and keeps Save reacha
     expect(box.overflowY).toBe('auto');
     expect(box.bottom).toBeLessThanOrEqual(box.vh + 0.5);
 
-    // The first identity is reachable at the top, and Save at the bottom once the panel scrolls.
+    // The first identity is reachable at the top, and Save at the bottom once the panel scrolls. Moving on to the next
+    // game focuses its ID field, which scrolls the panel down, so each end is scrolled to before it is checked.
+    await page.getByTestId('edit-hll').scrollIntoViewIfNeeded();
     await expect(page.getByTestId('edit-hll')).toBeInViewport();
     await page.getByTestId('identity-save').scrollIntoViewIfNeeded();
     await expect(page.getByTestId('identity-save')).toBeInViewport();
