@@ -88,6 +88,7 @@ describe('AppLayout', () => {
             expect(settings.find('a[href="/settings/org-structure"]').exists()).toBe(true);
             expect(settings.find('a[href="/settings/staff-grants"]').exists()).toBe(true);
             expect(settings.find('a[href="/settings/audit-log"]').exists()).toBe(true);
+            expect(settings.find('a[href="/settings/activity-log"]').exists()).toBe(true);
         });
 
         // The full table of is_admin values lives in composables/__tests__/useIdentity.spec.js.
@@ -132,7 +133,7 @@ describe('AppLayout', () => {
             const linkHrefs = wrapper.findAllComponents({ name: 'Link' }).map((link) => link.props('href'));
             const navHrefs = wrapper.findAll('nav[aria-label="Primary"] a').map((a) => a.attributes('href'));
 
-            expect(navHrefs).toEqual(['/home', '/roster', '/rollcall', '/reports', '/game-identities', '/settings/org-structure', '/settings/staff-grants', '/settings/templates', '/settings/games', '/settings/servers', '/settings/audit-log']);
+            expect(navHrefs).toEqual(['/home', '/roster', '/rollcall', '/reports', '/game-identities', '/settings/org-structure', '/settings/staff-grants', '/settings/templates', '/settings/games', '/settings/servers', '/settings/audit-log', '/settings/activity-log']);
             for (const href of navHrefs) expect(linkHrefs).toContain(href);
         });
 
