@@ -134,7 +134,8 @@ base-uri 'self'; form-action 'self'; frame-ancestors 'none'
 ```
 
 - Scripts come only from the portal: the built bundles, and the inline theme script and Vite's tags by a nonce that
-  changes on every request. Inline styles are allowed, since Vue sets style attributes; a style cannot run code.
+  changes on every request. Inline styles are allowed, since `<style>` elements are added at runtime (Inertia's
+  progress bar) and the framework's plain error pages carry their own; a style cannot run code.
 - Images: the portal, `data:` (the guidon) and 7cav.us with its subdomains (rank insignia, BBCode preview images).
 - Sign-in is a link to `/auth/redirect`, which redirects to 7cav.us, and sign-out posts to the portal, so
   `form-action 'self'` is enough.
@@ -151,6 +152,14 @@ Rolling out: the policy ships enforced, and the browser suite fails on any viola
 first, set `CSP_REPORT_ONLY=true`: browsers then log what they would block in the console and block nothing, while
 `frame-ancestors 'none'` stays enforced. There is no report endpoint, so check the console on the main pages, then
 set it back to false.
+
+The same middleware sends `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`,
+`Cross-Origin-Opener-Policy` and `Cross-Origin-Resource-Policy` (plus HSTS in production over HTTPS). It runs first,
+so the maintenance page, a 413 for an upload over the size limit and CORS preflights carry them too. Two known gaps:
+
+- A page pre-rendered with `php artisan down --render` is served before the app starts, without these headers.
+- The `/up` health page shows unstyled: the framework's page loads its styles from a CDN, which the policy blocks. The
+  status code is unchanged, so the container health check still passes. Leave the CDN out of the policy.
 
 ## Technical appendix
 

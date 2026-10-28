@@ -15,8 +15,10 @@ return [
     |
     | - script-src: the built bundles from this host, plus the inline theme script and Vite's tags by
     |   nonce. Nothing is evaluated from strings (the Vue build is the runtime-only one).
-    | - style-src: 'unsafe-inline' because Vue binds style attributes (bar widths, chart colors, the
-    |   floating tips) and Inertia's progress bar adds a <style> element. A style cannot run code.
+    | - style-src: 'unsafe-inline' because <style> elements are added at runtime (Inertia's progress
+    |   bar) and the framework's plain error pages carry their own. Vue's :style bindings (bar widths,
+    |   chart colors, the floating tips) go through the CSSOM, which the policy does not cover. A
+    |   style cannot run code.
     | - img-src: data: for the guidon drawn as an SVG data URL (and its PNG download); 7cav.us for the
     |   rank insignia and the images a BBCode preview may show (bbcodeRender.js allows 7cav.us and its
     |   subdomains only).

@@ -20,9 +20,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // Global rather than `web`-only, so error pages outside the group carry the headers too
-        // (see the class docblock).
-        $middleware->append(SetSecurityHeaders::class);
+        // Global rather than `web`-only, and prepended so it is the outermost global middleware: the
+        // responses the others produce (maintenance, a body too large, a CORS preflight) carry the
+        // headers too (see the class docblock).
+        $middleware->prepend(SetSecurityHeaders::class);
 
         // Behind a load balancer or reverse proxy `$request->ip()` is the proxy's address, which
         // would put every user in one sign-in throttle bucket and leave HSTS unable to see HTTPS.

@@ -16,6 +16,8 @@ use Symfony\Component\HttpFoundation\Response;
  * - `X-Content-Type-Options: nosniff` stops a browser guessing a response is script or HTML.
  * - `Referrer-Policy: strict-origin-when-cross-origin` keeps paths and query strings (unit ids,
  *   `?week=`) out of the Referer sent to other sites.
+ * - `Cross-Origin-Resource-Policy: same-origin` stops another site loading a portal response (a
+ *   counseling PDF, a JSON endpoint) as an image, script or other subresource.
  * - `Strict-Transport-Security` only in production and only on a request that arrived over
  *   HTTPS. Sent over plain HTTP the header is ignored anyway, and sent from a dev box on
  *   localhost it would pin that host to HTTPS in the developer's browser for a year. Behind a
@@ -35,9 +37,12 @@ use Symfony\Component\HttpFoundation\Response;
  * Any header a response already carries is left as it is: a route that needs a different
  * policy (say, an embeddable page) sets its own and this does not undo it.
  *
- * Registered as global middleware in bootstrap/app.php rather than in the `web` group, so it
- * also covers responses the group never sees: a 404 for an unknown path, a 419 or 409 produced
- * by middleware further out, and the `/up` health check.
+ * Registered in bootstrap/app.php as the first global middleware, not in the `web` group, so it
+ * wraps everything else and also covers responses the group never sees: a 404 for an unknown
+ * path, a 419 or 409 from the group's own middleware, the `/up` health check, and the responses
+ * other global middleware produce (the maintenance 503, a 413 for a body over the size limit, a
+ * CORS preflight). A page pre-rendered with `artisan down --render` is served before the app
+ * starts, so it is the one response without them.
  */
 class SetSecurityHeaders
 {
@@ -62,6 +67,7 @@ class SetSecurityHeaders
             'Referrer-Policy' => 'strict-origin-when-cross-origin',
             'Permissions-Policy' => 'camera=(), microphone=(), geolocation=()',
             'Cross-Origin-Opener-Policy' => 'same-origin',
+            'Cross-Origin-Resource-Policy' => 'same-origin',
         ];
 
         $debugErrorPage = config('app.debug') && $response->getStatusCode() >= 500;
