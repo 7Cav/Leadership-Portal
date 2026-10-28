@@ -217,5 +217,6 @@ it('reads the picker in the same number of queries for a small unit and a large 
 
     expect(aacListed($this->plB1))->toHaveCount(count($before) + 20)
         ->and($count($this->plB1))->toBe($small)
-        ->and($small)->toBeLessThanOrEqual(15);
+        // A fixed number whatever the size; one more since Admin via billet reads the approved billets for everyone.
+        ->and($small)->toBeLessThanOrEqual(16);
 });
