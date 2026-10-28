@@ -5,8 +5,9 @@
 - Who you are in the portal comes from your primary billet on the Cav roster, read fresh on every page load. A
   leadership billet gives you the unit it commands and everything under it. Nobody types in roles.
 - Admin is a separate flag on a portal user, set from the server console. Admins see and change everything, and are the
-  only ones who can edit the org structure, staff grants and rollcall templates, or read the audit log and the
-  activity log.
+  only ones who can edit the org structure, staff grants and the regiment default rollcall template, or read the audit
+  log and the activity log.
+- A company's command (and the command above it) manages that company's own rollcall templates.
 - A staff grant (given by an Admin) lets someone read a unit and everything under it. It never lets them change
   anything there.
 - "View as" previews the portal as a unit (or, for Admins, as a person). It only narrows what you see, and every change
@@ -68,7 +69,7 @@ No = refused (the page answers 403 or 404, or the control is not shown).
 | Org structure: members of staff groups, ELOA, Reservists, New Recruits | All | All | Own | Own | Own | Own | Own | Own | No | Read | Target |
 | Org structure: troopers the sync could not place | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
 | Staff grants page (every grant; the username picker only for an acting Admin) | Yes | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes |
-| Templates page (a company's template and history) | All | All | No | Own (4) | Own (4) | Own (4) | Own (4) | Own (4) | No | Read (4) | Target (4) |
+| Templates page (a company's templates, the regiment default, history) | All | All | No | Own (4) | Own (4) | Own (4) | Own (4) | Own (4) | No | Read (4) | Target (4) |
 | Games page (the games, their ID kinds and telemetry interfaces) | Yes | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes |
 | Template preview filled from a real section | All | All | No | Own | Own | Own | Own | Own | No | Read | Target |
 | Audit log | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
@@ -81,7 +82,7 @@ for their portfolio. They see their staff on the roster and the org page.
 (3) Not in the sidebar for non-Admins, but any signed-in user can open it by URL and read it. Only Admins see the
 editing controls.
 (4) The companies your read scope reaches into, opening on your own. Asking for any other company by URL answers 403.
-Only Admins see the editing controls.
+The editing controls show only to those who may use them (see "Rollcall templates" below).
 
 ### Rollcall writes
 
@@ -95,6 +96,19 @@ Only Admins see the editing controls.
 | Guests (JSAM): search, add, remove | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Fireteams: mark FTLs, fill fireteams, section display options | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Company fireteam policy | All | All | No | Own | Own | No | If acting lead of the company or above | No | No | No | No |
+| Pick the section's rollcall template (from the switched-on ones) | All | All | No | Own | Own | Own | Own | Own | No | No | No |
+
+### Rollcall templates
+
+| Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Company templates: add, edit (new version), roll back, switch on or off for sections, make the company default | All | All | No | Own companies | Own company | No | If acting lead of the company or above | No | No | No | No |
+| Regiment default template: edit, roll back | Yes | No | No | No | No | No | No | No | No | No | No |
+
+"Own company" is `commandsUnit()` on the company: its Commander, Executive Officer and First Sergeant, plus the
+battalion and regiment command above. Another company's command gets 403. The regiment default is always available to
+every section and cannot be switched off. A section uses its pick, else the company default if it is switched on, else
+the regiment default. Every one of these writes is in the audit log.
 
 ### Reports
 
@@ -122,7 +136,6 @@ their own plan unless they also command the company.
 | Org structure: set or clear a unit's game or team label | Yes | No | No |
 | Org structure: assign or remove an acting lead | Yes | No | No |
 | Staff grants: grant or revoke | Yes | No | No |
-| Templates: save a new version, activate an older one | Yes | No | No |
 | Games: add, edit, retire, reinstate or delete a game (a game in use can only be retired) | Yes | No | No |
 | Demo data: generate or purge (only when `DEMO_TOOLS=true`) | Yes | No | No |
 | Whole-roster sync ("Sync now" on the roster) | Yes | No | No |
@@ -212,7 +225,7 @@ All per signed-in user (sign-in is per IP address), per minute.
 | --- | --- |
 | 10 per IP, per route | The two sign-in steps |
 | 60 | Find trooper and the guest picker search |
-| 60, shared | Fireteam changes, company fireteam policy, unmatched dismiss and restore, guest add and remove, platoon topic set and clear, training plan save, approve and send back, starting and leaving view as, correcting and deleting a DCS or LOR |
+| 60, shared | Fireteam changes, company fireteam policy, unmatched dismiss and restore, guest add and remove, platoon topic set and clear, training plan save, approve and send back, every template write and a section's template pick, starting and leaving view as, correcting and deleting a DCS or LOR |
 | 10 | Capture "Try again"; the same practice also only once a minute |
 | 10 | Filing a DCS or LOR (each one uploads a PDF of up to 10 MB) |
 | 5 | Whole-roster sync, manual LOA sync (Admins) |
@@ -227,8 +240,8 @@ All per signed-in user (sign-in is per IP address), per minute.
 | Acting leads | `unit_acting_leads`, `AssignActingLeadHandler`, `RemoveActingLeadHandler` |
 | View as is read-only | `app/Http/Middleware/ReadOnlyWhileViewingAs.php` (every non-GET except `view-as.store`, `view-as.destroy`, `logout`) |
 | Sign-in and session standing | `app/Commands/Auth/AdmitServingMember.php`, `app/Authorization/ServingSession.php`, `EnsureServingMember` middleware |
-| Admin-only checks | In the controllers (`OrgStructureController`, `StaffGrantsController`, `TemplatesController`, `TrooperPlacementController`, `RosterSyncController`, `LoaSyncController`, `AuditLogController`, `DemoDataController`) and again in some handlers. There are no Laravel policies. |
-| Write gates | Each handler under `app/Commands/*` checks `writeScope()` (attendance, capture, guests, game identities, reports) or `commandsUnit()` (fireteams, company policy, platoon topic, training plans; the review on the owning company, in `TrainingPlanRules`) |
+| Admin-only checks | In the controllers (`OrgStructureController`, `StaffGrantsController`, `TrooperPlacementController`, `RosterSyncController`, `LoaSyncController`, `AuditLogController`, `DemoDataController`) and again in some handlers. There are no Laravel policies. |
+| Write gates | Each handler under `app/Commands/*` checks `writeScope()` (attendance, capture, guests, game identities, reports, a section's template pick) or `commandsUnit()` (fireteams, company policy, platoon topic, training plans, the review on the owning company in `TrainingPlanRules`, company templates through `Commands/Templates/TemplateAuthority`) |
 | Counseling (DCS, LOR) | `app/Authorization/CounselingAccess.php` on `ScopeResolver::commandingUnitsOver()`, `writeScope()` and `canSee()`; checked again in each `app/Commands/Counseling` handler and on the download |
 | Week floor | `app/Support/Time/WeekOf.php` (`floor()`, `isBeforeFloor()`), `config/portal.php` |
 | Rate limiters | `app/Providers/AppServiceProvider.php`, unit sync cooldown in `UnitRosterSyncController` |

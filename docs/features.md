@@ -65,9 +65,11 @@ else the first section of the first platoon in your scope. A week selector moves
 1. Signatures: for each trooper, Will attend, Cannot attend or Unsigned, as signed on the forum's rollcall thread.
 2. Section practice: Present, Missed, Makeup or Attached. "Mark all present", "Mark the rest missed" and "use last
    week's marks" fill many rows at once, with Undo. Number keys work as shortcuts (press `?` for the list).
-3. Review and post: the changes made on this visit, then the forum post as BBCode, built from the company's active
-   template and the current marks. Copy it, post it on the forum yourself, then click to mark it posted. The portal
-   never posts to the forum. If marks change after you copied, the page tells you the copy is out of date.
+3. Review and post: the changes made on this visit, then the forum post as BBCode, built from the section's template
+   and the current marks. Copy it, post it on the forum yourself, then click to mark it posted. The portal never posts
+   to the forum. If marks change after you copied, the page tells you the copy is out of date. The section's leaders
+   can pick the template here, from the ones their company switched on and the regiment default; "Company default"
+   follows the company's choice. The pick stays until changed and is written to the audit log.
 
 Every change saves in the background as you click, and is written to the audit log.
 
@@ -154,13 +156,13 @@ Reprimand (LOR), newest first. Who may file and see which is in [permissions.md]
 | --- | --- |
 | Org structure | The unit tree with each unit's lead (billet holder, portfolio officer or acting lead, or vacant) and headcount. Admins can add, rename, move and delete units (a unit with anything attached cannot be deleted), run Import from Cav roster, set a game or team label on a unit (shown next to its name), assign or remove an acting lead (reason required), and place a trooper the sync could not place. Staff groups list their members; ELOA shows each trooper's last line unit ("was"). |
 | Staff grants | Grant a non-Admin user read access to a unit and everything under it, or revoke it, with a reason. Lapsed grants (holder no longer serving) are flagged. |
-| Templates | One rollcall BBCode template per company. A non-Admin sees only the companies in their scope, opening on their own. Each save is a new version with a reason; any older version can be activated again. The preview fills itself from the company's first section in your scope (sample data when there is none), or any other section you pick. The template language is a small Mustache subset (`{{name}}`, repeated and conditional blocks, `upper` and `lower`); mistakes are refused on save. |
+| Templates | Rollcall BBCode templates. A company keeps named templates of its own, and the regiment default (edited by Admins only) shows in every company's list. A company's command (CO, XO, 1SG, the battalion and regiment command above, an acting lead of the company) and Admins can add a template, edit it, roll it back, switch it on or off for the company's sections, and make one the company default. A section uses its leader's pick, else the company default while it is switched on, else the regiment default, so a section always has a post. A non-Admin sees only the companies in their scope, opening on their own. Each save is a new version with a reason; any older version can be activated again. The preview fills itself from the company's first section in your scope (sample data when there is none), or any other section you pick. The template language is a small Mustache subset (`{{name}}`, repeated and conditional blocks, `upper` and `lower`); mistakes are refused on save. |
 | Games | The games the regiment plays: name, the kinds of player ID it asks for (the first is the default), and which telemetry interface reads its attendance (CRCON, BattleMetrics, Nightwatch or none). Add, edit, retire or reinstate a game; delete one only while nothing uses it. |
 | Audit log | Every audited change (and every view as start and stop): who, what, when, the reason, filterable by actor, action, target, date and unit (including everything under it). |
 | Activity log | The pages each user opened and when, newest first, filterable by user and date range, to retrace a bug report. Shows when an Admin was acting as or viewing as someone. Addresses and times only (sensitive query values and every sign-in query are dropped), never form contents. Kept 30 days. |
 | Demo data | Only when `DEMO_TOOLS=true`. Generate 1 to 12 completed weeks of demo signatures, marks and sent reports for a unit's real troopers, or purge them. Never touches a week that holds real records. |
 
-Non-Admins do not see the Settings menu. They can still open Org structure, Staff grants, Templates and Games by URL, read only (Templates only for the companies in their scope).
+Non-Admins do not see the Settings menu. They can still open Org structure, Staff grants, Templates and Games by URL, read only (Templates only for the companies in their scope, and a company's command can manage its own company's templates there).
 
 ## Background jobs
 
@@ -231,8 +233,7 @@ the sum of its direct children's sent reports.
 From the backlog of 2026-10-27. None of these exist in the code today.
 
 - Battalion HQ switch to stop company commanders setting rollcall for every section in their company.
-- A regiment-wide default rollcall template that always shows in Templates; company commanders choosing which templates
-  their rollcalls may use; the DEVCOM 1IC acting as DEVCOM's battalion commander and the 2IC as its XO.
+- The DEVCOM 1IC acting as DEVCOM's battalion commander and the 2IC as its XO.
 - Admin "act as": a full impersonation with that person's permissions (red bar), able to send reports.
 - Moving a platoon to another company keeps its saved settings and templates.
 - An Admin-only page-visit log for reproducing bugs.
