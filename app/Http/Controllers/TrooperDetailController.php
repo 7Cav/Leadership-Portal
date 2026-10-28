@@ -33,6 +33,10 @@ use Inertia\Response;
  * uses: a trooper outside the viewer's effective scope answers 404 exactly like an id that does not exist,
  * whatever link led there, so ids cannot be enumerated. A view-as preview narrows it as it would for that
  * leader (AD-9). A trooper the sync has not placed anywhere belongs to no scope, so only an Admin sees them.
+ *
+ * Every signed-in trooper may also open their own page (decided 2026-10-28, {@see ScopeResolver::isOwnTrooper()}),
+ * read-only for what their scope does not reach: the quick actions and the makeup PM follow the scope as before, so they
+ * stay hidden, and the counseling and staff practice panels decide what the trooper may do on their own record.
  */
 class TrooperDetailController extends Controller
 {
@@ -56,10 +60,13 @@ class TrooperDetailController extends Controller
     {
         $user = $request->user();
 
-        abort_unless($this->scope->canSee($user, $trooper), 404);
+        $inScope = $this->scope->canSee($user, $trooper);
+        abort_unless($inScope || $this->scope->isOwnTrooper($user, $trooper), 404);
 
         return Inertia::render('TrooperDetail', [
             ...$this->milpac->for($trooper, $this->scope->resolve($user), $this->missedWeeks($trooper)),
+            // Opened only because it is the viewer's own page (2026-10-28): the page leaves out what leads into their unit.
+            'ownPage' => ! $inScope,
             // Their attendance across every unit they were in (2026-10-27): anyone who may see the trooper now sees
             // the weeks from before a transfer too. Past weekly reports stay with the unit that sent them.
             'attendance' => $this->history->forTrooper($trooper, WeekOf::start(CarbonImmutable::now())),

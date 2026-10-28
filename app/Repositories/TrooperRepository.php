@@ -273,7 +273,8 @@ interface TrooperRepository
      * The troopers whose username contains one of `$terms`, ignoring case, or (with `$cavId`) whose `cav_id` is exactly
      * that, for the shell's trooper search: those placed in one of `$sectionIds`, plus (with `$withUnplaced`) those the
      * sync has placed nowhere. The `cav_id` match is what finds a trooper with no forum username, whose display name is
-     * `#<cav_id>`. The caller passes the viewer's scope, so scope stays the ScopeResolver's to decide (AD-8). Serving
+     * `#<cav_id>`. The caller passes the viewer's scope, so scope stays the ScopeResolver's to decide (AD-8), and with
+     * `$ownCavId` the viewer's own trooper, whose milpac page they may open wherever they are placed (2026-10-28). Serving
      * troopers come before departed ones, an exact `cav_id` before a username, a username that starts with the first term
      * before one that only contains it, then by username. At most `$limit` rows. `%` and `_` in a term match themselves,
      * not any character.
@@ -282,7 +283,7 @@ interface TrooperRepository
      * @param  iterable<int>  $sectionIds
      * @return EloquentCollection<int, Trooper>
      */
-    public function searchByUsername(array $terms, ?int $cavId, iterable $sectionIds, bool $withUnplaced, int $limit): EloquentCollection;
+    public function searchByUsername(array $terms, ?int $cavId, iterable $sectionIds, bool $withUnplaced, int $limit, ?int $ownCavId = null): EloquentCollection;
 
     /**
      * The rollcall's guest picker (decided 2026-10-23): serving troopers placed in any section (never HQ staff or a group,

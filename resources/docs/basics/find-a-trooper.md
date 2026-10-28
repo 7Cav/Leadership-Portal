@@ -19,7 +19,13 @@ page: /troopers/{trooper}
 2. To find someone by milpac ID, type the number, such as `#1234`.
 3. Use the arrow keys or the mouse to pick them. Their milpac page opens.
 
-> [!good-to-know] You only find troopers in the units you lead or have been given access to. Someone outside them does not show up, and the search says so.
+> [!good-to-know] You only find troopers in the units you lead or have been given access to, and yourself. Someone outside them does not show up, and the search says so.
+
+## Open your own page
+
+1. Search for your own name. Everyone can open their own milpac page, with or without a billet.
+2. It is read only. It shows your counseling records (DCS and LOR) and lets you download them, but you can never file, correct or delete your own.
+3. If you serve on a staff, you record the section practices you attended there.
 
 ## Read the milpac page
 

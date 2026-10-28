@@ -415,6 +415,22 @@ class ScopeResolver
     }
 
     /**
+     * Whether `$trooper` is the user's own milpac (decided 2026-10-28): every signed-in trooper may open their own
+     * milpac page read-only, with no command and no grant, and see their own DCSs and LORs on it. It is the identity
+     * the request runs as (the person acted as, never the Admin doing the acting), and never during a view-as
+     * preview, which shows what its target would see. It widens nothing else: {@see canSee()} is unchanged, so the
+     * roster, the trooper search and every other page still list only the scope, and only the milpac page, its
+     * counseling downloads and the staff member's own practice entries ask this.
+     */
+    public function isOwnTrooper(User $user, Trooper $trooper): bool
+    {
+        return $user->cav_id !== null
+            && $trooper->cav_id !== null
+            && (int) $user->cav_id === (int) $trooper->cav_id
+            && $this->activeViewAs($user) === null;
+    }
+
+    /**
      * Whether `$viewer` may view as `$target`, and what that leaves them seeing. Null means
      * refused — the caller falls back to real scope, it never widens (AD-9):
      *

@@ -72,8 +72,12 @@ Related pages reached from the roster:
   signing, practice attendance and leave, but never the old unit's sent reports. Transfers from before this was
   recorded do not show. Awards are not synced from Cav yet and the page says so. Departed troopers still render,
   marked departed. For staff, the page also lists the section practices they attended (see Staff practices below).
+  Every trooper may open their own page, read only, whatever their billet (decided 2026-10-28): it shows their own
+  DCSs and LORs, and a staff member records their own practices there. The links into their unit and the makeup PM
+  show only when their scope reaches it.
 - Training readiness matrix (`/readiness/<unit>`): troopers by courses for one unit.
-- Find trooper: the search in the shell (also the `/` key) finds troopers in your scope and opens their milpac page.
+- Find trooper: the search in the shell (also the `/` key) finds troopers in your scope, and yourself, and opens their
+  milpac page.
   Type a username, with or without a leading rank and with a space for the dot ("SGT Vasquez R"), or a cav id
   ("#1234"). An empty result says whether it was limited to your units. Departed troopers are flagged.
 
@@ -227,6 +231,8 @@ game's default kind when it fits none.
 
 On a trooper's milpac page, the Counseling panel holds their Developmental Counseling Statements (DCS) and Letters of
 Reprimand (LOR), newest first. Who may file and see which is in [permissions.md](permissions.md#counseling-dcs-and-lor).
+A trooper sees their own records on their own page and downloads them, read only: nobody files on, corrects or deletes
+their own.
 
 - File a record: the type, what it is for (a missed section practice or rollcall, or other conduct), the date it was
   given, the reason and the signed document, a PDF of 10 MB or less. What it is for is required, and stays as filed

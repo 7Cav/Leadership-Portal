@@ -130,12 +130,18 @@ it('shows a DCS to platoon command and up and the trooper\'s own section leaders
     'no command' => ['nobody', false, false],
 ]);
 
-it('hides a Section Leader\'s DCSs from their own ASL and from themselves, but not their LORs', function () {
+it('hides a Section Leader\'s DCSs from their own ASL, and shows them to the Section Leader themselves, read-only', function () {
     $sl = ($this->trooperOf)('sl1');
+    $record = CounselingRecord::factory()->create(['trooper_id' => $sl->id, 'issuer_unit_id' => $this->platoon->id]);
+    // Every trooper sees their own records (2026-10-28), and never files on or changes them.
+    $own = counselingFor($this->users['sl1'], $sl);
 
     expect(counselingFor($this->users['asl1'], $sl)->seesDcs)->toBeFalse()
-        ->and(counselingFor($this->users['sl1'], $sl)->seesDcs)->toBeFalse()
-        ->and(counselingFor($this->users['sl1'], $sl)->seesLor)->toBeTrue()
+        ->and($own->seesDcs)->toBeTrue()
+        ->and($own->seesLor)->toBeTrue()
+        ->and($own->filesDcs)->toBeFalse()
+        ->and($own->filesLor)->toBeFalse()
+        ->and($own->changes($record))->toBeFalse()
         ->and(counselingFor($this->users['pl'], $sl)->seesDcs)->toBeTrue();
 });
 

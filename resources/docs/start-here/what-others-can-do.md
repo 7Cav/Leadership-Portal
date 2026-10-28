@@ -30,7 +30,7 @@ A leadership billet gives you the unit it commands and everything under it. A co
 | --- | --- |
 | Staff grant holder | Read a unit an Admin gave them access to. Never change anything there. |
 | Regimental HQ staff (Chief of Staff, Adjutants General, Finance Officer and the rest of Regimental HQ) | Read the whole regiment, with no grant needed. Never change anything through it. |
-| Trooper with no command billet | Read the docs and their own account. The rest needs a billet or a grant. |
+| Trooper with no command billet | Read the docs, their own account and their own milpac page (with their own counseling records, read only). Staff record the practices they attended there. The rest needs a billet or a grant. |
 
 ## Admins
 

@@ -18,8 +18,9 @@ use Illuminate\Http\Request;
  *
  * It offers exactly the troopers the milpac page would open for this viewer (AD-8): placed in a section of their
  * effective scope, which a view-as preview narrows (AD-9), and the unplaced ones only to an Admin, the same rule as
- * {@see ScopeResolver::canSee()}. A trooper the page would answer 404 for is never in the list, so the search cannot
- * be used to find out who exists outside the viewer's scope. Throttled per user by the `trooper-search` limiter.
+ * {@see ScopeResolver::canSee()}, plus the viewer themselves ({@see ScopeResolver::isOwnTrooper()}). A trooper the page
+ * would answer 404 for is never in the list, so the search cannot be used to find out who exists outside the viewer's
+ * scope. Throttled per user by the `trooper-search` limiter.
  */
 class TrooperSearchController extends Controller
 {
@@ -58,7 +59,10 @@ class TrooperSearchController extends Controller
 
         // One row over the limit says whether there are more than shown, without counting them all.
         $admin = $this->scope->actsAsAdmin($user);
-        $found = $this->troopers->searchByUsername($this->usernameTerms($term), $this->cavIdIn($term), $this->scope->resolve($user), $admin, self::LIMIT + 1);
+        // The viewer's own trooper too, as the milpac page opens it for them (ScopeResolver::isOwnTrooper(): never in a
+        // view-as preview). Nobody else outside the scope.
+        $own = $user->cav_id !== null && $this->scope->activeViewAs($user) === null ? (int) $user->cav_id : null;
+        $found = $this->troopers->searchByUsername($this->usernameTerms($term), $this->cavIdIn($term), $this->scope->resolve($user), $admin, self::LIMIT + 1, $own);
         $units = $this->units->tree()->keyBy('id');
 
         return response()->json([

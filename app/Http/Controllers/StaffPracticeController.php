@@ -20,8 +20,9 @@ use Illuminate\Validation\ValidationException;
  * The section practices a staff member attended (#448), entered and removed on their milpac. Orchestration only: each
  * write is one audited Command whose handler decides who may (`StaffPracticeAccess`: the staff member, their staff
  * leader, an Admin) and which practice and week; a view-as preview is refused before it gets here
- * (`ReadOnlyWhileViewingAs`). A trooper the viewer cannot see answers 404, like one that does not exist (AD-8); a
- * refusal of the actor is a 403, and a refused practice or week is a validation error on its field.
+ * (`ReadOnlyWhileViewingAs`). A trooper the viewer cannot see, unless it is the viewer themselves, answers 404, like one
+ * that does not exist (AD-8); a refusal of the actor is a 403, and a refused practice or week is a validation error on
+ * its field.
  */
 class StaffPracticeController extends Controller
 {
@@ -55,7 +56,8 @@ class StaffPracticeController extends Controller
     private function attempt(Request $request, int $trooper, Closure $write): RedirectResponse
     {
         $found = $this->troopers->find($trooper);
-        abort_unless($found !== null && $this->scope->canSee($request->user(), $found), 404);
+        // Their own page too (2026-10-28): a staff member with no command or grant self-reports from it.
+        abort_unless($found !== null && ($this->scope->canSee($request->user(), $found) || $this->scope->isOwnTrooper($request->user(), $found)), 404);
 
         $data = $request->validate([
             'section_id' => ['required', 'integer'],

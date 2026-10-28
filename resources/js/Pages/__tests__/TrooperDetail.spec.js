@@ -176,6 +176,10 @@ describe('TrooperDetail', () => {
             expect(page({ trooper: trooper({ section: null }) }).get('[data-testid="back-to-roster"]').attributes('href')).toBe('/roster');
         });
 
+        it('leaves the link out on a trooper\'s own page opened outside their scope, whose roster they cannot open', () => {
+            expect(page({ ownPage: true }).find('[data-testid="back-to-roster"]').exists()).toBe(false);
+        });
+
         it('opens the Cav milpac as "View on 7cav.us"', () => {
             expect(page().get('[data-testid="milpac-link"]').text()).toContain('View on 7cav.us');
         });

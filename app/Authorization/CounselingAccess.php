@@ -24,11 +24,16 @@ use Illuminate\Support\Collection;
  *    or sees the DCSs of, someone who holds the same unit (an ASL and their Section Leader, a Platoon Sergeant and their
  *    Platoon Leader) or a unit above theirs (the Section Leader of a trooper who is acting lead of their platoon), and
  *    nobody files on themselves. The next echelon up does.
+ *  - **Their own records**: every trooper sees their own DCSs and LORs, read-only, on their own milpac page
+ *    ({@see ScopeResolver::isOwnTrooper()}, decided 2026-10-28), with no command and no grant. They never file, correct
+ *    or delete their own; that refusal is the same as before (an Admin keeps changing records as an Admin).
  *  - "Themselves" is also the person really signed in while acting as someone ({@see RealActor}): acting as a billet
- *    or as a person never lets anyone file on, see the DCSs of, or change the records of the one doing the acting.
+ *    or as a person never lets anyone file on, see the DCSs of, or change the records of the one doing the acting:
+ *    their own page shows them their DCSs only as themselves, not through the identity they act as.
  *  - **See a DCS**: Admins, and every leader who could file one on the trooper, which is the chain from Platoon
  *    Leader up plus the trooper's own Section Leader and ASL. A staff grant does not. **See an LOR**: everyone who
- *    can see the trooper ({@see ScopeResolver::canSee()}). Nothing is seen of a trooper the viewer cannot see.
+ *    can see the trooper ({@see ScopeResolver::canSee()}). Nothing is seen of a trooper the viewer cannot see, but
+ *    their own.
  *  - **Correct or delete**: Admins, and the commanders of the unit the record was filed through (the issuer and the
  *    chain above them), as long as they still see the record. A record with no issuing unit (filed by an Admin, or its
  *    unit deleted) is the Admins' alone.
@@ -54,6 +59,8 @@ class CounselingAccess
         $section = $trooper->primary_section_id;
         $self = $this->isSelf($user, $trooper);
         $canSee = $this->scope->canSee($user, $trooper);
+        // Their own records, read-only, whatever their scope (2026-10-28): never a write, which $self refuses below.
+        $own = $this->scope->isOwnTrooper($user, $trooper);
         $writeScope = $section === null && ! $user->is_admin ? collect() : $this->scope->writeScope($user);
 
         $issuing = [CounselingType::Dcs->value => null, CounselingType::Lor->value => null];
@@ -72,8 +79,8 @@ class CounselingAccess
         $readsAsAdmin = $this->scope->actsAsAdmin($user);
 
         return new CounselingPermissions(
-            seesDcs: $canSee && ($readsAsAdmin || $issuing[CounselingType::Dcs->value] !== null),
-            seesLor: $canSee,
+            seesDcs: $own || ($canSee && ($readsAsAdmin || $issuing[CounselingType::Dcs->value] !== null)),
+            seesLor: $own || $canSee,
             filesDcs: ! $departed && ! $self && ($admin || $issuing[CounselingType::Dcs->value] !== null),
             filesLor: ! $departed && ! $self && ($admin || $issuing[CounselingType::Lor->value] !== null),
             admin: $admin,

@@ -15,7 +15,7 @@ audience: everyone
 
 ## Add a practice
 
-1. Open the staff member's milpac page.
+1. Open the staff member's milpac page. For your own, search for your name: everyone can open their own page.
 2. In **Section practices attended**, choose **Add a practice**.
 3. Pick the section whose practice they attended and the Cav week, then choose **Record practice**. Sections with nobody in them are not listed.
 

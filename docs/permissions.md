@@ -13,6 +13,8 @@
   anything there.
 - Regimental HQ staff (the Chief of Staff, the Adjutants General, the Finance Officer and any other billet in the
   `Regimental HQ` group) read the whole regiment, as a staff grant on the regiment would. No Admin has to give it.
+- Every trooper may open their own milpac page, read only, with their own DCSs and LORs, whatever their billet. It opens
+  nobody else's.
 - "View as" previews the portal as a unit (or, for Admins, as a person). It only narrows what you see, and every change
   is refused while it is on.
 - Writes also stop at a few hard edges whatever your rank: weeks older than the week floor, weeks whose section report
@@ -76,8 +78,8 @@ No = refused (the page answers 403 or 404, or the control is not shown).
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Home dashboard (line units in scope) | All | All | Empty (1) | Own | Own | Own | Own | Own | Empty | Read | Target |
 | Roster, trooper sheet, readiness matrix | All | All | Own | Own | Own | Own | Own | Own | Empty | Read | Target |
-| A trooper's milpac page | All, plus unplaced | All | Own | Own | Own | Own | Own | Own | No (2) | Read | Target |
-| Find trooper (shell search) | All, plus unplaced | All | Own | Own | Own | Own | Own | Own | Nothing found | Read | Target |
+| A trooper's milpac page | All, plus unplaced | All | Own | Own | Own | Own | Own | Own | Their own only (2) | Read | Target |
+| Find trooper (shell search) | All, plus unplaced | All | Own | Own | Own | Own | Own | Own | Themselves only (2) | Read | Target |
 | Rollcall (sections in scope) | All | All | None (1) | Own | Own | Own | Own | Own | Empty picker | Read | Target |
 | Reports and roll-ups (line units) | All | All | None (1) | Own | Own | Own | Own | Own | None | Read | Target |
 | Game identities (every serving trooper placed in scope: sections, HQ staff, groups) | All | All | Own | Own | Own | Own | Own | Own | None | Read | Target |
@@ -96,7 +98,10 @@ No = refused (the page answers 403 or 404, or the control is not shown).
 
 (1) Portfolio officers command staff groups. Groups have no rollcall, reports or KPIs, so these pages show nothing
 for their portfolio. They see their staff on the roster and the org page.
-(2) A trooper with no command billet and no grant has an empty scope, so even their own milpac page answers 404.
+(2) Every signed-in trooper may open their own milpac page, read only, whatever their scope (decided 2026-10-28), and
+the search finds them. It shows their own DCSs and LORs, and a staff member records their own practices there. It opens
+no other trooper, and leaves out the links into their unit (section roster, rollcall, readiness matrix, makeup PM)
+unless their scope reaches it. During a view-as preview only the preview's scope counts.
 (3) Not in the sidebar for non-Admins, but any signed-in user can open it by URL and read it. Only Admins see the
 editing controls.
 (4) The companies your read scope reaches into, opening on your own, and the sections of those in your scope. Asking
@@ -190,14 +195,15 @@ count: an ASL does not counsel their Section Leader, a Platoon Sergeant does not
 nobody files on themselves. Neither does a command inside the trooper's own: if a rifleman is made acting Platoon
 Leader of their own platoon, their Section Leader no longer files on them, sees their DCSs or changes their records.
 The echelon above does. Acting as a billet or a person changes none of this for the person really signed in: they
-still cannot file on themselves, see their own DCSs or change their own records.
+still cannot file on themselves or change their own records, and they see their own DCSs only as themselves, not
+through the identity they act as.
 
 | Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | File a Developmental Counseling Statement (DCS) | All | All | Own | Own | Own | Own | Own | Own | No | No | No |
 | File a Letter of Reprimand (LOR) | All | All | No (5) | Own | Own | Own | If acting lead of a platoon or above | No | No | No | No |
-| See a DCS and download its document | All | All | Own | Own | Own | Own | Own | Own section | No | No | Target (6) |
-| See an LOR and download its document | All | All | Own | Own | Own | Own | Own | Own | No | Read | Target |
+| See a DCS and download its document | All | All | Own | Own | Own | Own | Own | Own section | Their own (8) | Their own (8) | Target (6) |
+| See an LOR and download its document | All | All | Own | Own | Own | Own | Own | Own | Their own (8) | Read | Target |
 | Correct the date or reason, or delete (reason required) | All | The issuer's chain (7) | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | No | No | No |
 
 (5) An LOR needs command from platoon level up on the line. A portfolio officer files a DCS on their staff; an LOR on
@@ -208,6 +214,9 @@ every DCS.
 (7) The leaders who command the unit the record was filed through: the issuer, anyone sharing that billet's unit, and
 everyone above, as long as they still counsel the trooper by the rules above. A record an Admin filed (no unit) is the
 Admins' alone.
+(8) Every trooper, in every column, sees their own DCSs and LORs on their own milpac page and downloads their documents
+(decided 2026-10-28). It is read only: nobody files on, corrects or deletes their own records, except that an Admin
+still corrects and deletes as an Admin.
 
 A trooper who has left the Cav (no longer serving) has read-only counseling: nobody may file a DCS or LOR on them, or
 correct or delete one, Admins included, and the panel says so. Whoever could see their records still sees and downloads
@@ -221,15 +230,15 @@ viewer sees, so they never give a DCS away.
 
 A staff member is a trooper placed on an HQ node or in a staff department. Their staff leader is whoever commands the
 HQ or department they are placed in, and the chain above it (`commandsUnit()`): a billet, an acting lead or a held
-billet, never a staff grant. The staff member records their own practices on their milpac page when they can open it
-(their command or a grant must reach their own unit); nobody gains read access for this.
+billet, never a staff grant. The staff member records their own practices on their own milpac page, which every
+trooper may open (decided 2026-10-28); that opens no other trooper's page.
 
 | Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| See a staff member's attended practices (milpac, roster sheet) | All | All | Own | Own | Own | Own | Own | Own | No | Read | Target |
-| Add or remove one | All | Own staff | Own staff | Own staff | Own staff | Own staff | Own staff | No | Self (8) | Self (8) | No |
+| See a staff member's attended practices (milpac, roster sheet) | All | All | Own | Own | Own | Own | Own | Own | Their own (milpac) | Read | Target |
+| Add or remove one | All | Own staff | Own staff | Own staff | Own staff | Own staff | Own staff | No | Self (9) | Self (9) | No |
 
-(8) A staff member may add and remove their own entries, which read as self-reported.
+(9) A staff member may add and remove their own entries, which read as self-reported, from their own milpac page.
 
 ## How scope is worked out
 
