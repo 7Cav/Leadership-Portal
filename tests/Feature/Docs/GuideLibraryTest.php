@@ -109,10 +109,7 @@ it('renders the "Why this matters" and "Good to know" call-outs, on the marker\'
 });
 
 it('renders a table', function () {
-    docWrite($this->docs, 'basics/roles.md', docMeta('basics'), "| Who | Can do |
-| --- | --- |
-| Section Leader | Rollcall |
-");
+    docWrite($this->docs, 'basics/roles.md', docMeta('basics'), "| Who | Can do |\n| --- | --- |\n| Section Leader | Rollcall |\n");
 
     $html = docLibrary($this)->find(Audience::Everyone, 'basics', 'roles')->html;
 
