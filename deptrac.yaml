@@ -267,3 +267,6 @@ deptrac:
       # The activity log (#382): the page-visit middleware stores each visit through PageVisitRepository after the
       # response. A visit is a read, not a state change, so it has no Command and no audit entry (AD-16).
       - Repository
+      # The shell's scope label leaves out the empty line units the unit switcher hides, by the one "has troopers"
+      # definition (Headcount, #442).
+      - Kpi

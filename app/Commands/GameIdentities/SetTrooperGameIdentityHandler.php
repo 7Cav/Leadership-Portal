@@ -88,7 +88,11 @@ class SetTrooperGameIdentityHandler
         }
 
         $platformId = $command->platformId;
-        $format = $command->reportedByServer ? null : IdKindFormat::for($idKind);
+        // An ID kept under the kind it already has is not checked again: an older row (linked from an unmatched player,
+        // or given the first kind by the #428 migration) may not fit its kind's shape, and a leader who only renames
+        // it should not be refused for an ID they never touched. Changing the ID or the kind is checked as ever.
+        $unchanged = $existing !== null && $existing->platform_id === $command->platformId && $existing->id_kind === $idKind;
+        $format = $command->reportedByServer || $unchanged ? null : IdKindFormat::for($idKind);
 
         if ($format !== null) {
             $platformId = $format->canonical($platformId);

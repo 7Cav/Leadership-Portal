@@ -14,11 +14,13 @@ never a KPI: no rate, at-risk flag or roll-up reads it, so the roll-up equality 
 its children's sent snapshots) holds as before. A sent report keeps the headcount it was sent with, in the same
 `weekly_reports.kpis` JSON (no column); one sent before this has none and shows none.
 
-**Units with no troopers (#442).** "Has troopers" is a headcount above zero, defined once in
-`Headcount::withoutEmptyLineUnits()`. A line unit with nobody serving placed in it or under it is not one of a roll-up's
-children (`RollupKpis::children()`), is not in `ReportChain`, and is left off the roster's ORBAT and picker and Home. A
-sent snapshot is never rewritten, so a child frozen as missing stays missing on that report. The org page does not use
-it and lists every unit.
+**Units with no troopers (#442, #478).** "Has troopers" is a headcount above zero, defined once in
+`Headcount::withoutEmptyLineUnits()`. A line unit with nobody serving placed in it or under it is left off the roster's
+ORBAT and picker and Home. The report chain asks for more, in `Headcount::reportingLineUnits()`: a section takes part
+when it has troopers (now or during the week) or sent the week's report, and a unit above sections when one of its line
+children takes part (or it sent). So a platoon whose only troopers are its HQ is not one of a roll-up's children
+(`RollupKpis::children()`) and is not in `ReportChain`, though the roster shows it. A sent snapshot is never rewritten,
+so a child frozen as missing stays missing on that report. The org page does not use either and lists every unit.
 
 **Transfers (2026-10-27).** Each week of the window is read against the section the trooper was placed in that week,
 from the placement history (`trooper_placements`, written by the roster sync and the Admin's manual placement). Their

@@ -114,6 +114,24 @@ describe('the shape of an ID', function () {
         'Arma Reforger Player ID' => ['arma', 'Player ID', 'any value'],
     ]);
 
+    it('lets an older identity whose ID does not fit its kind be renamed, and checks it once the ID or kind changes', function () {
+        // An Epic player linked from the unmatched list before the kinds were checked: stored under the first kind.
+        TrooperGameIdentity::factory()->create(['trooper_id' => $this->mine->id, 'player_name' => 'Ortega', 'platform_id' => FORMATS_EPIC, 'id_kind' => 'Steam ID']);
+
+        formatsSave($this, ['player_name' => " Ortega\u{200B} Jr ", 'platform_id' => FORMATS_EPIC, 'id_kind' => 'Steam ID'])->assertSessionHasNoErrors();
+
+        $identity = TrooperGameIdentity::query()->sole();
+        expect($identity->player_name)->toBe('Ortega Jr')
+            ->and($identity->platform_id)->toBe(FORMATS_EPIC)
+            ->and($identity->id_kind)->toBe('Steam ID');
+
+        formatsSave($this, ['player_name' => 'Ortega Jr', 'platform_id' => '0002105c01b748ada8d8cf5b32e70094', 'id_kind' => 'Steam ID'])
+            ->assertSessionHasErrors('platform_id');
+        formatsSave($this, ['player_name' => 'Ortega Jr', 'platform_id' => FORMATS_EPIC, 'id_kind' => 'Epic ID'])->assertSessionHasNoErrors();
+
+        expect(TrooperGameIdentity::query()->sole()->id_kind)->toBe('Epic ID');
+    });
+
     it('follows a kind an Admin adds later by its name', function () {
         game('arma')->update(['id_kinds' => ['Player ID', 'Steam ID']]);
 

@@ -125,8 +125,8 @@ on none.
     Unaccounted troopers explained, Training subject filled, Notes reviewed), a reason for each unaccounted trooper from
     a fixed list, the training subject (last sent subject offered as a suggestion), notes, history and an 8 week trend.
   - Platoon and higher: the same, but the KPIs are the sum of the direct children's sent reports, with each child's
-    status. The "Every unit has sent" check names who is holding up the chain. A child with no troopers is not one of
-    them (see "Units with no troopers").
+    status. The "Every unit has sent" check names who is holding up the chain. A child with no troopers, or with only
+    HQ staff, is not one of them (see "Units with no troopers").
   - Platoon training topic: the platoon's chain of command sets a subject for its sections for the week, either as a
     default the sections can change or enforced (locked on every section's report).
   - Monthly training plan (`/reports/<platoon>/plans/<YYYY-MM>`, "Training plan" on a platoon's report): the
@@ -148,7 +148,7 @@ on none.
 ### Unit switcher and View as
 
 - Unit switcher: the block at the top of the sidebar names the top unit of your scope (several for a staff grant over
-  more than one unit), and the breadcrumb starts there. Open it to list every unit in your scope as a tree, sections
+  more than one unit, empty line units left out as in the list), and the breadcrumb starts there. Open it to list every unit in your scope as a tree, sections
   included and empty line units left out. Choosing one opens the page you are on for that unit (its roster, a
   section's rollcall, or its report or roll-up for the same week), else that unit's roster. It is navigation only: it
   never changes what you can see or do.
@@ -173,14 +173,21 @@ in it, it is left out of:
 - Home's progress lanes and step matrix, the unit table, the sparkline's "every section sent" test, and Needs attention.
 
 It comes back on all of them as soon as a trooper is placed in it or under it, by the roster sync or by an Admin, with
-no other step. HQ staff count: a company whose only trooper is its commander has troopers. So do troopers on leave: a
-section whose only members are on LOA still counts. A report already sent keeps what it froze, so a unit listed as
-missing at send stays listed on that report. Org structure keeps listing every unit.
+no other step. Troopers on leave count: a section whose only members are on LOA still counts. A report already sent
+keeps what it froze, so a unit listed as missing at send stays listed on that report. Org structure keeps listing every
+unit.
 
-The report chain asks about the report's own week: a unit counts for a week when it had troopers at any point of it
-(from the placement history), or sent that week's report. So a section that sends and is then emptied by a move, or
-whose last trooper leaves the Cav, still rolls up into its platoon for that week, and drops out from the first week it
-is empty.
+HQ staff count for the roster and Home, but not for the report chain, because they are on no rollcall and have no
+report of their own. A platoon whose only troopers are its PL and PSG, with every section empty, is shown on the
+roster and the unit switcher, but it has no report to send: it is not a child its company waits on, Home's unit table
+and Needs attention leave it out as the report chain does, and its own report says there is nothing to roll up. The same goes for a company whose only troopers are its HQ. In
+the report chain, a section counts when it has troopers, and a platoon, company or battalion counts when a unit under
+it does.
+
+The report chain asks about the report's own week: a section counts for a week when it had troopers at any point of it
+(from the placement history), and any unit counts when it sent that week's report. So a section that sends and is then
+emptied by a move, or whose last trooper leaves the Cav, still rolls up into its platoon for that week, and keeps its
+platoon and company in that week's chain, and drops out from the first week it is empty.
 
 ### Game identities
 
@@ -195,7 +202,9 @@ outside a section only lets the capture recognise them; attendance is still mark
 
 The ID is checked against the shape of its kind when it is saved: a Steam ID is 17 digits starting 7656119, an Epic ID
 32 characters of 0 to 9 and a to f (stored lower case, as the game server reports it). Other kinds, such as Xbox ID or
-Arma's Player ID, take any value. The hint under the ID field says what the chosen kind looks like. Names and IDs are
+Arma's Player ID, take any value. The hint under the ID field says what the chosen kind looks like. An identity saved
+with the same ID and kind it already has is not checked again, so an older one that does not fit its kind can still be
+renamed; changing its ID or kind checks it. Names and IDs are
 stored without hidden characters (zero-width spaces, direction marks and the like), normalised and trimmed; a value
 with nothing left is refused. A name that mixes alphabets, such as Latin and Cyrillic, is saved with a "Check this
 name" marker, since a letter may be a look-alike. Linking an unmatched player from the rollcall takes the ID the server
@@ -240,7 +249,7 @@ Staff (troopers placed on an HQ node, or in a staff department such as S6) are o
 Reservists and New Recruits are groups but not staff. On a staff member's milpac page, "Section practices attended"
 lists the section practices they attended, newest week first; the roster's trooper sheet shows the same list, read only.
 
-- Add one: the section (any section of the regiment) and the Cav week (this week and up to 11 back, never before the
+- Add one: the section (any section of the regiment with troopers in it) and the Cav week (this week and up to 11 back, never before the
   week floor). One entry per staff member per section per week. Who may is in
   [permissions.md](permissions.md#staff-practices). Each entry says who entered it; one the staff member entered
   themselves reads "Self-reported by".
@@ -348,4 +357,4 @@ the sum of its direct children's sent reports.
 | Training plans | `app/Commands/TrainingPlans/`, `TrainingPlanController`, `resources/js/Pages/Reports/TrainingPlan.vue`, `resources/js/lib/trainingPlan.js` |
 | Staff practices | `app/Commands/StaffPractices/`, `app/Authorization/StaffPracticeAccess.php`, `app/Milpac/StaffPracticeHistory.php`, `resources/js/components/milpac/StaffPracticesPanel.vue` (stored in `cross_section_sightings` with source `staff`) |
 | Counseling | `app/Commands/Counseling/`, `app/Authorization/CounselingAccess.php`, `app/Milpac/CounselingHistory.php`, `app/Milpac/CounselingStanding.php`, `app/Integration/GoogleDrive/`, `app/Jobs/UploadCounselingDocumentJob.php`, `resources/js/components/milpac/CounselingPanel.vue` |
-| Units with no troopers | `app/Kpi/Headcount.php` (`withoutEmptyLineUnits`) |
+| Units with no troopers | `app/Kpi/Headcount.php` (`withoutEmptyLineUnits` for the roster and Home, `reportingLineUnits` for the report chain) |

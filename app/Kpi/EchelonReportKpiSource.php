@@ -10,7 +10,7 @@ use Carbon\CarbonImmutable;
  * {@see ReportKpiSource} by echelon: a section reports its live KPIs from the shared service; any
  * other unit reports the roll-up of its direct children's sent snapshots, with the children that
  * have not sent listed rather than estimated (AD-13). A non-leaf unit with no children to roll up
- * (none at all, or none with troopers, #442) is refused.
+ * (none at all, or none that reports, #442, #478: a platoon whose only troopers are its HQ) is refused.
  */
 final class EchelonReportKpiSource implements ReportKpiSource
 {

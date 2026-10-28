@@ -23,9 +23,10 @@ use TypeError;
  * unsent non-leaf `RollupKpis`' sum of its children's sent snapshots (AD-13), and the delta comes
  * from `KpiDelta` against the prior week's sent snapshot, as `WeeklyReportKpis` computes it.
  *
- * A line unit with no troopers in it or under it is not in the chain (#442, the one test in
- * {@see Headcount::withoutEmptyLineUnits()}): it is not drawn, not summed and holds nobody up. The
- * root is always drawn, as the unit the caller asked for.
+ * A line unit with no report to roll up is not in the chain (#442, #478, the one test in
+ * {@see Headcount::reportingLineUnits()}): an empty section, or a unit with no section under it that
+ * has troopers, such as a platoon whose only troopers are its HQ. It is not drawn, not summed and
+ * holds nobody up. The root is always drawn, as the unit the caller asked for.
  *
  * Seven queries whatever the size of the chain — the subtree, which of it has troopers (two), this
  * week's and last week's reports, and the section KPIs — so a battalion or the whole regiment reads
@@ -53,12 +54,12 @@ final class ReportChain
     {
         $weekStart = WeekOf::requireStart($weekStart);
         // The reporting chain is the line: groups (staff, ELOA, Reservists, New Recruits) have no report (2026-10-24),
-        // and neither has a line unit nobody is placed in or under (#442).
-        // A unit that sent this week's report stays, however empty it is now: its numbers belong to the week.
+        // and neither has an empty section, or a unit with no section under it that has troopers (#442, #478).
+        // A unit that sent this week's report stays, however empty it is now, and so do the units above it.
         $subtree = $this->units->lineSubtree($root);
         $reports = $this->reports->forUnits($subtree->modelKeys(), $weekStart);
         $sent = $reports->filter(fn (WeeklyReport $report) => $report->status === WeeklyReportStatus::Sent)->keys()->all();
-        $units = $this->headcount->withoutEmptyLineUnits($subtree, $weekStart, $sent)
+        $units = $this->headcount->reportingLineUnits($subtree, $weekStart, $sent)
             ->reject(fn (Unit $unit) => $unit->id === $root->id)
             ->prepend($root);
         $ids = $units->modelKeys();

@@ -1,8 +1,11 @@
 <?php
 
+use App\Kpi\ChainNode;
 use App\Kpi\Headcount;
 use App\Kpi\Ratio;
+use App\Kpi\ReportChain;
 use App\Kpi\ReportSnapshot;
+use App\Kpi\RollupKpis;
 use App\Kpi\UnitKpis;
 use App\Models\Loa;
 use App\Models\PlacementSource;
@@ -12,6 +15,7 @@ use App\Models\TrooperStatus;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReport;
+use App\Models\WeeklyReportStatus;
 use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
@@ -50,6 +54,12 @@ function sendEmptyUnitsReport(int $unitId, CarbonImmutable $week, int $strength 
 {
     $snapshot = (new ReportSnapshot(new UnitKpis($strength, new Ratio(1, 2), new Ratio(1, 2), 0, 0, 0), null))->toArray();
     app(WeeklyReportRepository::class)->send($unitId, $week, $snapshot, null, User::factory()->create()->id, 'digest', null);
+}
+
+/** @return list<int> the ids of every unit in a report chain, depth-first */
+function emptyUnitsChainIds(ChainNode $node): array
+{
+    return [$node->unit->id, ...collect($node->children)->flatMap(fn (ChainNode $child) => emptyUnitsChainIds($child))->all()];
 }
 
 /** @return list<int> the ids of every unit in a roll-up tree prop, depth-first */
@@ -263,4 +273,96 @@ it('defines "has troopers" once: anyone serving in the unit or under it, HQ staf
     expect($headcount->withoutEmptyLineUnits(app(UnitRepository::class)->tree())->pluck('id')->all())->toEqualCanonicalizing([
         $this->battalion->id, $this->alpha->id, $this->platoon->id, $this->manned->id, $this->echo->id,
     ]);
+});
+
+// #478: HQ staff are on no rollcall, so a unit whose only troopers are its HQ has no report to roll up. The roster and
+// Home still show it; the report chain leaves it out like an empty unit.
+it('leaves a platoon whose only troopers are its HQ out of its company\'s roll-up, so nobody waits on it', function () {
+    $units = app(UnitRepository::class);
+    $hqOnly = $units->create(UnitType::Platoon, '2nd Platoon', '2/A/2-7', $this->alpha->id);
+    $units->create(UnitType::Section, '1st Section', '1/2/A/2-7', $hqOnly->id);
+    // Its PL and PSG, placed on the platoon; its section is empty.
+    manUnits($hqOnly, $hqOnly);
+
+    expect(app(RollupKpis::class)->children($this->alpha, $this->weekStart)->modelKeys())->toBe([$this->platoon->id])
+        ->and(app(RollupKpis::class)->children($hqOnly, $this->weekStart)->all())->toBe([])
+        ->and(emptyUnitsChainIds(app(ReportChain::class)->build($this->battalion, $this->weekStart)))->not->toContain($hqOnly->id);
+
+    $this->actingAs($this->admin)->get("/reports/{$this->alpha->id}/{$this->week}")
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('children', fn ($children) => collect($children)->pluck('id')->all() === [$this->platoon->id])
+            ->where('missingChildren', [$this->platoon->id]));
+
+    // Its own report has nothing to roll up, and cannot be sent.
+    $this->actingAs($this->admin)->get("/reports/{$hqOnly->id}/{$this->week}")
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('kpiError', 'No unit under this one has troopers in it, so there are no reports to roll up.'));
+    $this->actingAs($this->admin)->post("/reports/{$hqOnly->id}/{$this->week}/send", ['reason' => 'Weekly report'])
+        ->assertSessionHasErrors('report');
+
+    // The company sends complete once its one reporting platoon has.
+    sendEmptyUnitsReport($this->platoon->id, $this->weekStart);
+    $this->actingAs($this->admin)->post("/reports/{$this->alpha->id}/{$this->week}/send", ['reason' => 'Weekly report'])
+        ->assertSessionHasNoErrors();
+    expect(ReportSnapshot::fromArray(WeeklyReport::query()->where('unit_id', $this->alpha->id)->sole()->kpis)->missingChildren)->toBe([]);
+});
+
+it('keeps a platoon whose only troopers are its HQ out of Home\'s "Needs attention", and on the roster', function () {
+    $units = app(UnitRepository::class);
+    $hqOnly = $units->create(UnitType::Platoon, '2nd Platoon', '2/A/2-7', $this->alpha->id);
+    $hqSection = $units->create(UnitType::Section, '1st Section', '1/2/A/2-7', $hqOnly->id);
+    manUnits($hqOnly);
+
+    $this->actingAs($this->admin)->get('/home')
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('attention.items', fn ($items) => collect($items)->where('kind', 'holding')->pluck('unit.id')->all() === [$this->manned->id]));
+
+    $this->actingAs($this->admin)->get("/roster/{$this->battalion->id}")
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('units', fn ($shown) => collect($shown)->pluck('id')->contains($hqOnly->id) && ! collect($shown)->pluck('id')->contains($hqSection->id))
+            ->where('scopeOptions', fn ($options) => collect($options)->pluck('id')->contains($hqOnly->id)));
+});
+
+it('still rolls up a platoon with one manned section, its HQ on it or not', function () {
+    manUnits($this->platoon);
+
+    expect(app(RollupKpis::class)->children($this->platoon, $this->weekStart)->modelKeys())->toBe([$this->manned->id])
+        ->and(app(RollupKpis::class)->children($this->alpha, $this->weekStart)->modelKeys())->toBe([$this->platoon->id])
+        ->and(app(RollupKpis::class)->children($this->battalion, $this->weekStart)->modelKeys())->toBe([$this->alpha->id]);
+
+    sendEmptyUnitsReport($this->manned->id, $this->weekStart);
+    $this->actingAs($this->admin)->post("/reports/{$this->platoon->id}/{$this->week}/send", ['reason' => 'Weekly report'])
+        ->assertSessionHasNoErrors();
+    expect(WeeklyReport::query()->where('unit_id', $this->platoon->id)->sole()->status)->toBe(WeeklyReportStatus::Sent);
+});
+
+it('leaves a company whose only troopers are its HQ out of the battalion\'s roll-up, and keeps it on the roster', function () {
+    // Echo's commander and first sergeant, placed on the company; every unit under it is empty.
+    manUnits($this->echo, $this->echo);
+
+    expect(app(RollupKpis::class)->children($this->battalion, $this->weekStart)->modelKeys())->toBe([$this->alpha->id])
+        ->and(emptyUnitsChainIds(app(ReportChain::class)->build($this->battalion, $this->weekStart)))->not->toContain($this->echo->id);
+
+    $this->actingAs($this->admin)->get("/reports/{$this->battalion->id}/{$this->week}")
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('children', fn ($children) => collect($children)->pluck('id')->all() === [$this->alpha->id])
+            ->where('missingChildren', [$this->alpha->id]));
+    $this->actingAs($this->admin)->get("/roster/{$this->battalion->id}")
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('units', fn ($units) => collect($units)->pluck('id')->contains($this->echo->id)));
+});
+
+it('keeps the platoon and company of a section that sent in that week\'s chain after everyone in them leaves', function () {
+    sendEmptyUnitsReport($this->manned->id, $this->weekStart);
+    // Every trooper under the battalion leaves the Cav: nobody is placed anywhere under it now.
+    $this->troopers->each(fn (Trooper $t) => $t->forceFill(['status' => TrooperStatus::Inactive])->save());
+
+    expect(emptyUnitsChainIds(app(ReportChain::class)->build($this->battalion, $this->weekStart)))
+        ->toBe([$this->battalion->id, $this->alpha->id, $this->platoon->id, $this->manned->id])
+        ->and(app(RollupKpis::class)->children($this->battalion, $this->weekStart)->modelKeys())->toBe([$this->alpha->id])
+        ->and(app(RollupKpis::class)->children($this->alpha, $this->weekStart)->modelKeys())->toBe([$this->platoon->id])
+        ->and(app(RollupKpis::class)->forUnit($this->platoon, $this->weekStart)->isComplete())->toBeTrue();
+
+    // The week after, nothing under the battalion reports.
+    expect(app(RollupKpis::class)->children($this->battalion, $this->weekStart->addWeek())->all())->toBe([]);
 });
