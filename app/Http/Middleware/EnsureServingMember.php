@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Authorization\ActAs;
 use App\Authorization\ServingSession;
 use App\Commands\Auth\AdmitServingMember;
 use Closure;
@@ -25,7 +26,9 @@ class EnsureServingMember
 
     public function handle(Request $request, Closure $next): Response
     {
-        $user = $request->user();
+        // The session is the signed-in account's: while an Admin acts as someone (#379) that is the Admin, not who the
+        // request runs as (a person already checked to qualify, or a billet stand-in with no milpac of its own).
+        $user = $request->attributes->get(ActAs::ADMIN_ATTRIBUTE) ?? $request->user();
 
         if ($user === null || ! $this->serving->mustEnd($user)) {
             return $next($request);

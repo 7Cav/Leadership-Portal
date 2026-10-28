@@ -33,9 +33,9 @@ class AuditEnvelope
             throw ReasonRequiredException::forAction($action);
         }
 
-        [$actorId, $onBehalfOf] = $this->acting->attribute($actorId);
+        [$actorId, $onBehalfOf, $onBehalfOfUnit] = $this->acting->attribute($actorId);
 
-        return $this->auditLog->recordWithMutation($actorId, $action, $reason, $mutation, $onBehalfOf);
+        return $this->auditLog->recordWithMutation($actorId, $action, $reason, $mutation, $onBehalfOf, $onBehalfOfUnit);
     }
 
     /**
@@ -51,8 +51,8 @@ class AuditEnvelope
             throw ReasonRequiredException::forAction($action);
         }
 
-        [$actorId, $onBehalfOf] = $this->acting->attribute($actorId);
+        [$actorId, $onBehalfOf, $onBehalfOfUnit] = $this->acting->attribute($actorId);
 
-        return $this->auditLog->recordBatchWithMutation($actorId, $action, $reason, $mutation, $onBehalfOf);
+        return $this->auditLog->recordBatchWithMutation($actorId, $action, $reason, $mutation, $onBehalfOf, $onBehalfOfUnit);
     }
 }

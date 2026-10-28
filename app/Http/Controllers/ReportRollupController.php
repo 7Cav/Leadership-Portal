@@ -175,7 +175,10 @@ class ReportRollupController extends Controller
             'sentBy' => $node->report?->sent_by === null ? null : (
                 // "Hale.S for Mercer.J" when an Admin acting as the sender sent it (#379).
                 $node->report->sent_by_admin === null ? '' : $senders->get($node->report->sent_by_admin).' for '
-            ).$senders->get($node->report->sent_by),
+            ).$senders->get($node->report->sent_by).(
+                // "Hale.S acting as Section Leader 2/1/A/1-7" when an Admin holding the billet sent it.
+                $node->report->sent_as_unit === null ? '' : ' acting as '.$this->units->find($node->report->sent_as_unit)?->billet()
+            ),
             'reportUrl' => '/reports/'.$node->unit->id.'/'.$week->toDateString(),
             'children' => array_map(fn (ChainNode $child) => $this->present($child, $week, $senders), $node->children),
         ];

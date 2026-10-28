@@ -18,10 +18,7 @@ class HandleInertiaRequests extends Middleware
      */
     protected $rootView = 'app';
 
-    public function __construct(
-        private readonly ScopeResolver $scope,
-        private readonly ActAs $actAs,
-    ) {}
+    public function __construct(private readonly ScopeResolver $scope) {}
 
     /**
      * Determines the current asset version.
@@ -67,8 +64,10 @@ class HandleInertiaRequests extends Middleware
             // request (AD-9) — the shell's banner reads it. A stored target that no longer holds
             // is dropped by the resolver, so the banner and the scope never disagree.
             // An Admin acting as someone (#379): who, for the red bar, and who the Admin really is.
+            // `kind` is `user` for a person, `unit` for a billet (a unit's leader, no person behind it).
             'actingAs' => fn () => $this->acting($request) ? [
-                'label' => $this->actAs->label($request->user()),
+                'kind' => $request->attributes->get(ActAs::ACTING_ATTRIBUTE)->billet === null ? 'user' : 'unit',
+                'label' => $request->attributes->get(ActAs::ACTING_ATTRIBUTE)->label,
                 'admin' => $request->attributes->get(ActAs::ADMIN_ATTRIBUTE)->username,
             ] : null,
             'viewAs' => fn () => $request->user() ? $this->scope->activeViewAs($request->user())?->toArray() : null,

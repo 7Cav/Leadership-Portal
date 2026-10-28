@@ -80,11 +80,16 @@ class AuditLogController extends Controller
         // link to it without a query of its own.
         $targets = $this->auditLog->targetsOf($entries->items());
 
+        $units = $tree->keyBy('id');
         $entries = $entries->through(fn (AuditLogEntry $entry) => [
             'id' => $entry->id,
             'actor' => $entry->actor->username,
-            // The person an Admin was acting as when they did this (#379), shown as "Admin for person".
-            'onBehalfOf' => $entry->onBehalfOf?->username,
+            // Who an Admin was acting as when they did this (#379): a person ("acting as Vasquez.R"), or a billet
+            // ("acting as Section Leader 2/1/A/1-7"; a unit deleted since reads "a unit since deleted").
+            'onBehalfOf' => $entry->onBehalfOf?->username ?? match (true) {
+                $entry->on_behalf_of_unit_id === null => null,
+                default => $units->get($entry->on_behalf_of_unit_id)?->billet() ?? 'a unit since deleted',
+            },
             'action' => $entry->action,
             'target_type' => $entry->target_type,
             'target_id' => $entry->target_id,

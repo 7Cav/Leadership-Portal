@@ -49,6 +49,8 @@ it('points unit_id at units, sent_by and sent_by_admin at users and template_ver
         ->all();
 
     expect($targets)->toBe([
+        // The unit whose billet an Admin held when sending it (#379).
+        'sent_as_unit' => 'units.id',
         'sent_by' => 'users.id',
         // The Admin who sent it while acting as `sent_by` (#379).
         'sent_by_admin' => 'users.id',

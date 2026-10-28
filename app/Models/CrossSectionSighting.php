@@ -17,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * entry a capture later sees becomes `capture`, with its window, and keeps `recorded_by`. Both go through
  * `CrossSectionSightingRepository`.
  */
-#[Fillable(['trooper_id', 'section_practice_id', 'week_start', 'seen_from', 'seen_until', 'source', 'recorded_by', 'recorded_by_admin'])]
+#[Fillable(['trooper_id', 'section_practice_id', 'week_start', 'seen_from', 'seen_until', 'source', 'recorded_by', 'recorded_by_admin', 'recorded_as_unit'])]
 class CrossSectionSighting extends Model
 {
     /** Seen by a game-server capture. */
@@ -53,6 +53,12 @@ class CrossSectionSighting extends Model
     public function recordedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'recorded_by');
+    }
+
+    /** The unit whose billet `recorded_by`, an Admin, held when adding this guest (#379), or null. */
+    public function recordedAsUnit(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class, 'recorded_as_unit');
     }
 
     /** The Admin who added this guest while acting as `recorded_by` (#379), or null. */

@@ -69,4 +69,10 @@ class WeeklyReport extends Model
     {
         return $this->belongsTo(User::class, 'sent_by');
     }
+
+    /** The unit whose billet the sender, an Admin, held when sending it (#379), or null. */
+    public function sentAsUnit(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class, 'sent_as_unit');
+    }
 }

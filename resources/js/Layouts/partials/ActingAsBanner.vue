@@ -26,7 +26,8 @@ function stop() {
         <PhWarningOctagon class="size-4 shrink-0" weight="bold" aria-hidden="true" />
         <p class="min-w-0 flex-1 truncate">
             Acting as <strong class="font-semibold">{{ actingAs.label }}</strong>
-            <span class="hidden md:inline">. Changes are real and recorded as {{ actingAs.admin }} acting for them.</span>
+            <span v-if="actingAs.kind === 'unit'" class="hidden md:inline">. Changes are real and recorded as {{ actingAs.admin }} acting as this billet.</span>
+            <span v-else class="hidden md:inline">. Changes are real and recorded as {{ actingAs.admin }} acting for them.</span>
         </p>
         <button
             type="button"

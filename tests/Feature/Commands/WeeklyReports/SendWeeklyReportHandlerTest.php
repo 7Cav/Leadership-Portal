@@ -315,7 +315,7 @@ it('rethrows rather than pass off a draft as the sent report when the race re-re
     $real->saveDraft($this->section->id, $this->weekStart, ['draft' => true], 'draft');
     app()->instance(WeeklyReportRepository::class, new class extends EloquentWeeklyReportRepository
     {
-        public function send(int $unitId, CarbonInterface $weekStart, array $kpis, ?string $notes, int $sentBy, string $contentDigest, ?int $templateVersionId, ?string $trainingSubject = null, array $unaccounted = [], ?int $sentByAdmin = null): WeeklyReport
+        public function send(int $unitId, CarbonInterface $weekStart, array $kpis, ?string $notes, int $sentBy, string $contentDigest, ?int $templateVersionId, ?string $trainingSubject = null, array $unaccounted = [], ?int $sentByAdmin = null, ?int $sentAsUnit = null): WeeklyReport
         {
             throw WeeklyReportAlreadySentException::for($unitId, $weekStart);
         }

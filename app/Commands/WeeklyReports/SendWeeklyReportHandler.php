@@ -140,6 +140,8 @@ class SendWeeklyReportHandler
                         $content->unaccounted,
                         // An Admin acting as the sender (#379) is named beside them.
                         $this->acting->adminActingAs($actor->id),
+                        // An Admin holding a billet sends in their own name, as that unit's leader.
+                        $this->acting->billetOf($actor->id),
                     );
                 },
             );

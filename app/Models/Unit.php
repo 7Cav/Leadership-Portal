@@ -40,6 +40,24 @@ class Unit extends Model
         ];
     }
 
+    /**
+     * What the unit's leader is called, with the unit: `Section Leader 2/1/A/1-7`. Cav's data names no billet title,
+     * so it follows the unit's type. Used where an Admin acts as the billet (#379).
+     */
+    public function billet(): string
+    {
+        $title = match ($this->type) {
+            UnitType::Regiment => 'Regimental Commander',
+            UnitType::Battalion => 'Battalion Commander',
+            UnitType::Company => 'Company Commander',
+            UnitType::Platoon => 'Platoon Leader',
+            UnitType::Section => 'Section Leader',
+            default => 'Leader',
+        };
+
+        return $title.' '.($this->callsign ?? $this->name);
+    }
+
     public function isLine(): bool
     {
         return $this->kind === null || $this->kind->isLine();
