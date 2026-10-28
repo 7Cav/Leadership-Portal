@@ -66,6 +66,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Admin billet groups
+    |--------------------------------------------------------------------------
+    |
+    | The Cav position groups whose billets may make their holder an Admin (decided by the S6,
+    | 2026-10-28). The org import lists every billet in these groups on Settings → Staff grants as
+    | pending, and an existing Admin approves each one. A billet moved out of these groups stops
+    | making anyone an Admin. Exact Cav group titles; a change here is a change to who may be an
+    | Admin, so it ships through review like any other code.
+    |
+    */
+
+    'admin_billet_groups' => ['Regimental HQ', 'S6 HQ'],
+
+    /*
+    |--------------------------------------------------------------------------
     | Joint Service Achievement Medal candidates
     |--------------------------------------------------------------------------
     |

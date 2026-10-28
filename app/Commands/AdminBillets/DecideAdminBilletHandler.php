@@ -13,10 +13,11 @@ use App\Support\Audit\AuditEnvelope;
 use App\Support\Audit\ReasonRequiredException;
 
 /**
- * Approve or reject a Regimental HQ billet as an Admin billet (decided by the S6, 2026-10-28). Approving confirms the
- * title and group Cav shows now, so the billet's holder is an Admin while they serve on the regiment and the billet
- * keeps those names ({@see ScopeResolver::isAdmin()}); rejecting leaves it a plain Regimental HQ billet until a name
- * changes and it comes back as pending.
+ * Approve or reject a billet as an Admin billet (decided by the S6, 2026-10-28). Approving confirms the title and group
+ * Cav shows now, so the billet's holder is an Admin while they serve in it and the billet keeps those names in a group
+ * that may make an Admin ({@see ScopeResolver::isAdmin()}); a billet whose group is not one of those is never approved.
+ * Rejecting leaves it a plain billet until a name changes and it comes back as pending. Rejecting an approved billet is
+ * how an Admin revokes it.
  *
  * Only an Admin decides, by flag or by an approved billet, so an approved billet Admin may confirm others. Nobody
  * decides on the billet they hold themselves: the decider's own trooper's Cav position is refused, so a billet Admin
@@ -71,6 +72,11 @@ class DecideAdminBilletHandler
 
                     if ($billet->proposed_title === null || $billet->proposed_group_title === null) {
                         throw InvalidAdminBilletDecisionException::namesUnknown();
+                    }
+
+                    // Moved out of the Admin billet groups: approving would confirm names that make nobody an Admin.
+                    if (! AdminBillet::isAdminGroup($billet->proposed_group_title)) {
+                        throw InvalidAdminBilletDecisionException::notAdminGroup();
                     }
                 } elseif ($billet->status === AdminBilletStatus::Rejected) {
                     throw InvalidAdminBilletDecisionException::alreadyRejected();

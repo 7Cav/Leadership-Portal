@@ -61,7 +61,7 @@ class CounselingAccess
         $canSee = $this->scope->canSee($user, $trooper);
         // Their own records, read-only, whatever their scope (2026-10-28): never a write, which $self refuses below.
         $own = $this->scope->isOwnTrooper($user, $trooper);
-        // An Admin by flag or by an approved Regimental HQ billet (ScopeResolver::isAdmin()).
+        // An Admin by flag or by an approved Admin billet (ScopeResolver::isAdmin()).
         $admin = $this->scope->isAdmin($user);
         $writeScope = $section === null && ! $admin ? collect() : $this->scope->writeScope($user);
 

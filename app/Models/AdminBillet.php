@@ -6,9 +6,10 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * A Regimental HQ billet whose holder may be an Admin (decided by the S6, 2026-10-28), by Cav's stable position id. An
- * Admin confirms its title and group (`title`, `group_title`); the org import and the roster sync record the names they
- * see now (`proposed_*`) and put it back to pending when those differ. Written only by `AdminBilletRepository`.
+ * A billet whose holder may be an Admin (decided by the S6, 2026-10-28), by Cav's stable position id: a billet in one of
+ * the Cav groups `portal.admin_billet_groups` names (Regimental HQ and S6 HQ). An Admin confirms its title and group
+ * (`title`, `group_title`); the org import and the roster sync record the names they see now (`proposed_*`) and put it
+ * back to pending when those differ. Written only by `AdminBilletRepository`.
  */
 #[Fillable(['cav_position_id', 'title', 'group_title', 'proposed_title', 'proposed_group_title', 'status', 'decided_by', 'decided_by_admin', 'decided_as_unit', 'decided_at'])]
 class AdminBillet extends Model
@@ -25,10 +26,16 @@ class AdminBillet extends Model
         ];
     }
 
+    /** Whether a billet in the Cav group `$group` may make its holder an Admin (`portal.admin_billet_groups`). */
+    public static function isAdminGroup(?string $group): bool
+    {
+        return $group !== null && in_array($group, (array) config('portal.admin_billet_groups', []), true);
+    }
+
     /**
      * Whether a holder whose billet title is `$billet` is an Admin by this billet: approved, the names seen now are the
-     * ones confirmed, and the holder's own synced title is that title too. The placement half of the rule (serving, on
-     * the regiment) is `ScopeResolver`'s.
+     * ones confirmed, the confirmed group is still one that may make an Admin, and the holder's own synced title is that
+     * title too. The serving half of the rule is `ScopeResolver`'s; where the holder is placed does not matter.
      */
     public function confirmsHolder(?string $billet): bool
     {
@@ -37,6 +44,7 @@ class AdminBillet extends Model
             && $this->group_title !== null
             && $this->proposed_title === $this->title
             && $this->proposed_group_title === $this->group_title
+            && self::isAdminGroup($this->group_title)
             && $billet === $this->title;
     }
 

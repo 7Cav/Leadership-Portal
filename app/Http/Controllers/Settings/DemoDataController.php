@@ -124,7 +124,7 @@ class DemoDataController extends Controller
     }
 
     /**
-     * The real Admin rule (`ScopeResolver::isAdmin()`, the flag or an approved Regimental HQ billet), checked before the request is validated: validating first would answer a
+     * The real Admin rule (`ScopeResolver::isAdmin()`, the flag or an approved Admin billet), checked before the request is validated: validating first would answer a
      * non-Admin 422 for a unit id that does not exist and 403 for one that does. The handlers check
      * the flag again, as the boundary.
      */

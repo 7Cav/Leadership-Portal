@@ -81,8 +81,8 @@ it('lists exactly the serving troopers placed on the regiment as Regimental HQ s
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('regimentalHq', [
-                ['id' => $troopers['finance']->id, 'name' => 'MAJ Abbot.F', 'billet' => 'Regimental Finance Officer', 'admin' => false],
-                ['id' => $troopers['chief']->id, 'name' => 'COL Tharen.R', 'billet' => 'Regimental Chief of Staff', 'admin' => false],
+                ['id' => $troopers['finance']->id, 'name' => 'MAJ Abbot.F', 'billet' => 'Regimental Finance Officer'],
+                ['id' => $troopers['chief']->id, 'name' => 'COL Tharen.R', 'billet' => 'Regimental Chief of Staff'],
             ]));
 
     // The list and the scope cannot disagree: whoever is listed reads the regiment, and no one else does.

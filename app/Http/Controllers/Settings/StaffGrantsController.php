@@ -12,6 +12,7 @@ use App\Commands\PortalRoleGrants\GrantTargetIsAdminException;
 use App\Commands\PortalRoleGrants\RevokeStaffScope;
 use App\Http\Controllers\Controller;
 use App\Models\AdminBillet;
+use App\Models\AdminBilletStatus;
 use App\Models\PortalRoleGrant;
 use App\Models\Trooper;
 use App\Models\Unit;
@@ -35,8 +36,9 @@ use Inertia\Response;
  * a grant whose holder is no longer serving. Writes stage through
  * `GrantStaffScope`/`RevokeStaffScope` (AD-16).
  *
- * It also lists Regimental HQ staff, who are Admins by billet once an Admin approves their billet (decided by the S6,
- * 2026-10-28), and the billets waiting for that decision, decided through `DecideAdminBillet`.
+ * It also lists the Admin billets (decided by the S6, 2026-10-28): the approved ones, whose holders are Admins, and
+ * below them the ones waiting for a decision or rejected, all decided through `DecideAdminBillet`. A small note under
+ * the approved ones names the Regimental HQ staff who read the whole regiment from their placement.
  */
 class StaffGrantsController extends Controller
 {
@@ -54,7 +56,7 @@ class StaffGrantsController extends Controller
      * split); only the Admin flag gates authoring (checked client-side for the hidden controls,
      * and again below on write — AD-6). The target-user picker lists every non-admin username, so
      * it is sent only to someone acting as Admin; anyone else, an Admin previewing a leader
-     * included, gets an empty list (AD-6, AD-8). The Regimental HQ staff list is sent the same way.
+     * included, gets an empty list (AD-6, AD-8). The Admin billets and the Regimental HQ staff are sent the same way.
      */
     public function index(Request $request, ScopeResolver $scope): Response
     {
@@ -96,23 +98,25 @@ class StaffGrantsController extends Controller
                 'username' => $user->username,
             ])->values();
 
-        // Regimental HQ staff hold their place from their billet, not a grant (ScopeResolver), so nothing else on this
-        // page shows it: Admins once their billet is approved below, otherwise they read the regiment. Listed from the
-        // same rule, read-only and only to someone acting as Admin, like the username picker.
-        $staff = $isAdmin ? $scope->regimentalHqStaff() : collect();
-        $rows = $this->adminBillets->forPositions($staff->pluck('cav_position_id')->filter()->map(fn ($id) => (int) $id)->unique()->values()->all());
-        $regimentalHq = $staff->map(fn (Trooper $trooper) => [
+        // Regimental HQ staff read the whole regiment from their placement on it, not a grant (ScopeResolver, #499), so
+        // nothing else on this page shows it. Listed from the same rule, read-only and only to someone acting as Admin,
+        // like the username picker. Being an Admin is the billet's, listed with the Admin billets instead.
+        $regimentalHq = ($isAdmin ? $scope->regimentalHqStaff() : collect())->map(fn (Trooper $trooper) => [
             'id' => $trooper->id,
             'name' => $trooper->display_name,
             'billet' => $trooper->billet,
-            // Placed on the regiment and serving already (regimentalHqStaff()); Admin while the billet confirms them.
-            'admin' => $trooper->cav_position_id !== null && ($rows->get((int) $trooper->cav_position_id)?->confirmsHolder($trooper->billet) ?? false),
         ])->values();
+
+        // Approved billets on top (their holders are Admins), the rest below for a decision.
+        [$approved, $undecided] = $isAdmin
+            ? collect($this->adminBilletRows($request))->partition(fn (array $row) => $row['status'] === AdminBilletStatus::Approved->value)
+            : [collect(), collect()];
 
         return Inertia::render('Settings/StaffGrants', [
             'grants' => $grants,
             'regimentalHq' => $regimentalHq,
-            'adminBillets' => $isAdmin ? $this->adminBilletRows($request) : [],
+            'adminViaBillet' => $approved->values()->all(),
+            'adminBillets' => $undecided->values()->all(),
             'units' => $units,
             'users' => $users,
             // Follows a view-as preview (Story 1.13): authoring controls hide as they would for the
@@ -122,9 +126,10 @@ class StaffGrantsController extends Controller
     }
 
     /**
-     * Every Regimental HQ billet the import or the roster sync has seen, for the confirmation list: the names Cav shows
-     * now, the ones an Admin confirmed, who holds it, and whether the viewer holds it themselves (they cannot decide on
-     * it, {@see DecideAdminBilletHandler}). Pending first.
+     * Every billet the import or the roster sync has seen in an Admin billet group, for the two lists: the names Cav
+     * shows now, the ones an Admin approved when they differ (`approvedAs`), who holds it, whether its group can still
+     * make an Admin (`adminGroup`), who decided last and whether the viewer holds it themselves (they cannot decide on
+     * it, {@see DecideAdminBilletHandler}). Pending first, then rejected, then approved.
      *
      * @return list<array<string, mixed>>
      */
@@ -132,6 +137,7 @@ class StaffGrantsController extends Controller
     {
         $billets = $this->adminBillets->all();
         $holders = $this->troopers->servingHoldingPositions($billets->pluck('cav_position_id')->map(fn ($id) => (int) $id)->all());
+        $deciders = $this->users->usernamesByIds($billets->pluck('decided_by')->filter()->map(fn ($id) => (int) $id)->unique()->values()->all());
         $cavId = $request->user()->cav_id;
         $own = $cavId === null ? null : $this->troopers->byCavId([(int) $cavId])->get((int) $cavId)?->cav_position_id;
 
@@ -139,14 +145,17 @@ class StaffGrantsController extends Controller
             'id' => $billet->id,
             'title' => $billet->proposed_title,
             'group' => $billet->proposed_group_title,
-            'confirmedTitle' => $billet->title,
-            'confirmedGroup' => $billet->group_title,
             'status' => $billet->status->value,
-            // Confirmed once and renamed since: what changed is shown beside the confirmed names.
-            'renamed' => $billet->title !== null && $billet->renamed(),
+            // Approved once under other names (renamed or moved since): those names, shown under the ones now.
+            'approvedAs' => $billet->title !== null && $billet->renamed()
+                ? ['title' => $billet->title, 'group' => $billet->group_title]
+                : null,
+            // An approved billet whose group is no longer an Admin billet group makes nobody an Admin.
+            'adminGroup' => AdminBillet::isAdminGroup($billet->proposed_group_title),
             'holders' => $holders->get($billet->cav_position_id, collect())->map(fn (Trooper $trooper) => $trooper->display_name)->values()->all(),
             'own' => $own !== null && (int) $own === $billet->cav_position_id,
             'decidedAt' => $billet->decided_at?->toIso8601String(),
+            'decidedBy' => $billet->decided_by === null ? null : $deciders->get($billet->decided_by),
         ])->values()->all();
     }
 
@@ -238,13 +247,16 @@ class StaffGrantsController extends Controller
         return redirect()->route('settings.staff-grants');
     }
 
-    /** Approve a Regimental HQ billet as an Admin billet (decided by the S6, 2026-10-28). */
+    /** Approve a billet as an Admin billet (decided by the S6, 2026-10-28). */
     public function approveAdminBillet(Request $request, int $billet, DecideAdminBilletHandler $handler): RedirectResponse
     {
         return $this->decideAdminBillet($request, $billet, true, $handler);
     }
 
-    /** Reject a Regimental HQ billet as an Admin billet: its holder is not an Admin until a name changes and it is approved. */
+    /**
+     * Reject a billet as an Admin billet, or revoke an approved one: its holder is not an Admin until a name changes and
+     * it is approved again.
+     */
     public function rejectAdminBillet(Request $request, int $billet, DecideAdminBilletHandler $handler): RedirectResponse
     {
         return $this->decideAdminBillet($request, $billet, false, $handler);
