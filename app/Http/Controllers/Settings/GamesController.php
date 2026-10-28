@@ -10,9 +10,13 @@ use App\Commands\Games\RetireGame;
 use App\Commands\Games\UpdateGame;
 use App\Http\Controllers\Controller;
 use App\Models\Game;
+use App\Models\GameIdentityText;
+use App\Models\IdKindFormat;
 use App\Models\TelemetryInterface;
+use App\Models\TrooperGameIdentity;
 use App\Repositories\GameInUseException;
 use App\Repositories\GameRepository;
+use App\Repositories\TrooperGameIdentityRepository;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -26,14 +30,18 @@ use Inertia\Response;
  * it. Reads `GameRepository` directly; every write is an audited Command (AD-16). Viewing is open to anyone signed
  * in, matching the other Settings screens; every write is Admin-only, checked here against the real `is_admin`
  * flag (AD-6) before anything else, so a non-Admin gets a 403 whether or not the game exists.
+ *
+ * An Admin also sees the identities saved before the rules of #450 that break them (an ID without its kind's shape,
+ * hidden characters, a name that mixes alphabets), to fix on Game identities. Listing them changes nothing.
  */
 class GamesController extends Controller
 {
     public function __construct(private readonly GameRepository $games) {}
 
-    public function index(Request $request, ScopeResolver $scope): Response
+    public function index(Request $request, ScopeResolver $scope, TrooperGameIdentityRepository $identities): Response
     {
         $inUse = array_flip($this->games->inUseIds());
+        $isAdmin = $scope->actsAsAdmin($request->user());
 
         return Inertia::render('Settings/Games', [
             'games' => $this->games->all()->map(fn (Game $game) => [
@@ -41,6 +49,8 @@ class GamesController extends Controller
                 'slug' => $game->slug,
                 'name' => $game->name,
                 'idKinds' => $game->id_kinds,
+                // The kinds whose IDs are checked for a shape (#450); the others take any value.
+                'checkedKinds' => array_values(array_filter($game->id_kinds, fn (string $kind) => IdKindFormat::for($kind) !== null)),
                 'interface' => $game->interface->value,
                 'retired' => $game->isRetired(),
                 // A game in use can be retired, not deleted: the page offers only what the server would accept.
@@ -51,7 +61,21 @@ class GamesController extends Controller
                 'label' => $interface->label(),
             ], TelemetryInterface::cases()),
             // Follows a view-as preview (Story 1.13), like the other Settings screens; the write gates read the real flag.
-            'isAdmin' => $scope->actsAsAdmin($request->user()),
+            'isAdmin' => $isAdmin,
+            // Admin only: the identities to check, with what is wrong with each. Nobody else is sent any.
+            'identitiesToCheck' => $isAdmin ? $identities->all()
+                ->map(fn (TrooperGameIdentity $identity) => ['identity' => $identity, 'problems' => $identity->problems()])
+                ->filter(fn (array $row) => $row['problems'] !== [])
+                ->map(fn (array $row) => [
+                    'id' => $row['identity']->id,
+                    'trooper' => $row['identity']->trooper?->display_name,
+                    'game' => $row['identity']->game->name,
+                    'idKind' => $row['identity']->id_kind,
+                    // Hidden characters written out, so the Admin sees what is stored.
+                    'playerName' => GameIdentityText::reveal($row['identity']->player_name),
+                    'platformId' => GameIdentityText::reveal($row['identity']->platform_id),
+                    'problems' => $row['problems'],
+                ])->values()->all() : [],
         ]);
     }
 

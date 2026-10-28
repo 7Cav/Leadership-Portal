@@ -5,12 +5,14 @@ namespace App\Http\Controllers;
 use App\Authorization\ScopeResolver;
 use App\Commands\GameIdentities\GameIdentityForbiddenException;
 use App\Commands\GameIdentities\GameRetiredException;
+use App\Commands\GameIdentities\InvalidGameIdentityException;
 use App\Commands\GameIdentities\RemoveTrooperGameIdentity;
 use App\Commands\GameIdentities\RemoveTrooperGameIdentityHandler;
 use App\Commands\GameIdentities\SetTrooperGameIdentity;
 use App\Commands\GameIdentities\SetTrooperGameIdentityHandler;
 use App\Commands\GameIdentities\UnknownIdKindException;
 use App\Models\Game;
+use App\Models\IdKindFormat;
 use App\Models\Trooper;
 use App\Models\TrooperGameIdentity;
 use App\Models\Unit;
@@ -41,6 +43,9 @@ use Inertia\Response;
  * CO, XO, 1SG and up) or a group (ELOA, Reservists, New Recruits, a staff department), since the
  * placement change of 2026-10-24 puts HQ staff and groups off the sections. Linking someone who is
  * not in a section only lets the capture recognise them; it still marks attendance in sections only.
+ *
+ * Each game is sent with the hint for every kind that has a known shape (#450, {@see IdKindFormat}), and each identity
+ * with whether its name mixes alphabets, for the "check this name" marker. The page shows these; the server decides.
  */
 class GameIdentityController extends Controller
 {
@@ -66,6 +71,9 @@ class GameIdentityController extends Controller
                 'value' => $game->slug,
                 'label' => $game->name,
                 'idKinds' => $game->id_kinds,
+                // The shape each checked kind has, keyed by kind, for the hint under the ID field. A kind not here is not checked.
+                'idHints' => (object) collect($game->id_kinds)
+                    ->mapWithKeys(fn (string $kind) => [$kind => IdKindFormat::for($kind)?->hint])->filter()->all(),
                 'retired' => $game->isRetired(),
             ])->values()->all(),
             'troopers' => $troopers->map(fn (Trooper $trooper) => [
@@ -80,6 +88,7 @@ class GameIdentityController extends Controller
                         'playerName' => $identity->player_name,
                         'platformId' => $identity->platform_id,
                         'idKind' => $identity->id_kind,
+                        'mixedScripts' => $identity->nameMixesScripts(),
                     ]])->all(),
             ])->sortBy(fn (array $row) => mb_strtolower($row['displayName']))->values()->all(),
         ]);
@@ -89,7 +98,8 @@ class GameIdentityController extends Controller
      * Link the trooper on the game `$platform` names (its slug), or correct the identity they
      * already hold there. An identifier another trooper already owns, or a retired game, comes
      * back as a validation error on `platform_id`, and a kind the game does not have on `id_kind`; no kind
-     * keeps the identity's kind, or takes the game's first for a new one. An unknown game is a 404.
+     * keeps the identity's kind, or takes the game's first for a new one. A name or ID with nothing left once its hidden
+     * characters are removed, or an ID without its kind's shape (#450), comes back on its field. An unknown game is a 404.
      */
     public function update(Request $request, int $trooper, string $platform, SetTrooperGameIdentityHandler $handler): RedirectResponse
     {
@@ -114,8 +124,10 @@ class GameIdentityController extends Controller
             throw ValidationException::withMessages(['platform_id' => $e->getMessage()]);
         } catch (UnknownIdKindException $e) {
             throw ValidationException::withMessages(['id_kind' => $e->getMessage()]);
-        } catch (GameIdentityLinkException) {
-            throw ValidationException::withMessages(['platform_id' => $this->collisionMessage($game, $data['platform_id'])]);
+        } catch (InvalidGameIdentityException $e) {
+            throw ValidationException::withMessages([$e->field => $e->getMessage()]);
+        } catch (GameIdentityLinkException $e) {
+            throw ValidationException::withMessages(['platform_id' => $this->collisionMessage($game, $e->platformId)]);
         }
 
         return back();
@@ -141,7 +153,7 @@ class GameIdentityController extends Controller
      */
     private function collisionMessage(Game $game, string $platformId): string
     {
-        $owner = $this->identities->findByPlatformId($game, trim($platformId));
+        $owner = $this->identities->findByPlatformId($game, $platformId);
         $name = $owner === null ? null : $this->troopers->find($owner->trooper_id)?->display_name;
 
         return 'Already linked to '.($name ?? 'another trooper')." on {$game->name}.";

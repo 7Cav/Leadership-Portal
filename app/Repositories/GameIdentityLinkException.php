@@ -14,12 +14,18 @@ use Throwable;
  */
 class GameIdentityLinkException extends RuntimeException
 {
+    /** The id as it was to be stored (an Epic ID lower case, #450), so a caller can look up who owns it. */
+    public string $platformId = '';
+
     /** The `(game_id, platform_id)` already belongs to another trooper — never silently reassigned. */
     public static function alreadyLinked(Game $game, string $platformId, ?Throwable $previous = null): self
     {
-        return new self(
+        $e = new self(
             "The {$game->name} identity {$platformId} is already linked to another trooper.",
             previous: $previous,
         );
+        $e->platformId = $platformId;
+
+        return $e;
     }
 }

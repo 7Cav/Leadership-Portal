@@ -3,6 +3,7 @@
 namespace App\Commands\GameIdentities;
 
 use App\Models\Game;
+use App\Models\GameIdentityText;
 
 /**
  * Link a trooper to a player in one game, or correct the identity they already have there
@@ -14,6 +15,10 @@ use App\Models\Game;
  * `$platformId`, or exactly `$replacing` — the platform id the leader was shown when they chose to
  * replace it. Anything else means it changed since they were asked, and nothing is written. Null
  * (the Game identities screen, where the leader edits the row they see) writes unconditionally.
+ *
+ * The player name and ID are cleaned of hidden characters and normalised here ({@see GameIdentityText}, #450); the
+ * handler refuses one left empty, and checks the ID against its kind's shape unless `$reportedByServer`: an ID a game
+ * server reported (linking an unmatched player) is the one the capture matches, whatever shape it has.
  */
 final readonly class SetTrooperGameIdentity
 {
@@ -32,9 +37,10 @@ final readonly class SetTrooperGameIdentity
         string $platformId,
         ?string $replacing = null,
         ?string $idKind = null,
+        public bool $reportedByServer = false,
     ) {
-        $this->playerName = trim($playerName);
-        $this->platformId = trim($platformId);
+        $this->playerName = GameIdentityText::clean($playerName);
+        $this->platformId = GameIdentityText::clean($platformId);
         $this->replacing = $replacing === null ? null : trim($replacing);
         $this->idKind = $idKind === null ? null : trim($idKind);
     }

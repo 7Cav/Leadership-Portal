@@ -12,7 +12,8 @@ use LogicException;
  * A game the regiment plays (#388), kept by an Admin: what it is called, which kinds of player identifier it asks for ("Steam ID", "Epic ID", #428), and which built-in telemetry interface reads its attendance. Portal-owned (AD-22) — written
  * only by the audited `app/Commands/Games` Commands through `GameRepository`. `slug` never changes once the game
  * exists: routes and requests name the game by it. A retired game stays on every identity and capture that uses it,
- * but cannot be newly linked to a trooper (and, once games are assigned to units, #390, newly assigned).
+ * but cannot be newly linked to a trooper (and, once games are assigned to units, #390, newly assigned). The shape an ID
+ * of each kind must have is listed in {@see IdKindFormat}, by kind name (#450).
  */
 #[Fillable(['slug', 'name', 'id_kinds', 'interface', 'retired_at'])]
 class Game extends Model

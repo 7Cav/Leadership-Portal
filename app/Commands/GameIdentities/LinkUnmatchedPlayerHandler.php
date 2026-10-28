@@ -5,6 +5,7 @@ namespace App\Commands\GameIdentities;
 use App\Authorization\ScopeResolver;
 use App\Commands\Attendance\AutoMarkResult;
 use App\Commands\Attendance\MarkAttendanceHandler;
+use App\Models\GameIdentityText;
 use App\Models\User;
 use App\Repositories\GameIdentityLinkException;
 use App\Repositories\PracticeCapturePlayerRepository;
@@ -31,6 +32,11 @@ use App\Support\Time\WeekOf;
  * leader is asked again rather than overwriting an identity they never saw. An
  * identifier another trooper owns surfaces as {@see GameIdentityLinkException}, never reassigned,
  * whether or not `replace` is set: replacing only ever changes the chosen trooper's own row.
+ *
+ * The ID is the one the server reported, so it skips its kind's shape (#450) and is stored exactly as reported: the
+ * capture matches on it. Server IDs are printable ASCII, which cleaning never changes; one that cleaning would change is
+ * refused rather than stored altered. The reported name is cleaned like any other, and a name with nothing left takes
+ * the ID, as the capture does for a player with no name.
  */
 class LinkUnmatchedPlayerHandler
 {
@@ -52,6 +58,7 @@ class LinkUnmatchedPlayerHandler
      * @throws UnmatchedPlayerResolutionException
      * @throws GameRetiredException when the player's game is retired.
      * @throws GameIdentityLinkException when the platform id already belongs to another trooper.
+     * @throws InvalidGameIdentityException when cleaning would change the reported ID.
      */
     public function handle(User $actor, LinkUnmatchedPlayer $command): AutoMarkResult
     {
@@ -87,9 +94,17 @@ class LinkUnmatchedPlayerHandler
             throw UnmatchedPlayerResolutionException::alreadyHasIdentity($held->player_name, $held->platform_id, $command->game->name);
         }
 
+        if (! GameIdentityText::isClean($player->platform_id)) {
+            throw InvalidGameIdentityException::reportedIdNotClean();
+        }
+
+        $name = GameIdentityText::clean($player->player_name);
+
         // The check above answers the common case without a write; the writer repeats it under
         // lock inside its audited transaction, so a change landing between the two is refused too.
-        $this->setIdentity->handle($actor, new SetTrooperGameIdentity($trooper->id, $command->game, $player->player_name, $player->platform_id, $replaceable));
+        $this->setIdentity->handle($actor, new SetTrooperGameIdentity(
+            $trooper->id, $command->game, $name === '' ? $player->platform_id : $name, $player->platform_id, $replaceable, reportedByServer: true,
+        ));
 
         return $this->attendance->preMark($practice, [$trooper->id], $actor->id);
     }
