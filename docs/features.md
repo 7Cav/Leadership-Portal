@@ -163,6 +163,10 @@ on none.
   trooper page), else Home. In a person preview, the roster and the rollcall open where that person would land.
   Leaving the preview goes back to the page you were on.
 - Both follow act as and View as: with either on, the switcher lists the units of the scope you are seeing.
+- Act as (user menu): runs the portal as another person, writes included, under a red bar. A leader's picker lists the
+  serving billet holders below them and the billets junior to theirs in their own command team (an SL their ASL, a PL
+  their PSG, a company CO their XO and 1SG, the RCO the RXO and RCSM), never anyone above or beside them. The full
+  rules are in [permissions.md](permissions.md#act-as).
 
 ### Units with no troopers
 

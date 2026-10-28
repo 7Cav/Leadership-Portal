@@ -32,3 +32,5 @@ audience: everyone
 > [!good-to-know] The unit list only moves you around. It does not change what you can see or do; View as does that.
 
 > [!good-to-know] Starting and ending a preview is recorded in the audit log.
+
+> [!good-to-know] View as only lets you look. To work as someone, use **Act as** in the user menu: a leader can act as a billet holder below them, or as someone junior to them in their own command team, such as a Section Leader as their ASL or a Commander as their XO. Nobody can act as someone above them or beside them.
