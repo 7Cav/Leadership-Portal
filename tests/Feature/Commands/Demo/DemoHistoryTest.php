@@ -182,14 +182,16 @@ it('looks plausible: most sign and attend, and the chosen trooper is flagged at 
         ->and($rows->filter(fn ($r) => $r->status === AttendanceStatus::Present)->count())->toBeGreaterThan($rows->count() / 2)
         ->and($rows->contains(fn ($r) => $r->status === AttendanceStatus::Missed))->toBeTrue();
 
-    // Beyond the at-risk troopers, some ordinary troopers cannot attend and a few never sign.
-    $atRiskIds = collect([$this->s11, $this->s12])->map(fn (Unit $section) => DemoAttendancePattern::atRiskTrooper(
-        $section->id,
-        Trooper::query()->where('primary_section_id', $section->id)->where('status', '!=', 'inactive')->orderBy('id')->pluck('id')->all(),
-    ))->all();
-    $typical = $rows->reject(fn ($r) => in_array($r->trooper_id, $atRiskIds, true));
-    expect($typical->contains(fn ($r) => $r->rollcall === RollcallSignature::CannotAttend))->toBeTrue()
-        ->and($typical->contains(fn ($r) => $r->rollcall === RollcallSignature::Unsigned))->toBeTrue();
+    // Beyond the at-risk troopers, some ordinary troopers cannot attend and a few never sign. Asked of the pattern itself,
+    // for a fixed section over many weeks: the generated rows above are seeded by section ids, which on MySQL depend on
+    // how many sections earlier tests created, and about thirty rows do not always hold a one-in-sixteen "never signs".
+    $ids = range(1, 12);
+    $atRiskId = DemoAttendancePattern::atRiskTrooper(1, $ids);
+    $typical = collect(range(0, 19))
+        ->flatMap(fn (int $week) => DemoAttendancePattern::forSectionWeek(1, CarbonImmutable::parse('2026-01-03')->addWeeks($week), $ids))
+        ->reject(fn ($row) => $row['trooper_id'] === $atRiskId);
+    expect($typical->contains(fn ($row) => $row['rollcall'] === RollcallSignature::CannotAttend))->toBeTrue()
+        ->and($typical->contains(fn ($row) => $row['rollcall'] === RollcallSignature::Unsigned))->toBeTrue();
 
     $placed = Trooper::query()->where('primary_section_id', $this->s11->id)->where('status', '!=', 'inactive')->orderBy('id')->pluck('id')->all();
     $atRisk = DemoAttendancePattern::atRiskTrooper($this->s11->id, $placed);
