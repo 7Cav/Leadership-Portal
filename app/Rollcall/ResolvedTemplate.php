@@ -8,7 +8,8 @@ use App\Models\TemplateVersion;
 /**
  * Which template a unit renders from, and why when it has none (Story 3.6, #375, AD-17). The template and version ids
  * travel with it so a render can record exactly which version it used, and `source` says why this one applies: the
- * section's pick, the company's active template, or the regiment default.
+ * section's pick (of its own template, a company one or the default), the company's active template, or the regiment
+ * default.
  *
  * The "no template" cases are explicit states, never a blank body or an opaque error, so the rollcall screen can say
  * what is missing: a unit that sits above every company (the regiment or a battalion) has no company to ask, and a

@@ -13,8 +13,8 @@ use App\Support\Audit\AuditEnvelope;
 
 /**
  * Edit a template (Story 3.5, #375, AD-17): the edit writes a new version, never changes an existing one, and the
- * template's active pointer advances to it. A company's command edits its own company's templates and only an Admin
- * the regiment default ({@see TemplateAuthority}), checked here. The write goes through {@see AuditEnvelope} with a
+ * template's active pointer advances to it. A company's command edits its own company's templates, a section's command
+ * the section's own, and only an Admin the regiment default ({@see TemplateAuthority}), checked here. The write goes through {@see AuditEnvelope} with a
  * reason always required (AD-16), since a template change reaches every section that uses it.
  *
  * The body is stored as given, but only if it is a well-formed template (Story 3.10): it has some text and a bounded
@@ -41,7 +41,7 @@ class AuthorTemplateVersion
     public function handle(User $actor, Template $template, string $body, ?string $reason): TemplateVersion
     {
         if (! $this->authority->manages($actor, $template)) {
-            throw $this->authority->refusal($actor, $template);
+            throw $this->authority->refusal($template);
         }
 
         self::checkBody($body);

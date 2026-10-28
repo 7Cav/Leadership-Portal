@@ -14,11 +14,11 @@ use LogicException;
  * row with the next version number of its template, never an update, so the history stays reproducible. An update of
  * an existing row is refused here, at the model, as well as by the repository never issuing one.
  *
- * `company_id` repeats the template's owner (null for the regiment default) so a company's history is one indexed
- * read. Portal-owned (AD-22). Which version is current lives on the template (`active_version_id`), not on this row,
+ * `company_id` or `section_id` repeats the template's owner (both null for the regiment default) so a unit's history
+ * is one indexed read. Portal-owned (AD-22). Which version is current lives on the template (`active_version_id`), not on this row,
  * so activating a version never changes it.
  */
-#[Fillable(['template_id', 'company_id', 'artifact_type', 'version', 'body', 'created_by', 'created_by_admin', 'created_as_unit'])]
+#[Fillable(['template_id', 'company_id', 'section_id', 'artifact_type', 'version', 'body', 'created_by', 'created_by_admin', 'created_as_unit'])]
 class TemplateVersion extends Model
 {
     /** @use HasFactory<TemplateVersionFactory> */
@@ -45,6 +45,7 @@ class TemplateVersion extends Model
         return [
             'template_id' => 'integer',
             'company_id' => 'integer',
+            'section_id' => 'integer',
             'artifact_type' => ArtifactType::class,
             'version' => 'integer',
             'created_at' => 'immutable_datetime',
@@ -59,6 +60,11 @@ class TemplateVersion extends Model
     public function company(): BelongsTo
     {
         return $this->belongsTo(Unit::class, 'company_id');
+    }
+
+    public function section(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class, 'section_id');
     }
 
     public function author(): BelongsTo

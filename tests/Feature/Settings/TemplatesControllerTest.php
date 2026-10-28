@@ -22,6 +22,8 @@ use App\Repositories\UnitRepository;
 use App\Rollcall\TemplateSyntax;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
 
 // Story 3.5, #375: the template screen. An Admin views every company and anyone else only the companies in their
 // scope; a company's command writes its own company's templates and only an Admin the regiment default, checked on
@@ -580,53 +582,133 @@ describe("the company's command manages its own templates (#375)", function () {
     });
 });
 
-describe('battalion command switches a company\'s own template editing (#376)', function () {
+describe("a section's own templates on the page", function () {
     beforeEach(function () {
         $units = app(UnitRepository::class);
         $this->company->delete();
         $battalion = $units->create(UnitType::Battalion, '1st Battalion', '1-7', null);
         $this->alpha = $units->create(UnitType::Company, 'Alpha Company', 'A/1-7', $battalion->id);
+        $this->bravo = $units->create(UnitType::Company, 'Bravo Company', 'B/1-7', $battalion->id);
+        $platoon = $units->create(UnitType::Platoon, '1st Platoon', '1/A/1-7', $this->alpha->id);
+        $this->first = $units->create(UnitType::Section, '1st Section', '1/1/A/1-7', $platoon->id);
+        $this->second = $units->create(UnitType::Section, '2nd Section', '2/1/A/1-7', $platoon->id);
+        $bravoPlatoon = $units->create(UnitType::Platoon, '1st Platoon', '1/B/1-7', $this->bravo->id);
+        $this->bravoSection = $units->create(UnitType::Section, '1st Section', '1/1/B/1-7', $bravoPlatoon->id);
         $this->co = templatesLeaderOf($this->alpha, 5201);
-        $this->bn = templatesLeaderOf($battalion, 5202);
+        $this->sl = templatesLeaderOf($this->first, 5202);
         $this->standard = authorTemplate($this, 'standard', $this->alpha)->template;
     });
 
-    it('shows the switch to battalion command, and the company command only the note', function () {
-        $this->actingAs($this->bn)->get('/settings/templates')->assertInertia(fn ($page) => $page
+    it("offers the company's sections, and opens a section's own templates alone, with its leader's controls", function () {
+        $own = $this->repo->createTemplate($this->first->id, ArtifactType::RollcallBbcode, 'Our layout', 'our body', $this->admin->id);
+
+        $this->actingAs($this->sl)->get('/settings/templates')->assertInertia(fn ($page) => $page
             ->where('company', $this->alpha->id)
-            ->where('policy', ['companyEdits' => true, 'canSet' => true])
-            ->where('canManageCompany', true));
+            ->where('section', null)
+            ->where('sections.0.id', $this->first->id)
+            ->where('canManageCompany', false)
+            ->where('canManageSection', false));
 
-        $this->actingAs($this->co)->get('/settings/templates')->assertInertia(fn ($page) => $page
-            ->where('policy', ['companyEdits' => true, 'canSet' => false])
-            ->where('canManageCompany', true));
+        $this->get('/settings/templates?section='.$this->first->id)->assertOk()->assertInertia(fn ($page) => $page
+            ->where('company', $this->alpha->id)
+            ->where('section', $this->first->id)
+            ->has('templates', 1)
+            ->where('templates.0.id', $own->id)
+            ->where('templates.0.isCompanyActive', false)
+            ->where('template', $own->id)
+            ->where('active.body', 'our body')
+            ->where('canManage', true)
+            ->where('canManageCompany', false)
+            ->where('canManageSection', true)
+            ->has('previewSections', 1)
+            ->where('previewSections.0.id', $this->first->id));
     });
 
-    it('turns it off, after which the company command sees why and gets no controls, and a write is refused', function () {
-        $this->actingAs($this->bn)->post("/settings/templates/policy/{$this->alpha->id}", ['company_edits' => false])
+    it("lists no section's templates in the company's list", function () {
+        $this->repo->createTemplate($this->first->id, ArtifactType::RollcallBbcode, 'Our layout', 'our body', $this->admin->id);
+
+        $this->actingAs($this->co)->get('/settings/templates')->assertInertia(fn ($page) => $page
+            ->has('templates', 2)
+            ->where('templates.1.id', $this->standard->id));
+    });
+
+    it('opens a section with none of its own on an empty list', function () {
+        $this->actingAs($this->co)->get('/settings/templates?section='.$this->first->id)->assertInertia(fn ($page) => $page
+            ->where('templates', [])
+            ->where('template', null)
+            ->where('active', null)
+            ->where('canManageSection', true));
+    });
+
+    it('lets a section leader add, edit and roll back their own section\'s template through the page, audited', function () {
+        $this->actingAs($this->sl)->post('/settings/templates/new', ['section_id' => $this->first->id, 'name' => 'Ours', 'body' => 'one', 'reason' => 'why'])
+            ->assertSessionHasNoErrors();
+        $own = $this->repo->templatesOf($this->first->id, ArtifactType::RollcallBbcode)->sole();
+
+        $this->post('/settings/templates', ['template_id' => $own->id, 'body' => 'two', 'reason' => 'why'])
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('settings.templates', ['company' => $this->alpha->id]));
+            ->assertRedirect(route('settings.templates', ['section' => $this->first->id, 'template' => $own->id]));
+        $first = $this->repo->historyOf($own)->firstWhere('version', 1);
+        $this->post("/settings/templates/{$first->id}/activate", ['reason' => 'roll back'])->assertSessionHasNoErrors();
 
-        $this->actingAs($this->co)->get('/settings/templates')->assertInertia(fn ($page) => $page
-            ->where('policy', ['companyEdits' => false, 'canSet' => false])
-            ->where('canManage', false)
-            ->where('canManageCompany', false));
-
-        $this->post('/settings/templates', ['template_id' => $this->standard->id, 'body' => 'mine', 'reason' => 'why'])->assertForbidden();
-        $this->post("/settings/templates/{$this->standard->id}/switch", ['enabled' => false])->assertForbidden();
-
-        $this->actingAs($this->bn)->get('/settings/templates')->assertInertia(fn ($page) => $page->where('canManageCompany', true));
-        $this->post('/settings/templates', ['template_id' => $this->standard->id, 'body' => 'battalion', 'reason' => 'why'])->assertSessionHasNoErrors();
-
-        expect(AuditLogEntry::query()->pluck('action')->all())->toBe(['template_policy.set', 'template_version.authored']);
+        expect($own->section_id)->toBe($this->first->id)
+            ->and($own->company_id)->toBeNull()
+            ->and($this->repo->findTemplate($own->id)->activeVersion->body)->toBe('one')
+            ->and($this->repo->historyOf($own)->pluck('section_id')->unique()->all())->toBe([$this->first->id])
+            ->and(AuditLogEntry::query()->orderBy('id')->pluck('action')->all())->toBe(['template.created', 'template_version.authored', 'template_version.activated']);
     });
 
-    it('refuses the company command the switch, and answers a missing unit like a forbidden one for anyone but an Admin', function () {
-        $this->actingAs($this->co)->post("/settings/templates/policy/{$this->alpha->id}", ['company_edits' => false])->assertForbidden();
-        $this->post('/settings/templates/policy/999999', ['company_edits' => false])->assertForbidden();
-        $this->actingAs($this->admin)->post('/settings/templates/policy/999999', ['company_edits' => false])->assertNotFound();
-        $this->post("/settings/templates/policy/{$this->alpha->id}", [])->assertSessionHasErrors('company_edits');
+    it("refuses another section's leader, with nothing written, and the switch and company default on a section's template", function () {
+        $own = $this->repo->createTemplate($this->first->id, ArtifactType::RollcallBbcode, 'Ours', 'one', $this->admin->id);
+        $otherSl = templatesLeaderOf($this->second, 5203);
+
+        $this->actingAs($otherSl)->post('/settings/templates/new', ['section_id' => $this->first->id, 'name' => 'X', 'body' => 'b', 'reason' => 'r'])->assertForbidden();
+        $this->post('/settings/templates', ['template_id' => $own->id, 'body' => 'theirs', 'reason' => 'why'])->assertForbidden();
+
+        $this->actingAs($this->co)->post("/settings/templates/{$own->id}/switch", ['enabled' => false])->assertSessionHasErrors('template_id');
+        $this->post("/settings/templates/{$own->id}/company-active")->assertSessionHasErrors('template_id');
 
         expect(AuditLogEntry::query()->count())->toBe(0);
+    });
+
+    it('answers a section outside the scope, another company\'s and a missing one alike for a non-Admin, and a missing one with a 404 for an Admin', function () {
+        $this->actingAs($this->sl)->get('/settings/templates?section='.$this->bravoSection->id)->assertForbidden();
+        $this->get('/settings/templates?section=999999')->assertForbidden();
+        $this->get('/settings/templates?section='.$this->alpha->id)->assertForbidden();
+        $this->actingAs($this->admin)->get('/settings/templates?section=999999')->assertNotFound();
+        $this->get('/settings/templates?section='.$this->bravoSection->id)->assertOk()->assertInertia(fn ($page) => $page->where('company', $this->bravo->id));
+    });
+
+    it("answers another section's template by id with a 404", function () {
+        $theirs = $this->repo->createTemplate($this->second->id, ArtifactType::RollcallBbcode, 'Theirs', 'b', $this->admin->id);
+
+        $this->actingAs($this->sl)->get("/settings/templates?section={$this->first->id}&template={$theirs->id}")->assertNotFound();
+    });
+
+    it('shows a staff grant the section\'s templates read-only', function () {
+        $own = $this->repo->createTemplate($this->first->id, ArtifactType::RollcallBbcode, 'Ours', 'one', $this->admin->id);
+        $staff = User::factory()->serving()->create();
+        PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $this->alpha->id]);
+
+        $this->actingAs($staff)->get('/settings/templates?section='.$this->first->id)->assertOk()->assertInertia(fn ($page) => $page
+            ->where('template', $own->id)
+            ->where('canManage', false)
+            ->where('canManageSection', false));
+        $this->post('/settings/templates/new', ['section_id' => $this->first->id, 'name' => 'X', 'body' => 'b', 'reason' => 'r'])->assertForbidden();
+    });
+
+    it('refuses a unit that is not a section, for an Admin, with a form error on the section', function () {
+        $this->actingAs($this->admin)->post('/settings/templates/new', ['section_id' => $this->first->parent_id, 'name' => 'X', 'body' => 'b', 'reason' => 'r'])
+            ->assertSessionHasErrors('section_id');
+        $this->post('/settings/templates/new', ['section_id' => 999999, 'name' => 'X', 'body' => 'b', 'reason' => 'r'])->assertSessionHasErrors('section_id');
+    });
+
+    it('has no battalion switch any more: no route, no prop', function () {
+        $this->actingAs($this->admin)->post("/settings/templates/policy/{$this->alpha->id}", ['company_edits' => false])->assertNotFound();
+
+        $this->get('/settings/templates')->assertInertia(fn ($page) => $page->missing('policy'));
+
+        expect(Route::has('settings.templates.policy'))->toBeFalse()
+            ->and(Schema::hasTable('company_template_policies'))->toBeFalse();
     });
 });

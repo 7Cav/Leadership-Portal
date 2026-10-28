@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Settings;
 use App\Authorization\ScopeResolver;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLogEntry;
-use App\Models\CompanyTemplatePolicy;
 use App\Models\FireteamAssignment;
 use App\Models\FireteamSetting;
 use App\Models\Game;
@@ -156,15 +155,11 @@ class AuditLogController extends Controller
             $target instanceof Trooper => $this->trooperLink($target),
             ($target instanceof TrooperGameIdentity || $target instanceof TrooperCourse) && $target->trooper !== null => $this->trooperLink($target->trooper),
             $target instanceof TemplateVersion && $target->template !== null => [
-                'href' => route('settings.templates', array_filter(['company' => $target->company_id, 'template' => $target->template_id]), false),
+                'href' => $this->templateHref($target->template),
                 'label' => "{$this->templateLabel($target->template, $unit)}, version {$target->version}",
             ],
-            $target instanceof CompanyTemplatePolicy && $target->company !== null => [
-                'href' => route('settings.templates', ['company' => $target->company_id], false),
-                'label' => "{$unit($target->company)} template editing",
-            ],
             $target instanceof Template => [
-                'href' => route('settings.templates', array_filter(['company' => $target->company_id, 'template' => $target->id]), false),
+                'href' => $this->templateHref($target),
                 'label' => $this->templateLabel($target, $unit),
             ],
             // A section's pick is made on its rollcall; a company's active template on the Templates page.
@@ -214,7 +209,8 @@ class AuditLogController extends Controller
     }
 
     /**
-     * `A/1-7 template "Training week"`, or "Regiment default template" for the one with no company.
+     * `A/1-7 template "Training week"` (or the section's name for a section's own), or "Regiment default template" for
+     * the one with no owner.
      *
      * @param  Closure(?Unit): ?string  $unit
      */
@@ -222,7 +218,15 @@ class AuditLogController extends Controller
     {
         return $template->isRegimentDefault()
             ? 'Regiment default template'
-            : "{$unit($template->company)} template \"{$template->name}\"";
+            : "{$unit($template->section ?? $template->company)} template \"{$template->name}\"";
+    }
+
+    /** The Templates page open on the template: its company's, or its section's for a section's own. */
+    private function templateHref(Template $template): string
+    {
+        $owner = $template->isSectionTemplate() ? ['section' => $template->section_id] : ['company' => $template->company_id];
+
+        return route('settings.templates', array_filter([...$owner, 'template' => $template->id]), false);
     }
 
     /**

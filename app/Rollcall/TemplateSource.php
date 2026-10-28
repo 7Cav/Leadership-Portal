@@ -8,7 +8,7 @@ namespace App\Rollcall;
  */
 enum TemplateSource: string
 {
-    /** The section leader picked it from the templates the company switched on. */
+    /** The section leader picked it: one of the section's own, one the company switched on, or the regiment default. */
     case Picked = 'picked';
 
     /** The company's active template, switched on for its sections. */

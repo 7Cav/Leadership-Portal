@@ -2,7 +2,6 @@
 
 use App\Authorization\ScopeResolver;
 use App\Commands\Templates\CreateTemplate;
-use App\Commands\Templates\SetCompanyTemplatePolicy;
 use App\Commands\Units\ImportOrgStructure;
 use App\Integration\Cav\CavApi;
 use App\Models\ArtifactType;
@@ -12,7 +11,6 @@ use App\Models\UnitBilletMapping;
 use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
 use App\Models\User;
-use App\Repositories\TemplateVersionRepository;
 use App\Repositories\UnitLeadRepository;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
@@ -122,18 +120,16 @@ describe('the DEVCOM command team', function () {
             ->and($scope->writeScope($this->xo)->contains($this->section->id))->toBeTrue();
     });
 
-    it('lets the 1IC do what a battalion commander can for DEVCOM, D/DEVCOM and its sections: write, templates and the template switch', function () {
+    it('lets the 1IC do what a battalion commander can for DEVCOM, D/DEVCOM and its sections: write and templates', function () {
         $commander = devcomHolder(DEVCOM_1IC);
         $scope = app(ScopeResolver::class);
 
         expect($scope->writeScope($commander)->contains($this->section->id))->toBeTrue()
             ->and($scope->commandsUnit($commander, $this->company))->toBeTrue();
 
-        app(SetCompanyTemplatePolicy::class)->handle($commander, $this->company, false);
         $template = app(CreateTemplate::class)->handle($commander, $this->company, ArtifactType::RollcallBbcode, 'DEVCOM layout', 'body', 'why');
 
-        expect(app(TemplateVersionRepository::class)->companyEditsTemplates($this->company->id))->toBeFalse()
-            ->and($template->company_id)->toBe($this->company->id);
+        expect($template->company_id)->toBe($this->company->id);
     });
 
     it('gives the 1IC nothing outside DEVCOM', function () {

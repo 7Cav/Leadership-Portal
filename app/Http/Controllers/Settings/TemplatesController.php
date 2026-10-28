@@ -8,7 +8,6 @@ use App\Commands\Templates\AuthorTemplateVersion;
 use App\Commands\Templates\CreateTemplate;
 use App\Commands\Templates\InvalidTemplateException;
 use App\Commands\Templates\SetCompanyTemplate;
-use App\Commands\Templates\SetCompanyTemplatePolicy;
 use App\Commands\Templates\SwitchTemplate;
 use App\Commands\Templates\TemplateAuthority;
 use App\Http\Controllers\Controller;
@@ -39,16 +38,18 @@ use Inertia\Response;
 
 /**
  * Rollcall template authoring (Story 3.5, #375, AD-17). A company keeps named templates, each a line of immutable
- * versions with one active, and the regiment-wide default always shows beside them. Reads the repositories directly,
- * as the other settings screens do, and writes through the audited `Commands/Templates` Commands (AD-16).
+ * versions with one active, and the regiment-wide default always shows beside them. A section may keep templates of its
+ * own the same way: the page opens one of the company's sections (`?section=`) to list and edit those instead. Reads
+ * the repositories directly, as the other settings screens do, and writes through the audited `Commands/Templates`
+ * Commands (AD-16).
  *
- * An Admin sees every company. Anyone else sees only the companies their read scope reaches into (AD-8), so a leader
- * reads their own company's templates and no one else's; asking for another company is a 403. Who may write is the
- * Commands' {@see TemplateAuthority}: a company's command (CO, XO, 1SG, the command above it, an acting lead of the
- * company) for that company's templates, unless its battalion switched that off (#376), and only an Admin for the
- * regiment default. The page gets the same answer to
- * show or hide its controls, but the Commands decide. The rollcall screen never edits a template (3.11): it only picks
- * one.
+ * An Admin sees every company. Anyone else sees only the companies their read scope reaches into (AD-8), and only the
+ * sections of those in their scope, so a leader reads their own company's templates and no one else's; asking for
+ * another company or section is a 403. Who may write is the Commands' {@see TemplateAuthority}: a company's command
+ * (CO, XO, 1SG, the command above it, an acting lead of the company) for that company's templates, a section's command
+ * (SL, ASL and everyone above) for the section's own, and only an Admin for the regiment default. The page gets the
+ * same answer to show or hide its controls, but the Commands decide. The rollcall screen never edits a template
+ * (3.11): it only picks one.
  */
 class TemplatesController extends Controller
 {
@@ -77,28 +78,34 @@ class TemplatesController extends Controller
         $user = $request->user();
         $tree = $this->units->tree();
         $companies = $this->visibleCompanies($user, $scope, $tree);
-        $selected = $companies->firstWhere('id', $request->integer('company'));
+        [$selected, $section] = $request->filled('section')
+            ? $this->askedSection($request->integer('section'), $user, $scope, $companies)
+            : [$companies->firstWhere('id', $request->integer('company')), null];
 
         // Anyone but an Admin gets the same 403 for a company outside their scope and for an id that is no company at
         // all, so the answer says nothing about which ids exist. An Admin asking for a non-company lands on their own.
         abort_if($selected === null && $request->filled('company') && ! $scope->actsAsAdmin($user), 403, 'This company is outside your scope.');
 
         $selected ??= $this->ownCompany($user, $scope, $companies, $tree) ?? $companies->first();
+        $sections = $selected === null ? collect() : UnitDesignationOrder::sort($this->sectionsUnder($selected, $user, $scope), $tree);
 
+        // With a section open the list is that section's own templates; otherwise the regiment default and the company's.
         $default = $this->versions->regimentDefault(self::TYPE);
-        $own = $selected === null ? collect() : $this->versions->templatesOf($selected->id, self::TYPE);
-        $templates = collect([$default])->filter()->merge($own)->values();
-        $companyActiveId = $selected === null ? null : $this->versions->choiceFor($selected->id, self::TYPE)?->template_id;
+        $own = match (true) {
+            $section !== null => $this->versions->templatesOf($section->id, self::TYPE),
+            $selected !== null => $this->versions->templatesOf($selected->id, self::TYPE),
+            default => collect(),
+        };
+        $templates = $section !== null ? $own->values() : collect([$default])->filter()->merge($own)->values();
+        $companyActiveId = $selected === null || $section !== null ? null : $this->versions->choiceFor($selected->id, self::TYPE)?->template_id;
 
-        // A template of another company is no answer here: it is a 404 whether it exists or not.
+        // A template of another company or section is no answer here: it is a 404 whether it exists or not.
         $template = $request->filled('template') ? $templates->firstWhere('id', $request->integer('template')) : null;
         abort_if($template === null && $request->filled('template'), 404);
-        $template ??= $templates->firstWhere('id', $companyActiveId) ?? $own->first() ?? $default;
+        $template ??= $section !== null ? $own->first() : ($templates->firstWhere('id', $companyActiveId) ?? $own->first() ?? $default);
 
         $history = $template === null ? collect() : $this->versions->historyOf($template);
         $active = $history->first(fn (TemplateVersion $version) => $version->id === $template->active_version_id);
-        $managesCompany = $selected !== null && $this->authority->managesCompany($user, $selected);
-        $companyEdits = $selected === null || $this->versions->companyEditsTemplates($selected->id);
 
         return Inertia::render('Settings/Templates', [
             'artifactType' => ['value' => self::TYPE->value, 'label' => self::TYPE->label()],
@@ -108,7 +115,11 @@ class TemplatesController extends Controller
                 'callsign' => $unit->callsign,
             ])->all(),
             'company' => $selected?->id,
-            // The regiment default first, then the company's own, oldest first.
+            // The company's sections the viewer may read, in designation order, to open one's own templates instead,
+            // and the one open (null for the company's).
+            'sections' => $this->roster->options($sections),
+            'section' => $section?->id,
+            // The regiment default first, then the company's own, oldest first; or the open section's own.
             'templates' => $templates->map(fn (Template $item) => [
                 'id' => $item->id,
                 'name' => $item->name,
@@ -130,21 +141,17 @@ class TemplatesController extends Controller
             'starter' => TemplateSyntax::STARTER,
             // Follows a view-as preview, for the Admin badge.
             'isAdmin' => $scope->actsAsAdmin($user),
-            // Whether the viewer may edit and activate the open template, and add and switch the company's (the
-            // Commands' own rule). During a view-as preview the page shows these controls disabled, as the middleware
-            // refuses every write then anyway.
+            // Whether the viewer may edit and activate the open template, add and switch the company's, and add the
+            // open section's (the Commands' own rule). During a view-as preview the page shows these controls
+            // disabled, as the middleware refuses every write then anyway.
             'canManage' => $template !== null && $this->authority->manages($user, $template),
-            'canManageCompany' => $managesCompany,
-            // Whether the company's own command may set its templates, and whether this viewer may switch that (#376):
-            // the battalion command above the company and Admins.
-            'policy' => [
-                'companyEdits' => $companyEdits,
-                'canSet' => $selected !== null && $this->authority->commandsAbove($user, $selected),
-            ],
+            'canManageCompany' => $section === null && $selected !== null && $this->authority->managesUnit($user, $selected),
+            'canManageSection' => $section !== null && $this->authority->managesUnit($user, $section),
             // The sections the preview can be filled from instead of the sample: those under the company that the viewer
-            // could open on the rollcall page, in designation order. The page fills the preview with the first one (the
-            // first section of the first platoon); a section's rows load only when it is shown ({@see previewSection()}).
-            'previewSections' => $selected === null ? [] : $this->roster->options(UnitDesignationOrder::sort($this->sectionsUnder($selected, $user, $scope), $tree)),
+            // could open on the rollcall page, in designation order, or only the open section, the one its own templates
+            // render for. The page fills the preview with the first one (the first section of the first platoon); a
+            // section's rows load only when it is shown ({@see previewSection()}).
+            'previewSections' => $section === null ? $this->roster->options($sections) : [$this->roster->section($section, $sections)],
         ]);
     }
 
@@ -193,27 +200,31 @@ class TemplatesController extends Controller
     }
 
     /**
-     * Add a named template to a company, with its first version. The company's command or an Admin, checked by the
-     * Command; anyone else gets the same 403 for a company that exists and one that does not.
+     * Add a named template to a company, or to a section (`section_id`) as its own, with its first version. The unit's
+     * command or an Admin, checked by the Command; anyone else gets the same 403 for a unit that exists and one that
+     * does not.
      */
     public function create(Request $request, CreateTemplate $command): RedirectResponse
     {
         $data = $request->validate([
-            'company_id' => ['required', 'integer'],
+            'company_id' => ['required_without:section_id', 'nullable', 'integer'],
+            'section_id' => ['nullable', 'integer'],
             'name' => ['required', 'string', 'max:'.CreateTemplate::MAX_NAME_LENGTH],
             'body' => ['required', 'string', 'max:'.AuthorTemplateVersion::MAX_BODY_LENGTH],
             'reason' => ['required', 'string', 'max:1000'],
         ], self::TEMPLATE_MESSAGES);
 
-        $company = $this->units->find($data['company_id']) ?? $this->missing($request->user(), 'company_id');
+        $field = isset($data['section_id']) ? 'section_id' : 'company_id';
+        $owner = $this->units->find($data[$field]) ?? $this->missing($request->user(), $field);
 
         try {
-            $template = $command->handle($request->user(), $company, self::TYPE, $data['name'], $data['body'], $data['reason']);
+            $template = $command->handle($request->user(), $owner, self::TYPE, $data['name'], $data['body'], $data['reason']);
         } catch (InvalidTemplateException $e) {
-            throw ValidationException::withMessages([$e->field => $e->getMessage()]);
+            // The Command names the unit's field as the company's; a section's form sent it as `section_id`.
+            throw ValidationException::withMessages([($e->field === 'company_id' ? $field : $e->field) => $e->getMessage()]);
         }
 
-        return redirect()->route('settings.templates', ['company' => $company->id, 'template' => $template->id]);
+        return $this->back($template);
     }
 
     /**
@@ -290,25 +301,6 @@ class TemplatesController extends Controller
     }
 
     /**
-     * Switch the company's own template editing on or off (#376). The command above the company or an Admin, checked by
-     * the Command; anyone else gets the same 403 for a unit that exists and one that does not.
-     */
-    public function policy(Request $request, int $unit, SetCompanyTemplatePolicy $command): RedirectResponse
-    {
-        $company = $this->units->find($unit) ?? $this->missing($request->user());
-
-        $data = $request->validate(['company_edits' => ['required', 'boolean']]);
-
-        try {
-            $command->handle($request->user(), $company, (bool) $data['company_edits']);
-        } catch (InvalidTemplateException $e) {
-            throw ValidationException::withMessages([$e->field => $e->getMessage()]);
-        }
-
-        return redirect()->route('settings.templates', ['company' => $company->id]);
-    }
-
-    /**
      * A record that is not there: an Admin is told so (a 404, or a form error on `$field`), anyone else gets the 403 a
      * record they may not touch gets, so a missing id and a forbidden one look alike.
      */
@@ -323,12 +315,35 @@ class TemplatesController extends Controller
         abort(404);
     }
 
+    /** Back to the template on the page: its company's list, or its section's for a section's own. */
     private function back(?Template $template): RedirectResponse
     {
-        return redirect()->route('settings.templates', array_filter([
-            'company' => $template?->company_id,
-            'template' => $template?->id,
-        ]));
+        $owner = $template?->isSectionTemplate() ? ['section' => $template->section_id] : ['company' => $template?->company_id];
+
+        return redirect()->route('settings.templates', array_filter([...$owner, 'template' => $template?->id]));
+    }
+
+    /**
+     * The company and section the page opens for `?section=`: a section under one of the viewer's companies and in
+     * their read scope (view-as included), with its company. Anyone but an Admin gets the same 403 for a section outside
+     * their scope and an id that is no section, as for a company; an Admin is told a missing one is not there.
+     *
+     * @param  Collection<int, Unit>  $companies  the companies the viewer may read
+     * @return array{0: Unit, 1: Unit}
+     */
+    private function askedSection(int $id, User $user, ScopeResolver $scope, Collection $companies): array
+    {
+        $asked = $this->units->find($id);
+        $company = $asked?->type === UnitType::Section ? $this->units->owningCompany($asked) : null;
+        $company = $company === null ? null : $companies->firstWhere('id', $company->id);
+        $section = $company === null ? null : $this->sectionsUnder($company, $user, $scope)->firstWhere('id', $id);
+
+        if ($section === null) {
+            abort_unless($scope->actsAsAdmin($user), 403, 'This section is outside your scope.');
+            abort(404);
+        }
+
+        return [$company, $section];
     }
 
     /**

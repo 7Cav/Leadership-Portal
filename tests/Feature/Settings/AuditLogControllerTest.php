@@ -436,13 +436,37 @@ describe('template entries (#375)', function () {
     });
 });
 
-it('links a company template editing switch to the company templates, and finds it under the company (#376)', function () {
+it("links a section's own template and its versions to the section's templates, and finds them under the section and the company", function () {
     $this->admin = User::factory()->admin()->create();
     $this->actor = User::factory()->create();
     $company = Unit::factory()->create(['type' => UnitType::Company, 'name' => 'Alpha Company', 'callsign' => 'A/1-7', 'path' => '760/']);
-    $policy = app(TemplateVersionRepository::class)->setCompanyEditsTemplates($company, false, $this->actor->id);
-    $entry = auditAbout($this, $policy, 'template_policy.set');
+    $section = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $company->id, 'name' => '1st Section', 'callsign' => '1/1/A/1-7', 'path' => '760/761/']);
+    $repo = app(TemplateVersionRepository::class);
+    $own = $repo->createTemplate($section->id, ArtifactType::RollcallBbcode, 'Ours', 'body', $this->actor->id);
+    $template = auditAbout($this, $own, 'template.created');
+    $version = auditAbout($this, $repo->authorVersion($own, 'two', $this->actor->id), 'template_version.authored');
 
-    expect(auditLinksOn($this)[$entry->id])->toBe(['href' => "/settings/templates?company={$company->id}", 'label' => 'A/1-7 template editing'])
-        ->and(array_keys(auditLinksOn($this, "?unit_id={$company->id}")))->toContain($entry->id);
+    $links = auditLinksOn($this);
+
+    expect($links[$template->id])->toBe(['href' => "/settings/templates?section={$section->id}&template={$own->id}", 'label' => '1/1/A/1-7 template "Ours"'])
+        ->and($links[$version->id])->toBe(['href' => "/settings/templates?section={$section->id}&template={$own->id}", 'label' => '1/1/A/1-7 template "Ours", version 2'])
+        ->and(array_keys(auditLinksOn($this, "?unit_id={$section->id}")))->toContain($template->id, $version->id)
+        ->and(array_keys(auditLinksOn($this, "?unit_id={$company->id}")))->toContain($template->id, $version->id);
+});
+
+it('still lists an entry about the removed battalion template switch, linked to nothing (#376 withdrawn)', function () {
+    $this->admin = User::factory()->admin()->create();
+    $this->actor = User::factory()->create();
+    $entry = AuditLogEntry::factory()->create([
+        'actor_id' => $this->actor->id,
+        'action' => 'template_policy.set',
+        'target_type' => 'CompanyTemplatePolicy',
+        'target_id' => '7',
+    ]);
+
+    $this->actingAs($this->admin)->get('/settings/audit-log')->assertOk()->assertInertia(fn ($page) => $page
+        ->where('entries.data.0.id', $entry->id)
+        ->where('entries.data.0.action', 'template_policy.set')
+        ->where('entries.data.0.target_type', 'CompanyTemplatePolicy')
+        ->where('entries.data.0.link', null));
 });

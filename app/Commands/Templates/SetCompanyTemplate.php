@@ -28,16 +28,16 @@ class SetCompanyTemplate
 
     /**
      * @throws TemplateForbiddenException when the actor does not command the template's company.
-     * @throws InvalidTemplateException when the template is the regiment default.
+     * @throws InvalidTemplateException when the template is the regiment default or a section's own.
      */
     public function handle(User $actor, Template $template): void
     {
-        if ($template->isRegimentDefault()) {
+        if ($template->company_id === null) {
             throw InvalidTemplateException::notThisCompanys();
         }
 
         if (! $this->authority->manages($actor, $template)) {
-            throw $this->authority->refusal($actor, $template);
+            throw $this->authority->refusal($template);
         }
 
         $company = $this->units->find($template->company_id);

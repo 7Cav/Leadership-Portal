@@ -24,14 +24,13 @@ use Illuminate\Support\Collection;
  *  - {@see usedBy()} before the move: the company template each of its sections renders from now (a pick, or the
  *    company's default), read while the unit still sits under the old company;
  *  - {@see afterMove()} after it: each of those templates is copied into the new company as a template of its own,
- *    named after the old one and the company it came from, holding the version that was active, and each section's
- *    pick moves to its copy. The new company owns the copies, so its command manages them like any of its templates
- *    (subject to its battalion's switch, #376), and the old company's later edits or switches never reach the moved
- *    sections. Where the new company's battalion sets its templates the copies are made switched off, so the sections
- *    follow their new company, and the rollcall tells them which template they now use
- *    ({@see TemplateResolver::pickerFor()}); switching a copy on brings it back.
+ *    switched on, named after the old one and the company it came from, holding the version that was active, and each
+ *    section's pick moves to its copy. The new company owns the copies, so its command manages them like any of its
+ *    templates, and the old company's later edits or switches never reach the moved sections.
  *
- * Fireteam settings, labels and acting leads are keyed to the units themselves, so they move with them unchanged. One
+ * A section's own templates (and its pick of one) are keyed to the section, so they move with it and are neither
+ * copied nor re-picked. Fireteam settings, labels and acting leads are keyed to the units themselves too, so they move
+ * with them unchanged. One
  * audited batch (`unit.settings_carried`) records what came along: the copies and their versions, the sections' new
  * picks, and the fireteam settings and acting leads of the moved units, so the log shows what the platoon kept.
  */
@@ -55,7 +54,8 @@ class CarryUnitTemplates
 
     /**
      * The unit's company before it moves, and the company template each of its sections renders from, keyed by section
-     * id. A section on the regiment default is left out: that one is everyone's.
+     * id. A section on the regiment default is left out: that one is everyone's. So is a section on a template of its
+     * own: that one moves with it.
      *
      * @return array{0: ?Unit, 1: array<int, Template>}
      */
@@ -72,7 +72,7 @@ class CarryUnitTemplates
         foreach ($this->sectionsOf($unit) as $section) {
             $template = $this->resolver->forUnit($section)->template;
 
-            if ($template !== null && ! $template->isRegimentDefault()) {
+            if ($template !== null && $template->company_id !== null) {
                 $used[$section->id] = $template;
             }
         }
@@ -101,14 +101,12 @@ class CarryUnitTemplates
             reason: null,
             reasonRequired: false,
             mutation: function () use ($actor, $unit, $from, $to, $used) {
-                // Switched off where the battalion sets the company's templates: the sections follow the new company.
-                $enabled = $this->versions->companyEditsTemplates($to->id);
                 $copies = [];
                 $picks = [];
                 $who = [$actor->id, $this->acting->adminActingAs($actor->id), $this->acting->billetOf($actor->id)];
 
                 foreach ($used as $sectionId => $template) {
-                    $copies[$template->id] ??= $this->versions->copyTemplate($template, $to->id, $this->copyName($template, $from), $enabled, ...$who);
+                    $copies[$template->id] ??= $this->versions->copyTemplate($template, $to->id, $this->copyName($template, $from), true, ...$who);
 
                     $section = $this->units->find($sectionId);
 

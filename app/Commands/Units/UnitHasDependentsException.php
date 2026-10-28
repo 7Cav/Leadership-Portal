@@ -7,7 +7,7 @@ use RuntimeException;
 /**
  * A unit cannot be deleted while it still has dependents (AD-22 protects portal-owned data from
  * silent orphaning): a child unit, a Cav billet mapped to the unit (2.9), a staff grant on it
- * (1.12), a recorded practice (3.3), a weekly report (5.6), a company's template version (3.5) or a platoon's
+ * (1.12), a recorded practice (3.3), a weekly report (5.6), a company's or a section's template (3.5) or a platoon's
  * training plan (#380). Each is a `restrictOnDelete` foreign key to `units`, so without this the delete would die in
  * the database as a 500. A platoon's training topic cascades in the database instead, but is refused here too: it is
  * part of its week's report record.

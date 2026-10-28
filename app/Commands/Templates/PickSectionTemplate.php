@@ -15,8 +15,8 @@ use App\Support\Audit\ActingFor;
 use App\Support\Audit\AuditEnvelope;
 
 /**
- * A section's leader picks which template its rollcall post uses (#375, AD-17), from the ones its company switched on
- * and the regiment default ({@see TemplateResolver::optionsFor()}), or clears the pick (`$templateId` null) to go back to
+ * A section's leader picks which template its rollcall post uses (#375, AD-17), from the section's own templates, the
+ * ones its company switched on and the regiment default ({@see TemplateResolver::optionsFor()}), or clears the pick (`$templateId` null) to go back to
  * the company's active template. The pick is the section's and persists until changed. Gated by the section's write
  * scope (AD-8): its leaders and the command above them, never a staff grant. Audited (AD-16); a pick that changes
  * nothing is not logged.
@@ -49,7 +49,8 @@ class PickSectionTemplate
             throw InvalidTemplateException::notASection($section);
         }
 
-        // An id that names no template is refused like another company's: neither is a template this section may use.
+        // An id that names no template is refused like another company's or another section's: none is a template this
+        // section may use.
         $template = $templateId === null ? null : $this->resolver->optionsFor($section, $type)->firstWhere('id', $templateId);
 
         if ($templateId !== null && ! $template instanceof Template) {

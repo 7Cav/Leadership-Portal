@@ -264,9 +264,9 @@ describe("the section leader's pick (#375)", function () {
         $this->actingAs($this->leader);
         expect(bindProps($this, $this->section)['templatePicker'])->toBe([
             'options' => [
-                ['id' => $this->versions->regimentDefault($this->type)->id, 'name' => 'Regiment default', 'isRegimentDefault' => true, 'version' => 1],
-                ['id' => $this->standard->id, 'name' => 'Company template', 'isRegimentDefault' => false, 'version' => 1],
-                ['id' => $this->training->id, 'name' => 'Training week', 'isRegimentDefault' => false, 'version' => 1],
+                ['id' => $this->versions->regimentDefault($this->type)->id, 'name' => 'Regiment default', 'isRegimentDefault' => true, 'isSection' => false, 'version' => 1],
+                ['id' => $this->standard->id, 'name' => 'Company template', 'isRegimentDefault' => false, 'isSection' => false, 'version' => 1],
+                ['id' => $this->training->id, 'name' => 'Training week', 'isRegimentDefault' => false, 'isSection' => false, 'version' => 1],
             ],
             'picked' => null,
             'moved' => null,

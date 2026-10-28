@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\ArtifactType;
-use App\Models\CompanyTemplatePolicy;
 use App\Models\Template;
 use App\Models\TemplateVersion;
 use App\Models\Trooper;
@@ -15,7 +14,7 @@ use App\Repositories\TemplateVersionRepository;
 use App\Repositories\UnitRepository;
 use Inertia\Testing\AssertableInertia as Assert;
 
-// #379 for the rollcall templates (#375, #376): a template, a version, a unit's choice and a company's template policy
+// #379 for the rollcall templates (#375): a template (a company's or a section's own), a version and a unit's choice
 // keep naming the person an Admin acted as, with the Admin beside them ("Hale.S for Pike.S"), and name the Admin with
 // the unit whose billet they held ("Hale.S acting as Company Commander A/1-7"). Done in one's own name, both stay null.
 
@@ -229,30 +228,45 @@ describe('picking a section\'s template', function () {
     });
 });
 
-describe('setting a company\'s template policy', function () {
+describe('a section\'s own template', function () {
     beforeEach(function () {
-        $this->policy = fn () => CompanyTemplatePolicy::query()->where('company_id', $this->company->id)->sole();
+        $this->own = fn () => Template::query()->where('section_id', $this->section->id)->sole();
+        $this->create = fn () => $this->post('/settings/templates/new', ['section_id' => $this->section->id, 'name' => 'Ours', 'body' => 'one', 'reason' => 'Our own'])
+            ->assertSessionHasNoErrors();
     });
 
-    it('names the Admin acting as the battalion commander', function () {
-        tanActAs($this, $this->bn);
+    it('names the Admin acting as the section leader on the template and its versions, and the history says so', function () {
+        tanActAs($this, $this->sl);
+        $this->actingAs($this->admin);
+        ($this->create)();
+        $this->actingAs($this->admin)->post('/settings/templates', ['template_id' => ($this->own)()->id, 'body' => 'two', 'reason' => 'Edit'])->assertSessionHasNoErrors();
 
-        $this->actingAs($this->admin)->post("/settings/templates/policy/{$this->company->id}", ['company_edits' => false])->assertSessionHasNoErrors();
+        $own = ($this->own)();
+        $versions = TemplateVersion::query()->where('template_id', $own->id)->orderBy('version')->get();
 
-        expect(tanWho(($this->policy)(), 'set'))->toBe([$this->bn->id, $this->admin->id, null]);
+        expect(tanWho($own, 'created'))->toBe([$this->sl->id, $this->admin->id, null])
+            ->and($versions->map(fn (TemplateVersion $version) => tanWho($version, 'created'))->all())
+            ->toBe([[$this->sl->id, $this->admin->id, null], [$this->sl->id, $this->admin->id, null]])
+            ->and(UnitTemplateChoice::query()->where('unit_id', $this->section->id)->exists())->toBeFalse();
+
+        $this->actingAs($this->admin)->delete('/act-as');
+        $this->get("/settings/templates?section={$this->section->id}&template={$own->id}")->assertInertia(fn (Assert $page) => $page
+            ->where('history.0.createdBy', 'Hale.S for Mercer.J'));
     });
 
     it('names the billet an Admin held', function () {
-        tanActAs($this, $this->battalion);
+        tanActAs($this, $this->section);
+        $this->actingAs($this->admin);
+        ($this->create)();
 
-        $this->actingAs($this->admin)->post("/settings/templates/policy/{$this->company->id}", ['company_edits' => false])->assertSessionHasNoErrors();
-
-        expect(tanWho(($this->policy)(), 'set'))->toBe([$this->admin->id, null, $this->battalion->id]);
+        expect(tanWho(($this->own)(), 'created'))->toBe([$this->admin->id, null, $this->section->id])
+            ->and(tanWho(($this->own)()->activeVersion, 'created'))->toBe([$this->admin->id, null, $this->section->id]);
     });
 
-    it('leaves both empty for the battalion commander in their own name', function () {
-        $this->actingAs($this->bn)->post("/settings/templates/policy/{$this->company->id}", ['company_edits' => false])->assertSessionHasNoErrors();
+    it('leaves both empty for a section leader in their own name', function () {
+        $this->actingAs($this->sl);
+        ($this->create)();
 
-        expect(tanWho(($this->policy)(), 'set'))->toBe([$this->bn->id, null, null]);
+        expect(tanWho(($this->own)(), 'created'))->toBe([$this->sl->id, null, null]);
     });
 });

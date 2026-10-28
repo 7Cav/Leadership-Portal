@@ -1004,35 +1004,131 @@ describe('Settings/Templates: the company list (#375)', () => {
     });
 });
 
-describe('Settings/Templates: the battalion switch (#376)', () => {
-    it('says the company sets its own templates and offers battalion command the switch', async () => {
-        const wrapper = page({ policy: { companyEdits: true, canSet: true } });
+describe("Settings/Templates: a section's own templates", () => {
+    const SECTIONS = [
+        { id: 31, designation: '1/1/E/2-7', name: '1st Section', platoon: '1st Platoon' },
+        { id: 32, designation: '2/1/E/2-7', name: '2nd Section', platoon: '1st Platoon' },
+    ];
+    const OWN = [{ id: 40, name: 'Our layout', isRegimentDefault: false, enabled: true, isCompanyActive: false, version: 1 }];
+    const sectionPage = (overrides = {}) =>
+        page({ sections: SECTIONS, section: 31, templates: OWN, template: 40, canManageCompany: false, canManageSection: true, ...overrides });
 
-        expect(wrapper.get('[data-testid="template-policy-note"]').text()).toBe("The company's command sets its own templates.");
-        await wrapper.get('[data-testid="template-policy-switch"]').trigger('click');
+    it("offers the company and each of its sections the viewer reads, on the company's by default", () => {
+        const select = page({ sections: SECTIONS }).get('[data-testid="owner-select"]');
 
-        expect(routerPost).toHaveBeenCalledWith('/settings/templates/policy/1', { company_edits: false }, expect.objectContaining({ preserveScroll: true }));
+        expect(select.findAll('option').map((o) => o.text())).toEqual(['The company', '1/1/E/2-7 1st Section', '2/1/E/2-7 2nd Section']);
+        expect(select.element.value).toBe('');
     });
 
-    it("tells the company's command why it has no controls while the battalion has editing off", () => {
-        const wrapper = page({ policy: { companyEdits: false, canSet: false }, canManage: false, canManageCompany: false });
+    it("offers no section choice when the viewer reads none of the company's sections", () => {
+        expect(page().find('[data-testid="owner-select"]').exists()).toBe(false);
+    });
 
-        expect(wrapper.get('[data-testid="template-policy-note"]').text()).toContain('Battalion command has turned off');
-        expect(wrapper.find('[data-testid="template-policy-switch"]').exists()).toBe(false);
+    it("opens a section's templates through the server, and back to the company's", async () => {
+        const wrapper = page({ sections: SECTIONS });
+        const select = wrapper.get('[data-testid="owner-select"]');
+
+        select.element.value = '32';
+        await select.trigger('change');
+        select.element.value = '';
+        await select.trigger('change');
+
+        expect(routerGet).toHaveBeenNthCalledWith(1, '/settings/templates', { section: '32' }, { preserveScroll: true });
+        expect(routerGet).toHaveBeenNthCalledWith(2, '/settings/templates', { company: 1 }, { preserveScroll: true });
+    });
+
+    it('asks before switching away from unsaved text, and stays when told to', async () => {
+        const confirm = vi.fn(() => false);
+        vi.stubGlobal('confirm', confirm);
+        const wrapper = page({ sections: SECTIONS });
+
+        formState.body = '[B]half-written[/B]';
+        const select = wrapper.get('[data-testid="owner-select"]');
+        select.element.value = '32';
+        await select.trigger('change');
+
+        expect(confirm).toHaveBeenCalled();
+        expect(routerGet).not.toHaveBeenCalled();
+    });
+
+    it("lists the section's own templates with no switch or company default, and says only its rollcall uses them", () => {
+        const wrapper = sectionPage();
+
+        expect(wrapper.get('[data-testid="owner-select"]').element.value).toBe('31');
+        expect(wrapper.get('[data-testid="section-note"]').text()).toContain("1/1/E/2-7 1st Section's own templates. Only this section's rollcall can use them");
+        expect(wrapper.find('[data-testid="template-row-40"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="switch-40"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="make-default-40"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="nothing-switched-on"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="template-form"]').exists()).toBe(true);
+    });
+
+    it("opens another of the section's templates by the section", async () => {
+        const wrapper = sectionPage({ templates: [...OWN, { ...OWN[0], id: 41, name: 'Second' }] });
+
+        await wrapper.get('[data-testid="open-template-41"]').trigger('click');
+
+        expect(routerGet).toHaveBeenCalledWith('/settings/templates', { section: 31, template: 41 }, { preserveScroll: true });
+    });
+
+    it('says when the section has none yet, and shows no editor', () => {
+        const wrapper = sectionPage({ templates: [], template: null, active: null, history: [], canManage: false });
+
+        expect(wrapper.get('[data-testid="no-section-templates"]').text()).toBe('This section has no templates of its own yet.');
+        expect(wrapper.find('[data-testid="template-form"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="new-template"]').exists()).toBe(true);
+    });
+
+    it('adds a template to the section, from the starter when it has none', async () => {
+        const wrapper = sectionPage({ templates: [], template: null, active: null, history: [], canManage: false });
+
+        await wrapper.get('[data-testid="new-template"]').trigger('click');
+        await flushPromises();
+        expect(document.body.querySelector('[data-testid="create-dialog"]').textContent).toContain("for 1/1/E/2-7 1st Section's rollcall only");
+
+        createState.name = 'Our layout';
+        createState.reason = 'Our own post';
+        await nextTick();
+        document.body.querySelector('[data-testid="create-confirm"]').click();
+        await flushPromises();
+
+        expect(createPost).toHaveBeenCalledWith('/settings/templates/new', expect.objectContaining({ preserveScroll: true }));
+        expect(createState.section_id).toBe(31);
+        expect(createState.body).toBe(STARTER);
+    });
+
+    it("shows the section's template read-only to someone who only reads it", () => {
+        const wrapper = sectionPage({ canManage: false, canManageSection: false });
+
         expect(wrapper.find('[data-testid="new-template"]').exists()).toBe(false);
         expect(wrapper.find('[data-testid="template-form"]').exists()).toBe(false);
+        expect(wrapper.get('[data-testid="template-readonly"]').text()).toBe('[B]second[/B]');
     });
 
-    it('shows nothing about the switch to a company that sets its own and a viewer who cannot change it', () => {
+    it('keeps the controls, disabled, while previewing', () => {
+        mockPage.props = { viewAs: { kind: 'unit', designation: '1/1/E/2-7', label: 'SGT Vasquez.R', admin: true } };
+        const wrapper = sectionPage({ isAdmin: false, canManage: false, canManageSection: false });
+
+        expect(wrapper.get('[data-testid="new-template"]').attributes('aria-disabled')).toBe('true');
+        expect(wrapper.get('[data-testid="save-template-readonly"]').attributes('aria-disabled')).toBe('true');
+    });
+
+    it('creates a company template with no section when the company is open', async () => {
+        const wrapper = page({ sections: SECTIONS });
+
+        await wrapper.get('[data-testid="new-template"]').trigger('click');
+        await flushPromises();
+        createState.name = 'Company layout';
+        createState.reason = 'why';
+        await nextTick();
+        document.body.querySelector('[data-testid="create-confirm"]').click();
+        await flushPromises();
+
+        expect(createState.company_id).toBe(1);
+        expect(createState.section_id).toBeNull();
+    });
+
+    it('shows no battalion switch any more', () => {
         expect(page().find('[data-testid="template-policy"]').exists()).toBe(false);
-    });
-
-    it('offers battalion command the switch back on', async () => {
-        const wrapper = page({ policy: { companyEdits: false, canSet: true } });
-
-        expect(wrapper.get('[data-testid="template-policy-switch"]').text()).toBe('Turn on company editing');
-        await wrapper.get('[data-testid="template-policy-switch"]').trigger('click');
-
-        expect(routerPost).toHaveBeenCalledWith('/settings/templates/policy/1', { company_edits: true }, expect.anything());
     });
 });
