@@ -55,7 +55,7 @@ function closeOnMobile() {
                                     <img src="/assets/cav-shield.png" alt="" class="size-6 object-contain" />
                                 </span>
                                 <span class="grid min-w-0 flex-1 leading-tight">
-                                    <span class="truncate text-[13px] font-semibold">7th Cavalry</span>
+                                    <span class="truncate text-[13px] font-semibold">7Cav</span>
                                     <span class="truncate text-xs text-muted-foreground">Leadership Portal</span>
                                 </span>
                                 <PhCaretUpDown class="ml-auto size-4 text-muted-foreground" />

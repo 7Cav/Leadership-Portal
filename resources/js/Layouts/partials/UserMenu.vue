@@ -69,7 +69,7 @@ const { canActAs, openPicker: openActAsPicker } = useActAs();
                     <!-- View as (Story 1.13): the same picker the top-bar control opens. -->
                     <DropdownMenuItem data-testid="view-as" @select="openPicker">
                         <PhUserSwitch class="size-4 text-muted-foreground" />
-                        View as...
+                        View as
                     </DropdownMenuItem>
                     <DropdownMenuItem v-if="viewingAs" data-testid="view-as-menu-exit" @select="exitViewAs()">
                         <PhArrowCounterClockwise class="size-4 text-muted-foreground" />
@@ -78,7 +78,7 @@ const { canActAs, openPicker: openActAsPicker } = useActAs();
                     <!-- Act as (#432): a leader steps into a billet holder below them, with their permissions. -->
                     <DropdownMenuItem v-if="canActAs" data-testid="act-as" @select="openActAsPicker">
                         <PhUserFocus class="size-4 text-muted-foreground" />
-                        Act as...
+                        Act as
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
 

@@ -56,7 +56,7 @@ function requestRevoke(grant) {
         data: { reason },
         preserveScroll: true,
         onError: (errors) => {
-            revokeError.value = errors.reason ?? 'The revoke failed. Reload the page and try again; if it persists, check the server logs.';
+            revokeError.value = errors.reason ?? 'The revoke failed. Reload the page and try again. If it fails again, check the server logs.';
         },
     });
 }
@@ -70,7 +70,7 @@ function requestRevoke(grant) {
             <div class="min-w-0">
                 <h1 class="text-xl font-semibold tracking-tight">Staff grants</h1>
                 <p class="mt-1 text-[13px] text-muted-foreground">
-                    Give staff scope over a unit when their billet alone does not, such as S-shop staff and dual-hatted leaders.
+                    Give staff scope over a unit when their billet alone does not, such as staff department officers and dual-hatted leaders.
                 </p>
             </div>
             <Badge v-if="isAdmin" variant="outline" class="gap-1"><PhLockSimple aria-hidden="true" />Admin</Badge>
@@ -124,7 +124,7 @@ function requestRevoke(grant) {
                         </TableRow>
                     </TableBody>
                 </Table>
-                <EmptyState v-else :icon="PhKey" title="No staff grants yet." class="border-t border-border py-10">
+                <EmptyState v-else :icon="PhKey" title="No staff grants yet" class="border-t border-border py-10">
                     {{ isAdmin ? 'Grant a user scope over a unit with the form alongside.' : 'An Admin can grant staff scope over a unit here.' }}
                 </EmptyState>
             </Card>

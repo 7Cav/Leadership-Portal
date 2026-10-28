@@ -111,7 +111,7 @@ function goTo(url) {
                 </div>
 
                 <div class="grid gap-1.5">
-                    <Label for="filter-target-id">Target id</Label>
+                    <Label for="filter-target-id">Target ID</Label>
                     <Input id="filter-target-id" v-model="filters.target_id" data-testid="filter-target_id" type="text" />
                 </div>
 
@@ -165,12 +165,12 @@ function goTo(url) {
                             <template v-if="entry.reason">{{ entry.reason }}</template>
                             <span v-else class="text-muted-foreground">None given</span>
                         </TableCell>
-                        <TableCell class="font-mono text-xs text-muted-foreground" :title="entry.content_digest">{{ entry.content_digest.slice(0, 12) }}…</TableCell>
+                        <TableCell class="font-mono text-xs text-muted-foreground" :title="entry.content_digest">{{ entry.content_digest.slice(0, 12) }}</TableCell>
                         <TableCell class="px-4 tabular-nums">{{ forumDateTime(entry.created_at) }}</TableCell>
                     </TableRow>
                 </TableBody>
             </Table>
-            <EmptyState v-else :icon="PhListMagnifyingGlass" title="No audit entries match these filters." class="py-10">
+            <EmptyState v-else :icon="PhListMagnifyingGlass" title="No audit entries match these filters" class="py-10">
                 Widen the date range or clear a filter to see more.
             </EmptyState>
 

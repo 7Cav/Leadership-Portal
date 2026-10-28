@@ -60,7 +60,7 @@ const unplacedCount = computed(() => props.unplacedTotal ?? props.unplacedTroope
 // the sync found no section mapped to it.
 function billetLabel(trooper) {
     if (trooper.billet) return trooper.billet;
-    return trooper.position_id !== null ? `Billet not mapped (position ${trooper.position_id})` : 'No billet reported';
+    return trooper.position_id !== null ? `Billet not mapped (position ${trooper.position_id})` : 'No billet on record';
 }
 
 const tree = computed(() => {
@@ -429,7 +429,7 @@ function submitAssign(trooper) {
                     response.status === 403
                         ? 'Only an Admin can place a trooper.'
                         : response.status === 419
-                          ? 'Your session expired. Reload the page and try again.'
+                          ? 'Your session expired; reload the page and try again.'
                           : `The placement failed (error ${response.status}). Try again.`;
 
                 return false;
@@ -458,7 +458,7 @@ function runImport() {
             preserveScroll: true,
             onError: (errors) => {
                 importError.value =
-                    errors.import ?? Object.values(errors)[0] ?? 'The import failed. Reload the page and try again; if it persists, check the server logs.';
+                    errors.import ?? Object.values(errors)[0] ?? 'The import failed. Reload the page and try again. If it fails again, check the server logs.';
             },
             onFinish: () => {
                 importing.value = false;
@@ -487,19 +487,19 @@ function requestDelete(id) {
             }
         },
         onError: (errors) => {
-            deleteError.value = errors.delete ?? 'The delete failed. Reload the page and try again; if it persists, check the server logs.';
+            deleteError.value = errors.delete ?? 'The delete failed. Reload the page and try again. If it fails again, check the server logs.';
         },
     });
 }
 </script>
 
 <template>
-    <Head title="Settings · Organization structure · 7Cav Leadership Portal" />
+    <Head title="Settings · Org structure · 7Cav Leadership Portal" />
 
     <div class="space-y-5">
         <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0">
-                <h1 class="text-xl font-semibold tracking-tight">Organization structure</h1>
+                <h1 class="text-xl font-semibold tracking-tight">Org structure</h1>
                 <p class="mt-1 text-[13px] text-muted-foreground">
                     The chain of command, from regiment down to section. Rosters, rollcalls and reports all roll up along it.
                 </p>
@@ -512,7 +512,7 @@ function requestDelete(id) {
                 -->
                 <Button variant="outline" data-testid="import-from-cav" :disabled="importing" @click="runImport">
                     <PhCloudArrowDown aria-hidden="true" />
-                    {{ importing ? 'Importing…' : 'Import from Cav roster' }}
+                    {{ importing ? 'Importing' : 'Import from Cav roster' }}
                 </Button>
             </div>
         </div>
@@ -547,7 +547,7 @@ function requestDelete(id) {
                 </template>
                 <template v-if="importResult.skippedTitles.length">
                     {{ importResult.skippedTitles.length }} position {{ importResult.skippedTitles.length === 1 ? 'title' : 'titles' }} skipped
-                    (designation not recognised):
+                    (designation not recognized):
                     <span class="font-mono text-xs text-muted-foreground">{{ importResult.skippedTitles.join(', ') }}</span>
                 </template>
             </p>
@@ -720,7 +720,7 @@ function requestDelete(id) {
                     <form v-if="isAdmin" data-testid="label-form" class="mb-4 flex items-end gap-2" @submit.prevent="submitLabel">
                         <div class="grid flex-1 gap-1.5">
                             <Label for="edit-label">Game or team label</Label>
-                            <Input id="edit-label" v-model="labelForm.label" data-testid="edit-label" type="text" maxlength="40" placeholder="e.g. WARDOGS" :aria-invalid="!!labelForm.errors.label" />
+                            <Input id="edit-label" v-model="labelForm.label" data-testid="edit-label" type="text" maxlength="40" placeholder="such as WARDOGS" :aria-invalid="!!labelForm.errors.label" />
                             <p v-if="labelForm.errors.label" class="text-xs text-destructive" data-testid="edit-error-label">{{ labelForm.errors.label }}</p>
                         </div>
                         <Button type="submit" variant="outline" data-testid="save-label" :disabled="labelForm.processing">Save label</Button>
@@ -908,14 +908,14 @@ function requestDelete(id) {
                                         data-testid="assign-reason"
                                         type="text"
                                         maxlength="500"
-                                        placeholder="Why this unit, e.g. who confirmed it"
+                                        placeholder="Why this unit, such as who confirmed it"
                                     />
                                 </div>
                                 <p v-if="assignError" data-testid="assign-error" role="alert" class="text-xs text-destructive">{{ assignError }}</p>
                                 <div class="flex items-center justify-end gap-2">
                                     <Button type="button" variant="ghost" size="sm" data-testid="assign-cancel" @click="cancelAssign">Cancel</Button>
                                     <Button type="submit" size="sm" data-testid="assign-submit" :disabled="assigning || assignSection === null || !assignReason.trim()">
-                                        {{ assigning ? 'Placing…' : 'Place trooper' }}
+                                        {{ assigning ? 'Placing' : 'Place trooper' }}
                                     </Button>
                                 </div>
                             </form>

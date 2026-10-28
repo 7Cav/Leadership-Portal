@@ -143,7 +143,7 @@ const remove = (game) => act('delete', `/settings/games/${game.id}`, `${game.nam
                         </TableRow>
                     </TableBody>
                 </Table>
-                <EmptyState v-else :icon="PhGameController" title="No games yet." class="border-t border-border py-10">
+                <EmptyState v-else :icon="PhGameController" title="No games yet" class="border-t border-border py-10">
                     {{ isAdmin ? 'Add the first game with the form alongside.' : 'An Admin can add the games here.' }}
                 </EmptyState>
             </Card>
@@ -187,7 +187,7 @@ const remove = (game) => act('delete', `/settings/games/${game.id}`, `${game.nam
                         <div>
                             <Button type="button" variant="outline" size="sm" data-testid="add-kind" @click="addKind">Add a kind</Button>
                         </div>
-                        <p class="text-xs text-muted-foreground">A game with one kind asks for just its ID; with several, leaders pick the kind first. The first is the default.</p>
+                        <p class="text-xs text-muted-foreground">A game with one kind asks only for its ID; with several, leaders pick the kind first. The first is the default.</p>
                         <p v-if="kindError" class="text-xs text-destructive" data-testid="error-id_kinds">{{ kindError }}</p>
                     </div>
 

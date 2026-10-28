@@ -25,11 +25,11 @@ function no() {
             <Button variant="outline" @click="answer = 'yes'"><PhThumbsUp />Yes</Button>
             <Button variant="outline" @click="no"><PhThumbsDown />No</Button>
         </template>
-        <p v-else-if="answer === 'yes'" role="status">Thanks for letting us know.</p>
+        <p v-else-if="answer === 'yes'" role="status">Thanks.</p>
         <p v-else role="status">
             Thanks.
             <template v-if="url">
-                Tell us what was missing in the
+                Say what was missing on the
                 <a :href="url" target="_blank" rel="noopener" class="underline underline-offset-2">page that just opened</a>.
             </template>
             <template v-else>Ask your chain of command, or S6, about what was missing.</template>

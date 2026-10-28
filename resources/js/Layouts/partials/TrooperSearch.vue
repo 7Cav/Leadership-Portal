@@ -175,7 +175,7 @@ function choose(trooper) {
                 </p>
 
                 <div v-else-if="!results.length" class="px-6 py-8 text-center text-[13px] text-muted-foreground" data-testid="trooper-search-empty">
-                    <p>No trooper in your view matches “{{ query.trim() }}”.</p>
+                    <p>No trooper in your scope matches "{{ query.trim() }}".</p>
                     <p v-if="scoped" class="mx-auto mt-1 max-w-[46ch] text-[12px]" data-testid="trooper-search-scope-note">
                         Only troopers in your units are shown.
                     </p>
