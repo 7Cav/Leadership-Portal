@@ -22,6 +22,7 @@ import 'vue-sonner/style.css';
 import AppSidebar from './partials/AppSidebar.vue';
 import KeyboardShortcuts from './partials/KeyboardShortcuts.vue';
 import TrooperSearch from './partials/TrooperSearch.vue';
+import ActAsPicker from './partials/ActAsPicker.vue';
 import ActingAsBanner from './partials/ActingAsBanner.vue';
 import ViewAsBanner from './partials/ViewAsBanner.vue';
 import ViewAsPicker from './partials/ViewAsPicker.vue';
@@ -149,6 +150,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
     </SidebarProvider>
 
     <ViewAsPicker />
+    <ActAsPicker />
     <TrooperSearch />
 
     <!-- `?` on any page lists every keyboard shortcut (lib/shortcuts.js). -->

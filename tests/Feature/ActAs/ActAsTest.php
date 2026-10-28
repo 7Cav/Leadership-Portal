@@ -109,11 +109,16 @@ it('records nothing on anyone\'s behalf once the Admin is themselves again', fun
     expect(AuditLogEntry::where('action', 'view_as.started')->sole()->on_behalf_of_id)->toBeNull();
 });
 
-it('switches straight to another person, recording the first as stopped', function () {
+it('holds an Admin acting as someone to that person\'s reach: to act as another, they stop first (#432)', function () {
     Trooper::factory()->create(['cav_id' => 902, 'status' => TrooperStatus::Combat]);
     $second = User::factory()->create(['cav_id' => 902]);
     startActing($this);
 
+    // Acting as a section leader, nobody below them to act as: the Admin's own reach is set aside until they stop.
+    $this->actingAs($this->admin)->post('/act-as', ['kind' => 'user', 'id' => $second->id])->assertSessionHasErrors('act_as');
+    $this->actingAs($this->admin)->get('/home')->assertInertia(fn (Assert $page) => $page->where('auth.user.id', $this->leader->id));
+
+    $this->actingAs($this->admin)->delete('/act-as');
     startActing($this, $second);
 
     expect(AuditLogEntry::orderBy('id')->pluck('action')->all())->toBe(['act_as.started', 'act_as.stopped', 'act_as.started'])

@@ -62,3 +62,15 @@ middleware runs each request as that person, so every gate here answers for them
 may act, never as themselves or another Admin, and only as someone who could sign in right now; the choice is checked
 on every request and dropped when it no longer holds. Entries written meanwhile name the Admin acting on the person's
 behalf (`Support/Audit`).
+
+**Leaders act as people below them** (#432). A leader, someone whose roster billet (or acting lead) commands a unit with
+units beneath it, may act as a person too, under the same red bar and the same audit. Only a serving billet holder
+strictly below them in their own write scope (`ScopeResolver::strictlyBelow()` over the units they command: never a staff
+grant, which reads and never writes): not themselves, a peer on the same billet, anyone above or beside, an Admin, a
+departed or unlinked user, nor anyone whose own scope (an acting lead, a grant) reaches outside what is below, so the
+permissions taken on are never wider than the leader's own. A leader never acts as a billet and never chains: they stop
+first. The choice is re-checked on every request, so a person who is transferred out, leaves, becomes an Admin or gains
+reach beyond the leader's scope, or a leader who loses the billet, ends it at once (no entry is written for the drop).
+An Admin acting as a leader who starts another act-as is held to that leader's reach: the pair (`via`, the one they act
+as, and the target) is stored and checked together on every request, so nothing is reachable through a leader that the
+leader could not reach; one level only, and a stop makes the Admin themselves again.

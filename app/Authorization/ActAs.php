@@ -5,9 +5,11 @@ namespace App\Authorization;
 use App\Models\Unit;
 use App\Models\User;
 use App\Repositories\TrooperRepository;
+use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
 use Illuminate\Contracts\Session\Session;
+use Illuminate\Support\Collection;
 
 /**
  * An Admin acting as someone else (#379): unlike view-as (read-only, AD-9), every request runs with their permissions,
@@ -19,6 +21,17 @@ use Illuminate\Contracts\Session\Session;
  *    rights: their billet, acting leads and grants only ({@see withoutAdmin()}).
  *  - a **billet**: a unit's leader, with no person behind it, so it works for a vacant billet too. The request runs as
  *    a stand-in for the Admin ({@see standIn()}) whose only command is that unit ({@see ActingBillet}).
+ *
+ * A **leader** (#432), someone who is not an Admin, may act as a person too, but only as a serving billet holder
+ * strictly below them inside their own write scope ({@see leadsBelow()}): never themselves, a peer, anyone above, an
+ * Admin, nor anyone whose own authority (a grant, an acting lead) reaches outside that scope. Their write scope is the
+ * roster-derived command scope, so a staff grant (read-only) confers nothing. A leader never acts as a billet, and
+ * never chains: while acting they stop before they act as another.
+ *
+ * An Admin who already acts as someone ("via") is held to that identity's reach when they start another: acting as a
+ * leader, they may start only what the leader could, and the pair is checked together on every request, so what they
+ * reach through a leader can never exceed that leader's scope. They stop to be an Admin again. The session key's
+ * `admin` is the real signed-in user, who for a leader is not an Admin.
  *
  * Checked again on every request ({@see target()}). A stored choice that fails is dropped, and the Admin is
  * themselves again. That drop writes no `act_as.stopped` entry (this layer never writes the audit log); the change
@@ -40,6 +53,8 @@ class ActAs
         private readonly UnitRepository $units,
         private readonly ServingSession $serving,
         private readonly TrooperRepository $troopers,
+        private readonly ScopeResolver $scope,
+        private readonly UnitCommandMappingRepository $commands,
     ) {}
 
     /** How the red bar names a person: `SGT Vasquez.R`. */
@@ -51,23 +66,99 @@ class ActAs
     }
 
     /**
-     * Whether `$admin` may act as the person `$user` right now: anyone but themselves who could sign in. An Admin can be
-     * acted as too, but never as an Admin ({@see withoutAdmin()}): only their billet, acting leads and grants count.
+     * Whether `$actor` may act as the person `$user` right now, `$via` being what they already act as, if anything. An
+     * Admin acting as nobody: anyone but themselves who could sign in (an Admin too, but never with their Admin rights,
+     * {@see withoutAdmin()}). Anyone else, a leader, or an Admin acting as one: only a serving billet holder strictly
+     * below what that identity commands ({@see leadsBelow()}).
      */
-    public function allows(User $admin, User $user): bool
+    public function allows(User $actor, User $user, ?ViewAsTarget $via = null): bool
     {
-        return $admin->is_admin && $user->id !== $admin->id && ! $this->serving->mustEnd($user);
+        if ($user->id === $actor->id || $this->serving->mustEnd($user)) {
+            return false;
+        }
+
+        $commanded = $this->commandOf($actor, $via);
+
+        return $commanded === null || $this->leadsBelow($commanded, $user);
     }
 
-    /** Whether `$admin` may act as the leader of `$unit`: any real Admin, for any unit, vacant or held. */
-    public function allowsBillet(User $admin): bool
+    /** Whether `$actor` may act as the leader of a unit: a real Admin acting as nobody, for any unit, vacant or held. */
+    public function allowsBillet(User $actor, ?ViewAsTarget $via = null): bool
     {
-        return $admin->is_admin;
+        return $this->commandOf($actor, $via) === null;
     }
 
-    public function start(User $admin, ViewAsTarget $target): void
+    /**
+     * Whether `$actor`, signed in as themselves, holds the authority to act as anyone: an Admin, or someone who commands
+     * a unit with units below it. A staff grant never does. The gate before {@see allows()}, which says who exactly.
+     */
+    public function leads(User $actor): bool
     {
-        $this->session->put(self::KEY, ['admin' => $admin->id, 'kind' => $target->kind->value, 'id' => $target->id]);
+        return $actor->is_admin || $this->scope->strictlyBelow($this->scope->commandedBy($actor))->isNotEmpty();
+    }
+
+    /**
+     * Whether a picker for acting as someone should be offered to `$actor` now: a leader, or an Admin acting as one, who
+     * has units below them to start from. Never to an Admin acting as nobody (view-as leads them to the person) nor to
+     * someone acting as a person who is not an Admin (no chains).
+     */
+    public function offers(User $actor): bool
+    {
+        $commanded = $this->startingPoint($actor);
+
+        return $commanded !== null && $this->scope->strictlyBelow($commanded)->isNotEmpty();
+    }
+
+    /**
+     * Who `$actor` may act as right now: serving billet holders strictly below what they command, as the picker lists
+     * them, in username order. Empty when {@see offers()} is false.
+     *
+     * @return Collection<int, User>
+     */
+    public function candidates(User $actor): Collection
+    {
+        $commanded = $this->startingPoint($actor);
+        $below = $commanded === null ? collect() : $this->scope->strictlyBelow($commanded);
+        if ($below->isEmpty()) {
+            return collect();
+        }
+
+        $via = $this->viaFor($actor);
+        $others = $this->users->all()->reject(fn (User $user) => $user->id === $actor->id || $user->is_admin || $user->cav_id === null);
+        $held = $this->commands->commandedUnitsByCavId($others->pluck('cav_id')->all());
+
+        return $others
+            ->filter(fn (User $user) => $held->has($user->cav_id) && $below->contains($held->get($user->cav_id)->id) && $this->allows($actor, $user, $via))
+            ->values();
+    }
+
+    /**
+     * What `$actor` acts as right now and may start another from, or null when they act as nobody: the stored choice
+     * once it is checked ({@see target()}), which drops one that no longer holds.
+     */
+    public function viaFor(User $actor): ?ViewAsTarget
+    {
+        return $this->target($actor) !== null ? $this->storedFor($actor) : null;
+    }
+
+    /** Whether `$actor` acts through a choice that is itself made through another ({@see start()}): the chain ends here. */
+    public function nested(User $actor): bool
+    {
+        return $this->storedVia($actor) !== null;
+    }
+
+    /**
+     * Store the choice. `$via` is what `$actor` acted as when they made it, kept so the pair is checked together on
+     * every request: only an Admin has one, as a leader's own act-as ends before another starts.
+     */
+    public function start(User $actor, ViewAsTarget $target, ?ViewAsTarget $via = null): void
+    {
+        $this->session->put(self::KEY, [
+            'admin' => $actor->id,
+            'kind' => $target->kind->value,
+            'id' => $target->id,
+            'via' => $via === null ? null : ['kind' => $via->kind->value, 'id' => $via->id],
+        ]);
     }
 
     public function stop(): void
@@ -75,29 +166,40 @@ class ActAs
         $this->session->forget(self::KEY);
     }
 
-    /** What `$admin` stored, still checked or not; null when there is none or it is not one this class wrote. */
-    public function storedFor(User $admin): ?ViewAsTarget
+    /** What `$actor` stored, still checked or not; null when there is none or it is not one this class wrote. */
+    public function storedFor(User $actor): ?ViewAsTarget
     {
         $stored = $this->session->get(self::KEY);
-        if (! is_array($stored) || ($stored['admin'] ?? null) !== $admin->id || ! is_int($stored['id'] ?? null)) {
+        if (! is_array($stored) || ($stored['admin'] ?? null) !== $actor->id) {
             return null;
         }
 
-        $kind = ViewAsKind::tryFrom((string) ($stored['kind'] ?? ''));
+        return $this->targetOf($stored);
+    }
 
-        return $kind ? new ViewAsTarget($kind, $stored['id']) : null;
+    /** What `$actor` acted as when they stored their choice, if they were acting as someone then; null otherwise. */
+    public function storedVia(User $actor): ?ViewAsTarget
+    {
+        $stored = $this->session->get(self::KEY);
+        if (! is_array($stored) || ($stored['admin'] ?? null) !== $actor->id || ! is_array($stored['via'] ?? null)) {
+            return null;
+        }
+
+        return $this->targetOf($stored['via']);
     }
 
     /**
-     * Who `$admin` is acting as on this request, or null. A stored choice that no longer holds (the Admin lost the
-     * flag; the person became an Admin, left the Cav or was deleted; the unit was deleted) is dropped from the session.
+     * Who `$actor` is acting as on this request, or null. A stored choice that no longer holds (an Admin lost the flag;
+     * a leader lost their command, or the person left their scope, the Cav, or became an Admin, or was deleted; the
+     * unit was deleted; what an Admin acted through no longer holds) is dropped from the session.
      */
-    public function target(User $admin): ?Acting
+    public function target(User $actor): ?Acting
     {
-        $stored = $this->storedFor($admin);
+        $stored = $this->storedFor($actor);
+        $via = $this->storedVia($actor);
         $acting = match ($stored?->kind) {
-            ViewAsKind::User => $this->asPerson($admin, $stored->id),
-            ViewAsKind::Unit => $this->asBillet($admin, $stored->id),
+            ViewAsKind::User => $this->asPerson($actor, $stored->id, $via),
+            ViewAsKind::Unit => $this->asBillet($actor, $stored->id, $via),
             null => null,
         };
 
@@ -137,17 +239,89 @@ class ActAs
         return $plain;
     }
 
-    private function asPerson(User $admin, int $id): ?Acting
+    private function asPerson(User $actor, int $id, ?ViewAsTarget $via): ?Acting
     {
         $user = $this->users->find($id);
 
-        return $user !== null && $this->allows($admin, $user) ? new Acting($this->withoutAdmin($user), $user, null, $this->label($user)) : null;
+        return $user !== null && $this->allows($actor, $user, $via) ? new Acting($this->withoutAdmin($user), $user, null, $this->label($user)) : null;
     }
 
-    private function asBillet(User $admin, int $id): ?Acting
+    private function asBillet(User $actor, int $id, ?ViewAsTarget $via): ?Acting
     {
         $unit = $this->units->find($id);
 
-        return $unit !== null && $this->allowsBillet($admin) ? new Acting($this->standIn($admin), null, $unit, $unit->billet()) : null;
+        return $unit !== null && $this->allowsBillet($actor, $via) ? new Acting($this->standIn($actor), null, $unit, $unit->billet()) : null;
+    }
+
+    /**
+     * The units a start is measured from now: what the identity `$actor` acts from commands. Null when there is none
+     * to measure from, an Admin acting as nobody (not held to a scope) or a chain that must not grow.
+     *
+     * @return Collection<int, Unit>|null
+     */
+    private function startingPoint(User $actor): ?Collection
+    {
+        return $this->nested($actor) ? null : $this->commandOf($actor, $this->viaFor($actor));
+    }
+
+    /**
+     * What `$actor` commands as the starting point for who they may act as: null for an Admin acting as nobody, who is
+     * not held to a scope; otherwise the units of the identity they act from, none (so nobody) when that identity is no
+     * longer valid or `$actor` is not an Admin with something to act through.
+     *
+     * @return Collection<int, Unit>|null
+     */
+    private function commandOf(User $actor, ?ViewAsTarget $via): ?Collection
+    {
+        if ($via === null) {
+            return $actor->is_admin ? null : $this->scope->commandedBy($actor);
+        }
+
+        if (! $actor->is_admin) {
+            return collect();
+        }
+
+        if ($via->kind === ViewAsKind::Unit) {
+            return collect([$this->units->find($via->id)])->filter()->values();
+        }
+
+        $through = $this->users->find($via->id);
+
+        return $through !== null && $this->allows($actor, $through)
+            ? $this->scope->commandedBy($this->withoutAdmin($through))
+            : collect();
+    }
+
+    /**
+     * Whether `$user` is a serving billet holder strictly below the `$commanded` units: their synced billet (the
+     * serving roster only) commands a unit below them, and nothing else they hold, an acting lead or a grant, reaches
+     * outside what is below. Never an Admin. So acting as them gives no scope the leader does not have.
+     *
+     * @param  Collection<int, Unit>  $commanded
+     */
+    private function leadsBelow(Collection $commanded, User $user): bool
+    {
+        if ($user->is_admin || $user->cav_id === null) {
+            return false;
+        }
+
+        $below = $this->scope->strictlyBelow($commanded);
+        $billet = $this->commands->commandedUnitFor($user);
+
+        return $billet !== null
+            && $below->contains($billet->id)
+            && $this->scope->realScope($user)->diff($below)->isEmpty();
+    }
+
+    /** @param  array<mixed>  $stored */
+    private function targetOf(array $stored): ?ViewAsTarget
+    {
+        if (! is_int($stored['id'] ?? null)) {
+            return null;
+        }
+
+        $kind = ViewAsKind::tryFrom((string) ($stored['kind'] ?? ''));
+
+        return $kind ? new ViewAsTarget($kind, $stored['id']) : null;
     }
 }

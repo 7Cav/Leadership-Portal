@@ -145,6 +145,33 @@ class ScopeResolver
     }
 
     /**
+     * The units the user commands, by synced billet or as an acting lead, never by staff grant or Admin flag: the one
+     * thing a leader's authority over people below them (act as, #432) is measured from.
+     *
+     * @return Collection<int, Unit>
+     */
+    public function commandedBy(User $user): Collection
+    {
+        return $this->commandedUnits($user);
+    }
+
+    /**
+     * The unit ids strictly below the given commanded units: their subtrees without the commanded units themselves,
+     * so nobody who leads one of them (the leader's own billet, a peer on it) is below. Empty for no units.
+     *
+     * @param  Collection<int, Unit>  $commanded
+     * @return Collection<int, int>
+     */
+    public function strictlyBelow(Collection $commanded): Collection
+    {
+        return $commanded
+            ->flatMap(fn (Unit $unit) => $this->units->subtreeIds($unit))
+            ->unique()
+            ->diff($commanded->pluck('id'))
+            ->values();
+    }
+
+    /**
      * Whether the user may refresh this unit's troopers from Cav: an Admin for any unit, otherwise the leader whose
      * synced command billet covers it (the unit they command or anything beneath it). Deliberately narrower than
      * {@see realScope()}: a staff grant lets someone read an echelon, not trigger writes to it. Real authority, not
