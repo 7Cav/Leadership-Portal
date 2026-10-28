@@ -174,9 +174,13 @@ function saveFailed(description) {
     toast.error('Could not save the draft', { description });
 }
 
-// A 419 is an expired session on a page left open a long time; anything else is the server's.
+// A 419 is an expired session on a page left open a long time, a 429 the per-minute limit on saves or sends; anything
+// else is the server's.
 function httpProblem(response, fallback) {
-    return response?.status === 419 ? 'Your session expired. Copy your notes, then reload the page to sign in again.' : fallback;
+    if (response?.status === 419) return 'Your session expired. Copy your notes, then reload the page to sign in again.';
+    if (response?.status === 429) return 'Too many requests in a minute. Your changes are kept here; try again in a moment.';
+
+    return fallback;
 }
 
 watch(

@@ -115,19 +115,48 @@ class AppServiceProvider extends ServiceProvider
                 ->with('error', 'Too many sign-in attempts. Try again in a minute.')));
 
         // Manual roster sync (Story 2.4). SyncRosterJob is unique, so extra clicks never queue
-        // a second sync; this caps how often an Admin can even ask, per Admin.
+        // a second sync; this caps how often an Admin can even ask, per Admin. The org-structure import shares the
+        // bucket: it reads the Cav position groups on the request, so it is a Cav fetch on the same terms.
         RateLimiter::for('roster-sync', fn (Request $request) => Limit::perMinute(5)
+            ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
+
+        // The act as picker's list (#379): building it costs several queries for every billet holder below the leader,
+        // so a regiment commander's list is a heavy read. The picker loads it once each time it opens, so 20 a minute per
+        // user is out of reach by hand.
+        RateLimiter::for('act-as-options', fn (Request $request) => Limit::perMinute(20)
             ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
 
         // The shell's trooper search: the client waits for a pause in typing, so a person searching stays far below this.
         RateLimiter::for('trooper-search', fn (Request $request) => Limit::perMinute(60)
             ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
 
-        // The audited rollcall and report writes that had no cap of their own: fireteam changes, dismissing and restoring
-        // an unmatched player, and the platoon training topic. Each request writes an audit row, so one leader looping
-        // them could flood their section's log. One bucket per user across all of them; a leader working through a
-        // rollcall stays far below this.
+        // Every audited write without a bucket of its own below (#453): rollcall fireteams, unmatched players, confirming
+        // and marking posted, guests, the platoon topic, training plans, game identities, templates, view as and act as,
+        // counseling corrections, and the Admin settings writes. Each request writes an audit row, so one account
+        // looping them could flood the log. One bucket per user across all of them; a leader working through a rollcall
+        // or an Admin through the settings stays far below this. AuditedWriteThrottleTest fails on a write route
+        // without a throttle.
         RateLimiter::for('audited-writes', fn (Request $request) => Limit::perMinute(60)
+            ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
+
+        // The rollcall's mark autosave (3.8), sized so marking a whole section quickly never reaches it. The screen
+        // debounces 700 ms and sends one batch at a time, so even a mark every 0.7 s is under 90 requests a minute, and a
+        // section of 15 troopers with a practice mark and a signature each is at most 30. 240 leaves room for the
+        // leave and moved-trooper resends on top. The screen reads `message` and keeps every change on a refusal.
+        RateLimiter::for('rollcall-marks', fn (Request $request) => Limit::perMinute(240)
+            ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip()))
+            ->response(fn (Request $request, array $headers) => response()->json(
+                ['message' => 'Too many saves in a minute. Your changes are kept; retry in a moment.'], 429, $headers,
+            )));
+
+        // The weekly report's draft autosave (5.5): debounced 800 ms after the last edit, so a leader typing with short
+        // pauses sends well under 75 a minute. Its own bucket, so writing a long report never spends the shared one.
+        RateLimiter::for('report-drafts', fn (Request $request) => Limit::perMinute(120)
+            ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
+
+        // Sending a weekly report (5.5) freezes it, so a leader sends a handful a week. 10 a minute per user covers a
+        // platoon leader sending several sections' reports back to back.
+        RateLimiter::for('report-sends', fn (Request $request) => Limit::perMinute(10)
             ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
 
         // Filing a DCS or LOR (#381) stores a PDF of up to 10 MB on the server's own disk, so it has a bucket of its own,
