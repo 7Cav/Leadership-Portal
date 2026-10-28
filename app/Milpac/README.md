@@ -69,3 +69,14 @@ The controller gates the unit with the ScopeResolver (AD-8): a unit outside the 
 whatever link led there, and view-as narrows it (AD-9). The milpac's quick action (6.7) links to the trooper's
 platoon; that link is convenience, this gate is the boundary. Reads are constant in the number of troopers and
 courses.
+
+## Counseling (#381)
+
+`CounselingHistory::for($trooper, $seesDcs, $seesLor, $changes)` returns the milpac's `counseling` prop: the DCSs and
+LORs the viewer may see, newest first (`{id, type, typeLabel, date, reason, issuer, document: {name, size},
+driveStatus, counts, countsUntil, canChange}`), the counts inside the 90-day window, and the warnings the regulations
+call for (a second DCS: an LOR is next; a second LOR: removal as SL or ASL; a third LOR: an Article 15). The window
+counts back 90 days from today, UTC; an older record is listed with `counts: false`. Who sees which type and who may
+change a record come in from the controller (`Authorization\CounselingAccess`), and a type the viewer may not see is
+never read into the result, so neither the records nor the warnings can give it away. The controller adds `sees` and
+`canFile`.

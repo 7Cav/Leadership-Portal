@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Authorization\ActAs;
 use App\Authorization\ActingBillet;
+use App\Authorization\RealActor;
 use App\Support\Audit\ActingFor;
 use Closure;
 use Illuminate\Http\Request;
@@ -15,7 +16,8 @@ use Symfony\Component\HttpFoundation\Response;
  * stand-in holding a billet ({@see ActAs}). The session stays the real user's: only this request's user is swapped, so every gate (the ScopeResolver, each
  * Command's checks) sees exactly those permissions, Admin screens included as refused. The real Admin is kept on the
  * request ({@see ActAs::ADMIN_ATTRIBUTE}) for the act-as stop route, the serving check and sign-out, and handed to
- * {@see ActingFor} so each audit entry names the Admin and who or what they acted as.
+ * {@see ActingFor} so each audit entry names the Admin and who or what they acted as, and to {@see RealActor} for the
+ * checks that must answer for the real person too.
  */
 class ActAsUser
 {
@@ -23,6 +25,7 @@ class ActAsUser
         private readonly ActAs $actAs,
         private readonly ActingFor $acting,
         private readonly ActingBillet $billet,
+        private readonly RealActor $real,
     ) {}
 
     public function handle(Request $request, Closure $next): Response
@@ -30,6 +33,7 @@ class ActAsUser
         // Never carry an earlier request's acting into this one, in a worker that serves several.
         $this->acting->clear();
         $this->billet->clear();
+        $this->real->clear();
 
         $admin = $request->user();
         $acting = $admin === null ? null : $this->actAs->target($admin);
@@ -43,6 +47,7 @@ class ActAsUser
         $request->setUserResolver(fn () => $user);
         $request->attributes->set(ActAs::ADMIN_ATTRIBUTE, $admin);
         $request->attributes->set(ActAs::ACTING_ATTRIBUTE, $acting);
+        $this->real->set($admin);
 
         if ($acting->billet !== null) {
             // A billet: the Admin's stand-in commands that unit and nothing else, and their actions are their own,

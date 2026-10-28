@@ -59,6 +59,10 @@
         <env name="NIGHTWATCH_BASE_URL" value="https://nightwatch.to/api/public/stats"/>
         <env name="NIGHTWATCH_API_KEY" value=""/>
         <env name="NIGHTWATCH_SERVER_IDS" value=""/>
+        <!-- Google Drive copy of counseling documents (#381): unset, so no test can reach Google. -->
+        <env name="GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL" value=""/>
+        <env name="GOOGLE_DRIVE_PRIVATE_KEY" value=""/>
+        <env name="GOOGLE_DRIVE_FOLDER_ID" value=""/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="TRUSTED_PROXIES" value=""/>
         <env name="INERTIA_ENSURE_PAGES_EXIST" value="true"/>

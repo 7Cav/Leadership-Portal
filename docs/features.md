@@ -129,6 +129,25 @@ section's game is the one most of its troopers have a link for. Every serving tr
 section members, HQ staff and group members (ELOA, Reservists, New Recruits, staff departments). Linking someone
 outside a section only lets the capture recognise them; attendance is still marked in sections only.
 
+### Counseling (DCS and LOR)
+
+On a trooper's milpac page, the Counseling panel holds their Developmental Counseling Statements (DCS) and Letters of
+Reprimand (LOR), newest first. Who may file and see which is in [permissions.md](permissions.md#counseling-dcs-and-lor).
+
+- File a record: the type, the date it was given, the reason and the signed document, a PDF of 10 MB or less. The file
+  is checked by its content, not its name, and kept on the portal's private disk. It downloads only from the record,
+  for someone who may see it, named after the record (`LOR 2026-10-20 Novak.E.pdf`). Filing the same record again
+  (same type, date, reason and document) within 10 minutes is refused as already filed, so a double click never
+  counts twice.
+- Google Drive: when the service account is set up (see [operations.md](operations.md#env-keys-that-matter)), a queued
+  job copies the document to the 7Cav Google Drive folder and retries on failure. Each record shows "Drive copy
+  pending", "Copied to Drive", "Drive copy failed" or "Portal only" (Drive not set up; the record is kept anyway).
+- 90-day rules, counted back from today: the panel warns at a second DCS in 90 days (the next step is an LOR), a second
+  LOR in 90 days (the trooper may be removed as SL or ASL) and a third (an Article 15). The filing form says what one
+  more record would mean. An older record stays on file, marked as no longer counting.
+- Correct or delete: the date and reason can be corrected, never the type or the document; a record can be deleted
+  with its document. Both need a reason and are audited, as is filing. A copy already on Google Drive stays there.
+
 ## Settings menu (Admins)
 
 | Page | What it does |
@@ -151,6 +170,7 @@ All run on the queue; a queue worker must be running. Times are UTC.
 | --- | --- | --- | --- |
 | Roster sync | Hourly on the hour; Admin "Sync now"; leader unit sync | Reads the Cav roster, updates troopers (rank, billet, status), places each trooper by billet, marks leavers departed. A unit sync only writes that unit's troopers. | `CAV_API_KEY`, `CAV_API_BASE_URL` |
 | LOA sync | Hourly at :15 (new threads), daily at 03:30 (full re-read of recent leave) | Reads LOA and ELOA threads from the configured forum sections. ELOA start and end dates come from the linked PAF thread. Posts it cannot read are stored as "needs review", never guessed. First run reads a year back. | `SEVENCAV_FORUM_API_KEY`, `SEVENCAV_FORUM_LOA_NODES`, `SEVENCAV_FORUM_PAF_NODE`, `LOA_SYNC_REQUEST_DELAY_MS`. Skipped while the key or sections are unset. |
+| Counseling document copy | When a DCS or LOR is filed with Google Drive set up | Copies the document to the 7Cav Google Drive folder. Tried up to 5 times, with pauses of 1, 5, 15 and 60 minutes; the record shows the outcome. | `GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_DRIVE_PRIVATE_KEY`, `GOOGLE_DRIVE_FOLDER_ID`. Skipped (record kept, "Portal only") while any is unset. |
 | Practice capture | When a leader clicks "Try again" on the rollcall. That button only shows after a failed capture, and nothing in the code schedules a first capture. | Reads who was on the game server during the Cav week so far, pre-marks linked troopers in the section as Present (a leader's mark always wins), lists unmatched players. | Each game's telemetry interface, picked on the Games page. CRCON (`CRCON_BASE_URL`, `CRCON_API_KEY`) falls back to BattleMetrics; BattleMetrics (`BATTLEMETRICS_API_KEY`, `BATTLEMETRICS_SERVER_ID`); Nightwatch (`NIGHTWATCH_API_KEY`, `NIGHTWATCH_SERVER_IDS`). Each interface reads the servers set in env, not one per game. A game with no keys, or interface "none", shows "not configured". |
 
 The capture does not record other sections' troopers as guests or makeups for now: without set practice times the
@@ -215,7 +235,6 @@ From the backlog of 2026-10-27. None of these exist in the code today.
   their rollcalls may use; the DEVCOM 1IC acting as DEVCOM's battalion commander and the 2IC as its XO.
 - Admin "act as": a full impersonation with that person's permissions (red bar), able to send reports.
 - Moving a platoon to another company keeps its saved settings and templates.
-- LOR and DCS tracker with automatic upload.
 - An Admin-only page-visit log for reproducing bugs.
 
 ## Technical appendix
@@ -231,3 +250,4 @@ From the backlog of 2026-10-27. None of these exist in the code today.
 | Capture | `app/Commands/Capture/` (`CaptureSources` maps each telemetry interface to its sources), `app/Commands/Games/`, `app/Jobs/CaptureSectionPracticeJob.php`, `app/Integration/` |
 | Reports | `app/Commands/WeeklyReports/`, `app/Kpi/RollupKpis.php`, `ReportChain.php`, `resources/js/lib/report.js` |
 | Training plans | `app/Commands/TrainingPlans/`, `TrainingPlanController`, `resources/js/Pages/Reports/TrainingPlan.vue`, `resources/js/lib/trainingPlan.js` |
+| Counseling | `app/Commands/Counseling/`, `app/Authorization/CounselingAccess.php`, `app/Milpac/CounselingHistory.php`, `app/Integration/GoogleDrive/`, `app/Jobs/UploadCounselingDocumentJob.php`, `resources/js/components/milpac/CounselingPanel.vue` |

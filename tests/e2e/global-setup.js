@@ -33,4 +33,6 @@ export default function globalSetup() {
     execFileSync('php', ['artisan', 'db:seed', '--force', '--class=Database\\Seeders\\TransferHistorySeeder'], { env, stdio: 'inherit' });
     // A platoon leader and their company commander, for the training plan spec (#380).
     execFileSync('php', ['artisan', 'db:seed', '--force', '--class=Database\\Seeders\\TrainingPlanSeeder'], { env, stdio: 'inherit' });
+    // A rifleman with a DCS and an LOR already on file, for the counseling spec (#381).
+    execFileSync('php', ['artisan', 'db:seed', '--force', '--class=Database\\Seeders\\CounselingSeeder'], { env, stdio: 'inherit' });
 }

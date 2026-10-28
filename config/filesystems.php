@@ -38,6 +38,17 @@ return [
             'report' => false,
         ],
 
+        // Counseling documents (#381): private, never linked from public/ and not served by the framework. A document
+        // leaves only through the download route, which checks who may see the record first.
+        'counseling' => [
+            'driver' => 'local',
+            'root' => storage_path('app/counseling'),
+            'visibility' => 'private',
+            'serve' => false,
+            'throw' => true,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

@@ -131,4 +131,16 @@ return [
         'server_ids' => env('NIGHTWATCH_SERVER_IDS'),
     ],
 
+    /*
+    | Google Drive — where a copy of every counseling document (DCS, LOR) goes (#381, AD-3). A service
+    | account's machine credential, read from env only (AD-23): its email and private key from the
+    | account's JSON key file, and the id of the folder (in a shared drive) it uploads into. Any of the
+    | three unset means documents stay in the portal only and the upload is skipped.
+    */
+    'google_drive' => [
+        'service_account_email' => env('GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL'),
+        'private_key' => env('GOOGLE_DRIVE_PRIVATE_KEY'),
+        'folder_id' => env('GOOGLE_DRIVE_FOLDER_ID'),
+    ],
+
 ];

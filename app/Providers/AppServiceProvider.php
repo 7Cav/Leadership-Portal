@@ -8,6 +8,7 @@ use App\Integration\BattleMetrics\BattleMetricsApi;
 use App\Integration\Cav\CavApi;
 use App\Integration\Crcon\CrconApi;
 use App\Integration\Forum\ForumApi;
+use App\Integration\GoogleDrive\GoogleDriveApi;
 use App\Integration\Nightwatch\NightwatchApi;
 use App\Kpi\EchelonReportKpiSource;
 use App\Kpi\ReportKpiSource;
@@ -68,6 +69,10 @@ class AppServiceProvider extends ServiceProvider
         // The Nightwatch WARDOGS presence seam (AD-3, Story 7.10). Key and server ids come from config (env only, AD-23).
         $this->app->singleton(NightwatchApi::class, fn () => new NightwatchApi(config('services.nightwatch')));
 
+        // The Google Drive seam for counseling documents (AD-3, #381). The service account's email, key and the folder
+        // id come from config (env only, AD-23).
+        $this->app->singleton(GoogleDriveApi::class, fn () => new GoogleDriveApi(config('services.google_drive')));
+
         // Repository contracts (AD-2), each with exactly one implementation registered today,
         // bound by convention — see RepositoryServiceBinder.
         (new RepositoryServiceBinder)->bind($this->app);
@@ -123,6 +128,12 @@ class AppServiceProvider extends ServiceProvider
         // them could flood their section's log. One bucket per user across all of them; a leader working through a
         // rollcall stays far below this.
         RateLimiter::for('audited-writes', fn (Request $request) => Limit::perMinute(60)
+            ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
+
+        // Filing a DCS or LOR (#381) stores a PDF of up to 10 MB on the server's own disk, so it has a bucket of its own,
+        // far below the shared one: 10 a minute per user still covers a leader filing a stack of old paperwork, and keeps
+        // one account from filling the disk at 600 MB a minute.
+        RateLimiter::for('counseling-uploads', fn (Request $request) => Limit::perMinute(10)
             ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
 
         // Fetching the game servers (#389) asks every telemetry interface over HTTP on the request, so it is capped

@@ -92,15 +92,38 @@ Names only. Every key is documented in `.env.example` and `.env.production.examp
 | Cav roster API | `CAV_API_KEY`, `CAV_API_BASE_URL`, `CAV_API_SWEEP_BUDGET_SECONDS` |
 | Leave (LOA) sync | `SEVENCAV_FORUM_API_KEY`, `SEVENCAV_FORUM_LOA_NODES`, `SEVENCAV_FORUM_PAF_NODE`, `LOA_SYNC_REQUEST_DELAY_MS` |
 | Practice capture | `CRCON_BASE_URL`, `CRCON_API_KEY`, `BATTLEMETRICS_BASE_URL`, `BATTLEMETRICS_API_KEY`, `BATTLEMETRICS_SERVER_ID`, `NIGHTWATCH_BASE_URL`, `NIGHTWATCH_API_KEY`, `NIGHTWATCH_SERVER_IDS` |
+| Counseling documents to Google Drive | `GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_DRIVE_PRIVATE_KEY`, `GOOGLE_DRIVE_FOLDER_ID` (see below) |
 | Portal rules | `PORTAL_WEEK_FLOOR_WEEKS` (default 20), `JSAM_MIN_VISITS` (3), `JSAM_MIN_OWN_SP_PERCENT` (75), `JSAM_WINDOW_WEEKS` (12) |
 | Demo | `DEMO_TOOLS` (keep false in production) |
 
 Which of these a game uses is set per game on Settings > Games. A game whose interface has no keys set (or is set to
 none) shows "not configured" on the rollcall instead of failing.
 
+## Counseling documents and Google Drive
+
+DCS and LOR documents are PDFs kept on the private `counseling` disk, `storage/app/counseling` (inside the `storage`
+volume in Docker, outside `public/`). Back that folder up with the database: a record without its file downloads as
+not found. The portal never serves the folder directly; a document leaves only through its record's download route. Without Docker,
+set PHP `upload_max_filesize` and `post_max_size` to at least 11M so a 10 MB PDF can be uploaded (the Docker image allows
+100M).
+
+To copy each new document to the 7Cav Google Drive as well:
+
+1. In Google Cloud, create a service account (no roles needed) and a JSON key for it.
+2. Put the folder in a shared drive and add the service account's email to the shared drive (or the folder) as
+   Content manager. A service account has no storage of its own, so a folder in someone's My Drive does not work.
+3. Set `GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL` to the key's `client_email`, `GOOGLE_DRIVE_PRIVATE_KEY` to its
+   `private_key` on one line (line breaks written as `\n`, as in the JSON), and `GOOGLE_DRIVE_FOLDER_ID` to the last
+   part of the folder's URL. Then `docker compose up -d` (or `php artisan config:cache`).
+
+The copy runs on the queue (`UploadCounselingDocumentJob`), up to 5 tries. With any of the three keys unset nothing is
+sent and records show "Portal only". A record that shows "Drive copy failed" after the last try needs its document
+uploaded by hand; the queue worker's log names the record id and why, never the key. The portal only uploads: it
+cannot read, share or delete anything on the Drive, so deleting a record in the portal leaves the Drive copy.
+
 ## Technical appendix
 
-- Jobs: `SyncRosterJob` and `CaptureSectionPracticeJob` have a 120 second timeout, `SyncLoasJob` 900 seconds. The two syncs
+- Jobs: `SyncRosterJob`, `CaptureSectionPracticeJob` and `UploadCounselingDocumentJob` have a 120 second timeout, `SyncLoasJob` 900 seconds. The two syncs
   are unique jobs, so repeated clicks do not stack runs; a capture never runs twice at once for the same practice.
 - Each sync run is recorded in `sync_runs`; the pages read the last good run for their "synced at" notes.
 - The import is `app/Commands/Units/ImportOrgStructure.php` and takes a cache lock, so a second import at the same time

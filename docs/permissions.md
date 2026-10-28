@@ -137,6 +137,33 @@ their own plan unless they also command the company.
 | View as a unit | Any | Own | Own | Own | Own | Own | Own | Own | No | Granted units | Switch target |
 | View as a person | Yes | No | No | No | No | No | No | No | No | No | Switch target |
 
+### Counseling (DCS and LOR)
+
+"Own" here is your command (billet or acting lead), never a staff grant. A command the trooper holds too does not
+count: an ASL does not counsel their Section Leader, a Platoon Sergeant does not counsel their Platoon Leader, and
+nobody files on themselves. Neither does a command inside the trooper's own: if a rifleman is made acting Platoon
+Leader of their own platoon, their Section Leader no longer files on them, sees their DCSs or changes their records.
+The echelon above does. Acting as a billet or a person changes none of this for the person really signed in: they
+still cannot file on themselves, see their own DCSs or change their own records.
+
+| Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| File a Developmental Counseling Statement (DCS) | All | All | Own | Own | Own | Own | Own | Own | No | No | No |
+| File a Letter of Reprimand (LOR) | All | All | No (5) | Own | Own | Own | If acting lead of a platoon or above | No | No | No | No |
+| See a DCS and download its document | All | All | Own | Own | Own | Own | Own | Own section | No | No | Target (6) |
+| See an LOR and download its document | All | All | Own | Own | Own | Own | Own | Own | No | Read | Target |
+| Correct the date or reason, or delete (reason required) | All | The issuer's chain (7) | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | No | No | No |
+
+(5) An LOR needs command from platoon level up on the line. A portfolio officer files a DCS on their staff; an LOR on
+staff comes from regiment command or an Admin.
+(6) An Admin's preview shows every DCS in the previewed scope.
+(7) The leaders who command the unit the record was filed through: the issuer, anyone sharing that billet's unit, and
+everyone above, as long as they still counsel the trooper by the rules above. A record an Admin filed (no unit) is the
+Admins' alone.
+
+A record the viewer may not see is left out of the page entirely, and its download answers 404 like a record that does
+not exist. The 90-day warnings are worked out from the records the viewer sees, so they never give a DCS away.
+
 ## How scope is worked out
 
 1. Admin: if your user has the Admin flag, your scope is the whole tree. Stop here.
@@ -185,8 +212,9 @@ All per signed-in user (sign-in is per IP address), per minute.
 | --- | --- |
 | 10 per IP, per route | The two sign-in steps |
 | 60 | Find trooper and the guest picker search |
-| 60, shared | Fireteam changes, company fireteam policy, unmatched dismiss and restore, guest add and remove, platoon topic set and clear, training plan save, approve and send back, starting and leaving view as |
+| 60, shared | Fireteam changes, company fireteam policy, unmatched dismiss and restore, guest add and remove, platoon topic set and clear, training plan save, approve and send back, starting and leaving view as, correcting and deleting a DCS or LOR |
 | 10 | Capture "Try again"; the same practice also only once a minute |
+| 10 | Filing a DCS or LOR (each one uploads a PDF of up to 10 MB) |
 | 5 | Whole-roster sync, manual LOA sync (Admins) |
 | 3 | Unit roster sync; also a 5 minute cooldown on that unit and every unit above and below it (Admins skip the cooldown) |
 
@@ -201,6 +229,7 @@ All per signed-in user (sign-in is per IP address), per minute.
 | Sign-in and session standing | `app/Commands/Auth/AdmitServingMember.php`, `app/Authorization/ServingSession.php`, `EnsureServingMember` middleware |
 | Admin-only checks | In the controllers (`OrgStructureController`, `StaffGrantsController`, `TemplatesController`, `TrooperPlacementController`, `RosterSyncController`, `LoaSyncController`, `AuditLogController`, `DemoDataController`) and again in some handlers. There are no Laravel policies. |
 | Write gates | Each handler under `app/Commands/*` checks `writeScope()` (attendance, capture, guests, game identities, reports) or `commandsUnit()` (fireteams, company policy, platoon topic, training plans; the review on the owning company, in `TrainingPlanRules`) |
+| Counseling (DCS, LOR) | `app/Authorization/CounselingAccess.php` on `ScopeResolver::commandingUnitsOver()`, `writeScope()` and `canSee()`; checked again in each `app/Commands/Counseling` handler and on the download |
 | Week floor | `app/Support/Time/WeekOf.php` (`floor()`, `isBeforeFloor()`), `config/portal.php` |
 | Rate limiters | `app/Providers/AppServiceProvider.php`, unit sync cooldown in `UnitRosterSyncController` |
 
