@@ -14,6 +14,12 @@ final class CounselingRules
 
     public const DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
 
+    /**
+     * How long a filing counts as a repeat of an identical one (same trooper, type, date, reason and document): a
+     * double submit, refused so it neither stores a second copy nor counts twice toward the 90-day rules.
+     */
+    public const REPEAT_WINDOW_MINUTES = 10;
+
     /** The earliest date a record may carry: older paperwork can be filed, nothing from before the portal's records. */
     public const EARLIEST = '2000-01-01';
 

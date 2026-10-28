@@ -241,3 +241,67 @@ it('keeps the filing when the Drive copy fails at once, as it does on a sync que
     expect($record->drive_status)->toBe(DriveUploadStatus::Failed);
     Storage::disk('counseling')->assertExists($record->document_path);
 });
+
+it('refuses a double submit: the same record filed again within 10 minutes is already filed, and its copy is removed', function () {
+    $this->travelTo(now()->setTime(12, 0));
+    $sl = $this->tree['users']['sl'];
+    $this->actingAs($sl)->post(route('counseling.store', $this->rifleman->id), ($this->file)())->assertRedirect();
+    $stored = Storage::disk('counseling')->allFiles();
+
+    $this->travel(9)->minutes();
+    $this->actingAs($sl)->post(route('counseling.store', $this->rifleman->id), ($this->file)())
+        ->assertSessionHasErrors(['document' => 'This record is already filed.']);
+
+    expect(CounselingRecord::query()->count())->toBe(1)
+        ->and(Storage::disk('counseling')->allFiles())->toBe($stored)
+        ->and(AuditLogEntry::query()->where('action', 'counseling.filed')->count())->toBe(1);
+
+    // Someone else in the chain submitting the very same paperwork is the same double filing.
+    $this->actingAs($this->tree['users']['pl'])->post(route('counseling.store', $this->rifleman->id), ($this->file)())
+        ->assertSessionHasErrors('document');
+    expect(CounselingRecord::query()->count())->toBe(1);
+});
+
+it('files a record again once it differs in type, date, reason or document, or once 10 minutes have passed', function (Closure $again, bool $travel) {
+    $this->travelTo(now()->setTime(12, 0));
+    $pl = $this->tree['users']['pl'];
+    $this->actingAs($pl)->post(route('counseling.store', $this->rifleman->id), ($this->file)())->assertRedirect();
+
+    if ($travel) {
+        $this->travel(11)->minutes();
+    }
+
+    $this->actingAs($pl)->post(route('counseling.store', $this->rifleman->id), ($this->file)($again()))->assertSessionHasNoErrors()->assertRedirect();
+    expect(CounselingRecord::query()->count())->toBe(2)
+        ->and(Storage::disk('counseling')->allFiles())->toHaveCount(2);
+})->with([
+    'another type' => [fn () => ['type' => 'lor'], false],
+    'another date' => [fn () => ['counseled_on' => now()->subDays(4)->toDateString()], false],
+    'another reason' => [fn () => ['reason' => 'Missed three section practices without notice.'], false],
+    'another document' => [fn () => ['document' => counselingPdf(marker: 'a-second-signed-copy')], false],
+    'the same, 11 minutes later' => [fn () => [], true],
+]);
+
+it('refuses the repeat in the handler too, with nothing left on the disk', function () {
+    $handler = app(FileCounselingRecordHandler::class);
+    $path = tempnam(sys_get_temp_dir(), 'dcs');
+    file_put_contents($path, counselingPdfBytes());
+    $command = new FileCounselingRecord(
+        trooperId: $this->rifleman->id,
+        type: CounselingType::Dcs,
+        counseledOn: CarbonImmutable::now('UTC')->subDays(2),
+        reason: '  Missed practice.  ',
+        documentPath: $path,
+        documentName: 'dcs.pdf',
+    );
+
+    $handler->handle($this->tree['users']['sl'], $command);
+
+    // The reason is compared as stored, trimmed.
+    expect(fn () => $handler->handle($this->tree['users']['sl'], new FileCounselingRecord(
+        $command->trooperId, $command->type, $command->counseledOn, 'Missed practice.', $path, 'other-name.pdf',
+    )))->toThrow(InvalidCounselingRecordException::class, 'This record is already filed.');
+
+    expect(Storage::disk('counseling')->allFiles())->toHaveCount(1);
+    @unlink($path);
+});

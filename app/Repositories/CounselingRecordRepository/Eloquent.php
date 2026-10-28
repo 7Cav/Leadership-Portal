@@ -5,6 +5,7 @@ namespace App\Repositories\CounselingRecordRepository;
 use App\Models\CounselingRecord;
 use App\Models\CounselingType;
 use App\Models\DriveUploadStatus;
+use App\Models\Trooper;
 use App\Repositories\CounselingRecordRepository;
 use App\Repositories\StoredDocument;
 use Carbon\CarbonImmutable;
@@ -42,6 +43,21 @@ class Eloquent implements CounselingRecordRepository
         ])->save();
 
         return $record->refresh();
+    }
+
+    public function filedSince(int $trooperId, CounselingType $type, CarbonImmutable $counseledOn, string $reason, string $sha256, CarbonImmutable $since): bool
+    {
+        Trooper::query()->whereKey($trooperId)->lockForUpdate()->value('id');
+
+        return CounselingRecord::query()
+            ->where('trooper_id', $trooperId)
+            ->where('type', $type->value)
+            ->whereDate('counseled_on', $counseledOn->toDateString())
+            ->where('reason', $reason)
+            ->where('document_sha256', $sha256)
+            ->where('created_at', '>=', $since)
+            ->lockForUpdate()
+            ->exists();
     }
 
     public function find(int $id): ?CounselingRecord

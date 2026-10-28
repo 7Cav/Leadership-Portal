@@ -136,7 +136,9 @@ Reprimand (LOR), newest first. Who may file and see which is in [permissions.md]
 
 - File a record: the type, the date it was given, the reason and the signed document, a PDF of 10 MB or less. The file
   is checked by its content, not its name, and kept on the portal's private disk. It downloads only from the record,
-  for someone who may see it, named after the record (`LOR 2026-10-20 Novak.E.pdf`).
+  for someone who may see it, named after the record (`LOR 2026-10-20 Novak.E.pdf`). Filing the same record again
+  (same type, date, reason and document) within 10 minutes is refused as already filed, so a double click never
+  counts twice.
 - Google Drive: when the service account is set up (see [operations.md](operations.md#env-keys-that-matter)), a queued
   job copies the document to the 7Cav Google Drive folder and retries on failure. Each record shows "Drive copy
   pending", "Copied to Drive", "Drive copy failed" or "Portal only" (Drive not set up; the record is kept anyway).

@@ -40,6 +40,11 @@ class InvalidCounselingRecordException extends RuntimeException
         return new self('document', 'Attach the signed document as a PDF.');
     }
 
+    public static function alreadyFiled(): self
+    {
+        return new self('document', 'This record is already filed.');
+    }
+
     public static function tooLarge(): self
     {
         return new self('document', 'The document must be 10 MB or smaller.');

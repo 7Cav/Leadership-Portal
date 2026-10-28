@@ -31,6 +31,14 @@ interface CounselingRecordRepository
         DriveUploadStatus $driveStatus,
     ): CounselingRecord;
 
+    /**
+     * Whether the trooper already has a record of `$type` with this date, reason and document (by SHA-256) filed at or
+     * after `$since`: a double submit. Called inside the filing's transaction, it first locks the trooper's row, so two
+     * filings on one trooper run one after the other and the second sees the first; the read itself is a locking one,
+     * so it sees the latest committed rows whatever snapshot the transaction holds.
+     */
+    public function filedSince(int $trooperId, CounselingType $type, CarbonImmutable $counseledOn, string $reason, string $sha256, CarbonImmutable $since): bool;
+
     /** The record with its trooper loaded, or null. */
     public function find(int $id): ?CounselingRecord;
 

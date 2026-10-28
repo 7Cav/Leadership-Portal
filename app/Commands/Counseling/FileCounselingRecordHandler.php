@@ -12,6 +12,7 @@ use App\Repositories\CounselingRecordRepository;
 use App\Repositories\TrooperRepository;
 use App\Support\Audit\ActingFor;
 use App\Support\Audit\AuditEnvelope;
+use Carbon\CarbonImmutable;
 use Throwable;
 
 /**
@@ -21,7 +22,10 @@ use Throwable;
  * at most 10 MB ({@see CounselingRules}).
  *
  * The document is copied onto the private disk under a name the portal makes up, then the record is inserted in one
- * audited transaction (`counseling.filed`, AD-16; the digest covers the row, which carries the file's SHA-256 and never
+ * audited transaction. An identical record (same type, date, reason and document) filed on the trooper in the last
+ * {@see CounselingRules::REPEAT_WINDOW_MINUTES} minutes is a double submit: it is refused on the document field, and
+ * the copy just stored is removed, so nothing is kept twice and the 90-day count is not inflated. The check runs
+ * inside that transaction with the trooper's row locked, so two submits at once cannot both pass it (`counseling.filed`, AD-16; the digest covers the row, which carries the file's SHA-256 and never
  * its bytes). The record's own reason is the record, so the audit entry needs none. If the insert fails, the stored
  * file is removed again. The record names the unit it was filed through, which decides who may later change it.
  *
@@ -69,23 +73,37 @@ class FileCounselingRecordHandler
                 action: 'counseling.filed',
                 reason: null,
                 reasonRequired: false,
-                mutation: fn () => $this->records->create(
-                    trooperId: $trooper->id,
-                    type: $command->type,
-                    counseledOn: $counseledOn,
-                    reason: $reason,
-                    issuedBy: $actor->id,
-                    issuedByAdmin: $this->acting->adminActingAs($actor->id),
-                    issuedAsUnit: $this->acting->billetOf($actor->id),
-                    issuerUnitId: $permissions->issuingUnit($command->type),
-                    document: $stored,
-                    driveStatus: $this->drive->isConfigured() ? DriveUploadStatus::Pending : DriveUploadStatus::Skipped,
-                ),
+                mutation: fn () => $this->filedAgain($trooper->id, $command, $counseledOn, $reason, $stored->sha256)
+                    ? throw InvalidCounselingRecordException::alreadyFiled()
+                    : $this->records->create(
+                        trooperId: $trooper->id,
+                        type: $command->type,
+                        counseledOn: $counseledOn,
+                        reason: $reason,
+                        issuedBy: $actor->id,
+                        issuedByAdmin: $this->acting->adminActingAs($actor->id),
+                        issuedAsUnit: $this->acting->billetOf($actor->id),
+                        issuerUnitId: $permissions->issuingUnit($command->type),
+                        document: $stored,
+                        driveStatus: $this->drive->isConfigured() ? DriveUploadStatus::Pending : DriveUploadStatus::Skipped,
+                    ),
             );
         } catch (Throwable $e) {
             $this->documents->delete($stored->path);
 
             throw $e;
         }
+    }
+
+    private function filedAgain(int $trooperId, FileCounselingRecord $command, CarbonImmutable $counseledOn, string $reason, string $sha256): bool
+    {
+        return $this->records->filedSince(
+            trooperId: $trooperId,
+            type: $command->type,
+            counseledOn: $counseledOn,
+            reason: $reason,
+            sha256: $sha256,
+            since: CarbonImmutable::now()->subMinutes(CounselingRules::REPEAT_WINDOW_MINUTES),
+        );
     }
 }
