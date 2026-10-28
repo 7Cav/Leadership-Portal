@@ -40,6 +40,30 @@ class ActingFor
         [$this->admin, $this->user, $this->unit] = [null, null, null];
     }
 
+    /**
+     * What is held now, for work queued on this request to carry into its job ({@see ActingSnapshot}); null when
+     * nobody is acting.
+     */
+    public function snapshot(): ?ActingSnapshot
+    {
+        return $this->admin === null ? null : new ActingSnapshot($this->admin, $this->user, $this->unit);
+    }
+
+    /**
+     * Hold what a {@see snapshot()} held, or nothing for null: how a queued job runs with the attribution of the
+     * request that queued it. The job puts back what was held before it once it is done, since a job run on the sync
+     * queue shares the request's instance.
+     */
+    public function restore(?ActingSnapshot $snapshot): void
+    {
+        match (true) {
+            $snapshot === null => $this->clear(),
+            $snapshot->unitId !== null => $this->setBillet($snapshot->adminId, $snapshot->unitId),
+            $snapshot->userId !== null => $this->set($snapshot->adminId, $snapshot->userId),
+            default => $this->clear(),
+        };
+    }
+
     /** The real Admin's id while acting, or null. */
     public function admin(): ?int
     {

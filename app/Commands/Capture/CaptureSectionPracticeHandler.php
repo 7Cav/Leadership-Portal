@@ -16,6 +16,7 @@ use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\WeeklyReportRepository;
+use App\Support\Audit\ActingFor;
 use App\Support\Audit\AuditEnvelope;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -76,12 +77,30 @@ class CaptureSectionPracticeHandler
         private readonly AuditEnvelope $audit,
         private readonly GameRepository $games,
         private readonly GameServerRepository $servers,
+        private readonly ActingFor $acting,
     ) {}
 
     /**
+     * Runs the capture as whoever really queued it: a "Try again" made while acting as someone carries that in
+     * `$command->acting`, held again here, so the run's entries name the Admin or leader on the person's behalf (or in
+     * the billet's place) and its `sync_runs` row names them too. What was held before is put back afterwards, since a
+     * job run on the sync queue shares the request's instance.
+     *
      * @throws InvalidArgumentException when the practice or the game does not exist.
      */
     public function handle(CaptureSectionPractice $command): CaptureResult
+    {
+        $before = $this->acting->snapshot();
+        $this->acting->restore($command->acting);
+
+        try {
+            return $this->run($command);
+        } finally {
+            $this->acting->restore($before);
+        }
+    }
+
+    private function run(CaptureSectionPractice $command): CaptureResult
     {
         $practice = $this->practices->findById($command->sectionPracticeId)
             ?? throw new InvalidArgumentException("Section practice {$command->sectionPracticeId} does not exist.");
@@ -111,7 +130,9 @@ class CaptureSectionPracticeHandler
         // practice may be running right now.
         $this->syncRuns->failOrphaned('capture', $practice->id);
 
-        $run = $this->syncRuns->open('capture', $command->triggeredBy, $practice->id);
+        // The run names who really asked for it, as the audit log does: the Admin or leader, not the person acted as.
+        $runBy = is_int($command->triggeredBy) ? $this->acting->attribute($command->triggeredBy)[0] : $command->triggeredBy;
+        $run = $this->syncRuns->open('capture', $runBy, $practice->id);
 
         try {
             // A week whose report was sent is frozen (AD-12): no source is read and nothing is

@@ -522,3 +522,60 @@ describe('reach and boundary cases', function () {
         $this->actingAs($admin)->get('/home')->assertInertia(fn (Assert $page) => $page->where('actingAs.label', fn ($l) => str_contains($l, '1/A/1-7')));
     });
 });
+
+// A trooper made acting lead of the platoon their own section sits in commands their Section Leader by the tree, but
+// that SL commands them. Acting as the SL would let every rule keyed on "the person themselves" (nobody counsels
+// themselves) be asked about the SL instead, so nobody may act as someone whose command covers their own placement.
+describe('never as someone who commands the leader', function () {
+    beforeEach(function () {
+        $this->member = leaderPerson(970, 'Member.M', null);
+        Trooper::where('cav_id', 970)->update(['primary_section_id' => $this->section1->id]);
+        app(UnitActingLeadRepository::class)->assign($this->platoon->id, Trooper::where('cav_id', 970)->value('id'), null);
+    });
+
+    it('refuses an acting platoon lead who acts as the leader of their own section', function () {
+        leaderCannotStart($this, $this->member, $this->sl1);
+    });
+
+    it('still lets them act as the leader of a section they are not in', function () {
+        leaderStarts($this, $this->member, $this->sl2);
+
+        $this->actingAs($this->member)->get('/home')->assertInertia(fn (Assert $page) => $page->where('auth.user.id', $this->sl2->id));
+    });
+
+    it('leaves their own section leader out of the picker', function () {
+        $this->actingAs($this->member)->getJson('/act-as/options')->assertOk()->assertExactJson([
+            'people' => [['id' => $this->sl2->id, 'label' => 'SGT Mercer.J', 'designation' => '2/1/A/1-7']],
+        ]);
+    });
+
+    it('drops a stored choice on the next request once the person\'s command comes to cover the leader', function () {
+        leaderStarts($this, $this->member, $this->sl2);
+        // The SL of the other section is made acting lead of the leader's own section as well: still inside the
+        // leader's platoon, but now over the leader.
+        app(UnitActingLeadRepository::class)->assign($this->section1->id, Trooper::where('cav_id', 904)->value('id'), null);
+
+        $this->actingAs($this->member)->get('/home')->assertInertia(fn (Assert $page) => $page->where('auth.user.id', $this->member->id)->where('actingAs', null));
+    });
+
+    it('drops a stored choice once the leader is placed in the person\'s section', function () {
+        leaderStarts($this, $this->member, $this->sl2);
+        Trooper::where('cav_id', 970)->update(['primary_section_id' => $this->section2->id]);
+
+        $this->actingAs($this->member)->get('/home')->assertInertia(fn (Assert $page) => $page->where('auth.user.id', $this->member->id)->where('actingAs', null));
+    });
+
+    it('lets a platoon leader placed on their platoon act as a section leader below it', function () {
+        Trooper::where('cav_id', 901)->update(['primary_section_id' => $this->platoon->id]);
+
+        leaderStarts($this, $this->pl, $this->sl1);
+    });
+
+    it('holds an Admin acting as that leader to the same rule', function () {
+        $admin = User::factory()->admin()->create(['username' => 'Root.R']);
+        $this->actingAs($admin)->post('/act-as', ['kind' => 'user', 'id' => $this->member->id])->assertRedirect('/home');
+
+        $this->actingAs($admin)->post('/act-as', ['kind' => 'user', 'id' => $this->sl1->id])->assertSessionHasErrors('act_as');
+        $this->actingAs($admin)->post('/act-as', ['kind' => 'user', 'id' => $this->sl2->id])->assertRedirect('/home');
+    });
+});
