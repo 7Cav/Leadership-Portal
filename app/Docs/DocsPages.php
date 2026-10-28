@@ -59,12 +59,27 @@ final class DocsPages
                 'title' => $group['section']->title,
                 'guides' => array_map(fn (Guide $guide) => $this->link($guide), $group['guides']),
             ], $this->library->contents($reader)),
+            // The search (#413) runs in the page, over only the guides this reader may read: no request per keystroke.
+            'search' => collect($this->library->contents($reader))->flatMap(fn (array $group) => array_map(fn (Guide $guide) => [
+                'title' => $guide->title,
+                'summary' => $guide->summary,
+                'url' => $guide->url(),
+                'section' => $group['section']->title,
+                'headings' => array_column($guide->headings, 'text'),
+                'text' => self::plainText($guide->html),
+            ], $group['guides']))->values()->all(),
             'checklist' => array_map(fn (Guide $guide) => [
                 'id' => "{$guide->section}/{$guide->slug}",
                 'label' => $guide->checklist->label,
                 'url' => $guide->url(),
             ], $this->library->checklist($reader)),
         ];
+    }
+
+    /** A guide's body as plain words for the search: no tags, entities decoded, whitespace collapsed. */
+    private static function plainText(string $html): string
+    {
+        return trim((string) preg_replace('/\s+/u', ' ', html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5)));
     }
 
     /** @return array{title: string, summary: string, url: string, audience: string, weekly: bool} */
