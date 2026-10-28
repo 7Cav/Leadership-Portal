@@ -7,6 +7,7 @@ use App\Authorization\ViewAsKind;
 use App\Authorization\ViewAsTarget;
 use App\Commands\ViewAs\EnterViewAs;
 use App\Commands\ViewAs\ExitViewAs;
+use App\Models\UnitType;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitRepository;
@@ -93,7 +94,7 @@ class ViewAsController extends Controller
      * authority — however the request was built — is refused with a validation error and nothing
      * is stored or logged (AC #3).
      */
-    public function store(Request $request, EnterViewAs $enter): RedirectResponse
+    public function store(Request $request, EnterViewAs $enter, UnitRepository $units): RedirectResponse
     {
         $data = $request->validate([
             'kind' => ['required', Rule::enum(ViewAsKind::class)],
@@ -110,16 +111,82 @@ class ViewAsController extends Controller
             ]);
         }
 
-        return redirect()->back();
+        return redirect()->to($this->openingPage($request, $target, $units));
     }
 
     /**
-     * Back to the viewer's own, full real scope (AC #5), recorded in the audit log.
+     * Back to the viewer's own, full real scope (AC #5), recorded in the audit log. The page they were on stays open:
+     * real scope holds everything the preview did. Only a page on this site is gone back to; anything else opens Home.
      */
     public function destroy(Request $request, ExitViewAs $exit): RedirectResponse
     {
         $exit->handle($request->user());
 
-        return redirect()->back();
+        $previous = $this->previousPage($request);
+
+        return redirect()->to($previous === null
+            ? route('home', absolute: false)
+            : $previous['path'].($previous['query'] === '' ? '' : '?'.$previous['query']));
+    }
+
+    /**
+     * Where a new preview opens (#426). The page the viewer was on is often one the narrower preview cannot open (a
+     * battalion's roster, once they view as a section), so they get the same page for the unit they now view as when
+     * there is one: its roster, its rollcall (a section) or the rollcall landing, its report for the same week or the
+     * reports landing, its readiness matrix, and its roster from a trooper page. A person preview has no unit of its
+     * own, so it gets each page's landing, which opens where that person would. Anything else opens Home. Only the
+     * Referer's path is read, against these known shapes, and the address is built here from the target's id and a
+     * checked week, so it never points anywhere this list does not.
+     */
+    private function openingPage(Request $request, ViewAsTarget $target, UnitRepository $units): string
+    {
+        $home = route('home', absolute: false);
+        $previous = $this->previousPage($request);
+        if ($previous === null) {
+            return $home;
+        }
+
+        parse_str($previous['query'], $query);
+        $path = $previous['path'];
+        $unit = $target->kind === ViewAsKind::Unit ? $units->find($target->id) : null;
+        $line = $unit !== null && $unit->isLine();
+        $week = is_string($query['week'] ?? null) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $query['week']) === 1
+            ? '?week='.$query['week']
+            : '';
+
+        return match (true) {
+            preg_match('#^/roster(/\d+)?$#', $path) === 1 => ($unit === null ? '/roster' : "/roster/{$unit->id}")
+                .(in_array($query['view'] ?? null, ['orbat', 'matrix'], true) ? '?view='.$query['view'] : ''),
+            preg_match('#^/troopers/\d+$#', $path) === 1 => $unit === null ? '/roster' : "/roster/{$unit->id}",
+            preg_match('#^/rollcall(/\d+)?$#', $path) === 1 => ($unit?->type === UnitType::Section ? "/rollcall/{$unit->id}" : '/rollcall').$week,
+            preg_match('#^/reports/\d+/(\d{4}-\d{2}-\d{2})$#', $path, $match) === 1 => $line ? "/reports/{$unit->id}/{$match[1]}" : '/reports',
+            preg_match('#^/reports(/\d+)?$#', $path) === 1 => ($line ? "/reports/{$unit->id}" : '/reports').$week,
+            preg_match('#^/reports/\d+/plans(/[0-9-]+)?$#', $path) === 1 => '/reports',
+            preg_match('#^/readiness/\d+$#', $path) === 1 && $unit !== null => "/readiness/{$unit->id}",
+            default => $home,
+        };
+    }
+
+    /**
+     * The path and query of the page the request came from, read from its Referer, when that page is on this site: no
+     * other host, and a path that cannot be read as another host (`//...`). Null otherwise, or with no Referer.
+     *
+     * @return array{path: string, query: string}|null
+     */
+    private function previousPage(Request $request): ?array
+    {
+        $referer = $request->headers->get('referer');
+        $parts = is_string($referer) ? parse_url($referer) : false;
+
+        if ($parts === false || (isset($parts['host']) && strcasecmp($parts['host'], $request->getHost()) !== 0)) {
+            return null;
+        }
+
+        $path = $parts['path'] ?? '/';
+        if (! str_starts_with($path, '/') || str_starts_with($path, '//') || str_contains($path, '\\')) {
+            return null;
+        }
+
+        return ['path' => $path, 'query' => $parts['query'] ?? ''];
     }
 }
