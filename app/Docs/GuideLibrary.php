@@ -126,6 +126,23 @@ final class GuideLibrary
         return array_map(fn (Guide $guide) => $guide->url(), $best);
     }
 
+    /**
+     * The guides either side of `$guide` in the reader's contents order, for the previous and next links. Crosses
+     * sections, so the last guide of one leads to the first of the next.
+     *
+     * @return array{0: ?Guide, 1: ?Guide}
+     */
+    public function neighbors(Audience $reader, Guide $guide): array
+    {
+        $readable = $this->readable($reader);
+        $at = array_search($guide->url(), array_map(fn (Guide $g) => $g->url(), $readable), true);
+        if ($at === false) {
+            return [null, null];
+        }
+
+        return [$readable[$at - 1] ?? null, $readable[$at + 1] ?? null];
+    }
+
     /** @return list<Guide> */
     private function readable(Audience $reader): array
     {

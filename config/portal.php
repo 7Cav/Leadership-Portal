@@ -18,6 +18,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Docs
+    |--------------------------------------------------------------------------
+    |
+    | The in-portal guides at `/docs` (#407). Off by default: when false every docs route answers
+    | 404 and the shell shows no Docs entry, so half-written guides never reach the regiment while
+    | testing runs. Switched on for testers first, then for everyone at rollout (#419).
+    |
+    */
+
+    'docs' => (bool) env('DOCS_ENABLED', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Trusted proxies
     |--------------------------------------------------------------------------
     |

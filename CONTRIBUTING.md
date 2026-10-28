@@ -45,7 +45,7 @@ Route → Controller ─┬─ (write) Command → CommandHandler ─┐
 
 | Layer | Directory | May depend on | Role |
 | --- | --- | --- | --- |
-| Controller | `app/Http/Controllers/` | CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi, Milpac, Rollcall, Loa | Orchestrate a request. **No business logic.** Reads repositories directly; writes via Commands. |
+| Controller | `app/Http/Controllers/` | CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi, Milpac, Rollcall, Loa, Docs | Orchestrate a request. **No business logic.** Reads repositories directly; writes via Commands. |
 | Command / Handler | `app/Commands/` | Repository, Model, Integration, Support\Audit, Authorization, Support\Time, Kpi, Loa, Rollcall | Write-side business logic. With Sync, the only layer that may call the outbound seam. |
 | Repository | `app/Repositories/` | Model, DB, Support\Time | **Sole** DB access (AD-2) |
 | Model | `app/Models/` | DB | Eloquent entities |

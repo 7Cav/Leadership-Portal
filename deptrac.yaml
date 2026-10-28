@@ -10,13 +10,13 @@
 #           composer deptrac:unassigned (list app/ classes that match no layer)
 #
 # The graph (arrows = "may depend on"):
-#   Controller     → CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi, Milpac, Rollcall, Loa  # writes via Commands; reads direct
+#   Controller     → CommandHandler, Repository, Model, Authorization, Job, Support\Time, Kpi, Milpac, Rollcall, Loa, Docs  # writes via Commands; reads direct
 #   CommandHandler → Repository, Model, Integration, Support\Audit, Authorization, Support\Time, Kpi, Loa, Rollcall  # write-side business logic
 #   Kpi            → Repository, Model, Support\Time, Loa  # the one shared KPI service (AD-21)
 #   Milpac         → Repository, Model                     # what the Epic 6 pages show: the milpac and the readiness matrix
 #   Loa            → Repository, Model, Support\Time       # LOA source/staleness reader and week coverage (Epic 4)
 #   Rollcall       → Repository, Model                     # the template a unit resolves to (Epic 3)
-#   Docs           → Authorization, Model                  # the in-portal guides, read from resources/docs (#408)
+#   Docs           → Authorization, Model                  # the in-portal guides, read from resources/docs (#408); Controller reaches it (#409)
 #   Job            → Sync, CommandHandler                  # queued jobs invoke a Sync handler (Story 2.4) or a capture Command (Story 7.5)
 #   Sync           → Repository, Model, Integration        # one-writer cache sync handlers (AD-4)
 #   Authorization  → Repository, Model                     # ScopeResolver, the single scope gate (AD-8)
@@ -152,6 +152,8 @@ deptrac:
       - Rollcall
       # The rollcall and home pages read who is on leave from the one LOA coverage definition, and its source (3.4, AD-20/21).
       - Loa
+      # The docs pages read the guides a viewer may see from the Docs layer (#409).
+      - Docs
     CommandHandler:
       - Repository
       - Model

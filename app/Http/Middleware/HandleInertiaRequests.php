@@ -83,9 +83,11 @@ class HandleInertiaRequests extends Middleware
                 'baseUrl' => rtrim((string) config('services.sevencav.base_url'), '/'),
             ],
             // Optional tools the shell's navigation shows only when switched on (#115: Settings →
-            // Demo data, DEMO_TOOLS=true). Navigation only — each screen enforces its own gate.
+            // Demo data, DEMO_TOOLS=true; #409: the docs, DOCS_ENABLED=true). Navigation only — each
+            // screen enforces its own gate.
             'features' => [
                 'demoTools' => (bool) config('portal.demo_tools'),
+                'docs' => (bool) config('portal.docs'),
             ],
         ];
     }
