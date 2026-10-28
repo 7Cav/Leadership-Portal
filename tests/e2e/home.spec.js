@@ -13,6 +13,9 @@ test('a company commander reads the dashboard and drills into a report', async (
     const tiles = page.getByTestId('kpi-tiles');
     await expect(tiles.locator('[data-kpi]')).toHaveCount(6);
     await expect(tiles.locator('[data-kpi="strength"] dd span').first()).toHaveText('47');
+    // The two numbers are labelled apart: the rollcall figure the rates are over, and the headcount with staff (#424).
+    await expect(tiles.locator('[data-kpi="strength"] dt')).toHaveText('In rollcall');
+    await expect(tiles.getByTestId('headcount')).toHaveText(/Headcount \d+, with staff/);
     await expect(page.getByTestId('roster-freshness')).toBeVisible();
 
     // Needs attention: the three sections still holding up the chain.

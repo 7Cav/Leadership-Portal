@@ -8,7 +8,7 @@ import { forumDate } from '@/lib/forumDate';
 // The six KPIs in report order. `polarity` is what an increase means (5.4): +1 good, -1 needs
 // attention. `deltaKey` is the matching field of the server's delta (rates in basis points).
 export const KPIS = [
-    { key: 'strength', label: 'Strength', polarity: 1, deltaKey: 'strength' },
+    { key: 'strength', label: 'In rollcall', polarity: 1, deltaKey: 'strength' },
     { key: 'rc', label: 'RC % 30d', polarity: 1, deltaKey: 'rcBp', rate: true },
     { key: 'sp', label: 'SP % 30d', polarity: 1, deltaKey: 'spBp', rate: true },
     { key: 'atRisk', label: 'At-risk', polarity: -1, deltaKey: 'atRisk' },

@@ -31,8 +31,21 @@ describe('KpiTiles', () => {
     it('renders the six KPIs in report order with their current values', () => {
         const tiles = mountTiles().findAll('[data-kpi]');
 
-        expect(tiles.map((tile) => tile.find('dt').text())).toEqual(['Strength', 'RC % · 30d', 'SP % · 30d', 'At-risk', 'On LOA', 'Makeups']);
+        expect(tiles.map((tile) => tile.find('dt').text())).toEqual(['In rollcall', 'RC % · 30d', 'SP % · 30d', 'At-risk', 'On LOA', 'Makeups']);
         expect(tiles.map((tile) => tile.find('dd span').text())).toEqual(['24', '92%', '90%', '3', '2', '4']);
+    });
+
+    it('labels the headcount with staff apart from the rollcall figure, on the strength tile only', () => {
+        const wrapper = mountTiles({ current: { ...kpis(24, [88, 96], [36, 40]), headcount: 31 } });
+
+        expect(wrapper.find('[data-kpi="strength"] dt').text()).toBe('In rollcall');
+        expect(wrapper.find('[data-kpi="strength"] dd span').text()).toBe('24');
+        expect(wrapper.find('[data-testid="headcount"]').text()).toBe('Headcount 31, with staff');
+        expect(wrapper.findAll('[data-testid="headcount"]')).toHaveLength(1);
+    });
+
+    it('draws no headcount when the server sent none', () => {
+        expect(mountTiles().find('[data-testid="headcount"]').exists()).toBe(false);
     });
 
     it('shows a dash, never 0%, for a rate with nothing eligible', () => {
@@ -62,7 +75,7 @@ describe('KpiTiles', () => {
         const history = [full[0], { week: '2026-09-12', kpis: null }, full[2], full[3]];
         const label = mountTiles({ history }).find('[data-kpi="strength"] [data-testid="sparkline"]').attributes('aria-label');
 
-        expect(label).toBe('Strength over the last 4 weeks: 20, no sent report, 21, 22, 24');
+        expect(label).toBe('In rollcall over the last 4 weeks: 20, no sent report, 21, 22, 24');
     });
 
     it('colours a change by whether it is good for that KPI', () => {

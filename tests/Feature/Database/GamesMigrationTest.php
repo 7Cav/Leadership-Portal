@@ -27,9 +27,17 @@ function idKindsMigration(): object
     return require database_path('migrations/2026_10_28_130000_add_id_kinds_to_games.php');
 }
 
-/** The schema as it was before #388: the #428 columns come off first, then the games table. */
+function gameServersMigration(): object
+{
+    return require database_path('migrations/2026_10_28_100000_create_game_servers_table.php');
+}
+
+// The schema as it was before #388. Everything pointing at `games` comes off first, newest first: SQLite does not mind
+// the games migration dropping the table under `game_servers` (#389), but MySQL refuses (error 3730). The #428 columns
+// come off before the games table too.
 function rollBackToPlatformEnum(): void
 {
+    gameServersMigration()->down();
     idKindsMigration()->down();
     gamesMigration()->down();
 }
@@ -38,6 +46,7 @@ function restoreGames(): void
 {
     gamesMigration()->up();
     idKindsMigration()->up();
+    gameServersMigration()->up();
 }
 
 it('creates the games with their names, id kinds and interfaces', function () {

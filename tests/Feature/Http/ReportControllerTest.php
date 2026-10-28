@@ -417,3 +417,33 @@ it('renders a roll-up whose child sent an unreadable snapshot as unavailable, na
     $this->actingAs($platoonLeader)->put(reportUrl($this->platoon, $this->week), ['notes' => 'Kept.'])->assertSessionHasNoErrors();
     expect(WeeklyReport::query()->where('unit_id', $this->platoon->id)->sole()->notes)->toBe('Kept.');
 });
+
+it('shows the headcount beside the measured strength: HQ staff in, a sent report keeping the figure it froze (#424)', function () {
+    $platoonLeader = User::factory()->commanding($this->platoon)->create();
+    // Platoon HQ: serving, on no rollcall, so in the headcount and not in the strength.
+    Trooper::factory()->create(['primary_section_id' => $this->platoon->id]);
+
+    $this->actingAs($platoonLeader)->get(reportUrl($this->platoon, $this->week))
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('kpis.strength', 0)
+            ->where('kpis.headcount', 3));
+
+    $this->actingAs($platoonLeader)->get(reportUrl($this->section, $this->week))
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('kpis.strength', 2)->where('kpis.headcount', 2));
+
+    $frozen = (new ReportSnapshot(new UnitKpis(0, new Ratio(0, 0), new Ratio(0, 0), 0, 0, 0), null, [], 3))->toArray();
+    app(WeeklyReportRepository::class)->send($this->platoon->id, $this->weekStart, $frozen, null, $platoonLeader->id, 'd', null);
+    // Staff join after the send: the sent report reads back as frozen.
+    Trooper::factory()->create(['primary_section_id' => $this->platoon->id]);
+
+    $this->actingAs($platoonLeader)->get(reportUrl($this->platoon, $this->week))
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('report.status', 'sent')->where('kpis.headcount', 3));
+});
+
+it('shows no headcount for a report frozen before there was one', function () {
+    $platoonLeader = User::factory()->commanding($this->platoon)->create();
+    app(WeeklyReportRepository::class)->send($this->section->id, $this->weekStart, frozenSnapshot(2), null, $platoonLeader->id, 'd', null);
+
+    $this->actingAs($platoonLeader)->get(reportUrl($this->section, $this->week))
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('report.status', 'sent')->where('kpis.strength', 2)->where('kpis.headcount', null));
+});
