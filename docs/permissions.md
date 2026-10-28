@@ -22,7 +22,7 @@
 | Admin | Not a billet: the `is_admin` flag, set with `php artisan portal:admin` | The whole tree |
 | Regiment command | `Regimental Commanding Officer`, `Regimental Executive Officer`, `Regimental Command Sergeant Major` in the `Regimental HQ` group | The regiment (the whole tree) |
 | Regimental staff portfolio officer | `Regimental Security Operations Officer` (SecOps), `Regimental Recruiting Oversight Officer`, `Regimental Information Management Officer` (IMO), `RDC Commander` | Their portfolio node and the staff groups under it |
-| Battalion command | `<bn> Commanding Officer`, `<bn> Executive Officer`, `<bn> Sergeant Major` in a `<bn> Command` group (ACD also: `Auxiliary Commander`, `Auxiliary Executive Officer`, `Auxiliary Sergeant Major`) | The battalion |
+| Battalion command | `<bn> Commanding Officer`, `<bn> Executive Officer`, `<bn> Sergeant Major` in a `<bn> Command` group (ACD also: `Auxiliary Commander`, `Auxiliary Executive Officer`, `Auxiliary Sergeant Major`); `DEVCOM 1IC` and `DEVCOM 2IC` in any group | The battalion (DEVCOM for its 1IC and 2IC) |
 | Company command | `Commander`, `Executive Officer`, `First Sergeant` of a line company (`Commander A/1-7`) | The company |
 | Platoon | `Platoon Leader`, `Platoon Sergeant` of a platoon (`Platoon Leader 1/A/1-7`) | The platoon |
 | Acting lead | Not a billet: an Admin assigns a serving trooper to a line unit below the regiment | That unit (one or more), exactly like a Platoon Leader over it |
@@ -40,6 +40,9 @@ Notes:
   and holds DEVCOM staff and the Reservists. Recruiting Oversight holds RRD, RTC and S5. Security Operations holds S2,
   MP and JAG. Information Management holds S6. S1, S3, S7 and WAG sit directly under the regiment. An Admin can move a
   department to another portfolio; the import never moves it back.
+- `DEVCOM 1IC` commands DEVCOM as its battalion commander and `DEVCOM 2IC` as its XO, so both have battalion command
+  over DEVCOM, D/DEVCOM and its platoons and sections, rollcall templates and the template switch included. The org
+  page names the 1IC as DEVCOM's lead; when that billet is vacant the lead shows vacant, and the 2IC keeps their rights.
 - `DEVCOM Lead` commands nothing by billet. An Admin makes them acting lead of the DEVCOM starter platoons they run.
 - Every layer's scope is the commanded unit plus everything under it. A company commander therefore has the same
   rights as the platoon and section leaders in that company, on every unit in it.
