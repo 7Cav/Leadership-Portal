@@ -107,8 +107,9 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/troopers/{trooper}', [TrooperDetailController::class, 'show'])->name('troopers.show');
     // Developmental Counseling Statements and Letters of Reprimand (#381). Each write is an audited Command whose handler
     // decides who may file which type and who may change a record (Authorization\CounselingAccess); a trooper or record
-    // the viewer cannot see is a 404, the document download included. The writes share the audited-writes throttle.
-    Route::post('/troopers/{trooper}/counseling', [CounselingController::class, 'store'])->middleware('throttle:audited-writes')->name('counseling.store');
+    // the viewer cannot see is a 404, the document download included. Filing stores a PDF of up to 10 MB, so it has its
+    // own, tighter throttle (counseling-uploads); corrections and deletes share the audited-writes one.
+    Route::post('/troopers/{trooper}/counseling', [CounselingController::class, 'store'])->middleware('throttle:counseling-uploads')->name('counseling.store');
     Route::patch('/counseling/{counseling}', [CounselingController::class, 'update'])->middleware('throttle:audited-writes')->name('counseling.update');
     Route::delete('/counseling/{counseling}', [CounselingController::class, 'destroy'])->middleware('throttle:audited-writes')->name('counseling.destroy');
     Route::get('/counseling/{counseling}/document', [CounselingController::class, 'document'])->name('counseling.document');

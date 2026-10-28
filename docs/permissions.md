@@ -212,8 +212,9 @@ All per signed-in user (sign-in is per IP address), per minute.
 | --- | --- |
 | 10 per IP, per route | The two sign-in steps |
 | 60 | Find trooper and the guest picker search |
-| 60, shared | Fireteam changes, company fireteam policy, unmatched dismiss and restore, guest add and remove, platoon topic set and clear, training plan save, approve and send back, starting and leaving view as, filing, correcting and deleting a DCS or LOR |
+| 60, shared | Fireteam changes, company fireteam policy, unmatched dismiss and restore, guest add and remove, platoon topic set and clear, training plan save, approve and send back, starting and leaving view as, correcting and deleting a DCS or LOR |
 | 10 | Capture "Try again"; the same practice also only once a minute |
+| 10 | Filing a DCS or LOR (each one uploads a PDF of up to 10 MB) |
 | 5 | Whole-roster sync, manual LOA sync (Admins) |
 | 3 | Unit roster sync; also a 5 minute cooldown on that unit and every unit above and below it (Admins skip the cooldown) |
 
