@@ -58,7 +58,7 @@ Exclamation marks: never. There is no exception.
 - Sentence case for everything: page titles, headings, buttons, labels, menu items, table headers, toasts, dialog
   titles. "Mark rollcall posted", "Command roll-up", "Game identities".
 - Keep capitals only for proper nouns and fixed names: 7Cav, Cav, Leadership Portal, Admin, the Cav group names
-  (ELOA, Reservists, New Recruits), game names (Hell Let Loose, Arma Reforger, WARDOGS), Discord, BBCode, and billet
+  (ELOA, Reservists, New Recruits), game names (Hell Let Loose (WW2), Hell Let Loose: Vietnam, Arma Reforger, WARDOGS), Discord, BBCode, and billet
   titles written as on the roster ("Section Leader", "Platoon Leader").
 - Billets: capitalise the exact roster title ("the Section Leader", "a Platoon Leader's command over this unit").
   Lowercase a role used generically ("section leaders add guests on their rollcall", "the leaders who command this

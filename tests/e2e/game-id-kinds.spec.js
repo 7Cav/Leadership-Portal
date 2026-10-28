@@ -1,20 +1,13 @@
 import { expect, test } from '@playwright/test';
 
-// #428: an Admin gives Hell Let Loose Steam, Epic and Xbox ID kinds, a section leader's identity form then asks for
-// the kind first, and the Admin puts the game back to one kind. Nothing is linked, but the game's kinds change for
-// everyone while it runs, so playwright.config.js runs it after the other specs, not beside them.
+// #428: a game with several ID kinds (Hell Let Loose (WW2) starts with Steam, Epic and Xbox since #431) asks for the
+// kind first in a section leader's identity form, and an Admin can drop a kind and add it back. Nothing is linked, but
+// the game's kinds change for everyone while it runs, so playwright.config.js runs it after the other specs, not
+// beside them.
 
 test('an Admin gives a game several ID kinds and the identity form asks for the kind first', async ({ browser }) => {
     const admin = await (await browser.newContext()).newPage();
     await admin.goto('/__e2e/login/Pike.S?to=/settings/games');
-    await admin.getByTestId('edit-hll').click();
-    await expect(admin.getByTestId('game-id_kind-0')).toHaveValue('Steam ID');
-
-    await admin.getByTestId('add-kind').click();
-    await admin.getByTestId('game-id_kind-1').fill('Epic ID');
-    await admin.getByTestId('add-kind').click();
-    await admin.getByTestId('game-id_kind-2').fill('Xbox ID');
-    await admin.getByTestId('submit-game').click();
     await expect(admin.getByTestId('kinds-hll')).toHaveText('Steam ID, Epic ID, Xbox ID');
 
     const leader = await (await browser.newContext()).newPage();
@@ -32,10 +25,15 @@ test('an Admin gives a game several ID kinds and the identity form asks for the 
     await leader.getByTestId('identity-game').selectOption('arma');
     await expect(leader.getByTestId('identity-kind')).toHaveCount(0);
 
-    // Back to one kind: no identity uses Epic or Xbox, so the removal is allowed.
+    // Drop Xbox and add it back: no identity uses it, so the removal is allowed.
     await admin.getByTestId('edit-hll').click();
     await admin.getByTestId('remove-kind-2').click();
-    await admin.getByTestId('remove-kind-1').click();
     await admin.getByTestId('submit-game').click();
-    await expect(admin.getByTestId('kinds-hll')).toHaveText('Steam ID');
+    await expect(admin.getByTestId('kinds-hll')).toHaveText('Steam ID, Epic ID');
+
+    await admin.getByTestId('edit-hll').click();
+    await admin.getByTestId('add-kind').click();
+    await admin.getByTestId('game-id_kind-2').fill('Xbox ID');
+    await admin.getByTestId('submit-game').click();
+    await expect(admin.getByTestId('kinds-hll')).toHaveText('Steam ID, Epic ID, Xbox ID');
 });

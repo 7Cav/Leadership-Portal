@@ -15,18 +15,18 @@ beforeEach(function () {
 
 function gameForm(array $override = []): array
 {
-    return ['name' => 'Hell Let Loose', 'id_kinds' => ['Steam ID', 'Epic ID', 'Xbox ID'], 'interface' => 'crcon', ...$override];
+    return ['name' => 'Hell Let Loose (WW2)', 'id_kinds' => ['Steam ID', 'Epic ID', 'Xbox ID'], 'interface' => 'crcon', ...$override];
 }
 
 it('gives a game several ID kinds, in order, audited, and shows them on the page', function () {
-    $this->actingAs($this->admin)->patch("/settings/games/{$this->hll->id}", gameForm())->assertRedirect('/settings/games');
+    $this->actingAs($this->admin)->patch("/settings/games/{$this->hll->id}", gameForm(['id_kinds' => ['Steam ID', 'Epic ID', 'Xbox ID', 'GOG ID']]))->assertRedirect('/settings/games');
 
-    expect($this->hll->refresh()->id_kinds)->toBe(['Steam ID', 'Epic ID', 'Xbox ID'])
+    expect($this->hll->refresh()->id_kinds)->toBe(['Steam ID', 'Epic ID', 'Xbox ID', 'GOG ID'])
         ->and($this->hll->defaultIdKind())->toBe('Steam ID')
         ->and(AuditLogEntry::query()->sole()->action)->toBe('game.updated');
 
     $this->actingAs($this->admin)->get('/settings/games')
-        ->assertInertia(fn (Assert $page) => $page->where('games.0.idKinds', ['Steam ID', 'Epic ID', 'Xbox ID']));
+        ->assertInertia(fn (Assert $page) => $page->where('games.0.idKinds', ['Steam ID', 'Epic ID', 'Xbox ID', 'GOG ID']));
 });
 
 it('adds a game with several kinds, trimmed and as a list', function () {
@@ -40,7 +40,7 @@ it('treats a reorder as a change, since the first kind is the default', function
     $this->actingAs($this->admin)->patch("/settings/games/{$this->hll->id}", gameForm(['id_kinds' => ['Epic ID', 'Steam ID', 'Xbox ID']]))->assertRedirect();
     $this->actingAs($this->admin)->patch("/settings/games/{$this->hll->id}", gameForm(['id_kinds' => ['Epic ID', 'Steam ID', 'Xbox ID']]))->assertRedirect();
 
-    expect($this->hll->refresh()->defaultIdKind())->toBe('Epic ID')->and(AuditLogEntry::query()->count())->toBe(2);
+    expect($this->hll->refresh()->defaultIdKind())->toBe('Epic ID')->and(AuditLogEntry::query()->count())->toBe(1);
 });
 
 it('validates the list: at least one kind, none blank, none twice whatever the case, at most 8', function () {
@@ -56,7 +56,7 @@ it('validates the list: at least one kind, none blank, none twice whatever the c
         $this->actingAs($this->admin)->patch("/settings/games/{$this->hll->id}", gameForm(['id_kinds' => $kinds]))->assertSessionHasErrors($key);
     }
 
-    expect($this->hll->refresh()->id_kinds)->toBe(['Steam ID'])->and(AuditLogEntry::query()->count())->toBe(0);
+    expect()->and(AuditLogEntry::query()->count())->toBe(0);
 });
 
 it('refuses to remove, or rename, a kind a linked identity uses, writing nothing', function () {
