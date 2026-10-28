@@ -251,7 +251,9 @@ their own.
 - The regulations' rules, measured between records by their dates as the 7Cav wiki does: each record is weighed
   against the ones dated before it, and a record that crossed a threshold shows the flag it earned, which stays with
   it as time passes. Other conduct: a repeat within 90 days of a DCS (an LOR is next if it was for the same issue), and
-  an LOR within 30 days of another (the one repeat LOR, an Article 15, if it was for the same issue). Missed section
+  an LOR within 30 days of another (the one repeat LOR, an Article 15, if it was for the same issue); a DCS within 30
+  days of an LOR is flagged too, since the regulation calls for that repeat LOR instead if it is for the same issue
+  (the filing form warns before one is filed in that window). Missed section
   practice or rollcall: a second miss within 30 days of the last (an LOR is called for; from 31 days, another DCS), a
   miss within 60 days of an LOR (a second LOR), and a second LOR within 60 days of the first (an Article 15, company
   then battalion). LORs on any matter: a 2nd within 90 days (removal as SL or ASL is authorized) and a 3rd (an Article

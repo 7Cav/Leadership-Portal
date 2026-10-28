@@ -166,6 +166,35 @@ describe('CounselingPanel', () => {
         expect(wrapper.find('[data-testid="counseling-hint"]').exists()).toBe(false);
     });
 
+    it('flags a DCS filed within 30 days of an LOR on the record, and warns before one is filed in that window', async () => {
+        const afterLor = { key: 'dcs-after-lor', message: 'Within 30 days of an LOR: the regulation calls for a repeat LOR, not a DCS, if it is for the same issue.' };
+        const wrapper = panel({
+            records: [record({ kind: 'conduct', kindLabel: 'Other conduct', flags: [afterLor] })],
+            canFile: { dcs: true, lor: false },
+            forecast: {
+                dcs: {
+                    missed_practice: [{ from: '1970-01-01', flags: [] }],
+                    // An LOR on 20Sep26: its 30 days run to 20Oct26.
+                    conduct: [{ from: '1970-01-01', flags: [] }, { from: '2026-09-20', flags: [afterLor] }, { from: '2026-10-21', flags: [] }],
+                },
+            },
+        });
+
+        expect(wrapper.get('[data-testid="counseling-flag-dcs-after-lor"]').text()).toBe(afterLor.message);
+
+        await wrapper.get('[data-testid="counseling-file-open"]').trigger('click');
+        await wrapper.get('[data-testid="counseling-kind"]').setValue('conduct');
+        await wrapper.get('[data-testid="counseling-date"]').setValue('2026-10-20');
+        expect(wrapper.get('[data-testid="counseling-hint-dcs-after-lor"]').text()).toBe(afterLor.message);
+
+        await wrapper.get('[data-testid="counseling-date"]').setValue('2026-10-21');
+        expect(wrapper.find('[data-testid="counseling-hint"]').exists()).toBe(false);
+
+        await wrapper.get('[data-testid="counseling-date"]').setValue('2026-10-10');
+        await wrapper.get('[data-testid="counseling-kind"]').setValue('missed_practice');
+        expect(wrapper.find('[data-testid="counseling-hint"]').exists()).toBe(false);
+    });
+
     it('asks what the record is for before sending anything', async () => {
         const wrapper = panel({ canFile: { dcs: true, lor: false } });
         await wrapper.get('[data-testid="counseling-file-open"]').trigger('click');

@@ -62,4 +62,7 @@ test('a section leader sees the trooper\'s DCS and LOR, and may file only a DCS'
     await expect(panel.getByTestId('counseling-type').locator('option')).toHaveText(['Developmental Counseling Statement (DCS)']);
     await panel.getByTestId('counseling-kind').selectOption('missed_practice');
     await expect(panel.getByTestId('counseling-hint-missed-lor')).toHaveText('Second miss within 30 days of the last: an LOR is called for.');
+    // The seeded LOR for other conduct is 20 days old: a DCS for other conduct today is inside its 30 days.
+    await panel.getByTestId('counseling-kind').selectOption('conduct');
+    await expect(panel.getByTestId('counseling-hint-dcs-after-lor')).toHaveText('Within 30 days of an LOR: the regulation calls for a repeat LOR, not a DCS, if it is for the same issue.');
 });
