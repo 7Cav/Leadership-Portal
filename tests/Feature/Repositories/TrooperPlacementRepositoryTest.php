@@ -7,6 +7,7 @@ use App\Integration\Cav\CavApi;
 use App\Models\PlacementSource;
 use App\Models\Trooper;
 use App\Models\TrooperPlacement;
+use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitBilletMapping;
 use App\Models\UnitKind;
@@ -211,5 +212,57 @@ describe('read week by week', function () {
             ->sectionsByWeek([$unplaced->id], CarbonImmutable::parse('2026-10-03', 'UTC'), CarbonImmutable::parse('2026-10-10', 'UTC'));
 
         expect($weeks->weeks)->toBe([])->and($weeks->current)->toBe([]);
+    });
+});
+
+// Audit 2 (M2): which units had someone in them in a past week, for the report chain and Home's sparkline. A unit is
+// never counted for a week before anyone was placed in it, and the troopers with no history are read as sectionsByWeek()
+// reads them.
+
+/** @return array<string, list<int>> the units placed in each week from 03Oct26 to 17Oct26 */
+function phPlacedByWeek(): array
+{
+    return app(TrooperPlacementRepository::class)
+        ->unitIdsPlacedByWeek(CarbonImmutable::parse('2026-10-03', 'UTC'), CarbonImmutable::parse('2026-10-17', 'UTC'));
+}
+
+describe('units placed week by week', function () {
+    it('counts a first placement from its week on, not for the weeks before it', function () {
+        $joined = Trooper::factory()->create(['primary_section_id' => null]);
+        $this->travelTo(CarbonImmutable::parse('2026-10-14 18:00:00', 'UTC')); // the week of 10-10
+        app(TrooperRepository::class)->updatePrimarySections([$joined->cav_id => $this->sectionB->id]);
+
+        expect(phPlacedByWeek())->toBe([
+            '2026-10-03' => [],
+            '2026-10-10' => [$this->sectionB->id],
+            '2026-10-17' => [$this->sectionB->id],
+        ]);
+    });
+
+    it('reads a trooper with no history, or one moved around it, at their current unit every week, and skips one who left', function () {
+        $plain = Trooper::factory()->create();
+        $plain->forceFill(['primary_section_id' => $this->sectionA->id])->save();
+        $movedAround = Trooper::factory()->create(['primary_section_id' => null]);
+        app(TrooperPlacementRepository::class)->record([$movedAround->id => [null, $this->sectionB->id]], PlacementSource::Sync, CarbonImmutable::parse('2026-10-05 00:00:00', 'UTC'));
+        $movedAround->forceFill(['primary_section_id' => $this->eloa->id])->save();
+        Trooper::factory()->create(['primary_section_id' => $this->sectionB->id, 'status' => TrooperStatus::Inactive]);
+
+        foreach (phPlacedByWeek() as $units) {
+            expect($units)->toEqualCanonicalizing([$this->sectionA->id, $this->eloa->id]);
+        }
+    });
+
+    it('counts a trooper moved out of every unit in the weeks they were placed, by their closed rows', function () {
+        $leaver = Trooper::factory()->create();
+        $leaver->forceFill(['primary_section_id' => $this->sectionB->id])->save();
+        // What a move out of every unit writes: the old placement closed, and the trooper placed nowhere.
+        app(TrooperPlacementRepository::class)->record([$leaver->id => [$this->sectionB->id, null]], PlacementSource::Sync, CarbonImmutable::parse('2026-10-12 18:00:00', 'UTC'));
+        $leaver->forceFill(['primary_section_id' => null])->save();
+
+        expect(phPlacedByWeek())->toBe([
+            '2026-10-03' => [$this->sectionB->id],
+            '2026-10-10' => [$this->sectionB->id],
+            '2026-10-17' => [],
+        ]);
     });
 });

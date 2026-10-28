@@ -6,6 +6,7 @@ use App\Commands\StaffPractices\RemoveStaffPractice;
 use App\Commands\StaffPractices\RemoveStaffPracticeHandler;
 use App\Commands\StaffPractices\StaffPracticeForbiddenException;
 use App\Commands\StaffPractices\StaffPracticeRefusedException;
+use App\Http\Controllers\TrooperDetailController;
 use App\Models\AuditLogEntry;
 use App\Models\CrossSectionSighting;
 use App\Models\SectionPractice;
@@ -115,20 +116,25 @@ it('refuses a second entry for the same section and week, but takes another sect
         ->and(AuditLogEntry::query()->where('action', 'staff_practice.recorded')->count())->toBe(2);
 });
 
-it('refuses a week before the floor and a future week', function (string $week, string $reason) {
+it('refuses a week before the floor, one older than the form offers and a future week', function (string $week, string $reason) {
     expect(refusedStaff(fn () => recordStaff($this->tree['users']['pl'], $this->tree['troopers']['psg'], $this->tree['units']['host']->id, CarbonImmutable::parse($week, 'UTC'))))
         ->toBe($reason);
     expect(CrossSectionSighting::query()->count())->toBe(0)
         ->and(SectionPractice::query()->count())->toBe(0);
 })->with([
     'before the floor' => ['2026-05-02', 'before_floor'],
+    // The floor is 20 weeks back, the form offers this week and the 11 before it (audit 2, L3).
+    'twelve weeks back, after the floor' => ['2026-07-11', 'outside_window'],
     'next week' => ['2026-10-10', 'future'],
 ]);
 
-it('takes any week back to the floor, snapped to its Cav week', function () {
+it('takes any week of the form\'s window, snapped to its Cav week, the oldest it offers included', function () {
     $row = recordStaff($this->tree['users']['pl'], $this->tree['troopers']['psg'], $this->tree['units']['host']->id, CarbonImmutable::parse('2026-09-30', 'UTC'));
+    $oldest = recordStaff($this->tree['users']['pl'], $this->tree['troopers']['psg'], $this->tree['units']['other']->id, CarbonImmutable::parse('2026-07-18', 'UTC'));
 
-    expect($row->week_start->toDateString())->toBe('2026-09-26');
+    expect($row->week_start->toDateString())->toBe('2026-09-26')
+        ->and($oldest->week_start->toDateString())->toBe('2026-07-18')
+        ->and(RecordStaffPracticeHandler::WEEKS)->toBe(TrooperDetailController::STAFF_PRACTICE_WEEKS);
 });
 
 it('locks a week whose report the staff member\'s HQ has sent, as a section\'s is', function () {

@@ -72,8 +72,12 @@ Related pages reached from the roster:
   signing, practice attendance and leave, but never the old unit's sent reports. Transfers from before this was
   recorded do not show. Awards are not synced from Cav yet and the page says so. Departed troopers still render,
   marked departed. For staff, the page also lists the section practices they attended (see Staff practices below).
+  Every trooper may open their own page, read only, whatever their billet (decided 2026-10-28): it shows their own
+  DCSs and LORs, and a staff member records their own practices there. The links into their unit and the makeup PM
+  show only when their scope reaches it.
 - Training readiness matrix (`/readiness/<unit>`): troopers by courses for one unit.
-- Find trooper: the search in the shell (also the `/` key) finds troopers in your scope and opens their milpac page.
+- Find trooper: the search in the shell (also the `/` key) finds troopers in your scope, and yourself, and opens their
+  milpac page.
   Type a username, with or without a leading rank and with a space for the dot ("SGT Vasquez R"), or a cav id
   ("#1234"). An empty result says whether it was limited to your units. Departed troopers are flagged.
 
@@ -185,9 +189,21 @@ the report chain, a section counts when it has troopers, and a platoon, company 
 it does.
 
 The report chain asks about the report's own week: a section counts for a week when it had troopers at any point of it
-(from the placement history), and any unit counts when it sent that week's report. So a section that sends and is then
-emptied by a move, or whose last trooper leaves the Cav, still rolls up into its platoon for that week, and keeps its
-platoon and company in that week's chain, and drops out from the first week it is empty.
+(from the placement history), and any unit counts when it sent that week's report. Who is placed now counts only for
+the running Cav week. So a section stood up or filled after a week is not one that week waits on, and a section that
+sends and is then emptied by a move still rolls up into its platoon for that week, keeps its platoon and company in that
+week's chain, and drops out from the first week it is empty. A trooper placed before the placement history began
+(27Oct26) and never moved since counts in their current section for every week.
+
+Leaving the Cav has no date in the portal, so once a trooper leaves, the placement they held when they left no longer
+counts for any week, past weeks included (an earlier move, which has dates, still counts). A section whose last trooper
+leaves the Cav therefore drops out of the chain for every week it did not send, the week they left included: its
+platoon's roll-up neither waits on it nor sums it for those weeks. A week it sent stays in the chain.
+
+The same week rule decides which sections Home's step matrix lists for the running week, which sections each past
+point of Home's sparkline waits on, and which of your top units the roll-up workspace and Home start from for a week
+(a unit with troopers now, or one that took part in the week). The roster, the unit pickers and the unit switcher
+always show who is placed now.
 
 ### Game identities
 
@@ -215,6 +231,8 @@ game's default kind when it fits none.
 
 On a trooper's milpac page, the Counseling panel holds their Developmental Counseling Statements (DCS) and Letters of
 Reprimand (LOR), newest first. Who may file and see which is in [permissions.md](permissions.md#counseling-dcs-and-lor).
+A trooper sees their own records on their own page and downloads them, read only: nobody files on, corrects or deletes
+their own.
 
 - File a record: the type, what it is for (a missed section practice or rollcall, or other conduct), the date it was
   given, the reason and the signed document, a PDF of 10 MB or less. What it is for is required, and stays as filed
@@ -250,14 +268,16 @@ Reservists and New Recruits are groups but not staff. On a staff member's milpac
 lists the section practices they attended, newest week first; the roster's trooper sheet shows the same list, read only.
 
 - Add one: the section (any section of the regiment with troopers in it) and the Cav week (this week and up to 11 back, never before the
-  week floor). One entry per staff member per section per week. Who may is in
+  week floor; the server refuses an older week too). One entry per staff member per section per week. Who may is in
   [permissions.md](permissions.md#staff-practices). Each entry says who entered it; one the staff member entered
   themselves reads "Self-reported by".
 - Game server: when a practice capture sees a staff member through a linked game identity, the practice is listed as
   "Seen on the game server". The capture keeps them on that practice's own record of who it saw, as it does every
   linked trooper from elsewhere; it credits nobody. Its window is the whole Cav week so far, so this means they were on
   the server that week. A practice with an entry shows the entry.
-- Remove one: the same people. A game server sighting cannot be removed by hand.
+- Remove one: the same people. A game server sighting cannot be removed by hand. An entry on a section that had no
+  practice that week creates one; removing the last such entry removes it again when nothing else is on it (no mark,
+  signature, guest, capture, or posted or confirmed rollcall), so it never keeps an Admin from deleting the section.
 - Lock: once the staff member's HQ has sent its weekly report for a week, that week's entries no longer change. A staff
   department sends no weekly report, so its weeks stay open.
 - An entry never puts the staff member on the host section's rollcall or its guests, never counts in its numbers,
@@ -274,7 +294,7 @@ lists the section practices they attended, newest week first; the roster's troop
 | Games | The games the regiment plays: name, the kinds of player ID it asks for (the first is the default), and which telemetry interface reads its attendance (CRCON, BattleMetrics, Nightwatch or none). Add, edit, retire or reinstate a game; delete one only while nothing uses it. The kinds whose ID shape is checked are marked. Admins also see "Identities to check": saved identities that break the ID shape or name rules, with what to check; nothing in it is changed, fix each on Game identities. |
 | Audit log | Every audited change (and every view as start and stop): who, what, when, the reason, filterable by actor, action, target, date and unit (including everything under it). |
 | Activity log | The pages each user opened and when, newest first, filterable by user and date range, to retrace a bug report. Shows when an Admin was acting as or viewing as someone. Addresses and times only (sensitive query values and every sign-in query are dropped), never form contents. Kept 30 days. |
-| Demo data | Only when `DEMO_TOOLS=true`. Generate 1 to 12 completed weeks of demo signatures, marks and sent reports for a unit's real troopers, or purge them. Never touches a week that holds real records. |
+| Demo data | Only when `DEMO_TOOLS=true`. Generate 1 to 12 completed weeks of demo signatures, marks and sent reports for a unit's real troopers, or purge them. Never touches a week that holds real records. A staff practice entry on a generated week is a real record: the purge clears the week's generated marks and keeps the entry. |
 
 Non-Admins do not see the Settings menu. They can still open Org structure, Staff grants, Templates and Games by URL, read only (Templates only for the companies and sections in their scope; a company's command can manage its own company's templates there, and a section's command its section's own).
 

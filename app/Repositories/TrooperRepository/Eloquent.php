@@ -351,7 +351,7 @@ class Eloquent implements TrooperRepository
             ->get();
     }
 
-    public function searchByUsername(array $terms, ?int $cavId, iterable $sectionIds, bool $withUnplaced, int $limit): EloquentCollection
+    public function searchByUsername(array $terms, ?int $cavId, iterable $sectionIds, bool $withUnplaced, int $limit, ?int $ownCavId = null): EloquentCollection
     {
         // `!` escapes the LIKE wildcards: one escape character both SQLite and MySQL accept without quoting games.
         $escaped = array_map(fn (string $term) => strtr(mb_strtolower($term), ['!' => '!!', '%' => '!%', '_' => '!_']), array_values($terms));
@@ -363,7 +363,8 @@ class Eloquent implements TrooperRepository
         return Trooper::query()
             ->where(fn (Builder $scope) => $scope
                 ->whereIn('primary_section_id', collect($sectionIds)->all())
-                ->when($withUnplaced, fn (Builder $q) => $q->orWhereNull('primary_section_id')))
+                ->when($withUnplaced, fn (Builder $q) => $q->orWhereNull('primary_section_id'))
+                ->when($ownCavId !== null, fn (Builder $q) => $q->orWhere('cav_id', $ownCavId)))
             ->where(function (Builder $match) use ($escaped, $cavId) {
                 foreach ($escaped as $term) {
                     $match->orWhereRaw("LOWER(username) LIKE ? ESCAPE '!'", ["%{$term}%"]);

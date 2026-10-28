@@ -7,8 +7,11 @@ use App\Models\UnitKind;
 use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
+use App\Support\Time\WeekOf;
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
+use InvalidArgumentException;
 
 /**
  * The headcount (decided 2026-10-24, shown beside strength on Home and the report in #424): everyone serving placed
@@ -27,7 +30,8 @@ use Illuminate\Support\Collection;
  * under it reports. A platoon whose only troopers are its HQ has troopers, so the roster and Home show it, but it has no
  * report to roll up, so its company's roll-up neither sums nor waits on it. For a report's week, a section also counts
  * when someone was placed in it during that week or when it sent that week's report, so a section emptied afterwards
- * still rolls up into its platoon for the week it reported.
+ * still rolls up into its platoon for the week it reported. A past week is judged only by that: a section created or
+ * filled after it is not one that week waits on. Who is placed now counts for the running week.
  */
 final class Headcount
 {
@@ -62,7 +66,7 @@ final class Headcount
     /**
      * `$units` without the line units that have no troopers (#442): nobody serving placed in them or anywhere under
      * them now. Groups are kept whatever their headcount, as is every unit's order. The one test every screen that
-     * shows people applies (the roster, Home's unit lists, the pickers), so a unit comes back on all of them at once
+     * shows people applies (the roster, the pickers, the unit switcher), so a unit comes back on all of them at once
      * when a trooper is placed in it, by the roster sync or by hand. The org page lists every unit and does not use it.
      * The report chain asks for more, a unit under it that reports ({@see reportingLineUnits()}).
      *
@@ -80,10 +84,10 @@ final class Headcount
     public function withoutEmptyLineUnits(Collection $units, array $keep = []): Collection
     {
         $keep = array_flip($keep);
-        $placed = $this->placedIn($this->units->tree(), $this->troopers->countsBySection(), []);
+        $holders = self::holders($this->units->tree(), $this->placedNow());
 
         return $units
-            ->filter(fn (Unit $unit) => ! $unit->isLine() || isset($keep[$unit->id]) || $placed->contains(fn (Unit $holder) => self::counts($holder, $unit)))
+            ->filter(fn (Unit $unit) => ! $unit->isLine() || isset($keep[$unit->id]) || $holders->contains(fn (Unit $holder) => self::counts($holder, $unit)))
             ->values();
     }
 
@@ -113,17 +117,21 @@ final class Headcount
     /**
      * `$units` without the line units that do not take part in the week's report chain (#478): what a roll-up sums and
      * waits on, and what the navigator draws. A line unit with no line children (a section) takes part when it has
-     * troopers in it ({@see withoutEmptyLineUnits()}, placed now or during the week); any other line unit when at least
-     * one of its line children takes part, all the way down. Either also takes part when it sent the week's report.
+     * troopers in it; any other line unit when at least one of its line children takes part, all the way down. Either
+     * also takes part when it sent the week's report.
      *
      * So a unit whose only troopers are its HQ (a platoon with its PL and PSG on it and every section empty) has no
      * report to send and leaves its parent's roll-up like an empty unit, while the roster and Home still show it, by
      * {@see withoutEmptyLineUnits()}, since it does have people in it. And a section that sent keeps every unit above it
      * in that week's chain, however empty they are now.
      *
+     * With a week, "has troopers" is read for that week ({@see placedByWeek()}): someone was placed in the section at any
+     * point of it, from the placement history. Who is placed now counts only for the running Cav week, so a section
+     * created or filled after a past week is not one that week waits on. With no week, who is placed now.
+     *
      * `$sent` are the ids of the units that sent the week's report: every one under `$units` that matters, since a
-     * unit can take part only through what sent below it. Groups are kept, as is every unit's order. The same queries
-     * as {@see withoutEmptyLineUnits()}: the serving troopers by unit, the tree, and with a week who was placed during it.
+     * unit can take part only through what sent below it. Groups are kept, as is every unit's order. Two queries (the
+     * tree, and who was placed during the week or is placed now), three for the running week (both).
      *
      * @template TCollection of Collection<int, Unit>
      *
@@ -133,11 +141,134 @@ final class Headcount
      */
     public function reportingLineUnits(Collection $units, ?CarbonInterface $weekStart = null, array $sent = []): Collection
     {
-        $sent = array_flip($sent);
-        $servingBySection = $this->troopers->countsBySection();
-        $duringWeek = $weekStart === null ? [] : array_flip($this->placements->unitIdsPlacedDuring($weekStart));
+        if ($weekStart === null) {
+            $tree = $this->units->tree();
+            $reporting = self::reportingIds($tree, self::holders($tree, $this->placedNow()), array_flip($sent));
+
+            return $units->filter(fn (Unit $unit) => ! $unit->isLine() || isset($reporting[$unit->id]))->values();
+        }
+
+        $week = WeekOf::requireStart($weekStart);
+
+        return $this->reportingLineUnitsByWeek($units, $week, $week, [$week->toDateString() => $sent])[$week->toDateString()];
+    }
+
+    /**
+     * {@see reportingLineUnits()} for each Cav week from `$firstWeek` to `$lastWeek`, read at once (Home's sparkline):
+     * the same queries as for one week, however many weeks.
+     *
+     * @template TCollection of Collection<int, Unit>
+     *
+     * @param  TCollection  $units
+     * @param  array<string, list<int>>  $sentByWeek  the units that sent each week's report, by week start (Y-m-d)
+     * @return array<string, TCollection> by week start (Y-m-d), earliest first
+     *
+     * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
+     */
+    public function reportingLineUnitsByWeek(Collection $units, CarbonInterface $firstWeek, CarbonInterface $lastWeek, array $sentByWeek = []): array
+    {
         $tree = $this->units->tree();
-        $placed = $this->placedIn($tree, $servingBySection, $duringWeek);
+        $result = [];
+
+        foreach ($this->placedByWeek($firstWeek, $lastWeek) as $date => $placed) {
+            $reporting = self::reportingIds($tree, self::holders($tree, $placed), array_flip($sentByWeek[$date] ?? []));
+            $result[$date] = $units->filter(fn (Unit $unit) => ! $unit->isLine() || isset($reporting[$unit->id]))->values();
+        }
+
+        return $result;
+    }
+
+    /**
+     * `$units` without the line units that neither have troopers now ({@see withoutEmptyLineUnits()}) nor take part in
+     * the week's report chain ({@see reportingLineUnits()}): the top units a page about one week's reports starts from
+     * (the roll-up workspace, Home). A unit emptied after a week it reported for is still there for that week, and a
+     * unit whose only troopers are its HQ is still there, to land on its own report. Three queries.
+     *
+     * @template TCollection of Collection<int, Unit>
+     *
+     * @param  TCollection  $units
+     * @param  list<int>  $sent  the units that sent the week's report
+     * @return TCollection
+     */
+    public function withTroopersOrReporting(Collection $units, CarbonInterface $weekStart, array $sent): Collection
+    {
+        $week = WeekOf::requireStart($weekStart);
+        $tree = $this->units->tree();
+        $now = $this->placedNow();
+        $placed = $this->placedByWeek($week, $week, $now)[$week->toDateString()];
+        $reporting = self::reportingIds($tree, self::holders($tree, $placed), array_flip($sent));
+        $holders = self::holders($tree, $now);
+
+        return $units
+            ->filter(fn (Unit $unit) => ! $unit->isLine() || isset($reporting[$unit->id]) || $holders->contains(fn (Unit $holder) => self::counts($holder, $unit)))
+            ->values();
+    }
+
+    /**
+     * The units someone was placed in during each Cav week from `$firstWeek` to `$lastWeek`, ids as keys, by week
+     * start (Y-m-d): the placement history ({@see TrooperPlacementRepository::unitIdsPlacedByWeek()}), and for the
+     * running week (or a later one) also the units someone serving is placed in now. A past week is never judged by
+     * who is placed now.
+     *
+     * @param  array<int, true>|null  $now  the units placed now, when the caller has already read them
+     * @return array<string, array<int, true>>
+     */
+    private function placedByWeek(CarbonInterface $firstWeek, CarbonInterface $lastWeek, ?array $now = null): array
+    {
+        $first = WeekOf::requireStart($firstWeek);
+        $last = WeekOf::requireStart($lastWeek);
+        $running = WeekOf::start(CarbonImmutable::now());
+        $during = $this->placements->unitIdsPlacedByWeek($first, $last);
+
+        if ($last->greaterThanOrEqualTo($running)) {
+            $now ??= $this->placedNow();
+        }
+
+        $placed = [];
+
+        for ($week = $first; $week->lessThanOrEqualTo($last); $week = $week->addWeek()) {
+            $date = $week->toDateString();
+            $placed[$date] = array_fill_keys($during[$date] ?? [], true) + ($week->greaterThanOrEqualTo($running) ? ($now ?? []) : []);
+        }
+
+        return $placed;
+    }
+
+    /**
+     * The units someone serving is placed in now, ids as keys.
+     *
+     * @return array<int, true>
+     */
+    private function placedNow(): array
+    {
+        return $this->troopers->countsBySection()
+            ->filter(fn (int $total) => $total > 0)
+            ->map(fn () => true)
+            ->all();
+    }
+
+    /**
+     * The units of `$tree` among `$placed` (ids as keys).
+     *
+     * @param  Collection<int, Unit>  $tree
+     * @param  array<int, true>  $placed
+     * @return Collection<int, Unit>
+     */
+    private static function holders(Collection $tree, array $placed): Collection
+    {
+        return $tree->filter(fn (Unit $unit) => isset($placed[$unit->id]));
+    }
+
+    /**
+     * The line units of `$tree` that take part in a report chain ({@see reportingLineUnits()}), ids as keys.
+     *
+     * @param  Collection<int, Unit>  $tree
+     * @param  Collection<int, Unit>  $holders  the units someone is placed in
+     * @param  array<int, int>  $sent  the units that sent, ids as keys
+     * @return array<int, true>
+     */
+    private static function reportingIds(Collection $tree, Collection $holders, array $sent): array
+    {
         $parents = $tree->filter(fn (Unit $unit) => $unit->isLine())->pluck('parent_id')->filter()->flip();
         $reporting = [];
         $childReports = [];
@@ -151,7 +282,7 @@ final class Headcount
 
             $reports = isset($sent[$unit->id]) || ($parents->has($unit->id)
                 ? isset($childReports[$unit->id])
-                : $placed->contains(fn (Unit $holder) => self::counts($holder, $unit)));
+                : $holders->contains(fn (Unit $holder) => self::counts($holder, $unit)));
 
             if ($reports) {
                 $reporting[$unit->id] = true;
@@ -162,22 +293,7 @@ final class Headcount
             }
         }
 
-        return $units
-            ->filter(fn (Unit $unit) => ! $unit->isLine() || isset($reporting[$unit->id]))
-            ->values();
-    }
-
-    /**
-     * The units of `$tree` someone serving is placed in now, or (`$duringWeek`, ids as keys) was during the week.
-     *
-     * @param  Collection<int, Unit>  $tree
-     * @param  Collection<int, int>  $servingBySection
-     * @param  array<int, int>  $duringWeek
-     * @return Collection<int, Unit>
-     */
-    private function placedIn(Collection $tree, Collection $servingBySection, array $duringWeek): Collection
-    {
-        return $tree->filter(fn (Unit $unit) => $servingBySection->get($unit->id, 0) > 0 || isset($duringWeek[$unit->id]));
+        return $reporting;
     }
 
     /** Whether troopers placed in `$placed` count towards `$unit`: it is `$unit` or under it, and New Recruits only count on their own group. */

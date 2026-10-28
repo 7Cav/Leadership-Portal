@@ -18,8 +18,12 @@ use App\Support\Audit\AuditEnvelope;
  * `staff`: a guest a host leader added, or what the game server saw, is never removed here. The week gates are the same
  * as entering one ({@see GuardsStaffPractice}). Nothing else changes with it, since an entry never touched a rollcall.
  *
- * Audited as `staff_practice.removed` (AD-16), target the trooper, digest over the trooper and the host practice (the
- * entry itself is gone).
+ * When it was the last thing on the host practice, which an entry creates when the section has none that week, the
+ * practice goes too (audit 2, L1): an empty row left behind would keep its section from being deleted for good. A
+ * practice with any mark, signature, guest, other entry, capture, or a posted or confirmed rollcall stays.
+ *
+ * Audited as `staff_practice.removed` (AD-16), target the trooper, digest over the trooper and the host practice when it
+ * stays (the entry itself is gone).
  */
 class RemoveStaffPracticeHandler
 {
@@ -67,7 +71,9 @@ class RemoveStaffPracticeHandler
                     throw StaffPracticeRefusedException::notRecorded();
                 }
 
-                return new AuditedBatch($trooper, $practice);
+                return $this->practices->deleteIfUnused($practice)
+                    ? new AuditedBatch($trooper)
+                    : new AuditedBatch($trooper, $practice);
             },
         );
     }

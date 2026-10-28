@@ -17,7 +17,7 @@ use InvalidArgumentException;
 
 class Eloquent implements SectionPracticeRepository
 {
-    public function findOrCreate(int $sectionId, CarbonInterface $weekStart): SectionPractice
+    public function findOrCreate(int $sectionId, CarbonInterface $weekStart, bool $keepDemo = false): SectionPractice
     {
         $weekStart = WeekOf::requireStart($weekStart);
 
@@ -39,7 +39,7 @@ class Eloquent implements SectionPracticeRepository
 
         // Found a generated demo practice (#115): a real mark is about to hang off it, so it is
         // real from now on — a demo purge or regeneration must leave it and that week alone.
-        if ($practice->is_demo) {
+        if ($practice->is_demo && ! $keepDemo) {
             $practice->forceFill(['is_demo' => false])->save();
         }
 
@@ -161,5 +161,24 @@ class Eloquent implements SectionPracticeRepository
     public function hasPracticesFor(Unit $unit): bool
     {
         return SectionPractice::query()->where('section_id', $unit->getKey())->exists();
+    }
+
+    public function deleteIfUnused(SectionPractice $practice): bool
+    {
+        $nothingIn = fn (string $table) => fn ($query) => $query->selectRaw('1')
+            ->from($table)
+            ->whereColumn("{$table}.section_practice_id", 'section_practices.id');
+
+        return SectionPractice::query()
+            ->whereKey($practice->id)
+            ->whereNull('server_ref')
+            ->whereNull('captured_at')
+            ->whereNull('rollcall_posted_at')
+            ->whereNull('confirmed_at')
+            ->whereNotExists($nothingIn('attendance'))
+            ->whereNotExists($nothingIn('cross_section_sightings'))
+            ->whereNotExists($nothingIn('practice_capture_players'))
+            ->whereNotExists($nothingIn('sync_runs'))
+            ->delete() > 0;
     }
 }

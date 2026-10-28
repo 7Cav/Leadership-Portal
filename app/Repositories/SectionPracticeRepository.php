@@ -28,7 +28,9 @@ interface SectionPracticeRepository
      * committed row even where a MySQL REPEATABLE READ snapshot would not.
      *
      * Finding a generated demo practice (#115) clears its `is_demo` tag: only real writers call
-     * this, and the practice becomes the anchor of a real mark.
+     * this, and the practice becomes the anchor of a real mark. A staff entry passes `$keepDemo`:
+     * it is the staff member's record, nothing of the host section's own hangs off the practice, so
+     * a demo week stays demo and the demo purge still clears its generated marks.
      *
      * Practices are per section (AD-14) — a practice keyed to a platoon or company would split a
      * trooper-week's count across two echelons — so a unit of any other type is refused.
@@ -36,7 +38,7 @@ interface SectionPracticeRepository
      * @throws InvalidArgumentException when `$sectionId` is not a `units` row of type section,
      *                                  or `$weekStart` is not a Saturday 00:00 UTC.
      */
-    public function findOrCreate(int $sectionId, CarbonInterface $weekStart): SectionPractice;
+    public function findOrCreate(int $sectionId, CarbonInterface $weekStart, bool $keepDemo = false): SectionPractice;
 
     /**
      * The section's practice row for the week, or null when none has been recorded — a read that
@@ -121,4 +123,12 @@ interface SectionPracticeRepository
      * refuse with a reason instead of a raw constraint error.
      */
     public function hasPracticesFor(Unit $unit): bool;
+
+    /**
+     * Delete the practice when nothing hangs off it any more (audit 2, L1): no attendance mark or signature, no
+     * guest, staff entry or game server sighting, no capture (stamped, saved players or a requested run), and its
+     * rollcall neither posted nor confirmed. What a staff entry created and its removal left empty. One statement,
+     * so a mark written meanwhile keeps the row. Whether it was deleted.
+     */
+    public function deleteIfUnused(SectionPractice $practice): bool;
 }

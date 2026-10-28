@@ -38,6 +38,9 @@ const props = defineProps({
     counseling: { type: Object, default: null },
     // The section practices a staff member attended (#448), with what this viewer may do; null for someone not on a staff.
     staffPractices: { type: Object, default: null },
+    // True when the viewer opened their own page and their scope does not reach it (2026-10-28): it is theirs to read,
+    // but their unit's roster is not, so the way back to it is left out.
+    ownPage: { type: Boolean, default: false },
 });
 
 // The attendance history newest first, wherever it was recorded: after a transfer the new leadership sees the weeks
@@ -112,7 +115,7 @@ const staleNotice = computed(() => {
     <div class="flex flex-col gap-5">
         <div class="flex flex-wrap items-end justify-between gap-3">
             <div class="min-w-0">
-                <Link :href="rosterHref" class="mb-2 inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground" data-testid="back-to-roster">
+                <Link v-if="!ownPage" :href="rosterHref" class="mb-2 inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground" data-testid="back-to-roster">
                     <PhArrowLeft class="size-3.5" aria-hidden="true" />
                     {{ trooper.section ? `Back to ${sectionLabel}` : 'Back to roster' }}
                 </Link>

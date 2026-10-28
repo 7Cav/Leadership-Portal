@@ -16,6 +16,7 @@ use App\Repositories\UnitPath;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
@@ -68,7 +69,9 @@ class Eloquent implements DemoHistoryRepository
             ->whereIn('week_start', $weeks)
             ->where(fn (Builder $query) => $query
                 ->where('is_demo', false)
-                ->orWhereHas('attendance', fn (Builder $attendance) => $attendance->where('is_demo', false)))
+                ->orWhereHas('attendance', fn (Builder $attendance) => $attendance->where('is_demo', false))
+                // A staff entry (#448) keeps a demo practice demo, but is itself a real record (audit 2, L1).
+                ->orWhereExists(self::sightingsOf()))
             ->pluck('week_start');
 
         $reports = WeeklyReport::query()
@@ -100,6 +103,7 @@ class Eloquent implements DemoHistoryRepository
             ->where('week_start', $weekStart)
             ->where('is_demo', true)
             ->whereDoesntHave('attendance')
+            ->whereNotExists(self::sightingsOf())
             ->delete();
         WeeklyReport::query()
             ->whereIn('unit_id', $unitIds)
@@ -198,6 +202,14 @@ class Eloquent implements DemoHistoryRepository
         return new DemoHistoryCounts($practices->count(), $attendance->count(), $reports->count(), $weeks);
     }
 
+    /** A subquery for `whereExists()`: the practice of the outer query has a guest, staff entry or server sighting. */
+    private static function sightingsOf(): Closure
+    {
+        return fn ($query) => $query->selectRaw('1')
+            ->from('cross_section_sightings')
+            ->whereColumn('cross_section_sightings.section_practice_id', 'section_practices.id');
+    }
+
     public function purge(array $sectionIds, array $unitIds): DemoHistoryCounts
     {
         $weeks = $this->count($sectionIds, $unitIds)->weeks;
@@ -207,12 +219,17 @@ class Eloquent implements DemoHistoryRepository
             ->whereIn('section_practice_id', SectionPractice::query()->whereIn('section_id', $sectionIds)->select('id'))
             ->delete();
         // A leader may since have marked a real row against a demo practice; that practice stays
-        // (the real mark hangs off it, and `restrictOnDelete` would refuse it anyway).
+        // (the real mark hangs off it, and `restrictOnDelete` would refuse it anyway). So does one a
+        // staff member's practice entry hangs off (#448, audit 2, L1): deleting it would take the
+        // entry with it. Its generated marks go all the same.
         $practices = SectionPractice::query()
             ->whereIn('section_id', $sectionIds)
             ->where('is_demo', true)
             ->whereDoesntHave('attendance')
+            ->whereNotExists(self::sightingsOf())
             ->delete();
+        // What is left of a demo practice holds only real rows now, so it is real from here on.
+        SectionPractice::query()->whereIn('section_id', $sectionIds)->where('is_demo', true)->update(['is_demo' => false]);
         $reports = WeeklyReport::query()->whereIn('unit_id', $unitIds)->where('is_demo', true)->delete();
 
         return new DemoHistoryCounts($practices, $attendance, $reports, $weeks);

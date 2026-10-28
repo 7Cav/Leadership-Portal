@@ -74,9 +74,12 @@ class HomeController extends Controller
         $weekStart = WeekOf::reporting(CarbonImmutable::now());
         $scope = $this->scope->resolve($request->user());
         $tree = $this->units->tree();
-        // A line unit with nobody in it or under it is left out of the whole page (#442): the tiles, the unit table,
-        // the step matrix and what needs attention.
-        $roots = $this->headcount->withoutEmptyLineUnits($this->topmost($scope, $tree));
+        // The week's reports across the scope, read once: which units sent decides which take part in the week.
+        $reports = $this->reports->forUnits($scope->values()->all(), $weekStart);
+        $sent = $reports->filter(fn (WeeklyReport $report) => $report->status === WeeklyReportStatus::Sent)->keys()->all();
+        // A line unit with nobody in it or under it, now or in the week, is left out of the whole page (#442): the
+        // tiles, the unit table, the step matrix and what needs attention.
+        $roots = $this->headcount->withTroopersOrReporting($this->topmost($scope, $tree), $weekStart, $sent);
         $chains = $roots->map(fn (Unit $root) => $this->chain->build($root, $weekStart));
         // Each root's per-trooper rows, read once: the tiles, the at-risk list and the live rows
         // of the unit table are all sums or filters of them.
@@ -91,7 +94,7 @@ class HomeController extends Controller
             ],
             'kpis' => $roots->isEmpty() ? null : $this->kpiProps($attendance, $roots, $scope, $weekStart),
             'attention' => $roots->isEmpty() ? null : $this->attentionProps($attendance, $chains, $scope, $weekStart),
-            'steps' => $this->stepProps($scope, $weekStart),
+            'steps' => $this->stepProps($scope, $weekStart, $reports, $sent),
             'units' => $chains->flatMap(function (ChainNode $chain, int $i) use ($roots, $attendance, $paths, $weekStart) {
                 $rows = $attendance[$i];
                 $sectionOf = $this->hasLiveRollup($chain) ? $this->troopers->sectionsOfAssignedWithin($roots[$i]) : collect();
@@ -150,29 +153,43 @@ class HomeController extends Controller
         return [
             // Roots are disjoint subtrees, so their headcounts add.
             'current' => [...self::kpiShape($current), 'headcount' => $roots->sum(fn (Unit $root) => $this->headcount->forUnit($root))],
-            'history' => $this->history($this->sectionsWithTroopers($scope), $weekStart),
+            'history' => $this->history($this->units->sectionsAmong($scope), $weekStart),
             'roster' => $this->rosterProps(),
             'loaSync' => $this->loaProvenance->current()->toArray(),
         ];
     }
 
     /**
-     * @param  Collection<int, Unit>  $sections
+     * Each past week's point waits on the sections that took part in that week ({@see Headcount::reportingLineUnits()}):
+     * someone was placed in them during it, or they sent its report. Not on the sections that have troopers now, so a
+     * section stood up since does not blank the weeks before it, and one emptied since still adds its numbers to the
+     * weeks it sent. The sections, their sent reports and their placements are read once for the four weeks.
+     *
+     * @param  Collection<int, Unit>  $sections  every section in scope
      * @return list<array{week: string, kpis: array<string, mixed>|null}>
      */
     private function history(Collection $sections, CarbonImmutable $weekStart): array
     {
+        $first = $weekStart->subWeeks(self::SPARKLINE_WEEKS);
+        $last = $weekStart->subWeek();
         $sent = $this->reports
-            ->sentWithin($sections->modelKeys(), $weekStart->subWeeks(self::SPARKLINE_WEEKS), $weekStart->subWeek())
+            ->sentWithin($sections->modelKeys(), $first, $last)
             ->groupBy(fn (WeeklyReport $report) => $report->week_start->toDateString());
+        $takingPart = $this->headcount->reportingLineUnitsByWeek(
+            $sections,
+            $first,
+            $last,
+            $sent->map(fn (Collection $rows) => $rows->pluck('unit_id')->map(fn ($id) => (int) $id)->all())->all(),
+        );
 
-        return collect(range(self::SPARKLINE_WEEKS, 1))->map(function (int $back) use ($sections, $sent, $weekStart) {
-            $week = $weekStart->subWeeks($back);
-            $rows = $sent->get($week->toDateString(), collect());
+        return collect(range(self::SPARKLINE_WEEKS, 1))->map(function (int $back) use ($sent, $takingPart, $weekStart) {
+            $week = $weekStart->subWeeks($back)->toDateString();
+            $rows = $sent->get($week, collect());
+            $expected = $takingPart[$week] ?? collect();
 
             return [
-                'week' => $week->toDateString(),
-                'kpis' => $sections->isNotEmpty() && $rows->count() === $sections->count() ? $this->sum($rows) : null,
+                'week' => $week,
+                'kpis' => $expected->isNotEmpty() && $rows->count() === $expected->count() ? $this->sum($rows) : null,
             ];
         })->all();
     }
@@ -322,12 +339,18 @@ class HomeController extends Controller
      * counts as signed and marked, since there is nothing to sign or mark for them; a step nobody has started is simply
      * not done, never an invented deadline miss.
      *
+     * The sections are those that take part in the week ({@see Headcount::reportingLineUnits()}): placed in during it
+     * (for the running week, placed in now too) or sent its report, the same ones Needs attention and the unit table
+     * hold up or count.
+     *
      * @param  Collection<int, int>  $scope
+     * @param  Collection<int, WeeklyReport>  $reports  the week's reports in scope, keyed by unit id
+     * @param  list<int>  $sent  the units in scope that sent the week's report
      * @return list<array<string, mixed>>
      */
-    private function stepProps(Collection $scope, CarbonImmutable $weekStart): array
+    private function stepProps(Collection $scope, CarbonImmutable $weekStart, Collection $reports, array $sent): array
     {
-        $sections = $this->sectionsWithTroopers($scope);
+        $sections = $this->headcount->reportingLineUnits($this->units->sectionsAmong($scope), $weekStart, $sent);
         $ids = $sections->modelKeys();
         $practices = $this->practices->forSections($ids, $weekStart);
         // A trooper whose leave covers the week has no mark to make (3.4): the one LOA definition says who (AD-21).
@@ -336,7 +359,6 @@ class HomeController extends Controller
             fn (LoaCover $cover) => $cover->isCovered(),
         ));
         $progress = $this->attendance->weekProgress($ids, $weekStart, $covered);
-        $reports = $this->reports->forUnits($ids, $weekStart);
         $date = $weekStart->toDateString();
 
         return $sections->map(function (Unit $section) use ($practices, $progress, $reports, $date) {
@@ -367,18 +389,6 @@ class HomeController extends Controller
                 ],
             ];
         })->values()->all();
-    }
-
-    /**
-     * The sections in scope that have troopers ({@see Headcount::withoutEmptyLineUnits()}, #442): the ones the step
-     * matrix lists and a past week's sparkline point waits on.
-     *
-     * @param  Collection<int, int>  $scope
-     * @return Collection<int, Unit>
-     */
-    private function sectionsWithTroopers(Collection $scope): Collection
-    {
-        return $this->headcount->withoutEmptyLineUnits($this->units->sectionsAmong($scope));
     }
 
     /**

@@ -13,6 +13,8 @@ use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Audit\ActingFor;
 use App\Support\Audit\AuditEnvelope;
+use App\Support\Time\WeekOf;
+use Carbon\CarbonImmutable;
 
 /**
  * A staff member attended a section's practice (#448): HQ staff and staff departments are on no section's rollcall, so
@@ -25,16 +27,23 @@ use App\Support\Audit\AuditEnvelope;
  * or confirmed practice does not lock it, since nothing of the host's changes.
  *
  * Refused before anything is written: an unknown trooper, an actor who may not speak for them (403), a trooper who is not
- * staff or no longer serving, a unit that is not a section, a week before `WeekOf::floor()` or in the future, and a
- * trooper already recorded at that practice by any source. Then one audited transaction (`staff_practice.recorded`,
+ * staff or no longer serving, a unit that is not a section, a week before `WeekOf::floor()`, more than {@see WEEKS} weeks
+ * back or in the future, and a trooper already recorded at that practice by any source. Then one audited transaction (`staff_practice.recorded`,
  * AD-16, target the trooper, digest over the new entry): a week whose report the trooper's own unit sent is refused under
  * the report's lock ({@see GuardsStaffPractice}); the trooper is read again (a roster sync may have moved them); the host
- * practice is found or created; the entry is inserted under the UNIQUE key, so two people entering it at once land on one
- * row and the second is told it is already recorded.
+ * practice is found or created (a generated demo practice stays demo, so the demo purge still clears its marks); the entry
+ * is inserted under the UNIQUE key, so two people entering it at once land on one row and the second is told it is
+ * already recorded.
  */
 class RecordStaffPracticeHandler
 {
     use GuardsStaffPractice;
+
+    /**
+     * How many Cav weeks back an entry may be for, the current one included (audit 2, L3): the milpac form offers the
+     * same weeks, never before the floor. Taking an entry back is not bound by it, only by the floor.
+     */
+    public const WEEKS = 12;
 
     public function __construct(
         private readonly StaffPracticeAccess $access,
@@ -68,6 +77,10 @@ class RecordStaffPracticeHandler
 
         $weekStart = $this->practiceWeek($this->units, $command->sectionId, $command->week);
 
+        if ($weekStart->lessThan(WeekOf::start(CarbonImmutable::now())->subWeeks(self::WEEKS - 1))) {
+            throw StaffPracticeRefusedException::outsideWindow($weekStart, self::WEEKS);
+        }
+
         // Checked here so a refusal costs no transaction, and again under the UNIQUE key below. The host practice is
         // created inside the transaction, so a refused entry leaves no empty practice row behind.
         $existing = $this->practices->find($command->sectionId, $weekStart);
@@ -86,7 +99,8 @@ class RecordStaffPracticeHandler
                 $this->refuseLockedWeek($this->reports, $trooper, $weekStart);
 
                 $current = $this->refuseNonStaff($this->access, $this->troopers->find($trooper->id));
-                $practice = $this->practices->findOrCreate($command->sectionId, $weekStart);
+                // A demo week stays demo (audit 2, L1): the entry is the staff member's, nothing of the host's.
+                $practice = $this->practices->findOrCreate($command->sectionId, $weekStart, keepDemo: true);
 
                 $sighting = $this->sightings->recordStaff($practice, $current->id, $actor->id, $this->acting->adminActingAs($actor->id), $this->acting->billetOf($actor->id))
                     ?? throw StaffPracticeRefusedException::alreadyRecorded($current->display_name);
