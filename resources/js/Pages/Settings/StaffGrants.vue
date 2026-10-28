@@ -243,12 +243,14 @@ function requestRevoke(grant) {
                 <TableBody>
                     <TableRow v-for="billet in adminViaBillet" :key="billet.id" :data-testid="`admin-via-billet-${billet.id}`">
                         <TableCell class="px-4 font-medium">
-                            {{ names(billet.title, billet.group) }}
+                            {{ billet.title || 'Not known yet' }}
                             <Badge v-if="billet.approvedAs" variant="warning" class="ml-1.5" :data-testid="`admin-via-billet-renamed-${billet.id}`">Renamed</Badge>
                             <Badge v-if="!billet.adminGroup" variant="warning" class="ml-1.5" :data-testid="`admin-via-billet-not-admin-${billet.id}`">
                                 Not an Admin group
                                 <span class="sr-only">. Its holders are not Admins while the billet is in this group.</span>
                             </Badge>
+                            <!-- The group on its own quiet line: every row shares one or two groups, so "X in Regimental HQ" on each row is noise. -->
+                            <p v-if="billet.group" class="text-xs font-normal text-muted-foreground" :data-testid="`admin-via-billet-group-${billet.id}`">{{ billet.group }}</p>
                             <p v-if="billet.approvedAs" class="text-xs font-normal text-muted-foreground" :data-testid="`admin-via-billet-approved-as-${billet.id}`">
                                 {{ approvedLine(billet) }}
                             </p>
@@ -307,12 +309,14 @@ function requestRevoke(grant) {
                 <TableBody>
                     <TableRow v-for="billet in adminBillets" :key="billet.id" :data-testid="`admin-billet-${billet.id}`">
                         <TableCell class="px-4 font-medium">
-                            {{ names(billet.title, billet.group) }}
+                            {{ billet.title || 'Not known yet' }}
                             <Badge v-if="billet.approvedAs" variant="warning" class="ml-1.5" :data-testid="`admin-billet-renamed-${billet.id}`">Renamed</Badge>
                             <Badge v-if="!billet.adminGroup" variant="warning" class="ml-1.5" :data-testid="`admin-billet-not-admin-${billet.id}`">
                                 Not an Admin group
                                 <span class="sr-only">. It cannot be approved while the billet is in this group.</span>
                             </Badge>
+                            <!-- The group on its own quiet line: every row shares one or two groups, so "X in Regimental HQ" on each row is noise. -->
+                            <p v-if="billet.group" class="text-xs font-normal text-muted-foreground" :data-testid="`admin-billet-group-${billet.id}`">{{ billet.group }}</p>
                             <p v-if="billet.approvedAs" class="text-xs font-normal text-muted-foreground" :data-testid="`admin-billet-approved-as-${billet.id}`">
                                 {{ approvedLine(billet) }}
                             </p>

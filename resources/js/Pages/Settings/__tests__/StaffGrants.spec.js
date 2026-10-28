@@ -223,7 +223,8 @@ describe('Settings/StaffGrants', () => {
             expect(section.text()).toContain('Whoever holds one of these billets is an Admin because of the billet, not a grant');
 
             const chief = wrapper.find('[data-testid="admin-via-billet-31"]');
-            expect(chief.text()).toContain('Regimental Chief of Staff in Regimental HQ');
+            expect(chief.text()).toContain('Regimental Chief of Staff');
+            expect(wrapper.find('[data-testid="admin-via-billet-group-31"]').text()).toBe('Regimental HQ');
             expect(chief.text()).toContain('COL Mercer.T');
             expect(wrapper.find('[data-testid="admin-via-billet-approved-31"]').text()).toBe('28Oct26 by Hale.S');
 
@@ -375,7 +376,8 @@ describe('Settings/StaffGrants', () => {
             const wrapper = mountAdmin();
 
             const first = wrapper.find('[data-testid="admin-billet-21"]');
-            expect(first.text()).toContain('Regimental Chief of Staff in Regimental HQ');
+            expect(first.text()).toContain('Regimental Chief of Staff');
+            expect(first.text()).not.toContain(' in Regimental HQ');
             expect(first.text()).toContain('COL Mercer.T');
             expect(wrapper.find('[data-testid="admin-billet-status-21"]').text()).toBe('Waiting for an Admin');
             expect(wrapper.find('[data-testid="admin-billet-status-23"]').text()).toBe('Rejected');
@@ -398,7 +400,8 @@ describe('Settings/StaffGrants', () => {
         it('shows a billet moved out of the Admin billet groups as such, with no approve', () => {
             const wrapper = mountAdmin();
 
-            expect(wrapper.find('[data-testid="admin-billet-24"]').text()).toContain('S6 1IC in Support Attachment');
+            expect(wrapper.find('[data-testid="admin-billet-24"]').text()).toContain('S6 1IC');
+            expect(wrapper.find('[data-testid="admin-billet-group-24"]').text()).toBe('Support Attachment');
             expect(wrapper.find('[data-testid="admin-billet-approved-as-24"]').text()).toBe('Approved as: S6 1IC in S6 HQ');
             expect(wrapper.find('[data-testid="admin-billet-not-admin-24"]').text()).toContain('Not an Admin group');
             expect(wrapper.find('[data-testid="admin-billet-approve-24"]').exists()).toBe(false);
