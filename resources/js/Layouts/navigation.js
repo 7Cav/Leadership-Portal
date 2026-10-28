@@ -49,7 +49,9 @@ export const NAV_GROUPS = [
         adminOnly: true,
         items: [
             { label: 'Org structure', href: '/settings/org-structure', icon: PhTreeStructure },
-            { label: 'Staff grants', href: '/settings/staff-grants', icon: PhKey },
+            // `count` names a shared prop whose number the sidebar shows beside the item while it is above zero: here the
+            // Regimental HQ billets waiting for an Admin to confirm them (decided by the S6, 2026-10-28).
+            { label: 'Staff grants', href: '/settings/staff-grants', icon: PhKey, count: 'adminBilletsPending' },
             { label: 'Templates', href: '/settings/templates', icon: PhFileCode },
             { label: 'Games', href: '/settings/games', icon: PhJoystick },
             { label: 'Servers', href: '/settings/servers', icon: PhHardDrives },

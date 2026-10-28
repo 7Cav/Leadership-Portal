@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Authorization\ActAs;
 use App\Authorization\ScopeResolver;
 use App\Kpi\Headcount;
+use App\Repositories\AdminBilletRepository;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -23,6 +24,7 @@ class HandleInertiaRequests extends Middleware
         private readonly ScopeResolver $scope,
         private readonly ActAs $actAs,
         private readonly Headcount $headcount,
+        private readonly AdminBilletRepository $adminBillets,
     ) {}
 
     /**
@@ -50,7 +52,13 @@ class HandleInertiaRequests extends Middleware
             // Authenticatable avoids a static App\Models\User reference, so this glue
             // layer stays terminal in the Deptrac graph.
             'auth' => [
-                'user' => $request->user()?->only(['id', 'username', 'is_admin']),
+                // `is_admin` is whether this request's user is an Admin, by the flag or by an approved Regimental HQ
+                // billet (ScopeResolver::isAdmin(), decided by the S6 2026-10-28), worked out on this request and never
+                // the stored column alone. While an Admin acts as someone it answers for who the request runs as.
+                'user' => $request->user() ? [
+                    ...$request->user()->only(['id', 'username']),
+                    'is_admin' => $this->scope->isAdmin($request->user()),
+                ] : null,
                 // Cav roster context for this login (Story 1.6): rank, billet and MOS, each
                 // carrying the source and fetch time so the UI can never show them as if the
                 // portal asserted them (AD-20 rule 1, NFR7). Null when enrichment did not
@@ -78,6 +86,9 @@ class HandleInertiaRequests extends Middleware
             // Whether the shell offers the act-as picker (#432): a leader with people below them, or an Admin acting as
             // one. Navigation only: every start is checked again by ActAs.
             'canActAs' => fn () => $request->user() ? $this->actAs->offers($request->attributes->get(ActAs::ADMIN_ATTRIBUTE) ?? $request->user()) : false,
+            // How many Regimental HQ billets wait for an Admin to confirm them (decided by the S6, 2026-10-28), for the
+            // sidebar's notice on Staff grants. Only to someone acting as Admin; zero for everyone else.
+            'adminBilletsPending' => fn () => $request->user() && $this->scope->actsAsAdmin($request->user()) ? $this->adminBillets->pendingCount() : 0,
             'viewAs' => fn () => $request->user() ? $this->scope->activeViewAs($request->user())?->toArray() : null,
             // The top unit(s) of the viewer's scope as this request sees it (view as and act as included), which the
             // sidebar's unit switcher and the breadcrumb start from (#426). The switcher's full list is read only when

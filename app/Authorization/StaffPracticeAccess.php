@@ -58,7 +58,7 @@ class StaffPracticeAccess
     {
         $unit = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
 
-        return $user->is_admin || $this->isSelf($user, $trooper) || ($unit !== null && $this->scope->commandsUnit($user, $unit));
+        return $this->scope->isAdmin($user) || $this->isSelf($user, $trooper) || ($unit !== null && $this->scope->commandsUnit($user, $unit));
     }
 
     /** Whether the request runs as the trooper themselves: their own entry is a self-report. */

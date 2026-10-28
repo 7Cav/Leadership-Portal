@@ -34,6 +34,10 @@ use Illuminate\Support\Collection;
  * reach through a leader can never exceed that leader's scope. They stop to be an Admin again. The session key's
  * `admin` is the real signed-in user, who for a leader is not an Admin.
  *
+ * "Admin" here is always {@see ScopeResolver::isAdmin()}: the flag or an approved Regimental HQ billet (decided by the
+ * S6, 2026-10-28), so an Admin by billet acts as anyone a flag Admin may, a leader can never act as one, and an Admin
+ * acting as one gets that person's non-Admin view only, exactly as for a flag Admin.
+ *
  * Checked again on every request ({@see target()}). A stored choice that fails is dropped, and the Admin is
  * themselves again. That drop writes no `act_as.stopped` entry (this layer never writes the audit log); the change
  * that caused it, an Admin flag granted or revoked, the roster sync, a unit deleted, is recorded where it happened.
@@ -95,7 +99,7 @@ class ActAs
      */
     public function leads(User $actor): bool
     {
-        return $actor->is_admin || $this->scope->strictlyBelow($this->scope->commandedBy($actor))->isNotEmpty();
+        return $this->scope->isAdmin($actor) || $this->scope->strictlyBelow($this->scope->commandedBy($actor))->isNotEmpty();
     }
 
     /**
@@ -124,6 +128,8 @@ class ActAs
             return collect();
         }
 
+        // A flag Admin is left out here; an Admin by billet below, as realScopes() gives them the whole tree, which never
+        // fits below a leader (withinAndNotOver()).
         $others = $this->users->all()->reject(fn (User $user) => $user->id === $actor->id || $user->is_admin || $user->cav_id === null);
         $held = $this->commands->commandedUnitsByCavId($others->pluck('cav_id')->all());
         $placement = $this->placementOf($this->measuredFrom($actor, $this->viaFor($actor)));
@@ -229,29 +235,33 @@ class ActAs
 
     /**
      * Who the request runs as while the Admin holds a billet: the Admin's own account with the Admin flag off and no
-     * milpac link, so none of their own billets, acting leads or grants count, only the billet ({@see ActingBillet}).
-     * Its attributes are its original ones, so nothing is dirty: a save, should anything ever try one, writes nothing.
+     * milpac link, so none of their own billets, acting leads or grants count, only the billet ({@see ActingBillet}),
+     * and never an Admin by billet either. Its attributes are its original ones, so nothing is dirty: a save, should
+     * anything ever try one, writes nothing.
      */
     public function standIn(User $admin): User
     {
         $standIn = clone $admin;
         $standIn->setRawAttributes(['is_admin' => false, 'cav_id' => null] + $admin->getAttributes(), sync: true);
+        $standIn->notAdminByBillet = true;
 
         return $standIn;
     }
 
     /**
-     * The person as acted as: unchanged, or for an Admin, their account with the Admin flag off, so what they command by
-     * billet, acting lead or grant counts and nothing an Admin may do. Never dirty, like {@see standIn()}.
+     * The person as acted as: unchanged, or for an Admin (by flag or by billet), their account with the Admin flag off
+     * and never an Admin by billet, so what they command by billet, acting lead or grant counts and nothing an Admin may
+     * do. Never dirty, like {@see standIn()}.
      */
     public function withoutAdmin(User $user): User
     {
-        if (! $user->is_admin) {
+        if (! $this->scope->isAdmin($user)) {
             return $user;
         }
 
         $plain = clone $user;
         $plain->setRawAttributes(['is_admin' => false] + $user->getAttributes(), sync: true);
+        $plain->notAdminByBillet = true;
 
         return $plain;
     }
@@ -291,10 +301,10 @@ class ActAs
     private function commandOf(User $actor, ?ViewAsTarget $via): ?Collection
     {
         if ($via === null) {
-            return $actor->is_admin ? null : $this->scope->commandedBy($actor);
+            return $this->scope->isAdmin($actor) ? null : $this->scope->commandedBy($actor);
         }
 
-        if (! $actor->is_admin) {
+        if (! $this->scope->isAdmin($actor)) {
             return collect();
         }
 
@@ -323,7 +333,7 @@ class ActAs
      */
     private function leadsBelow(Collection $commanded, User $user, ?int $placement): bool
     {
-        if ($user->is_admin || $user->cav_id === null) {
+        if ($user->cav_id === null || $this->scope->isAdmin($user)) {
             return false;
         }
 
@@ -349,15 +359,17 @@ class ActAs
 
     /**
      * The person whose command a start is measured from: `$actor` themselves when they act as nobody, the leader an
-     * Admin acts through, or nobody (an Admin acting as nobody or as a billet, who has no placement to protect there).
+     * Admin acts through, or nobody (an Admin acting as a billet, who has no placement to protect there). Only asked
+     * once {@see commandOf()} has found units to measure from, which it never does for an Admin acting as nobody, so
+     * acting as nobody it is always `$actor` (and the Admin rule is not read twice).
      */
     private function measuredFrom(User $actor, ?ViewAsTarget $via): ?User
     {
         if ($via === null) {
-            return $actor->is_admin ? null : $actor;
+            return $actor;
         }
 
-        return $via->kind === ViewAsKind::User && $actor->is_admin ? $this->users->find($via->id) : null;
+        return $via->kind === ViewAsKind::User && $this->scope->isAdmin($actor) ? $this->users->find($via->id) : null;
     }
 
     /** The primary unit `$user`'s trooper is placed in, or null for nobody, an unlinked user or an unplaced trooper. */

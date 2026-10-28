@@ -2,6 +2,7 @@
 
 namespace App\Commands\Units;
 
+use App\Authorization\ScopeResolver;
 use App\Models\UnitActingLead;
 use App\Models\User;
 use App\Repositories\AuditedBatch;
@@ -21,6 +22,7 @@ class RemoveActingLeadHandler
         private readonly UnitRepository $units,
         private readonly UnitActingLeadRepository $actingLeads,
         private readonly AuditEnvelope $audit,
+        private readonly ScopeResolver $scope,
     ) {}
 
     /**
@@ -30,7 +32,7 @@ class RemoveActingLeadHandler
      */
     public function handle(User $actor, RemoveActingLead $command): UnitActingLead
     {
-        if (! $actor->is_admin) {
+        if (! $this->scope->isAdmin($actor)) {
             throw new ActingLeadForbiddenException;
         }
 

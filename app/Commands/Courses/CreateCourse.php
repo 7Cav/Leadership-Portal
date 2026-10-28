@@ -2,6 +2,7 @@
 
 namespace App\Commands\Courses;
 
+use App\Authorization\ScopeResolver;
 use App\Models\AreaOfOperation;
 use App\Models\Course;
 use App\Models\User;
@@ -12,7 +13,7 @@ use InvalidArgumentException;
 /**
  * Add a course to the portal-owned catalog (AD-22). The one writer of `courses`: the seeder and
  * any future settings screen both come through here, so every course is audited (AD-16). Admin
- * only, checked here against the real flag (AD-6) before anything is written, so the catalog stays
+ * only, checked here against `ScopeResolver::isAdmin()` (AD-6) before anything is written, so the catalog stays
  * closed whatever a caller forgot to gate. No reason is required — only personnel actions and
  * report sends need one.
  *
@@ -29,6 +30,7 @@ class CreateCourse
     public function __construct(
         private readonly CourseRepository $courses,
         private readonly AuditEnvelope $audit,
+        private readonly ScopeResolver $scope,
     ) {}
 
     /**
@@ -48,7 +50,7 @@ class CreateCourse
         int $sortOrder,
         ?string $description = null,
     ): Course {
-        if (! $actor->is_admin) {
+        if (! $this->scope->isAdmin($actor)) {
             throw CourseWriteForbiddenException::createCourse();
         }
 

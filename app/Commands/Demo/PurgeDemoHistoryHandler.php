@@ -35,7 +35,7 @@ class PurgeDemoHistoryHandler
      */
     public function handle(User $actor, PurgeDemoHistory $command): DemoHistoryPurged
     {
-        if (! $actor->is_admin) {
+        if (! $this->scope->isAdmin($actor)) {
             throw DemoHistoryForbiddenException::notAdmin();
         }
 

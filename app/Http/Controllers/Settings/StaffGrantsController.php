@@ -3,13 +3,19 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Authorization\ScopeResolver;
+use App\Commands\AdminBillets\AdminBilletForbiddenException;
+use App\Commands\AdminBillets\DecideAdminBillet;
+use App\Commands\AdminBillets\DecideAdminBilletHandler;
+use App\Commands\AdminBillets\InvalidAdminBilletDecisionException;
 use App\Commands\PortalRoleGrants\GrantStaffScope;
 use App\Commands\PortalRoleGrants\GrantTargetIsAdminException;
 use App\Commands\PortalRoleGrants\RevokeStaffScope;
 use App\Http\Controllers\Controller;
+use App\Models\AdminBillet;
 use App\Models\PortalRoleGrant;
 use App\Models\Trooper;
 use App\Models\Unit;
+use App\Repositories\AdminBilletRepository;
 use App\Repositories\PortalRoleGrantRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
@@ -28,6 +34,9 @@ use Inertia\Response;
  * Laravel-idiomatic layer model (mirrors `OrgStructureController`), plus `TrooperRepository` to flag
  * a grant whose holder is no longer serving. Writes stage through
  * `GrantStaffScope`/`RevokeStaffScope` (AD-16).
+ *
+ * It also lists Regimental HQ staff, who are Admins by billet once an Admin approves their billet (decided by the S6,
+ * 2026-10-28), and the billets waiting for that decision, decided through `DecideAdminBillet`.
  */
 class StaffGrantsController extends Controller
 {
@@ -36,6 +45,8 @@ class StaffGrantsController extends Controller
         private readonly UnitRepository $units,
         private readonly UserRepository $users,
         private readonly TrooperRepository $troopers,
+        private readonly AdminBilletRepository $adminBillets,
+        private readonly ScopeResolver $scope,
     ) {}
 
     /**
@@ -75,33 +86,68 @@ class StaffGrantsController extends Controller
             'label' => $this->label($unit, $byId),
         ])->values();
 
-        $users = $isAdmin
-            ? $this->users->nonAdminUsers()->map(fn ($user) => [
+        // Every user a grant would mean something for: an Admin by flag or by billet already resolves the full tree.
+        $candidates = $isAdmin ? $this->users->nonAdminUsers() : collect();
+        $admins = $scope->adminIdsAmong($candidates)->flip();
+        $users = $candidates
+            ->reject(fn ($user) => $admins->has($user->id))
+            ->map(fn ($user) => [
                 'id' => $user->id,
                 'username' => $user->username,
-            ])->values()
-            : collect();
+            ])->values();
 
-        // Regimental HQ staff read the whole regiment from their placement, not a grant (ScopeResolver), so nothing else
-        // on this page or in the audit log shows it. Listed from the same rule the scope uses, read-only and only to
-        // someone acting as Admin, like the username picker.
-        $regimentalHq = $isAdmin
-            ? $scope->regimentalHqStaff()->map(fn (Trooper $trooper) => [
-                'id' => $trooper->id,
-                'name' => $trooper->display_name,
-                'billet' => $trooper->billet,
-            ])->values()
-            : collect();
+        // Regimental HQ staff hold their place from their billet, not a grant (ScopeResolver), so nothing else on this
+        // page shows it: Admins once their billet is approved below, otherwise they read the regiment. Listed from the
+        // same rule, read-only and only to someone acting as Admin, like the username picker.
+        $staff = $isAdmin ? $scope->regimentalHqStaff() : collect();
+        $rows = $this->adminBillets->forPositions($staff->pluck('cav_position_id')->filter()->map(fn ($id) => (int) $id)->unique()->values()->all());
+        $regimentalHq = $staff->map(fn (Trooper $trooper) => [
+            'id' => $trooper->id,
+            'name' => $trooper->display_name,
+            'billet' => $trooper->billet,
+            // Placed on the regiment and serving already (regimentalHqStaff()); Admin while the billet confirms them.
+            'admin' => $trooper->cav_position_id !== null && ($rows->get((int) $trooper->cav_position_id)?->confirmsHolder($trooper->billet) ?? false),
+        ])->values();
 
         return Inertia::render('Settings/StaffGrants', [
             'grants' => $grants,
             'regimentalHq' => $regimentalHq,
+            'adminBillets' => $isAdmin ? $this->adminBilletRows($request) : [],
             'units' => $units,
             'users' => $users,
             // Follows a view-as preview (Story 1.13): authoring controls hide as they would for the
             // previewed leader. The write gates below keep reading the real flag.
             'isAdmin' => $isAdmin,
         ]);
+    }
+
+    /**
+     * Every Regimental HQ billet the import or the roster sync has seen, for the confirmation list: the names Cav shows
+     * now, the ones an Admin confirmed, who holds it, and whether the viewer holds it themselves (they cannot decide on
+     * it, {@see DecideAdminBilletHandler}). Pending first.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function adminBilletRows(Request $request): array
+    {
+        $billets = $this->adminBillets->all();
+        $holders = $this->troopers->servingHoldingPositions($billets->pluck('cav_position_id')->map(fn ($id) => (int) $id)->all());
+        $cavId = $request->user()->cav_id;
+        $own = $cavId === null ? null : $this->troopers->byCavId([(int) $cavId])->get((int) $cavId)?->cav_position_id;
+
+        return $billets->map(fn (AdminBillet $billet) => [
+            'id' => $billet->id,
+            'title' => $billet->proposed_title,
+            'group' => $billet->proposed_group_title,
+            'confirmedTitle' => $billet->title,
+            'confirmedGroup' => $billet->group_title,
+            'status' => $billet->status->value,
+            // Confirmed once and renamed since: what changed is shown beside the confirmed names.
+            'renamed' => $billet->title !== null && $billet->renamed(),
+            'holders' => $holders->get($billet->cav_position_id, collect())->map(fn (Trooper $trooper) => $trooper->display_name)->values()->all(),
+            'own' => $own !== null && (int) $own === $billet->cav_position_id,
+            'decidedAt' => $billet->decided_at?->toIso8601String(),
+        ])->values()->all();
     }
 
     /**
@@ -131,7 +177,7 @@ class StaffGrantsController extends Controller
      */
     public function store(Request $request, GrantStaffScope $command): RedirectResponse
     {
-        if (! $request->user()->is_admin) {
+        if (! $this->scope->isAdmin($request->user())) {
             abort(403, 'Only an Admin may manage staff grants.');
         }
 
@@ -169,7 +215,7 @@ class StaffGrantsController extends Controller
      */
     public function destroy(Request $request, int $grant, RevokeStaffScope $command): RedirectResponse
     {
-        if (! $request->user()->is_admin) {
+        if (! $this->scope->isAdmin($request->user())) {
             abort(403, 'Only an Admin may manage staff grants.');
         }
 
@@ -188,6 +234,46 @@ class StaffGrantsController extends Controller
         $unit = $this->units->find($grant->unit_id);
 
         $command->handle($request->user(), $target, $unit, $data['reason']);
+
+        return redirect()->route('settings.staff-grants');
+    }
+
+    /** Approve a Regimental HQ billet as an Admin billet (decided by the S6, 2026-10-28). */
+    public function approveAdminBillet(Request $request, int $billet, DecideAdminBilletHandler $handler): RedirectResponse
+    {
+        return $this->decideAdminBillet($request, $billet, true, $handler);
+    }
+
+    /** Reject a Regimental HQ billet as an Admin billet: its holder is not an Admin until a name changes and it is approved. */
+    public function rejectAdminBillet(Request $request, int $billet, DecideAdminBilletHandler $handler): RedirectResponse
+    {
+        return $this->decideAdminBillet($request, $billet, false, $handler);
+    }
+
+    /**
+     * The Admin gate comes first, so a non-Admin gets the same 403 whether or not the billet exists (AD-6). A refused
+     * decision (the decider's own billet, one already decided so, names not seen yet) is a form error on `adminBillet`.
+     */
+    private function decideAdminBillet(Request $request, int $billet, bool $approve, DecideAdminBilletHandler $handler): RedirectResponse
+    {
+        if (! $this->scope->isAdmin($request->user())) {
+            abort(403, 'Only an Admin may confirm or reject an Admin billet.');
+        }
+
+        $data = $request->validate([
+            'reason' => ['required', 'string', 'max:1000'],
+        ], [
+            'reason.required' => $approve ? 'A reason is required to approve a billet.' : 'A reason is required to reject a billet.',
+            'reason.max' => 'Keep the reason to :max characters.',
+        ]);
+
+        try {
+            $handler->handle($request->user(), new DecideAdminBillet($billet, $approve, $data['reason']));
+        } catch (AdminBilletForbiddenException $e) {
+            abort(403, $e->getMessage());
+        } catch (InvalidAdminBilletDecisionException $e) {
+            throw ValidationException::withMessages(['adminBillet' => $e->getMessage()]);
+        }
 
         return redirect()->route('settings.staff-grants');
     }

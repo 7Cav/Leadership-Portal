@@ -2,6 +2,7 @@
 
 namespace App\Commands\Units;
 
+use App\Authorization\ScopeResolver;
 use App\Models\UnitActingLead;
 use App\Models\UnitType;
 use App\Models\User;
@@ -18,7 +19,7 @@ use App\Support\Audit\ReasonRequiredException;
  * starter platoons as their Platoon Leader; the roster does not say which, so an Admin says so here. ScopeResolver
  * then gives them exactly a Platoon Leader's command over the unit, and only while they serve.
  *
- * Admin only, checked against the real flag (AD-6). The unit must be a line unit below the regiment; one acting lead
+ * Admin only, checked against `ScopeResolver::isAdmin()` (AD-6). The unit must be a line unit below the regiment; one acting lead
  * per unit, so a unit that has one is refused until it is removed; a trooper may lead several units. A personnel
  * action, so it is audited with a required reason (AD-16) as `unit.acting_lead_assigned`, targeting the unit (so the
  * audit log's unit filter and link find it), with the new acting-lead row in the digest.
@@ -30,6 +31,7 @@ class AssignActingLeadHandler
         private readonly TrooperRepository $troopers,
         private readonly UnitActingLeadRepository $actingLeads,
         private readonly AuditEnvelope $audit,
+        private readonly ScopeResolver $scope,
     ) {}
 
     /**
@@ -39,7 +41,7 @@ class AssignActingLeadHandler
      */
     public function handle(User $actor, AssignActingLead $command): UnitActingLead
     {
-        if (! $actor->is_admin) {
+        if (! $this->scope->isAdmin($actor)) {
             throw new ActingLeadForbiddenException;
         }
 

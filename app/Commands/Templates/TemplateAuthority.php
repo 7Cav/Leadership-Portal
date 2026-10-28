@@ -48,7 +48,7 @@ class TemplateAuthority
     public function manages(User $user, Template $template): bool
     {
         if ($template->isRegimentDefault()) {
-            return (bool) $user->is_admin;
+            return $this->scope->isAdmin($user);
         }
 
         $owner = $this->units->find($template->ownerId());

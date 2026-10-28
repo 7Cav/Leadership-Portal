@@ -20,9 +20,13 @@ const props = defineProps({
     grants: { type: Array, required: true },
     units: { type: Array, required: true },
     users: { type: Array, required: true },
-    // Who reads the whole regiment as Regimental HQ staff (placed on the regiment node, serving): read-only here, as
-    // it comes from their placement, not a grant. Sent only to someone acting as Admin.
+    // Regimental HQ staff (placed on the regiment node, serving): Admins by billet once an Admin approved their billet,
+    // otherwise they read the whole regiment. Read-only here, as it comes from their billet, not a grant. Sent only to
+    // someone acting as Admin.
     regimentalHq: { type: Array, default: () => [] },
+    // Every Regimental HQ billet the import has seen, for an Admin to confirm (decided by the S6, 2026-10-28): the
+    // names Cav shows now, the confirmed ones, who holds it, its status, and whether the viewer holds it (`own`).
+    adminBillets: { type: Array, default: () => [] },
     isAdmin: { type: Boolean, required: true },
 });
 
@@ -43,6 +47,35 @@ function submitGrant() {
 // A revoke needs its own reason (AD-16) but there's no per-row form in the table, so it's
 // prompted inline rather than duplicating the grant form's shape for a single field.
 const revokeError = ref(null);
+
+// Approving or rejecting an Admin billet is audited with a reason (AD-16), prompted as a revoke is.
+const billetError = ref(null);
+
+const STATUS_LABELS = { pending: 'Waiting for an Admin', approved: 'Approved', rejected: 'Rejected' };
+
+function names(title, group) {
+    return [title, group].filter(Boolean).join(' in ') || 'Not known yet';
+}
+
+function decideBillet(billet, approve) {
+    const verb = approve ? 'approving' : 'rejecting';
+    const reason = window.prompt(`Reason for ${verb} ${billet.title || 'this billet'} as an Admin billet?`);
+    if (reason === null) {
+        return;
+    }
+    if (reason.trim() === '') {
+        billetError.value = `A reason is required to ${approve ? 'approve' : 'reject'} a billet.`;
+        return;
+    }
+
+    billetError.value = null;
+    router.post(`/settings/staff-grants/admin-billets/${billet.id}/${approve ? 'approve' : 'reject'}`, { reason }, {
+        preserveScroll: true,
+        onError: (errors) => {
+            billetError.value = errors.adminBillet ?? errors.reason ?? 'The decision was not saved. Reload the page and try again.';
+        },
+    });
+}
 
 function requestRevoke(grant) {
     const reason = window.prompt(`Reason for revoking ${grant.username}'s grant at ${grant.unit_label}?`);
@@ -168,9 +201,11 @@ function requestRevoke(grant) {
 
         <Card v-if="isAdmin" data-testid="regimental-hq" class="min-w-0 gap-0 py-0">
             <div class="px-4 pt-3.5 pb-2">
-                <h2 class="text-[15px] font-semibold">Regimental HQ staff</h2>
+                <h2 class="text-[15px] font-semibold">Regimental HQ staff (Admin by billet)</h2>
                 <p class="mt-1 text-xs text-muted-foreground">
-                    Regimental HQ staff read the whole regiment, read-only. This comes from their billet; it is not a grant and cannot be revoked here.
+                    Regimental HQ staff are Admins because of their billet, not a grant, once an Admin approves the billet below. They lose it
+                    when they leave the billet or stop serving, and while a renamed billet waits to be approved again. Until then they read
+                    the whole regiment, read-only.
                 </p>
             </div>
 
@@ -179,17 +214,83 @@ function requestRevoke(grant) {
                     <TableRow class="hover:bg-transparent">
                         <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">Name</TableHead>
                         <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">Billet</TableHead>
+                        <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">Admin</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     <TableRow v-for="trooper in regimentalHq" :key="trooper.id" :data-testid="`regimental-hq-${trooper.id}`">
                         <TableCell class="px-4 font-medium">{{ trooper.name }}</TableCell>
                         <TableCell class="px-4">{{ trooper.billet || '—' }}</TableCell>
+                        <TableCell class="px-4">
+                            <Badge v-if="trooper.admin" variant="outline" :data-testid="`regimental-hq-admin-${trooper.id}`">Admin</Badge>
+                            <span v-else class="text-muted-foreground">Read-only until the billet is approved</span>
+                        </TableCell>
                     </TableRow>
                 </TableBody>
             </Table>
             <p v-else data-testid="regimental-hq-empty" class="border-t border-border px-4 py-6 text-[13px] text-muted-foreground">
                 No serving trooper is placed on the regiment.
+            </p>
+        </Card>
+
+        <Card v-if="isAdmin" data-testid="admin-billets" class="min-w-0 gap-0 py-0">
+            <div class="px-4 pt-3.5 pb-2">
+                <h2 class="text-[15px] font-semibold">Admin billets</h2>
+                <p class="mt-1 text-xs text-muted-foreground">
+                    Approve a Regimental HQ billet to make whoever holds it an Admin. When Cav renames the billet or its group, it waits here
+                    again until an Admin approves the new names. You cannot decide on a billet you hold.
+                </p>
+            </div>
+            <p v-if="billetError" data-testid="billet-error" role="alert" class="px-4 pb-2 text-xs text-destructive">{{ billetError }}</p>
+
+            <Table v-if="adminBillets.length" class="text-[13px]">
+                <TableHeader>
+                    <TableRow class="hover:bg-transparent">
+                        <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">Billet now</TableHead>
+                        <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">Held by</TableHead>
+                        <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">Confirmed as</TableHead>
+                        <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">Status</TableHead>
+                        <TableHead class="h-8 px-4"><span class="sr-only">Actions</span></TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    <TableRow v-for="billet in adminBillets" :key="billet.id" :data-testid="`admin-billet-${billet.id}`">
+                        <TableCell class="px-4 font-medium">
+                            {{ names(billet.title, billet.group) }}
+                            <Badge v-if="billet.renamed" variant="warning" class="ml-1.5" :data-testid="`admin-billet-renamed-${billet.id}`">Renamed</Badge>
+                        </TableCell>
+                        <TableCell class="px-4">{{ billet.holders.length ? billet.holders.join(', ') : 'Vacant' }}</TableCell>
+                        <TableCell class="px-4">{{ billet.confirmedTitle ? names(billet.confirmedTitle, billet.confirmedGroup) : 'Not confirmed yet' }}</TableCell>
+                        <TableCell class="px-4" :data-testid="`admin-billet-status-${billet.id}`">{{ STATUS_LABELS[billet.status] ?? billet.status }}</TableCell>
+                        <TableCell class="px-4 text-right whitespace-nowrap">
+                            <span v-if="billet.own" class="text-xs text-muted-foreground" :data-testid="`admin-billet-own-${billet.id}`">Your billet</span>
+                            <template v-else>
+                                <Button
+                                    v-if="billet.status !== 'approved'"
+                                    variant="ghost"
+                                    size="sm"
+                                    :data-testid="`admin-billet-approve-${billet.id}`"
+                                    @click="decideBillet(billet, true)"
+                                >
+                                    Approve
+                                </Button>
+                                <Button
+                                    v-if="billet.status !== 'rejected'"
+                                    variant="ghost"
+                                    size="sm"
+                                    class="text-destructive hover:text-destructive"
+                                    :data-testid="`admin-billet-reject-${billet.id}`"
+                                    @click="decideBillet(billet, false)"
+                                >
+                                    Reject
+                                </Button>
+                            </template>
+                        </TableCell>
+                    </TableRow>
+                </TableBody>
+            </Table>
+            <p v-else data-testid="admin-billets-empty" class="border-t border-border px-4 py-6 text-[13px] text-muted-foreground">
+                No Regimental HQ billet has been seen yet. Run the org import to list them.
             </p>
         </Card>
     </div>

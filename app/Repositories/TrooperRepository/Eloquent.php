@@ -341,6 +341,23 @@ class Eloquent implements TrooperRepository
         return Trooper::query()->find($id);
     }
 
+    public function servingHoldingPositions(array $positionIds): Collection
+    {
+        if ($positionIds === []) {
+            return collect();
+        }
+
+        return Trooper::query()
+            ->whereIn('cav_position_id', $positionIds)
+            ->whereIn('status', TrooperStatus::servingValues())
+            ->orderBy('username')
+            ->orderBy('id')
+            ->get()
+            ->groupBy(fn (Trooper $trooper) => (int) $trooper->cav_position_id)
+            ->map(fn ($troopers) => $troopers->toBase()->values())
+            ->toBase();
+    }
+
     public function servingWithoutAccount(): EloquentCollection
     {
         return Trooper::query()

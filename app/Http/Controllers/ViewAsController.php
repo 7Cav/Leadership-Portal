@@ -60,13 +60,15 @@ class ViewAsController extends Controller
             ])->values();
 
         $people = null;
-        if ($viewer->is_admin) {
+        if ($this->scope->isAdmin($viewer)) {
             $others = $users->all()->reject(fn ($user) => $user->id === $viewer->id);
             // Troopers who have never signed in have no account, but can still be previewed from their billet.
             $unregistered = $troopers->servingWithoutAccount();
             $cavIds = $others->pluck('cav_id')->merge($unregistered->pluck('cav_id'))->filter()->values()->all();
             $ranks = $troopers->ranksByCavId($cavIds);
             $commanded = $commands->commandedUnitsByCavId($cavIds);
+            // Admins by flag or by an approved Regimental HQ billet, read for everyone at once.
+            $admins = $this->scope->adminIdsAmong($others)->flip();
             $designation = fn (?int $cavId) => ($unit = $cavId !== null ? $commanded->get($cavId) : null) ? ($unit->callsign ?? $unit->name) : null;
 
             $people = $others->map(fn ($user) => [
@@ -74,7 +76,7 @@ class ViewAsController extends Controller
                 'id' => $user->id,
                 'label' => trim(($user->cav_id !== null ? $ranks->get($user->cav_id) : '').' '.$user->username),
                 'designation' => $designation($user->cav_id),
-                'admin' => $user->is_admin,
+                'admin' => $admins->has($user->id),
                 'account' => true,
             ])->merge($unregistered->map(fn ($trooper) => [
                 'kind' => 'trooper',

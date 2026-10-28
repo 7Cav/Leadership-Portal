@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Authorization\ScopeResolver;
 use App\Commands\Troopers\InvalidTrooperPlacementException;
 use App\Commands\Troopers\PlaceTrooperInSection;
 use App\Commands\Troopers\PlaceTrooperInSectionHandler;
@@ -22,9 +23,9 @@ use Illuminate\Validation\ValidationException;
  */
 class TrooperPlacementController extends Controller
 {
-    public function store(Request $request, int $trooper, PlaceTrooperInSectionHandler $handler): RedirectResponse
+    public function store(Request $request, int $trooper, PlaceTrooperInSectionHandler $handler, ScopeResolver $scope): RedirectResponse
     {
-        if (! $request->user()->is_admin) {
+        if (! $scope->isAdmin($request->user())) {
             abort(403, 'Only an Admin may place a trooper into a unit.');
         }
 

@@ -64,6 +64,7 @@ class OrgStructureController extends Controller
         private readonly TrooperRepository $troopers,
         private readonly UnitLeadRepository $leads,
         private readonly UnitActingLeadRepository $actingLeads,
+        private readonly ScopeResolver $scope,
     ) {}
 
     /**
@@ -146,11 +147,11 @@ class OrgStructureController extends Controller
 
     /**
      * Add a node under a chosen parent (AC #2). The Admin gate is enforced here, server-side,
-     * regardless of what the UI shows (AC #5, AD-6), against the `is_admin` flag (AD-7).
+     * regardless of what the UI shows (AC #5, AD-6), against `ScopeResolver::isAdmin()`: the `is_admin` flag or an approved Regimental HQ billet (AD-7).
      */
     public function store(Request $request, CreateUnit $command): RedirectResponse
     {
-        if (! $request->user()->is_admin) {
+        if (! $this->scope->isAdmin($request->user())) {
             abort(403, 'Only an Admin may change the org structure.');
         }
 
@@ -294,7 +295,7 @@ class OrgStructureController extends Controller
      */
     private function adminUnit(Request $request, int $id): Unit
     {
-        if (! $request->user()->is_admin) {
+        if (! $this->scope->isAdmin($request->user())) {
             abort(403, 'Only an Admin may change the org structure.');
         }
 
@@ -309,7 +310,7 @@ class OrgStructureController extends Controller
      */
     public function import(Request $request, ImportOrgStructure $command): RedirectResponse
     {
-        if (! $request->user()->is_admin) {
+        if (! $this->scope->isAdmin($request->user())) {
             abort(403, 'Only an Admin may change the org structure.');
         }
 

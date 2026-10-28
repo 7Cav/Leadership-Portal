@@ -3,6 +3,8 @@
 use App\Commands\Units\ImportOrgStructure;
 use App\Commands\Units\MoveUnit;
 use App\Integration\Cav\CavApi;
+use App\Models\AdminBillet;
+use App\Models\AdminBilletStatus;
 use App\Models\Unit;
 use App\Models\UnitBilletMapping;
 use App\Models\UnitCommandMapping;
@@ -189,4 +191,48 @@ it('keeps an Admin\'s move of a department to another portfolio on the next impo
 
     expect(isgGroup('MP')->parent_id)->toBe(isgGroup('IMO')->id)
         ->and(Unit::query()->where('callsign', 'MP')->count())->toBe(1);
+});
+
+it('lists every Regimental HQ billet as pending, approves none, and sends a renamed or moved one back to pending', function () {
+    isgImport();
+
+    $rows = AdminBillet::query()->get()->keyBy('cav_position_id');
+    $chief = $rows->get(9010);
+    expect([$chief->status, $chief->proposed_title, $chief->proposed_group_title, $chief->title])
+        ->toBe([AdminBilletStatus::Pending, 'Regimental Chief of Staff', 'Regimental HQ', null]);
+    // The command team is Regimental HQ too; nothing outside it gets a row.
+    expect($rows->get(1)?->proposed_title)->toBe('Regimental Commanding Officer')
+        ->and($rows->has(9020))->toBeFalse()
+        ->and($rows->every(fn (AdminBillet $row) => $row->status === AdminBilletStatus::Pending))->toBeTrue();
+
+    // An Admin approves two of them; Cav then renames one and moves the other to another group.
+    foreach ([9010, 9011] as $positionId) {
+        $row = $rows->get($positionId);
+        $row->forceFill(['title' => $row->proposed_title, 'group_title' => $row->proposed_group_title, 'status' => AdminBilletStatus::Approved])->save();
+    }
+    $groups = isgGroups();
+    foreach ($groups['groups'] as &$group) {
+        foreach ($group['positions'] as $i => $position) {
+            if ($position['positionId'] === '9010') {
+                $group['positions'][$i]['positionTitle'] = 'Regimental Chief of Staff (Acting)';
+            }
+            if ($position['positionId'] === '9011' && $group['groupTitle'] === 'Regimental HQ') {
+                unset($group['positions'][$i]);
+            }
+        }
+        $group['positions'] = array_values($group['positions']);
+        if ($group['groupTitle'] === 'Support Attachment') {
+            $group['positions'][] = ['positionTitle' => 'Regimental Security Operations Officer', 'positionId' => '9011', 'positionDisplayOrder' => 999, 'positionPossibleSecondary' => false];
+        }
+    }
+    unset($group);
+    MockClient::destroyGlobal();
+    MockClient::global(['api.7cav.us/api/v1/milpacs/position/groups' => MockResponse::make($groups)]);
+    app(ImportOrgStructure::class)->handle(User::factory()->admin()->create());
+
+    $renamed = AdminBillet::query()->where('cav_position_id', 9010)->sole();
+    $moved = AdminBillet::query()->where('cav_position_id', 9011)->sole();
+    expect([$renamed->status, $renamed->proposed_title, $renamed->title])
+        ->toBe([AdminBilletStatus::Pending, 'Regimental Chief of Staff (Acting)', 'Regimental Chief of Staff'])
+        ->and([$moved->status, $moved->proposed_group_title])->toBe([AdminBilletStatus::Pending, 'Support Attachment']);
 });

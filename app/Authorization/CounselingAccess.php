@@ -61,7 +61,9 @@ class CounselingAccess
         $canSee = $this->scope->canSee($user, $trooper);
         // Their own records, read-only, whatever their scope (2026-10-28): never a write, which $self refuses below.
         $own = $this->scope->isOwnTrooper($user, $trooper);
-        $writeScope = $section === null && ! $user->is_admin ? collect() : $this->scope->writeScope($user);
+        // An Admin by flag or by an approved Regimental HQ billet (ScopeResolver::isAdmin()).
+        $admin = $this->scope->isAdmin($user);
+        $writeScope = $section === null && ! $admin ? collect() : $this->scope->writeScope($user);
 
         $issuing = [CounselingType::Dcs->value => null, CounselingType::Lor->value => null];
         if ($section !== null && ! $self && $writeScope->contains($section)) {
@@ -70,7 +72,6 @@ class CounselingAccess
             $issuing[CounselingType::Lor->value] = $reaching->first(fn (Unit $unit) => self::platoonOrAbove($unit));
         }
 
-        $admin = (bool) $user->is_admin;
         // Left the Cav (not on the serving allow-list, or no standing at all): read-only for everyone (2026-10-28).
         $departed = ! ($trooper->status?->isServing() ?? false);
 

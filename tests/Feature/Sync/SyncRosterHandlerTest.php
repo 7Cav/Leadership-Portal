@@ -3,6 +3,8 @@
 use App\Authorization\ScopeResolver;
 use App\Integration\Cav\CavApi;
 use App\Integration\Cav\CavRequestException;
+use App\Models\AdminBillet;
+use App\Models\AdminBilletStatus;
 use App\Models\AuditLogEntry;
 use App\Models\PlacementSource;
 use App\Models\SyncRun;
@@ -14,6 +16,7 @@ use App\Models\UnitBilletMapping;
 use App\Models\UnitCommandMapping;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\AdminBilletRepository;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitBilletMappingRepository;
@@ -74,6 +77,7 @@ function syncRosterHandler(): SyncRosterHandler
         app(RosterSyncScopeFactory::class),
         app(UnitCommandMappingRepository::class),
         app(UnitRepository::class),
+        app(AdminBilletRepository::class),
     );
 }
 
@@ -854,4 +858,38 @@ it('counts only the unit\'s own unreadable rows in a unit run, and every one in 
         ->and([$theirsRun->status, $theirsRun->errored])->toBe([SyncRunStatus::Partial, 1])
         ->and($theirsRun->error)->toStartWith('2: ')
         ->and([$wholeRun->status, $wholeRun->errored])->toBe([SyncRunStatus::Partial, 2]);
+});
+
+it('puts an approved Admin billet back to pending when the roster shows it renamed, and leaves the rest alone', function () {
+    $billets = fn (int $positionId) => AdminBillet::query()->where('cav_position_id', $positionId)->sole();
+    foreach ([773 => 'Rifleman', 774 => 'Regimental Finance Officer'] as $positionId => $title) {
+        AdminBillet::query()->create([
+            'cav_position_id' => $positionId,
+            'title' => $title,
+            'group_title' => 'Regimental HQ',
+            'proposed_title' => $title,
+            'proposed_group_title' => 'Regimental HQ',
+            'status' => AdminBilletStatus::Approved,
+        ]);
+    }
+
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => [
+            '1' => srRosterRow('ROSTER_TYPE_COMBAT', ['primary' => ['positionTitle' => 'Senior Rifleman', 'positionId' => '773']]),
+            '2' => srRosterRow('ROSTER_TYPE_COMBAT', ['user' => ['userId' => '4', 'username' => 'Abbot.F'], 'primary' => ['positionTitle' => 'Regimental Finance Officer', 'positionId' => '774']]),
+            '3' => srRosterRow('ROSTER_TYPE_COMBAT', ['user' => ['userId' => '5', 'username' => 'Cole.B'], 'primary' => ['positionTitle' => 'Grenadier', 'positionId' => '775']]),
+        ]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+
+    // Renamed: back to pending, with the new title proposed and the group (which the roster does not carry) kept.
+    $renamed = $billets(773);
+    expect([$renamed->status, $renamed->proposed_title, $renamed->proposed_group_title, $renamed->title])
+        ->toBe([AdminBilletStatus::Pending, 'Senior Rifleman', 'Regimental HQ', 'Rifleman']);
+    // Unchanged: still approved. And the roster sync never creates a row: the import does, as it sees the group.
+    expect($billets(774)->status)->toBe(AdminBilletStatus::Approved)
+        ->and(AdminBillet::query()->where('cav_position_id', 775)->exists())->toBeFalse();
 });

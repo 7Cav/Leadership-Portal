@@ -2,6 +2,7 @@
 
 namespace App\Commands\Troopers;
 
+use App\Authorization\ScopeResolver;
 use App\Models\Trooper;
 use App\Models\User;
 use App\Repositories\TrooperRepository;
@@ -16,7 +17,7 @@ use App\Support\Audit\ReasonRequiredException;
  * the roster sync being the sole writer of `troopers`: it writes only `primary_section_id` and
  * `placement_source = manual`, never a synced roster field (AD-4, AD-22).
  *
- * Admin only, checked here against the real flag (AD-6), then refused before anything is written when
+ * Admin only, checked here against `ScopeResolver::isAdmin()` (AD-6), then refused before anything is written when
  * the target is not a section, or the trooper does not exist, is already placed, or has left the Cav
  * roster. The write itself is one audited transaction (AD-16) with a required reason: a blank reason is
  * rejected and leaves no state change and no log entry. The repository applies the placement only while
@@ -31,6 +32,7 @@ class PlaceTrooperInSectionHandler
         private readonly TrooperRepository $troopers,
         private readonly UnitRepository $units,
         private readonly AuditEnvelope $audit,
+        private readonly ScopeResolver $scope,
     ) {}
 
     /**
@@ -40,7 +42,7 @@ class PlaceTrooperInSectionHandler
      */
     public function handle(User $actor, PlaceTrooperInSection $command): Trooper
     {
-        if (! $actor->is_admin) {
+        if (! $this->scope->isAdmin($actor)) {
             throw new PlaceTrooperForbiddenException;
         }
 

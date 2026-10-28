@@ -8,6 +8,7 @@ use App\Integration\Cav\Data\CavPositionGroup;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\AdminBilletRepository;
 use App\Repositories\UnitBilletMappingRepository;
 use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitRepository;
@@ -52,6 +53,11 @@ use Illuminate\Support\Facades\Log;
  * so every run makes `unit_command_mappings` exactly what Cav publishes — new billets added,
  * moved ones repointed, billets no longer listed as a command removed. Still idempotent.
  *
+ * **Admin billets (decided by the S6, 2026-10-28).** Every billet in the `Regimental HQ` group gets an `admin_billets`
+ * row, `pending` until an Admin approves it, and every billet that has one is checked against the title and group Cav
+ * lists it under now, wherever that is: renamed or moved, it goes back to pending and its holder stops being an Admin
+ * until an Admin confirms the new names. The import never approves one.
+ *
  * **All or nothing.** The Cav fetch and the parsing happen before any write; the writes happen
  * inside the audited envelope's single transaction (AD-16), so a failure part-way leaves no
  * partial tree. The audit row targets the regiment root — the import's one stable subject.
@@ -69,6 +75,7 @@ class ImportOrgStructure
         private readonly UnitBilletMappingRepository $mappings,
         private readonly UnitCommandMappingRepository $commands,
         private readonly AuditEnvelope $audit,
+        private readonly AdminBilletRepository $adminBillets,
     ) {}
 
     /**
@@ -93,6 +100,7 @@ class ImportOrgStructure
         }
 
         [$designations, $sectionByPositionId, $commandByPositionId, $skippedTitles, $ignoredGroups, $groupNodes, $leadPositions] = $this->plan($groups);
+        [$headquartersBillets, $otherBillets] = $this->billetNames($groups);
 
         if ($designations === []) {
             Log::warning('Org-structure import aborted: Cav listed no line companies.', [
@@ -130,7 +138,7 @@ class ImportOrgStructure
                 action: 'org_structure.imported',
                 reason: null,
                 reasonRequired: false,
-                mutation: function () use ($designations, $groupNodes, $leadPositions, $sectionByPositionId, $commandByPositionId, &$unitsCreated, &$sectionCounts, &$commandCounts): Unit {
+                mutation: function () use ($designations, $groupNodes, $leadPositions, $sectionByPositionId, $commandByPositionId, $headquartersBillets, $otherBillets, &$unitsCreated, &$sectionCounts, &$commandCounts): Unit {
                     $index = $this->existingUnitsByKey();
                     $regimentKey = CavDesignation::regiment()->key();
                     $root = $index[$regimentKey] ?? null;
@@ -180,6 +188,11 @@ class ImportOrgStructure
                     );
 
                     $commandCounts = $this->reconcileCommands($commandByPositionId, $index);
+
+                    // A Regimental HQ billet gets a pending row if it has none; any billet with a row is checked against
+                    // the names it carries now. Nothing is approved here.
+                    $this->adminBillets->observe($headquartersBillets, createMissing: true);
+                    $this->adminBillets->observe($otherBillets, createMissing: false);
 
                     return $root;
                 },
@@ -399,6 +412,39 @@ class ImportOrgStructure
         }
 
         return [$designations, $sectionByPositionId, $commandByPositionId, $skippedTitles, $ignoredGroups, $groupNodes, $leadPositions];
+    }
+
+    /**
+     * The title and group title of every billet Cav lists, `position id => [title, group title]`, split into those in
+     * the `Regimental HQ` group (the group whose staff the import places on the regiment) and all the others. First
+     * listing wins, as in {@see plan()}. Pure, no DB access.
+     *
+     * @param  list<CavPositionGroup>  $groups
+     * @return array{0: array<int, array{0: string, 1: string}>, 1: array<int, array{0: string, 1: string}>}
+     */
+    private function billetNames(array $groups): array
+    {
+        $regiment = CavDesignation::regiment()->key();
+        $headquarters = [];
+        $other = [];
+
+        foreach ($groups as $group) {
+            $isHeadquarters = CommandBillet::headquartersOf($group->title)?->key() === $regiment;
+
+            foreach ($group->positions as $position) {
+                if (isset($headquarters[$position->id]) || isset($other[$position->id])) {
+                    continue;
+                }
+
+                if ($isHeadquarters) {
+                    $headquarters[$position->id] = [$position->title, $group->title];
+                } else {
+                    $other[$position->id] = [$position->title, $group->title];
+                }
+            }
+        }
+
+        return [$headquarters, $other];
     }
 
     /**

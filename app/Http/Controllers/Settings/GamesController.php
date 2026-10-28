@@ -28,7 +28,7 @@ use Inertia\Response;
  * The games the regiment plays (#388): an Admin adds a game, renames it, sets the kinds of player id it asks for, picks
  * which built-in telemetry interface reads its attendance (AD-3: the interfaces stay code), and retires or deletes
  * it. Reads `GameRepository` directly; every write is an audited Command (AD-16). Viewing is open to anyone signed
- * in, matching the other Settings screens; every write is Admin-only, checked here against the real `is_admin`
+ * in, matching the other Settings screens; every write is Admin-only, checked here against the real Admin rule (`ScopeResolver::isAdmin()`)
  * flag (AD-6) before anything else, so a non-Admin gets a 403 whether or not the game exists.
  *
  * An Admin also sees the identities saved before the rules of #450 that break them (an ID without its kind's shape,
@@ -36,7 +36,10 @@ use Inertia\Response;
  */
 class GamesController extends Controller
 {
-    public function __construct(private readonly GameRepository $games) {}
+    public function __construct(
+        private readonly GameRepository $games,
+        private readonly ScopeResolver $scope,
+    ) {}
 
     public function index(Request $request, ScopeResolver $scope, TrooperGameIdentityRepository $identities): Response
     {
@@ -144,7 +147,7 @@ class GamesController extends Controller
 
     private function authorizeAdmin(Request $request): void
     {
-        if (! $request->user()->is_admin) {
+        if (! $this->scope->isAdmin($request->user())) {
             abort(403, 'Only an Admin may manage games.');
         }
     }

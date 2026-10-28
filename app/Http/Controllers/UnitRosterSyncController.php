@@ -81,7 +81,7 @@ class UnitRosterSyncController extends Controller
             abort(409, 'A sync of this unit, or of a unit above or below it, is already queued or running. Reload in a minute to see the refreshed roster.');
         }
 
-        if (! $user->is_admin) {
+        if (! $this->scope->isAdmin($user)) {
             $until = collect(Cache::many($related->map(fn (int $id) => self::cooldownKey($id))->all()))->filter()->max();
 
             if ($until !== null) {

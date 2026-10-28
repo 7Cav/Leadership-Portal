@@ -2,6 +2,7 @@
 
 namespace App\Commands\PortalRoleGrants;
 
+use App\Authorization\ScopeResolver;
 use App\Commands\Units\CreateUnit;
 use App\Models\PortalRoleGrant;
 use App\Models\Unit;
@@ -27,6 +28,7 @@ class GrantStaffScope
     public function __construct(
         private readonly PortalRoleGrantRepository $grants,
         private readonly AuditEnvelope $audit,
+        private readonly ScopeResolver $scope,
     ) {}
 
     /**
@@ -34,7 +36,7 @@ class GrantStaffScope
      */
     public function handle(User $actor, User $target, Unit $unit, ?string $reason): PortalRoleGrant
     {
-        if ($target->is_admin) {
+        if ($this->scope->isAdmin($target)) {
             throw GrantTargetIsAdminException::forUser($target);
         }
 
