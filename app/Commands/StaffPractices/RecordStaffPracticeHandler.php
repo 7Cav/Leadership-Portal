@@ -29,8 +29,9 @@ use App\Support\Audit\AuditEnvelope;
  * trooper already recorded at that practice by any source. Then one audited transaction (`staff_practice.recorded`,
  * AD-16, target the trooper, digest over the new entry): a week whose report the trooper's own unit sent is refused under
  * the report's lock ({@see GuardsStaffPractice}); the trooper is read again (a roster sync may have moved them); the host
- * practice is found or created; the entry is inserted under the UNIQUE key, so two people entering it at once land on one
- * row and the second is told it is already recorded.
+ * practice is found or created (a generated demo practice stays demo, so the demo purge still clears its marks); the entry
+ * is inserted under the UNIQUE key, so two people entering it at once land on one row and the second is told it is
+ * already recorded.
  */
 class RecordStaffPracticeHandler
 {
@@ -86,7 +87,8 @@ class RecordStaffPracticeHandler
                 $this->refuseLockedWeek($this->reports, $trooper, $weekStart);
 
                 $current = $this->refuseNonStaff($this->access, $this->troopers->find($trooper->id));
-                $practice = $this->practices->findOrCreate($command->sectionId, $weekStart);
+                // A demo week stays demo (audit 2, L1): the entry is the staff member's, nothing of the host's.
+                $practice = $this->practices->findOrCreate($command->sectionId, $weekStart, keepDemo: true);
 
                 $sighting = $this->sightings->recordStaff($practice, $current->id, $actor->id, $this->acting->adminActingAs($actor->id), $this->acting->billetOf($actor->id))
                     ?? throw StaffPracticeRefusedException::alreadyRecorded($current->display_name);

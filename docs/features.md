@@ -275,7 +275,9 @@ lists the section practices they attended, newest week first; the roster's troop
   "Seen on the game server". The capture keeps them on that practice's own record of who it saw, as it does every
   linked trooper from elsewhere; it credits nobody. Its window is the whole Cav week so far, so this means they were on
   the server that week. A practice with an entry shows the entry.
-- Remove one: the same people. A game server sighting cannot be removed by hand.
+- Remove one: the same people. A game server sighting cannot be removed by hand. An entry on a section that had no
+  practice that week creates one; removing the last such entry removes it again when nothing else is on it (no mark,
+  signature, guest, capture, or posted or confirmed rollcall), so it never keeps an Admin from deleting the section.
 - Lock: once the staff member's HQ has sent its weekly report for a week, that week's entries no longer change. A staff
   department sends no weekly report, so its weeks stay open.
 - An entry never puts the staff member on the host section's rollcall or its guests, never counts in its numbers,
@@ -292,7 +294,7 @@ lists the section practices they attended, newest week first; the roster's troop
 | Games | The games the regiment plays: name, the kinds of player ID it asks for (the first is the default), and which telemetry interface reads its attendance (CRCON, BattleMetrics, Nightwatch or none). Add, edit, retire or reinstate a game; delete one only while nothing uses it. The kinds whose ID shape is checked are marked. Admins also see "Identities to check": saved identities that break the ID shape or name rules, with what to check; nothing in it is changed, fix each on Game identities. |
 | Audit log | Every audited change (and every view as start and stop): who, what, when, the reason, filterable by actor, action, target, date and unit (including everything under it). |
 | Activity log | The pages each user opened and when, newest first, filterable by user and date range, to retrace a bug report. Shows when an Admin was acting as or viewing as someone. Addresses and times only (sensitive query values and every sign-in query are dropped), never form contents. Kept 30 days. |
-| Demo data | Only when `DEMO_TOOLS=true`. Generate 1 to 12 completed weeks of demo signatures, marks and sent reports for a unit's real troopers, or purge them. Never touches a week that holds real records. |
+| Demo data | Only when `DEMO_TOOLS=true`. Generate 1 to 12 completed weeks of demo signatures, marks and sent reports for a unit's real troopers, or purge them. Never touches a week that holds real records. A staff practice entry on a generated week is a real record: the purge clears the week's generated marks and keeps the entry. |
 
 Non-Admins do not see the Settings menu. They can still open Org structure, Staff grants, Templates and Games by URL, read only (Templates only for the companies and sections in their scope; a company's command can manage its own company's templates there, and a section's command its section's own).
 
