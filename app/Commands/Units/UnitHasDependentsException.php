@@ -59,14 +59,14 @@ class UnitHasDependentsException extends RuntimeException
     public static function hasTrainingPlans(string $unitName): self
     {
         return new self(
-            "Cannot delete \"{$unitName}\" — it has training plans, and that plan history must not be orphaned.",
+            "Cannot delete \"{$unitName}\": it has training plans, and that plan history must be kept.",
         );
     }
 
     public static function hasTrainingTopics(string $unitName): self
     {
         return new self(
-            "Cannot delete \"{$unitName}\" — it has weekly training topics, which are part of its report history.",
+            "Cannot delete \"{$unitName}\": it has weekly training topics, and that report history must be kept.",
         );
     }
 }

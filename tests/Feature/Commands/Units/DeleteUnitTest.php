@@ -103,11 +103,11 @@ it('refuses to delete a unit that still has a dependent, naming it', function (C
     ],
     'a training plan' => [
         fn (Unit $unit) => app(TrainingPlanRepository::class)->save($unit->id, '2026-11', ['2026-11-07' => 'Room clearing'], false, User::factory()->create()->id),
-        'it has training plans, and that plan history must not be orphaned.',
+        'it has training plans, and that plan history must be kept.',
     ],
     'a weekly training topic' => [
         fn (Unit $unit) => app(PlatoonTrainingTopicRepository::class)->set($unit->id, WeekOf::start(CarbonImmutable::now()), 'Room clearing', false, User::factory()->create()->id),
-        'it has weekly training topics, which are part of its report history.',
+        'it has weekly training topics, and that report history must be kept.',
     ],
 ]);
 
