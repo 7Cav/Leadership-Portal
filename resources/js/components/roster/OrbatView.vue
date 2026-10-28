@@ -92,7 +92,8 @@ function sectionsUnder(unit) {
 }
 
 // A column sort orders the troopers inside each section; the sections themselves keep the order of battle. Null is
-// the default billet order (SL, ASL, other tagged leaders, then rank). The choice is remembered per browser.
+// the default billet order (the command team in chain-of-command order, then rank). The choice is remembered per
+// browser.
 const sort = ref(readOrbatSort());
 function sortBy(key) {
     sort.value = nextOrbatSort(sort.value, key);

@@ -38,17 +38,23 @@ export function rankTier(rank) {
     return 'enlisted';
 }
 
-const ROLE_ORDER = { SL: 0, ASL: 1 };
+// The command team in chain-of-command order (#444): the commanding billet, then the second in command, then the
+// senior NCO. A unit lists only its own team (a company its CO, XO and 1SG; a platoon its PL and PSG; a section its SL
+// and ASL), so the echelons can share the three places.
+const ROLE_ORDER = { CO: 0, PL: 0, SL: 0, XO: 1, PSG: 1, ASL: 1, '1SG': 2, SGM: 2, CSM: 2 };
 
-// A trooper's place by their billet tag (#443): an acting lead stands where the billet they act for does, any other
-// tagged leader after the SL and ASL, and everyone without a tag last.
+// A trooper's place by their billet tag (#443): an acting lead stands where the billet they act for does, and everyone
+// without a tag comes after the command team.
 function roleRank(role) {
     if (!role) return 3;
 
-    return ROLE_ORDER[role.replace(/^Acting /, '')] ?? 2;
+    return ROLE_ORDER[role.replace(/^Acting /, '')] ?? 3;
 }
 
-/** Billet order: SL, then ASL, then the other tagged leaders, then by rank (senior first), then name. */
+/**
+ * Billet order, the roster's default: the command team (CO, XO, then 1SG, SGM or CSM; PL then PSG; SL then ASL), then
+ * everyone by rank (senior first), then name. A column sort replaces it and only falls back to it for ties.
+ */
 export function compareBillet(a, b) {
     return (
         roleRank(a.role) - roleRank(b.role) ||

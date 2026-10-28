@@ -152,10 +152,11 @@ it('names the Section Leader rather than the assistant whose billet maps to the 
         ->and($leaders[$other->id]->is($otherSl))->toBeTrue();
 });
 
-it('names the assistant while the Section Leader billet is vacant', function () {
+// #444: the second in command keeps their place and scope, but never leads the unit.
+it('names nobody while the Section Leader billet is vacant, not the assistant', function () {
     $section = Unit::factory()->create(['type' => UnitType::Section]);
     UnitCommandMapping::factory()->create(['unit_id' => $section->id, 'cav_position_id' => 202]);
-    $asl = Trooper::factory()->create(['cav_position_id' => 202, 'billet' => 'Assistant Section Leader 1/1/A/1-7']);
+    Trooper::factory()->create(['cav_position_id' => 202, 'billet' => 'Assistant Section Leader 1/1/A/1-7']);
 
-    expect(app(UnitCommandMappingRepository::class)->commandersOf([$section->id])[$section->id]->is($asl))->toBeTrue();
+    expect(app(UnitCommandMappingRepository::class)->commandersOf([$section->id])->all())->toBe([]);
 });

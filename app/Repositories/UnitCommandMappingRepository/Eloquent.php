@@ -2,6 +2,7 @@
 
 namespace App\Repositories\UnitCommandMappingRepository;
 
+use App\Models\CommandRole;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
@@ -92,16 +93,28 @@ class Eloquent implements UnitCommandMappingRepository
             return collect();
         }
 
+        $types = Unit::query()->whereIn('id', $unitIds)->pluck('type', 'id');
+
         return Trooper::query()
             ->select('troopers.*', 'unit_command_mappings.unit_id as commands_unit_id')
             ->join('unit_command_mappings', 'unit_command_mappings.cav_position_id', '=', 'troopers.cav_position_id')
             ->whereIn('unit_command_mappings.unit_id', $unitIds)
             ->whereIn('troopers.status', TrooperStatus::servingValues())
-            // A section's Section Leader and Assistant Section Leader billets both map to it, and the last row per unit
-            // wins below: the assistant is read first, so the Section Leader is named whenever the billet is held.
-            ->orderByRaw("CASE WHEN LOWER(troopers.billet) LIKE '%assistant section leader%' THEN 0 ELSE 1 END")
             ->orderBy('troopers.id')
             ->get()
-            ->keyBy(fn (Trooper $trooper) => (int) $trooper->getAttribute('commands_unit_id'));
+            ->groupBy(fn (Trooper $trooper) => (int) $trooper->getAttribute('commands_unit_id'))
+            ->map(function ($holders, int $unitId) use ($types) {
+                $type = $types->get($unitId);
+                $lead = $type === null ? null : CommandRole::leadOf($type);
+                $roleOf = fn (Trooper $trooper) => $type === null ? null : CommandRole::fromBillet($trooper->billet, $type);
+
+                // The rest of the command team (XO, 1SG, PSG, ASL, SGM, CSM) never leads the unit, even with the
+                // commanding billet vacant (#444). A title naming no command billet at all still can: a staff
+                // portfolio's officer, the one billet mapped to their group.
+                return $holders->first(fn (Trooper $t) => $lead !== null && $roleOf($t) === $lead)
+                    ?? $holders->first(fn (Trooper $t) => $roleOf($t) === null);
+            })
+            ->filter()
+            ->toBase();
     }
 }

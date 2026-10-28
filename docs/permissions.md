@@ -44,6 +44,9 @@ Notes:
   over DEVCOM, D/DEVCOM and its platoons and sections, rollcall templates and the template switch included. The org
   page names the 1IC as DEVCOM's lead; when that billet is vacant the lead shows vacant, and the 2IC keeps their rights.
 - `DEVCOM Lead` commands nothing by billet. An Admin makes them acting lead of the DEVCOM starter platoons they run.
+- Every billet of a command team has the same scope: the XO, 1SG, PSG, ASL, SGM and CSM command their unit exactly as
+  its CO, PL or SL does. Only the commanding billet is shown as the unit's lead (#444); that is display, and a vacant
+  commanding billet takes nothing from the rest of the team.
 - Every layer's scope is the commanded unit plus everything under it. A company commander therefore has the same
   rights as the platoon and section leaders in that company, on every unit in it.
 
