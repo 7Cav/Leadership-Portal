@@ -25,8 +25,8 @@ describe('UnmatchedDrawer', () => {
     it('lists each player with name, platform id and a picker that starts on nobody', () => {
         const wrapper = factory();
 
-        expect(wrapper.text()).toContain('Not matched to a trooper');
-        expect(wrapper.text()).toContain('2 seen on the server');
+        expect(wrapper.text()).toContain('Unmatched players');
+        expect(wrapper.text()).toContain('2 seen on the game server');
         const first = card(wrapper, '7656119000000001');
         expect(first.find('[data-testid="unmatched-name"]').text()).toBe('Dubes');
         expect(first.find('[data-testid="unmatched-id"]').text()).toBe('7656119000000001');
@@ -256,7 +256,7 @@ describe('UnmatchedDrawer', () => {
         it('stays open with only dismissed players left, and says nobody is waiting', () => {
             const wrapper = factory({ players: [], dismissed: DISMISSED });
 
-            expect(wrapper.text()).toContain('Everyone seen on the server is linked or dismissed');
+            expect(wrapper.text()).toContain('Everyone seen on the game server is linked or dismissed');
             expect(wrapper.find('[data-testid="unmatched-link"]').exists()).toBe(false);
         });
 

@@ -42,8 +42,8 @@ describe('rollcall vocabulary', () => {
         expect(steps.map((s) => s.state)).toEqual(['done', 'warn', 'todo']);
         expect(steps[1].unlinked).toBe(3);
         expect(stepsOf([t(1, 'will_attend', 'present')])[1].unlinked).toBe(0);
-        expect(unlinkedLabel(1)).toBe('1 unlinked player');
-        expect(unlinkedLabel(3)).toBe('3 unlinked players');
+        expect(unlinkedLabel(1)).toBe('1 unmatched player');
+        expect(unlinkedLabel(3)).toBe('3 unmatched players');
     });
 
     it('names the feed that is down by game and source (#176)', () => {
@@ -144,8 +144,8 @@ describe('section status for the picker', () => {
     });
 
     it('counts what is left, signatures first', () => {
-        expect(sectionStatus(progress({ started: true, unsigned: 2, unmarked: 3 }))).toEqual({ state: 'todo', text: '2 unsigned, 3 unmarked' });
-        expect(sectionStatus(progress({ started: true, unsigned: 0, unmarked: 3 }))).toEqual({ state: 'todo', text: '3 unmarked' });
+        expect(sectionStatus(progress({ started: true, unsigned: 2, unmarked: 3 }))).toEqual({ state: 'todo', text: '2 unsigned, 3 not marked' });
+        expect(sectionStatus(progress({ started: true, unsigned: 0, unmarked: 3 }))).toEqual({ state: 'todo', text: '3 not marked' });
         expect(sectionStatus(progress({ started: true, unsigned: 1, unmarked: 0 }))).toEqual({ state: 'todo', text: '1 unsigned' });
     });
 

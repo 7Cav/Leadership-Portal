@@ -22,7 +22,7 @@ describe('SectionPicker', () => {
 
         expect(row(wrapper, 12).find('[data-status]').text()).toBe('Posted');
         expect(row(wrapper, 12).find('[data-status]').attributes('data-status')).toBe('done');
-        expect(row(wrapper, 13).find('[data-status]').text()).toBe('1 unsigned, 2 unmarked');
+        expect(row(wrapper, 13).find('[data-status]').text()).toBe('1 unsigned, 2 not marked');
         expect(row(wrapper, 14).find('[data-status]').text()).toBe('Not started');
         expect(row(wrapper, 13).text()).toContain('3/1/A/1-7');
     });

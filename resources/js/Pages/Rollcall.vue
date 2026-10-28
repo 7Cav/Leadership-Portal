@@ -540,7 +540,7 @@ async function markPosted() {
             editedSincePost.value = staleCopy || edits !== editsBefore;
             if (staleCopy) {
                 toast.warning('Marked posted, but the copied BBCode is out of date', {
-                    description: 'Marks changed after you copied it. Copy it again, update the forum post, then mark it posted again.',
+                    description: 'Marks changed after you copied it. Copy it again, update the rollcall post on the forum, then mark it posted again.',
                 });
             } else {
                 toast.success('Rollcall marked posted', { description: `${props.section.designation}, week of ${weekLabel.value}` });
@@ -635,7 +635,7 @@ async function retryCapture() {
         const result = await postJson(`/rollcall/${props.section.id}/capture`, { week: props.week.date }).catch(unreachable);
         if (left) return;
         if (!result.ok) {
-            toast.error('Could not try again', { description: messageFor(result) });
+            toast.error('Could not retry the capture', { description: messageFor(result) });
             if (result.status === 409 && result.data?.locked) router.reload();
 
             return;
@@ -684,7 +684,7 @@ const savedClock = computed(() => {
 
 const saveLabel = computed(() => {
     if (!autosave) return null;
-    if (autosave.state.value === 'saving') return 'Saving...';
+    if (autosave.state.value === 'saving') return 'Saving';
     if (autosave.state.value === 'error') return 'Not saved';
     if (savedClock.value) return `Saved ${savedClock.value}`;
     if (autosave.pendingCount.value) return 'Unsaved changes';
@@ -962,7 +962,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
             data-testid="save-on-leave"
         >
             <PhLockSimple class="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <p class="min-w-0 flex-1">{{ autosave.onLeaveMessage.value }} Reload to see their leave dates.</p>
+            <p class="min-w-0 flex-1">{{ autosave.onLeaveMessage.value }} Reload to see their LOA dates.</p>
         </div>
 
         <div
@@ -982,7 +982,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
             data-testid="locked-notice"
         >
             <PhLockSimple class="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
-            <p>{{ lockedReason }} You can still copy the forum post.</p>
+            <p>{{ lockedReason }} You can still copy the rollcall post.</p>
         </div>
 
         <!-- Only where a change can be made: a read-only week (too far back, a staff grant, a view-as preview, a sent
@@ -1167,7 +1167,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                         <PhHandSwipeRight class="size-4" aria-hidden="true" />Swipe a card right for present, left for missed.
                     </p>
                     <div v-if="editable && unmarked.length" class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
-                        <span>Sets the {{ unmarked.length }} troopers not marked yet. Marks you already set stay.</span>
+                        <span>Sets the {{ unmarked.length }} {{ unmarked.length === 1 ? 'trooper' : 'troopers' }} not marked yet. Marks you already set stay.</span>
                         <div class="flex flex-wrap gap-2 sm:ml-auto">
                             <Button variant="outline" size="sm" data-testid="mark-all-present" @click="markAllPresent">
                                 <PhChecks />Mark all present
@@ -1230,7 +1230,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                             Review and post
                         </h2>
                         <p class="mt-0.5 max-w-[62ch] text-[13px] text-muted-foreground">
-                            Check the totals, copy the forum post into the rollcall thread on 7cav.us, then mark it posted.
+                            Check the totals, copy the rollcall post into the rollcall thread on 7cav.us, then mark it posted.
                         </p>
                     </div>
                     <!-- The rollcall can still be posted, but not without seeing who the server saw and nobody accounted for (#176). -->
@@ -1242,7 +1242,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                     >
                         <PhUserCircleDashed class="size-4 shrink-0 text-warning" aria-hidden="true" />
                         <p class="min-w-[14rem] flex-1">
-                            <b class="font-semibold">{{ unlinkedLabel(unlinkedCount) }}</b> seen on the server {{ unlinkedCount === 1 ? 'is' : 'are' }} not
+                            <b class="font-semibold">{{ unlinkedLabel(unlinkedCount) }}</b> seen on the game server {{ unlinkedCount === 1 ? 'is' : 'are' }} not
                             accounted for. Link or dismiss them on the practice step.
                         </p>
                         <Button variant="outline" size="sm" data-testid="unlinked-go" @click="go(2)">Go to section practice</Button>
@@ -1403,7 +1403,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                             <span><kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">{{ keyLabel(SHORTCUTS['rollcall.next'].keys[0]) }}</kbd> <kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">{{ keyLabel(SHORTCUTS['rollcall.previous'].keys[0]) }}</kbd></span>
                         </p>
                         <p class="flex justify-between" data-testid="keyboard-mark">
-                            <span>Set status on focused card</span><span><kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">{{ markKeys[0] }}</kbd> to <kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">{{ markKeys[1] }}</kbd></span>
+                            <span>Set the mark on the focused card</span><span><kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">{{ markKeys[0] }}</kbd> to <kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">{{ markKeys[1] }}</kbd></span>
                         </p>
                         <p class="flex justify-between">
                             <span>All keyboard shortcuts</span><span><kbd class="rounded-sm border border-border bg-muted px-1 font-mono text-[11px]">{{ keyLabel(SHORTCUTS.help.keys[0]) }}</kbd></span>
