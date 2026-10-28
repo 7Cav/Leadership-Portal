@@ -83,6 +83,29 @@ final class Headcount
     }
 
     /**
+     * The tops of a viewer's scope as the shell's scope label shows them, "1/A/1-7 +1" (#426). With several, the empty
+     * line units the unit switcher's menu leaves out ({@see withoutEmptyLineUnits()}) are left out here too, so "+N"
+     * counts only what the menu lists; the first top stays when every one is empty, so the label is never blank. One top
+     * is shown as it is, with no extra read. Plain arrays, as the shared props send them (HandleInertiaRequests).
+     *
+     * @param  Collection<int, Unit>  $tops
+     * @return list<array{id: int, designation: string, name: string}>
+     */
+    public function scopeLabelTops(Collection $tops): array
+    {
+        if ($tops->count() > 1) {
+            $shown = $this->withoutEmptyLineUnits($tops);
+            $tops = $shown->isEmpty() ? $tops->take(1) : $shown;
+        }
+
+        return $tops->map(fn (Unit $unit) => [
+            'id' => $unit->id,
+            'designation' => $unit->callsign ?? $unit->name,
+            'name' => $unit->name,
+        ])->values()->all();
+    }
+
+    /**
      * `$units` without the line units that do not take part in the week's report chain (#478): what a roll-up sums and
      * waits on, and what the navigator draws. A line unit with no line children (a section) takes part when it has
      * troopers in it ({@see withoutEmptyLineUnits()}, placed now or during the week); any other line unit when at least

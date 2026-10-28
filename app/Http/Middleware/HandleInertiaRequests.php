@@ -5,8 +5,6 @@ namespace App\Http\Middleware;
 use App\Authorization\ActAs;
 use App\Authorization\ScopeResolver;
 use App\Kpi\Headcount;
-use App\Models\Unit;
-use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -84,7 +82,7 @@ class HandleInertiaRequests extends Middleware
             // The top unit(s) of the viewer's scope as this request sees it (view as and act as included), which the
             // sidebar's unit switcher and the breadcrumb start from (#426). The switcher's full list is read only when
             // it opens (`/scope/units`).
-            'scopeTop' => fn () => $request->user() ? $this->scopeTop($request->user()) : [],
+            'scopeTop' => fn () => $request->user() ? $this->headcount->scopeLabelTops($this->scope->topUnits($request->user())) : [],
             // The 7cav.us forum's address, for links that open a forum page (the makeup PM opens the forum's own
             // "start conversation" form). The portal never writes to the forum; these are plain links.
             'forum' => [
@@ -98,29 +96,6 @@ class HandleInertiaRequests extends Middleware
                 'docs' => (bool) config('portal.docs'),
             ],
         ];
-    }
-
-    /**
-     * The tops of the scope, for the label "1/A/1-7 +1". With several, the empty line units the switcher's menu leaves
-     * out (#442) are left out here too, so "+N" counts only what the menu lists; the first top stays when every one is
-     * empty, so the label is never blank. One top is shown as it is, with no extra read.
-     *
-     * @return list<array{id: int, designation: string, name: string}>
-     */
-    private function scopeTop(User $user): array
-    {
-        $tops = $this->scope->topUnits($user);
-
-        if ($tops->count() > 1) {
-            $shown = $this->headcount->withoutEmptyLineUnits($tops);
-            $tops = $shown->isEmpty() ? $tops->take(1) : $shown;
-        }
-
-        return $tops->map(fn (Unit $unit) => [
-            'id' => $unit->id,
-            'designation' => $unit->callsign ?? $unit->name,
-            'name' => $unit->name,
-        ])->values()->all();
     }
 
     private function acting(Request $request): bool
