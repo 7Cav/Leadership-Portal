@@ -68,13 +68,20 @@ return new class extends Migration
     }
 
     /**
-     * Back to one Hell Let Loose. Refused while anything uses the Vietnam game, before anything changes: deleting what
-     * a leader linked is not a rollback's call. WW2 takes its old name back, and its old single kind unless an
-     * identity already uses another.
+     * Back to one Hell Let Loose. Refused while anything uses the Vietnam game, or another game holds the old name,
+     * before anything changes: deleting what a leader linked is not a rollback's call. The Vietnam game is deleted
+     * only while it is still the one `up()` made (same name, kinds and no interface); one an Admin added or changed
+     * stays. WW2 takes its old name back, and its old single kind unless an identity already uses another.
      */
     public function down(): void
     {
-        $vietnam = DB::table('games')->where('slug', self::VIETNAM_SLUG)->first(['id']);
+        $holder = DB::table('games')->where('name', self::WW2_OLD_NAME)->value('slug');
+
+        if ($holder !== null && $holder !== self::WW2_SLUG) {
+            throw new RuntimeException('Cannot roll back the Hell Let Loose split: the name "'.self::WW2_OLD_NAME."\" already belongs to the game \"{$holder}\". Rename that game on Settings > Games, then roll back again.");
+        }
+
+        $vietnam = DB::table('games')->where('slug', self::VIETNAM_SLUG)->first(['id', 'name', 'id_kinds', 'interface']);
 
         if ($vietnam !== null) {
             foreach (self::GAME_TABLES as $table) {
@@ -85,7 +92,9 @@ return new class extends Migration
                 }
             }
 
-            DB::table('games')->where('id', $vietnam->id)->delete();
+            if ($vietnam->name === self::VIETNAM_NAME && $vietnam->interface === 'none' && json_decode($vietnam->id_kinds, true) === self::KINDS) {
+                DB::table('games')->where('id', $vietnam->id)->delete();
+            }
         }
 
         $now = now();

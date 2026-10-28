@@ -293,3 +293,17 @@ it('lists group members (ELOA, Reservists, New Recruits, staff departments) when
 
     expect(TrooperGameIdentity::query()->count())->toBe(1);
 });
+
+it('links the same ID on Hell Let Loose (WW2) and Vietnam, one identity per game per trooper (#431)', function () {
+    $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
+        ->where('platforms.3', ['value' => 'hll-vietnam', 'label' => 'Hell Let Loose: Vietnam', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID'], 'retired' => false]));
+
+    $body = ['player_name' => 'Austin', 'platform_id' => '0002105c01b748ada8d8cf5b32e70093', 'id_kind' => 'Epic ID'];
+    $this->actingAs($this->leader)->put(identityUrl($this->mine, 'hll'), $body)->assertRedirect()->assertSessionHasNoErrors();
+    $this->actingAs($this->leader)->put(identityUrl($this->mine, 'hll-vietnam'), $body)->assertRedirect()->assertSessionHasNoErrors();
+    // The same ID for another trooper on the same game is still a collision.
+    $this->actingAs($this->leader)->put(identityUrl(placedTrooper($this->section), 'hll-vietnam'), $body)->assertSessionHasErrors('platform_id');
+
+    expect(TrooperGameIdentity::query()->where('trooper_id', $this->mine->id)->pluck('game_id')->all())
+        ->toEqualCanonicalizing([game('hll')->id, game('hll-vietnam')->id]);
+});

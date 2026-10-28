@@ -64,6 +64,8 @@ it('shows each game\'s selected servers with their type, interface, credentials 
         ->where('games.1.captureConfigured', true)
         // WARDOGS' only training server sits behind Nightwatch, whose key is unset.
         ->where('games.2.captureConfigured', false)
+        // Hell Let Loose: Vietnam is listed, and reads nothing until an Admin picks its interface (#431).
+        ->where('games.3', ['id' => game('hll-vietnam')->id, 'name' => 'Hell Let Loose: Vietnam', 'retired' => false, 'interface' => 'none', 'readsEnvServer' => false, 'captureConfigured' => false])
         ->where('fetchResult', null)
     );
 });

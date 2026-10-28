@@ -35,6 +35,7 @@ it('lists every game with its id label, interface and state, and the interfaces 
         ->has('games', 5)
         ->where('games.0', ['id' => game('hll')->id, 'slug' => 'hll', 'name' => 'Hell Let Loose (WW2)', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID'], 'interface' => 'crcon', 'retired' => false, 'inUse' => true])
         ->where('games.1.inUse', false)
+        ->where('games.3', ['id' => game('hll-vietnam')->id, 'slug' => 'hll-vietnam', 'name' => 'Hell Let Loose: Vietnam', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID'], 'interface' => 'none', 'retired' => false, 'inUse' => false])
         ->where('games.4', fn ($game) => $game['slug'] === 'foxhole' && $game['retired'] === true)
         ->where('interfaces', [
             ['value' => 'crcon', 'label' => 'CRCON'],

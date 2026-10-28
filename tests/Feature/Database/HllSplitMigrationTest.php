@@ -2,6 +2,7 @@
 
 use App\Models\Game;
 use App\Models\GamePlayerDismissal;
+use App\Models\GameServer;
 use App\Models\PracticeCapturePlayer;
 use App\Models\SectionPractice;
 use App\Models\TelemetryInterface;
@@ -98,13 +99,18 @@ it('keeps the WW2 kinds on a rollback when an identity already uses one of them'
     expect(game('hll')->id_kinds)->toBe(['Steam ID', 'Epic ID', 'Xbox ID']);
 });
 
-it('refuses a rollback while anything uses the Vietnam game, changing nothing', function () {
-    TrooperGameIdentity::factory()->create(['game_id' => game('hll-vietnam')->id, 'id_kind' => 'Epic ID']);
+it('refuses a rollback while anything uses the Vietnam game, changing nothing', function (Closure $use) {
+    $use(game('hll-vietnam'));
 
     expect(fn () => hllSplitMigration()->down())->toThrow(RuntimeException::class, 'use the Vietnam game')
         ->and(game('hll')->name)->toBe('Hell Let Loose (WW2)')
         ->and(Game::query()->where('slug', 'hll-vietnam')->exists())->toBeTrue();
-});
+})->with([
+    'identity' => [fn (Game $game) => TrooperGameIdentity::factory()->create(['game_id' => $game->id, 'id_kind' => 'Epic ID'])],
+    'captured player' => [fn (Game $game) => PracticeCapturePlayer::query()->create(['section_practice_id' => SectionPractice::factory()->create()->id, 'game_id' => $game->id, 'player_name' => 'P', 'platform_id' => '1'])],
+    'dismissal' => [fn (Game $game) => GamePlayerDismissal::query()->create(['game_id' => $game->id, 'platform_id' => '1', 'player_name' => 'D', 'dismissed_by' => User::factory()->create()->id])],
+    'server' => [fn (Game $game) => GameServer::factory()->create(['game_id' => $game->id])],
+]);
 
 it('lets one trooper hold an identity on each game, and the same ID value on both is not a collision', function () {
     $trooper = Trooper::factory()->create();
@@ -114,4 +120,20 @@ it('lets one trooper hold an identity on each game, and the same ID value on bot
     TrooperGameIdentity::factory()->create(['trooper_id' => $trooper->id, 'game_id' => game('hll-vietnam')->id, 'platform_id' => $epic, 'id_kind' => 'Epic ID']);
 
     expect(TrooperGameIdentity::query()->where('trooper_id', $trooper->id)->count())->toBe(2);
+});
+
+it('keeps a Vietnam game an Admin changed on a rollback, and refuses it when another game holds the old WW2 name', function () {
+    game('hll-vietnam')->update(['interface' => TelemetryInterface::Crcon]);
+
+    hllSplitMigration()->down();
+
+    expect(Game::query()->where('slug', 'hll-vietnam')->exists())->toBeTrue()
+        ->and(game('hll')->name)->toBe('Hell Let Loose');
+
+    hllSplitMigration()->up();
+    game('hll')->update(['name' => 'HLL']);
+    Game::factory()->create(['slug' => 'other', 'name' => 'Hell Let Loose']);
+
+    expect(fn () => hllSplitMigration()->down())->toThrow(RuntimeException::class, 'already belongs to the game "other"')
+        ->and(game('hll')->name)->toBe('HLL');
 });
