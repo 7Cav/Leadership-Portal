@@ -26,4 +26,4 @@ minutes: 2
 
 1. Edit the subject and apply it again, or choose **Clear**.
 2. A section whose report is already sent keeps the subject it was sent with.
-3. A week whose topic comes from the approved training plan can only change in the plan. The field says so, and the change goes back to the company for approval.
+3. A week whose topic comes from the approved training plan can only change in the plan. The field says so, and the change goes back to the company for approval. See [Plan a month of training](/docs/weekly-report/training-plan).

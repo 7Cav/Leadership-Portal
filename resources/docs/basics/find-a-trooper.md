@@ -26,5 +26,7 @@ page: /troopers/{trooper}
 1. The top block shows rank, billet, MOS, time in service and grade, and section.
 2. Below it are their courses, their service record and their transfers between units, newest first.
 3. The quick links open their section's roster and rollcall, and their platoon's training readiness.
+4. The **Counseling** panel holds the trooper's DCSs and LORs that you may see. See [File a DCS or LOR](/docs/your-troopers/counseling).
+5. On a staff member's page, **Section practices attended** lists the practices they went to. See [Record a practice a staff member attended](/docs/your-troopers/staff-practices).
 
 > [!good-to-know] Awards are not synced from the Cav roster yet, and the page says so. Use the Cav milpac for awards.
