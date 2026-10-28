@@ -153,7 +153,8 @@ class ReportController extends Controller
             // Carry-forward: the subject of the section's most recent sent report, offered on an
             // empty field for the leader to accept. Never saved unless they do.
             'suggestedSubject' => $isLeaf && ! $sent ? $history->first()?->training_subject : null,
-            'kpis' => $snapshot === null ? null : $this->kpiProps($snapshot->kpis),
+            // The headcount beside the six: null for a report frozen before it existed, never guessed (#424).
+            'kpis' => $snapshot === null ? null : [...$this->kpiProps($snapshot->kpis), 'headcount' => $snapshot->headcount],
             'delta' => $snapshot?->delta === null ? null : $this->deltaProps($snapshot->delta),
             'kpiError' => $kpiError,
             'baseline' => $this->baseline($snapshot, $sent ? $report : null, $history, $weekStart),

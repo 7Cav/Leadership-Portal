@@ -9,6 +9,7 @@ use App\Commands\GameIdentities\RemoveTrooperGameIdentity;
 use App\Commands\GameIdentities\RemoveTrooperGameIdentityHandler;
 use App\Commands\GameIdentities\SetTrooperGameIdentity;
 use App\Commands\GameIdentities\SetTrooperGameIdentityHandler;
+use App\Commands\GameIdentities\UnknownIdKindException;
 use App\Models\Game;
 use App\Models\Trooper;
 use App\Models\TrooperGameIdentity;
@@ -32,7 +33,8 @@ use Inertia\Response;
  * Reads go straight to the repositories; every write is an audited Command, scope-gated by the
  * ScopeResolver inside its handler (AD-8) — a trooper outside the viewer's scope is a 403 whatever
  * the page offered. A platform is rendered for every game an Admin keeps ({@see GameRepository}),
- * so a new game needs no change here. A retired game is sent flagged: the page keeps showing (and
+ * so a new game needs no change here. A game may ask for several kinds of player ID (#428, Steam, Epic, Xbox): the
+ * page picks one for the form, and an identity says which it was entered as. A retired game is sent flagged: the page keeps showing (and
  * removing) the links it already has, and offers it for no new one (#388).
  *
  * Lists every serving trooper placed anywhere in the viewer's scope: a section, an HQ node (PL, PSG,
@@ -63,7 +65,7 @@ class GameIdentityController extends Controller
             'platforms' => $this->games->all()->map(fn (Game $game) => [
                 'value' => $game->slug,
                 'label' => $game->name,
-                'idLabel' => $game->id_label,
+                'idKinds' => $game->id_kinds,
                 'retired' => $game->isRetired(),
             ])->values()->all(),
             'troopers' => $troopers->map(fn (Trooper $trooper) => [
@@ -77,6 +79,7 @@ class GameIdentityController extends Controller
                     ->mapWithKeys(fn (TrooperGameIdentity $identity) => [$identity->game->slug => [
                         'playerName' => $identity->player_name,
                         'platformId' => $identity->platform_id,
+                        'idKind' => $identity->id_kind,
                     ]])->all(),
             ])->sortBy(fn (array $row) => mb_strtolower($row['displayName']))->values()->all(),
         ]);
@@ -85,7 +88,8 @@ class GameIdentityController extends Controller
     /**
      * Link the trooper on the game `$platform` names (its slug), or correct the identity they
      * already hold there. An identifier another trooper already owns, or a retired game, comes
-     * back as a validation error on `platform_id`. An unknown game is a 404.
+     * back as a validation error on `platform_id`, and a kind the game does not have on `id_kind`; no kind
+     * keeps the identity's kind, or takes the game's first for a new one. An unknown game is a 404.
      */
     public function update(Request $request, int $trooper, string $platform, SetTrooperGameIdentityHandler $handler): RedirectResponse
     {
@@ -94,14 +98,17 @@ class GameIdentityController extends Controller
         $data = $request->validate([
             'player_name' => ['required', 'string', 'max:255'],
             'platform_id' => ['required', 'string', 'max:255'],
+            'id_kind' => ['nullable', 'string', 'max:50'],
         ]);
 
         try {
-            $handler->handle($request->user(), new SetTrooperGameIdentity($trooper, $game, $data['player_name'], $data['platform_id']));
+            $handler->handle($request->user(), new SetTrooperGameIdentity($trooper, $game, $data['player_name'], $data['platform_id'], idKind: $data['id_kind'] ?? null));
         } catch (GameIdentityForbiddenException $e) {
             abort(403, $e->getMessage());
         } catch (GameRetiredException $e) {
             throw ValidationException::withMessages(['platform_id' => $e->getMessage()]);
+        } catch (UnknownIdKindException $e) {
+            throw ValidationException::withMessages(['id_kind' => $e->getMessage()]);
         } catch (GameIdentityLinkException) {
             throw ValidationException::withMessages(['platform_id' => $this->collisionMessage($game, $data['platform_id'])]);
         }

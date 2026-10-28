@@ -5,7 +5,8 @@ import { KPIS, kpiValue } from '@/lib/report';
 
 // The tile labels of dashboard-v1-tiles.html. `KPIS` carries the order, polarity and delta keys.
 const LABELS = {
-    strength: 'Strength',
+    // The rollcall population the rates are over; the headcount with staff sits beside it (#424).
+    strength: 'In rollcall',
     rc: 'RC % · 30d',
     sp: 'SP % · 30d',
     atRisk: 'At-risk',

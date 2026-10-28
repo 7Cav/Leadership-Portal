@@ -8,6 +8,12 @@ not in a report's strength. A non-leaf's live KPIs therefore stay the sum of its
 org page and roster show strength as the headcount instead: everyone serving placed under the unit, HQ staff and groups
 included, New Recruits on their own group only.
 
+**Headcount beside strength (#424).** `Headcount` is that count, defined once for the roster, Home and the report. Home's
+tiles and a report's header show it labelled "Headcount", next to the measured figure now labelled "In rollcall". It is
+never a KPI: no rate, at-risk flag or roll-up reads it, so the roll-up equality (a non-leaf's live KPIs equal the sum of
+its children's sent snapshots) holds as before. A sent report keeps the headcount it was sent with, in the same
+`weekly_reports.kpis` JSON (no column); one sent before this has none and shows none.
+
 **Transfers (2026-10-27).** Each week of the window is read against the section the trooper was placed in that week,
 from the placement history (`trooper_placements`, written by the roster sync and the Admin's manual placement). Their
 marks at an old section still count after a move, the new section's practices from before they joined never do, and

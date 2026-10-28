@@ -15,7 +15,7 @@ use Illuminate\Support\Collection;
 interface GameRepository
 {
     /**
-     * Every game, retired ones included, in the order they were added — the hll, arma, wardogs order the migration
+     * Every game, retired ones included, in the order they were added — the hll, arma, wardogs, hll-vietnam order the migrations
      * created them in comes first, which is also how a tie between games is broken where one must be picked.
      *
      * @return Collection<int, Game>
@@ -26,10 +26,24 @@ interface GameRepository
 
     public function findBySlug(string $slug): ?Game;
 
-    public function create(string $slug, string $name, string $idLabel, TelemetryInterface $interface): Game;
+    /**
+     * The game as stored now, with its row locked until the caller's transaction ends (`$exclusive` for a write to the
+     * game, shared for one that only relies on it): what keeps an ID kind from being removed while an identity is
+     * being linked on it (#428). Call it inside a transaction.
+     *
+     * @throws ModelNotFoundException when the game is gone.
+     */
+    public function lock(int $id, bool $exclusive): Game;
 
-    /** Rename the game, relabel its player id, or change how its attendance is read. The slug never changes. */
-    public function update(Game $game, string $name, string $idLabel, TelemetryInterface $interface): Game;
+    /** @param  list<string>  $idKinds */
+    public function create(string $slug, string $name, array $idKinds, TelemetryInterface $interface): Game;
+
+    /**
+     * Rename the game, change its ID kinds, or change how its attendance is read. The slug never changes.
+     *
+     * @param  list<string>  $idKinds
+     */
+    public function update(Game $game, string $name, array $idKinds, TelemetryInterface $interface): Game;
 
     /** Retire the game (`true`) or bring it back (`false`). Already in that state is left as it is. */
     public function setRetired(Game $game, bool $retired): Game;

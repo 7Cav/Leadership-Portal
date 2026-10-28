@@ -56,7 +56,7 @@ it('shows the failure with its time and the unchanged manual marks when the last
     captureRun($this, SyncRunStatus::Failure);
 
     telemetryOf($this)->assertInertia(fn (Assert $page) => $page
-        ->where('telemetry', ['state' => 'failed', 'platformLabel' => 'Hell Let Loose', 'feeds' => ['crcon'], 'lastAttemptAt' => '2026-10-08T15:42:00+00:00', 'canRetry' => true])
+        ->where('telemetry', ['state' => 'failed', 'platformLabel' => 'Hell Let Loose (WW2)', 'feeds' => ['crcon'], 'lastAttemptAt' => '2026-10-08T15:42:00+00:00', 'canRetry' => true])
         ->where('capture', null)
         ->where('unmatched', [])
         ->where('troopers.0.status', null)
@@ -86,7 +86,7 @@ it('says telemetry is not configured when the game has no source with keys set, 
     captureRun($this, SyncRunStatus::Failure);
 
     telemetryOf($this)->assertInertia(fn (Assert $page) => $page
-        ->where('telemetry', ['state' => 'not_configured', 'platformLabel' => 'Hell Let Loose', 'feeds' => [], 'lastAttemptAt' => null, 'canRetry' => false]));
+        ->where('telemetry', ['state' => 'not_configured', 'platformLabel' => 'Hell Let Loose (WW2)', 'feeds' => [], 'lastAttemptAt' => null, 'canRetry' => false]));
 });
 
 it('names every feed of the game that was tried, in the order a capture tries them (#176)', function () {
@@ -150,7 +150,7 @@ it('breaks a tie between games by the game added first: HLL over Arma', function
     TrooperGameIdentity::factory()->create(['trooper_id' => $second->id, 'game_id' => game('arma')->id, 'platform_id' => 'a1']);
     captureRun($this, SyncRunStatus::Failure);
 
-    telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.platformLabel', 'Hell Let Loose'));
+    telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.platformLabel', 'Hell Let Loose (WW2)'));
 });
 
 it('reads a game an Admin added through the interface picked for it (#388)', function () {
@@ -167,19 +167,19 @@ it('reads a game an Admin added through the interface picked for it (#388)', fun
 
 it('follows an Admin changing the game\'s interface: set to none, the game is not configured and cannot be retried (#388)', function () {
     $this->actingAs(User::factory()->admin()->create())
-        ->patch('/settings/games/'.game('hll')->id, ['name' => 'Hell Let Loose', 'id_label' => 'Steam ID', 'interface' => 'none'])
+        ->patch('/settings/games/'.game('hll')->id, ['name' => 'Hell Let Loose (WW2)', 'id_kinds' => ['Steam ID'], 'interface' => 'none'])
         ->assertRedirect();
     captureRun($this, SyncRunStatus::Failure);
 
-    telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.state', 'not_configured')->where('telemetry.platformLabel', 'Hell Let Loose'));
-    tryAgain($this)->assertStatus(422)->assertJsonPath('message', 'Telemetry is not configured for Hell Let Loose. Mark attendance by hand.');
+    telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.state', 'not_configured')->where('telemetry.platformLabel', 'Hell Let Loose (WW2)'));
+    tryAgain($this)->assertStatus(422)->assertJsonPath('message', 'Telemetry is not configured for Hell Let Loose (WW2). Mark attendance by hand.');
 });
 
 it('still reads a retired game: retiring stops new links, not the capture of the ones made (#388)', function () {
     game('hll')->forceFill(['retired_at' => now()])->save();
     captureRun($this, SyncRunStatus::Failure);
 
-    telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.platformLabel', 'Hell Let Loose')->where('telemetry.canRetry', true));
+    telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.platformLabel', 'Hell Let Loose (WW2)')->where('telemetry.canRetry', true));
 });
 
 function tryAgain(object $test, array $body = ['week' => '2026-10-03'], ?User $as = null)
@@ -290,7 +290,7 @@ it('refuses a retry when the game has no keys set, saying so', function () {
     config(['services.crcon' => []]);
     app()->forgetInstance(CaptureSources::class);
 
-    tryAgain($this)->assertStatus(422)->assertJsonPath('message', 'Telemetry is not configured for Hell Let Loose. Mark attendance by hand.');
+    tryAgain($this)->assertStatus(422)->assertJsonPath('message', 'Telemetry is not configured for Hell Let Loose (WW2). Mark attendance by hand.');
 
     Queue::assertNothingPushed();
 });

@@ -46,11 +46,21 @@ interface TrooperGameIdentityRepository
      * Link `$trooperId` to a player in `$game`, replacing the trooper's own existing identity
      * in that game (one per game) rather than adding a second.
      *
+     * `$idKind` is which of the game's ID kinds the id was entered as (#428); the repository stores it as given, the
+     * Command checks it against the game.
+     *
      * @throws GameIdentityLinkException when `$platformId` already belongs to a different trooper
-     *                                   in that game; nothing is written and the existing
-     *                                   link stays intact — never silently reassigned.
+     *                                   in that game, whatever kind either was entered as; nothing is
+     *                                   written and the existing link stays intact — never silently reassigned.
      */
-    public function link(int $trooperId, Game $game, string $playerName, string $platformId): TrooperGameIdentity;
+    public function link(int $trooperId, Game $game, string $playerName, string $platformId, string $idKind): TrooperGameIdentity;
+
+    /**
+     * The ID kinds of `$game` that a linked identity uses (#428), so a kind in use is never removed from the game.
+     *
+     * @return list<string>
+     */
+    public function kindsInUse(Game $game): array;
 
     /**
      * Remove a trooper's identity in `$game`. True when a link existed.

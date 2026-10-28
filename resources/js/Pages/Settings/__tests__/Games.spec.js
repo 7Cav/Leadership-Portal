@@ -24,10 +24,10 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => {
                 processing: false,
                 // The fields as they stand when the form is sent, passed last so a test can check what was posted.
                 post(...args) {
-                    post(...args, { name: this.name, id_label: this.id_label, interface: this.interface });
+                    post(...args, { name: this.name, id_kinds: this.id_kinds, interface: this.interface });
                 },
                 patch(...args) {
-                    patch(...args, { name: this.name, id_label: this.id_label, interface: this.interface });
+                    patch(...args, { name: this.name, id_kinds: this.id_kinds, interface: this.interface });
                 },
                 clearErrors() {},
                 reset() {
@@ -44,9 +44,9 @@ const INTERFACES = [
     { value: 'none', label: 'None' },
 ];
 const GAMES = [
-    { id: 1, slug: 'hll', name: 'Hell Let Loose', idLabel: 'Steam ID', interface: 'crcon', retired: false, inUse: true },
-    { id: 4, slug: 'squad', name: 'Squad', idLabel: 'EOS ID', interface: 'none', retired: false, inUse: false },
-    { id: 5, slug: 'foxhole', name: 'Foxhole', idLabel: 'Player ID', interface: 'none', retired: true, inUse: true },
+    { id: 1, slug: 'hll', name: 'Hell Let Loose', idKinds: ['Steam ID'], interface: 'crcon', retired: false, inUse: true },
+    { id: 4, slug: 'squad', name: 'Squad', idKinds: ['EOS ID'], interface: 'none', retired: false, inUse: false },
+    { id: 5, slug: 'foxhole', name: 'Foxhole', idKinds: ['Player ID'], interface: 'none', retired: true, inUse: true },
 ];
 
 const factory = (isAdmin = true) => mount(Games, { props: { games: GAMES, interfaces: INTERFACES, isAdmin } });
@@ -59,7 +59,7 @@ describe('Settings/Games', () => {
         routerDelete.mockReset();
     });
 
-    it('lists every game with its player id label and the interface that reads it', () => {
+    it('lists every game with its player id kinds and the interface that reads it', () => {
         const wrapper = factory();
 
         expect(wrapper.get('[data-testid="game-row-hll"]').text()).toContain('Steam ID');
@@ -90,13 +90,13 @@ describe('Settings/Games', () => {
     it('adds a game with the interface picked', async () => {
         const wrapper = factory();
         await wrapper.get('[data-testid="game-name"]').setValue('Squad 44');
-        await wrapper.get('[data-testid="game-id_label"]').setValue('EOS ID');
+        await wrapper.get('[data-testid="game-id_kind-0"]').setValue('EOS ID');
         await wrapper.get('[data-testid="game-interface"]').setValue('battlemetrics');
         await wrapper.get('[data-testid="game-form"]').trigger('submit');
 
         expect(post).toHaveBeenCalledWith('/settings/games', expect.objectContaining({ preserveScroll: true }), {
             name: 'Squad 44',
-            id_label: 'EOS ID',
+            id_kinds: ['EOS ID'],
             interface: 'battlemetrics',
         });
         expect(patch).not.toHaveBeenCalled();
@@ -110,10 +110,10 @@ describe('Settings/Games', () => {
         expect(wrapper.get('[data-testid="game-interface"]').element.value).toBe('crcon');
         expect(wrapper.get('[data-testid="submit-game"]').text()).toBe('Save changes');
 
-        await wrapper.get('[data-testid="game-id_label"]').setValue('Steam64');
+        await wrapper.get('[data-testid="game-id_kind-0"]').setValue('Steam64');
         await wrapper.get('[data-testid="game-interface"]').setValue('none');
         await wrapper.get('[data-testid="game-form"]').trigger('submit');
-        expect(patch).toHaveBeenCalledWith('/settings/games/1', expect.anything(), { name: 'Hell Let Loose', id_label: 'Steam64', interface: 'none' });
+        expect(patch).toHaveBeenCalledWith('/settings/games/1', expect.anything(), { name: 'Hell Let Loose', id_kinds: ['Steam64'], interface: 'none' });
 
         await wrapper.get('[data-testid="cancel-edit"]').trigger('click');
         expect(wrapper.get('[data-testid="submit-game"]').text()).toBe('Add game');
@@ -133,6 +133,54 @@ describe('Settings/Games', () => {
         await nextTick();
 
         expect(wrapper.get('[data-testid="row-error"]').text()).toBe('Squad is in use, so it cannot be deleted. Retire it instead.');
+    });
+
+    it('lists a game\'s several ID kinds', () => {
+        const games = [{ ...GAMES[0], idKinds: ['Steam ID', 'Epic ID', 'Xbox ID'] }];
+        const wrapper = mount(Games, { props: { games, interfaces: INTERFACES, isAdmin: true } });
+
+        expect(wrapper.get('[data-testid="kinds-hll"]').text()).toBe('Steam ID, Epic ID, Xbox ID');
+    });
+
+    it('gives a game several ID kinds, adding and removing rows, and sends them in order', async () => {
+        const wrapper = factory();
+        await wrapper.get('[data-testid="edit-hll"]').trigger('click');
+
+        expect(wrapper.find('[data-testid="remove-kind-0"]').exists()).toBe(false);
+
+        await wrapper.get('[data-testid="add-kind"]').trigger('click');
+        await wrapper.get('[data-testid="add-kind"]').trigger('click');
+        await wrapper.get('[data-testid="game-id_kind-1"]').setValue('Epic ID');
+        await wrapper.get('[data-testid="game-id_kind-2"]').setValue('Xbox ID');
+        await wrapper.get('[data-testid="game-form"]').trigger('submit');
+
+        expect(patch).toHaveBeenLastCalledWith('/settings/games/1', expect.anything(), {
+            name: 'Hell Let Loose',
+            id_kinds: ['Steam ID', 'Epic ID', 'Xbox ID'],
+            interface: 'crcon',
+        });
+
+        await wrapper.get('[data-testid="remove-kind-1"]').trigger('click');
+        await wrapper.get('[data-testid="game-form"]').trigger('submit');
+
+        expect(patch.mock.lastCall[2].id_kinds).toEqual(['Steam ID', 'Xbox ID']);
+    });
+
+    it('starts a new game with one empty kind row', () => {
+        const wrapper = factory();
+
+        expect(wrapper.findAll('[data-testid^="game-id_kind-"]')).toHaveLength(1);
+        expect(wrapper.get('[data-testid="game-id_kind-0"]').element.value).toBe('');
+    });
+
+    it('does not carry one game\'s kinds into the next edit', async () => {
+        const wrapper = factory();
+        await wrapper.get('[data-testid="edit-hll"]').trigger('click');
+        await wrapper.get('[data-testid="add-kind"]').trigger('click');
+        await wrapper.get('[data-testid="edit-squad"]').trigger('click');
+
+        expect(wrapper.findAll('[data-testid^="game-id_kind-"]').map((input) => input.element.value)).toEqual(['EOS ID']);
+        expect(GAMES[0].idKinds).toEqual(['Steam ID']);
     });
 
     it('is in the Settings navigation', () => {

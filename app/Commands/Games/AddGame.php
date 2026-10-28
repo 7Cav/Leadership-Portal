@@ -23,9 +23,11 @@ class AddGame
     ) {}
 
     /**
+     * @param  list<string>  $idKinds  the kinds of player ID the game asks for, the first being the default
+     *
      * @throws InvalidGameException when the name has nothing a slug can be made from.
      */
-    public function handle(User $actor, string $name, string $idLabel, TelemetryInterface $interface): Game
+    public function handle(User $actor, string $name, array $idKinds, TelemetryInterface $interface): Game
     {
         $base = Str::slug($name);
 
@@ -44,7 +46,7 @@ class AddGame
             action: 'game.added',
             reason: null,
             reasonRequired: false,
-            mutation: fn () => $this->games->create($slug, trim($name), trim($idLabel), $interface),
+            mutation: fn () => $this->games->create($slug, trim($name), array_values(array_map('trim', $idKinds)), $interface),
         );
     }
 }

@@ -58,7 +58,7 @@ it('lists the unmatched players of a captured practice, with the capture seam fo
     $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")->assertInertia(fn (Assert $page) => $page
         ->where('capture', ['source' => 'crcon', 'capturedAt' => '2026-10-08T12:00:00+00:00'])
         ->has('unmatched', 1)
-        ->where('unmatched.0', ['platform' => 'hll', 'platformLabel' => 'Hell Let Loose', 'playerName' => 'Ortega', 'platformId' => '7656119000000001']));
+        ->where('unmatched.0', ['platform' => 'hll', 'platformLabel' => 'Hell Let Loose (WW2)', 'playerName' => 'Ortega', 'platformId' => '7656119000000001']));
 });
 
 it('shows no drawer data for a practice that was never captured', function () {
@@ -108,7 +108,7 @@ it('refuses to link a player of a retired game, and changes nothing (#388)', fun
 
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this))
         ->assertStatus(422)
-        ->assertJsonPath('message', 'Hell Let Loose is retired, so no identity can be linked to it.');
+        ->assertJsonPath('message', 'Hell Let Loose (WW2) is retired, so no identity can be linked to it.');
 
     expect(TrooperGameIdentity::query()->count())->toBe(0)
         ->and(Attendance::query()->count())->toBe(0);
@@ -165,7 +165,7 @@ it('surfaces "Already linked to <trooper> on <game>" instead of reassigning', fu
 
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this))
         ->assertStatus(422)
-        ->assertJsonPath('message', 'Already linked to PFC Nakamura.T on Hell Let Loose.');
+        ->assertJsonPath('message', 'Already linked to PFC Nakamura.T on Hell Let Loose (WW2).');
 
     expect(TrooperGameIdentity::query()->sole()->trooper_id)->toBe($owner->id)
         ->and(Attendance::query()->count())->toBe(0);
@@ -179,7 +179,7 @@ it('does not replace a different identity the chosen trooper already holds on th
         ->assertStatus(422)
         ->assertJsonPath('reason', 'has_other_identity')
         ->assertJsonPath('current', ['playerName' => 'OrtegaMain', 'platformId' => '7656119000000099'])
-        ->assertJsonPath('message', 'That trooper is already linked to OrtegaMain (7656119000000099) on Hell Let Loose. Replace it, or cancel to keep it.');
+        ->assertJsonPath('message', 'That trooper is already linked to OrtegaMain (7656119000000099) on Hell Let Loose (WW2). Replace it, or cancel to keep it.');
 
     expect(TrooperGameIdentity::query()->sole()->platform_id)->toBe('7656119000000099')
         ->and(AuditLogEntry::query()->count())->toBe($before)
@@ -230,7 +230,7 @@ it('never reassigns an identifier another trooper owns, even with replace, and n
     foreach ([[], ['replace' => true, 'replacing' => '7656119000000099']] as $override) {
         $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this, $override))
             ->assertStatus(422)
-            ->assertJsonPath('message', 'Already linked to PFC Nakamura.T on Hell Let Loose.')
+            ->assertJsonPath('message', 'Already linked to PFC Nakamura.T on Hell Let Loose (WW2).')
             ->assertJsonMissingPath('reason');
     }
 
@@ -261,7 +261,7 @@ it('refuses a replace whose ID changed since the leader was asked, with the new 
         ->assertStatus(422)
         ->assertJsonPath('reason', 'has_other_identity')
         ->assertJsonPath('current', ['playerName' => 'OrtegaAlt', 'platformId' => '7656119000000077'])
-        ->assertJsonPath('message', 'That trooper is already linked to OrtegaAlt (7656119000000077) on Hell Let Loose. Replace it, or cancel to keep it.');
+        ->assertJsonPath('message', 'That trooper is already linked to OrtegaAlt (7656119000000077) on Hell Let Loose (WW2). Replace it, or cancel to keep it.');
 
     expect(TrooperGameIdentity::query()->sole()->only(['player_name', 'platform_id']))->toBe(['player_name' => 'OrtegaAlt', 'platform_id' => '7656119000000077'])
         ->and(AuditLogEntry::query()->count())->toBe($before)
@@ -344,7 +344,7 @@ it('lists this practice\'s dismissed players for the drawer, and undoing one lis
 
     $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")->assertInertia(fn (Assert $page) => $page
         ->where('unmatched', [])
-        ->where('dismissed', [['platform' => 'hll', 'platformLabel' => 'Hell Let Loose', 'playerName' => 'Ortega', 'platformId' => '7656119000000001']]));
+        ->where('dismissed', [['platform' => 'hll', 'platformLabel' => 'Hell Let Loose (WW2)', 'playerName' => 'Ortega', 'platformId' => '7656119000000001']]));
 
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/restore", linkBody($this))
         ->assertOk()->assertJsonPath('restored', true);

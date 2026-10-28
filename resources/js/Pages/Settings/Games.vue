@@ -16,7 +16,7 @@ import { onHttpException } from '@/lib/httpError';
 // The games the regiment plays (#388): the list on the left, and the add/edit form alongside for an Admin (the
 // Staff grants layout). A game in use can be retired, not deleted, so Delete is offered only for one nothing uses.
 const props = defineProps({
-    // `[{ id, slug, name, idLabel, interface, retired, inUse }]`, in the order they were added.
+    // `[{ id, slug, name, idKinds, interface, retired, inUse }]`, in the order they were added.
     games: { type: Array, required: true },
     // `[{ value, label }]`: the telemetry interfaces the portal has built in.
     interfaces: { type: Array, required: true },
@@ -27,7 +27,8 @@ const editingId = ref(null);
 const editing = computed(() => props.games.find((game) => game.id === editingId.value) ?? null);
 const rowError = ref(null);
 
-const form = useForm({ name: '', id_label: '', interface: 'none' });
+// `id_kinds` is the list of player-ID kinds the game asks for ("Steam ID", "Epic ID"), the first being the default.
+const form = useForm({ name: '', id_kinds: [''], interface: 'none' });
 
 const interfaceLabel = (value) => props.interfaces.find((option) => option.value === value)?.label ?? value;
 
@@ -35,9 +36,15 @@ function edit(game) {
     editingId.value = game.id;
     form.clearErrors();
     form.name = game.name;
-    form.id_label = game.idLabel;
+    form.id_kinds = [...game.idKinds];
     form.interface = game.interface;
 }
+
+const addKind = () => form.id_kinds.push('');
+const removeKind = (index) => form.id_kinds.splice(index, 1);
+
+// The server names a kind error by its row (`id_kinds.1`) or for the whole list (`id_kinds`, e.g. a kind in use).
+const kindError = computed(() => Object.entries(form.errors).find(([key]) => key === 'id_kinds' || key.startsWith('id_kinds.'))?.[1]);
 
 function cancelEdit() {
     editingId.value = null;
@@ -99,7 +106,7 @@ const remove = (game) => act('delete', `/settings/games/${game.id}`, `${game.nam
                     <TableHeader>
                         <TableRow class="hover:bg-transparent">
                             <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">Game</TableHead>
-                            <TableHead class="h-8 text-xs font-medium text-muted-foreground">Player ID</TableHead>
+                            <TableHead class="h-8 text-xs font-medium text-muted-foreground">Player ID kinds</TableHead>
                             <TableHead class="h-8 text-xs font-medium text-muted-foreground">Attendance read by</TableHead>
                             <TableHead class="h-8 px-4"><span class="sr-only">Actions</span></TableHead>
                         </TableRow>
@@ -112,7 +119,7 @@ const remove = (game) => act('delete', `/settings/games/${game.id}`, `${game.nam
                                     <Badge v-if="game.retired" variant="outline" :data-testid="`retired-${game.slug}`">Retired</Badge>
                                 </span>
                             </TableCell>
-                            <TableCell>{{ game.idLabel }}</TableCell>
+                            <TableCell :data-testid="`kinds-${game.slug}`">{{ game.idKinds.join(', ') }}</TableCell>
                             <TableCell :data-testid="`interface-${game.slug}`">{{ interfaceLabel(game.interface) }}</TableCell>
                             <TableCell class="px-4 text-right whitespace-nowrap">
                                 <template v-if="isAdmin">
@@ -154,10 +161,34 @@ const remove = (game) => act('delete', `/settings/games/${game.id}`, `${game.nam
                         <p v-if="form.errors.name" class="text-xs text-destructive" data-testid="error-name">{{ form.errors.name }}</p>
                     </div>
 
-                    <div class="grid gap-1.5">
-                        <Label for="game-id-label">Player ID is called</Label>
-                        <Input id="game-id-label" v-model="form.id_label" data-testid="game-id_label" placeholder="Steam ID" autocomplete="off" :aria-invalid="!!form.errors.id_label" />
-                        <p v-if="form.errors.id_label" class="text-xs text-destructive" data-testid="error-id_label">{{ form.errors.id_label }}</p>
+                    <div class="grid gap-1.5" role="group" aria-labelledby="game-id-kinds">
+                        <Label id="game-id-kinds">Player ID kinds</Label>
+                        <div v-for="(kind, index) in form.id_kinds" :key="index" class="flex gap-2">
+                            <Input
+                                v-model="form.id_kinds[index]"
+                                :data-testid="`game-id_kind-${index}`"
+                                :aria-label="`Player ID kind ${index + 1}`"
+                                :placeholder="index ? 'Epic ID' : 'Steam ID'"
+                                autocomplete="off"
+                                :aria-invalid="!!kindError"
+                            />
+                            <Button
+                                v-if="form.id_kinds.length > 1"
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                :data-testid="`remove-kind-${index}`"
+                                :aria-label="`Remove ${kind || `kind ${index + 1}`}`"
+                                @click="removeKind(index)"
+                            >
+                                Remove
+                            </Button>
+                        </div>
+                        <div>
+                            <Button type="button" variant="outline" size="sm" data-testid="add-kind" @click="addKind">Add a kind</Button>
+                        </div>
+                        <p class="text-xs text-muted-foreground">A game with one kind asks for just its ID; with several, leaders pick the kind first. The first is the default.</p>
+                        <p v-if="kindError" class="text-xs text-destructive" data-testid="error-id_kinds">{{ kindError }}</p>
                     </div>
 
                     <div class="grid gap-1.5">

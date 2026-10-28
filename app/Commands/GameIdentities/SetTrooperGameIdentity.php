@@ -6,7 +6,8 @@ use App\Models\Game;
 
 /**
  * Link a trooper to a player in one game, or correct the identity they already have there
- * (a rename keeps the same row). Handled by {@see SetTrooperGameIdentityHandler}.
+ * (a rename keeps the same row). `$idKind` is which of the game's ID kinds (#428) the id was entered as; null
+ * keeps the kind the trooper's identity already has for that same id, or is the game's default. Handled by {@see SetTrooperGameIdentityHandler}.
  *
  * `$replacing` makes the write conditional (#176): when set, it goes ahead only if the trooper's
  * identity in that game, read under lock in the write's own transaction, is none, already
@@ -22,15 +23,19 @@ final readonly class SetTrooperGameIdentity
 
     public ?string $replacing;
 
+    public ?string $idKind;
+
     public function __construct(
         public int $trooperId,
         public Game $game,
         string $playerName,
         string $platformId,
         ?string $replacing = null,
+        ?string $idKind = null,
     ) {
         $this->playerName = trim($playerName);
         $this->platformId = trim($platformId);
         $this->replacing = $replacing === null ? null : trim($replacing);
+        $this->idKind = $idKind === null ? null : trim($idKind);
     }
 }
