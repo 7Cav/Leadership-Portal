@@ -13,7 +13,6 @@ use App\Repositories\UnitActingLeadRepository;
 use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
-use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 
 /**
@@ -327,9 +326,9 @@ class ScopeResolver
      * exactly the people this class gives the regiment to. A trooper with no portal account yet is listed too: they read
      * it from their first sign-in. Two queries.
      *
-     * @return EloquentCollection<int, Trooper>
+     * @return Collection<int, Trooper>
      */
-    public function regimentalHqStaff(): EloquentCollection
+    public function regimentalHqStaff(): Collection
     {
         $regimentIds = $this->units->tree()
             ->filter(fn (Unit $unit) => self::isRegimentalHqPlacement($unit))
