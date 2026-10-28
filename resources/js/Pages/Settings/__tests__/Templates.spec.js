@@ -928,13 +928,16 @@ describe('Settings/Templates: the company list (#375)', () => {
         expect(row(wrapper, 7).get('[data-testid="switch-7"]').text()).toBe('Switch off');
         expect(row(wrapper, 8).get('[data-testid="switch-8"]').text()).toBe('Switch on');
         expect(row(wrapper, 7).find('[data-testid="make-default-7"]').exists()).toBe(false);
-        expect(row(wrapper, 8).find('[data-testid="make-default-8"]').exists()).toBe(true);
+        // Switched off: it would be passed over for the regiment default, so it is switched on first.
+        expect(row(wrapper, 8).find('[data-testid="make-default-8"]').exists()).toBe(false);
+        expect(page({ templates: TEMPLATES.map((item) => ({ ...item, enabled: true })) }).find('[data-testid="make-default-8"]').exists()).toBe(true);
     });
 
     it('switches a template and makes one the company default through their own requests', async () => {
         const wrapper = page();
 
         await wrapper.get('[data-testid="switch-8"]').trigger('click');
+        await wrapper.setProps({ templates: TEMPLATES.map((item) => (item.id === 8 ? { ...item, enabled: true } : item)) });
         await wrapper.get('[data-testid="make-default-8"]').trigger('click');
 
         expect(routerPost).toHaveBeenNthCalledWith(1, '/settings/templates/8/switch', { enabled: true }, expect.objectContaining({ preserveScroll: true }));

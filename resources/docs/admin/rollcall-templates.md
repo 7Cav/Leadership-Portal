@@ -34,6 +34,6 @@ page: /settings/templates
 ## Choose what sections may use
 
 1. Switch each template on or off for the company's sections.
-2. Make one the company default. A section uses its leader's pick if they made one (one of its own, a switched-on company template or the regiment default), else the company default, else the regiment default, so a post is never blank.
+2. Make one the company default. Only a switched-on template can be: switch it on first. A section uses its leader's pick if they made one (one of its own, a switched-on company template or the regiment default), else the company default, else the regiment default, so a post is never blank.
 
 > [!good-to-know] What this changes, and how to undo it: the next rollcall post in every section using that template changes. To undo it, make the previous version active, or switch the template off. Nothing is ever overwritten; every save, switch and activation is in the audit log.

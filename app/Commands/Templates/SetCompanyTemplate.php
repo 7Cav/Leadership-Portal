@@ -13,8 +13,9 @@ use App\Support\Audit\AuditEnvelope;
 /**
  * A company's command makes one of its templates the company's active one (#375, AD-17): the template every section
  * that has not picked its own renders from, while it is switched on. Only one of the company's own templates, and only
- * by whoever commands the company ({@see TemplateAuthority}). Audited (AD-16); choosing the template that is active
- * already changes nothing and is not logged.
+ * by whoever commands the company ({@see TemplateAuthority}), and only one that is switched on: a switched-off company
+ * default is passed over for the regiment default, so choosing one would change nothing the sections see. Audited
+ * (AD-16); choosing the template that is active already changes nothing and is not logged.
  */
 class SetCompanyTemplate
 {
@@ -28,7 +29,7 @@ class SetCompanyTemplate
 
     /**
      * @throws TemplateForbiddenException when the actor does not command the template's company.
-     * @throws InvalidTemplateException when the template is the regiment default or a section's own.
+     * @throws InvalidTemplateException when the template is the regiment default, a section's own, or switched off.
      */
     public function handle(User $actor, Template $template): void
     {
@@ -38,6 +39,10 @@ class SetCompanyTemplate
 
         if (! $this->authority->manages($actor, $template)) {
             throw $this->authority->refusal($template);
+        }
+
+        if (! $template->enabled) {
+            throw InvalidTemplateException::switchedOffDefault();
         }
 
         $company = $this->units->find($template->company_id);

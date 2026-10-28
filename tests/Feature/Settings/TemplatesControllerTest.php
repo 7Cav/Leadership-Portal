@@ -533,6 +533,22 @@ describe("the company's command manages its own templates (#375)", function () {
             ->and(AuditLogEntry::query()->orderBy('id')->pluck('action')->all())->toBe(['template.created', 'template_version.authored', 'template.switched_off', 'template.company_active_set']);
     });
 
+    it('refuses to make a switched-off template the company default, which the sections would pass over, writing nothing', function () {
+        $training = $this->repo->createTemplate($this->alpha->id, ArtifactType::RollcallBbcode, 'Training week', 'training', $this->co->id);
+        $this->repo->setEnabled($training, false);
+
+        $this->actingAs($this->co)->post("/settings/templates/{$training->id}/company-active")
+            ->assertSessionHasErrors(['template_id' => 'That template is switched off, so the sections would still use the regiment default. Switch it on first, then make it the company default.']);
+
+        expect($this->repo->choiceFor($this->alpha->id, ArtifactType::RollcallBbcode)->template_id)->toBe($this->standard->id)
+            ->and(AuditLogEntry::query()->count())->toBe(0);
+
+        // Switched on, it can be.
+        $this->post("/settings/templates/{$training->id}/switch", ['enabled' => true])->assertSessionHasNoErrors();
+        $this->post("/settings/templates/{$training->id}/company-active")->assertSessionHasNoErrors();
+        expect($this->repo->choiceFor($this->alpha->id, ArtifactType::RollcallBbcode)->template_id)->toBe($training->id);
+    });
+
     it("refuses another company's command, a section leader and the regiment default to a CO, writing nothing", function () {
         $this->actingAs($this->bravoCo)->post('/settings/templates/new', ['company_id' => $this->alpha->id, 'name' => 'X', 'body' => 'x', 'reason' => 'why'])->assertForbidden();
         $this->post('/settings/templates', ['template_id' => $this->standard->id, 'body' => 'x', 'reason' => 'why'])->assertForbidden();

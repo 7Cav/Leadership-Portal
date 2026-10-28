@@ -65,6 +65,15 @@ class InvalidTemplateException extends RuntimeException
         return new self("That template is not one of this company's own.", 'template_id');
     }
 
+    /**
+     * A company default that is switched off would be passed over: its sections would render from the regiment default
+     * without anyone being told. It is switched on first.
+     */
+    public static function switchedOffDefault(): self
+    {
+        return new self('That template is switched off, so the sections would still use the regiment default. Switch it on first, then make it the company default.', 'template_id');
+    }
+
     /** A section's own template is only for that section, which may always use it: there is nothing to switch. */
     public static function sectionTemplateAlwaysOn(): self
     {

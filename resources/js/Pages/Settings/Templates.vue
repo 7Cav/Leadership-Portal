@@ -463,8 +463,9 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                             >
                                 {{ item.enabled ? 'Switch off' : 'Switch on' }}
                             </Button>
+                            <!-- Only a switched-on template: a switched-off company default is passed over for the regiment's. -->
                             <Button
-                                v-if="!item.isCompanyActive"
+                                v-if="!item.isCompanyActive && item.enabled"
                                 variant="ghost"
                                 size="sm"
                                 :disabled="readOnlyPreview || busy !== null"
