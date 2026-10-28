@@ -3,6 +3,7 @@
 namespace App\Repositories\TemplateVersionRepository;
 
 use App\Models\ArtifactType;
+use App\Models\CompanyTemplatePolicy;
 use App\Models\Template;
 use App\Models\TemplateVersion;
 use App\Models\Unit;
@@ -209,6 +210,29 @@ class Eloquent implements TemplateVersionRepository
     public function hasTemplatesFor(Unit $company): bool
     {
         return Template::query()->where('company_id', $company->getKey())->exists();
+    }
+
+    public function companyEditsTemplates(int $companyId): bool
+    {
+        return CompanyTemplatePolicy::query()->where('company_id', $companyId)->value('company_edits_templates') ?? true;
+    }
+
+    public function setCompanyEditsTemplates(Unit $company, bool $edits, int $setBy): CompanyTemplatePolicy
+    {
+        return DB::transaction(function () use ($company, $edits, $setBy) {
+            $this->lockCompany($company->id);
+
+            $policy = CompanyTemplatePolicy::query()->where('company_id', $company->id)->first();
+
+            if (($policy?->company_edits_templates ?? true) === $edits) {
+                throw new TemplateUnchangedException($policy, "Company {$company->id} is set that way already.");
+            }
+
+            $policy ??= new CompanyTemplatePolicy(['company_id' => $company->id]);
+            $policy->fill(['company_edits_templates' => $edits, 'set_by' => $setBy])->save();
+
+            return $policy;
+        });
     }
 
     /**
