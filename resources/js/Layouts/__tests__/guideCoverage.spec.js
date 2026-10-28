@@ -23,16 +23,7 @@ const NO_GUIDE = {
 // lands; the test fails if a line stays after its guide exists, so this list only shrinks.
 const AWAITING_GUIDE = [
     '/home',
-    '/roster',
-    '/rollcall',
-    '/reports',
-    '/game-identities',
-    '/settings/org-structure',
-    '/settings/staff-grants',
-    '/settings/templates',
-    '/settings/games',
     '/settings/servers',
-    '/settings/audit-log',
 ];
 
 const items = NAV_GROUPS.flatMap((group) => group.items).filter((item) => item.href);

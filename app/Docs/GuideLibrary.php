@@ -23,7 +23,7 @@ use Symfony\Component\Yaml\Yaml;
 final class GuideLibrary
 {
     /** Bump when the parser's output changes, so a deploy does not serve guides parsed the old way. */
-    private const FORMAT = 2;
+    private const FORMAT = 3;
 
     /** @var ?array{sections: list<Section>, guides: list<Guide>, problems: list<string>} */
     private ?array $loaded = null;

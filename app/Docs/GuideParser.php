@@ -11,6 +11,7 @@ use League\CommonMark\Extension\CommonMark\Node\Inline\Link;
 use League\CommonMark\Extension\CommonMark\Node\Inline\Strong;
 use League\CommonMark\Extension\FrontMatter\Exception\InvalidFrontMatterException;
 use League\CommonMark\Extension\FrontMatter\FrontMatterExtension;
+use League\CommonMark\Extension\Table\TableExtension;
 use League\CommonMark\Node\Block\Document;
 use League\CommonMark\Node\Block\Paragraph;
 use League\CommonMark\Node\Inline\Newline;
@@ -22,7 +23,7 @@ use League\CommonMark\Renderer\HtmlRenderer;
 
 /**
  * Turns one guide file into a {@see Guide}, or into the reasons it is not one (#408). Markdown is CommonMark with YAML
- * front matter. Raw HTML is stripped and unsafe link schemes are dropped, so a guide can never put script on a page.
+ * front matter and tables. Raw HTML is stripped and unsafe link schemes are dropped, so a guide can never put script on a page.
  *
  * Two call-outs are written as a block quote whose first line is a marker:
  *
@@ -56,6 +57,8 @@ final class GuideParser
         $environment = new Environment(['html_input' => 'strip', 'allow_unsafe_links' => false]);
         $environment->addExtension(new CommonMarkCoreExtension);
         $environment->addExtension(new FrontMatterExtension);
+        // Tables (GitHub's syntax), for guides like "What others can do" that compare roles.
+        $environment->addExtension(new TableExtension);
 
         $this->parser = new MarkdownParser($environment);
         $this->renderer = new HtmlRenderer($environment);
