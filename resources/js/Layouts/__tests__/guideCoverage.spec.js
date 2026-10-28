@@ -21,10 +21,7 @@ const NO_GUIDE = {
 
 // Screens whose guide is still being written by the content tickets (#414 to #417). Remove a line when its guide
 // lands; the test fails if a line stays after its guide exists, so this list only shrinks.
-const AWAITING_GUIDE = [
-    '/home',
-    '/settings/servers',
-];
+const AWAITING_GUIDE = [];
 
 const items = NAV_GROUPS.flatMap((group) => group.items).filter((item) => item.href);
 
