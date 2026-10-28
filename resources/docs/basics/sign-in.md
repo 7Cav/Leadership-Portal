@@ -22,7 +22,7 @@ checklist:
 1. Sign in to 7cav.us if you are not already.
 2. Approve the portal when the forum asks. You come back to the portal's Home page.
 
-> [!good-to-know] Your forum account must be linked to a serving milpac. If the portal says it isn't, ask S1 to check your milpac, or S6 if your milpac is fine.
+> [!good-to-know] Your forum account must be linked to a serving milpac. If the portal says it is not, ask S1 to check your milpac, or S6 if your milpac is fine.
 
 ## Sign out
 

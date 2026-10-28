@@ -12,7 +12,7 @@ page: /settings/audit-log
 ## Find an entry
 
 1. Open **Settings**, then **Audit log**. The newest entries are first.
-2. Filter by **Actor**, **Action**, **Target type**, **Target id**, dates, or **Unit**. A unit includes everything under it.
+2. Filter by **Actor**, **Action**, **Target type**, **Target ID**, dates, or **Unit**. A unit includes everything under it.
 3. Choose **Apply filters**, or **Clear** to start again.
 
 ## Read an entry
