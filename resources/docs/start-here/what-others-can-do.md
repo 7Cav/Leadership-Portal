@@ -29,12 +29,13 @@ A leadership billet gives you the unit it commands and everything under it. A co
 | Who | Can do |
 | --- | --- |
 | Staff grant holder | Read a unit an Admin gave them access to. Never change anything there. |
-| Regimental HQ staff (Chief of Staff, Adjutants General, Finance Officer and the rest of Regimental HQ) | Admins, once an Admin approves their billet. Until then, read the whole regiment with no grant needed, and never change anything through it. |
+| Regimental HQ staff (Chief of Staff, Adjutants General, Finance Officer and the rest of Regimental HQ) | Admins, once an Admin approves their billet. Until then, those placed on the regiment read the whole regiment with no grant needed, and never change anything through it. |
+| S6 HQ staff | Admins, once an Admin approves their billet. Until then, what their billet in the S6 department gives them. |
 | Trooper with no command billet | Read the docs, their own account and their own milpac page (with their own counseling records, read only). Staff record the practices they attended there. The rest needs a billet or a grant. |
 
 ## Admins
 
-Admins are the people given the Admin flag, and Regimental HQ staff whose billet an Admin approved. Admins can see and change everything. Only they can edit the org structure, staff grants, the regiment default rollcall template and games, read the audit log, and assign acting leads.
+Admins are the people given the Admin flag, and Regimental HQ or S6 HQ staff whose billet an Admin approved. Admins can see and change everything. Only they can edit the org structure, staff grants, the regiment default rollcall template and games, read the audit log, and assign acting leads.
 
 ## Who to ask
 
