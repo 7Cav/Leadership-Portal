@@ -20,7 +20,7 @@ it('ends the session of a member the cache now shows departed', function () {
 
     $this->get(route('home'))
         ->assertRedirect(route('login'))
-        ->assertSessionHas('error', "Your forum account isn't linked to a serving 7th Cavalry milpac.");
+        ->assertSessionHas('error', 'Your forum account is not linked to a serving 7Cav milpac.');
     $this->assertGuest();
 });
 
@@ -42,7 +42,7 @@ it('ends the session of a non-Admin with no milpac link, such as an Admin whose 
 
     $this->get(route('home'))
         ->assertRedirect(route('login'))
-        ->assertSessionHas('error', "Your forum account isn't linked to a serving 7th Cavalry milpac.");
+        ->assertSessionHas('error', 'Your forum account is not linked to a serving 7Cav milpac.');
     $this->assertGuest();
 });
 
@@ -52,7 +52,7 @@ it('answers a background fetch with a 401 when it ends the session, not a redire
 
     $this->actingAs($user)->getJson('/view-as/options')
         ->assertUnauthorized()
-        ->assertJson(['message' => "Your forum account isn't linked to a serving 7th Cavalry milpac."]);
+        ->assertJson(['message' => 'Your forum account is not linked to a serving 7Cav milpac.']);
     $this->assertGuest();
 });
 

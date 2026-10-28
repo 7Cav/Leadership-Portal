@@ -54,6 +54,6 @@ class UnmatchedPlayerResolutionException extends RuntimeException
     /** The practice's week is older than `WeekOf::floor()`: linking would pre-mark it. */
     public static function weekBeforeFloor(CarbonInterface $weekStart): self
     {
-        return new self("The week of {$weekStart->toDateString()} is too far back to change.");
+        return new self("The week of {$weekStart->format('dMy')} is too far back to change.");
     }
 }

@@ -14,6 +14,6 @@ class GrantTargetIsAdminException extends RuntimeException
 {
     public static function forUser(User $user): self
     {
-        return new self("User #{$user->id} is already an Admin and cannot receive a staff grant.");
+        return new self("{$user->username} is already an Admin and cannot receive a staff grant.");
     }
 }

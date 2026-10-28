@@ -46,7 +46,7 @@ it('refuses a non-Regiment root node', function () {
     $actor = User::factory()->admin()->create();
 
     expect(fn () => app(CreateUnit::class)->handle($actor, UnitType::Battalion, '2nd Battalion', '2-7', null))
-        ->toThrow(InvalidUnitPlacementException::class, 'A root node (no parent) must be a Regiment, not battalion.');
+        ->toThrow(InvalidUnitPlacementException::class, 'A unit with no parent must be a regiment, not a battalion.');
 
     expect(AuditLogEntry::count())->toBe(0);
 });
@@ -58,7 +58,7 @@ it('refuses a child that is not exactly one rank below its parent', function () 
 
     // Skips a rank (Regiment -> Company, should be Regiment -> Battalion).
     expect(fn () => app(CreateUnit::class)->handle($actor, UnitType::Company, 'Echo Company', 'E/2-7', $regiment->id))
-        ->toThrow(InvalidUnitPlacementException::class, 'A company cannot be placed under a regiment — it must sit exactly one rank below its parent.');
+        ->toThrow(InvalidUnitPlacementException::class, 'A company cannot be placed under a regiment: it must sit exactly one level below its parent.');
 });
 
 it('refuses a child placed under a lower-echelon parent', function () {

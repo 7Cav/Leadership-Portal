@@ -44,6 +44,20 @@ class OrgStructureController extends Controller
     /** Most unplaced troopers sent per visit; a fresh install can put the whole roster here. */
     private const UNPLACED_LIMIT = 100;
 
+    /** What an Admin reads when a unit's name or callsign is refused, in the words of the form. */
+    private const UNIT_MESSAGES = [
+        'name.required' => 'Give the unit a name.',
+        'name.max' => 'Keep the name to :max characters.',
+        'callsign.max' => 'Keep the callsign to :max characters.',
+        'parent_id.exists' => 'That parent unit no longer exists. Reload the page and choose another.',
+    ];
+
+    /** The audit reason on acting-lead changes, worded as the other audited Admin forms are. */
+    private const REASON_MESSAGES = [
+        'reason.required' => 'Give a reason for the record.',
+        'reason.max' => 'Keep the reason to :max characters.',
+    ];
+
     public function __construct(
         private readonly UnitRepository $units,
         private readonly TrooperRepository $troopers,
@@ -133,7 +147,7 @@ class OrgStructureController extends Controller
     public function store(Request $request, CreateUnit $command): RedirectResponse
     {
         if (! $request->user()->is_admin) {
-            abort(403, 'Only an Admin may edit the chain of command.');
+            abort(403, 'Only an Admin may change the org structure.');
         }
 
         $data = $request->validate([
@@ -141,7 +155,7 @@ class OrgStructureController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'callsign' => ['nullable', 'string', 'max:255'],
             'parent_id' => ['nullable', 'integer', 'exists:units,id'],
-        ]);
+        ], self::UNIT_MESSAGES);
 
         try {
             $command->handle(
@@ -175,7 +189,7 @@ class OrgStructureController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'callsign' => ['nullable', 'string', 'max:255'],
             'parent_id' => ['nullable', 'integer', 'exists:units,id'],
-        ]);
+        ], self::UNIT_MESSAGES);
 
         try {
             $command->handle($request->user(), $unit, $data['name'], $data['callsign'] ?? null, $data['parent_id'] ?? null);
@@ -198,7 +212,7 @@ class OrgStructureController extends Controller
 
         $data = $request->validate([
             'label' => ['nullable', 'string', 'max:'.SetUnitLabel::MAX_LENGTH],
-        ]);
+        ], ['label.max' => 'Keep the game or team label to :max characters.']);
 
         $command->handle($request->user(), $unit, $data['label'] ?? null);
 
@@ -216,6 +230,9 @@ class OrgStructureController extends Controller
         $data = $request->validate([
             'trooper_id' => ['required', 'integer'],
             'reason' => ['required', 'string', 'max:500'],
+        ], [
+            'trooper_id.required' => 'Choose the trooper to make acting lead.',
+            ...self::REASON_MESSAGES,
         ]);
 
         try {
@@ -238,7 +255,7 @@ class OrgStructureController extends Controller
 
         $data = $request->validate([
             'reason' => ['required', 'string', 'max:500'],
-        ]);
+        ], self::REASON_MESSAGES);
 
         try {
             $handler->handle($request->user(), new RemoveActingLead($unit, $data['reason']));
@@ -274,7 +291,7 @@ class OrgStructureController extends Controller
     private function adminUnit(Request $request, int $id): Unit
     {
         if (! $request->user()->is_admin) {
-            abort(403, 'Only an Admin may edit the chain of command.');
+            abort(403, 'Only an Admin may change the org structure.');
         }
 
         return $this->units->find($id) ?? abort(404);
@@ -289,7 +306,7 @@ class OrgStructureController extends Controller
     public function import(Request $request, ImportOrgStructure $command): RedirectResponse
     {
         if (! $request->user()->is_admin) {
-            abort(403, 'Only an Admin may edit the chain of command.');
+            abort(403, 'Only an Admin may change the org structure.');
         }
 
         try {

@@ -25,7 +25,7 @@ class LoaSyncController extends Controller
     public function store(Request $request): RedirectResponse
     {
         if (! $this->scope->actsAsAdmin($request->user())) {
-            abort(403, 'Only an Admin may trigger a manual leave sync.');
+            abort(403, 'Only an Admin may start an LOA sync by hand.');
         }
 
         SyncLoasJob::dispatch($request->user()->id, $request->boolean('full'));

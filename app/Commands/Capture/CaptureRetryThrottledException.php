@@ -9,6 +9,6 @@ class CaptureRetryThrottledException extends RuntimeException
 {
     public function __construct(public readonly int $retryAfter)
     {
-        parent::__construct("The game server was just tried. Try again in {$retryAfter} seconds.");
+        parent::__construct("The game server was tried a moment ago. Try again in {$retryAfter} seconds.");
     }
 }

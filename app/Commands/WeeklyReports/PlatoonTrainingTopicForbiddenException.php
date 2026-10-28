@@ -14,6 +14,6 @@ class PlatoonTrainingTopicForbiddenException extends AuthorizationException
 {
     public function __construct(int $unitId)
     {
-        parent::__construct("You may not set the training topic for unit {$unitId}: you do not command it.");
+        parent::__construct('You may not set the training topic for this platoon: you do not command it.');
     }
 }

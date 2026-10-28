@@ -10,12 +10,12 @@ class CaptureRetryRefusedException extends RuntimeException
 {
     public static function noGameLinked(): self
     {
-        return new self('No trooper in this section has a game identity linked, so there is no server to read. Mark attendance by hand.');
+        return new self('No trooper in this section has a game identity linked, so there is no game server to read. Mark attendance by hand.');
     }
 
     public static function notConfigured(Game $game): self
     {
-        return new self("Telemetry is not configured for {$game->name}. Mark attendance by hand.");
+        return new self("Capture is not set up for {$game->name}. Mark attendance by hand.");
     }
 
     public static function nothingToRetry(): self

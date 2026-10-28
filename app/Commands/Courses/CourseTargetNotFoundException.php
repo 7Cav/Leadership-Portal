@@ -12,11 +12,11 @@ class CourseTargetNotFoundException extends InvalidArgumentException
 {
     public static function trooper(int $id): self
     {
-        return new self("No trooper with id {$id}.");
+        return new self('That trooper no longer exists. Reload the page.');
     }
 
     public static function course(int $id): self
     {
-        return new self("No course with id {$id}.");
+        return new self('That course no longer exists. Reload the page.');
     }
 }

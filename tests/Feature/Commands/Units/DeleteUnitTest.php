@@ -54,7 +54,7 @@ it('refuses to delete a unit that still has children', function () {
     $repo->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
 
     expect(fn () => app(DeleteUnit::class)->handle($actor, $regiment))
-        ->toThrow(UnitHasDependentsException::class, 'Cannot delete "7th Cavalry Regiment" — it still has child units. Re-parent or remove them first.');
+        ->toThrow(UnitHasDependentsException::class, 'Cannot delete "7th Cavalry Regiment": it still has units under it. Move or delete them first.');
 
     expect(Unit::find($regiment->id))->not->toBeNull();
     expect(AuditLogEntry::count())->toBe(0);
@@ -66,7 +66,7 @@ it('refuses to delete a section Cav billets still map to, with a reason instead 
     UnitBilletMapping::factory()->create(['unit_id' => $unit->id, 'cav_position_id' => 201]);
 
     expect(fn () => app(DeleteUnit::class)->handle($actor, $unit))
-        ->toThrow(UnitHasDependentsException::class, 'Cannot delete "Nightriders" — Cav billets are still mapped to it');
+        ->toThrow(UnitHasDependentsException::class, 'Cannot delete "Nightriders": Cav billets are still mapped to it');
 
     expect(Unit::find($unit->id))->not->toBeNull()
         ->and(AuditLogEntry::count())->toBe(0);
@@ -80,7 +80,7 @@ it('refuses to delete a unit that still has a dependent, naming it', function (C
     $attach($unit);
 
     expect(fn () => app(DeleteUnit::class)->handle($actor, $unit))
-        ->toThrow(UnitHasDependentsException::class, "Cannot delete \"Nightriders\" — {$reason}");
+        ->toThrow(UnitHasDependentsException::class, "Cannot delete \"Nightriders\": {$reason}");
 
     expect(Unit::find($unit->id))->not->toBeNull()
         ->and(AuditLogEntry::count())->toBe(0);
@@ -91,7 +91,7 @@ it('refuses to delete a unit that still has a dependent, naming it', function (C
     ],
     'a recorded practice' => [
         fn (Unit $unit) => app(SectionPracticeRepository::class)->findOrCreate($unit->id, WeekOf::start(CarbonImmutable::now())),
-        'attendance has been recorded for it',
+        'it has recorded attendance',
     ],
     'a draft weekly report' => [
         fn (Unit $unit) => app(WeeklyReportRepository::class)->saveDraft($unit->id, WeekOf::start(CarbonImmutable::now()), [], null),
@@ -136,7 +136,7 @@ it('refuses to delete a company that holds template versions, naming them', func
     app(TemplateVersionRepository::class)->author($company->id, ArtifactType::RollcallBbcode, '[b]{section}[/b]', $actor->id);
 
     expect(fn () => app(DeleteUnit::class)->handle($actor, $company))
-        ->toThrow(UnitHasDependentsException::class, 'Cannot delete "Alpha Company" — it has template versions, and that template history must not be orphaned.');
+        ->toThrow(UnitHasDependentsException::class, 'Cannot delete "Alpha Company": it has template versions, and that template history must be kept.');
 
     expect(Unit::find($company->id))->not->toBeNull()
         ->and(TemplateVersion::query()->where('company_id', $company->id)->count())->toBe(1)

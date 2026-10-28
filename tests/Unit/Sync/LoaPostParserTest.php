@@ -172,7 +172,7 @@ describe('never guessing (needs_review)', function () {
     it('flags a date more than three years out, in either direction', function (string $date) {
         $parsed = parseLoa('[LOA Request] - PVT.Smith.J', "Username: Smith.J\nStart Date\n{$date}\nEnd Date\n{$date}\n");
 
-        expect($parsed->status())->toBe(LoaParseStatus::NeedsReview)->and($parsed->reason())->toContain('three years');
+        expect($parsed->status())->toBe(LoaParseStatus::NeedsReview)->and($parsed->reason())->toContain('3 years');
     })->with(['Oct 6, 2036', 'Oct 6, 2016']);
 
     it('flags a missing date field, a missing username and a thread with neither', function () {

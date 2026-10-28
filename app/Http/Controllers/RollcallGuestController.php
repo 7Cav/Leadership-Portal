@@ -61,7 +61,7 @@ class RollcallGuestController extends Controller
         }
 
         if ($this->units->find($unit)?->type !== UnitType::Section) {
-            return response()->json(['message' => 'Guests attend a section\'s practice.'], 404);
+            return response()->json(['message' => 'Guests are added only at a section practice.'], 404);
         }
 
         $term = $request->query('q');

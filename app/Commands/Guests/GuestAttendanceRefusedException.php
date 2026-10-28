@@ -29,7 +29,7 @@ class GuestAttendanceRefusedException extends RuntimeException
 
     public static function weekBeforeFloor(CarbonInterface $weekStart): self
     {
-        return new self("The week of {$weekStart->toDateString()} is too far back to change.", 'before_floor');
+        return new self("The week of {$weekStart->format('dMy')} is too far back to change.", 'before_floor');
     }
 
     public static function confirmed(): self
@@ -39,7 +39,7 @@ class GuestAttendanceRefusedException extends RuntimeException
 
     public static function unknownTrooper(): self
     {
-        return new self('No such trooper.', 'unknown_trooper');
+        return new self('That trooper was not found. Search again.', 'unknown_trooper');
     }
 
     public static function notServing(string $name): self

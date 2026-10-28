@@ -16,6 +16,6 @@ final class GrantUnchangedException extends RuntimeException
 {
     public function __construct(public readonly ?PortalRoleGrant $grant)
     {
-        parent::__construct('The staff grant was already in the requested state.');
+        parent::__construct('Nothing changed: the staff grant was already set that way. Reload the page to see it.');
     }
 }

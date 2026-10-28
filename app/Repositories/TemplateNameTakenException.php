@@ -13,6 +13,6 @@ final class TemplateNameTakenException extends RuntimeException
 {
     public function __construct(public readonly string $name)
     {
-        parent::__construct("The company already has a template called {$name}.");
+        parent::__construct("The company already has a template called \"{$name}\".");
     }
 }

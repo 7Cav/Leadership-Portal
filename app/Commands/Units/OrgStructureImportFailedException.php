@@ -26,6 +26,6 @@ class OrgStructureImportFailedException extends RuntimeException
 
     public static function alreadyRunning(): self
     {
-        return new self('Another org-structure import is still running. Try again once it has finished.');
+        return new self('Another import from the Cav roster is still running. Try again once it has finished.');
     }
 }

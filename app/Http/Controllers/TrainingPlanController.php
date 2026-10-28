@@ -100,7 +100,7 @@ class TrainingPlanController extends Controller
             'subjects' => ['present', 'array', 'max:5'],
             'subjects.*' => ['nullable', 'string', 'max:255'],
             'enforced' => ['sometimes', 'boolean'],
-        ]);
+        ], ['subjects.*.max' => 'Keep each training subject to :max characters.']);
 
         $this->asFormErrors(fn () => $handler->handle($request->user(), new SaveTrainingPlan($unit->id, $month, $data['subjects'], (bool) ($data['enforced'] ?? false))));
 
@@ -125,6 +125,9 @@ class TrainingPlanController extends Controller
         $data = $request->validate([
             'revision' => ['required', 'integer', 'min:1'],
             'comment' => ['required', 'string', 'max:1000'],
+        ], [
+            'comment.required' => 'Say what the platoon should change before you send the plan back.',
+            'comment.max' => 'Keep the comment to :max characters.',
         ]);
 
         $this->asFormErrors(fn () => $handler->handle($request->user(), new ReturnTrainingPlan($unit->id, $month, (int) $data['revision'], $data['comment'])));

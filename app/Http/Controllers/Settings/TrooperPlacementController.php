@@ -31,6 +31,11 @@ class TrooperPlacementController extends Controller
         $data = $request->validate([
             'section_id' => ['required', 'integer', 'exists:units,id'],
             'reason' => ['required', 'string', 'max:500'],
+        ], [
+            'section_id.required' => 'Choose the section to place the trooper in.',
+            'section_id.exists' => 'That section no longer exists. Reload the page and choose another.',
+            'reason.required' => 'Give a reason for the record.',
+            'reason.max' => 'Keep the reason to :max characters.',
         ]);
 
         try {

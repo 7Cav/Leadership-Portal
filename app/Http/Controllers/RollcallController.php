@@ -264,7 +264,7 @@ class RollcallController extends Controller
         } catch (Throwable $e) {
             report($e);
 
-            return response()->json(['message' => 'The portal hit an error saving this change.'], 500);
+            return response()->json(['message' => 'The portal hit an error saving this change. Try again in a moment.'], 500);
         }
 
         // The marks are committed. The at-risk refresh is a convenience on top: if it fails, the
@@ -324,7 +324,7 @@ class RollcallController extends Controller
         } catch (Throwable $e) {
             report($e);
 
-            return response()->json(['message' => 'The portal hit an error marking the rollcall posted.'], 500);
+            return response()->json(['message' => 'The portal hit an error marking the rollcall posted. Try again in a moment.'], 500);
         }
 
         return response()->json(['posted' => $this->postedProps($practice)]);
@@ -371,7 +371,7 @@ class RollcallController extends Controller
         } catch (Throwable $e) {
             report($e);
 
-            return response()->json(['message' => 'The portal hit an error confirming the practice.'], 500);
+            return response()->json(['message' => 'The portal hit an error confirming the practice. Try again in a moment.'], 500);
         }
 
         return response()->json(['confirmation' => $this->confirmationProps($practice)]);
@@ -418,7 +418,7 @@ class RollcallController extends Controller
         } catch (Throwable $e) {
             report($e);
 
-            return response()->json(['message' => 'The portal hit an error requesting the capture.'], 500);
+            return response()->json(['message' => 'The portal hit an error requesting the capture. Try again in a moment.'], 500);
         }
 
         try {
@@ -543,7 +543,7 @@ class RollcallController extends Controller
         } catch (Throwable $e) {
             report($e);
 
-            return response()->json(['message' => 'The portal hit an error dismissing this player.'], 500);
+            return response()->json(['message' => 'The portal hit an error dismissing this player. Try again in a moment.'], 500);
         }
 
         return response()->json(['dismissed' => true]);
@@ -578,7 +578,7 @@ class RollcallController extends Controller
         } catch (Throwable $e) {
             report($e);
 
-            return response()->json(['message' => 'The portal hit an error undoing this dismissal.'], 500);
+            return response()->json(['message' => 'The portal hit an error undoing this dismissal. Try again in a moment.'], 500);
         }
 
         return response()->json(['restored' => true]);

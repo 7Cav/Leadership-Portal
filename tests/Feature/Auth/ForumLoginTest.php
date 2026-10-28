@@ -292,7 +292,7 @@ it('sends an array-valued code back to the login screen instead of a 500', funct
             ->get("/auth/callback?{$query}&state=valid-state");
 
         $response->assertRedirect(route('login'));
-        $response->assertSessionHas('error', 'Sign-in was cancelled or could not be verified. Please try again.');
+        $response->assertSessionHas('error', 'Sign-in was cancelled or could not be verified. Try again.');
     }
 
     $this->assertGuest();

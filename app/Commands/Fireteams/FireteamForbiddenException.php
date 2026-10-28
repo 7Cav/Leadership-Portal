@@ -15,6 +15,6 @@ class FireteamForbiddenException extends AuthorizationException
 {
     public function __construct(int $unitId)
     {
-        parent::__construct("You may not change the fireteams of unit {$unitId}: only the leaders who command it can.");
+        parent::__construct('Only the leaders who command this section can change its fireteams.');
     }
 }

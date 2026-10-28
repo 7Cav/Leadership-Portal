@@ -15,6 +15,6 @@ final class TrainingTopicUnchangedException extends RuntimeException
 {
     public function __construct()
     {
-        parent::__construct('The platoon training topic was already cleared.');
+        parent::__construct('The platoon training topic was already cleared. Reload the page to see it.');
     }
 }

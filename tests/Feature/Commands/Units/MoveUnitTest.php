@@ -60,7 +60,7 @@ it('refuses to re-parent a non-Regiment to root', function () {
     $battalion = $repo->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
 
     expect(fn () => app(MoveUnit::class)->handle($actor, $battalion, null))
-        ->toThrow(InvalidUnitPlacementException::class, 'A root node (no parent) must be a Regiment, not battalion.');
+        ->toThrow(InvalidUnitPlacementException::class, 'A unit with no parent must be a regiment, not a battalion.');
 });
 
 it('refuses to re-parent under the wrong echelon rank', function () {

@@ -401,7 +401,7 @@ it('turns a delete blocked by a staff grant or report history into errors.delete
         ->from('/settings/org-structure')
         ->delete("/settings/org-structure/{$section->id}")
         ->assertRedirect('/settings/org-structure')
-        ->assertSessionHasErrors(['delete' => "Cannot delete \"1st Section\" — {$reason}"]);
+        ->assertSessionHasErrors(['delete' => "Cannot delete \"1st Section\": {$reason}"]);
 
     expect(Unit::find($section->id))->not->toBeNull();
 })->with([
@@ -411,11 +411,11 @@ it('turns a delete blocked by a staff grant or report history into errors.delete
     ],
     'a recorded practice' => [
         fn (Unit $unit) => app(SectionPracticeRepository::class)->findOrCreate($unit->id, WeekOf::start(CarbonImmutable::now())),
-        'attendance has been recorded for it, and that history must not be orphaned.',
+        'it has recorded attendance, and that history must be kept.',
     ],
     'a weekly report' => [
         fn (Unit $unit) => app(WeeklyReportRepository::class)->saveDraft($unit->id, WeekOf::start(CarbonImmutable::now()), [], null),
-        'it has weekly reports, and that report history must not be orphaned.',
+        'it has weekly reports, and that report history must be kept.',
     ],
 ]);
 
@@ -428,7 +428,7 @@ it('turns a delete of a company holding template versions into errors.delete, no
         ->from('/settings/org-structure')
         ->delete("/settings/org-structure/{$company->id}")
         ->assertRedirect('/settings/org-structure')
-        ->assertSessionHasErrors(['delete' => 'Cannot delete "Alpha Company" — it has template versions, and that template history must not be orphaned.']);
+        ->assertSessionHasErrors(['delete' => 'Cannot delete "Alpha Company": it has template versions, and that template history must be kept.']);
 
     expect(Unit::find($company->id))->not->toBeNull();
 });

@@ -141,7 +141,7 @@ class RollcallFireteamController extends Controller
         } catch (Throwable $e) {
             report($e);
 
-            return response()->json(['message' => 'The portal hit an error saving the fireteams.'], 500);
+            return response()->json(['message' => 'The portal hit an error saving the fireteams. Try again in a moment.'], 500);
         }
 
         return response()->json($this->state($user, $this->units->find($sectionId)));

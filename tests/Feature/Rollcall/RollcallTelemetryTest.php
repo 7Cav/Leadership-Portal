@@ -172,7 +172,7 @@ it('follows an Admin changing the game\'s interface: set to none, the game is no
     captureRun($this, SyncRunStatus::Failure);
 
     telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.state', 'not_configured')->where('telemetry.platformLabel', 'Hell Let Loose (WW2)'));
-    tryAgain($this)->assertStatus(422)->assertJsonPath('message', 'Telemetry is not configured for Hell Let Loose (WW2). Mark attendance by hand.');
+    tryAgain($this)->assertStatus(422)->assertJsonPath('message', 'Capture is not set up for Hell Let Loose (WW2). Mark attendance by hand.');
 });
 
 it('still reads a retired game: retiring stops new links, not the capture of the ones made (#388)', function () {
@@ -290,7 +290,7 @@ it('refuses a retry when the game has no keys set, saying so', function () {
     config(['services.crcon' => []]);
     app()->forgetInstance(CaptureSources::class);
 
-    tryAgain($this)->assertStatus(422)->assertJsonPath('message', 'Telemetry is not configured for Hell Let Loose (WW2). Mark attendance by hand.');
+    tryAgain($this)->assertStatus(422)->assertJsonPath('message', 'Capture is not set up for Hell Let Loose (WW2). Mark attendance by hand.');
 
     Queue::assertNothingPushed();
 });
