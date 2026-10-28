@@ -24,4 +24,6 @@ export const E2E_ENV = {
     // The docs (#410) are on, and read from a fixed set of test guides so editing a real guide never breaks a spec.
     DOCS_ENABLED: 'true',
     DOCS_PATH: fileURLToPath(new URL('../Fixtures/docs', import.meta.url)),
+    // The content security policy is enforced, so a source it leaves out breaks the page here (#485).
+    CSP_REPORT_ONLY: 'false',
 };
