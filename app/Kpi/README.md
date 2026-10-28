@@ -17,8 +17,10 @@ its children's sent snapshots) holds as before. A sent report keeps the headcoun
 **Units with no troopers (#442, #478).** "Has troopers" is a headcount above zero, defined once in
 `Headcount::withoutEmptyLineUnits()`. A line unit with nobody serving placed in it or under it is left off the roster's
 ORBAT and picker and Home. The report chain asks for more, in `Headcount::reportingLineUnits()`: a section takes part
-when it has troopers (now or during the week) or sent the week's report, and a unit above sections when one of its line
-children takes part (or it sent). So a platoon whose only troopers are its HQ is not one of a roll-up's children
+when someone was placed in it during the week (from the placement history; for the running week, also who is placed
+now) or it sent the week's report, and a unit above sections when one of its line children takes part (or it sent). A
+past week is never judged by who is placed now, so a section stood up since is not one it waits on. Home's sparkline
+reads the same rule for each of its weeks at once (`reportingLineUnitsByWeek()`). A platoon whose only troopers are its HQ is not one of a roll-up's children
 (`RollupKpis::children()`) and is not in `ReportChain`, though the roster shows it. A sent snapshot is never rewritten,
 so a child frozen as missing stays missing on that report. The org page does not use either and lists every unit.
 

@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Models\WeeklyReportStatus;
 use App\Repositories\TrooperPlacementRepository;
+use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use Carbon\CarbonImmutable;
@@ -365,4 +366,67 @@ it('keeps the platoon and company of a section that sent in that week\'s chain a
 
     // The week after, nothing under the battalion reports.
     expect(app(RollupKpis::class)->children($this->battalion, $this->weekStart->addWeek())->all())->toBe([]);
+});
+
+// Audit 2 (M2, M1, L4): a past week is judged by who was placed during it (the placement history) or sent its report,
+// never by who is placed now. Only the running week also counts who is placed now.
+it('leaves a section stood up after a past week out of that week\'s roll-up, and counts it from its first week', function () {
+    $standUp = app(UnitRepository::class)->create(UnitType::Section, '3rd Section', '3/1/A/2-7', $this->platoon->id);
+    $joined = Trooper::factory()->create(['primary_section_id' => null]);
+    // The roster sync fills it now (Thu 08Oct26), writing the placement history as it does.
+    app(TrooperRepository::class)->updatePrimarySections([$joined->cav_id => $standUp->id]);
+    $lastWeek = $this->weekStart->subWeek();
+
+    expect(app(RollupKpis::class)->children($this->platoon, $lastWeek)->modelKeys())->toBe([$this->manned->id])
+        ->and(emptyUnitsChainIds(app(ReportChain::class)->build($this->battalion, $lastWeek)))->not->toContain($standUp->id)
+        ->and(app(RollupKpis::class)->children($this->platoon, $this->weekStart)->modelKeys())->toBe([$this->manned->id, $standUp->id]);
+
+    $this->actingAs($this->admin)->get("/reports/{$this->platoon->id}/2026-09-26")
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('children', fn ($children) => collect($children)->pluck('id')->all() === [$this->manned->id])
+            ->where('missingChildren', [$this->manned->id]));
+});
+
+it('keeps a past week on Home\'s sparkline when a section was stood up since', function () {
+    sendEmptyUnitsReport($this->manned->id, $this->weekStart->subWeek());
+    $standUp = app(UnitRepository::class)->create(UnitType::Section, '3rd Section', '3/1/A/2-7', $this->platoon->id);
+    $joined = Trooper::factory()->create(['primary_section_id' => null]);
+    app(TrooperRepository::class)->updatePrimarySections([$joined->cav_id => $standUp->id]);
+
+    $this->actingAs($this->admin)->get('/home')
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('kpis.history.3.week', '2026-09-26')
+            ->where('kpis.history.3.kpis.strength', 2));
+});
+
+it('adds a section emptied since to the past weeks it sent on Home\'s sparkline', function () {
+    $member = Trooper::factory()->create(['primary_section_id' => $this->emptySection->id]);
+    sendEmptyUnitsReport($this->manned->id, $this->weekStart->subWeek());
+    sendEmptyUnitsReport($this->emptySection->id, $this->weekStart->subWeek(), strength: 1);
+    // Its only member moved out of every unit on Tuesday of this week.
+    app(TrooperPlacementRepository::class)->record([$member->id => [$this->emptySection->id, null]], PlacementSource::Sync, CarbonImmutable::parse('2026-10-06 12:00:00', 'UTC'));
+    $member->forceFill(['primary_section_id' => null])->save();
+
+    $this->actingAs($this->admin)->get('/home')
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('kpis.history.3.kpis.strength', 3));
+});
+
+it('opens a past week for a section leader whose section has been emptied since, and lists it in that week\'s steps', function () {
+    $leader = User::factory()->serving()->create();
+    PortalRoleGrant::factory()->create(['user_id' => $leader->id, 'unit_id' => $this->manned->id]);
+    sendEmptyUnitsReport($this->manned->id, $this->weekStart->subWeek());
+    // The sync moved both its troopers out on Tuesday of the running week.
+    $changes = $this->troopers->mapWithKeys(fn (Trooper $t) => [$t->id => [$this->manned->id, null]])->all();
+    app(TrooperPlacementRepository::class)->record($changes, PlacementSource::Sync, CarbonImmutable::parse('2026-10-06 12:00:00', 'UTC'));
+    $this->troopers->each(fn (Trooper $t) => $t->forceFill(['primary_section_id' => null])->save());
+
+    // The roll-up workspace starts from the section for the week it sent, and lands on its report.
+    $this->actingAs($leader)->get('/reports?week=2026-09-26')
+        ->assertRedirect("/reports/{$this->manned->id}/2026-09-26");
+
+    // It had troopers until Tuesday, so the running week's step matrix lists it, as Needs attention does.
+    $this->actingAs($this->admin)->get('/home')
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('steps', fn ($steps) => collect($steps)->pluck('id')->all() === [$this->manned->id])
+            ->where('attention.items', fn ($items) => collect($items)->where('kind', 'holding')->pluck('unit.id')->all() === [$this->manned->id]));
 });

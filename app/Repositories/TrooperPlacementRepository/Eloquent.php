@@ -12,6 +12,7 @@ use App\Repositories\TrooperPlacementRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
@@ -63,24 +64,76 @@ class Eloquent implements TrooperPlacementRepository
             ->get();
     }
 
-    public function unitIdsPlacedDuring(CarbonInterface $weekStart): array
+    public function unitIdsPlacedByWeek(CarbonInterface $firstWeek, CarbonInterface $lastWeek): array
     {
-        $start = WeekOf::requireStart($weekStart);
-        $end = $start->addWeek();
+        $first = WeekOf::requireStart($firstWeek);
+        $last = WeekOf::requireStart($lastWeek);
+        $end = $last->addWeek();
+        $serving = TrooperStatus::servingValues();
 
-        // A row still open counts only while its trooper serves: a trooper who left the Cav keeps their last placement
-        // open, and when they left is not recorded, so that row says nothing about this week. A closed row is a move,
-        // and its dates are known.
-        return TrooperPlacement::query()
+        // The rows of troopers whose history is current: their open row is their current unit, or they are placed
+        // nowhere and have no open row (moved out of every unit). A row still open counts only while its trooper
+        // serves: a trooper who left the Cav keeps their last placement open, and when they left is not recorded, so
+        // that row says nothing about a week. A closed row is a move, and its dates are known.
+        $history = TrooperPlacement::query()->toBase()
             ->join('troopers', 'troopers.id', '=', 'trooper_placements.trooper_id')
             ->whereNotNull('trooper_placements.unit_id')
             ->where(fn ($q) => $q->whereNull('trooper_placements.placed_from')->orWhere('trooper_placements.placed_from', '<', $end))
-            ->where(fn ($q) => $q->where('trooper_placements.placed_until', '>', $start)
-                ->orWhere(fn ($q) => $q->whereNull('trooper_placements.placed_until')->whereIn('troopers.status', TrooperStatus::servingValues())))
-            ->distinct()
-            ->pluck('trooper_placements.unit_id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
+            ->where(fn ($q) => $q->where('trooper_placements.placed_until', '>', $first)
+                ->orWhere(fn ($q) => $q->whereNull('trooper_placements.placed_until')->whereIn('troopers.status', $serving)))
+            ->where(fn ($q) => $q
+                ->where(fn ($q) => $q->whereNotNull('troopers.primary_section_id')->whereExists(self::openRow('troopers.primary_section_id')))
+                ->orWhere(fn ($q) => $q->whereNull('troopers.primary_section_id')->whereNotExists(self::openRow(null))))
+            ->select(['trooper_placements.unit_id', 'trooper_placements.placed_from', 'trooper_placements.placed_until']);
+
+        // Everyone else serving and placed: no history, or one written around this repository. Their current unit, for
+        // every week, as sectionsByWeek() reads them.
+        $untracked = Trooper::query()->toBase()
+            ->whereNotNull('troopers.primary_section_id')
+            ->whereIn('troopers.status', $serving)
+            ->whereNotExists(self::openRow('troopers.primary_section_id'))
+            ->select(['troopers.primary_section_id as unit_id'])
+            ->selectRaw('null as placed_from, null as placed_until');
+
+        $weeks = [];
+
+        for ($week = $first; $week->lessThanOrEqualTo($last); $week = $week->addWeek()) {
+            $weeks[$week->toDateString()] = $week;
+        }
+
+        $byWeek = array_fill_keys(array_keys($weeks), []);
+
+        // A union, not a union all: the many troopers of one section with no history are one row.
+        foreach ($history->union($untracked)->get() as $row) {
+            $from = $row->placed_from === null ? null : CarbonImmutable::parse($row->placed_from, 'UTC');
+            $until = $row->placed_until === null ? null : CarbonImmutable::parse($row->placed_until, 'UTC');
+
+            foreach ($weeks as $date => $week) {
+                if (($from === null || $from->lessThan($week->addWeek())) && ($until === null || $until->greaterThan($week))) {
+                    $byWeek[$date][(int) $row->unit_id] = true;
+                }
+            }
+        }
+
+        return array_map(fn (array $units) => array_keys($units), $byWeek);
+    }
+
+    /**
+     * A subquery for `whereExists()`: the trooper of the outer query has an open placement row, in the unit in
+     * `$column` when one is given.
+     */
+    private static function openRow(?string $column): Closure
+    {
+        return function ($q) use ($column) {
+            $q->selectRaw('1')
+                ->from('trooper_placements as open_rows')
+                ->whereColumn('open_rows.trooper_id', 'troopers.id')
+                ->whereNull('open_rows.placed_until');
+
+            if ($column !== null) {
+                $q->whereColumn('open_rows.unit_id', $column);
+            }
+        };
     }
 
     public function sectionsByWeek(iterable|Builder $troopers, CarbonInterface $firstWeek, CarbonInterface $lastWeek): PlacementWeeks

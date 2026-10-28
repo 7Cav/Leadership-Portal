@@ -10,8 +10,11 @@ use App\Kpi\KpiDelta;
 use App\Kpi\ReportChain;
 use App\Kpi\UnitKpis;
 use App\Models\Unit;
+use App\Models\WeeklyReport;
+use App\Models\WeeklyReportStatus;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
+use App\Repositories\WeeklyReportRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Carbon\Exceptions\InvalidFormatException;
@@ -43,6 +46,7 @@ class ReportRollupController extends Controller
         private readonly UserRepository $users,
         private readonly ReportChain $chain,
         private readonly Headcount $headcount,
+        private readonly WeeklyReportRepository $reports,
     ) {}
 
     public function index(Request $request, ?int $unit = null): Response|RedirectResponse
@@ -58,7 +62,7 @@ class ReportRollupController extends Controller
             abort_unless($root->isLine(), 404);
             $roots = collect([$root]);
         } else {
-            $roots = $this->topmost($scope);
+            $roots = $this->topmost($scope, $week);
         }
 
         $chains = $roots->map(fn (Unit $root) => $this->chain->build($root, $week));
@@ -123,20 +127,25 @@ class ReportRollupController extends Controller
     /**
      * The highest units of the scope: those whose parent is outside it. Scope is subtree-closed,
      * so every other unit in it sits under one of these. One with no troopers in it or under it is
-     * left out (#442), as it is everywhere in the chain.
+     * left out (#442), unless it took part in the week asked about ({@see Headcount::withTroopersOrReporting()}):
+     * a section emptied since still opens on the week it sent.
      *
      * @param  Collection<int, int>  $scope
      * @return Collection<int, Unit>
      */
-    private function topmost(Collection $scope): Collection
+    private function topmost(Collection $scope, CarbonImmutable $week): Collection
     {
         $ids = $scope->flip();
+        $sent = $this->reports->forUnits($scope->values()->all(), $week)
+            ->filter(fn (WeeklyReport $report) => $report->status === WeeklyReportStatus::Sent)
+            ->keys()
+            ->all();
 
-        return $this->headcount->withoutEmptyLineUnits($this->units->tree()
+        return $this->headcount->withTroopersOrReporting($this->units->tree()
             ->filter(fn (Unit $unit) => $unit->isLine() && $ids->has($unit->id) && ($unit->parent_id === null || ! $ids->has($unit->parent_id)))
             ->sortBy('id')
             ->values()
-            ->toBase());
+            ->toBase(), $week, $sent);
     }
 
     /** @return list<int> */

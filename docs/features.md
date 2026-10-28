@@ -185,9 +185,21 @@ the report chain, a section counts when it has troopers, and a platoon, company 
 it does.
 
 The report chain asks about the report's own week: a section counts for a week when it had troopers at any point of it
-(from the placement history), and any unit counts when it sent that week's report. So a section that sends and is then
-emptied by a move, or whose last trooper leaves the Cav, still rolls up into its platoon for that week, and keeps its
-platoon and company in that week's chain, and drops out from the first week it is empty.
+(from the placement history), and any unit counts when it sent that week's report. Who is placed now counts only for
+the running Cav week. So a section stood up or filled after a week is not one that week waits on, and a section that
+sends and is then emptied by a move still rolls up into its platoon for that week, keeps its platoon and company in that
+week's chain, and drops out from the first week it is empty. A trooper placed before the placement history began
+(27Oct26) and never moved since counts in their current section for every week.
+
+Leaving the Cav has no date in the portal, so once a trooper leaves, the placement they held when they left no longer
+counts for any week, past weeks included (an earlier move, which has dates, still counts). A section whose last trooper
+leaves the Cav therefore drops out of the chain for every week it did not send, the week they left included: its
+platoon's roll-up neither waits on it nor sums it for those weeks. A week it sent stays in the chain.
+
+The same week rule decides which sections Home's step matrix lists for the running week, which sections each past
+point of Home's sparkline waits on, and which of your top units the roll-up workspace and Home start from for a week
+(a unit with troopers now, or one that took part in the week). The roster, the unit pickers and the unit switcher
+always show who is placed now.
 
 ### Game identities
 

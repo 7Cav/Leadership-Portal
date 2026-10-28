@@ -51,12 +51,18 @@ interface TrooperPlacementRepository
     public function sectionsByWeek(iterable|Builder $troopers, CarbonInterface $firstWeek, CarbonInterface $lastWeek): PlacementWeeks;
 
     /**
-     * The units someone was placed in at any moment of the Cav week opening `$weekStart` (#442): a placement row that
-     * overlaps the week. An open row counts only while its trooper still serves, as a departure has no date. One query.
+     * The units someone was placed in at any moment of each Cav week from `$firstWeek` to `$lastWeek` (#442), by week
+     * start (Y-m-d): a placement row that overlaps the week. An open row counts only while its trooper still serves,
+     * as a departure has no date.
      *
-     * @return list<int>
+     * Read as {@see sectionsByWeek()} reads it: a serving trooper with no history, or whose open row is not their
+     * current `primary_section_id`, counts in their current unit for every week (the rule from before the history
+     * existed), and their rows are not read. A trooper placed nowhere now with no open row (moved out of every unit)
+     * counts through their closed rows. One query, however many weeks.
      *
-     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     * @return array<string, list<int>> every week of the span, earliest first
+     *
+     * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
      */
-    public function unitIdsPlacedDuring(CarbonInterface $weekStart): array;
+    public function unitIdsPlacedByWeek(CarbonInterface $firstWeek, CarbonInterface $lastWeek): array;
 }
