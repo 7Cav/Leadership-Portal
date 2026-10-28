@@ -51,7 +51,7 @@ const hints = computed(() => {
 
     return {
         // The headcount sits beside the rollcall figure, labelled apart (#424); a report frozen before it has none.
-        strength: props.kpis.headcount != null ? `Headcount ${props.kpis.headcount}, with staff` : props.unit.isLeaf ? 'Assigned troopers' : 'From sent reports only',
+        strength: [props.kpis.headcount != null ? `Headcount ${props.kpis.headcount}, with staff` : null, props.unit.isLeaf ? 'Assigned troopers' : 'From sent reports only'].filter(Boolean).join(' · '),
         rc: 'Signed, last 30 days',
         sp: 'Credited, last 30 days',
         atRisk: names((t) => t.atRisk) || '',

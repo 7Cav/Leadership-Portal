@@ -26,7 +26,7 @@ describe('reportSummary', () => {
             [
                 '2nd Section (2/1/A/1-7) weekly report, week of 03Oct26',
                 'Sent Thu 08Oct26 16:24Z by SGT Vasquez.R',
-                'Headcount 12, staff and groups included',
+                'Headcount 12, with staff',
                 'In rollcall 9 (+1)',
                 'RC 88% (+5 pts), SP 75% (-3 pts), last 30 days',
                 'At-risk 2 (+1), on LOA 1, makeups 0',
