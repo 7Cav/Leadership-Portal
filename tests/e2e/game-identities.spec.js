@@ -98,3 +98,116 @@ for (const [label, width, height] of [['phone', 375, 800], ['tablet', 820, 1000]
         expect(fits).toEqual({ inside: true, pageScroll: false });
     });
 }
+
+// #427: the identity panel stays in view while you work down the list. The viewport heights are short
+// on purpose, so the eight seeded troopers overflow the screen the way a long real list does.
+const rect = (page, selector) =>
+    page.evaluate((s) => {
+        const r = document.querySelector(s).getBoundingClientRect();
+
+        return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, vh: window.innerHeight };
+    }, selector);
+
+for (const [label, width, height] of [['phone', 375, 500], ['tablet', 820, 600], ['desktop', 1440, 520]]) {
+    test(`picking a trooper down the list brings the panel into view, focuses its first field and returns to the row on ${label}`, async ({ page }) => {
+        await page.setViewportSize({ width, height });
+        await page.goto('/__e2e/login/Vasquez.R?to=/game-identities');
+        await page.getByTestId('view-everyone').click();
+
+        const lastOpen = page.locator('[data-testid^="open-"]').last();
+        const openId = await lastOpen.getAttribute('data-testid');
+        const rowId = openId.replace('open-', 'row-');
+        await lastOpen.scrollIntoViewIfNeeded();
+        await lastOpen.click();
+
+        const header = await rect(page, 'header');
+        await expect(page.getByTestId('identity-game')).toBeFocused();
+        await expect.poll(async () => (await rect(page, '[data-testid="panel"]')).top).toBeGreaterThanOrEqual(header.bottom - 0.5);
+
+        // In view, under the header, and not over the list.
+        const panel = await rect(page, '[data-testid="panel"]');
+        expect(panel.top).toBeLessThan(panel.vh);
+        if (width >= 1024) {
+            const queue = await rect(page, '[data-testid="queue"]');
+            expect(panel.bottom).toBeLessThanOrEqual(panel.vh + 0.5);
+            expect(panel.left).toBeGreaterThanOrEqual(queue.right - 0.5);
+
+            // The page scrolls down the list and the sticky panel stays put, just under the header.
+            await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+            expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+            const sticky = await rect(page, '[data-testid="panel"]');
+            expect(sticky.top).toBeGreaterThanOrEqual(header.bottom - 0.5);
+            expect(sticky.top).toBeLessThan(header.bottom + 16);
+            expect(sticky.bottom).toBeLessThanOrEqual(sticky.vh + 0.5);
+        }
+
+        await page.getByTestId('identity-cancel').click();
+        await expect(page.getByTestId(openId)).toBeFocused();
+        const row = await rect(page, `[data-testid="${rowId}"]`);
+        const bar = await rect(page, 'header');
+        expect(row.top).toBeGreaterThanOrEqual(bar.bottom - 0.5);
+        expect(row.bottom).toBeLessThanOrEqual(row.vh + 0.5);
+    });
+}
+
+test('saving the last missing game of a trooper lands on the row that took their place, in view, on phone', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 500 });
+    await page.goto('/__e2e/login/Vasquez.R?to=/game-identities');
+
+    const lastOpen = page.locator('[data-testid^="open-"]').last();
+    const before = await page.locator('[data-testid^="row-"]').count();
+    await lastOpen.scrollIntoViewIfNeeded();
+    await lastOpen.click();
+
+    // Link every game still missing; the last save drops the trooper from the "needs a link" queue.
+    const stamp = Date.now();
+    for (let i = 0; i < 3 && (await page.getByTestId('identity-form').count()); i++) {
+        await page.getByTestId('identity-name').fill(`Land_${stamp}_${i}`);
+        await page.getByTestId('identity-id').fill(`land-${stamp}-${i}`);
+        await page.getByTestId('identity-save').click();
+        await page.waitForTimeout(400);
+    }
+
+    await expect(page.locator('[data-testid^="row-"]')).toHaveCount(before - 1);
+    const focused = page.locator('[data-testid^="open-"]:focus');
+    await expect(focused).toHaveCount(1);
+    const row = await focused.evaluate((el) => {
+        const r = el.closest('li').getBoundingClientRect();
+
+        return { top: r.top, bottom: r.bottom, vh: innerHeight, bar: document.querySelector('header').getBoundingClientRect().bottom };
+    });
+    expect(row.top).toBeGreaterThanOrEqual(row.bar - 0.5);
+    expect(row.bottom).toBeLessThanOrEqual(row.vh + 0.5);
+});
+
+test('a panel taller than the screen scrolls inside itself and keeps Save reachable on desktop', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 460 });
+    await page.goto('/__e2e/login/Vasquez.R?to=/game-identities');
+    await page.getByTestId('view-everyone').click();
+    await page.locator('[data-testid^="open-"]').nth(1).click();
+
+    const stamp = Date.now();
+    for (const [game, id] of [['hll', `76561${stamp}`], ['arma', `arma-${stamp}`], ['wardogs', `76562${stamp}`]]) {
+        await page.getByTestId('identity-game').selectOption(game);
+        await page.getByTestId('identity-name').fill(`Tall_${game}`);
+        await page.getByTestId('identity-id').fill(id);
+        await page.getByTestId('identity-save').click();
+        await expect(page.getByTestId(`identity-${game}`)).toBeVisible();
+    }
+
+    const box = await page.getByTestId('panel').evaluate((el) => ({
+        scrolls: el.scrollHeight > el.clientHeight,
+        overflowY: getComputedStyle(el).overflowY,
+        bottom: el.getBoundingClientRect().bottom,
+        vh: innerHeight,
+    }));
+    expect(box.scrolls).toBe(true);
+    expect(box.overflowY).toBe('auto');
+    expect(box.bottom).toBeLessThanOrEqual(box.vh + 0.5);
+
+    // The first identity is reachable at the top, and Save at the bottom once the panel scrolls.
+    await expect(page.getByTestId('edit-hll')).toBeInViewport();
+    await page.getByTestId('identity-save').scrollIntoViewIfNeeded();
+    await expect(page.getByTestId('identity-save')).toBeInViewport();
+    await expect(page.getByTestId('identity-cancel')).toBeInViewport();
+});
