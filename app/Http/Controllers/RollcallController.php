@@ -33,6 +33,7 @@ use App\Commands\GameIdentities\RestoreDismissedPlayer;
 use App\Commands\GameIdentities\RestoreDismissedPlayerHandler;
 use App\Commands\GameIdentities\UnmatchedPlayerResolutionException;
 use App\Jobs\CaptureSectionPracticeJob;
+use App\Kpi\Headcount;
 use App\Kpi\KpiService;
 use App\Kpi\TrooperAttendance;
 use App\Loa\LoaCover;
@@ -58,6 +59,7 @@ use App\Repositories\PracticeCapturePlayerRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
+use App\Repositories\UnitActingLeadRepository;
 use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitDesignationOrder;
 use App\Repositories\UnitRepository;
@@ -134,6 +136,8 @@ class RollcallController extends Controller
         private readonly SectionFireteams $fireteams,
         private readonly RollcallGuests $guests,
         private readonly GameRepository $games,
+        private readonly Headcount $headcount,
+        private readonly UnitActingLeadRepository $actingLeads,
     ) {}
 
     /**
@@ -644,23 +648,32 @@ class RollcallController extends Controller
 
     /**
      * The section a user opens the rollcall on without choosing: the one their billet commands, else
-     * the first section of the first platoon in their scope, in designation order
-     * ({@see UnitDesignationOrder}). Null only when their scope holds no section, which leaves the
-     * (empty) picker.
+     * one they are acting lead of, else the first section of the first platoon in their scope, in
+     * designation order ({@see UnitDesignationOrder}). Only a section with troopers is landed on
+     * ({@see Headcount::withoutEmptyLineUnits()}, #426) unless every one in scope is empty; the
+     * picker still lists the empty ones. In a person preview the billet and acting leads are the
+     * previewed person's ({@see ScopeResolver::landingAccount()}), so the preview opens where they
+     * would. Null only when their scope holds no section, which leaves the (empty) picker.
      *
      * @param  Collection<int, Unit>  $sections  the sections in the user's scope
      */
     private function landingSection(User $user, Collection $sections): ?Unit
     {
-        $commanded = $this->commands->commandedUnitFor($user);
+        $withTroopers = $this->headcount->withoutEmptyLineUnits($sections);
+        $candidates = $withTroopers->isEmpty() ? $sections : $withTroopers;
 
-        if ($commanded !== null && $sections->contains('id', $commanded->id)) {
-            return $commanded;
+        $account = $this->scope->landingAccount($user);
+        $commanded = $account === null ? null : $this->commands->commandedUnitFor($account);
+        $own = $commanded === null ? null : $candidates->firstWhere('id', $commanded->id);
+
+        if ($own !== null) {
+            return $own;
         }
 
-        return $sections->count() <= 1
-            ? $sections->first()
-            : UnitDesignationOrder::sort($sections, $this->units->tree())->first();
+        $ordered = $candidates->count() <= 1 ? $candidates : UnitDesignationOrder::sort($candidates, $this->units->tree());
+        $actingFor = ($account === null ? collect() : $this->actingLeads->unitsLedBy($account))->pluck('id')->flip();
+
+        return $ordered->first(fn (Unit $section) => $actingFor->has($section->id)) ?? $ordered->first();
     }
 
     /**

@@ -385,6 +385,41 @@ class ScopeResolver
         return $this->commandedUnits($account)->first();
     }
 
+    /**
+     * Whose billet and acting leads decide where a page opens when no unit is named (the roster's default unit, the
+     * rollcall's landing section, #426): the user's own without a preview, the previewed person's in a person preview
+     * (their account, or the roster account of a trooper who has none), so the preview opens where that person would.
+     * Null in a unit preview and for a person who no longer exists: the page then opens at the top of the scope, which a
+     * unit preview is that unit.
+     */
+    public function landingAccount(User $user): ?User
+    {
+        $preview = $this->activeViewAs($user);
+
+        return match ($preview?->target->kind) {
+            null => $user,
+            ViewAsKind::Unit => null,
+            ViewAsKind::User => $this->users->find($preview->target->id),
+            ViewAsKind::Trooper => $this->rosterAccount($preview->target->id),
+        };
+    }
+
+    /**
+     * The highest units of the user's effective scope (view as and act as included): those whose parent is outside
+     * it, in tree order. Scope is subtree-closed, so every other unit in it sits under one of these. What the shell
+     * names as the viewer's scope (#426); empty for a user with no scope.
+     *
+     * @return Collection<int, Unit>
+     */
+    public function topUnits(User $user): Collection
+    {
+        $scope = $this->resolve($user)->flip();
+
+        return $this->units->tree()
+            ->filter(fn (Unit $unit) => $scope->has($unit->id) && ($unit->parent_id === null || ! $scope->has($unit->parent_id)))
+            ->values();
+    }
+
     private function asTrooper(ViewAsTarget $target): ?ActiveViewAs
     {
         $account = $this->rosterAccount($target->id);

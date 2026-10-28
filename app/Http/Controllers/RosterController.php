@@ -193,7 +193,9 @@ class RosterController extends Controller
      * The unit to open when none is named: the one the user's roster billet commands, when it is
      * still in scope (a view-as preview may have narrowed it away), else the unit they are acting
      * lead of (the first in tree order when they act for several, the order the org page lists
-     * them in), else the top of their scope.
+     * them in), else the top of their scope. In a person preview the billet and acting leads are
+     * the previewed person's, so the preview opens where they would (#426); a unit preview opens
+     * at its unit.
      * A regiment-wide scope lands on its first battalion instead — a whole regiment is too much
      * to read at once, and the switcher is right there to widen it.
      *
@@ -202,13 +204,14 @@ class RosterController extends Controller
      */
     private function defaultUnit(User $user, Collection $tree, Collection $scope): ?Unit
     {
-        $commanded = $this->commands->commandedUnitFor($user);
+        $account = $this->scope->landingAccount($user);
+        $commanded = $account === null ? null : $this->commands->commandedUnitFor($account);
 
         if ($commanded !== null && $scope->contains($commanded->id)) {
             return $commanded;
         }
 
-        $actingFor = $this->actingLeads->unitsLedBy($user)->pluck('id')->flip();
+        $actingFor = ($account === null ? collect() : $this->actingLeads->unitsLedBy($account))->pluck('id')->flip();
         $acting = $tree->first(fn (Unit $u) => $actingFor->has($u->id) && $scope->contains($u->id));
 
         if ($acting !== null) {
