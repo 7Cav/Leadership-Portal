@@ -45,8 +45,10 @@ beforeEach(function () {
     $this->second = $units->create(UnitType::Platoon, '2nd Platoon', '2/A/1-7', $this->company->id);
     $this->third = $units->create(UnitType::Platoon, '3rd Platoon', '3/A/1-7', $this->company->id);
     $this->squad = $units->create(UnitType::Section, '1st Squad', '1/1/A/1-7', $this->first->id);
-    // Each platoon has its HQ staff, so none is an empty unit left out of the roll-up (#442).
-    manUnits($this->first, $this->second, $this->third);
+    // Every platoon takes part, so none is left out of the roll-up (#442, #478): 1st Platoon through a squad with a
+    // trooper in it (HQ staff alone would not do, with a section under it), 2nd and 3rd, which have no sections,
+    // through their own troopers.
+    manUnits($this->squad, $this->second, $this->third);
 
     $this->reports = app(WeeklyReportRepository::class);
     $this->sender = User::factory()->create();
