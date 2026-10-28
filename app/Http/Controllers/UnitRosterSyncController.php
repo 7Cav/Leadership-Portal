@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Authorization\ActAs;
 use App\Authorization\ScopeResolver;
 use App\Jobs\SyncRosterJob;
 use App\Models\Unit;
@@ -54,7 +55,10 @@ class UnitRosterSyncController extends Controller
             abort(429, 'Another roster sync is being started right now. Try again in a moment.', ['Retry-After' => 5]);
         }
 
-        dispatch(new SyncRosterJob($user->id, $found->id));
+        // The run is recorded later, by a worker with no request behind it: name who really asked, the Admin or leader
+        // acting as this user, not the person acted as (#379, #432). Their own id when they act as nobody.
+        $actor = $request->attributes->get(ActAs::ADMIN_ATTRIBUTE) ?? $user;
+        dispatch(new SyncRosterJob($actor->id, $found->id));
 
         return back();
     }

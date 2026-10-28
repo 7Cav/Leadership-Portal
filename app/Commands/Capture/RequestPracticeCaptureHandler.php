@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
+use App\Support\Audit\ActingFor;
 use App\Support\Audit\AuditEnvelope;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
@@ -45,6 +46,7 @@ class RequestPracticeCaptureHandler
         private readonly PracticeTelemetry $telemetry,
         private readonly CaptureSources $sources,
         private readonly AuditEnvelope $audit,
+        private readonly ActingFor $acting,
     ) {}
 
     /**
@@ -108,6 +110,8 @@ class RequestPracticeCaptureHandler
             $practice->week_start->toDateTimeImmutable(),
             ($now->lessThan($weekEnd) ? $now : $weekEnd)->toDateTimeImmutable(),
             $actor->id,
+            // The run is queued: who is really acting goes with it, or its entries would name the person acted as.
+            $this->acting->snapshot(),
         );
     }
 }

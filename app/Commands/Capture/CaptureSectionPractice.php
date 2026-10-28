@@ -2,6 +2,7 @@
 
 namespace App\Commands\Capture;
 
+use App\Support\Audit\ActingSnapshot;
 use DateTimeImmutable;
 
 /**
@@ -12,6 +13,10 @@ use DateTimeImmutable;
  *
  * The game is named by id and read when the run starts (#388), not carried as a model: the command
  * is queued, and an Admin may change the game's telemetry interface before a run or its retries.
+ *
+ * `$acting` is who was really acting when a "Try again" queued it ({@see ActingSnapshot}): the job runs later with no
+ * request behind it, so the handler holds it again while it runs and the entries name the Admin or leader, on behalf
+ * of the person (or in the billet's place), exactly as the request would have.
  */
 final readonly class CaptureSectionPractice
 {
@@ -21,5 +26,6 @@ final readonly class CaptureSectionPractice
         public DateTimeImmutable $windowStart,
         public DateTimeImmutable $windowEnd,
         public int|string $triggeredBy = 'system',
+        public ?ActingSnapshot $acting = null,
     ) {}
 }
