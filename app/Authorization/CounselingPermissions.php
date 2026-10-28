@@ -7,7 +7,8 @@ use App\Models\CounselingType;
 
 /**
  * What one viewer may do with one trooper's counseling records (#381), worked out once by {@see CounselingAccess} so a
- * page listing many records asks the ScopeResolver once, not once per record.
+ * page listing many records asks the ScopeResolver once, not once per record. `$departed`: the trooper has left the Cav,
+ * so nothing may be filed on them, corrected or deleted, by anyone; what could be seen still is.
  */
 final readonly class CounselingPermissions
 {
@@ -22,6 +23,7 @@ final readonly class CounselingPermissions
         public bool $filesLor,
         public bool $admin,
         public bool $self,
+        public bool $departed,
         public array $issuingUnits,
         public array $writeScope,
     ) {}
@@ -46,11 +48,11 @@ final readonly class CounselingPermissions
      * Whether the viewer may correct or delete `$record`: they must see it, and be an Admin or command the unit it was
      * filed through (that unit's subtree is in their write scope, so the issuer and the chain above them qualify).
      * A leader must also still reach the trooper from above: one the trooper now commands, or who now shares the
-     * trooper's command, no longer changes what was filed before.
+     * trooper's command, no longer changes what was filed before. Nobody changes the records of a departed trooper.
      */
     public function changes(CounselingRecord $record): bool
     {
-        if (! $this->sees($record->type) || $this->self && ! $this->admin) {
+        if ($this->departed || ! $this->sees($record->type) || $this->self && ! $this->admin) {
             return false;
         }
 

@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\CounselingKind;
 use App\Models\CounselingRecord;
 use App\Models\CounselingType;
 use App\Models\DriveUploadStatus;
@@ -11,7 +12,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
 /**
- * A counseling record with no file behind it on the disk: tests that download one put a file at `document_path`.
+ * A counseling record with no file behind it on the disk: tests that download one put a file at `document_path`. It has
+ * no kind by default, like a record filed before the portal asked; `missedPractice()` and `conduct()` set one.
  *
  * @extends Factory<CounselingRecord>
  */
@@ -34,6 +36,16 @@ class CounselingRecordFactory extends Factory
             'document_sha256' => str_repeat('a', 64),
             'drive_status' => DriveUploadStatus::Skipped,
         ];
+    }
+
+    public function missedPractice(): static
+    {
+        return $this->state(['kind' => CounselingKind::MissedPractice]);
+    }
+
+    public function conduct(): static
+    {
+        return $this->state(['kind' => CounselingKind::Conduct]);
     }
 
     public function lor(): static

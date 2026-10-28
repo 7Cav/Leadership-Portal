@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { useForm } from '@inertiajs/vue3';
-import { PhDownloadSimple, PhFilePdf, PhPencilSimple, PhPlus, PhTrash, PhWarning } from '@phosphor-icons/vue';
+import { PhDownloadSimple, PhFilePdf, PhLock, PhPencilSimple, PhPlus, PhTrash, PhWarning } from '@phosphor-icons/vue';
 import InlineNotice from '@/components/InlineNotice.vue';
 import MilpacPanel from '@/components/milpac/MilpacPanel.vue';
 import { Badge } from '@/components/ui/badge';
@@ -12,12 +12,14 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
 import { forumDate } from '@/lib/forumDate';
 import { onHttpException } from '@/lib/httpError';
-import { COUNSELING_TYPES, DRIVE_STATUS, documentProblem, fileSize, nextStepHint, todayUtc } from '@/lib/counseling';
+import { COUNSELING_KINDS, COUNSELING_TYPES, DRIVE_STATUS, documentProblem, fileSize, forecastFlags, todayUtc } from '@/lib/counseling';
 import { toast } from 'vue-sonner';
 
 // The trooper's Developmental Counseling Statements and Letters of Reprimand (#381). The server sends only the records
-// this viewer may see, the 90-day warnings worked out from them, and what the viewer may do (file either type, change
-// each record); this component draws that and posts the forms. Hiding a control is cosmetic: every route checks again.
+// this viewer may see, where they stand under the regulations (each record's flags, the no favorable action banner, and
+// for the form what a new record would earn by its date), and what the viewer may do (file either type, change each
+// record; nothing at all on a trooper who has left the Cav). This component draws that and posts the forms. Hiding a
+// control is cosmetic: every route checks again.
 const props = defineProps({
     trooperId: { type: Number, required: true },
     // `Milpac\CounselingHistory` plus `sees` and `canFile`, from TrooperDetailController.
@@ -32,8 +34,9 @@ const today = todayUtc();
 // Filing: one inline form, opened by the button above the list.
 const filing = ref(false);
 const fileInput = ref(null);
-const fileForm = useForm({ type: 'dcs', counseled_on: today, reason: '', document: null });
-const hint = computed(() => nextStepHint(fileForm.type, props.counseling.counts));
+// `kind` starts unchosen: the leader says what the record is for every time.
+const fileForm = useForm({ type: 'dcs', kind: '', counseled_on: today, reason: '', document: null });
+const hint = computed(() => forecastFlags(props.counseling.forecast, fileForm.type, fileForm.kind, fileForm.counseled_on));
 
 function openFiling() {
     fileForm.reset();
@@ -49,6 +52,10 @@ function pickFile(event) {
 }
 
 function submitFiling() {
+    if (!COUNSELING_KINDS[fileForm.kind]) {
+        fileForm.setError('kind', 'Choose what the record is for.');
+        return;
+    }
     const problem = documentProblem(fileForm.document);
     if (problem) {
         fileForm.setError('document', problem);
@@ -131,7 +138,11 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
             </Badge>
         </template>
 
-        <div v-if="counseling.warnings?.length || canFile.length" class="flex flex-col gap-3 border-b border-border px-4 py-3">
+        <div v-if="counseling.departed || counseling.warnings?.length || canFile.length" class="flex flex-col gap-3 border-b border-border px-4 py-3">
+            <InlineNotice v-if="counseling.departed" :icon="PhLock" role="status" data-testid="counseling-departed">
+                This trooper is no longer serving, so their counseling records are read-only. Nobody can file, correct or delete a record. The records on file can still be downloaded.
+            </InlineNotice>
+
             <InlineNotice
                 v-for="warning in counseling.warnings"
                 :key="warning.key"
@@ -163,7 +174,21 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
                     </div>
                 </div>
 
-                <p v-if="hint" class="text-xs text-warning" data-testid="counseling-hint">{{ hint }}</p>
+                <div class="grid gap-1.5">
+                    <Label for="counseling-kind">What it is for</Label>
+                    <NativeSelect id="counseling-kind" v-model="fileForm.kind" data-testid="counseling-kind" :aria-invalid="!!fileForm.errors.kind" required @change="fileForm.clearErrors('kind')">
+                        <option value="" disabled>Choose one</option>
+                        <option v-for="(kind, value) in COUNSELING_KINDS" :key="value" :value="value">{{ kind.label }}</option>
+                    </NativeSelect>
+                    <p v-if="fileForm.errors.kind" class="text-xs text-destructive" data-testid="counseling-error-kind">{{ fileForm.errors.kind }}</p>
+                </div>
+
+                <div v-if="hint.length" class="text-xs text-warning" data-testid="counseling-hint">
+                    <p>Filed with this date, the record would be flagged:</p>
+                    <ul class="mt-0.5 list-disc pl-4">
+                        <li v-for="flag in hint" :key="flag.key" :data-testid="`counseling-hint-${flag.key}`">{{ flag.message }}</li>
+                    </ul>
+                </div>
 
                 <div class="grid gap-1.5">
                     <Label for="counseling-reason">Reason</Label>
@@ -210,11 +235,18 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
                         {{ typeShort(record.type) }}<span class="sr-only">: {{ typeLabel(record.type) }}</span>
                     </Badge>
                     <time :datetime="record.date" class="font-mono text-xs" data-testid="counseling-date-text">{{ forumDate(record.date) }}</time>
-                    <span class="text-xs text-muted-foreground" data-testid="counseling-window">
-                        {{ record.counts ? `Counts until ${forumDate(record.countsUntil)}` : 'Older than 90 days, no longer counts' }}
-                    </span>
+                    <span v-if="record.kindLabel" class="text-xs text-muted-foreground" data-testid="counseling-kind-text">{{ record.kindLabel }}</span>
                     <Badge :variant="drive(record.driveStatus).tone" class="ml-auto" data-testid="counseling-drive">{{ drive(record.driveStatus).label }}</Badge>
                 </div>
+
+                <ul v-if="record.flags?.length" class="flex flex-col gap-0.5 text-xs text-warning" data-testid="counseling-flags">
+                    <li v-for="flag in record.flags" :key="flag.key" class="flex items-start gap-1" :data-testid="`counseling-flag-${flag.key}`">
+                        <PhWarning class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />{{ flag.message }}
+                    </li>
+                </ul>
+                <p v-if="record.kindAssumed" class="text-xs text-muted-foreground" data-testid="counseling-kind-assumed">
+                    Filed before the portal asked what a record is for, so the other conduct rules apply to it.
+                </p>
 
                 <p class="whitespace-pre-line" data-testid="counseling-reason-text">{{ record.reason }}</p>
                 <p class="text-xs text-muted-foreground" data-testid="counseling-issuer">Filed by {{ record.issuer }}</p>

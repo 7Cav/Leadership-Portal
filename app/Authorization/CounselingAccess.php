@@ -4,6 +4,7 @@ namespace App\Authorization;
 
 use App\Models\CounselingType;
 use App\Models\Trooper;
+use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
@@ -31,6 +32,9 @@ use Illuminate\Support\Collection;
  *  - **Correct or delete**: Admins, and the commanders of the unit the record was filed through (the issuer and the
  *    chain above them), as long as they still see the record. A record with no issuing unit (filed by an Admin, or its
  *    unit deleted) is the Admins' alone.
+ *  - **A trooper who has left the Cav** (not serving, {@see TrooperStatus::serving()}): nobody files, corrects or
+ *    deletes, Admins included (2026-10-28). Who could see the records still sees and downloads them. Serving again
+ *    makes them writable again.
  *
  * Writes are judged on real authority narrowed by an active view-as preview ({@see ScopeResolver::writeScope()}); the
  * `ReadOnlyWhileViewingAs` middleware refuses them during a preview anyway. Reads follow the preview through `canSee`.
@@ -59,14 +63,17 @@ class CounselingAccess
         }
 
         $admin = (bool) $user->is_admin;
+        // Left the Cav (not on the serving allow-list, or no standing at all): read-only for everyone (2026-10-28).
+        $departed = ! ($trooper->status?->isServing() ?? false);
 
         return new CounselingPermissions(
             seesDcs: $canSee && ($admin || $issuing[CounselingType::Dcs->value] !== null),
             seesLor: $canSee,
-            filesDcs: ! $self && ($admin || $issuing[CounselingType::Dcs->value] !== null),
-            filesLor: ! $self && ($admin || $issuing[CounselingType::Lor->value] !== null),
+            filesDcs: ! $departed && ! $self && ($admin || $issuing[CounselingType::Dcs->value] !== null),
+            filesLor: ! $departed && ! $self && ($admin || $issuing[CounselingType::Lor->value] !== null),
             admin: $admin,
             self: $self,
+            departed: $departed,
             issuingUnits: array_map(fn (?Unit $unit) => $unit?->id, $issuing),
             writeScope: $writeScope->map(fn ($id) => (int) $id)->values()->all(),
         );

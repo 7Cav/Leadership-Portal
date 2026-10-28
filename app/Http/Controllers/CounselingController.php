@@ -6,6 +6,7 @@ use App\Authorization\CounselingAccess;
 use App\Authorization\ScopeResolver;
 use App\Commands\Counseling\CorrectCounselingRecord;
 use App\Commands\Counseling\CorrectCounselingRecordHandler;
+use App\Commands\Counseling\CounselingForbiddenException;
 use App\Commands\Counseling\CounselingRecordNotFoundException;
 use App\Commands\Counseling\CounselingRules;
 use App\Commands\Counseling\DeleteCounselingRecord;
@@ -15,8 +16,10 @@ use App\Commands\Counseling\FileCounselingRecordHandler;
 use App\Commands\Counseling\InvalidCounselingRecordException;
 use App\Commands\Counseling\UploadCounselingDocument;
 use App\Jobs\UploadCounselingDocumentJob;
+use App\Models\CounselingKind;
 use App\Models\CounselingType;
 use App\Models\DriveUploadStatus;
+use App\Models\Trooper;
 use App\Repositories\CounselingDocuments;
 use App\Repositories\CounselingRecordRepository;
 use App\Repositories\TrooperRepository;
@@ -39,6 +42,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * answers 404, exactly like one that does not exist, on every route here, the download included. The form's own checks
  * (a known type, a date, a reason, a PDF of at most 10 MB by its content) run first; the handler checks them again.
  *
+ * A trooper who has left the Cav has read-only counseling: filing, correcting and deleting are refused here (403)
+ * before the form is read, and again in each handler; the download still works for whoever sees the record.
+ *
  * Once a record is saved with Google Drive configured, its upload is queued (AD-23). Queuing never undoes the filing:
  * a queue that cannot take the job is reported, and the record shows its upload as pending.
  */
@@ -54,14 +60,18 @@ class CounselingController extends Controller
     {
         $found = $this->troopers->find($trooper);
         abort_unless($found !== null && $this->scope->canSee($request->user(), $found), 404);
+        $this->refuseDeparted($found);
 
         $data = $request->validate([
             'type' => ['required', Rule::enum(CounselingType::class)],
+            'kind' => ['required', Rule::enum(CounselingKind::class)],
             'counseled_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:today', 'after_or_equal:'.CounselingRules::EARLIEST],
             'reason' => ['required', 'string', 'max:'.CounselingRules::REASON_MAX],
             // `mimetypes` sniffs the file's content (finfo), not its name or the type the browser sent.
             'document' => ['required', 'file', 'max:'.(CounselingRules::DOCUMENT_MAX_BYTES / 1024), 'mimetypes:application/pdf'],
         ], [
+            'kind.required' => 'Choose what the record is for.',
+            'kind.enum' => 'Choose what the record is for.',
             'document.required' => 'Attach the signed document as a PDF.',
             'document.mimetypes' => 'Attach the signed document as a PDF.',
             'document.max' => 'The document must be 10 MB or smaller.',
@@ -74,6 +84,7 @@ class CounselingController extends Controller
         $record = $this->handle(fn () => $handler->handle($request->user(), new FileCounselingRecord(
             trooperId: $found->id,
             type: CounselingType::from($data['type']),
+            kind: CounselingKind::from($data['kind']),
             counseledOn: CarbonImmutable::createFromFormat('Y-m-d', $data['counseled_on'], 'UTC'),
             reason: $data['reason'],
             documentPath: $request->file('document')->getRealPath(),
@@ -89,8 +100,10 @@ class CounselingController extends Controller
         return redirect()->route('troopers.show', $found->id);
     }
 
-    public function update(Request $request, int $counseling, CorrectCounselingRecordHandler $handler): RedirectResponse
+    public function update(Request $request, int $counseling, CorrectCounselingRecordHandler $handler, CounselingAccess $access): RedirectResponse
     {
+        $this->refuseDepartedRecord($request, $counseling, $access);
+
         $data = $request->validate([
             'counseled_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:today', 'after_or_equal:'.CounselingRules::EARLIEST],
             'reason' => ['required', 'string', 'max:'.CounselingRules::REASON_MAX],
@@ -114,8 +127,10 @@ class CounselingController extends Controller
         return redirect()->route('troopers.show', $record->trooper_id);
     }
 
-    public function destroy(Request $request, int $counseling, DeleteCounselingRecordHandler $handler): RedirectResponse
+    public function destroy(Request $request, int $counseling, DeleteCounselingRecordHandler $handler, CounselingAccess $access): RedirectResponse
     {
+        $this->refuseDepartedRecord($request, $counseling, $access);
+
         $data = $request->validate(['audit_reason' => ['required', 'string', 'max:500']], [
             'audit_reason.required' => 'Say why the record is deleted.',
             'audit_reason.max' => 'Keep the reason for deleting to :max characters.',
@@ -137,6 +152,31 @@ class CounselingController extends Controller
         abort_unless($documents->exists($record->document_path), 404);
 
         return $documents->download($record->document_path, $record->fileName($record->trooper));
+    }
+
+    /**
+     * A trooper who has left the Cav has read-only counseling (2026-10-28): refused before the form is even read. The
+     * handlers refuse it again.
+     *
+     * @throws CounselingForbiddenException
+     */
+    private function refuseDeparted(Trooper $trooper): void
+    {
+        if (! ($trooper->status?->isServing() ?? false)) {
+            throw CounselingForbiddenException::departed($trooper);
+        }
+    }
+
+    /**
+     * The same for a correction or a delete, once the record is known to be one the viewer sees: a record they do not
+     * see, or that does not exist, answers 404 as before, so the refusal gives nothing away.
+     */
+    private function refuseDepartedRecord(Request $request, int $counseling, CounselingAccess $access): void
+    {
+        $record = $this->records->find($counseling);
+        abort_unless($record !== null && $access->for($request->user(), $record->trooper)->sees($record->type), 404);
+
+        $this->refuseDeparted($record->trooper);
     }
 
     /**

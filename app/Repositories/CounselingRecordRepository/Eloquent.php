@@ -2,6 +2,7 @@
 
 namespace App\Repositories\CounselingRecordRepository;
 
+use App\Models\CounselingKind;
 use App\Models\CounselingRecord;
 use App\Models\CounselingType;
 use App\Models\DriveUploadStatus;
@@ -16,6 +17,7 @@ class Eloquent implements CounselingRecordRepository
     public function create(
         int $trooperId,
         CounselingType $type,
+        CounselingKind $kind,
         CarbonImmutable $counseledOn,
         string $reason,
         int $issuedBy,
@@ -29,6 +31,7 @@ class Eloquent implements CounselingRecordRepository
         $record->forceFill([
             'trooper_id' => $trooperId,
             'type' => $type,
+            'kind' => $kind,
             'counseled_on' => $counseledOn->toDateString(),
             'reason' => $reason,
             'issued_by' => $issuedBy,

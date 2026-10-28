@@ -3,10 +3,18 @@
 use App\Authorization\ViewAs;
 use App\Authorization\ViewAsKind;
 use App\Authorization\ViewAsTarget;
+use App\Commands\Counseling\CorrectCounselingRecord;
+use App\Commands\Counseling\CorrectCounselingRecordHandler;
+use App\Commands\Counseling\CounselingForbiddenException;
+use App\Commands\Counseling\DeleteCounselingRecord;
+use App\Commands\Counseling\DeleteCounselingRecordHandler;
 use App\Models\AuditLogEntry;
+use App\Models\CounselingKind;
 use App\Models\CounselingRecord;
 use App\Models\CounselingType;
+use App\Models\TrooperStatus;
 use App\Repositories\CounselingDocuments;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Storage;
 
 require_once __DIR__.'/fixture.php';
@@ -162,4 +170,62 @@ it('sends a signed-out visitor to sign in from every counseling route', function
     $this->post(route('counseling.store', $this->rifleman->id))->assertRedirect(route('login'));
     $this->patch(route('counseling.update', $this->lor->id))->assertRedirect(route('login'));
     $this->delete(route('counseling.destroy', $this->lor->id))->assertRedirect(route('login'));
+});
+
+it('keeps what a record is for as filed: a correction never changes it', function () {
+    $this->dcs->forceFill(['kind' => CounselingKind::MissedPractice])->save();
+
+    $this->actingAs($this->tree['users']['sl'])
+        ->patch(route('counseling.update', $this->dcs->id), ($this->correction)(['kind' => 'conduct']))
+        ->assertRedirect();
+
+    expect($this->dcs->fresh()->kind)->toBe(CounselingKind::MissedPractice);
+});
+
+it('makes a departed trooper\'s records read-only: nobody corrects or deletes them, Admins included', function () {
+    $this->rifleman->forceFill(['status' => TrooperStatus::Inactive])->save();
+
+    foreach (['admin', 'sl', 'pl', 'co'] as $who) {
+        $user = $this->tree['users'][$who];
+        $this->actingAs($user)->patch(route('counseling.update', $this->dcs->id), ($this->correction)())->assertForbidden();
+        $this->actingAs($user)->delete(route('counseling.destroy', $this->lor->id), ['audit_reason' => 'Filed on the wrong trooper.'])->assertForbidden();
+    }
+
+    expect($this->dcs->fresh()->reason)->toBe('Late to practice twice.')
+        ->and(CounselingRecord::query()->count())->toBe(2)
+        ->and(AuditLogEntry::query()->whereIn('action', ['counseling.corrected', 'counseling.deleted'])->count())->toBe(0);
+    Storage::disk('counseling')->assertExists($this->lor->document_path);
+});
+
+it('still lets those who saw a departed trooper\'s records download them, and hides them from everyone else as before', function () {
+    $this->rifleman->forceFill(['status' => TrooperStatus::Inactive])->save();
+
+    $this->actingAs($this->tree['users']['pl'])->get(route('counseling.document', $this->dcs->id))->assertOk();
+    $this->actingAs($this->tree['users']['grant'])->get(route('counseling.document', $this->lor->id))->assertOk();
+    $this->actingAs($this->tree['users']['grant'])->get(route('counseling.document', $this->dcs->id))->assertNotFound();
+    // A record the viewer cannot see answers 404, not the departed refusal, so the refusal gives nothing away.
+    $this->actingAs($this->tree['users']['grant'])->patch(route('counseling.update', $this->dcs->id), ($this->correction)())->assertNotFound();
+    $this->actingAs($this->tree['users']['otherSl'])->delete(route('counseling.destroy', $this->lor->id), ['audit_reason' => 'x'])->assertNotFound();
+});
+
+it('refuses a departed trooper\'s corrections and deletes in the handlers too, whatever reached them', function () {
+    $this->rifleman->forceFill(['status' => TrooperStatus::Inactive])->save();
+    $admin = $this->tree['users']['admin'];
+
+    expect(fn () => app(CorrectCounselingRecordHandler::class)->handle($admin, new CorrectCounselingRecord($this->dcs->id, CarbonImmutable::now()->subDay(), 'New reason.', 'Typo.')))
+        ->toThrow(CounselingForbiddenException::class, 'Brandt.L is no longer serving, so their counseling records are read-only.')
+        ->and(fn () => app(DeleteCounselingRecordHandler::class)->handle($admin, new DeleteCounselingRecord($this->lor->id, 'Wrong trooper.')))
+        ->toThrow(CounselingForbiddenException::class, 'Brandt.L is no longer serving, so their counseling records are read-only.');
+
+    expect(CounselingRecord::query()->count())->toBe(2);
+});
+
+it('makes the records writable again once the trooper serves again', function () {
+    $this->rifleman->forceFill(['status' => TrooperStatus::Inactive])->save();
+    $this->actingAs($this->tree['users']['sl'])->patch(route('counseling.update', $this->dcs->id), ($this->correction)())->assertForbidden();
+
+    $this->rifleman->forceFill(['status' => TrooperStatus::Eloa])->save();
+    $this->actingAs($this->tree['users']['sl'])->patch(route('counseling.update', $this->dcs->id), ($this->correction)())->assertRedirect();
+
+    expect($this->dcs->fresh()->reason)->toBe('Late to practice three times.');
 });

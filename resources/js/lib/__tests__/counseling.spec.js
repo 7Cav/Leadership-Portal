@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COUNSELING_TYPES, DRIVE_STATUS, MAX_DOCUMENT_BYTES, documentProblem, fileSize, nextStepHint, todayUtc } from '../counseling';
+import { COUNSELING_KINDS, COUNSELING_TYPES, DRIVE_STATUS, MAX_DOCUMENT_BYTES, documentProblem, fileSize, forecastFlags, todayUtc } from '../counseling';
 
 // #381: the words and small rules of the counseling panel.
 
@@ -17,16 +17,33 @@ describe('counseling', () => {
         expect(fileSize(undefined)).toBe('');
     });
 
-    it('says what one more record would mean under the 90-day rules', () => {
-        expect(nextStepHint('dcs', { dcs: 0, lor: 0 })).toBeNull();
-        expect(nextStepHint('dcs', { dcs: 1, lor: 0 })).toBe(
-            'This trooper already has a DCS in the last 90 days. A repeat within 90 days of a DCS calls for a Letter of Reprimand.',
-        );
-        expect(nextStepHint('dcs', { dcs: 2, lor: 0 })).toContain('already has 2 DCSs');
-        expect(nextStepHint('lor', { dcs: 3, lor: 0 })).toBeNull();
-        expect(nextStepHint('lor', { dcs: 0, lor: 1 })).toContain('A second within 90 days allows removal as Section Leader or Assistant Section Leader.');
-        expect(nextStepHint('lor', { dcs: 0, lor: 2 })).toContain('A third within 90 days calls for an Article 15.');
-        expect(nextStepHint('lor', undefined)).toBeNull();
+    it('names what a record is for, in the order the form offers them', () => {
+        expect(Object.keys(COUNSELING_KINDS)).toEqual(['missed_practice', 'conduct']);
+        expect(COUNSELING_KINDS.missed_practice.label).toBe('Missed section practice or rollcall');
+        expect(COUNSELING_KINDS.conduct.label).toBe('Other conduct');
+    });
+
+    it('picks the forecast range the filing date falls in, edges included', () => {
+        const repeat = { key: 'dcs-repeat', message: 'Repeat within 90 days of a DCS: an LOR is the next step if it was for the same issue.' };
+        const forecast = {
+            dcs: {
+                conduct: [
+                    { from: '1970-01-01', flags: [] },
+                    { from: '2026-08-01', flags: [repeat] },
+                    { from: '2026-10-31', flags: [] },
+                ],
+            },
+        };
+
+        expect(forecastFlags(forecast, 'dcs', 'conduct', '2026-07-31')).toEqual([]);
+        expect(forecastFlags(forecast, 'dcs', 'conduct', '2026-08-01')).toEqual([repeat]);
+        expect(forecastFlags(forecast, 'dcs', 'conduct', '2026-10-30')).toEqual([repeat]);
+        expect(forecastFlags(forecast, 'dcs', 'conduct', '2026-10-31')).toEqual([]);
+        // Nothing chosen yet, or nothing the viewer may file.
+        expect(forecastFlags(forecast, 'dcs', '', '2026-08-01')).toEqual([]);
+        expect(forecastFlags(forecast, 'lor', 'conduct', '2026-08-01')).toEqual([]);
+        expect(forecastFlags(forecast, 'dcs', 'conduct', '')).toEqual([]);
+        expect(forecastFlags(undefined, 'dcs', 'conduct', '2026-08-01')).toEqual([]);
     });
 
     it('catches a missing, non-PDF or oversize file before it uploads', () => {

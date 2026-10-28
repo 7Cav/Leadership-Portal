@@ -12,7 +12,7 @@ use App\Support\Audit\ReasonRequiredException;
 /**
  * Correct the date or reason of a counseling record (#381). Only someone who sees the record and commands the unit it
  * was filed through (the issuer's chain), or an Admin, may ({@see CounselingAccess}); a record the actor cannot see
- * is not found, one they see but may not change is a 403. Saving what is already stored records nothing; a change is
+ * is not found, one they see but may not change is a 403, and so is any record of a trooper who has left the Cav. Saving what is already stored records nothing; a change is
  * one audited action (`counseling.corrected`, AD-16) whose reason is required.
  */
 class CorrectCounselingRecordHandler
@@ -36,6 +36,10 @@ class CorrectCounselingRecordHandler
 
         if (! $permissions->sees($record->type)) {
             throw new CounselingRecordNotFoundException;
+        }
+
+        if ($permissions->departed) {
+            throw CounselingForbiddenException::departed($record->trooper);
         }
 
         if (! $permissions->changes($record)) {

@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\CounselingKind;
 use App\Models\CounselingRecord;
 use App\Models\CounselingType;
 use App\Models\DriveUploadStatus;
@@ -45,8 +46,8 @@ class CounselingSeeder extends Seeder
             'cav_id' => (int) "{$tag}3", 'rank_short' => 'PFC', 'username' => 'Novak.E', 'status' => TrooperStatus::Combat, 'primary_section_id' => $section->id,
         ]);
 
-        $this->record($rifleman, CounselingType::Dcs, $sl, $section, 'Missed two section practices without notice.');
-        $this->record($rifleman, CounselingType::Lor, $pl, $platoon, 'Disrespect toward an NCO during practice.');
+        $this->record($rifleman, CounselingType::Dcs, CounselingKind::MissedPractice, $sl, $section, 'Missed two section practices without notice.');
+        $this->record($rifleman, CounselingType::Lor, CounselingKind::Conduct, $pl, $platoon, 'Disrespect toward an NCO during practice.');
     }
 
     private function leader(string $rank, string $username, int $cavId, Unit $unit, int $positionId): User
@@ -60,7 +61,7 @@ class CounselingSeeder extends Seeder
         return User::factory()->create(['username' => $username, 'cav_id' => $cavId]);
     }
 
-    private function record(Trooper $trooper, CounselingType $type, User $issuer, Unit $through, string $reason): void
+    private function record(Trooper $trooper, CounselingType $type, CounselingKind $kind, User $issuer, Unit $through, string $reason): void
     {
         $bytes = "%PDF-1.4\n% seeded {$type->short()} for {$trooper->username}\n%%EOF\n";
         $path = Str::uuid()->toString().'.pdf';
@@ -69,6 +70,7 @@ class CounselingSeeder extends Seeder
         CounselingRecord::factory()->create([
             'trooper_id' => $trooper->id,
             'type' => $type,
+            'kind' => $kind,
             'counseled_on' => CarbonImmutable::now('UTC')->subDays(20)->toDateString(),
             'reason' => $reason,
             'issued_by' => $issuer->id,

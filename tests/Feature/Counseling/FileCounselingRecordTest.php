@@ -3,6 +3,7 @@
 use App\Authorization\ViewAs;
 use App\Authorization\ViewAsKind;
 use App\Authorization\ViewAsTarget;
+use App\Commands\Counseling\CounselingForbiddenException;
 use App\Commands\Counseling\CounselingRules;
 use App\Commands\Counseling\FileCounselingRecord;
 use App\Commands\Counseling\FileCounselingRecordHandler;
@@ -11,9 +12,11 @@ use App\Integration\GoogleDrive\GoogleDriveApi;
 use App\Integration\GoogleDrive\Requests\RequestAccessTokenRequest;
 use App\Jobs\UploadCounselingDocumentJob;
 use App\Models\AuditLogEntry;
+use App\Models\CounselingKind;
 use App\Models\CounselingRecord;
 use App\Models\CounselingType;
 use App\Models\DriveUploadStatus;
+use App\Models\TrooperStatus;
 use App\Support\Audit\ActingFor;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile;
@@ -33,6 +36,7 @@ beforeEach(function () {
     $this->rifleman = $this->tree['rifleman'];
     $this->file = fn (array $overrides = []) => [
         'type' => 'dcs',
+        'kind' => 'missed_practice',
         'counseled_on' => now()->subDays(3)->toDateString(),
         'reason' => 'Missed two section practices without notice.',
         'document' => counselingPdf(),
@@ -56,6 +60,7 @@ it('files a DCS with its document: the record, a private copy under a name the p
 
     $record = CounselingRecord::query()->sole();
     expect($record->type)->toBe(CounselingType::Dcs)
+        ->and($record->kind)->toBe(CounselingKind::MissedPractice)
         ->and($record->trooper_id)->toBe($this->rifleman->id)
         ->and($record->counseled_on->toDateString())->toBe(now()->subDays(3)->toDateString())
         ->and($record->reason)->toBe('Missed two section practices without notice.')
@@ -184,7 +189,7 @@ it('records the Admin behind a filing made while acting as a leader', function (
     $pdf = counselingPdf();
 
     $record = app(FileCounselingRecordHandler::class)->handle($pl, new FileCounselingRecord(
-        $this->rifleman->id, CounselingType::Lor, CarbonImmutable::now()->subDay(), 'Insubordination at practice.', $pdf->getRealPath(), 'lor.pdf',
+        $this->rifleman->id, CounselingType::Lor, CounselingKind::Conduct, CarbonImmutable::now()->subDay(), 'Insubordination at practice.', $pdf->getRealPath(), 'lor.pdf',
     ));
 
     expect($record->issued_by)->toBe($pl->id)
@@ -212,7 +217,7 @@ it('checks the document again in the handler, whatever reached it', function () 
 
     $notPdf = UploadedFile::fake()->createWithContent('x.pdf', 'MZ not a pdf');
     expect(fn () => app(FileCounselingRecordHandler::class)->handle($this->tree['users']['sl'], new FileCounselingRecord(
-        $this->rifleman->id, CounselingType::Dcs, CarbonImmutable::now(), 'Reason', $notPdf->getRealPath(), 'x.pdf',
+        $this->rifleman->id, CounselingType::Dcs, CounselingKind::Conduct, CarbonImmutable::now(), 'Reason', $notPdf->getRealPath(), 'x.pdf',
     )))->toThrow(InvalidCounselingRecordException::class);
 
     nothingFiled();
@@ -289,6 +294,7 @@ it('refuses the repeat in the handler too, with nothing left on the disk', funct
     $command = new FileCounselingRecord(
         trooperId: $this->rifleman->id,
         type: CounselingType::Dcs,
+        kind: CounselingKind::MissedPractice,
         counseledOn: CarbonImmutable::now('UTC')->subDays(2),
         reason: '  Missed practice.  ',
         documentPath: $path,
@@ -299,9 +305,64 @@ it('refuses the repeat in the handler too, with nothing left on the disk', funct
 
     // The reason is compared as stored, trimmed.
     expect(fn () => $handler->handle($this->tree['users']['sl'], new FileCounselingRecord(
-        $command->trooperId, $command->type, $command->counseledOn, 'Missed practice.', $path, 'other-name.pdf',
+        $command->trooperId, $command->type, $command->kind, $command->counseledOn, 'Missed practice.', $path, 'other-name.pdf',
     )))->toThrow(InvalidCounselingRecordException::class, 'This record is already filed.');
 
     expect(Storage::disk('counseling')->allFiles())->toHaveCount(1);
     @unlink($path);
+});
+
+it('requires what the record is for: a missed section practice or rollcall, or other conduct', function (array $payload) {
+    $this->actingAs($this->tree['users']['pl'])
+        ->post(route('counseling.store', $this->rifleman->id), ($this->file)($payload))
+        ->assertSessionHasErrors(['kind' => 'Choose what the record is for.']);
+
+    nothingFiled();
+})->with([
+    'missing' => [['kind' => null]],
+    'unknown' => [['kind' => 'tardiness']],
+]);
+
+it('stores other conduct as its own kind', function () {
+    $this->actingAs($this->tree['users']['pl'])
+        ->post(route('counseling.store', $this->rifleman->id), ($this->file)(['type' => 'lor', 'kind' => 'conduct']))
+        ->assertRedirect();
+
+    expect(CounselingRecord::query()->sole()->kind)->toBe(CounselingKind::Conduct);
+});
+
+it('refuses any filing on a trooper who has left the Cav, Admins included, and allows it again once they serve again', function () {
+    $this->rifleman->forceFill(['status' => TrooperStatus::Inactive])->save();
+
+    foreach (['admin', 'pl', 'sl'] as $who) {
+        $this->actingAs($this->tree['users'][$who])
+            ->post(route('counseling.store', $this->rifleman->id), ($this->file)())
+            ->assertForbidden();
+    }
+    nothingFiled();
+
+    $this->rifleman->forceFill(['status' => TrooperStatus::Reserve])->save();
+    $this->actingAs($this->tree['users']['pl'])
+        ->post(route('counseling.store', $this->rifleman->id), ($this->file)())
+        ->assertRedirect(route('troopers.show', $this->rifleman->id));
+    expect(CounselingRecord::query()->count())->toBe(1);
+});
+
+it('refuses filing on a departed trooper in the handler too, saying why, before anything is stored', function () {
+    $this->rifleman->forceFill(['status' => TrooperStatus::Inactive])->save();
+    $pdf = counselingPdf();
+
+    expect(fn () => app(FileCounselingRecordHandler::class)->handle($this->tree['users']['admin'], new FileCounselingRecord(
+        $this->rifleman->id, CounselingType::Lor, CounselingKind::Conduct, CarbonImmutable::now(), 'Reason', $pdf->getRealPath(), 'lor.pdf',
+    )))->toThrow(CounselingForbiddenException::class, 'Brandt.L is no longer serving, so their counseling records are read-only.');
+
+    nothingFiled();
+});
+
+it('still answers 404, not the departed refusal, for a departed trooper the viewer cannot see', function () {
+    $this->rifleman->forceFill(['status' => TrooperStatus::Inactive])->save();
+
+    $this->actingAs($this->tree['users']['otherSl'])
+        ->post(route('counseling.store', $this->rifleman->id), ($this->file)())
+        ->assertNotFound();
 });

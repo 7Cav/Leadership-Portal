@@ -16,6 +16,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * `issuer_unit_id` is the unit through whose command the issuer reached the trooper when filing; the commanders of that
  * unit (the issuer's own chain) and Admins may correct or delete the record. `document_path` names a file on the private
  * `counseling` disk that the portal named itself; `document_sha256` is what the audit digest carries of the file.
+ * `kind` says which ladder of the regulations the record belongs to ({@see CounselingKind}); null on a record filed
+ * before the portal asked, ruled as other conduct.
  */
 class CounselingRecord extends Model
 {
@@ -28,6 +30,7 @@ class CounselingRecord extends Model
     {
         return [
             'type' => CounselingType::class,
+            'kind' => CounselingKind::class,
             'counseled_on' => 'immutable_date',
             'document_size' => 'integer',
             'drive_status' => DriveUploadStatus::class,
