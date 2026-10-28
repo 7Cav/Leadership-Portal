@@ -202,7 +202,9 @@ outside a section only lets the capture recognise them; attendance is still mark
 
 The ID is checked against the shape of its kind when it is saved: a Steam ID is 17 digits starting 7656119, an Epic ID
 32 characters of 0 to 9 and a to f (stored lower case, as the game server reports it). Other kinds, such as Xbox ID or
-Arma's Player ID, take any value. The hint under the ID field says what the chosen kind looks like. Names and IDs are
+Arma's Player ID, take any value. The hint under the ID field says what the chosen kind looks like. An identity saved
+with the same ID and kind it already has is not checked again, so an older one that does not fit its kind can still be
+renamed; changing its ID or kind checks it. Names and IDs are
 stored without hidden characters (zero-width spaces, direction marks and the like), normalised and trimmed; a value
 with nothing left is refused. A name that mixes alphabets, such as Latin and Cyrillic, is saved with a "Check this
 name" marker, since a letter may be a look-alike. Linking an unmatched player from the rollcall takes the ID the server
