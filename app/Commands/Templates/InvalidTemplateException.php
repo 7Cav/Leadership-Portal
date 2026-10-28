@@ -6,9 +6,9 @@ use App\Models\Unit;
 use RuntimeException;
 
 /**
- * A template edit asks for something the portal will not store. Thrown before anything is written, and lives in the
- * CommandHandler layer so the settings controller can turn it into a form error on the right field (Controller →
- * CommandHandler). `$field` names that field: the company, or the body.
+ * A template change asks for something the portal will not store. Thrown before anything is written, and lives in the
+ * CommandHandler layer so the controllers can turn it into a form error on the right field (Controller →
+ * CommandHandler). `$field` names that field: the company, the name, the body or the template.
  */
 class InvalidTemplateException extends RuntimeException
 {
@@ -36,5 +36,40 @@ class InvalidTemplateException extends RuntimeException
     public static function badSyntax(string $problem): self
     {
         return new self($problem, 'body');
+    }
+
+    public static function emptyName(): self
+    {
+        return new self('A template needs a name.', 'name');
+    }
+
+    public static function nameTooLong(int $max): self
+    {
+        return new self("A template name can be at most {$max} characters.", 'name');
+    }
+
+    public static function duplicateName(string $name): self
+    {
+        return new self("This company already has a template called {$name}.", 'name');
+    }
+
+    public static function regimentDefaultAlwaysOn(): self
+    {
+        return new self('The regiment default is always available and cannot be switched off.', 'template_id');
+    }
+
+    public static function notThisCompanys(): self
+    {
+        return new self("That template is not one of this company's own.", 'template_id');
+    }
+
+    public static function notASection(Unit $unit): self
+    {
+        return new self("Unit {$unit->id} is not a section; only a section picks its template.", 'unit');
+    }
+
+    public static function notAvailable(): self
+    {
+        return new self('That template is not switched on for this section. Pick another.', 'template_id');
     }
 }
