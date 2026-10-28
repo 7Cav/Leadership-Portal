@@ -41,9 +41,11 @@ return new class extends Migration
 
         Schema::table('template_versions', fn (Blueprint $table) => $table->dropConstrainedForeignId('section_id'));
 
+        // MySQL lets the foreign key use the `(section_id, artifact_type)` index, so the key goes first, then the index.
         Schema::table('templates', function (Blueprint $table) {
+            $table->dropForeign(['section_id']);
             $table->dropIndex(['section_id', 'artifact_type']);
-            $table->dropConstrainedForeignId('section_id');
+            $table->dropColumn('section_id');
         });
     }
 };
