@@ -228,13 +228,6 @@ Leave covering a week takes that week out of both RC and SP for the trooper. A l
 weeks out too (no miss, not in either denominator) but does not count as On LOA. A non-leaf unit's reported KPIs are
 the sum of its direct children's sent reports.
 
-## Planned (not yet built)
-
-From the backlog of 2026-10-27. None of these exist in the code today.
-
-- Admin "act as": a full impersonation with that person's permissions (red bar), able to send reports.
-- An Admin-only page-visit log for reproducing bugs.
-
 ## Technical appendix
 
 | Area | Code |
