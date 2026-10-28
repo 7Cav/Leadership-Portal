@@ -67,6 +67,7 @@ class ActAsController extends Controller
         if (! $start->handle($actor, $target)) {
             throw ValidationException::withMessages([
                 'act_as' => match (true) {
+                    $held && $target->kind === ViewAsKind::Unit => 'Stop acting as someone first: only an Admin acting as nobody can act as a billet.',
                     $held => 'You can only act as a serving billet holder below you in your own scope, and only while not already acting as someone.',
                     $target->kind === ViewAsKind::User => 'You can act as a serving member, never as yourself.',
                     default => 'That unit no longer exists.',

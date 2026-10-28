@@ -21,7 +21,11 @@ const submitError = ref(null);
 
 const nothingToOffer = computed(() => people.value.length === 0);
 
+let loadId = 0;
+
 async function load() {
+    // A slower, older answer must not overwrite a newer one: it could offer someone no longer valid.
+    const mine = ++loadId;
     status.value = 'loading';
     try {
         const response = await fetch('/act-as/options', {
@@ -29,9 +33,14 @@ async function load() {
             credentials: 'same-origin',
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        people.value = (await response.json()).people ?? [];
+        const body = await response.json();
+        if (!Array.isArray(body?.people)) throw new Error('Unexpected response');
+        if (mine !== loadId) return;
+        people.value = body.people;
         status.value = 'ready';
-    } catch {
+    } catch (error) {
+        if (mine !== loadId) return;
+        console.error('Act as: the list did not load', error);
         status.value = 'error';
     }
 }
@@ -50,7 +59,11 @@ function start() {
         { kind: 'user', id: chosen.value.id },
         {
             onSuccess: () => (pickerOpen.value = false),
-            onError: (errors) => (submitError.value = errors.act_as ?? 'You cannot act as this person.'),
+            onError: (errors) => {
+                submitError.value = errors.act_as ?? 'You cannot act as this person.';
+                load();
+            },
+            onException: () => (submitError.value = 'Could not start acting. Try again.'),
             onFinish: () => (starting.value = false),
         },
     );

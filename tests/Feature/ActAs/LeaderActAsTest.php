@@ -410,3 +410,115 @@ describe('an Admin acting as a leader', function () {
         $this->actingAs($this->admin)->get('/home')->assertInertia(fn (Assert $page) => $page->where('auth.user.id', $this->sl2->id));
     });
 });
+
+describe('reach and boundary cases', function () {
+    it('lets a leader act as a person whose grant or acting lead stays inside the leader\'s scope', function () {
+        PortalRoleGrant::factory()->create(['user_id' => $this->sl1->id, 'unit_id' => $this->section2->id]);
+
+        leaderStarts($this, $this->pl, $this->sl1);
+
+        // And it keeps holding while they gain another grant inside it.
+        PortalRoleGrant::factory()->create(['user_id' => $this->sl1->id, 'unit_id' => $this->section1->id]);
+        $this->actingAs($this->pl)->get('/home')->assertInertia(fn (Assert $page) => $page->where('auth.user.id', $this->sl1->id));
+    });
+
+    it('refuses a billet holder with a grant on the leader\'s own unit or one above', function (string $unit) {
+        $someone = leaderPerson(960, 'Granted.G', 6201);
+        PortalRoleGrant::factory()->create(['user_id' => $someone->id, 'unit_id' => $this->{$unit}->id]);
+
+        leaderCannotStart($this, $this->pl, $someone);
+    })->with(['the leader\'s platoon' => ['platoon'], 'the company above' => ['company']]);
+
+    it('lets an acting lead act as the billet holders below the unit they lead, never beside or above', function () {
+        $acting = leaderPerson(961, 'Acting.A', null);
+        app(UnitActingLeadRepository::class)->assign($this->platoon->id, Trooper::where('cav_id', 961)->value('id'), null);
+
+        leaderCannotStart($this, $acting, $this->pl2);
+        leaderCannotStart($this, $acting, $this->sl3);
+        leaderCannotStart($this, $acting, $this->co);
+        leaderCannotStart($this, $acting, $this->pl);
+
+        leaderStarts($this, $acting, $this->sl1);
+    });
+
+    it('drops a stored choice whose via is unreadable instead of reading it as acting as nobody', function () {
+        $admin = User::factory()->admin()->create(['username' => 'Root.R']);
+
+        $this->actingAs($admin)->withSession(['act_as' => ['admin' => $admin->id, 'kind' => 'user', 'id' => $this->sl3->id, 'via' => ['kind' => 'bogus', 'id' => 1]]])
+            ->get('/home')->assertInertia(fn (Assert $page) => $page->where('auth.user.id', $admin->id)->where('actingAs', null));
+    });
+
+    it('drops a leader\'s stored choice that carries a via', function () {
+        $this->actingAs($this->pl)->withSession(['act_as' => ['admin' => $this->pl->id, 'kind' => 'user', 'id' => $this->sl1->id, 'via' => ['kind' => 'user', 'id' => $this->co->id]]])
+            ->get('/home')->assertInertia(fn (Assert $page) => $page->where('auth.user.id', $this->pl->id)->where('actingAs', null));
+    });
+
+    it('writes as the person inside their scope only, recorded for the leader', function () {
+        leaderStarts($this, $this->pl, $this->sl1);
+
+        // A write the platoon leader could make in their own right is refused outside the section leader's scope.
+        $this->actingAs($this->pl)->post('/view-as', ['kind' => 'unit', 'id' => $this->platoon->id])->assertSessionHasErrors('view_as');
+        expect(AuditLogEntry::where('action', 'view_as.started')->count())->toBe(0);
+    });
+
+    it('records one stop through a leader, with the Admin as actor', function () {
+        $admin = User::factory()->admin()->create(['username' => 'Root.R']);
+        $this->actingAs($admin)->post('/act-as', ['kind' => 'user', 'id' => $this->pl->id]);
+        $this->actingAs($admin)->post('/act-as', ['kind' => 'user', 'id' => $this->sl1->id]);
+
+        $this->actingAs($admin)->delete('/act-as');
+
+        $stopped = AuditLogEntry::where('action', 'act_as.stopped')->orderByDesc('id')->first();
+        expect($stopped->actor_id)->toBe($admin->id)->and($stopped->target_id)->toBe((string) $this->sl1->id);
+
+        // Stopping again with nothing active writes nothing and does not fail.
+        $count = AuditLogEntry::count();
+        $this->actingAs($admin)->delete('/act-as')->assertRedirect('/home');
+        expect(AuditLogEntry::count())->toBe($count);
+    });
+
+    it('offers an Admin acting as nobody no picker, and one acting as a leader only that leader\'s people', function () {
+        $admin = User::factory()->admin()->create(['username' => 'Root.R']);
+        $this->actingAs($admin)->getJson('/act-as/options')->assertForbidden();
+        $this->actingAs($admin)->get('/home')->assertInertia(fn (Assert $page) => $page->where('canActAs', false));
+
+        $this->actingAs($admin)->post('/act-as', ['kind' => 'user', 'id' => $this->pl->id]);
+
+        $ids = collect($this->actingAs($admin)->getJson('/act-as/options')->assertOk()->json('people'))->pluck('id')->sort()->values()->all();
+        expect($ids)->toBe(collect([$this->sl1, $this->sl2])->pluck('id')->sort()->values()->all());
+    });
+
+    it('refuses the options to a plain member and an unauthenticated request', function () {
+        $member = leaderPerson(970, 'Member.M', null);
+
+        $this->actingAs($member)->getJson('/act-as/options')->assertForbidden();
+    });
+
+    it('refuses the options to a guest', function () {
+        $this->getJson('/act-as/options')->assertUnauthorized();
+    });
+
+    it('re-posting the person already acted as changes nothing', function () {
+        leaderStarts($this, $this->pl, $this->sl1);
+
+        $this->actingAs($this->pl)->post('/act-as', ['kind' => 'user', 'id' => $this->sl1->id])->assertRedirect('/home');
+
+        expect(AuditLogEntry::where('action', 'act_as.started')->count())->toBe(1);
+    });
+
+    it('ends a leader\'s open view-as when they start acting, recorded as stopped', function () {
+        $this->actingAs($this->pl)->post('/view-as', ['kind' => 'unit', 'id' => $this->section1->id])->assertSessionHasNoErrors();
+
+        leaderStarts($this, $this->pl, $this->sl1);
+
+        expect(AuditLogEntry::orderBy('id')->pluck('action')->all())->toBe(['view_as.started', 'view_as.stopped', 'act_as.started']);
+    });
+
+    it('refuses an Admin acting as a billet from switching straight to another billet', function () {
+        $admin = User::factory()->admin()->create(['username' => 'Root.R']);
+        $this->actingAs($admin)->post('/act-as', ['kind' => 'unit', 'id' => $this->platoon->id])->assertRedirect('/home');
+
+        $this->actingAs($admin)->post('/act-as', ['kind' => 'unit', 'id' => $this->platoon2->id])->assertSessionHasErrors('act_as');
+        $this->actingAs($admin)->get('/home')->assertInertia(fn (Assert $page) => $page->where('actingAs.label', fn ($l) => str_contains($l, '1/A/1-7')));
+    });
+});

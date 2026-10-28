@@ -123,12 +123,15 @@ class ActAs
             return collect();
         }
 
-        $via = $this->viaFor($actor);
         $others = $this->users->all()->reject(fn (User $user) => $user->id === $actor->id || $user->is_admin || $user->cav_id === null);
         $held = $this->commands->commandedUnitsByCavId($others->pluck('cav_id')->all());
 
+        // The units below are worked out once; each person is then only checked for what is theirs: standing and reach.
         return $others
-            ->filter(fn (User $user) => $held->has($user->cav_id) && $below->contains($held->get($user->cav_id)->id) && $this->allows($actor, $user, $via))
+            ->filter(fn (User $user) => $held->has($user->cav_id)
+                && $below->contains($held->get($user->cav_id)->id)
+                && ! $this->serving->mustEnd($user)
+                && $this->scope->realScope($user)->diff($below)->isEmpty())
             ->values();
     }
 
@@ -177,6 +180,13 @@ class ActAs
         return $this->targetOf($stored);
     }
 
+    private function viaUnreadable(User $actor): bool
+    {
+        $stored = $this->session->get(self::KEY);
+
+        return is_array($stored) && ($stored['via'] ?? null) !== null && $this->storedVia($actor) === null;
+    }
+
     /** What `$actor` acted as when they stored their choice, if they were acting as someone then; null otherwise. */
     public function storedVia(User $actor): ?ViewAsTarget
     {
@@ -197,10 +207,10 @@ class ActAs
     {
         $stored = $this->storedFor($actor);
         $via = $this->storedVia($actor);
-        $acting = match ($stored?->kind) {
+        // A `via` that is there but unreadable is not "acted as nobody", which would lift the leader's ceiling: drop it.
+        $acting = $stored === null || $this->viaUnreadable($actor) ? null : match ($stored->kind) {
             ViewAsKind::User => $this->asPerson($actor, $stored->id, $via),
             ViewAsKind::Unit => $this->asBillet($actor, $stored->id, $via),
-            null => null,
         };
 
         if ($stored !== null && $acting === null) {

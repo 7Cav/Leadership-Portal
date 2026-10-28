@@ -123,14 +123,24 @@ describe('ActAsPicker (#432)', () => {
     });
 
     it('offers a retry when the list does not load', async () => {
-        const fetchMock = respondWith({}, { ok: false, status: 403 });
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        respondWith({}, { ok: false, status: 403 });
         wrapper = await openPicker();
 
         expect(inBody('[data-testid="act-as-error"]')).not.toBeNull();
 
-        respondWith(PEOPLE);
+        const retry = respondWith(PEOPLE);
         await click('[data-testid="act-as-error"] button');
+        expect(retry).toHaveBeenCalledTimes(1);
         expect(inBody('[data-testid="act-as-list"]')).not.toBeNull();
-        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('treats a response without a people list as a failure, not as nobody to act as', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        respondWith({ message: 'nope' });
+        wrapper = await openPicker();
+
+        expect(inBody('[data-testid="act-as-error"]')).not.toBeNull();
+        expect(inBody('[data-testid="act-as-empty"]')).toBeNull();
     });
 });
