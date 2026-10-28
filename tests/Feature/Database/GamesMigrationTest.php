@@ -40,12 +40,13 @@ function restoreGames(): void
     idKindsMigration()->up();
 }
 
-it('creates the three current games with their names, id kinds and interfaces', function () {
+it('creates the games with their names, id kinds and interfaces', function () {
     expect(Game::query()->orderBy('id')->get()->map(fn (Game $game) => [$game->slug, $game->name, $game->id_kinds, $game->interface, $game->retired_at])->all())
         ->toBe([
-            ['hll', 'Hell Let Loose', ['Steam ID'], TelemetryInterface::Crcon, null],
+            ['hll', 'Hell Let Loose (WW2)', ['Steam ID', 'Epic ID', 'Xbox ID'], TelemetryInterface::Crcon, null],
             ['arma', 'Arma Reforger', ['Player ID'], TelemetryInterface::BattleMetrics, null],
             ['wardogs', 'WARDOGS', ['Steam ID'], TelemetryInterface::Nightwatch, null],
+            ['hll-vietnam', 'Hell Let Loose: Vietnam', ['Steam ID', 'Epic ID', 'Xbox ID'], TelemetryInterface::None, null],
         ]);
 });
 

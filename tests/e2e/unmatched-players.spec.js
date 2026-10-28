@@ -36,7 +36,7 @@ test('a section leader links unmatched players to troopers, replacing an old ID 
     await halvo.getByTestId('unmatched-link').click();
     const question = page.getByTestId('replace-dialog');
     await expect(question).toContainText(
-        'SPC Halvorsen.K is linked to HalvoOld (76561198000009099) on Hell Let Loose. Replace it with Halvorsen (76561198000009003)?',
+        'SPC Halvorsen.K is linked to HalvoOld (76561198000009099) on Hell Let Loose (WW2). Replace it with Halvorsen (76561198000009003)?',
     );
     await question.getByTestId('replace-cancel').click();
     await expect(question).toHaveCount(0);

@@ -15,7 +15,7 @@ use Illuminate\Support\Collection;
 interface GameRepository
 {
     /**
-     * Every game, retired ones included, in the order they were added — the hll, arma, wardogs order the migration
+     * Every game, retired ones included, in the order they were added — the hll, arma, wardogs, hll-vietnam order the migrations
      * created them in comes first, which is also how a tie between games is broken where one must be picked.
      *
      * @return Collection<int, Game>

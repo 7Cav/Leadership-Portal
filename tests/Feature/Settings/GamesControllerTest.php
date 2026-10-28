@@ -32,10 +32,10 @@ it('lists every game with its id label, interface and state, and the interfaces 
     $this->actingAs($this->admin)->get('/settings/games')->assertOk()->assertInertia(fn (Assert $page) => $page
         ->component('Settings/Games')
         ->where('isAdmin', true)
-        ->has('games', 4)
-        ->where('games.0', ['id' => game('hll')->id, 'slug' => 'hll', 'name' => 'Hell Let Loose', 'idKinds' => ['Steam ID'], 'interface' => 'crcon', 'retired' => false, 'inUse' => true])
+        ->has('games', 5)
+        ->where('games.0', ['id' => game('hll')->id, 'slug' => 'hll', 'name' => 'Hell Let Loose (WW2)', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID'], 'interface' => 'crcon', 'retired' => false, 'inUse' => true])
         ->where('games.1.inUse', false)
-        ->where('games.3', fn ($game) => $game['slug'] === 'foxhole' && $game['retired'] === true)
+        ->where('games.4', fn ($game) => $game['slug'] === 'foxhole' && $game['retired'] === true)
         ->where('interfaces', [
             ['value' => 'crcon', 'label' => 'CRCON'],
             ['value' => 'battlemetrics', 'label' => 'BattleMetrics'],
@@ -47,16 +47,16 @@ it('lists every game with its id label, interface and state, and the interfaces 
 it('shows the list to anyone signed in, with the authoring controls hidden', function () {
     $this->actingAs(User::factory()->serving()->create())->get('/settings/games')
         ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page->where('isAdmin', false)->has('games', 3));
+        ->assertInertia(fn (Assert $page) => $page->where('isAdmin', false)->has('games', 4));
 });
 
 it('adds a game with a slug made from its name, audited', function () {
-    $this->actingAs($this->admin)->post('/settings/games', addGame(['name' => 'Hell Let Loose: Vietnam']))->assertRedirect('/settings/games');
+    $this->actingAs($this->admin)->post('/settings/games', addGame(['name' => 'Squad: Pacific']))->assertRedirect('/settings/games');
 
-    $game = Game::query()->where('name', 'Hell Let Loose: Vietnam')->sole();
+    $game = Game::query()->where('name', 'Squad: Pacific')->sole();
     $entry = AuditLogEntry::query()->sole();
 
-    expect($game->slug)->toBe('hell-let-loose-vietnam')
+    expect($game->slug)->toBe('squad-pacific')
         ->and($game->id_kinds)->toBe(['EOS ID'])
         ->and($game->interface)->toBe(TelemetryInterface::BattleMetrics)
         ->and($game->isRetired())->toBeFalse()
@@ -77,12 +77,12 @@ it('keeps slugs unique when two names make the same one', function () {
 it('validates the name, the id label and the interface', function () {
     $this->actingAs($this->admin)->post('/settings/games', ['name' => '', 'id_kinds' => [], 'interface' => 'dragnet'])
         ->assertSessionHasErrors(['name', 'id_kinds', 'interface']);
-    $this->actingAs($this->admin)->post('/settings/games', addGame(['name' => 'Hell Let Loose']))
+    $this->actingAs($this->admin)->post('/settings/games', addGame(['name' => 'Hell Let Loose (WW2)']))
         ->assertSessionHasErrors('name');
     $this->actingAs($this->admin)->post('/settings/games', addGame(['name' => '!!!']))
         ->assertSessionHasErrors('name');
 
-    expect(Game::query()->count())->toBe(3)->and(AuditLogEntry::query()->count())->toBe(0);
+    expect(Game::query()->count())->toBe(4)->and(AuditLogEntry::query()->count())->toBe(0);
 });
 
 it('renames a game, relabels its id and changes its interface, keeping the slug, audited', function () {
@@ -98,7 +98,7 @@ it('renames a game, relabels its id and changes its interface, keeping the slug,
 it('records nothing when a game is saved unchanged', function () {
     $hll = game('hll');
 
-    $this->actingAs($this->admin)->patch("/settings/games/{$hll->id}", ['name' => 'Hell Let Loose', 'id_kinds' => ['Steam ID'], 'interface' => 'crcon'])->assertRedirect();
+    $this->actingAs($this->admin)->patch("/settings/games/{$hll->id}", ['name' => 'Hell Let Loose (WW2)', 'id_kinds' => ['Steam ID', 'Epic ID', 'Xbox ID'], 'interface' => 'crcon'])->assertRedirect();
 
     expect(AuditLogEntry::query()->count())->toBe(0);
 });
@@ -145,8 +145,8 @@ it('refuses to delete a game in use by an identity, a captured player, a dismiss
 it('answers every write from a non-Admin with 403, changing nothing', function (string $method, Closure $path, array $body) {
     $this->actingAs(User::factory()->serving()->create())->call($method, $path(), $body)->assertForbidden();
 
-    expect(Game::query()->count())->toBe(3)
-        ->and(game('hll')->name)->toBe('Hell Let Loose')
+    expect(Game::query()->count())->toBe(4)
+        ->and(game('hll')->name)->toBe('Hell Let Loose (WW2)')
         ->and(game('hll')->isRetired())->toBeFalse()
         ->and(AuditLogEntry::query()->count())->toBe(0);
 })->with([
@@ -165,9 +165,9 @@ it('answers a game that does not exist with 404', function () {
 });
 
 it('refuses a rename into another game\'s name, and keeps a game\'s own name on an edit', function () {
-    $this->actingAs($this->admin)->patch('/settings/games/'.game('arma')->id, ['name' => 'Hell Let Loose', 'id_kinds' => ['Player ID'], 'interface' => 'battlemetrics'])
+    $this->actingAs($this->admin)->patch('/settings/games/'.game('arma')->id, ['name' => 'Hell Let Loose (WW2)', 'id_kinds' => ['Player ID'], 'interface' => 'battlemetrics'])
         ->assertSessionHasErrors('name');
-    $this->actingAs($this->admin)->patch('/settings/games/'.game('hll')->id, ['name' => 'Hell Let Loose', 'id_kinds' => ['Steam64'], 'interface' => 'crcon'])
+    $this->actingAs($this->admin)->patch('/settings/games/'.game('hll')->id, ['name' => 'Hell Let Loose (WW2)', 'id_kinds' => ['Steam64'], 'interface' => 'crcon'])
         ->assertSessionHasNoErrors();
 
     expect(game('arma')->name)->toBe('Arma Reforger')->and(game('hll')->id_kinds)->toBe(['Steam64']);
@@ -187,7 +187,7 @@ it('never changes a game\'s slug, whatever writes it', function () {
 });
 
 it('keeps two games from sharing a name at the database', function () {
-    expect(fn () => Game::factory()->create(['name' => 'Hell Let Loose']))->toThrow(UniqueConstraintViolationException::class);
+    expect(fn () => Game::factory()->create(['name' => 'Hell Let Loose (WW2)']))->toThrow(UniqueConstraintViolationException::class);
 });
 
 it('answers a delete of a game deleted a moment ago with 404, writing no second audit entry', function () {

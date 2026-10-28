@@ -60,7 +60,7 @@ it('takes the game\'s first kind when none is sent, so a one-kind game behaves a
 it('refuses a kind the game does not have, writing nothing', function () {
     $this->actingAs($this->leader)
         ->put(kindsUrl($this->mine), ['player_name' => 'A', 'platform_id' => '7656', 'id_kind' => 'GOG ID'])
-        ->assertSessionHasErrors(['id_kind' => 'Hell Let Loose has no ID kind "GOG ID".']);
+        ->assertSessionHasErrors(['id_kind' => 'Hell Let Loose (WW2) has no ID kind "GOG ID".']);
 
     expect(TrooperGameIdentity::query()->count())->toBe(0)->and(AuditLogEntry::query()->count())->toBe(0);
 });
@@ -90,7 +90,7 @@ it('never links one id twice on a game, whichever kind either was entered as', f
 
     $this->actingAs($this->leader)
         ->put(kindsUrl($second), ['player_name' => 'B', 'platform_id' => '0002105c', 'id_kind' => 'Epic ID'])
-        ->assertSessionHasErrors(['platform_id' => 'Already linked to SGT Ortega.M on Hell Let Loose.']);
+        ->assertSessionHasErrors(['platform_id' => 'Already linked to SGT Ortega.M on Hell Let Loose (WW2).']);
 
     expect(TrooperGameIdentity::query()->count())->toBe(1);
 });

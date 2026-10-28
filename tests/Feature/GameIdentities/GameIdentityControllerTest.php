@@ -45,8 +45,8 @@ it('lists only the troopers in scope with their identities and every platform sl
 
     $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
         ->component('GameIdentities')
-        ->has('platforms', 3)
-        ->where('platforms.0', ['value' => 'hll', 'label' => 'Hell Let Loose', 'idKinds' => ['Steam ID'], 'retired' => false])
+        ->has('platforms', 4)
+        ->where('platforms.0', ['value' => 'hll', 'label' => 'Hell Let Loose (WW2)', 'idKinds' => ['Steam ID', 'Epic ID', 'Xbox ID'], 'retired' => false])
         ->has('troopers', 1)
         ->where('troopers.0.id', $this->mine->id)
         ->where('troopers.0.displayName', 'SGT Ortega.M')
@@ -101,7 +101,7 @@ it('reports an identifier already linked elsewhere by the owner\'s name, writing
         ->from('/game-identities')
         ->put(identityUrl($second), ['player_name' => 'Dubes', 'platform_id' => '7656'])
         ->assertRedirect('/game-identities')
-        ->assertSessionHasErrors(['platform_id' => 'Already linked to SGT Ortega.M on Hell Let Loose.']);
+        ->assertSessionHasErrors(['platform_id' => 'Already linked to SGT Ortega.M on Hell Let Loose (WW2).']);
 
     expect(TrooperGameIdentity::query()->count())->toBe(1)->and(AuditLogEntry::query()->count())->toBe(1);
 });
@@ -123,8 +123,8 @@ it('links a trooper on a game an Admin added, by its slug (#388)', function () {
     $squad = Game::factory()->create(['slug' => 'squad', 'name' => 'Squad', 'id_kinds' => ['EOS ID']]);
 
     $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
-        ->has('platforms', 4)
-        ->where('platforms.3', ['value' => 'squad', 'label' => 'Squad', 'idKinds' => ['EOS ID'], 'retired' => false]));
+        ->has('platforms', 5)
+        ->where('platforms.4', ['value' => 'squad', 'label' => 'Squad', 'idKinds' => ['EOS ID'], 'retired' => false]));
 
     $this->actingAs($this->leader)->put(identityUrl($this->mine, 'squad'), ['player_name' => 'Ortega', 'platform_id' => 'eos-1'])->assertRedirect();
 
@@ -136,7 +136,7 @@ it('refuses a new link on a retired game, writing nothing, and still lists and r
     TrooperGameIdentity::factory()->create(['trooper_id' => $this->mine->id, 'game_id' => $retired->id, 'player_name' => 'Old', 'platform_id' => 'eos-old']);
 
     $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
-        ->where('platforms.3.retired', true)
+        ->where('platforms.4.retired', true)
         ->where('troopers.0.identities.squad', ['playerName' => 'Old', 'platformId' => 'eos-old', 'idKind' => 'Player ID']));
 
     $this->actingAs($this->leader)->put(identityUrl(placedTrooper($this->section), 'squad'), ['player_name' => 'New', 'platform_id' => 'eos-new'])
@@ -232,7 +232,7 @@ it('names the owner of a collision even when they are outside the leader\'s scop
 
     $this->actingAs($this->leader)->from('/game-identities')
         ->put(identityUrl($this->mine), ['player_name' => 'A', 'platform_id' => '7656'])
-        ->assertSessionHasErrors(['platform_id' => 'Already linked to '.$this->theirs->display_name.' on Hell Let Loose.']);
+        ->assertSessionHasErrors(['platform_id' => 'Already linked to '.$this->theirs->display_name.' on Hell Let Loose (WW2).']);
 });
 
 it('shows a platoon leader the troopers of every section beneath', function () {

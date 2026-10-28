@@ -113,8 +113,10 @@ on none.
 ### Game identities
 
 Link each trooper in your scope to their in-game identity, one per game. The games are the ones an Admin keeps on the
-Games page (Hell Let Loose, Arma Reforger and WARDOGS to start with); a retired game keeps its links but takes no new
-ones. A "needs a link" queue lists troopers with none. The capture uses these links to recognise players, and the
+Games page (Hell Let Loose (WW2), Hell Let Loose: Vietnam, Arma Reforger and WARDOGS to start with; Vietnam is not
+captured until an Admin picks its interface); a retired game keeps its links but takes no new ones. A trooper can hold
+one link on each game, and the same ID on two games is not a collision. A "needs a link" queue lists troopers missing a
+link on any game, so one linked only on WW2 shows as missing Vietnam. The capture uses these links to recognise players, and the
 section's game is the one most of its troopers have a link for. Every serving trooper placed in your scope is listed:
 section members, HQ staff and group members (ELOA, Reservists, New Recruits, staff departments). Linking someone
 outside a section only lets the capture recognise them; attendance is still marked in sections only.

@@ -59,7 +59,7 @@ it('shows each game\'s selected servers with their type, interface, credentials 
             ['value' => 'nightwatch', 'label' => 'Nightwatch', 'credentialsSet' => false],
         ])
         // HLL has no server selected: it reads its env server, which here has CRCON credentials.
-        ->where('games.0', ['id' => game('hll')->id, 'name' => 'Hell Let Loose', 'retired' => false, 'interface' => 'crcon', 'readsEnvServer' => true, 'captureConfigured' => true])
+        ->where('games.0', ['id' => game('hll')->id, 'name' => 'Hell Let Loose (WW2)', 'retired' => false, 'interface' => 'crcon', 'readsEnvServer' => true, 'captureConfigured' => true])
         ->where('games.1.readsEnvServer', false)
         ->where('games.1.captureConfigured', true)
         // WARDOGS' only training server sits behind Nightwatch, whose key is unset.

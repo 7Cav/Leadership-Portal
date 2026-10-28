@@ -95,8 +95,8 @@ function something()
 }
 
 /**
- * One of the games the migration creates (`hll`, `arma`, `wardogs`, #388), as the stored row. Feature tests run on the
- * migrated schema, so these three always exist; a game added on top is `Game::factory()`.
+ * One of the games the migrations create (`hll`, `arma`, `wardogs`, #388, and `hll-vietnam`, #431), as the stored row. Feature tests run on the
+ * migrated schema, so these four always exist; a game added on top is `Game::factory()`.
  */
 function game(string $slug): Game
 {

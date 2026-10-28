@@ -68,6 +68,27 @@ describe('GameIdentities page', () => {
         expect(wrapper.get('[role="progressbar"]').attributes('aria-valuenow')).toBe('50');
     });
 
+    it('queues a trooper linked on Hell Let Loose (WW2) as missing Hell Let Loose: Vietnam (#431)', async () => {
+        const kinds = ['Steam ID', 'Epic ID', 'Xbox ID'];
+        const platforms = [
+            { value: 'hll', label: 'Hell Let Loose (WW2)', idKinds: kinds },
+            { value: 'hll-vietnam', label: 'Hell Let Loose: Vietnam', idKinds: kinds },
+        ];
+        const troopers = [
+            trooper(1, 'SGT Ortega.M', { hll: { playerName: 'OrtegaCav', platformId: '7656', idKind: 'Steam ID' } }),
+            trooper(2, 'PFC Austin.C', { hll: { playerName: 'Austin', platformId: '7657', idKind: 'Steam ID' }, 'hll-vietnam': { playerName: 'Austin', platformId: '0002105c', idKind: 'Epic ID' } }),
+        ];
+        const wrapper = mount(GameIdentities, { props: { platforms, troopers } });
+
+        expect(wrapper.get('[data-testid="row-1"]').text()).toContain('Missing Hell Let Loose: Vietnam');
+        expect(wrapper.find('[data-testid="row-2"]').exists()).toBe(false);
+
+        await wrapper.get('[data-testid="open-1"]').trigger('click');
+
+        expect(wrapper.findAll('[data-testid="identity-game"] option').map((option) => option.element.value)).toEqual(['hll', 'hll-vietnam']);
+        expect(wrapper.get('[data-testid="identity-game"]').element.value).toBe('hll-vietnam');
+    });
+
     it('offers a retired game for no new link and leaves it out of coverage, but lists and removes its links (#388)', async () => {
         const platforms = [...PLATFORMS, { value: 'squad', label: 'Squad', idKinds: ['EOS ID'], retired: true }];
         const troopers = [trooper(1, 'SGT Ortega.M', { hll: { playerName: 'OrtegaCav', platformId: '7656' }, squad: { playerName: 'Old', platformId: 'eos' } })];
