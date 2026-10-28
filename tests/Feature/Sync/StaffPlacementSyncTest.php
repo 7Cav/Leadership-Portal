@@ -174,3 +174,21 @@ it('leaves a trooper whose billet maps nowhere where they were', function () {
     expect(spPlacedIn(20))->toBe($manual->id)
         ->and(Trooper::where('cav_id', 20)->sole()->placement_source)->toBe(PlacementSource::Manual);
 });
+
+it('gives the Regimental HQ staff it places on the regiment read scope over it, until the billet moves', function () {
+    spSync(combat: ['6' => spRow('904', 'Regimental Chief of Staff', username: 'Tharen.R'), '7' => spRow('903', 'S6 1IC', username: 'Byte.S')]);
+    $chief = User::factory()->create(['cav_id' => 6]);
+    $s6 = User::factory()->create(['cav_id' => 7]);
+    $scope = app(ScopeResolver::class);
+    $everything = app(UnitRepository::class)->allIds()->all();
+
+    expect($scope->resolve($chief)->all())->toEqualCanonicalizing($everything)
+        ->and($scope->writeScope($chief)->all())->toBe([])
+        ->and($scope->resolve($s6)->all())->toBe([]);
+
+    // The next sync finds them in an S6 billet: placed in S6, and the regiment-wide read is gone with no Admin step.
+    spSync(combat: ['6' => spRow('903', 'S6 1IC', username: 'Tharen.R')]);
+
+    expect(spPlacedIn(6))->toBe($this->s6->id)
+        ->and($scope->resolve($chief)->all())->toBe([]);
+});

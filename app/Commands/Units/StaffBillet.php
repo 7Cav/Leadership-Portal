@@ -76,7 +76,9 @@ final class StaffBillet
      *   S1, S3, S7, WAG: under the regiment until the product owner places them
      *
      * The Chief of Staff, Finance Officer and Adjutants General have no portfolio for now; they are Regimental HQ staff
-     * on the regiment. ACD stays a line battalion under the regiment: line units never move into this tree.
+     * on the regiment. Commanding nothing, they still read the whole regiment: ScopeResolver gives every serving trooper
+     * placed on the regiment node read-only scope over it (decided by the S6, 2026-10-28). ACD stays a line battalion
+     * under the regiment: line units never move into this tree.
      */
     public const PORTFOLIOS = [
         'XO' => ['Executive Officer', 'Regimental Executive Officer', null],
