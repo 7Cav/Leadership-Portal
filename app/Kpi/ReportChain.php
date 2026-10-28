@@ -23,9 +23,14 @@ use TypeError;
  * unsent non-leaf `RollupKpis`' sum of its children's sent snapshots (AD-13), and the delta comes
  * from `KpiDelta` against the prior week's sent snapshot, as `WeeklyReportKpis` computes it.
  *
- * Five queries whatever the size of the chain — the subtree, this week's and last week's reports,
- * and the section KPIs — so a battalion or the whole regiment reads in one pass. Callers pass
- * only a root the ScopeResolver permits (AD-8); the subtree under it is in scope by construction.
+ * A line unit with no troopers in it or under it is not in the chain (#442, the one test in
+ * {@see Headcount::withoutEmptyLineUnits()}): it is not drawn, not summed and holds nobody up. The
+ * root is always drawn, as the unit the caller asked for.
+ *
+ * Seven queries whatever the size of the chain — the subtree, which of it has troopers (two), this
+ * week's and last week's reports, and the section KPIs — so a battalion or the whole regiment reads
+ * in one pass. Callers pass only a root the ScopeResolver permits (AD-8); the subtree under it is
+ * in scope by construction.
  *
  * A sent snapshot that does not read back is a corrupt record. It is reported once per build and
  * shown where it is used as unknown, never as a plausible zero, while the rest of the chain still
@@ -38,6 +43,7 @@ final class ReportChain
         private readonly UnitRepository $units,
         private readonly WeeklyReportRepository $reports,
         private readonly KpiService $kpis,
+        private readonly Headcount $headcount,
     ) {}
 
     /**
@@ -46,10 +52,17 @@ final class ReportChain
     public function build(Unit $root, CarbonInterface $weekStart): ChainNode
     {
         $weekStart = WeekOf::requireStart($weekStart);
-        // The reporting chain is the line: groups (staff, ELOA, Reservists, New Recruits) have no report (2026-10-24).
-        $units = $this->units->lineSubtree($root);
+        // The reporting chain is the line: groups (staff, ELOA, Reservists, New Recruits) have no report (2026-10-24),
+        // and neither has a line unit nobody is placed in or under (#442).
+        // A unit that sent this week's report stays, however empty it is now: its numbers belong to the week.
+        $subtree = $this->units->lineSubtree($root);
+        $reports = $this->reports->forUnits($subtree->modelKeys(), $weekStart);
+        $sent = $reports->filter(fn (WeeklyReport $report) => $report->status === WeeklyReportStatus::Sent)->keys()->all();
+        $units = $this->headcount->withoutEmptyLineUnits($subtree, $weekStart, $sent)
+            ->reject(fn (Unit $unit) => $unit->id === $root->id)
+            ->prepend($root);
         $ids = $units->modelKeys();
-        $reports = $this->reports->forUnits($ids, $weekStart);
+        $reports = $reports->only($ids);
         $priorReports = $this->reports->forUnits($ids, $weekStart->subWeek());
 
         return $this->node(

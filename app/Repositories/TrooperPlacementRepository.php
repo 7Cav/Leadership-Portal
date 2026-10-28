@@ -49,4 +49,14 @@ interface TrooperPlacementRepository
      * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
      */
     public function sectionsByWeek(iterable|Builder $troopers, CarbonInterface $firstWeek, CarbonInterface $lastWeek): PlacementWeeks;
+
+    /**
+     * The units someone was placed in at any moment of the Cav week opening `$weekStart` (#442): a placement row that
+     * overlaps the week. An open row counts only while its trooper still serves, as a departure has no date. One query.
+     *
+     * @return list<int>
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function unitIdsPlacedDuring(CarbonInterface $weekStart): array;
 }

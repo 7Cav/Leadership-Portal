@@ -43,6 +43,8 @@ beforeEach(function () {
     Trooper::factory()->create(['cav_id' => 501, 'rank_short' => 'SGT', 'username' => 'Vasquez.R', 'primary_section_id' => $this->section->id, 'cav_position_id' => 5501]);
 
     $this->trooper = Trooper::factory()->create(['rank_short' => 'PFC', 'username' => null, 'primary_section_id' => $this->section->id]);
+    // The sibling has someone in it too, so it is not an empty unit the roll-up leaves out (#442).
+    manUnits($this->sibling);
 });
 
 afterEach(fn () => CarbonImmutable::setTestNow());
@@ -241,7 +243,8 @@ it('lets an admin open any unit\'s report', function () {
 });
 
 it('sends the trooper names as a JSON object even when the section has no troopers', function () {
-    $response = $this->actingAs(User::factory()->admin()->create())->get(reportUrl($this->sibling, $this->week))->assertOk();
+    $empty = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => '700/703/']);
+    $response = $this->actingAs(User::factory()->admin()->create())->get(reportUrl($empty, $this->week))->assertOk();
 
     // The page declares `names` as an Object; an empty collection would encode as `[]`.
     expect(json_encode($response->viewData('page')['props']['names']))->toBe('{}');
@@ -309,7 +312,7 @@ it('explains a roll-up with no units under it, and refuses to send it', function
 
     $this->actingAs($admin)->get(reportUrl($company, $this->week))
         ->assertOk()
-        ->assertInertia(fn (AssertableInertia $page) => $page->where('kpiError', 'This unit has no units under it, so there are no reports to roll up.'));
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('kpiError', 'No unit under this one has troopers in it, so there are no reports to roll up.'));
     $this->actingAs($admin)->post(reportUrl($company, $this->week, '/send'), ['reason' => 'Weekly report'])
         ->assertSessionHasErrors('report');
 });
@@ -426,7 +429,7 @@ it('shows the headcount beside the measured strength: HQ staff in, a sent report
     $this->actingAs($platoonLeader)->get(reportUrl($this->platoon, $this->week))
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->where('kpis.strength', 0)
-            ->where('kpis.headcount', 3));
+            ->where('kpis.headcount', 4));
 
     $this->actingAs($platoonLeader)->get(reportUrl($this->section, $this->week))
         ->assertInertia(fn (AssertableInertia $page) => $page->where('kpis.strength', 2)->where('kpis.headcount', 2));

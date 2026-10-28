@@ -5,6 +5,7 @@ namespace App\Repositories\TrooperPlacementRepository;
 use App\Models\PlacementSource;
 use App\Models\Trooper;
 use App\Models\TrooperPlacement;
+use App\Models\TrooperStatus;
 use App\Models\UnitType;
 use App\Repositories\PlacementWeeks;
 use App\Repositories\TrooperPlacementRepository;
@@ -60,6 +61,26 @@ class Eloquent implements TrooperPlacementRepository
             ->orderBy('placed_from')
             ->orderBy('id')
             ->get();
+    }
+
+    public function unitIdsPlacedDuring(CarbonInterface $weekStart): array
+    {
+        $start = WeekOf::requireStart($weekStart);
+        $end = $start->addWeek();
+
+        // A row still open counts only while its trooper serves: a trooper who left the Cav keeps their last placement
+        // open, and when they left is not recorded, so that row says nothing about this week. A closed row is a move,
+        // and its dates are known.
+        return TrooperPlacement::query()
+            ->join('troopers', 'troopers.id', '=', 'trooper_placements.trooper_id')
+            ->whereNotNull('trooper_placements.unit_id')
+            ->where(fn ($q) => $q->whereNull('trooper_placements.placed_from')->orWhere('trooper_placements.placed_from', '<', $end))
+            ->where(fn ($q) => $q->where('trooper_placements.placed_until', '>', $start)
+                ->orWhere(fn ($q) => $q->whereNull('trooper_placements.placed_until')->whereIn('troopers.status', TrooperStatus::servingValues())))
+            ->distinct()
+            ->pluck('trooper_placements.unit_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
     }
 
     public function sectionsByWeek(iterable|Builder $troopers, CarbonInterface $firstWeek, CarbonInterface $lastWeek): PlacementWeeks

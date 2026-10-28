@@ -35,6 +35,8 @@ beforeEach(function () {
     $this->s11 = $units->create(UnitType::Section, '1st Section', '1/1/A/1-7', $this->p1->id);
     $this->s21 = $units->create(UnitType::Section, '2nd Section', '2/1/A/1-7', $this->p1->id);
     $this->s12 = $units->create(UnitType::Section, '1st Section', '1/2/A/1-7', $this->p2->id);
+    // Someone in every section and in Bravo's HQ, so no unit is an empty one the chain leaves out (#442).
+    manUnits($this->s11, $this->s21, $this->s12, $this->bravo);
 
     $this->week = CarbonImmutable::parse('2026-10-03 00:00:00', 'UTC');
     $this->sender = User::factory()->create(['username' => 'Haddad.Y']);

@@ -27,7 +27,10 @@ use TypeError;
  * substituted. The 5.6 send command freezes `RollupResult::$kpis` for a non-leaf unit and the 5.8
  * navigator shows `RollupResult::$children` — both read it from here.
  *
- * Two queries regardless of the number of children. Callers pass only units the ScopeResolver
+ * A line child with no troopers in it or under it is not one of the children (#442, {@see children()}): it has
+ * nobody to report on, so it is neither summed nor waited on, until someone is placed in it.
+ *
+ * Four queries regardless of the number of children. Callers pass only units the ScopeResolver
  * permits (AD-8), as for `KpiService`.
  */
 final class RollupKpis
@@ -35,10 +38,37 @@ final class RollupKpis
     public function __construct(
         private readonly UnitRepository $units,
         private readonly WeeklyReportRepository $reports,
+        private readonly Headcount $headcount,
     ) {}
 
     /**
-     * @throws InvalidArgumentException when `$unit` has no children (a leaf reports from
+     * The children `$unit`'s report rolls up and waits on: its direct line children (a group under the regiment has
+     * no report to wait on, 2026-10-24) that have troopers ({@see Headcount::withoutEmptyLineUnits()}, #442), in
+     * creation order. Empty for a leaf, and for a unit whose children are all empty. With `$weekStart`, a child that
+     * had troopers at any point of that week counts too, and so does one that sent that week's report, so one emptied
+     * after reporting still rolls up for it.
+     *
+     * @return Collection<int, Unit>
+     */
+    public function children(Unit $unit, ?CarbonInterface $weekStart = null): Collection
+    {
+        $children = $this->units->lineChildren($unit);
+        $sent = $weekStart === null ? [] : self::sentIds($this->reports->forUnits($children->modelKeys(), WeekOf::requireStart($weekStart)));
+
+        return $this->headcount->withoutEmptyLineUnits($children, $weekStart, $sent);
+    }
+
+    /**
+     * @param  Collection<int, WeeklyReport>  $reports  keyed by `unit_id`
+     * @return list<int> the units among them whose report is sent
+     */
+    private static function sentIds(Collection $reports): array
+    {
+        return $reports->filter(fn (WeeklyReport $report) => $report->status === WeeklyReportStatus::Sent)->keys()->all();
+    }
+
+    /**
+     * @throws InvalidArgumentException when `$unit` has no {@see children()} (a leaf reports from
      *                                  attendance, via `KpiService`) or `$weekStart` is not a
      *                                  Saturday 00:00 UTC.
      * @throws ReportKpisUnavailableException when a child's sent snapshot cannot be read as `UnitKpis`.
@@ -46,14 +76,16 @@ final class RollupKpis
     public function forUnit(Unit $unit, CarbonInterface $weekStart): RollupResult
     {
         $weekStart = WeekOf::requireStart($weekStart);
-        // Line children only: a group under the regiment has no report to wait on (2026-10-24).
-        $children = $this->units->lineChildren($unit);
+        // One read of the week's reports serves both which children count (a sent one always does) and their numbers.
+        $all = $this->units->lineChildren($unit);
+        $reports = $this->reports->forUnits($all->modelKeys(), $weekStart);
+        $children = $this->headcount->withoutEmptyLineUnits($all, $weekStart, self::sentIds($reports));
 
         if ($children->isEmpty()) {
             throw new InvalidArgumentException("Unit {$unit->id} has no children; a leaf report computes from attendance, not a roll-up.");
         }
 
-        return self::fromReports($children, $this->reports->forUnits($children->modelKeys(), $weekStart), $weekStart);
+        return self::fromReports($children, $reports, $weekStart);
     }
 
     /**

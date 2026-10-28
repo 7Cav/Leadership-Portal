@@ -74,7 +74,9 @@ class HomeController extends Controller
         $weekStart = WeekOf::reporting(CarbonImmutable::now());
         $scope = $this->scope->resolve($request->user());
         $tree = $this->units->tree();
-        $roots = $this->topmost($scope, $tree);
+        // A line unit with nobody in it or under it is left out of the whole page (#442): the tiles, the unit table,
+        // the step matrix and what needs attention.
+        $roots = $this->headcount->withoutEmptyLineUnits($this->topmost($scope, $tree));
         $chains = $roots->map(fn (Unit $root) => $this->chain->build($root, $weekStart));
         // Each root's per-trooper rows, read once: the tiles, the at-risk list and the live rows
         // of the unit table are all sums or filters of them.
@@ -148,7 +150,7 @@ class HomeController extends Controller
         return [
             // Roots are disjoint subtrees, so their headcounts add.
             'current' => [...self::kpiShape($current), 'headcount' => $roots->sum(fn (Unit $root) => $this->headcount->forUnit($root))],
-            'history' => $this->history($this->units->sectionsAmong($scope), $weekStart),
+            'history' => $this->history($this->sectionsWithTroopers($scope), $weekStart),
             'roster' => $this->rosterProps(),
             'loaSync' => $this->loaProvenance->current()->toArray(),
         ];
@@ -325,7 +327,7 @@ class HomeController extends Controller
      */
     private function stepProps(Collection $scope, CarbonImmutable $weekStart): array
     {
-        $sections = $this->units->sectionsAmong($scope);
+        $sections = $this->sectionsWithTroopers($scope);
         $ids = $sections->modelKeys();
         $practices = $this->practices->forSections($ids, $weekStart);
         // A trooper whose leave covers the week has no mark to make (3.4): the one LOA definition says who (AD-21).
@@ -365,6 +367,18 @@ class HomeController extends Controller
                 ],
             ];
         })->values()->all();
+    }
+
+    /**
+     * The sections in scope that have troopers ({@see Headcount::withoutEmptyLineUnits()}, #442): the ones the step
+     * matrix lists and a past week's sparkline point waits on.
+     *
+     * @param  Collection<int, int>  $scope
+     * @return Collection<int, Unit>
+     */
+    private function sectionsWithTroopers(Collection $scope): Collection
+    {
+        return $this->headcount->withoutEmptyLineUnits($this->units->sectionsAmong($scope));
     }
 
     /**

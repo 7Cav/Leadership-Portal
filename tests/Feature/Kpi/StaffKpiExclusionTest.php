@@ -87,6 +87,8 @@ it('measures only the troopers placed in sections: a non-leaf\'s live KPIs equal
 });
 
 it('leaves groups out of the reporting chain, so they never hold a roll-up up', function () {
+    skPlace($this->battalion);
+    skPlace($this->eloa);
     $chain = app(ReportChain::class)->build($this->regiment, skWeek());
 
     expect(array_map(fn (ChainNode $node) => $node->unit->id, $chain->children))->toBe([$this->battalion->id])

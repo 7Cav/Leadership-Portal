@@ -93,7 +93,6 @@ class ReportController extends Controller
         $sent = $report?->status === WeeklyReportStatus::Sent;
         $history = $this->reports->sentBefore($unit->id, $weekStart, self::HISTORY_WEEKS);
         $isLeaf = $unit->type === UnitType::Section;
-        $children = $isLeaf ? collect() : $this->units->lineChildren($unit);
 
         $snapshot = null;
         $kpiError = null;
@@ -108,6 +107,16 @@ class ReportController extends Controller
             } catch (ReportKpisUnavailableException $e) {
                 $kpiError = $this->unavailableMessage($e);
             }
+        }
+
+        // The children a draft rolls up and waits on: none empty (#442). A sent report keeps what it froze, so a child
+        // listed as missing at send stays listed even once nobody is left in it.
+        $children = $isLeaf ? collect() : $this->rollups->children($unit, $weekStart);
+
+        if (! $isLeaf && $sent && $snapshot !== null) {
+            $children = $this->units->lineChildren($unit)
+                ->filter(fn (Unit $child) => $children->contains('id', $child->id) || in_array($child->id, $snapshot->missingChildren, true))
+                ->values();
         }
 
         $roster = $isLeaf ? $this->troopers->rosterOf($unit) : collect();
@@ -306,7 +315,7 @@ class ReportController extends Controller
     private function unavailableMessage(ReportKpisUnavailableException $e): string
     {
         if ($e->getPrevious() === null) {
-            return 'This unit has no units under it, so there are no reports to roll up.';
+            return 'No unit under this one has troopers in it, so there are no reports to roll up.';
         }
 
         report($e);

@@ -20,12 +20,13 @@ report deadline, 23:59 UTC on the Saturday after it ends, has passed).
   scope: Rollcall posted, Rollcall signed, SP held, Attendance marked, Report sent. Each section's step links to the
   rollcall step or report where it gets done.
 - KPI tiles: the six KPIs (see "KPIs" below) live for your whole scope, with a sparkline of the last four weeks. A past
-  week is only drawn when every section in scope sent its report that week.
+  week is only drawn when every section in scope with troopers sent its report that week.
 - Needs attention: units holding up the report chain, and at-risk troopers, each linked to the place to fix it, with a
   makeup PM link for at-risk troopers.
 - Subordinate units: the units directly under the top of your scope, with their report status and KPIs.
 
 Home only counts line units (regiment, battalions, companies, platoons, sections). Staff groups have no report chain.
+A line unit with no troopers is left out (see "Units with no troopers" below).
 
 ### Roster
 
@@ -33,7 +34,8 @@ Your scope's units and troopers, from the cached Cav roster.
 
 - Two views: ORBAT (the order of battle, by unit) and Matrix (each trooper's SP marks for the last 20 Cav weeks, with
   LOA weeks shown).
-- A unit picker for any unit in scope, and a breadcrumb trail up the chain.
+- A unit picker for any unit in scope, and a breadcrumb trail up the chain. The ORBAT and the picker leave out line
+  units with no troopers (see "Units with no troopers"); one opened by its link still shows.
 - Trooper sheet: click a trooper for their section, leader, KPIs and 20 weeks of marks with where each mark came from.
   It links to the trooper's milpac page and their section's rollcall.
 - Acting leads and portfolio leads are marked; HQ staff appear on their HQ node (platoon, company, battalion or
@@ -103,7 +105,8 @@ on none.
     Unaccounted troopers explained, Training subject filled, Notes reviewed), a reason for each unaccounted trooper from
     a fixed list, the training subject (last sent subject offered as a suggestion), notes, history and an 8 week trend.
   - Platoon and higher: the same, but the KPIs are the sum of the direct children's sent reports, with each child's
-    status. The "Every unit has sent" check names who is holding up the chain.
+    status. The "Every unit has sent" check names who is holding up the chain. A child with no troopers is not one of
+    them (see "Units with no troopers").
   - Platoon training topic: the platoon's chain of command sets a subject for its sections for the week, either as a
     default the sections can change or enforced (locked on every section's report).
   - Monthly training plan (`/reports/<platoon>/plans/<YYYY-MM>`, "Training plan" on a platoon's report): the
@@ -119,6 +122,26 @@ on none.
   - A sent report is read back exactly as frozen and never recalculated. Sending a section's report locks that week's
     rollcall.
   - Weeks before the week floor open read-only.
+
+### Units with no troopers
+
+A line unit with nobody serving placed in it, or in any unit under it, has nobody to report on. Until someone is placed
+in it, it is left out of:
+
+- the report chain: it is not a child that has to send, so it is not in "Every unit has sent", not in "Sent without"
+  and not listed as "Not in at send", and the roll-up workspace does not draw it;
+- the roster's ORBAT and unit picker;
+- Home's progress lanes and step matrix, the unit table, the sparkline's "every section sent" test, and Needs attention.
+
+It comes back on all of them as soon as a trooper is placed in it or under it, by the roster sync or by an Admin, with
+no other step. HQ staff count: a company whose only trooper is its commander has troopers. So do troopers on leave: a
+section whose only members are on LOA still counts. A report already sent keeps what it froze, so a unit listed as
+missing at send stays listed on that report. Org structure keeps listing every unit.
+
+The report chain asks about the report's own week: a unit counts for a week when it had troopers at any point of it
+(from the placement history), or sent that week's report. So a section that sends and is then emptied by a move, or
+whose last trooper leaves the Cav, still rolls up into its platoon for that week, and drops out from the first week it
+is empty.
 
 ### Game identities
 
@@ -242,3 +265,4 @@ the sum of its direct children's sent reports.
 | Reports | `app/Commands/WeeklyReports/`, `app/Kpi/RollupKpis.php`, `ReportChain.php`, `resources/js/lib/report.js` |
 | Training plans | `app/Commands/TrainingPlans/`, `TrainingPlanController`, `resources/js/Pages/Reports/TrainingPlan.vue`, `resources/js/lib/trainingPlan.js` |
 | Counseling | `app/Commands/Counseling/`, `app/Authorization/CounselingAccess.php`, `app/Milpac/CounselingHistory.php`, `app/Integration/GoogleDrive/`, `app/Jobs/UploadCounselingDocumentJob.php`, `resources/js/components/milpac/CounselingPanel.vue` |
+| Units with no troopers | `app/Kpi/Headcount.php` (`withoutEmptyLineUnits`) |

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Authorization\ScopeResolver;
 use App\Kpi\ChainNode;
 use App\Kpi\ChildReport;
+use App\Kpi\Headcount;
 use App\Kpi\KpiDelta;
 use App\Kpi\ReportChain;
 use App\Kpi\UnitKpis;
@@ -41,6 +42,7 @@ class ReportRollupController extends Controller
         private readonly UnitRepository $units,
         private readonly UserRepository $users,
         private readonly ReportChain $chain,
+        private readonly Headcount $headcount,
     ) {}
 
     public function index(Request $request, ?int $unit = null): Response|RedirectResponse
@@ -59,12 +61,14 @@ class ReportRollupController extends Controller
             $roots = $this->topmost($scope);
         }
 
-        // A leaf has no chain to review: its leader lands straight on their own report.
-        if ($roots->count() === 1 && ! $this->units->hasLineChildren($roots->first())) {
+        $chains = $roots->map(fn (Unit $root) => $this->chain->build($root, $week));
+
+        // A leaf has no chain to review, nor has a unit whose units are all empty (#442): its leader lands straight on
+        // their own report.
+        if ($chains->count() === 1 && $chains->first()->children === []) {
             return redirect('/reports/'.$roots->first()->id.'/'.$week->toDateString());
         }
 
-        $chains = $roots->map(fn (Unit $root) => $this->chain->build($root, $week));
         $senders = $this->users->usernamesByIds($chains->flatMap(fn (ChainNode $node) => self::senderIds($node))->unique()->values()->all());
 
         return Inertia::render('Reports/Rollup', [
@@ -118,7 +122,8 @@ class ReportRollupController extends Controller
 
     /**
      * The highest units of the scope: those whose parent is outside it. Scope is subtree-closed,
-     * so every other unit in it sits under one of these.
+     * so every other unit in it sits under one of these. One with no troopers in it or under it is
+     * left out (#442), as it is everywhere in the chain.
      *
      * @param  Collection<int, int>  $scope
      * @return Collection<int, Unit>
@@ -127,11 +132,11 @@ class ReportRollupController extends Controller
     {
         $ids = $scope->flip();
 
-        return $this->units->tree()
+        return $this->headcount->withoutEmptyLineUnits($this->units->tree()
             ->filter(fn (Unit $unit) => $unit->isLine() && $ids->has($unit->id) && ($unit->parent_id === null || ! $ids->has($unit->parent_id)))
             ->sortBy('id')
             ->values()
-            ->toBase();
+            ->toBase());
     }
 
     /** @return list<int> */
