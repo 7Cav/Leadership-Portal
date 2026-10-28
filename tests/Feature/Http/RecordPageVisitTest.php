@@ -12,7 +12,9 @@ use App\Models\User;
 use App\Repositories\PageVisitRepository;
 use App\Repositories\UnitRepository;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Route;
 
@@ -86,9 +88,10 @@ it('does not record a guest', function () {
 });
 
 it('keeps the query but drops sensitive parameters on every route', function () {
-    $this->actingAs($this->user)->get('/__visit-test/page?unit=4&code=abc&state=xyz&token=t&access_token=a&password=p&week=2026-10-24')->assertOk();
+    $this->actingAs($this->user)->get('/__visit-test/page?unit=4&code=abc&state=xyz&token=t&access_token=a&password=p&key=k&api_key=x&week=2026-10-24')->assertOk();
 
     expect(PageVisit::query()->sole()->url)->toBe('/__visit-test/page?unit=4&week=2026-10-24');
+    expect(RecordPageVisit::address(Request::create('/roster?filter[token]=t&filter[unit]=4')))->toBe('/roster?filter%5Bunit%5D=4');
 });
 
 it('drops the whole query under /auth and /__e2e', function () {
@@ -187,12 +190,12 @@ it('never fails the page when the log cannot be written, and reports why', funct
             throw new RuntimeException('page_visits is unavailable');
         }
 
-        public function filtered(?int $userId = null, ?string $dateFrom = null, ?string $dateTo = null, int $perPage = 50): Illuminate\Pagination\LengthAwarePaginator
+        public function filtered(?int $userId = null, ?string $dateFrom = null, ?string $dateTo = null, int $perPage = 50): LengthAwarePaginator
         {
             throw new LogicException('unused');
         }
 
-        public function users(): Illuminate\Support\Collection
+        public function users(): Collection
         {
             throw new LogicException('unused');
         }

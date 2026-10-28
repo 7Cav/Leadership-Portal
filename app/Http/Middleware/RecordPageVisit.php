@@ -38,7 +38,7 @@ class RecordPageVisit
     private const QUERYLESS_PREFIXES = ['auth', '__e2e'];
 
     /** A query parameter whose name matches is dropped on every route. */
-    private const SENSITIVE_PARAMETER = '/^(code|state)$|token|password|passwd|secret|signature|api[_-]?key|session/i';
+    private const SENSITIVE_PARAMETER = '/^(code|state|key)$|token|password|passwd|secret|signature|api[_-]?key|session/i';
 
     public function __construct(
         private readonly PageVisitRepository $visits,
@@ -94,13 +94,28 @@ class RecordPageVisit
             return $path;
         }
 
-        $query = Arr::query(array_filter(
-            $request->query(),
-            fn ($key) => preg_match(self::SENSITIVE_PARAMETER, (string) $key) !== 1,
-            ARRAY_FILTER_USE_KEY,
-        ));
+        $query = Arr::query(self::withoutSensitive($request->query()));
 
         return $query === '' ? $path : "{$path}?{$query}";
+    }
+
+    /**
+     * The parameters minus every sensitive-looking one, at any depth (`filter[token]=...` too).
+     *
+     * @param  array<array-key, mixed>  $parameters
+     * @return array<array-key, mixed>
+     */
+    private static function withoutSensitive(array $parameters): array
+    {
+        $kept = [];
+
+        foreach ($parameters as $key => $value) {
+            if (preg_match(self::SENSITIVE_PARAMETER, (string) $key) !== 1) {
+                $kept[$key] = is_array($value) ? self::withoutSensitive($value) : $value;
+            }
+        }
+
+        return $kept;
     }
 
     private function isPageVisit(Request $request, Response $response): bool
