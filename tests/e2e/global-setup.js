@@ -31,4 +31,6 @@ export default function globalSetup() {
     execFileSync('php', ['artisan', 'db:seed', '--force', '--class=Database\\Seeders\\OrgPlacementSeeder'], { env, stdio: 'inherit' });
     // A trooper moved between sections, for the attendance-history spec (2026-10-27).
     execFileSync('php', ['artisan', 'db:seed', '--force', '--class=Database\\Seeders\\TransferHistorySeeder'], { env, stdio: 'inherit' });
+    // A platoon leader and their company commander, for the training plan spec (#380).
+    execFileSync('php', ['artisan', 'db:seed', '--force', '--class=Database\\Seeders\\TrainingPlanSeeder'], { env, stdio: 'inherit' });
 }
