@@ -187,6 +187,22 @@ class ScopeResolver
     }
 
     /**
+     * The units the user commands (real authority: billet, acting leads or a held billet, never a grant or Admin) whose
+     * subtree holds `$unitId`, lowest echelon first. The counseling rules (#381) ask at which echelon a leader reaches a
+     * trooper, not just whether they do, so they read the commands themselves rather than {@see commandsUnit()}.
+     *
+     * @return Collection<int, Unit>
+     */
+    public function commandingUnitsOver(User $user, int $unitId): Collection
+    {
+        return $this->commandedUnits($user)
+            ->filter(fn (Unit $commanded) => $this->units->subtreeIds($commanded)->contains($unitId))
+            ->unique(fn (Unit $commanded) => $commanded->id)
+            ->sortByDesc(fn (Unit $commanded) => [$commanded->type->rank(), $commanded->id])
+            ->values();
+    }
+
+    /**
      * The user's granted units, but only while they are a serving trooper: `users.cav_id` linked to
      * a cached trooper whose standing is on {@see TrooperStatus::serving()}. A grant is staff scope
      * for a *member* of the unit — once the holder leaves (the roster sync flips them `inactive`),
