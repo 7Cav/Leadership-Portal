@@ -8,6 +8,7 @@ use App\Models\TemplateVersion;
 use App\Models\Unit;
 use App\Models\UnitTemplateChoice;
 use App\Models\UnitType;
+use App\Repositories\TemplateNameTakenException;
 use App\Repositories\TemplateUnchangedException;
 use App\Repositories\TemplateVersionRepository;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -27,6 +28,17 @@ class Eloquent implements TemplateVersionRepository
     {
         return DB::transaction(function () use ($companyId, $type, $name, $body, $createdBy) {
             $this->lockCompany($companyId);
+
+            // Decided under the lock, so two quick submits of one name cannot both pass the Command's own check.
+            $taken = Template::query()
+                ->where('company_id', $companyId)
+                ->where('artifact_type', $type->value)
+                ->whereRaw('lower(name) = ?', [mb_strtolower($name)])
+                ->exists();
+
+            if ($taken) {
+                throw new TemplateNameTakenException($name);
+            }
 
             return $this->newTemplate($companyId, $type, $name, $body, $createdBy);
         });

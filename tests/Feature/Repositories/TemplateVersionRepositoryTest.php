@@ -5,6 +5,7 @@ use App\Models\TemplateVersion;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\TemplateNameTakenException;
 use App\Repositories\TemplateUnchangedException;
 use App\Repositories\TemplateVersionRepository;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -274,4 +275,12 @@ describe('named templates (#375)', function () {
 
         expect($this->repo->hasTemplatesFor($this->company))->toBeTrue();
     });
+});
+
+it('refuses a second template of the same name in one company under its lock, whatever the case', function () {
+    $this->repo->createTemplate($this->company->id, $this->type, 'Standard', 'a', $this->author->id);
+
+    expect(fn () => $this->repo->createTemplate($this->company->id, $this->type, 'STANDARD', 'b', $this->author->id))
+        ->toThrow(TemplateNameTakenException::class);
+    expect($this->repo->templatesOf($this->company->id, $this->type))->toHaveCount(1);
 });

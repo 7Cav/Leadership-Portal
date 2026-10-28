@@ -7,6 +7,7 @@ use App\Models\Template;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\TemplateNameTakenException;
 use App\Repositories\TemplateVersionRepository;
 use App\Support\Audit\AuditEnvelope;
 
@@ -61,12 +62,17 @@ class CreateTemplate
 
         AuthorTemplateVersion::checkBody($body);
 
-        return $this->audit->record(
-            actorId: $actor->id,
-            action: 'template.created',
-            reason: $reason,
-            reasonRequired: true,
-            mutation: fn () => $this->versions->createTemplate($company->id, $type, $name, $body, $actor->id),
-        );
+        try {
+            return $this->audit->record(
+                actorId: $actor->id,
+                action: 'template.created',
+                reason: $reason,
+                reasonRequired: true,
+                mutation: fn () => $this->versions->createTemplate($company->id, $type, $name, $body, $actor->id),
+            );
+        } catch (TemplateNameTakenException) {
+            // A twin submit that raced past the check above: the repository refused it under its lock.
+            throw InvalidTemplateException::duplicateName($name);
+        }
     }
 }

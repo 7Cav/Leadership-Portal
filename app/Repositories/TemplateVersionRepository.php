@@ -30,6 +30,7 @@ interface TemplateVersionRepository
      * takes effect as soon as it is saved, as an edit always did.
      *
      * @throws InvalidArgumentException when `$companyId` is not a `units` row of type company.
+     * @throws TemplateNameTakenException when the company has a template of that name (case aside): nothing is written.
      */
     public function createTemplate(int $companyId, ArtifactType $type, string $name, string $body, int $createdBy): Template;
 
