@@ -26,7 +26,8 @@ use Carbon\CarbonImmutable;
  * platoon, a week before `WeekOf::floor()`, and a week whose platoon report is already sent. The
  * sent check runs once more under the report row's shared lock inside the write's transaction, so
  * a send landing mid-write cannot slip past it; and a clear that a racing clear beat to it is the
- * same clean no-op as clearing a week with no topic.
+ * same clean no-op as clearing a week with no topic. A week whose topic an approved training plan
+ * wrote (#380) is refused too: it changes through the plan, which then needs approval again.
  */
 class SetPlatoonTrainingTopicHandler
 {
@@ -50,8 +51,9 @@ class SetPlatoonTrainingTopicHandler
      * @throws PlatoonTrainingTopicForbiddenException when the actor does not command the unit, it
      *                                                is outside their scope, or does not exist.
      * @throws InvalidPlatoonTrainingTopicException when the unit is not a platoon, the week is
-     *                                              before `WeekOf::floor()`, or its report for the
-     *                                              week is already sent.
+     *                                              before `WeekOf::floor()`, its report for the
+     *                                              week is already sent, or its topic came from an
+     *                                              approved training plan.
      */
     public function handle(User $actor, SetPlatoonTrainingTopic $command): ?PlatoonTrainingTopic
     {
@@ -79,10 +81,15 @@ class SetPlatoonTrainingTopicHandler
             throw InvalidPlatoonTrainingTopicException::reportSent();
         }
 
+        $current = $this->topics->find($unit->id, $weekStart);
+        if ($current?->training_plan_id !== null) {
+            throw InvalidPlatoonTrainingTopicException::fromPlan();
+        }
+
         $subject = blank($command->subject) ? null : trim($command->subject);
 
         if ($subject === null) {
-            if ($this->topics->find($unit->id, $weekStart) === null) {
+            if ($current === null) {
                 return null;
             }
 

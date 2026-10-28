@@ -132,8 +132,10 @@ on none.
     in the month) and chooses whether the subjects are locked on the section reports. Each save goes to the company
     for approval. Company command (or above) approves it or sends it back with a comment the platoon leader sees.
     Approving writes each week's subject as the platoon training topic, so every section's report starts with it. A
-    change after approval needs approval again; until then the approved subjects stay. A week whose platoon report is
-    sent, or that is before the week floor, keeps its subject. Above a platoon, the same address lists every
+    change after approval needs approval again; until then the approved subjects stay. A week the approved plan wrote
+    can no longer be set, unlocked or cleared by hand on the report, only through the plan. Approving a revision that
+    leaves a week blank clears the topic an earlier approval of the same plan wrote there (a topic set by hand stays).
+    A week whose platoon report is sent, or that is before the week floor, keeps its subject. Above a platoon, the same address lists every
     platoon's plan for the month and where it stands.
   - Send: freezes the KPIs, notes, subject and reasons with a reason for the record. When checks are open or children
     have not sent, the button becomes "Send anyway"; missing children are recorded and their numbers stay out.

@@ -12,9 +12,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * it; otherwise it is the default a section leader may overwrite. Portal-owned (AD-22): the
  * Repository layer is its only writer, for the audited `SetPlatoonTrainingTopic` Command.
  *
- * `week_start` is always a Saturday 00:00 UTC (AD-11). `set_by` is who set it last.
+ * `week_start` is always a Saturday 00:00 UTC (AD-11). `set_by` is who set it last. `training_plan_id` is the approved
+ * training plan that wrote it (#380), or null for one set by hand; a planned week changes only through its plan.
  */
-#[Fillable(['unit_id', 'week_start', 'subject', 'enforced', 'set_by', 'set_by_admin', 'set_as_unit'])]
+#[Fillable(['unit_id', 'week_start', 'subject', 'enforced', 'set_by', 'set_by_admin', 'set_as_unit', 'training_plan_id'])]
 class PlatoonTrainingTopic extends Model
 {
     protected function casts(): array
@@ -22,6 +23,7 @@ class PlatoonTrainingTopic extends Model
         return [
             'week_start' => 'immutable_datetime',
             'enforced' => 'boolean',
+            'training_plan_id' => 'integer',
         ];
     }
 

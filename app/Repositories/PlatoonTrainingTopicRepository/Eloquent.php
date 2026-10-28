@@ -9,6 +9,7 @@ use App\Repositories\PlatoonTrainingTopicRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -34,7 +35,7 @@ class Eloquent implements PlatoonTrainingTopicRepository
         return $this->find($section->parent_id, $weekStart);
     }
 
-    public function set(int $unitId, CarbonInterface $weekStart, string $subject, bool $enforced, int $setBy, ?int $setByAdmin = null, ?int $setAsUnit = null): PlatoonTrainingTopic
+    public function set(int $unitId, CarbonInterface $weekStart, string $subject, bool $enforced, int $setBy, ?int $setByAdmin = null, ?int $setAsUnit = null, ?int $planId = null): PlatoonTrainingTopic
     {
         $weekStart = $this->assertWeekStart($weekStart);
 
@@ -43,11 +44,11 @@ class Eloquent implements PlatoonTrainingTopicRepository
         // only a gap lock on MySQL, so two first sets of one week would both insert, and the loser
         // would end in a duplicate-key error or a deadlock. The upsert takes an exclusive lock on the
         // row whether it inserts or updates, so concurrent sets queue one at a time.
-        return DB::transaction(function () use ($unitId, $weekStart, $subject, $enforced, $setBy, $setByAdmin, $setAsUnit) {
+        return DB::transaction(function () use ($unitId, $weekStart, $subject, $enforced, $setBy, $setByAdmin, $setAsUnit, $planId) {
             PlatoonTrainingTopic::query()->upsert(
-                [['unit_id' => $unitId, 'week_start' => $weekStart, 'subject' => $subject, 'enforced' => $enforced, 'set_by' => $setBy, 'set_by_admin' => $setByAdmin, 'set_as_unit' => $setAsUnit]],
+                [['unit_id' => $unitId, 'week_start' => $weekStart, 'subject' => $subject, 'enforced' => $enforced, 'set_by' => $setBy, 'set_by_admin' => $setByAdmin, 'set_as_unit' => $setAsUnit, 'training_plan_id' => $planId]],
                 ['unit_id', 'week_start'],
-                ['subject', 'enforced', 'set_by', 'set_by_admin', 'set_as_unit'],
+                ['subject', 'enforced', 'set_by', 'set_by_admin', 'set_as_unit', 'training_plan_id'],
             );
 
             return PlatoonTrainingTopic::query()
@@ -56,6 +57,11 @@ class Eloquent implements PlatoonTrainingTopicRepository
                 ->lockForUpdate()
                 ->sole();
         });
+    }
+
+    public function fromPlan(int $planId): Collection
+    {
+        return PlatoonTrainingTopic::query()->where('training_plan_id', $planId)->orderBy('week_start')->get();
     }
 
     public function clear(int $unitId, CarbonInterface $weekStart): ?PlatoonTrainingTopic
