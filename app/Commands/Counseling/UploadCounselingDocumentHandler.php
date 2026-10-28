@@ -7,6 +7,7 @@ use App\Integration\GoogleDrive\GoogleDriveUnavailable;
 use App\Models\DriveUploadStatus;
 use App\Repositories\CounselingDocuments;
 use App\Repositories\CounselingRecordRepository;
+use Throwable;
 
 /**
  * Upload one counseling record's document to the configured Google Drive folder (#381, AD-3) and note the outcome on
@@ -42,8 +43,12 @@ class UploadCounselingDocumentHandler
 
         try {
             $fileId = $this->drive->upload($record->fileName($record->trooper), $this->documents->contents($record->document_path));
-        } catch (GoogleDriveUnavailable $e) {
-            $this->records->setDriveStatus($record->id, DriveUploadStatus::Failed);
+        } catch (Throwable $e) {
+            // A record deleted while this ran took its document with it: nothing is left to copy or to mark. Anything
+            // else (Drive refused, the file is missing) is a failure the queue retries, and the record says so meanwhile.
+            if ($this->records->setDriveStatus($record->id, DriveUploadStatus::Failed) === null) {
+                return null;
+            }
 
             throw $e;
         }

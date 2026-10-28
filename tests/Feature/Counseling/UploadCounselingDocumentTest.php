@@ -110,3 +110,14 @@ it('does nothing for a record deleted before its upload ran, or one already uplo
         ->and($uploaded->fresh()->drive_file_id)->toBe('kept');
     $mock->assertNothingSent();
 });
+
+it('marks a record whose document went missing as failed, so it is retried and seen', function () {
+    ($this->configureDrive)();
+    $mock = ($this->google)();
+    Storage::disk('counseling')->delete($this->record->document_path);
+
+    expect(fn () => app(UploadCounselingDocumentHandler::class)->handle(new UploadCounselingDocument($this->record->id)))
+        ->toThrow(RuntimeException::class);
+    expect($this->record->fresh()->drive_status)->toBe(DriveUploadStatus::Failed);
+    $mock->assertNothingSent();
+});

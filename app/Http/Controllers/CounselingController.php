@@ -22,6 +22,7 @@ use App\Repositories\CounselingRecordRepository;
 use App\Repositories\TrooperRepository;
 use Carbon\CarbonImmutable;
 use Closure;
+use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -49,7 +50,7 @@ class CounselingController extends Controller
         private readonly CounselingRecordRepository $records,
     ) {}
 
-    public function store(Request $request, int $trooper, FileCounselingRecordHandler $handler): RedirectResponse
+    public function store(Request $request, int $trooper, FileCounselingRecordHandler $handler, Dispatcher $bus): RedirectResponse
     {
         $found = $this->troopers->find($trooper);
         abort_unless($found !== null && $this->scope->canSee($request->user(), $found), 404);
@@ -78,7 +79,9 @@ class CounselingController extends Controller
         )));
 
         if ($record->drive_status === DriveUploadStatus::Pending) {
-            rescue(fn () => UploadCounselingDocumentJob::dispatch(new UploadCounselingDocument($record->id)));
+            // Sent here, inside `rescue`: `Job::dispatch()` returns a PendingDispatch that only sends when it is destroyed,
+            // after `rescue` has returned, so a queue that throws would have failed the request after all.
+            rescue(fn () => $bus->dispatch(new UploadCounselingDocumentJob(new UploadCounselingDocument($record->id))));
         }
 
         return redirect()->route('troopers.show', $found->id);

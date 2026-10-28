@@ -51,7 +51,8 @@ test('a section leader sees the trooper\'s DCS and LOR, and may file only a DCS'
     const panel = await openNovak(page, 'Sato.K');
 
     await expect(panel.locator('[data-testid="counseling-record"][data-type="dcs"]').first()).toContainText('Filed by Sato.K');
-    await expect(panel.locator('[data-testid="counseling-record"][data-type="lor"]').first()).toContainText('Disrespect toward an NCO during practice.');
+    // The other test may file another LOR at the same time, so find the seeded one by its reason.
+    await expect(panel.getByTestId('counseling-record').filter({ hasText: 'Disrespect toward an NCO during practice.' })).toHaveAttribute('data-type', 'lor');
 
     await panel.getByTestId('counseling-file-open').click();
     await expect(panel.getByTestId('counseling-type').locator('option')).toHaveText(['Developmental Counseling Statement (DCS)']);

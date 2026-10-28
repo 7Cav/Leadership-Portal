@@ -8,6 +8,7 @@ use App\Commands\Counseling\FileCounselingRecord;
 use App\Commands\Counseling\FileCounselingRecordHandler;
 use App\Commands\Counseling\InvalidCounselingRecordException;
 use App\Integration\GoogleDrive\GoogleDriveApi;
+use App\Integration\GoogleDrive\Requests\RequestAccessTokenRequest;
 use App\Jobs\UploadCounselingDocumentJob;
 use App\Models\AuditLogEntry;
 use App\Models\CounselingRecord;
@@ -18,6 +19,8 @@ use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Saloon\Http\Faking\MockClient;
+use Saloon\Http\Faking\MockResponse;
 
 require_once __DIR__.'/fixture.php';
 
@@ -221,4 +224,20 @@ it('keeps old paperwork: a date long past is accepted and still filed', function
         ->assertRedirect();
 
     expect(CounselingRecord::query()->sole()->counseled_on->toDateString())->toBe('2025-01-15');
+});
+
+it('keeps the filing when the Drive copy fails at once, as it does on a sync queue', function () {
+    $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+    openssl_pkey_export($key, $private);
+    config(['services.google_drive' => ['service_account_email' => 'sa@example.iam.gserviceaccount.com', 'private_key' => $private, 'folder_id' => 'folder-1']]);
+    app()->forgetInstance(GoogleDriveApi::class);
+    MockClient::global([RequestAccessTokenRequest::class => MockResponse::make(['error' => 'invalid_grant'], 400)]);
+
+    $this->actingAs($this->tree['users']['sl'])
+        ->post(route('counseling.store', $this->rifleman->id), ($this->file)())
+        ->assertRedirect(route('troopers.show', $this->rifleman->id));
+
+    $record = CounselingRecord::query()->sole();
+    expect($record->drive_status)->toBe(DriveUploadStatus::Failed);
+    Storage::disk('counseling')->assertExists($record->document_path);
 });
