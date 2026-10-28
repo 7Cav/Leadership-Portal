@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Repositories\TemplateUnchangedException;
 use App\Repositories\TemplateVersionRepository;
 use App\Repositories\UnitRepository;
+use App\Support\Audit\ActingFor;
 use App\Support\Audit\AuditEnvelope;
 
 /**
@@ -22,6 +23,7 @@ class SetCompanyTemplate
         private readonly UnitRepository $units,
         private readonly TemplateAuthority $authority,
         private readonly AuditEnvelope $audit,
+        private readonly ActingFor $acting,
     ) {}
 
     /**
@@ -46,7 +48,7 @@ class SetCompanyTemplate
                 action: 'template.company_active_set',
                 reason: null,
                 reasonRequired: false,
-                mutation: fn () => $this->versions->choose($company, $template, $actor->id),
+                mutation: fn () => $this->versions->choose($company, $template, $actor->id, $this->acting->adminActingAs($actor->id), $this->acting->billetOf($actor->id)),
             );
         } catch (TemplateUnchangedException) {
             // It is the company's active template already: nothing to record.

@@ -38,7 +38,7 @@ class RecordPageVisit
     private const QUERYLESS_PREFIXES = ['auth', '__e2e'];
 
     /** A query parameter whose name matches is dropped on every route. */
-    private const SENSITIVE_PARAMETER = '/^(code|state|key)$|token|password|passwd|secret|signature|api[_-]?key|session/i';
+    private const SENSITIVE_PARAMETER = '/^(code|state|key|sig|jwt|otp|auth|pin|hmac|nonce)$|token|password|passwd|secret|signature|api[_-]?key|session|credential|bearer|authori[sz]ation/i';
 
     public function __construct(
         private readonly PageVisitRepository $visits,

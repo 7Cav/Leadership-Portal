@@ -18,7 +18,7 @@ use LogicException;
  * read. Portal-owned (AD-22). Which version is current lives on the template (`active_version_id`), not on this row,
  * so activating a version never changes it.
  */
-#[Fillable(['template_id', 'company_id', 'artifact_type', 'version', 'body', 'created_by'])]
+#[Fillable(['template_id', 'company_id', 'artifact_type', 'version', 'body', 'created_by', 'created_by_admin', 'created_as_unit'])]
 class TemplateVersion extends Model
 {
     /** @use HasFactory<TemplateVersionFactory> */
@@ -64,5 +64,17 @@ class TemplateVersion extends Model
     public function author(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /** The Admin who wrote this version while acting as `created_by` (#379), or null. */
+    public function authorAdmin(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by_admin');
+    }
+
+    /** The unit whose billet `created_by`, an Admin, held when writing this version (#379), or null. */
+    public function authorUnit(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class, 'created_as_unit');
     }
 }

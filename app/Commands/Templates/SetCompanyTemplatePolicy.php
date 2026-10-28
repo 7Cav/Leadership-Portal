@@ -8,6 +8,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\TemplateUnchangedException;
 use App\Repositories\TemplateVersionRepository;
+use App\Support\Audit\ActingFor;
 use App\Support\Audit\AuditEnvelope;
 
 /**
@@ -25,6 +26,7 @@ class SetCompanyTemplatePolicy
         private readonly TemplateVersionRepository $versions,
         private readonly TemplateAuthority $authority,
         private readonly AuditEnvelope $audit,
+        private readonly ActingFor $acting,
     ) {}
 
     /**
@@ -47,7 +49,7 @@ class SetCompanyTemplatePolicy
                 action: 'template_policy.set',
                 reason: null,
                 reasonRequired: false,
-                mutation: fn () => $this->versions->setCompanyEditsTemplates($company, $companyEdits, $actor->id),
+                mutation: fn () => $this->versions->setCompanyEditsTemplates($company, $companyEdits, $actor->id, $this->acting->adminActingAs($actor->id), $this->acting->billetOf($actor->id)),
             );
         } catch (TemplateUnchangedException $unchanged) {
             return $unchanged->subject instanceof CompanyTemplatePolicy ? $unchanged->subject : null;

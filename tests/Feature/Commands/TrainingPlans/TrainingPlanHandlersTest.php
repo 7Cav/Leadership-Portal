@@ -8,6 +8,9 @@ use App\Commands\TrainingPlans\ReturnTrainingPlanHandler;
 use App\Commands\TrainingPlans\SaveTrainingPlan;
 use App\Commands\TrainingPlans\SaveTrainingPlanHandler;
 use App\Commands\TrainingPlans\TrainingPlanForbiddenException;
+use App\Commands\WeeklyReports\InvalidPlatoonTrainingTopicException;
+use App\Commands\WeeklyReports\SetPlatoonTrainingTopic;
+use App\Commands\WeeklyReports\SetPlatoonTrainingTopicHandler;
 use App\Models\AuditLogEntry;
 use App\Models\PlatoonTrainingTopic;
 use App\Models\PortalRoleGrant;
@@ -286,6 +289,50 @@ it('needs approval again after a change, and keeps the approved subjects on the 
 
     expect(tpTopics($this->platoon->id))->toBe([['2026-11-07', 'Radio procedure', false]]);
 });
+
+it('clears a week a re-approved revision left blank, in its own audited clear, and only the topics this plan wrote', function () {
+    app(PlatoonTrainingTopicRepository::class)->set($this->platoon->id, CarbonImmutable::parse('2026-11-21', 'UTC'), 'Set by hand', false, $this->leader->id);
+    tpSave($this->leader, $this->platoon->id, ['2026-11-07' => 'Room clearing', '2026-11-14' => 'Radio procedure']);
+    tpApprove($this->commander, $this->platoon->id);
+
+    tpSave($this->leader, $this->platoon->id, ['2026-11-07' => 'Room clearing']);
+    tpApprove($this->commander, $this->platoon->id, 2);
+
+    expect(tpTopics($this->platoon->id))->toBe([['2026-11-07', 'Room clearing', false], ['2026-11-21', 'Set by hand', false]])
+        ->and(AuditLogEntry::query()->where('action', 'platoon_training_topic.cleared')->count())->toBe(1)
+        ->and(AuditLogEntry::query()->where('action', 'training_plan.approved')->count())->toBe(2);
+});
+
+it('keeps the topic of a blanked week when its report is already sent', function () {
+    tpSave($this->leader, $this->platoon->id, ['2026-11-07' => 'Room clearing', '2026-11-14' => 'Radio procedure']);
+    tpApprove($this->commander, $this->platoon->id);
+    tpSave($this->leader, $this->platoon->id, ['2026-11-07' => 'Room clearing']);
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->platoon->id, 'week_start' => CarbonImmutable::parse('2026-11-14', 'UTC')]);
+
+    tpApprove($this->commander, $this->platoon->id, 2);
+
+    expect(tpTopics($this->platoon->id))->toBe([['2026-11-07', 'Room clearing', false], ['2026-11-14', 'Radio procedure', false]]);
+});
+
+it('refuses a hand change, unlock or clear of a week the approved plan wrote, by anyone, and leaves other weeks free', function (Closure $command) {
+    tpSave($this->leader, $this->platoon->id, ['2026-11-07' => 'Room clearing'], enforced: true);
+    tpApprove($this->commander, $this->platoon->id);
+    $entries = AuditLogEntry::count();
+
+    foreach ([$this->leader, $this->commander, User::factory()->admin()->create()] as $actor) {
+        expect(fn () => app(SetPlatoonTrainingTopicHandler::class)->handle($actor, $command($this->platoon->id, CarbonImmutable::parse('2026-11-07', 'UTC'))))
+            ->toThrow(InvalidPlatoonTrainingTopicException::class, "This week's topic comes from the approved training plan.");
+    }
+
+    expect(tpTopics($this->platoon->id))->toBe([['2026-11-07', 'Room clearing', true]])
+        ->and(AuditLogEntry::count())->toBe($entries)
+        // A week the plan does not fill is still the platoon leader's to set by hand.
+        ->and(fn () => app(SetPlatoonTrainingTopicHandler::class)->handle($this->leader, $command($this->platoon->id, CarbonImmutable::parse('2026-11-14', 'UTC'))))->not->toThrow(InvalidPlatoonTrainingTopicException::class);
+})->with([
+    'a new subject' => [fn (int $unitId, CarbonImmutable $week) => new SetPlatoonTrainingTopic($unitId, $week, 'Something else', true)],
+    'the same subject, not enforced' => [fn (int $unitId, CarbonImmutable $week) => new SetPlatoonTrainingTopic($unitId, $week, 'Room clearing', false)],
+    'a clear' => [fn (int $unitId, CarbonImmutable $week) => new SetPlatoonTrainingTopic($unitId, $week, null, false)],
+]);
 
 it('sends a plan back with the comment as the audit reason, and writes nothing to the reports', function () {
     tpSave($this->leader, $this->platoon->id, ['2026-11-07' => 'Room clearing']);

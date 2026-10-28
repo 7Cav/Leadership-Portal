@@ -11,6 +11,7 @@ use App\Repositories\TemplateUnchangedException;
 use App\Repositories\TemplateVersionRepository;
 use App\Repositories\UnitRepository;
 use App\Rollcall\TemplateResolver;
+use App\Support\Audit\ActingFor;
 use App\Support\Audit\AuditEnvelope;
 
 /**
@@ -28,6 +29,7 @@ class PickSectionTemplate
         private readonly TemplateVersionRepository $versions,
         private readonly TemplateResolver $resolver,
         private readonly AuditEnvelope $audit,
+        private readonly ActingFor $acting,
     ) {}
 
     /**
@@ -62,7 +64,7 @@ class PickSectionTemplate
                 reasonRequired: false,
                 mutation: fn () => $template === null
                     ? $this->versions->clearChoice($section, $type)
-                    : $this->versions->choose($section, $template, $actor->id),
+                    : $this->versions->choose($section, $template, $actor->id, $this->acting->adminActingAs($actor->id), $this->acting->billetOf($actor->id)),
             );
         } catch (TemplateUnchangedException) {
             // Already so: nothing to record.

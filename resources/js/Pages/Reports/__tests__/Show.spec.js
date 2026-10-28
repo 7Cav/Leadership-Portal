@@ -520,6 +520,15 @@ describe('Reports/Show training topic', () => {
         expect(wrapper.find('[data-testid="topic-apply"]').exists()).toBe(false);
     });
 
+    it('shows a topic from the approved training plan read-only, even to someone who can set topics', () => {
+        const wrapper = platoonPage({ canSetTopic: true, topic: { ...topic(true), fromPlan: true } });
+
+        expect(wrapper.get('#platoon-topic').attributes('disabled')).toBeDefined();
+        expect(wrapper.get('[data-testid="topic-status"]').text()).toBe('From the approved training plan. Locked on every section report this week. To change it, change the plan.');
+        expect(wrapper.find('[data-testid="topic-apply"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="topic-clear"]').exists()).toBe(false);
+    });
+
     it('hides the topic on a platoon with none set for a viewer who cannot set one', () => {
         expect(platoonPage().find('[data-testid="platoon-topic"]').exists()).toBe(false);
     });

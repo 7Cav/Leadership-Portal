@@ -17,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * Portal-owned (AD-22), written only by `TemplateVersionRepository` under the audited template Commands. Never deleted.
  */
-#[Fillable(['company_id', 'artifact_type', 'name', 'enabled', 'created_by'])]
+#[Fillable(['company_id', 'artifact_type', 'name', 'enabled', 'created_by', 'created_by_admin', 'created_as_unit'])]
 class Template extends Model
 {
     /** @use HasFactory<TemplateFactory> */

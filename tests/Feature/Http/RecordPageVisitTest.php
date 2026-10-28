@@ -94,6 +94,12 @@ it('keeps the query but drops sensitive parameters on every route', function () 
     expect(RecordPageVisit::address(Request::create('/roster?filter[token]=t&filter[unit]=4')))->toBe('/roster?filter%5Bunit%5D=4');
 });
 
+it('drops the short names signed links and one-time codes use, and keeps look-alike names', function () {
+    $address = RecordPageVisit::address(Request::create('/roster?sig=s&jwt=j&otp=1&auth=a&pin=2&hmac=h&nonce=n&credentials=c&bearer=b&authorization=z&signed=1&author=x&unit=4'));
+
+    expect($address)->toBe('/roster?signed=1&author=x&unit=4');
+});
+
 it('drops the whole query under /auth and /__e2e', function () {
     $this->actingAs($this->user)->get('/auth/__visit-test?unit=4&anything=else')->assertOk();
 

@@ -11,7 +11,8 @@ import { stamp } from '@/lib/report';
 // The training topic a platoon leader sets for their sections this week, on the platoon's own
 // report screen. Enforced, it is locked on every section's report; otherwise each section starts
 // with it and may change it. Only the platoon's chain of command can set it (checked again on the
-// server); everyone else who can see the platoon sees what was set.
+// server); everyone else who can see the platoon sees what was set. A topic the approved training plan
+// wrote changes only through the plan, so it is shown but not editable here.
 const props = defineProps({
     topic: { type: Object, default: null },
     canSet: { type: Boolean, default: false },
@@ -31,11 +32,16 @@ watch(
     },
 );
 
-const editable = computed(() => props.canSet && !props.readOnly);
+const editable = computed(() => props.canSet && !props.readOnly && !props.topic?.fromPlan);
 const changed = computed(() => form.subject.trim() !== (props.topic?.subject ?? '') || form.enforced !== (props.topic?.enforced ?? false));
 
 const status = computed(() => {
     if (!props.topic) return 'Not set. Each section fills in its own training subject.';
+    if (props.topic.fromPlan) {
+        const lock = props.topic.enforced ? 'Locked on every section report this week.' : 'Each section starts with it and can change it.';
+
+        return `From the approved training plan. ${lock} To change it, change the plan.`;
+    }
     const how = props.topic.enforced ? 'Locked on every section report this week.' : 'Each section starts with it and can change it.';
     const who = props.topic.setBy ? ` Set by ${props.topic.setBy}${props.topic.setAt ? ` ${stamp(props.topic.setAt)}` : ''}.` : '';
 

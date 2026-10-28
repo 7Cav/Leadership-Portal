@@ -401,7 +401,23 @@ class TemplatesController extends Controller
             'version' => $version->version,
             'body' => $version->body,
             'createdAt' => $version->created_at->toIso8601String(),
-            'createdBy' => $version->relationLoaded('author') ? $version->author?->username : null,
+            'createdBy' => $version->relationLoaded('author') ? $this->author($version) : null,
         ];
+    }
+
+    /**
+     * Who wrote the version: "Hale.S for Pike.S" when an Admin acting as Pike.S did, "Hale.S acting as Company
+     * Commander A/1-7" when an Admin holding the billet did (#379), else the author alone. Null for the seeded default.
+     */
+    private function author(TemplateVersion $version): ?string
+    {
+        $name = $version->author?->username;
+
+        return match (true) {
+            $name === null => null,
+            $version->authorAdmin !== null => "{$version->authorAdmin->username} for {$name}",
+            $version->authorUnit !== null => "{$name} acting as {$version->authorUnit->billet()}",
+            default => $name,
+        };
     }
 }

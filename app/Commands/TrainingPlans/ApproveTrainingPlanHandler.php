@@ -2,6 +2,8 @@
 
 namespace App\Commands\TrainingPlans;
 
+use App\Commands\WeeklyReports\SetPlatoonTrainingTopicHandler;
+use App\Commands\WeeklyReports\TrainingTopicUnchangedException;
 use App\Models\TrainingPlan;
 use App\Models\User;
 use App\Models\WeeklyReportStatus;
@@ -21,7 +23,9 @@ use Carbon\CarbonInterface;
  *
  * A week that is locked keeps what it has: one before the week floor, and one whose platoon report is sent (AD-12).
  * A section report already sent froze its own subject and never reads the topic again. A week the plan leaves blank
- * keeps whatever topic it had. Each topic records the plan's writer as its setter: the subject is theirs.
+ * keeps whatever topic it had, unless an earlier approval of this same plan wrote it: then it is cleared (its own
+ * audited clear), so the reports follow the plan as approved. Each topic records the plan's writer as its setter (the subject is theirs) and the plan
+ * as its source, so it changes only through the plan from then on.
  *
  * Refused: a reviewer who does not command the platoon's company ({@see TrainingPlanRules::mayReview()}), and, under
  * the plan's row lock, a plan that is missing, not pending, or changed since the reviewer read it.
@@ -61,7 +65,30 @@ class ApproveTrainingPlanHandler
                         continue;
                     }
 
-                    $written[] = $this->topics->set($platoon->id, $week->week_start, $week->subject, $plan->enforced, $plan->written_by, $plan->written_by_admin, $plan->written_as_unit);
+                    $written[] = $this->topics->set($platoon->id, $week->week_start, $week->subject, $plan->enforced, $plan->written_by, $plan->written_by_admin, $plan->written_as_unit, $plan->id);
+                }
+
+                // A revision that left a week blank: the topic an earlier approval of this plan wrote there goes, unless
+                // the week is locked. A topic set by hand, or by another plan, is never touched.
+                $planned = $plan->weeks->map(fn ($week) => $week->week_start->toDateString())->all();
+                foreach ($this->topics->fromPlan($plan->id) as $topic) {
+                    if (in_array($topic->week_start->toDateString(), $planned, true) || $this->locked($platoon->id, $topic->week_start)) {
+                        continue;
+                    }
+
+                    // Its own audited clear, as a hand clear is: the batch below re-reads every member as stored, and a
+                    // cleared topic is gone. Both commit or roll back together, inside the approval's transaction.
+                    try {
+                        $this->audit->record(
+                            actorId: $actor->id,
+                            action: SetPlatoonTrainingTopicHandler::CLEARED,
+                            reason: null,
+                            reasonRequired: false,
+                            mutation: fn () => $this->topics->clear($platoon->id, $topic->week_start) ?? throw new TrainingTopicUnchangedException,
+                        );
+                    } catch (TrainingTopicUnchangedException) {
+                        // Already gone: nothing to clear.
+                    }
                 }
 
                 $plan = $this->plans->approve($plan, $actor->id, $this->acting->adminActingAs($actor->id), $this->acting->billetOf($actor->id));

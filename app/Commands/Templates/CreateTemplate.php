@@ -9,6 +9,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\TemplateNameTakenException;
 use App\Repositories\TemplateVersionRepository;
+use App\Support\Audit\ActingFor;
 use App\Support\Audit\AuditEnvelope;
 
 /**
@@ -25,6 +26,7 @@ class CreateTemplate
         private readonly TemplateVersionRepository $versions,
         private readonly TemplateAuthority $authority,
         private readonly AuditEnvelope $audit,
+        private readonly ActingFor $acting,
     ) {}
 
     /**
@@ -73,7 +75,7 @@ class CreateTemplate
                 action: 'template.created',
                 reason: $reason,
                 reasonRequired: true,
-                mutation: fn () => $this->versions->createTemplate($company->id, $type, $name, $body, $actor->id),
+                mutation: fn () => $this->versions->createTemplate($company->id, $type, $name, $body, $actor->id, $this->acting->adminActingAs($actor->id), $this->acting->billetOf($actor->id)),
             );
         } catch (TemplateNameTakenException) {
             // A twin submit that raced past the check above: the repository refused it under its lock.

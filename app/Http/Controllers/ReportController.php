@@ -409,6 +409,8 @@ class ReportController extends Controller
         return [
             'subject' => $topic->subject,
             'enforced' => $topic->enforced,
+            // Written by the platoon's approved training plan (#380): it changes through the plan, not here.
+            'fromPlan' => $topic->training_plan_id !== null,
             'platoon' => $platoon === null ? null : $this->unitProps($platoon),
             // "Hale.S for SGT Vasquez.R" when an Admin acting as the setter set it, "Hale.S acting as Platoon Leader
             // 1/A/1-7" when an Admin holding the billet did (#379).
