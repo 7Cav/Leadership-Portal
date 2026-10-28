@@ -227,6 +227,8 @@ describe('the audit trail', function () {
 describe('where it shows', function () {
     it('sends the saved guidon with the unit on the roster, its picker and Org structure, and null for a unit with none', function () {
         $co = User::factory()->commanding($this->company)->create();
+        // The picker leaves out units with nobody in them (#442).
+        manUnits($this->section);
         saveGuidon($this, $co, $this->company->id)->assertRedirect();
         $saved = ['primary' => '#1f2a44', 'secondary' => '#ffffff', 'topLeft' => '2/7', 'bottomRight' => 'A'];
 
