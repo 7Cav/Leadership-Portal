@@ -1,5 +1,7 @@
 <?php
 
+use App\Commands\WeeklyReports\SendWeeklyReport;
+use App\Commands\WeeklyReports\SendWeeklyReportHandler;
 use App\Kpi\Headcount;
 use App\Kpi\KpiService;
 use App\Kpi\ReportSnapshot;
@@ -11,6 +13,7 @@ use App\Models\Unit;
 use App\Models\UnitKind;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Models\WeeklyReport;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use Carbon\CarbonImmutable;
@@ -99,4 +102,20 @@ it('reads a snapshot frozen before the headcount existed as having none', functi
     $legacy = collect((new ReportSnapshot(app(KpiService::class)->forUnit($this->s1, hcWeek()), null))->toArray())->except('headcount')->all();
 
     expect(ReportSnapshot::fromArray($legacy)->headcount)->toBeNull();
+});
+
+it('persists a sent platoon report\'s headcount, staff included, apart from its strength, and keeps it', function () {
+    $admin = User::factory()->admin()->create();
+    $send = fn (Unit $unit) => app(SendWeeklyReportHandler::class)->handle($admin, new SendWeeklyReport($unit->id, hcWeek(), 'Weekly report', 'ok'));
+
+    $send($this->s1);
+    $send($this->s2);
+    $send($this->platoon);
+    hcPlace($this->platoon);
+
+    $stored = WeeklyReport::query()->where('unit_id', $this->platoon->id)->sole()->kpis;
+
+    expect($stored['strength'])->toBe(3)
+        ->and($stored['headcount'])->toBe(4)
+        ->and(ReportSnapshot::fromArray($stored)->headcount)->toBe(4);
 });
