@@ -25,9 +25,11 @@ class Eloquent implements TemplateVersionRepository
     /** What a company's template is called when it is made for it by {@see author()}. */
     private const COMPANY_TEMPLATE_NAME = 'Company template';
 
-    public function createTemplate(int $companyId, ArtifactType $type, string $name, string $body, int $createdBy): Template
+    public function createTemplate(int $companyId, ArtifactType $type, string $name, string $body, int $createdBy, ?int $createdByAdmin = null, ?int $createdAsUnit = null): Template
     {
-        return DB::transaction(function () use ($companyId, $type, $name, $body, $createdBy) {
+        $who = [$createdBy, $createdByAdmin, $createdAsUnit];
+
+        return DB::transaction(function () use ($companyId, $type, $name, $body, $who) {
             $this->lockCompany($companyId);
 
             // Decided under the lock, so two quick submits of one name cannot both pass the Command's own check.
@@ -41,31 +43,35 @@ class Eloquent implements TemplateVersionRepository
                 throw new TemplateNameTakenException($name);
             }
 
-            return $this->newTemplate($companyId, $type, $name, $body, $createdBy);
+            return $this->newTemplate($companyId, $type, $name, $body, $who);
         });
     }
 
-    public function authorVersion(Template $template, string $body, int $createdBy): TemplateVersion
+    public function authorVersion(Template $template, string $body, int $createdBy, ?int $createdByAdmin = null, ?int $createdAsUnit = null): TemplateVersion
     {
-        return $this->retrying(fn () => DB::transaction(function () use ($template, $body, $createdBy) {
+        $who = [$createdBy, $createdByAdmin, $createdAsUnit];
+
+        return $this->retrying(fn () => DB::transaction(function () use ($template, $body, $who) {
             $stored = $this->lockTemplate($template);
 
-            return $this->appendVersion($stored, $body, $createdBy);
+            return $this->appendVersion($stored, $body, $who);
         }));
     }
 
-    public function author(int $companyId, ArtifactType $type, string $body, int $createdBy): TemplateVersion
+    public function author(int $companyId, ArtifactType $type, string $body, int $createdBy, ?int $createdByAdmin = null, ?int $createdAsUnit = null): TemplateVersion
     {
-        return $this->retrying(fn () => DB::transaction(function () use ($companyId, $type, $body, $createdBy) {
+        $who = [$createdBy, $createdByAdmin, $createdAsUnit];
+
+        return $this->retrying(fn () => DB::transaction(function () use ($companyId, $type, $body, $who) {
             $this->lockCompany($companyId);
 
             $choice = $this->choiceFor($companyId, $type);
 
             if ($choice === null) {
-                return $this->newTemplate($companyId, $type, self::COMPANY_TEMPLATE_NAME, $body, $createdBy)->activeVersion;
+                return $this->newTemplate($companyId, $type, self::COMPANY_TEMPLATE_NAME, $body, $who)->activeVersion;
             }
 
-            return $this->appendVersion(Template::query()->whereKey($choice->template_id)->lockForUpdate()->firstOrFail(), $body, $createdBy);
+            return $this->appendVersion(Template::query()->whereKey($choice->template_id)->lockForUpdate()->firstOrFail(), $body, $who);
         }));
     }
 
@@ -104,9 +110,9 @@ class Eloquent implements TemplateVersionRepository
         });
     }
 
-    public function choose(Unit $unit, Template $template, int $chosenBy): UnitTemplateChoice
+    public function choose(Unit $unit, Template $template, int $chosenBy, ?int $chosenByAdmin = null, ?int $chosenAsUnit = null): UnitTemplateChoice
     {
-        return DB::transaction(function () use ($unit, $template, $chosenBy) {
+        return DB::transaction(function () use ($unit, $template, $chosenBy, $chosenByAdmin, $chosenAsUnit) {
             Unit::query()->whereKey($unit->id)->lockForUpdate()->first(['id']);
 
             $choice = UnitTemplateChoice::query()
@@ -119,7 +125,12 @@ class Eloquent implements TemplateVersionRepository
             }
 
             $choice ??= new UnitTemplateChoice(['unit_id' => $unit->id, 'artifact_type' => $template->artifact_type]);
-            $choice->fill(['template_id' => $template->id, 'chosen_by' => $chosenBy])->save();
+            $choice->fill([
+                'template_id' => $template->id,
+                'chosen_by' => $chosenBy,
+                'chosen_by_admin' => $chosenByAdmin,
+                'chosen_as_unit' => $chosenAsUnit,
+            ])->save();
 
             return $choice;
         });
@@ -164,7 +175,7 @@ class Eloquent implements TemplateVersionRepository
     public function historyOf(Template $template): Collection
     {
         return TemplateVersion::query()
-            ->with('author')
+            ->with(['author', 'authorAdmin', 'authorUnit'])
             ->where('template_id', $template->id)
             ->orderByDesc('version')
             ->get();
@@ -212,9 +223,9 @@ class Eloquent implements TemplateVersionRepository
         return Template::query()->where('company_id', $company->getKey())->exists();
     }
 
-    public function copyTemplate(Template $source, int $companyId, string $name, bool $enabled, int $copiedBy): Template
+    public function copyTemplate(Template $source, int $companyId, string $name, bool $enabled, int $copiedBy, ?int $copiedByAdmin = null, ?int $copiedAsUnit = null): Template
     {
-        return DB::transaction(function () use ($source, $companyId, $name, $enabled, $copiedBy) {
+        return DB::transaction(function () use ($source, $companyId, $name, $enabled, $copiedBy, $copiedByAdmin, $copiedAsUnit) {
             $this->lockCompany($companyId);
 
             // Read from the stored row, so a stale model cannot copy a version that is no longer the active one.
@@ -233,11 +244,13 @@ class Eloquent implements TemplateVersionRepository
                 'name' => $this->freeName($companyId, $source->artifact_type, $name),
                 'enabled' => $enabled,
                 'created_by' => $copiedBy,
+                'created_by_admin' => $copiedByAdmin,
+                'created_as_unit' => $copiedAsUnit,
                 'copied_from_id' => $source->id,
             ])->save();
 
             // The text and its author are the source's; only the copy itself is the copier's.
-            $version = $this->insertVersion($copy, 1, $active->body, $active->created_by);
+            $version = $this->insertVersion($copy, 1, $active->body, [$active->created_by, $active->created_by_admin, $active->created_as_unit]);
             $this->point($copy, $version);
 
             return $copy;
@@ -249,9 +262,9 @@ class Eloquent implements TemplateVersionRepository
         return CompanyTemplatePolicy::query()->where('company_id', $companyId)->value('company_edits_templates') ?? true;
     }
 
-    public function setCompanyEditsTemplates(Unit $company, bool $edits, int $setBy): CompanyTemplatePolicy
+    public function setCompanyEditsTemplates(Unit $company, bool $edits, int $setBy, ?int $setByAdmin = null, ?int $setAsUnit = null): CompanyTemplatePolicy
     {
-        return DB::transaction(function () use ($company, $edits, $setBy) {
+        return DB::transaction(function () use ($company, $edits, $setBy, $setByAdmin, $setAsUnit) {
             $this->lockCompany($company->id);
 
             $policy = CompanyTemplatePolicy::query()->where('company_id', $company->id)->first();
@@ -261,7 +274,12 @@ class Eloquent implements TemplateVersionRepository
             }
 
             $policy ??= new CompanyTemplatePolicy(['company_id' => $company->id]);
-            $policy->fill(['company_edits_templates' => $edits, 'set_by' => $setBy])->save();
+            $policy->fill([
+                'company_edits_templates' => $edits,
+                'set_by' => $setBy,
+                'set_by_admin' => $setByAdmin,
+                'set_as_unit' => $setAsUnit,
+            ])->save();
 
             return $policy;
         });
@@ -270,9 +288,13 @@ class Eloquent implements TemplateVersionRepository
     /**
      * A new template with version 1 active, made the company's active template when it has none. Runs inside the
      * caller's transaction, under the company lock.
+     *
+     * @param  array{0: int, 1: ?int, 2: ?int}  $who  who wrote it, the Admin acting as them and the billet's unit
      */
-    private function newTemplate(int $companyId, ArtifactType $type, string $name, string $body, int $createdBy): Template
+    private function newTemplate(int $companyId, ArtifactType $type, string $name, string $body, array $who): Template
     {
+        [$createdBy, $createdByAdmin, $createdAsUnit] = $who;
+
         $template = new Template;
         $template->forceFill([
             'company_id' => $companyId,
@@ -280,9 +302,11 @@ class Eloquent implements TemplateVersionRepository
             'name' => $name,
             'enabled' => true,
             'created_by' => $createdBy,
+            'created_by_admin' => $createdByAdmin,
+            'created_as_unit' => $createdAsUnit,
         ])->save();
 
-        $version = $this->insertVersion($template, 1, $body, $createdBy);
+        $version = $this->insertVersion($template, 1, $body, $who);
         $this->point($template, $version);
 
         $hasActive = UnitTemplateChoice::query()->where('unit_id', $companyId)->where('artifact_type', $type->value)->exists();
@@ -293,6 +317,8 @@ class Eloquent implements TemplateVersionRepository
                 'artifact_type' => $type,
                 'template_id' => $template->id,
                 'chosen_by' => $createdBy,
+                'chosen_by_admin' => $createdByAdmin,
+                'chosen_as_unit' => $createdAsUnit,
             ]);
         }
 
@@ -321,9 +347,11 @@ class Eloquent implements TemplateVersionRepository
     /**
      * The next version of a locked template, made its active one. Runs inside the caller's transaction.
      *
+     * @param  array{0: int, 1: ?int, 2: ?int}  $who  as for {@see newTemplate()}
+     *
      * @throws TemplateUnchangedException when `$body` is the active version's body already.
      */
-    private function appendVersion(Template $template, string $body, int $createdBy): TemplateVersion
+    private function appendVersion(Template $template, string $body, array $who): TemplateVersion
     {
         // Decided under the lock, so two quick submits of the same text cannot both pass it.
         $active = $template->active_version_id === null ? null : TemplateVersion::query()->find($template->active_version_id);
@@ -336,14 +364,19 @@ class Eloquent implements TemplateVersionRepository
         // racing author just committed, so a retry would pick the same number again.
         $next = 1 + (int) TemplateVersion::query()->where('template_id', $template->id)->lockForUpdate()->max('version');
 
-        $version = $this->insertVersion($template, $next, $body, $createdBy);
+        $version = $this->insertVersion($template, $next, $body, $who);
         $this->point($template, $version);
 
         return $version;
     }
 
-    private function insertVersion(Template $template, int $number, string $body, ?int $createdBy): TemplateVersion
+    /**
+     * @param  array{0: ?int, 1: ?int, 2: ?int}  $who  as for {@see newTemplate()}; a copy keeps its source's, null for the seeded default
+     */
+    private function insertVersion(Template $template, int $number, string $body, array $who): TemplateVersion
     {
+        [$createdBy, $createdByAdmin, $createdAsUnit] = $who;
+
         return TemplateVersion::query()->create([
             'template_id' => $template->id,
             'company_id' => $template->company_id,
@@ -351,6 +384,8 @@ class Eloquent implements TemplateVersionRepository
             'version' => $number,
             'body' => $body,
             'created_by' => $createdBy,
+            'created_by_admin' => $createdByAdmin,
+            'created_as_unit' => $createdAsUnit,
         ]);
     }
 

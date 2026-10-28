@@ -23,6 +23,9 @@ use InvalidArgumentException;
  *
  * Every write for a company's templates locks that company's `units` row first, so they run one at a time; the regiment
  * default's writes lock its template row instead.
+ *
+ * Each "who" (`$createdBy`, `$chosenBy`, `$setBy`, `$copiedBy`) comes with the Admin acting as that person and the unit
+ * whose billet an Admin held (#379, as `ActingFor` tells the Commands), both null for a write in one's own name.
  */
 interface TemplateVersionRepository
 {
@@ -34,7 +37,7 @@ interface TemplateVersionRepository
      * @throws InvalidArgumentException when `$companyId` is not a `units` row of type company.
      * @throws TemplateNameTakenException when the company has a template of that name (case aside): nothing is written.
      */
-    public function createTemplate(int $companyId, ArtifactType $type, string $name, string $body, int $createdBy): Template;
+    public function createTemplate(int $companyId, ArtifactType $type, string $name, string $body, int $createdBy, ?int $createdByAdmin = null, ?int $createdAsUnit = null): Template;
 
     /**
      * Write a new version of the template and make it the template's active one, in one transaction. The version
@@ -44,7 +47,7 @@ interface TemplateVersionRepository
      *
      * @throws TemplateUnchangedException when `$body` is the active version's body already: nothing is written.
      */
-    public function authorVersion(Template $template, string $body, int $createdBy): TemplateVersion;
+    public function authorVersion(Template $template, string $body, int $createdBy, ?int $createdByAdmin = null, ?int $createdAsUnit = null): TemplateVersion;
 
     /**
      * Write a new version of the company's active template, creating one ("Company template", switched on and made
@@ -54,7 +57,7 @@ interface TemplateVersionRepository
      * @throws InvalidArgumentException when `$companyId` is not a `units` row of type company.
      * @throws TemplateUnchangedException when `$body` is the active version's body already: nothing is written.
      */
-    public function author(int $companyId, ArtifactType $type, string $body, int $createdBy): TemplateVersion;
+    public function author(int $companyId, ArtifactType $type, string $body, int $createdBy, ?int $createdByAdmin = null, ?int $createdAsUnit = null): TemplateVersion;
 
     /**
      * Point the version's template at it, in one transaction. The template comes from the version itself, so the
@@ -77,7 +80,7 @@ interface TemplateVersionRepository
      *
      * @throws TemplateUnchangedException when it is the unit's choice already: nothing is written.
      */
-    public function choose(Unit $unit, Template $template, int $chosenBy): UnitTemplateChoice;
+    public function choose(Unit $unit, Template $template, int $chosenBy, ?int $chosenByAdmin = null, ?int $chosenAsUnit = null): UnitTemplateChoice;
 
     /**
      * Remove `$unit`'s choice of this kind. Returns the removed row, for the audit log.
@@ -95,8 +98,8 @@ interface TemplateVersionRepository
     public function activeFor(int $companyId, ArtifactType $type): ?TemplateVersion;
 
     /**
-     * Every version of the template, newest first, each with its author loaded, so a settings screen lists history
-     * without lazy loading.
+     * Every version of the template, newest first, each with its author (and any Admin acting as them, or billet an
+     * Admin held, #379) loaded, so a settings screen lists history without lazy loading.
      *
      * @return Collection<int, TemplateVersion>
      */
@@ -141,11 +144,11 @@ interface TemplateVersionRepository
      *
      * @throws TemplateUnchangedException when it is set that way already (a company with no row counts as on).
      */
-    public function setCompanyEditsTemplates(Unit $company, bool $edits, int $setBy): CompanyTemplatePolicy;
+    public function setCompanyEditsTemplates(Unit $company, bool $edits, int $setBy, ?int $setByAdmin = null, ?int $setAsUnit = null): CompanyTemplatePolicy;
 
     /**
      * Copy `$source` into the company as a template of its own (#378), in one transaction under the company's lock: one
-     * version, version 1, holding the source's active version's body and author, made the copy's active one. The copy
+     * version, version 1, holding the source's active version's body and author (with any Admin and billet beside it), made the copy's active one. The copy
      * remembers its source (`copied_from_id`) and is switched on or off as `$enabled` says. Unlike
      * {@see createTemplate()} it never becomes the company's active template, so the company's other sections render
      * what they did. When `$name` is taken (case aside) the copy is numbered: `$name (2)`, `$name (3)`, and so on, so
@@ -153,5 +156,5 @@ interface TemplateVersionRepository
      *
      * @throws InvalidArgumentException when `$companyId` is not a company, or the source has no active version.
      */
-    public function copyTemplate(Template $source, int $companyId, string $name, bool $enabled, int $copiedBy): Template;
+    public function copyTemplate(Template $source, int $companyId, string $name, bool $enabled, int $copiedBy, ?int $copiedByAdmin = null, ?int $copiedAsUnit = null): Template;
 }

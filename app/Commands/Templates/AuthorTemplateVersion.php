@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Repositories\TemplateUnchangedException;
 use App\Repositories\TemplateVersionRepository;
 use App\Rollcall\TemplateSyntax;
+use App\Support\Audit\ActingFor;
 use App\Support\Audit\AuditEnvelope;
 
 /**
@@ -30,6 +31,7 @@ class AuthorTemplateVersion
         private readonly TemplateVersionRepository $versions,
         private readonly TemplateAuthority $authority,
         private readonly AuditEnvelope $audit,
+        private readonly ActingFor $acting,
     ) {}
 
     /**
@@ -59,7 +61,7 @@ class AuthorTemplateVersion
                 action: 'template_version.authored',
                 reason: $reason,
                 reasonRequired: true,
-                mutation: fn () => $this->versions->authorVersion($template, $body, $actor->id),
+                mutation: fn () => $this->versions->authorVersion($template, $body, $actor->id, $this->acting->adminActingAs($actor->id), $this->acting->billetOf($actor->id)),
             );
         } catch (TemplateUnchangedException $unchanged) {
             return $unchanged->version();

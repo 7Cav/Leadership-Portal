@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * no row may. Portal-owned (AD-22), written only by `TemplateVersionRepository` under the audited
  * `SetCompanyTemplatePolicy` Command.
  */
-#[Fillable(['company_id', 'company_edits_templates', 'set_by'])]
+#[Fillable(['company_id', 'company_edits_templates', 'set_by', 'set_by_admin', 'set_as_unit'])]
 class CompanyTemplatePolicy extends Model
 {
     protected function casts(): array

@@ -13,6 +13,7 @@ use App\Repositories\TemplateVersionRepository;
 use App\Repositories\UnitActingLeadRepository;
 use App\Repositories\UnitRepository;
 use App\Rollcall\TemplateResolver;
+use App\Support\Audit\ActingFor;
 use App\Support\Audit\AuditEnvelope;
 use Illuminate\Support\Collection;
 
@@ -49,6 +50,7 @@ class CarryUnitTemplates
         private readonly FireteamRepository $fireteams,
         private readonly UnitActingLeadRepository $actingLeads,
         private readonly AuditEnvelope $audit,
+        private readonly ActingFor $acting,
     ) {}
 
     /**
@@ -103,14 +105,15 @@ class CarryUnitTemplates
                 $enabled = $this->versions->companyEditsTemplates($to->id);
                 $copies = [];
                 $picks = [];
+                $who = [$actor->id, $this->acting->adminActingAs($actor->id), $this->acting->billetOf($actor->id)];
 
                 foreach ($used as $sectionId => $template) {
-                    $copies[$template->id] ??= $this->versions->copyTemplate($template, $to->id, $this->copyName($template, $from), $enabled, $actor->id);
+                    $copies[$template->id] ??= $this->versions->copyTemplate($template, $to->id, $this->copyName($template, $from), $enabled, ...$who);
 
                     $section = $this->units->find($sectionId);
 
                     if ($section !== null) {
-                        $picks[] = $this->versions->choose($section, $copies[$template->id], $actor->id);
+                        $picks[] = $this->versions->choose($section, $copies[$template->id], ...$who);
                     }
                 }
 

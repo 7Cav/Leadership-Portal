@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * Portal-owned (AD-22), written only by `TemplateVersionRepository` under the audited template Commands.
  */
-#[Fillable(['unit_id', 'artifact_type', 'template_id', 'chosen_by'])]
+#[Fillable(['unit_id', 'artifact_type', 'template_id', 'chosen_by', 'chosen_by_admin', 'chosen_as_unit'])]
 class UnitTemplateChoice extends Model
 {
     protected function casts(): array
