@@ -13,6 +13,7 @@ use App\Repositories\UnitActingLeadRepository;
 use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 
 /**
@@ -161,7 +162,7 @@ class ScopeResolver
             $placed = $trooper?->primary_section_id === null ? null : $byId->get((int) $trooper->primary_section_id);
             $granted = $servingIds->has($user->id)
                 ? $grants->get($user->id, collect())->map(fn (int $id) => $byId->get($id))
-                    ->push($placed?->type === UnitType::Regiment ? $placed : null)
+                    ->push(self::isRegimentalHqPlacement($placed) ? $placed : null)
                 : collect();
             // As commandedUnits(): a billet held on this request is the only command, else the synced billet and
             // the acting leads, none for a user with no milpac link.
@@ -316,7 +317,31 @@ class ScopeResolver
     {
         $placed = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
 
-        return $placed?->type === UnitType::Regiment ? $placed : null;
+        return self::isRegimentalHqPlacement($placed) ? $placed : null;
+    }
+
+    /**
+     * Who reads the whole regiment as Regimental HQ staff right now: the serving troopers placed directly on the regiment
+     * node, by username. The same two tests {@see readOnlyUnitsWhileServing()} and {@see realScopes()} apply one trooper
+     * at a time ({@see TrooperStatus::serving()} and {@see isRegimentalHqPlacement()}), so the Staff grants page lists
+     * exactly the people this class gives the regiment to. A trooper with no portal account yet is listed too: they read
+     * it from their first sign-in. Two queries.
+     *
+     * @return EloquentCollection<int, Trooper>
+     */
+    public function regimentalHqStaff(): EloquentCollection
+    {
+        $regimentIds = $this->units->tree()
+            ->filter(fn (Unit $unit) => self::isRegimentalHqPlacement($unit))
+            ->pluck('id');
+
+        return $this->troopers->servingPlacedIn($regimentIds);
+    }
+
+    /** Whether a trooper placed on `$unit` is Regimental HQ staff: placed on the regiment node itself, nothing below it. */
+    private static function isRegimentalHqPlacement(?Unit $unit): bool
+    {
+        return $unit?->type === UnitType::Regiment;
     }
 
     /**

@@ -167,4 +167,38 @@ describe('Settings/StaffGrants', () => {
         vi.unstubAllGlobals();
         deleteSpy = vi.fn();
     });
+
+    describe('Regimental HQ staff', () => {
+        const HQ = [
+            { id: 7, name: 'COL Mercer.T', billet: 'Regimental Chief of Staff' },
+            { id: 8, name: 'MAJ #4410', billet: null },
+        ];
+
+        it('lists who reads the whole regiment from their billet, with why, and nothing to revoke', () => {
+            const wrapper = mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, regimentalHq: HQ, isAdmin: true } });
+            const section = wrapper.find('[data-testid="regimental-hq"]');
+
+            expect(section.find('h2').text()).toBe('Regimental HQ staff');
+            expect(section.text()).toContain(
+                'Regimental HQ staff read the whole regiment, read-only. This comes from their billet; it is not a grant and cannot be revoked here.',
+            );
+            expect(section.find('[data-testid="regimental-hq-7"]').text()).toContain('COL Mercer.T');
+            expect(section.find('[data-testid="regimental-hq-7"]').text()).toContain('Regimental Chief of Staff');
+            expect(section.find('[data-testid="regimental-hq-8"]').text()).toContain('MAJ #4410');
+            expect(section.find('[data-testid="regimental-hq-8"]').text()).toContain('—');
+            expect(section.find('button').exists()).toBe(false);
+        });
+
+        it('says so when no one is placed on the regiment', () => {
+            const wrapper = mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, regimentalHq: [], isAdmin: true } });
+
+            expect(wrapper.find('[data-testid="regimental-hq-empty"]').text()).toBe('No serving trooper is placed on the regiment.');
+        });
+
+        it('is not shown to a non-Admin', () => {
+            const wrapper = mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, regimentalHq: HQ, isAdmin: false } });
+
+            expect(wrapper.find('[data-testid="regimental-hq"]').exists()).toBe(false);
+        });
+    });
 });

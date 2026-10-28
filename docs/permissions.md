@@ -52,7 +52,8 @@ Notes:
   hand counts the same. Holding groups and staff departments (ELOA, Reservists, New Recruits, S1, S6 and the rest) are
   units of their own under the regiment, so their members do not get it. In the matrix below they read like the Grant
   column, over the whole regiment. Their own command billet, if any (the regiment command, a portfolio officer), keeps
-  its write rights.
+  its write rights. It is not a grant and leaves no audit entry, so the Staff grants page lists everyone who has it
+  (name and billet), read-only, for Admins. The list and the scope come from the same rule in `ScopeResolver`.
 - `DEVCOM Lead` commands nothing by billet. An Admin makes them acting lead of the DEVCOM starter platoons they run.
 - Every billet of a command team has the same scope: the XO, 1SG, PSG, ASL, SGM and CSM command their unit exactly as
   its CO, PL or SL does. Only the commanding billet is shown as the unit's lead (#444); that is display, and a vacant
@@ -84,7 +85,7 @@ No = refused (the page answers 403 or 404, or the control is not shown).
 | Org structure page (whole tree and unit leads) | Yes | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes |
 | Org structure: members of staff groups, ELOA, Reservists, New Recruits | All | All | Own | Own | Own | Own | Own | Own | No | Read | Target |
 | Org structure: troopers the sync could not place | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
-| Staff grants page (every grant; the username picker only for an acting Admin) | Yes | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes |
+| Staff grants page (every grant; the username picker and the Regimental HQ staff list only for an acting Admin) | Yes | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes |
 | Templates page (a company's templates, the regiment default, a section's own, history) | All | All | No | Own (4) | Own (4) | Own (4) | Own (4) | Own (4) | No | Read (4) | Target (4) |
 | Games page (the games, their ID kinds and telemetry interfaces) | Yes | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes |
 | Games page: identities to check (every saved identity that breaks the ID shape or name rules) | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |

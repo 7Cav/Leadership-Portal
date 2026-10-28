@@ -5,6 +5,7 @@ use App\Models\PortalRoleGrant;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
+use App\Models\UnitKind;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\UnitRepository;
@@ -52,6 +53,55 @@ it('marks each grant by whether its holder is still serving, keeping a lapsed on
                 'Doyle.K' => false,
                 'Hale.S' => false,
             ]));
+});
+
+it('lists exactly the serving troopers placed on the regiment as Regimental HQ staff, as the scope reads them', function () {
+    $units = app(UnitRepository::class);
+    $regiment = $units->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);
+    $battalion = $units->create(UnitType::Battalion, '1st Battalion', '1-7', $regiment->id);
+    $eloa = $units->create(UnitType::Group, 'Extended Leave of Absence', 'ELOA', $regiment->id, UnitKind::Eloa);
+    $s6 = $units->create(UnitType::Group, 'S6', 'S6', $regiment->id, UnitKind::Staff);
+    $placed = function (?Unit $at, array $attributes): Trooper {
+        $trooper = Trooper::factory()->create($attributes);
+        $trooper->forceFill(['primary_section_id' => $at?->id])->save();
+
+        return $trooper;
+    };
+    $troopers = [
+        'chief' => $placed($regiment, ['username' => 'Tharen.R', 'rank_short' => 'COL', 'billet' => 'Regimental Chief of Staff']),
+        'finance' => $placed($regiment, ['username' => 'Abbot.F', 'rank_short' => 'MAJ', 'billet' => 'Regimental Finance Officer', 'status' => TrooperStatus::Reserve]),
+        'departed' => $placed($regiment, ['username' => 'Doyle.K', 'billet' => 'Regimental Adjutant General', 'status' => TrooperStatus::Inactive]),
+        'eloa' => $placed($eloa, ['username' => 'Leave.E', 'status' => TrooperStatus::Eloa]),
+        's6' => $placed($s6, ['username' => 'Wire.S']),
+        'battalion' => $placed($battalion, ['username' => 'Bat.B']),
+        'unplaced' => $placed(null, ['username' => 'Nowhere.N']),
+    ];
+
+    $this->actingAs(User::factory()->admin()->create())->get('/settings/staff-grants')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('regimentalHq', [
+                ['id' => $troopers['finance']->id, 'name' => 'MAJ Abbot.F', 'billet' => 'Regimental Finance Officer'],
+                ['id' => $troopers['chief']->id, 'name' => 'COL Tharen.R', 'billet' => 'Regimental Chief of Staff'],
+            ]));
+
+    // The list and the scope cannot disagree: whoever is listed reads the regiment, and no one else does.
+    $scope = app(ScopeResolver::class);
+    foreach ($troopers as $key => $trooper) {
+        $user = User::factory()->create(['cav_id' => $trooper->cav_id]);
+        expect($scope->realScope($user)->contains($regiment->id))->toBe(in_array($key, ['chief', 'finance'], true), $key);
+    }
+});
+
+it('does not send the Regimental HQ staff list to a non-Admin, who still reads the grants as today', function () {
+    $regiment = app(UnitRepository::class)->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);
+    Trooper::factory()->create()->forceFill(['primary_section_id' => $regiment->id])->save();
+
+    $this->actingAs(User::factory()->serving()->create())->get('/settings/staff-grants')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('isAdmin', false)
+            ->where('regimentalHq', []));
 });
 
 it('excludes Admins from the target-user picker (AD-7 — a grant to an Admin is meaningless)', function () {
