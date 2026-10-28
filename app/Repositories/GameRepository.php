@@ -26,10 +26,15 @@ interface GameRepository
 
     public function findBySlug(string $slug): ?Game;
 
-    public function create(string $slug, string $name, string $idLabel, TelemetryInterface $interface): Game;
+    /** @param  list<string>  $idKinds */
+    public function create(string $slug, string $name, array $idKinds, TelemetryInterface $interface): Game;
 
-    /** Rename the game, relabel its player id, or change how its attendance is read. The slug never changes. */
-    public function update(Game $game, string $name, string $idLabel, TelemetryInterface $interface): Game;
+    /**
+     * Rename the game, change its ID kinds, or change how its attendance is read. The slug never changes.
+     *
+     * @param  list<string>  $idKinds
+     */
+    public function update(Game $game, string $name, array $idKinds, TelemetryInterface $interface): Game;
 
     /** Retire the game (`true`) or bring it back (`false`). Already in that state is left as it is. */
     public function setRetired(Game $game, bool $retired): Game;

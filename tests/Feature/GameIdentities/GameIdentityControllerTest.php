@@ -46,12 +46,12 @@ it('lists only the troopers in scope with their identities and every platform sl
     $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
         ->component('GameIdentities')
         ->has('platforms', 3)
-        ->where('platforms.0', ['value' => 'hll', 'label' => 'Hell Let Loose', 'idLabel' => 'Steam ID', 'retired' => false])
+        ->where('platforms.0', ['value' => 'hll', 'label' => 'Hell Let Loose', 'idKinds' => ['Steam ID'], 'retired' => false])
         ->has('troopers', 1)
         ->where('troopers.0.id', $this->mine->id)
         ->where('troopers.0.displayName', 'SGT Ortega.M')
         ->where('troopers.0.section', '1/A')
-        ->where('troopers.0.identities.hll', ['playerName' => 'OrtegaCav', 'platformId' => '7656'])
+        ->where('troopers.0.identities.hll', ['playerName' => 'OrtegaCav', 'platformId' => '7656', 'idKind' => 'Steam ID'])
         ->missing('troopers.0.identities.arma'));
 });
 
@@ -120,11 +120,11 @@ it('validates the fields and the platform', function () {
 });
 
 it('links a trooper on a game an Admin added, by its slug (#388)', function () {
-    $squad = Game::factory()->create(['slug' => 'squad', 'name' => 'Squad', 'id_label' => 'EOS ID']);
+    $squad = Game::factory()->create(['slug' => 'squad', 'name' => 'Squad', 'id_kinds' => ['EOS ID']]);
 
     $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
         ->has('platforms', 4)
-        ->where('platforms.3', ['value' => 'squad', 'label' => 'Squad', 'idLabel' => 'EOS ID', 'retired' => false]));
+        ->where('platforms.3', ['value' => 'squad', 'label' => 'Squad', 'idKinds' => ['EOS ID'], 'retired' => false]));
 
     $this->actingAs($this->leader)->put(identityUrl($this->mine, 'squad'), ['player_name' => 'Ortega', 'platform_id' => 'eos-1'])->assertRedirect();
 
@@ -137,7 +137,7 @@ it('refuses a new link on a retired game, writing nothing, and still lists and r
 
     $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
         ->where('platforms.3.retired', true)
-        ->where('troopers.0.identities.squad', ['playerName' => 'Old', 'platformId' => 'eos-old']));
+        ->where('troopers.0.identities.squad', ['playerName' => 'Old', 'platformId' => 'eos-old', 'idKind' => 'Player ID']));
 
     $this->actingAs($this->leader)->put(identityUrl(placedTrooper($this->section), 'squad'), ['player_name' => 'New', 'platform_id' => 'eos-new'])
         ->assertSessionHasErrors(['platform_id' => "{$retired->name} is retired, so no identity can be linked to it."]);

@@ -21,6 +21,7 @@ function tgiRaw(array $overrides = []): array
         'game_id' => game('hll')->id,
         'player_name' => 'Maverick',
         'platform_id' => '76561198000000001',
+        'id_kind' => 'Steam ID',
         'created_at' => now(),
         'updated_at' => now(),
     ], $overrides);
@@ -28,7 +29,7 @@ function tgiRaw(array $overrides = []): array
 
 it('creates the table with the identity columns', function () {
     expect(Schema::hasColumns('trooper_game_identities', [
-        'id', 'trooper_id', 'game_id', 'player_name', 'platform_id', 'created_at', 'updated_at',
+        'id', 'trooper_id', 'game_id', 'player_name', 'platform_id', 'id_kind', 'created_at', 'updated_at',
     ]))->toBeTrue();
 });
 
@@ -70,7 +71,7 @@ it('links a trooper and finds the link by platform id', function () {
     $trooper = Trooper::factory()->create();
     $repo = app(TrooperGameIdentityRepository::class);
 
-    $link = $repo->link($trooper->id, game('hll'), 'Maverick', '76561198000000001');
+    $link = $repo->link($trooper->id, game('hll'), 'Maverick', '76561198000000001', 'Steam ID');
 
     expect($link->trooper_id)->toBe($trooper->id)
         ->and($link->game_id)->toBe(game('hll')->id)
@@ -81,9 +82,9 @@ it('links a trooper and finds the link by platform id', function () {
 it('lists a trooper identities, one per platform', function () {
     $trooper = Trooper::factory()->create();
     $repo = app(TrooperGameIdentityRepository::class);
-    $repo->link($trooper->id, game('hll'), 'Maverick', '1');
-    $repo->link($trooper->id, game('arma'), 'Mav', '2');
-    $repo->link(Trooper::factory()->create()->id, game('hll'), 'Other', '3');
+    $repo->link($trooper->id, game('hll'), 'Maverick', '1', 'Steam ID');
+    $repo->link($trooper->id, game('arma'), 'Mav', '2', 'Player ID');
+    $repo->link(Trooper::factory()->create()->id, game('hll'), 'Other', '3', 'Steam ID');
 
     expect($repo->forTrooper($trooper->id)->pluck('game.slug')->all())
         ->toBe(['hll', 'arma']);
@@ -92,9 +93,9 @@ it('lists a trooper identities, one per platform', function () {
 it('replaces the trooper own identity on a platform instead of adding a duplicate', function () {
     $trooper = Trooper::factory()->create();
     $repo = app(TrooperGameIdentityRepository::class);
-    $first = $repo->link($trooper->id, game('hll'), 'Maverick', '1');
+    $first = $repo->link($trooper->id, game('hll'), 'Maverick', '1', 'Steam ID');
 
-    $second = $repo->link($trooper->id, game('hll'), 'Maverick2', '2');
+    $second = $repo->link($trooper->id, game('hll'), 'Maverick2', '2', 'Steam ID');
 
     expect(TrooperGameIdentity::query()->count())->toBe(1)
         ->and($second->id)->toBe($first->id)
@@ -105,8 +106,8 @@ it('replaces the trooper own identity on a platform instead of adding a duplicat
 it('is idempotent when the same trooper re-links the same player', function () {
     $trooper = Trooper::factory()->create();
     $repo = app(TrooperGameIdentityRepository::class);
-    $repo->link($trooper->id, game('hll'), 'Maverick', '1');
-    $repo->link($trooper->id, game('hll'), 'Renamed', '1');
+    $repo->link($trooper->id, game('hll'), 'Maverick', '1', 'Steam ID');
+    $repo->link($trooper->id, game('hll'), 'Renamed', '1', 'Steam ID');
 
     expect(TrooperGameIdentity::query()->sole()->player_name)->toBe('Renamed');
 });
@@ -115,9 +116,9 @@ it('rejects linking a platform id already held by another trooper and leaves the
     $a = Trooper::factory()->create();
     $b = Trooper::factory()->create();
     $repo = app(TrooperGameIdentityRepository::class);
-    $repo->link($a->id, game('hll'), 'Maverick', '1');
+    $repo->link($a->id, game('hll'), 'Maverick', '1', 'Steam ID');
 
-    expect(fn () => $repo->link($b->id, game('hll'), 'Thief', '1'))
+    expect(fn () => $repo->link($b->id, game('hll'), 'Thief', '1', 'Steam ID'))
         ->toThrow(GameIdentityLinkException::class);
 
     $row = TrooperGameIdentity::query()->sole();
@@ -128,10 +129,10 @@ it('does not replace trooper B existing identity when the claim on A fails', fun
     $a = Trooper::factory()->create();
     $b = Trooper::factory()->create();
     $repo = app(TrooperGameIdentityRepository::class);
-    $repo->link($a->id, game('hll'), 'Maverick', '1');
-    $repo->link($b->id, game('hll'), 'Goose', '2');
+    $repo->link($a->id, game('hll'), 'Maverick', '1', 'Steam ID');
+    $repo->link($b->id, game('hll'), 'Goose', '2', 'Steam ID');
 
-    expect(fn () => $repo->link($b->id, game('hll'), 'Goose', '1'))
+    expect(fn () => $repo->link($b->id, game('hll'), 'Goose', '1', 'Steam ID'))
         ->toThrow(GameIdentityLinkException::class);
 
     expect($repo->forTrooper($b->id)->sole()->platform_id)->toBe('2');
@@ -141,7 +142,7 @@ it('unlinks without touching attendance rows', function () {
     $trooper = Trooper::factory()->create();
     $attendance = Attendance::factory()->create(['trooper_id' => $trooper->id]);
     $repo = app(TrooperGameIdentityRepository::class);
-    $repo->link($trooper->id, game('hll'), 'Maverick', '1');
+    $repo->link($trooper->id, game('hll'), 'Maverick', '1', 'Steam ID');
 
     expect($repo->unlink($trooper->id, game('hll')))->toBeTrue()
         ->and($repo->unlink($trooper->id, game('hll')))->toBeFalse()
@@ -172,7 +173,7 @@ it('translates a concurrent claim by another trooper into the domain exception',
     };
 
     try {
-        $repo->link($b->id, game('hll'), 'Thief', '1');
+        $repo->link($b->id, game('hll'), 'Thief', '1', 'Steam ID');
         $this->fail('expected GameIdentityLinkException');
     } catch (GameIdentityLinkException $e) {
         expect($e->getPrevious())->toBeInstanceOf(UniqueConstraintViolationException::class);
@@ -185,8 +186,8 @@ it('replacing a link leaves attendance rows alone', function () {
     $trooper = Trooper::factory()->create();
     $attendance = Attendance::factory()->create(['trooper_id' => $trooper->id]);
     $repo = app(TrooperGameIdentityRepository::class);
-    $repo->link($trooper->id, game('hll'), 'Maverick', '1');
-    $repo->link($trooper->id, game('hll'), 'Maverick2', '2');
+    $repo->link($trooper->id, game('hll'), 'Maverick', '1', 'Steam ID');
+    $repo->link($trooper->id, game('hll'), 'Maverick2', '2', 'Steam ID');
 
     expect(Attendance::query()->count())->toBe(1)
         ->and($attendance->fresh()->only(['status', 'source', 'rollcall']))->toBe($attendance->only(['status', 'source', 'rollcall']));

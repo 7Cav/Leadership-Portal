@@ -34,14 +34,14 @@ class Eloquent implements GameRepository
         return Game::query()->where('slug', $slug)->first();
     }
 
-    public function create(string $slug, string $name, string $idLabel, TelemetryInterface $interface): Game
+    public function create(string $slug, string $name, array $idKinds, TelemetryInterface $interface): Game
     {
-        return Game::query()->create(['slug' => $slug, 'name' => $name, 'id_label' => $idLabel, 'interface' => $interface]);
+        return Game::query()->create(['slug' => $slug, 'name' => $name, 'id_kinds' => $idKinds, 'interface' => $interface]);
     }
 
-    public function update(Game $game, string $name, string $idLabel, TelemetryInterface $interface): Game
+    public function update(Game $game, string $name, array $idKinds, TelemetryInterface $interface): Game
     {
-        $game->update(['name' => $name, 'id_label' => $idLabel, 'interface' => $interface]);
+        $game->update(['name' => $name, 'id_kinds' => $idKinds, 'interface' => $interface]);
 
         return $game;
     }

@@ -23,7 +23,7 @@ class GameFactory extends Factory
         return [
             'slug' => str($name)->slug()->value(),
             'name' => ucwords($name),
-            'id_label' => 'Player ID',
+            'id_kinds' => ['Player ID'],
             'interface' => TelemetryInterface::None,
             'retired_at' => null,
         ];
