@@ -5,6 +5,8 @@ section: weekly-rollcall
 order: 1
 audience: leader
 page: /rollcall
+weekly: true
+minutes: 5
 checklist:
     label: Run your first rollcall
     audience: leader

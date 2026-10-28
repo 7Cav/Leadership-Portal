@@ -52,6 +52,8 @@ it('reads a guide\'s front matter and renders its body', function () {
         'summary' => 'Mark attendance, confirm, post.',
         'order' => 3,
         'page' => '/rollcall',
+        'weekly' => true,
+        'minutes' => 5,
         'checklist' => ['label' => 'Run your first rollcall', 'audience' => 'leader', 'order' => 2],
     ]), "## Open Rollcall\n\n1. Choose **Rollcall** in the sidebar.\n2. Pick your section.\n\n[Glossary](/docs/basics/glossary)\n");
     docWrite($this->docs, 'basics/glossary.md', docMeta('basics'));
@@ -64,6 +66,8 @@ it('reads a guide\'s front matter and renders its body', function () {
         ->and($guide->order)->toBe(3)
         ->and($guide->audience)->toBe(Audience::Leader)
         ->and($guide->page)->toBe('/rollcall')
+        ->and($guide->weekly)->toBeTrue()
+        ->and($guide->minutes)->toBe(5)
         ->and($guide->checklist->label)->toBe('Run your first rollcall')
         ->and($guide->checklist->audience)->toBe(Audience::Leader)
         ->and($guide->checklist->order)->toBe(2)
@@ -185,6 +189,8 @@ it('names every broken guide and leaves it out', function (string $path, array $
     'unknown audience' => ['basics/a.md', docMeta('basics', 'officers'), '', 'basics/a.md: `audience` must be everyone, leader or admin'],
     'wrong section' => ['basics/a.md', docMeta('admin'), '', 'basics/a.md: `section` must be `basics`, the folder the guide is in'],
     'order not a number' => ['basics/a.md', docMeta('basics', 'everyone', ['order' => 'first']), '', 'basics/a.md: `order` must be a whole number'],
+    'weekly not a yes or no' => ['basics/a.md', docMeta('basics', 'everyone', ['weekly' => 'yes']), '', 'basics/a.md: `weekly` must be true or false'],
+    'minutes not a number' => ['basics/a.md', docMeta('basics', 'everyone', ['minutes' => 'five']), '', 'basics/a.md: `minutes` must be a whole number of minutes'],
     'page not a path' => ['basics/a.md', docMeta('basics', 'everyone', ['page' => 'rollcall']), '', 'basics/a.md: `page` must be a portal path starting with /'],
     'checklist key' => ['basics/a.md', docMeta('basics', 'everyone', ['checklist' => ['label' => 'A', 'audience' => 'everyone', 'order' => 1, 'icon' => 'x']]), '', 'basics/a.md: unknown `checklist` key `icon`'],
     'checklist missing' => ['basics/a.md', docMeta('basics', 'everyone', ['checklist' => ['label' => 'A', 'order' => 1]]), '', 'basics/a.md: missing `checklist` key `audience`'],

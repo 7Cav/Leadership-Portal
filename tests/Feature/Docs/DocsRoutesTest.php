@@ -51,6 +51,7 @@ it('opens docs home with the viewer\'s own sections and Start here items', funct
         ->has('contents', 2)
         ->where('contents.0.key', 'basics')
         ->where('contents.1.key', 'weekly-rollcall')
+        ->where('contents.1.guides.0', ['title' => "Run this week's rollcall", 'summary' => 'Mark attendance, confirm, post.', 'url' => '/docs/weekly-rollcall/run-rollcall', 'audience' => 'leader', 'weekly' => true])
         ->where('checklist', [
             ['id' => 'basics/sign-in', 'label' => 'Sign in with your 7cav.us account', 'url' => '/docs/basics/sign-in'],
             ['id' => 'weekly-rollcall/run-rollcall', 'label' => 'Run your first rollcall', 'url' => '/docs/weekly-rollcall/run-rollcall'],
@@ -64,6 +65,9 @@ it('opens a guide with its body, steps, neighbors and breadcrumb', function () {
         ->where('guide.section', ['key' => 'weekly-rollcall', 'title' => 'Weekly rollcall'])
         ->where('guide.audience', 'leader')
         ->where('guide.page', '/rollcall')
+        ->where('guide.weekly', true)
+        ->where('guide.minutes', 5)
+        ->where('feedbackUrl', null)
         ->where('guide.checklist', true)
         ->where('guide.headings.0.id', 'open-rollcall-and-pick-your-section')
         ->where('guide.html', fn (string $html) => str_contains($html, '<strong>Why this matters.</strong>'))
@@ -113,6 +117,13 @@ it('follows view as: an Admin previewing a section reads it as that section\'s l
 
     $this->actingAs($this->admin)->get('/docs/weekly-rollcall/run-rollcall')->assertOk();
     $this->actingAs($this->admin)->get('/docs/admin/games')->assertNotFound();
+});
+
+it('passes the feedback link S6 set to every docs page', function () {
+    config(['portal.docs_feedback_url' => 'https://7cav.us/threads/portal-docs.1/']);
+
+    $this->actingAs($this->trooper)->get('/docs')->assertInertia(fn (Assert $page) => $page->where('feedbackUrl', 'https://7cav.us/threads/portal-docs.1/'));
+    $this->actingAs($this->trooper)->get('/docs/basics/sign-in')->assertInertia(fn (Assert $page) => $page->where('feedbackUrl', 'https://7cav.us/threads/portal-docs.1/'));
 });
 
 it('shares the docs switch with the shell as features.docs', function (bool $on) {

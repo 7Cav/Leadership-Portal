@@ -23,7 +23,7 @@ use Symfony\Component\Yaml\Yaml;
 final class GuideLibrary
 {
     /** Bump when the parser's output changes, so a deploy does not serve guides parsed the old way. */
-    private const FORMAT = 1;
+    private const FORMAT = 2;
 
     /** @var ?array{sections: list<Section>, guides: list<Guide>, problems: list<string>} */
     private ?array $loaded = null;
@@ -307,7 +307,7 @@ final class GuideLibrary
 
     private function root(): string
     {
-        return str_replace('\\', '/', $this->root ?? resource_path('docs'));
+        return str_replace('\\', '/', $this->root ?? (config('portal.docs_path') ?: resource_path('docs')));
     }
 
     private function images(): string

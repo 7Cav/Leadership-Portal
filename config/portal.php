@@ -29,6 +29,14 @@ return [
 
     'docs' => (bool) env('DOCS_ENABLED', false),
 
+    // Where "Was this helpful? No" sends a reader: a forum thread or a mailto: link. Empty hides the link and the
+    // page only thanks them; nothing is stored either way (#410).
+    'docs_feedback_url' => env('DOCS_FEEDBACK_URL', ''),
+
+    // The folder the guides are read from. Empty means resources/docs; the browser tests point it at a fixed set of
+    // guides so they do not change whenever a real guide is edited.
+    'docs_path' => env('DOCS_PATH', ''),
+
     /*
     |--------------------------------------------------------------------------
     | Trusted proxies
