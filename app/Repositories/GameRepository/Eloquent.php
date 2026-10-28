@@ -34,6 +34,13 @@ class Eloquent implements GameRepository
         return Game::query()->where('slug', $slug)->first();
     }
 
+    public function lock(int $id, bool $exclusive): Game
+    {
+        $query = Game::query()->whereKey($id);
+
+        return ($exclusive ? $query->lockForUpdate() : $query->sharedLock())->firstOrFail();
+    }
+
     public function create(string $slug, string $name, array $idKinds, TelemetryInterface $interface): Game
     {
         return Game::query()->create(['slug' => $slug, 'name' => $name, 'id_kinds' => $idKinds, 'interface' => $interface]);

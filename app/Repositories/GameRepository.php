@@ -26,6 +26,15 @@ interface GameRepository
 
     public function findBySlug(string $slug): ?Game;
 
+    /**
+     * The game as stored now, with its row locked until the caller's transaction ends (`$exclusive` for a write to the
+     * game, shared for one that only relies on it): what keeps an ID kind from being removed while an identity is
+     * being linked on it (#428). Call it inside a transaction.
+     *
+     * @throws ModelNotFoundException when the game is gone.
+     */
+    public function lock(int $id, bool $exclusive): Game;
+
     /** @param  list<string>  $idKinds */
     public function create(string $slug, string $name, array $idKinds, TelemetryInterface $interface): Game;
 

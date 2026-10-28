@@ -43,7 +43,10 @@ class UpdateGame
             reason: null,
             reasonRequired: false,
             mutation: function () use ($game, $name, $idKinds, $interface) {
-                $removed = array_intersect($this->identities->kindsInUse($game), array_diff($game->id_kinds, $idKinds));
+                // Under a lock on the game's row, which a link on this game takes shared: one lands before this
+                // check and is seen by it, or waits and is validated against the kinds saved here.
+                $stored = $this->games->lock($game->id, exclusive: true);
+                $removed = array_intersect($this->identities->kindsInUse($stored), array_diff($stored->id_kinds, $idKinds));
 
                 if ($removed !== []) {
                     throw InvalidGameException::idKindInUse(array_values($removed));

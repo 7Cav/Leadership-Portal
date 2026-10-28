@@ -7,6 +7,7 @@ use App\Models\TrooperGameIdentity;
 use App\Models\User;
 use App\Repositories\GameIdentityLinkException;
 use App\Repositories\GamePlayerDismissalRepository;
+use App\Repositories\GameRepository;
 use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
 use App\Support\Audit\AuditEnvelope;
@@ -25,7 +26,7 @@ use App\Support\Audit\AuditEnvelope;
  * a game freezes its links, and removing one stays possible.
  *
  * The identity records which of the game's ID kinds it was entered as (#428): the one the command names, else the
- * kind the trooper's identity there already has, else the game's default; a kind the game does not have is refused.
+ * kind the trooper's identity there already has for the same id, else the game's default; a kind the game does not have is refused.
  * Changing only the kind is an update and audited; the one-owner rule on a platform id ignores the kind, so the
  * same id is never linked twice on a game. The kind is part of the identity row, so it is in the audit entry's digest.
  *
@@ -43,6 +44,7 @@ class SetTrooperGameIdentityHandler
         private readonly TrooperRepository $troopers,
         private readonly TrooperGameIdentityRepository $identities,
         private readonly GamePlayerDismissalRepository $dismissals,
+        private readonly GameRepository $games,
         private readonly AuditEnvelope $audit,
     ) {}
 
@@ -64,7 +66,9 @@ class SetTrooperGameIdentityHandler
 
         $existing = $this->identities->forTrooper($command->trooperId)->firstWhere('game_id', $command->game->id);
 
-        $idKind = $command->idKind ?? $existing?->id_kind ?? $command->game->defaultIdKind();
+        // A different id is a different player id, so it does not inherit the old one's kind.
+        $inherited = $existing?->platform_id === $command->platformId ? $existing->id_kind : null;
+        $idKind = $command->idKind ?? $inherited ?? $command->game->defaultIdKind();
 
         if (! $command->game->hasIdKind($idKind)) {
             throw UnknownIdKindException::for($command->game, $idKind);
@@ -80,6 +84,14 @@ class SetTrooperGameIdentityHandler
             reason: null,
             reasonRequired: false,
             mutation: function () use ($command, $idKind) {
+                // The kind is checked again against the game as stored, with its row locked shared, so a kind an
+                // Admin removed since the check above (UpdateGame takes the lock exclusive) is refused, not stored.
+                $game = $this->games->lock($command->game->id, exclusive: false);
+
+                if (! $game->hasIdKind($idKind)) {
+                    throw UnknownIdKindException::for($game, $idKind);
+                }
+
                 // A conditional write (#176): the leader agreed to replace the identity they were
                 // shown, not whatever the trooper holds by the time the request lands. Read under
                 // lock first, so another leader's change (or the Game identities screen) either

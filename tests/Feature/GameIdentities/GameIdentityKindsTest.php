@@ -2,6 +2,7 @@
 
 use App\Commands\GameIdentities\SetTrooperGameIdentity;
 use App\Commands\GameIdentities\SetTrooperGameIdentityHandler;
+use App\Commands\GameIdentities\UnknownIdKindException;
 use App\Models\AuditLogEntry;
 use App\Models\Trooper;
 use App\Models\TrooperGameIdentity;
@@ -94,11 +95,31 @@ it('never links one id twice on a game, whichever kind either was entered as', f
     expect(TrooperGameIdentity::query()->count())->toBe(1);
 });
 
-it('refuses a kind that is not a string, and defaults an unnamed one in the Command', function () {
+it('refuses a kind that is not a string', function () {
     $this->actingAs($this->leader)
         ->put(kindsUrl($this->mine), ['player_name' => 'A', 'platform_id' => '7656', 'id_kind' => ['Steam ID']])
         ->assertSessionHasErrors(['id_kind']);
+});
 
+it('refuses a kind removed since the game was loaded, writing nothing', function () {
+    $stale = game('hll');
+    $stale->update(['id_kinds' => ['Steam ID']]);
+
+    expect(fn () => app(SetTrooperGameIdentityHandler::class)->handle($this->leader, new SetTrooperGameIdentity($this->mine->id, $stale->fresh()->setRawAttributes(['id_kinds' => json_encode(['Steam ID', 'Epic ID'])] + $stale->getAttributes()), 'A', '7656', idKind: 'Epic ID')))
+        ->toThrow(UnknownIdKindException::class);
+
+    expect(TrooperGameIdentity::query()->count())->toBe(0)->and(AuditLogEntry::query()->count())->toBe(0);
+});
+
+it('gives a replaced id the game\'s default kind, but keeps the kind when only the name changes (the unmatched-player link passes no kind)', function () {
+    $handler = app(SetTrooperGameIdentityHandler::class);
+    $handler->handle($this->leader, new SetTrooperGameIdentity($this->mine->id, game('hll'), 'A', '111', idKind: 'Epic ID'));
+
+    expect($handler->handle($this->leader, new SetTrooperGameIdentity($this->mine->id, game('hll'), 'Renamed', '111'))->id_kind)->toBe('Epic ID')
+        ->and($handler->handle($this->leader, new SetTrooperGameIdentity($this->mine->id, game('hll'), 'Renamed', '222', '111'))->id_kind)->toBe('Steam ID');
+});
+
+it('defaults an unnamed kind in the Command', function () {
     $identity = app(SetTrooperGameIdentityHandler::class)->handle($this->leader, new SetTrooperGameIdentity($this->mine->id, game('hll'), 'A', '7656'));
 
     expect($identity->id_kind)->toBe('Steam ID');
