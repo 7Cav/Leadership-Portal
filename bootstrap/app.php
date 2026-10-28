@@ -4,6 +4,7 @@ use App\Http\Middleware\ActAsUser;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PreventCachingAuthenticatedResponses;
 use App\Http\Middleware\ReadOnlyWhileViewingAs;
+use App\Http\Middleware\RecordPageVisit;
 use App\Http\Middleware\SetSecurityHeaders;
 use App\Http\Middleware\TrustProxies;
 use Illuminate\Foundation\Application;
@@ -57,6 +58,9 @@ return Application::configure(basePath: dirname(__DIR__))
             // Refuses writes while a view-as preview is active (Story 1.13). Runs after routing,
             // so it can let the view-as exit and logout routes through by name.
             ReadOnlyWhileViewingAs::class,
+            // Logs the page for the Admin-only activity log (#382). It records in terminate(), after the response,
+            // and reads who acted as whom from the attributes ActAsUser set.
+            RecordPageVisit::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
