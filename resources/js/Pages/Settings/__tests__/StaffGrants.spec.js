@@ -169,39 +169,140 @@ describe('Settings/StaffGrants', () => {
         deleteSpy = vi.fn();
     });
 
-    describe('Regimental HQ staff', () => {
-        const HQ = [
-            { id: 7, name: 'COL Mercer.T', billet: 'Regimental Chief of Staff', admin: true },
-            { id: 8, name: 'MAJ #4410', billet: null, admin: false },
+    describe('Admin via billet', () => {
+        const APPROVED = [
+            {
+                id: 31,
+                title: 'Regimental Chief of Staff',
+                group: 'Regimental HQ',
+                status: 'approved',
+                approvedAs: null,
+                adminGroup: true,
+                holders: ['COL Mercer.T'],
+                own: false,
+                decidedAt: '2026-10-28T10:00:00Z',
+                decidedBy: 'Hale.S',
+            },
+            {
+                id: 32,
+                title: 'Regimental Adjutant General',
+                group: 'Regimental HQ',
+                status: 'approved',
+                approvedAs: null,
+                adminGroup: true,
+                holders: ['MAJ Abbot.F', 'CPT Doyle.K'],
+                own: true,
+                decidedAt: '2026-10-27T09:00:00Z',
+                decidedBy: 'Hale.S',
+            },
+            {
+                id: 33,
+                title: 'S6 1IC',
+                group: 'S6 HQ',
+                status: 'approved',
+                approvedAs: null,
+                adminGroup: false,
+                holders: [],
+                own: false,
+                decidedAt: null,
+                decidedBy: null,
+            },
         ];
+        const HQ = [
+            { id: 7, name: 'COL Mercer.T', billet: 'Regimental Chief of Staff' },
+            { id: 8, name: 'MAJ #4410', billet: null },
+        ];
+        const mountAdmin = (props = {}) =>
+            mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, adminViaBillet: APPROVED, regimentalHq: HQ, isAdmin: true, ...props } });
 
-        it('lists Regimental HQ staff as Admins by billet, with why, and nothing to revoke', () => {
-            const wrapper = mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, regimentalHq: HQ, isAdmin: true } });
-            const section = wrapper.find('[data-testid="regimental-hq"]');
+        it('lists each approved billet with its names, every holder, and who approved it and when', () => {
+            const wrapper = mountAdmin();
+            const section = wrapper.find('[data-testid="admin-via-billet"]');
 
-            expect(section.find('h2').text()).toBe('Regimental HQ staff (Admin by billet)');
-            expect(section.text()).toContain('Regimental HQ staff are Admins because of their billet, not a grant');
-            expect(section.text()).toContain('They lose it when they leave the billet or stop serving');
-            expect(section.find('[data-testid="regimental-hq-admin-7"]').text()).toBe('Admin');
-            expect(section.find('[data-testid="regimental-hq-admin-8"]').exists()).toBe(false);
-            expect(section.find('[data-testid="regimental-hq-8"]').text()).toContain('Read-only until the billet is approved');
-            expect(section.find('[data-testid="regimental-hq-7"]').text()).toContain('COL Mercer.T');
-            expect(section.find('[data-testid="regimental-hq-7"]').text()).toContain('Regimental Chief of Staff');
-            expect(section.find('[data-testid="regimental-hq-8"]').text()).toContain('MAJ #4410');
-            expect(section.find('[data-testid="regimental-hq-8"]').text()).toContain('—');
-            expect(section.find('button').exists()).toBe(false);
+            expect(section.find('h2').text()).toBe('Admin via billet');
+            expect(section.text()).toContain('Whoever holds one of these billets is an Admin because of the billet, not a grant');
+
+            const chief = wrapper.find('[data-testid="admin-via-billet-31"]');
+            expect(chief.text()).toContain('Regimental Chief of Staff in Regimental HQ');
+            expect(chief.text()).toContain('COL Mercer.T');
+            expect(wrapper.find('[data-testid="admin-via-billet-approved-31"]').text()).toBe('28Oct26 by Hale.S');
+
+            expect(wrapper.find('[data-testid="admin-via-billet-32"]').text()).toContain('MAJ Abbot.F, CPT Doyle.K');
+            expect(wrapper.find('[data-testid="admin-via-billet-33"]').text()).toContain('Vacant');
+            expect(wrapper.find('[data-testid="admin-via-billet-approved-33"]').text()).toBe('Not known');
         });
 
-        it('says so when no one is placed on the regiment', () => {
-            const wrapper = mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, regimentalHq: [], isAdmin: true } });
+        it('shows no "Approved as" line or Renamed tag when the names match, and flags a group that cannot make an Admin', () => {
+            const wrapper = mountAdmin();
 
-            expect(wrapper.find('[data-testid="regimental-hq-empty"]').text()).toBe('No serving trooper is placed on the regiment.');
+            expect(wrapper.find('[data-testid="admin-via-billet-approved-as-31"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="admin-via-billet-renamed-31"]').exists()).toBe(false);
+            expect(wrapper.text()).not.toContain('Approved as:');
+            expect(wrapper.find('[data-testid="admin-via-billet-not-admin-31"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="admin-via-billet-not-admin-33"]').text()).toContain('Not an Admin group');
         });
 
-        it('is not shown to a non-Admin', () => {
-            const wrapper = mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, regimentalHq: HQ, isAdmin: false } });
+        it('shows the approved names under the billet, with the Renamed tag, when they differ from the names now', () => {
+            const wrapper = mountAdmin({
+                adminViaBillet: [{ ...APPROVED[0], approvedAs: { title: 'Chief of Staff', group: 'Regimental HQ' } }],
+            });
 
-            expect(wrapper.find('[data-testid="regimental-hq"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="admin-via-billet-approved-as-31"]').text()).toBe('Approved as: Chief of Staff in Regimental HQ');
+            expect(wrapper.find('[data-testid="admin-via-billet-renamed-31"]').text()).toBe('Renamed');
+        });
+
+        it("offers revoke on every approved billet but the viewer's own, and posts the reject with a reason", async () => {
+            postSpy = vi.fn();
+            vi.stubGlobal('prompt', vi.fn(() => 'Left the S6 shop'));
+            const wrapper = mountAdmin();
+
+            expect(wrapper.find('[data-testid="admin-via-billet-revoke-32"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="admin-via-billet-own-32"]').text()).toBe('Your billet');
+
+            await wrapper.find('[data-testid="admin-via-billet-revoke-31"]').trigger('click');
+
+            expect(window.prompt).toHaveBeenCalledWith('Reason for revoking Regimental Chief of Staff as an Admin billet?');
+            expect(postSpy).toHaveBeenCalledWith(
+                '/settings/staff-grants/admin-billets/31/reject',
+                { reason: 'Left the S6 shop' },
+                expect.objectContaining({ preserveScroll: true }),
+            );
+            vi.unstubAllGlobals();
+        });
+
+        it("posts no revoke on a blank reason, and shows the server's refusal in this card", async () => {
+            postSpy = vi.fn();
+            vi.stubGlobal('prompt', vi.fn(() => ' '));
+            const wrapper = mountAdmin();
+
+            await wrapper.find('[data-testid="admin-via-billet-revoke-31"]').trigger('click');
+            expect(postSpy).not.toHaveBeenCalled();
+            expect(wrapper.find('[data-testid="revoke-billet-error"]').text()).toBe('A reason is required to revoke a billet.');
+
+            postSpy = vi.fn((url, data, { onError }) => onError({ adminBillet: 'You hold this billet, so another Admin has to decide on it.' }));
+            vi.stubGlobal('prompt', vi.fn(() => 'reason'));
+            await wrapper.find('[data-testid="admin-via-billet-revoke-31"]').trigger('click');
+            expect(wrapper.find('[data-testid="revoke-billet-error"]').text()).toBe('You hold this billet, so another Admin has to decide on it.');
+            expect(wrapper.find('[data-testid="billet-error"]').exists()).toBe(false);
+            vi.unstubAllGlobals();
+        });
+
+        it('notes the Regimental HQ staff who read the whole regiment from their placement', () => {
+            const note = mountAdmin().find('[data-testid="regimental-hq"]');
+
+            expect(note.text()).toContain('Placed on the regiment, so they read all of it, read-only');
+            expect(note.find('[data-testid="regimental-hq-7"]').text()).toBe('COL Mercer.T (Regimental Chief of Staff)');
+            expect(note.find('[data-testid="regimental-hq-8"]').text()).toBe('MAJ #4410');
+            expect(note.find('button').exists()).toBe(false);
+
+            expect(mountAdmin({ regimentalHq: [] }).find('[data-testid="regimental-hq"]').exists()).toBe(false);
+        });
+
+        it('says so when nothing is approved, and is not shown to a non-Admin', () => {
+            expect(mountAdmin({ adminViaBillet: [] }).find('[data-testid="admin-via-billet-empty"]').text()).toBe(
+                'No billet is approved yet. Approve one below to make whoever holds it an Admin.',
+            );
+            expect(mountAdmin({ isAdmin: false }).find('[data-testid="admin-via-billet"]').exists()).toBe(false);
         });
     });
 
@@ -211,55 +312,98 @@ describe('Settings/StaffGrants', () => {
                 id: 21,
                 title: 'Regimental Chief of Staff',
                 group: 'Regimental HQ',
-                confirmedTitle: null,
-                confirmedGroup: null,
                 status: 'pending',
-                renamed: false,
+                approvedAs: null,
+                adminGroup: true,
                 holders: ['COL Mercer.T'],
                 own: false,
                 decidedAt: null,
+                decidedBy: null,
             },
             {
                 id: 22,
                 title: 'Regimental Adjutant General',
                 group: 'Regimental HQ',
-                confirmedTitle: 'Adjutant General',
-                confirmedGroup: 'Regimental HQ',
                 status: 'pending',
-                renamed: true,
+                approvedAs: { title: 'Adjutant General', group: 'Regimental HQ' },
+                adminGroup: true,
                 holders: [],
                 own: false,
                 decidedAt: '2026-10-28T10:00:00Z',
+                decidedBy: 'Hale.S',
             },
             {
                 id: 23,
                 title: 'Regimental Finance Officer',
                 group: 'Regimental HQ',
-                confirmedTitle: 'Regimental Finance Officer',
-                confirmedGroup: 'Regimental HQ',
-                status: 'approved',
-                renamed: false,
+                status: 'rejected',
+                approvedAs: null,
+                adminGroup: true,
                 holders: ['CPT Hale.S'],
                 own: true,
                 decidedAt: '2026-10-28T10:00:00Z',
+                decidedBy: 'Abbot.F',
+            },
+            {
+                id: 24,
+                title: 'S6 1IC',
+                group: 'Support Attachment',
+                status: 'pending',
+                approvedAs: { title: 'S6 1IC', group: 'S6 HQ' },
+                adminGroup: false,
+                holders: ['SGT Wire.S'],
+                own: false,
+                decidedAt: '2026-10-20T10:00:00Z',
+                decidedBy: 'Hale.S',
+            },
+            {
+                id: 25,
+                title: 'S6 Clerk',
+                group: 'S6 HQ',
+                status: 'rejected',
+                approvedAs: null,
+                adminGroup: true,
+                holders: [],
+                own: false,
+                decidedAt: '2026-10-20T10:00:00Z',
+                decidedBy: 'Hale.S',
             },
         ];
         const mountAdmin = () => mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, adminBillets: BILLETS, isAdmin: true } });
 
-        it('lists each billet with its names now, its holder, what was confirmed and its status', () => {
+        it('lists each pending or rejected billet with its names now, its holder and its status, and no "Confirmed as" column', () => {
             const wrapper = mountAdmin();
 
             const first = wrapper.find('[data-testid="admin-billet-21"]');
             expect(first.text()).toContain('Regimental Chief of Staff in Regimental HQ');
             expect(first.text()).toContain('COL Mercer.T');
-            expect(first.text()).toContain('Not confirmed yet');
             expect(wrapper.find('[data-testid="admin-billet-status-21"]').text()).toBe('Waiting for an Admin');
+            expect(wrapper.find('[data-testid="admin-billet-status-23"]').text()).toBe('Rejected');
+            expect(wrapper.find('[data-testid="admin-billet-22"]').text()).toContain('Vacant');
+            expect(wrapper.find('[data-testid="admin-billets"]').text()).not.toContain('Confirmed as');
+            expect(wrapper.find('[data-testid="admin-billets"]').text()).not.toContain('Not confirmed yet');
+        });
 
-            const renamed = wrapper.find('[data-testid="admin-billet-22"]');
-            expect(renamed.text()).toContain('Vacant');
-            expect(renamed.text()).toContain('Adjutant General in Regimental HQ');
+        it('shows "Approved as" with the Renamed tag only when the approved names differ from the names now', () => {
+            const wrapper = mountAdmin();
+
+            expect(wrapper.find('[data-testid="admin-billet-approved-as-22"]').text()).toBe('Approved as: Adjutant General in Regimental HQ');
             expect(wrapper.find('[data-testid="admin-billet-renamed-22"]').text()).toBe('Renamed');
-            expect(wrapper.find('[data-testid="admin-billet-renamed-21"]').exists()).toBe(false);
+            for (const id of [21, 23, 25]) {
+                expect(wrapper.find(`[data-testid="admin-billet-approved-as-${id}"]`).exists()).toBe(false);
+                expect(wrapper.find(`[data-testid="admin-billet-renamed-${id}"]`).exists()).toBe(false);
+            }
+        });
+
+        it('shows a billet moved out of the Admin billet groups as such, with no approve', () => {
+            const wrapper = mountAdmin();
+
+            expect(wrapper.find('[data-testid="admin-billet-24"]').text()).toContain('S6 1IC in Support Attachment');
+            expect(wrapper.find('[data-testid="admin-billet-approved-as-24"]').text()).toBe('Approved as: S6 1IC in S6 HQ');
+            expect(wrapper.find('[data-testid="admin-billet-not-admin-24"]').text()).toContain('Not an Admin group');
+            expect(wrapper.find('[data-testid="admin-billet-approve-24"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="admin-billet-reject-24"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="admin-billet-not-admin-21"]').exists()).toBe(false);
         });
 
         it("offers approve and reject by status, and neither on the viewer's own billet", () => {
@@ -267,6 +411,8 @@ describe('Settings/StaffGrants', () => {
 
             expect(wrapper.find('[data-testid="admin-billet-approve-21"]').exists()).toBe(true);
             expect(wrapper.find('[data-testid="admin-billet-reject-21"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="admin-billet-approve-25"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="admin-billet-reject-25"]').exists()).toBe(false);
             expect(wrapper.find('[data-testid="admin-billet-approve-23"]').exists()).toBe(false);
             expect(wrapper.find('[data-testid="admin-billet-reject-23"]').exists()).toBe(false);
             expect(wrapper.find('[data-testid="admin-billet-own-23"]').text()).toBe('Your billet');
@@ -309,9 +455,11 @@ describe('Settings/StaffGrants', () => {
             vi.unstubAllGlobals();
         });
 
-        it('says so when no billet has been seen, and is not shown to a non-Admin', () => {
+        it('says so when no billet waits, and is not shown to a non-Admin', () => {
             const empty = mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, adminBillets: [], isAdmin: true } });
-            expect(empty.find('[data-testid="admin-billets-empty"]').exists()).toBe(true);
+            expect(empty.find('[data-testid="admin-billets-empty"]').text()).toBe(
+                'No billet is waiting for a decision. The org import lists every Regimental HQ and S6 HQ billet here.',
+            );
 
             const leader = mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, adminBillets: BILLETS, isAdmin: false } });
             expect(leader.find('[data-testid="admin-billets"]').exists()).toBe(false);
