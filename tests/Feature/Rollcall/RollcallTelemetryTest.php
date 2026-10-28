@@ -167,7 +167,7 @@ it('reads a game an Admin added through the interface picked for it (#388)', fun
 
 it('follows an Admin changing the game\'s interface: set to none, the game is not configured and cannot be retried (#388)', function () {
     $this->actingAs(User::factory()->admin()->create())
-        ->patch('/settings/games/'.game('hll')->id, ['name' => 'Hell Let Loose', 'id_label' => 'Steam ID', 'interface' => 'none'])
+        ->patch('/settings/games/'.game('hll')->id, ['name' => 'Hell Let Loose', 'id_kinds' => ['Steam ID'], 'interface' => 'none'])
         ->assertRedirect();
     captureRun($this, SyncRunStatus::Failure);
 

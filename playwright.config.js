@@ -17,7 +17,10 @@ export default defineConfig({
         trace: 'on-first-retry',
     },
     projects: [
-        { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+        // Every spec shares the one seeded database and runs in parallel, so a spec that changes a game's settings for
+        // everyone (the ID-kinds one) runs on its own, after the rest, rather than beside flows that read that game.
+        { name: 'chromium', testIgnore: /game-id-kinds\.spec\.js/, use: { ...devices['Desktop Chrome'] } },
+        { name: 'chromium-shared-settings', testMatch: /game-id-kinds\.spec\.js/, dependencies: ['chromium'], use: { ...devices['Desktop Chrome'] } },
     ],
     webServer: {
         // Its own port and environment (tests/e2e/env.js), so a dev server on :8000 is never

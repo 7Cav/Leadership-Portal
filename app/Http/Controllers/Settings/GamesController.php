@@ -21,7 +21,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * The games the regiment plays (#388): an Admin adds a game, renames it, sets what its player id is called, picks
+ * The games the regiment plays (#388): an Admin adds a game, renames it, sets the kinds of player id it asks for, picks
  * which built-in telemetry interface reads its attendance (AD-3: the interfaces stay code), and retires or deletes
  * it. Reads `GameRepository` directly; every write is an audited Command (AD-16). Viewing is open to anyone signed
  * in, matching the other Settings screens; every write is Admin-only, checked here against the real `is_admin`
@@ -40,7 +40,7 @@ class GamesController extends Controller
                 'id' => $game->id,
                 'slug' => $game->slug,
                 'name' => $game->name,
-                'idLabel' => $game->id_label,
+                'idKinds' => $game->id_kinds,
                 'interface' => $game->interface->value,
                 'retired' => $game->isRetired(),
                 // A game in use can be retired, not deleted: the page offers only what the server would accept.
@@ -62,7 +62,7 @@ class GamesController extends Controller
         $data = $request->validate($this->rules());
 
         try {
-            $command->handle($request->user(), $data['name'], $data['id_label'], TelemetryInterface::from($data['interface']));
+            $command->handle($request->user(), $data['name'], $data['id_kinds'], TelemetryInterface::from($data['interface']));
         } catch (InvalidGameException $e) {
             throw ValidationException::withMessages(['name' => $e->getMessage()]);
         }
@@ -77,7 +77,11 @@ class GamesController extends Controller
 
         $data = $request->validate($this->rules($game));
 
-        $command->handle($request->user(), $game, $data['name'], $data['id_label'], TelemetryInterface::from($data['interface']));
+        try {
+            $command->handle($request->user(), $game, $data['name'], $data['id_kinds'], TelemetryInterface::from($data['interface']));
+        } catch (InvalidGameException $e) {
+            throw ValidationException::withMessages(['id_kinds' => $e->getMessage()]);
+        }
 
         return redirect()->route('settings.games');
     }
@@ -130,7 +134,9 @@ class GamesController extends Controller
     {
         return [
             'name' => ['required', 'string', 'max:100', Rule::unique('games', 'name')->ignore($game?->id)],
-            'id_label' => ['required', 'string', 'max:50'],
+            // The kinds of player ID the game asks for ("Steam ID", "Epic ID"), the first being the default (#428).
+            'id_kinds' => ['required', 'array', 'min:1', 'max:8'],
+            'id_kinds.*' => ['required', 'string', 'max:50', 'distinct:ignore_case'],
             'interface' => ['required', Rule::enum(TelemetryInterface::class)],
         ];
     }

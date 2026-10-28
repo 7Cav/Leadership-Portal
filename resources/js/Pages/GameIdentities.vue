@@ -17,11 +17,12 @@ import { cn } from '@/lib/utils';
 // side panel for the one picked. A trooper holds one identity per game (AD-19); the slots come
 // from `platforms`, so a new game appears here without a change to this page. A retired game (#388)
 // is offered for no new link and left out of the coverage; the links it already has stay listed and
-// can be removed.
+// can be removed. A game may ask for several kinds of player ID (#428: Steam, Epic, Xbox): with more than one, the
+// form asks for the kind first, and the ID field's label and placeholder follow it.
 const props = defineProps({
-    // `[{ value, label, idLabel, retired }]` — one per game an Admin keeps.
+    // `[{ value, label, idKinds, retired }]` — one per game an Admin keeps; `idKinds` lists its ID kinds, the first being the default.
     platforms: { type: Array, required: true },
-    // `[{ id, displayName, billet, section, editable, identities: { [platform]: { playerName, platformId } } }]`
+    // `[{ id, displayName, billet, section, editable, identities: { [platform]: { playerName, platformId, idKind } } }]`
     // — the troopers in the viewer's scope, by name. `editable` is false for one the viewer only sees
     // through a staff grant.
     troopers: { type: Array, required: true },
@@ -42,7 +43,7 @@ const removing = ref(null);
 const removeProcessing = ref(false);
 const notice = ref(null);
 
-const form = useForm({ player_name: '', platform_id: '' });
+const form = useForm({ player_name: '', platform_id: '', id_kind: '' });
 
 const missingOf = (trooper) => active.value.filter((p) => !trooper.identities[p.value]);
 const linkedOf = (trooper) => props.platforms.filter((p) => trooper.identities[p.value]);
@@ -58,6 +59,9 @@ const percent = computed(() => (slots.value ? Math.round((linked.value / slots.v
 const selected = computed(() => props.troopers.find((trooper) => trooper.id === selectedId.value) ?? null);
 const platformMeta = computed(() => platformOf(platform.value));
 const existing = computed(() => selected.value?.identities[platform.value] ?? null);
+const kinds = computed(() => platformMeta.value?.idKinds ?? []);
+// A game with one kind shows no kind picker and behaves as it always did.
+const hasKinds = (p) => p.idKinds.length > 1;
 const editable = computed(() => !viewAs.value && Boolean(selected.value?.editable));
 
 function joinNames(list) {
@@ -71,6 +75,7 @@ function fill(trooper, value) {
     form.clearErrors();
     form.player_name = trooper.identities[value]?.playerName ?? '';
     form.platform_id = trooper.identities[value]?.platformId ?? '';
+    form.id_kind = trooper.identities[value]?.idKind ?? platformOf(value)?.idKinds[0] ?? '';
 }
 
 const panel = ref(null);
@@ -154,7 +159,7 @@ function save() {
         onError: (errors) => {
             // Validation and collisions show on their fields; anything else (a refused or expired
             // request) gets a message of its own rather than a silent form.
-            if (!errors.player_name && !errors.platform_id) notice.value = 'This could not be saved. Reload the page and try again.';
+            if (!errors.player_name && !errors.platform_id && !errors.id_kind) notice.value = 'This could not be saved. Reload the page and try again.';
         },
         // A refused or expired request is an HTTP exception, not a validation error: it says why in the same notice.
         onHttpException: onHttpException('This was not saved', (message) => (notice.value = message)),
@@ -260,7 +265,7 @@ function remove(value) {
                                     <template v-if="view === 'needs'">Missing {{ joinNames(missingOf(trooper)) }}</template>
                                     <template v-else-if="linkedOf(trooper).length">
                                         <span v-for="(p, index) in linkedOf(trooper)" :key="p.value">
-                                            <template v-if="index">, </template>{{ p.label }}: {{ trooper.identities[p.value].playerName }}
+                                            <template v-if="index">, </template>{{ p.label }}: {{ trooper.identities[p.value].playerName }}<template v-if="hasKinds(p)"> ({{ trooper.identities[p.value].idKind }})</template>
                                         </span>
                                         <template v-if="missingOf(trooper).length"> · Missing {{ joinNames(missingOf(trooper)) }}</template>
                                     </template>
@@ -315,6 +320,7 @@ function remove(value) {
                                     <!-- Wraps, never truncates: the full name and ID must be checkable against the game. flex-wrap drops Edit/Remove below the text when it is too narrow. -->
                                     <div class="min-w-0 flex-1 basis-32">
                                         <p class="text-xs text-muted-foreground">{{ p.label }}<template v-if="p.retired"> (retired)</template></p>
+                                        <p v-if="hasKinds(p)" class="text-xs text-muted-foreground" :data-testid="`kind-${p.value}`">{{ selected.identities[p.value].idKind }}</p>
                                         <p class="text-[13px] font-medium break-words">{{ selected.identities[p.value].playerName }}</p>
                                         <p class="font-mono text-xs break-all text-muted-foreground">{{ selected.identities[p.value].platformId }}</p>
                                     </div>
@@ -355,12 +361,20 @@ function remove(value) {
                                 <Input id="identity-name" v-model="form.player_name" data-testid="identity-name" autocomplete="off" :aria-invalid="!!form.errors.player_name" />
                                 <p v-if="form.errors.player_name" class="text-xs text-destructive" data-testid="error-player_name">{{ form.errors.player_name }}</p>
                             </div>
+                            <div v-if="kinds.length > 1" class="grid gap-1.5">
+                                <Label for="identity-kind">ID kind</Label>
+                                <NativeSelect id="identity-kind" v-model="form.id_kind" data-testid="identity-kind" :aria-invalid="!!form.errors.id_kind">
+                                    <option v-for="kind in kinds" :key="kind" :value="kind">{{ kind }}</option>
+                                </NativeSelect>
+                                <p v-if="form.errors.id_kind" class="text-xs text-destructive" data-testid="error-id_kind">{{ form.errors.id_kind }}</p>
+                            </div>
                             <div class="grid gap-1.5">
-                                <Label for="identity-id">{{ platformMeta?.idLabel }}</Label>
+                                <Label for="identity-id">{{ form.id_kind || kinds[0] }}</Label>
                                 <Input
                                     id="identity-id"
                                     v-model="form.platform_id"
                                     data-testid="identity-id"
+                                    :placeholder="`Paste the ${form.id_kind || kinds[0]}`"
                                     autocomplete="off"
                                     class="font-mono"
                                     :aria-invalid="!!form.errors.platform_id"

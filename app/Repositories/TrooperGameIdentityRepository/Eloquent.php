@@ -41,7 +41,7 @@ class Eloquent implements TrooperGameIdentityRepository
             ->first();
     }
 
-    public function link(int $trooperId, Game $game, string $playerName, string $platformId): TrooperGameIdentity
+    public function link(int $trooperId, Game $game, string $playerName, string $platformId, string $idKind): TrooperGameIdentity
     {
         $owner = $this->findByPlatformId($game, $platformId);
 
@@ -52,7 +52,7 @@ class Eloquent implements TrooperGameIdentityRepository
         try {
             return DB::transaction(fn (): TrooperGameIdentity => TrooperGameIdentity::query()->updateOrCreate(
                 ['trooper_id' => $trooperId, 'game_id' => $game->id],
-                ['player_name' => $playerName, 'platform_id' => $platformId],
+                ['player_name' => $playerName, 'platform_id' => $platformId, 'id_kind' => $idKind],
             ));
         } catch (UniqueConstraintViolationException $e) {
             // Only a concurrent claim by a *different* trooper is a rejected link; any other
@@ -65,6 +65,11 @@ class Eloquent implements TrooperGameIdentityRepository
 
             throw $e;
         }
+    }
+
+    public function kindsInUse(Game $game): array
+    {
+        return TrooperGameIdentity::query()->where('game_id', $game->id)->distinct()->pluck('id_kind')->values()->all();
     }
 
     public function unlink(int $trooperId, Game $game): bool

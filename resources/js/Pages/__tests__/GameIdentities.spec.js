@@ -7,6 +7,8 @@ const page = reactive({ url: '/game-identities', props: { viewAs: null } });
 const put = vi.fn();
 const del = vi.fn();
 const formState = reactive({ errors: {}, processing: false });
+// The fields as they stood when the form was last sent.
+const sent = {};
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => {
     const { reactive } = await import('vue');
@@ -23,7 +25,10 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => {
                     return formState.errors;
                 },
                 processing: false,
-                put: (...args) => put(...args),
+                put(...args) {
+                    Object.assign(sent, { player_name: this.player_name, platform_id: this.platform_id, id_kind: this.id_kind });
+                    return put(...args);
+                },
                 clearErrors() {
                     formState.errors = {};
                 },
@@ -35,8 +40,8 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => {
 });
 
 const PLATFORMS = [
-    { value: 'hll', label: 'Hell Let Loose', idLabel: 'Steam ID' },
-    { value: 'arma', label: 'Arma Reforger', idLabel: 'Player ID' },
+    { value: 'hll', label: 'Hell Let Loose', idKinds: ['Steam ID'] },
+    { value: 'arma', label: 'Arma Reforger', idKinds: ['Player ID'] },
 ];
 const trooper = (id, name, identities = {}, editable = true) => ({ id, displayName: name, billet: 'Rifleman', section: '1/A', editable, identities });
 const TROOPERS = [
@@ -64,7 +69,7 @@ describe('GameIdentities page', () => {
     });
 
     it('offers a retired game for no new link and leaves it out of coverage, but lists and removes its links (#388)', async () => {
-        const platforms = [...PLATFORMS, { value: 'squad', label: 'Squad', idLabel: 'EOS ID', retired: true }];
+        const platforms = [...PLATFORMS, { value: 'squad', label: 'Squad', idKinds: ['EOS ID'], retired: true }];
         const troopers = [trooper(1, 'SGT Ortega.M', { hll: { playerName: 'OrtegaCav', platformId: '7656' }, squad: { playerName: 'Old', platformId: 'eos' } })];
         const wrapper = mount(GameIdentities, { props: { platforms, troopers } });
 
