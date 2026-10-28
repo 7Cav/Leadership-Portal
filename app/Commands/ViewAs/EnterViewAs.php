@@ -6,8 +6,10 @@ use App\Authorization\ScopeResolver;
 use App\Authorization\ViewAs;
 use App\Authorization\ViewAsKind;
 use App\Authorization\ViewAsTarget;
+use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\User;
+use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
 use App\Support\Audit\AuditEnvelope;
@@ -25,6 +27,7 @@ class EnterViewAs
         private readonly ViewAs $viewAs,
         private readonly UnitRepository $units,
         private readonly UserRepository $users,
+        private readonly TrooperRepository $troopers,
         private readonly AuditEnvelope $audit,
         private readonly ExitViewAs $exit,
     ) {}
@@ -69,8 +72,12 @@ class EnterViewAs
         return true;
     }
 
-    private function subjectOf(ViewAsTarget $target): Unit|User|null
+    private function subjectOf(ViewAsTarget $target): Unit|User|Trooper|null
     {
-        return $target->kind === ViewAsKind::User ? $this->users->find($target->id) : $this->units->find($target->id);
+        return match ($target->kind) {
+            ViewAsKind::User => $this->users->find($target->id),
+            ViewAsKind::Unit => $this->units->find($target->id),
+            ViewAsKind::Trooper => $this->troopers->find($target->id),
+        };
     }
 }

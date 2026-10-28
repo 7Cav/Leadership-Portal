@@ -3,6 +3,7 @@
 namespace App\Commands\ActAs;
 
 use App\Authorization\ActAs;
+use App\Authorization\ScopeResolver;
 use App\Authorization\ViewAs;
 use App\Authorization\ViewAsKind;
 use App\Authorization\ViewAsTarget;
@@ -24,6 +25,7 @@ class StartActingAs
 {
     public function __construct(
         private readonly ActAs $actAs,
+        private readonly ScopeResolver $scope,
         private readonly ViewAs $viewAs,
         private readonly UserRepository $users,
         private readonly UnitRepository $units,
@@ -37,6 +39,16 @@ class StartActingAs
      */
     public function handle(User $admin, ViewAsTarget $target): bool
     {
+        // Someone who has never signed in has no account to act for: acting as them is acting as the billet they hold.
+        if ($target->kind === ViewAsKind::Trooper) {
+            $account = $this->scope->rosterAccount($target->id);
+            $billet = $account === null ? null : $this->scope->ledBy($account);
+            if ($billet === null) {
+                return false;
+            }
+            $target = new ViewAsTarget(ViewAsKind::Unit, $billet->id);
+        }
+
         $subject = $this->subjectOf($target);
         $allowed = match (true) {
             $subject instanceof User => $this->actAs->allows($admin, $subject),

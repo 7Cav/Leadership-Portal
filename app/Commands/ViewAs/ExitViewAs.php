@@ -5,6 +5,7 @@ namespace App\Commands\ViewAs;
 use App\Authorization\ViewAs;
 use App\Authorization\ViewAsKind;
 use App\Models\User;
+use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
 use App\Support\Audit\AuditEnvelope;
@@ -20,6 +21,7 @@ class ExitViewAs
         private readonly ViewAs $viewAs,
         private readonly UnitRepository $units,
         private readonly UserRepository $users,
+        private readonly TrooperRepository $troopers,
         private readonly AuditEnvelope $audit,
     ) {}
 
@@ -29,6 +31,7 @@ class ExitViewAs
         $subject = match ($target?->kind) {
             ViewAsKind::User => $this->users->find($target->id),
             ViewAsKind::Unit => $this->units->find($target->id),
+            ViewAsKind::Trooper => $this->troopers->find($target->id),
             null => null,
         };
 

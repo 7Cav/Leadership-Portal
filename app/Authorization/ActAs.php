@@ -98,6 +98,8 @@ class ActAs
         $acting = match ($stored?->kind) {
             ViewAsKind::User => $this->asPerson($admin, $stored->id),
             ViewAsKind::Unit => $this->asBillet($admin, $stored->id),
+            // Never stored: acting as a trooper with no account is stored as their billet.
+            ViewAsKind::Trooper => null,
             null => null,
         };
 

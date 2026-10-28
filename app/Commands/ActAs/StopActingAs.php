@@ -38,6 +38,7 @@ class StopActingAs
         $subject = match ($stored?->kind) {
             ViewAsKind::User => $this->users->find($stored->id),
             ViewAsKind::Unit => $this->units->find($stored->id),
+            ViewAsKind::Trooper => null,
             null => null,
         };
 

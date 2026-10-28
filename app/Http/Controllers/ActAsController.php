@@ -33,9 +33,11 @@ class ActAsController extends Controller
 
         if (! $start->handle($admin, $target)) {
             throw ValidationException::withMessages([
-                'act_as' => $target->kind === ViewAsKind::User
-                    ? 'You can act as a serving member, never as yourself.'
-                    : 'That unit no longer exists.',
+                'act_as' => match ($target->kind) {
+                    ViewAsKind::User => 'You can act as a serving member, never as yourself.',
+                    ViewAsKind::Trooper => 'They hold no billet to act as. Ask them to sign in once, then act as them by name.',
+                    ViewAsKind::Unit => 'That unit no longer exists.',
+                },
             ]);
         }
 

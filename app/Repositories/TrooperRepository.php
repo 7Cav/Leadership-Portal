@@ -262,6 +262,14 @@ interface TrooperRepository
     public function find(int $id): ?Trooper;
 
     /**
+     * Serving troopers no portal account is linked to yet (they have never signed in), by username: the people view as
+     * offers an Admin beside the accounts. One query.
+     *
+     * @return EloquentCollection<int, Trooper>
+     */
+    public function servingWithoutAccount(): EloquentCollection;
+
+    /**
      * The troopers whose username contains one of `$terms`, ignoring case, or (with `$cavId`) whose `cav_id` is exactly
      * that, for the shell's trooper search: those placed in one of `$sectionIds`, plus (with `$withUnplaced`) those the
      * sync has placed nowhere. The `cav_id` match is what finds a trooper with no forum username, whose display name is

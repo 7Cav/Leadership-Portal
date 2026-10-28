@@ -50,6 +50,9 @@ interface UserRepository
 
     public function find(int $id): ?User;
 
+    /** The account linked to milpac `$cavId`, or null when nobody has signed in with it. */
+    public function withCavId(int $cavId): ?User;
+
     /**
      * The user signed in as forum account `$forumUserId`, or null. `forum_user_id` is unique, so unlike
      * a username this names exactly one account.

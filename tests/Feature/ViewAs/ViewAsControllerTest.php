@@ -89,8 +89,8 @@ describe('options', function () {
         $this->actingAs($admin)->getJson('/view-as/options')
             ->assertJsonCount(7, 'units')
             ->assertJsonPath('people', [
-                ['id' => $plain->id, 'label' => 'Doyle.K', 'designation' => null, 'admin' => false],
-                ['id' => $leader->id, 'label' => 'SGT Vasquez.R', 'designation' => '1/1/A/1-7', 'admin' => false],
+                ['kind' => 'user', 'id' => $plain->id, 'label' => 'Doyle.K', 'designation' => null, 'admin' => false, 'account' => true],
+                ['kind' => 'user', 'id' => $leader->id, 'label' => 'SGT Vasquez.R', 'designation' => '1/1/A/1-7', 'admin' => false, 'account' => true],
             ]);
     });
 
