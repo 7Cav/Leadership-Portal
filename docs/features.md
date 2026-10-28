@@ -104,6 +104,14 @@ on none.
     status. The "Every unit has sent" check names who is holding up the chain.
   - Platoon training topic: the platoon's chain of command sets a subject for its sections for the week, either as a
     default the sections can change or enforced (locked on every section's report).
+  - Monthly training plan (`/reports/<platoon>/plans/<YYYY-MM>`, "Training plan" on a platoon's report): the
+    platoon's chain of command gives each Cav week of the month a training subject (every week whose Saturday falls
+    in the month) and chooses whether the subjects are locked on the section reports. Each save goes to the company
+    for approval. Company command (or above) approves it or sends it back with a comment the platoon leader sees.
+    Approving writes each week's subject as the platoon training topic, so every section's report starts with it. A
+    change after approval needs approval again; until then the approved subjects stay. A week whose platoon report is
+    sent, or that is before the week floor, keeps its subject. Above a platoon, the same address lists every
+    platoon's plan for the month and where it stands.
   - Send: freezes the KPIs, notes, subject and reasons with a reason for the record. When checks are open or children
     have not sent, the button becomes "Send anyway"; missing children are recorded and their numbers stay out.
   - A sent report is read back exactly as frozen and never recalculated. Sending a section's report locks that week's
@@ -206,7 +214,6 @@ From the backlog of 2026-10-27. None of these exist in the code today.
 - A regiment-wide default rollcall template that always shows in Templates; company commanders choosing which templates
   their rollcalls may use; the DEVCOM 1IC acting as DEVCOM's battalion commander and the 2IC as its XO.
 - Admin "act as": a full impersonation with that person's permissions (red bar), able to send reports.
-- Monthly Training Plans: written by platoon leaders, reviewed by the company, filling in the weeks' subjects.
 - Moving a platoon to another company keeps its saved settings and templates.
 - LOR and DCS tracker with automatic upload.
 - An Admin-only page-visit log for reproducing bugs.
@@ -223,3 +230,4 @@ From the backlog of 2026-10-27. None of these exist in the code today.
 | Roster sync and placement | `app/Sync/SyncRosterHandler.php`, `RosterSyncScope*`, `app/Jobs/SyncRosterJob.php` |
 | Capture | `app/Commands/Capture/` (`CaptureSources` maps each telemetry interface to its sources), `app/Commands/Games/`, `app/Jobs/CaptureSectionPracticeJob.php`, `app/Integration/` |
 | Reports | `app/Commands/WeeklyReports/`, `app/Kpi/RollupKpis.php`, `ReportChain.php`, `resources/js/lib/report.js` |
+| Training plans | `app/Commands/TrainingPlans/`, `TrainingPlanController`, `resources/js/Pages/Reports/TrainingPlan.vue`, `resources/js/lib/trainingPlan.js` |
