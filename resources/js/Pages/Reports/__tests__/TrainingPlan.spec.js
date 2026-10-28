@@ -118,6 +118,7 @@ describe('Reports/TrainingPlan', () => {
         const wrapper = mountPage({ plan: pending, canEdit: false, canReview: true, weeks: [{ ...WEEKS[0], subject: 'Room clearing' }, ...WEEKS.slice(1)] });
 
         expect(wrapper.find('[data-testid="plan-send"]').exists()).toBe(false);
+        expect(wrapper.get('[data-testid="plan-read-only"]').text()).toContain("only the platoon's chain of command writes this plan");
         expect(wrapper.get('#week-2026-11-07').attributes('disabled')).toBeDefined();
         expect(wrapper.get('[data-testid="plan-review"]').text()).toContain('Review for A/1-7');
 

@@ -11,13 +11,13 @@ use Illuminate\Auth\Access\AuthorizationException;
  */
 class TrainingPlanForbiddenException extends AuthorizationException
 {
-    public static function write(int $unitId): self
+    public static function write(): self
     {
-        return new self("You may not write the training plan for unit {$unitId}: you do not command it.");
+        return new self("You may not write this platoon's training plan: you do not command it.");
     }
 
-    public static function review(int $unitId): self
+    public static function review(): self
     {
-        return new self("You may not review the training plan for unit {$unitId}: you do not command its company.");
+        return new self("You may not review this platoon's training plan: you do not command its company.");
     }
 }

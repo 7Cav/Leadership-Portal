@@ -118,9 +118,9 @@ it('refuses a plan the leader cannot save as given', function (Closure $save, st
     'a unit that is not a platoon' => [fn ($t) => tpSave($t->commander, $t->company->id, ['2026-11-07' => 'Room clearing']), 'Only a platoon'],
     'a date that opens no week of the month' => [fn ($t) => tpSave($t->leader, $t->platoon->id, ['2026-12-05' => 'Room clearing']), 'does not open a Cav week'],
     'no subject at all' => [fn ($t) => tpSave($t->leader, $t->platoon->id, ['2026-11-07' => '  ']), 'at least one week'],
-    'a month too far ahead' => [fn ($t) => tpSave($t->leader, $t->platoon->id, ['2027-11-06' => 'Room clearing'], false, '2027-11'), 'up to a year ahead'],
-    'a month all before the floor' => [fn ($t) => tpSave($t->leader, $t->platoon->id, ['2026-01-03' => 'Room clearing'], false, '2026-01'), 'week floor'],
-    'a month that is not one' => [fn ($t) => tpSave($t->leader, $t->platoon->id, ['2026-11-07' => 'Room clearing'], false, '2026-13'), 'week floor'],
+    'a month too far ahead' => [fn ($t) => tpSave($t->leader, $t->platoon->id, ['2027-11-06' => 'Room clearing'], false, '2027-11'), 'more than a year ahead'],
+    'a month all before the floor' => [fn ($t) => tpSave($t->leader, $t->platoon->id, ['2026-01-03' => 'Room clearing'], false, '2026-01'), 'too far back'],
+    'a month that is not one' => [fn ($t) => tpSave($t->leader, $t->platoon->id, ['2026-11-07' => 'Room clearing'], false, '2026-13'), 'too far back'],
 ]);
 
 it('keeps a sent week\'s subject in the plan: it can no longer change, as its report cannot', function () {

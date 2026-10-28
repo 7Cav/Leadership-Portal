@@ -33,7 +33,7 @@ class TrainingPlanReviewGate
         $platoon = $this->scope->resolve($actor)->contains($unitId) ? $this->units->find($unitId) : null;
 
         if ($platoon === null || ! $this->rules->mayReview($actor, $platoon)) {
-            throw TrainingPlanForbiddenException::review($unitId);
+            throw TrainingPlanForbiddenException::review();
         }
 
         return $platoon;

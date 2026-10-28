@@ -204,9 +204,10 @@ function sendBack() {
                         </Button>
                     </div>
                 </template>
-                <p v-else-if="viewAs" class="text-xs text-muted-foreground">Read-only while viewing as {{ viewAs.label }}</p>
-                <p v-else-if="plan" class="text-xs text-muted-foreground">
-                    {{ plan.enforced ? 'Subjects are locked on every section report once approved.' : 'Sections can change the subject on their report.' }}
+                <p v-else-if="viewAs" class="text-xs text-muted-foreground" data-testid="plan-read-only">Read-only while viewing as {{ viewAs.label }}</p>
+                <p v-else class="text-xs text-muted-foreground" data-testid="plan-read-only">
+                    Read-only: only the platoon's chain of command writes this plan.
+                    <template v-if="plan">{{ plan.enforced ? 'Once approved, its subjects are locked on every section report.' : 'Once approved, each section can change the subject on its report.' }}</template>
                 </p>
 
                 <p v-if="error" class="text-[13px] text-destructive" role="alert" data-testid="plan-error">{{ error }}</p>

@@ -18,12 +18,12 @@ class InvalidTrainingPlanException extends RuntimeException
 
     public static function monthOutOfRange(): self
     {
-        return new self('A training plan can only be written for a month from the week floor up to a year ahead.');
+        return new self('This month is too far back or more than a year ahead for a training plan.');
     }
 
     public static function unknownWeek(string $date): self
     {
-        return new self("{$date} does not open a Cav week of this month.");
+        return new self("{$date} does not open a Cav week of this month. Reload the page and try again.");
     }
 
     public static function empty(): self
@@ -33,12 +33,12 @@ class InvalidTrainingPlanException extends RuntimeException
 
     public static function weekSent(CarbonInterface $weekStart): self
     {
-        return new self("The report for the week of {$weekStart->toDateString()} is already sent, so its subject can no longer change.");
+        return new self("The report for the week of {$weekStart->format('dMy')} is already sent, so its subject can no longer change.");
     }
 
     public static function weekBeforeFloor(CarbonInterface $weekStart): self
     {
-        return new self("The week of {$weekStart->toDateString()} is too far back to change.");
+        return new self("The week of {$weekStart->format('dMy')} is too far back to change.");
     }
 
     public static function noPlan(): self

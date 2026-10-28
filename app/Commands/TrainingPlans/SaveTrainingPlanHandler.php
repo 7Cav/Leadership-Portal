@@ -50,7 +50,7 @@ class SaveTrainingPlanHandler
         $platoon = $this->scope->resolve($actor)->contains($command->unitId) ? $this->units->find($command->unitId) : null;
 
         if ($platoon === null || ! $this->scope->commandsUnit($actor, $platoon)) {
-            throw TrainingPlanForbiddenException::write($command->unitId);
+            throw TrainingPlanForbiddenException::write();
         }
 
         if (! $this->rules->mayWrite($actor, $platoon)) {
