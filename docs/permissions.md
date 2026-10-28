@@ -206,6 +206,20 @@ A record the viewer may not see is left out of the page entirely, and its downlo
 not exist, also on a departed trooper. The flags and the filing form's forecast are worked out from the records the
 viewer sees, so they never give a DCS away.
 
+### Staff practices
+
+A staff member is a trooper placed on an HQ node or in a staff department. Their staff leader is whoever commands the
+HQ or department they are placed in, and the chain above it (`commandsUnit()`): a billet, an acting lead or a held
+billet, never a staff grant. The staff member records their own practices on their milpac page when they can open it
+(their command or a grant must reach their own unit); nobody gains read access for this.
+
+| Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| See a staff member's attended practices (milpac, roster sheet) | All | All | Own | Own | Own | Own | Own | Own | No | Read | Target |
+| Add or remove one | All | Own staff | Own staff | Own staff | Own staff | Own staff | Own staff | No | Self (8) | Self (8) | No |
+
+(8) A staff member may add and remove their own entries, which read as self-reported.
+
 ## How scope is worked out
 
 1. Admin: if your user has the Admin flag, your scope is the whole tree. Stop here.
@@ -238,8 +252,9 @@ your next click. Nothing has to be revoked by hand.
 
 | Lock | What it stops |
 | --- | --- |
-| Week floor (`PORTAL_WEEK_FLOOR_WEEKS`, default 20 Cav weeks back) | Marking, confirming, marking posted, capture, linking unmatched players, guests, report drafts and sends, the platoon topic, a training plan's weeks. Older reports open read-only. |
-| Future weeks | Marking, confirming, posting and capture for a week that has not started. |
+| Week floor (`PORTAL_WEEK_FLOOR_WEEKS`, default 20 Cav weeks back) | Marking, confirming, marking posted, capture, linking unmatched players, guests, staff practices, report drafts and sends, the platoon topic, a training plan's weeks. Older reports open read-only. |
+| Future weeks | Marking, confirming, posting, capture and staff practices for a week that has not started. |
+| HQ report sent for the week | That week's staff practice entries of the staff placed on that HQ. |
 | Section report sent for the week | That section's rollcall marks, confirming, marking posted, capture "Try again", guests at that practice and automatic makeups into that week. The sent report itself is frozen. A platoon's topic, and that week's subject in its training plan, are locked once the platoon's report is sent. |
 | Practice confirmed by a leader | Capture re-runs and linked players no longer change its marks. A leader's own hand edit still saves and clears the confirmation. |
 | Leave covering the week | That trooper's practice mark (the row posts as LOA). Their signature can still be saved. |
@@ -257,7 +272,7 @@ only sign out has none, since it ends the session and signing back in is limited
 | 60 | Find trooper and the guest picker search |
 | 240 | Rollcall mark autosave. The screen waits 0.7 seconds after a change and sends one batch at a time, so marking a whole section in seconds stays far below this. |
 | 120 | Report draft autosave |
-| 60, shared | Every other audited write: saving a guidon, fireteam changes, company fireteam policy, linking, dismissing and restoring unmatched players, confirming a practice, marking a rollcall posted, guest add and remove, setting and removing a game identity, platoon topic set and clear, training plan save, approve and send back, every template write and a section's template pick, starting and leaving view as and act as, correcting and deleting a DCS or LOR, and the Admin settings writes (org structure, acting leads, trooper placement, staff grants, games, servers, demo data) |
+| 60, shared | Every other audited write: saving a guidon, fireteam changes, company fireteam policy, linking, dismissing and restoring unmatched players, confirming a practice, marking a rollcall posted, guest add and remove, staff practice add and remove, setting and removing a game identity, platoon topic set and clear, training plan save, approve and send back, every template write and a section's template pick, starting and leaving view as and act as, correcting and deleting a DCS or LOR, and the Admin settings writes (org structure, acting leads, trooper placement, staff grants, games, servers, demo data) |
 | 10 | Sending a report |
 | 20 | Loading the act as picker's list |
 | 10 | Capture "Try again"; the same practice also only once a minute |
@@ -277,6 +292,7 @@ only sign out has none, since it ends the session and signing back in is limited
 | Sign-in and session standing | `app/Commands/Auth/AdmitServingMember.php`, `app/Authorization/ServingSession.php`, `EnsureServingMember` middleware |
 | Admin-only checks | In the controllers (`OrgStructureController`, `StaffGrantsController`, `TrooperPlacementController`, `RosterSyncController`, `LoaSyncController`, `AuditLogController`, `DemoDataController`) and again in some handlers. There are no Laravel policies. |
 | Write gates | Each handler under `app/Commands/*` checks `writeScope()` (attendance, capture, guests, game identities, reports, a section's template pick) or `commandsUnit()` (fireteams, company policy, platoon topic, guidon, training plans, the review on the owning company in `TrainingPlanRules`, company templates through `Commands/Templates/TemplateAuthority`) |
+| Staff practices | `app/Authorization/StaffPracticeAccess.php` on `commandsUnit()`; checked in each `app/Commands/StaffPractices` handler |
 | Counseling (DCS, LOR) | `app/Authorization/CounselingAccess.php` on `ScopeResolver::commandingUnitsOver()`, `writeScope()` and `canSee()`; checked again in each `app/Commands/Counseling` handler and on the download |
 | Week floor | `app/Support/Time/WeekOf.php` (`floor()`, `isBeforeFloor()`), `config/portal.php` |
 | Rate limiters | `app/Providers/AppServiceProvider.php`, unit sync cooldown in `UnitRosterSyncController` |

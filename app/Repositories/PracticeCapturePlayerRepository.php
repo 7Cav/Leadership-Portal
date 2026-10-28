@@ -42,4 +42,13 @@ interface PracticeCapturePlayerRepository
      * One stored unmatched player of the practice, however it has been resolved since.
      */
     public function findUnmatched(int $practiceId, Game $game, string $platformId): ?PracticeCapturePlayer;
+
+    /**
+     * The practices whose latest capture saw `$trooperId` without crediting them (#448): what a staff member's milpac
+     * lists as seen by the game server. One row per practice (a trooper linked through two identities is seen once),
+     * with the practice's section loaded, newest week first.
+     *
+     * @return Collection<int, PracticeCapturePlayer>
+     */
+    public function seenTrooper(int $trooperId): Collection;
 }

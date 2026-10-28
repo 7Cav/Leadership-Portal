@@ -221,6 +221,21 @@ it('writes no makeup when an Undo removes the entry between its commit and the m
             return $this->inner->removeManual($hostPracticeId, $trooperId);
         }
 
+        public function recordStaff(SectionPractice $hostPractice, int $trooperId, int $recordedBy, ?int $recordedByAdmin = null, ?int $recordedAsUnit = null): ?CrossSectionSighting
+        {
+            return $this->inner->recordStaff($hostPractice, $trooperId, $recordedBy, $recordedByAdmin, $recordedAsUnit);
+        }
+
+        public function removeStaff(int $hostPracticeId, int $trooperId): bool
+        {
+            return $this->inner->removeStaff($hostPracticeId, $trooperId);
+        }
+
+        public function staffEntriesFor(int $trooperId): Collection
+        {
+            return $this->inner->staffEntriesFor($trooperId);
+        }
+
         public function find(int $hostPracticeId, int $trooperId): ?CrossSectionSighting
         {
             return $this->inner->find($hostPracticeId, $trooperId);

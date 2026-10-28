@@ -12,6 +12,7 @@ import { forumDate } from '@/lib/forumDate';
 import { makeupPmUrl } from '@/lib/makeupPm';
 import { percentLabel, percentTone, RC_STATES, sourceLabel, SP_STATES, weekCell, weekLabel } from '@/lib/roster';
 import RankBadge from './RankBadge.vue';
+import StaffPracticeList from './StaffPracticeList.vue';
 import TransferList from './TransferList.vue';
 import WeekCell from './WeekCell.vue';
 
@@ -165,6 +166,11 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                     <div v-if="trooper.transfers?.length">
                         <h3 class="mb-2 text-xs text-muted-foreground">Transfers</h3>
                         <TransferList :transfers="trooper.transfers" />
+                    </div>
+
+                    <div v-if="trooper.staffPractices?.length" data-testid="sheet-staff-practices">
+                        <h3 class="mb-2 text-xs text-muted-foreground">Section practices attended</h3>
+                        <StaffPracticeList :entries="trooper.staffPractices" />
                     </div>
 
                     <dl class="grid grid-cols-[7.5rem_1fr] gap-y-2">

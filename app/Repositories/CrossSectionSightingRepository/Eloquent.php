@@ -81,6 +81,43 @@ class Eloquent implements CrossSectionSightingRepository
             ->delete() > 0;
     }
 
+    public function recordStaff(SectionPractice $hostPractice, int $trooperId, int $recordedBy, ?int $recordedByAdmin = null, ?int $recordedAsUnit = null): ?CrossSectionSighting
+    {
+        $row = CrossSectionSighting::query()->createOrFirst(
+            ['trooper_id' => $trooperId, 'section_practice_id' => $hostPractice->id],
+            [
+                'week_start' => $hostPractice->week_start,
+                'source' => CrossSectionSighting::SOURCE_STAFF,
+                'recorded_by' => $recordedBy,
+                'recorded_by_admin' => $recordedByAdmin,
+                'recorded_as_unit' => $recordedAsUnit,
+            ],
+        );
+
+        return $row->wasRecentlyCreated ? $row : null;
+    }
+
+    public function removeStaff(int $hostPracticeId, int $trooperId): bool
+    {
+        return CrossSectionSighting::query()
+            ->where('section_practice_id', $hostPracticeId)
+            ->where('trooper_id', $trooperId)
+            ->where('source', CrossSectionSighting::SOURCE_STAFF)
+            ->delete() > 0;
+    }
+
+    public function staffEntriesFor(int $trooperId): Collection
+    {
+        return CrossSectionSighting::query()
+            ->with(['practice.section', 'recordedBy', 'recordedByAdmin', 'recordedAsUnit'])
+            ->where('trooper_id', $trooperId)
+            ->where('source', CrossSectionSighting::SOURCE_STAFF)
+            ->orderByDesc('week_start')
+            ->orderBy('id')
+            ->get()
+            ->toBase();
+    }
+
     public function find(int $hostPracticeId, int $trooperId): ?CrossSectionSighting
     {
         return CrossSectionSighting::query()
@@ -94,6 +131,7 @@ class Eloquent implements CrossSectionSightingRepository
         return CrossSectionSighting::query()
             ->with(['trooper', 'recordedBy', 'recordedByAdmin', 'recordedAsUnit'])
             ->where('section_practice_id', $hostPracticeId)
+            ->whereIn('source', CrossSectionSighting::GUEST_SOURCES)
             ->orderBy('id')
             ->get()
             ->sortBy(fn (CrossSectionSighting $row) => [mb_strtolower((string) $row->trooper?->username), $row->trooper_id])
@@ -106,6 +144,7 @@ class Eloquent implements CrossSectionSightingRepository
         return CrossSectionSighting::query()
             ->where('trooper_id', $trooperId)
             ->where('week_start', WeekOf::requireStart($weekStart))
+            ->whereIn('source', CrossSectionSighting::GUEST_SOURCES)
             ->exists();
     }
 
@@ -121,6 +160,7 @@ class Eloquent implements CrossSectionSightingRepository
         return CrossSectionSighting::query()
             ->whereIn('trooper_id', $trooperIds)
             ->where('week_start', $weekStart)
+            ->whereIn('source', CrossSectionSighting::GUEST_SOURCES)
             ->orderBy('id')
             ->sharedLock()
             ->pluck('trooper_id')
@@ -147,6 +187,7 @@ class Eloquent implements CrossSectionSightingRepository
             ->where('hosts.path', 'like', "{$unit->path}%")
             ->where('homes.path', 'not like', "{$unit->path}%")
             ->whereIn('troopers.status', TrooperStatus::servingValues())
+            ->whereIn('cross_section_sightings.source', CrossSectionSighting::GUEST_SOURCES)
             ->where('cross_section_sightings.week_start', '>=', $from)
             ->where('cross_section_sightings.week_start', '<=', $to)
             ->groupBy('cross_section_sightings.trooper_id')

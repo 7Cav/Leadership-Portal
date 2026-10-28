@@ -76,4 +76,19 @@ class Eloquent implements PracticeCapturePlayerRepository
             ->whereNull('trooper_id')
             ->first();
     }
+
+    public function seenTrooper(int $trooperId): Collection
+    {
+        return PracticeCapturePlayer::query()
+            ->with('practice.section')
+            ->join('section_practices', 'section_practices.id', '=', 'practice_capture_players.section_practice_id')
+            ->where('practice_capture_players.trooper_id', $trooperId)
+            ->orderByDesc('section_practices.week_start')
+            ->orderBy('practice_capture_players.id')
+            ->select('practice_capture_players.*')
+            ->get()
+            ->unique('section_practice_id')
+            ->values()
+            ->toBase();
+    }
 }

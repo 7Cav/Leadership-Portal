@@ -5,6 +5,7 @@ import { PhArrowLeft, PhArrowSquareOut, PhEnvelopeSimple, PhSignOut, PhWarning }
 import InlineNotice from '@/components/InlineNotice.vue';
 import CounselingPanel from '@/components/milpac/CounselingPanel.vue';
 import MilpacPanel from '@/components/milpac/MilpacPanel.vue';
+import StaffPracticesPanel from '@/components/milpac/StaffPracticesPanel.vue';
 import TransferList from '@/components/roster/TransferList.vue';
 import TimeAgo from '@/components/TimeAgo.vue';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -35,6 +36,8 @@ const props = defineProps({
     attendance: { type: Array, default: () => [] },
     // `Milpac/CounselingHistory`: the DCSs and LORs this viewer may see, with what they may do (#381).
     counseling: { type: Object, default: null },
+    // The section practices a staff member attended (#448), with what this viewer may do; null for someone not on a staff.
+    staffPractices: { type: Object, default: null },
 });
 
 // The attendance history newest first, wherever it was recorded: after a transfer the new leadership sees the weeks
@@ -222,6 +225,8 @@ const staleNotice = computed(() => {
                 </table>
             </div>
         </MilpacPanel>
+
+        <StaffPracticesPanel v-if="staffPractices" :trooper-id="trooper.id" :staff-practices="staffPractices" class="w-full max-w-xl" />
 
         <CounselingPanel v-if="counseling" :trooper-id="trooper.id" :counseling="counseling" class="w-full max-w-xl" />
 

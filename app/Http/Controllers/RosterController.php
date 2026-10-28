@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
+use App\Authorization\StaffPracticeAccess;
 use App\Commands\Units\SaveUnitGuidonHandler;
 use App\Kpi\Headcount;
 use App\Kpi\KpiService;
@@ -15,6 +16,7 @@ use App\Loa\LoaProvenance;
 use App\Milpac\BilletTags;
 use App\Milpac\PlacementHistory;
 use App\Milpac\RosterProvenance;
+use App\Milpac\StaffPracticeHistory;
 use App\Models\SyncRun;
 use App\Models\Trooper;
 use App\Models\Unit;
@@ -71,6 +73,8 @@ class RosterController extends Controller
         private readonly Headcount $headcount,
         private readonly BilletTags $billetTags,
         private readonly UnitGuidonRepository $guidons,
+        private readonly StaffPracticeAccess $staffAccess,
+        private readonly StaffPracticeHistory $staffHistory,
     ) {}
 
     /**
@@ -177,6 +181,8 @@ class RosterController extends Controller
                 'missedWeeks' => $kpis?->missedWeeks ?? [],
                 // Their moves between units, newest first (2026-10-27).
                 'transfers' => $this->placementHistory->transfersOf($found->id),
+                // The section practices a staff member attended (#448), read only here; entered on the milpac.
+                'staffPractices' => $this->staffHistory->for($found, $this->staffAccess->staffUnit($found) !== null),
             ],
             'weeks' => $this->weeks($week),
             'currentWeek' => $week->toDateString(),

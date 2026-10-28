@@ -24,6 +24,7 @@ use App\Http\Controllers\Settings\ServersController;
 use App\Http\Controllers\Settings\StaffGrantsController;
 use App\Http\Controllers\Settings\TemplatesController;
 use App\Http\Controllers\Settings\TrooperPlacementController;
+use App\Http\Controllers\StaffPracticeController;
 use App\Http\Controllers\TrainingPlanController;
 use App\Http\Controllers\TrainingReadinessMatrixController;
 use App\Http\Controllers\TrooperDetailController;
@@ -116,6 +117,11 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::patch('/counseling/{counseling}', [CounselingController::class, 'update'])->middleware('throttle:audited-writes')->name('counseling.update');
     Route::delete('/counseling/{counseling}', [CounselingController::class, 'destroy'])->middleware('throttle:audited-writes')->name('counseling.destroy');
     Route::get('/counseling/{counseling}/document', [CounselingController::class, 'document'])->name('counseling.document');
+    // The section practices a staff member attended (#448): staff are on no section's rollcall, so the staff member, their
+    // staff leader or an Admin enters one on the milpac. Each write is an audited Command whose handler decides who may
+    // (Authorization\StaffPracticeAccess); a trooper the viewer cannot see is a 404. On the shared audited-writes throttle.
+    Route::post('/troopers/{trooper}/staff-practices', [StaffPracticeController::class, 'store'])->middleware('throttle:audited-writes')->name('staff-practices.store');
+    Route::post('/troopers/{trooper}/staff-practices/remove', [StaffPracticeController::class, 'destroy'])->middleware('throttle:audited-writes')->name('staff-practices.remove');
 
     // The training-readiness matrix of one unit (Story 6.9): troopers by courses, scope-gated in the controller
     // through the ScopeResolver (AD-8). The milpac's quick action links to the trooper's platoon. Like the roster's

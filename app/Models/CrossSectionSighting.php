@@ -16,6 +16,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * time slots exist (its window is the whole Cav week), so new rows are `manual`; older `capture` rows stay. A hand
  * entry a capture later sees becomes `capture`, with its window, and keeps `recorded_by`. Both go through
  * `CrossSectionSightingRepository`.
+ *
+ * A third source, `staff` (#448), is not a guest at all: a staff member (HQ staff or a staff department, on no section's
+ * rollcall) attended this section's practice, entered by hand by them, their staff leader or an Admin (`recorded_by`).
+ * It shares the table and its one-row-per-(trooper, host practice) key, but never shows on the host's rollcall, never
+ * supports a makeup and never counts towards the JSAM: the repository leaves it out of every guest read.
  */
 #[Fillable(['trooper_id', 'section_practice_id', 'week_start', 'seen_from', 'seen_until', 'source', 'recorded_by', 'recorded_by_admin', 'recorded_as_unit'])]
 class CrossSectionSighting extends Model
@@ -25,6 +30,12 @@ class CrossSectionSighting extends Model
 
     /** Added by the host section's leader on their rollcall. */
     public const SOURCE_MANUAL = 'manual';
+
+    /** A staff member's own practice, entered by them, their staff leader or an Admin (#448). Never a guest. */
+    public const SOURCE_STAFF = 'staff';
+
+    /** The sources that make a guest at the host practice: what the rollcall, the makeups and the JSAM read. */
+    public const GUEST_SOURCES = [self::SOURCE_CAPTURE, self::SOURCE_MANUAL];
 
     protected function casts(): array
     {
@@ -38,6 +49,11 @@ class CrossSectionSighting extends Model
     public function isManual(): bool
     {
         return $this->source === self::SOURCE_MANUAL;
+    }
+
+    public function isStaff(): bool
+    {
+        return $this->source === self::SOURCE_STAFF;
     }
 
     public function trooper(): BelongsTo
