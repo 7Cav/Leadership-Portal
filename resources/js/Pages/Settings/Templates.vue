@@ -76,7 +76,7 @@ watch(
 
 // Text typed into the editor that is not saved yet: the other company's template would replace it.
 const unsaved = computed(() => form.body !== (props.active?.body ?? '') || form.reason.trim() !== '');
-// Redraws the company picker on the company still open when the Admin decides to stay.
+// Redraws the company picker on the company still open when the editor decides to stay.
 const pickerKey = ref(0);
 
 function chooseCompany(event) {
@@ -191,13 +191,13 @@ function confirmActivate() {
     });
 }
 
-// Which version's text is open for reading, so an Admin sees what a rollback would bring back.
+// Which version's text is open for reading, so whoever edits sees what a rollback would bring back.
 const viewing = ref(null);
 const toggleView = (version) => {
     viewing.value = viewing.value === version.id ? null : version.id;
 };
 
-// Which version is compared line by line with the active one, so an Admin sees exactly what a rollback would change.
+// Which version is compared line by line with the active one, so whoever edits sees exactly what a rollback would change.
 const comparing = ref(null);
 const toggleCompare = (version) => {
     comparing.value = comparing.value === version.id ? null : version.id;
@@ -226,7 +226,7 @@ onBeforeUnmount(() => clearTimeout(copiedTimer));
 
 // Clicking a code puts it in the editor at the cursor, in place of any selection, as typing it would: a section's open
 // and close tags go around the selection, with the cursor between them when nothing is selected. The editor keeps the
-// focus with the cursor after what went in. Only an Admin who can edit gets this; anyone else can still copy a code.
+// focus with the cursor after what went in. Only someone who may edit the template gets this; anyone else can still copy a code.
 const bodyField = ref(null);
 const canInsert = computed(() => showEditor.value && !readOnlyPreview.value);
 async function insertCode(entry) {
@@ -257,7 +257,7 @@ async function insertCode(entry) {
 }
 
 // The template filled with a made-up section (the legend's examples), drawn as the forum shows the post. It follows the
-// editor a moment after the Admin stops typing, so a long template is not redrawn on every key.
+// editor a moment after the editor stops typing, so a long template is not redrawn on every key.
 const SAMPLE = sampleContext();
 const typedBody = refDebounced(toRef(form, 'body'), 250);
 const previewSource = computed(() => (showEditor.value ? typedBody.value : (props.active?.body ?? '')));
@@ -319,7 +319,7 @@ const preview = computed(() => (previewSource.value.trim() === '' ? null : rende
 const troopersLabel = (count) => `${count} trooper${count === 1 ? '' : 's'}`;
 const sectionLabel = (section) => (section.designation === section.name ? section.name : `${section.designation} ${section.name}`);
 
-// Fills the editor with the default template (the starter the server sends), only when an Admin asks, so nobody saves
+// Fills the editor with the default template (the starter the server sends), only when asked, so nobody saves
 // it unread. It only fills the editor: saving it is still a new version with a reason. When the editor holds edits that
 // are not saved, it asks first, since those edits would be lost.
 const confirmingStarter = ref(false);
