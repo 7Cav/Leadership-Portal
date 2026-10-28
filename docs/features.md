@@ -71,7 +71,7 @@ Related pages reached from the roster:
   Sheet). Their attendance history follows them: after a transfer the new leadership sees the trooper's past rollcall
   signing, practice attendance and leave, but never the old unit's sent reports. Transfers from before this was
   recorded do not show. Awards are not synced from Cav yet and the page says so. Departed troopers still render,
-  marked departed.
+  marked departed. For staff, the page also lists the section practices they attended (see Staff practices below).
 - Training readiness matrix (`/readiness/<unit>`): troopers by courses for one unit.
 - Find trooper: the search in the shell (also the `/` key) finds troopers in your scope and opens their milpac page.
   Type a username, with or without a leading rank and with a space for the dot ("SGT Vasquez R"), or a cav id
@@ -214,6 +214,27 @@ Reprimand (LOR), newest first. Who may file and see which is in [permissions.md]
 - Correct or delete: the date and reason can be corrected, never the type or the document; a record can be deleted
   with its document. Both need a reason and are audited, as is filing. A copy already on Google Drive stays there.
 
+### Staff practices
+
+Staff (troopers placed on an HQ node, or in a staff department such as S6) are on no section's rollcall. ELOA,
+Reservists and New Recruits are groups but not staff. On a staff member's milpac page, "Section practices attended"
+lists the section practices they attended, newest week first; the roster's trooper sheet shows the same list, read only.
+
+- Add one: the section (any section of the regiment) and the Cav week (this week and up to 11 back, never before the
+  week floor). One entry per staff member per section per week. Who may is in
+  [permissions.md](permissions.md#staff-practices). Each entry says who entered it; one the staff member entered
+  themselves reads "Self-reported by".
+- Game server: when a practice capture sees a staff member through a linked game identity, the practice is listed as
+  "Seen on the game server". The capture keeps them on that practice's own record of who it saw, as it does every
+  linked trooper from elsewhere; it credits nobody. Its window is the whole Cav week so far, so this means they were on
+  the server that week. A practice with an entry shows the entry.
+- Remove one: the same people. A game server sighting cannot be removed by hand.
+- Lock: once the staff member's HQ has sent its weekly report for a week, that week's entries no longer change. A staff
+  department sends no weekly report, so its weeks stay open.
+- An entry never puts the staff member on the host section's rollcall or its guests, never counts in its numbers,
+  reports or JSAM counts, and gives no makeup. Adding and removing are audited. The staff report does not show these
+  yet (#449).
+
 ## Settings menu (Admins)
 
 | Page | What it does |
@@ -305,5 +326,6 @@ the sum of its direct children's sent reports.
 | Capture | `app/Commands/Capture/` (`CaptureSources` maps each telemetry interface to its sources), `app/Commands/Games/`, `app/Jobs/CaptureSectionPracticeJob.php`, `app/Integration/` |
 | Reports | `app/Commands/WeeklyReports/`, `app/Kpi/RollupKpis.php`, `ReportChain.php`, `resources/js/lib/report.js` |
 | Training plans | `app/Commands/TrainingPlans/`, `TrainingPlanController`, `resources/js/Pages/Reports/TrainingPlan.vue`, `resources/js/lib/trainingPlan.js` |
+| Staff practices | `app/Commands/StaffPractices/`, `app/Authorization/StaffPracticeAccess.php`, `app/Milpac/StaffPracticeHistory.php`, `resources/js/components/milpac/StaffPracticesPanel.vue` (stored in `cross_section_sightings` with source `staff`) |
 | Counseling | `app/Commands/Counseling/`, `app/Authorization/CounselingAccess.php`, `app/Milpac/CounselingHistory.php`, `app/Milpac/CounselingStanding.php`, `app/Integration/GoogleDrive/`, `app/Jobs/UploadCounselingDocumentJob.php`, `resources/js/components/milpac/CounselingPanel.vue` |
 | Units with no troopers | `app/Kpi/Headcount.php` (`withoutEmptyLineUnits`) |
