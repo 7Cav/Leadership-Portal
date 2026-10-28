@@ -24,9 +24,10 @@ use Illuminate\Support\Collection;
  *
  * A **leader** (#432), someone who is not an Admin, may act as a person too, but only as a serving billet holder
  * strictly below them inside their own write scope ({@see leadsBelow()}): never themselves, a peer, anyone above, an
- * Admin, nor anyone whose own authority (a grant, an acting lead) reaches outside that scope. Their write scope is the
- * roster-derived command scope, so a staff grant (read-only) confers nothing. A leader never acts as a billet, and
- * never chains: while acting they stop before they act as another.
+ * Admin, nor anyone whose own authority (a grant, an acting lead) reaches outside that scope, nor anyone whose command
+ * covers the leader's own placement (their own Section Leader, when they are acting lead of the platoon above it). Their
+ * write scope is the roster-derived command scope, so a staff grant (read-only) confers nothing. A leader never acts
+ * as a billet, and never chains: while acting they stop before they act as another.
  *
  * An Admin who already acts as someone ("via") is held to that identity's reach when they start another: acting as a
  * leader, they may start only what the leader could, and the pair is checked together on every request, so what they
@@ -79,7 +80,7 @@ class ActAs
 
         $commanded = $this->commandOf($actor, $via);
 
-        return $commanded === null || $this->leadsBelow($commanded, $user);
+        return $commanded === null || $this->leadsBelow($commanded, $user, $this->placementOf($this->measuredFrom($actor, $via)));
     }
 
     /** Whether `$actor` may act as the leader of a unit: a real Admin acting as nobody, for any unit, vacant or held. */
@@ -125,13 +126,14 @@ class ActAs
 
         $others = $this->users->all()->reject(fn (User $user) => $user->id === $actor->id || $user->is_admin || $user->cav_id === null);
         $held = $this->commands->commandedUnitsByCavId($others->pluck('cav_id')->all());
+        $placement = $this->placementOf($this->measuredFrom($actor, $this->viaFor($actor)));
 
         // The units below are worked out once; each person is then only checked for what is theirs: standing and reach.
         return $others
             ->filter(fn (User $user) => $held->has($user->cav_id)
                 && $below->contains($held->get($user->cav_id)->id)
                 && ! $this->serving->mustEnd($user)
-                && $this->scope->realScope($user)->diff($below)->isEmpty())
+                && $this->withinAndNotOver($this->scope->realScope($user), $below, $placement))
             ->values();
     }
 
@@ -309,9 +311,14 @@ class ActAs
      * serving roster only) commands a unit below them, and nothing else they hold, an acting lead or a grant, reaches
      * outside what is below. Never an Admin. So acting as them gives no scope the leader does not have.
      *
+     * Nor anyone whose command covers the leader's own placement (`$placement`, the leader's trooper's primary unit):
+     * an acting lead of the platoon their own section sits in is above their Section Leader by command, but that SL
+     * commands them, and every rule keyed on the person themselves ("nobody counsels themselves") would then be asked
+     * about the SL instead of the leader.
+     *
      * @param  Collection<int, Unit>  $commanded
      */
-    private function leadsBelow(Collection $commanded, User $user): bool
+    private function leadsBelow(Collection $commanded, User $user, ?int $placement): bool
     {
         if ($user->is_admin || $user->cav_id === null) {
             return false;
@@ -322,7 +329,40 @@ class ActAs
 
         return $billet !== null
             && $below->contains($billet->id)
-            && $this->scope->realScope($user)->diff($below)->isEmpty();
+            && $this->withinAndNotOver($this->scope->realScope($user), $below, $placement);
+    }
+
+    /**
+     * Whether a person's real scope stays inside what is below the leader and does not cover the leader's own
+     * placement: the two reach checks {@see leadsBelow()} and {@see candidates()} share.
+     *
+     * @param  Collection<int, int>  $scope
+     * @param  Collection<int, int>  $below
+     */
+    private function withinAndNotOver(Collection $scope, Collection $below, ?int $placement): bool
+    {
+        return $scope->diff($below)->isEmpty() && ($placement === null || ! $scope->contains($placement));
+    }
+
+    /**
+     * The person whose command a start is measured from: `$actor` themselves when they act as nobody, the leader an
+     * Admin acts through, or nobody (an Admin acting as nobody or as a billet, who has no placement to protect there).
+     */
+    private function measuredFrom(User $actor, ?ViewAsTarget $via): ?User
+    {
+        if ($via === null) {
+            return $actor->is_admin ? null : $actor;
+        }
+
+        return $via->kind === ViewAsKind::User && $actor->is_admin ? $this->users->find($via->id) : null;
+    }
+
+    /** The primary unit `$user`'s trooper is placed in, or null for nobody, an unlinked user or an unplaced trooper. */
+    private function placementOf(?User $user): ?int
+    {
+        $cavId = $user?->cav_id;
+
+        return $cavId === null ? null : $this->troopers->byCavId([(int) $cavId])->get((int) $cavId)?->primary_section_id;
     }
 
     /** @param  array<mixed>  $stored */
