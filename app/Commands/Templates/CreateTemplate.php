@@ -42,6 +42,11 @@ class CreateTemplate
             throw InvalidTemplateException::notACompany($company);
         }
 
+        // The battalion may have switched the company's own template editing off (#376).
+        if (! $this->authority->managesCompany($actor, $company)) {
+            throw TemplateForbiddenException::lockedByBattalion();
+        }
+
         $name = trim($name);
 
         if ($name === '') {

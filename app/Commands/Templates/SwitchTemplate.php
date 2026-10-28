@@ -34,7 +34,7 @@ class SwitchTemplate
         }
 
         if (! $this->authority->manages($actor, $template)) {
-            throw TemplateForbiddenException::company();
+            throw $this->authority->refusal($actor, $template);
         }
 
         if ($template->enabled === $enabled) {
