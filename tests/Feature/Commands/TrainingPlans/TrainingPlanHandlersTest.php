@@ -20,8 +20,11 @@ use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Repositories\PlatoonTrainingTopicRepository;
 use App\Repositories\UnitRepository;
+use App\Repositories\WeeklyReportRepository;
+use App\Repositories\WeeklyReportRepository\Eloquent as EloquentWeeklyReportRepository;
 use App\Support\Audit\ReasonRequiredException;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 
 // #380: a platoon's chain of command writes a monthly training plan, the company's approves it or sends it back, and
 // an approved plan becomes the platoon's weekly training topic. Every write is audited (AD-16).
@@ -131,6 +134,50 @@ it('keeps a sent week\'s subject in the plan: it can no longer change, as its re
 
     // Left as it is (here: blank), the plan saves.
     expect(tpSave($this->leader, $this->platoon->id, ['2026-10-17' => '', '2026-10-24' => 'Radio procedure'], false, '2026-10')->weeks)->toHaveCount(1);
+});
+
+// The handler's first "is this week sent?" read takes no lock. The report below is sent right after it, so only the
+// check inside the write's transaction, under `isSentFor()`'s lock, can catch it.
+function tpSendAfterFirstRead(int $platoonId, string $date, int $senderId): void
+{
+    app()->instance(WeeklyReportRepository::class, new class($platoonId, $date, $senderId) extends EloquentWeeklyReportRepository
+    {
+        private bool $raced = false;
+
+        public function __construct(private readonly int $platoonId, private readonly string $date, private readonly int $senderId) {}
+
+        public function find(int $unitId, CarbonInterface $weekStart): ?WeeklyReport
+        {
+            $found = parent::find($unitId, $weekStart);
+
+            if (! $this->raced && $unitId === $this->platoonId && $weekStart->toDateString() === $this->date) {
+                $this->raced = true;
+                parent::send($unitId, $weekStart, [], null, $this->senderId, 'd', null);
+            }
+
+            return $found;
+        }
+    });
+}
+
+it('refuses a change to a week whose report is sent between the save\'s check and its write', function () {
+    tpSave($this->leader, $this->platoon->id, ['2026-10-24' => 'Room clearing'], false, '2026-10');
+    tpSendAfterFirstRead($this->platoon->id, '2026-10-24', $this->leader->id);
+
+    expect(fn () => tpSave($this->leader, $this->platoon->id, ['2026-10-24' => 'Radio procedure'], false, '2026-10'))
+        ->toThrow(InvalidTrainingPlanException::class, 'already sent');
+
+    expect(TrainingPlan::query()->sole()->weeks->pluck('subject')->all())->toBe(['Room clearing'])
+        ->and(AuditLogEntry::query()->where('action', SaveTrainingPlanHandler::SAVED)->count())->toBe(1);
+});
+
+it('still saves the other weeks when a week it leaves as it is gets sent mid-save', function () {
+    tpSave($this->leader, $this->platoon->id, ['2026-10-24' => 'Room clearing'], false, '2026-10');
+    tpSendAfterFirstRead($this->platoon->id, '2026-10-24', $this->leader->id);
+
+    $plan = tpSave($this->leader, $this->platoon->id, ['2026-10-24' => 'Room clearing', '2026-10-31' => 'Radio procedure'], false, '2026-10');
+
+    expect($plan->weeks->pluck('subject')->all())->toBe(['Room clearing', 'Radio procedure']);
 });
 
 it('treats saving a plan exactly as it stands as a no-op, but resubmits one sent back', function () {

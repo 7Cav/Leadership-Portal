@@ -5,6 +5,7 @@ namespace App\Repositories\TrainingPlanRepository;
 use App\Models\TrainingPlan;
 use App\Models\TrainingPlanStatus;
 use App\Models\TrainingPlanWeek;
+use App\Models\Unit;
 use App\Repositories\TrainingPlanRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
@@ -91,6 +92,11 @@ class Eloquent implements TrainingPlanRepository
     public function sendBack(TrainingPlan $plan, string $comment, int $reviewedBy, ?int $reviewedByAdmin = null, ?int $reviewedAsUnit = null): TrainingPlan
     {
         return $this->review($plan, TrainingPlanStatus::Returned, $comment, $reviewedBy, $reviewedByAdmin, $reviewedAsUnit);
+    }
+
+    public function hasPlansFor(Unit $unit): bool
+    {
+        return TrainingPlan::query()->where('unit_id', $unit->getKey())->exists();
     }
 
     private function review(TrainingPlan $plan, TrainingPlanStatus $status, ?string $comment, int $reviewedBy, ?int $reviewedByAdmin, ?int $reviewedAsUnit): TrainingPlan

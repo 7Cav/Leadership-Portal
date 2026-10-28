@@ -16,8 +16,10 @@ return new class extends Migration
     {
         Schema::create('training_plans', function (Blueprint $table) {
             $table->id();
-            // Planning for the platoon, like its weekly topic: it goes with the platoon (`cascadeOnDelete`).
-            $table->foreignId('unit_id')->constrained('units')->cascadeOnDelete();
+            // `restrictOnDelete`: a plan is the platoon's review history, and the topics an approval wrote are part
+            // of its weekly report record, so a platoon that has a plan stays in the tree. `DeleteUnit` refuses it
+            // with a reason first; this key backs that up. A plan's weeks still cascade from the plan itself.
+            $table->foreignId('unit_id')->constrained('units')->restrictOnDelete();
             // `YYYY-MM`. The plan holds every Cav week whose Saturday (AD-11) falls in this month, so each week
             // belongs to exactly one plan. A string, not a date: no driver turns it into a timestamp.
             $table->char('month', 7);

@@ -49,7 +49,7 @@ it('points every reference where it belongs, with the delete rule each docblock 
         'reviewed_as_unit' => ['units.id', 'set null'],
         'reviewed_by' => ['users.id', 'restrict'],
         'reviewed_by_admin' => ['users.id', 'restrict'],
-        'unit_id' => ['units.id', 'cascade'],
+        'unit_id' => ['units.id', 'restrict'],
         'written_as_unit' => ['units.id', 'set null'],
         'written_by' => ['users.id', 'restrict'],
         'written_by_admin' => ['users.id', 'restrict'],
@@ -73,12 +73,17 @@ it('refuses a second plan for the same platoon and month', function () {
     expect(fn () => DB::table('training_plans')->insert([...$row, 'written_by' => User::factory()->create()->id]))->toThrow(QueryException::class);
 });
 
-it('removes a plan and its weeks with its platoon', function () {
+// A plan is review history: deleting its platoon, even around `DeleteUnit`, is refused rather than taking the plan
+// and its weeks with it. The weeks still go with their plan.
+it('keeps a plan and its weeks when its platoon is deleted, and removes the weeks with the plan', function () {
     $planId = DB::table('training_plans')->insertGetId(rawTrainingPlanRow());
     DB::table('training_plan_weeks')->insert(['training_plan_id' => $planId, 'week_start' => '2026-11-07 00:00:00', 'subject' => 'Room clearing', 'created_at' => now(), 'updated_at' => now()]);
 
-    Unit::query()->whereKey(DB::table('training_plans')->value('unit_id'))->delete();
+    expect(fn () => Unit::query()->whereKey(DB::table('training_plans')->value('unit_id'))->delete())->toThrow(QueryException::class);
+    expect(DB::table('training_plans')->count())->toBe(1)
+        ->and(DB::table('training_plan_weeks')->count())->toBe(1);
 
-    expect(DB::table('training_plans')->count())->toBe(0)
-        ->and(DB::table('training_plan_weeks')->count())->toBe(0);
+    DB::table('training_plans')->delete();
+
+    expect(DB::table('training_plan_weeks')->count())->toBe(0);
 });

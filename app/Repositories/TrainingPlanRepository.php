@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\TrainingPlan;
+use App\Models\Unit;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
 use LogicException;
@@ -52,4 +53,10 @@ interface TrainingPlanRepository
 
     /** Mark the plan returned to its writer by the reviewer, now, with their comment. */
     public function sendBack(TrainingPlan $plan, string $comment, int $reviewedBy, ?int $reviewedByAdmin = null, ?int $reviewedAsUnit = null): TrainingPlan;
+
+    /**
+     * Whether `$unit` has a training plan for any month. `training_plans.unit_id` restricts deletes, so `DeleteUnit`
+     * checks this first to refuse with a reason instead of a raw constraint error.
+     */
+    public function hasPlansFor(Unit $unit): bool;
 }
