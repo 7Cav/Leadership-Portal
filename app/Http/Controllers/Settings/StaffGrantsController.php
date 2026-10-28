@@ -8,6 +8,7 @@ use App\Commands\PortalRoleGrants\GrantTargetIsAdminException;
 use App\Commands\PortalRoleGrants\RevokeStaffScope;
 use App\Http\Controllers\Controller;
 use App\Models\PortalRoleGrant;
+use App\Models\Trooper;
 use App\Models\Unit;
 use App\Repositories\PortalRoleGrantRepository;
 use App\Repositories\TrooperRepository;
@@ -42,7 +43,7 @@ class StaffGrantsController extends Controller
      * split); only the Admin flag gates authoring (checked client-side for the hidden controls,
      * and again below on write — AD-6). The target-user picker lists every non-admin username, so
      * it is sent only to someone acting as Admin; anyone else, an Admin previewing a leader
-     * included, gets an empty list (AD-6, AD-8).
+     * included, gets an empty list (AD-6, AD-8). The Regimental HQ staff list is sent the same way.
      */
     public function index(Request $request, ScopeResolver $scope): Response
     {
@@ -81,8 +82,20 @@ class StaffGrantsController extends Controller
             ])->values()
             : collect();
 
+        // Regimental HQ staff read the whole regiment from their placement, not a grant (ScopeResolver), so nothing else
+        // on this page or in the audit log shows it. Listed from the same rule the scope uses, read-only and only to
+        // someone acting as Admin, like the username picker.
+        $regimentalHq = $isAdmin
+            ? $scope->regimentalHqStaff()->map(fn (Trooper $trooper) => [
+                'id' => $trooper->id,
+                'name' => $trooper->display_name,
+                'billet' => $trooper->billet,
+            ])->values()
+            : collect();
+
         return Inertia::render('Settings/StaffGrants', [
             'grants' => $grants,
+            'regimentalHq' => $regimentalHq,
             'units' => $units,
             'users' => $users,
             // Follows a view-as preview (Story 1.13): authoring controls hide as they would for the

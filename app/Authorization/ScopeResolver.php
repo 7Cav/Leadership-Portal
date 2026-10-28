@@ -5,6 +5,7 @@ namespace App\Authorization;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
+use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\PortalRoleGrantRepository;
 use App\Repositories\TrooperRepository;
@@ -31,14 +32,20 @@ use Illuminate\Support\Collection;
  *    roster can't imply. A grant counts only while its holder is a serving trooper (the same
  *    allow-list the roster-derived half uses), so a staffer who leaves the Cav loses it at once
  *    rather than when someone remembers to revoke it.
+ *  - **Regimental HQ staff** (decided by the S6, 2026-10-28) — a serving trooper placed directly on
+ *    the regiment node reads the whole regiment, exactly as a staff grant on the regiment would.
+ *    The org import places every Regimental HQ billet there (the Chief of Staff, the Adjutants
+ *    General, the Finance Officer, any billet Cav adds to that group), so general staff whose billet
+ *    commands nothing are not scopeless. Read from the placement on every call, like the billet:
+ *    moved elsewhere or no longer serving, it is gone.
  *
- * The roster-derived unit and every granted unit are each expanded to their subtree via the
+ * The roster-derived unit and every read-only unit are each expanded to their subtree via the
  * materialized `path` (AD-18) and unioned into one set, so a leader who also holds grants — or a
  * dual-hatted user with several — sees each unit once.
  *
- * Writes are narrower: {@see writeScope()} leaves the grants out, so a staff grant reads an echelon
- * but never marks, confirms, sends or relinks anything in it. Only Admin and the roster-derived
- * command write.
+ * Writes are narrower: {@see writeScope()} leaves the grants and the Regimental HQ read out, so a
+ * staff grant reads an echelon but never marks, confirms, sends or relinks anything in it. Only
+ * Admin and the roster-derived command write.
  *
  * **View-as** (AD-9, Story 1.13) then narrows that set, never widens it: the effective scope
  * {@see resolve()} hands back is `real ∩ target`, and the stored target is re-checked against the
@@ -96,7 +103,8 @@ class ScopeResolver
             return $this->units->allIds();
         }
 
-        return $this->grantedUnitsWhileServing($user)
+        // realScopes() must add the same read-only units: change both together.
+        return $this->readOnlyUnitsWhileServing($user)
             ->merge($this->commandedUnits($user))
             ->filter()
             ->flatMap(fn ($unit) => $this->units->subtreeIds($unit))
@@ -132,7 +140,8 @@ class ScopeResolver
         $troopers = $this->troopers->byCavId($cavIds);
         $billets = $cavIds === [] ? collect() : $this->commands->commandedUnitsByCavId($cavIds);
         $acting = $this->actingLeads->unitsLedByTroopers($troopers->pluck('id')->map(fn ($id) => (int) $id)->values()->all());
-        // A grant counts only while its holder serves (grantedUnitsWhileServing()), so only theirs are read.
+        // A grant, and the regiment for Regimental HQ staff, count only while the holder serves
+        // (readOnlyUnitsWhileServing()), so only theirs are read.
         $serving = $linked
             ->filter(fn (User $user) => $troopers->get((int) $user->cav_id)?->status?->isServing() ?? false)
             ->map(fn (User $user) => (int) $user->id)
@@ -146,13 +155,17 @@ class ScopeResolver
                 return [$user->id => $tree->pluck('id')->values()];
             }
 
+            $trooper = $user->cav_id === null ? null : $troopers->get((int) $user->cav_id);
+            // As readOnlyUnitsWhileServing(): while serving, their grants and, for Regimental HQ staff placed on the
+            // regiment itself, the regiment. realScope() must add the same: change both together.
+            $placed = $trooper?->primary_section_id === null ? null : $byId->get((int) $trooper->primary_section_id);
             $granted = $servingIds->has($user->id)
                 ? $grants->get($user->id, collect())->map(fn (int $id) => $byId->get($id))
+                    ->push(self::isRegimentalHqPlacement($placed) ? $placed : null)
                 : collect();
             // As commandedUnits(): a billet held on this request is the only command, else the synced billet and
             // the acting leads, none for a user with no milpac link.
             $held = $this->billet->of($user);
-            $trooper = $user->cav_id === null ? null : $troopers->get((int) $user->cav_id);
             $commanded = match (true) {
                 $held !== null => collect([$held]),
                 $user->cav_id === null => collect(),
@@ -268,23 +281,66 @@ class ScopeResolver
     }
 
     /**
-     * The user's granted units, but only while they are a serving trooper: `users.cav_id` linked to
-     * a cached trooper whose standing is on {@see TrooperStatus::serving()}. A grant is staff scope
-     * for a *member* of the unit — once the holder leaves (the roster sync flips them `inactive`),
-     * or was never linked to a milpac at all, every grant they hold stops counting on the next
-     * read, with no one having to remember to revoke it. The rows themselves are kept, so the
-     * staff grants page can show them as lapsed and an Admin can revoke them on the record; a
-     * holder who returns to a serving roster gets them back. Admins never reach here.
+     * The units the user reads without commanding them, only while they are a serving trooper: `users.cav_id` linked to
+     * a cached trooper whose standing is on {@see TrooperStatus::serving()}. Two sources, neither ever in
+     * {@see writeScope()}:
+     *
+     *  - their staff grants. A grant is staff scope for a *member* of the unit: once the holder leaves (the roster sync
+     *    flips them `inactive`), or was never linked to a milpac at all, every grant they hold stops counting on the next
+     *    read, with no one having to remember to revoke it. The rows themselves are kept, so the staff grants page can
+     *    show them as lapsed and an Admin can revoke them on the record; a holder who returns to a serving roster gets
+     *    them back.
+     *  - the regiment, for Regimental HQ staff: a trooper placed directly on the regiment node, where the org import
+     *    places every Regimental HQ billet (`CommandBillet::headquartersOf()`). Holding groups and staff departments are
+     *    their own units under the regiment, so their members never match.
+     *
+     * Admins never reach here. The bulk realScopes() (#498) must apply the same two sources.
      *
      * @return Collection<int, Unit>
      */
-    private function grantedUnitsWhileServing(User $user): Collection
+    private function readOnlyUnitsWhileServing(User $user): Collection
     {
-        if ($user->cav_id === null || ! ($this->troopers->statusOf((int) $user->cav_id)?->isServing() ?? false)) {
+        $trooper = $user->cav_id === null ? null : $this->troopers->byCavId([(int) $user->cav_id])->get((int) $user->cav_id);
+        if (! ($trooper?->status?->isServing() ?? false)) {
             return collect();
         }
 
-        return $this->grants->grantedUnitsFor($user);
+        return $this->grants->grantedUnitsFor($user)
+            ->push($this->regimentPlacing($trooper))
+            ->filter()
+            ->values();
+    }
+
+    /** The regiment when the trooper is placed directly on it (Regimental HQ staff), else null. */
+    private function regimentPlacing(Trooper $trooper): ?Unit
+    {
+        $placed = $trooper->primary_section_id === null ? null : $this->units->find($trooper->primary_section_id);
+
+        return self::isRegimentalHqPlacement($placed) ? $placed : null;
+    }
+
+    /**
+     * Who reads the whole regiment as Regimental HQ staff right now: the serving troopers placed directly on the regiment
+     * node, by username. The same two tests {@see readOnlyUnitsWhileServing()} and {@see realScopes()} apply one trooper
+     * at a time ({@see TrooperStatus::serving()} and {@see isRegimentalHqPlacement()}), so the Staff grants page lists
+     * exactly the people this class gives the regiment to. A trooper with no portal account yet is listed too: they read
+     * it from their first sign-in. Two queries.
+     *
+     * @return Collection<int, Trooper>
+     */
+    public function regimentalHqStaff(): Collection
+    {
+        $regimentIds = $this->units->tree()
+            ->filter(fn (Unit $unit) => self::isRegimentalHqPlacement($unit))
+            ->pluck('id');
+
+        return $this->troopers->servingPlacedIn($regimentIds);
+    }
+
+    /** Whether a trooper placed on `$unit` is Regimental HQ staff: placed on the regiment node itself, nothing below it. */
+    private static function isRegimentalHqPlacement(?Unit $unit): bool
+    {
+        return $unit?->type === UnitType::Regiment;
     }
 
     /**

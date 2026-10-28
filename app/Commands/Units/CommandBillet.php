@@ -76,7 +76,8 @@ final class CommandBillet
      * The HQ node a non-line group's staff belong to (2026-10-24): the regiment for `Regimental HQ`, the battalion for a
      * `<bn> Command` group, null for any other group. The import places a non-command billet of such a group there
      * (`Regimental Chief of Staff`, `Aide to the SecOps`, ACD's `Reserve Commander`), so the whole HQ is counted in its
-     * unit's strength; a command billet is already placed by its command mapping.
+     * unit's strength; a command billet is already placed by its command mapping. Placed on the regiment, Regimental HQ
+     * staff read the whole regiment (`ScopeResolver::realScope()`).
      */
     public static function headquartersOf(string $groupTitle): ?CavDesignation
     {

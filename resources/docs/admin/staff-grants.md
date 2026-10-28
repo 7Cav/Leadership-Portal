@@ -17,6 +17,12 @@ page: /settings/staff-grants
 
 > [!good-to-know] A grant only counts while its holder is a serving trooper. When they leave the Cav, it stops counting at once and is shown as lapsed.
 
+> [!good-to-know] Regimental HQ staff, such as the Chief of Staff and the Adjutants General, already read the whole regiment without a grant, for as long as they hold a Regimental HQ billet.
+
+## See who reads the whole regiment
+
+Under **Regimental HQ staff**, the page lists every serving trooper who reads the whole regiment because of a Regimental HQ billet, with their name and billet. The list is read-only: this access comes from their billet, not a grant, so there is nothing to revoke here and it is not in the audit log. It changes as soon as someone is placed on the regiment or moved off it.
+
 ## Revoke a grant
 
 1. Under **Current grants**, choose **Revoke** next to it, with a reason.

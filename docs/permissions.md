@@ -11,6 +11,8 @@
   (and the command above it) manages the section's own.
 - A staff grant (given by an Admin) lets someone read a unit and everything under it. It never lets them change
   anything there.
+- Regimental HQ staff (the Chief of Staff, the Adjutants General, the Finance Officer and any other billet in the
+  `Regimental HQ` group) read the whole regiment, as a staff grant on the regiment would. No Admin has to give it.
 - "View as" previews the portal as a unit (or, for Admins, as a person). It only narrows what you see, and every change
   is refused while it is on.
 - Writes also stop at a few hard edges whatever your rank: weeks older than the week floor, weeks whose section report
@@ -30,6 +32,7 @@
 | Section | `Section Leader`, `Assistant Section Leader` of a section | The section |
 | Trooper with no command billet | Any other billet | Nothing |
 | Staff grant holder | Any billet, plus a grant on the Staff grants page | Read-only on the granted unit(s); write scope only from their own billet |
+| Regimental HQ staff | Any billet the import places on the regiment: every billet in the `Regimental HQ` group (`Regimental Chief of Staff`, the Adjutants General, the Finance Officer, new ones Cav adds) | Read-only on the whole regiment; write scope only from their own billet |
 
 Notes:
 
@@ -44,6 +47,13 @@ Notes:
 - `DEVCOM 1IC` commands DEVCOM as its battalion commander and `DEVCOM 2IC` as its XO, so both have battalion command
   over DEVCOM, D/DEVCOM and its platoons and sections, rollcall templates included. The org
   page names the 1IC as DEVCOM's lead; when that billet is vacant the lead shows vacant, and the 2IC keeps their rights.
+- Regimental HQ staff read the regiment because they are placed on the regiment node itself, not because of their
+  title: the org import places every `Regimental HQ` billet there, and a trooper an Admin places on the regiment by
+  hand counts the same. Holding groups and staff departments (ELOA, Reservists, New Recruits, S1, S6 and the rest) are
+  units of their own under the regiment, so their members do not get it. In the matrix below they read like the Grant
+  column, over the whole regiment. Their own command billet, if any (the regiment command, a portfolio officer), keeps
+  its write rights. It is not a grant and leaves no audit entry, so the Staff grants page lists everyone who has it
+  (name and billet), read-only, for Admins. The list and the scope come from the same rule in `ScopeResolver`.
 - `DEVCOM Lead` commands nothing by billet. An Admin makes them acting lead of the DEVCOM starter platoons they run.
 - Every billet of a command team has the same scope: the XO, 1SG, PSG, ASL, SGM and CSM command their unit exactly as
   its CO, PL or SL does. Only the commanding billet is shown as the unit's lead (#444); that is display, and a vacant
@@ -75,7 +85,7 @@ No = refused (the page answers 403 or 404, or the control is not shown).
 | Org structure page (whole tree and unit leads) | Yes | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes |
 | Org structure: members of staff groups, ELOA, Reservists, New Recruits | All | All | Own | Own | Own | Own | Own | Own | No | Read | Target |
 | Org structure: troopers the sync could not place | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
-| Staff grants page (every grant; the username picker only for an acting Admin) | Yes | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes |
+| Staff grants page (every grant; the username picker and the Regimental HQ staff list only for an acting Admin) | Yes | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes |
 | Templates page (a company's templates, the regiment default, a section's own, history) | All | All | No | Own (4) | Own (4) | Own (4) | Own (4) | Own (4) | No | Read (4) | Target (4) |
 | Games page (the games, their ID kinds and telemetry interfaces) | Yes | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes |
 | Games page: identities to check (every saved identity that breaks the ID shape or name rules) | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
@@ -227,11 +237,13 @@ billet, never a staff grant. The staff member records their own practices on the
    [operations.md](operations.md)). Your scope is that unit and everything under it.
 3. Acting leads: every unit an Admin made you acting lead of is added, each with its subtree.
 4. Staff grants: every unit you were granted is added to your read scope, each with its subtree.
-5. View as: if a preview is on, your scope is cut down to the target. It is checked again on every request, so a
+5. Regimental HQ staff: if your milpac is placed directly on the regiment, the whole regiment is added to your read
+   scope.
+6. View as: if a preview is on, your scope is cut down to the target. It is checked again on every request, so a
    preview stops on its own when you lose the authority it relied on.
 
-Read scope is all of the above. Write scope leaves out staff grants: only Admin, your billet and your acting leads let
-you change anything. While view as is on, every write is refused.
+Read scope is all of the above. Write scope leaves out staff grants and the Regimental HQ read: only Admin, your billet
+and your acting leads let you change anything. While view as is on, every write is refused.
 
 Because the billet is read on every request, a roster sync that moves you to a new billet moves your scope with it on
 your next click. Nothing has to be revoked by hand.
@@ -242,8 +254,8 @@ your next click. Nothing has to be revoked by hand.
   sign-in; if Cav cannot answer, the last roster sync decides.
 - Every page load checks again. A non-Admin whose milpac shows as departed is signed out. Someone admitted on Cav's
   live roster ahead of the cache stays signed in until the next clean whole-roster sync.
-- A departed trooper's billet, acting leads and staff grants stop counting on the next request. The rows stay, so an
-  Admin sees a lapsed grant flagged on the Staff grants page and can revoke it on the record. If the trooper returns
+- A departed trooper's billet, acting leads, staff grants and Regimental HQ read stop counting on the next request. The
+  rows stay, so an Admin sees a lapsed grant flagged on the Staff grants page and can revoke it on the record. If the trooper returns
   to a serving roster, they count again.
 - An Admin is never signed out by roster data.
 

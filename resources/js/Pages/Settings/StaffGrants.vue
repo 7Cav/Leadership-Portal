@@ -20,6 +20,9 @@ const props = defineProps({
     grants: { type: Array, required: true },
     units: { type: Array, required: true },
     users: { type: Array, required: true },
+    // Who reads the whole regiment as Regimental HQ staff (placed on the regiment node, serving): read-only here, as
+    // it comes from their placement, not a grant. Sent only to someone acting as Admin.
+    regimentalHq: { type: Array, default: () => [] },
     isAdmin: { type: Boolean, required: true },
 });
 
@@ -162,5 +165,32 @@ function requestRevoke(grant) {
                 </form>
             </Card>
         </div>
+
+        <Card v-if="isAdmin" data-testid="regimental-hq" class="min-w-0 gap-0 py-0">
+            <div class="px-4 pt-3.5 pb-2">
+                <h2 class="text-[15px] font-semibold">Regimental HQ staff</h2>
+                <p class="mt-1 text-xs text-muted-foreground">
+                    Regimental HQ staff read the whole regiment, read-only. This comes from their billet; it is not a grant and cannot be revoked here.
+                </p>
+            </div>
+
+            <Table v-if="regimentalHq.length" class="text-[13px]">
+                <TableHeader>
+                    <TableRow class="hover:bg-transparent">
+                        <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">Name</TableHead>
+                        <TableHead class="h-8 px-4 text-xs font-medium text-muted-foreground">Billet</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    <TableRow v-for="trooper in regimentalHq" :key="trooper.id" :data-testid="`regimental-hq-${trooper.id}`">
+                        <TableCell class="px-4 font-medium">{{ trooper.name }}</TableCell>
+                        <TableCell class="px-4">{{ trooper.billet || '—' }}</TableCell>
+                    </TableRow>
+                </TableBody>
+            </Table>
+            <p v-else data-testid="regimental-hq-empty" class="border-t border-border px-4 py-6 text-[13px] text-muted-foreground">
+                No serving trooper is placed on the regiment.
+            </p>
+        </Card>
     </div>
 </template>
