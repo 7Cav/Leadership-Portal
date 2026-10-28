@@ -11,8 +11,9 @@ audience: leader
 ## Who you can act as
 
 1. A leader can act as a serving billet holder below them in their own units: a Platoon Leader as their Section Leaders, a Company Commander as anyone holding a billet in the company's platoons and sections.
-2. A staff grant gives no act as, because it only reads.
-3. An Admin can act as anyone who could sign in, or as the leader of any unit, even one whose billet nobody holds.
+2. Inside your own unit's command team, you can also act as everyone junior to you: a Company Commander as their XO and First Sergeant, a Platoon Leader as their Platoon Sergeant, a Section Leader as their Assistant Section Leader. At the regiment and in a battalion the order is CO, XO, then the Command Sergeant Major or Sergeant Major. Never the other way round.
+3. A staff grant gives no act as, because it only reads.
+4. An Admin can act as anyone who could sign in, or as the leader of any unit, even one whose billet nobody holds.
 
 ## Start acting as someone
 
@@ -37,7 +38,7 @@ audience: leader
 
 ## What act as cannot do
 
-1. You cannot act as yourself, a peer, anyone above you, or an Admin.
+1. You cannot act as yourself, anyone above you, a peer outside your command team order, or an Admin.
 2. You cannot act as someone whose own command covers you. If you are acting lead of the platoon above your own section, you cannot act as your own Section Leader.
 3. You cannot act as someone whose own access, such as a staff grant or an acting lead, reaches outside your units.
 4. No chains: while you act as someone, you cannot act as anyone else. Stop first.

@@ -84,6 +84,30 @@ enum CommandRole: string
     }
 
     /**
+     * Where the billet stands in its unit's command team, 0 the most senior: the commanding billet (CO, PL, SL), then the
+     * second in command (XO, PSG, ASL), then the senior NCO (1SG, SGM, CSM). The roster's billet order (#444,
+     * `ROLE_ORDER` in resources/js/lib/roster.js) lists the team in the same order. A unit has only its own echelon's
+     * billets, so the echelons share the three places and two roles compare only within one unit.
+     */
+    public function seniority(): int
+    {
+        return match ($this) {
+            self::Co, self::Pl, self::Sl => 0,
+            self::Xo, self::Psg, self::Asl => 1,
+            self::FirstSergeant, self::SergeantMajor, self::CommandSergeantMajor => 2,
+        };
+    }
+
+    /**
+     * Whether this billet is strictly senior to `$other` in the same unit's command team: what lets a senior act as
+     * the rest of their team, never a peer or anyone senior.
+     */
+    public function isSeniorTo(self $other): bool
+    {
+        return $this->seniority() < $other->seniority();
+    }
+
+    /**
      * The billet that leads a unit of type `$type`: the CO of a company, battalion or the regiment, the PL of a
      * platoon, the SL of a section. Null for a group. An acting lead stands in for this billet ("Acting PL").
      */

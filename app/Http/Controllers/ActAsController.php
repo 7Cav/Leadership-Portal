@@ -32,8 +32,8 @@ class ActAsController extends Controller
     ) {}
 
     /**
-     * Who the picker offers to the signed-in leader: serving billet holders strictly below them (#432), the same list
-     * {@see StartActingAs} would accept. A convenience only: every choice is checked again when it is made.
+     * Who the picker offers to the signed-in leader: serving billet holders strictly below them (#432) or junior to them
+     * in their command team, the same list {@see StartActingAs} would accept. A convenience only: every choice is checked again when it is made.
      */
     public function options(Request $request, TrooperRepository $troopers, UnitCommandMappingRepository $commands): JsonResponse
     {
@@ -72,7 +72,7 @@ class ActAsController extends Controller
             throw ValidationException::withMessages([
                 'act_as' => match (true) {
                     $held && $target->kind === ViewAsKind::Unit => 'Stop acting as someone first: only an Admin acting as nobody can act as a billet.',
-                    $held => 'You can only act as a serving billet holder below you in your own scope, and only while not already acting as someone.',
+                    $held => 'You can only act as a serving billet holder below you in your own scope, or junior to you in your own command team, and only while not already acting as someone.',
                     $target->kind === ViewAsKind::Trooper => 'They hold no billet to act as. Ask them to sign in once, then act as them by name.',
                     $target->kind === ViewAsKind::User => 'You can act as a serving trooper, never as yourself.',
                     default => 'That unit no longer exists.',

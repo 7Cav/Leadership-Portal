@@ -2,9 +2,12 @@
 
 namespace App\Authorization;
 
+use App\Models\CommandRole;
+use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\User;
 use App\Repositories\TrooperRepository;
+use App\Repositories\UnitActingLeadRepository;
 use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
@@ -28,6 +31,13 @@ use Illuminate\Support\Collection;
  * covers the leader's own placement (their own Section Leader, when they are acting lead of the platoon above it). Their
  * write scope is the roster-derived command scope, so a staff grant (read-only) confers nothing. A leader never acts
  * as a billet, and never chains: while acting they stop before they act as another.
+ *
+ * Inside a unit's own command team a senior may also act as everyone junior to them in it (decided by the S6 on
+ * 2026-10-28, {@see juniorInTeam()}): the RCO as the RXO and the RCSM, the RXO as the RCSM, a company CO as the XO and
+ * the 1SG, a PL as the PSG, an SL as the ASL, by {@see CommandRole::seniority()}. Never the other way, never a peer.
+ * That person commands the same unit, so their command covers the leader's placement; the exception to the check
+ * above is for them alone, and only while all they reach stays inside that unit. An acting lead stands where the
+ * billet they act for does: the lead of the unit, senior to the rest of its team.
  *
  * An Admin who already acts as someone ("via") is held to that identity's reach when they start another: acting as a
  * leader, they may start only what the leader could, and the pair is checked together on every request, so what they
@@ -60,6 +70,7 @@ class ActAs
         private readonly TrooperRepository $troopers,
         private readonly ScopeResolver $scope,
         private readonly UnitCommandMappingRepository $commands,
+        private readonly UnitActingLeadRepository $actingLeads,
     ) {}
 
     /** How the red bar names a person: `SGT Vasquez.R`. */
@@ -74,7 +85,8 @@ class ActAs
      * Whether `$actor` may act as the person `$user` right now, `$via` being what they already act as, if anything. An
      * Admin acting as nobody: anyone but themselves who could sign in (an Admin too, but never with their Admin rights,
      * {@see withoutAdmin()}). Anyone else, a leader, or an Admin acting as one: only a serving billet holder strictly
-     * below what that identity commands ({@see leadsBelow()}).
+     * below what that identity commands ({@see leadsBelow()}), or junior to them in a command team they are part of
+     * ({@see juniorInTeam()}).
      */
     public function allows(User $actor, User $user, ?ViewAsTarget $via = null): bool
     {
@@ -83,8 +95,15 @@ class ActAs
         }
 
         $commanded = $this->commandOf($actor, $via);
+        if ($commanded === null) {
+            return true;
+        }
 
-        return $commanded === null || $this->leadsBelow($commanded, $user, $this->placementOf($this->measuredFrom($actor, $via)));
+        $from = $this->measuredFrom($actor, $via);
+        $trooper = $this->trooperOf($from);
+
+        return $this->leadsBelow($commanded, $user, $trooper?->primary_section_id)
+            || $this->juniorInTeam($commanded, $from, $trooper, $user);
     }
 
     /** Whether `$actor` may act as the leader of a unit: a real Admin acting as nobody, for any unit, vacant or held. */
@@ -94,55 +113,95 @@ class ActAs
     }
 
     /**
-     * Whether `$actor`, signed in as themselves, holds the authority to act as anyone: an Admin, or someone who commands
-     * a unit with units below it. A staff grant never does. The gate before {@see allows()}, which says who exactly.
+     * Whether `$actor`, signed in as themselves, holds the authority to act as anyone: an Admin, someone who commands a
+     * unit with units below it, or a senior with someone junior to them in their command team. A staff grant never
+     * does. The gate before {@see allows()}, which says who exactly.
      */
     public function leads(User $actor): bool
     {
-        return $this->scope->isAdmin($actor) || $this->scope->strictlyBelow($this->scope->commandedBy($actor))->isNotEmpty();
+        if ($this->scope->isAdmin($actor)) {
+            return true;
+        }
+
+        $commanded = $this->scope->commandedBy($actor);
+
+        return $this->scope->strictlyBelow($commanded)->isNotEmpty() || $this->hasJuniorInTeam($actor, $commanded);
     }
 
     /**
      * Whether a picker for acting as someone should be offered to `$actor` now: a leader, or an Admin acting as one, who
-     * has units below them to start from. Never to an Admin acting as nobody (view-as leads them to the person) nor to
-     * someone acting as a person who is not an Admin (no chains).
+     * has units below them to start from or someone junior to them in their command team. Never to an Admin acting as
+     * nobody (view-as leads them to the person) nor to someone acting as a person who is not an Admin (no chains).
      */
     public function offers(User $actor): bool
     {
-        $commanded = $this->startingPoint($actor);
+        $via = $this->viaFor($actor);
+        $commanded = $this->startingPoint($actor, $via);
 
-        return $commanded !== null && $this->scope->strictlyBelow($commanded)->isNotEmpty();
+        return $commanded !== null
+            && ($this->scope->strictlyBelow($commanded)->isNotEmpty() || $this->hasJuniorInTeam($this->measuredFrom($actor, $via), $commanded));
     }
 
     /**
-     * Who `$actor` may act as right now: serving billet holders strictly below what they command, as the picker lists
-     * them, in username order. Empty when {@see offers()} is false.
+     * Who `$actor` may act as right now: serving billet holders strictly below what they command, and those junior to
+     * them in their own command team, as the picker lists them, in username order. Empty when {@see offers()} is false.
      *
      * @return Collection<int, User>
      */
     public function candidates(User $actor): Collection
     {
-        $commanded = $this->startingPoint($actor);
-        $below = $commanded === null ? collect() : $this->scope->strictlyBelow($commanded);
-        if ($below->isEmpty()) {
+        $via = $this->viaFor($actor);
+        $commanded = $this->startingPoint($actor, $via);
+        if ($commanded === null || $commanded->isEmpty()) {
             return collect();
         }
 
         // A flag Admin is left out here; an Admin by billet below, as realScopes() gives them the whole tree, which never
-        // fits below a leader (withinAndNotOver()).
-        $others = $this->users->all()->reject(fn (User $user) => $user->id === $actor->id || $user->is_admin || $user->cav_id === null);
-        $held = $this->commands->commandedUnitsByCavId($others->pluck('cav_id')->all());
-        $placement = $this->placementOf($this->measuredFrom($actor, $this->viaFor($actor)));
-        $billeted = $others->filter(fn (User $user) => $held->has($user->cav_id) && $below->contains($held->get($user->cav_id)->id));
+        // fits below a leader (withinAndNotOver()). A team junior is never an Admin by billet: that needs a Regimental HQ
+        // placement, and the regimental command team are Admins themselves, who reach people through view as instead.
+        $below = $this->scope->strictlyBelow($commanded);
+        $from = $this->measuredFrom($actor, $via);
+        $fromCavId = $from?->cav_id === null ? null : (int) $from->cav_id;
+        $others = $this->users->all()->reject(fn (User $user) => $user->id === $actor->id || $user->is_admin || $user->cav_id === null
+            || (int) $user->cav_id === $fromCavId);
+        $held = $this->commands->commandedUnitsByCavId($others->pluck('cav_id')->push($fromCavId)->filter()->values()->all());
+
+        // The leader's own trooper (placement and billet title) and the trooper of everyone on a billet of a unit the
+        // leader commands (their titles say who is junior), in one read.
+        $commandedIds = $commanded->pluck('id');
+        $teamCavIds = $others->filter(fn (User $user) => $commandedIds->contains($held->get($user->cav_id)?->id))->pluck('cav_id');
+        $troopers = $this->troopers->byCavId($teamCavIds->push($fromCavId)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all());
+        $trooper = $fromCavId === null ? null : $troopers->get($fromCavId);
+        $roles = $from === null ? collect() : $this->teamRoles($from, $trooper, $fromCavId === null ? null : $held->get($fromCavId), $commanded);
+        if ($below->isEmpty() && $roles->isEmpty()) {
+            return collect();
+        }
+
+        $placement = $trooper?->primary_section_id;
+        $billeted = $others->filter(function (User $user) use ($held, $below, $roles, $troopers) {
+            $unit = $held->get($user->cav_id);
+
+            return $unit !== null && ($below->contains($unit->id)
+                || ($roles->has($unit->id) && $this->isJunior($roles->get($unit->id), $unit, $troopers->get((int) $user->cav_id))));
+        });
 
         // The same checks as allows(), each person's standing and reach read for all of them at once (#496): a fixed
-        // number of queries however many people are below, not a batch per person.
+        // number of queries however many people are below, not a batch per person. Each unit the leader holds a team
+        // billet in adds one subtree read, whatever the number of people.
         $ending = $this->serving->mustEndAmong($billeted)->flip();
         $scopes = $this->scope->realScopes($billeted);
+        $subtrees = $commanded->filter(fn (Unit $unit) => $roles->has($unit->id))->unique('id')
+            ->mapWithKeys(fn (Unit $unit) => [$unit->id => $this->units->subtreeIds($unit)]);
 
         return $billeted
-            ->filter(fn (User $user) => ! $ending->has($user->id)
-                && $this->withinAndNotOver($scopes->get($user->id, collect()), $below, $placement))
+            ->filter(function (User $user) use ($ending, $scopes, $held, $below, $placement, $subtrees) {
+                $scope = $scopes->get($user->id, collect());
+                $unit = $held->get($user->cav_id);
+
+                return ! $ending->has($user->id) && ($below->contains($unit->id)
+                    ? $this->withinAndNotOver($scope, $below, $placement)
+                    : $scope->diff($subtrees->get($unit->id, collect()))->isEmpty());
+            })
             ->values();
     }
 
@@ -281,14 +340,15 @@ class ActAs
     }
 
     /**
-     * The units a start is measured from now: what the identity `$actor` acts from commands. Null when there is none
-     * to measure from, an Admin acting as nobody (not held to a scope) or a chain that must not grow.
+     * The units a start is measured from now: what the identity `$actor` acts from (`$via`, from {@see viaFor()})
+     * commands. Null when there is none to measure from, an Admin acting as nobody (not held to a scope) or a chain
+     * that must not grow.
      *
      * @return Collection<int, Unit>|null
      */
-    private function startingPoint(User $actor): ?Collection
+    private function startingPoint(User $actor, ?ViewAsTarget $via): ?Collection
     {
-        return $this->nested($actor) ? null : $this->commandOf($actor, $this->viaFor($actor));
+        return $this->nested($actor) ? null : $this->commandOf($actor, $via);
     }
 
     /**
@@ -346,6 +406,97 @@ class ActAs
     }
 
     /**
+     * Whether `$user` holds a billet in the command team of a unit the leader `$from` commands, strictly junior to the
+     * leader's own billet in that team ({@see teamRoles()}): the RXO for the RCO, the ASL for an SL. Their command
+     * covers the leader's placement, as it covers the whole unit, so the check {@see leadsBelow()} makes gives way to a
+     * narrower one: all they reach (a grant, an acting lead) stays inside that unit. Never an Admin, never the leader
+     * themselves. Billet titles decide, so a holder whose title names no team billet is never junior.
+     *
+     * @param  Collection<int, Unit>  $commanded
+     */
+    private function juniorInTeam(Collection $commanded, ?User $from, ?Trooper $trooper, User $user): bool
+    {
+        if ($from === null || $commanded->isEmpty() || $user->cav_id === null || (int) $user->cav_id === (int) $from->cav_id || $this->scope->isAdmin($user)) {
+            return false;
+        }
+
+        $unit = $this->commands->commandedUnitFor($user);
+        if ($unit === null) {
+            return false;
+        }
+
+        $mine = $this->teamRoles($from, $trooper, $this->commands->commandedUnitFor($from), $commanded)->get($unit->id);
+        $theirs = $this->troopers->byCavId([(int) $user->cav_id])->get((int) $user->cav_id);
+
+        return $mine !== null
+            && $this->isJunior($mine, $unit, $theirs)
+            && $this->scope->realScope($user)->diff($this->units->subtreeIds($unit))->isEmpty();
+    }
+
+    /**
+     * Whether anyone serving holds a billet junior to `$from` in a command team they are part of: what makes a Section
+     * Leader with an ASL, who has no units below, a leader who may act as someone. One read of those teams.
+     *
+     * @param  Collection<int, Unit>  $commanded
+     */
+    private function hasJuniorInTeam(?User $from, Collection $commanded): bool
+    {
+        if ($from === null || $commanded->isEmpty()) {
+            return false;
+        }
+
+        $trooper = $this->trooperOf($from);
+        $roles = $this->teamRoles($from, $trooper, $this->commands->commandedUnitFor($from), $commanded);
+        if ($roles->isEmpty()) {
+            return false;
+        }
+
+        $units = $commanded->keyBy('id');
+
+        return $this->commands->teamsOf($roles->keys()->all())->contains(
+            fn (Collection $team, int $unitId) => $team->contains(
+                fn (Trooper $member) => $member->id !== $trooper?->id && $this->isJunior($roles->get($unitId), $units->get($unitId), $member),
+            ),
+        );
+    }
+
+    /**
+     * The billet `$from` holds in the command team of each unit they command, keyed by unit id: the unit's lead (CO, PL,
+     * SL) where they are its acting lead, where the roster tags them ("Acting PL") and the billet they act for stands,
+     * otherwise the billet their own title names in the unit their synced billet commands (`$billet`, read by the
+     * caller with their `$trooper`). A unit where they hold no team billet is absent, a staff portfolio's group among
+     * them: a group has no team.
+     *
+     * @param  Collection<int, Unit>  $commanded
+     * @return Collection<int, CommandRole>
+     */
+    private function teamRoles(User $from, ?Trooper $trooper, ?Unit $billet, Collection $commanded): Collection
+    {
+        $roles = collect();
+        if ($billet !== null && ($role = CommandRole::fromBillet($trooper?->billet, $billet->type)) !== null) {
+            $roles->put($billet->id, $role);
+        }
+
+        foreach ($this->actingLeads->unitsLedBy($from) as $unit) {
+            if (($lead = CommandRole::leadOf($unit->type)) !== null) {
+                $roles->put($unit->id, $lead);
+            }
+        }
+
+        $ids = $commanded->pluck('id');
+
+        return $roles->filter(fn (CommandRole $role, int $unitId) => $ids->contains($unitId));
+    }
+
+    /** Whether `$theirs`, on a billet commanding `$unit`, is strictly junior to `$mine` in that unit's command team. */
+    private function isJunior(CommandRole $mine, Unit $unit, ?Trooper $theirs): bool
+    {
+        $role = CommandRole::fromBillet($theirs?->billet, $unit->type);
+
+        return $role !== null && $mine->isSeniorTo($role);
+    }
+
+    /**
      * Whether a person's real scope stays inside what is below the leader and does not cover the leader's own
      * placement: the two reach checks {@see leadsBelow()} and {@see candidates()} share.
      *
@@ -372,12 +523,15 @@ class ActAs
         return $via->kind === ViewAsKind::User && $this->scope->isAdmin($actor) ? $this->users->find($via->id) : null;
     }
 
-    /** The primary unit `$user`'s trooper is placed in, or null for nobody, an unlinked user or an unplaced trooper. */
-    private function placementOf(?User $user): ?int
+    /**
+     * `$user`'s trooper, or null for nobody or an unlinked user: where they are placed (`primary_section_id`, their
+     * primary unit) and their billet title.
+     */
+    private function trooperOf(?User $user): ?Trooper
     {
         $cavId = $user?->cav_id;
 
-        return $cavId === null ? null : $this->troopers->byCavId([(int) $cavId])->get((int) $cavId)?->primary_section_id;
+        return $cavId === null ? null : $this->troopers->byCavId([(int) $cavId])->get((int) $cavId);
     }
 
     /** @param  array<mixed>  $stored */

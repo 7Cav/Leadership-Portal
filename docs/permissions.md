@@ -216,6 +216,25 @@ their own plan unless they also command the company.
 | View as a unit | Any | Own | Own | Own | Own | Own | Own | Own | No | Granted units | Switch target |
 | View as a person | Yes | No | No | No | No | No | No | No | No | No | Switch target |
 
+### Act as
+
+Act as runs the portal as another person, writes included, and every entry it writes names you acting for them ("Hale.S
+for Vasquez.R"). Who you may act as:
+
+- An Admin: anyone who could sign in, never themselves; another Admin only without their Admin rights. Only an Admin
+  acts as a billet (a unit's leader, held or vacant).
+- A leader (billet or acting lead, never a staff grant): a serving billet holder strictly below the unit they command,
+  as long as nothing that person holds (a grant, an acting lead) reaches outside the leader's command or over the
+  leader's own placement.
+- Inside the leader's own command team, the billets junior to theirs in that unit (decided 2026-10-28): the regiment's
+  CO as its XO and CSM, its XO as its CSM; a battalion's CO as its XO and SGM, its XO as its SGM (DEVCOM: the 1IC as the
+  2IC); a company's CO as its XO and 1SG, its XO as its 1SG; a PL as their PSG; an SL as their ASL. Never upward and
+  never a peer, and only while everything the junior holds stays inside that unit. An acting lead stands where the
+  unit's commanding billet does, so an acting PL may act as the PSG. The order is the roster's command team order
+  (`CommandRole::seniority()`).
+- Nobody while acting as someone, except an Admin acting as a leader, who may then act as whoever that leader may (one
+  step only).
+
 ### Counseling (DCS and LOR)
 
 "Own" here is your command (billet or acting lead), never a staff grant. A command the trooper holds too does not
@@ -342,6 +361,7 @@ only sign out has none, since it ends the session and signing back in is limited
 | Billet to unit mapping rules | `app/Commands/Units/CommandBillet.php`, `StaffBillet.php` (portfolios), written by `ImportOrgStructure.php` into `unit_command_mappings` |
 | Acting leads | `unit_acting_leads`, `AssignActingLeadHandler`, `RemoveActingLeadHandler` |
 | Who is an Admin (flag or approved Regimental HQ billet) | `ScopeResolver::isAdmin()` and `adminIdsAmong()`; billets in `admin_billets`, decided by `app/Commands/AdminBillets/DecideAdminBilletHandler.php`, names recorded by `ImportOrgStructure` and `SyncRosterHandler` |
+| Act as (who may act as whom, the picker, the command team order) | `app/Authorization/ActAs.php`, `app/Models/CommandRole.php` (`seniority()`) |
 | View as is read-only | `app/Http/Middleware/ReadOnlyWhileViewingAs.php` (every non-GET except `view-as.store`, `view-as.destroy`, `logout`) |
 | Sign-in and session standing | `app/Commands/Auth/AdmitServingMember.php`, `app/Authorization/ServingSession.php`, `EnsureServingMember` middleware |
 | Admin-only checks | In the controllers (`OrgStructureController`, `StaffGrantsController`, `TrooperPlacementController`, `RosterSyncController`, `LoaSyncController`, `AuditLogController`, `DemoDataController`) and again in some handlers. There are no Laravel policies. |
