@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { PhArrowRight, PhBookOpenText, PhClipboardText, PhFileText, PhUsersThree } from '@phosphor-icons/vue';
 import DocsLayout from '@/components/docs/DocsLayout.vue';
+import DocsSearchBox from '@/components/docs/DocsSearchBox.vue';
 import StartHere from '@/components/docs/StartHere.vue';
 import { homeGroups, roleLabel } from '@/lib/docs';
 
@@ -16,6 +17,8 @@ const props = defineProps({
     // `[{ id, label, url }]`: the Start here items for this viewer (#412).
     checklist: { type: Array, required: true },
     feedbackUrl: { type: String, default: null },
+    // `[{ title, summary, url, section, headings, text }]`: the search index (#413).
+    search: { type: Array, required: true },
 });
 
 const groups = computed(() => homeGroups(props.contents));
@@ -27,7 +30,7 @@ const ICONS = { 'weekly-rollcall': PhClipboardText, 'weekly-report': PhFileText,
 <template>
     <Head title="Docs · 7Cav Leadership Portal" />
 
-    <DocsLayout :contents="contents">
+    <DocsLayout :contents="contents" :search="search">
         <section class="max-w-[680px]" data-testid="docs-home">
             <span class="inline-flex h-5 items-center gap-1.5 rounded-sm bg-primary/18 px-1.5 text-xs font-medium text-gold-ink">
                 <PhBookOpenText aria-hidden="true" />Docs
@@ -36,6 +39,8 @@ const ICONS = { 'weekly-rollcall': PhClipboardText, 'weekly-report': PhFileText,
             <p class="mb-6 text-base text-muted-foreground">
                 Guides for the Leadership Portal, shown for your role: <b class="text-foreground" data-testid="docs-role">{{ roleLabel(audience) }}</b>.
             </p>
+
+            <DocsSearchBox placeholder="Search, for example: weekly report, guest, link player" class="mb-6 h-[46px] max-w-[560px] text-[15px]" />
 
             <div v-for="group in groups" :key="group.id" class="mb-6" :data-testid="`docs-group-${group.id}`">
                 <h2 class="mb-2 text-[15px] font-semibold tracking-tight">{{ group.title }}</h2>

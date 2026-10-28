@@ -44,7 +44,7 @@ const GUIDE = {
 
 const show = (props = {}) =>
     mount(Show, {
-        props: { audience: 'leader', contents: CONTENTS, checklist: [], feedbackUrl: null, guide: GUIDE, previous: CONTENTS[0].guides[0], next: CONTENTS[1].guides[1], ...props },
+        props: { audience: 'leader', contents: CONTENTS, checklist: [], search: [], feedbackUrl: null, guide: GUIDE, previous: CONTENTS[0].guides[0], next: CONTENTS[1].guides[1], ...props },
     });
 
 describe('DocsTree', () => {
@@ -68,7 +68,7 @@ describe('DocsTree', () => {
 
 describe('Docs home', () => {
     it('asks what the reader needs to do, names their role and groups their guides', () => {
-        const home = mount(Index, { props: { audience: 'leader', contents: CONTENTS, checklist: [] } });
+        const home = mount(Index, { props: { audience: 'leader', contents: CONTENTS, checklist: [], search: [] } });
 
         expect(home.find('h1').text()).toBe('What do you need to do?');
         expect(home.get('[data-testid="docs-role"]').text()).toBe('Leadership billet');
@@ -77,7 +77,7 @@ describe('Docs home', () => {
     });
 
     it('shows a trooper only For everyone, and no Admin group', () => {
-        const home = mount(Index, { props: { audience: 'everyone', contents: [CONTENTS[0]], checklist: [] } });
+        const home = mount(Index, { props: { audience: 'everyone', contents: [CONTENTS[0]], checklist: [], search: [] } });
 
         expect(home.get('[data-testid="docs-role"]').text()).toBe('Trooper');
         expect(home.findAll('[data-testid^="docs-group-"]').map((g) => g.find('h2').text())).toEqual(['For everyone']);

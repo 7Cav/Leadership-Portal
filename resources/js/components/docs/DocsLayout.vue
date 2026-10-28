@@ -2,6 +2,9 @@
 import { ref } from 'vue';
 import { PhCaretDown, PhListBullets } from '@phosphor-icons/vue';
 import { Button } from '@/components/ui/button';
+import { useDocsSearchShortcut } from '@/composables/useDocsSearch';
+import DocsSearch from './DocsSearch.vue';
+import DocsSearchBox from './DocsSearchBox.vue';
 import DocsTree from './DocsTree.vue';
 
 // The three columns of every docs page (#410, agreed design): contents on the left, the page in the middle, and a
@@ -10,7 +13,11 @@ import DocsTree from './DocsTree.vue';
 defineProps({
     contents: { type: Array, required: true },
     current: { type: String, default: null },
+    // The page's search index (#413), only the guides this reader may read.
+    search: { type: Array, required: true },
 });
+
+useDocsSearchShortcut();
 
 const contentsOpen = ref(false);
 </script>
@@ -34,7 +41,7 @@ const contentsOpen = ref(false);
             </Button>
             <div id="docs-contents" :class="contentsOpen ? 'mt-3' : 'hidden lg:block'">
                 <DocsTree :contents="contents" :current="current">
-                    <template #top><slot name="tree-top" /></template>
+                    <template #top><DocsSearchBox class="mb-3.5" /></template>
                 </DocsTree>
             </div>
         </div>
@@ -51,4 +58,6 @@ const contentsOpen = ref(false);
             <slot name="rail" />
         </aside>
     </div>
+
+    <DocsSearch :index="search" />
 </template>
