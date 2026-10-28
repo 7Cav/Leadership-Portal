@@ -25,6 +25,14 @@ function addGame(array $override = []): array
     return ['name' => 'Squad', 'id_kinds' => ['EOS ID'], 'interface' => 'battlemetrics', ...$override];
 }
 
+it('lists the games while a server is not yet linked to one', function () {
+    GameServer::factory()->create(['game_id' => null]);
+    GameServer::factory()->create(['game_id' => game('arma')->id]);
+
+    $this->actingAs($this->admin)->get('/settings/games')->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->where('games', fn ($games) => collect($games)->firstWhere('slug', 'arma')['inUse'] === true));
+});
+
 it('lists every game with its id label, interface and state, and the interfaces an Admin can pick', function () {
     TrooperGameIdentity::factory()->create(['game_id' => game('hll')->id]);
     Game::factory()->retired()->create(['slug' => 'foxhole', 'name' => 'Foxhole']);

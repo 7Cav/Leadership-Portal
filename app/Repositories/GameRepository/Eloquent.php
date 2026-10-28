@@ -66,6 +66,8 @@ class Eloquent implements GameRepository
     {
         return collect(self::USERS)
             ->flatMap(fn (string $model) => $model::query()->distinct()->pluck('game_id'))
+            // A server not yet linked to a game has no game_id, and no game to be in use.
+            ->filter()
             ->unique()
             ->sort()
             ->values()
