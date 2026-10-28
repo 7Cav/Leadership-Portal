@@ -17,7 +17,8 @@ return new class extends Migration
      *
      *  - `templates`: one row per named template. `company_id` null is the regiment-wide default. `enabled` is the
      *    company command's switch for whether its sections may use it. `active_version_id` is the version pointer that
-     *    used to be `active_template_versions`, one per template now.
+     *    used to be `active_template_versions`, one per template now. `copied_from_id` names the template a copy was
+     *    made from when a platoon moved to another company (#378, `MoveUnit` through `CarryUnitTemplates`).
      *  - `template_versions.template_id`: the template a version belongs to. `company_id` stays as the owner (null for
      *    the default) so the audit log's company filter keeps reading it; the repository writes both together.
      *  - `unit_template_choices`: a unit's choice of template. On a company it is the company's active template, on a
@@ -39,6 +40,9 @@ return new class extends Migration
             $table->boolean('enabled')->default(true);
             // `restrictOnDelete`: users are never deleted while they hold history. Null only for the seeded default.
             $table->foreignId('created_by')->nullable()->constrained('users')->restrictOnDelete();
+            // #378: the template this one was copied from, when a platoon moved here from another company brought it.
+            // `nullOnDelete`: templates are never deleted, and where a copy came from may outlive its source.
+            $table->foreignId('copied_from_id')->nullable()->constrained('templates')->nullOnDelete();
             $table->timestamps();
 
             $table->index(['company_id', 'artifact_type']);

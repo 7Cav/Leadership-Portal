@@ -3,7 +3,6 @@
 namespace App\Commands\Templates;
 
 use App\Commands\Units\MoveUnit;
-use App\Models\ArtifactType;
 use App\Models\Template;
 use App\Models\Unit;
 use App\Models\UnitType;
@@ -18,22 +17,31 @@ use App\Support\Audit\AuditEnvelope;
 use Illuminate\Support\Collection;
 
 /**
- * A platoon or section moved to another company keeps its settings and templates (#378, AD-16, AD-17). Called by
- * {@see MoveUnit} inside its audited move:
+ * A platoon or section moved to another company keeps its settings, and what its rollcall posts render (#378, AD-16,
+ * AD-17). Called by {@see MoveUnit} inside its audited move:
  *
- *  - {@see usedBy()} before the move: the company templates its sections render from now (a pick, or the company's
- *    default), so they are known while the unit still sits under the old company;
- *  - {@see afterMove()} after it: those templates are carried along (`template_carries`), so its sections may go on
- *    using them in the new company and their picks stay valid. With the new company's own template editing switched off
- *    by its battalion (#376) they are kept but not used, and the rollcall tells the sections which template they now
- *    use ({@see TemplateResolver::pickerFor()}).
+ *  - {@see usedBy()} before the move: the company template each of its sections renders from now (a pick, or the
+ *    company's default), read while the unit still sits under the old company;
+ *  - {@see afterMove()} after it: each of those templates is copied into the new company as a template of its own,
+ *    named after the old one and the company it came from, holding the version that was active, and each section's
+ *    pick moves to its copy. The new company owns the copies, so its command manages them like any of its templates
+ *    (subject to its battalion's switch, #376), and the old company's later edits or switches never reach the moved
+ *    sections. Where the new company's battalion sets its templates the copies are made switched off, so the sections
+ *    follow their new company, and the rollcall tells them which template they now use
+ *    ({@see TemplateResolver::pickerFor()}); switching a copy on brings it back.
  *
- * Fireteam settings, labels, acting leads and the sections' picks are keyed to the units themselves, so they move with
- * them unchanged. One audited batch (`unit.settings_carried`) records what came along: the carried templates, and the
- * fireteam settings, acting leads and picks of the moved units, so the log shows what the platoon kept.
+ * Fireteam settings, labels and acting leads are keyed to the units themselves, so they move with them unchanged. One
+ * audited batch (`unit.settings_carried`) records what came along: the copies and their versions, the sections' new
+ * picks, and the fireteam settings and acting leads of the moved units, so the log shows what the platoon kept.
  */
 class CarryUnitTemplates
 {
+    /** A template name's limit (`templates.name`). */
+    private const NAME_LIMIT = 60;
+
+    /** Room kept for the repository's ` (n)` when the copy's name is taken already. */
+    private const NUMBER_ROOM = 5;
+
     public function __construct(
         private readonly UnitRepository $units,
         private readonly TemplateVersionRepository $versions,
@@ -44,34 +52,40 @@ class CarryUnitTemplates
     ) {}
 
     /**
-     * The unit's company before it moves, and the company templates its sections render from.
+     * The unit's company before it moves, and the company template each of its sections renders from, keyed by section
+     * id. A section on the regiment default is left out: that one is everyone's.
      *
-     * @return array{0: ?Unit, 1: Collection<int, Template>}
+     * @return array{0: ?Unit, 1: array<int, Template>}
      */
     public function usedBy(Unit $unit): array
     {
         if (! in_array($unit->type, [UnitType::Platoon, UnitType::Section], true)) {
-            return [null, collect()];
+            return [null, []];
         }
 
         $company = $this->units->owningCompany($unit);
 
-        $templates = $this->sectionsOf($unit)
-            ->map(fn (Unit $section) => $this->resolver->forUnit($section)->template)
-            ->filter(fn (?Template $template) => $template !== null && ! $template->isRegimentDefault())
-            ->unique('id')
-            ->values();
+        $used = [];
 
-        return [$company, $templates];
+        foreach ($this->sectionsOf($unit) as $section) {
+            $template = $this->resolver->forUnit($section)->template;
+
+            if ($template !== null && ! $template->isRegimentDefault()) {
+                $used[$section->id] = $template;
+            }
+        }
+
+        return [$company, $used];
     }
 
     /**
-     * Carry the templates along when the unit landed under another company, and record what it kept. Nothing happens
-     * for a move within one company, or for a unit that was or is now under none.
+     * Copy the templates into the new company and move the sections' picks to the copies when the unit landed under
+     * another company, and record what it kept. Nothing happens for a move within one company, or for a unit that was
+     * or is now under none.
      *
-     * @param  Collection<int, Template>  $templates  from {@see usedBy()}
+     * @param  array<int, Template>  $used  from {@see usedBy()}
      */
-    public function afterMove(User $actor, Unit $unit, ?Unit $from, Collection $templates): void
+    public function afterMove(User $actor, Unit $unit, ?Unit $from, array $used): void
     {
         $to = $this->units->owningCompany($unit);
 
@@ -84,19 +98,42 @@ class CarryUnitTemplates
             action: 'unit.settings_carried',
             reason: null,
             reasonRequired: false,
-            mutation: function () use ($actor, $unit, $from, $templates) {
-                $carried = $this->versions->carry($unit, $templates, $from->id, $actor->id);
-                $units = $this->units->subtree($unit);
+            mutation: function () use ($actor, $unit, $from, $to, $used) {
+                // Switched off where the battalion sets the company's templates: the sections follow the new company.
+                $enabled = $this->versions->companyEditsTemplates($to->id);
+                $copies = [];
+                $picks = [];
 
-                $kept = $units->flatMap(fn (Unit $member) => array_filter([
+                foreach ($used as $sectionId => $template) {
+                    $copies[$template->id] ??= $this->versions->copyTemplate($template, $to->id, $this->copyName($template, $from), $enabled, $actor->id);
+
+                    $section = $this->units->find($sectionId);
+
+                    if ($section !== null) {
+                        $picks[] = $this->versions->choose($section, $copies[$template->id], $actor->id);
+                    }
+                }
+
+                $kept = $this->units->subtree($unit)->flatMap(fn (Unit $member) => array_filter([
                     $this->fireteams->settingFor($member->id),
                     $this->actingLeads->forUnit($member->id),
-                    $this->versions->choiceFor($member->id, ArtifactType::RollcallBbcode),
                 ]))->all();
 
-                return new AuditedBatch($unit, ...$carried, ...$kept);
+                $copied = collect($copies)->flatMap(fn (Template $copy) => [$copy, $copy->activeVersion])->all();
+
+                return new AuditedBatch($unit, ...$copied, ...$picks, ...$kept);
             },
         );
+    }
+
+    /** `Training (from A/1-7)`, the old name shortened when it would not fit. */
+    private function copyName(Template $template, Unit $from): string
+    {
+        // A callsign is short; a company with only a long name gives at most half the name's room.
+        $suffix = ' (from '.mb_substr($from->callsign ?? $from->name, 0, intdiv(self::NAME_LIMIT, 2)).')';
+        $room = max(1, self::NAME_LIMIT - self::NUMBER_ROOM - mb_strlen($suffix));
+
+        return rtrim(mb_substr($template->name, 0, $room)).$suffix;
     }
 
     /**

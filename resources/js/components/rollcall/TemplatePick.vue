@@ -4,8 +4,7 @@ import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 
 // The section's choice of rollcall template (#375): one of the templates its company switched on, the regiment default,
-// one carried along when its platoon moved here from another company (#378), or none, which follows the company
-// default. `picker` is `TemplateResolver::pickerFor()`'s answer and `template` the
+// or none, which follows the company default. `picker` is `TemplateResolver::pickerFor()`'s answer and `template` the
 // one the post now renders from. Saving the pick is the page's job: this only says which one was chosen.
 const props = defineProps({
     picker: { type: Object, required: true },
@@ -25,16 +24,11 @@ const SOURCE_NOTES = {
 
 const value = computed(() => (props.picker.picked === null ? '' : String(props.picker.picked)));
 const note = computed(() => SOURCE_NOTES[props.template?.source] ?? null);
-const optionLabel = (option) => {
-    if (option.isRegimentDefault) return `${option.name} (regiment)`;
+const optionLabel = (option) => (option.isRegimentDefault ? `${option.name} (regiment)` : option.name);
 
-    return option.isCarried ? `${option.name} (carried)` : option.name;
-};
-
-// A platoon moved here from another company brought its templates (#378). Where the new company's battalion sets its
-// templates they are not used, and the section is told what its post uses now.
+// A platoon moved here from another company gets copies of its templates (#378). Where the new company's battalion sets
+// its templates the copies start switched off, and the section is told what its post uses now.
 const moved = computed(() => props.picker.moved ?? null);
-const movedFrom = computed(() => (moved.value?.from ?? []).join(', '));
 
 function choose(event) {
     const id = event.target.value === '' ? null : Number(event.target.value);
@@ -63,12 +57,10 @@ function choose(event) {
         <p v-if="template?.name" class="text-xs text-muted-foreground" data-testid="template-pick-note">
             Using {{ template.name }}. {{ note }}
         </p>
-        <p v-if="moved && moved.usable" class="basis-full text-xs text-muted-foreground" data-testid="template-moved">
-            This platoon brought its templates from {{ movedFrom }}; they are marked carried.
-        </p>
-        <p v-else-if="moved" role="status" class="basis-full rounded-md border border-warning/40 bg-warning/7 px-3 py-2 text-xs" data-testid="template-moved">
-            This platoon moved here from {{ movedFrom }}. Its templates from there are not used here, as this company's
-            battalion sets its templates. The post now uses {{ moved.using ?? 'no template' }}.
+        <p v-if="moved" role="status" class="basis-full rounded-md border border-warning/40 bg-warning/7 px-3 py-2 text-xs" data-testid="template-moved">
+            <template v-if="moved.from">This platoon moved here from {{ moved.from }}. </template>Its template came along as
+            {{ moved.copy }}, which is switched off here<template v-if="moved.locked">, as this company's battalion sets its
+            templates</template>. The post now uses {{ moved.using ?? 'no template' }}.
         </p>
     </div>
 </template>

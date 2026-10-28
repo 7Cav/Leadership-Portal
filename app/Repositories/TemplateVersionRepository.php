@@ -5,7 +5,6 @@ namespace App\Repositories;
 use App\Models\ArtifactType;
 use App\Models\CompanyTemplatePolicy;
 use App\Models\Template;
-use App\Models\TemplateCarry;
 use App\Models\TemplateVersion;
 use App\Models\Unit;
 use App\Models\UnitTemplateChoice;
@@ -13,8 +12,8 @@ use Illuminate\Support\Collection;
 use InvalidArgumentException;
 
 /**
- * Sole DB access for `templates`, `template_versions`, `unit_template_choices`, `company_template_policies` and
- * `template_carries` (AD-2, AD-17, AD-22). Portal-owned:
+ * Sole DB access for `templates`, `template_versions`, `unit_template_choices` and `company_template_policies` (AD-2,
+ * AD-17, AD-22). Portal-owned:
  * the audited `Commands/Templates` Commands are its writers.
  *
  * A company keeps named templates (#375), and the regiment-wide default is the one template with no company. A
@@ -145,19 +144,14 @@ interface TemplateVersionRepository
     public function setCompanyEditsTemplates(Unit $company, bool $edits, int $setBy): CompanyTemplatePolicy;
 
     /**
-     * Carry `$templates` along with a moved platoon or section (#378): one row per unit and template, an existing one
-     * kept as it is. Returns the rows written now, in template order; empty when every one was carried already.
+     * Copy `$source` into the company as a template of its own (#378), in one transaction under the company's lock: one
+     * version, version 1, holding the source's active version's body and author, made the copy's active one. The copy
+     * remembers its source (`copied_from_id`) and is switched on or off as `$enabled` says. Unlike
+     * {@see createTemplate()} it never becomes the company's active template, so the company's other sections render
+     * what they did. When `$name` is taken (case aside) the copy is numbered: `$name (2)`, `$name (3)`, and so on, so
+     * `$name` should leave room for that within the 60-character limit.
      *
-     * @param  iterable<Template>  $templates
-     * @return list<TemplateCarry>
+     * @throws InvalidArgumentException when `$companyId` is not a company, or the source has no active version.
      */
-    public function carry(Unit $unit, iterable $templates, ?int $fromCompanyId, int $carriedBy): array;
-
-    /**
-     * The templates carried to `$unit` or any unit above it (read from its stored path, so a stale model cannot ask
-     * about its old place), each with its active version and the carry's origin company loaded, oldest carry first.
-     *
-     * @return Collection<int, TemplateCarry>
-     */
-    public function carriedTo(Unit $unit, ArtifactType $type): Collection;
+    public function copyTemplate(Template $source, int $companyId, string $name, bool $enabled, int $copiedBy): Template;
 }

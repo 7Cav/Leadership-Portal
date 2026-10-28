@@ -5,18 +5,18 @@ import TemplatePick from '../TemplatePick.vue';
 enableAutoUnmount(afterEach);
 
 const OPTIONS = [
-    { id: 5, name: 'Regiment default', isRegimentDefault: true, isCarried: false, version: 1 },
-    { id: 7, name: 'Bravo standard', isRegimentDefault: false, isCarried: false, version: 3 },
-    { id: 9, name: 'Training', isRegimentDefault: false, isCarried: true, version: 2 },
+    { id: 5, name: 'Regiment default', isRegimentDefault: true, version: 1 },
+    { id: 7, name: 'Bravo standard', isRegimentDefault: false, version: 3 },
+    { id: 9, name: 'Training (from A/1-7)', isRegimentDefault: false, version: 1 },
 ];
 const factory = (picker = {}, props = {}) =>
     mount(TemplatePick, { props: { picker: { options: OPTIONS, picked: null, moved: null, ...picker }, template: { name: 'Bravo standard', source: 'company' }, ...props } });
 
 describe('TemplatePick', () => {
-    it('marks the regiment default and the templates carried from another company', () => {
+    it('marks the regiment default, and lists a copy from a move like any company template', () => {
         const labels = factory().findAll('option').map((option) => option.text());
 
-        expect(labels).toEqual(['Company default', 'Regiment default (regiment)', 'Bravo standard', 'Training (carried)']);
+        expect(labels).toEqual(['Company default', 'Regiment default (regiment)', 'Bravo standard', 'Training (from A/1-7)']);
     });
 
     it('emits the pick, or null for the company default, and not a pick that changes nothing', async () => {
@@ -33,19 +33,23 @@ describe('TemplatePick', () => {
         expect(wrapper.emitted('pick')).toEqual([[7], [null]]);
     });
 
-    it('says where carried templates came from when they may be used', () => {
-        const text = factory({ moved: { from: ['A/1-7'], usable: true, using: 'Training' } }).get('[data-testid="template-moved"]').text();
-
-        expect(text).toContain('brought its templates from A/1-7');
-    });
-
-    it('tells a moved platoon which template it now uses when its new company does not use them', () => {
-        const wrapper = factory({ moved: { from: ['A/1-7'], usable: false, using: 'Bravo standard' } });
+    it('tells a moved platoon which template it now uses when its copy is switched off by the battalion', () => {
+        const wrapper = factory({ moved: { from: 'A/1-7', copy: 'Training (from A/1-7)', locked: true, using: 'Bravo standard' } });
         const notice = wrapper.get('[data-testid="template-moved"]');
 
         expect(notice.attributes('role')).toBe('status');
         expect(notice.text()).toContain('moved here from A/1-7');
+        expect(notice.text()).toContain('came along as Training (from A/1-7), which is switched off here, as this company');
         expect(notice.text()).toContain('The post now uses Bravo standard.');
+    });
+
+    it('leaves the battalion out when the company itself switched the copy off', () => {
+        const text = factory({ moved: { from: 'A/1-7', copy: 'Training (from A/1-7)', locked: false, using: 'Bravo standard' } })
+            .get('[data-testid="template-moved"]')
+            .text();
+
+        expect(text).toContain('which is switched off here. The post now uses Bravo standard.');
+        expect(text).not.toContain('battalion');
     });
 
     it('says nothing about a move when the platoon never moved', () => {

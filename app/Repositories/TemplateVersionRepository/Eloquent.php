@@ -5,7 +5,6 @@ namespace App\Repositories\TemplateVersionRepository;
 use App\Models\ArtifactType;
 use App\Models\CompanyTemplatePolicy;
 use App\Models\Template;
-use App\Models\TemplateCarry;
 use App\Models\TemplateVersion;
 use App\Models\Unit;
 use App\Models\UnitTemplateChoice;
@@ -213,48 +212,39 @@ class Eloquent implements TemplateVersionRepository
         return Template::query()->where('company_id', $company->getKey())->exists();
     }
 
-    public function carry(Unit $unit, iterable $templates, ?int $fromCompanyId, int $carriedBy): array
+    public function copyTemplate(Template $source, int $companyId, string $name, bool $enabled, int $copiedBy): Template
     {
-        return DB::transaction(function () use ($unit, $templates, $fromCompanyId, $carriedBy) {
-            Unit::query()->whereKey($unit->id)->lockForUpdate()->first(['id']);
+        return DB::transaction(function () use ($source, $companyId, $name, $enabled, $copiedBy) {
+            $this->lockCompany($companyId);
 
-            $written = [];
+            // Read from the stored row, so a stale model cannot copy a version that is no longer the active one.
+            $pointer = Template::query()->whereKey($source->id)->value('active_version_id');
+            $active = $pointer === null ? null : TemplateVersion::query()->find($pointer);
 
-            foreach ($templates as $template) {
-                $exists = TemplateCarry::query()->where('unit_id', $unit->id)->where('template_id', $template->id)->exists();
-
-                if (! $exists) {
-                    $written[] = TemplateCarry::query()->create([
-                        'unit_id' => $unit->id,
-                        'template_id' => $template->id,
-                        'from_company_id' => $fromCompanyId,
-                        'carried_by' => $carriedBy,
-                    ]);
-                }
+            if ($active === null) {
+                throw new InvalidArgumentException("Template {$source->id} has no active version to copy.");
             }
 
-            return $written;
+            $copy = new Template;
+            $copy->forceFill([
+                'company_id' => $companyId,
+                'artifact_type' => $source->artifact_type,
+                // Decided under the lock, so two copies made at once cannot take one name.
+                'name' => $this->freeName($companyId, $source->artifact_type, $name),
+                'enabled' => $enabled,
+                'created_by' => $copiedBy,
+                'copied_from_id' => $source->id,
+            ])->save();
+
+            // The text and its author are the source's; only the copy itself is the copier's.
+            $version = $this->insertVersion($copy, 1, $active->body, $active->created_by);
+            $this->point($copy, $version);
+
+            return $copy;
         });
     }
 
-    public function carriedTo(Unit $unit, ArtifactType $type): Collection
-    {
-        $path = Unit::query()->whereKey($unit->id)->value('path');
-        $chain = array_values(array_filter(explode('/', (string) $path), fn (string $id) => $id !== ''));
-
-        if ($chain === []) {
-            return collect();
-        }
-
-        return TemplateCarry::query()
-            ->with(['template.activeVersion', 'fromCompany'])
-            ->whereIn('unit_id', $chain)
-            ->whereHas('template', fn ($query) => $query->where('artifact_type', $type->value))
-            ->orderBy('id')
-            ->get();
-    }
-
-    public function companyEditsTemplates(int $companyId): bool
+        public function companyEditsTemplates(int $companyId): bool
     {
         return CompanyTemplatePolicy::query()->where('company_id', $companyId)->value('company_edits_templates') ?? true;
     }
@@ -309,6 +299,25 @@ class Eloquent implements TemplateVersionRepository
         return $template->setRelation('activeVersion', $version);
     }
 
+    /** `$name`, or the first of `$name (2)`, `$name (3)`... that the company does not hold yet (case aside). */
+    private function freeName(int $companyId, ArtifactType $type, string $name): string
+    {
+        $taken = Template::query()
+            ->where('company_id', $companyId)
+            ->where('artifact_type', $type->value)
+            ->pluck('name')
+            ->map(fn (string $held) => mb_strtolower($held))
+            ->all();
+
+        for ($n = 1; ; $n++) {
+            $candidate = $n === 1 ? $name : "{$name} ({$n})";
+
+            if (! in_array(mb_strtolower($candidate), $taken, true)) {
+                return $candidate;
+            }
+        }
+    }
+
     /**
      * The next version of a locked template, made its active one. Runs inside the caller's transaction.
      *
@@ -333,7 +342,7 @@ class Eloquent implements TemplateVersionRepository
         return $version;
     }
 
-    private function insertVersion(Template $template, int $number, string $body, int $createdBy): TemplateVersion
+    private function insertVersion(Template $template, int $number, string $body, ?int $createdBy): TemplateVersion
     {
         return TemplateVersion::query()->create([
             'template_id' => $template->id,

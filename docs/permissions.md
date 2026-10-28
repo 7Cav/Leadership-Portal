@@ -120,10 +120,14 @@ read the templates but not add, edit, roll back, switch or choose them; the batt
 instead, and the Templates page tells the company why. Marking, confirming, posting, fireteams, reports and a section's
 pick of template are not affected.
 
-When an Admin moves a platoon or section to another company, the templates its sections used go with it and stay
-available to its sections there (while the new company sets its own templates). Fireteam settings, labels, acting
-leads and template picks stay on the units. The move and what came along are in the audit log (`unit.moved`,
-`unit.settings_carried`).
+When an Admin moves a platoon or section to another company, each template its sections used (picked or the old
+company's default) is copied into the new company as one of its own, named like "Training (from A/1-7)" with the
+version that was in use, and the sections' picks move to the copies. From then on the new company's command manages
+the copies like any of its templates, and the old company's command has no say over them: its later edits, rollbacks
+and switches never reach the moved sections. If the new company's battalion sets its templates, the copies start
+switched off, the sections follow the new company, and the rollcall says which template the post now uses; the
+battalion (or the company, once editing is handed back) can switch a copy on. Fireteam settings, labels and acting
+leads stay on the units. The move and what was copied are in the audit log (`unit.moved`, `unit.settings_carried`).
 
 ### Reports
 

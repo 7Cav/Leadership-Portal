@@ -18,8 +18,9 @@ use App\Support\Audit\AuditEnvelope;
  * requested parent is already the unit's current parent) never reaches `AuditEnvelope` — no
  * state changes, so nothing is logged.
  *
- * A platoon or section that lands under another company keeps its settings and templates (#378): the templates its
- * sections used are carried along, in the same transaction and audited with the move ({@see CarryUnitTemplates}).
+ * A platoon or section that lands under another company keeps its settings and what its posts render (#378): the
+ * templates its sections used are copied into the new company and their picks moved to the copies, in the same
+ * transaction and audited with the move ({@see CarryUnitTemplates}).
  */
 class MoveUnit
 {
@@ -63,16 +64,16 @@ class MoveUnit
         }
 
         // Read while the unit still sits under its old company: what its sections render from there.
-        [$fromCompany, $templates] = $this->carry->usedBy($unit);
+        [$fromCompany, $used] = $this->carry->usedBy($unit);
 
         return $this->audit->record(
             actorId: $actor->id,
             action: 'unit.moved',
             reason: null,
             reasonRequired: false,
-            mutation: function () use ($actor, $unit, $newParentId, $fromCompany, $templates) {
+            mutation: function () use ($actor, $unit, $newParentId, $fromCompany, $used) {
                 $moved = $this->units->move($unit, $newParentId);
-                $this->carry->afterMove($actor, $moved, $fromCompany, $templates);
+                $this->carry->afterMove($actor, $moved, $fromCompany, $used);
 
                 return $moved;
             },
