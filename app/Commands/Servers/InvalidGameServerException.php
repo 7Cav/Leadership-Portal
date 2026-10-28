@@ -9,7 +9,7 @@ class InvalidGameServerException extends RuntimeException
 {
     public static function selectedWithoutGame(): self
     {
-        return new self('Pick the game this server is for before selecting it.');
+        return new self('Choose the game this server is for before selecting it.');
     }
 
     public static function retiredGame(string $game): self

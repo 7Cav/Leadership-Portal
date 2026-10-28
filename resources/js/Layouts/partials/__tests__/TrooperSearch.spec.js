@@ -164,7 +164,7 @@ describe('TrooperSearch', () => {
         await type('zz');
         await settle();
 
-        expect(inBody('[data-testid="trooper-search-empty"]').textContent).toContain('No trooper in your view matches “zz”');
+        expect(inBody('[data-testid="trooper-search-empty"]').textContent).toContain('No trooper in your scope matches "zz"');
         expect(inBody('[data-testid="trooper-search-scope-note"]').textContent).toContain('Only troopers in your units are shown');
     });
 

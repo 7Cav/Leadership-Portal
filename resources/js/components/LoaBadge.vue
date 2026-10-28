@@ -98,7 +98,7 @@ const details = computed(() => {
 
     if (props.sync) {
         lines.push(`Source: ${props.sync.source}`);
-        lines.push(props.sync.lastSyncedAt ? `Last synced ${forumDateTime(props.sync.lastSyncedAt)} UTC` : 'Never synced');
+        lines.push(props.sync.lastSyncedAt ? `Last synced ${forumDateTime(props.sync.lastSyncedAt)}Z` : 'Never synced');
         if (props.sync.stale) lines.push('The latest sync did not succeed, so this is the last good data.');
     }
 

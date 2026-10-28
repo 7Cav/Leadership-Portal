@@ -23,7 +23,7 @@ checklist:
 
 ## Check the numbers
 
-1. The numbers are counted from your rollcall and Section Practice marks for the week.
+1. The numbers are counted from your rollcall and section practice marks for the week.
 2. If one is wrong, choose **Open rollcall**, fix the mark, and come back. The report updates.
 
 ## Work through Ready to send
@@ -38,7 +38,7 @@ checklist:
 ## Freeze and send
 
 1. Tick **I have read the preview and my notes as command will see them**.
-2. Choose **Freeze & send**, give a reason for the record, and confirm.
+2. Choose **Freeze and send**, give a reason for the record, and confirm.
 3. If something is still open and the report must go out anyway, choose **Send anyway**. What was open is recorded with it.
 
 > [!good-to-know] A platoon's or higher unit's report adds up the sent reports of the units below it. A unit that has not sent yet is left out of the numbers and named, so send yours on time.

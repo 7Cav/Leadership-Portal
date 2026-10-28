@@ -20,7 +20,7 @@ class RosterSyncController extends Controller
     public function store(Request $request): RedirectResponse
     {
         if (! $request->user()->is_admin) {
-            abort(403, 'Only an Admin may trigger a manual roster sync.');
+            abort(403, 'Only an Admin may start a roster sync by hand.');
         }
 
         $job = new SyncRosterJob($request->user()->id);
@@ -28,7 +28,7 @@ class RosterSyncController extends Controller
         // Dispatching while a whole-roster sync is queued or running is silently dropped (the job is unique), so say
         // so rather than let the page report a sync that never queued.
         if ($job->isAlreadyQueued()) {
-            abort(409, 'A roster sync is already queued or running.');
+            abort(409, 'A roster sync is already queued or running. Reload in a minute to see the refreshed roster.');
         }
 
         dispatch($job);

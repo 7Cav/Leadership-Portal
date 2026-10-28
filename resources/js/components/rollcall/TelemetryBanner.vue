@@ -26,7 +26,7 @@ const failed = computed(() => props.telemetry.state === 'failed');
 // The feed that is down, by game and source (#176): "Hell Let Loose server (CRCON)", never a bare "server" that could
 // read as nobody having been online.
 const feed = computed(() => feedLabel(props.telemetry));
-const lastTried = computed(() => (props.telemetry.lastAttemptAt ? `${forumDateTime(props.telemetry.lastAttemptAt)} UTC` : null));
+const lastTried = computed(() => (props.telemetry.lastAttemptAt ? `${forumDateTime(props.telemetry.lastAttemptAt)}Z` : null));
 </script>
 
 <template>
@@ -41,10 +41,10 @@ const lastTried = computed(() => (props.telemetry.lastAttemptAt ? `${forumDateTi
             {{ feed }} could not be read<template v-if="lastTried">, last tried <TimeAgo :at="telemetry.lastAttemptAt" quiet>{{ lastTried }}</TimeAgo></template>. Nothing was pre-filled. Mark attendance by hand.
         </p>
         <p v-else class="min-w-[14rem] flex-1">
-            Telemetry is not configured<template v-if="telemetry.platformLabel"> for {{ telemetry.platformLabel }}</template>, so nothing was pre-filled. Mark attendance by hand.
+            Capture is not set up<template v-if="telemetry.platformLabel"> for {{ telemetry.platformLabel }}</template>, so nothing was pre-filled. Mark attendance by hand.
         </p>
         <Button v-if="telemetry.canRetry" variant="outline" size="sm" :disabled="!editable || retrying" data-testid="telemetry-retry" @click="$emit('retry')">
-            <PhCircleNotch v-if="retrying" class="animate-spin" aria-hidden="true" />{{ retrying ? 'Trying...' : 'Try again' }}
+            <PhCircleNotch v-if="retrying" class="animate-spin" aria-hidden="true" />{{ retrying ? 'Trying' : 'Try again' }}
         </Button>
     </div>
 </template>

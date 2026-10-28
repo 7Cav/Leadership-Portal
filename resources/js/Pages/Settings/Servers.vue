@@ -129,7 +129,7 @@ function lastReadLabel(read) {
             <div class="flex items-center gap-2">
                 <Badge variant="outline" class="gap-1"><PhLockSimple aria-hidden="true" />Admin</Badge>
                 <Button data-testid="fetch-servers" :disabled="fetching" @click="fetchServers">
-                    <PhArrowsClockwise aria-hidden="true" />{{ fetching ? 'Fetching…' : 'Fetch servers' }}
+                    <PhArrowsClockwise aria-hidden="true" />{{ fetching ? 'Fetching' : 'Fetch servers' }}
                 </Button>
             </div>
         </div>
@@ -273,7 +273,7 @@ function lastReadLabel(read) {
                     </template>
                 </TableBody>
             </Table>
-            <EmptyState v-else :icon="PhHardDrives" title="No servers fetched yet." class="border-t border-border py-10">
+            <EmptyState v-else :icon="PhHardDrives" title="No servers fetched yet" class="border-t border-border py-10">
                 Fetch servers to list the ones each interface with credentials can see.
             </EmptyState>
         </Card>

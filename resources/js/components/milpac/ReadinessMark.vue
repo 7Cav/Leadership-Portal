@@ -32,7 +32,7 @@ const box = computed(() => (props.size === 'sm' ? 'size-5' : 'size-6'));
         <span v-if="!decorative" class="sr-only">{{ known.label }}</span>
     </span>
     <span v-else :class="cn('inline-flex items-center justify-center text-muted-foreground', box)" data-status="none">
-        <span aria-hidden="true">–</span>
+        <span aria-hidden="true">—</span>
         <span v-if="!decorative" class="sr-only">Not held</span>
     </span>
 </template>

@@ -10,7 +10,7 @@ audience: everyone
 
 - **Cav week**: Saturday 00:00 UTC to Friday 23:59 UTC. Every rollcall, report and number in the portal is counted per Cav week.
 - **Rollcall**: the forum thread troopers sign each week to say whether they will attend, and the portal's screen where a leader records it.
-- **Section Practice (SP)**: the weekly practice a section holds. Each trooper is marked Present, Missed, Makeup or Attached.
+- **Section practice (SP)**: the weekly practice a section holds. Each trooper is marked Present, Missed, Makeup or Attached.
 - **Makeup**: attending another section's practice instead of your own, which counts for your own section.
 - **LOA**: leave of absence. A trooper whose leave covers the week is locked on the rollcall and posts as LOA.
 - **Week floor**: how far back a rollcall or report can still be changed. Older weeks are read only.

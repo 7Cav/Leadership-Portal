@@ -120,7 +120,7 @@ it('refuses a unit that does not exist', function () {
     $trooper = Trooper::factory()->create(['primary_section_id' => null]);
 
     expect(fn () => app(PlaceTrooperInSectionHandler::class)->handle($admin, new PlaceTrooperInSection($trooper->id, 999999, 'Because.')))
-        ->toThrow(InvalidTrooperPlacementException::class, 'There is no unit 999999');
+        ->toThrow(InvalidTrooperPlacementException::class, 'That unit no longer exists');
 
     expect(AuditLogEntry::count())->toBe(0);
 });
@@ -152,7 +152,7 @@ it('refuses a trooper id that does not exist', function () {
     $admin = User::factory()->admin()->create();
 
     expect(fn () => app(PlaceTrooperInSectionHandler::class)->handle($admin, new PlaceTrooperInSection(999999, placementSection()->id, 'Because.')))
-        ->toThrow(InvalidTrooperPlacementException::class, 'no trooper');
+        ->toThrow(InvalidTrooperPlacementException::class, 'That trooper no longer exists.');
 
     expect(AuditLogEntry::count())->toBe(0);
 });
@@ -181,7 +181,7 @@ it('rolls the audit entry back with the placement when the trooper was placed in
         }
     });
 
-    expect(fn () => placeTrooper($admin, $trooper, $section))->toThrow(InvalidTrooperPlacementException::class, 'while this was submitted');
+    expect(fn () => placeTrooper($admin, $trooper, $section))->toThrow(InvalidTrooperPlacementException::class, 'while this was sent');
 
     expect($trooper->fresh()->primary_section_id)->toBe($other->id)
         ->and($trooper->fresh()->placement_source)->toBe(PlacementSource::Sync)

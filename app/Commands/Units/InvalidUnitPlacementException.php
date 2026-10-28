@@ -15,7 +15,7 @@ class InvalidUnitPlacementException extends RuntimeException
 {
     public static function rootMustBeRegiment(UnitType $given): self
     {
-        return new self("A root node (no parent) must be a Regiment, not {$given->value}.");
+        return new self("A unit with no parent must be a regiment, not a {$given->value}.");
     }
 
     public static function wrongRankUnderParent(UnitType $given, UnitType $parent): self
@@ -23,14 +23,14 @@ class InvalidUnitPlacementException extends RuntimeException
         return new self(
             $given === UnitType::Group || $parent === UnitType::Group
                 ? "A {$given->value} cannot be placed under a {$parent->value}: a group sits under the regiment or a staff group, and nothing on the line sits under a group."
-                : "A {$given->value} cannot be placed under a {$parent->value} — it must sit exactly one rank below its parent.",
+                : "A {$given->value} cannot be placed under a {$parent->value}: it must sit exactly one level below its parent.",
         );
     }
 
     public static function cyclicParent(string $unitName, string $newParentName): self
     {
         return new self(
-            "Cannot re-parent \"{$unitName}\" under \"{$newParentName}\" — that would place it under one of its own descendants.",
+            "Cannot move \"{$unitName}\" under \"{$newParentName}\": that would place it under one of its own units.",
         );
     }
 }

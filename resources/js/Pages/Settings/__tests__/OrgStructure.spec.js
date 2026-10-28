@@ -159,13 +159,13 @@ describe('Settings/OrgStructure', () => {
             callsign: '2-7',
             parent_id: 1,
             processing: false,
-            errors: { parent_id: 'Cannot re-parent "2nd Battalion" under itself.' },
+            errors: { parent_id: 'Cannot move "2nd Battalion" under itself.' },
         };
         const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
 
         await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
 
-        expect(wrapper.find('[data-testid="edit-error-parent_id"]').text()).toBe('Cannot re-parent "2nd Battalion" under itself.');
+        expect(wrapper.find('[data-testid="edit-error-parent_id"]').text()).toBe('Cannot move "2nd Battalion" under itself.');
     });
 
     // Story 1.9 AC #4 — delete asks for confirmation before dispatching the request.
@@ -184,14 +184,14 @@ describe('Settings/OrgStructure', () => {
     // A blocked delete (remaining children) 422s with `errors.delete` — the message must
     // actually reach the page, or a refused delete looks like nothing happened at all.
     it('shows the server\'s reason when a delete is refused', async () => {
-        deleteSpy = vi.fn((url, { onError }) => onError({ delete: 'Cannot delete "2nd Battalion" — it still has child units.' }));
+        deleteSpy = vi.fn((url, { onError }) => onError({ delete: 'Cannot delete "2nd Battalion": it still has units under it.' }));
         vi.stubGlobal('confirm', vi.fn(() => true));
         const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
 
         await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
         await wrapper.find('[data-testid="delete-unit"]').trigger('click');
 
-        expect(wrapper.find('[data-testid="delete-error"]').text()).toBe('Cannot delete "2nd Battalion" — it still has child units.');
+        expect(wrapper.find('[data-testid="delete-error"]').text()).toBe('Cannot delete "2nd Battalion": it still has units under it.');
         vi.unstubAllGlobals();
         deleteSpy = vi.fn();
     });
@@ -276,7 +276,7 @@ describe('Settings/OrgStructure', () => {
             await wrapper.find('[data-testid="import-from-cav"]').trigger('click');
 
             expect(postSpy).toHaveBeenCalledWith('/settings/org-structure/import', {}, expect.objectContaining({ preserveScroll: true }));
-            expect(wrapper.find('[data-testid="import-from-cav"]').text()).toBe('Importing…');
+            expect(wrapper.find('[data-testid="import-from-cav"]').text()).toBe('Importing');
             expect(wrapper.find('[data-testid="import-from-cav"]').attributes('disabled')).toBeDefined();
         });
 
@@ -431,7 +431,7 @@ describe('Settings/OrgStructure', () => {
                 props: { units: UNITS, isAdmin: true, unplacedTroopers: [trooper({ billet: null, position_id: null })] },
             });
 
-            expect(wrapper.find('[data-testid="unplaced-trooper"]').text()).toContain('No billet reported');
+            expect(wrapper.find('[data-testid="unplaced-trooper"]').text()).toContain('No billet on record');
         });
 
         it('shows an explicit empty state, not a blank panel, when everyone is placed', () => {

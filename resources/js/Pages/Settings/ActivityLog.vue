@@ -107,7 +107,7 @@ function goTo(url) {
                     </TableRow>
                 </TableBody>
             </Table>
-            <EmptyState v-else :icon="PhFootprints" title="No page visits match these filters." class="py-10">
+            <EmptyState v-else :icon="PhFootprints" title="No page visits match these filters" class="py-10">
                 Widen the date range or clear a filter to see more.
             </EmptyState>
 

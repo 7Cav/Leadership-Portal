@@ -15,7 +15,7 @@ audience: leader
 
 ## Link a player
 
-1. Choose the trooper the player is, or choose **Choose trooper** to pick someone else.
+1. Choose the trooper the player is, or choose **Choose a trooper** to pick someone else.
 2. Choose **Link and mark present**. This saves their game identity and marks them present.
 
 > [!good-to-know] If the trooper already has a different ID for that game, the portal asks before replacing it. Choose **Keep** to leave the old one.

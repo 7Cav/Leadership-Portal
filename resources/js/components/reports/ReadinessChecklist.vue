@@ -115,7 +115,7 @@ const waiting = computed(() => props.children.filter((c) => c.status !== 'sent')
                                 :data-reason="t.id"
                                 @update:model-value="setReason(t.id, $event)"
                             >
-                                <NativeSelectOption value="">Pick a reason</NativeSelectOption>
+                                <NativeSelectOption value="">Choose a reason</NativeSelectOption>
                                 <NativeSelectOption v-for="r in reasons" :key="r.value" :value="r.value">{{ r.label }}</NativeSelectOption>
                             </NativeSelect>
                             <p :id="`reason-${t.id}-help`" class="mt-1.5 text-xs text-muted-foreground">

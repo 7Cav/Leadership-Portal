@@ -12,17 +12,17 @@ class InvalidFireteamException extends RuntimeException
 {
     public static function notASection(int $unitId): self
     {
-        return new self("Unit {$unitId} is not a section, so it has no fireteams.");
+        return new self('This unit is not a section, so it has no fireteams.');
     }
 
     public static function notACompany(int $unitId): self
     {
-        return new self("Unit {$unitId} is not a company, so it sets no fireteam policy for sections.");
+        return new self('This unit is not a company, so it sets no fireteam policy for sections.');
     }
 
     public static function notPlaced(int $trooperId): self
     {
-        return new self("Trooper {$trooperId} is not placed in this section. Reload to see the section as it is now.");
+        return new self('That trooper is not placed in this section. Reload the page to see the section as it is now.');
     }
 
     public static function leadsSection(string $name, string $role): self
@@ -37,7 +37,7 @@ class InvalidFireteamException extends RuntimeException
 
     public static function notALeader(int $leaderTrooperId): self
     {
-        return new self("Trooper {$leaderTrooperId} is not a fireteam leader in this section. Mark them as FTL first.");
+        return new self('The chosen leader is not a fireteam leader in this section. Mark them as FTL first.');
     }
 
     public static function ownFireteam(): self

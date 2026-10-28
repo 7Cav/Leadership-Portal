@@ -79,7 +79,7 @@ function submit() {
             failed(
                 response.status === 403
                     ? 'That is not allowed. Exit view as, or reload and pick the unit again.'
-                    : `${action === 'purge' ? 'The purge' : 'Generating'} failed (HTTP ${response.status}). Earlier weeks may already be written; reload to see what the portal holds now.`,
+                    : `${action === 'purge' ? 'The purge' : 'Generating'} failed (error ${response.status}). Earlier weeks may already be written; reload to see what the portal holds now.`,
             ),
         onNetworkError: () => failed('The portal could not be reached. Check your connection and try again.'),
     };
@@ -124,10 +124,10 @@ const hasDemoData = computed(() => props.existing.practices + props.existing.att
             <Badge variant="outline" class="gap-1"><PhLockSimple aria-hidden="true" />Admin only</Badge>
         </div>
 
-        <EmptyState v-if="!units.length" :icon="PhTreeStructure" title="No units to generate for." class="rounded-lg border border-border bg-card py-12" data-testid="no-units">
+        <EmptyState v-if="!units.length" :icon="PhTreeStructure" title="No units to generate for" class="rounded-lg border border-border bg-card py-12" data-testid="no-units">
             Import the regiment from Cav on
             <Link href="/settings/org-structure" class="underline underline-offset-2">Org structure</Link>
-            and sync the roster, then pick a unit here.
+            and sync the roster, then choose a unit here.
         </EmptyState>
 
         <div v-else class="grid items-start gap-5 lg:grid-cols-[1.15fr_0.85fr]">
@@ -166,7 +166,7 @@ const hasDemoData = computed(() => props.existing.practices + props.existing.att
                             <template v-if="selected">
                                 Selected <span class="font-medium text-foreground">{{ label(selected) }}</span> · {{ selected.name }}
                             </template>
-                            <template v-else>Pick a unit to generate or purge its demo data.</template>
+                            <template v-else>Choose a unit to generate or purge its demo data.</template>
                         </p>
                         <p v-if="selected && selected.troopers === 0" class="flex items-center gap-1.5 text-xs text-warning" data-testid="no-troopers-hint">
                             <PhWarning aria-hidden="true" />
@@ -246,7 +246,7 @@ const hasDemoData = computed(() => props.existing.practices + props.existing.att
                             <dd class="mt-0.5 text-lg font-semibold tabular-nums" :data-testid="`existing-${stat.key}`">{{ stat.value }}</dd>
                         </div>
                     </dl>
-                    <EmptyState v-else :icon="PhFlask" title="No demo data yet." class="border-t border-border py-8">
+                    <EmptyState v-else :icon="PhFlask" title="No demo data yet" class="border-t border-border py-8">
                         Generated weeks show up here, across every unit.
                     </EmptyState>
                 </Card>
@@ -286,7 +286,7 @@ const hasDemoData = computed(() => props.existing.practices + props.existing.att
                     Writes {{ form.weeks }} {{ Number(form.weeks) === 1 ? 'week' : 'weeks' }} of demo history<template v-if="span">
                         (<span class="whitespace-nowrap">{{ span.from }}</span> to <span class="whitespace-nowrap">{{ span.to }}</span>)</template
                     >
-                    for {{ selected?.troopers ?? 0 }} troopers. Earlier demo data for those weeks is replaced; weeks that already hold real records
+                    for {{ selected?.troopers ?? 0 }} {{ (selected?.troopers ?? 0) === 1 ? 'trooper' : 'troopers' }}. Earlier demo data for those weeks is replaced; weeks that already hold real records
                     are skipped.
                 </DialogDescription>
             </DialogHeader>
@@ -300,7 +300,7 @@ const hasDemoData = computed(() => props.existing.practices + props.existing.att
                     data-testid="confirm"
                     @click="submit"
                 >
-                    {{ form.processing ? 'Working…' : confirming === 'purge' ? 'Purge demo data' : 'Generate' }}
+                    {{ form.processing ? (confirming === 'purge' ? 'Purging' : 'Generating') : confirming === 'purge' ? 'Purge demo data' : 'Generate demo data' }}
                 </Button>
             </DialogFooter>
         </DialogContent>

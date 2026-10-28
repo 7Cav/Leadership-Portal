@@ -176,7 +176,7 @@ async function undo(guest) {
                 </h3>
                 <p class="mt-0.5 max-w-[62ch] text-xs text-muted-foreground">
                     Add troopers from other sections who attended. Each one counts as a makeup on their own section's rollcall. The
-                    game server doesn't add guests yet; it will once practices have set times.{{
+                    game server does not add guests yet; it will once practices have set times.{{
                         disabledReason ? ` ${disabledReason}.` : ''
                     }}
                 </p>
@@ -220,7 +220,7 @@ async function undo(guest) {
             </p>
             <p v-else-if="status === 'throttled'" role="alert" class="mt-2 text-xs text-muted-foreground">Too many searches in a short time. Wait a moment, then keep typing.</p>
             <p v-else-if="!results.length" class="mt-2 text-xs text-muted-foreground" data-testid="guest-search-empty">
-                No serving trooper in another section matches “{{ query.trim() }}”.
+                No serving trooper in another section matches "{{ query.trim() }}".
             </p>
             <ul v-else class="mt-2 divide-y divide-border rounded-md border border-border" data-testid="guest-results">
                 <li v-for="trooper in results" :key="trooper.id">
@@ -250,7 +250,7 @@ async function undo(guest) {
                 <span class="min-w-0 truncate font-medium">{{ guest.name }}</span>
                 <span class="font-mono text-xs text-muted-foreground">{{ guest.section ?? 'No section' }}</span>
                 <Badge v-if="guest.source === 'capture'" variant="outline" class="font-normal" data-testid="guest-source">
-                    <PhBroadcast aria-hidden="true" />Seen on the server
+                    <PhBroadcast aria-hidden="true" />Seen on the game server
                 </Badge>
                 <Badge v-else variant="outline" class="font-normal" data-testid="guest-source">
                     <template v-if="guest.recordedBy">Added by {{ guest.recordedBy }}</template><template v-else>Added by hand</template>

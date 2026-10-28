@@ -83,10 +83,10 @@ const makeupHref = computed(() =>
 );
 
 const FAILURES = {
-    forbidden: ['This trooper is outside your scope.', 'You can only open troopers in units you command or were granted.'],
-    missing: ['This trooper is not available.', 'They may have left their section since the page loaded, or sit outside the units you command or were granted. Reload to see the current roster.'],
-    signedOut: ['Your session has expired.', 'Reload the page to sign in again.'],
-    error: ['The trooper could not be loaded.', 'Try again in a moment.'],
+    forbidden: ['This trooper is outside your scope', 'You can open troopers only in units you command or were granted.'],
+    missing: ['This trooper is not available', 'They may have left their section since the page loaded, or sit outside the units you command or were granted. Reload to see the current roster.'],
+    signedOut: ['Your session expired', 'Reload the page to sign in again.'],
+    error: ['Could not load the trooper', 'Try again in a moment.'],
 };
 
 const RC_TONE = { ok: 'success', cn: 'warning', bad: 'danger' };
@@ -102,7 +102,7 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                     <RankBadge :rank="trooper.rank" :title="trooper.rankFull" large />
                     <div class="min-w-0">
                         <SheetDescription class="text-xs">
-                            {{ trooper.billet ?? 'No billet' }}, {{ trooper.section.callsign ?? trooper.section.name }}
+                            {{ trooper.billet ?? 'No billet on record' }}, {{ trooper.section.callsign ?? trooper.section.name }}
                         </SheetDescription>
                         <SheetTitle class="text-base leading-snug">{{ trooper.displayName }}</SheetTitle>
                     </div>
@@ -168,9 +168,9 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                         <dt class="text-muted-foreground">Rank</dt>
                         <dd>{{ trooper.rankFull ?? trooper.rank }}</dd>
                         <dt class="text-muted-foreground">Billet</dt>
-                        <dd>{{ trooper.billet ?? 'None reported' }}</dd>
+                        <dd>{{ trooper.billet ?? 'No billet on record' }}</dd>
                         <dt class="text-muted-foreground">MOS</dt>
-                        <dd>{{ trooper.mos ?? 'None reported' }}</dd>
+                        <dd>{{ trooper.mos ?? 'No MOS on record' }}</dd>
                         <dt class="text-muted-foreground">Section</dt>
                         <dd>
                             {{ trooper.section.callsign ?? trooper.section.name }}<template v-if="trooper.sectionLeader && trooper.role !== 'SL'">, led by {{ trooper.sectionLeader.displayName }}</template>

@@ -66,7 +66,7 @@ describe('useIdentity', () => {
         });
 
         it('puts the exact UTC time in the detail', () => {
-            expect(identityFor({ username: 'Hale.S' }, enriched()).provenanceDetail.value).toBe('Warrant Officer 1, fetched 03Aug26 09:14 UTC');
+            expect(identityFor({ username: 'Hale.S' }, enriched()).provenanceDetail.value).toBe('Warrant Officer 1, fetched 03Aug26 09:14Z');
         });
     });
 

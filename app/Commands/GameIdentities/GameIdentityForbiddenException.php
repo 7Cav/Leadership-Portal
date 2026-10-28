@@ -15,11 +15,11 @@ class GameIdentityForbiddenException extends AuthorizationException
 {
     public static function forTrooper(int $trooperId): self
     {
-        return new self("Trooper {$trooperId} is outside your scope.");
+        return new self('That trooper is outside your scope.');
     }
 
     public static function forSection(int $sectionId): self
     {
-        return new self("Section {$sectionId} is outside your scope.");
+        return new self('That section is outside your scope.');
     }
 }

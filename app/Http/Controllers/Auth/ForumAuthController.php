@@ -97,20 +97,20 @@ class ForumAuthController extends Controller
         // code-less, error-less callback (OAuth protocol violation) are not — log those
         // so they're observable, while all three share one generic user message (AC #5).
         if ($request->filled('error')) {
-            return $this->backToLogin('Sign-in was cancelled or could not be verified. Please try again.');
+            return $this->backToLogin('Sign-in was cancelled or could not be verified. Try again.');
         }
 
         if (! $stateOk) {
             Log::warning('Forum OAuth callback rejected: state missing or mismatched (possible CSRF or expired session).');
 
-            return $this->backToLogin('Sign-in was cancelled or could not be verified. Please try again.');
+            return $this->backToLogin('Sign-in was cancelled or could not be verified. Try again.');
         }
 
         // `filled()` is true for `?code[]=x`, which the string cast below would turn into a 500.
         if (! $request->filled('code') || ! is_string($request->query('code'))) {
             Log::warning('Forum OAuth callback rejected: no authorization code and no error parameter.');
 
-            return $this->backToLogin('Sign-in was cancelled or could not be verified. Please try again.');
+            return $this->backToLogin('Sign-in was cancelled or could not be verified. Try again.');
         }
 
         try {
@@ -120,7 +120,7 @@ class ForumAuthController extends Controller
             // reported so a wrong secret or a changed forum payload is debuggable.
             report($e);
 
-            return $this->backToLogin('We could not complete sign-in with 7Cav. Please try again.');
+            return $this->backToLogin('Could not complete sign-in with the 7Cav forum. Try again.');
         }
 
         // Enrich before deciding anything: it is what links (or re-confirms, or drops) the milpac id,
@@ -138,8 +138,8 @@ class ForumAuthController extends Controller
             ]);
 
             return $this->backToLogin($admission === Admission::Unverifiable
-                ? "We couldn't reach the 7th Cavalry roster to confirm your membership. Try again in a few minutes."
-                : "Your forum account isn't linked to a serving 7th Cavalry milpac.");
+                ? 'Could not reach the Cav roster to confirm your membership. Try again in a few minutes.'
+                : 'Your forum account is not linked to a serving 7Cav milpac.');
         }
 
         Auth::login($user);

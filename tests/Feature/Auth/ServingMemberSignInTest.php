@@ -18,8 +18,8 @@ use Saloon\Http\Faking\MockResponse;
  * at the AD-3 seam as in CavEnrichmentTest; the helpers are prefixed so the two files can share a
  * Pest process.
  */
-const GATE_NOT_SERVING = "Your forum account isn't linked to a serving 7th Cavalry milpac.";
-const GATE_UNVERIFIABLE = "We couldn't reach the 7th Cavalry roster to confirm your membership. Try again in a few minutes.";
+const GATE_NOT_SERVING = 'Your forum account is not linked to a serving 7Cav milpac.';
+const GATE_UNVERIFIABLE = 'Could not reach the Cav roster to confirm your membership. Try again in a few minutes.';
 
 /** A `LiteProfile` entry for forum user `$forumUserId`, on `$roster`. */
 function gateRosterEntry(int $forumUserId, string $roster = 'ROSTER_TYPE_COMBAT'): array

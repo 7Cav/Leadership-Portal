@@ -17,7 +17,7 @@ const chips = computed(() =>
         { key: 'all', label: 'All' },
         { key: 'risk', label: 'At-risk', icon: PhWarning, tone: 'text-destructive' },
         { key: 'loa', label: 'On LOA', icon: PhLockSimple },
-        { key: 'new', label: 'New recruits', icon: PhUserPlus },
+        { key: 'new', label: 'Joined recently', icon: PhUserPlus },
         { key: 'departed', label: 'Departed', icon: PhSignOut },
     ]
         .map((chip) => ({ ...chip, count: props.troopers.filter((t) => FILTERS[chip.key](t, props.currentWeek)).length }))

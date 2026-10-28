@@ -18,9 +18,9 @@ minutes: 2
 ## Set the topic
 
 1. Open your platoon's report for the week.
-2. Under **Training topic for my sections**, type the subject.
+2. Under **Training topic for your sections**, type the subject.
 3. To make it a starting point that sections can change, leave **Enforce it, so sections cannot change it** unticked. To lock it on every section's report, tick it.
-4. Choose **Apply to my sections**.
+4. Choose **Apply to your sections**.
 
 ## Change or clear it
 

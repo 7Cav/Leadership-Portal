@@ -206,7 +206,7 @@ describe('LoaBadge', () => {
             const wrapper = badge({ cover: covered(), sync: synced() });
 
             expect(wrapper.get('[data-testid="loa-details"]').text()).toContain('Source: Forum thread');
-            expect(wrapper.get('[data-testid="loa-details"]').text()).toContain('Last synced 08Oct26 14:05 UTC');
+            expect(wrapper.get('[data-testid="loa-details"]').text()).toContain('Last synced 08Oct26 14:05Z');
             expect(wrapper.get('[data-testid="loa-details"]').text()).not.toContain('did not succeed');
         });
 
@@ -214,7 +214,7 @@ describe('LoaBadge', () => {
             const wrapper = badge({ cover: covered(), sync: synced({ stale: true, latestStatus: 'failure', lastSyncedAt: '2026-10-01T09:30:00+00:00' }) });
             const details = wrapper.get('[data-testid="loa-details"]').text();
 
-            expect(details).toContain('Last synced 01Oct26 09:30 UTC');
+            expect(details).toContain('Last synced 01Oct26 09:30Z');
             expect(details).toContain('The latest sync did not succeed, so this is the last good data.');
         });
 

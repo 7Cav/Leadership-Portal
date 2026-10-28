@@ -13,7 +13,7 @@ class InvalidActingLeadException extends DomainException
 {
     public static function noSuchUnit(int $unitId): self
     {
-        return new self("There is no unit {$unitId}.");
+        return new self('That unit no longer exists. Reload the page.');
     }
 
     public static function notLeadable(string $unit): self
@@ -23,7 +23,7 @@ class InvalidActingLeadException extends DomainException
 
     public static function noSuchTrooper(int $trooperId): self
     {
-        return new self("There is no trooper {$trooperId}.");
+        return new self('That trooper no longer exists. Reload the page.');
     }
 
     public static function notServing(string $trooper): self

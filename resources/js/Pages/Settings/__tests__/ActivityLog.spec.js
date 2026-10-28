@@ -73,7 +73,7 @@ describe('Settings/ActivityLog', () => {
     });
 
     it('shows an empty state when no visit matches', () => {
-        expect(makeWrapper({ visits: { ...VISITS, data: [], total: 0 } }).text()).toContain('No page visits match these filters.');
+        expect(makeWrapper({ visits: { ...VISITS, data: [], total: 0 } }).text()).toContain('No page visits match these filters');
     });
 
     it('filters by user and date range with a GET to the activity-log route', async () => {

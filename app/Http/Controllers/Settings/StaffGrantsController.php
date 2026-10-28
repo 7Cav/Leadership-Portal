@@ -126,6 +126,13 @@ class StaffGrantsController extends Controller
             'user_id' => ['required', 'integer', 'exists:users,id'],
             'unit_id' => ['required', 'integer', 'exists:units,id'],
             'reason' => ['required', 'string', 'max:1000'],
+        ], [
+            'user_id.required' => 'Choose the user to grant.',
+            'user_id.exists' => 'That user no longer exists. Reload the page and choose another.',
+            'unit_id.required' => 'Choose the unit to grant.',
+            'unit_id.exists' => 'That unit no longer exists. Reload the page and choose another.',
+            'reason.required' => 'A reason is required to give a grant.',
+            'reason.max' => 'Keep the reason to :max characters.',
         ]);
 
         // `user_id`/`unit_id` were already confirmed to exist by the validation rules above, so
@@ -157,6 +164,9 @@ class StaffGrantsController extends Controller
 
         $data = $request->validate([
             'reason' => ['required', 'string', 'max:1000'],
+        ], [
+            'reason.required' => 'A reason is required to revoke a grant.',
+            'reason.max' => 'Keep the reason to :max characters.',
         ]);
 
         // Plain FK columns, not relations — reading them off `$grant` doesn't trigger lazy

@@ -120,7 +120,7 @@ describe('Settings/DemoData', () => {
 
         const options = mockForm.post.mock.calls[0][2];
         expect(options.onHttpException({ status: 500 })).toBe(false);
-        expect(mockToast.error).toHaveBeenCalledWith(expect.stringContaining('failed (HTTP 500)'));
+        expect(mockToast.error).toHaveBeenCalledWith(expect.stringContaining('failed (error 500)'));
         expect(options.onNetworkError(new Error('offline'))).toBe(false);
         expect(mockToast.error).toHaveBeenLastCalledWith('The portal could not be reached. Check your connection and try again.');
 
@@ -190,7 +190,7 @@ describe('Settings/DemoData', () => {
     });
 
     it('shows the demo rows held, or an empty state', () => {
-        expect(render().text()).toContain('No demo data yet.');
+        expect(render().text()).toContain('No demo data yet');
 
         document.body.innerHTML = '';
         const wrapper = render({ existing: { practices: 9, attendance: 42, reports: 18, weeks: 3 } });

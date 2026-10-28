@@ -35,7 +35,7 @@ export function trimNotes(notes, max = NOTES_MAX) {
     const cut = text.slice(0, max);
     const space = cut.search(/\s\S*$/);
 
-    return `${(space > max * 0.6 ? cut.slice(0, space) : cut).trimEnd()}… (full notes in the portal)`;
+    return `${(space > max * 0.6 ? cut.slice(0, space) : cut).trimEnd()} (cut short; full notes in the portal)`;
 }
 
 function change(delta, key) {

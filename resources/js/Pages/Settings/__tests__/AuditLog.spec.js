@@ -64,7 +64,7 @@ describe('Settings/AuditLog', () => {
     it('shows an empty state when there are no entries', () => {
         const wrapper = makeWrapper({ entries: { ...ENTRIES, data: [] } });
 
-        expect(wrapper.text()).toContain('No audit entries match these filters.');
+        expect(wrapper.text()).toContain('No audit entries match these filters');
     });
 
     it('says no reason was given for a null reason, rather than leaving the cell blank', () => {

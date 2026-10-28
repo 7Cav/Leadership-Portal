@@ -15,6 +15,6 @@ final class FireteamUnchangedException extends RuntimeException
 {
     public function __construct()
     {
-        parent::__construct('The fireteam row was no longer in the state the change was read against.');
+        parent::__construct('The fireteams changed while you were editing. Reload the page and try again.');
     }
 }

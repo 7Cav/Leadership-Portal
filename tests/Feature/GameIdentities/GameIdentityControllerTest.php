@@ -181,7 +181,7 @@ it('denies every write for a trooper outside the scope, whatever the UI offered'
 
 it('refuses an out-of-scope write at the Command as an AuthorizationException, like every other forbidden write', function () {
     expect(fn () => app(SetTrooperGameIdentityHandler::class)->handle($this->leader, new SetTrooperGameIdentity($this->theirs->id, game('hll'), 'X', '1')))
-        ->toThrow(AuthorizationException::class, "Trooper {$this->theirs->id} is outside your scope.");
+        ->toThrow(AuthorizationException::class, 'That trooper is outside your scope.');
 });
 
 it('denies an unplaced or departed trooper', function () {

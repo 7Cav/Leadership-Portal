@@ -12,6 +12,6 @@ class CounselingRecordNotFoundException extends RuntimeException
 {
     public function __construct()
     {
-        parent::__construct('Not found.');
+        parent::__construct('This record no longer exists. Reload the page.');
     }
 }

@@ -37,7 +37,7 @@ describe('GuestsPanel', () => {
     it('lists the practice\'s guests with where each entry came from', () => {
         const wrapper = factory();
 
-        expect(wrapper.find('[data-testid="guest-7"] [data-testid="guest-source"]').text()).toContain('Seen on the server');
+        expect(wrapper.find('[data-testid="guest-7"] [data-testid="guest-source"]').text()).toContain('Seen on the game server');
         expect(wrapper.find('[data-testid="guest-8"] [data-testid="guest-source"]').text()).toBe('Added by Host.L');
         expect(wrapper.find('[data-testid="guest-8"]').text()).toContain('3/2/B/1-7');
         // Only a hand-added guest can be undone.
@@ -128,7 +128,7 @@ describe('GuestsPanel', () => {
         const text = factory().text();
 
         expect(text).toContain('Add troopers from other sections who attended.');
-        expect(text).toContain("The game server doesn't add guests yet; it will once practices have set times.");
+        expect(text).toContain('The game server does not add guests yet; it will once practices have set times.');
     });
 
     it('offers no add or undo to a read-only viewer, and says why', () => {

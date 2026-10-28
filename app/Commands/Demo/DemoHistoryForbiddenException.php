@@ -18,6 +18,6 @@ class DemoHistoryForbiddenException extends AuthorizationException
 
     public static function outOfScope(int $unitId): self
     {
-        return new self("Unit {$unitId} is outside your scope, or does not exist.");
+        return new self('That unit is outside your scope, or no longer exists.');
     }
 }

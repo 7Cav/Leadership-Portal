@@ -29,12 +29,12 @@ class InvalidAttendanceMarkException extends RuntimeException
 
     public static function nothingToRecord(int $trooperId): self
     {
-        return new self("Trooper {$trooperId}'s mark carries neither a practice status nor a rollcall signature.");
+        return new self('Each trooper needs a practice mark or a rollcall signature. Reload the page and try again.');
     }
 
     public static function loaIsDerived(int $trooperId): self
     {
-        return new self("Trooper {$trooperId} cannot be marked loa by hand — LOA status is derived from LOA data, never entered.");
+        return new self('A trooper cannot be marked LOA by hand: LOA comes from LOA records and is never entered.');
     }
 
     /**
@@ -45,7 +45,7 @@ class InvalidAttendanceMarkException extends RuntimeException
      */
     public static function loaCovered(array $trooperIds): self
     {
-        $exception = new self('These troopers are on leave this week, so their status comes from their leave and cannot be set by hand.');
+        $exception = new self('These troopers are on LOA this week, so their mark comes from their LOA and cannot be set by hand.');
         $exception->trooperIds = $trooperIds;
         $exception->reason = 'loa_covered';
 
@@ -54,18 +54,18 @@ class InvalidAttendanceMarkException extends RuntimeException
 
     public static function notASection(int $unitId): self
     {
-        return new self("Unit {$unitId} is not a section; attendance is marked against a section's practice.");
+        return new self('This unit is not a section; attendance is marked at a section practice.');
     }
 
     public static function duplicateTrooper(int $trooperId): self
     {
-        return new self("Trooper {$trooperId} appears more than once in one attendance batch.");
+        return new self('A trooper appears more than once in this change. Reload the page and try again.');
     }
 
     /** The week is older than `WeekOf::floor()`, too far back to write. */
     public static function weekBeforeFloor(CarbonInterface $weekStart): self
     {
-        return new self("The week of {$weekStart->toDateString()} is too far back to change.");
+        return new self("The week of {$weekStart->format('dMy')} is too far back to change.");
     }
 
     /**
@@ -74,7 +74,7 @@ class InvalidAttendanceMarkException extends RuntimeException
     public static function notPlacedInSection(array $trooperIds, int $sectionId): self
     {
         $exception = new self(sprintf(
-            'Troopers %s are not placed in section %d; a trooper is marked only against their own section\'s practice.',
+            'Some troopers are not placed in this section, and a trooper is marked only at their own section practice. Reload the page to see the section as it is now.',
             implode(', ', $trooperIds),
             $sectionId,
         ));

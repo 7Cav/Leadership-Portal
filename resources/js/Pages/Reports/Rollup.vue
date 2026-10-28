@@ -237,7 +237,7 @@ function pct(ratio) {
         <Card v-if="!roots.length" class="py-0">
             <EmptyState :icon="PhTreeStructure" title="No units in your scope yet" class="py-14">
                 Reports show here for the units you lead or hold a staff grant over. If that should include a unit, ask an
-                admin to check your billet mapping or grants.
+                Admin to check your billet mapping or staff grants.
             </EmptyState>
         </Card>
 
@@ -377,7 +377,7 @@ function pct(ratio) {
 
                 <p class="flex flex-wrap gap-x-4 gap-y-1 border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
                     <span>RC and SP are 30-day rates.</span>
-                    <span class="inline-flex items-center gap-1"><PhLightning aria-hidden="true" />Grey figures are live from attendance, not yet sent.</span>
+                    <span class="inline-flex items-center gap-1"><PhLightning aria-hidden="true" />Gray figures are live from attendance, not yet sent.</span>
                 </p>
             </Card>
 

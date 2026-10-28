@@ -229,24 +229,26 @@ function syncNow() {
             // A failed request is an HTTP exception or a network error, never a validation error, so
             // each gets its own message instead of Inertia's raw error dialog (returning false).
             onHttpException: (response) => {
-                toast.error(
-                    response.status === 403
-                        ? "Only an Admin or this unit's leader can start a roster sync."
-                        : response.status === 409
-                          ? "A sync of this unit, or of a unit above or below it, is already queued or running."
-                          : response.status === 429
-                            ? "Too many sync requests. Wait a few minutes and try again."
-                            : response.status === 419
-                              ? "Your session expired. Reload the page and try again."
-                              : `The sync could not be started (error ${response.status}). Try again.`,
-                );
+                toast.error("Could not start the roster sync", {
+                    description:
+                        response.status === 403
+                            ? "Only an Admin or this unit's leader can start a roster sync."
+                            : response.status === 409
+                              ? "A sync of this unit, or of a unit above or below it, is already queued or running. Reload in a minute to see it."
+                              : response.status === 429
+                                ? "Too many requests; wait a few minutes and try again."
+                                : response.status === 419
+                                  ? "Your session expired; reload the page and try again."
+                                  : `(error ${response.status}). Try again.`,
+                });
 
                 return false;
             },
             onNetworkError: () => {
-                toast.error(
-                    "Could not reach the portal. Check your connection and try again.",
-                );
+                toast.error("Could not start the roster sync", {
+                    description:
+                        "Could not reach the portal. Check your connection and try again.",
+                });
 
                 return false;
             },
@@ -352,7 +354,7 @@ function syncNow() {
                         >
                             <PhUsersThree />
                             <span class="max-w-40 truncate">{{
-                                unit?.callsign ?? unit?.name ?? "Pick a unit"
+                                unit?.callsign ?? unit?.name ?? "Choose a unit"
                             }}</span>
                             <PhCaretUpDown class="text-muted-foreground" />
                         </Button>
@@ -483,8 +485,8 @@ function syncNow() {
                 title="No roster in your scope yet"
             >
                 The roster shows the unit your milpac billet commands, or a unit
-                an admin granted you. Neither applies to your account yet; ask
-                an S1 admin if that is wrong.
+                an Admin granted you. Neither applies to your account yet. If
+                that is wrong, ask an Admin.
             </EmptyState>
         </section>
 

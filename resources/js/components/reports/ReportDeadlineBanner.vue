@@ -43,6 +43,6 @@ const dueLabel = computed(() => `${forumDateTime(props.due)}Z`);
             <span class="font-semibold">{{ deadline.text }}</span>
             <span class="text-muted-foreground"> (due {{ dueLabel }})</span>
         </p>
-        <Link v-if="href && !readOnly" :href="href" class="font-medium underline underline-offset-2 hover:text-foreground" data-testid="report-deadline-link">Open the report</Link>
+        <Link v-if="href && !readOnly" :href="href" class="font-medium underline underline-offset-2 hover:text-foreground" data-testid="report-deadline-link">Open report</Link>
     </div>
 </template>

@@ -78,7 +78,7 @@ class UnitRosterSyncController extends Controller
             || $related->contains(fn (int $id) => (new SyncRosterJob($user->id, $id))->isAlreadyQueued());
 
         if ($pending) {
-            abort(409, 'A sync of this unit, or of a unit above or below it, is already queued or running.');
+            abort(409, 'A sync of this unit, or of a unit above or below it, is already queued or running. Reload in a minute to see the refreshed roster.');
         }
 
         if (! $user->is_admin) {

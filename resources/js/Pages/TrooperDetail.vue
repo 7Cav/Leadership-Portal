@@ -96,7 +96,7 @@ const staleNotice = computed(() => {
     }
 
     const outcome = props.sync.lastAttempt?.status === 'partial' ? 'was only partly applied' : 'failed';
-    const at = props.sync.lastAttempt?.at ? ` on ${forumDateTime(props.sync.lastAttempt.at)} UTC` : '';
+    const at = props.sync.lastAttempt?.at ? ` on ${forumDateTime(props.sync.lastAttempt.at)}Z` : '';
 
     return `The latest Cav roster sync ${outcome}${at}. This is the record from the last successful sync.`;
 });
@@ -117,7 +117,7 @@ const staleNotice = computed(() => {
                 <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px] text-muted-foreground" data-testid="trooper-subtitle">
                     <span class="max-w-full truncate">{{ trooper.billet ?? 'No billet on record' }}</span>
                     <span v-if="sectionLabel">· {{ sectionLabel }}</span>
-                    <span>· Profile #{{ trooper.cavId }}</span>
+                    <span>· Milpac ID #{{ trooper.cavId }}</span>
                     <span class="inline-flex items-center gap-1">
                         ·
                         <a
@@ -134,7 +134,7 @@ const staleNotice = computed(() => {
                 <p data-testid="source-line" class="mt-1 text-[13px] text-muted-foreground">
                     Source: {{ sync.source }}
                     <template v-if="sync.lastSuccessAt">
-                        · last synced <span data-testid="last-synced"><TimeAgo :at="sync.lastSuccessAt">{{ forumDateTime(sync.lastSuccessAt) }} UTC</TimeAgo></span>
+                        · last synced <span data-testid="last-synced"><TimeAgo :at="sync.lastSuccessAt">{{ forumDateTime(sync.lastSuccessAt) }}Z</TimeAgo></span>
                     </template>
                     <template v-else> · never synced</template>
                 </p>
@@ -225,7 +225,7 @@ const staleNotice = computed(() => {
 
         <CounselingPanel v-if="counseling" :trooper-id="trooper.id" :counseling="counseling" class="w-full max-w-xl" />
 
-        <MilpacPanel title="Courses &amp; qualifications" class="w-full max-w-xl" data-testid="courses-panel">
+        <MilpacPanel title="Courses and qualifications" class="w-full max-w-xl" data-testid="courses-panel">
             <template v-if="courses.total" #count>
                 <!-- A progress count, not a warning: neutral, and named so a screen reader hears what it counts. -->
                 <Badge
@@ -306,7 +306,7 @@ const staleNotice = computed(() => {
                 <Badge
                     variant="secondary"
                     class="rounded-full tabular-nums"
-                    :aria-label="`${awards.items.length} awards`"
+                    :aria-label="`${awards.items.length} ${awards.items.length === 1 ? 'award' : 'awards'}`"
                     data-testid="awards-count"
                 >
                     {{ awards.items.length }}

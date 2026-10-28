@@ -200,7 +200,11 @@ class ReportController extends Controller
     {
         $unit = $this->unitInScope($request, $unit);
         $weekStart = $this->writableWeekStart($week);
-        $data = $request->validate([...$this->contentRules(), 'reason' => ['required', 'string', 'max:1000']]);
+        $data = $request->validate([...$this->contentRules(), 'reason' => ['required', 'string', 'max:1000']], [
+            ...self::CONTENT_MESSAGES,
+            'reason.required' => 'Give a reason for the record before you send the report.',
+            'reason.max' => 'Keep the reason to :max characters.',
+        ]);
 
         $result = $this->asFormErrors(fn () => $handler->handle($request->user(), new SendWeeklyReport(
             $unit->id,
@@ -231,7 +235,7 @@ class ReportController extends Controller
         $data = $request->validate([
             'subject' => ['nullable', 'string', 'max:255'],
             'enforced' => ['sometimes', 'boolean'],
-        ]);
+        ], ['subject.max' => 'Keep the training topic to :max characters.']);
 
         return $this->writeTopic($request, $handler, $unit, $weekStart, $data['subject'] ?? null, (bool) ($data['enforced'] ?? false));
     }
@@ -257,6 +261,12 @@ class ReportController extends Controller
     /**
      * @return array<string, list<string>>
      */
+    /** What a leader reads when a report field is too long, in the words of the report page. */
+    private const CONTENT_MESSAGES = [
+        'notes.max' => 'Keep the notes to :max characters.',
+        'training_subject.max' => 'Keep the training subject to :max characters.',
+    ];
+
     private function contentRules(): array
     {
         return [
@@ -285,7 +295,7 @@ class ReportController extends Controller
         } catch (ReportKpisUnavailableException $e) {
             throw ValidationException::withMessages(['report' => $this->unavailableMessage($e)]);
         } catch (WeeklyReportAlreadySentException) {
-            throw ValidationException::withMessages(['report' => 'This report has already been sent and can no longer be edited.']);
+            throw ValidationException::withMessages(['report' => 'This report was already sent, so it can no longer be edited. Reload the page to see it as sent.']);
         }
     }
 

@@ -64,7 +64,7 @@ function submitFiling() {
             fileForm.reset();
             if (fileInput.value) fileInput.value.value = '';
         },
-        onHttpException: onHttpException('The record was not filed', (message) => toast.error(message)),
+        onHttpException: onHttpException('Could not file the record', (message) => toast.error(message)),
     });
 }
 
@@ -102,7 +102,7 @@ function submitEdit(record) {
             toast.success('Record corrected');
             editingId.value = null;
         },
-        onHttpException: onHttpException('The record was not corrected', (message) => toast.error(message)),
+        onHttpException: onHttpException('Could not correct the record', (message) => toast.error(message)),
     });
 }
 
@@ -113,7 +113,7 @@ function submitDelete(record) {
             toast.success(`${COUNSELING_TYPES[record.type].label} deleted`);
             deletingId.value = null;
         },
-        onHttpException: onHttpException('The record was not deleted', (message) => toast.error(message)),
+        onHttpException: onHttpException('Could not delete the record', (message) => toast.error(message)),
     });
 }
 
@@ -126,7 +126,7 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
 <template>
     <MilpacPanel title="Counseling" data-testid="counseling-panel">
         <template v-if="records.length" #count>
-            <Badge variant="secondary" class="rounded-full tabular-nums" :aria-label="`${records.length} records`" data-testid="counseling-count">
+            <Badge variant="secondary" class="rounded-full tabular-nums" :aria-label="`${records.length} ${records.length === 1 ? 'record' : 'records'}`" data-testid="counseling-count">
                 {{ records.length }}
             </Badge>
         </template>
@@ -252,7 +252,7 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
                         <p v-if="editForm.errors.reason" class="text-xs text-destructive">{{ editForm.errors.reason }}</p>
                     </div>
                     <div class="grid gap-1.5">
-                        <Label :for="`edit-why-${record.id}`">Why the correction</Label>
+                        <Label :for="`edit-why-${record.id}`">Reason for the correction</Label>
                         <Input :id="`edit-why-${record.id}`" v-model="editForm.audit_reason" maxlength="500" data-testid="counseling-edit-why" />
                         <p v-if="editForm.errors.audit_reason" class="text-xs text-destructive" data-testid="counseling-edit-why-error">{{ editForm.errors.audit_reason }}</p>
                     </div>
@@ -265,7 +265,7 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
                 <form v-if="deletingId === record.id" class="mt-1 space-y-2 rounded-md border border-destructive/30 p-3" data-testid="counseling-delete-form" @submit.prevent="submitDelete(record)">
                     <p class="text-xs">Delete this {{ typeLabel(record.type) }} and its document from the portal? A copy already on the 7Cav Google Drive stays there.</p>
                     <div class="grid gap-1.5">
-                        <Label :for="`delete-why-${record.id}`">Why delete it</Label>
+                        <Label :for="`delete-why-${record.id}`">Reason for deleting</Label>
                         <Input :id="`delete-why-${record.id}`" v-model="deleteForm.audit_reason" maxlength="500" data-testid="counseling-delete-why" />
                         <p v-if="deleteForm.errors.audit_reason" class="text-xs text-destructive" data-testid="counseling-delete-why-error">{{ deleteForm.errors.audit_reason }}</p>
                     </div>

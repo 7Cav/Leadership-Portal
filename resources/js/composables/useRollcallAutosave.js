@@ -28,7 +28,7 @@ export function messageFor(result) {
     // Session ends first: the framework's own wording for these ("Unauthenticated.", "CSRF token
     // mismatch.") means nothing to a leader, and `postJson` is already reloading the page.
     if (result.status === 0 || result.status === 401) return 'You were signed out. Sign in again, then retry.';
-    if (result.status === 419) return 'Your session expired. Reload the page to keep going.';
+    if (result.status === 419) return 'Your session expired; reload the page and try again.';
     if (result.data?.message) return result.data.message;
     if (result.status === 403) return 'This rollcall is read-only for you right now.';
     if (result.status >= 500) return 'The portal hit an error. Your changes are kept; retry in a moment.';
@@ -263,7 +263,7 @@ export function useRollcallAutosave({
     );
     const onLeaveMessage = computed(() =>
         onLeaveIds.value.length
-            ? `${onLeaveIds.value.map(nameOf).join(', ')} ${onLeaveIds.value.length === 1 ? 'is' : 'are'} on leave this week, so ${onLeaveIds.value.length === 1 ? 'their practice mark comes' : 'their practice marks come'} from the leave and the one entered here was not saved. Signatures still save.`
+            ? `${onLeaveIds.value.map(nameOf).join(', ')} ${onLeaveIds.value.length === 1 ? 'is' : 'are'} on LOA this week, so ${onLeaveIds.value.length === 1 ? 'their practice mark comes' : 'their practice marks come'} from the LOA and the one entered here was not saved. Signatures still save.`
             : null,
     );
     const hasUnsaved = computed(() => pendingCount.value > 0 || state.value === 'saving');

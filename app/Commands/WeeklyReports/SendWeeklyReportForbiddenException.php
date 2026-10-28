@@ -14,6 +14,6 @@ class SendWeeklyReportForbiddenException extends AuthorizationException
 {
     public function __construct(int $unitId)
     {
-        parent::__construct("You may not send the weekly report for unit {$unitId}: it is outside your scope.");
+        parent::__construct('You may not send the weekly report for this unit: it is outside your scope.');
     }
 }

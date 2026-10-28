@@ -15,7 +15,7 @@ class InvalidReportContentException extends RuntimeException
 {
     public static function notASection(int $unitId): self
     {
-        return new self("Unit {$unitId} is not a section; only a section accounts for its own troopers.");
+        return new self('This unit is not a section; only a section accounts for its own troopers.');
     }
 
     /**
@@ -23,7 +23,7 @@ class InvalidReportContentException extends RuntimeException
      */
     public static function notInSection(array $trooperIds, int $sectionId): self
     {
-        return new self(sprintf('Troopers %s are not placed in section %d.', implode(', ', $trooperIds), $sectionId));
+        return new self('Some troopers are no longer placed in this section. Reload the page to update the roster.');
     }
 
     public static function unknownReason(string $reason): self
@@ -33,12 +33,12 @@ class InvalidReportContentException extends RuntimeException
 
     public static function duplicateTrooper(int $trooperId): self
     {
-        return new self("Trooper {$trooperId} is accounted for more than once.");
+        return new self('A trooper is accounted for more than once. Reload the page and try again.');
     }
 
     /** The week is older than `WeekOf::floor()`, too far back to report. */
     public static function weekBeforeFloor(CarbonInterface $weekStart): self
     {
-        return new self("The week of {$weekStart->toDateString()} is too far back to report.");
+        return new self("The week of {$weekStart->format('dMy')} is too far back to report.");
     }
 }

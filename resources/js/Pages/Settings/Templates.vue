@@ -365,7 +365,7 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
             <Badge v-if="isAdmin" variant="outline" class="gap-1"><PhLockSimple aria-hidden="true" />Admin</Badge>
         </div>
 
-        <EmptyState v-if="!companies.length" :icon="PhFileCode" title="No companies yet." data-testid="no-companies">
+        <EmptyState v-if="!companies.length" :icon="PhFileCode" title="No companies yet" data-testid="no-companies">
             Templates belong to a company. Add one in the org structure first.
         </EmptyState>
 
@@ -653,7 +653,7 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                             </template>
                         </TableBody>
                     </Table>
-                    <EmptyState v-else :icon="PhFileCode" title="No versions yet." class="border-t border-border py-10" data-testid="no-versions" />
+                    <EmptyState v-else :icon="PhFileCode" title="No versions yet" class="border-t border-border py-10" data-testid="no-versions" />
                 </Card>
             </div>
 

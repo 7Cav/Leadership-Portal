@@ -67,6 +67,8 @@ class CounselingController extends Controller
             'document.max' => 'The document must be 10 MB or smaller.',
             'counseled_on.before_or_equal' => 'The date cannot be in the future.',
             'reason.required' => 'Give the reason for the record.',
+            'reason.max' => 'Keep the reason to :max characters.',
+            'counseled_on.after_or_equal' => 'The date is too far back.',
         ]);
 
         $record = $this->handle(fn () => $handler->handle($request->user(), new FileCounselingRecord(
@@ -93,7 +95,14 @@ class CounselingController extends Controller
             'counseled_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:today', 'after_or_equal:'.CounselingRules::EARLIEST],
             'reason' => ['required', 'string', 'max:'.CounselingRules::REASON_MAX],
             'audit_reason' => ['required', 'string', 'max:500'],
-        ], ['counseled_on.before_or_equal' => 'The date cannot be in the future.', 'audit_reason.required' => 'Say why the record is corrected.']);
+        ], [
+            'counseled_on.before_or_equal' => 'The date cannot be in the future.',
+            'counseled_on.after_or_equal' => 'The date is too far back.',
+            'reason.required' => 'Give the reason for the record.',
+            'reason.max' => 'Keep the reason to :max characters.',
+            'audit_reason.required' => 'Say why the record is corrected.',
+            'audit_reason.max' => 'Keep the reason for the correction to :max characters.',
+        ]);
 
         $record = $this->handle(fn () => $handler->handle($request->user(), new CorrectCounselingRecord(
             recordId: $counseling,
@@ -107,7 +116,10 @@ class CounselingController extends Controller
 
     public function destroy(Request $request, int $counseling, DeleteCounselingRecordHandler $handler): RedirectResponse
     {
-        $data = $request->validate(['audit_reason' => ['required', 'string', 'max:500']], ['audit_reason.required' => 'Say why the record is deleted.']);
+        $data = $request->validate(['audit_reason' => ['required', 'string', 'max:500']], [
+            'audit_reason.required' => 'Say why the record is deleted.',
+            'audit_reason.max' => 'Keep the reason for deleting to :max characters.',
+        ]);
 
         $record = $this->handle(fn () => $handler->handle($request->user(), new DeleteCounselingRecord($counseling, $data['audit_reason'])));
 

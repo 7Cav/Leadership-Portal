@@ -147,14 +147,14 @@ describe('AppLayout', () => {
             wrapper = mountLayout({ url: '/settings/staff-grants', user: { id: 1, username: 'Hale.S', is_admin: true } });
 
             expect(wrapper.find('[data-testid="breadcrumb-current"]').text()).toBe('Staff grants');
-            expect(wrapper.find('nav[aria-label="breadcrumb"]').text()).toContain('Settings');
+            expect(wrapper.find('nav[aria-label="Breadcrumb"]').text()).toContain('Settings');
         });
 
         it('reads a trooper page as a child of Roster: Roster / name, with Roster active in the sidebar', () => {
             wrapper = mountLayout({ url: '/troopers/12', crumb: 'SPC Milkovic.D' });
 
             expect(wrapper.find('[data-testid="breadcrumb-current"]').text()).toBe('SPC Milkovic.D');
-            expect(wrapper.find('nav[aria-label="breadcrumb"]').text()).toContain('Roster');
+            expect(wrapper.find('nav[aria-label="Breadcrumb"]').text()).toContain('Roster');
             expect(wrapper.find('[data-testid="nav-Roster"]').attributes('aria-current')).toBe('page');
         });
     });
@@ -184,8 +184,8 @@ describe('AppLayout', () => {
 
             expect(wrapper.find('nav[aria-label="Primary"] a[href="/docs"]').attributes('aria-current')).toBe('page');
             expect(wrapper.find('[data-testid="breadcrumb-current"]').text()).toBe('Sign in with your 7cav.us account');
-            expect(wrapper.find('nav[aria-label="breadcrumb"]').text()).toContain('Docs');
-            expect(wrapper.find('nav[aria-label="breadcrumb"]').text()).not.toContain('Help');
+            expect(wrapper.find('nav[aria-label="Breadcrumb"]').text()).toContain('Docs');
+            expect(wrapper.find('nav[aria-label="Breadcrumb"]').text()).not.toContain('Help');
         });
     });
 

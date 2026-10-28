@@ -70,7 +70,7 @@ class ActAsController extends Controller
                     $held && $target->kind === ViewAsKind::Unit => 'Stop acting as someone first: only an Admin acting as nobody can act as a billet.',
                     $held => 'You can only act as a serving billet holder below you in your own scope, and only while not already acting as someone.',
                     $target->kind === ViewAsKind::Trooper => 'They hold no billet to act as. Ask them to sign in once, then act as them by name.',
-                    $target->kind === ViewAsKind::User => 'You can act as a serving member, never as yourself.',
+                    $target->kind === ViewAsKind::User => 'You can act as a serving trooper, never as yourself.',
                     default => 'That unit no longer exists.',
                 },
             ]);

@@ -54,7 +54,7 @@ const MEANINGS = {
     sp_missed: ['Missed section practice', '{{#sp_missed}}✗{{/sp_missed}}'],
     sp_makeup: ['Made up a missed practice', '{{#sp_makeup}}MU{{/sp_makeup}}'],
     sp_attached: ['Trained with another unit, credited to this section', '{{#sp_attached}}ATT{{/sp_attached}}'],
-    sp_loa: ['On leave for the week', '{{#sp_loa}}LOA{{/sp_loa}}'],
+    sp_loa: ['On LOA for the week', '{{#sp_loa}}LOA{{/sp_loa}}'],
     sp_unmarked: ['No practice mark yet', '{{#sp_unmarked}}-{{/sp_unmarked}}'],
     rc_yes: ['Signed the rollcall: will attend', '{{#rc_yes}}✓{{/rc_yes}}'],
     rc_no: ['Signed the rollcall: cannot attend', '{{#rc_no}}✗{{/rc_no}}'],
@@ -64,7 +64,7 @@ const MEANINGS = {
     is_ftl: ['Leads a fireteam, when the section shows fireteam leaders (the SL or ASL too, where the company allows it)', '{{#is_ftl}}(FTL) {{/is_ftl}}'],
     fireteams_shown: ['The section shows fireteam leaders and has at least one', '{{#fireteams_shown}}[TH]Role[/TH]{{/fireteams_shown}}'],
     upper: ['Prints a value in capitals', '{{week|upper}}'],
-    lower: ['Prints a value in lower case', '{{unit|lower}}'],
+    lower: ['Prints a value in lowercase', '{{unit|lower}}'],
 };
 
 /** The names the legend describes, so a test can hold them to the lists. */

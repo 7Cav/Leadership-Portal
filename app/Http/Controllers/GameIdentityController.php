@@ -99,6 +99,11 @@ class GameIdentityController extends Controller
             'player_name' => ['required', 'string', 'max:255'],
             'platform_id' => ['required', 'string', 'max:255'],
             'id_kind' => ['nullable', 'string', 'max:50'],
+        ], [
+            'player_name.required' => 'Enter the player name as it shows in the game.',
+            'player_name.max' => 'Keep the player name to :max characters.',
+            'platform_id.required' => 'Enter the player ID.',
+            'platform_id.max' => 'Keep the player ID to :max characters.',
         ]);
 
         try {

@@ -129,7 +129,7 @@ describe('Guide page', () => {
 
         const yes = show();
         await yes.get('[data-testid="guide-feedback"]').findAll('button')[0].trigger('click');
-        expect(yes.get('[data-testid="guide-feedback"]').text()).toBe('Thanks for letting us know.');
+        expect(yes.get('[data-testid="guide-feedback"]').text()).toBe('Thanks.');
 
         const no = show({ feedbackUrl: 'https://7cav.us/threads/portal-docs.1/' });
         await no.get('[data-testid="guide-feedback"]').findAll('button')[1].trigger('click');

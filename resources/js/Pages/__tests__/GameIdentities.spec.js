@@ -170,7 +170,7 @@ describe('GameIdentities page', () => {
         expect(put.mock.lastCall[1].onHttpException({ status: 403 })).toBe(false);
         await nextTick();
 
-        expect(wrapper.get('[data-testid="notice"]').text()).toBe('This was not saved. You are not allowed to do that; reload the page, or exit view as first.');
+        expect(wrapper.get('[data-testid="notice"]').text()).toBe('Could not save the game identity. You are not allowed to do that; reload the page, or exit view as first.');
     });
 
     it('shows the collision error next to the platform id', async () => {
@@ -261,7 +261,7 @@ describe('GameIdentities page', () => {
     it('shows an empty state when nobody is in scope', () => {
         const wrapper = factory([]);
 
-        expect(wrapper.text()).toContain('No troopers in your scope.');
+        expect(wrapper.text()).toContain('No troopers in your scope');
         expect(wrapper.find('[data-testid="coverage"]').exists()).toBe(false);
     });
 });

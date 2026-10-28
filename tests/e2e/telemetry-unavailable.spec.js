@@ -13,7 +13,7 @@ test('a practice whose last capture failed shows the unavailable banner, the man
     // The banner names the feed that is down (#176), so it never reads as an empty server.
     await expect(banner).toContainText('Hell Let Loose (WW2) server (CRCON) could not be read, last tried');
     // The Zulu time carries a "(3 h ago)" note after it.
-    await expect(banner).toContainText(/UTC \([^)]*ago\)\. Nothing was pre-filled\. Mark attendance by hand\./);
+    await expect(banner).toContainText(/\d{2}:\d{2}Z \([^)]*ago\)\. Nothing was pre-filled\. Mark attendance by hand\./);
     const lastTried = await banner.innerText();
 
     // The manual screen is unchanged: no capture banner, no source dots, no unmatched panel.

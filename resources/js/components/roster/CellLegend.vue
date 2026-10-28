@@ -11,7 +11,7 @@ const RC = [
     ['ok', 'Will attend'],
     ['cn', 'Cannot attend'],
     ['bad', 'Unsigned'],
-    ['open', 'Not signed yet'],
+    ['open', 'Unsigned (rollcall open)'],
     ['nil', 'No rollcall posted'],
 ];
 const SP = [

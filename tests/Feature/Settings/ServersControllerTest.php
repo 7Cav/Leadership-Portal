@@ -144,7 +144,7 @@ it('refuses choices that do not fit together, writing nothing', function (Closur
 
     expect(AuditLogEntry::query()->count())->toBe(0);
 })->with([
-    'selected without a game' => [fn () => [GameServer::factory()->create(), serverUpdate(['game_id' => null])], 'server', 'Pick the game this server is for before selecting it.'],
+    'selected without a game' => [fn () => [GameServer::factory()->create(), serverUpdate(['game_id' => null])], 'server', 'Choose the game this server is for before selecting it.'],
     'a retired game' => [function () {
         game('arma')->update(['retired_at' => now()]);
 

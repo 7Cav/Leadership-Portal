@@ -164,11 +164,11 @@ async function dismiss(player) {
     <Card class="gap-0 overflow-hidden py-0 text-[13px]" data-testid="unmatched-drawer" aria-labelledby="unmatched-title">
         <div class="border-b border-border px-4 py-3">
             <h3 id="unmatched-title" class="flex items-center gap-2 text-sm font-semibold">
-                <PhUserCircleDashed class="size-4 text-muted-foreground" aria-hidden="true" />Not matched to a trooper
+                <PhUserCircleDashed class="size-4 text-muted-foreground" aria-hidden="true" />Unmatched players
             </h3>
             <p class="mt-0.5 text-xs text-muted-foreground tabular-nums">
-                <template v-if="players.length">{{ players.length }} seen on the server</template>
-                <template v-else>Everyone seen on the server is linked or dismissed</template>{{ disabledReason ? `. ${disabledReason}` : '' }}
+                <template v-if="players.length">{{ players.length }} seen on the game server</template>
+                <template v-else>Everyone seen on the game server is linked or dismissed</template>{{ disabledReason ? `. ${disabledReason}` : '' }}
             </p>
         </div>
 
@@ -188,7 +188,7 @@ async function dismiss(player) {
                     data-testid="unmatched-trooper"
                     :disabled="!editable || of(player).busy"
                 >
-                    <option value="">Choose trooper</option>
+                    <option value="">Choose a trooper</option>
                     <optgroup v-if="options[keyOf(player)].suggested.length" label="Closest by name">
                         <option v-for="t in options[keyOf(player)].suggested" :key="t.id" :value="String(t.id)">{{ fullName(t) }}</option>
                     </optgroup>
@@ -210,7 +210,7 @@ async function dismiss(player) {
                 </p>
 
                 <div v-if="of(player).confirming" class="flex flex-wrap items-center gap-2 text-xs" data-testid="dismiss-confirm">
-                    <span class="text-muted-foreground">Not a member? They stay off the lists until linked.</span>
+                    <span class="text-muted-foreground">Not a trooper? They stay off the lists until linked.</span>
                     <Button variant="destructive" size="xs" data-testid="confirm-dismiss" :disabled="of(player).busy" @click="dismiss(player)">Dismiss</Button>
                     <Button variant="outline" size="xs" :disabled="of(player).busy" @click="of(player).confirming = false">Keep</Button>
                 </div>

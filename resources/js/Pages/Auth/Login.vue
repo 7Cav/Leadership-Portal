@@ -19,18 +19,18 @@ defineProps({
 
                 <div class="brand-mark">
                     <span class="shield"><img src="/assets/cav-shield.png" alt="1st Cavalry Division" /></span>
-                    <div class="name">7TH CAVALRY REGIMENT <span>Leadership Portal</span></div>
+                    <div class="name">7Cav <span>Leadership Portal</span></div>
                 </div>
 
                 <div class="pitch">
-                    <div class="eyebrow">Command tools</div>
-                    <h1>Run your platoon, <em>not your spreadsheet.</em></h1>
-                    <p>One portal for section overviews, weekly rollcalls, promotion proposals, medal write-ups and counseling, all wired straight into the 7cav.us forum.</p>
+                    <div class="eyebrow">For 7Cav leaders</div>
+                    <h1>Weekly rollcall, section practice and reports, <em>in one place.</em></h1>
+                    <p>Track your troopers' rollcall signatures, section practice attendance and weekly reports, with the Cav roster and LOAs synced in.</p>
                     <ul class="feature-list">
-                        <li><span class="dot">RC</span>Weekly rollcall, one click to forum</li>
-                        <li><span class="dot">SP</span>Live SP attendance from servers</li>
-                        <li><span class="dot">P</span>Promotion eligibility, auto-detected</li>
-                        <li><span class="dot">M</span>Medal &amp; transfer post utilities</li>
+                        <li><span class="dot">RC</span>Weekly rollcall post, ready to paste on the forum</li>
+                        <li><span class="dot">SP</span>Section practice attendance from the game servers</li>
+                        <li><span class="dot">R</span>Weekly reports, rolled up the chain</li>
+                        <li><span class="dot">M</span>Milpac, counseling and training records for your troopers</li>
                     </ul>
                 </div>
 
@@ -57,12 +57,12 @@ defineProps({
                     <a class="secondary-btn" href="https://7cav.us/help/">Trouble signing in?</a>
 
                     <div class="notice">
-                        You'll be redirected to <strong class="notice-em">7cav.us</strong> to authorize. We only read your forum identity, never your password.
+                        You will be sent to <strong class="notice-em">7cav.us</strong> to authorize. The portal reads only your forum identity, never your password.
                     </div>
 
                     <div class="help-row">
                         New to the regiment? Visit <a href="https://7cav.us/recruitment/">recruitment</a> first.<br />
-                        Trouble? Ping S6 in <a href="https://7cav.us/">#tech-support</a> on Discord.
+                        Trouble signing in? Ask S6 in <a href="https://7cav.us/">#tech-support</a> on Discord.
                     </div>
                 </div>
             </aside>

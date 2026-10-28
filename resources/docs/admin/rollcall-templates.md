@@ -1,13 +1,13 @@
 ---
 title: Rollcall templates
-summary: The forum posts a company's rollcalls build, who manages them, and the regiment default.
+summary: The templates a company's rollcall posts are built from, who manages them, and the regiment default.
 section: admin
 order: 3
 audience: admin
 page: /settings/templates
 ---
 
-> [!why] Every section's rollcall post is built from a template. A mistake in one shows on the forum post of every section that uses it that week.
+> [!why] Every section's rollcall post is built from a template. A mistake in one shows in the rollcall post of every section that uses it that week.
 
 ## Who manages which
 

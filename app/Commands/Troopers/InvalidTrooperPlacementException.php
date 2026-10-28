@@ -13,22 +13,22 @@ class InvalidTrooperPlacementException extends DomainException
 {
     public static function notASection(int $unitId): self
     {
-        return new self("There is no unit {$unitId} to place the trooper into.");
+        return new self('That unit no longer exists. Reload the page and choose another.');
     }
 
     public static function noSuchTrooper(int $trooperId): self
     {
-        return new self("There is no trooper {$trooperId}.");
+        return new self('That trooper no longer exists. Reload the page.');
     }
 
     public static function alreadyPlaced(int $trooperId): self
     {
-        return new self("Trooper {$trooperId} is already placed in a unit.");
+        return new self('That trooper is already placed in a unit. Reload the page to see where.');
     }
 
     public static function departed(int $trooperId): self
     {
-        return new self("Trooper {$trooperId} is no longer on a Cav roster, so they cannot be placed.");
+        return new self('That trooper is no longer on a Cav roster, so they cannot be placed.');
     }
 
     /**
@@ -37,6 +37,6 @@ class InvalidTrooperPlacementException extends DomainException
      */
     public static function changedMeanwhile(int $trooperId): self
     {
-        return new self("Trooper {$trooperId} was placed or removed from the roster while this was submitted. Reload and check.");
+        return new self('That trooper was placed or left the roster while this was sent. Reload the page and check.');
     }
 }

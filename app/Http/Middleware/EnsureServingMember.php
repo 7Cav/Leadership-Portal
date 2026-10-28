@@ -20,7 +20,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class EnsureServingMember
 {
-    private const MESSAGE = "Your forum account isn't linked to a serving 7th Cavalry milpac.";
+    private const MESSAGE = 'Your forum account is not linked to a serving 7Cav milpac.';
 
     public function __construct(private readonly ServingSession $serving) {}
 

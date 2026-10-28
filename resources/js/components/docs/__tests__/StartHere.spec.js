@@ -81,10 +81,10 @@ describe('Start here', () => {
 
     it('says the viewer is all set once every item is ticked', async () => {
         const wrapper = card(TROOPER, 'everyone');
-        expect(wrapper.text()).not.toContain('You\'re all set.');
+        expect(wrapper.text()).not.toContain('Every item is done.');
 
         await tick(wrapper, 0);
-        expect(wrapper.text()).toContain('You\'re all set.');
+        expect(wrapper.text()).toContain('Every item is done.');
     });
 
     it('ignores a saved id whose item no longer exists', () => {

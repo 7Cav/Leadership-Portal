@@ -106,14 +106,14 @@ export function sectionStatus(progress) {
     if (progress.strength === 0) return { state: 'none', text: 'No troopers' };
     if (!progress.started && progress.strength > progress.onLoa) return { state: 'todo', text: 'Not started' };
 
-    const left = [progress.unsigned && `${progress.unsigned} unsigned`, progress.unmarked && `${progress.unmarked} unmarked`].filter(Boolean);
+    const left = [progress.unsigned && `${progress.unsigned} unsigned`, progress.unmarked && `${progress.unmarked} not marked`].filter(Boolean);
 
     return { state: 'todo', text: left.length ? left.join(', ') : 'Not posted' };
 }
 
 // "3 unlinked players": the count the rollcall header and review step show (#176).
 export function unlinkedLabel(count) {
-    return `${count} unlinked ${count === 1 ? 'player' : 'players'}`;
+    return `${count} unmatched ${count === 1 ? 'player' : 'players'}`;
 }
 
 // What a game's server feeds are called on screen, by `capture_source` value (7.8, 7.9).

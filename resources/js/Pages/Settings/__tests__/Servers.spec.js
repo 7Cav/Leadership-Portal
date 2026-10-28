@@ -104,14 +104,14 @@ describe('Settings/Servers', () => {
     });
 
     it('shows the server\'s refusal on the row', async () => {
-        routerPatch.mockImplementation((url, data, options) => options.onError({ server: 'Pick the game this server is for before selecting it.' }));
+        routerPatch.mockImplementation((url, data, options) => options.onError({ server: 'Choose the game this server is for before selecting it.' }));
         const wrapper = factory();
 
         await wrapper.get('[data-testid="selected-3"]').setValue(true);
         await wrapper.get('[data-testid="save-3"]').trigger('click');
         await nextTick();
 
-        expect(wrapper.get('[data-testid="row-error-3"]').text()).toBe('Pick the game this server is for before selecting it.');
+        expect(wrapper.get('[data-testid="row-error-3"]').text()).toBe('Choose the game this server is for before selecting it.');
     });
 
     it('fetches the servers and reports what each interface did', async () => {

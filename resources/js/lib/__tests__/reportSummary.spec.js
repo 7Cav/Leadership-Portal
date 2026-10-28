@@ -100,8 +100,8 @@ describe('trimNotes', () => {
         const long = `${'word '.repeat(150)}end`;
         const cut = trimNotes(long);
 
-        expect(cut.length).toBeLessThanOrEqual(NOTES_MAX + 30);
-        expect(cut).toMatch(/word… \(full notes in the portal\)$/);
+        expect(cut.length).toBeLessThanOrEqual(NOTES_MAX + ' (cut short; full notes in the portal)'.length);
+        expect(cut).toMatch(/word \(cut short; full notes in the portal\)$/);
     });
 
     it('keeps notes at the limit whole', () => {

@@ -25,6 +25,6 @@ class InvalidPlatoonTrainingTopicException extends RuntimeException
     /** The week is older than `WeekOf::floor()`, too far back to report. */
     public static function weekBeforeFloor(CarbonInterface $weekStart): self
     {
-        return new self("The week of {$weekStart->toDateString()} is too far back to report.");
+        return new self("The week of {$weekStart->format('dMy')} is too far back to report.");
     }
 }

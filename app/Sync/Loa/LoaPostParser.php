@@ -299,7 +299,7 @@ final class LoaPostParser
 
         foreach (['Start Date' => $start, 'End Date' => $end] as $label => $date) {
             if (abs($date->diffInDays($now)) > self::SANE_DAYS) {
-                $reasons[] = "The {$label} is more than three years from today.";
+                $reasons[] = "The {$label} is more than 3 years from today.";
             }
         }
 

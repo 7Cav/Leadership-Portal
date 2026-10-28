@@ -18,7 +18,7 @@ A leadership billet gives you the unit it commands and everything under it. A co
 
 | Who | Can do |
 | --- | --- |
-| Section Leader, Assistant Section Leader | Their section's rollcall, Section Practice marks, guests, fireteams and weekly report |
+| Section Leader, Assistant Section Leader | Their section's rollcall, section practice marks, guests, fireteams and weekly report |
 | Platoon Leader, Platoon Sergeant | All of that for every section in the platoon, the platoon's report and its training topic |
 | Company command (Commander, XO, First Sergeant) | All of that for the company, its report and the company's fireteam rules |
 | Battalion and regiment command | All of that for their battalion, or for the regiment |
@@ -38,5 +38,5 @@ Admins can see and change everything. Only they can edit the org structure, staf
 ## Who to ask
 
 - **Wrong rank, billet or unit**: S1, since it comes from your milpac.
-- **A button you should have and don't**: your chain of command, then S6.
+- **A button you should have and do not**: your chain of command, then S6.
 - **Access for a staff role**: an Admin, for a staff grant.

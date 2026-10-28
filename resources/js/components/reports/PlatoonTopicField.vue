@@ -78,7 +78,7 @@ function clear() {
 
 <template>
     <div class="space-y-1.5" data-testid="platoon-topic">
-        <Label for="platoon-topic" class="text-[13px]">Training topic for my sections</Label>
+        <Label for="platoon-topic" class="text-[13px]">Training topic for your sections</Label>
         <Input
             id="platoon-topic"
             v-model="form.subject"
@@ -93,7 +93,7 @@ function clear() {
         </div>
         <p id="platoon-topic-help" class="text-xs text-muted-foreground" data-testid="topic-status">{{ status }}</p>
         <div v-if="editable" class="flex flex-wrap gap-2 pt-1">
-            <Button size="sm" :disabled="busy || !form.subject.trim() || !changed" data-testid="topic-apply" @click="apply">Apply to my sections</Button>
+            <Button size="sm" :disabled="busy || !form.subject.trim() || !changed" data-testid="topic-apply" @click="apply">Apply to your sections</Button>
             <Button v-if="topic" size="sm" variant="ghost" :disabled="busy" data-testid="topic-clear" @click="clear">Clear</Button>
         </div>
         <p v-if="error" class="text-xs text-destructive" role="alert" data-testid="topic-error">{{ error }}</p>

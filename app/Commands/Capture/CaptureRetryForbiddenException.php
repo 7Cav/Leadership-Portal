@@ -9,6 +9,6 @@ class CaptureRetryForbiddenException extends AuthorizationException
 {
     public function __construct(int $sectionId)
     {
-        parent::__construct("You may not capture the practice of section {$sectionId}: it is outside your scope.");
+        parent::__construct('You may not capture the practice of this section: it is outside your scope.');
     }
 }

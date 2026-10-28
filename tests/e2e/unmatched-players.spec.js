@@ -9,7 +9,7 @@ test('a section leader links unmatched players to troopers, replacing an old ID 
     await expect(page).toHaveURL(/\/rollcall\/\d+$/);
     // The count shows in the stepper from whichever step the rollcall opens on (#176).
     const count = page.getByTestId('unlinked-count');
-    await expect(count).toHaveText('3 unlinked players');
+    await expect(count).toHaveText('3 unmatched players');
     await page.getByRole('button', { name: /^Step 2, Section practice/ }).click();
 
     await expect(page.getByTestId('unmatched-banner')).toContainText('3 players need a trooper');
@@ -26,7 +26,7 @@ test('a section leader links unmatched players to troopers, replacing an old ID 
 
     await expect(dubes).toHaveCount(0);
     await expect(page.getByTestId('unmatched-banner')).toContainText('2 players need a trooper');
-    await expect(count).toHaveText('2 unlinked players');
+    await expect(count).toHaveText('2 unmatched players');
     const dubeCard = page.locator('[data-trooper]').filter({ hasText: 'Dube.R' });
     await expect(dubeCard.getByRole('button', { name: /^Present/ })).toHaveAttribute('aria-pressed', 'true');
 
@@ -41,13 +41,13 @@ test('a section leader links unmatched players to troopers, replacing an old ID 
     await question.getByTestId('replace-cancel').click();
     await expect(question).toHaveCount(0);
     await expect(halvo).toBeVisible();
-    await expect(count).toHaveText('2 unlinked players');
+    await expect(count).toHaveText('2 unmatched players');
 
     // Asked again, Replace links the new ID and pre-marks them.
     await halvo.getByTestId('unmatched-link').click();
     await page.getByTestId('replace-dialog').getByTestId('replace-confirm').click();
     await expect(halvo).toHaveCount(0);
-    await expect(count).toHaveText('1 unlinked player');
+    await expect(count).toHaveText('1 unmatched player');
     const halvoCard = page.locator('[data-trooper]').filter({ hasText: 'Halvorsen.K' });
     await expect(halvoCard.getByRole('button', { name: /^Present/ })).toHaveAttribute('aria-pressed', 'true');
 
@@ -64,7 +64,7 @@ test('a section leader links unmatched players to troopers, replacing an old ID 
     // A dismissal can be undone (#176): from the toast...
     await page.getByRole('button', { name: 'Undo', exact: true }).click();
     await expect(rando).toBeVisible();
-    await expect(count).toHaveText('1 unlinked player');
+    await expect(count).toHaveText('1 unmatched player');
 
     // ...or from the drawer's Dismissed list, which stays once nobody is left to link.
     await dismissRando();

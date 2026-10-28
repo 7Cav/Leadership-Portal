@@ -60,7 +60,7 @@ describe('PracticeGuestsPanel', () => {
         expect(text).toContain('last 8 Cav weeks');
         expect(text).toContain('at least 4');
         expect(text).toContain('80% or more of their own section');
-        expect(text).toContain("makeups don't count");
+        expect(text).toContain('makeups do not count');
         // Guests come from the host leaders for now; nothing promises the game server adds them.
         expect(text).toContain('section leaders add them on the rollcall');
         expect(text).not.toMatch(/seen|server/i);
@@ -71,7 +71,7 @@ describe('PracticeGuestsPanel', () => {
         const header = wrapper.findAll('th').find((th) => th.text() === 'Own section SP');
 
         expect(header.attributes('title')).toContain('Makeups are not counted');
-        expect(wrapper.find('[data-testid="practice-guest-sp"]').attributes('title')).toBe('3 of 4 own-section practices. Makeups are not counted.');
+        expect(wrapper.find('[data-testid="practice-guest-sp"]').attributes('title')).toBe('3 of 4 practices of their own section. Makeups are not counted.');
     });
 
     it('shows an empty state when nobody visited', () => {

@@ -69,7 +69,7 @@ const percent = computed(() => (startHere.total.value ? Math.round((startHere.do
                 <span class="block h-full bg-primary transition-[width] duration-300" :style="{ width: `${percent}%` }" />
             </div>
             <p v-if="startHere.complete.value" class="mt-0.5 mb-2.5 flex items-center gap-1.5 text-[13px] font-semibold text-success" role="status">
-                <PhCheckCircle weight="fill" aria-hidden="true" />You're all set.
+                <PhCheckCircle weight="fill" aria-hidden="true" />Every item is done.
             </p>
             <ul data-testid="start-here-items">
                 <li v-for="item in startHere.items.value" :key="item.id" class="flex items-start gap-2.5 border-t border-border py-2">

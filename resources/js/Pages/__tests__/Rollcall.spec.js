@@ -559,7 +559,7 @@ describe('Rollcall page', () => {
             const card = wrapper.find('[data-trooper="3"]');
             expect(card.text()).toContain('LOA, nothing to mark');
             expect(wrapper.find('[role="group"][aria-label="On LOA"]').text()).toContain('Trooper3.A');
-            expect(wrapper.find('[data-testid="save-on-leave"]').text()).toContain('Trooper3.A is on leave this week');
+            expect(wrapper.find('[data-testid="save-on-leave"]').text()).toContain('Trooper3.A is on LOA this week');
             expect(wrapper.find('[data-testid="save-rejected"]').exists()).toBe(false);
             expect(wrapper.find('[data-testid="save-error"]').exists()).toBe(false);
         });
@@ -945,7 +945,7 @@ describe('Rollcall page', () => {
                 await vi.waitFor(() => expect(wrapper.find('[data-testid="posted-state"]').exists()).toBe(true));
 
                 expect(toastWarning).toHaveBeenCalledWith('Marked posted, but the copied BBCode is out of date', {
-                    description: 'Marks changed after you copied it. Copy it again, update the forum post, then mark it posted again.',
+                    description: 'Marks changed after you copied it. Copy it again, update the rollcall post on the forum, then mark it posted again.',
                 });
                 expect(toastSuccess).not.toHaveBeenCalledWith('Rollcall marked posted', expect.anything());
                 expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Repost the updated BBCode');
@@ -1037,7 +1037,7 @@ describe('Rollcall page', () => {
             Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
             const wrapper = factory({ locked: true });
 
-            expect(wrapper.find('[data-testid="locked-notice"]').text()).toContain('You can still copy the forum post.');
+            expect(wrapper.find('[data-testid="locked-notice"]').text()).toContain('You can still copy the rollcall post.');
             expect(wrapper.find('[data-testid="locked-notice"]').text()).not.toContain('mark it posted');
             await wrapper.find('[data-testid="copy-bbcode"]').trigger('click');
             await vi.waitFor(() => expect(writeText).toHaveBeenCalled());
@@ -1230,8 +1230,8 @@ describe('Rollcall page', () => {
                 page.url = '/rollcall/12?step=1';
                 const wrapper = factory({ capture: CAPTURE, unmatched: TWO, troopers: [trooper(1, 'will_attend', 'present')] });
 
-                expect(count(wrapper).text()).toBe('2 unlinked players');
-                expect(wrapper.find('[data-step="2"]').attributes('aria-label')).toBe('Step 2, Section practice, All marked, 2 unlinked players');
+                expect(count(wrapper).text()).toBe('2 unmatched players');
+                expect(wrapper.find('[data-step="2"]').attributes('aria-label')).toBe('Step 2, Section practice, All marked, 2 unmatched players');
                 expect(wrapper.find('[data-step="2"]').classes()).toContain('after:bg-warning/70');
             });
 
@@ -1244,8 +1244,8 @@ describe('Rollcall page', () => {
                 page.url = '/rollcall/12?step=3';
                 const wrapper = factory({ capture: CAPTURE, unmatched: UNMATCHED });
 
-                expect(count(wrapper).text()).toBe('1 unlinked player');
-                expect(wrapper.find('[data-testid="unlinked-review"]').text()).toContain('1 unlinked player seen on the server is not accounted for.');
+                expect(count(wrapper).text()).toBe('1 unmatched player');
+                expect(wrapper.find('[data-testid="unlinked-review"]').text()).toContain('1 unmatched player seen on the game server is not accounted for.');
                 await wrapper.find('[data-testid="unlinked-go"]').trigger('click');
                 expect(push).toHaveBeenCalledWith(expect.objectContaining({ url: '/rollcall/12?step=2' }));
             });
@@ -1259,12 +1259,12 @@ describe('Rollcall page', () => {
                     ),
                 );
                 const wrapper = factory({ capture: CAPTURE, unmatched: TWO });
-                expect(count(wrapper).text()).toBe('2 unlinked players');
+                expect(count(wrapper).text()).toBe('2 unmatched players');
 
                 await wrapper.find('[data-testid="unmatched-7656119000000001"] [data-testid="unmatched-trooper"]').setValue('3');
                 await wrapper.find('[data-testid="unmatched-7656119000000001"] [data-testid="unmatched-link"]').trigger('click');
                 await flushPromises();
-                expect(count(wrapper).text()).toBe('1 unlinked player');
+                expect(count(wrapper).text()).toBe('1 unmatched player');
 
                 await wrapper.find('[data-testid="unmatched-a-77"] [data-testid="unmatched-dismiss"]').trigger('click');
                 await wrapper.find('[data-testid="unmatched-a-77"] [data-testid="confirm-dismiss"]').trigger('click');
@@ -1301,7 +1301,7 @@ describe('Rollcall page', () => {
                 expect(post).toHaveBeenLastCalledWith('/rollcall/12/unmatched/restore', { week: '2026-10-03', platform: 'hll', platform_id: '7656119000000001' });
                 expect(wrapper.find('[data-testid="unmatched-7656119000000001"]').exists()).toBe(true);
                 expect(wrapper.find('[data-testid="dismissed-list"]').exists()).toBe(false);
-                expect(wrapper.find('[data-step="2"] [data-testid="unlinked-count"]').text()).toBe('1 unlinked player');
+                expect(wrapper.find('[data-step="2"] [data-testid="unlinked-count"]').text()).toBe('1 unmatched player');
                 // The row is back as it started, so it can be dismissed again.
                 expect(wrapper.find('[data-testid="unmatched-7656119000000001"] [data-testid="unmatched-dismiss"]').exists()).toBe(true);
                 expect(wrapper.find('[data-testid="dismiss-confirm"]').exists()).toBe(false);
@@ -1548,7 +1548,7 @@ describe('Rollcall page', () => {
             wrapper = factory({ telemetry: FAILED });
 
             expect(wrapper.find('[data-testid="telemetry-banner"]').text()).toContain(
-                'Hell Let Loose server (CRCON) could not be read, last tried 08Oct26 15:42 UTC (5 min ago). Nothing was pre-filled. Mark attendance by hand.',
+                'Hell Let Loose server (CRCON) could not be read, last tried 08Oct26 15:42Z (5 min ago). Nothing was pre-filled. Mark attendance by hand.',
             );
             expect(wrapper.find('[data-testid="capture-banner"]').exists()).toBe(false);
             expect(wrapper.find('[data-testid="unmatched-drawer"]').exists()).toBe(false);
@@ -1570,7 +1570,7 @@ describe('Rollcall page', () => {
         it('says telemetry is not configured, with no retry to offer', () => {
             wrapper = factory({ telemetry: NOT_CONFIGURED });
 
-            expect(wrapper.find('[data-testid="telemetry-banner"]').text()).toContain('Telemetry is not configured for Hell Let Loose, so nothing was pre-filled. Mark attendance by hand.');
+            expect(wrapper.find('[data-testid="telemetry-banner"]').text()).toContain('Capture is not set up for Hell Let Loose, so nothing was pre-filled. Mark attendance by hand.');
             expect(wrapper.find('[data-testid="telemetry-retry"]').exists()).toBe(false);
         });
 
@@ -1617,7 +1617,7 @@ describe('Rollcall page', () => {
             reload.mockImplementation(async (options) => options.onFinish());
 
             await click();
-            expect(wrapper.find('[data-testid="telemetry-retry"]').text()).toBe('Trying...');
+            expect(wrapper.find('[data-testid="telemetry-retry"]').text()).toBe('Trying');
             await vi.advanceTimersByTimeAsync(2500 * 30);
             await flushPromises();
 
@@ -1757,7 +1757,7 @@ describe('Rollcall page', () => {
             await click();
             await flushPromises();
 
-            expect(toastError).toHaveBeenCalledWith('Could not try again', { description: 'The game server was just tried. Try again in 41 seconds.' });
+            expect(toastError).toHaveBeenCalledWith('Could not retry the capture', { description: 'The game server was just tried. Try again in 41 seconds.' });
             expect(reload).not.toHaveBeenCalled();
             expect(wrapper.find('[data-testid="telemetry-banner"]').exists()).toBe(true);
         });
@@ -1769,7 +1769,7 @@ describe('Rollcall page', () => {
             await click();
             await flushPromises();
 
-            expect(toastError).toHaveBeenCalledWith('Could not try again', { description: 'The report for this week has been sent, so its rollcall is locked.' });
+            expect(toastError).toHaveBeenCalledWith('Could not retry the capture', { description: 'The report for this week has been sent, so its rollcall is locked.' });
             expect(reload).toHaveBeenCalledTimes(1);
             expect(reload).toHaveBeenCalledWith();
         });

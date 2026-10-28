@@ -120,7 +120,7 @@ function ratioLine(child) {
                     <PhWarning class="mt-px size-4 shrink-0 text-warning" aria-hidden="true" />
                     <span>
                         Covers <b class="tabular-nums">{{ node.coverage.sent }} of {{ node.coverage.of }}</b>
-                        {{ node.coverage.of === 1 ? 'unit' : 'units' }} below it. Holding up the chain:
+                        {{ node.coverage.of === 1 ? 'unit' : 'units' }} below it. Waiting on:
                     </span>
                 </p>
                 <ul class="space-y-1.5 pl-6">
@@ -140,7 +140,7 @@ function ratioLine(child) {
                 <div class="mb-2 flex items-baseline justify-between gap-2">
                     <h3 class="text-xs text-muted-foreground">Key figures</h3>
                     <span v-if="node.kpis" class="text-[11px] text-muted-foreground">
-                        {{ node.delta ? "vs last week's sent report" : 'No sent report last week to compare' }}
+                        {{ node.delta ? "Compared with last week's sent report" : 'No sent report last week to compare' }}
                     </span>
                 </div>
                 <p
@@ -152,8 +152,8 @@ function ratioLine(child) {
                     <PhWarning class="mt-px size-4 shrink-0 text-warning" aria-hidden="true" />
                     {{
                         node.status === 'sent'
-                            ? "This report's frozen snapshot cannot be read. An admin needs to look at it."
-                            : 'A sent report below this unit cannot be read, so its roll-up cannot be computed. An admin needs to look at it.'
+                            ? "This report's frozen snapshot cannot be read. An Admin needs to look at it."
+                            : 'A sent report below this unit cannot be read, so its roll-up cannot be computed. An Admin needs to look at it.'
                     }}
                 </p>
                 <dl v-else class="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-border bg-border" data-testid="kpis">

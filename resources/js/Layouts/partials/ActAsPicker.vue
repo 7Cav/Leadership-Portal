@@ -78,7 +78,7 @@ function start() {
             class="top-[12vh] translate-y-0 gap-0 overflow-hidden rounded-lg bg-popover p-0 shadow-panel sm:max-w-[560px]"
         >
             <DialogTitle class="sr-only">Act as</DialogTitle>
-            <DialogDescription class="sr-only">Pick a serving billet holder below you to act as them, with exactly their permissions.</DialogDescription>
+            <DialogDescription class="sr-only">Choose a serving billet holder below you to act as them, with exactly their permissions.</DialogDescription>
 
             <div v-if="chosen" class="space-y-3 p-4" data-testid="act-as-picker-confirm">
                 <p class="text-base leading-snug font-semibold">Act as {{ chosen.label }}?</p>

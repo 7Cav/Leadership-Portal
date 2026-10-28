@@ -124,7 +124,7 @@ describe('Trooper sheet', () => {
         factory();
         await flushPromises();
 
-        expect(document.body.textContent).toContain('This trooper is outside your scope.');
+        expect(document.body.textContent).toContain('This trooper is outside your scope');
     });
 
     it('explains a trooper that is not available (gone, or outside scope: both answer 404), without a pointless retry', async () => {
@@ -132,7 +132,7 @@ describe('Trooper sheet', () => {
         factory();
         await flushPromises();
 
-        expect(document.body.textContent).toContain('This trooper is not available.');
+        expect(document.body.textContent).toContain('This trooper is not available');
         expect([...document.body.querySelectorAll('button')].some((b) => b.textContent.includes('Try again'))).toBe(false);
     });
 
@@ -150,7 +150,7 @@ describe('Trooper sheet', () => {
         globalThis.fetch = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue({ ok: true, status: 200, json: async () => detail() });
         factory();
         await flushPromises();
-        expect(document.body.textContent).toContain('The trooper could not be loaded.');
+        expect(document.body.textContent).toContain('Could not load the trooper');
 
         [...document.body.querySelectorAll('button')].find((b) => b.textContent.includes('Try again')).click();
         await flushPromises();

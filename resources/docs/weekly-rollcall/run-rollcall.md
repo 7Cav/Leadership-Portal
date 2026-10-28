@@ -1,6 +1,6 @@
 ---
 title: Run this week's rollcall
-summary: Record who signed, mark Section Practice, copy the forum post and mark it posted.
+summary: Record who signed, mark section practice, copy the rollcall post and mark it posted.
 section: weekly-rollcall
 order: 1
 audience: leader
@@ -28,7 +28,7 @@ checklist:
 
 > [!good-to-know] Troopers whose leave covers the week are locked and listed under **On LOA**. They post as LOA; you do not mark them.
 
-## Mark Section Practice
+## Mark section practice
 
 1. In step 2, **Section practice**, mark each trooper **Present**, **Missed**, **Makeup** or **Attached**.
 2. **Mark all present** and **Mark the rest missed** fill many rows at once. Both can be undone.

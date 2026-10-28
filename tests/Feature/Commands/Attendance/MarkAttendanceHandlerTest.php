@@ -347,7 +347,8 @@ it('rejects a trooper not placed in the section, writing nothing for the batch',
     expect(fn () => mark($this->leader, $this->section->id, $this->moment, [
         new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present),
         new AttendanceMark($elsewhere->id, AttendanceStatus::Present),
-    ]))->toThrow(InvalidAttendanceMarkException::class, (string) $elsewhere->id);
+    ]))->toThrow(fn (InvalidAttendanceMarkException $e) => expect($e->trooperIds)->toBe([$elsewhere->id])
+        ->and($e->getMessage())->toContain('not placed in this section'));
 
     expect(SectionPractice::query()->count())->toBe(0)
         ->and(Attendance::query()->count())->toBe(0)
@@ -357,7 +358,7 @@ it('rejects a trooper not placed in the section, writing nothing for the batch',
 it('rejects a trooper id that does not exist', function () {
     expect(fn () => mark($this->leader, $this->section->id, $this->moment, [
         new AttendanceMark(999999, AttendanceStatus::Present),
-    ]))->toThrow(InvalidAttendanceMarkException::class, '999999');
+    ]))->toThrow(fn (InvalidAttendanceMarkException $e) => expect($e->trooperIds)->toBe([999999]));
 });
 
 it('refuses to key a practice to a unit that is not a section, writing nothing', function () {
@@ -366,7 +367,7 @@ it('refuses to key a practice to a unit that is not a section, writing nothing',
 
     expect(fn () => mark($admin, $platoon->id, $this->moment, [
         new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Present),
-    ]))->toThrow(InvalidAttendanceMarkException::class, "Unit {$platoon->id} is not a section");
+    ]))->toThrow(InvalidAttendanceMarkException::class, 'This unit is not a section');
 
     expect(SectionPractice::query()->count())->toBe(0)
         ->and(AuditLogEntry::query()->count())->toBe(0);

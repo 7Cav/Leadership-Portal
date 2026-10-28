@@ -42,7 +42,7 @@ const risks = computed(() =>
 
 const signatureStats = computed(() => [
     { label: 'Will attend', value: counts.value.willAttend },
-    { label: 'Cannot', value: counts.value.cannotAttend },
+    { label: 'Cannot attend', value: counts.value.cannotAttend },
     { label: 'Unsigned', value: counts.value.unsigned, tone: counts.value.unsigned ? 'text-warning' : '' },
 ]);
 

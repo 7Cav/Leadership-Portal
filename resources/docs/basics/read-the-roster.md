@@ -21,7 +21,7 @@ checklist:
 ## Choose a view
 
 1. **Order of battle** lists the units and their troopers by billet.
-2. **Attendance matrix** shows each trooper's Section Practice mark for the last 20 Cav weeks. Weeks on leave are marked LOA.
+2. **Attendance matrix** shows each trooper's section practice mark for the last 20 Cav weeks. Weeks on leave are marked LOA.
 3. Filter by name, rank or billet with the box above the list.
 
 ## Open a trooper

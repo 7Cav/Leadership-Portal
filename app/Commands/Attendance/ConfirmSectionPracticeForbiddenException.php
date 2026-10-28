@@ -13,6 +13,6 @@ class ConfirmSectionPracticeForbiddenException extends AuthorizationException
 {
     public function __construct(int $sectionId)
     {
-        parent::__construct("You may not confirm the practice of section {$sectionId}: it is outside your scope.");
+        parent::__construct('You may not confirm the practice of this section: it is outside your scope.');
     }
 }

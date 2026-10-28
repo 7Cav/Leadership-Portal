@@ -13,6 +13,6 @@ class GuestAttendanceForbiddenException extends AuthorizationException
 {
     public function __construct(int $sectionId)
     {
-        parent::__construct("You may not change the guests of section {$sectionId}: it is outside your scope.");
+        parent::__construct('You may not change the guests of this section: it is outside your scope.');
     }
 }

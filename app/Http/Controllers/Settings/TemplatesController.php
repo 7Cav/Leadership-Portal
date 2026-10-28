@@ -54,6 +54,16 @@ class TemplatesController extends Controller
 {
     private const TYPE = ArtifactType::RollcallBbcode;
 
+    /** What an editor reads when a template form is refused, matching the command's own refusals. */
+    private const TEMPLATE_MESSAGES = [
+        'name.required' => 'A template needs a name.',
+        'name.max' => 'A template name can be at most :max characters.',
+        'body.required' => 'A template needs some text.',
+        'body.max' => 'A template can be at most :max characters.',
+        'reason.required' => 'Give a reason for the record.',
+        'reason.max' => 'Keep the reason to :max characters.',
+    ];
+
     public function __construct(
         private readonly TemplateVersionRepository $versions,
         private readonly UnitRepository $units,
@@ -193,7 +203,7 @@ class TemplatesController extends Controller
             'name' => ['required', 'string', 'max:'.CreateTemplate::MAX_NAME_LENGTH],
             'body' => ['required', 'string', 'max:'.AuthorTemplateVersion::MAX_BODY_LENGTH],
             'reason' => ['required', 'string', 'max:1000'],
-        ]);
+        ], self::TEMPLATE_MESSAGES);
 
         $company = $this->units->find($data['company_id']) ?? $this->missing($request->user(), 'company_id');
 
@@ -215,7 +225,7 @@ class TemplatesController extends Controller
             'template_id' => ['required', 'integer'],
             'body' => ['required', 'string', 'max:'.AuthorTemplateVersion::MAX_BODY_LENGTH],
             'reason' => ['required', 'string', 'max:1000'],
-        ]);
+        ], self::TEMPLATE_MESSAGES);
 
         $template = $this->versions->findTemplate($data['template_id']) ?? $this->missing($request->user(), 'template_id');
 
@@ -238,7 +248,7 @@ class TemplatesController extends Controller
 
         $data = $request->validate([
             'reason' => ['required', 'string', 'max:1000'],
-        ]);
+        ], self::TEMPLATE_MESSAGES);
 
         $command->handle($request->user(), $version, $data['reason']);
 
@@ -307,7 +317,7 @@ class TemplatesController extends Controller
         abort_unless($user->is_admin, 403, 'You may not change this template.');
 
         if ($field !== null) {
-            throw ValidationException::withMessages([$field => 'That record no longer exists.']);
+            throw ValidationException::withMessages([$field => 'That record no longer exists. Reload the page.']);
         }
 
         abort(404);

@@ -68,7 +68,7 @@ describe('Settings/StaffGrants', () => {
     it('shows an empty state when there are no grants', () => {
         const wrapper = mount(StaffGrants, { props: { grants: [], units: UNITS, users: USERS, isAdmin: false } });
 
-        expect(wrapper.text()).toContain('No staff grants yet.');
+        expect(wrapper.text()).toContain('No staff grants yet');
     });
 
     it('hides the grant form and revoke controls for a non-Admin (AC #4 — UI mirrors the server gate)', () => {

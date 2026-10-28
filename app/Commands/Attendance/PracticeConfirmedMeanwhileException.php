@@ -19,6 +19,6 @@ final class PracticeConfirmedMeanwhileException extends RuntimeException
 {
     public function __construct(public readonly SectionPractice $practice)
     {
-        parent::__construct("Section practice {$practice->id} was confirmed by someone else in the meantime.");
+        parent::__construct('Someone else confirmed this practice in the meantime. Reload the page to see it.');
     }
 }

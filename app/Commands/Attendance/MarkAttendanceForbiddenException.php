@@ -14,6 +14,6 @@ class MarkAttendanceForbiddenException extends AuthorizationException
 {
     public function __construct(int $sectionId)
     {
-        parent::__construct("You may not mark attendance for section {$sectionId}: it is outside your scope.");
+        parent::__construct('You may not mark attendance for this section: it is outside your scope.');
     }
 }

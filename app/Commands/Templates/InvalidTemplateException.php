@@ -19,7 +19,7 @@ class InvalidTemplateException extends RuntimeException
 
     public static function notACompany(Unit $unit): self
     {
-        return new self("Unit {$unit->id} is a {$unit->type->value}, not a company; a template belongs to a company.", 'company_id');
+        return new self("{$unit->name} is a {$unit->type->value}, not a company; a template belongs to a company.", 'company_id');
     }
 
     public static function emptyBody(): self
@@ -50,7 +50,7 @@ class InvalidTemplateException extends RuntimeException
 
     public static function duplicateName(string $name): self
     {
-        return new self("This company already has a template called {$name}.", 'name');
+        return new self("This company already has a template called \"{$name}\".", 'name');
     }
 
     public static function regimentDefaultAlwaysOn(): self
@@ -65,11 +65,11 @@ class InvalidTemplateException extends RuntimeException
 
     public static function notASection(Unit $unit): self
     {
-        return new self("Unit {$unit->id} is not a section; only a section picks its template.", 'unit');
+        return new self("{$unit->name} is not a section; only a section chooses its template.", 'unit');
     }
 
     public static function notAvailable(): self
     {
-        return new self('That template is not switched on for this section. Pick another.', 'template_id');
+        return new self('That template is not switched on for this section. Choose another.', 'template_id');
     }
 }
