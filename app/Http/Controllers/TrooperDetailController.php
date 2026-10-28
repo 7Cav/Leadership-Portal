@@ -2,11 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Authorization\CounselingAccess;
 use App\Authorization\ScopeResolver;
 use App\Kpi\AttendanceHistory;
 use App\Kpi\KpiService;
+use App\Milpac\CounselingHistory;
 use App\Milpac\TrooperMilpac;
+use App\Models\CounselingRecord;
+use App\Models\CounselingType;
 use App\Models\Trooper;
+use App\Models\User;
 use App\Repositories\UnitRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
@@ -32,6 +37,8 @@ class TrooperDetailController extends Controller
         private readonly UnitRepository $units,
         private readonly KpiService $kpis,
         private readonly AttendanceHistory $history,
+        private readonly CounselingAccess $access,
+        private readonly CounselingHistory $counselingHistory,
     ) {}
 
     public function show(Request $request, Trooper $trooper): Response
@@ -45,7 +52,33 @@ class TrooperDetailController extends Controller
             // Their attendance across every unit they were in (2026-10-27): anyone who may see the trooper now sees
             // the weeks from before a transfer too. Past weekly reports stay with the unit that sent them.
             'attendance' => $this->history->forTrooper($trooper, WeekOf::start(CarbonImmutable::now())),
+            'counseling' => $this->counseling($user, $trooper),
         ]);
+    }
+
+    /**
+     * The DCSs and LORs this viewer may see (#381), with what they may do: file either type, and change each record.
+     * During a view-as preview nothing is offered, since every write is refused then (AD-9).
+     *
+     * @return array<string, mixed>
+     */
+    private function counseling(User $user, Trooper $trooper): array
+    {
+        $permissions = $this->access->for($user, $trooper);
+        $writable = $this->scope->activeViewAs($user) === null;
+
+        return [
+            ...$this->counselingHistory->for(
+                $trooper,
+                $permissions->seesDcs,
+                $permissions->seesLor,
+                fn (CounselingRecord $record) => $writable && $permissions->changes($record),
+            ),
+            'canFile' => [
+                CounselingType::Dcs->value => $writable && $permissions->filesDcs,
+                CounselingType::Lor->value => $writable && $permissions->filesLor,
+            ],
+        ];
     }
 
     /**

@@ -46,6 +46,10 @@ it('answers a 20-digit id with 404, not a 500', function (string $method, string
     'remove a game identity' => ['DELETE', '/game-identities/99999999999999999999/hll'],
     'place a trooper' => ['POST', '/settings/org-structure/troopers/99999999999999999999/placement'],
     'activate a template version' => ['POST', '/settings/templates/99999999999999999999/activate'],
+    'file a counseling record' => ['POST', '/troopers/99999999999999999999/counseling'],
+    'correct a counseling record' => ['PATCH', '/counseling/99999999999999999999'],
+    'delete a counseling record' => ['DELETE', '/counseling/99999999999999999999'],
+    'download a counseling document' => ['GET', '/counseling/99999999999999999999/document'],
 ]);
 
 it('still routes an 18-digit id, which an int can hold', function () {

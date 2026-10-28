@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ActAsController;
 use App\Http\Controllers\Auth\ForumAuthController;
+use App\Http\Controllers\CounselingController;
 use App\Http\Controllers\DocsController;
 use App\Http\Controllers\GameIdentityController;
 use App\Http\Controllers\HomeController;
@@ -39,7 +40,7 @@ use Illuminate\Support\Facades\Route;
 // route taking one of these ids cannot forget the constraint (RouteIdConstraintTest walks the
 // routes and fails on an id-like parameter missing from this list). Don't add `whereNumber()` or
 // `where()` for these on a route: it replaces the global pattern rather than adding to it.
-foreach (['unit', 'grant', 'trooper', 'version', 'game', 'server'] as $id) {
+foreach (['unit', 'grant', 'trooper', 'version', 'game', 'server', 'counseling'] as $id) {
     Route::pattern($id, '[0-9]{1,18}');
 }
 
@@ -104,6 +105,13 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // One trooper's milpac (Story 6.3): the page every entry point to a trooper opens. Scope-gated
     // in the controller through the ScopeResolver (AD-8).
     Route::get('/troopers/{trooper}', [TrooperDetailController::class, 'show'])->name('troopers.show');
+    // Developmental Counseling Statements and Letters of Reprimand (#381). Each write is an audited Command whose handler
+    // decides who may file which type and who may change a record (Authorization\CounselingAccess); a trooper or record
+    // the viewer cannot see is a 404, the document download included. The writes share the audited-writes throttle.
+    Route::post('/troopers/{trooper}/counseling', [CounselingController::class, 'store'])->middleware('throttle:audited-writes')->name('counseling.store');
+    Route::patch('/counseling/{counseling}', [CounselingController::class, 'update'])->middleware('throttle:audited-writes')->name('counseling.update');
+    Route::delete('/counseling/{counseling}', [CounselingController::class, 'destroy'])->middleware('throttle:audited-writes')->name('counseling.destroy');
+    Route::get('/counseling/{counseling}/document', [CounselingController::class, 'document'])->name('counseling.document');
 
     // The training-readiness matrix of one unit (Story 6.9): troopers by courses, scope-gated in the controller
     // through the ScopeResolver (AD-8). The milpac's quick action links to the trooper's platoon. Like the roster's

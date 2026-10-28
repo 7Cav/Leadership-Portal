@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Route;
 // them cannot flood their section's audit log. The rollcall's mark autosave keeps its own terms.
 
 it('puts every audited write without a cap of its own behind the shared throttle, and leaves the marks alone', function () {
-    $names = ['rollcall.fireteams.role', 'rollcall.fireteams.options', 'rollcall.fireteams.policy', 'rollcall.unmatched.dismiss', 'rollcall.unmatched.restore', 'reports.topic', 'reports.topic.clear', 'rollcall.guests.store', 'rollcall.guests.remove', 'view-as.store', 'view-as.destroy', 'training-plans.save', 'training-plans.approve', 'training-plans.return'];
+    $names = ['rollcall.fireteams.role', 'rollcall.fireteams.options', 'rollcall.fireteams.policy', 'rollcall.unmatched.dismiss', 'rollcall.unmatched.restore', 'reports.topic', 'reports.topic.clear', 'rollcall.guests.store', 'rollcall.guests.remove', 'view-as.store', 'view-as.destroy', 'training-plans.save', 'training-plans.approve', 'training-plans.return', 'counseling.store', 'counseling.update', 'counseling.destroy'];
 
     foreach ($names as $name) {
         expect(Route::getRoutes()->getByName($name)->gatherMiddleware())->toContain('throttle:audited-writes');
