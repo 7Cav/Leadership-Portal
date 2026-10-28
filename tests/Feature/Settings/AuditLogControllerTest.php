@@ -294,7 +294,8 @@ describe('what each entry changed', function () {
             AuditLogEntry::query()->delete();
             foreach (range(1, $perType) as $n) {
                 $section = Unit::factory()->create(['type' => UnitType::Section, 'parent_id' => $this->platoon->id, 'path' => "700/701/7{$perType}{$n}/"]);
-                auditAbout($this, SectionPractice::factory()->create(['section_id' => $section->id]), 'attendance.marked');
+                // A fixed week, not the factory's random one: the dismissal below captures this section's practice on 2026-10-03, and a random week lands on it about one run in 500.
+                auditAbout($this, SectionPractice::factory()->create(['section_id' => $section->id, 'week_start' => CarbonImmutable::parse('2026-01-03 00:00:00', 'UTC')]), 'attendance.marked');
                 auditAbout($this, WeeklyReport::factory()->create(['unit_id' => $section->id]), 'weekly_report.sent');
                 auditAbout($this, TemplateVersion::factory()->create(['company_id' => $this->company->id, 'version' => $perType * 10 + $n]), 'template_version.authored');
                 auditAbout($this, TrooperGameIdentity::factory()->create(), 'game_identity.linked');
