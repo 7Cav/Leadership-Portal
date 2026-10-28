@@ -247,7 +247,7 @@ Staff (troopers placed on an HQ node, or in a staff department such as S6) are o
 Reservists and New Recruits are groups but not staff. On a staff member's milpac page, "Section practices attended"
 lists the section practices they attended, newest week first; the roster's trooper sheet shows the same list, read only.
 
-- Add one: the section (any section of the regiment) and the Cav week (this week and up to 11 back, never before the
+- Add one: the section (any section of the regiment with troopers in it) and the Cav week (this week and up to 11 back, never before the
   week floor). One entry per staff member per section per week. Who may is in
   [permissions.md](permissions.md#staff-practices). Each entry says who entered it; one the staff member entered
   themselves reads "Self-reported by".

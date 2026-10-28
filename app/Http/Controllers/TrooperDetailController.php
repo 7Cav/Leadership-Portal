@@ -6,6 +6,7 @@ use App\Authorization\CounselingAccess;
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffPracticeAccess;
 use App\Kpi\AttendanceHistory;
+use App\Kpi\Headcount;
 use App\Kpi\KpiService;
 use App\Milpac\CounselingHistory;
 use App\Milpac\StaffPracticeHistory;
@@ -45,6 +46,7 @@ class TrooperDetailController extends Controller
         private readonly CounselingHistory $counselingHistory,
         private readonly StaffPracticeAccess $staffAccess,
         private readonly StaffPracticeHistory $staffHistory,
+        private readonly Headcount $headcount,
     ) {}
 
     /** How many Cav weeks back, the current one included, the staff practice form offers (never before the floor). */
@@ -134,8 +136,9 @@ class TrooperDetailController extends Controller
                 'removable' => $canRemove && $entry['source'] === 'entered' && $entry['week'] >= $floor->toDateString(),
             ], $entries),
             'canRecord' => $canRecord,
-            'sections' => $canRecord ? $this->units->tree()
-                ->filter(fn (Unit $unit) => $unit->type === UnitType::Section)
+            // Sections with troopers only (#442), as every other picker: an empty one has no practice to attend.
+            'sections' => $canRecord ? $this->headcount->withoutEmptyLineUnits($this->units->tree()
+                ->filter(fn (Unit $unit) => $unit->type === UnitType::Section))
                 ->map(fn (Unit $unit) => ['id' => $unit->id, 'label' => $unit->callsign ?? $unit->name])
                 ->values()
                 ->all() : [],

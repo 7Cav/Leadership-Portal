@@ -111,9 +111,21 @@ it('lists the entries on the milpac with who entered them, and offers the form t
         ['2/1/A/1-7', 'Mercer.J', false, true],
     ])
         ->and($props['canRecord'])->toBeTrue()
-        ->and(collect($props['sections'])->pluck('label')->all())->toBe(['1/1/A/1-7', '2/1/A/1-7'])
+        // 2/1/A/1-7 has nobody in it, so the form does not offer it (#442).
+        ->and(collect($props['sections'])->pluck('label')->all())->toBe(['1/1/A/1-7'])
         ->and($props['weeks'][0])->toBe('2026-10-03')
         ->and($props['weeks'])->toHaveCount(12);
+});
+
+it('offers only the sections with troopers in the form, an empty one again once someone is placed in it', function () {
+    $psg = $this->tree['troopers']['psg'];
+    $labels = fn () => collect(staffPracticeProps($this, $this->tree['users']['pl'], $psg)['sections'])->pluck('label')->all();
+
+    expect($labels())->toBe(['1/1/A/1-7']);
+
+    Trooper::factory()->create(['primary_section_id' => $this->tree['units']['other']->id]);
+
+    expect($labels())->toBe(['1/1/A/1-7', '2/1/A/1-7']);
 });
 
 it('shows a staff department member their own panel with the form, and a grant holder the list only', function () {

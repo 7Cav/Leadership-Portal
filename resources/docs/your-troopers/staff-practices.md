@@ -17,7 +17,7 @@ audience: everyone
 
 1. Open the staff member's milpac page.
 2. In **Section practices attended**, choose **Add a practice**.
-3. Pick the section whose practice they attended and the Cav week, then choose **Record practice**.
+3. Pick the section whose practice they attended and the Cav week, then choose **Record practice**. Sections with nobody in them are not listed.
 
 > [!good-to-know] One entry per section per week. Weeks before the portal's floor and future weeks are refused. Once the staff member's HQ has sent its weekly report for a week, that week can no longer change. A staff department has no weekly report, so its weeks stay open.
 
