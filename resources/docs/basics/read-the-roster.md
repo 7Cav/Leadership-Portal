@@ -16,7 +16,7 @@ checklist:
 ## Open the roster
 
 1. Choose **Roster** in the sidebar.
-2. It opens on the unit you lead. To see another unit you can see, choose it in the unit picker at the top.
+2. It opens on the unit you lead. To see another unit you can see, choose it in the unit picker at the top, or in the unit list at the top of the sidebar.
 
 ## Choose a view
 

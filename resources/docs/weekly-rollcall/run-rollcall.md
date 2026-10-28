@@ -17,8 +17,8 @@ checklist:
 
 ## Open Rollcall and pick your section
 
-1. Choose **Rollcall** in the sidebar. It opens on the section you opened last, or the one you lead.
-2. To open another section you lead, choose **Switch section** at the top.
+1. Choose **Rollcall** in the sidebar. It opens on the section you opened last, or the one you lead. It skips sections with no troopers.
+2. To open another section you lead, choose **Switch section** at the top. Sections with no troopers are listed too, marked **No troopers**.
 3. To fix a past week, pick it in the week selector. Unfinished weeks are flagged.
 
 ## Record the signatures

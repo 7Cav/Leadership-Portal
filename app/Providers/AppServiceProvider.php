@@ -126,6 +126,11 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('act-as-options', fn (Request $request) => Limit::perMinute(20)
             ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
 
+        // The sidebar's unit switcher (#426): its list is read each time the menu opens, and an Admin's is the whole
+        // regiment, so 30 a minute per user is far above what opening it by hand reaches.
+        RateLimiter::for('scope-units', fn (Request $request) => Limit::perMinute(30)
+            ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
+
         // The shell's trooper search: the client waits for a pause in typing, so a person searching stays far below this.
         RateLimiter::for('trooper-search', fn (Request $request) => Limit::perMinute(60)
             ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
