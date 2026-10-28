@@ -198,8 +198,13 @@ staff comes from regiment command or an Admin.
 everyone above, as long as they still counsel the trooper by the rules above. A record an Admin filed (no unit) is the
 Admins' alone.
 
+A trooper who has left the Cav (no longer serving) has read-only counseling: nobody may file a DCS or LOR on them, or
+correct or delete one, Admins included, and the panel says so. Whoever could see their records still sees and downloads
+them. If they serve again, the rules above apply again.
+
 A record the viewer may not see is left out of the page entirely, and its download answers 404 like a record that does
-not exist. The 90-day warnings are worked out from the records the viewer sees, so they never give a DCS away.
+not exist, also on a departed trooper. The flags and the filing form's forecast are worked out from the records the
+viewer sees, so they never give a DCS away.
 
 ## How scope is worked out
 
