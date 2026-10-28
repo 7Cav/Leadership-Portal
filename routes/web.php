@@ -22,6 +22,7 @@ use App\Http\Controllers\Settings\ServersController;
 use App\Http\Controllers\Settings\StaffGrantsController;
 use App\Http\Controllers\Settings\TemplatesController;
 use App\Http\Controllers\Settings\TrooperPlacementController;
+use App\Http\Controllers\TrainingPlanController;
 use App\Http\Controllers\TrainingReadinessMatrixController;
 use App\Http\Controllers\TrooperDetailController;
 use App\Http\Controllers\TrooperSearchController;
@@ -78,6 +79,19 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
         ->where('week', '\d{4}-\d{2}-\d{2}')->middleware('throttle:audited-writes')->name('reports.topic');
     Route::delete('/reports/{unit}/{week}/topic', [ReportController::class, 'clearTopic'])
         ->where('week', '\d{4}-\d{2}-\d{2}')->middleware('throttle:audited-writes')->name('reports.topic.clear');
+
+    // Monthly training plans (#380): on a platoon, its plan for `{month}` (YYYY-MM, this month when left out); above
+    // one, the month's plans of every platoon beneath. Scope is checked in the controller (403 outside it); who may
+    // write and who may review is checked in the Commands' handlers. Each write is audited, so they share the
+    // audited-writes throttle.
+    Route::get('/reports/{unit}/plans/{month?}', [TrainingPlanController::class, 'show'])
+        ->where('month', '\d{4}-\d{2}')->name('training-plans.show');
+    Route::put('/reports/{unit}/plans/{month}', [TrainingPlanController::class, 'save'])
+        ->where('month', '\d{4}-\d{2}')->middleware('throttle:audited-writes')->name('training-plans.save');
+    Route::post('/reports/{unit}/plans/{month}/approve', [TrainingPlanController::class, 'approve'])
+        ->where('month', '\d{4}-\d{2}')->middleware('throttle:audited-writes')->name('training-plans.approve');
+    Route::post('/reports/{unit}/plans/{month}/return', [TrainingPlanController::class, 'sendBack'])
+        ->where('month', '\d{4}-\d{2}')->middleware('throttle:audited-writes')->name('training-plans.return');
 
     // The roster (Stories 2.8, 4.6, 4.7, 4.9): the selected unit's subtree, `?view=orbat|matrix`.
     // Scope-gated in the controller through the ScopeResolver (AD-8). The trooper Sheet reads its
