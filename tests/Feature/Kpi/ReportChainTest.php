@@ -222,7 +222,7 @@ it('reads a whole battalion in eight queries, however many units it holds', func
         }
     }
 
-    expect($small)->toBe(8)->and($count($this->battalion))->toBe(8);
+    expect($small)->toBe(9)->and($count($this->battalion))->toBe(9);
 });
 
 it('shows a unit with an unreadable sent snapshot as unknown, never a plausible zero, and still builds the rest of the chain', function () {

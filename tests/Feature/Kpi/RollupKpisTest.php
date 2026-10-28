@@ -172,8 +172,8 @@ it('reads any number of children in a constant number of queries', function () {
 
     expect($result->children)->toHaveCount(15)
         ->and($result->kpis->strength)->toBe(12)
-        // The children, which of them have troopers (two), and their reports.
-        ->and($queries)->toBeLessThanOrEqual(4);
+        // The children, their reports, and which of them have troopers now or had them that week (three).
+        ->and($queries)->toBeLessThanOrEqual(5);
 });
 
 // 5.8: fromReports trusts the caller's collections only as far as it can check them.

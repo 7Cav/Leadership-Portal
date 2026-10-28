@@ -54,11 +54,15 @@ final class ReportChain
         $weekStart = WeekOf::requireStart($weekStart);
         // The reporting chain is the line: groups (staff, ELOA, Reservists, New Recruits) have no report (2026-10-24),
         // and neither has a line unit nobody is placed in or under (#442).
-        $units = $this->headcount->withoutEmptyLineUnits($this->units->lineSubtree($root))
+        // A unit that sent this week's report stays, however empty it is now: its numbers belong to the week.
+        $subtree = $this->units->lineSubtree($root);
+        $reports = $this->reports->forUnits($subtree->modelKeys(), $weekStart);
+        $sent = $reports->filter(fn (WeeklyReport $report) => $report->status === WeeklyReportStatus::Sent)->keys()->all();
+        $units = $this->headcount->withoutEmptyLineUnits($subtree, $weekStart, $sent)
             ->reject(fn (Unit $unit) => $unit->id === $root->id)
             ->prepend($root);
         $ids = $units->modelKeys();
-        $reports = $this->reports->forUnits($ids, $weekStart);
+        $reports = $reports->only($ids);
         $priorReports = $this->reports->forUnits($ids, $weekStart->subWeek());
 
         return $this->node(

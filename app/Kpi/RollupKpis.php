@@ -44,13 +44,27 @@ final class RollupKpis
     /**
      * The children `$unit`'s report rolls up and waits on: its direct line children (a group under the regiment has
      * no report to wait on, 2026-10-24) that have troopers ({@see Headcount::withoutEmptyLineUnits()}, #442), in
-     * creation order. Empty for a leaf, and for a unit whose children are all empty.
+     * creation order. Empty for a leaf, and for a unit whose children are all empty. With `$weekStart`, a child that
+     * had troopers at any point of that week counts too, and so does one that sent that week's report, so one emptied
+     * after reporting still rolls up for it.
      *
      * @return Collection<int, Unit>
      */
-    public function children(Unit $unit): Collection
+    public function children(Unit $unit, ?CarbonInterface $weekStart = null): Collection
     {
-        return $this->headcount->withoutEmptyLineUnits($this->units->lineChildren($unit));
+        $children = $this->units->lineChildren($unit);
+        $sent = $weekStart === null ? [] : self::sentIds($this->reports->forUnits($children->modelKeys(), WeekOf::requireStart($weekStart)));
+
+        return $this->headcount->withoutEmptyLineUnits($children, $weekStart, $sent);
+    }
+
+    /**
+     * @param  Collection<int, WeeklyReport>  $reports  keyed by `unit_id`
+     * @return list<int> the units among them whose report is sent
+     */
+    private static function sentIds(Collection $reports): array
+    {
+        return $reports->filter(fn (WeeklyReport $report) => $report->status === WeeklyReportStatus::Sent)->keys()->all();
     }
 
     /**
@@ -62,13 +76,16 @@ final class RollupKpis
     public function forUnit(Unit $unit, CarbonInterface $weekStart): RollupResult
     {
         $weekStart = WeekOf::requireStart($weekStart);
-        $children = $this->children($unit);
+        // One read of the week's reports serves both which children count (a sent one always does) and their numbers.
+        $all = $this->units->lineChildren($unit);
+        $reports = $this->reports->forUnits($all->modelKeys(), $weekStart);
+        $children = $this->headcount->withoutEmptyLineUnits($all, $weekStart, self::sentIds($reports));
 
         if ($children->isEmpty()) {
             throw new InvalidArgumentException("Unit {$unit->id} has no children; a leaf report computes from attendance, not a roll-up.");
         }
 
-        return self::fromReports($children, $this->reports->forUnits($children->pluck('id')->all(), $weekStart), $weekStart);
+        return self::fromReports($children, $reports, $weekStart);
     }
 
     /**

@@ -5,12 +5,14 @@ use App\Kpi\Ratio;
 use App\Kpi\ReportSnapshot;
 use App\Kpi\UnitKpis;
 use App\Models\Loa;
+use App\Models\PlacementSource;
 use App\Models\PortalRoleGrant;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReport;
+use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use Carbon\CarbonImmutable;
@@ -197,6 +199,35 @@ it('keeps a unit listed as missing on a report sent before it was emptied', func
     CarbonImmutable::setTestNow('2026-10-15 16:20:30');
     $this->actingAs($this->admin)->get("/reports/{$this->platoon->id}/2026-10-10")
         ->assertInertia(fn (AssertableInertia $page) => $page->has('children', 1)->where('missingChildren', [$this->manned->id]));
+});
+
+it('keeps a section emptied by a move in its platoon\'s roll-up for the weeks it had troopers, and only those', function () {
+    // The section sent last week's report, then the sync moved both its troopers out on Tuesday of this week.
+    sendEmptyUnitsReport($this->manned->id, CarbonImmutable::parse('2026-09-26 00:00:00', 'UTC'));
+    $changes = $this->troopers->mapWithKeys(fn (Trooper $t) => [$t->id => [$this->manned->id, null]])->all();
+    app(TrooperPlacementRepository::class)->record($changes, PlacementSource::Sync, CarbonImmutable::parse('2026-10-06 12:00:00', 'UTC'));
+    $this->troopers->each(fn (Trooper $t) => $t->forceFill(['primary_section_id' => null])->save());
+
+    // Last week it sent, and this week it still had troopers until Tuesday: the platoon's drafts wait on it.
+    foreach (['2026-09-26', $this->week] as $week) {
+        $this->actingAs($this->admin)->get("/reports/{$this->platoon->id}/{$week}")
+            ->assertInertia(fn (AssertableInertia $page) => $page->where('children.0.id', $this->manned->id));
+    }
+
+    // Next week it is empty from the start, so it is left out.
+    CarbonImmutable::setTestNow('2026-10-15 16:20:30');
+    $this->actingAs($this->admin)->get("/reports/{$this->platoon->id}/2026-10-10")
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('children', []));
+});
+
+it('keeps a section that sent its report in that week\'s roll-up after its last trooper leaves the Cav', function () {
+    sendEmptyUnitsReport($this->manned->id, $this->weekStart);
+    $this->troopers->each(fn (Trooper $t) => $t->forceFill(['status' => TrooperStatus::Inactive])->save());
+
+    $this->actingAs($this->admin)->get("/reports/{$this->platoon->id}/{$this->week}")
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('children.0.id', $this->manned->id)
+            ->where('children.0.status', 'sent'));
 });
 
 it('still counts a unit whose only members are on leave', function () {

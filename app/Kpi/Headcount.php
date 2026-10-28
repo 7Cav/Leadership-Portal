@@ -4,8 +4,10 @@ namespace App\Kpi;
 
 use App\Models\Unit;
 use App\Models\UnitKind;
+use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
 /**
@@ -20,13 +22,15 @@ use Illuminate\Support\Collection;
  * It is also what "has troopers" means (#442): a unit has troopers when its headcount is above zero. A line unit with
  * none is left out of the report chain, the roster and Home ({@see withoutEmptyLineUnits()}) until someone is placed
  * in it or under it. A trooper on leave is still serving and still placed, so a unit whose only members are on LOA has
- * troopers.
+ * troopers. For a report's week, a unit also counts when someone was placed in it or under it during that week, so a
+ * section that sent and was emptied afterwards still rolls up into its platoon for the week it reported.
  */
 final class Headcount
 {
     public function __construct(
         private readonly UnitRepository $units,
         private readonly TrooperRepository $troopers,
+        private readonly TrooperPlacementRepository $placements,
     ) {}
 
     /** The headcount of `$unit`'s subtree, itself included. */
@@ -57,20 +61,30 @@ final class Headcount
      * empty units out applies (the report chain, the roster, Home), so a unit comes back on all of them at once when a
      * trooper is placed in it, by the roster sync or by hand. The org page lists every unit and does not use it.
      *
-     * Two queries whatever is passed: the serving troopers by unit, and the tree to place them in.
+     * With `$weekStart`, a unit someone was placed in or under during that week counts too (a third query): the
+     * report chain asks for the week it reports, so a unit emptied after the week still counts for it. Without it,
+     * only who is placed now.
+     *
+     * `$keep` are unit ids kept whatever their headcount: the report chain passes the units that sent that week's
+     * report, whose numbers belong to the week however empty they are now.
+     *
+     * Two queries whatever is passed (three with a week): the serving troopers by unit, and the tree to place them in.
      *
      * @template TCollection of Collection<int, Unit>
      *
      * @param  TCollection  $units
+     * @param  list<int>  $keep
      * @return TCollection
      */
-    public function withoutEmptyLineUnits(Collection $units): Collection
+    public function withoutEmptyLineUnits(Collection $units, ?CarbonInterface $weekStart = null, array $keep = []): Collection
     {
+        $keep = array_flip($keep);
         $servingBySection = $this->troopers->countsBySection();
-        $placed = $this->units->tree()->filter(fn (Unit $unit) => $servingBySection->get($unit->id, 0) > 0);
+        $duringWeek = $weekStart === null ? [] : array_flip($this->placements->unitIdsPlacedDuring($weekStart));
+        $placed = $this->units->tree()->filter(fn (Unit $unit) => $servingBySection->get($unit->id, 0) > 0 || isset($duringWeek[$unit->id]));
 
         return $units
-            ->filter(fn (Unit $unit) => ! $unit->isLine() || $placed->contains(fn (Unit $holder) => self::counts($holder, $unit)))
+            ->filter(fn (Unit $unit) => ! $unit->isLine() || isset($keep[$unit->id]) || $placed->contains(fn (Unit $holder) => self::counts($holder, $unit)))
             ->values();
     }
 

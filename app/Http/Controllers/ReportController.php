@@ -111,7 +111,7 @@ class ReportController extends Controller
 
         // The children a draft rolls up and waits on: none empty (#442). A sent report keeps what it froze, so a child
         // listed as missing at send stays listed even once nobody is left in it.
-        $children = $isLeaf ? collect() : $this->rollups->children($unit);
+        $children = $isLeaf ? collect() : $this->rollups->children($unit, $weekStart);
 
         if (! $isLeaf && $sent && $snapshot !== null) {
             $children = $this->units->lineChildren($unit)
