@@ -345,6 +345,8 @@ tests and comments. They include some route and key names, so read them as rough
 | user | A portal account (sign-in, staff grant holder) | Staff grants, menus | user 19 / 37 | member |
 | milpac | A trooper's Cav personnel record and page | Trooper sheet, milpac page | milpac 10 / 14, "Milpac ID" at sentence start | MILPAC, Milpac mid-sentence, profile |
 | billet | A trooper's position on the Cav roster | Roster, Org structure | billet 37 / 16, position 1 UI | position, role, job |
+| Developmental Counseling Statement, DCS | A written counseling of a trooper, filed with its signed PDF (#381). Spell it out in labels and headings; "DCS" on badges and in counts. Plural "DCSs" | Milpac counseling panel | new | counseling form, write-up |
+| Letter of Reprimand, LOR | A written reprimand, filed with its signed PDF (#381). Spell it out in labels and headings; "LOR" on badges and in counts. Plural "LORs" | Milpac counseling panel | new | reprimand letter, write-up |
 | scope | The units you can see; "write scope" the ones you can change | Empty states, errors | 32 / 18 | access, permissions (in UI) |
 | staff grant | Admin-given read access to a unit and everything under it | Settings, read-only reasons | staff grant 7 / 7, grant 43 | permission, role |
 | view as | Read-only preview as a unit or (Admins) a person | User menu, banner | view as 15, "viewing as" 4 | impersonate, act as (planned feature, see features.md) |

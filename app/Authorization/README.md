@@ -76,3 +76,10 @@ reach beyond the leader's scope, or a leader who loses the billet, ends it at on
 An Admin acting as a leader who starts another act-as is held to that leader's reach: the pair (`via`, the one they act
 as, and the target) is stored and checked together on every request, so nothing is reachable through a leader that the
 leader could not reach; one level only, and a stop makes the Admin themselves again.
+
+**Counseling** (#381). `CounselingAccess::for($user, $trooper)` decides, once per page, who may file, see, correct and
+delete a trooper's DCSs and LORs, on top of `ScopeResolver::commandingUnitsOver()` (the user's commands that reach the
+trooper's unit, lowest first), `writeScope()` and `canSee()`. A DCS is filed by any command reaching the trooper and seen
+by the same people; an LOR is filed only by line command from platoon level up and seen by everyone who can see the
+trooper. A command the trooper shares (an ASL and their SL) never counts. A record may be changed by an Admin or by the
+commanders of the unit it was filed through. The rules are in `docs/permissions.md`.
