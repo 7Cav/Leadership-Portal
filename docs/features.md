@@ -80,7 +80,9 @@ Related pages reached from the roster:
 ### Rollcall
 
 One section's week, in three steps. It opens on the last section you opened, else the section your billet commands,
-else the first section of the first platoon in your scope. A week selector moves back through past weeks (down to the week floor) and flags unfinished ones.
+else a section you are acting lead of, else the first section of the first platoon in your scope. It only lands on a
+section with troopers, unless every section in your scope is empty. The section picker still lists empty sections,
+marked "No troopers", so a leader can open one that is being stood up. A week selector moves back through past weeks (down to the week floor) and flags unfinished ones.
 
 1. Signatures: for each trooper, Will attend, Cannot attend or Unsigned, as signed on the forum's rollcall thread.
 2. Section practice: Present, Missed, Makeup or Attached. "Mark all present", "Mark the rest missed" and "use last
@@ -143,6 +145,20 @@ on none.
     rollcall.
   - Weeks before the week floor open read-only.
 
+### Unit switcher and View as
+
+- Unit switcher: the block at the top of the sidebar names the top unit of your scope (several for a staff grant over
+  more than one unit), and the breadcrumb starts there. Open it to list every unit in your scope as a tree, sections
+  included and empty line units left out. Choosing one opens the page you are on for that unit (its roster, a
+  section's rollcall, or its report or roll-up for the same week), else that unit's roster. It is navigation only: it
+  never changes what you can see or do.
+- View as (in the top bar): previews the portal as a unit's leader, or for an Admin as a person. Starting or switching
+  a preview opens the page you were on for the unit you picked when there is one (its roster, its rollcall or the
+  rollcall landing, its report for the same week or the reports landing, its readiness matrix, and its roster from a
+  trooper page), else Home. In a person preview, the roster and the rollcall open where that person would land.
+  Leaving the preview goes back to the page you were on.
+- Both follow act as and View as: with either on, the switcher lists the units of the scope you are seeing.
+
 ### Units with no troopers
 
 A line unit with nobody serving placed in it, or in any unit under it, has nobody to report on. Until someone is placed
@@ -150,7 +166,8 @@ in it, it is left out of:
 
 - the report chain: it is not a child that has to send, so it is not in "Every unit has sent", not in "Sent without"
   and not listed as "Not in at send", and the roll-up workspace does not draw it;
-- the roster's ORBAT and unit picker;
+- the roster's ORBAT and unit picker, and the sidebar's unit switcher;
+- the rollcall's landing (its section picker still lists them, marked "No troopers");
 - Home's progress lanes and step matrix, the unit table, the sparkline's "every section sent" test, and Needs attention.
 
 It comes back on all of them as soon as a trooper is placed in it or under it, by the roster sync or by an Admin, with

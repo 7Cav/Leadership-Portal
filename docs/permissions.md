@@ -275,6 +275,7 @@ only sign out has none, since it ends the session and signing back in is limited
 | 60, shared | Every other audited write: saving a guidon, fireteam changes, company fireteam policy, linking, dismissing and restoring unmatched players, confirming a practice, marking a rollcall posted, guest add and remove, staff practice add and remove, setting and removing a game identity, platoon topic set and clear, training plan save, approve and send back, every template write and a section's template pick, starting and leaving view as and act as, correcting and deleting a DCS or LOR, and the Admin settings writes (org structure, acting leads, trooper placement, staff grants, games, servers, demo data) |
 | 10 | Sending a report |
 | 20 | Loading the act as picker's list |
+| 30 | Loading the sidebar unit switcher's list (the units in your scope; read only, it changes nothing) |
 | 10 | Capture "Try again"; the same practice also only once a minute |
 | 10 | Filing a DCS or LOR (each one uploads a PDF of up to 10 MB) |
 | 5, shared | Whole-roster sync and the org-structure import, which both read Cav on the request (Admins) |
