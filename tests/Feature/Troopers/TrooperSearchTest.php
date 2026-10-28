@@ -167,7 +167,14 @@ describe('how 7Cav writes a name', function () {
 
     it('ignores a leading rank and reads a space as the username\'s dot', function (string $q) use ($names) {
         expect($names($this, $q))->toBe(['Vasquez.R']);
-    })->with(['SGT Vasquez', 'sgt vasquez', 'Vasquez R', 'SGT Vasquez R', 'Sgt. Vasquez.R', 'cpl vasq', '  SGT   Vasquez  ']);
+    })->with(['SGT Vasquez', 'sgt vasquez', 'Vasquez R', 'SGT Vasquez R', 'Sgt. Vasquez.R', 'cpl vasq', '  SGT   Vasquez  ', 'GOA Vasquez']);
+
+    it('knows the same ranks as the roster, so a search may start with any of them', function () {
+        preg_match('/export const RANK_ORDER = \[(.*?)\];/s', file_get_contents(resource_path('js/lib/roster.js')), $match);
+        preg_match_all("/'([A-Z0-9]+)'/", $match[1], $roster);
+
+        expect((new ReflectionClassConstant(TrooperSearchController::class, 'RANKS'))->getValue())->toBe($roster[1]);
+    });
 
     it('keeps a rank that is the whole search as text to match', function () use ($names) {
         searchTrooper($this->section1, ['username' => 'Sgtson.A']);

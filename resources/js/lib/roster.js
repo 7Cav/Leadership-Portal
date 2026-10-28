@@ -8,7 +8,7 @@ import { forumDate } from './forumDate';
 // Junior to senior; anything unknown sorts below the known ranks.
 export const RANK_ORDER = [
     'RCT', 'PVT', 'PFC', 'SPC', 'CPL', 'SGT', 'SSG', 'SFC', 'MSG', '1SG', 'SGM', 'CSM',
-    'WO1', 'CW2', 'CW3', 'CW4', 'CW5', '2LT', '1LT', 'CPT', 'MAJ', 'LTC', 'COL', 'BG', 'MG', 'LTG', 'GEN',
+    'WO1', 'CW2', 'CW3', 'CW4', 'CW5', '2LT', '1LT', 'CPT', 'MAJ', 'LTC', 'COL', 'BG', 'MG', 'LTG', 'GEN', 'GOA',
 ];
 
 export const RANK_NAMES = {
@@ -19,6 +19,7 @@ export const RANK_NAMES = {
     CW4: 'Chief Warrant Officer 4', CW5: 'Chief Warrant Officer 5', '2LT': 'Second Lieutenant',
     '1LT': 'First Lieutenant', CPT: 'Captain', MAJ: 'Major', LTC: 'Lieutenant Colonel', COL: 'Colonel',
     BG: 'Brigadier General', MG: 'Major General', LTG: 'Lieutenant General', GEN: 'General',
+    GOA: 'General of the Army',
 };
 
 export function rankIndex(rank) {
