@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Authorization\CounselingAccess;
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffPracticeAccess;
+use App\Commands\StaffPractices\RecordStaffPracticeHandler;
 use App\Kpi\AttendanceHistory;
 use App\Kpi\Headcount;
 use App\Kpi\KpiService;
@@ -53,8 +54,11 @@ class TrooperDetailController extends Controller
         private readonly Headcount $headcount,
     ) {}
 
-    /** How many Cav weeks back, the current one included, the staff practice form offers (never before the floor). */
-    public const STAFF_PRACTICE_WEEKS = 12;
+    /**
+     * How many Cav weeks back, the current one included, the staff practice form offers (never before the floor): the
+     * window the entry's handler enforces, one number for both (audit 2, L3).
+     */
+    public const STAFF_PRACTICE_WEEKS = RecordStaffPracticeHandler::WEEKS;
 
     public function show(Request $request, Trooper $trooper): Response
     {

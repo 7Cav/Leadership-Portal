@@ -48,6 +48,11 @@ class StaffPracticeRefusedException extends RuntimeException
         return new self("The week of {$weekStart->format('dMy')} is too far back to change.", 'before_floor', 'week');
     }
 
+    public static function outsideWindow(CarbonInterface $weekStart, int $weeks): self
+    {
+        return new self('The week of '.$weekStart->format('dMy').' is too far back. A staff practice can be entered for this week and the '.($weeks - 1).' before it.', 'outside_window', 'week');
+    }
+
     public static function future(): self
     {
         return new self('A future week has no practice yet.', 'future', 'week');
