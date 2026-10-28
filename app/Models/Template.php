@@ -12,7 +12,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * A named template of one kind of artifact (#375, AD-17): a company's own, or the regiment-wide default when
  * `company_id` is null. Its text lives in immutable {@see TemplateVersion}s; `active_version_id` points at the one in
  * use. `enabled` is the company command's switch for whether the company's sections may use it; the regiment default
- * is always available whatever it holds.
+ * is always available whatever it holds. `copied_from_id` is the template it was copied from, when a platoon moved here
+ * from another company brought it along (#378): the copy is this company's own from then on.
  *
  * Portal-owned (AD-22), written only by `TemplateVersionRepository` under the audited template Commands. Never deleted.
  */
@@ -29,6 +30,7 @@ class Template extends Model
             'artifact_type' => ArtifactType::class,
             'enabled' => 'boolean',
             'active_version_id' => 'integer',
+            'copied_from_id' => 'integer',
         ];
     }
 
@@ -41,6 +43,12 @@ class Template extends Model
     public function company(): BelongsTo
     {
         return $this->belongsTo(Unit::class, 'company_id');
+    }
+
+    /** The template this one was copied from (#378), or none. */
+    public function copiedFrom(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'copied_from_id');
     }
 
     public function activeVersion(): BelongsTo

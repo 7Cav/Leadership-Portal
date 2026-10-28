@@ -26,6 +26,10 @@ const value = computed(() => (props.picker.picked === null ? '' : String(props.p
 const note = computed(() => SOURCE_NOTES[props.template?.source] ?? null);
 const optionLabel = (option) => (option.isRegimentDefault ? `${option.name} (regiment)` : option.name);
 
+// A platoon moved here from another company gets copies of its templates (#378). Where the new company's battalion sets
+// its templates the copies start switched off, and the section is told what its post uses now.
+const moved = computed(() => props.picker.moved ?? null);
+
 function choose(event) {
     const id = event.target.value === '' ? null : Number(event.target.value);
     if (id !== props.picker.picked) emit('pick', id);
@@ -52,6 +56,11 @@ function choose(event) {
         </div>
         <p v-if="template?.name" class="text-xs text-muted-foreground" data-testid="template-pick-note">
             Using {{ template.name }}. {{ note }}
+        </p>
+        <p v-if="moved" role="status" class="basis-full rounded-md border border-warning/40 bg-warning/7 px-3 py-2 text-xs" data-testid="template-moved">
+            <template v-if="moved.from">This platoon moved here from {{ moved.from }}. </template>Its template came along as
+            {{ moved.copy }}, which is switched off here<template v-if="moved.locked">, as this company's battalion sets its
+            templates</template>. The post now uses {{ moved.using ?? 'no template' }}.
         </p>
     </div>
 </template>

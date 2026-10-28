@@ -269,6 +269,7 @@ describe("the section leader's pick (#375)", function () {
                 ['id' => $this->training->id, 'name' => 'Training week', 'isRegimentDefault' => false, 'version' => 1],
             ],
             'picked' => null,
+            'moved' => null,
         ]);
 
         $this->postJson(route('rollcall.template.pick', $this->section->id), ['template_id' => $this->training->id])

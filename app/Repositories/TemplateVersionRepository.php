@@ -142,4 +142,16 @@ interface TemplateVersionRepository
      * @throws TemplateUnchangedException when it is set that way already (a company with no row counts as on).
      */
     public function setCompanyEditsTemplates(Unit $company, bool $edits, int $setBy): CompanyTemplatePolicy;
+
+    /**
+     * Copy `$source` into the company as a template of its own (#378), in one transaction under the company's lock: one
+     * version, version 1, holding the source's active version's body and author, made the copy's active one. The copy
+     * remembers its source (`copied_from_id`) and is switched on or off as `$enabled` says. Unlike
+     * {@see createTemplate()} it never becomes the company's active template, so the company's other sections render
+     * what they did. When `$name` is taken (case aside) the copy is numbered: `$name (2)`, `$name (3)`, and so on, so
+     * `$name` should leave room for that within the 60-character limit.
+     *
+     * @throws InvalidArgumentException when `$companyId` is not a company, or the source has no active version.
+     */
+    public function copyTemplate(Template $source, int $companyId, string $name, bool $enabled, int $copiedBy): Template;
 }

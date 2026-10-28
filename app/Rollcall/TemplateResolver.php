@@ -14,7 +14,9 @@ use Illuminate\Support\Collection;
  * Which template applies to a unit (Story 3.6, #375, AD-17). A section, platoon or any echelon below a company has no
  * template of its own, so the rule walks up the org tree to the owning company and takes, in order:
  *
- *  1. the section's own pick, while it is still available to it ({@see isAvailable()});
+ *  1. the section's own pick, while it is still available to it ({@see isAvailable()}): the regiment default or one
+ *     of the company's switched-on templates (a platoon moved here from another company picks the copies the move
+ *     made for this company, #378);
  *  2. else the company's active template, if the company has it switched on;
  *  3. else the regiment-wide default, so a company with nothing switched on still gets a post, never a blank one.
  *
@@ -84,14 +86,16 @@ final class TemplateResolver
     /**
      * What the rollcall's template picker shows for a section: the templates it may pick from (the regiment default
      * first), and the one it picked, or null when it renders from the company's choice. A pick that is no longer
-     * available reads as none, as the resolver then ignores it.
+     * available reads as none, as the resolver then ignores it. `moved` is what a section moved here from another
+     * company is told when its copied template is switched off ({@see movedNotice()}).
      *
-     * @return array{options: list<array{id: int, name: string, isRegimentDefault: bool, version: int}>, picked: ?int}
+     * @return array{options: list<array{id: int, name: string, isRegimentDefault: bool, version: int}>, picked: ?int, moved: ?array{from: ?string, copy: string, locked: bool, using: ?string}}
      */
     public function pickerFor(Unit $section, ArtifactType $type = ArtifactType::RollcallBbcode): array
     {
         $options = $this->optionsFor($section, $type);
-        $picked = $this->versions->choiceFor($section->id, $type)?->template_id;
+        $choice = $this->versions->choiceFor($section->id, $type);
+        $picked = $choice?->template_id;
 
         return [
             'options' => $options->map(fn (Template $template) => [
@@ -101,12 +105,42 @@ final class TemplateResolver
                 'version' => $template->activeVersion->version,
             ])->all(),
             'picked' => $options->contains('id', $picked) ? $picked : null,
+            'moved' => $this->movedNotice($section, $choice?->template, $type),
+        ];
+    }
+
+    /**
+     * What a section is told when it moved here from another company and the copy of its template made then is
+     * switched off (#378): a move into a company whose battalion sets its templates (#376) makes the copies switched
+     * off, so the section follows its new company. Says where the template came from, the copy's name, whether the
+     * battalion holds the company's templates, and the template its post uses now. Null otherwise: a switched-on copy
+     * is just one of the company's templates.
+     *
+     * @return array{from: ?string, copy: string, locked: bool, using: ?string}|null
+     */
+    private function movedNotice(Unit $section, ?Template $picked, ArtifactType $type): ?array
+    {
+        $company = $this->units->owningCompany($section);
+
+        if ($company === null || $picked === null || $picked->copied_from_id === null || $picked->enabled || $picked->company_id !== $company->id) {
+            return null;
+        }
+
+        $source = $this->versions->findTemplate($picked->copied_from_id);
+        $from = $source?->company_id === null ? null : $this->units->find($source->company_id);
+
+        return [
+            'from' => $from?->callsign ?? $from?->name,
+            'copy' => $picked->name,
+            'locked' => ! $this->versions->companyEditsTemplates($company->id),
+            'using' => $this->forUnit($section, $type)->template?->name,
         ];
     }
 
     /**
      * Whether a unit under `$company` may render from `$template`: the regiment default always, otherwise one of the
-     * company's own templates while it is switched on.
+     * company's own templates while it is switched on. A platoon moved here from another company renders from copies
+     * the move made for this company (#378), never from its old company's templates.
      */
     public function isAvailable(Template $template, Unit $unit, Unit $company): bool
     {

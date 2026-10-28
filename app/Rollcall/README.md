@@ -10,7 +10,10 @@ Read-only logic behind the weekly rollcall, so no screen re-derives it.
   `TemplateResolution` is the outcome: `resolved`, `no_active_template` (not even the regiment default has a version)
   or `no_owning_company` (the unit sits above every company). Both "none" cases are explicit states, never a blank
   body. Resolution happens on every call, never from a cached copy, so a company's change shows on the next render.
-  `optionsFor()` and `pickerFor()` are what the rollcall's template picker offers.
+  `optionsFor()` and `pickerFor()` are what the rollcall's template picker offers. A platoon or section moved to
+  another company renders from copies of the templates its sections used, made for the new company by the move (#378),
+  never from the old company's; when a copy is switched off (the new company's battalion sets its templates),
+  `pickerFor()` says where it came from and which template the post uses now.
 
 - `TemplateSyntax::check($body)` (3.10, AD-17): the grammar a rollcall template must follow, checked when an Admin saves
   one. The language is Mustache's core and cannot run code: `{{name}}` prints a value, `{{#troopers}}...{{/troopers}}`
