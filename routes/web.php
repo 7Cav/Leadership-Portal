@@ -28,6 +28,7 @@ use App\Http\Controllers\TrainingPlanController;
 use App\Http\Controllers\TrainingReadinessMatrixController;
 use App\Http\Controllers\TrooperDetailController;
 use App\Http\Controllers\TrooperSearchController;
+use App\Http\Controllers\UnitGuidonController;
 use App\Http\Controllers\UnitRosterSyncController;
 use App\Http\Controllers\ViewAsController;
 use App\Http\Middleware\EnsureServingMember;
@@ -273,6 +274,11 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // An echelon leader's manual sync: the same queued job, writing only that unit's subtree. The leader gate is in
     // the controller (ScopeResolver::commandsUnit). The throttle caps each user; the controller's cooldown caps syncs of a unit and the units above and below it, since each run is a full Cav fetch.
     Route::post('/units/{unit}/roster-sync', [UnitRosterSyncController::class, 'store'])->middleware('throttle:unit-roster-sync')->name('units.roster-sync.store');
+
+    // A company's, battalion's or the regiment's guidon (#446), saved from the roster's generator. Who may (the unit's
+    // command, the command above it, or an Admin) is checked in the Command's handler (ScopeResolver::commandsUnit).
+    // Each save writes an audit row, so it shares the audited-writes throttle.
+    Route::put('/units/{unit}/guidon', [UnitGuidonController::class, 'update'])->middleware('throttle:audited-writes')->name('units.guidon.update');
 
     // Manual leave-sync trigger (Story 4.2): the same queued job the scheduler runs. Admin gate in the controller (AD-6).
     // Throttled per Admin by the `loa-sync` limiter, like the roster trigger.

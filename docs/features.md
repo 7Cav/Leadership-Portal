@@ -55,6 +55,13 @@ Your scope's units and troopers, from the cached Cav roster.
   seen and their own section SP. Those who meet the JSAM thresholds are marked as candidates (see "JSAM guests").
 - Sync: an Admin's "Sync now" refreshes the whole roster from Cav; a leader gets a sync of just the unit on screen. Both
   queue a job; reload after a minute. The page shows when the roster and the leave data last synced.
+- Guidon: a company, battalion or the regiment can have a guidon, the swallowtail flag split on the diagonal. Its
+  command (and the command above it, and Admins) opens "Edit guidon" on the unit's roster to pick the two colors (a set
+  palette or any custom color) and the text, with a live preview; nothing is saved until Save. The text starts as the
+  battalion and the 7 on the top left ("2/7") and the company letter on the bottom right ("A"). Text is black or white,
+  whichever reads better, and the generator warns when the two colors are too close. It downloads as SVG or as a
+  300 pixel wide PNG for the wiki. A saved guidon shows next to the unit on the roster, in the unit picker and on Org
+  structure; it sits beside the wiki's own art and replaces nothing. Each save is audited.
 
 Related pages reached from the roster:
 

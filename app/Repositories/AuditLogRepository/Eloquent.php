@@ -21,6 +21,7 @@ use App\Models\TrooperCourse;
 use App\Models\TrooperGameIdentity;
 use App\Models\Unit;
 use App\Models\UnitTemplateChoice;
+use App\Models\UnitGuidon;
 use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Repositories\AuditedBatch;
@@ -62,6 +63,7 @@ class Eloquent implements AuditLogRepository
         'FireteamSetting' => [FireteamSetting::class, ['unit']],
         'PlatoonTrainingTopic' => [PlatoonTrainingTopic::class, ['unit']],
         'TrainingPlan' => [TrainingPlan::class, ['unit']],
+        'UnitGuidon' => [UnitGuidon::class, ['unit']],
         // A user is linked through their trooper, matched on `cav_id` (see {@see withTroopers()}).
         'User' => [User::class, []],
         'Game' => [Game::class, []],
@@ -296,6 +298,7 @@ class Eloquent implements AuditLogRepository
             ->orWhere($about('FireteamSetting', FireteamSetting::query()->whereIn('unit_id', $units())))
             ->orWhere($about('PlatoonTrainingTopic', PlatoonTrainingTopic::query()->whereIn('unit_id', $units())))
             ->orWhere($about('TrainingPlan', TrainingPlan::query()->whereIn('unit_id', $units())))
+            ->orWhere($about('UnitGuidon', UnitGuidon::query()->whereIn('unit_id', $units())))
             // A user (a view-as target, a changed Admin flag) is about the unit their trooper is placed in.
             ->orWhere($about('User', User::query()->whereIn('cav_id', Trooper::query()->select('cav_id')->whereNotNull('cav_id')->whereIn('primary_section_id', $units()))))
             // A dismissal has no unit of its own: it is about every section whose practice capture stored the player.

@@ -169,6 +169,7 @@ their own plan unless they also command the company.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Set or remove a trooper's game identity | All | All | Own | Own | Own | Own | Own | Own | No | No | No |
 | Sync my unit's troopers from Cav (roster page) | Any unit | Own | Own | Own | Own | Own | Own | Own | No | No | No |
+| Save a unit's guidon (companies, battalions and the regiment only) | Any | Own | No | Own | Own | No | If acting lead of the unit or above | No | No | No | No |
 | View as a unit | Any | Own | Own | Own | Own | Own | Own | Own | No | Granted units | Switch target |
 | View as a person | Yes | No | No | No | No | No | No | No | No | No | Switch target |
 
@@ -250,7 +251,7 @@ only sign out has none, since it ends the session and signing back in is limited
 | 60 | Find trooper and the guest picker search |
 | 240 | Rollcall mark autosave. The screen waits 0.7 seconds after a change and sends one batch at a time, so marking a whole section in seconds stays far below this. |
 | 120 | Report draft autosave |
-| 60, shared | Every other audited write: fireteam changes, company fireteam policy, linking, dismissing and restoring unmatched players, confirming a practice, marking a rollcall posted, guest add and remove, setting and removing a game identity, platoon topic set and clear, training plan save, approve and send back, every template write and a section's template pick, starting and leaving view as and act as, correcting and deleting a DCS or LOR, and the Admin settings writes (org structure, acting leads, trooper placement, staff grants, games, servers, demo data) |
+| 60, shared | Every other audited write: saving a guidon, fireteam changes, company fireteam policy, linking, dismissing and restoring unmatched players, confirming a practice, marking a rollcall posted, guest add and remove, setting and removing a game identity, platoon topic set and clear, training plan save, approve and send back, every template write and a section's template pick, starting and leaving view as and act as, correcting and deleting a DCS or LOR, and the Admin settings writes (org structure, acting leads, trooper placement, staff grants, games, servers, demo data) |
 | 10 | Sending a report |
 | 20 | Loading the act as picker's list |
 | 10 | Capture "Try again"; the same practice also only once a minute |
@@ -269,7 +270,7 @@ only sign out has none, since it ends the session and signing back in is limited
 | View as is read-only | `app/Http/Middleware/ReadOnlyWhileViewingAs.php` (every non-GET except `view-as.store`, `view-as.destroy`, `logout`) |
 | Sign-in and session standing | `app/Commands/Auth/AdmitServingMember.php`, `app/Authorization/ServingSession.php`, `EnsureServingMember` middleware |
 | Admin-only checks | In the controllers (`OrgStructureController`, `StaffGrantsController`, `TrooperPlacementController`, `RosterSyncController`, `LoaSyncController`, `AuditLogController`, `DemoDataController`) and again in some handlers. There are no Laravel policies. |
-| Write gates | Each handler under `app/Commands/*` checks `writeScope()` (attendance, capture, guests, game identities, reports, a section's template pick) or `commandsUnit()` (fireteams, company policy, platoon topic, training plans, the review on the owning company in `TrainingPlanRules`, company templates through `Commands/Templates/TemplateAuthority`) |
+| Write gates | Each handler under `app/Commands/*` checks `writeScope()` (attendance, capture, guests, game identities, reports, a section's template pick) or `commandsUnit()` (fireteams, company policy, platoon topic, guidon, training plans, the review on the owning company in `TrainingPlanRules`, company templates through `Commands/Templates/TemplateAuthority`) |
 | Counseling (DCS, LOR) | `app/Authorization/CounselingAccess.php` on `ScopeResolver::commandingUnitsOver()`, `writeScope()` and `canSee()`; checked again in each `app/Commands/Counseling` handler and on the download |
 | Week floor | `app/Support/Time/WeekOf.php` (`floor()`, `isBeforeFloor()`), `config/portal.php` |
 | Rate limiters | `app/Providers/AppServiceProvider.php`, unit sync cooldown in `UnitRosterSyncController` |

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
+use App\Commands\Units\SaveUnitGuidonHandler;
 use App\Kpi\Headcount;
 use App\Kpi\KpiService;
 use App\Kpi\PracticeGuest;
@@ -17,6 +18,7 @@ use App\Milpac\RosterProvenance;
 use App\Models\SyncRun;
 use App\Models\Trooper;
 use App\Models\Unit;
+use App\Models\UnitGuidon;
 use App\Models\UnitKind;
 use App\Models\UnitType;
 use App\Models\User;
@@ -26,6 +28,7 @@ use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitActingLeadRepository;
 use App\Repositories\UnitCommandMappingRepository;
+use App\Repositories\UnitGuidonRepository;
 use App\Repositories\UnitLeadRepository;
 use App\Repositories\UnitRepository;
 use App\Support\Time\WeekOf;
@@ -67,7 +70,11 @@ class RosterController extends Controller
         private readonly PlacementHistory $placementHistory,
         private readonly Headcount $headcount,
         private readonly BilletTags $billetTags,
+        private readonly UnitGuidonRepository $guidons,
     ) {}
+
+    /** @var Collection<int, UnitGuidon>|null every saved guidon by unit id, read once per request */
+    private ?Collection $guidonsByUnit = null;
 
     public function index(Request $request, ?int $unit = null): Response
     {
@@ -87,6 +94,8 @@ class RosterController extends Controller
         $week = WeekOf::start(CarbonImmutable::now());
         // The unit sync is a write, and a view-as preview changes nothing (1.13), so a preview never offers it.
         $syncsUnit = $selected !== null && $this->scope->activeViewAs($user) === null && $this->scope->commandsUnit($user, $selected);
+        // The guidon generator (#446) is a write too: a company or above that the viewer commands, never in a preview.
+        $editsGuidon = $syncsUnit && in_array($selected->type, SaveUnitGuidonHandler::TYPES, true);
 
         return Inertia::render('Roster', [
             'unit' => $selected ? $this->unitSummary($selected) : null,
@@ -110,6 +119,8 @@ class RosterController extends Controller
                 'sync' => $this->scope->actsAsAdmin($user),
                 // A leader refreshing their own echelon (the whole roster stays Admin-only).
                 'syncUnit' => $syncsUnit,
+                // Make and save this unit's guidon (#446).
+                'editGuidon' => $editsGuidon,
             ],
             'links' => [
                 'milpac' => Trooper::MILPAC_PROFILE_URL,
@@ -452,7 +463,19 @@ class RosterController extends Controller
             'name' => $u->name,
             'callsign' => $u->callsign,
             'label' => $u->label,
+            // The unit's saved guidon design (#446), drawn next to its name; null when it has none.
+            'guidon' => $this->guidonOf($u),
         ];
+    }
+
+    /**
+     * @return array{primary: string, secondary: string, topLeft: string, bottomRight: string}|null
+     */
+    private function guidonOf(Unit $u): ?array
+    {
+        $this->guidonsByUnit ??= $this->guidons->all();
+
+        return $this->guidonsByUnit->get($u->id)?->design();
     }
 
     /**
