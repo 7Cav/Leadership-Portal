@@ -18,12 +18,12 @@ function leave() {
     exit({ onFinish: () => (leaving.value = false) });
 }
 
-// Act as (#379): from a preview, an Admin can take over with its permissions, writes included. A person who is not an
-// Admin ("Act as them"), or a unit's billet with no person behind it ("Act as this billet"). Only an Admin is offered
-// either; the server checks anyway.
+// Act as (#379): from a preview, an Admin can take over with its permissions, writes included. A person ("Act as them";
+// another Admin is acted as without their Admin rights), or a unit's billet with no person behind it ("Act as this
+// billet"). Only an Admin is offered either; the server checks anyway.
 const { isRealAdmin } = useIdentity();
 const actsOnBillet = computed(() => viewAs.value?.kind === 'unit');
-const canActAs = computed(() => isRealAdmin.value && ((viewAs.value?.kind === 'user' && !viewAs.value.admin) || actsOnBillet.value));
+const canActAs = computed(() => isRealAdmin.value && (viewAs.value?.kind === 'user' || actsOnBillet.value));
 const actLabel = computed(() => (actsOnBillet.value ? 'Act as this billet' : 'Act as them'));
 const confirming = ref(false);
 const starting = ref(false);
@@ -92,8 +92,8 @@ function actAs() {
                 your Admin ones until you stop. Everything you change is real and is recorded in your name, as that billet.
             </AlertDialogDescription>
             <AlertDialogDescription v-else class="text-[13px] text-muted-foreground">
-                You get exactly their permissions, and lose your Admin ones until you stop. Everything you change is real
-                and the audit log records it as you acting for them.
+                You get exactly their permissions, never Admin ones (not even theirs), and lose your own Admin ones until
+                you stop. Everything you change is real and the audit log records it as you acting for them.
             </AlertDialogDescription>
             <p v-if="actError" role="alert" class="text-[12.5px] text-destructive" data-testid="act-as-error">{{ actError }}</p>
             <AlertDialogFooter class="flex-row flex-wrap justify-end gap-2">

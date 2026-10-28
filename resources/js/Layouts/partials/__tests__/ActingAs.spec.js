@@ -33,12 +33,15 @@ describe('act as (#379)', () => {
         expect(mount(ActingAsBanner).find('[data-testid="acting-as-banner"]').exists()).toBe(false);
     });
 
-    it('offers "Act as them" on a preview of a person who is not an Admin, to an Admin only', () => {
+    it('offers "Act as them" on a preview of any person, Admins included, to an Admin only', () => {
         const person = { kind: 'user', id: 4, label: 'SGT Vasquez.R', designation: null, unitName: null, admin: false };
         page.props = { auth: { user: { id: 1, is_admin: true } }, actingAs: null, viewAs: person };
         expect(mount(ViewAsBanner).get('[data-testid="act-as-open"]').text()).toBe('Act as them');
 
         page.props.viewAs = { ...person, admin: true };
+        expect(mount(ViewAsBanner).find('[data-testid="act-as-open"]').exists()).toBe(true);
+
+        page.props = { auth: { user: { id: 2, is_admin: false } }, actingAs: null, viewAs: person };
         expect(mount(ViewAsBanner).find('[data-testid="act-as-open"]').exists()).toBe(false);
     });
 

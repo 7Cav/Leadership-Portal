@@ -14,8 +14,9 @@ use Illuminate\Contracts\Session\Session;
  * writes included. Kept in the server-side session, bound to the Admin who started it, so it can never apply to anyone
  * else's session. Two kinds, stored as a {@see ViewAsTarget} (a kind and an id):
  *
- *  - a **person**: the request runs as that user, exactly. Only a real Admin may, never as themselves or another
- *    Admin, and only as someone the sign-in gate would let in right now ({@see ServingSession}).
+ *  - a **person**: the request runs as that user. Only a real Admin may, never as themselves, and only as someone the
+ *    sign-in gate would let in right now ({@see ServingSession}). Another Admin is acted as without their Admin
+ *    rights: their billet, acting leads and grants only ({@see withoutAdmin()}).
  *  - a **billet**: a unit's leader, with no person behind it, so it works for a vacant billet too. The request runs as
  *    a stand-in for the Admin ({@see standIn()}) whose only command is that unit ({@see ActingBillet}).
  *
@@ -49,10 +50,13 @@ class ActAs
         return trim("{$rank} {$user->username}");
     }
 
-    /** Whether `$admin` may act as the person `$user` right now. */
+    /**
+     * Whether `$admin` may act as the person `$user` right now: anyone but themselves who could sign in. An Admin can be
+     * acted as too, but never as an Admin ({@see withoutAdmin()}): only their billet, acting leads and grants count.
+     */
     public function allows(User $admin, User $user): bool
     {
-        return $admin->is_admin && ! $user->is_admin && $user->id !== $admin->id && ! $this->serving->mustEnd($user);
+        return $admin->is_admin && $user->id !== $admin->id && ! $this->serving->mustEnd($user);
     }
 
     /** Whether `$admin` may act as the leader of `$unit`: any real Admin, for any unit, vacant or held. */
@@ -117,11 +121,27 @@ class ActAs
         return $standIn;
     }
 
+    /**
+     * The person as acted as: unchanged, or for an Admin, their account with the Admin flag off, so what they command by
+     * billet, acting lead or grant counts and nothing an Admin may do. Never dirty, like {@see standIn()}.
+     */
+    public function withoutAdmin(User $user): User
+    {
+        if (! $user->is_admin) {
+            return $user;
+        }
+
+        $plain = clone $user;
+        $plain->setRawAttributes(['is_admin' => false] + $user->getAttributes(), sync: true);
+
+        return $plain;
+    }
+
     private function asPerson(User $admin, int $id): ?Acting
     {
         $user = $this->users->find($id);
 
-        return $user !== null && $this->allows($admin, $user) ? new Acting($user, $user, null, $this->label($user)) : null;
+        return $user !== null && $this->allows($admin, $user) ? new Acting($this->withoutAdmin($user), $user, null, $this->label($user)) : null;
     }
 
     private function asBillet(User $admin, int $id): ?Acting

@@ -121,7 +121,7 @@ it('switches straight to another person, recording the first as stopped', functi
     $this->actingAs($this->admin)->get('/home')->assertInertia(fn (Assert $page) => $page->where('auth.user.id', $second->id));
 });
 
-it('refuses another Admin, the Admin themselves, someone who could not sign in, and a missing user', function (Closure $target) {
+it('refuses the Admin themselves, someone who could not sign in, and a missing user', function (Closure $target) {
     $id = $target($this);
 
     $this->actingAs($this->admin)->post('/act-as', ['kind' => 'user', 'id' => $id])->assertSessionHasErrors('act_as');
@@ -129,7 +129,6 @@ it('refuses another Admin, the Admin themselves, someone who could not sign in, 
     expect(AuditLogEntry::count())->toBe(0);
     $this->actingAs($this->admin)->get('/home')->assertInertia(fn (Assert $page) => $page->where('auth.user.id', $this->admin->id)->where('actingAs', null));
 })->with([
-    'another Admin' => [fn ($t) => User::factory()->admin()->create()->id],
     'themselves' => [fn ($t) => $t->admin->id],
     'no milpac link' => [fn ($t) => User::factory()->create(['cav_id' => null])->id],
     'left the Cav' => [function ($t) {
@@ -146,13 +145,38 @@ it('refuses a non-Admin outright', function () {
     expect(AuditLogEntry::count())->toBe(0);
 });
 
-it('stops applying when the Admin loses the flag or the person becomes an Admin', function (string $change) {
+it('stops applying when the Admin loses the flag', function (string $change) {
     startActing($this);
 
-    $change === 'admin loses flag' ? $this->admin->forceFill(['is_admin' => false])->save() : $this->leader->forceFill(['is_admin' => true])->save();
+    $this->admin->forceFill(['is_admin' => false])->save();
 
     $this->actingAs($this->admin)->get('/home')->assertInertia(fn (Assert $page) => $page->where('auth.user.id', $this->admin->id)->where('actingAs', null));
-})->with(['admin loses flag', 'person becomes an Admin']);
+})->with(['admin loses flag']);
+
+it('acts as another Admin without their Admin rights: their billet only, recorded as acting for them', function () {
+    $this->leader->forceFill(['is_admin' => true])->save();
+    startActing($this);
+
+    $this->actingAs($this->admin)->get('/home')->assertInertia(fn (Assert $page) => $page
+        ->where('auth.user.id', $this->leader->id)
+        ->where('auth.user.is_admin', false)
+        ->where('actingAs.label', 'SGT Vasquez.R'));
+    $this->actingAs($this->admin)->get('/settings/audit-log')->assertForbidden();
+
+    // Their section, as its leader; never the rest of the tree an Admin reads.
+    $this->actingAs($this->admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->section->id])->assertSessionHasNoErrors();
+    $this->actingAs($this->admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->other->id])->assertSessionHasErrors('view_as');
+
+    expect(AuditLogEntry::where('action', 'view_as.started')->sole()->on_behalf_of_id)->toBe($this->leader->id)
+        ->and($this->leader->fresh()->is_admin)->toBeTrue();
+});
+
+it('keeps acting as a person who becomes an Admin meanwhile, still without Admin rights', function () {
+    startActing($this);
+    $this->leader->forceFill(['is_admin' => true])->save();
+
+    $this->actingAs($this->admin)->get('/home')->assertInertia(fn (Assert $page) => $page->where('auth.user.id', $this->leader->id)->where('auth.user.is_admin', false));
+});
 
 it('ends a view-as preview the Admin had open, and is not blocked by its read-only guard', function () {
     app(ViewAs::class)->enter($this->admin, new ViewAsTarget(ViewAsKind::User, $this->leader->id));

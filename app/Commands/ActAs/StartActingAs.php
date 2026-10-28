@@ -17,8 +17,8 @@ use App\Support\Audit\AuditEnvelope;
  * An Admin starts acting as a person or a billet (#379), recorded as `act_as.started` against that user or unit
  * (AD-16) with the Admin as actor. A view-as preview the Admin had open ends first (recorded as stopped), since the two
  * never run together. Switching straight to someone else records the old one as stopped. Refused, storing and logging
- * nothing, unless {@see ActAs} allows it: a real Admin; for a person, not themselves, not another Admin, someone who
- * could sign in; for a billet, any unit that exists.
+ * nothing, unless {@see ActAs} allows it: a real Admin; for a person, not themselves, someone who could sign in (an
+ * Admin without their Admin rights); for a billet, any unit that exists.
  */
 class StartActingAs
 {
