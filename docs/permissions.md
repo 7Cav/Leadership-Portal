@@ -202,7 +202,9 @@ still cannot file on themselves, see their own DCSs or change their own records.
 
 (5) An LOR needs command from platoon level up on the line. A portfolio officer files a DCS on their staff; an LOR on
 staff comes from regiment command or an Admin.
-(6) An Admin's preview shows every DCS in the previewed scope.
+(6) An Admin's preview of another Admin shows every DCS in the previewed scope. Any other preview (a unit, a leader,
+a grant holder) shows a DCS only where the Admin's own command (a billet or an acting lead) reaches the trooper, not
+every DCS.
 (7) The leaders who command the unit the record was filed through: the issuer, anyone sharing that billet's unit, and
 everyone above, as long as they still counsel the trooper by the rules above. A record an Admin filed (no unit) is the
 Admins' alone.
@@ -274,7 +276,8 @@ Copying the forum post stays possible on a locked week; marking it posted does n
 
 ### Rate limits
 
-All per signed-in user (sign-in is per IP address), per minute. Every write the audit log records has one of these;
+All per signed-in user (sign-in is per IP address), per minute. While acting as someone, the limits still count
+against the person really signed in, so switching people does not reset them. Every write the audit log records has one of these;
 only sign out has none, since it ends the session and signing back in is limited.
 
 | Limit | Applies to |

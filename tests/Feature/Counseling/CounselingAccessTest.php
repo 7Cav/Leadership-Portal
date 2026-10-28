@@ -2,6 +2,9 @@
 
 use App\Authorization\CounselingAccess;
 use App\Authorization\RealActor;
+use App\Authorization\ViewAs;
+use App\Authorization\ViewAsKind;
+use App\Authorization\ViewAsTarget;
 use App\Models\CounselingRecord;
 use App\Models\CounselingType;
 use App\Models\PortalRoleGrant;
@@ -227,4 +230,21 @@ it('treats the person really signed in as themselves while they act as someone e
 
     app(RealActor::class)->clear();
     expect(counselingFor($this->users['pl'], $sl)->filesLor)->toBeTrue();
+});
+
+it('shows an Admin previewing someone the DCSs that person sees, not every DCS', function () {
+    $admin = $this->users['admin'];
+    $preview = fn (User $target) => app(ViewAs::class)->enter($admin, new ViewAsTarget(ViewAsKind::User, $target->id));
+
+    // A staff grant reads the company, LORs included, but never a DCS.
+    $preview($this->users['grant']);
+    expect(counselingFor($admin, $this->rifleman)->seesLor)->toBeTrue()
+        ->and(counselingFor($admin, $this->rifleman)->seesDcs)->toBeFalse();
+
+    // Another Admin sees them all.
+    $preview(User::factory()->admin()->create());
+    expect(counselingFor($admin, $this->rifleman)->seesDcs)->toBeTrue();
+
+    app(ViewAs::class)->exit();
+    expect(counselingFor($admin, $this->rifleman)->seesDcs)->toBeTrue();
 });

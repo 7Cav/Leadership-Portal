@@ -272,11 +272,18 @@ async function dismiss(player) {
         <AlertDialog :open="replacing !== null" @update:open="(open) => !open && cancelReplace()">
             <AlertDialogContent class="sm:max-w-md" data-testid="replace-dialog">
                 <AlertDialogTitle class="text-base leading-snug font-semibold">
-                    Replace {{ replacing ? trooperName(replacing.trooperId) : '' }}'s {{ replacing?.player.platformLabel }} ID?
+                    Replace <bdi>{{ replacing ? trooperName(replacing.trooperId) : '' }}</bdi>'s {{ replacing?.player.platformLabel }} ID?
                 </AlertDialogTitle>
+                <!-- Each name and ID is isolated with <bdi>, so a direction override in a player's name cannot reorder
+                     the ID shown next to it: the ID the leader reads is the one that gets linked. -->
                 <AlertDialogDescription v-if="replacing" class="text-[13px] text-muted-foreground" data-testid="replace-question">
-                    {{ trooperName(replacing.trooperId) }} is linked to {{ replacing.current.playerName }} ({{ replacing.current.platformId }}) on
-                    {{ replacing.player.platformLabel }}. Replace it with {{ replacing.player.playerName }} ({{ replacing.player.platformId }})?
+                    <bdi data-testid="replace-trooper">{{ trooperName(replacing.trooperId) }}</bdi> is linked to
+                    <bdi data-testid="replace-current-name">{{ replacing.current.playerName }}</bdi> (<bdi data-testid="replace-current-id">{{
+                        replacing.current.platformId
+                    }}</bdi>) on {{ replacing.player.platformLabel }}. Replace it with
+                    <bdi data-testid="replace-new-name">{{ replacing.player.playerName }}</bdi> (<bdi data-testid="replace-new-id">{{
+                        replacing.player.platformId
+                    }}</bdi>)?
                 </AlertDialogDescription>
                 <AlertDialogFooter class="flex-row flex-wrap justify-end gap-2">
                     <AlertDialogCancel class="mt-0" data-testid="replace-cancel">Cancel</AlertDialogCancel>

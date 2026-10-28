@@ -114,6 +114,19 @@ describe('ActAsPicker (#432)', () => {
         expect(useActAs().pickerOpen.value).toBe(true);
     });
 
+    it("says a refusal or the write limit in plain words instead of Inertia's error dialog", async () => {
+        respondWith(PEOPLE);
+        let handled;
+        mockRouter.post.mockImplementation((url, data, options) => (handled = options.onHttpException({ status: 429 })));
+        wrapper = await openPicker();
+
+        await click('[data-testid="act-as-user-7"]');
+        await click('[data-testid="act-as-picker-confirm-button"]');
+
+        expect(handled).toBe(false);
+        expect(inBody('[data-testid="act-as-picker-error"]').textContent).toBe('Acting as them did not start. Too many requests; wait a minute and try again.');
+    });
+
     it('says so when there is nobody to act as', async () => {
         respondWith({ people: [] });
         wrapper = await openPicker();

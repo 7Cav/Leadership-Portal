@@ -5,7 +5,9 @@ namespace App\Commands\GameIdentities;
 use App\Authorization\ScopeResolver;
 use App\Commands\Attendance\AutoMarkResult;
 use App\Commands\Attendance\MarkAttendanceHandler;
+use App\Models\Game;
 use App\Models\GameIdentityText;
+use App\Models\IdKindFormat;
 use App\Models\User;
 use App\Repositories\GameIdentityLinkException;
 use App\Repositories\PracticeCapturePlayerRepository;
@@ -36,7 +38,10 @@ use App\Support\Time\WeekOf;
  * The ID is the one the server reported, so it skips its kind's shape (#450) and is stored exactly as reported: the
  * capture matches on it. Server IDs are printable ASCII, which cleaning never changes; one that cleaning would change is
  * refused rather than stored altered. The reported name is cleaned like any other, and a name with nothing left takes
- * the ID, as the capture does for a player with no name.
+ * the ID, as the capture does for a player with no name. The ID is stored as the first of the game's kinds whose shape it
+ * has exactly (an Epic ID on Hell Let Loose is stored as an Epic ID, not the game's default Steam ID); one that fits no
+ * kind's shape (a BattleMetrics player number, an Xbox ID) takes the kind the writer would give it anyway: the one the
+ * trooper's identity already has for that ID, or the game's default.
  */
 class LinkUnmatchedPlayerHandler
 {
@@ -103,9 +108,25 @@ class LinkUnmatchedPlayerHandler
         // The check above answers the common case without a write; the writer repeats it under
         // lock inside its audited transaction, so a change landing between the two is refused too.
         $this->setIdentity->handle($actor, new SetTrooperGameIdentity(
-            $trooper->id, $command->game, $name === '' ? $player->platform_id : $name, $player->platform_id, $replaceable, reportedByServer: true,
+            $trooper->id, $command->game, $name === '' ? $player->platform_id : $name, $player->platform_id, $replaceable,
+            idKind: self::kindOf($command->game, $player->platform_id), reportedByServer: true,
         ));
 
         return $this->attendance->preMark($practice, [$trooper->id], $actor->id);
+    }
+
+    /**
+     * The first of the game's ID kinds whose shape ({@see IdKindFormat}) `$platformId` has as reported, not altered to
+     * fit, or null when none does: the writer then keeps the trooper's kind for that ID, or the game's default.
+     */
+    private static function kindOf(Game $game, string $platformId): ?string
+    {
+        foreach ($game->id_kinds as $kind) {
+            if (IdKindFormat::for($kind)?->accepts($platformId) === true) {
+                return $kind;
+            }
+        }
+
+        return null;
     }
 }

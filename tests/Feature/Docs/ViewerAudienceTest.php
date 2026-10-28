@@ -1,5 +1,6 @@
 <?php
 
+use App\Authorization\ScopeResolver;
 use App\Authorization\ViewAs;
 use App\Authorization\ViewAsKind;
 use App\Authorization\ViewAsTarget;
@@ -112,6 +113,24 @@ it('keeps a leader previewing a unit below them a leader', function () {
     docPreviewAs($platoonLeader, ViewAsKind::Unit, $this->section->id);
 
     expect(docAudienceOf($platoonLeader))->toBe(Audience::Leader);
+});
+
+it('keeps a grant holder previewing a unit their grant reaches as everyone: a preview never raises the audience', function () {
+    $holder = docGrantHolder($this->platoon, 602);
+    docPreviewAs($holder, ViewAsKind::Unit, $this->section->id);
+
+    // The preview itself is active (the grant puts the section in their real scope); only the audience stays.
+    expect(app(ScopeResolver::class)->activeViewAs($holder))->not->toBeNull()
+        ->and(docAudienceOf($holder))->toBe(Audience::Everyone);
+});
+
+it('keeps a leader who also holds a grant a leader while previewing a unit only the grant reaches', function () {
+    $other = app(UnitRepository::class)->create(UnitType::Platoon, '2nd Platoon', '2/A/1-7', $this->platoon->parent_id);
+    $leader = docLeaderOf($this->section, 603);
+    PortalRoleGrant::factory()->create(['user_id' => $leader->id, 'unit_id' => $other->id]);
+    docPreviewAs($leader, ViewAsKind::Unit, $other->id);
+
+    expect(docAudienceOf($leader))->toBe(Audience::Leader);
 });
 
 it('goes back to the real audience once the preview ends', function () {

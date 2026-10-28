@@ -246,15 +246,28 @@ describe('linking an unmatched player from a capture', function () {
         $this->practice->forceFill(['captured_at' => '2026-10-08 12:00:00', 'capture_source' => 'crcon', 'server_ref' => 'crcon-1'])->save();
     });
 
-    it('takes the ID the server reported as it is, skipping the shape of the game\'s default kind', function () {
+    it('takes the ID the server reported as it is, stored as the first of the game\'s kinds whose shape it has, else the default', function (string $id, string $kind) {
+        formatsCaptured($this, 'Ortega', $id);
+
+        formatsLink($this, $id)->assertOk();
+
+        $identity = TrooperGameIdentity::query()->sole();
+        expect($identity->platform_id)->toBe($id)
+            ->and($identity->id_kind)->toBe($kind)
+            ->and(app(TrooperGameIdentityRepository::class)->findByPlatformId(game('hll'), $id)?->id)->toBe($identity->id);
+    })->with([
+        'a Steam ID' => [FORMATS_STEAM, 'Steam ID'],
+        'an Epic ID' => [FORMATS_EPIC, 'Epic ID'],
+        // A BattleMetrics player number, or an Xbox ID: no kind's shape fits, so the default, and nothing is refused.
+        'an ID of no known shape' => ['1234567890', 'Steam ID'],
+    ]);
+
+    it('lists no shape problem for an Epic ID linked from a capture', function () {
         formatsCaptured($this, 'Ortega', FORMATS_EPIC);
 
         formatsLink($this, FORMATS_EPIC)->assertOk();
 
-        $identity = TrooperGameIdentity::query()->sole();
-        expect($identity->platform_id)->toBe(FORMATS_EPIC)
-            ->and($identity->id_kind)->toBe('Steam ID')
-            ->and(app(TrooperGameIdentityRepository::class)->findByPlatformId(game('hll'), FORMATS_EPIC)?->id)->toBe($identity->id);
+        expect(TrooperGameIdentity::query()->sole()->problems())->toBe([]);
     });
 
     it('stores an upper-case server ID exactly as reported, so the next capture still matches it', function () {

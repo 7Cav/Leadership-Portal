@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Contracts\Foundation\MaintenanceMode;
 use Illuminate\Foundation\Vite;
 use Illuminate\Support\Facades\Route;
 
@@ -17,6 +18,7 @@ function expectBaselineSecurityHeaders($response): void
     expect($response->headers->get('Referrer-Policy'))->toBe('strict-origin-when-cross-origin');
     expect($response->headers->get('Permissions-Policy'))->toBe('camera=(), microphone=(), geolocation=()');
     expect($response->headers->get('Cross-Origin-Opener-Policy'))->toBe('same-origin');
+    expect($response->headers->get('Cross-Origin-Resource-Policy'))->toBe('same-origin');
 }
 
 /** The policy config/csp.php gives, with a response's nonce and any extra sources a directive gains. */
@@ -68,6 +70,50 @@ it('sends them on responses the web group never produces: an unknown path and a 
 
     liftCsrfTestShortCircuit();
     expectBaselineSecurityHeaders($this->actingAs(User::factory()->serving()->create())->post('/logout')->assertStatus(419));
+});
+
+it('sends them on the maintenance page, which a global middleware renders before the app runs', function () {
+    config(['app.debug' => false]);
+    // Bound rather than written to storage/framework/down, so no other test sees the app as down.
+    app()->instance(MaintenanceMode::class, new class implements MaintenanceMode
+    {
+        public function activate(array $payload): void {}
+
+        public function deactivate(): void {}
+
+        public function active(): bool
+        {
+            return true;
+        }
+
+        public function data(): array
+        {
+            return ['status' => 503];
+        }
+    });
+
+    expectBaselineSecurityHeaders($this->get('/login')->assertStatus(503));
+});
+
+it('sends them on a 413 for a body over the size limit', function () {
+    if ((int) ini_get('post_max_size') === 0) {
+        $this->markTestSkipped('post_max_size is unlimited here, so no body is too large.');
+    }
+
+    $response = $this->call('POST', '/logout', server: ['CONTENT_LENGTH' => (string) PHP_INT_MAX])->assertStatus(413);
+
+    expectBaselineSecurityHeaders($response);
+});
+
+it('sends them on a CORS preflight answered before routing', function () {
+    config(['cors.paths' => ['api/*']]);
+
+    $response = $this->call('OPTIONS', '/api/anything', server: [
+        'HTTP_ORIGIN' => 'https://example.org',
+        'HTTP_ACCESS_CONTROL_REQUEST_METHOD' => 'POST',
+    ])->assertNoContent();
+
+    expectBaselineSecurityHeaders($response);
 });
 
 it('leaves a header alone when the response already set it', function () {

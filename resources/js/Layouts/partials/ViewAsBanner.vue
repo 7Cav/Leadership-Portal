@@ -2,10 +2,12 @@
 import { computed, ref } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { PhEye } from '@phosphor-icons/vue';
+import { toast } from 'vue-sonner';
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { useIdentity } from '@/composables/useIdentity';
 import { useViewAs } from '@/composables/useViewAs';
+import { onHttpException } from '@/lib/httpError';
 
 // The view-as banner (Story 1.13, binding design: mockups/v2/shell-f.html `#viewAsBanner`). It
 // rides in the sticky top bar, above the header, so it stays on screen however far the page
@@ -15,7 +17,10 @@ const leaving = ref(false);
 
 function leave() {
     leaving.value = true;
-    exit({ onFinish: () => (leaving.value = false) });
+    exit({
+        onHttpException: onHttpException('View as did not end', (message) => toast.error(message)),
+        onFinish: () => (leaving.value = false),
+    });
 }
 
 // Act as (#379): from a preview, an Admin can take over with its permissions, writes included. A person ("Act as them";
@@ -43,6 +48,7 @@ function actAs() {
         {
             onSuccess: () => (confirming.value = false),
             onError: (errors) => (actError.value = errors.act_as ?? 'You cannot act as this person.'),
+            onHttpException: onHttpException('Acting did not start', (message) => (actError.value = message)),
             onFinish: () => (starting.value = false),
         },
     );

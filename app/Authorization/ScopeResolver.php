@@ -377,15 +377,18 @@ class ScopeResolver
 
     /**
      * Whether the user holds a leadership billet as a read sees it: they command at least one unit (a synced billet,
-     * an acting lead, or Admin), never through a staff grant alone. A preview answers for whoever it shows: a unit
-     * preview is that unit's leader, a person preview is that person's own command. Not {@see writeScope()}: a person
-     * preview narrows the Admin's tree to the person's read scope, grants included, so a grant holder would pass.
+     * an acting lead, or Admin), never through a staff grant alone. A preview narrows this and never raises it: only
+     * someone who really commands is a leader in one. A unit preview by them is that unit's leader; a person preview
+     * is that person's own command. A grant holder previewing a unit their grant reaches stays a non-leader. Not
+     * {@see writeScope()}: a person preview narrows the Admin's tree to the person's read scope, grants included, so a
+     * grant holder would pass.
      */
     public function leads(User $user): bool
     {
+        $commands = $this->commandScope($user)->isNotEmpty();
         $preview = $this->activeViewAs($user);
-        if ($preview === null) {
-            return $this->commandScope($user)->isNotEmpty();
+        if ($preview === null || ! $commands) {
+            return $commands;
         }
 
         if ($preview->target->kind === ViewAsKind::Unit) {

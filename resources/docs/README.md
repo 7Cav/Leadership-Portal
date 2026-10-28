@@ -25,7 +25,8 @@ Every guide is for one audience. A reader sees the guides for their audience and
 | `leader` | anyone who commands a unit (a billet or an acting lead), and Admins. A staff grant alone does not count. |
 | `admin` | Admins only |
 
-View as follows the person or unit being previewed. A guide outside the reader's audience answers 404, exactly like
+View as follows the person or unit being previewed, but never raises the audience: someone who commands nothing
+reads the `everyone` guides in any preview, a unit preview through a staff grant included. A guide outside the reader's audience answers 404, exactly like
 one that does not exist.
 
 ## The front matter

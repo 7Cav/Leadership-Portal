@@ -41,8 +41,9 @@ player, set or remove a game identity, save or send a weekly report, demo histor
 not `resolve()`, and the pages take a `canWrite` (or per-trooper `editable`) flag from it so they go
 read-only instead of offering buttons that answer 403. `commandsUnit()` (the echelon roster sync) is the
 same authority without the view-as narrowing. `leads()` asks whether someone holds a leadership billet at all (they
-command at least one unit; a grant alone never counts), answering for whoever a view-as preview shows: the docs
-(#408) use it to decide who reads the leader guides.
+command at least one unit; a grant alone never counts), answering for whoever a view-as preview shows, but only
+for someone who really commands: a preview narrows it and never raises it. The docs (#408) use it to decide who reads
+the leader guides.
 
 **View-as** (AD-9, Story 1.13) narrows, never widens. `ViewAs` keeps the viewer's chosen target
 (a unit in their scope, or — Admins only — another user) in the server-side session, bound to the
