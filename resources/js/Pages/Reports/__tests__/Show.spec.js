@@ -509,6 +509,12 @@ describe('Reports/Show training topic', () => {
     it('hides the topic on a platoon with none set for a viewer who cannot set one', () => {
         expect(platoonPage().find('[data-testid="platoon-topic"]').exists()).toBe(false);
     });
+
+    it('links a platoon to the training plan for the week\'s month, and a section to none (#380)', () => {
+        expect(platoonPage().get('[data-testid="training-plan-link"]').attributes('href')).toBe('/reports/2/plans/2026-10');
+        expect(platoonPage({ week: { ...props().week, beforeFloor: true } }).find('[data-testid="training-plan-link"]').exists()).toBe(false);
+        expect(mountShow().find('[data-testid="training-plan-link"]').exists()).toBe(false);
+    });
 });
 
 describe('Reports/Show deadline banner', () => {
