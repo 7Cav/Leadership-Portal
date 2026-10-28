@@ -817,7 +817,7 @@ describe('Rollcall page', () => {
         });
 
         it.each([
-            ['a company with no active template', { state: 'no_active_template', companyId: 1, versionId: null, version: null, body: null }, 'no rollcall template yet'],
+            ['a company with no active template', { state: 'no_active_template', companyId: 1, versionId: null, version: null, body: null }, 'no rollcall template'],
             ['a section under no company', { state: 'no_owning_company', companyId: null, versionId: null, version: null, body: null }, 'does not sit under a company'],
             ['a template that no longer renders', { ...TEMPLATE, body: '{{#troopers}}' }, 'does not render'],
         ])('writes no post for %s, says why, and cannot be copied', (_name, template, message) => {
@@ -826,6 +826,61 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-testid="forum-bbcode"]').exists()).toBe(false);
             expect(wrapper.find('[data-testid="forum-post-unavailable"]').text()).toContain(message);
             expect(wrapper.find('[data-testid="copy-bbcode"]').attributes('disabled')).toBeDefined();
+        });
+
+        describe("the section's template pick (#375)", () => {
+            const PICKER = {
+                options: [
+                    { id: 5, name: 'Regiment default', isRegimentDefault: true, version: 1 },
+                    { id: 7, name: 'Training week', isRegimentDefault: false, version: 1 },
+                ],
+                picked: null,
+            };
+            const select = (wrapper) => wrapper.get('[data-testid="template-pick-select"]');
+
+            it('lists the company default, the regiment default and the switched-on templates, and says which one the post uses', () => {
+                const wrapper = factory({ template: { ...TEMPLATE, name: 'Standard', source: 'company' }, templatePicker: PICKER });
+
+                expect(select(wrapper).findAll('option').map((o) => o.text())).toEqual(['Company default', 'Regiment default (regiment)', 'Training week']);
+                expect(select(wrapper).element.value).toBe('');
+                expect(wrapper.get('[data-testid="template-pick-note"]').text()).toBe("Using Standard. The company's default.");
+            });
+
+            it('saves a pick at once and renders the post from the template the server answers with', async () => {
+                post.mockResolvedValueOnce({
+                    ok: true,
+                    status: 200,
+                    data: { template: { ...TEMPLATE, name: 'Training week', source: 'picked', body: 'training {{unit}}' }, templatePicker: { ...PICKER, picked: 7 } },
+                });
+                const wrapper = factory({ template: { ...TEMPLATE, name: 'Standard', source: 'company' }, templatePicker: PICKER });
+
+                select(wrapper).element.value = '7';
+                await select(wrapper).trigger('change');
+                await flushPromises();
+
+                expect(post).toHaveBeenCalledWith('/rollcall/12/template', { template_id: 7 });
+                expect(wrapper.get('[data-testid="forum-bbcode"]').text()).toBe('training 2/1/A/1-7');
+                expect(select(wrapper).element.value).toBe('7');
+                expect(toastSuccess).toHaveBeenCalledWith('Template changed', { description: 'The post now uses Training week.' });
+            });
+
+            it('keeps the post as it was and says why when the pick is refused', async () => {
+                post.mockResolvedValueOnce({ ok: false, status: 422, data: { message: 'That template is not switched on for this section. Pick another.' } });
+                const wrapper = factory({ template: { ...TEMPLATE, name: 'Standard', source: 'company' }, templatePicker: PICKER });
+
+                select(wrapper).element.value = '7';
+                await select(wrapper).trigger('change');
+                await flushPromises();
+
+                expect(toastError).toHaveBeenCalledWith('Could not change the template', expect.anything());
+                expect(wrapper.get('[data-testid="forum-bbcode"]').text()).toContain('[b]2/1/A/1-7 Rollcall');
+            });
+
+            it('turns the pick off for a viewer who may not write here', () => {
+                const wrapper = factory({ canWrite: false, templatePicker: PICKER });
+
+                expect(select(wrapper).attributes('disabled')).toBeDefined();
+            });
         });
 
         it('offers no way to edit the template from the rollcall', () => {

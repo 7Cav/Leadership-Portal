@@ -76,7 +76,7 @@ export function rollcallContext({ section, week, troopers, fireteams = {} }) {
  * `ready` carries the BBCode and the version it came from; `none` says why no template applies; `invalid` is a stored
  * template that no longer renders (one saved before its grammar was checked), with the reason.
  *
- * @param {{state: string, version: ?number, body: ?string}|null} template the `template` prop (ResolvedTemplate::toArray)
+ * @param {{state: string, name: ?string, source: ?string, version: ?number, body: ?string}|null} template the `template` prop (ResolvedTemplate::toArray)
  * @returns {{state: 'ready', text: string, version: number} | {state: 'none' | 'invalid', message: string}}
  */
 export function rollcallPost(template, input) {
@@ -85,12 +85,13 @@ export function rollcallPost(template, input) {
     }
 
     if (template?.state !== 'resolved' || typeof template.body !== 'string') {
-        return { state: 'none', message: 'This company has no rollcall template yet. An Admin writes one in Settings, Templates.' };
+        return { state: 'none', message: 'This section has no rollcall template, not even the regiment default. An Admin can check Settings, Templates.' };
     }
 
     const out = render(template.body, rollcallContext(input));
+    const fixer = template.source === 'default' ? 'An Admin' : "The company's command";
 
     return out.ok
         ? { state: 'ready', text: out.text, version: template.version }
-        : { state: 'invalid', message: `The company's template (version ${template.version}) does not render: ${out.error} An Admin can fix it in Settings, Templates.` };
+        : { state: 'invalid', message: `The template ${template.name ?? ''} (version ${template.version}) does not render: ${out.error} ${fixer} can fix it in Settings, Templates.`.replace('  ', ' ') };
 }

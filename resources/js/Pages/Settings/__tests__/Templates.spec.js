@@ -10,6 +10,8 @@ const toastSuccess = vi.fn();
 const routerGet = vi.fn();
 const routerPost = vi.fn();
 let formState;
+let createState;
+const createPost = vi.fn();
 const mockPage = { url: '/settings/templates', props: {} };
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
@@ -18,6 +20,12 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     router: { get: (...args) => routerGet(...args), post: (...args) => routerPost(...args) },
     usePage: () => mockPage,
     useForm: (initial) => {
+        // The page has two forms: the editor's, and the new-template dialog's (the one with a name).
+        if ('name' in initial) {
+            createState = reactive({ ...initial, processing: false, errors: {}, post: createPost, reset: vi.fn(), clearErrors: vi.fn() });
+
+            return createState;
+        }
         formState = reactive({ ...initial, processing: false, errors: {}, post, reset: vi.fn(), clearErrors: vi.fn() });
 
         return formState;
@@ -35,6 +43,7 @@ afterEach(() => {
     toastSuccess.mockReset();
     routerGet.mockReset();
     routerPost.mockReset();
+    createPost.mockReset();
 });
 
 const COMPANIES = [
@@ -46,10 +55,20 @@ const VERSION_1 = { id: 21, version: 1, body: '[B]first[/B]', createdAt: '2026-1
 
 const STARTER = '[B]{{unit}}[/B]{{#troopers}}{{name}}{{/troopers}}';
 
+const TEMPLATES = [
+    { id: 5, name: 'Regiment default', isRegimentDefault: true, enabled: true, isCompanyActive: false, version: 1 },
+    { id: 7, name: 'Standard', isRegimentDefault: false, enabled: true, isCompanyActive: true, version: 2 },
+    { id: 8, name: 'Training week', isRegimentDefault: false, enabled: false, isCompanyActive: false, version: 1 },
+];
+
 const props = (overrides = {}) => ({
     artifactType: { value: 'rollcall_bbcode', label: 'Rollcall BBCode' },
     companies: COMPANIES,
     company: 1,
+    templates: TEMPLATES,
+    template: 7,
+    canManage: true,
+    canManageCompany: true,
     active: VERSION_2,
     history: [{ ...VERSION_2, isActive: true }, { ...VERSION_1, isActive: false }],
     maxBodyLength: 20000,
@@ -292,7 +311,7 @@ describe('Settings/Templates', () => {
         });
 
         it('lets a non-Admin compare too, since comparing changes nothing', async () => {
-            const wrapper = compared({ isAdmin: false });
+            const wrapper = compared({ isAdmin: false, canManage: false, canManageCompany: false });
 
             await wrapper.get('[data-testid="compare-21"]').trigger('click');
 
@@ -314,7 +333,7 @@ describe('Settings/Templates', () => {
     });
 
     it('lets a non-Admin read a version too, since reading changes nothing', async () => {
-        const wrapper = page({ isAdmin: false });
+        const wrapper = page({ isAdmin: false, canManage: false, canManageCompany: false });
 
         await wrapper.get('[data-testid="view-21"]').trigger('click');
 
@@ -323,7 +342,7 @@ describe('Settings/Templates', () => {
 
     it('keeps the controls, disabled with the reason, while an Admin is viewing as a leader', async () => {
         mockPage.props = { viewAs: { kind: 'unit', designation: '2/1/A/1-7', label: 'SGT Vasquez.R', admin: true } };
-        const wrapper = page({ isAdmin: false });
+        const wrapper = page({ isAdmin: false, canManage: false, canManageCompany: false });
 
         expect(wrapper.find('[data-testid="template-form"]').exists()).toBe(true);
         expect(wrapper.get('[data-testid="template-body"]').attributes('disabled')).toBeDefined();
@@ -340,7 +359,7 @@ describe('Settings/Templates', () => {
     });
 
     it('hides every editing control from a non-Admin and shows the active text read-only', () => {
-        const wrapper = page({ isAdmin: false });
+        const wrapper = page({ isAdmin: false, canManage: false, canManageCompany: false });
 
         expect(wrapper.find('[data-testid="template-form"]').exists()).toBe(false);
         expect(wrapper.find('[data-testid="activate-21"]').exists()).toBe(false);
@@ -350,16 +369,16 @@ describe('Settings/Templates', () => {
     it('says plainly when a company has no template yet, and offers an Admin the first one', () => {
         const wrapper = page({ active: null, history: [] });
 
-        expect(wrapper.get('[data-testid="no-active"]').text()).toContain('no template yet');
-        expect(wrapper.get('[data-testid="no-active"]').text()).toContain('Write the first one');
+        expect(wrapper.get('[data-testid="no-active"]').text()).toContain('no text yet');
+        expect(wrapper.get('[data-testid="no-active"]').text()).toContain('Write it below');
         expect(wrapper.get('[data-testid="no-versions"]').exists()).toBe(true);
         expect(formState.body).toBe('');
     });
 
-    it('tells a non-Admin an Admin can write one', () => {
-        const wrapper = page({ active: null, history: [], isAdmin: false });
+    it("tells someone who may not edit that the company's command can write it", () => {
+        const wrapper = page({ active: null, history: [], isAdmin: false, canManage: false, canManageCompany: false });
 
-        expect(wrapper.get('[data-testid="no-active"]').text()).toContain('An Admin can write one here');
+        expect(wrapper.get('[data-testid="no-active"]').text()).toContain("The company's command can write it here");
         expect(wrapper.find('[data-testid="template-readonly"]').exists()).toBe(false);
     });
 
@@ -373,12 +392,12 @@ describe('Settings/Templates', () => {
 
     it('shows the server\'s validation errors beside the field they belong to', () => {
         const wrapper = page();
-        formState.errors = { body: 'A template needs some text.', reason: 'The reason field is required.', company_id: 'Unit 4 is not a company.' };
+        formState.errors = { body: 'A template needs some text.', reason: 'The reason field is required.', template_id: 'That record no longer exists.' };
 
         return wrapper.vm.$nextTick().then(() => {
             expect(wrapper.get('[data-testid="error-body"]').text()).toBe('A template needs some text.');
             expect(wrapper.get('[data-testid="error-reason"]').text()).toBe('The reason field is required.');
-            expect(wrapper.get('[data-testid="error-company_id"]').text()).toBe('Unit 4 is not a company.');
+            expect(wrapper.get('[data-testid="error-template_id"]').text()).toBe('That record no longer exists.');
         });
     });
 
@@ -463,10 +482,10 @@ describe('Settings/Templates', () => {
         });
 
         it('is not offered to a non-Admin, or while an Admin is viewing as a leader', () => {
-            expect(page({ isAdmin: false }).find('[data-testid="use-starter"]').exists()).toBe(false);
+            expect(page({ isAdmin: false, canManage: false, canManageCompany: false }).find('[data-testid="use-starter"]').exists()).toBe(false);
 
             mockPage.props = { viewAs: { kind: 'unit', designation: '2/1/A/1-7', label: 'SGT Vasquez.R', admin: true } };
-            expect(page({ isAdmin: false }).find('[data-testid="use-starter"]').exists()).toBe(false);
+            expect(page({ isAdmin: false, canManage: false, canManageCompany: false }).find('[data-testid="use-starter"]').exists()).toBe(false);
         });
     });
 
@@ -645,7 +664,7 @@ describe('Settings/Templates', () => {
             });
 
             it('offers a non-Admin only the copy button', () => {
-                const wrapper = page({ isAdmin: false });
+                const wrapper = page({ isAdmin: false, canManage: false, canManageCompany: false });
 
                 expect(wrapper.find('[data-testid^="legend-insert-"]').exists()).toBe(false);
                 expect(wrapper.get('[data-testid="legend-entry-rank"] [data-testid="legend-code"]').text()).toBe('{{rank}}');
@@ -655,7 +674,7 @@ describe('Settings/Templates', () => {
 
             it('offers only the copy button while an Admin is viewing as a leader, and the editor stays as it was', async () => {
                 mockPage.props = { viewAs: { kind: 'unit', designation: '2/1/A/1-7', label: 'SGT Vasquez.R', admin: true } };
-                const wrapper = page({ isAdmin: false });
+                const wrapper = page({ isAdmin: false, canManage: false, canManageCompany: false });
 
                 expect(wrapper.find('[data-testid^="legend-insert-"]').exists()).toBe(false);
                 expect(wrapper.find('[data-testid="legend-copy-rank"]').exists()).toBe(true);
@@ -885,6 +904,102 @@ describe('Settings/Templates', () => {
     });
 
     it('shows the placeholder reference to a non-Admin too, since they read the template', () => {
-        expect(page({ isAdmin: false }).find('[data-testid="syntax-help"]').exists()).toBe(true);
+        expect(page({ isAdmin: false, canManage: false, canManageCompany: false }).find('[data-testid="syntax-help"]').exists()).toBe(true);
+    });
+});
+
+describe('Settings/Templates: the company list (#375)', () => {
+    const row = (wrapper, id) => wrapper.get(`[data-testid="template-row-${id}"]`);
+
+    it('lists the regiment default and the company templates, marking the default, the company default and the ones switched off', () => {
+        const wrapper = page();
+
+        expect(row(wrapper, 5).find('[data-testid="badge-regiment-default"]').exists()).toBe(true);
+        expect(row(wrapper, 7).find('[data-testid="badge-company-default"]').exists()).toBe(true);
+        expect(row(wrapper, 8).find('[data-testid="badge-off"]').text()).toBe('Off for sections');
+        expect(wrapper.get('[data-testid="open-template-name"]').text()).toBe('Standard');
+        expect(wrapper.get('[data-testid="open-template-7"]').attributes('aria-current')).toBe('true');
+    });
+
+    it('offers the company command a switch and a company default for its own templates only, never for the regiment default', () => {
+        const wrapper = page();
+
+        expect(row(wrapper, 5).find('[data-testid="switch-5"]').exists()).toBe(false);
+        expect(row(wrapper, 7).get('[data-testid="switch-7"]').text()).toBe('Switch off');
+        expect(row(wrapper, 8).get('[data-testid="switch-8"]').text()).toBe('Switch on');
+        expect(row(wrapper, 7).find('[data-testid="make-default-7"]').exists()).toBe(false);
+        expect(row(wrapper, 8).find('[data-testid="make-default-8"]').exists()).toBe(true);
+    });
+
+    it('switches a template and makes one the company default through their own requests', async () => {
+        const wrapper = page();
+
+        await wrapper.get('[data-testid="switch-8"]').trigger('click');
+        await wrapper.get('[data-testid="make-default-8"]').trigger('click');
+
+        expect(routerPost).toHaveBeenNthCalledWith(1, '/settings/templates/8/switch', { enabled: true }, expect.objectContaining({ preserveScroll: true }));
+        expect(routerPost).toHaveBeenNthCalledWith(2, '/settings/templates/8/company-active', {}, expect.objectContaining({ preserveScroll: true }));
+    });
+
+    it('hides the company controls from someone who may not manage the company', () => {
+        const wrapper = page({ canManage: false, canManageCompany: false });
+
+        expect(wrapper.find('[data-testid="new-template"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="switch-7"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="template-form"]').exists()).toBe(false);
+    });
+
+    it('shows the regiment default read-only to a company command, saying only an Admin edits it', () => {
+        const wrapper = page({ template: 5, canManage: false });
+
+        expect(wrapper.find('[data-testid="template-form"]').exists()).toBe(false);
+        expect(wrapper.get('[data-testid="default-note"]').text()).toContain('Only an Admin edits it');
+        expect(wrapper.find('[data-testid="new-template"]').exists()).toBe(true);
+    });
+
+    it('opens another template through the server, asking first when the editor holds unsaved text', async () => {
+        vi.stubGlobal('confirm', vi.fn(() => false));
+        const wrapper = page();
+
+        formState.body = '[B]half-written[/B]';
+        await wrapper.get('[data-testid="open-template-8"]').trigger('click');
+        expect(routerGet).not.toHaveBeenCalled();
+
+        formState.body = '[B]second[/B]';
+        await wrapper.get('[data-testid="open-template-8"]').trigger('click');
+        expect(routerGet).toHaveBeenCalledWith('/settings/templates', { company: 1, template: 8 }, { preserveScroll: true });
+    });
+
+    it('says when nothing of the company is switched on, so its sections use the regiment default', () => {
+        const off = TEMPLATES.map((item) => ({ ...item, enabled: item.isRegimentDefault }));
+
+        expect(page({ templates: off }).find('[data-testid="nothing-switched-on"]').exists()).toBe(true);
+        expect(page().find('[data-testid="nothing-switched-on"]').exists()).toBe(false);
+    });
+
+    it('adds a template under a name and reason, starting from the open template', async () => {
+        const wrapper = page();
+
+        await wrapper.get('[data-testid="new-template"]').trigger('click');
+        await flushPromises();
+        expect(document.body.querySelector('[data-testid="create-dialog"]')).not.toBeNull();
+
+        createState.name = 'Training week 2';
+        createState.reason = 'Second training layout';
+        await nextTick();
+        document.body.querySelector('[data-testid="create-confirm"]').click();
+        await flushPromises();
+
+        expect(createPost).toHaveBeenCalledWith('/settings/templates/new', expect.objectContaining({ preserveScroll: true }));
+        expect(createState.company_id).toBe(1);
+        expect(createState.body).toBe('[B]second[/B]');
+    });
+
+    it('keeps the company controls, disabled, while previewing', () => {
+        mockPage.props = { viewAs: { kind: 'unit', designation: '2/1/A/1-7', label: 'SGT Vasquez.R', admin: true } };
+        const wrapper = page({ isAdmin: false });
+
+        expect(wrapper.get('[data-testid="new-template"]').attributes('aria-disabled')).toBe('true');
+        expect(wrapper.get('[data-testid="switch-7"]').attributes('disabled')).toBeDefined();
     });
 });
