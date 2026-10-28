@@ -210,3 +210,21 @@ it('shows on the audit log who acted for whom', function () {
         ->where('entries.data', fn ($entries) => collect($entries)->contains(fn ($e) => $e['action'] === 'view_as.started' && $e['actor'] === 'Hale.S' && $e['onBehalfOf'] === 'Vasquez.R')
             && collect($entries)->contains(fn ($e) => $e['action'] === 'act_as.started' && $e['onBehalfOf'] === null)));
 });
+
+it('counts rate limits against the Admin really signed in, not the person acted as: switching people opens no new bucket', function () {
+    Trooper::factory()->create(['cav_id' => 902, 'status' => TrooperStatus::Combat]);
+    $second = User::factory()->create(['cav_id' => 902]);
+    $trooper = Trooper::factory()->create(['primary_section_id' => $this->section->id, 'status' => TrooperStatus::Combat]);
+    $upload = fn () => $this->actingAs($this->admin)->post("/troopers/{$trooper->id}/counseling", []);
+
+    // The counseling upload limit is 10 a minute. Every attempt counts, refused or not.
+    startActing($this);
+    foreach (range(1, 10) as $attempt) {
+        expect($upload()->status())->not->toBe(429);
+    }
+
+    $this->actingAs($this->admin)->delete('/act-as');
+    startActing($this, $second);
+
+    $upload()->assertTooManyRequests();
+});

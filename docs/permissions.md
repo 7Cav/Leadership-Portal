@@ -276,7 +276,8 @@ Copying the forum post stays possible on a locked week; marking it posted does n
 
 ### Rate limits
 
-All per signed-in user (sign-in is per IP address), per minute. Every write the audit log records has one of these;
+All per signed-in user (sign-in is per IP address), per minute. While acting as someone, the limits still count
+against the person really signed in, so switching people does not reset them. Every write the audit log records has one of these;
 only sign out has none, since it ends the session and signing back in is limited.
 
 | Limit | Applies to |
