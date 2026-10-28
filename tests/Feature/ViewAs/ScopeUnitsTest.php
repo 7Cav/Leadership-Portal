@@ -176,6 +176,28 @@ describe('the top of the scope every page shares', function () {
             ->has('scopeTop', 2));
     });
 
+    it('leaves out a granted unit with no troopers, as the menu does, so "+N" counts only what it lists', function () {
+        $tree = suTree();
+        $staff = User::factory()->serving()->create();
+        PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $tree['otherCompany']->id]);
+        PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $tree['empty']->id]);
+
+        $this->actingAs($staff)->get('/home')->assertInertia(fn ($page) => $page
+            ->where('scopeTop', [['id' => $tree['otherCompany']->id, 'designation' => 'E/2-7', 'name' => 'Echo Company']]));
+        expect(suListed())->not->toContain($tree['empty']->id);
+    });
+
+    it('keeps the first top when every one is empty, so the label is never blank', function () {
+        $tree = suTree();
+        $second = app(UnitRepository::class)->create(UnitType::Section, '4th Section', '4/1/A/1-7', $tree['platoon']->id);
+        $staff = User::factory()->serving()->create();
+        PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $tree['empty']->id]);
+        PortalRoleGrant::factory()->create(['user_id' => $staff->id, 'unit_id' => $second->id]);
+
+        $this->actingAs($staff)->get('/home')->assertInertia(fn ($page) => $page
+            ->where('scopeTop', [['id' => $tree['empty']->id, 'designation' => '3/1/A/1-7', 'name' => '3rd Section']]));
+    });
+
     it('is empty for a user with no scope', function () {
         suTree();
 

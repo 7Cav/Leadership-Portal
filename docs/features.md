@@ -148,7 +148,7 @@ on none.
 ### Unit switcher and View as
 
 - Unit switcher: the block at the top of the sidebar names the top unit of your scope (several for a staff grant over
-  more than one unit), and the breadcrumb starts there. Open it to list every unit in your scope as a tree, sections
+  more than one unit, empty line units left out as in the list), and the breadcrumb starts there. Open it to list every unit in your scope as a tree, sections
   included and empty line units left out. Choosing one opens the page you are on for that unit (its roster, a
   section's rollcall, or its report or roll-up for the same week), else that unit's roster. It is navigation only: it
   never changes what you can see or do.
