@@ -271,20 +271,22 @@ class CaptureSectionPracticeHandler
      * One presence from every server's: a player seen on any of them counts once (#389). The latest fetch time
      * stands for the whole read.
      *
+     * Two IDs that differ only in letter case are one player: the database compares IDs without case, so keeping both
+     * would fail the whole run on the unique key. An Epic ID (32 hex characters, the only kind of ID whose case can
+     * differ for the same account) is taken in lower case, the way CRCON reports it and the portal stores it; any other
+     * ID keeps the spelling first seen. A Steam ID is digits, so nothing changes for it.
+     *
      * @param  list<CrconPresence>  $presences
      */
     private function merge(array $presences): CrconPresence
     {
-        if (count($presences) === 1) {
-            return $presences[0];
-        }
-
         /** @var array<string, CrconPlayer> $byPlatformId */
         $byPlatformId = [];
 
         foreach ($presences as $presence) {
             foreach ($presence->players as $player) {
-                $byPlatformId[$player->platformId] ??= $player;
+                $id = preg_match('/^[0-9a-f]{32}$/i', $player->platformId) === 1 ? strtolower($player->platformId) : $player->platformId;
+                $byPlatformId[mb_strtolower($id)] ??= $id === $player->platformId ? $player : new CrconPlayer($player->playerName, $id);
             }
         }
 

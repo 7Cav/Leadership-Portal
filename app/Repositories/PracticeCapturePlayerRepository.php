@@ -15,7 +15,7 @@ interface PracticeCapturePlayerRepository
     /**
      * Replace everything stored for `$practiceId` with this run's findings, atomically: a re-run
      * never leaves the earlier run's players behind or duplicates them. A player listed twice is
-     * stored once.
+     * stored once, and so is an ID listed in two letter cases (the first is kept).
      *
      * @param  list<array{platform_id: string, player_name: string, trooper_id: ?int}>  $players
      */

@@ -23,7 +23,8 @@ class Eloquent implements PracticeCapturePlayerRepository
         DB::transaction(function () use ($practiceId, $game, $players) {
             PracticeCapturePlayer::query()->where('section_practice_id', $practiceId)->delete();
 
-            foreach (collect($players)->unique('platform_id') as $player) {
+            // Without case, as the unique key compares on MySQL: two spellings of one ID would fail the whole write.
+            foreach (collect($players)->unique(fn (array $player) => mb_strtolower($player['platform_id'])) as $player) {
                 PracticeCapturePlayer::query()->create([
                     'section_practice_id' => $practiceId,
                     'game_id' => $game->id,

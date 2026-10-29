@@ -3,6 +3,7 @@
 use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Commands\Capture\CaptureSectionPractice;
 use App\Commands\Capture\CaptureSectionPracticeHandler;
+use App\Commands\Capture\CaptureServer;
 use App\Commands\Capture\CaptureSource;
 use App\Commands\Capture\CaptureSources;
 use App\Commands\Capture\CaptureSourceUnavailable;
@@ -257,6 +258,45 @@ it('closes a run of this practice left in progress by a killed worker, and not o
 
 // A name past the column once failed the whole run on MySQL, and the raw SQL error (with the
 // player data in it) became the run's stored error.
+it('takes two spellings of one Epic ID as one player, in lower case, and matches the stored identity', function () {
+    $mine = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
+    linkIdentity($mine, '0123456789abcdef0123456789abcdef');
+
+    $result = runCapture($this, [answeringSource('crcon', [
+        new CrconPlayer('Ranger', '0123456789ABCDEF0123456789ABCDEF'),
+        new CrconPlayer('Ranger', '0123456789abcdef0123456789abcdef'),
+    ])]);
+
+    expect($result->matched)->toHaveCount(1)
+        ->and($result->matched[0]['trooperId'])->toBe($mine->id)
+        ->and($result->unmatched)->toBe([])
+        ->and($result->seen())->toBe(1);
+});
+
+it('stores an unmatched ID seen in two letter cases once, keeping the first spelling, and a Steam ID as it is', function () {
+    $result = runCapture($this, [answeringSource('crcon', [
+        new CrconPlayer('Xbox One', 'Xbox-Player-1'),
+        new CrconPlayer('Xbox Two', 'xbox-player-1'),
+        new CrconPlayer('Steam', '76561198000000001'),
+        new CrconPlayer('Epic', 'ABCDEF0123456789ABCDEF0123456789'),
+    ])]);
+
+    expect($result->captured)->toBeTrue()
+        ->and(array_map(fn (CrconPlayer $p) => $p->platformId, $result->unmatched))->toBe(['Xbox-Player-1', '76561198000000001', 'abcdef0123456789abcdef0123456789'])
+        ->and(PracticeCapturePlayer::query()->orderBy('id')->pluck('platform_id')->all())->toBe(['Xbox-Player-1', '76561198000000001', 'abcdef0123456789abcdef0123456789']);
+});
+
+it('counts a player seen on two servers in two letter cases once', function () {
+    app()->instance(CaptureSources::class, new CaptureSources(['crcon' => []], fn () => [
+        new CaptureServer(1, 'A', [answeringSource('crcon', [new CrconPlayer('P', 'Xbox-Player-1')])]),
+        new CaptureServer(2, 'B', [answeringSource('battlemetrics', [new CrconPlayer('P', 'XBOX-PLAYER-1')])]),
+    ]));
+
+    $result = app(CaptureSectionPracticeHandler::class)->handle(new CaptureSectionPractice($this->practice->id, game('hll')->id, $this->start, $this->end, 'system'));
+
+    expect($result->unmatched)->toHaveCount(1)->and(PracticeCapturePlayer::query()->count())->toBe(1);
+});
+
 it('stores a player name longer than its column cut to fit, keyed on the platform id', function () {
     $long = str_repeat('Ä', 300);
 
