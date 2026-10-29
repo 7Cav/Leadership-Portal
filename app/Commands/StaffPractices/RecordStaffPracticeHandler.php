@@ -29,7 +29,8 @@ use Carbon\CarbonImmutable;
  *
  * Refused before anything is written: an unknown trooper, an actor who may not speak for them (403), a trooper who is not
  * staff or no longer serving, a unit that is not a section, a week before `WeekOf::floor()`, more than {@see WEEKS} weeks
- * back or in the future, and a trooper already recorded at that practice by any source. Then one audited transaction (`staff_practice.recorded`,
+ * back or in the future, and a trooper already recorded at that practice by any source (a guest entry from before they
+ * moved to the staff is named as one, since it shows on the section's rollcall, not here). Then one audited transaction (`staff_practice.recorded`,
  * AD-16, target the trooper, digest over the new entry): a week whose report the unit the trooper was in that week sent is refused under
  * the report's lock ({@see GuardsStaffPractice}); the trooper is read again (a roster sync may have moved them); the host
  * practice is found or created (a generated demo practice stays demo, so the demo purge still clears its marks); the entry
@@ -87,8 +88,10 @@ class RecordStaffPracticeHandler
         // created inside the transaction, so a refused entry leaves no empty practice row behind.
         $existing = $this->practices->find($command->sectionId, $weekStart);
 
-        if ($existing !== null && $this->sightings->find($existing->id, $trooper->id) !== null) {
-            throw StaffPracticeRefusedException::alreadyRecorded($trooper->display_name);
+        $held = $existing === null ? null : $this->sightings->find($existing->id, $trooper->id);
+
+        if ($held !== null) {
+            throw $this->alreadyHeld($held, $trooper->display_name);
         }
 
         $sighting = null;
@@ -105,12 +108,23 @@ class RecordStaffPracticeHandler
                 $practice = $this->practices->findOrCreate($command->sectionId, $weekStart, keepDemo: true);
 
                 $sighting = $this->sightings->recordStaff($practice, $current->id, $actor->id, $this->acting->adminActingAs($actor->id), $this->acting->billetOf($actor->id))
-                    ?? throw StaffPracticeRefusedException::alreadyRecorded($current->display_name);
+                    ?? throw $this->alreadyHeld($this->sightings->find($practice->id, $current->id), $current->display_name);
 
                 return new AuditedBatch($current, $sighting);
             },
         );
 
         return $sighting;
+    }
+
+    /**
+     * The refusal for a practice that already holds a row for the trooper, naming what holds it (audit L2): a staff
+     * entry, or a guest entry from before they moved to the staff, which shows on the section's rollcall instead.
+     */
+    private function alreadyHeld(?CrossSectionSighting $held, string $name): StaffPracticeRefusedException
+    {
+        return $held === null || $held->isStaff()
+            ? StaffPracticeRefusedException::alreadyRecorded($name)
+            : StaffPracticeRefusedException::alreadyAGuest($name, ! $held->isManual());
     }
 }

@@ -281,7 +281,10 @@ Reservists and New Recruits are groups but not staff. On a staff member's milpac
 lists the section practices they attended, newest week first; the roster's trooper sheet shows the same list, read only.
 
 - Add one: the section (any section of the regiment with troopers in it) and the Cav week (this week and up to 11 back, never before the
-  week floor; the server refuses an older week too). One entry per staff member per section per week. Who may is in
+  week floor; the server refuses an older week too). One entry per staff member per section per week. A practice holds
+  one entry per trooper of either kind, staff or guest: a trooper listed there as a guest before they moved to the
+  staff is told so, and a trooper with a staff entry who has since moved into a section cannot be added there as a
+  guest, with the refusal saying where the other entry is. Who may is in
   [permissions.md](permissions.md#staff-practices). Each entry says who entered it; one the staff member entered
   themselves reads "Self-reported by".
 - Game server: when a practice capture sees a staff member through a linked game identity, the practice is listed as
