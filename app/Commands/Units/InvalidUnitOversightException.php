@@ -31,6 +31,11 @@ class InvalidUnitOversightException extends DomainException
         return new self("{$trooper} is no longer on a Cav roster, so they cannot oversee a unit.");
     }
 
+    public static function self(): self
+    {
+        return new self('You cannot make yourself an overseer. Another Admin can.');
+    }
+
     public static function unchanged(string $unit, string $trooper): self
     {
         return new self("{$trooper} already oversees {$unit}.");

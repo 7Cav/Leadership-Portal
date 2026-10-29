@@ -112,6 +112,20 @@ it('refuses a missing reason, a unit that takes no overseer, a trooper who left,
     expect(UnitOversight::count())->toBe(0)->and(AuditLogEntry::count())->toBe(0);
 });
 
+it('refuses an Admin naming themselves, so the read cannot outlast their Admin rights', function () {
+    $robAdmin = $this->robUser;
+    $robAdmin->forceFill(['is_admin' => true])->save();
+
+    $this->actingAs($robAdmin)->post(ovUrl($this->second), ['trooper_id' => $this->rob->id, 'reason' => 'Me.'])
+        ->assertSessionHasErrors(['oversight' => 'You cannot make yourself an overseer. Another Admin can.']);
+
+    expect(UnitOversight::count())->toBe(0)->and(AuditLogEntry::count())->toBe(0);
+
+    // Another Admin can.
+    $this->actingAs($this->admin)->post(ovUrl($this->second), ['trooper_id' => $this->rob->id, 'reason' => 'Named by the S6.'])->assertSessionHasNoErrors();
+    expect(UnitOversight::query()->sole()->trooper_id)->toBe($this->rob->id);
+});
+
 it('lets the Reservists take an overseer, as battalions do', function () {
     $this->actingAs($this->admin)->post(ovUrl($this->reserve), ['trooper_id' => $this->rob->id, 'reason' => 'RDC Commander.'])->assertSessionHasNoErrors();
     $this->actingAs($this->admin)->post(ovUrl($this->acd), ['trooper_id' => $this->rob->id, 'reason' => 'RDC Commander.'])->assertSessionHasNoErrors();
