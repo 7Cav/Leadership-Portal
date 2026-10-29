@@ -35,6 +35,11 @@ class InvalidCounselingRecordException extends RuntimeException
         return new self('reason', 'Keep the reason under '.CounselingRules::REASON_MAX.' characters.');
     }
 
+    public static function overturnReasonTooLong(): self
+    {
+        return new self('reason', 'Keep the reason for overturning to '.OverturnCounselingRecordHandler::REASON_MAX.' characters.');
+    }
+
     public static function notPdf(): self
     {
         return new self('document', 'Attach the signed document as a PDF.');
