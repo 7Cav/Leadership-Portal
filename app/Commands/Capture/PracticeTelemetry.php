@@ -10,6 +10,7 @@ use App\Repositories\GameServerRepository;
 use App\Repositories\SyncRunRepository;
 use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
+use App\Repositories\UnitRepository;
 use DateTimeImmutable;
 
 /**
@@ -20,9 +21,11 @@ use DateTimeImmutable;
  * answered is not a failure here: the run succeeded, so the practice is captured. One of several
  * training servers that could not be read is (#389): the run failed, and so does the banner.
  *
- * A section has no game of its own in the data, so its game is read from the identities linked to
- * its troopers: the one most of them have, the game added first on a tie (HLL before Arma before
- * WARDOGS). A retired game still counts: retiring stops new links, not the capture of the ones made.
+ * A section's game ({@see gameOf()}) is the game it plays as an Admin set it on the section or the nearest unit above
+ * (policy, 2026-10-29). With none set, it is read from the identities linked to its troopers: the one most of them have,
+ * the game added first on a tie (HLL before Arma before WARDOGS). A retired game still counts either way: retiring stops
+ * new links, not the capture of the ones made. The retry ({@see RequestPracticeCaptureHandler}) and the rollcall banner
+ * both ask here, so they always agree on the game.
  */
 class PracticeTelemetry
 {
@@ -33,10 +36,17 @@ class PracticeTelemetry
         private readonly TrooperGameIdentityRepository $identities,
         private readonly GameRepository $games,
         private readonly GameServerRepository $servers,
+        private readonly UnitRepository $units,
     ) {}
 
     public function gameOf(int $sectionId): ?Game
     {
+        $played = $this->units->gameOf($sectionId);
+
+        if ($played !== null && ($game = $this->games->find($played->gameId)) !== null) {
+            return $game;
+        }
+
         $ids = $this->troopers->placedIn($sectionId)->pluck('id')->all();
         $counts = $this->identities->forTroopers($ids)->countBy('game_id');
 

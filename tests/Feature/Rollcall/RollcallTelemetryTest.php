@@ -182,6 +182,64 @@ it('still reads a retired game: retiring stops new links, not the capture of the
     telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.platformLabel', 'Hell Let Loose (WW2)')->where('telemetry.canRetry', true));
 });
 
+// The game the section plays (policy, 2026-10-29), its own or the nearest unit's above, comes before what most of it has
+// linked, for the banner and the retry alike. With no unit game anywhere, the tests above hold unchanged.
+
+/** Put the test's section under a new platoon, with paths the repository can walk (AD-18). */
+function telemetryPlatoon(object $test): Unit
+{
+    $platoon = Unit::factory()->create(['type' => UnitType::Platoon]);
+    $platoon->forceFill(['path' => "{$platoon->id}/"])->save();
+    $test->section->forceFill(['parent_id' => $platoon->id, 'path' => "{$platoon->id}/{$test->section->id}/"])->save();
+
+    return $platoon;
+}
+
+it('reads the game the section plays before the one most of it has linked, for the banner and the retry', function () {
+    Queue::fake();
+    $squad = Game::factory()->create(['name' => 'Squad', 'interface' => TelemetryInterface::Crcon]);
+    $this->section->forceFill(['path' => "{$this->section->id}/", 'game_id' => $squad->id])->save();
+    captureRun($this, SyncRunStatus::Failure);
+
+    telemetryOf($this)->assertInertia(fn (Assert $page) => $page
+        ->where('telemetry.state', 'failed')
+        ->where('telemetry.platformLabel', 'Squad')
+        ->where('telemetry.canRetry', true));
+
+    tryAgain($this)->assertStatus(202);
+    Queue::assertPushed(CaptureSectionPracticeJob::class, fn (CaptureSectionPracticeJob $job) => $job->command->gameId === $squad->id);
+});
+
+it('reads the game of the nearest unit above a section that has none of its own', function () {
+    $platoon = telemetryPlatoon($this);
+    $platoon->forceFill(['game_id' => game('arma')->id])->save();
+    captureRun($this, SyncRunStatus::Failure);
+
+    // Arma reads BattleMetrics only, which has no keys here: not configured, named for Arma, though the section's only
+    // link is on Hell Let Loose.
+    telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.state', 'not_configured')->where('telemetry.platformLabel', 'Arma Reforger'));
+    tryAgain($this)->assertStatus(422)->assertJsonPath('message', 'Capture is not set up for Arma Reforger. Mark attendance by hand.');
+});
+
+it('still reads a unit game that has been retired, as it reads a retired linked game', function () {
+    $platoon = telemetryPlatoon($this);
+    $platoon->forceFill(['game_id' => game('wardogs')->id])->save();
+    game('wardogs')->forceFill(['retired_at' => now()])->save();
+    captureRun($this, SyncRunStatus::Failure);
+
+    telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.platformLabel', 'WARDOGS'));
+});
+
+it('offers a retry on the unit game for a section with no identity linked at all', function () {
+    Queue::fake();
+    TrooperGameIdentity::query()->delete();
+    $this->section->forceFill(['path' => "{$this->section->id}/", 'game_id' => game('hll')->id])->save();
+    captureRun($this, SyncRunStatus::Failure);
+
+    tryAgain($this)->assertStatus(202);
+    Queue::assertPushed(CaptureSectionPracticeJob::class, fn (CaptureSectionPracticeJob $job) => $job->command->gameId === game('hll')->id);
+});
+
 function tryAgain(object $test, array $body = ['week' => '2026-10-03'], ?User $as = null)
 {
     return ($as ? $test->actingAs($as) : $test->actingAs($test->leader))->postJson("/rollcall/{$test->section->id}/capture", $body);
