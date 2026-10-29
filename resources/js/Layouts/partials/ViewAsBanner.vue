@@ -5,7 +5,6 @@ import { PhEye } from '@phosphor-icons/vue';
 import { toast } from 'vue-sonner';
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { useIdentity } from '@/composables/useIdentity';
 import { useViewAs } from '@/composables/useViewAs';
 import { onHttpException } from '@/lib/httpError';
 
@@ -25,14 +24,14 @@ function leave() {
 
 // Act as (#379): from a preview, an Admin can take over with its permissions, writes included. A person ("Act as them";
 // another Admin is acted as without their Admin rights), or a unit's billet with no person behind it ("Act as this
-// billet"). Only an Admin is offered either; the server checks anyway.
-const { isRealAdmin } = useIdentity();
+// billet"). Only an Admin is offered either (`viewAs.actAs`: the real user is an Admin, whoever the preview shows); the
+// server checks anyway.
 // Someone on the roster who has never signed in has no account to act for, so acting as them is acting as the billet
 // they hold; with none, there is nothing to act as.
 const throughBillet = computed(() => viewAs.value?.kind === 'trooper');
 const actsOnBillet = computed(() => viewAs.value?.kind === 'unit' || throughBillet.value);
 const canActAs = computed(
-    () => isRealAdmin.value && (viewAs.value?.kind === 'user' || viewAs.value?.kind === 'unit' || (throughBillet.value && Boolean(viewAs.value.designation))),
+    () => viewAs.value?.actAs === true && (viewAs.value?.kind === 'user' || viewAs.value?.kind === 'unit' || (throughBillet.value && Boolean(viewAs.value.designation))),
 );
 const actLabel = computed(() => (throughBillet.value ? 'Act as their billet' : actsOnBillet.value ? 'Act as this billet' : 'Act as them'));
 const confirming = ref(false);

@@ -44,6 +44,7 @@ audience: leader
 4. No chains: while you act as someone, you cannot act as anyone else. Stop first.
 5. An Admin who acts as another Admin gets none of their Admin rights, only their billet, acting leads and grants. An Admin acting as a leader can then act only as the people below that leader, and stops to be an Admin again.
 6. Acting as someone never lets you file counseling on yourself or see your own counseling records.
+7. Acting as someone does not open their own milpac page the way they open it. You see their page only where their command reaches it, and none of their DCSs that you could not see as yourself.
 
 ## Act as compared with View as
 

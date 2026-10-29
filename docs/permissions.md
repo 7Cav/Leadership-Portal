@@ -13,11 +13,12 @@
 - A staff grant (given by an Admin) lets someone read a unit and everything under it. It never lets them change
   anything there.
 - Regimental HQ staff (the Chief of Staff, the Adjutants General, the Finance Officer and any other billet in the
-  `Regimental HQ` group) read the whole regiment, as a staff grant on the regiment would. No Admin has to give it.
+  `Regimental HQ` group) read the whole regiment, as a staff grant on the regiment would, while they are placed on the
+  regiment and their billet is still in that group. No Admin has to give it.
   Once an Admin approves their billet, they are Admins, for as long as they hold it. S6 HQ staff become Admins the same
   way.
 - Every trooper may open their own milpac page, read only, with their own DCSs and LORs, whatever their billet. It opens
-  nobody else's.
+  nobody else's, and only for the person really signed in as themselves: never through act as or view as.
 - "View as" previews the portal as a unit (or, for Admins, as a person). It only narrows what you see, and every change
   is refused while it is on.
 - Writes also stop at a few hard edges whatever your rank: weeks older than the week floor, weeks whose section report
@@ -137,7 +138,9 @@ for their portfolio. They see their staff on the roster and the org page.
 (2) Every signed-in trooper may open their own milpac page, read only, whatever their scope (decided 2026-10-28), and
 the search finds them. It shows their own DCSs and LORs, and a staff member records their own practices there. It opens
 no other trooper, and leaves out the links into their unit (section roster, rollcall, readiness matrix, makeup PM)
-unless their scope reaches it. During a view-as preview only the preview's scope counts.
+unless their scope reaches it. During a view-as preview only the preview's scope counts, and while acting as someone
+only the scope of the person acted as: acting as someone never opens their page through this rule, so it shows only
+what the acting identity's command shows (no DCSs from a shared command, nothing outside its scope).
 (3) Not in the sidebar for non-Admins, but any signed-in user can open it by URL and read it. Only Admins see the
 editing controls.
 (4) The companies your read scope reaches into, opening on your own, and the sections of those in your scope. Asking
@@ -207,12 +210,15 @@ their own plan unless they also command the company.
 | Org structure: Import from Cav roster | Yes | No | No |
 | Org structure: place a trooper the sync could not place | Yes | No | No |
 | Org structure: set or clear a unit's game or team label | Yes | No | No |
-| Org structure: assign or remove an acting lead | Yes | No | No |
+| Org structure: assign or remove an acting lead (10) | Yes | No | No |
 | Staff grants: grant or revoke | Yes | No | No |
 | Games: add, edit, retire, reinstate or delete a game (a game in use can only be retired) | Yes | No | No |
 | Demo data: generate or purge (only when `DEMO_TOOLS=true`) | Yes | No | No |
 | Whole-roster sync ("Sync now" on the roster) | Yes | No | No |
 | Manual LOA sync (route only, no button in the UI) | Yes | No | No |
+
+(10) Only for a line unit below the regiment whose commanding billet (CO, PL or SL) no serving trooper holds, and never
+yourself: another Admin assigns an Admin. A unit with only its XO, PSG or ASL serving still takes one.
 
 ### Game identities and syncs
 
@@ -270,8 +276,9 @@ every DCS.
 everyone above, as long as they still counsel the trooper by the rules above. A record an Admin filed (no unit) is the
 Admins' alone.
 (8) Every trooper, in every column, sees their own DCSs and LORs on their own milpac page and downloads their documents
-(decided 2026-10-28). It is read only: nobody files on, corrects or deletes their own records, except that an Admin
-still corrects and deletes as an Admin.
+(decided 2026-10-28), signed in as themselves (not while acting as or viewing as anyone). It is read only: nobody files
+on, corrects or deletes their own records, except that an Admin by the `is_admin` flag still corrects and deletes as an
+Admin. An Admin by billet does not (2026-10-29).
 
 A trooper who has left the Cav (no longer serving) has read-only counseling: nobody may file a DCS or LOR on them, or
 correct or delete one, Admins included, and the panel says so. Whoever could see their records still sees and downloads
@@ -304,8 +311,10 @@ trooper may open (decided 2026-10-28); that opens no other trooper's page.
    [operations.md](operations.md)). Your scope is that unit and everything under it.
 3. Acting leads: every unit an Admin made you acting lead of is added, each with its subtree.
 4. Staff grants: every unit you were granted is added to your read scope, each with its subtree.
-5. Regimental HQ staff: if your milpac is placed directly on the regiment, the whole regiment is added to your read
-   scope.
+5. Regimental HQ staff: if your milpac is placed directly on the regiment and your billet is one Cav lists under
+   Regimental HQ now (the org import records each in `admin_billets`, approved or not), the whole regiment is added to
+   your read scope. A move to a billet the sync cannot place leaves you on the regiment, but the read ends with the
+   billet.
 6. View as: if a preview is on, your scope is cut down to the target. It is checked again on every request, so a
    preview stops on its own when you lose the authority it relied on.
 
