@@ -93,9 +93,9 @@ it('keeps a trooper moved after the week on the rollcall, report and KPIs of the
     $this->actingAs($this->leaderB)->put("/reports/{$this->b->id}/2026-10-03", ['unaccounted' => [['trooper_id' => $this->mover->id, 'reason' => 'sick']]])
         ->assertSessionHasErrors();
 
-    // The running week is who is placed now: he is B's.
-    expect(pastWeekIds($this->actingAs($this->leaderB)->get("/rollcall/{$this->b->id}")))->toContain($this->mover->id)
-        ->and(pastWeekIds($this->actingAs($this->leaderA)->get("/rollcall/{$this->a->id}")))->not->toContain($this->mover->id)
+    // The running week is who is placed now: he is B's (named: on this Saturday the bare URL opens the week still due).
+    expect(pastWeekIds($this->actingAs($this->leaderB)->get("/rollcall/{$this->b->id}?week=2026-10-10")))->toContain($this->mover->id)
+        ->and(pastWeekIds($this->actingAs($this->leaderA)->get("/rollcall/{$this->a->id}?week=2026-10-10")))->not->toContain($this->mover->id)
         ->and($this->kpis->forUnit($this->a, CarbonImmutable::parse('2026-10-10', 'UTC'))->strength)->toBe(1);
 
     // Once that week has ended too, he is on B's rollcall for it (where he ended it), noted as joined, and not on A's.
@@ -122,7 +122,7 @@ it('keeps a trooper who left the Cav during the week on that week, and off the w
     expect($this->kpis->forUnit($this->a, $this->week)->strength)->toBe(2);
 
     // The running week, and any week after he left, have no place for him.
-    expect(pastWeekIds($this->actingAs($this->leaderA)->get("/rollcall/{$this->a->id}")))->not->toContain($this->mover->id);
+    expect(pastWeekIds($this->actingAs($this->leaderA)->get("/rollcall/{$this->a->id}?week=2026-10-10")))->not->toContain($this->mover->id);
     pastWeekAt('2026-10-17 12:00:00');
     expect(pastWeekIds($this->actingAs($this->leaderA)->get("/rollcall/{$this->a->id}?week=2026-10-10")))->not->toContain($this->mover->id);
     $this->actingAs($this->leaderA)->postJson("/rollcall/{$this->a->id}", ['week' => '2026-10-10', 'marks' => [['trooper_id' => $this->mover->id, 'status' => 'missed']]])
