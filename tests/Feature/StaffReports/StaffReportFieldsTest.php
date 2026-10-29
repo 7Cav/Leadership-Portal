@@ -259,10 +259,10 @@ it('maps a platoon HQ report to the staff tab, column by column', function () {
     $report = sendFields($this->tree['users']['psg'], $this->psg, true, [$this->host->id, $this->tree['units']['other']->id], ['other_events' => 'Range day', 'notes' => 'All good.']);
 
     expect(pushToSheet($report))->toBeTrue()
-        ->and(StaffReportSheetRow::STAFF_PRACTICE_COLUMNS)->toBe(1)
+        ->and(StaffReportSheetRow::STAFF_PRACTICE_COLUMNS)->toBe(5)
         ->and($fake->rows)->toBe([['tab' => 'Weekly Staff Report 2O26', 'row' => [
-            '10/10/2026 12:00:00', '', '', 'Brandt.L', '1-7', 'A/1-7', '09Oct26', 'Yes', 'Section Practice (SP)',
-            '1/1/A/1-7, 2/1/A/1-7', '', '', 'Platoon', 'Platoon Sergeant', '1/A/1-7', 'All good.', '', '', 'Range day',
+            '10/10/2026 12:00:00', 'Brandt.L', '1-7', 'Alpha', '', '09Oct26', 'Yes', 'Section Practice (SP)',
+            '1/1/A/1-7, 2/1/A/1-7', '', '', '', '', '', '', 'Platoon', 'Platoon Sergeant', '1st Platoon', 'All good.', '', '', 'Range day',
         ]]]);
 });
 
@@ -275,8 +275,8 @@ it('maps a company HQ FTX report to the staff tab, with the company billet and n
     pushToSheet($report);
 
     expect($fake->rows)->toBe([['tab' => 'Weekly Staff Report 2O26', 'row' => [
-        '10/10/2026 12:00:00', '', '', 'Kerr.D', '1-7', 'A/1-7', '09Oct26', 'Yes', 'FTX',
-        '', 'Operation Anvil', '10/5/2026', 'Company', '', '', '', 'Company Commander', 'Led it.', '',
+        '10/10/2026 12:00:00', 'Kerr.D', '1-7', 'Alpha', '', '09Oct26', 'Yes', 'FTX',
+        '', '', '', '', '', 'Operation Anvil', '10/5/2026', 'Company', '', '', '', 'Company Commander', 'Led it.', '',
     ]]]);
 });
 
@@ -287,7 +287,8 @@ it('maps a battalion HQ report to the battalion tab, with the battalion billet',
     pushToSheet($report);
 
     expect($fake->rows)->toBe([['tab' => 'Weekly Battalion Report 2O26', 'row' => [
-        '10/10/2026 12:00:00', '', '', 'Stone.A', '1-7', '09Oct26', 'Battalion XO', 'Yes', '1/1/A/1-7', 'Range day', 'Visited 1/A.', '',
+        '10/10/2026 12:00:00', 'Stone.A', '1st Battalion', '09Oct26', 'Battalion XO', 'Yes', '1/1/A/1-7', 'Range day', 'Visited 1/A.',
+        '', '', '', '', '', '', '',
     ]]]);
 });
 
@@ -302,7 +303,8 @@ it('maps an ACD HQ report to the battalion tab, with the billet in ACD Billet', 
 
     expect($report->unit_id)->toBe($acd->id)
         ->and($fake->rows)->toBe([['tab' => 'Weekly Battalion Report 2O26', 'row' => [
-            '10/10/2026 12:00:00', '', '', 'Reyes.M', 'ACD', '09Oct26', '', 'No', '', '', '', 'ACD Commander',
+            '10/10/2026 12:00:00', 'Reyes.M', 'Auxiliary Combat Detachment', '09Oct26', '', '', '', '', '',
+            'ACD Commander', 'No', '', '', '', '', '',
         ]]]);
 });
 

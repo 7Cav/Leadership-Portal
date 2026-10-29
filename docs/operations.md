@@ -140,8 +140,7 @@ counseling Drive copy.
 
 Platoon and company reports go to the staff tab, battalion reports (ACD included) to the battalion tab, each in that
 tab's column order (`app/Commands/StaffReports/StaffReportSheetRow.php` lists it). Email Address and Score stay empty.
-The staff tab's practice columns are set by `StaffReportSheetRow::STAFF_PRACTICE_COLUMNS`; check it against the tab
-before the first push. The push runs on the queue (`PushStaffReportToSheetJob`), up to 5 tries, and never holds up
+If a tab gets a column added or moved, update `StaffReportSheetRow` first, or later rows shift.
 or fails the send. With no spreadsheet id nothing is pushed and nothing errors. A report that still shows "Not sent to
 the sheet yet" after the last try is named in the queue worker's log with why, never the key. The portal only appends
 rows: it cannot read, change or delete anything in the sheet.
