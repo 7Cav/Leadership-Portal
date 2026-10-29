@@ -115,8 +115,8 @@ it('counts the rollcall picker\'s progress over the roster the closing week ende
         ->and($sections[$this->b->id]['progress'])->toMatchArray(['strength' => 0, 'unmarked' => 0])
         ->and($sections[$this->c->id]['progress'])->toMatchArray(['strength' => 1, 'unmarked' => 1]);
 
-    // The running week counts who is placed now.
-    $running = collect($this->actingAs($this->co)->get("/rollcall/{$this->a->id}")->assertOk()->viewData('page')['props']['sections'])->keyBy('id');
+    // The running week counts who is placed now (named: on this Saturday the bare URL opens the week still due).
+    $running = collect($this->actingAs($this->co)->get("/rollcall/{$this->a->id}?week=2026-10-10")->assertOk()->viewData('page')['props']['sections'])->keyBy('id');
     expect($running[$this->a->id]['progress']['strength'])->toBe(1)
         ->and($running[$this->b->id]['progress']['strength'])->toBe(1)
         ->and($running[$this->c->id]['progress']['strength'])->toBe(0);
