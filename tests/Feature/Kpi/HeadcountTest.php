@@ -69,6 +69,20 @@ it('counts HQ staff and groups under a unit, New Recruits only on their own grou
         ->and($headcount->forUnit($this->recruits))->toBe(1);
 });
 
+it('counts ELOA and Reservists only on their own group, never above it', function () {
+    $units = app(UnitRepository::class);
+    $eloa = $units->create(UnitType::Group, 'Extended Leave of Absence', 'ELOA', $this->regiment->id, UnitKind::Eloa);
+    $reserve = $units->create(UnitType::Group, 'Reservists', 'RES', $this->regiment->id, UnitKind::Reserve);
+    hcPlace($eloa, ['status' => TrooperStatus::Eloa]);
+    hcPlace($reserve, ['status' => TrooperStatus::Reserve]);
+    hcPlace($reserve, ['status' => TrooperStatus::Reserve]);
+    $headcount = app(Headcount::class);
+
+    expect($headcount->forUnit($this->regiment))->toBe(6)
+        ->and($headcount->forUnit($eloa))->toBe(1)
+        ->and($headcount->forUnit($reserve))->toBe(2);
+});
+
 it('leaves the measured strength, and the roll-up equality, as they were', function () {
     $kpis = app(KpiService::class);
     $reports = app(WeeklyReportRepository::class);

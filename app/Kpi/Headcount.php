@@ -298,10 +298,19 @@ final class Headcount
         return $reporting;
     }
 
-    /** Whether troopers placed in `$placed` count towards `$unit`: it is `$unit` or under it, and New Recruits only count on their own group. */
+    /**
+     * Whether troopers placed in `$placed` count towards `$unit`: it is `$unit` or under it. The holding groups (New
+     * Recruits, ELOA, Reservists) only count on their own group: the headcount above them is the active regiment,
+     * sections plus staff (decided by the S6, 2026-10-29), and those groups show their own numbers.
+     */
     private static function counts(Unit $placed, Unit $unit): bool
     {
         return str_starts_with($placed->path, $unit->path)
-            && ($placed->kind !== UnitKind::Recruit || $unit->kind === UnitKind::Recruit);
+            && (! self::isHoldingGroup($placed) || $placed->kind === $unit->kind);
+    }
+
+    private static function isHoldingGroup(Unit $unit): bool
+    {
+        return in_array($unit->kind, [UnitKind::Recruit, UnitKind::Eloa, UnitKind::Reserve], true);
     }
 }
