@@ -5,7 +5,6 @@ namespace App\Commands\Templates;
 use App\Authorization\ScopeResolver;
 use App\Models\Template;
 use App\Models\Unit;
-use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\UnitRepository;
 
