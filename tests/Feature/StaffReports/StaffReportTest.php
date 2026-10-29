@@ -20,7 +20,9 @@ use App\Models\CrossSectionSighting;
 use App\Models\PlacementSource;
 use App\Models\SectionPractice;
 use App\Models\StaffReport;
+use App\Milpac\StaffReportWeek;
 use App\Models\Trooper;
+use App\Models\TrooperStatus;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReport;
@@ -259,6 +261,23 @@ it('goes by who was on the HQ when a past week ended, not by who is there now', 
     // The rifleman owes this week's, not last week's.
     expect(staffReportRefusal(fn () => sendStaffReport($riflemanUser, $rifleman->refresh(), false, [], $lastWeek)))->toBe('not_owed')
         ->and(sendStaffReport($riflemanUser, $rifleman, false, [])->attended)->toBeFalse();
+});
+
+it('keeps on a past week\'s HQ staff those who served when it ended or sent their report, though gone since', function () {
+    sendStaffReport($this->tree['users']['psg'], $this->psg, true, [$this->host->id]);
+    $pl = trooperOf($this->tree['users']['pl']);
+    $staff = fn () => collect(app(StaffReportWeek::class)->hqStaff($this->tree['units']['platoon'], $this->week))
+        ->map(fn (array $row) => $row['trooper']->id)->sort()->values()->all();
+
+    // Both left after the week ended: the PSG sent theirs, the PL served to the end of it.
+    $this->psg->forceFill(['status' => TrooperStatus::Inactive, 'departed_at' => '2026-10-20 12:00:00'])->save();
+    $pl->forceFill(['status' => TrooperStatus::Inactive, 'departed_at' => '2026-10-12 12:00:00'])->save();
+    expect($staff())->toBe(collect([$this->psg->id, $pl->id])->sort()->values()->all());
+
+    // The PL left before the week ended and sent nothing; the PSG's sent report keeps them.
+    $pl->forceFill(['departed_at' => '2026-10-09 12:00:00'])->save();
+    $this->psg->forceFill(['departed_at' => '2026-10-04 12:00:00'])->save();
+    expect($staff())->toBe([$this->psg->id]);
 });
 
 it('lists each pick on the host rollcall: a staff guest in their own unit, a guest elsewhere', function () {
