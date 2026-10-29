@@ -121,6 +121,31 @@ describe('NeedsAttention', () => {
         });
     });
 
+    describe('PM all at-risk', () => {
+        const named = (id, username) => risk(id, `SGT ${username}`, 2, '1/1/A/1-7', { trooper: { id, displayName: `SGT ${username}`, rankShort: 'SGT', username } });
+
+        it('opens one forum conversation to every at-risk trooper listed, in a new tab', () => {
+            const wrapper = mountList([named(1, 'Vasquez.R'), named(2, 'Okafor.T'), holding(3, 'draft', '2/1/A/1-7', '1/A/1-7')]);
+            const link = wrapper.get('[data-testid="group-makeup-pm"]');
+
+            expect(link.attributes('href')).toBe('https://7cav.us/conversations/add?to=Vasquez.R%2C%20Okafor.T&title=Section%20practice%20makeup');
+            expect(link.attributes('target')).toBe('_blank');
+            expect(link.text()).toBe('Send makeup PM to all 2 (opens the forum in a new tab)');
+            expect(link.attributes('title')).toBe('One forum conversation: every trooper in it sees the others');
+            expect(wrapper.get('[data-group="at_risk"]').find('[data-testid="group-makeup-pm"]').exists()).toBe(true);
+        });
+
+        it('says how many of the at-risk it reaches when the list is capped or a trooper has no forum username', () => {
+            const wrapper = mountList([named(1, 'Vasquez.R'), named(2, 'Okafor.T'), named(3, null)], { holding: 0, atRisk: 14 });
+
+            expect(wrapper.get('[data-testid="group-makeup-pm"]').text()).toContain('Send makeup PM to 2 of 14');
+        });
+
+        it('is not offered for a single at-risk trooper, who has their own link', () => {
+            expect(mountList([named(1, 'Vasquez.R')]).find('[data-testid="group-makeup-pm"]').exists()).toBe(false);
+        });
+    });
+
     describe('LOA posts that need review', () => {
         it('lists them in their own group, after at-risk, each opening the trooper\'s card on the rollcall', () => {
             const wrapper = mountList([risk(7, 'SGT Vasquez.R', 3), review(8, 'Lindqvist.E')]);

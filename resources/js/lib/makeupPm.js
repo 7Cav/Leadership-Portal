@@ -27,3 +27,18 @@ export function makeupPmUrl(baseUrl, username, missedWeeks = []) {
 
     return `${base}/conversations/add?to=${encodeURIComponent(to)}&title=${encodeURIComponent(makeupPmTitle(missedWeeks))}`;
 }
+
+// The most troopers one group makeup PM addresses. The forum's own per-conversation recipient limit is not known to
+// the portal, so this stays small; the forum refuses the form if its limit is lower.
+export const GROUP_PM_LIMIT = 10;
+
+// One forum conversation to several troopers ("PM all at-risk"): the forum's `to` takes a comma-separated list. Up to
+// `GROUP_PM_LIMIT` usernames, blanks and repeats dropped, in the order given. Every recipient sees the others, so the
+// title names no weeks. Null with fewer than 2 usable names (a single trooper has their own link) or no forum address.
+export function groupMakeupPmUrl(baseUrl, usernames = []) {
+    const base = String(baseUrl ?? '').trim().replace(/\/+$/, '');
+    const to = [...new Set(usernames.map((name) => String(name ?? '').trim()).filter(Boolean))].slice(0, GROUP_PM_LIMIT);
+    if (to.length < 2 || !/^https?:\/\/[^/\s]+/i.test(base)) return null;
+
+    return `${base}/conversations/add?to=${encodeURIComponent(to.join(', '))}&title=${encodeURIComponent(makeupPmTitle())}`;
+}

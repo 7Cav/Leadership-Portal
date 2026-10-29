@@ -336,6 +336,21 @@ describe('Needs attention (Story 5.10)', function () {
             ->has('attention.items', 2 + 10));
     });
 
+    it('gives each at-risk trooper their forum username for the makeup PMs, and lists at most 10 for "PM all at-risk"', function () {
+        $section = $this->s11;
+        Trooper::factory()->count(12)->sequence(fn ($seq) => ['username' => "Risky{$seq->index}.A"])->create(['primary_section_id' => $section->id])
+            ->each(function ($trooper) use ($section) {
+                foreach ([0, 1] as $back) {
+                    markWeek($section, $trooper, $this->week->subWeeks($back), AttendanceStatus::Missed);
+                }
+            });
+
+        dashboard($this->commander)(fn ($page) => $page
+            ->where('attention.totals.atRisk', 12)
+            ->where('attention.items', fn ($items) => collect($items)->where('kind', 'at_risk')->count() === 10
+                && collect($items)->where('kind', 'at_risk')->every(fn ($item) => str_starts_with($item['trooper']['username'], 'Risky'))));
+    });
+
     describe('LOA posts that need review', function () {
         it('lists a trooper in scope whose leave post needs review, linking to their card on the rollcall and to the post', function () {
             $trooper = $this->s21Troopers[0];

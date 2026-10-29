@@ -24,7 +24,10 @@ report deadline, 23:59 UTC on the Saturday after it ends, has passed).
 - Needs attention: units holding up the report chain, at-risk troopers and LOA posts that need review, each linked to
   the place to fix it, with a makeup PM link for at-risk troopers. An LOA post that needs review is one the LOA sync
   could not read, for a trooper in your scope, in the reporting week or the running one: it opens the trooper's card
-  on their section's rollcall and links to the post on the forum, where it is fixed.
+  on their section's rollcall and links to the post on the forum, where it is fixed. With 2 or more at-risk troopers
+  listed, "Send makeup PM to all" opens one forum conversation to the listed ones with a forum username, at most 10 (the
+  forum's own recipient limit is not known to the portal; the forum refuses the form if it is lower). Every recipient
+  sees the others.
 - Subordinate units: the units directly under the top of your scope, with their report status and KPIs.
 
 Home only counts line units (regiment, battalions, companies, platoons, sections). Staff groups have no report chain.

@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import EmptyState from '@/components/EmptyState.vue';
-import { makeupPmUrl } from '@/lib/makeupPm';
+import { GROUP_PM_LIMIT, groupMakeupPmUrl, makeupPmUrl } from '@/lib/makeupPm';
 
 // The "Needs attention" worklist (Story 5.10): reports holding up the chain, at-risk troopers and leave posts the
 // LOA sync could not read, each row a link to the screen that resolves it. The server decides what belongs (the shared
@@ -22,6 +22,17 @@ const props = defineProps({
 const page = usePage();
 const makeupHref = (item) =>
     item.kind === 'at_risk' && item.missedWeeks?.length ? makeupPmUrl(page.props.forum?.baseUrl, item.trooper.username, item.missedWeeks) : null;
+
+// "PM all at-risk": one forum conversation to the at-risk troopers listed here that have a forum username, at most
+// GROUP_PM_LIMIT of them (the list itself is capped at 10 too). The leader writes and sends it on the forum.
+const groupPmNames = computed(() => atRisk.value.map((item) => item.trooper.username).filter(Boolean).slice(0, GROUP_PM_LIMIT));
+const groupPmHref = computed(() => groupMakeupPmUrl(page.props.forum?.baseUrl, groupPmNames.value));
+const groupPmLabel = computed(() => {
+    const n = groupPmNames.value.length;
+    const total = props.attention.totals.atRisk;
+
+    return n === total ? `Send makeup PM to all ${n}` : `Send makeup PM to ${n} of ${total}`;
+});
 
 const holding = computed(() => props.attention.items.filter((item) => item.kind === 'holding'));
 const atRisk = computed(() => props.attention.items.filter((item) => item.kind === 'at_risk'));
@@ -119,6 +130,18 @@ const groups = computed(() =>
                         </Button>
                     </li>
                 </ul>
+                <p v-if="group.key === 'at_risk' && groupPmHref" class="px-3 pt-1 pb-1 text-xs">
+                    <a
+                        :href="groupPmHref"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="inline-flex items-center gap-1.5 underline underline-offset-2 hover:text-foreground"
+                        title="One forum conversation: every trooper in it sees the others"
+                        data-testid="group-makeup-pm"
+                    >
+                        <PhEnvelopeSimple aria-hidden="true" />{{ groupPmLabel }}<span class="sr-only"> (opens the forum in a new tab)</span>
+                    </a>
+                </p>
                 <p v-if="group.total > group.items.length" class="px-3 pt-1 pb-1 text-xs text-muted-foreground">
                     {{ group.total - group.items.length }} more
                     <Link :href="group.all" class="underline underline-offset-2 hover:text-foreground">{{ group.allLabel }}</Link>
