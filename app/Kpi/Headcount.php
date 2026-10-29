@@ -301,7 +301,7 @@ final class Headcount
      * Recruits, ELOA, Reservists) only count on their own group: the headcount above them is the active regiment,
      * sections plus staff (decided by the S6, 2026-10-29), and those groups show their own numbers.
      */
-    private static function counts(Unit $placed, Unit $unit): bool
+    public static function counts(Unit $placed, Unit $unit): bool
     {
         return str_starts_with($placed->path, $unit->path)
             && (! self::isHoldingGroup($placed) || $placed->kind === $unit->kind);

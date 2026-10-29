@@ -63,8 +63,8 @@ it('counts HQ staff in their unit and every ancestor, and New Recruits only on t
         ->and($units[$this->company->id]['trooper_count'])->toBe(3)
         ->and($units[$this->eloa->id]['trooper_count'])->toBe(1)
         ->and($units[$this->recruits->id]['trooper_count'])->toBe(1)
-        // Regiment: the line and ELOA, not the New Recruit.
-        ->and($units[$this->regiment->id]['trooper_count'])->toBe(4)
+        // Regiment: the line only. ELOA and the New Recruit count on their own groups (2026-10-29).
+        ->and($units[$this->regiment->id]['trooper_count'])->toBe(3)
         ->and($units[$this->recruits->id]['kind'])->toBe('recruit');
 });
 
