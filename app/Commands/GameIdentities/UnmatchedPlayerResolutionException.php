@@ -43,7 +43,7 @@ class UnmatchedPlayerResolutionException extends RuntimeException
 
     public static function notInSection(): self
     {
-        return new self("Choose a trooper from this section: pre-marking counts in a trooper's own section (AD-14).");
+        return new self("Choose a trooper from this section: a pre-mark counts only in a trooper's own section.");
     }
 
     public static function alreadyHasIdentity(string $playerName, string $platformId, string $gameLabel): self
