@@ -49,7 +49,7 @@ describe('Settings/OrgStructure placement', () => {
         expect(wrapper.find('[data-testid="unit-row-4"]').exists()).toBe(true);
 
         await wrapper.find('[data-testid="show-recruits"]').setValue(true);
-        expect(wrapper.find('[data-testid="unit-row-5"]').text()).toContain('1 trooper');
+        expect(wrapper.find('[data-testid="unit-row-5"]').text()).toContain('Headcount 1');
     });
 
     it('offers no toggle when there is no New Recruits group', () => {
