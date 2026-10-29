@@ -6,6 +6,7 @@ use App\Models\CounselingKind;
 use App\Models\CounselingRecord;
 use App\Models\CounselingType;
 use App\Models\Trooper;
+use App\Models\Unit;
 use App\Models\User;
 use App\Repositories\CounselingRecordRepository;
 use Carbon\CarbonImmutable;
@@ -22,7 +23,9 @@ use Closure;
  * banner that runs on today is no favorable action, for 30 days after an LOR. For the filing form, the flags a new
  * record would earn, by the date it is given (`forecast`), for each type the viewer may file and each kind.
  *
- * All of it is worked out only from the records the viewer sees, so a flag never gives away a DCS.
+ * All of it is worked out only from the records the viewer sees, so a flag never gives away a DCS. An LOR the Regimental
+ * Executive Officer overturned (S6, 2026-10-29) stays in the list, marked so, but counts toward none of it: it carries no
+ * flags, earns none for the records after it, and starts no no-favorable-action period.
  */
 class CounselingHistory
 {
@@ -31,16 +34,22 @@ class CounselingHistory
     /**
      * @param  Closure(CounselingRecord): bool  $changes  whether the viewer may correct or delete a record
      * @param  list<CounselingType>  $files  the types the viewer may file, for the form's forecast
+     * @param  (Closure(CounselingRecord): bool)|null  $overturns  whether the viewer may overturn a record (none if null)
+     * @param  (Closure(CounselingRecord): bool)|null  $frozen  whether a record is past its appeal window (none if null)
      * @return array{records: list<array<string, mixed>>, warnings: list<array{key: string, message: string, until: string}>, forecast: array<string, array<string, list<array{from: string, flags: list<array{key: string, message: string}>}>>>}
      */
-    public function for(Trooper $trooper, bool $seesDcs, bool $seesLor, Closure $changes, array $files = []): array
+    public function for(Trooper $trooper, bool $seesDcs, bool $seesLor, Closure $changes, array $files = [], ?Closure $overturns = null, ?Closure $frozen = null): array
     {
         $visible = ($seesDcs || $seesLor ? $this->records->forTrooper($trooper->id) : collect())
             ->filter(fn (CounselingRecord $record) => $record->type === CounselingType::Dcs ? $seesDcs : $seesLor)
             ->values();
 
         $today = CarbonImmutable::now('UTC')->startOfDay();
-        $entries = $visible->map(fn (CounselingRecord $record) => CounselingStanding::fromRecord($record))->all();
+        $entries = $visible
+            ->reject(fn (CounselingRecord $record) => $record->isOverturned())
+            ->map(fn (CounselingRecord $record) => CounselingStanding::fromRecord($record))
+            ->values()
+            ->all();
         $flags = CounselingStanding::flags($entries);
         $noFavorableAction = CounselingStanding::noFavorableAction($entries, $today);
 
@@ -59,7 +68,7 @@ class CounselingHistory
                 'kind' => $record->kind?->value,
                 'kindLabel' => $record->kind?->label(),
                 // A record from before the portal asked, ruled as other conduct: said only where that changes a flag.
-                'kindAssumed' => $record->kind === null && CounselingStanding::kindMatters($entries, $record->id),
+                'kindAssumed' => $record->kind === null && ! $record->isOverturned() && CounselingStanding::kindMatters($entries, $record->id),
                 'date' => $record->counseled_on->toDateString(),
                 'reason' => $record->reason,
                 'issuer' => self::issuer($record),
@@ -67,6 +76,13 @@ class CounselingHistory
                 'driveStatus' => $record->drive_status->value,
                 'flags' => $flags[$record->id] ?? [],
                 'canChange' => $changes($record),
+                'frozen' => $frozen !== null && $frozen($record),
+                'overturned' => $record->isOverturned() ? [
+                    'date' => $record->overturned_at->toDateString(),
+                    'by' => self::actor($record->overturnedBy, $record->overturnedByAdmin, $record->overturnedAsUnit),
+                    'reason' => $record->overturn_reason,
+                ] : null,
+                'canOverturn' => $overturns !== null && $overturns($record),
             ])->all(),
             'warnings' => $noFavorableAction === null ? [] : [$noFavorableAction],
             'forecast' => $forecast,
@@ -76,14 +92,20 @@ class CounselingHistory
     /** `SGT Okafor.B`, or `Hale.S for SGT Okafor.B` when an Admin filed it acting as them (#379). */
     private static function issuer(CounselingRecord $record): string
     {
-        $name = self::userName($record->issuedBy);
+        return self::actor($record->issuedBy, $record->issuedByAdmin, $record->issuedAsUnit);
+    }
 
-        if ($record->issuedByAdmin !== null) {
-            return self::userName($record->issuedByAdmin)." for {$name}";
+    /** Who did it, named as on a filing: the person, `Hale.S for Okafor.B` when acted as, or the billet held. */
+    private static function actor(?User $user, ?User $actingAdmin, ?Unit $asUnit): string
+    {
+        $name = self::userName($user);
+
+        if ($actingAdmin !== null) {
+            return self::userName($actingAdmin)." for {$name}";
         }
 
-        if ($record->issuedAsUnit !== null) {
-            return "{$name} acting as {$record->issuedAsUnit->billet()}";
+        if ($asUnit !== null) {
+            return "{$name} acting as {$asUnit->billet()}";
         }
 
         return $name;

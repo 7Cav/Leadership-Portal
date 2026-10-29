@@ -267,6 +267,16 @@ acting identity's command shows.
   serves again, the records can be changed again.
 - Correct or delete: the date and reason can be corrected, never the type or the document; a record can be deleted
   with its document. Both need a reason and are audited, as is filing. A copy already on Google Drive stays there.
+- An LOR is frozen 72 hours after it is filed (its appeal window: the wiki gives the trooper 24 hours to say they
+  appeal and the appeal 72 hours to finish, with no further appeal). Until then it can be corrected or deleted as
+  above, for a typo, the wrong trooper or an upheld appeal. From then on nobody corrects or deletes it, Admins
+  included, and the server refuses with "This LOR was filed more than 72 hours ago, so it can no longer be changed.
+  The Regimental Executive Officer can overturn it." The 72 hours run from when it was filed, not the date it carries.
+  A DCS never freezes.
+- Overturn: the Regimental Executive Officer, signed in as themselves (never through act as), may overturn a frozen
+  LOR, with a reason (audited as `counseling.overturned`). It is never deleted: it stays in the list, muted, with "Overturned on <date> by <name>:
+  <reason>", its document still downloads for whoever could see it, and it no longer counts toward any flag, the no
+  favorable action notice or the filing form's forecast. A departed trooper's LOR can be overturned too.
 
 ### Staff practices
 
