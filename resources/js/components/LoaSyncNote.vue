@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { PhCalendarBlank, PhWarning } from '@phosphor-icons/vue';
-import { forumDateTime } from '@/lib/forumDate';
+import { forumDate, forumDateTime } from '@/lib/forumDate';
 
 // Where the leave data behind a screen's numbers comes from and when it last synced (Story 4.3, AD-20), for the
 // screens whose figures move with leave (on LOA, at-risk, the LOA weeks) but that draw no `LoaBadge` per trooper.
@@ -15,7 +15,17 @@ const props = defineProps({
 const failed = computed(() => Boolean(props.sync.latestStatus) && props.sync.latestStatus !== 'success');
 const problem = computed(() => props.sync.stale || props.sync.neverSynced);
 
-const text = computed(() => {
+// While the sync's first read of the year is still going back through older posts (a few pages each run), say how far
+// back it has got. Recent leave is read first, so this is a note, not a warning: only older weeks can miss leave.
+const backfill = computed(() => {
+    if (!props.sync.backfilling) return null;
+
+    return props.sync.backfilledTo
+        ? `Older leave is still being read, back to ${forumDate(props.sync.backfilledTo)} so far`
+        : 'Older leave is still being read';
+});
+
+const status = computed(() => {
     const { source, lastSyncedAt } = props.sync;
     const at = lastSyncedAt ? `${forumDateTime(lastSyncedAt)}Z` : null;
 
@@ -30,6 +40,8 @@ const text = computed(() => {
         ? `Leave from ${source}: the latest sync did not succeed, so on LOA and at-risk use the last good sync, ${at}`
         : `Leave from ${source}, last synced ${at}, overdue. On LOA and at-risk may be out of date`;
 });
+
+const text = computed(() => (backfill.value ? `${status.value}. ${backfill.value}` : status.value));
 </script>
 
 <template>

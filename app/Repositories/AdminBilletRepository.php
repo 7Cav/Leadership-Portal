@@ -38,7 +38,8 @@ interface AdminBilletRepository
      * "not known here" (the roster sync sees titles only), which keeps the group last seen. A row whose names differ
      * from what was confirmed goes back to `pending`; a rejected one goes back to `pending` only when a name changed
      * since. A position with no row gets a `pending` one when `$createMissing` (the import's Admin billet groups),
-     * and is skipped otherwise. Nothing is ever approved here. Returns how many rows were created or changed.
+     * and is skipped otherwise. Nothing is ever approved here. Returns how many rows were created or changed. Names
+     * are trimmed before they are compared or stored, so a stray space is never a rename.
      *
      * @param  array<int, array{0: string, 1: ?string}>  $seen
      */

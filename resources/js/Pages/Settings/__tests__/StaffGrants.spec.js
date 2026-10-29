@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
+import { nextTick } from 'vue';
 import StaffGrants from '../StaffGrants.vue';
 
 const grantSubmit = vi.fn();
@@ -28,6 +29,25 @@ const GRANTS = [
 ];
 
 describe('Settings/StaffGrants', () => {
+    // Reasons are asked for in the app's dialog (portalled to the body), not the browser's prompt().
+    const dialog = () => document.body.querySelector('[data-testid="staff-grants-dialog"]');
+    const field = (testid) => document.body.querySelector(`[data-testid="${testid}"]`);
+    const typeReason = async (text) => {
+        const input = field('staff-grants-dialog-reason');
+        input.value = text;
+        input.dispatchEvent(new Event('input'));
+        await nextTick();
+    };
+    const confirmDialog = async () => {
+        field('staff-grants-dialog-confirm').click();
+        await flushPromises();
+    };
+    const open = async (wrapper, testid) => {
+        await wrapper.find(`[data-testid="${testid}"]`).trigger('click');
+        await flushPromises();
+    };
+    const attached = (props) => mount(StaffGrants, { props, attachTo: document.body });
+
     it('keeps the column headers in view while the list scrolls', () => {
         const wrapper = mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, isAdmin: false } });
 
@@ -117,55 +137,79 @@ describe('Settings/StaffGrants', () => {
         expect(wrapper.find('[data-testid="error-user_id"]').text()).toBe('User #10 is already an Admin and cannot receive a staff grant.');
     });
 
-    it('asks for a reason and calls router.delete with it when revoking', async () => {
-        vi.stubGlobal('prompt', vi.fn(() => 'no longer staff'));
-        const wrapper = mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, isAdmin: true } });
+    it('asks for a reason in a dialog and calls router.delete with it when revoking', async () => {
+        deleteSpy = vi.fn();
+        const wrapper = attached({ grants: GRANTS, units: UNITS, users: USERS, isAdmin: true });
 
-        await wrapper.find('[data-testid="revoke-100"]').trigger('click');
+        await open(wrapper, 'revoke-100');
+        expect(dialog().textContent).toContain("Revoke jsmith's grant at 2nd Battalion?");
+        expect(dialog().querySelector('label[for="staff-grants-dialog-reason"]').textContent).toContain('Reason for the record');
 
-        expect(prompt).toHaveBeenCalled();
+        await typeReason('no longer staff');
+        await confirmDialog();
+
         expect(deleteSpy).toHaveBeenCalledWith(
             '/settings/staff-grants/100',
             expect.objectContaining({ data: { reason: 'no longer staff' }, preserveScroll: true }),
         );
-        vi.unstubAllGlobals();
+        wrapper.unmount();
     });
 
-    it('does not revoke when the prompt is cancelled, and shows no error (a deliberate no-op)', async () => {
-        deleteSpy.mockClear();
-        vi.stubGlobal('prompt', vi.fn(() => null));
-        const wrapper = mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, isAdmin: true } });
+    it('does not revoke when the dialog is cancelled, and shows no error (a deliberate no-op)', async () => {
+        deleteSpy = vi.fn();
+        const wrapper = attached({ grants: GRANTS, units: UNITS, users: USERS, isAdmin: true });
 
-        await wrapper.find('[data-testid="revoke-100"]').trigger('click');
+        await open(wrapper, 'revoke-100');
+        [...dialog().querySelectorAll('button')].find((b) => b.textContent.trim() === 'Cancel').click();
+        await flushPromises();
 
         expect(deleteSpy).not.toHaveBeenCalled();
-        expect(wrapper.find('[data-testid="revoke-error"]').exists()).toBe(false);
-        vi.unstubAllGlobals();
+        expect(dialog()).toBeNull();
+        wrapper.unmount();
     });
 
-    // An OK-with-empty-field submission is falsy just like Cancel, but it is not the same
-    // gesture — silently doing nothing here would look exactly like a broken button.
-    it('shows feedback, not a silent no-op, when the prompt is submitted blank', async () => {
-        deleteSpy.mockClear();
-        vi.stubGlobal('prompt', vi.fn(() => '   '));
-        const wrapper = mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, isAdmin: true } });
+    // A blank reason cannot be sent: the confirm stays disabled until there is one, so it is never a silent no-op.
+    it('keeps the revoke disabled until a reason is typed', async () => {
+        deleteSpy = vi.fn();
+        const wrapper = attached({ grants: GRANTS, units: UNITS, users: USERS, isAdmin: true });
 
-        await wrapper.find('[data-testid="revoke-100"]').trigger('click');
+        await open(wrapper, 'revoke-100');
+        expect(field('staff-grants-dialog-confirm').disabled).toBe(true);
+        await typeReason('   ');
+        expect(field('staff-grants-dialog-confirm').disabled).toBe(true);
+        await confirmDialog();
 
         expect(deleteSpy).not.toHaveBeenCalled();
-        expect(wrapper.find('[data-testid="revoke-error"]').text()).toBe('A reason is required to revoke a grant.');
-        vi.unstubAllGlobals();
+        wrapper.unmount();
     });
 
-    it('shows the server\'s reason when a revoke is refused', async () => {
+    it("shows the server's reason inside the dialog when a revoke is refused", async () => {
         deleteSpy = vi.fn((url, { onError }) => onError({ reason: 'The action "portal_role_grant.revoked" requires a reason before it can be recorded.' }));
-        vi.stubGlobal('prompt', vi.fn(() => 'no longer staff'));
-        const wrapper = mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, isAdmin: true } });
+        const wrapper = attached({ grants: GRANTS, units: UNITS, users: USERS, isAdmin: true });
 
-        await wrapper.find('[data-testid="revoke-100"]').trigger('click');
+        await open(wrapper, 'revoke-100');
+        await typeReason('no longer staff');
+        await confirmDialog();
 
-        expect(wrapper.find('[data-testid="revoke-error"]').text()).toBe('The action "portal_role_grant.revoked" requires a reason before it can be recorded.');
-        vi.unstubAllGlobals();
+        expect(field('staff-grants-dialog-error').textContent).toBe('The action "portal_role_grant.revoked" requires a reason before it can be recorded.');
+        wrapper.unmount();
+        deleteSpy = vi.fn();
+    });
+
+    it('says in plain words why a revoke failed on an HTTP error, instead of the raw error page', async () => {
+        let handled;
+        deleteSpy = vi.fn((url, { onHttpException }) => {
+            handled = onHttpException({ status: 403 });
+        });
+        const wrapper = attached({ grants: GRANTS, units: UNITS, users: USERS, isAdmin: true });
+
+        await open(wrapper, 'revoke-100');
+        await typeReason('no longer staff');
+        await confirmDialog();
+
+        expect(handled).toBe(false);
+        expect(field('staff-grants-dialog-error').textContent).toBe('The grant was not revoked. You are not allowed to do that; reload the page, or exit view as first.');
+        wrapper.unmount();
         deleteSpy = vi.fn();
     });
 
@@ -213,7 +257,7 @@ describe('Settings/StaffGrants', () => {
             { id: 8, name: 'MAJ #4410', billet: null },
         ];
         const mountAdmin = (props = {}) =>
-            mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, adminViaBillet: APPROVED, regimentalHq: HQ, isAdmin: true, ...props } });
+            attached({ grants: GRANTS, units: UNITS, users: USERS, adminViaBillet: APPROVED, regimentalHq: HQ, isAdmin: true, ...props });
 
         it('lists each approved billet with its names, every holder, and who approved it and when', () => {
             const wrapper = mountAdmin();
@@ -254,38 +298,36 @@ describe('Settings/StaffGrants', () => {
 
         it("offers revoke on every approved billet but the viewer's own, and posts the reject with a reason", async () => {
             postSpy = vi.fn();
-            vi.stubGlobal('prompt', vi.fn(() => 'Left the S6 shop'));
             const wrapper = mountAdmin();
 
             expect(wrapper.find('[data-testid="admin-via-billet-revoke-32"]').exists()).toBe(false);
             expect(wrapper.find('[data-testid="admin-via-billet-own-32"]').text()).toBe('Your billet');
 
-            await wrapper.find('[data-testid="admin-via-billet-revoke-31"]').trigger('click');
+            await open(wrapper, 'admin-via-billet-revoke-31');
+            expect(dialog().textContent).toContain('Revoke Regimental Chief of Staff as an Admin billet?');
+            await typeReason('Left the S6 shop');
+            await confirmDialog();
 
-            expect(window.prompt).toHaveBeenCalledWith('Reason for revoking Regimental Chief of Staff as an Admin billet?');
             expect(postSpy).toHaveBeenCalledWith(
                 '/settings/staff-grants/admin-billets/31/reject',
                 { reason: 'Left the S6 shop' },
                 expect.objectContaining({ preserveScroll: true }),
             );
-            vi.unstubAllGlobals();
+            wrapper.unmount();
         });
 
-        it("posts no revoke on a blank reason, and shows the server's refusal in this card", async () => {
-            postSpy = vi.fn();
-            vi.stubGlobal('prompt', vi.fn(() => ' '));
+        it("posts no revoke without a reason, and shows the server's refusal in the dialog", async () => {
+            postSpy = vi.fn((url, data, { onError }) => onError({ adminBillet: 'You hold this billet, so another Admin has to decide on it.' }));
             const wrapper = mountAdmin();
 
-            await wrapper.find('[data-testid="admin-via-billet-revoke-31"]').trigger('click');
+            await open(wrapper, 'admin-via-billet-revoke-31');
+            await confirmDialog();
             expect(postSpy).not.toHaveBeenCalled();
-            expect(wrapper.find('[data-testid="revoke-billet-error"]').text()).toBe('A reason is required to revoke a billet.');
 
-            postSpy = vi.fn((url, data, { onError }) => onError({ adminBillet: 'You hold this billet, so another Admin has to decide on it.' }));
-            vi.stubGlobal('prompt', vi.fn(() => 'reason'));
-            await wrapper.find('[data-testid="admin-via-billet-revoke-31"]').trigger('click');
-            expect(wrapper.find('[data-testid="revoke-billet-error"]').text()).toBe('You hold this billet, so another Admin has to decide on it.');
-            expect(wrapper.find('[data-testid="billet-error"]').exists()).toBe(false);
-            vi.unstubAllGlobals();
+            await typeReason('reason');
+            await confirmDialog();
+            expect(field('staff-grants-dialog-error').textContent).toBe('You hold this billet, so another Admin has to decide on it.');
+            wrapper.unmount();
         });
 
         it('notes the Regimental HQ staff who read the whole regiment from their placement', () => {
@@ -370,7 +412,7 @@ describe('Settings/StaffGrants', () => {
                 decidedBy: 'Hale.S',
             },
         ];
-        const mountAdmin = () => mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, adminBillets: BILLETS, isAdmin: true } });
+        const mountAdmin = () => attached({ grants: GRANTS, units: UNITS, users: USERS, adminBillets: BILLETS, isAdmin: true });
 
         it('lists each pending or rejected billet with its names now, its holder and its status, and no "Confirmed as" column', () => {
             const wrapper = mountAdmin();
@@ -421,41 +463,54 @@ describe('Settings/StaffGrants', () => {
             expect(wrapper.find('[data-testid="admin-billet-own-23"]').text()).toBe('Your billet');
         });
 
-        it('asks for a reason and posts the decision with it', async () => {
+        it('asks for a reason in a dialog and posts the decision with it', async () => {
             postSpy = vi.fn();
-            vi.stubGlobal('prompt', vi.fn(() => 'Confirmed with the S6'));
             const wrapper = mountAdmin();
 
-            await wrapper.find('[data-testid="admin-billet-approve-21"]').trigger('click');
-            await wrapper.find('[data-testid="admin-billet-reject-22"]').trigger('click');
+            await open(wrapper, 'admin-billet-approve-21');
+            expect(dialog().textContent).toContain('as an Admin billet?');
+            await typeReason('Confirmed with the S6');
+            await confirmDialog();
 
             expect(postSpy).toHaveBeenCalledWith(
                 '/settings/staff-grants/admin-billets/21/approve',
                 { reason: 'Confirmed with the S6' },
                 expect.objectContaining({ preserveScroll: true }),
             );
+
+            // The dialog closes on success; the next one starts with an empty reason.
+            postSpy.mock.calls[0][2].onSuccess();
+            await flushPromises();
+            await open(wrapper, 'admin-billet-reject-22');
+            expect(field('staff-grants-dialog-reason').value).toBe('');
+            await typeReason('Not an S6 billet');
+            await confirmDialog();
+
             expect(postSpy).toHaveBeenCalledWith(
                 '/settings/staff-grants/admin-billets/22/reject',
-                { reason: 'Confirmed with the S6' },
+                { reason: 'Not an S6 billet' },
                 expect.objectContaining({ preserveScroll: true }),
             );
-            vi.unstubAllGlobals();
+            wrapper.unmount();
         });
 
-        it("posts nothing on a blank reason, says why, and shows the server's refusal", async () => {
-            postSpy = vi.fn();
-            vi.stubGlobal('prompt', vi.fn(() => '  '));
+        it("posts nothing without a reason, shows the server's refusal, and puts an HTTP error in plain words", async () => {
+            postSpy = vi.fn((url, data, { onError }) => onError({ adminBillet: 'You hold this billet, so another Admin has to decide on it.' }));
             const wrapper = mountAdmin();
 
-            await wrapper.find('[data-testid="admin-billet-approve-21"]').trigger('click');
+            await open(wrapper, 'admin-billet-approve-21');
+            expect(field('staff-grants-dialog-confirm').disabled).toBe(true);
+            await confirmDialog();
             expect(postSpy).not.toHaveBeenCalled();
-            expect(wrapper.find('[data-testid="billet-error"]').text()).toBe('A reason is required to approve a billet.');
 
-            postSpy = vi.fn((url, data, { onError }) => onError({ adminBillet: 'You hold this billet, so another Admin has to decide on it.' }));
-            vi.stubGlobal('prompt', vi.fn(() => 'reason'));
-            await wrapper.find('[data-testid="admin-billet-approve-21"]').trigger('click');
-            expect(wrapper.find('[data-testid="billet-error"]').text()).toBe('You hold this billet, so another Admin has to decide on it.');
-            vi.unstubAllGlobals();
+            await typeReason('reason');
+            await confirmDialog();
+            expect(field('staff-grants-dialog-error').textContent).toBe('You hold this billet, so another Admin has to decide on it.');
+
+            postSpy = vi.fn((url, data, { onHttpException }) => onHttpException({ status: 500 }));
+            await confirmDialog();
+            expect(field('staff-grants-dialog-error').textContent).toBe('The decision was not saved (error 500). Try again.');
+            wrapper.unmount();
         });
 
         it('says so when no billet waits, and is not shown to a non-Admin', () => {

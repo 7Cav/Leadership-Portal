@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted } from 'vue';
+import { computed, onBeforeUnmount, onMounted, watch } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { PhMagnifyingGlass, PhMoon, PhQuestion, PhSun, PhUserSwitch } from '@phosphor-icons/vue';
 import {
@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { toast } from 'vue-sonner';
 import { Toaster } from '@/components/ui/sonner';
 import { handleSlash, slashClaimed } from '@/composables/useSlashShortcut';
 import { useTheme } from '@/composables/useTheme';
@@ -55,6 +56,16 @@ const trail = computed(() => {
 const docsOn = computed(() => page.props.features?.docs === true);
 const helpHref = computed(() => `/docs/help?from=${encodeURIComponent(page.url)}`);
 const onDocs = computed(() => isActive(page.url, '/docs'));
+
+// A one-line outcome the server flashed for this render (`flash.notice`), such as where a leave sync request went.
+// Watched by the whole object, which is new on every response, so the same notice twice in a row still shows twice.
+watch(
+    () => page.props.flash,
+    (flash) => {
+        if (flash?.notice) toast(flash.notice);
+    },
+    { immediate: true },
+);
 
 // app.blade.php themes <html> before this module loads; pick that up so the toggle starts right.
 onMounted(syncFromDocument);

@@ -123,7 +123,39 @@ it('exposes the same shape the pages read, with ISO times', function () {
         'neverSynced' => false,
         'latestStatus' => 'partial',
         'latestFinishedAt' => '2026-10-08T12:00:00+00:00',
+        'backfilling' => false,
+        'backfilledTo' => null,
     ]);
+});
+
+it('says the first read of the year is still going, and how far back it has got, from the latest cursor', function () {
+    loaRun(SyncRunStatus::Success, CarbonImmutable::parse('2026-10-08 11:00:00'));
+    $run = loaRun(SyncRunStatus::Success, CarbonImmutable::parse('2026-10-08 12:00:00'));
+    $run->forceFill(['cursor' => ['sections' => [], 'retry' => [], 'backfilling' => true, 'reachedBack' => '2026-04-02T08:00:00+00:00']])->save();
+
+    $state = app(LoaProvenance::class)->current();
+
+    expect($state->backfilling)->toBeTrue()
+        ->and($state->backfilledTo?->toIso8601String())->toBe('2026-04-02T08:00:00+00:00')
+        ->and($state->stale)->toBeFalse()
+        ->and($state->toArray()['backfilledTo'])->toBe('2026-04-02T08:00:00+00:00');
+});
+
+it('stops saying so once the cursor says the first read is done', function () {
+    $run = loaRun(SyncRunStatus::Success, CarbonImmutable::parse('2026-10-08 12:00:00'));
+    $run->forceFill(['cursor' => ['sections' => [], 'retry' => [], 'backfilling' => false, 'reachedBack' => null]])->save();
+
+    $state = app(LoaProvenance::class)->current();
+
+    expect($state->backfilling)->toBeFalse()->and($state->backfilledTo)->toBeNull();
+});
+
+it('keeps saying so after a full run, which saves no cursor of its own', function () {
+    $hourly = loaRun(SyncRunStatus::Success, CarbonImmutable::parse('2026-10-08 11:30:00'));
+    $hourly->forceFill(['started_at' => CarbonImmutable::parse('2026-10-08 11:00:00'), 'cursor' => ['sections' => [], 'retry' => [], 'backfilling' => true, 'reachedBack' => '2026-06-01T00:00:00+00:00']])->save();
+    SyncRun::factory()->create(['source' => 'loa', 'started_at' => CarbonImmutable::parse('2026-10-08 12:00:00'), 'finished_at' => CarbonImmutable::parse('2026-10-08 12:30:00')]);
+
+    expect(app(LoaProvenance::class)->current()->backfilling)->toBeTrue();
 });
 
 it('never writes loas or sync_runs while it reads', function () {
