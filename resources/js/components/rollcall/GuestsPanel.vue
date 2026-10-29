@@ -16,13 +16,16 @@ import { postJson, reloadPage, sessionEnded } from '@/lib/postJson';
 // set times; its older sightings still show, marked as such). A hand-added guest gets an automatic makeup on their own
 // section's rollcall; only a hand-added one can be undone. The server decides who may add (the section's write
 // scope), finds the guests (outside the leader's scope, name, rank and section only) and refuses a locked or confirmed
-// week; this only shows its answers.
+// week; this only shows its answers. Staff who said they attended (policy, 2026-10-29) are listed too, as a staff guest
+// when the section is under their own platoon or company and as a guest otherwise. They are shown only: they never count
+// here, and nobody removes them from this list.
 const props = defineProps({
     sectionId: { type: Number, required: true },
     // The practice's week (`YYYY-MM-DD`).
     week: { type: String, required: true },
-    // `[{ trooperId, name, displayName, rank, section, source: 'capture' | 'manual', recordedBy, makeupMissing }]`.
-    // `makeupMissing` is set on a hand-added guest whose automatic makeup is missing, for "Retry makeup".
+    // `[{ trooperId, name, displayName, rank, section, source: 'capture' | 'manual' | 'staff', recordedBy, makeupMissing, staffGuest }]`.
+    // `makeupMissing` is set on a hand-added guest whose automatic makeup is missing, for "Retry makeup". `staffGuest`
+    // marks a staff entry from the section's own platoon or company.
     guests: { type: Array, default: () => [] },
     editable: { type: Boolean, default: true },
     // Why nothing here can be changed (a preview, a staff grant, a locked or confirmed week), shown with the controls.
@@ -197,7 +200,8 @@ async function undo(guest) {
                 </h3>
                 <p class="mt-0.5 max-w-[62ch] text-xs text-muted-foreground">
                     Add troopers from other sections who attended. Each one counts as a makeup on their own section's rollcall. The
-                    game server does not add guests yet; it will once practices have set times.{{
+                    game server does not add guests yet; it will once practices have set times. Staff who attended are listed from their
+                    own entries and never count here.{{
                         disabledReason ? ` ${disabledReason}.` : ''
                     }}
                 </p>
@@ -273,6 +277,10 @@ async function undo(guest) {
                 <Badge v-if="guest.source === 'capture'" variant="outline" class="font-normal" data-testid="guest-source">
                     <PhBroadcast aria-hidden="true" />Seen on the game server
                 </Badge>
+                <template v-else-if="guest.source === 'staff'">
+                    <Badge variant="secondary" class="font-normal" data-testid="guest-source">{{ guest.staffGuest ? 'Staff guest' : 'Guest' }}</Badge>
+                    <span class="text-xs text-muted-foreground" data-testid="guest-staff-note">Staff, not counted here</span>
+                </template>
                 <Badge v-else variant="outline" class="font-normal" data-testid="guest-source">
                     <template v-if="guest.recordedBy">Added by {{ guest.recordedBy }}</template><template v-else>Added by hand</template>
                 </Badge>

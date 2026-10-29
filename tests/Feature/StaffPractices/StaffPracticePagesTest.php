@@ -29,8 +29,8 @@ use Carbon\CarbonImmutable;
 require_once __DIR__.'/fixture.php';
 
 // #448: a staff member's attended practices show on their milpac (where they are entered) and the roster sheet, are
-// taken from the game server capture where it saw them, and never reach the host section's rollcall, numbers, reports
-// or anyone's makeup.
+// taken from the game server capture where it saw them, and are listed on the host section's rollcall (policy,
+// 2026-10-29) but never reach its roster, numbers, reports or anyone's makeup.
 
 beforeEach(function () {
     $this->tree = staffPracticeTree();
@@ -212,7 +212,7 @@ it('is read only during a view-as preview: nothing offered, every write refused'
     expect(CrossSectionSighting::query()->count())->toBe(1);
 });
 
-it('never puts a staff member on the host rollcall, its guests, its numbers or the JSAM counts', function () {
+it('lists a staff member on the host rollcall beside its guests, shown only: never on its roster, numbers or JSAM counts', function () {
     $host = $this->tree['units']['host'];
     $platoon = $this->tree['units']['platoon'];
     $kpis = app(KpiService::class);
@@ -222,15 +222,17 @@ it('never puts a staff member on the host rollcall, its guests, its numbers or t
     enterStaffPractice($this->tree['users']['s6Lead'], $this->tree['troopers']['s6Member'], $host->id);
 
     $practice = app(SectionPracticeRepository::class)->find($host->id, $this->week);
-    expect(app(RollcallGuests::class)->forPractice($practice))->toBe([])
+    // Policy, 2026-10-29: the PSG's own platoon holds the host, so a staff guest; S6 is not over it, so a guest.
+    expect(collect(app(RollcallGuests::class)->forPractice($practice))->map(fn (array $row) => [$row['name'], $row['source'], $row['staffGuest']])->all())
+        ->toBe([['Brandt.L', 'staff', true], ['Vance.K', 'staff', false]])
         ->and(Attendance::query()->count())->toBe(0)
         ->and($kpis->forUnit($host, $this->week))->toEqual($before[0])
         ->and($kpis->forUnit($platoon, $this->week))->toEqual($before[1])
         ->and(app(CrossSectionSightingRepository::class)->visitsWithin($this->tree['units']['regiment'], $this->week->subWeeks(11), $this->week))->toHaveCount(0)
         ->and(app(PracticeGuests::class)->forUnit($platoon, $this->week))->toBe([]);
 
-    $page = $this->actingAs($this->tree['users']['sl'])->get(route('rollcall.show', $host->id))->assertOk()->viewData('page')['props'];
-    expect($page['guests'])->toBe([])
+    $page = $this->actingAs($this->tree['users']['sl'])->get(route('rollcall.show', ['unit' => $host->id, 'week' => '2026-10-03']))->assertOk()->viewData('page')['props'];
+    expect(collect($page['guests'])->pluck('name')->all())->toBe(['Brandt.L', 'Vance.K'])
         ->and(collect($page['troopers'] ?? [])->pluck('id')->all())->not->toContain($this->tree['troopers']['psg']->id);
 });
 

@@ -47,6 +47,17 @@ describe('GuestsPanel', () => {
         expect(wrapper.find('[data-testid="guest-8"] [data-testid="guest-undo"]').exists()).toBe(true);
     });
 
+    it('lists staff who attended as a staff guest or a guest, shown only, with nothing to undo', () => {
+        const staff = (trooperId, staffGuest) => ({ trooperId, name: `Staff${trooperId}.S`, displayName: `SGT Staff${trooperId}.S`, rank: 'SGT', section: '1/A/1-7', source: 'staff', recordedBy: 'Staff.S', makeupMissing: false, staffGuest });
+        const wrapper = factory({ guests: [SEEN, staff(20, true), staff(21, false)] });
+
+        expect(wrapper.find('[data-testid="guest-20"] [data-testid="guest-source"]').text()).toBe('Staff guest');
+        expect(wrapper.find('[data-testid="guest-21"] [data-testid="guest-source"]').text()).toBe('Guest');
+        expect(wrapper.find('[data-testid="guest-20"] [data-testid="guest-staff-note"]').text()).toBe('Staff, not counted here');
+        expect(wrapper.find('[data-testid="guest-20"] [data-testid="guest-undo"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="guest-20"] [data-testid="guest-retry"]').exists()).toBe(false);
+    });
+
     it('says when nobody else attended', () => {
         expect(factory({ guests: [] }).find('[data-testid="guest-empty"]').text()).toBe('No guests recorded for this practice.');
     });
