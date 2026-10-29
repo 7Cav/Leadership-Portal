@@ -42,15 +42,28 @@ const props = defineProps({
     // Who is in each group the viewer may see, by unit id: `{ id, displayName, billet, was }`. `was` is the line
     // unit an ELOA trooper left, or null.
     groupMembers: { type: Object, default: () => ({}) },
+    // Units shown again under a node that is not their parent, as `{ parent_id, unit_id }`: ACD and DEVCOM under RDC in
+    // the staff card, DEVCOM's staff under DEVCOM in the chain of command. Nothing moves.
+    references: { type: Array, default: () => [] },
 });
 
 // New Recruits are hidden until asked for: they are not yet part of any unit, and never in an ancestor's count.
 const showRecruits = ref(false);
 const hasRecruits = computed(() => props.units.some((unit) => unit.kind === 'recruit'));
-const hiddenIds = computed(() => {
-    if (showRecruits.value) return new Set();
+// Line units with nobody serving in them or under them are hidden too, as on the roster, until an Admin asks for them
+// to rename, move or delete one. Everything under an empty unit is empty as well.
+const showEmpty = ref(false);
+const hasEmpty = computed(() => props.units.some((unit) => unit.empty));
+const recruitIds = computed(() => {
     const recruitPaths = props.units.filter((unit) => unit.kind === 'recruit').map((unit) => unit.path);
     return new Set(props.units.filter((unit) => recruitPaths.some((path) => unit.path.startsWith(path))).map((unit) => unit.id));
+});
+const hiddenIds = computed(() => {
+    const hidden = new Set(showRecruits.value ? [] : recruitIds.value);
+    if (!showEmpty.value) {
+        props.units.filter((unit) => unit.empty).forEach((unit) => hidden.add(unit.id));
+    }
+    return hidden;
 });
 const shownUnits = computed(() => props.units.filter((unit) => !hiddenIds.value.has(unit.id)));
 
@@ -63,20 +76,42 @@ function billetLabel(trooper) {
     return trooper.position_id !== null ? `Billet not mapped (position ${trooper.position_id})` : 'No billet on record';
 }
 
-const tree = computed(() => {
+// Two trees from the one list: the chain of command (the line units, regiment down to section) and the regimental
+// staff (the groups: portfolios, departments and holding groups), each group rooted where its parent is a line unit.
+const isLine = (unit) => (unit.kind ?? 'line') === 'line';
+
+const trees = computed(() => {
     const byId = new Map(shownUnits.value.map((unit) => [unit.id, { ...unit, children: [] }]));
-    const roots = [];
+    const line = [];
+    const staff = [];
 
     for (const unit of byId.values()) {
-        if (unit.parent_id !== null && byId.has(unit.parent_id)) {
-            byId.get(unit.parent_id).children.push(unit);
+        const parent = unit.parent_id !== null ? byId.get(unit.parent_id) : undefined;
+        if (parent && isLine(parent) === isLine(unit)) {
+            parent.children.push(unit);
         } else {
-            roots.push(unit);
+            (isLine(unit) ? line : staff).push(unit);
         }
     }
 
-    return roots;
+    for (const { parent_id: parentId, unit_id: unitId } of props.references) {
+        const parent = byId.get(parentId);
+        const unit = byId.get(unitId);
+        if (!parent || !unit) continue;
+        const realParent = props.units.find((candidate) => candidate.id === unit.parent_id);
+        parent.children.push({
+            ...unit,
+            children: [],
+            ref: true,
+            refParentId: parentId,
+            refNote: isLine(unit) ? 'in the chain of command' : `under ${realParent?.callsign ?? realParent?.name ?? 'the regiment'}`,
+        });
+    }
+
+    return { line, staff };
 });
+const lineCount = computed(() => shownUnits.value.filter(isLine).length);
+const staffCount = computed(() => shownUnits.value.length - lineCount.value);
 
 // Which node ids are collapsed — a plain reactive Set so a caret toggle updates just that
 // branch's `v-if` without re-deriving the whole tree.
@@ -117,6 +152,76 @@ const canTakeActingLead = computed(
     () => selectedUnit.value !== null && selectedUnit.value.type !== 'group' && selectedUnit.value.type !== 'regiment',
 );
 
+// Oversight (Admin): the regimental staff officer who oversees a battalion or the Reservists. Read-only scope over it
+// for them while they serve; audited with a required reason on the server.
+const oversightQuery = ref('');
+const oversightResults = ref([]);
+const oversightPick = ref(null);
+const oversightReason = ref('');
+const oversightError = ref(null);
+const oversightBusy = ref(false);
+
+watch(selectedUnit, () => {
+    oversightQuery.value = '';
+    oversightResults.value = [];
+    oversightPick.value = null;
+    oversightReason.value = '';
+    oversightError.value = null;
+});
+
+async function searchOversight() {
+    oversightPick.value = null;
+    oversightResults.value = await searchTroopers(oversightQuery.value);
+}
+
+function oversightOptions(onError) {
+    return {
+        preserveScroll: true,
+        onError: (errors) => (oversightError.value = errors.oversight ?? errors.reason ?? errors.trooper_id ?? Object.values(errors)[0] ?? onError),
+        onFinish: () => (oversightBusy.value = false),
+        onSuccess: () => {
+            oversightPick.value = null;
+            oversightReason.value = '';
+            oversightQuery.value = '';
+            oversightResults.value = [];
+        },
+    };
+}
+
+function setOversight() {
+    oversightError.value = null;
+    oversightBusy.value = true;
+    router.post(
+        `/settings/org-structure/${selectedUnit.value.id}/oversight`,
+        { trooper_id: oversightPick.value.id, reason: oversightReason.value.trim() },
+        oversightOptions('The overseer was not saved.'),
+    );
+}
+
+function clearOversight() {
+    oversightError.value = null;
+    oversightBusy.value = true;
+    router.delete(`/settings/org-structure/${selectedUnit.value.id}/oversight`, {
+        data: { reason: oversightReason.value.trim() },
+        ...oversightOptions('The overseer was not cleared.'),
+    });
+}
+
+// Serving troopers whose name matches, for the acting lead and oversight pickers.
+async function searchTroopers(query) {
+    const q = query.trim();
+    if (q.length < 2) return [];
+    try {
+        const response = await fetch(`/troopers/search?q=${encodeURIComponent(q)}`, {
+            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+        });
+        return response.ok ? ((await response.json()).troopers ?? []).filter((t) => !t.departed) : [];
+    } catch {
+        return [];
+    }
+}
+
 watch(selectedUnit, () => {
     actingQuery.value = '';
     actingResults.value = [];
@@ -126,21 +231,8 @@ watch(selectedUnit, () => {
 });
 
 async function searchActing() {
-    const q = actingQuery.value.trim();
     actingPick.value = null;
-    if (q.length < 2) {
-        actingResults.value = [];
-        return;
-    }
-    try {
-        const response = await fetch(`/troopers/search?q=${encodeURIComponent(q)}`, {
-            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-            credentials: 'same-origin',
-        });
-        actingResults.value = response.ok ? ((await response.json()).troopers ?? []).filter((t) => !t.departed) : [];
-    } catch {
-        actingResults.value = [];
-    }
+    actingResults.value = await searchTroopers(actingQuery.value);
 }
 
 function actingOptions(onError) {
@@ -240,6 +332,9 @@ function onSearchKeydown(event) {
 function pickUnit(id) {
     const unit = props.units.find((candidate) => candidate.id === id);
     if (!unit) return;
+    // A unit picked from a reference row may be one the toggles hide: show its kind so its row is there to land on.
+    if (unit.empty) showEmpty.value = true;
+    if (recruitIds.value.has(id)) showRecruits.value = true;
 
     for (const ancestorId of ancestorIds(unit)) {
         collapsed.delete(ancestorId);
@@ -554,90 +649,121 @@ function requestDelete(id) {
         </div>
 
         <div class="grid items-start gap-5 lg:grid-cols-[1.1fr_0.9fr]">
-            <Card class="min-w-0 gap-0 py-0">
-                <div class="flex items-center gap-2 px-4 pt-3.5 pb-2">
-                    <h2 class="text-[15px] font-semibold">Chain of command</h2>
-                    <span class="truncate text-xs text-muted-foreground">{{ units.length }} {{ units.length === 1 ? 'unit' : 'units' }}</span>
-                    <label v-if="hasRecruits" class="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-                        <input v-model="showRecruits" type="checkbox" data-testid="show-recruits" class="size-3.5 accent-primary" />
-                        Show New Recruits
-                    </label>
-                </div>
-                <div v-if="units.length" class="relative px-4 pb-2" data-testid="unit-search">
-                    <label for="unit-search" class="sr-only">Find a unit by name or callsign</label>
-                    <PhMagnifyingGlass class="pointer-events-none absolute top-1/2 left-6.5 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-                    <Input
-                        id="unit-search"
-                        v-model="unitQuery"
-                        data-testid="unit-search-input"
-                        type="text"
-                        role="combobox"
-                        autocomplete="off"
-                        aria-autocomplete="list"
-                        aria-controls="unit-search-results"
-                        :aria-expanded="listOpen"
-                        :aria-activedescendant="activeOption ? `unit-search-option-${activeOption.id}` : undefined"
-                        placeholder="Find a unit by name or callsign"
-                        class="pl-7.5"
-                        @keydown="onSearchKeydown"
-                        @focus="searchOpen = true"
-                        @blur="searchOpen = false"
-                    />
-                    <div
-                        v-show="listOpen"
-                        class="absolute inset-x-4 top-full z-20 -mt-1 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-panel"
-                    >
-                        <ul id="unit-search-results" role="listbox" aria-label="Matching units" class="max-h-72 overflow-y-auto">
-                            <li
-                                v-for="(result, index) in search.results"
-                                :id="`unit-search-option-${result.id}`"
-                                :key="result.id"
-                                role="option"
-                                :aria-selected="activeOption?.id === result.id"
-                                :data-testid="`unit-search-option-${result.id}`"
-                                class="cursor-pointer rounded-md px-2 py-1.5 text-[13px]"
-                                :class="activeOption?.id === result.id && 'bg-accent'"
-                                @mousedown.prevent
-                                @mousemove="activeIndex = index"
-                                @click="pickUnit(result.id)"
-                            >
-                                <span class="block truncate">
-                                    {{ result.name }}
-                                    <span v-if="result.callsign" class="ml-1.5 font-mono text-[11px] text-muted-foreground">{{ result.callsign }}</span>
-                                </span>
-                                <span class="block truncate text-xs text-muted-foreground">
-                                    <span class="capitalize">{{ result.type }}</span><template v-if="result.trail"> in {{ result.trail }}</template>
-                                </span>
-                            </li>
-                        </ul>
-                        <p v-if="!search.total" data-testid="unit-search-empty" class="px-2 py-1.5 text-[13px] text-muted-foreground">
-                            No unit matches that name or callsign.
-                        </p>
-                        <p v-else-if="search.total > search.results.length" data-testid="unit-search-more" class="px-2 pt-1 pb-0.5 text-xs text-muted-foreground">
-                            Showing {{ search.results.length }} of {{ search.total }}. Keep typing to narrow it down.
-                        </p>
+            <div class="min-w-0 space-y-5">
+                <Card class="min-w-0 gap-0 py-0" data-testid="line-card">
+                    <div class="flex items-center gap-2 px-4 pt-3.5 pb-2">
+                        <h2 class="text-[15px] font-semibold">Chain of command</h2>
+                        <span class="truncate text-xs text-muted-foreground">{{ lineCount }} {{ lineCount === 1 ? 'unit' : 'units' }}</span>
+                        <label v-if="hasEmpty" class="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                            <input v-model="showEmpty" type="checkbox" data-testid="show-empty" class="size-3.5 accent-primary" />
+                            Show empty units
+                        </label>
                     </div>
-                    <p class="sr-only" aria-live="polite" data-testid="unit-search-status">{{ searchAnnouncement }}</p>
-                </div>
-                <ul v-if="tree.length" role="tree" aria-label="Chain of command" class="px-2 pb-2">
-                    <OrgTreeNode
-                        v-for="node in tree"
-                        :key="node.id"
-                        :node="node"
-                        :selected-id="selectedId"
-                        :highlight-id="highlightId"
-                        :collapsed="collapsed"
-                        :is-admin="isAdmin"
-                        @select="(id) => (selectedId = id)"
-                        @toggle="toggleCollapsed"
-                        @add-child="prefillAddChild"
-                        @delete="requestDelete"
-                    />
-                </ul>
-                <EmptyState v-else :icon="PhTreeStructure" title="No units yet" class="border-t border-border py-10">
-                    {{ isAdmin ? 'Import the tree from the Cav roster, or add the regiment by hand.' : 'An Admin has not set up the chain of command yet.' }}
-                </EmptyState>
-            </Card>
+                    <div v-if="units.length" class="relative px-4 pb-2" data-testid="unit-search">
+                        <label for="unit-search" class="sr-only">Find a unit by name or callsign</label>
+                        <PhMagnifyingGlass class="pointer-events-none absolute top-1/2 left-6.5 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                        <Input
+                            id="unit-search"
+                            v-model="unitQuery"
+                            data-testid="unit-search-input"
+                            type="text"
+                            role="combobox"
+                            autocomplete="off"
+                            aria-autocomplete="list"
+                            aria-controls="unit-search-results"
+                            :aria-expanded="listOpen"
+                            :aria-activedescendant="activeOption ? `unit-search-option-${activeOption.id}` : undefined"
+                            placeholder="Find a unit by name or callsign"
+                            class="pl-7.5"
+                            @keydown="onSearchKeydown"
+                            @focus="searchOpen = true"
+                            @blur="searchOpen = false"
+                        />
+                        <div
+                            v-show="listOpen"
+                            class="absolute inset-x-4 top-full z-20 -mt-1 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-panel"
+                        >
+                            <ul id="unit-search-results" role="listbox" aria-label="Matching units" class="max-h-72 overflow-y-auto">
+                                <li
+                                    v-for="(result, index) in search.results"
+                                    :id="`unit-search-option-${result.id}`"
+                                    :key="result.id"
+                                    role="option"
+                                    :aria-selected="activeOption?.id === result.id"
+                                    :data-testid="`unit-search-option-${result.id}`"
+                                    class="cursor-pointer rounded-md px-2 py-1.5 text-[13px]"
+                                    :class="activeOption?.id === result.id && 'bg-accent'"
+                                    @mousedown.prevent
+                                    @mousemove="activeIndex = index"
+                                    @click="pickUnit(result.id)"
+                                >
+                                    <span class="block truncate">
+                                        {{ result.name }}
+                                        <span v-if="result.callsign" class="ml-1.5 font-mono text-[11px] text-muted-foreground">{{ result.callsign }}</span>
+                                    </span>
+                                    <span class="block truncate text-xs text-muted-foreground">
+                                        <span class="capitalize">{{ result.type }}</span><template v-if="result.trail"> in {{ result.trail }}</template>
+                                    </span>
+                                </li>
+                            </ul>
+                            <p v-if="!search.total" data-testid="unit-search-empty" class="px-2 py-1.5 text-[13px] text-muted-foreground">
+                                No unit matches that name or callsign.
+                            </p>
+                            <p v-else-if="search.total > search.results.length" data-testid="unit-search-more" class="px-2 pt-1 pb-0.5 text-xs text-muted-foreground">
+                                Showing {{ search.results.length }} of {{ search.total }}. Keep typing to narrow it down.
+                            </p>
+                        </div>
+                        <p class="sr-only" aria-live="polite" data-testid="unit-search-status">{{ searchAnnouncement }}</p>
+                    </div>
+                    <ul v-if="trees.line.length" role="tree" aria-label="Chain of command" class="px-2 pb-2">
+                        <OrgTreeNode
+                            v-for="node in trees.line"
+                            :key="node.id"
+                            :node="node"
+                            :selected-id="selectedId"
+                            :highlight-id="highlightId"
+                            :collapsed="collapsed"
+                            :is-admin="isAdmin"
+                            @select="(id) => (selectedId = id)"
+                            @toggle="toggleCollapsed"
+                            @add-child="prefillAddChild"
+                            @delete="requestDelete"
+                            @reference="pickUnit"
+                        />
+                    </ul>
+                    <EmptyState v-else :icon="PhTreeStructure" title="No units yet" class="border-t border-border py-10">
+                        {{ isAdmin ? 'Import the tree from the Cav roster, or add the regiment by hand.' : 'An Admin has not set up the chain of command yet.' }}
+                    </EmptyState>
+                </Card>
+
+                <!-- The regimental staff: portfolios, their departments and the holding groups, apart from the line. -->
+                <Card v-if="trees.staff.length" class="min-w-0 gap-0 py-0" data-testid="staff-card">
+                    <div class="flex items-center gap-2 px-4 pt-3.5 pb-2">
+                        <h2 class="text-[15px] font-semibold">Regimental staff</h2>
+                        <span class="truncate text-xs text-muted-foreground">{{ staffCount }} {{ staffCount === 1 ? 'group' : 'groups' }}</span>
+                        <label v-if="hasRecruits" class="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                            <input v-model="showRecruits" type="checkbox" data-testid="show-recruits" class="size-3.5 accent-primary" />
+                            Show New Recruits
+                        </label>
+                    </div>
+                    <ul role="tree" aria-label="Regimental staff" class="px-2 pb-2">
+                        <OrgTreeNode
+                            v-for="node in trees.staff"
+                            :key="node.id"
+                            :node="node"
+                            :selected-id="selectedId"
+                            :highlight-id="highlightId"
+                            :collapsed="collapsed"
+                            :is-admin="isAdmin"
+                            @select="(id) => (selectedId = id)"
+                            @toggle="toggleCollapsed"
+                            @add-child="prefillAddChild"
+                            @delete="requestDelete"
+                            @reference="pickUnit"
+                        />
+                    </ul>
+                </Card>
+            </div>
 
             <Card class="min-w-0 gap-0 p-4">
                 <div v-if="selectedUnit" data-testid="detail-panel">
@@ -651,6 +777,12 @@ function requestDelete(id) {
                             >Lead: {{ selectedUnit.lead.displayName }}<template v-if="selectedUnit.lead.source === 'acting'"> (acting)</template></template
                         >
                         <template v-else>Lead: vacant</template>
+                    </p>
+                    <p v-if="selectedUnit.oversight || selectedUnit.oversight_vacant" data-testid="detail-oversight" class="-mt-1.5 mb-3 text-[13px] text-muted-foreground">
+                        <template v-if="selectedUnit.oversight"
+                            >Oversight: {{ selectedUnit.oversight.displayName }}<template v-if="!selectedUnit.oversight.serving"> (not serving)</template></template
+                        >
+                        <template v-else>Oversight: vacant</template>
                     </p>
 
                     <!-- Who is in this group: staff department, ELOA (with where each trooper was), Reservists, New Recruits. -->
@@ -713,6 +845,72 @@ function requestDelete(id) {
                                 :disabled="actingBusy || !actingPick || !actingReason.trim()"
                                 @click="assignActing"
                                 >Make acting lead</Button
+                            >
+                        </div>
+                    </section>
+
+                    <section v-if="isAdmin && selectedUnit.overseeable" data-testid="oversight" aria-label="Oversight" class="mb-4 rounded-lg border border-dashed border-border p-3">
+                        <h3 class="text-[13px] font-semibold">Oversight</h3>
+                        <p class="mt-0.5 text-xs text-muted-foreground">
+                            The regimental staff officer who oversees this unit. They can see everything in it while they serve, and change nothing.
+                        </p>
+                        <p v-if="selectedUnit.oversight" data-testid="oversight-current" class="mt-2 text-[13px]">
+                            {{ selectedUnit.oversight.displayName }}<template v-if="!selectedUnit.oversight.serving"> (not serving)</template>
+                        </p>
+                        <div class="mt-2 grid gap-1.5">
+                            <Label for="oversight-search">{{ selectedUnit.oversight ? 'Change to' : 'Trooper' }}</Label>
+                            <Input
+                                id="oversight-search"
+                                v-model="oversightQuery"
+                                data-testid="oversight-search"
+                                type="text"
+                                placeholder="Search by username"
+                                @input="searchOversight"
+                            />
+                            <ul v-if="oversightResults.length" class="max-h-40 overflow-y-auto text-[13px]">
+                                <li v-for="result in oversightResults" :key="result.id">
+                                    <button
+                                        type="button"
+                                        data-testid="oversight-result"
+                                        class="w-full rounded-sm px-1.5 py-1 text-left hover:bg-accent"
+                                        :class="oversightPick?.id === result.id && 'bg-accent font-medium'"
+                                        @click="oversightPick = result"
+                                    >
+                                        {{ result.displayName }}
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="mt-2 grid gap-1.5">
+                            <Label for="oversight-reason">Reason</Label>
+                            <Input
+                                id="oversight-reason"
+                                v-model="oversightReason"
+                                data-testid="oversight-reason"
+                                type="text"
+                                maxlength="500"
+                                placeholder="Who confirmed it"
+                            />
+                        </div>
+                        <p v-if="oversightError" data-testid="oversight-error" role="alert" class="mt-1.5 text-xs text-destructive">{{ oversightError }}</p>
+                        <div class="mt-2 flex justify-end gap-2">
+                            <Button
+                                v-if="selectedUnit.oversight"
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                data-testid="oversight-clear"
+                                :disabled="oversightBusy || !oversightReason.trim()"
+                                @click="clearOversight"
+                                >Clear overseer</Button
+                            >
+                            <Button
+                                type="button"
+                                size="sm"
+                                data-testid="oversight-set"
+                                :disabled="oversightBusy || !oversightPick || !oversightReason.trim()"
+                                @click="setOversight"
+                                >Set overseer</Button
                             >
                         </div>
                     </section>
