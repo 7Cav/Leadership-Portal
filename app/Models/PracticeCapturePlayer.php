@@ -20,6 +20,11 @@ class PracticeCapturePlayer extends Model
         return $this->belongsTo(Game::class);
     }
 
+    public function trooper(): BelongsTo
+    {
+        return $this->belongsTo(Trooper::class);
+    }
+
     public function practice(): BelongsTo
     {
         return $this->belongsTo(SectionPractice::class, 'section_practice_id');

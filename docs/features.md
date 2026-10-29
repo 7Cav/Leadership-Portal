@@ -107,7 +107,8 @@ On the same page:
   can confirm the practice ("Confirmed by ..."). Editing a mark by hand afterwards clears the confirmation.
 - Unmatched players: players the capture saw that no trooper is linked to. Link one to a trooper (this also saves their
   game identity and marks them present), dismiss them, or restore a dismissed one. An ID the server reports in two letter cases is one
-  player (an Epic ID is taken in lower case).
+  player (an Epic ID is taken in lower case). A player linked to a trooper who has left is listed
+  under "Departed", with the trooper named; they are not marked and there is nothing to link.
 - Telemetry banner: says when the section's game has no capture source set up (or no training server selected), or
   when the last capture failed, naming the feeds tried. A capture that broke on an error inside the portal says so
   instead of blaming a feed. "Try again" queues a new capture for the week so far.

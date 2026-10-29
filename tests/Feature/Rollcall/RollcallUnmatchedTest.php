@@ -12,6 +12,7 @@ use App\Models\PracticeCapturePlayer;
 use App\Models\SectionPractice;
 use App\Models\Trooper;
 use App\Models\TrooperGameIdentity;
+use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
@@ -51,6 +52,23 @@ function linkBody(object $test, array $override = []): array
 {
     return ['week' => '2026-10-03', 'platform' => 'hll', 'platform_id' => '76561190000000001', 'trooper_id' => $test->ortega->id, ...$override];
 }
+
+it('lists a player linked to a departed trooper as departed, with the trooper named, and not as unmatched', function () {
+    $left = unmatchedTrooper($this->section, ['username' => 'Gone.A', 'rank_short' => 'PFC']);
+    $left->forceFill(['status' => TrooperStatus::Inactive])->save();
+    capturedPlayer($this->practice, 'GoneA', '76561190000000040', $left->id);
+    capturedPlayer($this->practice, 'Serving Elsewhere', '76561190000000041', unmatchedTrooper(Unit::factory()->create(['type' => UnitType::Section]))->id);
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")->assertInertia(fn (Assert $page) => $page
+        ->has('unmatched', 1)
+        ->has('departed', 1)
+        ->where('departed.0', ['platform' => 'hll', 'platformLabel' => 'Hell Let Loose (WW2)', 'playerName' => 'GoneA', 'platformId' => '76561190000000040', 'trooperName' => $left->fresh()->display_name]));
+
+    // Not linkable from the drawer: the link exists, and it is not an unmatched player.
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this, ['platform_id' => '76561190000000040']))
+        ->assertStatus(422);
+    expect(Attendance::query()->count())->toBe(0);
+});
 
 it('lists the unmatched players of a captured practice, with the capture seam for the later stories', function () {
     capturedPlayer($this->practice, 'Linked Elsewhere', '76561190000000009', unmatchedTrooper(Unit::factory()->create(['type' => UnitType::Section]))->id);

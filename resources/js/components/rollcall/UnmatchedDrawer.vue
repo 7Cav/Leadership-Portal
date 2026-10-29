@@ -42,6 +42,9 @@ const props = defineProps({
     dismissed: { type: Array, default: () => [] },
     // Undoes one dismissal (the rollcall's, shared with its toast): resolves true once the player is listed again.
     restore: { type: Function, default: null },
+    // Players linked to a trooper who has left, in the `players` shape plus `trooperName`: listed so they are not lost,
+    // with nothing to link or mark (the link exists, and a departed trooper is on no rollcall).
+    departed: { type: Array, default: () => [] },
 });
 
 // `linked` carries the server's answer ({ marked, trooper, atRisk }); `dismissed` the player.
@@ -237,6 +240,23 @@ async function dismiss(player) {
                 </div>
             </li>
         </ul>
+
+        <div v-if="departed.length" class="border-t border-border" data-testid="departed-list">
+            <p class="px-4 pt-2.5 text-xs font-medium text-muted-foreground tabular-nums">Departed ({{ departed.length }})</p>
+            <ul class="max-h-[40vh] divide-y divide-border overflow-y-auto">
+                <li v-for="player in departed" :key="keyOf(player)" class="px-4 py-2" :data-testid="`departed-${player.platformId}`">
+                    <p class="flex items-center gap-2">
+                        <span class="truncate text-muted-foreground">{{ player.playerName }}</span>
+                        <Badge variant="outline" class="shrink-0">{{ player.platformLabel }}</Badge>
+                        <Badge variant="secondary" class="shrink-0">Departed</Badge>
+                    </p>
+                    <p class="truncate font-mono text-xs text-muted-foreground">{{ player.platformId }}</p>
+                    <p class="text-xs text-muted-foreground" data-testid="departed-note">
+                        Linked to <bdi>{{ player.trooperName ?? 'a trooper' }}</bdi>, who has left. Not marked on any rollcall.
+                    </p>
+                </li>
+            </ul>
+        </div>
 
         <!-- Dismissed for this practice (#176): closed by default, since a dismissal is usually right. -->
         <details v-if="dismissed.length" class="group border-t border-border" data-testid="dismissed-list">

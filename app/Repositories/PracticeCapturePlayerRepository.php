@@ -39,6 +39,14 @@ interface PracticeCapturePlayerRepository
     public function dismissedFor(int $practiceId): Collection;
 
     /**
+     * The practice's players linked to a trooper who has left (no longer serving), with the trooper loaded: the
+     * drawer lists them as departed, with nothing to link or mark. By name.
+     *
+     * @return Collection<int, PracticeCapturePlayer>
+     */
+    public function departedFor(int $practiceId): Collection;
+
+    /**
      * One stored unmatched player of the practice, however it has been resolved since.
      */
     public function findUnmatched(int $practiceId, Game $game, string $platformId): ?PracticeCapturePlayer;

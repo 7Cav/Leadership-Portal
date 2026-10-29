@@ -4,6 +4,7 @@ namespace App\Repositories\PracticeCapturePlayerRepository;
 
 use App\Models\Game;
 use App\Models\PracticeCapturePlayer;
+use App\Models\TrooperStatus;
 use App\Repositories\PracticeCapturePlayerRepository;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -63,6 +64,17 @@ class Eloquent implements PracticeCapturePlayerRepository
             ->whereNotExists(fn ($query) => $query->from('trooper_game_identities')
                 ->whereColumn('trooper_game_identities.game_id', 'practice_capture_players.game_id')
                 ->whereColumn('trooper_game_identities.platform_id', 'practice_capture_players.platform_id'))
+            ->orderBy('player_name')
+            ->orderBy('id')
+            ->get();
+    }
+
+    public function departedFor(int $practiceId): Collection
+    {
+        return PracticeCapturePlayer::query()->with(['game', 'trooper'])
+            ->where('section_practice_id', $practiceId)
+            ->whereNotNull('trooper_id')
+            ->whereHas('trooper', fn ($query) => $query->whereNotIn('status', TrooperStatus::servingValues()))
             ->orderBy('player_name')
             ->orderBy('id')
             ->get();

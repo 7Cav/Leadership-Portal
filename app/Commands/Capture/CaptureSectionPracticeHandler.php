@@ -39,6 +39,8 @@ use Throwable;
  *   seen does not mean they were at this practice (decided 2026-10-23). Makeups come from a leader. A staff member
  *   (HQ staff or a staff department, on no rollcall) is surfaced the same way, and that stored row is what their milpac
  *   lists as seen on the game server (#448, `Milpac\StaffPracticeHistory`).
+ * - A player linked to a trooper who has left (no longer serving) is **departed**: stored and listed on the rollcall as
+ *   departed, never credited or marked, and not linkable from there (the link exists already).
  * - If any server's every source raises a typed failure the practice is **left un-captured** and the
  *   run is recorded failed as telemetry-unavailable — never interpreted as zero attendance, and never
  *   written as the smaller list the other servers gave. The run carries
@@ -192,8 +194,8 @@ class CaptureSectionPracticeHandler
                 inactivated: 0,
                 errored: $result->unmatchedCount(),
                 error: sprintf(
-                    'practice %d, source %s: seen %d, matched %d (%d in another section), unmatched %d; %s',
-                    $practice->id, $sourceName, $result->seen(), $result->matchedCount(), count($result->otherSection), $result->unmatchedCount(),
+                    'practice %d, source %s: seen %d, matched %d (%d in another section, %d departed), unmatched %d; %s',
+                    $practice->id, $sourceName, $result->seen(), $result->matchedCount(), count($result->otherSection), count($result->departed), $result->unmatchedCount(),
                     $marks->confirmed
                         ? 'practice is confirmed, no marks changed'
                         : sprintf('pre-marked %d, left %d untouched (manual/loa)', $marks->marked, $marks->keptManual),
@@ -309,7 +311,7 @@ class CaptureSectionPracticeHandler
             ...array_map(fn (CrconPlayer $p) => ['platform_id' => $p->platformId, 'player_name' => $p->playerName, 'trooper_id' => null],
                 $result->unmatched),
             ...array_map(fn (array $row) => ['platform_id' => $row['player']->platformId, 'player_name' => $row['player']->playerName, 'trooper_id' => $row['trooperId']],
-                $result->otherSection),
+                [...$result->otherSection, ...$result->departed]),
         ]);
     }
 
@@ -353,13 +355,22 @@ class CaptureSectionPracticeHandler
         $troopers = $this->troopers->byIds(array_values(array_unique(array_column($links, 'trooperId'))));
         $matched = [];
         $otherSection = [];
+        $departed = [];
 
         foreach ($links as $link) {
-            // A link whose trooper has left the cache has no section to credit: surfaced, not credited.
-            $inSection = $troopers->get($link['trooperId'])?->primary_section_id === $sectionId;
-            $inSection ? $matched[] = $link : $otherSection[] = $link;
+            $trooper = $troopers->get($link['trooperId']);
+
+            // A trooper who has left keeps their last placement, so they are told apart before the section is: listed as
+            // departed, never credited (the pre-mark would skip them anyway).
+            if ($trooper === null || ! $trooper->status->isServing()) {
+                $departed[] = $link;
+            } elseif ($trooper->primary_section_id === $sectionId) {
+                $matched[] = $link;
+            } else {
+                $otherSection[] = $link;
+            }
         }
 
-        return CaptureResult::captured($source, $matched, $otherSection, $unmatched);
+        return CaptureResult::captured($source, $matched, $otherSection, $unmatched, $departed);
     }
 }

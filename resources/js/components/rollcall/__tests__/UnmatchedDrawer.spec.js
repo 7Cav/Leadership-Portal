@@ -34,6 +34,21 @@ describe('UnmatchedDrawer', () => {
         expect(first.find('[data-testid="unmatched-link"]').attributes('disabled')).toBeDefined();
     });
 
+    it('lists a departed trooper the capture saw, marked departed, with nothing to link or dismiss', () => {
+        const wrapper = factory({
+            players: [],
+            departed: [{ platform: 'hll', platformLabel: 'Hell Let Loose', playerName: 'GoneA', platformId: '7656119000000009', trooperName: 'PFC Gone.A' }],
+        });
+        const row = wrapper.find('[data-testid="departed-7656119000000009"]');
+
+        expect(wrapper.find('[data-testid="departed-list"]').text()).toContain('Departed (1)');
+        expect(row.text()).toContain('GoneA');
+        expect(row.text()).toContain('Departed');
+        expect(row.find('[data-testid="departed-note"]').text()).toBe('Linked to PFC Gone.A, who has left. Not marked on any rollcall.');
+        expect(row.find('button').exists()).toBe(false);
+        expect(row.find('select').exists()).toBe(false);
+    });
+
     it('suggests by name closeness but never picks a trooper', () => {
         const wrapper = factory();
         const first = card(wrapper, '7656119000000001');

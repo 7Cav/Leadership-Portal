@@ -1307,6 +1307,14 @@ describe('Rollcall page', () => {
                 expect(wrapper.find('[data-testid="dismiss-confirm"]').exists()).toBe(false);
             });
 
+            it('shows the drawer for a departed trooper the capture saw, even with nobody left to link', () => {
+                const departed = [{ platform: 'hll', platformLabel: 'Hell Let Loose', playerName: 'GoneA', platformId: '7656119000000009', trooperName: 'PFC Gone.A' }];
+                const wrapper = factory({ capture: CAPTURE, unmatched: [], departed });
+
+                expect(wrapper.find('[data-testid="unmatched-drawer"]').exists()).toBe(true);
+                expect(wrapper.find('[data-testid="departed-7656119000000009"]').exists()).toBe(true);
+            });
+
             it('keeps the drawer for the Dismissed list once the last player is dismissed, and undoes from there', async () => {
                 post.mockImplementation(answer);
                 const wrapper = factory({ capture: CAPTURE, unmatched: UNMATCHED });

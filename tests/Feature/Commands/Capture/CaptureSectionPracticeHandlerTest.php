@@ -129,6 +129,28 @@ it('surfaces a linked trooper from another section instead of crediting them to 
         ->and(Attendance::query()->where('section_practice_id', $this->practice->id)->count())->toBe(0);
 });
 
+it('lists a departed trooper the capture saw as departed, from this section or another, and marks them nowhere', function () {
+    $left = Trooper::factory()->create(['primary_section_id' => $this->section->id, 'status' => TrooperStatus::Inactive]);
+    $leftElsewhere = Trooper::factory()->create(['primary_section_id' => Unit::factory()->create(['type' => UnitType::Section])->id, 'status' => TrooperStatus::Inactive]);
+    linkIdentity($left, '76561190000000030');
+    linkIdentity($leftElsewhere, '76561190000000031');
+
+    $result = runCapture($this, [answeringSource('crcon', [
+        new CrconPlayer('Gone', '76561190000000030'),
+        new CrconPlayer('Gone Too', '76561190000000031'),
+    ])]);
+
+    expect($result->matched)->toBe([])
+        ->and($result->otherSection)->toBe([])
+        ->and(array_column($result->departed, 'trooperId'))->toBe([$left->id, $leftElsewhere->id])
+        ->and($result->seen())->toBe(2)
+        ->and(Attendance::query()->count())->toBe(0)
+        ->and(PracticeCapturePlayer::query()->orderBy('id')->pluck('trooper_id')->all())->toBe([$left->id, $leftElsewhere->id])
+        ->and(app(PracticeCapturePlayerRepository::class)->departedFor($this->practice->id)->pluck('platform_id')->all())->toBe(['76561190000000030', '76561190000000031'])
+        ->and(app(PracticeCapturePlayerRepository::class)->unmatchedFor($this->practice->id))->toHaveCount(0)
+        ->and(SyncRun::query()->sole()->error)->toContain('(0 in another section, 2 departed)');
+});
+
 it('matches a linked trooper placed on an HQ node, but marks them nowhere', function () {
     $platoon = Unit::factory()->create(['type' => UnitType::Platoon]);
     $psg = Trooper::factory()->create(['primary_section_id' => $platoon->id]);
@@ -211,7 +233,7 @@ it('records the counts and who triggered the run', function () {
         ->and($run->inserted)->toBe(1)
         ->and($run->errored)->toBe(1)
         ->and($run->status)->toBe(SyncRunStatus::Partial)
-        ->and($run->error)->toBe('practice '.$this->practice->id.', source crcon: seen 2, matched 1 (0 in another section), unmatched 1; pre-marked 1, left 0 untouched (manual/loa)');
+        ->and($run->error)->toBe('practice '.$this->practice->id.', source crcon: seen 2, matched 1 (0 in another section, 0 departed), unmatched 1; pre-marked 1, left 0 untouched (manual/loa)');
 });
 
 it('audits the stamp when a user triggered the run, and not for the system', function () {
@@ -396,7 +418,7 @@ it('writes no sighting and leaves the own rollcall of another section\'s trooper
         ->and(Attendance::query()->where('trooper_id', $away->id)->count())->toBe(0)
         ->and(SectionPractice::query()->count())->toBe(2)
         ->and(AuditLogEntry::query()->where('action', 'attendance.auto_marked')->count())->toBe(0)
-        ->and(SyncRun::query()->sole()->error)->toContain('(2 in another section)')
+        ->and(SyncRun::query()->sole()->error)->toContain('(2 in another section, 0 departed)')
         ->and(SyncRun::query()->sole()->error)->not->toContain('makeup')
         // Still on this practice's review list as other-section players.
         ->and(PracticeCapturePlayer::query()->where('section_practice_id', $this->practice->id)->orderBy('trooper_id')->pluck('trooper_id')->all())
