@@ -2,6 +2,7 @@
 
 use App\Jobs\SyncLoasJob;
 use App\Jobs\SyncRosterJob;
+use Illuminate\Bus\UniqueLock;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Queue\Job as QueueJobContract;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -51,10 +52,15 @@ it('does not wait on a roster sync: the two sources lock separately', function (
     }
 });
 
-it('allows more than one attempt so a deferred run can retry, and a timeout under the lock expiry', function () {
+it('waits its turn by time, not by a count of tries, so a sync deferred behind a long run is not dropped', function () {
+    $this->travelTo(now()->startOfMinute());
     $job = new SyncLoasJob;
 
-    expect($job->tries)->toBeGreaterThan(1)
+    // tries = 0 is unbounded: each deferral is a release, and five of them a minute apart used to drop a click
+    // made during a run that takes up to the timeout.
+    expect($job->tries)->toBe(0)
+        ->and($job->maxExceptions)->toBe(3)
+        ->and($job->retryUntil()->getTimestamp())->toBeGreaterThanOrEqual(now()->addSeconds(2 * $job->timeout)->getTimestamp())
         ->and($job->timeout)->toBeGreaterThan(0)
         ->and($job->timeout)->toBeLessThan($job->middleware()[0]->expiresAfter);
 });
@@ -166,4 +172,29 @@ it('is unique per kind, so repeated triggers do not stack, while a full run is i
     expect((new SyncLoasJob(1))->uniqueId())->toBe((new SyncLoasJob('system'))->uniqueId())
         ->and((new SyncLoasJob(1, true))->uniqueId())->not->toBe((new SyncLoasJob(1))->uniqueId())
         ->and(new SyncLoasJob)->toBeInstanceOf(ShouldBeUnique::class);
+});
+
+it('gives the one follow-up of each kind an id of its own, so there is at most one, and it shares the run lock', function () {
+    expect((new SyncLoasJob(1, false, true))->uniqueId())->toBe((new SyncLoasJob(2, false, true))->uniqueId())
+        ->and((new SyncLoasJob(1, false, true))->uniqueId())->not->toBe((new SyncLoasJob(1))->uniqueId())
+        ->and((new SyncLoasJob(1, true, true))->uniqueId())->not->toBe((new SyncLoasJob(1, false, true))->uniqueId())
+        ->and((new SyncLoasJob(1, false, true))->middleware()[0]->key)->toBe((new SyncLoasJob(1))->middleware()[0]->key);
+});
+
+it('says whether a sync of its kind is already queued without taking the lock', function () {
+    $job = new SyncLoasJob(1);
+    expect($job->isAlreadyQueued())->toBeFalse();
+
+    $lock = Cache::lock(UniqueLock::getKey($job), 60);
+    $lock->get();
+
+    try {
+        expect($job->isAlreadyQueued())->toBeTrue()
+            ->and((new SyncLoasJob(1, true))->isAlreadyQueued())->toBeFalse()
+            ->and((new SyncLoasJob(1, false, true))->isAlreadyQueued())->toBeFalse();
+    } finally {
+        $lock->release();
+    }
+
+    expect($job->isAlreadyQueued())->toBeFalse();
 });

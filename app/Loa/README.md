@@ -8,6 +8,10 @@ Everything the portal needs to *read* about leave lives here, so no screen re-de
   `STALE_AFTER_HOURS` (syncs that simply stopped must not look fresh), so the page says it is
   showing the last good cache (AD-4). With no successful sync yet, `neverSynced()` is true and
   `lastSyncedAt` is null: an explicit state, never a blank or an invented time.
+  `backfilling` and `backfilledTo` say whether the sync's first read of the year is still going back through
+  older posts (a share per hourly run, from the cursor the sync saves in `sync_runs.cursor`) and the oldest post
+  it has reached. It is not a staleness signal: recent leave is read first, so only older weeks can miss leave,
+  and the note says so in words.
 - `LoaCoverage::forTroopers($ids, $weekStart)` → `array<trooperId, LoaCover>` (4.4, AD-21): the one
   definition of "is this trooper LOA-covered in this Cav week". Whole Cav weeks (Saturday to
   Friday UTC, `WeekOf`): a leave touching any day covers the week, and an open-ended leave

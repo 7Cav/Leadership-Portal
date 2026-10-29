@@ -29,6 +29,22 @@ interface SyncRunRepository
     public function complete(SyncRun $run, int $inserted, int $updated, int $inactivated, int $errored, ?string $error = null, int $needsReview = 0): void;
 
     /**
+     * Save where a run has got to (`cursor`), while it is still going: the LOA sync saves it as it goes, so a run the
+     * worker kills keeps its progress for the next one. Replaces what was saved before.
+     *
+     * @param  array<string, mixed>  $cursor
+     */
+    public function saveCursor(SyncRun $run, array $cursor): void;
+
+    /**
+     * The cursor the latest run of `$source` saved, whatever that run's outcome (a run that failed or was killed still
+     * moved it as far as it got), or null when no run has saved one. Newest start first, `id` as the tiebreaker.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function latestCursor(string $source): ?array;
+
+    /**
      * Close a run that aborted before completing. Counts are left at their opened-run default of
      * zero: a failure means the write never happened, so there is nothing to count. `$error` is cut
      * the same way as {@see complete()}'s, so an over-long message still closes the run.

@@ -13,6 +13,7 @@ audience: admin
 1. The roster syncs every hour.
 2. Leave syncs every hour at a quarter past, reading new posts, and once a day at 03:30 UTC reading every thread again.
 3. Pages that show roster or leave data say when it last synced, and warn when a sync failed.
+4. The first leave sync reads a year of posts, newest first. That takes several hourly runs; each one carries on where the last stopped. Until it is done, the leave note says "Older leave is still being read" and how far back it has got. This week's leave is read first.
 
 ## Sync the whole roster now
 

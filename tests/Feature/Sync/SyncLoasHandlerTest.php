@@ -4,6 +4,7 @@ use App\Integration\Forum\ForumApi;
 use App\Integration\Forum\ForumRequestException;
 use App\Loa\LoaCoverage;
 use App\Loa\LoaCoverageState;
+use App\Loa\LoaProvenance;
 use App\Models\Loa;
 use App\Models\LoaParseStatus;
 use App\Models\LoaType;
@@ -112,6 +113,31 @@ function runLoaSync(int|string $by = 'system', bool $full = false): void
 function latestLoaRun(): SyncRun
 {
     return SyncRun::where('source', 'loa')->orderByDesc('id')->firstOrFail();
+}
+
+/**
+ * `$count` pages of one LOA thread each, newest first, a day apart from 2026-10-07 back: thread 4001 is on page 1.
+ *
+ * @return array{0: list<list<array>>, 1: array<int, array>} the pages, and the threads by id
+ */
+function loaPages(int $count): array
+{
+    $pages = [];
+    $threads = [];
+
+    foreach (range(1, $count) as $n) {
+        $posted = CarbonImmutable::parse('2026-10-07 08:00', 'UTC')->subDays($n - 1)->toDateTimeString();
+        $threads[4000 + $n] = loaThread(4000 + $n, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), $posted);
+        $pages[] = [$threads[4000 + $n]];
+    }
+
+    return [$pages, $threads];
+}
+
+/** How many times the run listed a section. */
+function listedTimes(MockClient $client, int $node = 180): int
+{
+    return collect(askedFor($client))->filter(fn ($endpoint) => $endpoint === "/api/forums/{$node}/threads")->count();
 }
 
 function eloaThread(int $id = 5001, string $postedAt = '2026-09-23 09:00', ?string $body = null): array
@@ -772,13 +798,12 @@ describe('which threads a run reads', function () {
             ->and(collect(askedFor($client))->filter(fn ($endpoint) => $endpoint === '/api/forums/180/threads')->count())->toBe(2);
     });
 
-    it('stops at the page limit and says so, rather than walking a section forever', function () {
+    it('stops a full run at the page limit and says so, rather than walking a section forever', function () {
         Trooper::factory()->create(['username' => 'Smith.J']);
-        $page = fn (int $n) => [loaThread(4000 + $n, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-07 08:00')];
-        $pages = array_map($page, range(1, 45));
-        forumWith([180 => $pages], collect($pages)->mapWithKeys(fn ($threads) => [$threads[0]['summary']['thread_id'] => $threads[0]])->all());
+        [$pages, $threads] = loaPages(45);
+        forumWith([180 => $pages], $threads);
 
-        runLoaSync();
+        runLoaSync(1, true);
 
         $run = latestLoaRun();
         expect(Loa::count())->toBe(40)->and($run->status)->toBe(SyncRunStatus::Partial)->and($run->error)->toContain('40-page limit');
@@ -822,6 +847,186 @@ describe('which threads a run reads', function () {
         runLoaSync();
 
         expect(Loa::count())->toBe(1)->and(askedFor($client))->not->toContain('/api/threads/1');
+    });
+});
+
+describe('a first read of the year that takes more than one run', function () {
+    it('stops after its share of pages without calling the run partial, and the next run carries on where it stopped', function () {
+        Trooper::factory()->create(['username' => 'Smith.J']);
+        [$pages, $threads] = loaPages(45);
+        forumWith([180 => $pages], $threads);
+
+        runLoaSync();
+
+        $first = latestLoaRun();
+        expect(Loa::count())->toBe(40)
+            ->and($first->status)->toBe(SyncRunStatus::Success)
+            ->and($first->cursor['backfilling'])->toBeTrue()
+            ->and($first->cursor['reachedBack'])->toBe('2026-08-29T08:00:00+00:00')
+            ->and($first->cursor['sections'][180]['backfill']['page'])->toBe(40)
+            ->and(app(LoaProvenance::class)->current()->backfilling)->toBeTrue();
+
+        $this->travelTo(CarbonImmutable::parse('2026-10-08 13:00:00', 'UTC'));
+        $client = forumWith([180 => $pages], $threads);
+        runLoaSync();
+
+        $asked = askedFor($client);
+        $second = latestLoaRun();
+        expect(Loa::count())->toBe(45)
+            ->and($asked)->toContain('/api/threads/4041', '/api/threads/4045')
+            ->not->toContain('/api/threads/4001', '/api/threads/4040')
+            // One listing for the new posts, then page 40 again (where it stopped) to 45.
+            ->and(listedTimes($client))->toBe(7)
+            ->and($second->status)->toBe(SyncRunStatus::Success)
+            ->and($second->cursor['backfilling'])->toBeFalse()
+            ->and($second->cursor['sections'][180]['backfill'])->toBeNull()
+            ->and(app(LoaProvenance::class)->current()->backfilling)->toBeFalse();
+    });
+
+    it('keeps what a run that failed part-way got through, and does not read it again', function () {
+        Trooper::factory()->create(['username' => 'Smith.J']);
+        [$pages, $threads] = loaPages(3);
+        // Section 180 is read back in full; then listing section 341 fails.
+        forumWith([180 => $pages, 341 => MockResponse::make([], 503)], $threads);
+
+        expect(fn () => runLoaSync())->toThrow(ForumRequestException::class);
+        expect(Loa::count())->toBe(3)
+            ->and(latestLoaRun()->status)->toBe(SyncRunStatus::Failure)
+            ->and(latestLoaRun()->cursor['sections'][180]['backfill'])->toBeNull();
+
+        $this->travelTo(CarbonImmutable::parse('2026-10-08 13:00:00', 'UTC'));
+        $client = forumWith([180 => $pages, 341 => [[]]], $threads);
+        runLoaSync();
+
+        expect(askedFor($client))->not->toContain('/api/threads/4001', '/api/threads/4002', '/api/threads/4003')
+            ->and(latestLoaRun()->status)->toBe(SyncRunStatus::Success)
+            ->and(latestLoaRun()->cursor['backfilling'])->toBeFalse();
+    });
+
+    it('keeps what a killed run stored and read, and does not read it again', function () {
+        Trooper::factory()->create(['username' => 'Smith.J']);
+        [$pages, $threads] = loaPages(45);
+        forumWith([180 => $pages], $threads);
+        runLoaSync();
+        // As if the worker had been killed before the run could close: still in progress, with its cursor saved.
+        latestLoaRun()->forceFill(['status' => SyncRunStatus::InProgress, 'finished_at' => null])->save();
+
+        $this->travelTo(CarbonImmutable::parse('2026-10-08 13:00:00', 'UTC'));
+        $client = forumWith([180 => $pages], $threads);
+        runLoaSync();
+
+        expect(Loa::count())->toBe(45)
+            ->and(askedFor($client))->not->toContain('/api/threads/4001')
+            ->and(SyncRun::where('source', 'loa')->orderBy('id')->first()->status)->toBe(SyncRunStatus::Failure);
+    });
+
+    it('steps back a page when threads were deleted since the last run, so none is skipped', function () {
+        Trooper::factory()->create(['username' => 'Smith.J']);
+        [$pages, $threads] = loaPages(42);
+        forumWith([180 => $pages], $threads);
+        runLoaSync();
+        expect(Loa::count())->toBe(40);
+
+        // Threads 4002 and 4003 are deleted: everything older moves up two pages, so 4041 now sits on page 39, above
+        // page 40 where the run had stopped. Carrying on from page 40 would miss it.
+        unset($pages[1], $pages[2]);
+        $pages = array_values($pages);
+        $this->travelTo(CarbonImmutable::parse('2026-10-08 13:00:00', 'UTC'));
+        $client = forumWith([180 => $pages], $threads);
+        runLoaSync();
+
+        expect(askedFor($client))->toContain('/api/threads/4041', '/api/threads/4042')->not->toContain('/api/threads/4040')
+            ->and(Loa::where('forum_thread_id', 4041)->exists())->toBeTrue()
+            ->and(latestLoaRun()->cursor['backfilling'])->toBeFalse();
+    });
+
+    it('does not read settled leave it already holds', function () {
+        Trooper::factory()->create(['username' => 'Smith.J']);
+        $recent = loaThread(4001, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-05 08:00');
+        $finished = loaThread(4002, '[LOA Request] - PVT.Smith.J | Mar 1, 2026 - Mar 10, 2026', "Username: Smith.J\nStart Date\nMar 1, 2026\nEnd Date\nMar 10, 2026\n", '2026-02-25 08:00');
+        Loa::factory()->create(['forum_thread_id' => 4002, 'parse_status' => LoaParseStatus::Ok, 'starts_at' => '2026-03-01', 'ends_at' => '2026-03-10']);
+        $client = forumWith([180 => [[$recent, $finished]]], [4001 => $recent, 4002 => $finished]);
+
+        runLoaSync();
+
+        expect(askedFor($client))->toContain('/api/threads/4001')->not->toContain('/api/threads/4002');
+    });
+
+    it('ends an ELOA whose report sits on a later page than its return', function () {
+        Trooper::factory()->create(['username' => 'Fox.R']);
+        $report = foxEloa();
+        $return = returnThread();
+        forumWith([341 => [[$return], [$report]]], [5002 => $report, 5500 => $return], [106503 => ['2026-09-22 20:30'], 106812 => ['2026-10-02 18:00']]);
+
+        runLoaSync();
+
+        expect(Loa::sole()->ends_at->toDateString())->toBe('2026-10-02')
+            ->and(latestLoaRun()->needs_review)->toBe(0);
+    });
+
+    it('keeps a return whose report it has not reached yet, and applies it once the read gets there', function () {
+        Trooper::factory()->create(['username' => 'Fox.R']);
+        $report = foxEloa(5002, '2026-08-01 09:00');
+        $return = returnThread();
+        // Forty pages of deleted threads between the return and its report: the first run stops before the report.
+        $filler = array_map(fn (int $n) => [loaThread(6000 + $n, 'Gone', '', CarbonImmutable::parse('2026-09-30 08:00', 'UTC')->subDays($n)->toDateTimeString(), 341, 'deleted')], range(1, 40));
+        $pages = [[$return], ...$filler, [$report]];
+        $pafs = [106503 => ['2026-07-31 20:30'], 106812 => ['2026-10-02 18:00']];
+        forumWith([341 => $pages], [5002 => $report, 5500 => $return], $pafs);
+        runLoaSync();
+
+        expect(Loa::count())->toBe(0)->and(latestLoaRun()->cursor['retry'])->toBe([5500 => 341]);
+
+        $this->travelTo(CarbonImmutable::parse('2026-10-08 13:00:00', 'UTC'));
+        forumWith([341 => $pages], [5002 => $report, 5500 => $return], $pafs);
+        runLoaSync();
+
+        expect(Loa::sole()->ends_at->toDateString())->toBe('2026-10-02')
+            ->and(Loa::sole()->return_thread_id)->toBe(5500)
+            ->and(latestLoaRun()->cursor['retry'])->toBe([]);
+    });
+
+    it('starts a section added later from the top, while the others carry on from their marks', function () {
+        Trooper::factory()->create(['username' => 'Smith.J']);
+        Trooper::factory()->create(['username' => 'Lane.M']);
+        bindForum(['loa_nodes' => [180 => 'loa']]);
+        $loa = loaThread(4001, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-05 08:00');
+        forumWith([180 => [[$loa]]], [4001 => $loa]);
+        runLoaSync();
+
+        bindForum();
+        $eloa = loaThread(5001, '[ELOA Report] - PFC.Lane.M', loaBody('eloa-report'), '2026-06-05 09:00', 341);
+        $this->travelTo(CarbonImmutable::parse('2026-10-08 13:00:00', 'UTC'));
+        $client = forumWith([180 => [[$loa]], 341 => [[$eloa]]], [4001 => $loa, 5001 => $eloa], [106503 => ['2026-06-04 10:00']]);
+        runLoaSync();
+
+        expect(askedFor($client))->toContain('/api/threads/5001')->not->toContain('/api/threads/4001')
+            ->and(Loa::where('forum_thread_id', 5001)->exists())->toBeTrue();
+    });
+
+    it('carries on from the last good run on a portal that synced before the cursor existed', function () {
+        Trooper::factory()->create(['username' => 'Smith.J']);
+        SyncRun::factory()->create(['source' => 'loa', 'started_at' => CarbonImmutable::parse('2026-10-08 10:00:00'), 'finished_at' => CarbonImmutable::parse('2026-10-08 10:05:00')]);
+        $old = loaThread(4001, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-01 08:00');
+        $new = loaThread(4002, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-08 11:00');
+        $client = forumWith([180 => [[$new, $old]]], [4001 => $old, 4002 => $new]);
+
+        runLoaSync();
+
+        expect(askedFor($client))->toContain('/api/threads/4002')->not->toContain('/api/threads/4001')
+            ->and(latestLoaRun()->cursor['backfilling'])->toBeFalse();
+    });
+
+    it('never withdraws anything while it runs, and a full run cut short by the page limit does not either', function () {
+        $trooper = Trooper::factory()->create(['username' => 'Smith.J']);
+        $kept = Loa::factory()->create(['trooper_id' => $trooper->id, 'forum_thread_id' => 3001, 'forum_node_id' => 180, 'posted_at' => '2026-03-01 08:00']);
+        [$pages, $threads] = loaPages(45);
+        forumWith([180 => $pages], $threads);
+
+        runLoaSync();
+        runLoaSync(1, true);
+
+        expect($kept->fresh()->withdrawn_at)->toBeNull()->and(latestLoaRun()->inactivated)->toBe(0);
     });
 });
 
@@ -1091,18 +1296,21 @@ describe('when something goes wrong', function () {
             ->and(latestLoaRun()->status)->toBe(SyncRunStatus::Success);
     });
 
-    it('retries a thread that failed once the forum answers, since a partial run does not move the cutoff', function () {
+    it('retries a thread that failed by id on the next run, though the partial run before moved on past it', function () {
         Trooper::factory()->create(['username' => 'Hart.A']);
         $thread = loaThread(4002, '[LOA Request] - MAJ.Hart.A | Oct 3, 2026 - Oct 17, 2026', loaBody('loa-self'), '2026-10-05 08:00');
         forumWith([180 => [[$thread]]], [4002 => MockResponse::make([], 503)]);
         runLoaSync();
         expect(Loa::count())->toBe(0);
 
+        // The partial run still moved the new-posts mark to its own start (12:00), so a listing back to 09:00 does not
+        // reach this thread, posted on Oct 5. The cursor kept it by id.
         $this->travelTo(CarbonImmutable::parse('2026-10-08 13:00:00', 'UTC'));
         forumWith([180 => [[$thread]]], [4002 => $thread]);
         runLoaSync();
 
-        expect(Loa::sole()->forum_thread_id)->toBe(4002)->and(latestLoaRun()->status)->toBe(SyncRunStatus::Success);
+        expect(Loa::sole()->forum_thread_id)->toBe(4002)->and(latestLoaRun()->status)->toBe(SyncRunStatus::Success)
+            ->and(latestLoaRun()->cursor['retry'])->toBe([]);
     });
 
     it('fails with a clear message, and sends nothing, when no forum API key is set', function () {
