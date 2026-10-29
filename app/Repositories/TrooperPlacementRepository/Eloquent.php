@@ -122,8 +122,8 @@ class Eloquent implements TrooperPlacementRepository
 
     /**
      * Where each trooper stood at the end of the week: the placement row that holds the last instant of the week. A
-     * trooper with no history, or whose open row is not their current unit, is read as placed in their current unit,
-     * as {@see unitIdsOfTrooperInWeek()} reads them.
+     * trooper with no history, whose open row is not their current unit, or whose history only began after the week
+     * ended, is read as placed in their current unit, as {@see unitIdsOfTrooperInWeek()} reads them.
      *
      * @param  Collection<int, Trooper>  $troopers
      * @return array<int, ?int> trooper id => unit id
@@ -148,8 +148,17 @@ class Eloquent implements TrooperPlacementRepository
                 continue;
             }
 
+            // The history began after the week ended (every row starts at or after its end): it says nothing about
+            // that week, so they are read as placed in their current unit, as the roll call reads a week with no
+            // history.
+            if ($own->every(fn (TrooperPlacement $row) => $row->placed_from !== null && CarbonImmutable::instance($row->placed_from)->greaterThanOrEqualTo($end))) {
+                $units[$trooper->id] = $current;
+
+                continue;
+            }
+
             // The row that started before the week ended and had not ended by then (still open, or closed at or after
-            // the end). A trooper placed only after the week ended was nowhere then.
+            // the end). A trooper whose history shows a gap at the end of the week was nowhere then.
             $holding = $own->first(fn (TrooperPlacement $row) => ($row->placed_from === null || CarbonImmutable::instance($row->placed_from)->lessThan($end))
                 && ($row->placed_until === null || CarbonImmutable::instance($row->placed_until)->greaterThanOrEqualTo($end)));
             $units[$trooper->id] = $holding?->unit_id === null ? null : (int) $holding->unit_id;

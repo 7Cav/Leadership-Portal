@@ -147,6 +147,20 @@ it('shows "Staff report" in the sidebar for platoon and company HQ staff only', 
     'an Admin with no milpac' => ['admin', false],
 ]);
 
+it('shows "Staff report" to a company commander and XO placed on the company HQ node, signed in as themselves', function (string $billet) {
+    $trooper = Trooper::factory()->create(['primary_section_id' => $this->tree['units']['company']->id, 'billet' => $billet]);
+    $user = User::factory()->create(['cav_id' => $trooper->cav_id]);
+
+    $this->actingAs($user)->get('/home')->assertInertia(fn (AssertableInertia $page) => $page->where('features.staffReport', true));
+
+    // An Admin viewing as them does not get it: the link is for the staff member's own session only.
+    $this->actingAs($this->tree['users']['admin'])->post('/view-as', ['kind' => 'user', 'id' => $user->id])->assertSessionHasNoErrors();
+    $this->actingAs($this->tree['users']['admin'])->get('/home')->assertInertia(fn (AssertableInertia $page) => $page->where('features.staffReport', false));
+})->with([
+    'the CO' => ['Commander A/1-7'],
+    'the XO' => ['Executive Officer A/1-7'],
+]);
+
 it('puts the unsent report on Home until it is sent', function () {
     $this->actingAs($this->tree['users']['psg'])->get('/home')->assertInertia(fn (AssertableInertia $page) => $page
         ->where('staffReport.week', '2026-10-03')
