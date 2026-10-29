@@ -76,3 +76,9 @@ it('refuses to touch a sent report, leaving it and the audit log as they were', 
     expect(WeeklyReport::query()->sole()->notes)->toBe('Frozen')
         ->and(AuditLogEntry::query()->exists())->toBeFalse();
 });
+
+it('takes "No reason given" for a trooper who missed and said nothing', function () {
+    $report = saveDraft($this->leader, $this->section->id, $this->moment, 'Notes', null, [['trooper_id' => $this->trooper->id, 'reason' => 'no_reason']]);
+
+    expect($report->unaccounted)->toBe([['trooper_id' => $this->trooper->id, 'reason' => 'no_reason']]);
+});

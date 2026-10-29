@@ -90,7 +90,8 @@ it('renders a section\'s live draft with its KPIs, troopers and a first-report b
             ->where('troopers.0.rankShort', 'SGT')
             ->where('troopers.0.status', null)
             ->has('trend', 8)
-            ->has('reasons', 8)
+            ->has('reasons', 9)
+            ->where('reasons.2', ['value' => 'no_reason', 'label' => 'No reason given'])
             ->where('week.next', null)
             ->where('week.previous', '2026-09-26')
             // The deadline banner calls it overdue only while the week is in the 4-week KPI window.

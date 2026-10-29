@@ -12,6 +12,8 @@ enum UnaccountedReason: string
 {
     case RealLifeLate = 'real_life_late';
     case NoNotice = 'no_notice';
+    // Missed and gave no reason at all, often no more than negligence: nothing is booked yet.
+    case NoReason = 'no_reason';
     case Technical = 'technical';
     case Sick = 'sick';
     case MakeupBooked = 'makeup_booked';
@@ -25,6 +27,7 @@ enum UnaccountedReason: string
         return match ($this) {
             self::RealLifeLate => 'Real-life conflict, told leader late',
             self::NoNotice => 'No notice, follow-up booked',
+            self::NoReason => 'No reason given',
             self::Technical => 'Technical problem (game, mods, connection)',
             self::Sick => 'Sick',
             self::MakeupBooked => 'Makeup booked before next SP',
