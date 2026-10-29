@@ -98,6 +98,11 @@ class Eloquent implements TrooperPlacementRepository
         return $this->unitsAtWeekEnd(collect([$trooper]), $weekStart)[$trooper->id] ?? null;
     }
 
+    public function unitsOfTroopersAtWeekEnd(Collection $troopers, CarbonInterface $weekStart): array
+    {
+        return $this->unitsAtWeekEnd($troopers->unique('id')->values(), $weekStart);
+    }
+
     public function trooperIdsInUnitAtWeekEnd(int $unitId, CarbonInterface $weekStart): array
     {
         // Everyone who was ever placed there or is placed there now; the history then says where each stood at the end.

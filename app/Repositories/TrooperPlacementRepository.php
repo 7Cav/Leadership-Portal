@@ -58,6 +58,17 @@ interface TrooperPlacementRepository
     public function unitOfTrooperAtWeekEnd(Trooper $trooper, CarbonInterface $weekStart): ?int;
 
     /**
+     * {@see unitOfTrooperAtWeekEnd()} for many troopers at once, in one query: trooper id => unit id (null when
+     * unplaced then), for every trooper given.
+     *
+     * @param  Collection<int, Trooper>  $troopers
+     * @return array<int, ?int>
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function unitsOfTroopersAtWeekEnd(Collection $troopers, CarbonInterface $weekStart): array;
+
+    /**
      * The troopers placed in `$unitId` when the Cav week starting `$weekStart` ended, by {@see unitOfTrooperAtWeekEnd()}:
      * a past week's HQ staff as they stood then, not as they stand now. Ordered by trooper id.
      *

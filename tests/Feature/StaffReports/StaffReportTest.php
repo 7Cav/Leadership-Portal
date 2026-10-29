@@ -32,6 +32,7 @@ use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\UnitRepository;
 use App\Rollcall\RollcallGuests;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
 
 require_once __DIR__.'/../StaffPractices/fixture.php';
 
@@ -278,6 +279,30 @@ it('keeps on a past week\'s HQ staff those who served when it ended or sent thei
     $pl->forceFill(['departed_at' => '2026-10-09 12:00:00'])->save();
     $this->psg->forceFill(['departed_at' => '2026-10-04 12:00:00'])->save();
     expect($staff())->toBe([$this->psg->id]);
+});
+
+it('reads the staff guests\' HQs in the same number of queries for one staff guest and several', function () {
+    $record = app(RecordStaffPracticeHandler::class);
+    $count = function (): int {
+        $practice = app(SectionPracticeRepository::class)->find($this->host->id, $this->week);
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        app(RollcallGuests::class)->forPractice($practice);
+        DB::disableQueryLog();
+
+        return count(DB::getQueryLog());
+    };
+
+    $record->handle($this->tree['users']['pl'], new RecordStaffPractice($this->psg->id, $this->host->id, $this->week));
+    $one = $count();
+
+    foreach (range(1, 3) as $n) {
+        $staff = Trooper::factory()->create(['primary_section_id' => $this->tree['units']['platoon']->id]);
+        $record->handle($this->tree['users']['pl'], new RecordStaffPractice($staff->id, $this->host->id, $this->week));
+    }
+
+    expect(app(RollcallGuests::class)->forPractice(app(SectionPracticeRepository::class)->find($this->host->id, $this->week)))->toHaveCount(4)
+        ->and($count())->toBe($one);
 });
 
 it('lists each pick on the host rollcall: a staff guest in their own unit, a guest elsewhere', function () {
