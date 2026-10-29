@@ -5,7 +5,6 @@ namespace App\Commands\Templates;
 use App\Authorization\ScopeResolver;
 use App\Models\Template;
 use App\Models\Unit;
-use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\UnitRepository;
 
@@ -35,7 +34,7 @@ class TemplateAuthority
      */
     public function managesUnit(User $user, Unit $unit): bool
     {
-        return in_array($unit->type, [UnitType::Company, UnitType::Section], true) && $this->commands($user, $unit);
+        return in_array($unit->type, ScopeResolver::TEMPLATE_OWNERS, true) && $this->commands($user, $unit);
     }
 
     /** Whether the user commands this unit at all, before asking whether it is a company or a section. */

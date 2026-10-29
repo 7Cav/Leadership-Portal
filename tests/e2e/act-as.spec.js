@@ -26,6 +26,8 @@ test('a company commander acts as a section leader under the red bar, then stops
     await expect(bar).toContainText('Acting as');
     await expect(bar).toContainText('Vasquez.R');
     await expect(bar).toContainText('Hale.S');
+    // Starting keeps the page it was started from.
+    await expect(page).toHaveURL(/\/home$/);
 
     // As the section leader the picker is not offered: no chains.
     await page.getByTestId('user-menu').click();
@@ -34,4 +36,5 @@ test('a company commander acts as a section leader under the red bar, then stops
 
     await page.getByTestId('acting-as-stop').click();
     await expect(page.getByTestId('acting-as-banner')).toHaveCount(0);
+    await expect(page).toHaveURL(/\/home$/);
 });

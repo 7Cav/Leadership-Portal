@@ -13,12 +13,12 @@ audience: everyone
 1. Choose **View as** in the top bar.
 2. Pick a unit you lead, or a unit under it. Admins can also pick a person. A unit with no troopers in it or under it is not listed.
 3. A gold bar at the top says who you are viewing as.
-4. You stay on the same page, for the unit you picked: from a battalion's roster you land on the roster of the section you picked. A page that has no version for that unit opens Home.
+4. You stay on the same page, for the unit you picked: from a battalion's roster you land on the roster of the section you picked. Any other page stays open. If the unit or person you picked cannot see it, the page says so; the gold bar stays.
 
 ## Look around, then exit
 
 1. Every page now shows only what that unit's leader would see. The roster and the roll call open where that leader would land.
-2. Buttons that would change something are refused while the preview is on.
+2. The gold bar says the preview is read only. Buttons that would change something are greyed out or refused while it is on.
 3. Choose **Exit view as** on the gold bar to leave. You stay on the page you were on.
 
 ## Move between your units without a preview

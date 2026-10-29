@@ -129,7 +129,7 @@ function closeOnMobile() {
         <SidebarContent class="py-2">
             <!-- The primary-navigation landmark (the sidebar itself renders plain divs). -->
             <nav aria-label="Primary" class="flex flex-col gap-2">
-                <SidebarGroup v-for="group in visibleGroups(isAdmin, page.props.features)" :key="group.id" :data-testid="`nav-group-${group.id}`" class="py-0">
+                <SidebarGroup v-for="group in visibleGroups(isAdmin, page.props.features, page.props)" :key="group.id" :data-testid="`nav-group-${group.id}`" class="py-0">
                     <SidebarGroupLabel class="h-7 text-xs font-normal text-muted-foreground">{{ group.label }}</SidebarGroupLabel>
                     <SidebarMenu class="gap-0.5">
                         <SidebarMenuItem v-for="item in group.items" :key="item.label">

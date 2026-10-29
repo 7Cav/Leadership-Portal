@@ -70,7 +70,8 @@ function actAs() {
             <template v-else-if="viewAs.kind === 'unit' && viewAs.unitName !== viewAs.designation">
                 <span class="hidden sm:inline"> ({{ viewAs.unitName }})</span>
             </template>
-            <span class="hidden md:inline">. Read-only preview of their scope.</span>
+            <span class="md:hidden" data-testid="view-as-read-only-short">. Read only.</span>
+            <span class="hidden md:inline" data-testid="view-as-read-only">. Read only: nothing can be changed while viewing as.</span>
         </p>
         <button
             v-if="canActAs"

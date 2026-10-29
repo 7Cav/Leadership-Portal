@@ -202,13 +202,17 @@ leaves the Cav; one who left before it began doing so has no date and is on no p
   leaves out empty line units, except the one you are viewing as now. Starting or switching
   a preview opens the page you were on for the unit you picked when there is one (its roster, its roll call or the
   roll call landing, its report for the same week or the reports landing, its readiness matrix, and its roster from a
-  trooper page), else Home. In a person preview, the roster and the roll call open where that person would land.
-  Leaving the preview goes back to the page you were on.
+  trooper page), else the same page (Home only with no page to go back to). In a person preview, the roster and the
+  roll call open where that person would land. Leaving the preview goes back to the page you were on. The gold bar says
+  the preview is read only.
+- While view as or act as is on, a page the previewed or acted-as identity may not open (a 403 or 404 for them) shows
+  the shell with a short blocked note ("The trooper you are viewing as does not have permission to see this page.", or
+  unit, or billet, or acting as) and the bar to leave, never the page's data.
 - Both follow act as and View as: with either on, the switcher lists the units of the scope you are seeing.
 - Act as (user menu): runs the portal as another person, writes included, under a red bar. A leader's picker lists the
   serving billet holders below them and the billets junior to theirs in their own command team (an SL their ASL, a PL
   their PSG, a company CO their XO and 1SG, the RCO the RXO and RCSM), never anyone above or beside them. The full
-  rules are in [permissions.md](permissions.md#act-as).
+  rules are in [permissions.md](permissions.md#act-as). Starting and stopping keep the page you were on.
 
 ### Units with no troopers
 

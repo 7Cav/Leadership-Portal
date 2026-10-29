@@ -80,6 +80,16 @@ describe('navigation', () => {
         expect(visibleGroups(false, { demoTools: true }).map((group) => group.id)).toEqual(['leadership']);
     });
 
+    it('shows Settings > Templates alone to a non-Admin who may manage templates (canManageTemplates)', () => {
+        const settings = (isAdmin, props) => visibleGroups(isAdmin, {}, props).find((group) => group.id === 'settings');
+
+        expect(settings(false, {})).toBeUndefined();
+        expect(settings(false, { canManageTemplates: false })).toBeUndefined();
+        expect(settings(false, { canManageTemplates: true }).items.map((item) => item.label)).toEqual(['Templates']);
+        expect(settings(false, { canManageTemplates: true }).label).toBe('Settings');
+        expect(settings(true, {}).items.map((item) => item.label)).toContain('Org structure');
+    });
+
     it('shows Staff report only to platoon and company HQ staff (the staffReport feature), and keeps it active on a week', () => {
         const leadership = (features) =>
             visibleGroups(false, features)

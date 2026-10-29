@@ -415,7 +415,7 @@ describe('AppLayout', () => {
             expect(banner.attributes('role')).toBe('status');
             expect(banner.text()).toContain('Viewing as SGT Vasquez.R');
             expect(banner.text()).toContain('2/1/A/1-7');
-            expect(banner.text()).toContain('Read-only preview');
+            expect(banner.text()).toContain('Read only: nothing can be changed while viewing as.');
         });
 
         it('names a unit preview as its leader\'s view', () => {

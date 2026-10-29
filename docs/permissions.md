@@ -132,7 +132,7 @@ No = refused (the page answers 403 or 404, or the control is not shown).
 | Roll call (sections in scope) | All | All | None (1) | Own | Own | Own | Own | Own | Empty picker | Read | Target |
 | Reports and roll-ups (line units) | All | All | None (1) | Own | Own | Own | Own | Own | None | Read | Target |
 | Game identities (every serving trooper placed in scope: sections, HQ staff, groups) | All | All | Own | Own | Own | Own | Own | Own | None | Read | Target |
-| Settings menu in the sidebar | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
+| Settings menu in the sidebar | Yes | Templates only | No | Templates only | Templates only | Templates only | Templates only | Templates only | No | No | Only if target is an Admin person |
 | Org structure page (whole tree and unit leads) | Yes | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes (3) | Yes |
 | Org structure: members of staff groups, ELOA, Reservists, New Recruits | All | All | Own | Own | Own | Own | Own | Own | No | Read | Target |
 | Org structure: troopers the sync could not place | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
@@ -189,6 +189,10 @@ cannot be switched off or made a company default. The regiment default is always
 be switched off. A section uses its pick, else the company default if it is switched on, else the regiment default.
 Every one of these writes is in the audit log. Battalion command no longer has a switch over a company's own template
 editing: the company's command always manages its own.
+
+The sidebar shows Settings > Templates to anyone who may manage at least one company's or section's templates by these
+rules (`ScopeResolver::managesAnyTemplates()`, shared as `canManageTemplates`), not during a view-as preview unless
+the target is an Admin. Any signed-in user can still open the page by URL and read what their scope reaches.
 
 When an Admin moves a platoon or section to another company, each template its sections used (picked or the old
 company's default) is copied into the new company as one of its own, named like "Training (from A/1-7)" with the
@@ -248,7 +252,9 @@ yourself: another Admin assigns an Admin. A unit with only its XO, PSG or ASL se
 ### Act as
 
 Act as runs the portal as another person, writes included, and every entry it writes names you acting for them ("Hale.S
-for Vasquez.R"). Who you may act as:
+for Vasquez.R"). Starting and stopping act as, and view as, keep the page you were on. A page the
+identity you act or view as may not open answers with its usual 403 or 404 status, but renders the shell with a short
+blocked note and the bar to leave instead of an error page; nothing of the page is sent. Who you may act as:
 
 - An Admin: anyone who could sign in, never themselves; another Admin only without their Admin rights. Only an Admin
   acts as a billet (a unit's leader, held or vacant).
