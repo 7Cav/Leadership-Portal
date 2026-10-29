@@ -74,8 +74,9 @@ class ServersController extends Controller
                 'name' => $game->name,
                 'retired' => $game->isRetired(),
                 'interface' => $game->interface->value,
-                // With no server selected the game reads its interface's server from env, as before (#389).
-                'readsEnvServer' => ! $this->servers->hasSelectedFor($game) && $game->interface !== TelemetryInterface::None,
+                // With no server selected the game reads its interface's server from env, as before (#389), when that
+                // server is its own: a game added or switched to another interface reads nothing until one is selected.
+                'readsEnvServer' => $sources->readsEnvServer($game),
                 'captureConfigured' => $sources->isConfigured($game),
             ])->values()->all(),
             'interfaces' => array_values(array_map(fn (TelemetryInterface $interface) => [

@@ -930,7 +930,9 @@ class RollcallController extends Controller
      * attempted. The failure is never read as an empty practice: the marks stay the manual ones.
      * `feeds` names the sources that were tried, so the banner says which feed is down (#176).
      *
-     * @return array{state: string, platformLabel: ?string, feeds: list<string>, lastAttemptAt: ?string, canRetry: bool}|null
+     * `detail` is {@see CaptureTelemetry::$detail}.
+     *
+     * @return array{state: string, platformLabel: ?string, feeds: list<string>, lastAttemptAt: ?string, canRetry: bool, detail: ?string}|null
      */
     private function telemetryProps(int $sectionId, ?SectionPractice $practice): ?array
     {
@@ -942,6 +944,7 @@ class RollcallController extends Controller
             'feeds' => $state->feeds,
             'lastAttemptAt' => $state->lastAttemptAt?->format(DATE_ATOM),
             'canRetry' => $state->canRetry,
+            'detail' => $state->detail,
         ] : null;
     }
 

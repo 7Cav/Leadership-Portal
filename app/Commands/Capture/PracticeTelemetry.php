@@ -5,6 +5,7 @@ namespace App\Commands\Capture;
 use App\Models\Game;
 use App\Models\SectionPractice;
 use App\Models\SyncRunStatus;
+use App\Models\TelemetryInterface;
 use App\Repositories\GameRepository;
 use App\Repositories\GameServerRepository;
 use App\Repositories\SyncRunRepository;
@@ -60,7 +61,10 @@ class PracticeTelemetry
         $game = $this->gameOf($sectionId);
 
         if ($game !== null && ! $this->sources->isConfigured($game)) {
-            return CaptureTelemetry::notConfigured($game);
+            // Named apart from missing credentials: an Admin fixes this one by selecting a server, not in env.
+            $noServer = $game->interface !== TelemetryInterface::None && ! $this->servers->hasSelectedFor($game) && ! $this->sources->readsEnvServer($game);
+
+            return CaptureTelemetry::notConfigured($game, $noServer);
         }
 
         $run = $practice === null ? null : $this->syncRuns->latestForPractice('capture', $practice->id);

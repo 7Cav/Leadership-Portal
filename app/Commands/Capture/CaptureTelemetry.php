@@ -14,6 +14,9 @@ use DateTimeImmutable;
  * `feeds` names the sources a capture of the game tries (their `capture_source` values, in order), so the
  * screen can say which feed is down ("Hell Let Loose server (CRCON)") instead of a bare "server" that could
  * read as nobody having been online (#176). Empty when the game is unknown or has no source set up.
+ *
+ * `detail` says more when there is more to say: `no_server` on a game that is not set up because no training server
+ * is selected for it and the env server belongs to another game (#389).
  */
 final readonly class CaptureTelemetry
 {
@@ -26,11 +29,12 @@ final readonly class CaptureTelemetry
         public ?DateTimeImmutable $lastAttemptAt,
         public bool $canRetry,
         public array $feeds = [],
+        public ?string $detail = null,
     ) {}
 
-    public static function notConfigured(Game $game): self
+    public static function notConfigured(Game $game, bool $noServer = false): self
     {
-        return new self(CaptureTelemetryState::NotConfigured, $game, null, false);
+        return new self(CaptureTelemetryState::NotConfigured, $game, null, false, detail: $noServer ? 'no_server' : null);
     }
 
     /**

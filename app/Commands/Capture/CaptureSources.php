@@ -25,7 +25,10 @@ use DateTimeImmutable;
  *   interface, a CRCON one falling back to its BattleMetrics twin. Public servers are never read: they would credit
  *   troopers who were only playing publicly.
  * - A game with no selected server at all reads the **legacy env server** of its interface (#388): CRCON falling back
- *   to BattleMetrics, BattleMetrics, or Nightwatch. An install keeps its capture when it upgrades.
+ *   to BattleMetrics, BattleMetrics, or Nightwatch. An install keeps its capture when it upgrades. Each env server is
+ *   one game's ({@see self::LEGACY_GAMES}), so only that game reads it, and only while it keeps the interface it had: a
+ *   game an Admin added or switched to another interface reads nothing until a training server is selected for it,
+ *   never the server another game is played on.
  * - A game read by no interface (`none`) is not captured, whatever servers it has.
  *
  * Adding a source (DCS 7.11) is one more interface, one more seam call here, and one more legacy entry — the handler
@@ -34,12 +37,24 @@ use DateTimeImmutable;
 final class CaptureSources
 {
     /**
+     * The game each interface's env server is played on, by slug: the three games the install had before servers could
+     * be selected (#388), with the interface each had. HLL's BattleMetrics fallback is part of its CRCON entry.
+     */
+    public const LEGACY_GAMES = [
+        'crcon' => 'hll',
+        'battlemetrics' => 'arma',
+        'nightwatch' => 'wardogs',
+    ];
+
+    /**
      * @param  array<string, list<CaptureSource>>  $byInterface  the legacy env server's sources, keyed by {@see TelemetryInterface} value
      * @param  (Closure(Game): (list<CaptureServer>|null))|null  $selected  a game's selected training servers, or null when it has no selected server
+     * @param  array<string, string>|null  $legacyGames  which game reads each interface's env server (interface value => slug); null lets any game read it
      */
     public function __construct(
         private readonly array $byInterface,
         private readonly ?Closure $selected = null,
+        private readonly ?array $legacyGames = null,
     ) {}
 
     /**
@@ -131,7 +146,7 @@ final class CaptureSources
                 $server->name,
                 [$serverSource($server), ...($server->fallback === null ? [] : [$serverSource($server->fallback)])],
             ))->values()->all();
-        });
+        }, self::LEGACY_GAMES);
     }
 
     /** True when every named key is set: the legacy env server's check, which also needs its server id(s). */
@@ -178,8 +193,28 @@ final class CaptureSources
             return $selected;
         }
 
+        if (! $this->ownsEnvServer($game)) {
+            return [];
+        }
+
         $legacy = $this->byInterface[$game->interface->value] ?? [];
 
         return $legacy === [] ? [] : [new CaptureServer(null, "{$game->name} server", $legacy)];
+    }
+
+    /**
+     * Whether a capture of the game reads its interface's env server: it has no selected server, and the env server is
+     * its own ({@see self::LEGACY_GAMES}). False for a game read by no interface.
+     */
+    public function readsEnvServer(Game $game): bool
+    {
+        return $game->interface !== TelemetryInterface::None
+            && $this->ownsEnvServer($game)
+            && ($this->selected === null || ($this->selected)($game) === null);
+    }
+
+    private function ownsEnvServer(Game $game): bool
+    {
+        return $this->legacyGames === null || ($this->legacyGames[$game->interface->value] ?? null) === $game->slug;
     }
 }

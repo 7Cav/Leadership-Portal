@@ -1574,6 +1574,15 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-testid="telemetry-retry"]').exists()).toBe(false);
         });
 
+        it('says no training server is selected when the env server belongs to another game (#389)', () => {
+            wrapper = factory({ telemetry: { ...NOT_CONFIGURED, platformLabel: 'Hell Let Loose: Vietnam', detail: 'no_server' } });
+
+            expect(wrapper.find('[data-testid="telemetry-banner"]').text()).toContain(
+                'No training server is selected for Hell Let Loose: Vietnam, so nothing was read or pre-filled. Mark attendance by hand.',
+            );
+            expect(wrapper.find('[data-testid="telemetry-retry"]').exists()).toBe(false);
+        });
+
         it('shows no banner for a practice that was never attempted', () => {
             expect(factory({ telemetry: null }).find('[data-testid="telemetry-banner"]').exists()).toBe(false);
         });
