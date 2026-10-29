@@ -29,7 +29,11 @@ describe('SubordinateUnits', () => {
         const cells = wrapper.findAll('tbody td').map((cell) => cell.text());
 
         expect(cells[0]).toContain('1/A/1-7 name');
-        expect(cells.slice(1, 6)).toEqual(['24', '92%', '—', '2', '1']);
+        expect(cells.slice(1, 6)).toEqual(['24', '92%', '—Not available', '2', '1']);
+        // The dash is for the eye only; a screen reader hears the words.
+        const empty = wrapper.findAll('tbody td')[3];
+        expect(empty.find('[aria-hidden="true"]').text()).toBe('—');
+        expect(empty.find('.sr-only').text()).toBe('Not available');
         expect(wrapper.find('tbody a').attributes('href')).toBe('/reports/1/2026-10-03');
         expect(wrapper.find('[aria-label="Open the 1/A/1-7 report"]').attributes('href')).toBe('/reports/1/2026-10-03');
     });
