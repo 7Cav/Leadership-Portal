@@ -299,7 +299,7 @@ function pct(ratio) {
                 <div class="border-t border-border">
                     <div class="rt-grid border-b border-border px-3 py-2 text-xs text-muted-foreground" aria-hidden="true">
                         <span>Unit</span>
-                        <span class="rt-num rt-wide">Strength</span>
+                        <span class="rt-num rt-wide">In roll call</span>
                         <span class="rt-num">RC %</span>
                         <span class="rt-num">SP %</span>
                         <span class="rt-num rt-wide">At-risk</span>

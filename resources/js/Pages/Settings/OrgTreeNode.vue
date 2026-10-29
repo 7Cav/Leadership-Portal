@@ -60,7 +60,7 @@ const oversightText = computed(() => {
                 ><template v-if="node.game.from"> from {{ node.game.from }}</template></span
             >
             <span v-if="oversightText" :data-testid="`ref-oversight-${node.refParentId}-${node.id}`" class="shrink-0 text-[11px]">{{ oversightText }}</span>
-            <span class="ml-auto shrink-0 text-[11px] tabular-nums">{{ node.trooper_count }} {{ node.trooper_count === 1 ? 'trooper' : 'troopers' }}</span>
+            <span class="ml-auto shrink-0 text-[11px] tabular-nums">Headcount {{ node.trooper_count }}</span>
         </div>
     </li>
     <li v-else role="none">
@@ -129,7 +129,7 @@ const oversightText = computed(() => {
                 >{{ oversightText }}</span
             >
 
-            <span class="ml-auto shrink-0 text-[11px] text-muted-foreground tabular-nums">{{ node.trooper_count }} {{ node.trooper_count === 1 ? 'trooper' : 'troopers' }}</span>
+            <span class="ml-auto shrink-0 text-[11px] text-muted-foreground tabular-nums">Headcount {{ node.trooper_count }}</span>
 
             <!--
               Inline tools (UX-DR4 / settings-v1-tree.html), Admin-only and revealed on hover or

@@ -43,8 +43,8 @@ const rosterText = computed(() => {
     return {
         ok: [`Roster synced from ${source} `, ''],
         stale: [`Roster last synced from ${source} `, ', overdue'],
-        partial: at ? ['Last roster sync was incomplete. Strength is from ', ''] : ['Last roster sync was incomplete'],
-        failed: at ? ['Last roster sync failed. Strength is from ', ''] : ['The roster sync failed. Strength is not yet available'],
+        partial: at ? ['Last roster sync was incomplete. Roll call figures are from ', ''] : ['Last roster sync was incomplete'],
+        failed: at ? ['Last roster sync failed. Roll call figures are from ', ''] : ['The roster sync failed. Roll call figures are not yet available'],
         never: ['The roster has not synced yet'],
     }[roster.value.state];
 });

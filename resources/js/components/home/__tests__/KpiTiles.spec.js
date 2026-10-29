@@ -118,8 +118,8 @@ describe('KpiTiles', () => {
 
         it.each([
             ['stale', 'Roster last synced from milpac 08Oct26 09:14Z (2 h ago), overdue'],
-            ['partial', 'Last roster sync was incomplete. Strength is from 08Oct26 09:14Z (2 h ago)'],
-            ['failed', 'Last roster sync failed. Strength is from 08Oct26 09:14Z (2 h ago)'],
+            ['partial', 'Last roster sync was incomplete. Roll call figures are from 08Oct26 09:14Z (2 h ago)'],
+            ['failed', 'Last roster sync failed. Roll call figures are from 08Oct26 09:14Z (2 h ago)'],
         ])('surfaces a %s sync as a warning, not a silent gap', (state, text) => {
             const el = note({ ...ROSTER, state });
 

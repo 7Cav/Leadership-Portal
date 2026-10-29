@@ -1072,7 +1072,7 @@ function confirmDelete() {
                             <dd class="capitalize">{{ selectedUnit.type }}</dd>
                         </div>
                         <div>
-                            <dt class="text-xs text-muted-foreground">Troopers</dt>
+                            <dt class="text-xs text-muted-foreground">Headcount</dt>
                             <dd class="tabular-nums">{{ selectedUnit.trooper_count }}</dd>
                         </div>
                     </dl>

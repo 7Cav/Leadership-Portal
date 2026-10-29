@@ -331,12 +331,10 @@ function syncNow() {
                     class="mt-0.5 text-[13px] text-muted-foreground"
                     data-testid="scope-line"
                 >
-                    {{ unit.name }}.
-                    <template v-if="strength">
-                        <span class="tabular-nums">{{ strength }}</span>
-                        trooper{{ strength === 1 ? "" : "s"
-                        }}<template v-if="composition"
-                            >{{ " " }}{{ composition }}</template
+                    {{ unit.name }}.<template v-if="strength"
+                        >{{ " " }}Headcount <span class="tabular-nums">{{ strength }}</span
+                        ><template v-if="composition"
+                            >,{{ " " }}{{ composition }}</template
                         >. RC 30d
                         <span
                             class="font-medium text-foreground tabular-nums"
@@ -347,7 +345,7 @@ function syncNow() {
                             >{{ percentLabel(root.kpis.sp) }}</span
                         >.
                     </template>
-                    <template v-else>No troopers assigned yet.</template>
+                    <template v-else>{{ " " }}No troopers assigned yet.</template>
                 </p>
             </div>
 

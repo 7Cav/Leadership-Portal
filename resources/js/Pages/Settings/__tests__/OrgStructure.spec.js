@@ -432,7 +432,7 @@ describe('Settings/OrgStructure', () => {
         });
     });
 
-    it('writes the trooper count in the singular for one trooper and the plural otherwise', () => {
+    it('labels each unit trooper count as its headcount', () => {
         const units = [
             { id: 1, parent_id: null, type: 'regiment', name: '7th Cavalry Regiment', callsign: null, path: '1/', trooper_count: 1 },
             { id: 2, parent_id: 1, type: 'battalion', name: '2nd Battalion', callsign: '2-7', path: '1/2/', trooper_count: 0 },
@@ -440,9 +440,9 @@ describe('Settings/OrgStructure', () => {
 
         const text = mount(OrgStructure, { props: { units, isAdmin: false } }).text();
 
-        expect(text).toContain('1 trooper');
-        expect(text).not.toContain('1 troopers');
-        expect(text).toContain('0 troopers');
+        expect(text).toContain('Headcount 1');
+        expect(text).toContain('Headcount 0');
+        expect(text).not.toContain('0 troopers');
     });
 
     // Story 2.6: troopers the roster sync could not place into a section.
