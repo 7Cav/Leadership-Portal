@@ -203,6 +203,27 @@ describe('Settings/OrgStructure cards', () => {
         expect(routerPost).toHaveBeenCalledWith('/settings/org-structure/3/oversight', { trooper_id: 72, reason: 'Named by Regiment.' }, expect.any(Object));
     });
 
+    it('puts the picked overseer\'s name in the search box, and drops the pick when the text changes', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ troopers: [{ id: 72, displayName: 'MG LaCombe.M', departed: false }] }) })));
+        const wrapper = mountPage({ isAdmin: true });
+
+        await wrapper.find('[data-testid="unit-row-3"]').trigger('click');
+        const search = wrapper.find('[data-testid="oversight-search"]');
+        await search.setValue('lac');
+        await search.trigger('input');
+        await flushPromises();
+        await wrapper.find('[data-testid="oversight-result"]').trigger('click');
+        await wrapper.find('[data-testid="oversight-reason"]').setValue('Named by Regiment.');
+
+        expect(search.element.value).toBe('MG LaCombe.M');
+        expect(wrapper.find('[data-testid="oversight-result"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="oversight-set"]').attributes('disabled')).toBeUndefined();
+
+        await search.setValue('');
+        await search.trigger('input');
+        expect(wrapper.find('[data-testid="oversight-set"]').attributes('disabled')).toBeDefined();
+    });
+
     it('lets an Admin clear an overseer only with a reason', async () => {
         const wrapper = mountPage({ isAdmin: true });
 

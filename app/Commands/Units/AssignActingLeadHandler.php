@@ -4,6 +4,7 @@ namespace App\Commands\Units;
 
 use App\Authorization\RealActor;
 use App\Authorization\ScopeResolver;
+use App\Models\Unit;
 use App\Models\UnitActingLead;
 use App\Models\UnitType;
 use App\Models\User;
@@ -42,6 +43,21 @@ class AssignActingLeadHandler
         private readonly RealActor $real,
     ) {}
 
+    /** Whether `$unit` can take an acting lead at all: a line unit below the regiment. */
+    public static function takesActingLead(Unit $unit): bool
+    {
+        return $unit->isLine() && $unit->type !== UnitType::Regiment;
+    }
+
+    /**
+     * Whether the unit's lead now (`$lead`, null when vacant) leaves room for an acting lead: vacant, or already an
+     * acting lead. A serving command billet holder or portfolio officer leads it, so no acting lead is assigned.
+     */
+    public static function ledByNoBillet(?UnitLead $lead): bool
+    {
+        return $lead === null || $lead->source === UnitLead::ACTING;
+    }
+
     /**
      * @throws ActingLeadForbiddenException when the actor is not an Admin
      * @throws InvalidActingLeadException when the unit or trooper is refused
@@ -56,7 +72,7 @@ class AssignActingLeadHandler
         $unit = $this->units->find($command->unitId) ?? throw InvalidActingLeadException::noSuchUnit($command->unitId);
         $designation = $unit->callsign ?? $unit->name;
 
-        if (! $unit->isLine() || $unit->type === UnitType::Regiment) {
+        if (! self::takesActingLead($unit)) {
             throw InvalidActingLeadException::notLeadable($designation);
         }
 
@@ -81,7 +97,7 @@ class AssignActingLeadHandler
 
         $led = $this->leads->leadsOf([$unit->id])->get($unit->id);
 
-        if ($led !== null && $led->source !== UnitLead::ACTING) {
+        if (! self::ledByNoBillet($led)) {
             throw InvalidActingLeadException::ledByBillet($designation, $led->trooper->display_name);
         }
 
