@@ -12,7 +12,6 @@ use App\Repositories\PracticeCapturePlayerRepository;
 use App\Repositories\StaffReportRepository;
 use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\TrooperRepository;
-use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 
 /**
@@ -109,7 +108,8 @@ class StaffReportWeek
     {
         $ids = $this->placements->trooperIdsInUnitAtWeekEnd($hq->id, $weekStart);
         $sent = $this->reports->forTroopers($ids, $weekStart);
-        $end = WeekOf::next($weekStart);
+        // The Saturday the week ends, when its roster is read.
+        $end = $weekStart->addWeek();
 
         return $this->troopers->byIds($ids)
             ->filter(fn (Trooper $trooper) => $sent->has($trooper->id) || $trooper->status->isServing()
