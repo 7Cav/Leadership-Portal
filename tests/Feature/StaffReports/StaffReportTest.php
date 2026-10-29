@@ -14,6 +14,7 @@ use App\Commands\StaffReports\StaffReportForbiddenException;
 use App\Commands\StaffReports\StaffReportRefusedException;
 use App\Kpi\KpiService;
 use App\Kpi\PracticeGuests;
+use App\Milpac\StaffReportWeek;
 use App\Models\Attendance;
 use App\Models\AuditLogEntry;
 use App\Models\CrossSectionSighting;
@@ -21,6 +22,7 @@ use App\Models\PlacementSource;
 use App\Models\SectionPractice;
 use App\Models\StaffReport;
 use App\Models\Trooper;
+use App\Models\TrooperStatus;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReport;
@@ -29,7 +31,9 @@ use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\UnitRepository;
 use App\Rollcall\RollcallGuests;
+use Carbon\Carbon;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
 
 require_once __DIR__.'/../StaffPractices/fixture.php';
 
@@ -40,6 +44,8 @@ require_once __DIR__.'/../StaffPractices/fixture.php';
 beforeEach(function () {
     $this->tree = staffPracticeTree();
     $this->week = staffPracticeWeek();
+    // The Saturday after the fixture's week: it has ended and its report is due tonight.
+    Carbon::setTestNow(CarbonImmutable::parse('2026-10-10 12:00:00', 'UTC'));
     $units = app(UnitRepository::class);
     // A second platoon in the same company: outside the PSG's platoon, inside the CO's company.
     $this->platoon2 = $units->create(UnitType::Platoon, '2nd Platoon', '2/A/1-7', $this->tree['units']['company']->id);
@@ -113,6 +119,20 @@ it('records "No" as a sent report with no practice, and takes off the week\'s en
         ->and(CrossSectionSighting::query()->count())->toBe(0)
         // The practice the milpac entry made is gone with it, as removing that entry would have done.
         ->and(SectionPractice::query()->count())->toBe(0);
+});
+
+it('audits each entry the send takes off, naming the entry and who had entered it', function () {
+    $entry = app(RecordStaffPracticeHandler::class)->handle($this->tree['users']['pl'], new RecordStaffPractice($this->psg->id, $this->host->id, $this->week));
+
+    sendStaffReport($this->tree['users']['psg'], $this->psg, true, [$this->far->id]);
+
+    $removed = AuditLogEntry::query()->where('action', 'staff_practice.removed')->sole();
+    expect($removed->actor_id)->toBe($this->tree['users']['psg']->id)
+        ->and($removed->target_type)->toBe('CrossSectionSighting')
+        ->and((int) $removed->target_id)->toBe($entry->id)
+        ->and($removed->reason)->toContain('1/1/A/1-7')
+        ->and($removed->reason)->toContain($this->tree['users']['pl']->username)
+        ->and(AuditLogEntry::query()->where('action', 'staff_report.sent')->count())->toBe(1);
 });
 
 it('keeps an entry already there for a section it picked, and drops one it did not', function () {
@@ -191,11 +211,12 @@ it('refuses a trooper who files no staff report: a section trooper, a staff depa
     }],
 ]);
 
-it('refuses a week before the floor and a future week', function (string $week, string $reason) {
+it('refuses a week before the floor, a future week and the running week', function (string $week, string $reason) {
     expect(staffReportRefusal(fn () => sendStaffReport($this->tree['users']['psg'], $this->psg, false, [], CarbonImmutable::parse($week, 'UTC'))))->toBe($reason);
 })->with([
     'before the floor' => ['2026-05-02', 'before_floor'],
-    'next week' => ['2026-10-10', 'future'],
+    'the running week' => ['2026-10-10', 'not_ended'],
+    'next week' => ['2026-10-17', 'future'],
 ]);
 
 it('is final once sent: no second send, and the week\'s staff entries no longer change on the milpac', function () {
@@ -246,6 +267,47 @@ it('goes by who was on the HQ when a past week ended, not by who is there now', 
     // The rifleman owes this week's, not last week's.
     expect(staffReportRefusal(fn () => sendStaffReport($riflemanUser, $rifleman->refresh(), false, [], $lastWeek)))->toBe('not_owed')
         ->and(sendStaffReport($riflemanUser, $rifleman, false, [])->attended)->toBeFalse();
+});
+
+it('keeps on a past week\'s HQ staff those who served when it ended or sent their report, though gone since', function () {
+    sendStaffReport($this->tree['users']['psg'], $this->psg, true, [$this->host->id]);
+    $pl = trooperOf($this->tree['users']['pl']);
+    $staff = fn () => collect(app(StaffReportWeek::class)->hqStaff($this->tree['units']['platoon'], $this->week))
+        ->map(fn (array $row) => $row['trooper']->id)->sort()->values()->all();
+
+    // Both left after the week ended: the PSG sent theirs, the PL served to the end of it.
+    $this->psg->forceFill(['status' => TrooperStatus::Inactive, 'departed_at' => '2026-10-20 12:00:00'])->save();
+    $pl->forceFill(['status' => TrooperStatus::Inactive, 'departed_at' => '2026-10-12 12:00:00'])->save();
+    expect($staff())->toBe(collect([$this->psg->id, $pl->id])->sort()->values()->all());
+
+    // The PL left before the week ended and sent nothing; the PSG's sent report keeps them.
+    $pl->forceFill(['departed_at' => '2026-10-09 12:00:00'])->save();
+    $this->psg->forceFill(['departed_at' => '2026-10-04 12:00:00'])->save();
+    expect($staff())->toBe([$this->psg->id]);
+});
+
+it('reads the staff guests\' HQs in the same number of queries for one staff guest and several', function () {
+    $record = app(RecordStaffPracticeHandler::class);
+    $count = function (): int {
+        $practice = app(SectionPracticeRepository::class)->find($this->host->id, $this->week);
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        app(RollcallGuests::class)->forPractice($practice);
+        DB::disableQueryLog();
+
+        return count(DB::getQueryLog());
+    };
+
+    $record->handle($this->tree['users']['pl'], new RecordStaffPractice($this->psg->id, $this->host->id, $this->week));
+    $one = $count();
+
+    foreach (range(1, 3) as $n) {
+        $staff = Trooper::factory()->create(['primary_section_id' => $this->tree['units']['platoon']->id]);
+        $record->handle($this->tree['users']['pl'], new RecordStaffPractice($staff->id, $this->host->id, $this->week));
+    }
+
+    expect(app(RollcallGuests::class)->forPractice(app(SectionPracticeRepository::class)->find($this->host->id, $this->week)))->toHaveCount(4)
+        ->and($count())->toBe($one);
 });
 
 it('lists each pick on the host rollcall: a staff guest in their own unit, a guest elsewhere', function () {

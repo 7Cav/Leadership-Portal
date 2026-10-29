@@ -28,11 +28,12 @@ use Carbon\CarbonImmutable;
  * `staff`), the same store the milpac uses, so the host section's rollcall lists them and the milpac shows them. The
  * report sets the week's entries to exactly what was picked: an entry already there for a picked section stays, a
  * missing one is added, and an entry for a section not picked (one a leader entered on the milpac, say) is removed, so
- * the record says what the staff member said. A guest row from before they joined the HQ is left as it is and still
+ * the record says what the staff member said. Each removed entry gets its own `staff_practice.removed` audit row in
+ * the same transaction, naming the entry and who had entered it. A guest row from before they joined the HQ is left as it is and still
  * counts as a practice they attended. Nothing is written on the host's rollcall, numbers, reports or makeups.
  *
- * Refused before anything is written: an unknown trooper, anyone but the staff member (403), a week before the floor or
- * in the future, a trooper not on a platoon or company HQ when the week ended (by the placement history, so a past week
+ * Refused before anything is written: an unknown trooper, anyone but the staff member (403), a week before the floor,
+ * in the future or still running (a week is sent once it has ended), a trooper not on a platoon or company HQ when the week ended (by the placement history, so a past week
  * goes by who was on the HQ then) or no longer serving, "Yes" with nothing picked or "No" with picks, a pick that is not
  * a section, and a report already sent. Then one audited transaction (`staff_report.sent`, AD-16, target the report,
  * digest over it and the week's entries): the report row is inserted under its UNIQUE key, so two sends at once land on
@@ -77,6 +78,11 @@ class SendStaffReportHandler
             throw StaffReportRefusedException::future();
         }
 
+        // A week is reported once it is over, so the HQ it goes to is the one they ended it on.
+        if (! WeekOf::hasEnded($weekStart, CarbonImmutable::now())) {
+            throw StaffReportRefusedException::weekNotEnded($weekStart);
+        }
+
         $hq = $this->access->owes($trooper, $weekStart) ?? throw StaffReportRefusedException::notOwed($trooper->display_name, $weekStart);
         $sections = $this->pickedSections($command);
 
@@ -111,7 +117,7 @@ class SendStaffReportHandler
                 // when nothing else is on it (as removing a staff practice does).
                 foreach ($this->sightings->staffEntriesInWeek($trooper->id, $weekStart) as $entry) {
                     if (! isset($picked[$entry->section_practice_id])) {
-                        $this->sightings->removeStaff($entry->section_practice_id, $trooper->id);
+                        $this->recordRemoved($actor, $trooper->id, $entry);
                         $this->practices->deleteIfUnused($entry->practice);
                     }
                 }
@@ -130,6 +136,30 @@ class SendStaffReportHandler
         );
 
         return $report;
+    }
+
+    /**
+     * Take off one staff practice entry the report did not pick, audited on its own (`staff_practice.removed`, target
+     * the entry, digest over it as it stood) inside the send's transaction: the send's own row digests only what is left,
+     * so this one keeps the record of the entry, its practice and who had entered it.
+     */
+    private function recordRemoved(User $actor, int $trooperId, CrossSectionSighting $entry): void
+    {
+        $section = $entry->practice->section;
+        $label = $section === null ? 'a section' : ($section->callsign ?? $section->name);
+        $by = $entry->recordedBy?->username;
+
+        $this->audit->record(
+            actorId: $actor->id,
+            action: 'staff_practice.removed',
+            reason: "Not picked in the staff report: the practice of {$label}".($by === null ? '' : ", entered by {$by}").'.',
+            reasonRequired: false,
+            mutation: function () use ($trooperId, $entry) {
+                $this->sightings->removeStaff($entry->section_practice_id, $trooperId);
+
+                return $entry->withoutRelations();
+            },
+        );
     }
 
     /**

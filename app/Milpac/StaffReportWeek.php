@@ -99,7 +99,8 @@ class StaffReportWeek
 
     /**
      * The staff placed on `$hq` when the week ended, each with their sent report (or null), by username: what the
-     * HQ's weekly report shows about its staff.
+     * HQ's weekly report shows about its staff. Someone who has left since is kept when they were still serving as the
+     * week ended (gone with a `departed_at` from then on), and always when they sent a report for it.
      *
      * @return list<array{trooper: Trooper, report: ?StaffReport}>
      */
@@ -107,9 +108,12 @@ class StaffReportWeek
     {
         $ids = $this->placements->trooperIdsInUnitAtWeekEnd($hq->id, $weekStart);
         $sent = $this->reports->forTroopers($ids, $weekStart);
+        // The Saturday the week ends, when its roster is read.
+        $end = $weekStart->addWeek();
 
         return $this->troopers->byIds($ids)
-            ->filter(fn (Trooper $trooper) => $trooper->status->isServing())
+            ->filter(fn (Trooper $trooper) => $sent->has($trooper->id) || $trooper->status->isServing()
+                || ($trooper->departed_at !== null && $trooper->departed_at->greaterThanOrEqualTo($end)))
             ->sortBy(fn (Trooper $trooper) => [mb_strtolower((string) $trooper->username), $trooper->id])
             ->map(fn (Trooper $trooper) => ['trooper' => $trooper, 'report' => $sent->get($trooper->id)])
             ->values()

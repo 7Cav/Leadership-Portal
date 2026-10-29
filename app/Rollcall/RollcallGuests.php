@@ -53,27 +53,25 @@ class RollcallGuests
 
         $units = $this->units->tree()->keyBy('id');
         $host = $units->get($practice->section_id);
+        // Every staff guest's HQ at the week's end, read in one go rather than one query per guest.
+        $hqs = $staff->isEmpty() ? [] : $this->placements->unitsOfTroopersAtWeekEnd($staff->map(fn (CrossSectionSighting $row) => $row->trooper), $practice->week_start);
 
         return $rows->map(fn (CrossSectionSighting $row) => $this->shape($row, $row->trooper, $units, in_array($row->trooper_id, $makeupMissing, true)))
             ->concat($staff->map(fn (CrossSectionSighting $row) => [
                 ...$this->shape($row, $row->trooper, $units),
                 'recordedBy' => self::enteredBy($row),
-                'staffGuest' => $host instanceof Unit && $this->underOwnHq($row->trooper, $practice, $host, $units),
+                'staffGuest' => $host instanceof Unit && self::underOwnHq($units->get($hqs[$row->trooper_id] ?? null), $host),
             ]))
             ->values()
             ->all();
     }
 
     /**
-     * Whether the host section is under the HQ the staff member was placed on when the practice's week ended: their own
-     * platoon or company, which lists them as a staff guest.
-     *
-     * @param  Collection<int, Unit>  $units
+     * Whether the host section is under `$hq`, the unit the staff member was placed on when the practice's week ended:
+     * their own platoon or company, which lists them as a staff guest.
      */
-    private function underOwnHq(Trooper $trooper, SectionPractice $practice, Unit $host, Collection $units): bool
+    private static function underOwnHq(?Unit $hq, Unit $host): bool
     {
-        $hq = $units->get($this->placements->unitOfTrooperAtWeekEnd($trooper, $practice->week_start));
-
         return $hq instanceof Unit && $hq->id !== $host->id && str_starts_with($host->path, $hq->path);
     }
 

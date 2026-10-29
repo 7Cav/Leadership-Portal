@@ -26,8 +26,9 @@ report deadline, 23:59 UTC on the Saturday after it ends, has passed).
   could not read, in the reporting week or the running one, for a trooper on that week's roll call in your scope: it
   opens the trooper's card on that roll call and links to the post on the forum, where it is fixed.
 - Subordinate units: the units directly under the top of your scope, with their report status and KPIs.
-- Staff report: for platoon and company HQ staff, a line saying their own staff report for the week is not sent yet,
-  with "Open staff report". It goes once they send it (see "Staff report" below).
+- Staff report: for platoon and company HQ staff, a line saying their own staff report for the week that just ended
+  is not sent yet, with "Open staff report", from the Saturday the week ends until its deadline. It goes once they send
+  it (see "Staff report" below).
 
 Home only counts line units (regiment, battalions, companies, platoons, sections). Staff groups have no report chain.
 A line unit with no troopers is left out (see "Units with no troopers" below).
@@ -364,12 +365,14 @@ Battalion and regiment HQ, staff departments, ELOA, Reservists and New Recruits 
 platoon's or company's report.
 
 - Where: "Staff report" in the sidebar for platoon and company HQ staff, and the reminder on Home. Both open
-  `/staff-report/<trooper>/<week>` for the week whose report cycle is running; the arrows move between weeks.
+  `/staff-report/<trooper>/<week>` for the last week to have ended, the one whose report is due; the arrows move
+  between weeks. The running week opens read-only, saying from when it can be sent.
 - Filling it in: "Did you attend a section practice this week?" Yes or No. Yes offers every section with troopers in
   it, the staff member's own platoon's or company's first, with a search; pick one or more. The week's staff practice
   entries are ticked already, each saying who entered it. A practice the game server saw them at says "Seen on the game
   server" and is never ticked for them: the capture reads the whole Cav week, so it only says they were on the server.
-- Sending: only the staff member, signed in as themselves, sends it. Nobody sends it for them, Admins included, and
+- Sending: only once the Cav week has ended (from Saturday 00:00 UTC), so the HQ it counts for is the one they ended
+  the week on. Only the staff member, signed in as themselves, sends it. Nobody sends it for them, Admins included, and
   never through act as or view as. It is due when the unit reports are, 23:59 UTC on the Saturday after the week. A
   sent report is final, as a unit's report is: there is no edit and no second send. There is no draft: the picks stay
   on the page until it is sent.
@@ -377,12 +380,14 @@ platoon's or company's report.
   (an entry for a section not picked, one a leader entered on the milpac say, is taken off, and the page warns before
   sending). "No" is a sent report with no practice, and takes off the week's entries. A guest entry from before they
   joined the HQ stays as it is. Each pick lists them on the host's roll call as a staff guest or a guest (see
-  "Roll call"). Sending is audited as `staff_report.sent`.
+  "Roll call"). Sending is audited as `staff_report.sent`, and each entry it takes off as `staff_practice.removed`,
+  naming who had entered it.
 - The HQ's own weekly report does not lock it: a PSG still sends theirs after their platoon's report went. Once sent,
   that week's staff practice entries are locked.
 - Past weeks: a week that has ended goes by who was on the HQ when it ended, from the placement history. A staff member
   who has since moved into a section still sends the past week's; someone who joined the HQ after it ended has none
-  for it. Weeks before the week floor open read-only.
+  for it. The HQ staff panel on a past week's report keeps someone who has left the Cav since when they were still
+  serving as the week ended, or sent their report for it. Weeks before the week floor open read-only.
 - Who reads it: the staff member, whoever reads the unit above their HQ (its command and the chain above, a staff grant
   there, an overseer or the Regimental HQ read), and Admins. A peer on the same HQ (a PL and their PSG) does not. See
   [permissions.md](permissions.md#staff-report).
