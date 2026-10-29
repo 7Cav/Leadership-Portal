@@ -3,6 +3,7 @@
 use App\Integration\BattleMetrics\BattleMetricsApi;
 use App\Integration\BattleMetrics\BattleMetricsFailureReason;
 use App\Integration\BattleMetrics\BattleMetricsUnavailable;
+use App\Integration\Crcon\Data\CrconPlayer;
 use App\Integration\Crcon\Data\CrconPresence;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
@@ -78,9 +79,11 @@ it('prefers a game identifier and falls back to the BattleMetrics player id', fu
     )]);
 
     [$start, $end] = bmWindow();
-    $ids = array_map(fn ($p) => $p->platformId, bm()->fetchPresence($start, $end)->players);
+    $players = bm()->fetchPresence($start, $end)->players;
 
-    expect($ids)->toBe(['7656119000000001', '2']);
+    expect(array_map(fn ($p) => $p->platformId, $players))->toBe(['7656119000000001', '2'])
+        // The player number is marked as BattleMetrics' own, so it is never taken for a game ID.
+        ->and(array_map(fn ($p) => $p->idSource, $players))->toBe([null, CrconPlayer::BATTLEMETRICS_PLAYER]);
 });
 
 it('lists a player who rejoined more than once exactly once', function () {

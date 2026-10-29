@@ -26,7 +26,7 @@ use App\Support\Audit\AuditEnvelope;
  * after the entry is deleted, a trooper still recorded at any practice of that Cav week (a capture sighting, or another
  * leader's entry at another section) keeps the makeup, since that sighting would have written it too. Otherwise
  * {@see MarkAttendanceHandler::withdrawMakeup()} clears it if it is still the automatic makeup and the guest's own week
- * may still change; a leader's mark, `present` from their own capture, and a locked or confirmed own week stay as they
+ * may still change, on the practice it was written to even when the guest has moved section since; a leader's mark, `present` from their own capture, and a locked or confirmed own week stay as they
  * are. Since a sighting is only ever deleted here (and with demo history, #115), an automatic makeup with no sighting
  * left that week can only be the one this entry produced.
  *

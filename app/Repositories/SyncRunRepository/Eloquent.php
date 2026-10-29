@@ -56,12 +56,13 @@ class Eloquent implements SyncRunRepository
             ->value('cursor');
     }
 
-    public function fail(SyncRun $run, string $error): void
+    public function fail(SyncRun $run, string $error, bool $internal = false): void
     {
         $run->forceFill([
             'finished_at' => now(),
             'status' => SyncRunStatus::Failure,
             'error' => mb_substr($error, 0, self::ERROR_LENGTH),
+            'internal_error' => $internal,
         ])->save();
     }
 

@@ -13,6 +13,7 @@ use App\Models\Unit;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\CountingMark;
 use App\Repositories\CountingWindow;
+use App\Repositories\PlacementWeeks;
 use App\Repositories\SectionWeekProgress;
 use App\Repositories\TrooperPlacementRepository;
 use App\Support\Time\WeekOf;
@@ -129,6 +130,20 @@ class Eloquent implements AttendanceRepository
         });
     }
 
+    public function practicesWithAutoMakeup(int $trooperId, CarbonInterface $weekStart): Collection
+    {
+        return SectionPractice::query()
+            ->where('week_start', WeekOf::start(CarbonImmutable::instance($weekStart)))
+            ->whereExists(fn ($query) => $query->from('attendance')
+                ->whereColumn('attendance.section_practice_id', 'section_practices.id')
+                ->where('attendance.trooper_id', $trooperId)
+                ->where('attendance.status', AttendanceStatus::Makeup->value)
+                ->where('attendance.source', AttendanceSource::Auto->value))
+            ->orderBy('id')
+            ->get()
+            ->toBase();
+    }
+
     public function signRollcall(
         SectionPractice $practice,
         int $trooperId,
@@ -158,6 +173,21 @@ class Eloquent implements AttendanceRepository
             : Trooper::query()->assignedWithin($unit);
 
         return $this->countingMarksFor($population, $firstWeek, $lastWeek);
+    }
+
+    public function countingWindowAsPlaced(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): CountingWindow
+    {
+        $from = WeekOf::requireStart($firstWeek);
+        $to = WeekOf::requireStart($lastWeek);
+        $placements = $this->placements->sectionsByWeekWithin($unit, $from, $to);
+        $week = $to->toDateString();
+        $sections = [];
+
+        foreach (array_keys($placements->current) as $trooperId) {
+            $sections[$trooperId] = $placements->sectionIn($trooperId, $week);
+        }
+
+        return $this->countingMarksFrom($placements, $from, $to, $sections);
     }
 
     public function countingMarksOf(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection
@@ -196,10 +226,21 @@ class Eloquent implements AttendanceRepository
         $from = WeekOf::requireStart($firstWeek);
         $to = WeekOf::requireStart($lastWeek);
         $placements = $this->placements->sectionsByWeek($population, $from, $to);
+
+        return $this->countingMarksFrom($placements, $from, $to, $placements->current);
+    }
+
+    /**
+     * The marks half of {@see countingMarksFor()}, for placements already read.
+     *
+     * @param  array<int, int>  $countIn  trooper id => the section they count in, for the window's `sections`
+     */
+    private function countingMarksFrom(PlacementWeeks $placements, CarbonImmutable $from, CarbonImmutable $to, array $countIn): CountingWindow
+    {
         $sectionIds = $placements->sectionIds();
 
         if ($sectionIds === []) {
-            return new CountingWindow(collect(), $placements->current, $placements);
+            return new CountingWindow(collect(), $countIn, $placements);
         }
 
         // A practice is held once any row on it carries a leader's SP mark. Signatures alone do
@@ -281,18 +322,19 @@ class Eloquent implements AttendanceRepository
             }
         }
 
-        return new CountingWindow(collect($marks), $placements->current, $placements);
+        return new CountingWindow(collect($marks), $countIn, $placements);
     }
 
-    /**
-     * @param  array<string, mixed>  $values  only the columns this write owns
-     */
-    public function weekProgress(array $sectionIds, CarbonInterface $weekStart, array $excusedTrooperIds = []): Collection
+    public function weekProgress(array $sectionIds, CarbonInterface $weekStart, array $excusedTrooperIds = [], ?array $roster = null): Collection
     {
         $weekStart = WeekOf::requireStart($weekStart);
 
         if ($sectionIds === []) {
             return collect();
+        }
+
+        if ($roster !== null) {
+            return $this->progressOf($sectionIds, $weekStart, $excusedTrooperIds, $roster);
         }
 
         $unsigned = RollcallSignature::Unsigned->value;
@@ -337,6 +379,101 @@ class Eloquent implements AttendanceRepository
             )]);
     }
 
+    /**
+     * {@see weekProgress()} over a given roster (a week that has ended): the same counts, read from each section's
+     * practice and its rows for the roster's troopers in one query, and added up here.
+     *
+     * @param  list<int>  $sectionIds
+     * @param  list<int>  $excusedTrooperIds
+     * @param  array<int, int>  $roster  trooper id => the section whose rollcall they are on
+     * @return Collection<int, SectionWeekProgress>
+     */
+    private function progressOf(array $sectionIds, CarbonImmutable $weekStart, array $excusedTrooperIds, array $roster): Collection
+    {
+        $wanted = array_flip(array_map('intval', $sectionIds));
+        $bySection = [];
+
+        foreach ($roster as $trooperId => $sectionId) {
+            if (isset($wanted[$sectionId])) {
+                $bySection[$sectionId][] = (int) $trooperId;
+            }
+        }
+
+        if ($bySection === []) {
+            return collect();
+        }
+
+        $trooperIds = array_merge(...array_values($bySection));
+        $rows = SectionPractice::query()
+            ->toBase()
+            ->whereIn('section_practices.section_id', array_keys($bySection))
+            ->where('section_practices.week_start', '=', $weekStart)
+            ->leftJoin('attendance', function ($join) use ($trooperIds) {
+                $join->on('attendance.section_practice_id', '=', 'section_practices.id')
+                    ->whereIn('attendance.trooper_id', $trooperIds);
+            })
+            ->get(['section_practices.section_id', 'section_practices.rollcall_posted_at', 'attendance.trooper_id', 'attendance.rollcall', 'attendance.status', 'attendance.source']);
+
+        $posted = [];
+        $marks = [];
+
+        foreach ($rows as $row) {
+            $sectionId = (int) $row->section_id;
+
+            if ($row->rollcall_posted_at !== null) {
+                $posted[$sectionId] = max($posted[$sectionId] ?? '', (string) $row->rollcall_posted_at);
+            }
+
+            // Only the row on the practice of the section whose rollcall lists them, as the query above joins it.
+            if ($row->trooper_id !== null && ($roster[(int) $row->trooper_id] ?? null) === $sectionId) {
+                $marks[(int) $row->trooper_id] = $row;
+            }
+        }
+
+        $excused = array_flip(array_map('intval', $excusedTrooperIds));
+        $unsigned = RollcallSignature::Unsigned->value;
+        $loa = AttendanceStatus::Loa->value;
+        $makeup = AttendanceStatus::Makeup->value;
+        $auto = AttendanceSource::Auto->value;
+        $progress = [];
+
+        ksort($bySection);
+
+        foreach ($bySection as $sectionId => $ids) {
+            $counts = ['signed' => 0, 'marked' => 0, 'held' => false, 'onLoa' => 0, 'unsigned' => 0];
+
+            foreach ($ids as $trooperId) {
+                $row = $marks[$trooperId] ?? null;
+                $isExcused = isset($excused[$trooperId]);
+                $rollcall = $row?->rollcall;
+                $status = $row?->status;
+
+                $counts['signed'] += ($rollcall !== null && $rollcall !== $unsigned) || $isExcused ? 1 : 0;
+                $counts['marked'] += $status !== null || $isExcused ? 1 : 0;
+                // Held by a leader's mark: never by LOA, and never by an automatic makeup.
+                $counts['held'] = $counts['held'] || ($status !== null && $status !== $loa && ! ($status === $makeup && $row->source === $auto));
+                $counts['onLoa'] += $status === $loa || $isExcused ? 1 : 0;
+                $counts['unsigned'] += ! $isExcused && $status !== $loa && ($rollcall === null || $rollcall === $unsigned) ? 1 : 0;
+            }
+
+            $progress[$sectionId] = new SectionWeekProgress(
+                sectionId: $sectionId,
+                strength: count($ids),
+                signed: $counts['signed'],
+                marked: $counts['marked'],
+                held: $counts['held'],
+                onLoa: $counts['onLoa'],
+                unsigned: $counts['unsigned'],
+                postedAt: isset($posted[$sectionId]) ? CarbonImmutable::parse($posted[$sectionId], 'UTC') : null,
+            );
+        }
+
+        return collect($progress);
+    }
+
+    /**
+     * @param  array<string, mixed>  $values  only the columns this write owns
+     */
     private function upsert(SectionPractice $practice, int $trooperId, array $values): Attendance
     {
         $key = ['trooper_id' => $trooperId, 'section_practice_id' => $practice->id];

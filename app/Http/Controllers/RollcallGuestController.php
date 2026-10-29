@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
+use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Commands\Attendance\RollcallWeekLockedException;
 use App\Commands\Guests\GuestAttendanceForbiddenException;
 use App\Commands\Guests\GuestAttendanceRefusedException;
@@ -44,6 +45,7 @@ class RollcallGuestController extends Controller
         private readonly UnitRepository $units,
         private readonly TrooperRepository $troopers,
         private readonly RollcallGuests $guests,
+        private readonly MarkAttendanceHandler $makeups,
     ) {}
 
     /**
@@ -89,18 +91,22 @@ class RollcallGuestController extends Controller
     /**
      * "X from another section attended our practice": records the guest and, through the capture's own makeup path, an
      * automatic makeup on their own section's rollcall. Answers the guest row and what became of that makeup
-     * (`marked`, `kept` or `locked`), so the screen can say it.
+     * (`marked`, `kept` or `locked`), so the screen can say it. Adding a guest already listed by hand retries their
+     * makeup, so a request that failed after the entry was saved can simply be sent again.
      */
     public function store(Request $request, int $unit, RecordGuestAttendanceHandler $handler): JsonResponse
     {
         return $this->attempt($request, 'adding this guest', function (CarbonImmutable $week, int $trooperId) use ($request, $unit, $handler) {
             $recorded = $handler->handle($request->user(), new RecordGuestAttendance($unit, $week, $trooperId));
+            // Read again, so a retry that could not write the makeup still offers the next one.
+            $missing = $this->makeups->makeupsMissing($recorded->practice, [$trooperId]) !== [];
 
             return [
-                'guest' => $this->guests->one($recorded->sighting, $this->troopers->find($trooperId)),
+                'guest' => $this->guests->one($recorded->sighting, $this->troopers->find($trooperId), $missing),
                 'makeup' => $recorded->makeup,
             ];
-        });
+            // Adding again is safe: a guest already saved is not listed twice, and their makeup is tried again.
+        }, 'Add them again to finish. They will not be listed twice.');
     }
 
     /**
@@ -120,7 +126,7 @@ class RollcallGuestController extends Controller
      *
      * @param  Closure(CarbonImmutable, int): array<string, mixed>  $write
      */
-    private function attempt(Request $request, string $doing, Closure $write): JsonResponse
+    private function attempt(Request $request, string $doing, Closure $write, ?string $onError = null): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'week' => ['required', 'date_format:Y-m-d'],
@@ -149,7 +155,7 @@ class RollcallGuestController extends Controller
         } catch (Throwable $e) {
             report($e);
 
-            return response()->json(['message' => "The portal hit an error {$doing}. Reload to see whether it was saved."], 500);
+            return response()->json(['message' => "The portal hit an error {$doing}. ".($onError ?? 'Reload to see whether it was saved.')], 500);
         }
     }
 }

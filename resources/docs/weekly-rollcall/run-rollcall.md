@@ -22,6 +22,8 @@ checklist:
 3. To fix a past week, pick it in the week selector. Unfinished weeks are flagged.
 4. On the Saturday after a week ends, until your report is due at 23:59 UTC, Rollcall opens on that closing week if your section has not sent its report yet. Choose **This week** for the new week.
 
+> [!good-to-know] A past week lists the troopers who were in your section when that week ended, so you can still finish it after a move or a departure. Their rows say **Moved out** or **Departed**, and **Joined** marks someone who moved in partway through the week. The counts in **Switch section** and on Home follow the same troopers. The current week lists who is in your section now.
+
 ## Record the signatures
 
 1. In step 1, **Signatures**, set each trooper to **Will attend**, **Cannot attend** or **Unsigned**, as they signed this week's forum thread.

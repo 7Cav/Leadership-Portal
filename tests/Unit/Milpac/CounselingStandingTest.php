@@ -156,6 +156,41 @@ it('forecasts from the records dated before the new one only, so a back-dated fi
     ]);
 });
 
+// Audit 2, I1: each rule's window is its own break in the forecast, so a window that changes moves only its own break
+// and the filing form never forecasts from another rule's length that happened to be equal.
+it('breaks the forecast on the day after the window of each rule', function (string $window, array $earlier, string $type, string $kind, string $key) {
+    $days = constant(CounselingStanding::class.'::'.$window);
+    $ranges = CounselingStanding::forecast([standingEntry(1, 10, ...$earlier)], CounselingType::from($type), CounselingKind::from($kind), CarbonImmutable::parse(standingDate(300), 'UTC'));
+    $keysOn = function (int $day) use ($ranges) {
+        $covering = array_values(array_filter($ranges, fn (array $range) => $range['from'] <= standingDate($day)));
+
+        return array_column(end($covering)['flags'], 'key');
+    };
+    $ends = array_values(array_filter($ranges, fn (array $range) => $range['from'] > standingDate(10) && ! in_array($key, array_column($range['flags'], 'key'), true)));
+
+    expect($keysOn(10 + $days))->toContain($key)
+        ->and($keysOn(11 + $days))->not->toContain($key)
+        ->and($ends[0]['from'])->toBe(standingDate(11 + $days));
+})->with([
+    'a repeat DCS' => ['DCS_REPEAT_DAYS', ['dcs'], 'dcs', 'conduct', 'dcs-repeat'],
+    'a DCS after an LOR' => ['LOR_REPEAT_DAYS', ['lor'], 'dcs', 'conduct', 'dcs-after-lor'],
+    'a repeat LOR' => ['LOR_REPEAT_DAYS', ['lor'], 'lor', 'conduct', 'lor-repeat'],
+    'a second LOR on any matter' => ['LOR_WINDOW_DAYS', ['lor', 'missed_practice'], 'lor', 'conduct', 'lor-removal'],
+    'a second miss' => ['MISSED_REPEAT_DAYS', ['dcs', 'missed_practice'], 'dcs', 'missed_practice', 'missed-lor'],
+    'a miss after an LOR for a miss' => ['MISSED_AFTER_LOR_DAYS', ['lor', 'missed_practice'], 'dcs', 'missed_practice', 'missed-second-lor'],
+    'a second LOR for a miss' => ['MISSED_AFTER_LOR_DAYS', ['lor', 'missed_practice'], 'lor', 'missed_practice', 'missed-article-15'],
+]);
+
+it('lists every window a rule measures between records among the breaks of the forecast', function () {
+    $windows = array_filter(
+        (new ReflectionClass(CounselingStanding::class))->getConstants(),
+        fn (string $name) => str_ends_with($name, '_DAYS') && $name !== 'NO_FAVORABLE_ACTION_DAYS',
+        ARRAY_FILTER_USE_KEY,
+    );
+
+    expect(CounselingStanding::RULE_WINDOWS)->toBe(array_values($windows));
+});
+
 it('forecasts nothing but one empty range for a trooper with no records', function () {
     expect(CounselingStanding::forecast([], CounselingType::Lor, CounselingKind::Conduct, CarbonImmutable::parse('2026-10-28', 'UTC')))
         ->toBe([['from' => '1970-01-01', 'flags' => []]]);

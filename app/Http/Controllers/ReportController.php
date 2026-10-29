@@ -120,7 +120,8 @@ class ReportController extends Controller
                 ->values();
         }
 
-        $roster = $isLeaf ? $this->troopers->rosterOf($unit) : collect();
+        // The week's rollcall: who is placed in the section now, or for a week that has ended, who was in it when it ended.
+        $roster = $isLeaf ? $this->troopers->onRollcall($unit, $weekStart)->troopers : collect();
         $parent = $unit->parent_id === null ? null : $this->units->find($unit->parent_id);
         $lastSync = $this->rosterSync->current();
         $senders = $this->senderLabels(collect([$report])->merge($history)->filter(fn (?WeeklyReport $r) => $r?->status === WeeklyReportStatus::Sent));

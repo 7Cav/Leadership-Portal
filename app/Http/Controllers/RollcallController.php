@@ -43,6 +43,7 @@ use App\Loa\UpcomingLeave;
 use App\Milpac\RosterProvenance;
 use App\Models\Attendance;
 use App\Models\AttendanceStatus;
+use App\Models\CrossSectionSighting;
 use App\Models\Game;
 use App\Models\GameIdentityText;
 use App\Models\PracticeCapturePlayer;
@@ -55,6 +56,7 @@ use App\Models\User;
 use App\Models\WeeklyReportStatus;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\CountingMark;
+use App\Repositories\CrossSectionSightingRepository;
 use App\Repositories\GameIdentityLinkException;
 use App\Repositories\GameRepository;
 use App\Repositories\PracticeCapturePlayerRepository;
@@ -140,6 +142,8 @@ class RollcallController extends Controller
         private readonly GameRepository $games,
         private readonly Headcount $headcount,
         private readonly UnitActingLeadRepository $actingLeads,
+        private readonly CrossSectionSightingRepository $sightings,
+        private readonly MarkAttendanceHandler $makeups,
         private readonly UpcomingLeave $upcomingLeave,
     ) {}
 
@@ -721,13 +725,15 @@ class RollcallController extends Controller
         // Where each section's rollcall stands for the week, so the picker can say which still
         // need work: the counts the home step matrix reads, one query for every section listed. A
         // trooper whose leave covers the week has nothing to sign or mark (3.4): the one LOA
-        // definition says who (AD-21), as on the rollcall screen.
+        // definition says who (AD-21), as on the rollcall screen. Counted over each rollcall's own
+        // troopers: for a week that has ended, the ones it ended with (the 2026-10-29 audit).
         $ids = $sections->modelKeys();
+        $rollcalls = $this->troopers->onRollcalls($ids, $weekStart);
         $covered = array_keys(array_filter(
-            $this->loaCoverage->forTroopers($this->troopers->placedInAny($ids)->modelKeys(), $weekStart),
+            $this->loaCoverage->forTroopers(array_keys($rollcalls->sections), $weekStart),
             fn (LoaCover $cover) => $cover->isCovered(),
         ));
-        $progress = $this->attendance->weekProgress($ids, $weekStart, $covered);
+        $progress = $this->attendance->weekProgress($ids, $weekStart, $covered, $rollcalls->asPlaced ? $rollcalls->sections : null);
 
         return array_map(function (array $option) use ($progress) {
             $week = $progress->get($option['id']);
@@ -777,7 +783,7 @@ class RollcallController extends Controller
         $week = $this->roster->forWeek($section, $weekStart);
         $practice = $week->practice;
         $trooperIds = array_column($week->troopers, 'id');
-        $history = $this->history($section, collect($trooperIds), $weekStart);
+        $history = $this->history(collect($trooperIds), $weekStart);
         $lastSync = $this->rosterSync->current();
         // The one LOA definition (4.4, AD-21), the same the Command refuses a practice mark by: a covered trooper's
         // status is derived as `loa`, so the screen locks the row and never sends one for them (3.4).
@@ -809,7 +815,8 @@ class RollcallController extends Controller
             ...$this->captureProps($practice),
             // Troopers from other sections recorded at this practice (JSAM evidence, 2026-10-23): what the capture saw
             // and who the leader added by hand, for the practice step's "Guests" area.
-            'guests' => $this->guests->forPractice($practice),
+            // A hand-added guest whose makeup is missing (its step failed after the entry was saved) is offered a retry.
+            'guests' => $this->guests->forPractice($practice, $this->guestMakeupsMissing($practice)),
             'telemetry' => $this->telemetryProps($section->id, $practice),
             'practice' => [
                 'lastMarkedAt' => $week->marks->max(fn (Attendance $row) => $row->updated_at)?->toIso8601String(),
@@ -863,20 +870,21 @@ class RollcallController extends Controller
 
     /**
      * Each trooper's Section Practice marks over the {@see HISTORY_WEEKS} completed Cav weeks before `$weekStart`,
-     * oldest first, for the card's attendance strip: the same counting marks the roster matrix reads (one query for
-     * the section) and LOA from the one coverage definition, as the KPI service reads it (one query). A week with no
+     * oldest first, for the card's attendance strip: the same counting marks the roster matrix reads (for the
+     * rollcall's troopers) and LOA from the one coverage definition, as the KPI service reads it (one query). A week with no
      * practice row has a null `status` and is not `held`; `loa` is true when leave covers the week or the week was
      * marked `loa`. A leave that needs review is not shown as LOA, since nothing says the trooper was away (AD-4).
      *
      * @param  Collection<int, int>  $trooperIds
      * @return array<int, list<array{week: string, status: ?string, held: bool, loa: bool}>>
      */
-    private function history(Unit $section, Collection $trooperIds, CarbonImmutable $weekStart): array
+    private function history(Collection $trooperIds, CarbonImmutable $weekStart): array
     {
         $first = $weekStart->subWeeks(self::HISTORY_WEEKS);
         $weeks = array_map(fn (int $offset) => $first->addWeeks($offset)->toDateString(), range(0, self::HISTORY_WEEKS - 1));
 
-        $marks = $this->attendance->countingMarks($section, $first, $weekStart->subWeek())
+        // The rollcall's own troopers wherever they were placed: on a week that has ended, some may have moved or left since.
+        $marks = $this->attendance->countingMarksOf($trooperIds->all(), $first, $weekStart->subWeek(), includeDeparted: true)
             ->groupBy(fn (CountingMark $mark) => $mark->trooperId)
             ->map(fn (Collection $marks) => $marks->keyBy(fn (CountingMark $mark) => $mark->weekStart->toDateString()));
         $covers = $this->loaCoverage->forTroopersOverWeeks($trooperIds, $first, self::HISTORY_WEEKS);
@@ -917,14 +925,15 @@ class RollcallController extends Controller
      * practice has been captured. `capture` drives the capture banner (7.8); the drawer renders only
      * when there are players. A practice with no capture gets `telemetry` instead (7.9). `dismissed`
      * are the players this practice's capture saw that a leader dismissed, for the drawer's
-     * "Dismissed" list and its Undo (#176), in the same shape.
+     * "Dismissed" list and its Undo (#176), in the same shape. `departed` are the players linked to a trooper who has
+     * left, with that trooper's name: listed so they are not lost, with nothing to link or mark.
      *
-     * @return array{capture: ?array{source: string, capturedAt: string}, unmatched: list<array<string, string>>, dismissed: list<array<string, string>>}
+     * @return array{capture: ?array{source: string, capturedAt: string}, unmatched: list<array<string, string>>, dismissed: list<array<string, string>>, departed: list<array<string, ?string>>}
      */
     private function captureProps(?SectionPractice $practice): array
     {
         if ($practice?->captured_at === null) {
-            return ['capture' => null, 'unmatched' => [], 'dismissed' => []];
+            return ['capture' => null, 'unmatched' => [], 'dismissed' => [], 'departed' => []];
         }
 
         $shape = fn (PracticeCapturePlayer $player) => [
@@ -935,12 +944,19 @@ class RollcallController extends Controller
             // around it. The ID is sent as reported: the drawer posts it back to link or dismiss that player.
             'playerName' => GameIdentityText::reveal($player->player_name),
             'platformId' => $player->platform_id,
+            // A retired game takes no new links (#388), so the drawer offers no Link for its players.
+            'retired' => $player->game->isRetired(),
+            // Set when the ID is a service's own number, not a game ID (`battlemetrics`): read through the fallback, never linked.
+            'idSource' => $player->id_source,
         ];
 
         return [
             'capture' => ['source' => $practice->capture_source, 'capturedAt' => $practice->captured_at->toIso8601String()],
             'unmatched' => $this->capturePlayers->unmatchedFor($practice->id)->map($shape)->values()->all(),
             'dismissed' => $this->capturePlayers->dismissedFor($practice->id)->map($shape)->values()->all(),
+            'departed' => $this->capturePlayers->departedFor($practice->id)
+                ->map(fn (PracticeCapturePlayer $player) => [...$shape($player), 'trooperName' => $player->trooper?->display_name])
+                ->values()->all(),
         ];
     }
 
@@ -951,7 +967,9 @@ class RollcallController extends Controller
      * attempted. The failure is never read as an empty practice: the marks stay the manual ones.
      * `feeds` names the sources that were tried, so the banner says which feed is down (#176).
      *
-     * @return array{state: string, platformLabel: ?string, feeds: list<string>, lastAttemptAt: ?string, canRetry: bool}|null
+     * `detail` is {@see CaptureTelemetry::$detail}.
+     *
+     * @return array{state: string, platformLabel: ?string, feeds: list<string>, lastAttemptAt: ?string, canRetry: bool, detail: ?string}|null
      */
     private function telemetryProps(int $sectionId, ?SectionPractice $practice): ?array
     {
@@ -963,6 +981,7 @@ class RollcallController extends Controller
             'feeds' => $state->feeds,
             'lastAttemptAt' => $state->lastAttemptAt?->format(DATE_ATOM),
             'canRetry' => $state->canRetry,
+            'detail' => $state->detail,
         ] : null;
     }
 
@@ -981,5 +1000,21 @@ class RollcallController extends Controller
                 'missed' => $row->missed,
                 'windowWeeks' => KpiService::WINDOW_WEEKS,
             ])->values()->all();
+    }
+
+    /**
+     * The hand-added guests at `$practice` whose automatic makeup is missing ({@see MarkAttendanceHandler::makeupsMissing()}).
+     *
+     * @return list<int>
+     */
+    private function guestMakeupsMissing(?SectionPractice $practice): array
+    {
+        if ($practice === null) {
+            return [];
+        }
+
+        $manual = $this->sightings->forHostPractice($practice->id)->filter(fn (CrossSectionSighting $row) => $row->isManual())->pluck('trooper_id')->map(fn ($id) => (int) $id)->values()->all();
+
+        return $manual === [] ? [] : $this->makeups->makeupsMissing($practice, $manual);
     }
 }

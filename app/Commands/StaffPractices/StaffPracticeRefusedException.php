@@ -13,7 +13,8 @@ use RuntimeException;
  * - `not_a_section`: practices are a section's;
  * - `before_floor`, `future`: the week cannot change;
  * - `locked`: the staff member's HQ sent its report for the week;
- * - `already_recorded`: the trooper is already recorded at that practice;
+ * - `already_recorded`: the trooper is already recorded at that practice, as staff or as a guest of the section (the
+ *   message says which, since a guest entry shows on the section's rollcall, not in the staff list);
  * - `not_recorded`: there is no staff entry to remove.
  */
 class StaffPracticeRefusedException extends RuntimeException
@@ -66,6 +67,17 @@ class StaffPracticeRefusedException extends RuntimeException
     public static function alreadyRecorded(string $name): self
     {
         return new self("{$name} is already recorded at that practice.", 'already_recorded', 'section_id');
+    }
+
+    /**
+     * The trooper is already on that practice as a guest (audit L2): recorded while they were in a section, before they
+     * moved to the staff. One row per trooper and practice holds either kind, so the refusal says where it is.
+     */
+    public static function alreadyAGuest(string $name, bool $captured): self
+    {
+        $how = $captured ? 'seen by the game server' : "added by the section's leader";
+
+        return new self("{$name} is already listed as a guest at that practice, {$how}. That entry is on the section's rollcall, so there is nothing to add here.", 'already_recorded', 'section_id');
     }
 
     public static function notRecorded(): self

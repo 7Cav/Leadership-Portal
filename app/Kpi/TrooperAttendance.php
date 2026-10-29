@@ -26,6 +26,12 @@ final readonly class TrooperAttendance
         public int $makeups,
         /** The `week_start` dates (Y-m-d) of the practices counted in `missed`, oldest first. */
         public array $missedWeeks = [],
+        /**
+         * The section the row counts in: the one they are placed in now, or for a week that has ended, the one they
+         * ended it in (the 2026-10-29 audit), as `KpiService::forSectionsWithin()` splits the rows. Null only for a
+         * row not built by the service.
+         */
+        public ?int $sectionId = null,
     ) {}
 
     public function atRisk(): bool

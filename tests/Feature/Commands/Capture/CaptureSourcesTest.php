@@ -53,16 +53,38 @@ describe('with no server selected for the game (the legacy env server)', functio
             ->and($sources->for(game('wardogs'))[0]->sources[0]->serverRef)->toBe('nightwatch:srv-a');
     });
 
-    it('follows the interface an Admin picked for a game, not the game itself', function () {
+    it('reads an env server only for the game it belongs to, with the interface that game had', function () {
         $sources = defaultSources();
 
-        expect(sourceNames($sources->for(Game::factory()->create(['interface' => TelemetryInterface::Nightwatch]))))->toBe([['nightwatch']])
-            ->and(sourceNames($sources->for(Game::factory()->create(['interface' => TelemetryInterface::Crcon]))))->toBe([['crcon', 'battlemetrics']]);
+        expect($sources->readsEnvServer(game('hll')))->toBeTrue()
+            ->and($sources->readsEnvServer(game('arma')))->toBeTrue()
+            ->and($sources->readsEnvServer(game('wardogs')))->toBeTrue();
+    });
 
+    it('reads nothing for a game added or switched to an interface whose env server belongs to another game', function () {
+        $sources = defaultSources(crcon: ['base_url' => 'https://crcon.test', 'api_key' => 'k'], bm: ['base_url' => 'https://bm.test', 'api_key' => 'k', 'server_id' => '4242']);
+        $vietnam = game('hll-vietnam');
+        $vietnam->interface = TelemetryInterface::Crcon;
+        $squad = Game::factory()->create(['interface' => TelemetryInterface::Nightwatch]);
         $hll = game('hll');
         $hll->interface = TelemetryInterface::BattleMetrics;
 
-        expect(sourceNames($sources->for($hll)))->toBe([['battlemetrics']]);
+        foreach ([$vietnam, $squad, $hll] as $game) {
+            expect($sources->for($game))->toBe([])
+                ->and($sources->isConfigured($game))->toBeFalse()
+                ->and($sources->readsEnvServer($game))->toBeFalse();
+        }
+    });
+
+    it('reads the selected server of a switched game once one is picked', function () {
+        $vietnam = game('hll-vietnam');
+        $vietnam->forceFill(['interface' => TelemetryInterface::Crcon])->save();
+        $server = GameServer::factory()->trainingFor($vietnam->id)->create(['interface' => TelemetryInterface::Crcon, 'external_id' => 'crcon-vn']);
+
+        $servers = defaultSources()->for($vietnam);
+
+        expect(array_map(fn (CaptureServer $s) => $s->gameServerId, $servers))->toBe([$server->id])
+            ->and(defaultSources()->readsEnvServer($vietnam))->toBeFalse();
     });
 
     it('translates each seam\'s typed failure into the source-agnostic one', function () {

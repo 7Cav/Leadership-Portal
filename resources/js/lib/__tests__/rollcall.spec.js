@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { captureSourceLabel, countsOf, displayName, feedLabel, fullName, initials, isLocked, landingStep, practiceGroups, sectionStatus, signatureGroups, stepsOf, unlinkedLabel, weeksNeedingWork } from '../rollcall';
+import { captureSourceLabel, countsOf, displayName, feedLabel, fullName, initials, isLocked, landingStep, placementNote, practiceGroups, sectionStatus, signatureGroups, stepsOf, unlinkedLabel, weeksNeedingWork } from '../rollcall';
 
 const t = (id, rollcall, status, extra = {}) => ({ id, cavId: 1000 + id, rank: 'PFC', name: `Trooper${id}.A`, rollcall, status, source: null, priorStatus: null, ...extra });
 
@@ -160,5 +160,15 @@ describe('section status for the picker', () => {
     it('says when a section has no troopers, and nothing without progress', () => {
         expect(sectionStatus(progress({ strength: 0, unsigned: 0, unmarked: 0 }))).toEqual({ state: 'none', text: 'No troopers' });
         expect(sectionStatus(undefined)).toBeNull();
+    });
+});
+
+describe('placement note on a past week', () => {
+    it('labels a trooper who moved out, left the Cav or joined partway through the week, and nobody else', () => {
+        expect(placementNote('moved_out')?.label).toBe('Moved out');
+        expect(placementNote('departed')?.label).toBe('Departed');
+        expect(placementNote('joined')?.label).toBe('Joined');
+        expect(placementNote(null)).toBeNull();
+        expect(placementNote(undefined)).toBeNull();
     });
 });

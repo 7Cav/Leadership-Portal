@@ -1318,6 +1318,14 @@ describe('Rollcall page', () => {
                 expect(wrapper.find('[data-testid="dismiss-confirm"]').exists()).toBe(false);
             });
 
+            it('shows the drawer for a departed trooper the capture saw, even with nobody left to link', () => {
+                const departed = [{ platform: 'hll', platformLabel: 'Hell Let Loose', playerName: 'GoneA', platformId: '7656119000000009', trooperName: 'PFC Gone.A' }];
+                const wrapper = factory({ capture: CAPTURE, unmatched: [], departed });
+
+                expect(wrapper.find('[data-testid="unmatched-drawer"]').exists()).toBe(true);
+                expect(wrapper.find('[data-testid="departed-7656119000000009"]').exists()).toBe(true);
+            });
+
             it('keeps the drawer for the Dismissed list once the last player is dismissed, and undoes from there', async () => {
                 post.mockImplementation(answer);
                 const wrapper = factory({ capture: CAPTURE, unmatched: UNMATCHED });
@@ -1582,6 +1590,25 @@ describe('Rollcall page', () => {
             wrapper = factory({ telemetry: NOT_CONFIGURED });
 
             expect(wrapper.find('[data-testid="telemetry-banner"]').text()).toContain('Capture is not set up for Hell Let Loose, so nothing was pre-filled. Mark attendance by hand.');
+            expect(wrapper.find('[data-testid="telemetry-retry"]').exists()).toBe(false);
+        });
+
+        it('says the portal hit an error, not that a feed could not be read, on an internal error', () => {
+            vi.setSystemTime(new Date('2026-10-08T15:47:00Z'));
+            wrapper = factory({ telemetry: { ...FAILED, feeds: [], detail: 'internal_error' } });
+
+            const text = wrapper.find('[data-testid="telemetry-banner"]').text();
+            expect(text).toContain('The portal hit an error capturing this practice, last tried 08Oct26 15:42Z (5 min ago). Nothing was pre-filled.');
+            expect(text).not.toContain('could not be read');
+            expect(wrapper.find('[data-testid="telemetry-retry"]').exists()).toBe(true);
+        });
+
+        it('says no training server is selected when the env server belongs to another game (#389)', () => {
+            wrapper = factory({ telemetry: { ...NOT_CONFIGURED, platformLabel: 'Hell Let Loose: Vietnam', detail: 'no_server' } });
+
+            expect(wrapper.find('[data-testid="telemetry-banner"]').text()).toContain(
+                'No training server is selected for Hell Let Loose: Vietnam, so nothing was read or pre-filled. Mark attendance by hand.',
+            );
             expect(wrapper.find('[data-testid="telemetry-retry"]').exists()).toBe(false);
         });
 

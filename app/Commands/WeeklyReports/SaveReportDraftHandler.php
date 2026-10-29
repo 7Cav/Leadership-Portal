@@ -63,7 +63,7 @@ class SaveReportDraftHandler
             throw InvalidReportContentException::weekBeforeFloor($weekStart);
         }
 
-        $content = ReportContent::checked($unit, $command->notes, $command->trainingSubject, $command->unaccounted, $this->troopers);
+        $content = ReportContent::checked($unit, $weekStart, $command->notes, $command->trainingSubject, $command->unaccounted, $this->troopers);
         $trainingSubject = SectionTrainingSubject::forDraft(
             $unit->id,
             $this->topics->forSection($unit, $weekStart),

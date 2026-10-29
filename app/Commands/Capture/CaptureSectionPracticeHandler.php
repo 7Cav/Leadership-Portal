@@ -30,15 +30,19 @@ use Throwable;
  * `captured_at` and `capture_source` on the practice, and resolves each observed player through
  * `trooper_game_identities`.
  *
- * - A player with no link is **unmatched**: recorded, surfaced, never assigned to anyone.
- * - A player linked to a trooper whose primary section is not this practice's is surfaced as
+ * - A player with no link is **unmatched**: recorded, surfaced, never assigned to anyone. One read through a fallback
+ *   that could only give its own player number (BattleMetrics standing in for CRCON) is stored with that marked
+ *   (`id_source`), so the rollcall says so and the number is never linked in place of a game ID.
+ * - A player linked to a trooper who is not on this practice's rollcall for its week is surfaced as
  *   **other-section**, and never credited (AD-14: a trooper is on one rollcall, their primary
- *   section's). The capture does not give them a makeup on their own section's rollcall either, and
- *   records no `cross_section_sightings` row: until the portal has practice time slots, the capture
+ *   section's; for a week that has ended, the section they ended it in, `TrooperRepository::idsOnRollcall`).
+ *   The capture does not give them a makeup on their own section's rollcall either, and records no `cross_section_sightings` row: until the portal has practice time slots, the capture
  *   window is the whole Cav week so far and the game servers are shared by every section, so being
  *   seen does not mean they were at this practice (decided 2026-10-23). Makeups come from a leader. A staff member
  *   (HQ staff or a staff department, on no rollcall) is surfaced the same way, and that stored row is what their milpac
  *   lists as seen on the game server (#448, `Milpac\StaffPracticeHistory`).
+ * - A player linked to a trooper who has left (no longer serving) is **departed**: stored and listed on the rollcall as
+ *   departed, never credited or marked, and not linkable from there (the link exists already).
  * - If any server's every source raises a typed failure the practice is **left un-captured** and the
  *   run is recorded failed as telemetry-unavailable — never interpreted as zero attendance, and never
  *   written as the smaller list the other servers gave. The run carries
@@ -169,7 +173,7 @@ class CaptureSectionPracticeHandler
             // Every server that answered (#389), cut to the column's width; a practice has a handful at most.
             $serverRef = Str::limit(implode(', ', array_map(fn (array $answer) => $answer['source']->serverRef, $answers)), 250);
 
-            $result = $this->resolve($presence, $sourceName, $game, $practice->section_id);
+            $result = $this->resolve($presence, $sourceName, $game, $practice);
             $this->persistUnresolved($practice->id, $game, $result);
 
             // Pre-mark before stamping, so a captured practice implies its marks were written;
@@ -192,8 +196,8 @@ class CaptureSectionPracticeHandler
                 inactivated: 0,
                 errored: $result->unmatchedCount(),
                 error: sprintf(
-                    'practice %d, source %s: seen %d, matched %d (%d in another section), unmatched %d; %s',
-                    $practice->id, $sourceName, $result->seen(), $result->matchedCount(), count($result->otherSection), $result->unmatchedCount(),
+                    'practice %d, source %s: seen %d, matched %d (%d in another section, %d departed), unmatched %d; %s',
+                    $practice->id, $sourceName, $result->seen(), $result->matchedCount(), count($result->otherSection), count($result->departed), $result->unmatchedCount(),
                     $marks->confirmed
                         ? 'practice is confirmed, no marks changed'
                         : sprintf('pre-marked %d, left %d untouched (manual/loa)', $marks->marked, $marks->keptManual),
@@ -206,8 +210,8 @@ class CaptureSectionPracticeHandler
             // job retry — a retry re-stamps and re-resolves, so a stamp that landed first is harmless.
             // The run keeps a plain sentence, not the exception's message: a database error quotes
             // the SQL and the player data it choked on. The exception itself is rethrown, so the
-            // worker's log still has the detail.
-            $this->syncRuns->fail($run, "the capture hit an unexpected error (practice {$practice->id}, ".class_basename($e).')');
+            // worker's log still has the detail. Marked internal, so the rollcall does not blame a game server that answered.
+            $this->syncRuns->fail($run, "the capture hit an unexpected error (practice {$practice->id}, ".class_basename($e).')', internal: true);
 
             throw $e;
         }
@@ -259,6 +263,16 @@ class CaptureSectionPracticeHandler
                 $this->servers->recordRead($source->gameServerId, $runId, true, null);
             }
 
+            // A service's own player number is the ID every capture of the server reads when that service is the
+            // server's own source (an Arma server on BattleMetrics), so it is an ID like any other there. Read through
+            // a fallback (CRCON's BattleMetrics twin), it is not the ID the server itself reports, so it stays marked.
+            if ($source === ($server->sources[0] ?? null)) {
+                $presence = new CrconPresence(
+                    array_map(fn (CrconPlayer $p) => $p->idSource === null ? $p : new CrconPlayer($p->playerName, $p->platformId), $presence->players),
+                    $presence->windowStart, $presence->windowEnd, $presence->fetchedAt,
+                );
+            }
+
             return ['source' => $source, 'presence' => $presence];
         }
 
@@ -271,20 +285,22 @@ class CaptureSectionPracticeHandler
      * One presence from every server's: a player seen on any of them counts once (#389). The latest fetch time
      * stands for the whole read.
      *
+     * Two IDs that differ only in letter case are one player: the database compares IDs without case, so keeping both
+     * would fail the whole run on the unique key. An Epic ID (32 hex characters, the only kind of ID whose case can
+     * differ for the same account) is taken in lower case, the way CRCON reports it and the portal stores it; any other
+     * ID keeps the spelling first seen. A Steam ID is digits, so nothing changes for it.
+     *
      * @param  list<CrconPresence>  $presences
      */
     private function merge(array $presences): CrconPresence
     {
-        if (count($presences) === 1) {
-            return $presences[0];
-        }
-
         /** @var array<string, CrconPlayer> $byPlatformId */
         $byPlatformId = [];
 
         foreach ($presences as $presence) {
             foreach ($presence->players as $player) {
-                $byPlatformId[$player->platformId] ??= $player;
+                $id = preg_match('/^[0-9a-f]{32}$/i', $player->platformId) === 1 ? strtolower($player->platformId) : $player->platformId;
+                $byPlatformId[mb_strtolower($id)] ??= $id === $player->platformId ? $player : new CrconPlayer($player->playerName, $id, $player->idSource);
             }
         }
 
@@ -304,10 +320,10 @@ class CaptureSectionPracticeHandler
     private function persistUnresolved(int $practiceId, Game $game, CaptureResult $result): void
     {
         $this->capturePlayers->replaceForPractice($practiceId, $game, [
-            ...array_map(fn (CrconPlayer $p) => ['platform_id' => $p->platformId, 'player_name' => $p->playerName, 'trooper_id' => null],
+            ...array_map(fn (CrconPlayer $p) => ['platform_id' => $p->platformId, 'player_name' => $p->playerName, 'trooper_id' => null, 'id_source' => $p->idSource],
                 $result->unmatched),
-            ...array_map(fn (array $row) => ['platform_id' => $row['player']->platformId, 'player_name' => $row['player']->playerName, 'trooper_id' => $row['trooperId']],
-                $result->otherSection),
+            ...array_map(fn (array $row) => ['platform_id' => $row['player']->platformId, 'player_name' => $row['player']->playerName, 'trooper_id' => $row['trooperId'], 'id_source' => $row['player']->idSource],
+                [...$result->otherSection, ...$result->departed]),
         ]);
     }
 
@@ -333,13 +349,20 @@ class CaptureSectionPracticeHandler
         return CaptureResult::weekLocked();
     }
 
-    private function resolve(CrconPresence $presence, string $source, Game $game, int $sectionId): CaptureResult
+    private function resolve(CrconPresence $presence, string $source, Game $game, SectionPractice $practice): CaptureResult
     {
         $links = [];
         $unmatched = [];
 
+        // Every player's link in one read (audit 2, L7), matched back as the database matched it: the row with the very
+        // spelling first, else the one it found without case (MySQL compares IDs that way, and the merge keeps one
+        // player per ID regardless of case).
+        $rows = $this->identities->findByPlatformIds($game, array_map(fn (CrconPlayer $player) => $player->platformId, $presence->players));
+        $exact = $rows->keyBy('platform_id');
+        $folded = $rows->keyBy(fn ($row) => mb_strtolower($row->platform_id));
+
         foreach ($presence->players as $player) {
-            $link = $this->identities->findByPlatformId($game, $player->platformId);
+            $link = $exact->get($player->platformId) ?? $folded->get(mb_strtolower($player->platformId));
 
             if ($link === null) {
                 $unmatched[] = $player;
@@ -348,16 +371,29 @@ class CaptureSectionPracticeHandler
             }
         }
 
-        $troopers = $this->troopers->byIds(array_values(array_unique(array_column($links, 'trooperId'))));
+        // On the practice's rollcall for its week: placed in the section now, or for a week that has ended, on the
+        // roster it ended with (the 2026-10-29 audit), so a capture of the closing week credits that week's troopers.
+        $linked = array_values(array_unique(array_column($links, 'trooperId')));
+        $troopers = $this->troopers->byIds($linked);
+        $onRollcall = $linked === [] ? [] : array_flip($this->troopers->idsOnRollcall($practice->section_id, $practice->week_start, $linked)->all());
         $matched = [];
         $otherSection = [];
+        $departed = [];
 
         foreach ($links as $link) {
-            // A link whose trooper has left the cache has no section to credit: surfaced, not credited.
-            $inSection = $troopers->get($link['trooperId'])?->primary_section_id === $sectionId;
-            $inSection ? $matched[] = $link : $otherSection[] = $link;
+            $trooper = $troopers->get($link['trooperId']);
+
+            // A trooper who has left keeps their last placement, so they are told apart before the rollcall is: listed as
+            // departed, never credited (the pre-mark would skip them anyway).
+            if ($trooper === null || ! $trooper->status->isServing()) {
+                $departed[] = $link;
+            } elseif (isset($onRollcall[$link['trooperId']])) {
+                $matched[] = $link;
+            } else {
+                $otherSection[] = $link;
+            }
         }
 
-        return CaptureResult::captured($source, $matched, $otherSection, $unmatched);
+        return CaptureResult::captured($source, $matched, $otherSection, $unmatched, $departed);
     }
 }

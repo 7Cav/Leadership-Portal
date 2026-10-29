@@ -39,6 +39,7 @@ class SyncRun extends Model
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
             'status' => SyncRunStatus::class,
+            'internal_error' => 'boolean',
             'cursor' => 'array',
         ];
     }

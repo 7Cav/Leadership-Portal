@@ -9,6 +9,7 @@ use App\Commands\StaffPractices\StaffPracticeRefusedException;
 use App\Http\Controllers\TrooperDetailController;
 use App\Models\AuditLogEntry;
 use App\Models\CrossSectionSighting;
+use App\Models\PlacementSource;
 use App\Models\SectionPractice;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
@@ -16,6 +17,7 @@ use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Repositories\CrossSectionSightingRepository;
 use App\Repositories\SectionPracticeRepository;
+use App\Repositories\TrooperPlacementRepository;
 use App\Support\Audit\ActingFor;
 use Carbon\CarbonImmutable;
 
@@ -210,4 +212,46 @@ it('never removes a guest row or anything missing, and refuses a removal in a lo
     expect(refusedStaff(fn () => removeStaff($this->tree['users']['pl'], $this->tree['troopers']['psg'], $this->tree['units']['other']->id)))->toBe('locked')
         ->and(CrossSectionSighting::query()->count())->toBe(2)
         ->and(AuditLogEntry::query()->where('action', 'staff_practice.removed')->count())->toBe(0);
+});
+
+// Audit L3: the lock is the report of the unit the staff member was placed in that week, not the unit they are in now.
+function moveStaff(Trooper $trooper, int $toUnitId, string $at): void
+{
+    $from = $trooper->primary_section_id;
+    $trooper->forceFill(['primary_section_id' => $toUnitId])->save();
+    app(TrooperPlacementRepository::class)->record([$trooper->id => [$from, $toUnitId]], PlacementSource::Manual, CarbonImmutable::parse($at, 'UTC'));
+}
+
+it('locks a week by the HQ the staff member was on then, after they moved to another HQ', function () {
+    $lastWeek = CarbonImmutable::parse('2026-09-26', 'UTC');
+    recordStaff($this->tree['users']['admin'], $this->tree['troopers']['psg'], $this->tree['units']['other']->id, $lastWeek);
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->tree['units']['platoon']->id, 'week_start' => $lastWeek]);
+    moveStaff($this->tree['troopers']['psg'], $this->tree['units']['company']->id, '2026-10-05 12:00:00');
+
+    expect(refusedStaff(fn () => recordStaff($this->tree['users']['admin'], $this->tree['troopers']['psg'], $this->tree['units']['host']->id, $lastWeek)))->toBe('locked')
+        ->and(refusedStaff(fn () => removeStaff($this->tree['users']['admin'], $this->tree['troopers']['psg'], $this->tree['units']['other']->id, $lastWeek)))->toBe('locked')
+        ->and(CrossSectionSighting::query()->count())->toBe(1);
+});
+
+it('leaves a week open that the HQ they moved into sent before they joined it', function () {
+    $lastWeek = CarbonImmutable::parse('2026-09-26', 'UTC');
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->tree['units']['company']->id, 'week_start' => $lastWeek]);
+    moveStaff($this->tree['troopers']['psg'], $this->tree['units']['company']->id, '2026-10-05 12:00:00');
+
+    $row = recordStaff($this->tree['users']['admin'], $this->tree['troopers']['psg'], $this->tree['units']['host']->id, $lastWeek);
+    removeStaff($this->tree['users']['admin'], $this->tree['troopers']['psg'], $this->tree['units']['host']->id, $lastWeek);
+
+    expect($row->week_start->toDateString())->toBe('2026-09-26')
+        ->and(CrossSectionSighting::query()->count())->toBe(0);
+});
+
+it('locks a week the staff member spent in two HQs when either sent it', function () {
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->tree['units']['platoon']->id, 'week_start' => $this->week]);
+    moveStaff($this->tree['troopers']['psg'], $this->tree['units']['company']->id, '2026-10-05 12:00:00');
+
+    expect(refusedStaff(fn () => recordStaff($this->tree['users']['admin'], $this->tree['troopers']['psg'], $this->tree['units']['host']->id)))->toBe('locked');
+
+    // The week before, wholly on the platoon, which did not send it, stays open.
+    recordStaff($this->tree['users']['admin'], $this->tree['troopers']['psg'], $this->tree['units']['host']->id, CarbonImmutable::parse('2026-09-26', 'UTC'));
+    expect(CrossSectionSighting::query()->count())->toBe(1);
 });

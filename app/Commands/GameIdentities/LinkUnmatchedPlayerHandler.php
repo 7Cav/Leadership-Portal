@@ -40,8 +40,14 @@ use App\Support\Time\WeekOf;
  * refused rather than stored altered. The reported name is cleaned like any other, and a name with nothing left takes
  * the ID, as the capture does for a player with no name. The ID is stored as the first of the game's kinds whose shape it
  * has exactly (an Epic ID on Hell Let Loose is stored as an Epic ID, not the game's default Steam ID); one that fits no
- * kind's shape (a BattleMetrics player number, an Xbox ID) takes the kind the writer would give it anyway: the one the
- * trooper's identity already has for that ID, or the game's default.
+ * kind's shape (an Xbox ID) takes the kind the writer would give it anyway: the one the trooper's identity already has
+ * for that ID, or the game's default.
+ *
+ * Two IDs are never swapped across kinds here: a trooper whose ID has a known kind's shape (a Steam or Epic ID) is not
+ * offered a replace by an ID of another kind or of none, and is told to change it on the Game identities page if they
+ * really changed platform. A player whose ID is a BattleMetrics player number read through CRCON's fallback
+ * (`id_source`) is not linked at all: it is not the ID the game server reports, so linking it would leave the trooper
+ * unmatched by every later capture, and replacing with it would lose the ID that works.
  */
 class LinkUnmatchedPlayerHandler
 {
@@ -69,6 +75,15 @@ class LinkUnmatchedPlayerHandler
     {
         [$practice, $player] = $this->listedPlayer($actor, $this->scope, $this->practices, $this->captured, $command);
 
+        // Before the replace question: a leader must not be asked to replace an ID for a link that cannot be made.
+        if ($command->game->isRetired()) {
+            throw GameRetiredException::for($command->game);
+        }
+
+        if ($player->id_source !== null) {
+            throw UnmatchedPlayerResolutionException::notAGameId();
+        }
+
         if (WeekOf::isBeforeFloor($practice->week_start)) {
             throw UnmatchedPlayerResolutionException::weekBeforeFloor($practice->week_start);
         }
@@ -94,6 +109,16 @@ class LinkUnmatchedPlayerHandler
         // through).
         $replaceable = $command->replace && $command->replacing !== null ? $command->replacing : $player->platform_id;
         $held = $this->identities->forTrooper($trooper->id)->firstWhere('game_id', $command->game->id);
+
+        // A held ID of a known kind is only ever replaced by one of the same kind, and that is refused before the
+        // leader is asked: an Epic ID swapped for a Steam ID, or for an ID of no known shape, would leave the capture
+        // matching on an ID it may never see again. An ID of no known shape (an Xbox ID, or a number linked earlier)
+        // may still be replaced by any.
+        $heldKind = $held === null ? null : self::kindOf($command->game, $held->platform_id);
+
+        if ($heldKind !== null && $held->platform_id !== $player->platform_id && self::kindOf($command->game, $player->platform_id) !== $heldKind) {
+            throw UnmatchedPlayerResolutionException::otherIdKind($heldKind, $command->game->name);
+        }
 
         if ($held !== null && $held->platform_id !== $player->platform_id && $held->platform_id !== $replaceable) {
             throw UnmatchedPlayerResolutionException::alreadyHasIdentity($held->player_name, $held->platform_id, $command->game->name);

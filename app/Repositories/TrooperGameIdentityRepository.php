@@ -20,6 +20,16 @@ interface TrooperGameIdentityRepository
     public function findByPlatformId(Game $game, string $platformId): ?TrooperGameIdentity;
 
     /**
+     * {@see findByPlatformId()} for many players at once (audit 2, L7): the link rows in `$game` whose ID is one of
+     * `$platformIds`, compared as the database compares them (without case on MySQL), so the capture reads every
+     * player it saw in one query per few hundred IDs.
+     *
+     * @param  list<string>  $platformIds
+     * @return Collection<int, TrooperGameIdentity>
+     */
+    public function findByPlatformIds(Game $game, array $platformIds): Collection;
+
+    /**
      * Every identity a trooper holds — at most one per game.
      *
      * @return Collection<int, TrooperGameIdentity>

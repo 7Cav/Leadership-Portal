@@ -116,9 +116,16 @@ On the same page:
 - Capture review: when game-server data was captured for the practice, marks it made show their source, and the leader
   can confirm the practice ("Confirmed by ..."). Editing a mark by hand afterwards clears the confirmation.
 - Unmatched players: players the capture saw that no trooper is linked to. Link one to a trooper (this also saves their
-  game identity and marks them present), dismiss them, or restore a dismissed one.
-- Telemetry banner: says when the section's game has no capture source set up, or when the last capture failed, naming
-  the feeds tried. "Try again" queues a new capture for the week so far.
+  game identity and marks them present), dismiss them, or restore a dismissed one. An ID the server reports in two letter cases is one
+  player (an Epic ID is taken in lower case). A player linked to a trooper who has left is listed
+  under "Departed", with the trooper named; they are not marked and there is nothing to link. A player of a retired game
+  has no Link, since a retired game takes no new links; they can still be dismissed. A player seen through
+  BattleMetrics while CRCON could not be read, for whom BattleMetrics had only its own player number, says so and has
+  no Link either: that number is not their game ID. Linking never swaps a trooper's Steam or Epic ID for an ID of
+  another kind; change that on the Game identities page if they really changed platform.
+- Telemetry banner: says when the section's game has no capture source set up (or no training server selected), or
+  when the last capture failed, naming the feeds tried. A capture that broke on an error inside the portal says so
+  instead of blaming a feed. "Try again" queues a new capture for the week so far.
 - Guests: add a serving trooper from another section who attended this practice, or remove one you added. See "JSAM
   guests" and "Makeups".
 - Fireteams: mark fireteam leaders (FTLs), put troopers in their fireteams, and choose how the post shows them. A company
@@ -128,6 +135,16 @@ On the same page:
 
 Only troopers placed in a section are on a rollcall. HQ staff, staff departments, ELOA, Reservists and New Recruits are
 on none.
+
+The running week's rollcall lists who is placed in the section now. A week that has ended keeps the roster it ended
+with, from the placement history, and so does everything that counts it: the section picker's progress, Home's step
+matrix and unit table, the report chain, and a capture's pre-marks. A trooper who moved to another unit or left the
+Cav after that week stays on it, can still be marked there and given a reason on its report, and counts in its KPIs and strength, while the section they
+moved to cannot mark them for that week. A trooper who moved partway through a week is on the rollcall of the section
+they moved to, and their mark at either section counts (see "Makeups"). Such rows carry a small note: "Moved out",
+"Departed", or "Joined" for one who moved in during the week. A trooper placed before the placement history began
+(27Oct26) and never moved since is in their current section for every week. The roster sync records when a trooper
+leaves the Cav; one who left before it began doing so has no date and is on no past week's rollcall.
 
 ### Reports
 
@@ -209,17 +226,19 @@ and Needs attention leave it out as the report chain does, and its own report sa
 the report chain, a section counts when it has troopers, and a platoon, company or battalion counts when a unit under
 it does.
 
-The report chain asks about the report's own week: a section counts for a week when it had troopers at any point of it
-(from the placement history), and any unit counts when it sent that week's report. Who is placed now counts only for
+The report chain asks about the report's own week: a section counts for a week when that week's rollcall lists
+someone (from the placement history, a trooper who ended the week in it), and any unit counts when it sent that week's
+report. So a section a trooper left partway through a week, with nobody else in it, is not one that week waits on. Who is placed now counts only for
 the running Cav week. So a section stood up or filled after a week is not one that week waits on, and a section that
 sends and is then emptied by a move still rolls up into its platoon for that week, keeps its platoon and company in that
 week's chain, and drops out from the first week it is empty. A trooper placed before the placement history began
 (27Oct26) and never moved since counts in their current section for every week.
 
-Leaving the Cav has no date in the portal, so once a trooper leaves, the placement they held when they left no longer
-counts for any week, past weeks included (an earlier move, which has dates, still counts). A section whose last trooper
-leaves the Cav therefore drops out of the chain for every week it did not send, the week they left included: its
-platoon's roll-up neither waits on it nor sums it for those weeks. A week it sent stays in the chain.
+A trooper who leaves the Cav still counts in the chain for every week that opened before they left, as they stay on
+those weeks' rollcalls (see above), so a section whose last trooper leaves drops out from the first week after they
+went. One who left before the roster sync recorded the date counts for no week. A week a section sent stays in the
+chain. A trooper an Admin left unplaced still counts through their earlier placements, though no past rollcall lists
+them.
 
 The same week rule decides which sections Home's step matrix lists for the running week, which sections each past
 point of Home's sparkline waits on, and which of your top units the roll-up workspace and Home start from for a week
@@ -302,7 +321,10 @@ Reservists and New Recruits are groups but not staff. On a staff member's milpac
 lists the section practices they attended, newest week first; the roster's trooper sheet shows the same list, read only.
 
 - Add one: the section (any section of the regiment with troopers in it) and the Cav week (this week and up to 11 back, never before the
-  week floor; the server refuses an older week too). One entry per staff member per section per week. Who may is in
+  week floor; the server refuses an older week too). One entry per staff member per section per week. A practice holds
+  one entry per trooper of either kind, staff or guest: a trooper listed there as a guest before they moved to the
+  staff is told so, and a trooper with a staff entry who has since moved into a section cannot be added there as a
+  guest, with the refusal saying where the other entry is. Who may is in
   [permissions.md](permissions.md#staff-practices). Each entry says who entered it; one the staff member entered
   themselves reads "Self-reported by".
 - Game server: when a practice capture sees a staff member through a linked game identity, the practice is listed as
@@ -312,7 +334,9 @@ lists the section practices they attended, newest week first; the roster's troop
 - Remove one: the same people. A game server sighting cannot be removed by hand. An entry on a section that had no
   practice that week creates one; removing the last such entry removes it again when nothing else is on it (no mark,
   signature, guest, capture, or posted or confirmed rollcall), so it never keeps an Admin from deleting the section.
-- Lock: once the staff member's HQ has sent its weekly report for a week, that week's entries no longer change. A staff
+- Lock: once the HQ the staff member was placed on that week has sent its weekly report for it, that week's entries no
+  longer change. It goes by where they were placed that week (the placement history), not where they are now, so a
+  move afterwards neither opens nor locks a week; a week they spent in two units is locked by either. A staff
   department sends no weekly report, so its weeks stay open.
 - An entry never puts the staff member on the host section's rollcall or its guests, never counts in its numbers,
   reports or JSAM counts, and gives no makeup. Adding and removing are audited. The staff report does not show these
@@ -341,7 +365,7 @@ All run on the queue; a queue worker must be running. Times are UTC.
 | Roster sync | Hourly on the hour; Admin "Sync now"; leader unit sync | Reads the Cav roster, updates troopers (rank, billet, status), places each trooper by billet, marks leavers departed. A unit sync only writes that unit's troopers. | `CAV_API_KEY`, `CAV_API_BASE_URL` |
 | LOA sync | Hourly at :15 (new threads), daily at 03:30 (full re-read of recent leave) | Reads LOA and ELOA threads from the configured forum sections. ELOA start and end dates come from the linked PAF thread. Posts it cannot read are stored as "needs review", never guessed. First run reads a year back, newest first, a share each hourly run (40 pages a section, ten minutes in all), carrying on next run where it stopped; until it is done, the leave note on the pages says how far back it has got. A thread that fails to read is kept and read again by id next run, so the rest moves on. A manual sync asked for while one of the same kind is queued or running queues one follow-up run after it, and the page says so in a notice. When the daily full read finishes cleanly, a stored leave whose thread is gone (deleted, hidden or moved out of the leave sections) stops counting; the row is kept and counts again if the thread comes back. | `SEVENCAV_FORUM_API_KEY`, `SEVENCAV_FORUM_LOA_NODES`, `SEVENCAV_FORUM_PAF_NODE`, `LOA_SYNC_REQUEST_DELAY_MS`. Skipped while the key or sections are unset. |
 | Counseling document copy | When a DCS or LOR is filed with Google Drive set up | Copies the document to the 7Cav Google Drive folder. Tried up to 5 times, with pauses of 1, 5, 15 and 60 minutes; the record shows the outcome. | `GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_DRIVE_PRIVATE_KEY`, `GOOGLE_DRIVE_FOLDER_ID`. Skipped (record kept, "Portal only") while any is unset. |
-| Practice capture | When a leader clicks "Try again" on the rollcall. That button only shows after a failed capture, and nothing in the code schedules a first capture. | Reads who was on the game server during the Cav week so far, pre-marks linked troopers in the section as Present (a leader's mark always wins), lists unmatched players. | Each game's telemetry interface, picked on the Games page. CRCON (`CRCON_BASE_URL`, `CRCON_API_KEY`) falls back to BattleMetrics; BattleMetrics (`BATTLEMETRICS_API_KEY`, `BATTLEMETRICS_SERVER_ID`); Nightwatch (`NIGHTWATCH_API_KEY`, `NIGHTWATCH_SERVER_IDS`). Each interface reads the servers set in env, not one per game. A game with no keys, or interface "none", shows "not configured". |
+| Practice capture | When a leader clicks "Try again" on the rollcall. That button only shows after a failed capture, and nothing in the code schedules a first capture. | Reads who was on the game server during the Cav week so far, pre-marks linked troopers in the section as Present (a leader's mark always wins), lists unmatched players. | Each game's telemetry interface, picked on the Games page. CRCON (`CRCON_BASE_URL`, `CRCON_API_KEY`) falls back to BattleMetrics; BattleMetrics (`BATTLEMETRICS_API_KEY`, `BATTLEMETRICS_SERVER_ID`); Nightwatch (`NIGHTWATCH_API_KEY`, `NIGHTWATCH_SERVER_IDS`). A game reads the training servers an Admin selected for it on the Servers page. With none selected, Hell Let Loose (WW2) on CRCON, Arma Reforger on BattleMetrics and WARDOGS on Nightwatch read the server set in env; any other game, or one of those switched to another interface, reads nothing until a server is selected, and its rollcall says so. A game with no keys, or interface "none", shows "not configured". |
 
 The capture does not record other sections' troopers as guests or makeups for now: without set practice times the
 window is the whole week and the servers are shared, so being online does not mean being at that practice.
@@ -372,15 +396,22 @@ their own section's practice that Cav week.
 - Their own leader can mark Makeup by hand.
 - When a host leader adds them as a guest, the portal writes an automatic makeup on their own section's rollcall for
   the same week, shown with an "auto" source dot. It never overwrites Present, Attached, LOA or any mark a leader set by
-  hand, and is never written into a sent, confirmed or before-floor week, or for a trooper on leave.
+  hand, and is never written into a sent, confirmed or before-floor week, or for a trooper on leave. Adding a guest
+  already added by hand tries the makeup again, so a makeup that failed after the guest was saved can be finished; the
+  guest is not listed twice. After a reload, the guest list says so on a hand-added guest whose makeup is missing and
+  offers "Retry makeup", which does the same. It is offered only while a retry could write it: not once their own week
+  is sent or confirmed, their own leader has marked them, they are on leave or no longer serve there, or an automatic
+  makeup is already on any section's practice that week.
 - Removing the guest takes the automatic makeup back, unless something else supports it or a leader has since changed
-  or confirmed it.
+  or confirmed it. It is taken back from the section it was written to, even if the guest has moved section since.
 - A makeup counts for the trooper's SP. An automatic makeup alone does not make their own section's practice "held".
 
 ## KPIs
 
 One definition, used by Home, the roster, the reports and the roll-ups. The window is the last 4 whole Cav weeks
-including the current one. Only troopers placed in a section are measured.
+including the current one. Only troopers placed in a section are measured: for the running week, those placed now; for
+a week that has ended, those on that week's rollcall (placed in the section when the week ended, departed ones
+included).
 
 | KPI | Definition |
 | --- | --- |

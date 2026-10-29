@@ -70,6 +70,15 @@ it('shows each game\'s selected servers with their type, interface, credentials 
     );
 });
 
+it('says a game switched to CRCON with no server selected reads nothing, not the HLL env server', function () {
+    game('hll-vietnam')->forceFill(['interface' => TelemetryInterface::Crcon])->save();
+
+    $this->actingAs($this->admin)->get('/settings/servers')->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->where('games.0.readsEnvServer', true)
+        ->where('games.3', ['id' => game('hll-vietnam')->id, 'name' => 'Hell Let Loose: Vietnam', 'retired' => false, 'interface' => 'crcon', 'readsEnvServer' => false, 'captureConfigured' => false])
+    );
+});
+
 it('never sends a credential to the page', function () {
     GameServer::factory()->create();
 
