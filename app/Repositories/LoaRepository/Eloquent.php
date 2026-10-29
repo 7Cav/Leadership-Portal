@@ -56,10 +56,12 @@ class Eloquent implements LoaRepository
                         // and holds whether the driver keeps a bare date or a midnight timestamp.
                         ->where('starts_at', '<', $nextDay)
                         ->where(fn ($end) => $end->whereNull('ends_at')->orWhere('ends_at', '>=', $firstDay));
-                })->orWhere(function ($undated) use ($postedFrom, $nextWeek) {
+                })->orWhere(function ($undated) use ($postedFrom, $nextWeek, $firstDay, $nextDay) {
                     $undated->where(fn ($unread) => $unread->where('parse_status', LoaParseStatus::NeedsReview->value)->orWhereNull('starts_at'))
                         ->where(fn ($posted) => $posted
-                            ->where(fn ($forum) => $forum->whereNotNull('posted_at')->where('posted_at', '>=', $postedFrom)->where('posted_at', '<', $nextWeek))
+                            // The leave dates its post still gives, when it gives usable ones.
+                            ->where(fn ($review) => $review->whereNotNull('review_starts_at')->whereNotNull('review_ends_at')->where('review_starts_at', '<', $nextDay)->where('review_ends_at', '>=', $firstDay))
+                            ->orWhere(fn ($forum) => $forum->whereNotNull('posted_at')->where('posted_at', '>=', $postedFrom)->where('posted_at', '<', $nextWeek))
                             // A row stored before `posted_at` existed, until the sync reads its thread again.
                             ->orWhere(fn ($cached) => $cached->whereNull('posted_at')->where('created_at', '>=', $postedFrom)->where('created_at', '<', $nextWeek)));
                 });
@@ -114,6 +116,8 @@ class Eloquent implements LoaRepository
                     'expected_return_at' => $write->expectedReturnAt,
                     'parse_status' => $write->parseStatus,
                     'review_reason' => $write->reviewReason,
+                    'review_starts_at' => $write->reviewStartsAt,
+                    'review_ends_at' => $write->reviewEndsAt,
                     'source_thread' => $write->sourceThread,
                     'posted_at' => $write->postedAt,
                     'raw_username' => $write->rawUsername,

@@ -825,6 +825,59 @@ describe('which threads a run reads', function () {
     });
 });
 
+describe('a post that needs review but gives its dates', function () {
+    it('keeps the dates apart, so the shield sits on the leave and not on the week it was posted', function () {
+        $trooper = Trooper::factory()->create(['username' => 'Smith.J']);
+        $ahead = loaThread(4001, '[LOA Request] - PVT.Smith.J | Oct 24, 2026 - Nov 6, 2026', "Username: Smith.J\nStart Date\nOct 24, 2026\nEnd Date\nNov 9, 2026\n", '2026-10-01 08:00');
+        forumWith([180 => [[$ahead]]], [4001 => $ahead]);
+
+        runLoaSync();
+
+        $row = Loa::sole();
+        $coverage = app(LoaCoverage::class);
+        expect($row->parse_status)->toBe(LoaParseStatus::NeedsReview)
+            ->and($row->starts_at)->toBeNull()
+            ->and($row->review_starts_at->toDateString())->toBe('2026-10-24')
+            ->and($row->review_ends_at->toDateString())->toBe('2026-11-07')
+            ->and($coverage->forTrooper($trooper->id, CarbonImmutable::parse('2026-10-03', 'UTC'))->state)->toBe(LoaCoverageState::None)
+            ->and($coverage->forTrooper($trooper->id, CarbonImmutable::parse('2026-10-31', 'UTC'))->state)->toBe(LoaCoverageState::NeedsReview);
+    });
+
+    it('keeps shielding a clean leave edited into needing review, past the week it was posted', function () {
+        $trooper = Trooper::factory()->create(['username' => 'Smith.J']);
+        $clean = loaThread(4001, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-05 08:00');
+        forumWith([180 => [[$clean]]], [4001 => $clean]);
+        runLoaSync(1, true);
+
+        // The trooper extends it in the body only, so the title and the post disagree.
+        $this->travelTo(CarbonImmutable::parse('2026-10-18 12:00:00', 'UTC'));
+        $edited = loaThread(4001, LOA_TITLE_SMITH, str_replace('Oct 20, 2026', 'Oct 27, 2026', loaBody('loa-on-behalf')), '2026-10-05 08:00');
+        forumWith([180 => [[$edited]]], [4001 => $edited]);
+        runLoaSync(1, true);
+
+        $row = Loa::sole();
+        expect($row->parse_status)->toBe(LoaParseStatus::NeedsReview)
+            ->and($row->review_starts_at->toDateString())->toBe('2026-10-06')
+            ->and(app(LoaCoverage::class)->forTrooper($trooper->id, CarbonImmutable::parse('2026-10-17', 'UTC'))->state)->toBe(LoaCoverageState::NeedsReview);
+    });
+
+    it('clears them once the post reads cleanly again', function () {
+        Trooper::factory()->create(['username' => 'Smith.J']);
+        $broken = loaThread(4001, '[LOA Request] - PVT.Smith.J | Oct 6, 2026 - Oct 13, 2026', loaBody('loa-on-behalf'), '2026-10-05 08:00');
+        forumWith([180 => [[$broken]]], [4001 => $broken]);
+        runLoaSync(1, true);
+        expect(Loa::sole()->review_starts_at)->not->toBeNull();
+
+        $fixed = loaThread(4001, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-05 08:00');
+        forumWith([180 => [[$fixed]]], [4001 => $fixed]);
+        runLoaSync(1, true);
+
+        expect(Loa::sole()->parse_status)->toBe(LoaParseStatus::Ok)
+            ->and(Loa::sole()->review_starts_at)->toBeNull()
+            ->and(Loa::sole()->review_ends_at)->toBeNull();
+    });
+});
+
 describe('a thread that goes away', function () {
     /** One clean LOA for Smith.J, stored by a first full run, then a day passes. */
     function storedThenGone(): Trooper

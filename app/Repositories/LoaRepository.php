@@ -38,6 +38,8 @@ interface LoaRepository
      *   stops: a broken post cannot keep someone out of the KPIs for good, and the first sync's backfill of
      *   old malformed posts does not cover anyone from that sync on. A row with no `posted_at` (stored before
      *   the column existed, and not read again since) is placed by `created_at` instead.
+     * - A row that needs review whose post still gives usable leave dates (`review_starts_at`, `review_ends_at`)
+     *   touching any day of the range: it is placed by those dates rather than the post date.
      *
      * A superset: it says which rows to look at, the resolver decides which weeks each one touches. Rows with
      * no trooper, and withdrawn rows, never match. Read-only.

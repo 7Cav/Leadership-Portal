@@ -365,7 +365,8 @@ including the current one. Only troopers placed in a section are measured.
 | Own section SP (JSAM only) | SP as above, except a makeup never counts as attended, and a week their own section did not hold is left out. |
 
 Leave covering a week takes that week out of both RC and SP for the trooper. A leave post that needs review takes its
-weeks out too (no miss, not in either denominator) but does not count as On LOA. A non-leaf unit's reported KPIs are
+weeks out too (no miss, not in either denominator) but does not count as On LOA: the weeks of the leave dates it gives
+when they can be read, otherwise the week it was posted and the next. A non-leaf unit's reported KPIs are
 the sum of its direct children's sent reports.
 
 ## Technical appendix

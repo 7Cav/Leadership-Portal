@@ -288,6 +288,37 @@ Oct 20, 2026
     });
 });
 
+describe('the dates a post that needs review still gives', function () {
+    it('keeps them apart from the dates it asserts, when both read', function () {
+        $parsed = parseLoa('[LOA Request] - PVT.Jones.B | Oct 6, 2026 - Oct 20, 2026', loaFixture('loa-on-behalf'));
+
+        expect($parsed->status())->toBe(LoaParseStatus::NeedsReview)
+            ->and($parsed->startsAt)->toBeNull()
+            ->and($parsed->reviewStartsAt->toDateString())->toBe('2026-10-06')
+            ->and($parsed->reviewEndsAt->toDateString())->toBe('2026-10-20');
+    });
+
+    it('cuts a window longer than an LOA can be to 14 days', function () {
+        $parsed = parseLoa('[LOA Request] - PVT.Smith.J', "Username: Smith.J\nStart Date\nOct 6, 2026\nEnd Date\nNov 30, 2026\n");
+
+        expect($parsed->status())->toBe(LoaParseStatus::NeedsReview)
+            ->and($parsed->reviewStartsAt->toDateString())->toBe('2026-10-06')
+            ->and($parsed->reviewEndsAt->toDateString())->toBe('2026-10-20');
+    });
+
+    it('gives none when a date is missing, unreadable, backwards or years away, or the post read cleanly', function (string $title, string $body) {
+        $parsed = parseLoa($title, $body);
+
+        expect($parsed->reviewStartsAt)->toBeNull()->and($parsed->reviewEndsAt)->toBeNull();
+    })->with([
+        'no end' => ['[LOA Request] - PVT.Smith.J', "Username: Smith.J\nStart Date\nOct 6, 2026\n"],
+        'unreadable start' => ['[LOA Request] - PVT.Smith.J', "Username: Smith.J\nStart Date\nsoon\nEnd Date\nOct 20, 2026\n"],
+        'end before start' => ['[LOA Request] - PVT.Smith.J', "Username: Smith.J\nStart Date\nOct 20, 2026\nEnd Date\nOct 6, 2026\n"],
+        'years away' => ['[LOA Request] - PVT.Smith.J', "Username: Smith.J\nStart Date\nOct 6, 2036\nEnd Date\nOct 20, 2036\n"],
+        'read cleanly' => [LOA_TITLE, loaFixture('loa-on-behalf')],
+    ]);
+});
+
 describe('an ELOA report', function () {
     it('takes the LAST Username as the subject, since the submitter comes first', function () {
         $parsed = parseLoa('[ELOA Report] - PFC.Lane.M', loaFixture('eloa-report'), LoaType::Eloa);

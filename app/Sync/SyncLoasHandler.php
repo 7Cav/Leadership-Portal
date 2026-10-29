@@ -41,7 +41,8 @@ use Throwable;
  * the day the report was posted when the link is missing or the PAF cannot be read. An ELOA return does
  * not get a row; it ends the trooper's open ELOA, on the day its own PAF was filed. A thread that cannot
  * be read cleanly (one whose title names a different trooper from its `Username` among them), or whose
- * username matches no one (or more than one), is stored as `needs_review` with no dates, never guessed. The
+ * username matches no one (or more than one), is stored as `needs_review` with no dates, never guessed (the
+ * leave dates its post still gives, if usable, are kept apart, only to place its shield: see LoaCoverage). The
  * trooper is matched on the whole username, ignoring case, never a prefix. Raw text longer than its column
  * (a username, or a date line someone wrote a paragraph into) is cut to fit, and the row is sent to review,
  * so one over-long post cannot fail the run for every other post in it. Every row keeps the moment its
@@ -409,6 +410,8 @@ class SyncLoasHandler
                 rawEndDate: $rawEnd,
                 rawExcerpt: $parsed->excerpt === '' ? null : $parsed->excerpt,
                 expectedReturnAt: $clean ? $parsed->expectedReturnAt : null,
+                reviewStartsAt: $clean ? null : $parsed->reviewStartsAt,
+                reviewEndsAt: $clean ? null : $parsed->reviewEndsAt,
             );
         }
 

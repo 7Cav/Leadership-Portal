@@ -347,6 +347,35 @@ describe('a leave that needs review', function () {
     });
 });
 
+describe('a leave that needs review whose post gives its dates', function () {
+    it('shields the weeks of the leave, not the week it was posted', function () {
+        $trooper = Trooper::factory()->create();
+        Loa::factory()->needsReview()->create([
+            'trooper_id' => $trooper->id, 'posted_at' => '2026-10-01 09:00:00',
+            'review_starts_at' => '2026-10-24', 'review_ends_at' => '2026-11-06',
+        ]);
+
+        expect(coverageOf($trooper, coverageWeek('2026-09-26'))->state)->toBe(LoaCoverageState::None)
+            ->and(coverageOf($trooper, coverageWeek('2026-10-03'))->state)->toBe(LoaCoverageState::None)
+            ->and(coverageOf($trooper, coverageWeek('2026-10-24'))->state)->toBe(LoaCoverageState::NeedsReview)
+            ->and(coverageOf($trooper, coverageWeek('2026-10-31'))->state)->toBe(LoaCoverageState::NeedsReview)
+            ->and(coverageOf($trooper, coverageWeek('2026-10-31'))->startsAt)->toBeNull()
+            ->and(coverageOf($trooper, coverageWeek('2026-10-31'))->isCovered())->toBeFalse()
+            ->and(coverageOf($trooper, coverageWeek('2026-11-07'))->state)->toBe(LoaCoverageState::None);
+    });
+
+    it('shields only its own Cav week when it runs Saturday to Friday, the End Date being a day of leave', function () {
+        $trooper = Trooper::factory()->create();
+        Loa::factory()->needsReview()->create([
+            'trooper_id' => $trooper->id, 'posted_at' => '2026-09-20 09:00:00',
+            'review_starts_at' => '2026-10-03', 'review_ends_at' => '2026-10-09',
+        ]);
+
+        expect(coverageOf($trooper, coverageWeek('2026-10-03'))->state)->toBe(LoaCoverageState::NeedsReview)
+            ->and(coverageOf($trooper, coverageWeek('2026-10-10'))->state)->toBe(LoaCoverageState::None);
+    });
+});
+
 describe('a withdrawn leave', function () {
     it('counts for nothing, clean or needing review, and is not even fetched', function () {
         $trooper = Trooper::factory()->create();
@@ -545,6 +574,10 @@ it('prefilters in SQL to a superset of what the one week rule accepts, so the tw
         Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'posted_at' => $posted]);
         Loa::factory()->create(['trooper_id' => $trooper->id, 'starts_at' => null, 'ends_at' => null, 'posted_at' => $posted]);
         Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'posted_at' => null, 'created_at' => $posted]);
+    }
+
+    foreach ([['2026-09-26', '2026-10-02'], ['2026-09-27', '2026-10-03'], ['2026-10-23', '2026-10-30'], ['2026-10-24', '2026-11-06']] as [$start, $end]) {
+        Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'posted_at' => '2026-06-01 09:00:00', 'review_starts_at' => $start, 'review_ends_at' => $end]);
     }
 
     $returned = app(LoaRepository::class)->touchingWeeks([$trooper->id], $first, $weeks)->pluck('id')->all();
