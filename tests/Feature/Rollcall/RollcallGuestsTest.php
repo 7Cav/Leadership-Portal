@@ -1,5 +1,6 @@
 <?php
 
+use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Models\Attendance;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
@@ -58,7 +59,7 @@ it('records a hand-added guest at the host practice, audited with the leader as 
         ->assertExactJson([
             'guest' => [
                 'trooperId' => $this->guest->id, 'name' => 'Visitor.V', 'displayName' => $this->guest->display_name, 'rank' => 'PFC',
-                'section' => '3/2/B/1-7', 'source' => 'manual', 'recordedBy' => 'Host.L',
+                'section' => '3/2/B/1-7', 'source' => 'manual', 'recordedBy' => 'Host.L', 'makeupMissing' => false,
             ],
             'makeup' => 'marked',
         ]);
@@ -260,3 +261,75 @@ it('keeps the guest on the host rollcall only: no row on the host practice for t
         ->and(Attendance::query()->where('trooper_id', $this->guest->id)->sole()->status)->toBe(AttendanceStatus::Makeup)
         ->and(Attendance::query()->where('trooper_id', $this->guest->id)->sole()->source)->toBe(AttendanceSource::Auto);
 });
+
+// After a reload the picker shows a hand-added guest as already listed, so a guest whose makeup step failed after the
+// entry was saved is marked on the list, and the leader retries from the row through the same audited path.
+function failGuestMakeup(User $leader, int $hostId, int $trooperId): void
+{
+    $failing = Mockery::mock(app(MarkAttendanceHandler::class))->makePartial();
+    $failing->shouldReceive('preMarkMakeups')->once()->andThrow(new RuntimeException('connection lost'));
+    app()->instance(MarkAttendanceHandler::class, $failing);
+
+    addGuest($leader, $hostId, $trooperId)->assertServerError();
+
+    app()->forgetInstance(MarkAttendanceHandler::class);
+}
+
+it('marks a hand-added guest whose makeup is missing on the rollcall, and only that one', function () {
+    $seen = guestOf($this->home, ['username' => 'Seen.S']);
+    $fine = guestOf($this->home, ['username' => 'Fine.F']);
+    $practice = app(SectionPracticeRepository::class)->findOrCreate($this->host->id, $this->week);
+    CrossSectionSighting::query()->create([
+        'trooper_id' => $seen->id, 'section_practice_id' => $practice->id, 'week_start' => $this->week,
+        'seen_from' => '2026-10-08 18:00:00', 'seen_until' => '2026-10-08 19:30:00', 'source' => 'capture',
+    ]);
+    addGuest($this->leader, $this->host->id, $fine->id)->assertOk();
+    failGuestMakeup($this->leader, $this->host->id, $this->guest->id);
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->host->id}")
+        ->assertInertia(fn ($page) => $page
+            ->has('guests', 3)
+            ->where('guests.0.name', 'Fine.F')
+            ->where('guests.0.makeupMissing', false)
+            ->where('guests.1.name', 'Seen.S')
+            ->where('guests.1.makeupMissing', false)
+            ->where('guests.2.name', 'Visitor.V')
+            ->where('guests.2.makeupMissing', true));
+});
+
+it('retries the missing makeup from the row, audited, and stops offering it once the makeup is in', function () {
+    failGuestMakeup($this->leader, $this->host->id, $this->guest->id);
+
+    addGuest($this->leader, $this->host->id, $this->guest->id)->assertOk()
+        ->assertJsonPath('guest.makeupMissing', false)
+        ->assertJsonPath('makeup', 'marked');
+
+    $home = SectionPractice::query()->where('section_id', $this->home->id)->sole();
+    expect(Attendance::query()->where('section_practice_id', $home->id)->where('trooper_id', $this->guest->id)->sole()->status)->toBe(AttendanceStatus::Makeup)
+        ->and(AuditLogEntry::query()->where('action', 'attendance.auto_marked')->where('actor_id', $this->leader->id)->count())->toBe(1)
+        ->and(AuditLogEntry::query()->where('action', 'guest.recorded')->count())->toBe(1)
+        ->and(CrossSectionSighting::query()->count())->toBe(1);
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->host->id}")
+        ->assertInertia(fn ($page) => $page->where('guests.0.makeupMissing', false));
+});
+
+it('offers no retry when a retry could not help or the makeup is already somewhere', function (Closure $arrange) {
+    failGuestMakeup($this->leader, $this->host->id, $this->guest->id);
+    $arrange($this);
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->host->id}")
+        ->assertInertia(fn ($page) => $page->where('guests.0.makeupMissing', false));
+})->with([
+    'their own week was sent' => [fn ($test) => WeeklyReport::factory()->sent()->create(['unit_id' => $test->home->id, 'week_start' => $test->week])],
+    'their own leader marked them by hand' => [fn ($test) => Attendance::query()->create([
+        'trooper_id' => $test->guest->id, 'section_practice_id' => app(SectionPracticeRepository::class)->findOrCreate($test->home->id, $test->week)->id,
+        'status' => AttendanceStatus::Missed, 'source' => AttendanceSource::Manual,
+    ])],
+    'they no longer serve' => [fn ($test) => $test->guest->forceFill(['status' => TrooperStatus::Inactive])->save()],
+    'the makeup is on a section they have since left' => [function ($test) {
+        $old = SectionPractice::query()->create(['section_id' => $test->home->id, 'week_start' => $test->week]);
+        Attendance::query()->create(['trooper_id' => $test->guest->id, 'section_practice_id' => $old->id, 'status' => AttendanceStatus::Makeup, 'source' => AttendanceSource::Auto]);
+        $test->guest->forceFill(['primary_section_id' => Unit::factory()->create(['type' => UnitType::Section])->id])->save();
+    }],
+]);

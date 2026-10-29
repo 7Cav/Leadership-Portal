@@ -21,7 +21,8 @@ const props = defineProps({
     sectionId: { type: Number, required: true },
     // The practice's week (`YYYY-MM-DD`).
     week: { type: String, required: true },
-    // `[{ trooperId, name, displayName, rank, section, source: 'capture' | 'manual', recordedBy }]`.
+    // `[{ trooperId, name, displayName, rank, section, source: 'capture' | 'manual', recordedBy, makeupMissing }]`.
+    // `makeupMissing` is set on a hand-added guest whose automatic makeup is missing, for "Retry makeup".
     guests: { type: Array, default: () => [] },
     editable: { type: Boolean, default: true },
     // Why nothing here can be changed (a preview, a staff grant, a locked or confirmed week), shown with the controls.
@@ -149,6 +150,26 @@ async function add(trooper) {
     }
 }
 
+// A hand-added guest whose makeup step failed after the entry was saved: adding them again is the server's retry (no
+// second entry, the same audited makeup path). The answer says whether a makeup is still missing.
+async function retry(guest) {
+    if (!props.editable || busy.value !== null || guest.source !== 'manual' || !guest.makeupMissing) return;
+    busy.value = guest.trooperId;
+    try {
+        const result = await postJson(`/rollcall/${props.sectionId}/guests`, { week: props.week, trooper_id: guest.trooperId }).catch(unreachable);
+        if (!result.ok) {
+            toast.error(`Could not retry the makeup for ${label(guest)}`, { description: messageFor(result) });
+            return;
+        }
+        const updated = result.data.guest;
+        list.value = list.value.map((g) => (g.trooperId === updated.trooperId ? updated : g));
+        if (result.data.makeup === 'marked') toast.success(`Makeup added for ${label(updated)}`, { description: MAKEUP_ADDED.marked });
+        else toast.warning(`No makeup added for ${label(updated)}`, { description: MAKEUP_ADDED[result.data.makeup] ?? MAKEUP_ADDED.kept });
+    } finally {
+        busy.value = null;
+    }
+}
+
 async function undo(guest) {
     if (!props.editable || busy.value !== null || guest.source !== 'manual') return;
     busy.value = guest.trooperId;
@@ -255,11 +276,26 @@ async function undo(guest) {
                 <Badge v-else variant="outline" class="font-normal" data-testid="guest-source">
                     <template v-if="guest.recordedBy">Added by {{ guest.recordedBy }}</template><template v-else>Added by hand</template>
                 </Badge>
+                <span v-if="guest.source === 'manual' && guest.makeupMissing" class="text-xs text-muted-foreground" data-testid="guest-makeup-missing">
+                    No makeup on their own rollcall yet
+                </span>
+                <Button
+                    v-if="guest.source === 'manual' && guest.makeupMissing && editable"
+                    variant="outline"
+                    size="xs"
+                    class="ml-auto"
+                    data-testid="guest-retry"
+                    :disabled="busy !== null"
+                    :aria-label="`Retry the makeup for ${guest.name}`"
+                    @click="retry(guest)"
+                >
+                    <PhCircleNotch v-if="busy === guest.trooperId" class="animate-spin" aria-hidden="true" />Retry makeup
+                </Button>
                 <Button
                     v-if="guest.source === 'manual' && editable"
                     variant="outline"
                     size="xs"
-                    class="ml-auto"
+                    :class="guest.makeupMissing ? '' : 'ml-auto'"
                     data-testid="guest-undo"
                     :disabled="busy !== null"
                     :aria-label="`Undo adding ${guest.name}`"

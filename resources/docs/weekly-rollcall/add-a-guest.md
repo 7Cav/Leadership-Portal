@@ -19,7 +19,7 @@ audience: leader
 2. Type part of the trooper's name and pick them. Only serving troopers from other sections are offered.
 3. They are listed as **Added by hand**.
 
-> [!good-to-know] If the game server already saw them at this practice, they are listed already and cannot be added twice. A trooper who has a staff practice entry for this practice, from before they joined a section, cannot be added either: that entry is on their milpac page. If adding a guest ends in an error, add them again: they are not listed twice, and their makeup is tried again.
+> [!good-to-know] If the game server already saw them at this practice, they are listed already and cannot be added twice. A trooper who has a staff practice entry for this practice, from before they joined a section, cannot be added either: that entry is on their milpac page. If adding a guest ends in an error, add them again: they are not listed twice, and their makeup is tried again. After a reload, a guest whose makeup is missing says **No makeup on their own rollcall yet** with a **Retry makeup** button that does the same.
 
 ## Take a guest back off
 

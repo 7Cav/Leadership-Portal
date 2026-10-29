@@ -7,7 +7,8 @@ const post = vi.fn();
 vi.mock('@/lib/postJson', () => ({ postJson: (...args) => post(...args), reloadPage: vi.fn(), sessionEnded: (status) => status === 401 || status === 419 }));
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
-vi.mock('vue-sonner', () => ({ toast: { success: (...a) => toastSuccess(...a), error: (...a) => toastError(...a) } }));
+const toastWarning = vi.fn();
+vi.mock('vue-sonner', () => ({ toast: { success: (...a) => toastSuccess(...a), error: (...a) => toastError(...a), warning: (...a) => toastWarning(...a) } }));
 
 const SEEN = { trooperId: 7, name: 'Seen.S', displayName: 'SPC Seen.S', rank: 'SPC', section: '2/1/A/1-7', source: 'capture', recordedBy: null };
 const ADDED = { trooperId: 8, name: 'Added.A', displayName: 'PFC Added.A', rank: 'PFC', section: '3/2/B/1-7', source: 'manual', recordedBy: 'Host.L' };
@@ -31,6 +32,7 @@ describe('GuestsPanel', () => {
         post.mockReset();
         toastSuccess.mockReset();
         toastError.mockReset();
+        toastWarning.mockReset();
     });
     afterEach(() => vi.useRealTimers());
 
@@ -137,5 +139,40 @@ describe('GuestsPanel', () => {
         expect(wrapper.find('[data-testid="guest-add"]').attributes('disabled')).toBeDefined();
         expect(wrapper.find('[data-testid="guest-undo"]').exists()).toBe(false);
         expect(wrapper.text()).toContain('Read-only: a staff grant lets you view this section, not mark it.');
+    });
+    // A hand-added guest whose makeup step failed: after a reload the picker shows them as already listed, so the row
+    // itself offers the retry, and only while the makeup is missing.
+    it('offers Retry makeup only on a hand-added guest whose makeup is missing', () => {
+        const wrapper = factory({ guests: [{ ...SEEN, makeupMissing: true }, { ...ADDED, makeupMissing: true }, { ...ADDED, trooperId: 10, makeupMissing: false }] });
+
+        expect(wrapper.find('[data-testid="guest-7"] [data-testid="guest-retry"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="guest-8"] [data-testid="guest-retry"]').text()).toBe('Retry makeup');
+        expect(wrapper.find('[data-testid="guest-8"] [data-testid="guest-makeup-missing"]').text()).toBe('No makeup on their own rollcall yet');
+        expect(wrapper.find('[data-testid="guest-10"] [data-testid="guest-retry"]').exists()).toBe(false);
+        expect(factory({ guests: [{ ...ADDED, makeupMissing: true }], editable: false }).find('[data-testid="guest-retry"]').exists()).toBe(false);
+    });
+
+    it('retries the makeup by adding the guest again, and drops the offer once the makeup is in', async () => {
+        post.mockResolvedValue({ ok: true, status: 200, data: { guest: { ...ADDED, makeupMissing: false }, makeup: 'marked' } });
+        const wrapper = factory({ guests: [{ ...ADDED, makeupMissing: true }] });
+
+        await wrapper.find('[data-testid="guest-retry"]').trigger('click');
+        await flushPromises();
+
+        expect(post).toHaveBeenCalledWith('/rollcall/12/guests', { week: '2026-10-03', trooper_id: 8 });
+        expect(wrapper.findAll('[data-testid^="guest-8"]')).toHaveLength(1);
+        expect(wrapper.find('[data-testid="guest-retry"]').exists()).toBe(false);
+        expect(toastSuccess).toHaveBeenCalledWith('Makeup added for PFC Added.A', expect.objectContaining({ description: "A makeup is on their own section's rollcall for this week." }));
+    });
+
+    it('says why when the retry wrote no makeup, and offers it again only while the server still says it is missing', async () => {
+        post.mockResolvedValue({ ok: true, status: 200, data: { guest: { ...ADDED, makeupMissing: false }, makeup: 'locked' } });
+        const wrapper = factory({ guests: [{ ...ADDED, makeupMissing: true }] });
+
+        await wrapper.find('[data-testid="guest-retry"]').trigger('click');
+        await flushPromises();
+
+        expect(wrapper.find('[data-testid="guest-retry"]').exists()).toBe(false);
+        expect(toastWarning).toHaveBeenCalledWith('No makeup added for PFC Added.A', expect.objectContaining({ description: "Their own section's week is locked, so no makeup was added there." }));
     });
 });

@@ -5,6 +5,7 @@ namespace App\Commands\Attendance;
 use App\Authorization\ScopeResolver;
 use App\Loa\LoaCoverage;
 use App\Models\AttendanceSource;
+use App\Models\AttendanceStatus;
 use App\Models\SectionPractice;
 use App\Models\UnitType;
 use App\Models\User;
@@ -354,6 +355,69 @@ class MarkAttendanceHandler
         }
 
         return $result;
+    }
+
+    /**
+     * Which of `$trooperIds`, guests at `$host`, still lack the automatic makeup {@see preMarkMakeups()} would write for
+     * them now (the guest list's "Retry makeup", after a makeup step that failed). Read only, under the same guards
+     * without the locks: none in a week before the floor; none placed nowhere, in the host itself, or in a unit that
+     * is not a section; none whose own week is sent or confirmed (a retry would only be refused), whose leave covers
+     * the week, or who is no longer serving there; and none who already holds an automatic makeup on any practice that
+     * week (it may be on a section they have since left) or whose own rollcall row is one a makeup never overwrites (a
+     * manual mark, `present`, `attached`, `loa`). One read per own section, plus one per trooper still in question.
+     *
+     * @param  list<int>  $trooperIds
+     * @return list<int>
+     */
+    public function makeupsMissing(SectionPractice $host, array $trooperIds): array
+    {
+        $trooperIds = array_values(array_unique($trooperIds));
+        sort($trooperIds);
+
+        if ($trooperIds === [] || WeekOf::isBeforeFloor($host->week_start)) {
+            return [];
+        }
+
+        $weekStart = $host->week_start;
+        $bySection = [];
+
+        foreach ($this->troopers->byIds($trooperIds) as $trooper) {
+            if ($trooper->primary_section_id !== null && $trooper->primary_section_id !== $host->section_id) {
+                $bySection[$trooper->primary_section_id][] = $trooper->id;
+            }
+        }
+
+        $missing = [];
+
+        foreach ($bySection as $sectionId => $ids) {
+            sort($ids);
+
+            if ($this->units->find($sectionId)?->type !== UnitType::Section || $this->reports->isSentFor($sectionId, $weekStart)) {
+                continue;
+            }
+
+            $practice = $this->practices->find($sectionId, $weekStart);
+
+            if ($practice?->confirmed_at !== null) {
+                continue;
+            }
+
+            $rows = $practice === null ? collect() : $this->attendance->forPractice($practice)->keyBy('trooper_id');
+
+            foreach ($this->makeupCandidates($sectionId, $weekStart, $ids) as $trooperId) {
+                $row = $rows->get($trooperId);
+                $kept = $row !== null && ($row->source === AttendanceSource::Manual
+                    || in_array($row->status, [AttendanceStatus::Makeup, AttendanceStatus::Loa, AttendanceStatus::Present, AttendanceStatus::Attached], true));
+
+                if (! $kept && $this->attendance->practicesWithAutoMakeup($trooperId, $weekStart)->isEmpty()) {
+                    $missing[] = $trooperId;
+                }
+            }
+        }
+
+        sort($missing);
+
+        return $missing;
     }
 
     /**

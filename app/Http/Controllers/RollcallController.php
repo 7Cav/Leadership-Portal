@@ -42,6 +42,7 @@ use App\Loa\LoaProvenance;
 use App\Milpac\RosterProvenance;
 use App\Models\Attendance;
 use App\Models\AttendanceStatus;
+use App\Models\CrossSectionSighting;
 use App\Models\Game;
 use App\Models\GameIdentityText;
 use App\Models\PracticeCapturePlayer;
@@ -54,6 +55,7 @@ use App\Models\User;
 use App\Models\WeeklyReportStatus;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\CountingMark;
+use App\Repositories\CrossSectionSightingRepository;
 use App\Repositories\GameIdentityLinkException;
 use App\Repositories\GameRepository;
 use App\Repositories\PracticeCapturePlayerRepository;
@@ -139,6 +141,8 @@ class RollcallController extends Controller
         private readonly GameRepository $games,
         private readonly Headcount $headcount,
         private readonly UnitActingLeadRepository $actingLeads,
+        private readonly CrossSectionSightingRepository $sightings,
+        private readonly MarkAttendanceHandler $makeups,
     ) {}
 
     /**
@@ -788,7 +792,8 @@ class RollcallController extends Controller
             ...$this->captureProps($practice),
             // Troopers from other sections recorded at this practice (JSAM evidence, 2026-10-23): what the capture saw
             // and who the leader added by hand, for the practice step's "Guests" area.
-            'guests' => $this->guests->forPractice($practice),
+            // A hand-added guest whose makeup is missing (its step failed after the entry was saved) is offered a retry.
+            'guests' => $this->guests->forPractice($practice, $this->guestMakeupsMissing($practice)),
             'telemetry' => $this->telemetryProps($section->id, $practice),
             'practice' => [
                 'lastMarkedAt' => $week->marks->max(fn (Attendance $row) => $row->updated_at)?->toIso8601String(),
@@ -971,5 +976,21 @@ class RollcallController extends Controller
                 'missed' => $row->missed,
                 'windowWeeks' => KpiService::WINDOW_WEEKS,
             ])->values()->all();
+    }
+
+    /**
+     * The hand-added guests at `$practice` whose automatic makeup is missing ({@see MarkAttendanceHandler::makeupsMissing()}).
+     *
+     * @return list<int>
+     */
+    private function guestMakeupsMissing(?SectionPractice $practice): array
+    {
+        if ($practice === null) {
+            return [];
+        }
+
+        $manual = $this->sightings->forHostPractice($practice->id)->filter(fn (CrossSectionSighting $row) => $row->isManual())->pluck('trooper_id')->map(fn ($id) => (int) $id)->values()->all();
+
+        return $manual === [] ? [] : $this->makeups->makeupsMissing($practice, $manual);
     }
 }

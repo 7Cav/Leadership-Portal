@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
+use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Commands\Attendance\RollcallWeekLockedException;
 use App\Commands\Guests\GuestAttendanceForbiddenException;
 use App\Commands\Guests\GuestAttendanceRefusedException;
@@ -44,6 +45,7 @@ class RollcallGuestController extends Controller
         private readonly UnitRepository $units,
         private readonly TrooperRepository $troopers,
         private readonly RollcallGuests $guests,
+        private readonly MarkAttendanceHandler $makeups,
     ) {}
 
     /**
@@ -96,9 +98,11 @@ class RollcallGuestController extends Controller
     {
         return $this->attempt($request, 'adding this guest', function (CarbonImmutable $week, int $trooperId) use ($request, $unit, $handler) {
             $recorded = $handler->handle($request->user(), new RecordGuestAttendance($unit, $week, $trooperId));
+            // Read again, so a retry that could not write the makeup still offers the next one.
+            $missing = $this->makeups->makeupsMissing($recorded->practice, [$trooperId]) !== [];
 
             return [
-                'guest' => $this->guests->one($recorded->sighting, $this->troopers->find($trooperId)),
+                'guest' => $this->guests->one($recorded->sighting, $this->troopers->find($trooperId), $missing),
                 'makeup' => $recorded->makeup,
             ];
             // Adding again is safe: a guest already saved is not listed twice, and their makeup is tried again.

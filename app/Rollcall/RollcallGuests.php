@@ -24,9 +24,13 @@ class RollcallGuests
     ) {}
 
     /**
-     * @return list<array{trooperId: int, name: ?string, displayName: string, rank: ?string, section: ?string, source: string, recordedBy: ?string}>
+     * `$makeupMissing` are the troopers whose automatic makeup is missing, worked out by the caller from the makeup
+     * rules: a hand-added one among them is offered "Retry makeup".
+     *
+     * @param  list<int>  $makeupMissing
+     * @return list<array{trooperId: int, name: ?string, displayName: string, rank: ?string, section: ?string, source: string, recordedBy: ?string, makeupMissing: bool}>
      */
-    public function forPractice(?SectionPractice $practice): array
+    public function forPractice(?SectionPractice $practice, array $makeupMissing = []): array
     {
         if ($practice === null) {
             return [];
@@ -40,16 +44,17 @@ class RollcallGuests
 
         $units = $this->units->tree()->keyBy('id');
 
-        return $rows->map(fn (CrossSectionSighting $row) => $this->shape($row, $row->trooper, $units))->values()->all();
+        return $rows->map(fn (CrossSectionSighting $row) => $this->shape($row, $row->trooper, $units, in_array($row->trooper_id, $makeupMissing, true)))->values()->all();
     }
 
     /**
-     * One guest row; `$units` is the org tree keyed by id, for the guest's own section designation.
+     * One guest row; `$units` is the org tree keyed by id, for the guest's own section designation. `makeupMissing` is
+     * set only on a hand-added guest, the one kind a leader can retry.
      *
      * @param  Collection<int, Unit>  $units
-     * @return array{trooperId: int, name: ?string, displayName: string, rank: ?string, section: ?string, source: string, recordedBy: ?string}
+     * @return array{trooperId: int, name: ?string, displayName: string, rank: ?string, section: ?string, source: string, recordedBy: ?string, makeupMissing: bool}
      */
-    public function shape(CrossSectionSighting $row, Trooper $trooper, Collection $units): array
+    public function shape(CrossSectionSighting $row, Trooper $trooper, Collection $units, bool $makeupMissing = false): array
     {
         $section = $units->get($trooper->primary_section_id);
 
@@ -67,16 +72,17 @@ class RollcallGuests
                 $row->recordedAsUnit !== null => "{$row->recordedBy?->username} acting as {$row->recordedAsUnit->billet()}",
                 default => $row->recordedBy?->username,
             },
+            'makeupMissing' => $makeupMissing && $row->isManual(),
         ];
     }
 
     /**
      * {@see shape()} for one entry just written, reading the org tree itself.
      *
-     * @return array{trooperId: int, name: ?string, displayName: string, rank: ?string, section: ?string, source: string, recordedBy: ?string}
+     * @return array{trooperId: int, name: ?string, displayName: string, rank: ?string, section: ?string, source: string, recordedBy: ?string, makeupMissing: bool}
      */
-    public function one(CrossSectionSighting $row, Trooper $trooper): array
+    public function one(CrossSectionSighting $row, Trooper $trooper, bool $makeupMissing = false): array
     {
-        return $this->shape($row, $trooper, $this->units->tree()->keyBy('id'));
+        return $this->shape($row, $trooper, $this->units->tree()->keyBy('id'), $makeupMissing);
     }
 }
