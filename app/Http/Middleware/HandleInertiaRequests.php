@@ -52,12 +52,14 @@ class HandleInertiaRequests extends Middleware
             // Authenticatable avoids a static App\Models\User reference, so this glue
             // layer stays terminal in the Deptrac graph.
             'auth' => [
-                // `is_admin` is whether this request's user is an Admin, by the flag or by an approved Admin billet
-                // (ScopeResolver::isAdmin(), decided by the S6 2026-10-28), worked out on this request and never
-                // the stored column alone. While an Admin acts as someone it answers for who the request runs as.
+                // `is_admin` is whether the shell shows this request's user as an Admin, by the flag or by an approved
+                // Admin billet (ScopeResolver::actsAsAdmin(), decided by the S6 2026-10-28), worked out on this request
+                // and never the stored column alone. While an Admin acts as someone it answers for who the request runs
+                // as; during a view-as preview, for whoever is previewed, as every page does. Display only: the server's
+                // gates ask the ScopeResolver themselves.
                 'user' => $request->user() ? [
                     ...$request->user()->only(['id', 'username']),
-                    'is_admin' => $this->scope->isAdmin($request->user()),
+                    'is_admin' => $this->scope->actsAsAdmin($request->user()),
                 ] : null,
                 // Cav roster context for this login (Story 1.6): rank, billet and MOS, each
                 // carrying the source and fetch time so the UI can never show them as if the
@@ -89,7 +91,11 @@ class HandleInertiaRequests extends Middleware
             // How many Admin billets wait for an Admin to confirm them (decided by the S6, 2026-10-28), for the
             // sidebar's notice on Staff grants. Only to someone acting as Admin; zero for everyone else.
             'adminBilletsPending' => fn () => $request->user() && $this->scope->actsAsAdmin($request->user()) ? $this->adminBillets->pendingCount() : 0,
-            'viewAs' => fn () => $request->user() ? $this->scope->activeViewAs($request->user())?->toArray() : null,
+            // `actAs`: whether the banner offers to act as the preview's target, which only a real Admin may (the
+            // server checks again on the start).
+            'viewAs' => fn () => $request->user() && ($preview = $this->scope->activeViewAs($request->user())) !== null
+                ? [...$preview->toArray(), 'actAs' => $this->scope->isAdmin($request->user())]
+                : null,
             // The top unit(s) of the viewer's scope as this request sees it (view as and act as included), which the
             // sidebar's unit switcher and the breadcrumb start from (#426). The switcher's full list is read only when
             // it opens (`/scope/units`).

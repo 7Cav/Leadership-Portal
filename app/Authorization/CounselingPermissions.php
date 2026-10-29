@@ -15,6 +15,8 @@ final readonly class CounselingPermissions
     /**
      * @param  array<string, ?int>  $issuingUnits  per type value, the unit the viewer would file through (null: none)
      * @param  list<int>  $writeScope  the viewer's write scope (AD-8), narrowed by an active view-as
+     * @param  bool  $flagAdmin  an Admin by the `users.is_admin` flag, as themselves: the only one who changes their own
+     *                           records (an Admin by billet does not, 2026-10-29)
      */
     public function __construct(
         public bool $seesDcs,
@@ -26,6 +28,7 @@ final readonly class CounselingPermissions
         public bool $departed,
         public array $issuingUnits,
         public array $writeScope,
+        public bool $flagAdmin,
     ) {}
 
     public function sees(CounselingType $type): bool
@@ -49,10 +52,12 @@ final readonly class CounselingPermissions
      * filed through (that unit's subtree is in their write scope, so the issuer and the chain above them qualify).
      * A leader must also still reach the trooper from above: one the trooper now commands, or who now shares the
      * trooper's command, no longer changes what was filed before. Nobody changes the records of a departed trooper.
+     * Nobody changes their own, except an Admin by the flag: an Admin by billet holds it because of Cav's billet list,
+     * not because someone chose them, so their own records stay out of their reach like anyone's.
      */
     public function changes(CounselingRecord $record): bool
     {
-        if ($this->departed || ! $this->sees($record->type) || $this->self && ! $this->admin) {
+        if ($this->departed || ! $this->sees($record->type) || $this->self && ! $this->flagAdmin) {
             return false;
         }
 

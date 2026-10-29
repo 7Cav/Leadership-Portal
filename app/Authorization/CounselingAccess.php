@@ -26,7 +26,8 @@ use Illuminate\Support\Collection;
  *    nobody files on themselves. The next echelon up does.
  *  - **Their own records**: every trooper sees their own DCSs and LORs, read-only, on their own milpac page
  *    ({@see ScopeResolver::isOwnTrooper()}, decided 2026-10-28), with no command and no grant. They never file, correct
- *    or delete their own; that refusal is the same as before (an Admin keeps changing records as an Admin).
+ *    or delete their own; that refusal is the same as before, except that an Admin by the `users.is_admin` flag keeps
+ *    changing records as an Admin, their own included (an Admin by billet does not, 2026-10-29).
  *  - "Themselves" is also the person really signed in while acting as someone ({@see RealActor}): acting as a billet
  *    or as a person never lets anyone file on, see the DCSs of, or change the records of the one doing the acting:
  *    their own page shows them their DCSs only as themselves, not through the identity they act as.
@@ -89,6 +90,8 @@ class CounselingAccess
             departed: $departed,
             issuingUnits: array_map(fn (?Unit $unit) => $unit?->id, $issuing),
             writeScope: $writeScope->map(fn ($id) => (int) $id)->values()->all(),
+            // The request's own user: acting as a person or a billet, that is a copy with the flag off.
+            flagAdmin: (bool) $user->is_admin,
         );
     }
 

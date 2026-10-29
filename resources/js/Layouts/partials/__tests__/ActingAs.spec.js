@@ -36,21 +36,23 @@ describe('act as (#379)', () => {
         expect(mount(ActingAsBanner).find('[data-testid="acting-as-banner"]').exists()).toBe(false);
     });
 
+    // `viewAs.actAs` is the real user's Admin; `auth.user.is_admin` follows the preview, so a previewed leader's
+    // false never hides the offer from the Admin previewing them.
     it('offers "Act as them" on a preview of any person, Admins included, to an Admin only', () => {
-        const person = { kind: 'user', id: 4, label: 'SGT Vasquez.R', designation: null, unitName: null, admin: false };
-        page.props = { auth: { user: { id: 1, is_admin: true } }, actingAs: null, viewAs: person };
+        const person = { kind: 'user', id: 4, label: 'SGT Vasquez.R', designation: null, unitName: null, admin: false, actAs: true };
+        page.props = { auth: { user: { id: 1, is_admin: false } }, actingAs: null, viewAs: person };
         expect(mount(ViewAsBanner).get('[data-testid="act-as-open"]').text()).toBe('Act as them');
 
         page.props.viewAs = { ...person, admin: true };
         expect(mount(ViewAsBanner).find('[data-testid="act-as-open"]').exists()).toBe(true);
 
-        page.props = { auth: { user: { id: 2, is_admin: false } }, actingAs: null, viewAs: person };
+        page.props = { auth: { user: { id: 2, is_admin: false } }, actingAs: null, viewAs: { ...person, actAs: false } };
         expect(mount(ViewAsBanner).find('[data-testid="act-as-open"]').exists()).toBe(false);
     });
 
     it("offers 'Act as this billet' on an Admin's preview of a unit, never on a leader's", async () => {
-        const unit = { kind: 'unit', id: 3, label: '2/1/A/1-7', designation: '2/1/A/1-7', unitName: '2nd Section', admin: false };
-        page.props = { auth: { user: { id: 1, is_admin: true } }, actingAs: null, viewAs: unit };
+        const unit = { kind: 'unit', id: 3, label: '2/1/A/1-7', designation: '2/1/A/1-7', unitName: '2nd Section', admin: false, actAs: true };
+        page.props = { auth: { user: { id: 1, is_admin: false } }, actingAs: null, viewAs: unit };
         const banner = mount(ViewAsBanner, { attachTo: document.body });
         expect(banner.get('[data-testid="act-as-open"]').text()).toBe('Act as this billet');
 
@@ -59,7 +61,7 @@ describe('act as (#379)', () => {
         expect(post).toHaveBeenCalledWith('/act-as', { kind: 'unit', id: 3 }, expect.any(Object));
         banner.unmount();
 
-        page.props = { auth: { user: { id: 2, is_admin: false } }, actingAs: null, viewAs: unit };
+        page.props = { auth: { user: { id: 2, is_admin: false } }, actingAs: null, viewAs: { ...unit, actAs: false } };
         expect(mount(ViewAsBanner).find('[data-testid="act-as-open"]').exists()).toBe(false);
     });
 
@@ -96,7 +98,7 @@ describe('act as (#379)', () => {
     });
 
     it('shows a refused act as from a preview in the dialog, in plain words', async () => {
-        const person = { kind: 'user', id: 4, label: 'SGT Vasquez.R', designation: null, unitName: null, admin: false };
+        const person = { kind: 'user', id: 4, label: 'SGT Vasquez.R', designation: null, unitName: null, admin: false, actAs: true };
         page.props = { auth: { user: { id: 1, is_admin: true } }, actingAs: null, viewAs: person };
         post.mockImplementationOnce((url, data, options) => options.onHttpException({ status: 403 }));
         const banner = mount(ViewAsBanner, { attachTo: document.body });
