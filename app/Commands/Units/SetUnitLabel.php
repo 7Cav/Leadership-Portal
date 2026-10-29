@@ -8,9 +8,10 @@ use App\Repositories\UnitRepository;
 use App\Support\Audit\AuditEnvelope;
 
 /**
- * Set or clear a unit's game or team label: DEVCOM's units play one game each
- * ("WARDOGS"), and nothing in Cav's data says which, so an Admin sets it by hand. Shown next to the unit's name on the
- * org page, the roster and the rollcall pickers; it changes no scope, placement or KPI.
+ * Set or clear a unit's team label. Free text, kept apart from the game the unit plays
+ * ({@see SetUnitGame}), since some units label a team rather than a game. Nothing in Cav's data
+ * names it, so an Admin sets it by hand. Shown next to the unit's name on the org page, the roster and the rollcall
+ * pickers; it changes no scope, placement or KPI.
  *
  * Admin-only, enforced by the controller (AD-6), same as {@see CreateUnit}. Audited through the envelope (AD-16) as an
  * org-structure edit, so no reason is required. A blank label clears it; an unchanged one writes nothing and logs

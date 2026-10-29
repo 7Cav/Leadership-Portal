@@ -49,7 +49,8 @@ interface GameRepository
     public function setRetired(Game $game, bool $retired): Game;
 
     /**
-     * The ids of the games something uses: a linked identity, a captured player, a dismissal or a game server assigned to it (#389).
+     * The ids of the games something uses: a linked identity, a captured player, a dismissal, a game server assigned to it (#389)
+     * or a unit set to play it (2026-10-29).
      *
      * @return list<int>
      */

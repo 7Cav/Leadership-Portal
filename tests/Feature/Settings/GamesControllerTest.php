@@ -9,6 +9,7 @@ use App\Models\PracticeCapturePlayer;
 use App\Models\SectionPractice;
 use App\Models\TelemetryInterface;
 use App\Models\TrooperGameIdentity;
+use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -135,7 +136,7 @@ it('deletes a game nothing uses, audited', function () {
         ->and(AuditLogEntry::query()->sole()->action)->toBe('game.deleted');
 });
 
-it('refuses to delete a game in use by an identity, a captured player, a dismissal or a server, and changes nothing', function (Closure $use) {
+it('refuses to delete a game in use by an identity, a captured player, a dismissal, a server or a unit, and changes nothing', function (Closure $use) {
     $game = Game::factory()->create();
     $use($game, $this->admin);
 
@@ -149,6 +150,7 @@ it('refuses to delete a game in use by an identity, a captured player, a dismiss
     'captured player' => [fn (Game $game) => PracticeCapturePlayer::query()->create(['section_practice_id' => SectionPractice::factory()->create()->id, 'game_id' => $game->id, 'player_name' => 'P', 'platform_id' => '1'])],
     'dismissal' => [fn (Game $game, User $by) => GamePlayerDismissal::query()->create(['game_id' => $game->id, 'platform_id' => '1', 'player_name' => 'P', 'dismissed_by' => $by->id])],
     'server' => [fn (Game $game) => GameServer::factory()->create(['game_id' => $game->id])],
+    'unit' => [fn (Game $game) => Unit::factory()->create()->forceFill(['game_id' => $game->id])->save()],
 ]);
 
 it('answers every write from a non-Admin with 403, changing nothing', function (string $method, Closure $path, array $body) {

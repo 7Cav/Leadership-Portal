@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import OrgStructure from '../OrgStructure.vue';
 
 // Staff, ELOA and New Recruit placement on the org page (decided 2026-10-24): HQ staff counted in their unit, New
-// Recruits hidden until asked for, an ELOA trooper's "was", a unit's game label and a vacant lead.
+// Recruits hidden until asked for, an ELOA trooper's "was", a unit's team label and a vacant lead.
 
 const labelPatch = vi.fn();
 const routerPost = vi.fn();
@@ -78,7 +78,7 @@ describe('Settings/OrgStructure placement', () => {
         expect(wrapper.find('[data-testid="member-was"]').exists()).toBe(false);
     });
 
-    it('shows a unit\'s game label next to its name', () => {
+    it('shows a unit\'s team label next to its name', () => {
         const wrapper = mountPage();
 
         expect(wrapper.find('[data-testid="unit-label-2"]').text()).toBe('WARDOGS');

@@ -142,6 +142,22 @@ describe('Settings/OrgStructure cards', () => {
         expect(wrapper.find('[data-testid="unit-row-12"]').attributes('aria-selected')).toBe('true');
     });
 
+    it('shows the game a referenced unit plays on its reference row, and its picker in the details it opens', async () => {
+        const games = [{ id: 7, name: 'WARDOGS', retired: false }];
+        const units = UNITS.map((unit) =>
+            unit.id === 6 ? { ...unit, game_id: 7, game: { id: 7, name: 'WARDOGS', retired: false, from: null } } : unit,
+        );
+        const wrapper = mountPage({ units, games, isAdmin: true });
+
+        expect(wrapper.find('[data-testid="ref-game-11-6"]').text()).toBe('WARDOGS');
+        expect(wrapper.find('[data-testid="unit-game-6"]').text()).toBe('WARDOGS');
+
+        await wrapper.find('[data-testid="unit-ref-11-6"]').trigger('click');
+
+        expect(wrapper.find('[data-testid="detail-game"]').text()).toBe('Game: WARDOGS');
+        expect(wrapper.find('[data-testid="edit-game"]').exists()).toBe(true);
+    });
+
     it('shows each battalion\'s overseer or vacant, and the Reservists\' overseer, in both cards', () => {
         const wrapper = mountPage();
 
