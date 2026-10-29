@@ -21,6 +21,7 @@ import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Separator } from '@/components/ui/separator';
 import EmptyState from '@/components/EmptyState.vue';
+import ReasonDialog from '@/components/ReasonDialog.vue';
 import { onHttpException } from '@/lib/httpError';
 import { ancestorIds, searchUnits } from '@/lib/orgSearch';
 import OrgTreeNode from './OrgTreeNode.vue';
@@ -31,7 +32,7 @@ const props = defineProps({
     units: { type: Array, required: true },
     isAdmin: { type: Boolean, required: true },
     // Flashed once by the import action (Story 2.9):
-    // `{ unitsCreated, mappingsCreated, mappingsDiffering, skippedTitles }`.
+    // `{ unitsCreated, mappingsCreated, mappingsRepointed, mappingsDiffering, skippedTitles }`.
     importResult: { type: Object, default: null },
     // Troopers the roster sync could not place into a section (Story 2.6), as
     // `{ id, cav_id, username, rank, mos, billet, position_id }`. Null when the server withholds
@@ -360,8 +361,6 @@ function cancelEdit() {
 // a re-render to observe it through the DOM (the mocked `useForm` in tests isn't reactive).
 defineExpose({ form });
 
-// Import from the Cav position groups (Story 2.9). A plain `router.post()` — there is no form
-// state to carry — so a refused import's `errors.import` is caught here, as `deleteError` is.
 // Manual placement of an unplaced trooper (Story 2.7). One chip is open at a time. Since 2026-10-24 any unit can take
 // a trooper: a section, an HQ node for its staff, or a group (a staff department, ELOA, Reservists, New Recruits).
 // Listed by `path` so they read in chain-of-command order.
@@ -445,6 +444,8 @@ function submitAssign(trooper) {
     );
 }
 
+// Import from the Cav position groups (Story 2.9). A plain `router.post()`: there is no form state to carry, so a
+// refused import's `errors.import` is caught here, as a refused delete's is.
 const importing = ref(false);
 const importError = ref(null);
 
@@ -457,9 +458,13 @@ function runImport() {
         {
             preserveScroll: true,
             onError: (errors) => {
-                importError.value =
-                    errors.import ?? Object.values(errors)[0] ?? 'The import failed. Reload the page and try again. If it fails again, check the server logs.';
+                importError.value = errors.import ?? Object.values(errors)[0] ?? 'The import did not run. Try again.';
             },
+            // A 403, an expired session, the shared sync limit (429) or a server error: said in plain words here, not
+            // in Inertia's raw error dialog.
+            onHttpException: onHttpException('The import did not run', (message) => {
+                importError.value = message;
+            }),
             onFinish: () => {
                 importing.value = false;
             },
@@ -467,27 +472,51 @@ function runImport() {
     );
 }
 
-// A blocked delete (e.g. remaining children) 422s with an `errors.delete` message — there's no
-// `useForm` in play for a plain `router.delete()` call, so that error has nowhere to land
-// without this: without it, a refused delete would fail with no visible feedback at all.
+// Deleting a unit is asked for in the app's own dialog, not the browser's confirm box. A blocked delete (e.g. remaining
+// children) 422s with an `errors.delete` message, and an HTTP refusal (403, 419, 429, 5xx) is put in plain words; both
+// show inside the dialog, so a refused delete never fails silently or behind Inertia's raw error page.
+const deleting = ref(null);
 const deleteError = ref(null);
+const deleteProcessing = ref(false);
 
 function requestDelete(id) {
     const unit = props.units.find((candidate) => candidate.id === id);
-    if (!unit || !confirm(`Delete "${unit.name}"? This cannot be undone.`)) {
+    if (!unit) {
         return;
     }
 
     deleteError.value = null;
-    router.delete(`/settings/org-structure/${id}`, {
+    deleting.value = unit;
+}
+
+function closeDelete() {
+    if (!deleteProcessing.value) deleting.value = null;
+}
+
+function confirmDelete() {
+    const unit = deleting.value;
+    if (!unit || deleteProcessing.value) return;
+
+    deleteError.value = null;
+    router.delete(`/settings/org-structure/${unit.id}`, {
         preserveScroll: true,
+        onStart: () => {
+            deleteProcessing.value = true;
+        },
         onSuccess: () => {
-            if (selectedId.value === id) {
+            deleting.value = null;
+            if (selectedId.value === unit.id) {
                 selectedId.value = null;
             }
         },
         onError: (errors) => {
-            deleteError.value = errors.delete ?? 'The delete failed. Reload the page and try again. If it fails again, check the server logs.';
+            deleteError.value = errors.delete ?? Object.values(errors)[0] ?? 'The unit was not deleted. Try again.';
+        },
+        onHttpException: onHttpException('The unit was not deleted', (message) => {
+            deleteError.value = message;
+        }),
+        onFinish: () => {
+            deleteProcessing.value = false;
         },
     });
 }
@@ -536,9 +565,12 @@ function requestDelete(id) {
             <p>
                 Imported from the Cav roster: {{ importResult.unitsCreated }} {{ importResult.unitsCreated === 1 ? 'node' : 'nodes' }} and
                 {{ importResult.mappingsCreated }} placement {{ importResult.mappingsCreated === 1 ? 'mapping' : 'mappings' }} created.
+                <template v-if="importResult.mappingsRepointed">
+                    {{ importResult.mappingsRepointed }} {{ importResult.mappingsRepointed === 1 ? 'mapping' : 'mappings' }} moved to the unit Cav now lists.
+                </template>
                 <template v-if="importResult.mappingsDiffering">
                     {{ importResult.mappingsDiffering }} existing {{ importResult.mappingsDiffering === 1 ? 'mapping points' : 'mappings point' }}
-                    at a different unit than Cav now lists, kept as they are.
+                    at a different unit than Cav now lists but {{ importResult.mappingsDiffering === 1 ? 'was' : 'were' }} not set by the import, kept as they are.
                 </template>
                 <!-- Story 1.16's command-billet counts: shown only when the server sends them. -->
                 <template v-if="importResult.commandMappingsCreated !== undefined">
@@ -786,7 +818,6 @@ function requestDelete(id) {
                             </Button>
                             <span v-else></span>
                             <div class="flex flex-1 items-center justify-end gap-2">
-                                <p v-if="deleteError" data-testid="delete-error" role="alert" class="text-xs text-destructive">{{ deleteError }}</p>
                                 <Button type="button" variant="ghost" data-testid="cancel-edit" @click="cancelEdit">Cancel</Button>
                                 <Button type="submit" data-testid="save-unit" :disabled="editForm.processing">Save unit</Button>
                             </div>
@@ -971,5 +1002,20 @@ function requestDelete(id) {
                 </template>
             </Card>
         </div>
+
+        <ReasonDialog
+            :open="deleting !== null"
+            :title="`Delete ${deleting?.name ?? 'this unit'}?`"
+            description="This cannot be undone. A unit with troopers, reports or anything else attached cannot be deleted."
+            confirm-label="Delete unit"
+            pending-label="Deleting"
+            :require-reason="false"
+            destructive
+            :processing="deleteProcessing"
+            :error="deleteError"
+            testid="delete-dialog"
+            @update:open="(open) => !open && closeDelete()"
+            @confirm="confirmDelete"
+        />
     </div>
 </template>

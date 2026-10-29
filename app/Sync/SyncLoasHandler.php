@@ -41,7 +41,8 @@ use Throwable;
  * the day the report was posted when the link is missing or the PAF cannot be read. An ELOA return does
  * not get a row; it ends the trooper's open ELOA, on the day its own PAF was filed. A thread that cannot
  * be read cleanly (one whose title names a different trooper from its `Username` among them), or whose
- * username matches no one (or more than one), is stored as `needs_review` with no dates, never guessed. The
+ * username matches no one (or more than one), is stored as `needs_review` with no dates, never guessed (the
+ * leave dates its post still gives, if usable, are kept apart, only to place its shield: see LoaCoverage). The
  * trooper is matched on the whole username, ignoring case, never a prefix. Raw text longer than its column
  * (a username, or a date line someone wrote a paragraph into) is cut to fit, and the row is sent to review,
  * so one over-long post cannot fail the run for every other post in it. Every row keeps the moment its
@@ -51,8 +52,14 @@ use Throwable;
  * makes it `partial` (and is retried next run, since the cutoff only moves after a clean run). A thread the
  * forum says is gone for good (deleted, moved out of reach, forbidden) is skipped without that: it can never
  * be read, so counting it would keep every later run partial and the cutoff stuck. Rows left
- * for a person are counted in `needs_review`, which does not make a run partial. `inactivated` is the roster
- * sync's count of troopers marked departed and has no meaning here, so it stays 0.
+ * for a person are counted in `needs_review`, which does not make a run partial.
+ *
+ * A thread that goes away: a full run that finished with no problem has seen every visible thread posted in
+ * its window, in every section. A stored row from one of those sections, posted in that window, whose thread
+ * it did not see (deleted, hidden, or moved out of the leave sections) is marked withdrawn, so it stops
+ * excusing the trooper; the row is kept as history, and is put back if a later run sees the thread again.
+ * A partial or failed run, and an incremental one, never withdraws anything, since it did not see everything.
+ * Withdrawn rows are counted in `inactivated`; rows put back count as `updated`.
  */
 class SyncLoasHandler
 {
@@ -103,16 +110,21 @@ class SyncLoasHandler
             $horizon = $now->subDays(self::HISTORY_DAYS)->startOfDay();
             $cutoff = $full ? $horizon : $this->cutoff($horizon);
             $problems = [];
-            $created = $updated = $needsReview = 0;
+            $created = $updated = $needsReview = $withdrawn = 0;
+            // Every visible thread the listings showed, and the sections they came from, for withdrawUnseen().
+            $seen = [];
+            $nodes = [];
 
             foreach ($this->forum->loaNodes() as $nodeId => $typeValue) {
                 $wanted = $this->wanted($nodeId, LoaType::from($typeValue), $cutoff, $problems);
+                $nodes[] = (int) $nodeId;
+                $seen += array_fill_keys(array_keys($wanted), true);
 
                 if ($full) {
                     $wanted = array_diff_key($wanted, array_flip($this->loas->settledThreadIds(array_keys($wanted), $now->subDays(self::SETTLED_AFTER_DAYS)->startOfDay())));
                 }
 
-                $items = $this->read($wanted, $now, $problems);
+                $items = $this->read($wanted, $now, $problems, $seen);
 
                 [$writes, $returns, $review] = $this->build($items, $this->match($items));
 
@@ -123,11 +135,17 @@ class SyncLoasHandler
                 $needsReview += $review + $counts['unmatchedReturns'];
             }
 
+            if ($full && $problems === []) {
+                $result = $this->loas->withdrawUnseen($nodes, array_keys($seen), $cutoff, $now);
+                $withdrawn = $result['withdrawn'];
+                $updated += $result['restored'];
+            }
+
             $this->syncRuns->complete(
                 $run,
                 inserted: $created,
                 updated: $updated,
-                inactivated: 0,
+                inactivated: $withdrawn,
                 errored: count($problems),
                 error: $problems === [] ? null : mb_substr(implode('; ', $problems), 0, 2000),
                 needsReview: $needsReview,
@@ -216,13 +234,14 @@ class SyncLoasHandler
 
     /**
      * Fetch and read each wanted thread. One that fails to fetch for now is noted and left for the next run;
-     * one that is permanently unreadable is skipped.
+     * one that is permanently unreadable, or no longer visible, is skipped and taken out of `$seen`.
      *
      * @param  array<int, array{summary: ForumThreadSummary, type: LoaType}>  $wanted
      * @param  list<string>  $problems
+     * @param  array<int, true>  $seen
      * @return list<array{summary: ForumThreadSummary, type: LoaType, parsed: ParsedLoaThread, eventOn: ?CarbonImmutable, eventNote: ?string}>
      */
-    private function read(array $wanted, CarbonImmutable $now, array &$problems): array
+    private function read(array $wanted, CarbonImmutable $now, array &$problems, array &$seen): array
     {
         $items = [];
         $pafDates = [];
@@ -236,12 +255,16 @@ class SyncLoasHandler
                 // Gone for good: nothing a later run could read, so it is not a problem to retry.
                 if (! $e->isPermanent()) {
                     $problems[] = "Thread {$threadId}: {$e->getMessage()}";
+                } else {
+                    unset($seen[$threadId]);
                 }
 
                 continue;
             }
 
             if (! $thread->summary->isVisible()) {
+                unset($seen[$threadId]);
+
                 continue;
             }
 
@@ -387,6 +410,8 @@ class SyncLoasHandler
                 rawEndDate: $rawEnd,
                 rawExcerpt: $parsed->excerpt === '' ? null : $parsed->excerpt,
                 expectedReturnAt: $clean ? $parsed->expectedReturnAt : null,
+                reviewStartsAt: $clean ? null : $parsed->reviewStartsAt,
+                reviewEndsAt: $clean ? null : $parsed->reviewEndsAt,
             );
         }
 

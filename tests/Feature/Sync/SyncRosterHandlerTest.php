@@ -860,6 +860,42 @@ it('counts only the unit\'s own unreadable rows in a unit run, and every one in 
         ->and([$wholeRun->status, $wholeRun->errored])->toBe([SyncRunStatus::Partial, 2]);
 });
 
+it('keeps an approved Admin billet approved, and its holder an Admin, when the roster sends the title with stray spaces', function () {
+    AdminBillet::query()->create([
+        'cav_position_id' => 773, 'title' => 'Rifleman', 'group_title' => 'Regimental HQ',
+        'proposed_title' => 'Rifleman', 'proposed_group_title' => 'Regimental HQ', 'status' => AdminBilletStatus::Approved,
+    ]);
+    MockClient::global([
+        SR_COMBAT_URL => MockResponse::make(['profiles' => ['1' => srRosterRow('ROSTER_TYPE_COMBAT', ['primary' => ['positionTitle' => ' Rifleman  ', 'positionId' => '773']])]]),
+        SR_RESERVE_URL => srEmptyRoster(),
+        SR_ELOA_URL => srEmptyRoster(),
+    ]);
+
+    syncRosterHandler()->handle();
+    syncRosterHandler()->handle();
+
+    $billet = AdminBillet::query()->where('cav_position_id', 773)->sole();
+    expect($billet->status)->toBe(AdminBilletStatus::Approved)
+        ->and($billet->proposed_title)->toBe('Rifleman')
+        ->and(Trooper::query()->where('cav_id', 1)->sole()->billet)->toBe('Rifleman')
+        ->and($billet->confirmsHolder('Rifleman'))->toBeTrue();
+});
+
+it('treats names that differ only by spaces as the same billet, wherever they are compared', function () {
+    $billet = new AdminBillet([
+        'title' => 'Rifleman ', 'group_title' => ' Regimental HQ',
+        'proposed_title' => ' Rifleman', 'proposed_group_title' => 'Regimental HQ ',
+    ]);
+    $billet->status = AdminBilletStatus::Approved;
+
+    expect($billet->renamed())->toBeFalse()
+        ->and($billet->confirmsHolder(' Rifleman '))->toBeTrue()
+        ->and(AdminBillet::isAdminGroup(' S6 HQ '))->toBeTrue()
+        ->and(app(AdminBilletRepository::class)->observe([773 => [' Rifleman ', ' Regimental HQ ']], createMissing: true))->toBe(1)
+        ->and(AdminBillet::query()->where('cav_position_id', 773)->sole()->proposed_title)->toBe('Rifleman')
+        ->and(AdminBillet::query()->where('cav_position_id', 773)->sole()->proposed_group_title)->toBe('Regimental HQ');
+});
+
 it('puts an approved Admin billet back to pending when the roster shows it renamed, and leaves the rest alone', function () {
     $billets = fn (int $positionId) => AdminBillet::query()->where('cav_position_id', $positionId)->sole();
     foreach ([773 => 'Rifleman', 774 => 'Regimental Finance Officer'] as $positionId => $title) {

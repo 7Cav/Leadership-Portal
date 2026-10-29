@@ -21,8 +21,12 @@ Everything the portal needs to *read* about leave lives here, so no screen re-de
     keeps none for such a row, so it applies for the Cav week the thread was posted on the forum
     (`posted_at`) and the week after, then stops: a broken post cannot keep a trooper out of the
     KPIs for good, and the first sync's backfill of old malformed posts shields no one from that sync on. A row with
-    no `posted_at` yet (stored before the column existed) is placed by `created_at` instead.
+    no `posted_at` yet (stored before the column existed) is placed by `created_at` instead. When the
+    post still gives usable leave dates (`review_starts_at`/`review_ends_at`: both read, end not before
+    start, cut to 14 days), it applies to the weeks those days touch instead.
   - A cleanly read leave that covers the week wins over one that needs review.
+  - A withdrawn row (`withdrawn_at` set: a complete full sync no longer found its thread, because it was
+    deleted, hidden or moved out of the leave sections) counts for nothing. It is kept as history.
   - `toArray()` is the badge's prop shape.
 
 - `LoaCover::derivedAttendanceStatus()` (3.4, AD-14): the attendance status a cover derives for the week, `Loa`

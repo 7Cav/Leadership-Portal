@@ -85,13 +85,13 @@ readonly class CavRosterEntry
         return new self(
             cavId: $cavId,
             fetchedAt: $fetchedAt,
-            rankShort: self::text($rank['rankShort'] ?? null),
-            rankFull: self::text($rank['rankFull'] ?? null),
-            username: self::text($user['username'] ?? null),
+            rankShort: self::label($rank['rankShort'] ?? null),
+            rankFull: self::label($rank['rankFull'] ?? null),
+            username: self::label($user['username'] ?? null),
             // A non-positive id names no forum account; treat it like a missing one.
             forumUserId: $forumUserId !== null && $forumUserId > 0 ? $forumUserId : null,
-            mos: self::text($payload['mos'] ?? null),
-            billet: self::text($primary['positionTitle'] ?? null),
+            mos: self::label($payload['mos'] ?? null),
+            billet: self::label($primary['positionTitle'] ?? null),
             positionId: self::integer($primary['positionId'] ?? null),
             tis: self::date($payload['joinDate'] ?? null),
             tig: self::date($payload['promotionDate'] ?? null),
@@ -120,6 +120,17 @@ readonly class CavRosterEntry
     private static function text(mixed $value): ?string
     {
         return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    /**
+     * A name or title, trimmed, as the position groups' titles are ({@see CavPosition}): a stray space on the roster
+     * must not make a billet title differ from the one the import recorded, which would send an approved Admin billet
+     * back to pending on every sync. Text that is only spaces is missing. Ids, dates and the rank image stay strict
+     * ({@see text()}): a padded value there is malformed, not a name.
+     */
+    private static function label(mixed $value): ?string
+    {
+        return self::text(is_string($value) ? trim($value) : $value);
     }
 
     /**

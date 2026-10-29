@@ -334,6 +334,7 @@ it('lets an Admin import the tree and reports what was created (2.9)', function 
             'unitsCreated' => 37,
             'mappingsCreated' => 35,
             'mappingsDiffering' => 0,
+            'mappingsRepointed' => 0,
             'commandMappingsCreated' => 40,
             'commandMappingsRepointed' => 0,
             'commandMappingsRemoved' => 0,

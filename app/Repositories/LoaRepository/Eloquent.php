@@ -46,6 +46,7 @@ class Eloquent implements LoaRepository
 
         return Loa::query()
             ->whereIn('trooper_id', $trooperIds)
+            ->whereNull('withdrawn_at')
             ->where(function ($query) use ($firstDay, $nextDay, $postedFrom, $nextWeek) {
                 $query->where(function ($dated) use ($firstDay, $nextDay) {
                     $dated->where('parse_status', LoaParseStatus::Ok->value)
@@ -55,10 +56,12 @@ class Eloquent implements LoaRepository
                         // and holds whether the driver keeps a bare date or a midnight timestamp.
                         ->where('starts_at', '<', $nextDay)
                         ->where(fn ($end) => $end->whereNull('ends_at')->orWhere('ends_at', '>=', $firstDay));
-                })->orWhere(function ($undated) use ($postedFrom, $nextWeek) {
+                })->orWhere(function ($undated) use ($postedFrom, $nextWeek, $firstDay, $nextDay) {
                     $undated->where(fn ($unread) => $unread->where('parse_status', LoaParseStatus::NeedsReview->value)->orWhereNull('starts_at'))
                         ->where(fn ($posted) => $posted
-                            ->where(fn ($forum) => $forum->whereNotNull('posted_at')->where('posted_at', '>=', $postedFrom)->where('posted_at', '<', $nextWeek))
+                            // The leave dates its post still gives, when it gives usable ones.
+                            ->where(fn ($review) => $review->whereNotNull('review_starts_at')->whereNotNull('review_ends_at')->where('review_starts_at', '<', $nextDay)->where('review_ends_at', '>=', $firstDay))
+                            ->orWhere(fn ($forum) => $forum->whereNotNull('posted_at')->where('posted_at', '>=', $postedFrom)->where('posted_at', '<', $nextWeek))
                             // A row stored before `posted_at` existed, until the sync reads its thread again.
                             ->orWhere(fn ($cached) => $cached->whereNull('posted_at')->where('created_at', '>=', $postedFrom)->where('created_at', '<', $nextWeek)));
                 });
@@ -113,12 +116,15 @@ class Eloquent implements LoaRepository
                     'expected_return_at' => $write->expectedReturnAt,
                     'parse_status' => $write->parseStatus,
                     'review_reason' => $write->reviewReason,
+                    'review_starts_at' => $write->reviewStartsAt,
+                    'review_ends_at' => $write->reviewEndsAt,
                     'source_thread' => $write->sourceThread,
                     'posted_at' => $write->postedAt,
                     'raw_username' => $write->rawUsername,
                     'raw_start_date' => $write->rawStartDate,
                     'raw_end_date' => $write->rawEndDate,
                     'raw_excerpt' => $write->rawExcerpt,
+                    'withdrawn_at' => null,
                 ];
 
                 // An ELOA already ended by a return keeps the end the return gave it: the thread itself
@@ -142,6 +148,40 @@ class Eloquent implements LoaRepository
             [$closed, $unmatched] = $this->applyReturns($returns);
 
             return ['created' => $created, 'updated' => $updated, 'closed' => $closed, 'unmatchedReturns' => $unmatched];
+        });
+    }
+
+    public function withdrawUnseen(array $forumNodeIds, array $seenThreadIds, CarbonImmutable $postedFrom, CarbonImmutable $at): array
+    {
+        return DB::transaction(function () use ($forumNodeIds, $seenThreadIds, $postedFrom, $at) {
+            $seen = array_flip($seenThreadIds);
+            $restored = 0;
+
+            foreach (array_chunk($seenThreadIds, 500) as $threadIds) {
+                $restored += Loa::query()->whereIn('forum_thread_id', $threadIds)->whereNotNull('withdrawn_at')->update(['withdrawn_at' => null]);
+            }
+
+            if ($forumNodeIds === []) {
+                return ['withdrawn' => 0, 'restored' => $restored];
+            }
+
+            $unseen = Loa::query()
+                ->whereIn('forum_node_id', $forumNodeIds)
+                ->whereNull('withdrawn_at')
+                ->whereNotNull('posted_at')
+                ->where('posted_at', '>=', $postedFrom)
+                ->pluck('forum_thread_id', 'id')
+                ->reject(fn ($threadId) => isset($seen[(int) $threadId]))
+                ->keys()
+                ->all();
+
+            $withdrawn = 0;
+
+            foreach (array_chunk($unseen, 500) as $ids) {
+                $withdrawn += Loa::query()->whereIn('id', $ids)->update(['withdrawn_at' => $at]);
+            }
+
+            return ['withdrawn' => $withdrawn, 'restored' => $restored];
         });
     }
 

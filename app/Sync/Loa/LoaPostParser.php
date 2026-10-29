@@ -86,6 +86,8 @@ final class LoaPostParser
             $this->checkBodyType($kind, $text, $reasons);
         }
 
+        $review = $reasons === [] ? [null, null] : $this->reviewWindow($startsAt, $endsAt, $now);
+
         return new ParsedLoaThread(
             kind: $kind,
             username: $username,
@@ -98,7 +100,26 @@ final class LoaPostParser
             pafThreadId: $pafThreadId,
             excerpt: $this->excerpt($username, $forumUserId, $rawStart, $rawEnd, $text),
             reasons: $reasons,
+            reviewStartsAt: $review[0],
+            reviewEndsAt: $review[1],
         );
+    }
+
+    /**
+     * The leave dates of a post that needs review, when they are usable as a window: both read, the end not before
+     * the start, both within three years of today, and the end cut to the longest an LOA runs. Only used to place the
+     * needs-review shield on the weeks the trooper said they would be away; they assert no leave.
+     *
+     * @return array{0: ?CarbonImmutable, 1: ?CarbonImmutable}
+     */
+    private function reviewWindow(?CarbonImmutable $start, ?CarbonImmutable $end, CarbonImmutable $now): array
+    {
+        if ($start === null || $end === null || $end->lessThan($start)
+            || abs($start->diffInDays($now)) > self::SANE_DAYS || abs($end->diffInDays($now)) > self::SANE_DAYS) {
+            return [null, null];
+        }
+
+        return [$start, $end->min($start->addDays(self::LONGEST_LOA_GAP))];
     }
 
     /**

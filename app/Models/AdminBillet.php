@@ -32,7 +32,20 @@ class AdminBillet extends Model
     /** Whether a billet in the Cav group `$group` may make its holder an Admin (`portal.admin_billet_groups`). */
     public static function isAdminGroup(?string $group): bool
     {
-        return $group !== null && in_array($group, (array) config('portal.admin_billet_groups', []), true);
+        $group = self::name($group);
+
+        return $group !== null && in_array($group, array_map(fn ($name) => trim((string) $name), (array) config('portal.admin_billet_groups', [])), true);
+    }
+
+    /**
+     * A billet title or group name as it is compared: trimmed, and null when nothing is left. Cav's two feeds do not
+     * always agree on stray spaces, and a space must never read as a rename.
+     */
+    public static function name(?string $value): ?string
+    {
+        $value = $value === null ? '' : trim($value);
+
+        return $value === '' ? null : $value;
     }
 
     /**
@@ -43,12 +56,11 @@ class AdminBillet extends Model
     public function confirmsHolder(?string $billet): bool
     {
         return $this->status === AdminBilletStatus::Approved
-            && $this->title !== null
-            && $this->group_title !== null
-            && $this->proposed_title === $this->title
-            && $this->proposed_group_title === $this->group_title
+            && self::name($this->title) !== null
+            && self::name($this->group_title) !== null
+            && ! $this->renamed()
             && self::isAdminGroup($this->group_title)
-            && $billet === $this->title;
+            && self::name($billet) === self::name($this->title);
     }
 
     /**
@@ -63,6 +75,7 @@ class AdminBillet extends Model
     /** Whether the names seen now differ from the confirmed ones, or nothing was confirmed yet. */
     public function renamed(): bool
     {
-        return $this->proposed_title !== $this->title || $this->proposed_group_title !== $this->group_title;
+        return self::name($this->proposed_title) !== self::name($this->title)
+            || self::name($this->proposed_group_title) !== self::name($this->group_title);
     }
 }
