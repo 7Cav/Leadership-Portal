@@ -782,13 +782,18 @@ function go(n) {
     nextTick(() => stepHeading.value?.focus());
 }
 
+// While last week's report is still due the bare URL may open that week, so every link names its week then, the
+// running one included. Otherwise the running week needs none.
+const bareWeek = computed(() => (props.week.reporting ?? props.week.current) === props.week.current);
+
 function weekHref(date) {
-    const params = date && date !== props.week.current ? `?week=${date}` : '';
+    const params = date && (date !== props.week.current || !bareWeek.value) ? `?week=${date}` : '';
 
     return `/rollcall/${props.section.id}${params}`;
 }
 
-const weekQuery = computed(() => (props.week.isCurrent ? null : props.week.date));
+// The bare picker leaves the week out, so a section chosen there opens as the bare URL would.
+const weekQuery = computed(() => (props.week.isCurrent && (bareWeek.value || !props.section) ? null : props.week.date));
 
 // The picker itself, even for a leader the server would land on a section (`?pick`).
 const pickerHref = computed(() => `/rollcall?pick=1${weekQuery.value ? `&week=${weekQuery.value}` : ''}`);

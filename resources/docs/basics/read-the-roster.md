@@ -28,5 +28,6 @@ checklist:
 
 1. Choose a trooper to open their details on the side: their section, leader, numbers and 20 weeks of marks, with where each mark came from.
 2. From there, open their milpac page or their section's rollcall.
+3. **Leave from** and a date under their name means their leave starts next Cav week.
 
 > [!good-to-know] The roster is refreshed from the Cav roster by a scheduled sync. The page says when it last ran. If someone moved units today, their new place may not show until the next sync.

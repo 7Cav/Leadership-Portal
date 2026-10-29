@@ -91,6 +91,23 @@ describe('Trooper sheet', () => {
         expect(recent[2].textContent).toContain('Present');
     });
 
+    it('shows a "Leave from" chip for a leave starting next Cav week, and none without one', async () => {
+        respond(200, detail({ leaveFrom: '2026-10-12' }));
+        factory();
+        await flushPromises();
+
+        const chip = document.body.querySelector('[data-testid="leave-from"]');
+        expect(chip.textContent.trim()).toBe('Leave from 12Oct26');
+        expect(chip.getAttribute('title')).toBe('Leave starting next Cav week, from LOA records');
+
+        document.body.innerHTML = '';
+        respond(200, detail({ leaveFrom: null }));
+        factory(13);
+        await flushPromises();
+
+        expect(document.body.querySelector('[data-testid="leave-from"]')).toBeNull();
+    });
+
     it('shows no transfers block for a trooper who never moved', async () => {
         respond(200, detail({ transfers: [] }));
         factory();

@@ -195,6 +195,60 @@ describe('Reports/Show', () => {
         expect(put.mock.calls[0][1].unaccounted).toEqual([{ trooper_id: 2, reason: 'sick' }]);
     });
 
+    describe('a suggested reason', () => {
+        const SUGGESTED = { suggestedReasons: { 2: 'loa_needs_review' }, reasons: [{ value: 'sick', label: 'Sick' }, { value: 'loa_needs_review', label: 'LOA posted, the post needs review' }] };
+
+        it('is pre-selected with why, but not saved, previewed or counted until the leader keeps it', async () => {
+            vi.useFakeTimers();
+            const wrapper = mountShow(SUGGESTED);
+
+            expect(wrapper.get('[data-reason="2"]').element.value).toBe('loa_needs_review');
+            expect(wrapper.get('#reason-2-help').text()).toContain('Suggested because they posted leave the LOA sync could not read.');
+            expect(wrapper.get('[data-check="unaccounted"]').text()).toContain('1 suggested reason to keep or change.');
+            expect(wrapper.get('[data-check="unaccounted"]').text()).toContain('0/1');
+            vi.advanceTimersByTime(900);
+            expect(put).not.toHaveBeenCalled();
+
+            await wrapper.get('[data-keep="2"]').trigger('click');
+            vi.advanceTimersByTime(900);
+
+            expect(put.mock.calls[0][1].unaccounted).toEqual([{ trooper_id: 2, reason: 'loa_needs_review' }]);
+            expect(wrapper.get('[data-check="unaccounted"]').text()).toContain('1/1');
+            expect(wrapper.find('[data-keep="2"]').exists()).toBe(false);
+        });
+
+        it('becomes the leader\'s choice once they pick another reason', async () => {
+            vi.useFakeTimers();
+            const wrapper = mountShow(SUGGESTED);
+
+            await wrapper.get('[data-reason="2"]').setValue('sick');
+            vi.advanceTimersByTime(900);
+
+            expect(put.mock.calls[0][1].unaccounted).toEqual([{ trooper_id: 2, reason: 'sick' }]);
+            expect(wrapper.get('#reason-2-help').text()).not.toContain('Suggested');
+        });
+
+        it('is never sent unless kept, even with "Send anyway"', async () => {
+            const wrapper = mountShow(SUGGESTED);
+
+            await wrapper.get('[data-testid="send-anyway"]').trigger('click');
+            await flushPromises();
+            document.querySelector('[data-testid="send-confirm"]').click();
+
+            expect(post.mock.calls[0][1].unaccounted).toEqual([]);
+        });
+
+        it('does not replace a reason the leader already saved, and is not offered on a read-only report', () => {
+            const saved = mountShow({ ...SUGGESTED, report: { status: 'draft', notes: '', trainingSubject: '', unaccounted: [{ trooper_id: 2, reason: 'sick' }], savedAt: null, sentAt: null, sentBy: null } });
+            expect(saved.get('[data-reason="2"]').element.value).toBe('sick');
+            expect(saved.find('[data-keep="2"]').exists()).toBe(false);
+
+            document.body.innerHTML = '';
+            const readOnly = mountShow({ ...SUGGESTED, canWrite: false });
+            expect(readOnly.get('[data-reason="2"]').element.value).toBe('');
+        });
+    });
+
     it('sends through the pre-send overview with the reason and the confirmed content', async () => {
         const wrapper = mountShow();
 

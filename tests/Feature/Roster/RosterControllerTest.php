@@ -2,6 +2,7 @@
 
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
+use App\Models\Loa;
 use App\Models\PortalRoleGrant;
 use App\Models\RollcallSignature;
 use App\Models\SyncRun;
@@ -283,6 +284,20 @@ it('names the leave source and its last sync, stale once the latest LOA sync fai
         ->where('loaSync.latestStatus', 'partial'));
 });
 
+it('shows an Admin what the latest LOA sync could not read, and nobody else, nor an Admin viewing as a leader', function () {
+    SyncRun::factory()->create(['source' => SyncRun::SOURCE_LOA, 'status' => SyncRunStatus::Partial, 'finished_at' => '2026-10-08 11:30:00', 'errored' => 1, 'needs_review' => 2, 'error' => 'Thread 812: The forum answered 503.']);
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin)->get('/roster')->assertInertia(fn ($page) => $page
+        ->where('loaSyncProblems.unread', 1)
+        ->where('loaSyncProblems.needsReview', 2)
+        ->where('loaSyncProblems.problems', [['threadId' => 812, 'text' => 'Thread 812: The forum answered 503.']]));
+    $this->actingAs($this->leader)->get('/roster')->assertInertia(fn ($page) => $page->where('loaSyncProblems', null));
+
+    $this->actingAs($admin)->post('/view-as', ['kind' => 'user', 'id' => $this->leader->id]);
+    $this->actingAs($admin)->get('/roster')->assertInertia(fn ($page) => $page->where('loaSyncProblems', null));
+});
+
 it('reports no sync yet rather than inventing a time', function () {
     $this->actingAs($this->leader)->get('/roster')->assertInertia(fn ($page) => $page
         ->where('sync.lastSuccessAt', null)
@@ -367,6 +382,15 @@ describe('trooper detail (Sheet)', function () {
             ->assertJsonPath('trooper.kpis.sp', [2, 2])
             ->assertJsonPath('trooper.kpis.rc', [2, 4])
             ->assertJsonPath('trooper.transfers', [['at' => '2026-09-30T18:00:00Z', 'from' => '1/2/A/1-7', 'to' => '1/1/A/1-7']]);
+    });
+
+    it('gives the first day of a leave starting next Cav week, for the "Leave from" chip, and null without one', function () {
+        $leaving = rosterTrooper($this->section1);
+        $staying = rosterTrooper($this->section1);
+        Loa::factory()->create(['trooper_id' => $leaving->id, 'starts_at' => '2026-10-11', 'ends_at' => '2026-10-20']);
+
+        $this->actingAs($this->leader)->getJson("/roster/troopers/{$leaving->id}")->assertOk()->assertJsonPath('trooper.leaveFrom', '2026-10-11');
+        $this->actingAs($this->leader)->getJson("/roster/troopers/{$staying->id}")->assertOk()->assertJsonPath('trooper.leaveFrom', null);
     });
 
     it('lists no transfers for a trooper who never moved', function () {

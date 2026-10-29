@@ -41,6 +41,7 @@ import {
     readinessChecks,
     stamp,
     timeOf,
+    unaccountedTroopers,
     unitLabel,
 } from '@/lib/report';
 
@@ -76,6 +77,9 @@ const props = defineProps({
     canSetTopic: { type: Boolean, default: false },
     // Carry-forward: the subject of the section's last sent report, offered on an empty field.
     suggestedSubject: { type: String, default: null },
+    // The reason the portal's data gives for a trooper (`{ [trooperId]: reason }`): departed, moved out, or leave that
+    // needs review. Pre-selected for an unaccounted trooper with no reason yet, for the leader to keep or change.
+    suggestedReasons: { type: Object, default: () => ({}) },
 });
 
 const page = usePage();
@@ -115,11 +119,38 @@ function initialSubject() {
     return props.report.trainingSubject || sectionTopic.value?.subject || '';
 }
 
+// A suggested reason is pre-selected but not yet the leader's: it stays out of what is saved, previewed and sent, and
+// its check stays open, until they keep it or choose another. So nothing reaches command without them seeing it.
+function initialSuggestions() {
+    if (!props.unit.isLeaf || readOnly.value) return [];
+    const saved = new Set((props.report.unaccounted ?? []).map((r) => r.trooper_id));
+
+    return unaccountedTroopers(props.troopers)
+        .filter((t) => !saved.has(t.id) && props.suggestedReasons?.[t.id])
+        .map((t) => ({ trooper_id: t.id, reason: props.suggestedReasons[t.id] }));
+}
+
+const suggestions = initialSuggestions();
 const content = reactive({
     notes: props.report.notes ?? '',
     trainingSubject: initialSubject(),
-    unaccounted: [...(props.report.unaccounted ?? [])],
+    unaccounted: [...(props.report.unaccounted ?? []), ...suggestions],
 });
+const unconfirmed = ref(new Set(suggestions.map((r) => r.trooper_id)));
+const suggested = computed(() => Object.fromEntries(content.unaccounted.filter((r) => unconfirmed.value.has(r.trooper_id)).map((r) => [r.trooper_id, r.reason])));
+// What the leader has actually chosen: saved, previewed and sent.
+const chosen = computed(() => ({
+    notes: content.notes,
+    trainingSubject: content.trainingSubject,
+    unaccounted: content.unaccounted.filter((r) => !unconfirmed.value.has(r.trooper_id)),
+}));
+
+function confirmSuggestion(trooperId) {
+    if (!unconfirmed.value.has(trooperId)) return;
+    const next = new Set(unconfirmed.value);
+    next.delete(trooperId);
+    unconfirmed.value = next;
+}
 const reviewed = ref(false);
 const staleReview = ref(false);
 const subjectTouched = ref(false);
@@ -130,7 +161,7 @@ let timer = null;
 let revision = 0;
 
 function payload() {
-    return { notes: content.notes, training_subject: content.trainingSubject, unaccounted: content.unaccounted };
+    return { notes: content.notes, training_subject: content.trainingSubject, unaccounted: chosen.value.unaccounted };
 }
 
 function saveDraft() {
@@ -184,7 +215,7 @@ function httpProblem(response, fallback) {
 }
 
 watch(
-    () => [content.notes, content.trainingSubject, JSON.stringify(content.unaccounted)],
+    () => [content.notes, content.trainingSubject, JSON.stringify(chosen.value.unaccounted)],
     ([notes], [notesBefore]) => {
         if (readOnly.value) return;
         // Editing what command will read after confirming it un-confirms it, so the tick stays honest.
@@ -233,8 +264,9 @@ const checks = computed(() =>
         isLeaf: props.unit.isLeaf,
         troopers: props.troopers,
         children: props.children,
-        content,
+        content: chosen.value,
         reviewed: reviewed.value,
+        suggested: Object.keys(suggested.value).map(Number),
     }),
 );
 const openChecks = computed(() => checks.value.filter((c) => !c.done));
@@ -256,7 +288,7 @@ const highlightItems = computed(() =>
               kpis: props.kpis,
               delta: props.delta,
               troopers: props.troopers,
-              reasons: new Map(content.unaccounted.map((r) => [r.trooper_id, r.reason])),
+              reasons: new Map(chosen.value.unaccounted.map((r) => [r.trooper_id, r.reason])),
               reasonLabels: reasonLabels.value,
               children: props.children,
               isLeaf: props.unit.isLeaf,
@@ -515,11 +547,13 @@ function useSuggestion() {
                             :troopers="troopers ?? []"
                             :children="children ?? []"
                             :unaccounted="content.unaccounted"
+                            :suggested="suggested"
                             :reasons="reasons"
                             :rollcall-url="rollcallUrl"
                             :week-date="weekDate"
                             :read-only="readOnly"
                             @update:unaccounted="content.unaccounted = $event"
+                            @confirm="confirmSuggestion"
                             @focus="focusTarget"
                         />
 
@@ -628,7 +662,7 @@ function useSuggestion() {
                             :troopers="troopers"
                             :children="children"
                             :missing-children="missingChildren"
-                            :content="content"
+                            :content="sent ? content : chosen"
                             :reason-labels="reasonLabels"
                             :names="names"
                             :roster-sync="rosterSync"
@@ -699,7 +733,7 @@ function useSuggestion() {
             :unit="unit"
             :kpis="kpis"
             :delta="delta"
-            :content="content"
+            :content="chosen"
             :open-checks="openItems"
             :missing-units="missingUnits"
             :default-reason="defaultSendReason(openItems, missingUnits)"

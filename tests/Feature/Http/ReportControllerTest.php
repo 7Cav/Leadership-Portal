@@ -8,6 +8,7 @@ use App\Kpi\UnitKpis;
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
 use App\Models\AuditLogEntry;
+use App\Models\Loa;
 use App\Models\RollcallSignature;
 use App\Models\SyncRun;
 use App\Models\Trooper;
@@ -89,7 +90,7 @@ it('renders a section\'s live draft with its KPIs, troopers and a first-report b
             ->where('troopers.0.rankShort', 'SGT')
             ->where('troopers.0.status', null)
             ->has('trend', 8)
-            ->has('reasons', 5)
+            ->has('reasons', 8)
             ->where('week.next', null)
             ->where('week.previous', '2026-09-26')
             // The deadline banner calls it overdue only while the week is in the 4-week KPI window.
@@ -449,4 +450,34 @@ it('shows no headcount for a report frozen before there was one', function () {
 
     $this->actingAs($platoonLeader)->get(reportUrl($this->section, $this->week))
         ->assertInertia(fn (AssertableInertia $page) => $page->where('report.status', 'sent')->where('kpis.strength', 2)->where('kpis.headcount', null));
+});
+
+describe('suggested reasons for unaccounted troopers (2026-10-29)', function () {
+    it('suggests "LOA posted, the post needs review" for a trooper whose leave post the sync could not read, and nothing for the rest', function () {
+        Loa::factory()->needsReview()->create(['trooper_id' => $this->trooper->id, 'posted_at' => '2026-10-04 12:00:00']);
+        markSp($this->section, $this->trooper, $this->weekStart, AttendanceStatus::Missed);
+
+        $this->actingAs($this->leader)->get(reportUrl($this->section, $this->week))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('suggestedReasons', [(string) $this->trooper->id => 'loa_needs_review'])
+                ->where('reasons', fn ($reasons) => collect($reasons)->contains(fn ($r) => $r['value'] === 'loa_needs_review' && $r['label'] === 'LOA posted, the post needs review')));
+    });
+
+    it('suggests nothing on a sent report or a roll-up', function () {
+        Loa::factory()->needsReview()->create(['trooper_id' => $this->trooper->id, 'posted_at' => '2026-10-04 12:00:00']);
+        WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->weekStart]);
+
+        $this->actingAs($this->leader)->get(reportUrl($this->section, $this->week))->assertInertia(fn (AssertableInertia $page) => $page->where('suggestedReasons', []));
+        $this->actingAs(User::factory()->admin()->create())->get(reportUrl($this->platoon, $this->week))->assertInertia(fn (AssertableInertia $page) => $page->where('suggestedReasons', []));
+    });
+
+    it('accepts a suggested reason in a saved draft', function () {
+        markSp($this->section, $this->trooper, $this->weekStart, AttendanceStatus::Missed);
+
+        $this->actingAs($this->leader)->put(reportUrl($this->section, $this->week), [
+            'notes' => '', 'training_subject' => '', 'unaccounted' => [['trooper_id' => $this->trooper->id, 'reason' => 'moved_out']],
+        ])->assertSessionHasNoErrors();
+
+        expect(WeeklyReport::query()->sole()->unaccounted)->toBeIgnoringKeyOrder([['trooper_id' => $this->trooper->id, 'reason' => 'moved_out']]);
+    });
 });

@@ -257,7 +257,7 @@ describe('Needs attention (Story 5.10)', function () {
         app(WeeklyReportRepository::class)->saveDraft($this->s21->id, $this->week, [], null);
 
         dashboard($this->commander)(fn ($page) => $page
-            ->where('attention.totals', ['holding' => 2, 'atRisk' => 0])
+            ->where('attention.totals', ['holding' => 2, 'atRisk' => 0, 'loaReview' => 0])
             ->where('attention.items.0.kind', 'holding')
             ->where('attention.items.0.unit.designation', '2/1/A/1-7')
             ->where('attention.items.0.status', 'draft')
@@ -307,7 +307,7 @@ describe('Needs attention (Story 5.10)', function () {
         // Bravo's draft and at-risk trooper are invisible to Alpha's commander and to a section
         // leader; only 1/1/A's own (unstarted) report is the leader's, and it holds nothing up.
         dashboard($this->commander)(fn ($page) => $page->where('attention.totals.atRisk', 0)->where('attention.totals.holding', 2)->where('attention.items.0.unit.designation', '1/1/A/1-7'));
-        dashboard($this->sectionLeader)(fn ($page) => $page->where('attention.totals', ['holding' => 0, 'atRisk' => 0]));
+        dashboard($this->sectionLeader)(fn ($page) => $page->where('attention.totals', ['holding' => 0, 'atRisk' => 0, 'loaReview' => 0]));
         dashboard(User::factory()->serving()->create(['is_admin' => true]))(fn ($page) => $page->where('attention.totals.atRisk', 1));
     });
 
@@ -316,7 +316,7 @@ describe('Needs attention (Story 5.10)', function () {
         $kpis = new UnitKpis(7, new Ratio(1, 2), new Ratio(1, 2), 0, 0, 0);
         app(WeeklyReportRepository::class)->send($this->p1->id, $this->week, (new ReportSnapshot($kpis, null))->toArray(), null, User::factory()->serving()->create()->id, 'd', null);
 
-        dashboard($this->commander)(fn ($page) => $page->where('attention.items', [])->where('attention.totals', ['holding' => 0, 'atRisk' => 0]));
+        dashboard($this->commander)(fn ($page) => $page->where('attention.items', [])->where('attention.totals', ['holding' => 0, 'atRisk' => 0, 'loaReview' => 0]));
     });
 
     it('has no worklist for a viewer with no scope', function () {
@@ -334,6 +334,51 @@ describe('Needs attention (Story 5.10)', function () {
         dashboard($this->commander)(fn ($page) => $page
             ->where('attention.totals.atRisk', 12)
             ->has('attention.items', 2 + 10));
+    });
+
+    describe('LOA posts that need review', function () {
+        it('lists a trooper in scope whose leave post needs review, linking to their card on the rollcall and to the post', function () {
+            $trooper = $this->s21Troopers[0];
+            $loa = Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'posted_at' => '2026-10-04 12:00:00', 'review_reason' => 'The End Date could not be read.']);
+            // A cleanly read leave is not listed, and a broken post outside the scope is not either.
+            Loa::factory()->create(['trooper_id' => $this->s11Troopers[0]->id, 'starts_at' => '2026-10-01', 'ends_at' => '2026-10-20']);
+            Loa::factory()->needsReview()->create(['trooper_id' => $this->sbTroopers[0]->id, 'posted_at' => '2026-10-04 12:00:00']);
+
+            dashboard($this->commander)(fn ($page) => $page
+                ->where('attention.totals.loaReview', 1)
+                ->where('attention.items.2.kind', 'loa_review')
+                ->where('attention.items.2.trooper.id', $trooper->id)
+                ->where('attention.items.2.section.designation', '2/1/A/1-7')
+                ->where('attention.items.2.typeLabel', 'LOA')
+                ->where('attention.items.2.reviewReason', 'The End Date could not be read.')
+                ->where('attention.items.2.sourceThread', $loa->source_thread)
+                ->where('attention.items.2.href', route('rollcall.show', ['unit' => $this->s21->id, 'week' => '2026-10-03', 'focus' => $trooper->id])));
+        });
+
+        it('shows a section leader only their own section\'s posts, and an Admin every one', function () {
+            Loa::factory()->needsReview()->create(['trooper_id' => $this->s21Troopers[0]->id, 'posted_at' => '2026-10-04 12:00:00']);
+            Loa::factory()->needsReview()->create(['trooper_id' => $this->sbTroopers[0]->id, 'posted_at' => '2026-10-04 12:00:00']);
+
+            dashboard($this->sectionLeader)(fn ($page) => $page->where('attention.totals.loaReview', 0));
+            dashboard(User::factory()->serving()->create(['is_admin' => true]))(fn ($page) => $page->where('attention.totals.loaReview', 2));
+        });
+
+        it('stops listing a post once the LOA definition no longer applies it to the week', function () {
+            // Posted two weeks before the running one: the coverage rule lets it shield that week and the next only.
+            Loa::factory()->needsReview()->create(['trooper_id' => $this->s21Troopers[0]->id, 'posted_at' => '2026-09-20 12:00:00']);
+
+            dashboard($this->commander)(fn ($page) => $page->where('attention.totals.loaReview', 0));
+        });
+
+        it('lists a post made since the closing week ended while that week\'s report is still due', function () {
+            CarbonImmutable::setTestNow('2026-10-10 12:00:00');
+            Loa::factory()->needsReview()->create(['trooper_id' => $this->s21Troopers[1]->id, 'posted_at' => '2026-10-10 09:00:00']);
+
+            dashboard($this->commander)(fn ($page) => $page
+                ->where('attention.totals.loaReview', 1)
+                ->where('attention.items.2.trooper.id', $this->s21Troopers[1]->id)
+                ->where('attention.items.2.href', route('rollcall.show', ['unit' => $this->s21->id, 'week' => '2026-10-03', 'focus' => $this->s21Troopers[1]->id])));
+        });
     });
 });
 

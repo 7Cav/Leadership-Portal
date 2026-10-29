@@ -138,7 +138,8 @@ describe('the rollcall landing', function () {
         $platoonLeader = rlLeaderOf($platoon, 100);
 
         $this->actingAs($platoonLeader)->get('/rollcall')->assertRedirect("/rollcall/{$first->id}");
-        $this->get("/rollcall/{$first->id}")->assertOk();
+        // Followed: on a Saturday before the report deadline the bare URL opens the week still due.
+        $this->followingRedirects()->get("/rollcall/{$first->id}")->assertOk();
     });
 
     it('skips an empty section for its own leader too, when another in their scope has troopers', function () {

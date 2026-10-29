@@ -38,6 +38,7 @@ import {
 import EmptyState from "@/components/EmptyState.vue";
 import Guidon from "@/components/Guidon.vue";
 import LoaSyncNote from "@/components/LoaSyncNote.vue";
+import LoaSyncProblems from "@/components/LoaSyncProblems.vue";
 import MatrixView from "@/components/roster/MatrixView.vue";
 import OrbatView from "@/components/roster/OrbatView.vue";
 import GuidonGenerator from "@/components/roster/GuidonGenerator.vue";
@@ -65,6 +66,8 @@ const props = defineProps({
     // Where leave comes from and when it last synced (`LoaSyncState::toArray()`, 4.3, AD-20): the LOA weeks,
     // "On LOA" and at-risk all move with it.
     loaSync: { type: Object, default: null },
+    // Admins only: what the latest leave sync could not read (`LoaSyncProblems::latest()`).
+    loaSyncProblems: { type: Object, default: null },
     can: { type: Object, required: true },
     links: { type: Object, required: true },
     // "Guests at our practices" for a section, platoon or company (JSAM evidence, 2026-10-23): `{ criteria, rows }`,
@@ -588,6 +591,7 @@ function syncNow() {
                 the last 4 Cav weeks.
             </p>
             <LoaSyncNote v-if="loaSync" :sync="loaSync" />
+            <LoaSyncProblems v-if="loaSyncProblems" :run="loaSyncProblems" />
         </template>
     </div>
 
