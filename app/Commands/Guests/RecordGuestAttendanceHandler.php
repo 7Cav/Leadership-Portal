@@ -71,7 +71,7 @@ class RecordGuestAttendanceHandler
     public function handle(User $actor, RecordGuestAttendance $command): RecordedGuest
     {
         $weekStart = $this->hostWeek($this->scope, $this->units, $actor, $command->sectionId, $command->week);
-        $trooper = $this->refuseNonGuest($this->troopers->find($command->trooperId), $command->sectionId, $this->units);
+        $trooper = $this->refuseNonGuest($this->troopers->find($command->trooperId), $command->sectionId, $weekStart, $this->units, $this->troopers);
 
         // Checked here so a refusal costs no transaction, and again under the locks below. The host practice is created
         // inside the transaction, so a refused guest leaves no empty practice row behind.
@@ -115,7 +115,7 @@ class RecordGuestAttendanceHandler
                 }
 
                 // A roster sync may have moved or departed them since the check above.
-                $this->refuseNonGuest($this->troopers->find($trooper->id), $command->sectionId, $this->units);
+                $this->refuseNonGuest($this->troopers->find($trooper->id), $command->sectionId, $weekStart, $this->units, $this->troopers);
 
                 $sighting = $this->sightings->recordManual($practice, $trooper->id, $actor->id, $this->acting->adminActingAs($actor->id), $this->acting->billetOf($actor->id))
                     ?? throw $this->alreadyHeld($this->sightings->find($practice->id, $trooper->id), $trooper->display_name);

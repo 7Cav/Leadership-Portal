@@ -269,6 +269,50 @@ class Eloquent implements TrooperRepository
         return new WeekRollcalls($sections, asPlaced: true);
     }
 
+    public function ownSectionsInWeek(array $trooperIds, CarbonInterface $weekStart): array
+    {
+        $weekStart = WeekOf::requireStart($weekStart);
+        $ids = array_values(array_unique(array_map('intval', $trooperIds)));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        if (! $this->hasEnded($weekStart)) {
+            return Trooper::query()
+                ->whereIn('id', $ids)
+                ->whereNotNull('primary_section_id')
+                ->orderBy('id')
+                ->pluck('primary_section_id', 'id')
+                ->map(fn ($unitId) => (int) $unitId)
+                ->all();
+        }
+
+        $week = $weekStart->toDateString();
+        $placements = $this->placements->sectionsByWeek($ids, $weekStart, $weekStart);
+        $sections = [];
+
+        foreach ($ids as $id) {
+            $section = $placements->sectionIn($id, $week);
+
+            if ($section !== null) {
+                $sections[$id] = $section;
+            }
+        }
+
+        if ($sections === []) {
+            return [];
+        }
+
+        // Kept only where that rollcall really lists them, read as onRollcall() reads it: a section unit, and serving
+        // that week.
+        $listed = $this->placements->sectionsByWeekAmong(array_values(array_unique($sections)), $weekStart, $weekStart)->current;
+        $sections = array_intersect_key($sections, $listed);
+        ksort($sections);
+
+        return $sections;
+    }
+
     /** A week before the running one: its roster is the one it ended with (the 2026-10-29 audit). */
     private function hasEnded(CarbonImmutable $weekStart): bool
     {

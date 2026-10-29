@@ -379,7 +379,9 @@ while still attending their own. The portal shows the evidence; it never awards.
 ## Makeups
 
 A trooper is on exactly one rollcall, their own section's. Attending another section's practice counts as a makeup for
-their own section's practice that Cav week.
+their own section's practice that Cav week. For a week that has ended, their own section is the one whose rollcall
+lists them that week (see "Rollcall"), so a trooper who moved since gets the makeup on that rollcall, and a section
+cannot add one of its own troopers of that week as a guest.
 
 - Their own leader can mark Makeup by hand.
 - When a host leader adds them as a guest, the portal writes an automatic makeup on their own section's rollcall for
