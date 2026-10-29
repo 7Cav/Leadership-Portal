@@ -69,7 +69,6 @@ function goTo(url) {
         <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0">
                 <h1 class="text-xl font-semibold tracking-tight">Audit log</h1>
-                <p class="mt-1 text-[13px] text-muted-foreground">Every audited action, filterable by actor, action, unit, target and date range.</p>
             </div>
             <Badge variant="outline" class="gap-1"><PhLockSimple aria-hidden="true" />Admin only</Badge>
         </div>

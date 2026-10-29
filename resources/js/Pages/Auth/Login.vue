@@ -25,7 +25,6 @@ defineProps({
                 <div class="pitch">
                     <div class="eyebrow">For 7Cav leaders</div>
                     <h1>Weekly rollcall, section practice and reports, <em>in one place.</em></h1>
-                    <p>Track your troopers' rollcall signatures, section practice attendance and weekly reports, with the Cav roster and LOAs synced in.</p>
                     <ul class="feature-list">
                         <li><span class="dot">RC</span>Weekly rollcall post, ready to paste on the forum</li>
                         <li><span class="dot">SP</span>Section practice attendance from the game servers</li>
