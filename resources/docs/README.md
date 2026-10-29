@@ -53,7 +53,8 @@ best guide for the page the reader is on.
 
 ## The body
 
-- Each `##` heading is a numbered step and shows under "On this page". Keep one action per step.
+- Each `##` heading is a numbered step and shows under "On this page". Keep one action per step. A section with a
+  single step needs no heading of its own: fold it into the step before or after it.
 - Write for the reader's task, in plain sentence-case language. Explain jargon or link to the glossary. The copy rules
   are in `docs/copywriting.md`.
 - Two call-outs, as a block quote that starts with a marker:

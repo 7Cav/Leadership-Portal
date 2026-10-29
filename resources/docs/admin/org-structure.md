@@ -20,6 +20,7 @@ page: /settings/org-structure
 
 1. Choose **Add unit**, or select a unit to edit it.
 2. Set its **Name**, **Callsign**, **Echelon** and **Parent**, and choose **Save unit**.
+3. To show a game or team label next to the unit's name, select the unit, fill in **Game or team label** (such as WARDOGS), and choose **Save label**.
 
 > [!good-to-know] What this changes, and how to undo it: moving a unit moves everyone's access with it on the next page load. Move it back the same way. A unit with troopers, reports or anything else attached cannot be deleted.
 
@@ -31,7 +32,3 @@ page: /settings/org-structure
 2. Pick the trooper, give a reason, and save. They get exactly a platoon leader's rights over that unit and everything under it.
 
 > [!good-to-know] What this changes, and how to undo it: choose **Remove acting lead** with a reason. Their access to the unit ends on their next page load. Both are in the audit log.
-
-## Set a game or team label
-
-1. Select the unit, fill in **Game or team label** (such as WARDOGS), and choose **Save label**. It shows next to the unit's name.

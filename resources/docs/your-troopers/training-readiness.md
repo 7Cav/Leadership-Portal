@@ -7,7 +7,7 @@ audience: leader
 page: /readiness/{unit}
 ---
 
-> [!why] Before you plan training or put someone forward for a role, the matrix shows at a glance who is qualified and who still needs a course.
+> [!why] Before you plan training or put someone forward for a role, the matrix shows who is qualified and who still needs a course.
 
 ## Open the matrix
 

@@ -6,7 +6,7 @@ order: 4
 audience: leader
 ---
 
-> [!why] The game server knows players by their in-game name, not their milpac. Linking a player once means the portal recognises them at every practice after this one.
+> [!why] The game server knows players by their in-game name, not their milpac. Once a player is linked, the portal recognises them at every later practice.
 
 ## Find the players who need a trooper
 
@@ -20,7 +20,7 @@ audience: leader
 
 > [!good-to-know] If the trooper already has a different ID for that game, the portal asks before replacing it. Choose **Keep** to leave the old one.
 
-## Dismiss a player who is not one of ours
+## Dismiss a player who is not a trooper
 
 1. Choose **Dismiss** next to the player. They stay off the list at every later practice.
 2. To take a dismissal back, choose **Undo** next to them under **Dismissed**.
