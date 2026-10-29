@@ -31,6 +31,10 @@ Everything the portal needs to *read* about leave lives here, so no screen re-de
   `LoaCoverage` to refuse a hand-entered practice mark for a covered trooper, and to skip that trooper when
   capture pre-marks the practice (7.6), and to skip them when an automatic makeup is pre-marked for them.
 
+- `UpcomingLeave::startingAfter($ids, $weekStart)` → `array<trooperId, 'Y-m-d'>`: the troopers whose cleanly read leave
+  starts in the Cav week after `$weekStart`, for the "Leave from" chip on the rollcall and the roster's trooper sheet.
+  Read through `LoaCoverage`; a needs-review post asserts no start, so it never shows.
+
 **May depend on:** `Repositories/` (the facts, never the DB directly, AD-2), `Models/`,
 `Support/Time/` (the week window, AD-11).
 **Reached from:** the screens that show leave (the rollcall page, and Home's step matrix, which counts it), `Kpi/` and `Commands/Attendance/MarkAttendanceHandler`. Read-only: the LOA sync (`Sync/SyncLoasHandler`) is the one

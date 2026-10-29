@@ -51,6 +51,7 @@ Your scope's units and troopers, from the cached Cav roster.
 - Trooper sheet: click a trooper for their unit, their billet tag and who leads the unit ("leads this platoon as PL"
   for the lead themselves), KPIs and 20 weeks of marks with where each mark came from. It links to the trooper's
   milpac page and their section's rollcall.
+- Leave from: the trooper sheet shows a "Leave from 17Oct26" chip when the trooper's leave starts the next Cav week.
 - Acting leads and portfolio leads are marked; HQ staff appear on their HQ node (platoon, company, battalion or
   regiment).
 - Guests at our practices: troopers from outside the unit recorded at its sections' practices, with visits, last week
@@ -107,7 +108,8 @@ Every change saves in the background as you click, and is written to the audit l
 On the same page:
 
 - LOA: a trooper whose leave covers the week is locked, listed under "On LOA", and posts as `LOA`. A leave post the
-  sync could not read shows a "needs review" badge but stays markable.
+  sync could not read shows a "needs review" badge but stays markable. A trooper whose cleanly read leave starts the
+  next Cav week shows a "Leave from 17Oct26" chip, read-only, so the next practice can be planned around it.
 - Capture review: when game-server data was captured for the practice, marks it made show their source, and the leader
   can confirm the practice ("Confirmed by ..."). Editing a mark by hand afterwards clears the confirmation.
 - Unmatched players: players the capture saw that no trooper is linked to. Link one to a trooper (this also saves their

@@ -5,6 +5,7 @@ import AttendanceSourceIndicator from '@/components/attendance/AttendanceSourceI
 import LoaBadge from '@/components/LoaBadge.vue';
 import AttendanceStrip from '@/components/rollcall/AttendanceStrip.vue';
 import { Badge } from '@/components/ui/badge';
+import { forumDate } from '@/lib/forumDate';
 import { cn } from '@/lib/utils';
 import { fullName, initials, isLocked, optionsFor, practiceLabel, signatureLabel } from '@/lib/rollcall';
 
@@ -33,6 +34,8 @@ const locked = computed(() => isLocked(props.trooper));
 // The trooper's leave this week as the server sent it (covered, or needs review: then the row stays markable and
 // only the badge says someone must look). A cover learned from a refused save has no dates to show, so it only locks.
 const cover = computed(() => (props.trooper.loa && !props.trooper.loa.fromSave ? props.trooper.loa : null));
+// A leave starting next Cav week (`leaveFrom`, `Y-m-d`), so the leader planning the next practice sees it coming.
+const leaveFrom = computed(() => (props.trooper.leaveFrom ? forumDate(`${props.trooper.leaveFrom}T00:00:00Z`) : null));
 const options = computed(() => optionsFor(props.kind));
 const value = computed(() => (props.kind === 'signature' ? props.trooper.rollcall : props.trooper.status));
 const valueLabel = computed(() => (props.kind === 'signature' ? signatureLabel(value.value) : practiceLabel(value.value)));
@@ -139,6 +142,7 @@ const TONE = {
                         <div class="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
                             <AttendanceStrip v-if="trooper.history?.length" :weeks="trooper.history" :joined="trooper.joined" />
                             <LoaBadge v-if="cover" :cover="cover" :sync="loaSync" />
+                            <Badge v-if="leaveFrom" variant="outline" title="Leave starting next Cav week, from LOA records" data-testid="leave-from">Leave from {{ leaveFrom }}</Badge>
                             <template v-if="locked">
                                 <AttendanceSourceIndicator v-if="!cover" status="loa" :source="trooper.source" />
                             </template>

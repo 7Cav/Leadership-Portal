@@ -27,7 +27,7 @@ checklist:
 1. In step 1, **Signatures**, set each trooper to **Will attend**, **Cannot attend** or **Unsigned**, as they signed this week's forum thread.
 2. Every change saves as you click.
 
-> [!good-to-know] Troopers whose leave covers the week are locked and listed under **On LOA**. They post as LOA; you do not mark them.
+> [!good-to-know] Troopers whose leave covers the week are locked and listed under **On LOA**. They post as LOA; you do not mark them. A trooper whose leave starts next Cav week shows **Leave from** and the date; mark them as usual this week.
 
 ## Mark section practice
 

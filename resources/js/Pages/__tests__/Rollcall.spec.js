@@ -548,6 +548,17 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[role="group"][aria-label="On LOA"]').exists()).toBe(false);
         });
 
+        it('shows a "Leave from" chip on a trooper whose leave starts next Cav week, and leaves them markable', () => {
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory({ troopers: [trooper(6, 'unsigned', null, { leaveFrom: '2026-10-12' }), trooper(7, 'unsigned', null)] });
+
+            const card = wrapper.find('[data-trooper="6"]');
+            expect(card.find('[data-testid="leave-from"]').text()).toBe('Leave from 12Oct26');
+            expect(card.find('[data-testid="leave-from"]').attributes('title')).toBe('Leave starting next Cav week, from LOA records');
+            expect(card.findAll('button[data-value]')).toHaveLength(4);
+            expect(wrapper.find('[data-trooper="7"] [data-testid="leave-from"]').exists()).toBe(false);
+        });
+
         it('locks a trooper the server says went on leave since the page loaded, and says why, not that they moved', async () => {
             post.mockResolvedValueOnce({ ok: false, status: 422, data: { message: 'on leave', rejected: [3], reason: 'loa_covered' } });
             page.url = '/rollcall/12?step=2';

@@ -699,3 +699,15 @@ describe('the week a bare URL opens while last week\'s report is due', function 
     });
 });
 
+it('marks a trooper whose leave starts next Cav week with its first day, read-only, and nobody else', function () {
+    $leaving = rollcallTrooper($this->section);
+    $staying = rollcallTrooper($this->section);
+    Loa::factory()->create(['trooper_id' => $leaving->id, 'starts_at' => '2026-10-12', 'ends_at' => '2026-10-20']);
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('troopers', fn ($rows) => collect($rows)->firstWhere('id', $leaving->id)['leaveFrom'] === '2026-10-12'
+                && collect($rows)->firstWhere('id', $leaving->id)['loa'] === null
+                && collect($rows)->firstWhere('id', $staying->id)['leaveFrom'] === null));
+});

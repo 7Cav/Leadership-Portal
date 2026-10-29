@@ -2,6 +2,7 @@
 
 use App\Models\AttendanceSource;
 use App\Models\AttendanceStatus;
+use App\Models\Loa;
 use App\Models\PortalRoleGrant;
 use App\Models\RollcallSignature;
 use App\Models\SyncRun;
@@ -367,6 +368,15 @@ describe('trooper detail (Sheet)', function () {
             ->assertJsonPath('trooper.kpis.sp', [2, 2])
             ->assertJsonPath('trooper.kpis.rc', [2, 4])
             ->assertJsonPath('trooper.transfers', [['at' => '2026-09-30T18:00:00Z', 'from' => '1/2/A/1-7', 'to' => '1/1/A/1-7']]);
+    });
+
+    it('gives the first day of a leave starting next Cav week, for the "Leave from" chip, and null without one', function () {
+        $leaving = rosterTrooper($this->section1);
+        $staying = rosterTrooper($this->section1);
+        Loa::factory()->create(['trooper_id' => $leaving->id, 'starts_at' => '2026-10-11', 'ends_at' => '2026-10-20']);
+
+        $this->actingAs($this->leader)->getJson("/roster/troopers/{$leaving->id}")->assertOk()->assertJsonPath('trooper.leaveFrom', '2026-10-11');
+        $this->actingAs($this->leader)->getJson("/roster/troopers/{$staying->id}")->assertOk()->assertJsonPath('trooper.leaveFrom', null);
     });
 
     it('lists no transfers for a trooper who never moved', function () {
