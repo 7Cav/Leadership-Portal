@@ -258,7 +258,7 @@ it('lists each pick on the host rollcall: a staff guest in their own unit, a gue
 
     // The PSG's platoon holds the host: staff guest. 1/2/A/1-7 is outside their platoon: guest. It is inside the CO's company.
     expect($guests($this->host))->toBe([$this->psg->id => ['staff', true]])
-        ->and($guests($this->far))->toBe([$this->psg->id => ['staff', false], $co->id => ['staff', true]]);
+        ->and($guests($this->far))->toEqual([$this->psg->id => ['staff', false], $co->id => ['staff', true]]);
 
     // The rollcall page names it, and the week is named, since a bare URL on a Saturday opens the week still due.
     $page = $this->actingAs($this->tree['users']['sl'])->get(route('rollcall.show', ['unit' => $this->host->id, 'week' => '2026-10-03']))->assertOk()->viewData('page')['props'];
