@@ -375,7 +375,7 @@ class CaptureSectionPracticeHandler
         // roster it ended with (the 2026-10-29 audit), so a capture of the closing week credits that week's troopers.
         $linked = array_values(array_unique(array_column($links, 'trooperId')));
         $troopers = $this->troopers->byIds($linked);
-        $onRollcall = $linked === [] ? [] : array_flip($this->troopers->idsOnRollcall($practice->section_id, $practice->week_start, $linked)->all());
+        $onRollcall = $linked === [] ? [] : array_flip($this->troopers->idsOnRollcall($practice->section_id, $practice->week_start, $linked, serving: true)->all());
         $matched = [];
         $otherSection = [];
         $departed = [];
@@ -383,12 +383,12 @@ class CaptureSectionPracticeHandler
         foreach ($links as $link) {
             $trooper = $troopers->get($link['trooperId']);
 
-            // A trooper who has left keeps their last placement, so they are told apart before the rollcall is: listed as
-            // departed, never credited (the pre-mark would skip them anyway).
-            if ($trooper === null || ! $trooper->status->isServing()) {
-                $departed[] = $link;
-            } elseif (isset($onRollcall[$link['trooperId']])) {
+            // On the week's rollcall first: a trooper who served the closing week is credited there though they have left
+            // since. Otherwise one who has left keeps their last placement, so they are listed as departed, never credited.
+            if (isset($onRollcall[$link['trooperId']])) {
                 $matched[] = $link;
+            } elseif ($trooper === null || ! $trooper->status->isServing()) {
+                $departed[] = $link;
             } else {
                 $otherSection[] = $link;
             }
