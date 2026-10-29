@@ -128,11 +128,7 @@ class ViewAsController extends Controller
     {
         $exit->handle($request->user());
 
-        $previous = $this->previousPage($request);
-
-        return redirect()->to($previous === null
-            ? route('home', absolute: false)
-            : $previous['path'].($previous['query'] === '' ? '' : '?'.$previous['query']));
+        return redirect()->to(PreviousPage::of($request) ?? route('home', absolute: false));
     }
 
     /**
@@ -140,16 +136,16 @@ class ViewAsController extends Controller
      * battalion's roster, once they view as a section), so they get the same page for the unit they now view as when
      * there is one: its roster, its rollcall (a section) or the rollcall landing, its report for the same week or the
      * reports landing, its readiness matrix, and its roster from a trooper page. A person preview has no unit of its
-     * own, so it gets each page's landing, which opens where that person would. Anything else opens Home. Only the
-     * Referer's path is read, against these known shapes, and the address is built here from the target's id and a
-     * checked week, so it never points anywhere this list does not.
+     * own, so it gets each page's landing, which opens where that person would. Any other page on this site stays open
+     * as it was: one the preview cannot open shows the shell's blocked state (the BlockedWhilePreviewing middleware),
+     * never its data. With no page to go back to, Home. For the known shapes only the Referer's path is read, and the
+     * address is built here from the target's id and a checked week.
      */
     private function openingPage(Request $request, ViewAsTarget $target, UnitRepository $units): string
     {
-        $home = route('home', absolute: false);
-        $previous = $this->previousPage($request);
+        $previous = PreviousPage::parts($request);
         if ($previous === null) {
-            return $home;
+            return route('home', absolute: false);
         }
 
         parse_str($previous['query'], $query);
@@ -169,30 +165,7 @@ class ViewAsController extends Controller
             preg_match('#^/reports(/\d+)?$#', $path) === 1 => ($line ? "/reports/{$unit->id}" : '/reports').$week,
             preg_match('#^/reports/\d+/plans(/[0-9-]+)?$#', $path) === 1 => '/reports',
             preg_match('#^/readiness/\d+$#', $path) === 1 && $unit !== null => "/readiness/{$unit->id}",
-            default => $home,
+            default => PreviousPage::of($request) ?? route('home', absolute: false),
         };
-    }
-
-    /**
-     * The path and query of the page the request came from, read from its Referer, when that page is on this site: no
-     * other host, and a path that cannot be read as another host (`//...`). Null otherwise, or with no Referer.
-     *
-     * @return array{path: string, query: string}|null
-     */
-    private function previousPage(Request $request): ?array
-    {
-        $referer = $request->headers->get('referer');
-        $parts = is_string($referer) ? parse_url($referer) : false;
-
-        if ($parts === false || (isset($parts['host']) && strcasecmp($parts['host'], $request->getHost()) !== 0)) {
-            return null;
-        }
-
-        $path = $parts['path'] ?? '/';
-        if (! str_starts_with($path, '/') || str_starts_with($path, '//') || str_contains($path, '\\')) {
-            return null;
-        }
-
-        return ['path' => $path, 'query' => $parts['query'] ?? ''];
     }
 }

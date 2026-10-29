@@ -161,8 +161,8 @@ describe('entering and leaving', function () {
         $this->actingAs($commander)
             ->from('/settings/org-structure')
             ->post('/view-as', ['kind' => 'unit', 'id' => $tree['platoon']->id])
-            // A settings page has no unit to open for the platoon, so the preview opens Home (#426).
-            ->assertRedirect('/home')
+            // A settings page has no unit to open for the platoon, so the preview stays on it.
+            ->assertRedirect('/settings/org-structure')
             ->assertSessionHasNoErrors();
 
         $this->get('/home')->assertInertia(fn ($page) => $page->where('viewAs', [

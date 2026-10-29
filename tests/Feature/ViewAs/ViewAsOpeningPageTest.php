@@ -11,7 +11,8 @@ use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 
 // Where starting, switching and leaving view as opens (#426). The page the viewer was on is often one the narrower
-// preview cannot open, so starting a preview opens the same page for the unit picked, or that page's landing, or Home.
+// preview cannot open, so starting a preview opens the same page for the unit picked, or that page's landing, or else
+// the page itself (Home only with no page on this site to go back to).
 // Every case follows the redirect to the end and expects the page to open.
 
 /**
@@ -110,12 +111,19 @@ describe('starting a preview', function () {
         voEnter($commander, "/readiness/{$tree['company']->id}", 'unit', $tree['platoon']->id, "/readiness/{$tree['platoon']->id}");
     });
 
-    it('opens Home from a page with no unit of its own, such as a settings page', function () {
+    it('stays on a page with no unit of its own, such as a settings page', function () {
         $tree = voTree();
         $admin = User::factory()->admin()->create();
         $sectionLeader = voLeaderOf($tree['section'], 100);
 
-        voEnter($admin, '/settings/org-structure', 'user', $sectionLeader->id, '/home');
+        $this->actingAs($admin)->from('/settings/org-structure')
+            ->post('/view-as', ['kind' => 'user', 'id' => $sectionLeader->id])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect('/settings/org-structure');
+
+        // The section leader may not open a settings page such as the audit log: the shell's blocked page, not the page.
+        $this->get('/settings/audit-log')->assertForbidden()
+            ->assertInertia(fn ($page) => $page->component('Blocked')->where('mode', 'viewAs'));
     });
 
     it('opens each page\'s landing in a person preview, which opens where that person would', function () {

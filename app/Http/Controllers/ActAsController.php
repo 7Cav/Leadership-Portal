@@ -80,15 +80,17 @@ class ActAsController extends Controller
             ]);
         }
 
-        // Their home, not the page the Admin was on: it may be one they cannot open.
-        return redirect()->route('home');
+        // The page they started from. One the person or billet may not open shows the shell's blocked state
+        // (the BlockedWhilePreviewing middleware), never its data.
+        return redirect()->to(PreviousPage::of($request) ?? route('home', absolute: false));
     }
 
+    /** Back to the page they were on, which their own permissions reach as far as the acted-as ones did or further. */
     public function destroy(Request $request, StopActingAs $stop): RedirectResponse
     {
         $stop->handle($this->realUser($request));
 
-        return redirect()->route('home');
+        return redirect()->to(PreviousPage::of($request) ?? route('home', absolute: false));
     }
 
     private function realUser(Request $request): User

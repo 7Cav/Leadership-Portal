@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\ActAsUser;
+use App\Http\Middleware\BlockedWhilePreviewing;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PreventCachingAuthenticatedResponses;
 use App\Http\Middleware\ReadOnlyWhileViewingAs;
@@ -56,6 +57,9 @@ return Application::configure(basePath: dirname(__DIR__))
             // Runs the request as the person an Admin is acting as (#379), before anything reads the user.
             ActAsUser::class,
             HandleInertiaRequests::class,
+            // While view as or act as is on, a page the identity may not open renders as the shell with a blocked
+            // state rather than an error page, so the banner stays. Inside HandleInertiaRequests, for its shared props.
+            BlockedWhilePreviewing::class,
             // Refuses writes while a view-as preview is active (Story 1.13). Runs after routing,
             // so it can let the view-as exit and logout routes through by name.
             ReadOnlyWhileViewingAs::class,
