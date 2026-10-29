@@ -23,8 +23,8 @@ report deadline, 23:59 UTC on the Saturday after it ends, has passed).
   week is only drawn when every section in scope with troopers sent its report that week.
 - Needs attention: units holding up the report chain, at-risk troopers and LOA posts that need review, each linked to
   the place to fix it, with a makeup PM link for at-risk troopers. An LOA post that needs review is one the LOA sync
-  could not read, for a trooper in your scope, in the reporting week or the running one: it opens the trooper's card
-  on their section's rollcall and links to the post on the forum, where it is fixed.
+  could not read, in the reporting week or the running one, for a trooper on that week's rollcall in your scope: it
+  opens the trooper's card on that rollcall and links to the post on the forum, where it is fixed.
 - Subordinate units: the units directly under the top of your scope, with their report status and KPIs.
 
 Home only counts line units (regiment, battalions, companies, platoons, sections). Staff groups have no report chain.

@@ -262,17 +262,17 @@ class HomeController extends Controller
                 ->map(fn (TrooperAttendance $row) => ['trooperId' => $row->trooperId, 'missed' => $row->missed, 'missedWeeks' => $row->missedWeeks]))
             ->values();
 
-        $review = $this->loaReview($attendance, $weekStart);
-        $troopers = $this->troopers->byIds([...$atRisk->pluck('trooperId')->all(), ...array_keys($review)]);
         $sections = $this->units->sectionsAmong($scope)->keyBy('id');
+        $review = $this->loaReview($attendance, $chains, $sections, $weekStart);
+        $troopers = $this->troopers->byIds([...$atRisk->pluck('trooperId')->all(), ...array_keys($review)]);
         $atRisk = $atRisk
             ->filter(fn (array $row) => $troopers->has($row['trooperId']))
             ->sortBy(fn (array $row) => [-$row['missed'], mb_strtolower($troopers->get($row['trooperId'])->display_name)])
             ->values();
 
         $review = collect($review)
-            ->filter(fn (LoaCover $cover, int $trooperId) => $troopers->has($trooperId))
-            ->sortBy(fn (LoaCover $cover, int $trooperId) => mb_strtolower($troopers->get($trooperId)->display_name));
+            ->filter(fn (array $found, int $trooperId) => $troopers->has($trooperId))
+            ->sortBy(fn (array $found, int $trooperId) => mb_strtolower($troopers->get($trooperId)->display_name));
 
         $date = $weekStart->toDateString();
 
@@ -307,9 +307,11 @@ class HomeController extends Controller
                         'href' => route('roster.index', array_filter(['unit' => $trooper->primary_section_id, 'trooper' => $trooper->id])),
                     ];
                 })->all(),
-                ...$review->take(self::WORKLIST_LIMIT)->map(function (LoaCover $cover, int $trooperId) use ($troopers, $sections, $date) {
+                ...$review->take(self::WORKLIST_LIMIT)->map(function (array $found, int $trooperId) use ($troopers, $sections) {
                     $trooper = $troopers->get($trooperId);
-                    $section = $sections->get($trooper->primary_section_id);
+                    // The section whose rollcall lists them in the week they were found on, which is in the scope.
+                    $section = $sections->get($found['section']);
+                    $cover = $found['cover'];
 
                     return [
                         'kind' => 'loa_review',
@@ -325,7 +327,7 @@ class HomeController extends Controller
                         'reviewReason' => $cover->reviewReason,
                         'sourceThread' => $cover->sourceThread,
                         'href' => $section
-                            ? route('rollcall.show', ['unit' => $section->id, 'week' => $date, 'focus' => $trooper->id])
+                            ? route('rollcall.show', ['unit' => $section->id, 'week' => $found['week'], 'focus' => $trooper->id])
                             : route('roster.index', ['trooper' => $trooper->id]),
                     ];
                 })->values()->all(),
@@ -335,30 +337,61 @@ class HomeController extends Controller
     }
 
     /**
-     * The troopers of these rows with a leave post that needs review in the reporting week, or in the running week
-     * when that is a later one (a post made since the closing week ended), by trooper id. Read from the one LOA
-     * definition (AD-21): its own rule decides which weeks such a post bears on.
+     * The troopers with a leave post that needs review in the reporting week, or in the running week when that is a
+     * later one (a post made since the closing week ended), by trooper id. Each week is checked against its own roster
+     * in the scope (the 2026-10-29 audit): the reporting week's rows for that week, and the running week's rollcalls of
+     * the scope's sections under the same roots, so a trooper who has left the scope since is not checked for the
+     * running week, and one who joined it this week is. Read from the one LOA definition (AD-21): its own rule decides
+     * which weeks such a post bears on. Each comes with the section and week to open their rollcall card on: the
+     * reporting week's when they are on it, else the running week's.
      *
      * @param  Collection<int, Collection<int, TrooperAttendance>>  $attendance
-     * @return array<int, LoaCover>
+     * @param  Collection<int, ChainNode>  $chains
+     * @param  Collection<int, Unit>  $sections  the scope's sections, by id
+     * @return array<int, array{cover: LoaCover, section: int, week: string}>
      */
-    private function loaReview(Collection $attendance, CarbonImmutable $weekStart): array
+    private function loaReview(Collection $attendance, Collection $chains, Collection $sections, CarbonImmutable $weekStart): array
     {
-        $ids = $attendance->flatMap(fn (Collection $rows) => $rows->map(fn (TrooperAttendance $row) => $row->trooperId))->unique()->values()->all();
+        $date = $weekStart->toDateString();
+        $running = WeekOf::start(CarbonImmutable::now());
+        $later = $running->greaterThan($weekStart) ? $running->toDateString() : null;
+        // trooper id => their section, on each week's roster.
+        $rosters = [$date => []];
+
+        foreach ($attendance as $rows) {
+            foreach ($rows as $row) {
+                if ($row->sectionId !== null) {
+                    $rosters[$date][$row->trooperId] = $row->sectionId;
+                }
+            }
+        }
+
+        if ($later !== null) {
+            $roots = $chains->map(fn (ChainNode $chain) => $chain->unit->path);
+            $under = $sections
+                ->filter(fn (Unit $section) => $roots->contains(fn (string $path) => str_starts_with($section->path, $path)))
+                ->keys()
+                ->all();
+            $rosters[$later] = $this->troopers->onRollcalls($under, $running)->sections;
+        }
+
+        $ids = array_keys(array_replace(...array_values($rosters)));
 
         if ($ids === []) {
             return [];
         }
 
-        $weeks = WeekOf::start(CarbonImmutable::now())->greaterThan($weekStart) ? 2 : 1;
         $review = [];
 
-        foreach ($this->loaCoverage->forTroopersOverWeeks($ids, $weekStart, $weeks) as $trooperId => $covers) {
-            // The later week's post first: it is the one a leader can still act on.
-            $cover = collect(array_reverse($covers))->first(fn (LoaCover $cover) => $cover->needsReviewState());
+        foreach ($this->loaCoverage->forTroopersOverWeeks($ids, $weekStart, count($rosters)) as $trooperId => $covers) {
+            // The later week's post first: it is the one a leader can still act on. A week counts only for a trooper
+            // on that week's roster.
+            $cover = collect(array_reverse($covers, true))
+                ->first(fn (LoaCover $cover, string $week) => isset($rosters[$week][$trooperId]) && $cover->needsReviewState());
 
             if ($cover !== null) {
-                $review[$trooperId] = $cover;
+                $week = isset($rosters[$date][$trooperId]) ? $date : $later;
+                $review[$trooperId] = ['cover' => $cover, 'section' => $rosters[$week][$trooperId], 'week' => $week];
             }
         }
 
