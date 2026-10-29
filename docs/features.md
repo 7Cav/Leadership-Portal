@@ -396,6 +396,20 @@ platoon's or company's report.
   there, an overseer or the Regimental HQ read), and Admins. A peer on the same HQ (a PL and their PSG) does not. See
   [permissions.md](permissions.md#staff-report).
 
+## Changelog
+
+- `/changelog`, under Help in the sidebar, for everyone signed in: what changed in the portal, newest first. Entries
+  are written by hand, never pulled from git: a date, a title and a Markdown body, shown with any raw HTML stripped.
+- The sidebar shows a dot on Changelog while an entry was written after the viewer last opened the page. Opening it
+  clears the dot, but not during a view-as preview or while someone acts as the viewer.
+- Only the changelog editors (`changelog_editors` in `config/portal.php`, matched without case), signed in as
+  themselves, add, edit, delete (reason required) and bulk import entries. Bulk import takes pasted Markdown where each
+  `## YYYY-MM-DD - Title` heading starts an entry, previews it with any errors, can skip entries whose date and title
+  already exist, and saves them in one batch. Writes are audited as `changelog.created`, `changelog.updated`,
+  `changelog.deleted`, `changelog.imported` and `changelog.outdated_dismissed`.
+- After each redeploy (a new asset build version) the editors see a blue "Changelog outdated" bar with "Add entry" and
+  "Dismiss". Adding an entry, an import, or a dismiss clears it for both editors until the next deploy.
+
 ## Settings menu (Admins)
 
 | Page | What it does |

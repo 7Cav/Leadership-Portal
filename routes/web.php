@@ -3,6 +3,7 @@
 use App\Http\Controllers\ActAsController;
 use App\Http\Controllers\Auth\ForumAuthController;
 use App\Http\Controllers\CounselingController;
+use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\DocsController;
 use App\Http\Controllers\GameIdentityController;
 use App\Http\Controllers\HomeController;
@@ -45,7 +46,7 @@ use Illuminate\Support\Facades\Route;
 // route taking one of these ids cannot forget the constraint (RouteIdConstraintTest walks the
 // routes and fails on an id-like parameter missing from this list). Don't add `whereNumber()` or
 // `where()` for these on a route: it replaces the global pattern rather than adding to it.
-foreach (['unit', 'grant', 'trooper', 'version', 'game', 'server', 'counseling', 'template', 'billet'] as $id) {
+foreach (['unit', 'grant', 'trooper', 'version', 'game', 'server', 'counseling', 'template', 'billet', 'entry'] as $id) {
     Route::pattern($id, '[0-9]{1,18}');
 }
 
@@ -180,6 +181,16 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // The in-portal guides (#409). Docs home and one guide, filtered to what the viewer may read (the controller asks
     // the ScopeResolver, so view-as applies); every docs route answers 404 while `portal.docs` is off. Guide ids are
     // slugs, never numbers. `/documentation` is an alias, sent on permanently with the rest of its path.
+    // The changelog: open to everyone signed in; only the changelog editors write it, each write audited and on the
+    // shared audited-writes throttle. The import preview writes nothing but shares the throttle, as every POST does.
+    Route::get('/changelog', [ChangelogController::class, 'index'])->name('changelog.index');
+    Route::post('/changelog', [ChangelogController::class, 'store'])->middleware('throttle:audited-writes')->name('changelog.store');
+    Route::post('/changelog/import/preview', [ChangelogController::class, 'preview'])->middleware('throttle:audited-writes')->name('changelog.import.preview');
+    Route::post('/changelog/import', [ChangelogController::class, 'import'])->middleware('throttle:audited-writes')->name('changelog.import');
+    Route::post('/changelog/outdated/dismiss', [ChangelogController::class, 'dismiss'])->middleware('throttle:audited-writes')->name('changelog.outdated.dismiss');
+    Route::patch('/changelog/{entry}', [ChangelogController::class, 'update'])->middleware('throttle:audited-writes')->name('changelog.update');
+    Route::delete('/changelog/{entry}', [ChangelogController::class, 'destroy'])->middleware('throttle:audited-writes')->name('changelog.destroy');
+
     Route::get('/docs', [DocsController::class, 'index'])->name('docs.index');
     Route::get('/docs/help', [DocsController::class, 'help'])->name('docs.help');
     Route::get('/docs/{section}/{slug}', [DocsController::class, 'show'])

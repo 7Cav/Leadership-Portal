@@ -44,17 +44,20 @@ describe('navigation', () => {
     });
 
     it('hides only the admin-only groups from a non-Admin', () => {
-        expect(visibleGroups(false).map((group) => group.id)).toEqual(['leadership']);
+        expect(visibleGroups(false).map((group) => group.id)).toEqual(['leadership', 'help']);
         expect(visibleGroups(true, { docs: true }).map((group) => group.id)).toEqual(NAV_GROUPS.map((group) => group.id));
     });
 
-    it('shows Help > Docs to every viewer, only while the docs are on (#411)', () => {
+    it('shows Help > Docs to every viewer only while the docs are on, and Help > Changelog always', () => {
         const ids = (isAdmin, features) => visibleGroups(isAdmin, features).map((group) => group.id);
 
         expect(ids(false, { docs: true })).toEqual(['leadership', 'help']);
         expect(ids(true, { docs: true })).toContain('help');
-        expect(ids(false, { docs: false })).not.toContain('help');
-        expect(ids(false)).not.toContain('help');
+        const helpItems = (features) => visibleGroups(false, features).find((group) => group.id === 'help').items.map((item) => item.label);
+        expect(helpItems({ docs: true })).toEqual(['Docs', 'Changelog']);
+        // The changelog is there for everyone, docs on or off.
+        expect(helpItems({ docs: false })).toEqual(['Changelog']);
+        expect(helpItems()).toEqual(['Changelog']);
     });
 
     it('keeps Docs active on every guide, with the guide as the last crumb', () => {

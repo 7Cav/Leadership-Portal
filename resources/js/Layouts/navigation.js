@@ -1,5 +1,6 @@
 import {
     PhBookOpenText,
+    PhClockCounterClockwise,
     PhClipboardText,
     PhFileCode,
     PhFileText,
@@ -42,7 +43,12 @@ export const NAV_GROUPS = [
         label: 'Help',
         adminOnly: false,
         crumb: false,
-        items: [{ label: 'Docs', href: '/docs', icon: PhBookOpenText, feature: 'docs' }],
+        items: [
+            { label: 'Docs', href: '/docs', icon: PhBookOpenText, feature: 'docs' },
+            // `dot` names a shared prop that, while true, puts a dot beside the item: here an entry newer than when the
+            // viewer last opened the changelog.
+            { label: 'Changelog', href: '/changelog', icon: PhClockCounterClockwise, dot: 'changelogUnseen' },
+        ],
     },
     {
         // Shown to Admins, and to anyone else only for an item whose `allow` names a shared prop that is true for them

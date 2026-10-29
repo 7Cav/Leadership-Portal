@@ -106,4 +106,21 @@ return [
         'window_weeks' => (int) env('JSAM_WINDOW_WEEKS', 12),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Changelog
+    |--------------------------------------------------------------------------
+    |
+    | The usernames that may write the changelog at /changelog, compared without case. Only they add, edit, delete and
+    | import entries and dismiss the "Changelog outdated" bar, and only while signed in as themselves.
+    |
+    | `changelog_deploy_id` overrides the deploy id the outdated bar compares (the asset build version Inertia uses):
+    | null uses that version, a string is used as the id, and false means there is none, so the bar never shows.
+    |
+    */
+
+    'changelog_editors' => ['Grayson.J', 'Laui.M'],
+
+    'changelog_deploy_id' => null,
+
 ];
