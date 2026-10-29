@@ -49,6 +49,13 @@ function telemetryOf(object $test)
     return $test->actingAs($test->leader)->get("/rollcall/{$test->section->id}");
 }
 
+it('reports a capture that broke on an error inside the portal as an internal error, naming no feed', function () {
+    captureRun($this, SyncRunStatus::Failure)->forceFill(['internal_error' => true, 'error' => 'the capture hit an unexpected error (practice 1, QueryException)'])->save();
+
+    telemetryOf($this)->assertInertia(fn (Assert $page) => $page
+        ->where('telemetry', ['state' => 'failed', 'platformLabel' => 'Hell Let Loose (WW2)', 'feeds' => [], 'lastAttemptAt' => '2026-10-08T15:42:00+00:00', 'canRetry' => true, 'detail' => 'internal_error']));
+});
+
 it('shows nothing for a practice whose capture was never attempted', function () {
     telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry', null)->where('capture', null));
 });

@@ -13,7 +13,8 @@ import TimeAgo from '@/components/TimeAgo.vue';
 const props = defineProps({
     // `{ state: 'failed' | 'not_configured', platformLabel, feeds, lastAttemptAt, canRetry, detail }`; `feeds` names the
     // game's sources that were tried (`crcon`, `battlemetrics`, `nightwatch`). `detail` is `no_server` when no training
-    // server is selected for the game (an env server belongs to one game only, #389).
+    // server is selected for the game (an env server belongs to one game only, #389), `internal_error` when the last capture
+    // broke on the portal's own error rather than a feed.
     telemetry: { type: Object, required: true },
     // A "Try again" is in flight.
     retrying: { type: Boolean, default: false },
@@ -38,7 +39,10 @@ const lastTried = computed(() => (props.telemetry.lastAttemptAt ? `${forumDateTi
         :data-state="telemetry.state"
     >
         <component :is="failed ? PhWarning : PhPlugsConnected" class="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
-        <p v-if="failed" class="min-w-[14rem] flex-1">
+        <p v-if="failed && telemetry.detail === 'internal_error'" class="min-w-[14rem] flex-1">
+            The portal hit an error capturing this practice<template v-if="lastTried">, last tried <TimeAgo :at="telemetry.lastAttemptAt" quiet>{{ lastTried }}</TimeAgo></template>. Nothing was pre-filled. Mark attendance by hand.
+        </p>
+        <p v-else-if="failed" class="min-w-[14rem] flex-1">
             {{ feed }} could not be read<template v-if="lastTried">, last tried <TimeAgo :at="telemetry.lastAttemptAt" quiet>{{ lastTried }}</TimeAgo></template>. Nothing was pre-filled. Mark attendance by hand.
         </p>
         <p v-else-if="telemetry.detail === 'no_server'" class="min-w-[14rem] flex-1">

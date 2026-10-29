@@ -206,8 +206,8 @@ class CaptureSectionPracticeHandler
             // job retry — a retry re-stamps and re-resolves, so a stamp that landed first is harmless.
             // The run keeps a plain sentence, not the exception's message: a database error quotes
             // the SQL and the player data it choked on. The exception itself is rethrown, so the
-            // worker's log still has the detail.
-            $this->syncRuns->fail($run, "the capture hit an unexpected error (practice {$practice->id}, ".class_basename($e).')');
+            // worker's log still has the detail. Marked internal, so the rollcall does not blame a game server that answered.
+            $this->syncRuns->fail($run, "the capture hit an unexpected error (practice {$practice->id}, ".class_basename($e).')', internal: true);
 
             throw $e;
         }

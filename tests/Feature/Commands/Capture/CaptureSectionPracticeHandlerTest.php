@@ -233,7 +233,15 @@ it('closes the run failed and rethrows on an unexpected error, leaving the pract
     expect(fn () => runCapture($this, [$source]))->toThrow(LogicException::class);
 
     expect(SyncRun::query()->sole()->status)->toBe(SyncRunStatus::Failure)
+        ->and(SyncRun::query()->sole()->internal_error)->toBeTrue()
         ->and($this->practice->fresh()->capture_source)->toBeNull();
+});
+
+it('does not mark a run internal when a source could not answer', function () {
+    runCapture($this, [failingSource('crcon')]);
+
+    expect(SyncRun::query()->sole()->status)->toBe(SyncRunStatus::Failure)
+        ->and(SyncRun::query()->sole()->internal_error)->toBeFalse();
 });
 
 it('closes a run of this practice left in progress by a killed worker, and not one for another practice', function () {

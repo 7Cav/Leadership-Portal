@@ -1574,6 +1574,16 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-testid="telemetry-retry"]').exists()).toBe(false);
         });
 
+        it('says the portal hit an error, not that a feed could not be read, on an internal error', () => {
+            vi.setSystemTime(new Date('2026-10-08T15:47:00Z'));
+            wrapper = factory({ telemetry: { ...FAILED, feeds: [], detail: 'internal_error' } });
+
+            const text = wrapper.find('[data-testid="telemetry-banner"]').text();
+            expect(text).toContain('The portal hit an error capturing this practice, last tried 08Oct26 15:42Z (5 min ago). Nothing was pre-filled.');
+            expect(text).not.toContain('could not be read');
+            expect(wrapper.find('[data-testid="telemetry-retry"]').exists()).toBe(true);
+        });
+
         it('says no training server is selected when the env server belongs to another game (#389)', () => {
             wrapper = factory({ telemetry: { ...NOT_CONFIGURED, platformLabel: 'Hell Let Loose: Vietnam', detail: 'no_server' } });
 

@@ -108,7 +108,8 @@ On the same page:
 - Unmatched players: players the capture saw that no trooper is linked to. Link one to a trooper (this also saves their
   game identity and marks them present), dismiss them, or restore a dismissed one.
 - Telemetry banner: says when the section's game has no capture source set up (or no training server selected), or
-  when the last capture failed, naming the feeds tried. "Try again" queues a new capture for the week so far.
+  when the last capture failed, naming the feeds tried. A capture that broke on an error inside the portal says so
+  instead of blaming a feed. "Try again" queues a new capture for the week so far.
 - Guests: add a serving trooper from another section who attended this practice, or remove one you added. See "JSAM
   guests" and "Makeups".
 - Fireteams: mark fireteam leaders (FTLs), put troopers in their fireteams, and choose how the post shows them. A company

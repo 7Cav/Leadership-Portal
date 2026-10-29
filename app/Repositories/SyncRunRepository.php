@@ -31,9 +31,10 @@ interface SyncRunRepository
     /**
      * Close a run that aborted before completing. Counts are left at their opened-run default of
      * zero: a failure means the write never happened, so there is nothing to count. `$error` is cut
-     * the same way as {@see complete()}'s, so an over-long message still closes the run.
+     * the same way as {@see complete()}'s, so an over-long message still closes the run. `$internal` marks a run that
+     * broke inside the portal (a database error, a bug), not on a source that could not answer.
      */
-    public function fail(SyncRun $run, string $error): void;
+    public function fail(SyncRun $run, string $error, bool $internal = false): void;
 
     /**
      * Close every run of `$source` still `in_progress` as failed. For a source whose runs are serialized,

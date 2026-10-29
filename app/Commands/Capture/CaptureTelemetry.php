@@ -16,7 +16,8 @@ use DateTimeImmutable;
  * read as nobody having been online (#176). Empty when the game is unknown or has no source set up.
  *
  * `detail` says more when there is more to say: `no_server` on a game that is not set up because no training server
- * is selected for it and the env server belongs to another game (#389).
+ * is selected for it and the env server belongs to another game (#389); `internal_error` on a failure inside the portal
+ * (a database error, a bug), which names no feed, since every one that was read answered.
  */
 final readonly class CaptureTelemetry
 {
@@ -43,5 +44,11 @@ final readonly class CaptureTelemetry
     public static function failed(?Game $game, DateTimeImmutable $lastAttemptAt, array $feeds = []): self
     {
         return new self(CaptureTelemetryState::Failed, $game, $lastAttemptAt, $game !== null, $feeds);
+    }
+
+    /** The last capture broke inside the portal (a database error, a bug): no feed is named, since none failed. */
+    public static function internalError(?Game $game, DateTimeImmutable $lastAttemptAt): self
+    {
+        return new self(CaptureTelemetryState::Failed, $game, $lastAttemptAt, $game !== null, detail: 'internal_error');
     }
 }
