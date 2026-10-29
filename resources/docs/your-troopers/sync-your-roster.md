@@ -6,7 +6,7 @@ order: 3
 audience: leader
 ---
 
-> [!why] The roster is refreshed from the Cav roster on a schedule. When a trooper joins or moves today, a sync puts them on your rollcall without waiting for the next one.
+> [!why] The roster is refreshed from the Cav roster on a schedule. When a trooper joins or moves today, a sync puts them on your roll call without waiting for the next one.
 
 ## Start a sync
 

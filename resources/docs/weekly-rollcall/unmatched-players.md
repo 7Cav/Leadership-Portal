@@ -10,7 +10,7 @@ audience: leader
 
 ## Find the players who need a trooper
 
-1. On a captured practice's rollcall, step 2 says how many players need a trooper.
+1. On a captured practice's roll call, step 2 says how many players need a trooper.
 2. Open the panel to see them, each with the troopers whose names are closest.
 
 ## Link a player
@@ -28,7 +28,7 @@ Some players have no **Link and mark present**, and the panel says why. Mark the
 
 - The game is retired, so it takes no new links.
 - The player was seen through BattleMetrics while the game server could not be read, and BattleMetrics only had its own number for them, not their game ID.
-- The player is linked to a trooper who has left. They are listed under **Departed** and are not marked on any rollcall.
+- The player is linked to a trooper who has left. They are listed under **Departed** and are not marked on any roll call.
 
 ## Dismiss a player who is not a trooper
 

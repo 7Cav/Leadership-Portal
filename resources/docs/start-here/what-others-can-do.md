@@ -18,9 +18,9 @@ A leadership billet gives you the unit it commands and everything under it. A co
 
 | Who | Can do |
 | --- | --- |
-| Section Leader, Assistant Section Leader | Their section's rollcall, section practice marks, guests, fireteams, weekly report and its own rollcall templates |
+| Section Leader, Assistant Section Leader | Their section's roll call, section practice marks, guests, fireteams, weekly report and its own roll call templates |
 | Platoon Leader, Platoon Sergeant | All of that for every section in the platoon, the platoon's report and its training topic |
-| Company command (Commander, XO, First Sergeant) | All of that for the company, its report, the company's fireteam rules and its rollcall templates |
+| Company command (Commander, XO, First Sergeant) | All of that for the company, its report, the company's fireteam rules and its roll call templates |
 | Battalion and regiment command | All of that for their battalion, or for the regiment |
 | Acting lead | What the billet would give, for the unit an Admin assigned them |
 
@@ -35,7 +35,7 @@ A leadership billet gives you the unit it commands and everything under it. A co
 
 ## Admins
 
-Admins are the people given the Admin flag, and Regimental HQ or S6 HQ staff whose billet an Admin approved. Admins see and change everything. Only they edit the org structure, staff grants, the regiment default rollcall template and games, read the audit log, and assign acting leads.
+Admins are the people given the Admin flag, and Regimental HQ or S6 HQ staff whose billet an Admin approved. Admins see and change everything. Only they edit the org structure, staff grants, the regiment default roll call template and games, read the audit log, and assign acting leads.
 
 ## Who to ask
 

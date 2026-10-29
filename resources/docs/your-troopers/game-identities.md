@@ -29,4 +29,4 @@ checklist:
 1. Choose **Edit** next to the game, change it, and choose **Save changes**.
 2. Or choose **Remove**. Their past attendance stays as it is.
 
-> [!good-to-know] You can also link a player straight from a captured practice's rollcall: see [Link or dismiss an unmatched player](/docs/weekly-rollcall/unmatched-players).
+> [!good-to-know] You can also link a player straight from a captured practice's roll call: see [Link or dismiss an unmatched player](/docs/weekly-rollcall/unmatched-players).

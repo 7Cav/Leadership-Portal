@@ -32,6 +32,6 @@ minutes: 2
 ## Send it
 
 1. Choose **Send staff report**. Once sent, it cannot be changed.
-2. Each practice you picked lists you on that section's rollcall: as a **Staff guest** in your own platoon or company, and as a **Guest** anywhere else. You never count in that section's numbers.
+2. Each practice you picked lists you on that section's roll call: as a **Staff guest** in your own platoon or company, and as a **Guest** anywhere else. You never count in that section's numbers.
 
 > [!good-to-know] Your platoon's or company's report shows whether its HQ staff sent theirs, for the leaders above it. Sending your HQ's own report does not stop you sending yours. For a week that has ended, the portal goes by the HQ you were on when it ended, so you still send it after a move.

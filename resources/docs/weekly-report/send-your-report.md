@@ -23,12 +23,12 @@ checklist:
 
 ## Check the numbers
 
-1. The numbers are counted from your rollcall and section practice marks for the week.
-2. If one is wrong, choose **Open rollcall**, fix the mark, and come back. The report updates.
+1. The numbers are counted from your roll call and section practice marks for the week.
+2. If one is wrong, choose **Open roll call**, fix the mark, and come back. The report updates.
 
 ## Work through Ready to send
 
-1. **Ready to send** lists what is still open: rollcall complete, practice marked, unaccounted troopers explained, training subject filled, notes reviewed.
+1. **Ready to send** lists what is still open: roll call complete, practice marked, unaccounted troopers explained, training subject filled, notes reviewed.
 2. Under **Unaccounted troopers**, pick a reason for each one. When the portal knows why, such as a trooper who moved out of your section this week, left the Cav, or posted leave the sync could not read, that reason is already chosen and the hint says why. Choose **Keep suggested reason**, or pick another. A suggestion you have not kept is not saved or sent.
 3. Fill in the **Training subject**. Last week's subject is offered; choose **Use it again** to keep it.
 4. Write your **Notes to send with this report**.

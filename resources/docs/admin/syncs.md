@@ -6,7 +6,7 @@ order: 6
 audience: admin
 ---
 
-> [!why] The portal reads the Cav roster and the forum's leave threads, it never writes to them. If either is out of date, rollcalls show the wrong troopers or miss someone on leave.
+> [!why] The portal reads the Cav roster and the forum's leave threads, it never writes to them. If either is out of date, roll calls show the wrong troopers or miss someone on leave.
 
 ## What runs on its own
 
@@ -19,7 +19,7 @@ audience: admin
 ## Sync the whole roster now
 
 1. Open **Roster** and choose **Sync now**. It runs in the background; reload after a minute.
-2. Do this after a batch of transfers or promotions, so rollcalls are right before practice.
+2. Do this after a batch of transfers or promotions, so roll calls are right before practice.
 
 > [!good-to-know] A leader can sync their own unit with **Sync this unit**, every 5 minutes at most. Admins have no cooldown.
 

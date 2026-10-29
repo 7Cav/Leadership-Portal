@@ -2,7 +2,7 @@
 
 ## In short
 
-The week's work, for a section leader: open Rollcall, record who signed the rollcall thread, mark who was at Section
+The week's work, for a section leader: open Roll call, record who signed the roll call thread, mark who was at Section
 Practice, copy the forum post the portal builds, mark it posted, then send the section's weekly report. Platoons,
 companies, battalions and the regiment then review and send their own reports, which roll up the ones below them.
 Home shows where every unit in your scope is in that cycle.
@@ -17,14 +17,14 @@ The dashboard for your scope, for the Cav week whose report cycle is running (th
 report deadline, 23:59 UTC on the Saturday after it ends, has passed).
 
 - Week bar: the days of the week and the report due date, with five progress lanes added up over every section in
-  scope: Rollcall posted, Rollcall signed, SP held, Attendance marked, Report sent. Each section's step links to the
-  rollcall step or report where it gets done.
+  scope: Roll call posted, Roll call signed, SP held, Attendance marked, Report sent. Each section's step links to the
+  roll call step or report where it gets done.
 - KPI tiles: the six KPIs (see "KPIs" below) live for your whole scope, with a sparkline of the last four weeks. A past
   week is only drawn when every section in scope with troopers sent its report that week.
 - Needs attention: units holding up the report chain, at-risk troopers and LOA posts that need review, each linked to
   the place to fix it, with a makeup PM link for at-risk troopers. An LOA post that needs review is one the LOA sync
-  could not read, in the reporting week or the running one, for a trooper on that week's rollcall in your scope: it
-  opens the trooper's card on that rollcall and links to the post on the forum, where it is fixed.
+  could not read, in the reporting week or the running one, for a trooper on that week's roll call in your scope: it
+  opens the trooper's card on that roll call and links to the post on the forum, where it is fixed.
 - Subordinate units: the units directly under the top of your scope, with their report status and KPIs.
 - Staff report: for platoon and company HQ staff, a line saying their own staff report for the week is not sent yet,
   with "Open staff report". It goes once they send it (see "Staff report" below).
@@ -52,7 +52,7 @@ Your scope's units and troopers, from the cached Cav roster.
   Everyone else follows by rank, then name. A column sort puts everyone where they fall.
 - Trooper sheet: click a trooper for their unit, their billet tag and who leads the unit ("leads this platoon as PL"
   for the lead themselves), KPIs and 20 weeks of marks with where each mark came from. It links to the trooper's
-  milpac page and their section's rollcall.
+  milpac page and their section's roll call.
 - Leave from: the trooper sheet shows a "Leave from 17Oct26" chip when the trooper's leave starts the next Cav week.
 - Acting leads and portfolio leads are marked; HQ staff appear on their HQ node (platoon, company, battalion or
   regiment).
@@ -74,9 +74,9 @@ Your scope's units and troopers, from the cached Cav roster.
 Related pages reached from the roster:
 
 - Milpac page (`/troopers/<id>`): the trooper's ID block (rank, billet, MOS, time in service and grade, section),
-  courses, a service record timeline, quick links to their section roster, rollcall and platoon readiness matrix, and
+  courses, a service record timeline, quick links to their section roster, roll call and platoon readiness matrix, and
   a makeup PM link when they missed a practice, and their transfers between units (newest first; also on the roster
-  Sheet). Their attendance history follows them: after a transfer the new leadership sees the trooper's past rollcall
+  Sheet). Their attendance history follows them: after a transfer the new leadership sees the trooper's past roll call
   signing, practice attendance and leave, but never the old unit's sent reports. Transfers from before this was
   recorded do not show. Awards are not synced from Cav yet and the page says so. Departed troopers still render,
   marked departed. For staff, the page also lists the section practices they attended (see Staff practices below).
@@ -89,7 +89,7 @@ Related pages reached from the roster:
   Type a username, with or without a leading rank and with a space for the dot ("SGT Vasquez R"), or a cav id
   ("#1234"). An empty result says whether it was limited to your units. Departed troopers are flagged.
 
-### Rollcall
+### Roll call
 
 One section's week, in three steps. It opens on the last section you opened, else the section your billet commands,
 else a section you are acting lead of, else the first section of the first platoon in your scope. It only lands on a
@@ -99,7 +99,7 @@ Opened without a week, a section shows the closing week while its report is stil
 Saturday after the week) and that section has not sent it; "This week" opens the new week. A week chosen in the
 selector or a link always wins.
 
-1. Signatures: for each trooper, Will attend, Cannot attend or Unsigned, as signed on the forum's rollcall thread.
+1. Signatures: for each trooper, Will attend, Cannot attend or Unsigned, as signed on the forum's roll call thread.
 2. Section practice: Present, Missed, Makeup or Attached. "Mark all present", "Mark the rest missed" and "use last
    week's marks" fill many rows at once, with Undo. Number keys work as shortcuts (press `?` for the list).
 3. Review and post: the changes made on this visit, then the forum post as BBCode, built from the section's template
@@ -138,18 +138,18 @@ On the same page:
   fireteam), which overrides the sections' own choices while it is set.
 - Report deadline banner with a link to the section's report.
 
-Only troopers placed in a section are on a rollcall. HQ staff, staff departments, ELOA, Reservists and New Recruits are
+Only troopers placed in a section are on a roll call. HQ staff, staff departments, ELOA, Reservists and New Recruits are
 on none.
 
-The running week's rollcall lists who is placed in the section now. A week that has ended keeps the roster it ended
+The running week's roll call lists who is placed in the section now. A week that has ended keeps the roster it ended
 with, from the placement history, and so does everything that counts it: the section picker's progress, Home's step
 matrix and unit table, the report chain, and a capture's pre-marks. A trooper who moved to another unit or left the
 Cav after that week stays on it, can still be marked there and given a reason on its report, and counts in its KPIs and strength, while the section they
-moved to cannot mark them for that week. A trooper who moved partway through a week is on the rollcall of the section
+moved to cannot mark them for that week. A trooper who moved partway through a week is on the roll call of the section
 they moved to, and their mark at either section counts (see "Makeups"). Such rows carry a small note: "Moved out",
 "Departed", or "Joined" for one who moved in during the week. A trooper placed before the placement history began
 (27Oct26) and never moved since is in their current section for every week. The roster sync records when a trooper
-leaves the Cav; one who left before it began doing so has no date and is on no past week's rollcall.
+leaves the Cav; one who left before it began doing so has no date and is on no past week's roll call.
 
 ### Reports
 
@@ -157,7 +157,7 @@ leaves the Cav; one who left before it began doing so has no date and is on no p
   12 before it), each with its send status, KPIs and change from last week. A section leader goes straight to their own
   report.
 - A unit's report (`/reports/<unit>/<week>`):
-  - Section report: KPIs and the change from last week, a "Ready to send" checklist (Rollcall complete, Practice marked,
+  - Section report: KPIs and the change from last week, a "Ready to send" checklist (Roll call complete, Practice marked,
     Unaccounted troopers explained, Training subject filled, Notes reviewed), a reason for each unaccounted trooper from
     a fixed list, the training subject (last sent subject offered as a suggestion), notes, history and an 8 week trend.
   - Suggested reasons: where the portal's data says why a trooper is unaccounted, their reason is pre-selected:
@@ -184,7 +184,7 @@ leaves the Cav; one who left before it began doing so has no date and is on no p
   - Send: freezes the KPIs, notes, subject and reasons with a reason for the record. When checks are open or children
     have not sent, the button becomes "Send anyway"; missing children are recorded and their numbers stay out.
   - A sent report is read back exactly as frozen and never recalculated. Sending a section's report locks that week's
-    rollcall.
+    roll call.
   - Weeks before the week floor open read-only.
   - HQ staff reports (a platoon's or company's report only): each staff member on that HQ when the week ended, with
     "Not sent", "Attended 2 practices" or "Did not attend", linked to their staff report. Read only and live: it is not
@@ -195,13 +195,13 @@ leaves the Cav; one who left before it began doing so has no date and is on no p
 - Unit switcher: the block at the top of the sidebar names the top unit of your scope (several for a staff grant over
   more than one unit, empty line units left out as in the list), and the breadcrumb starts there. Open it to list every unit in your scope as a tree, sections
   included and empty line units left out. Choosing one opens the page you are on for that unit (its roster, a
-  section's rollcall, or its report or roll-up for the same week), else that unit's roster. It is navigation only: it
+  section's roll call, or its report or roll-up for the same week), else that unit's roster. It is navigation only: it
   never changes what you can see or do.
 - View as (in the top bar): previews the portal as a unit's leader, or for an Admin as a person. Its list of units
   leaves out empty line units, except the one you are viewing as now. Starting or switching
-  a preview opens the page you were on for the unit you picked when there is one (its roster, its rollcall or the
-  rollcall landing, its report for the same week or the reports landing, its readiness matrix, and its roster from a
-  trooper page), else Home. In a person preview, the roster and the rollcall open where that person would land.
+  a preview opens the page you were on for the unit you picked when there is one (its roster, its roll call or the
+  roll call landing, its report for the same week or the reports landing, its readiness matrix, and its roster from a
+  trooper page), else Home. In a person preview, the roster and the roll call open where that person would land.
   Leaving the preview goes back to the page you were on.
 - Both follow act as and View as: with either on, the switcher lists the units of the scope you are seeing.
 - Act as (user menu): runs the portal as another person, writes included, under a red bar. A leader's picker lists the
@@ -218,7 +218,7 @@ in it, it is left out of:
   and not listed as "Not in at send", and the roll-up workspace does not draw it;
 - the roster's ORBAT and unit picker, the sidebar's unit switcher, and the View as list (the unit you view as now stays
   listed);
-- the rollcall's landing (its section picker still lists them, marked "No troopers");
+- the roll call's landing (its section picker still lists them, marked "No troopers");
 - Home's progress lanes and step matrix, the unit table, the sparkline's "every section sent" test, and Needs attention.
 
 It comes back on all of them as soon as a trooper is placed in it or under it, by the roster sync or by an Admin, with
@@ -227,14 +227,14 @@ keeps what it froze, so a unit listed as missing at send stays listed on that re
 the same rule, behind a "Show empty units" checkbox, so an Admin can still open one to rename, move or delete it. A
 shown empty unit is muted and does not say "Lead: vacant".
 
-HQ staff count for the roster and Home, but not for the report chain, because they are on no rollcall and have no
+HQ staff count for the roster and Home, but not for the report chain, because they are on no roll call and have no
 report of their own. A platoon whose only troopers are its PL and PSG, with every section empty, is shown on the
 roster and the unit switcher, but it has no report to send: it is not a child its company waits on, Home's unit table
 and Needs attention leave it out as the report chain does, and its own report says there is nothing to roll up. The same goes for a company whose only troopers are its HQ. In
 the report chain, a section counts when it has troopers, and a platoon, company or battalion counts when a unit under
 it does.
 
-The report chain asks about the report's own week: a section counts for a week when that week's rollcall lists
+The report chain asks about the report's own week: a section counts for a week when that week's roll call lists
 someone (from the placement history, a trooper who ended the week in it), and any unit counts when it sent that week's
 report. So a section a trooper left partway through a week, with nobody else in it, is not one that week waits on. Who is placed now counts only for
 the running Cav week. So a section stood up or filled after a week is not one that week waits on, and a section that
@@ -243,9 +243,9 @@ week's chain, and drops out from the first week it is empty. A trooper placed be
 (27Oct26) and never moved since counts in their current section for every week.
 
 A trooper who leaves the Cav still counts in the chain for every week that opened before they left, as they stay on
-those weeks' rollcalls (see above), so a section whose last trooper leaves drops out from the first week after they
+those weeks' roll calls (see above), so a section whose last trooper leaves drops out from the first week after they
 went. One who left before the roster sync recorded the date counts for no week. A week a section sent stays in the
-chain. A trooper an Admin left unplaced still counts through their earlier placements, though no past rollcall lists
+chain. A trooper an Admin left unplaced still counts through their earlier placements, though no past roll call lists
 them.
 
 The same week rule decides which sections Home's step matrix lists for the running week, which sections each past
@@ -274,7 +274,7 @@ with the same ID and kind it already has is not checked again, so an older one t
 renamed; changing its ID or kind checks it. Names and IDs are
 stored without hidden characters (zero-width spaces, direction marks and the like), normalised and trimmed; a value
 with nothing left is refused. A name that mixes alphabets, such as Latin and Cyrillic, is saved with a "Check this
-name" marker, since a letter may be a look-alike. Linking an unmatched player from the rollcall takes the ID the server
+name" marker, since a letter may be a look-alike. Linking an unmatched player from the roll call takes the ID the server
 reported as it is, saved as the first of the game's kinds whose shape it has (an Epic ID as an Epic ID), or as the
 game's default kind when it fits none.
 
@@ -286,7 +286,7 @@ A trooper sees their own records on their own page and downloads them, read only
 their own (an Admin by the flag excepted). Acting as someone never shows their records through this: only what the
 acting identity's command shows.
 
-- File a record: the type, what it is for (a missed section practice or rollcall, or other conduct), the date it was
+- File a record: the type, what it is for (a missed section practice or roll call, or other conduct), the date it was
   given, the reason and the signed document, a PDF of 10 MB or less. What it is for is required, and stays as filed
   like the type; a record filed before the portal asked has none and is ruled as other conduct. The file
   is checked by its content, not its name, and kept on the portal's private disk. It downloads only from the record,
@@ -302,7 +302,7 @@ acting identity's command shows.
   an LOR within 30 days of another (the one repeat LOR, an Article 15, if it was for the same issue); a DCS within 30
   days of an LOR is flagged too, since the regulation calls for that repeat LOR instead if it is for the same issue
   (the filing form warns before one is filed in that window). Missed section
-  practice or rollcall: a second miss within 30 days of the last (an LOR is called for; from 31 days, another DCS), a
+  practice or roll call: a second miss within 30 days of the last (an LOR is called for; from 31 days, another DCS), a
   miss within 60 days of an LOR (a second LOR), and a second LOR within 60 days of the first (an Article 15, company
   then battalion). LORs on any matter: a 2nd within 90 days (removal as SL or ASL is authorized) and a 3rd (an Article
   15). "Within" includes the last day, and records on the same date count in the order they were filed. For 30 days
@@ -327,7 +327,7 @@ acting identity's command shows.
 
 ### Staff practices
 
-Staff (troopers placed on an HQ node, or in a staff department such as S6) are on no section's rollcall. ELOA,
+Staff (troopers placed on an HQ node, or in a staff department such as S6) are on no section's roll call. ELOA,
 Reservists and New Recruits are groups but not staff. On a staff member's milpac page, "Section practices attended"
 lists the section practices they attended, newest week first; the roster's trooper sheet shows the same list, read only.
 
@@ -344,14 +344,14 @@ lists the section practices they attended, newest week first; the roster's troop
   the server that week. A practice with an entry shows the entry.
 - Remove one: the same people. A game server sighting cannot be removed by hand. An entry on a section that had no
   practice that week creates one; removing the last such entry removes it again when nothing else is on it (no mark,
-  signature, guest, capture, or posted or confirmed rollcall), so it never keeps an Admin from deleting the section.
+  signature, guest, capture, or posted or confirmed roll call), so it never keeps an Admin from deleting the section.
 - Lock: once the HQ the staff member was placed on that week has sent its weekly report for it, that week's entries no
   longer change. It goes by where they were placed that week (the placement history), not where they are now, so a
   move afterwards neither opens nor locks a week; a week they spent in two units is locked by either. A staff
   department sends no weekly report, so its weeks stay open.
 - Lock: once the staff member has sent their own staff report for a week (see below), that week's entries no longer
   change either, from anyone.
-- An entry lists the staff member beside the host section's guests (see "Rollcall"), shown only: it never puts them on
+- An entry lists the staff member beside the host section's guests (see "Roll call"), shown only: it never puts them on
   the host's roster, never counts in its numbers, reports or JSAM counts, and gives no makeup. Adding and removing are
   audited.
 
@@ -376,8 +376,8 @@ platoon's or company's report.
 - What sending writes: the staff report, and the week's staff practice entries set to exactly the practices picked
   (an entry for a section not picked, one a leader entered on the milpac say, is taken off, and the page warns before
   sending). "No" is a sent report with no practice, and takes off the week's entries. A guest entry from before they
-  joined the HQ stays as it is. Each pick lists them on the host's rollcall as a staff guest or a guest (see
-  "Rollcall"). Sending is audited as `staff_report.sent`.
+  joined the HQ stays as it is. Each pick lists them on the host's roll call as a staff guest or a guest (see
+  "Roll call"). Sending is audited as `staff_report.sent`.
 - The HQ's own weekly report does not lock it: a PSG still sends theirs after their platoon's report went. Once sent,
   that week's staff practice entries are locked.
 - Past weeks: a week that has ended goes by who was on the HQ when it ended, from the placement history. A staff member
@@ -393,7 +393,7 @@ platoon's or company's report.
 | --- | --- |
 | Org structure | Two cards: the chain of command (the regiment, its battalions including ACD and DEVCOM, and everything below) and the regimental staff (the portfolios, their departments and the holding groups, New Recruits behind "Show New Recruits"), each unit with its lead (commanding billet holder, portfolio officer, DEVCOM's 1IC or acting lead, or vacant) and headcount. Line units with nobody in them or under them are hidden until "Show empty units" is ticked. ACD and DEVCOM also show under Reserve & Development Command in the staff card, and DEVCOM Staff under DEVCOM in the chain of command, as reference rows that open the unit where it really sits; nothing moves. Each battalion and the Reservists show who oversees them ("Oversight: vacant" for a battalion with nobody); the overseer reads that unit and everything under it, read only, while they serve. Admins can set, change or clear an overseer (reason required). Admins can add, rename, move and delete units (a unit with anything attached cannot be deleted), run Import from Cav roster, set the game a unit plays by picking it from the Games list (every unit under it inherits it unless it has its own; a game that is not the unit's own shows muted with the unit it comes from, such as "WARDOGS from 2/A/1-7", on reference rows too, and the details panel says the same), set a free-text team label on a unit (shown next to its name), assign or remove an acting lead (reason required; only on a unit whose commanding billet nobody serving holds, and never themselves), and place a trooper the sync could not place. Staff groups list their members; ELOA shows each trooper's last line unit ("was"). |
 | Staff grants | Grant a non-Admin user read access to a unit and everything under it, or revoke it, with a reason. Lapsed grants (holder no longer serving) are flagged. Every billet in the Regimental HQ and S6 HQ Cav groups (the list is `admin_billet_groups` in `config/portal.php`) makes its holders Admins by billet once an Admin approves it, while they serve and hold it, wherever they are placed. Admin via billet lists the approved billets with their holders and who approved them when, each with Revoke (a reason is required); Admin billets below lists the waiting and rejected ones to approve or reject, with a reason. A billet whose title or group Cav changes waits for approval again, shows the names it was approved as, and its holder is not an Admin meanwhile. A billet moved out of those groups is marked and cannot be approved. Nobody decides on their own billet. Regimental HQ staff placed on the regiment read the whole regiment without a grant while their billet is still in Regimental HQ, named in a short note under Admin via billet. The sidebar shows Admins how many billets wait. |
-| Templates | Rollcall BBCode templates. A company keeps named templates of its own, and the regiment default (edited by Admins only) shows in every company's list. A company's command (CO, XO, 1SG, the battalion and regiment command above, an acting lead of the company) and Admins can add a template, edit it, roll it back, switch it on or off for the company's sections, and make a switched-on one the company default. A section can keep named templates of its own the same way: choose the section under "Templates of" to list them; its command (SL, ASL, the platoon, company, battalion and regiment command above, an acting lead) and Admins can add, edit and roll them back, and only that section's rollcall can use them. A section uses its leader's pick (one of its own, a switched-on company template or the regiment default), else the company default while it is switched on, else the regiment default, so a section always has a post. A platoon moved to another company gets copies of the company templates its sections used, owned and managed by the new company (named like "Training (from A/1-7)"), so its posts read the same and the old company's later edits never reach them; if the new company later switches a copy off, the rollcall says which template the post now uses. A section's own templates move with it and are not copied. A non-Admin sees only the companies in their scope, opening on their own, and only the sections in their scope. Each save is a new version with a reason, listed with who saved it ("Hale.S for Pike.S" when an Admin acted as them, "Hale.S acting as Company Commander A/1-7" when an Admin held the billet); any older version can be activated again. The preview fills itself from the company's first section in your scope (sample data when there is none), or any other section you pick. The template language is a small Mustache subset (`{{name}}`, repeated and conditional blocks, `upper` and `lower`); mistakes are refused on save. |
+| Templates | Roll call BBCode templates. A company keeps named templates of its own, and the regiment default (edited by Admins only) shows in every company's list. A company's command (CO, XO, 1SG, the battalion and regiment command above, an acting lead of the company) and Admins can add a template, edit it, roll it back, switch it on or off for the company's sections, and make a switched-on one the company default. A section can keep named templates of its own the same way: choose the section under "Templates of" to list them; its command (SL, ASL, the platoon, company, battalion and regiment command above, an acting lead) and Admins can add, edit and roll them back, and only that section's roll call can use them. A section uses its leader's pick (one of its own, a switched-on company template or the regiment default), else the company default while it is switched on, else the regiment default, so a section always has a post. A platoon moved to another company gets copies of the company templates its sections used, owned and managed by the new company (named like "Training (from A/1-7)"), so its posts read the same and the old company's later edits never reach them; if the new company later switches a copy off, the roll call says which template the post now uses. A section's own templates move with it and are not copied. A non-Admin sees only the companies in their scope, opening on their own, and only the sections in their scope. Each save is a new version with a reason, listed with who saved it ("Hale.S for Pike.S" when an Admin acted as them, "Hale.S acting as Company Commander A/1-7" when an Admin held the billet); any older version can be activated again. The preview fills itself from the company's first section in your scope (sample data when there is none), or any other section you pick. The template language is a small Mustache subset (`{{name}}`, repeated and conditional blocks, `upper` and `lower`); mistakes are refused on save. |
 | Games | The games the regiment plays: name, the kinds of player ID it asks for (the first is the default), and which telemetry interface reads its attendance (CRCON, BattleMetrics, Nightwatch or none). Add, edit, retire or reinstate a game; delete one only while nothing uses it. The kinds whose ID shape is checked are marked. Admins also see "Identities to check": saved identities that break the ID shape or name rules, with what to check; nothing in it is changed, fix each on Game identities. |
 | Audit log | Every audited change (and every view as start and stop): who, what, when, the reason, filterable by actor, action, target, date and unit (including everything under it). |
 | Activity log | The pages each user opened and when, newest first, filterable by user and date range, to retrace a bug report. Shows when an Admin was acting as or viewing as someone. Addresses and times only (sensitive query values and every sign-in query are dropped), never form contents. Kept 30 days. |
@@ -410,7 +410,7 @@ All run on the queue; a queue worker must be running. Times are UTC.
 | Roster sync | Hourly on the hour; Admin "Sync now"; leader unit sync | Reads the Cav roster, updates troopers (rank, billet, status), places each trooper by billet, marks leavers departed. A unit sync only writes that unit's troopers. | `CAV_API_KEY`, `CAV_API_BASE_URL` |
 | LOA sync | Hourly at :15 (new threads), daily at 03:30 (full re-read of recent leave) | Reads LOA and ELOA threads from the configured forum sections. ELOA start and end dates come from the linked PAF thread. Posts it cannot read are stored as "needs review", never guessed. First run reads a year back, newest first, a share each hourly run (40 pages a section, ten minutes in all), carrying on next run where it stopped; until it is done, the leave note on the pages says how far back it has got. A thread that fails to read is kept and read again by id next run, so the rest moves on. A manual sync asked for while one of the same kind is queued or running queues one follow-up run after it, and the page says so in a notice. When the daily full read finishes cleanly, a stored leave whose thread is gone (deleted, hidden or moved out of the leave sections) stops counting; the row is kept and counts again if the thread comes back. Before that, each such thread is asked for by id, so one the listing missed while it paged keeps counting, and an unclear answer withdraws nothing that run. | `SEVENCAV_FORUM_API_KEY`, `SEVENCAV_FORUM_LOA_NODES`, `SEVENCAV_FORUM_PAF_NODE`, `LOA_SYNC_REQUEST_DELAY_MS`. Skipped while the key or sections are unset. |
 | Counseling document copy | When a DCS or LOR is filed with Google Drive set up | Copies the document to the 7Cav Google Drive folder. Tried up to 5 times, with pauses of 1, 5, 15 and 60 minutes; the record shows the outcome. | `GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_DRIVE_PRIVATE_KEY`, `GOOGLE_DRIVE_FOLDER_ID`. Skipped (record kept, "Portal only") while any is unset. |
-| Practice capture | When a leader clicks "Try again" on the rollcall. That button only shows after a failed capture, and nothing in the code schedules a first capture. | Reads who was on the game server during the Cav week so far, pre-marks linked troopers in the section as Present (a leader's mark always wins), lists unmatched players. | Each game's telemetry interface, picked on the Games page. CRCON (`CRCON_BASE_URL`, `CRCON_API_KEY`) falls back to BattleMetrics; BattleMetrics (`BATTLEMETRICS_API_KEY`, `BATTLEMETRICS_SERVER_ID`); Nightwatch (`NIGHTWATCH_API_KEY`, `NIGHTWATCH_SERVER_IDS`). A game reads the training servers an Admin selected for it on the Servers page. With none selected, Hell Let Loose (WW2) on CRCON, Arma Reforger on BattleMetrics and WARDOGS on Nightwatch read the server set in env; any other game, or one of those switched to another interface, reads nothing until a server is selected, and its rollcall says so. A game with no keys, or interface "none", shows "not configured". |
+| Practice capture | When a leader clicks "Try again" on the roll call. That button only shows after a failed capture, and nothing in the code schedules a first capture. | Reads who was on the game server during the Cav week so far, pre-marks linked troopers in the section as Present (a leader's mark always wins), lists unmatched players. | Each game's telemetry interface, picked on the Games page. CRCON (`CRCON_BASE_URL`, `CRCON_API_KEY`) falls back to BattleMetrics; BattleMetrics (`BATTLEMETRICS_API_KEY`, `BATTLEMETRICS_SERVER_ID`); Nightwatch (`NIGHTWATCH_API_KEY`, `NIGHTWATCH_SERVER_IDS`). A game reads the training servers an Admin selected for it on the Servers page. With none selected, Hell Let Loose (WW2) on CRCON, Arma Reforger on BattleMetrics and WARDOGS on Nightwatch read the server set in env; any other game, or one of those switched to another interface, reads nothing until a server is selected, and its roll call says so. A game with no keys, or interface "none", shows "not configured". |
 
 The capture does not record other sections' troopers as guests or makeups for now: without set practice times the
 window is the whole week and the servers are shared, so being online does not mean being at that practice.
@@ -425,7 +425,7 @@ The org import (Settings, Org structure, Import from Cav roster) is not schedule
 The Joint Service Achievement Medal is for a trooper who attends several practices of sections they are not assigned to
 while still attending their own. The portal shows the evidence; it never awards.
 
-- A host section's leader adds a guest on their rollcall. The guest must be serving, placed in a section, and not in
+- A host section's leader adds a guest on their roll call. The guest must be serving, placed in a section, and not in
   the host section. The picker searches by username across the whole roster and shows only name, rank and section.
 - One visit per trooper per host practice.
 - The roster's "Guests at our practices" panel marks a candidate when, over the last `JSAM_WINDOW_WEEKS` (default 12)
@@ -435,13 +435,13 @@ while still attending their own. The portal shows the evidence; it never awards.
 
 ## Makeups
 
-A trooper is on exactly one rollcall, their own section's. Attending another section's practice counts as a makeup for
-their own section's practice that Cav week. For a week that has ended, their own section is the one whose rollcall
-lists them that week (see "Rollcall"), so a trooper who moved since gets the makeup on that rollcall, and a section
+A trooper is on exactly one roll call, their own section's. Attending another section's practice counts as a makeup for
+their own section's practice that Cav week. For a week that has ended, their own section is the one whose roll call
+lists them that week (see "Roll call"), so a trooper who moved since gets the makeup on that roll call, and a section
 cannot add one of its own troopers of that week as a guest.
 
 - Their own leader can mark Makeup by hand.
-- When a host leader adds them as a guest, the portal writes an automatic makeup on their own section's rollcall for
+- When a host leader adds them as a guest, the portal writes an automatic makeup on their own section's roll call for
   the same week, shown with an "auto" source dot. It never overwrites Present, Attached, LOA or any mark a leader set by
   hand, and is never written into a sent, confirmed or before-floor week, or for a trooper on leave. Adding a guest
   already added by hand tries the makeup again, so a makeup that failed after the guest was saved can be finished; the
@@ -457,13 +457,13 @@ cannot add one of its own troopers of that week as a guest.
 
 One definition, used by Home, the roster, the reports and the roll-ups. The window is the last 4 whole Cav weeks
 including the current one. Only troopers placed in a section are measured: for the running week, those placed now; for
-a week that has ended, those on that week's rollcall (placed in the section when the week ended, departed ones
+a week that has ended, those on that week's roll call (placed in the section when the week ended, departed ones
 included).
 
 | KPI | Definition |
 | --- | --- |
 | Strength | Troopers placed in sections in the unit. (The org page and roster headcount also count HQ staff and staff departments; New Recruits, ELOA and Reservists count only on their own groups.) |
-| RC % · 30d | Weeks with a signed rollcall (Will attend or Cannot attend) divided by all weeks in the window. |
+| RC % · 30d | Weeks with a signed roll call (Will attend or Cannot attend) divided by all weeks in the window. |
 | SP % · 30d | Practices marked Present, Makeup or Attached, divided by the practices their own section held. A practice is held once a leader put an SP mark on anyone. A week the trooper attended always counts as eligible for them. |
 | At-risk | Troopers with 2 or more practices explicitly marked Missed in the window. Unmarked is never a miss. |
 | On LOA | Troopers whose leave covers the current week. |
@@ -481,7 +481,7 @@ the sum of its direct children's sent reports.
 | --- | --- |
 | Routes | `routes/web.php`, schedule and console commands in `routes/console.php` |
 | Pages | `resources/js/Pages/*.vue`, navigation in `resources/js/Layouts/navigation.js` |
-| Rollcall logic, templates, guests | `app/Rollcall/`, `app/Commands/Attendance`, `app/Commands/Guests`, `resources/js/lib/rollcall.js`, `rollcallBbcode.js` |
+| Roll call logic, templates, guests | `app/Rollcall/`, `app/Commands/Attendance`, `app/Commands/Guests`, `resources/js/lib/rollcall.js`, `rollcallBbcode.js` |
 | KPIs, JSAM | `app/Kpi/KpiService.php`, `PracticeGuests`, `JsamCriteria`, `config/portal.php` (`jsam`) |
 | Leave | `app/Loa/LoaCoverage.php`, `app/Sync/SyncLoasHandler.php` |
 | Roster sync and placement | `app/Sync/SyncRosterHandler.php`, `RosterSyncScope*`, `app/Jobs/SyncRosterJob.php` |

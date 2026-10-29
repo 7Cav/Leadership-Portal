@@ -98,7 +98,7 @@ Names only. Every key is documented in `.env.example` and `.env.production.examp
 | Demo | `DEMO_TOOLS` (keep false in production) |
 
 Which of these a game uses is set per game on Settings > Games. A game whose interface has no keys set (or is set to
-none) shows "not configured" on the rollcall instead of failing.
+none) shows "not configured" on the roll call instead of failing.
 
 ## Counseling documents and Google Drive
 
