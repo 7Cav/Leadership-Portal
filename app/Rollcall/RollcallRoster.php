@@ -7,6 +7,7 @@ use App\Models\Trooper;
 use App\Models\Unit;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\SectionPracticeRepository;
+use App\Repositories\SectionWeekRoster;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
@@ -76,6 +77,8 @@ final class RollcallRoster
 
     /**
      * The section's troopers with this week's marks and last week's practice marks (the pre-fill suggestion, 3.7).
+     * For a week that has ended they are the troopers the placement history puts in the section when it ended
+     * ({@see TrooperRepository::onRollcall()}), so a move or a departure after the week drops nobody from it.
      */
     public function forWeek(Unit $section, CarbonImmutable $weekStart): RollcallRosterWeek
     {
@@ -87,7 +90,9 @@ final class RollcallRoster
             ? $this->attendance->forPractice($priorPractice)->filter(fn (Attendance $row) => $row->status !== null)->keyBy('trooper_id')
             : collect();
 
-        $placed = $this->troopers->placedIn($section->id);
+        // Who is placed in the section now, or for a week that has ended, who was in it when that week ended.
+        $roster = $this->troopers->onRollcall($section, $weekStart);
+        $placed = $roster->troopers;
         $roles = $this->fireteams->roles($section, $placed);
 
         $troopers = $placed->map(fn (Trooper $trooper) => [
@@ -112,8 +117,22 @@ final class RollcallRoster
             'role' => $roles[$trooper->id]['role'],
             'leadsFireteam' => $roles[$trooper->id]['leadsFireteam'],
             'fireteamLeaderId' => $roles[$trooper->id]['fireteamLeaderId'],
+            // On a week that has ended, how the row differs from the section now: `departed` (left the Cav since),
+            // `moved_out` (placed elsewhere now), `joined` (moved in partway through that week), else null.
+            'placement' => $this->placementNote($section, $trooper, $roster),
         ])->sortBy(fn (array $row) => mb_strtolower($row['name'] ?? "~{$row['cavId']}"))->values()->all();
 
         return new RollcallRosterWeek($practice, $marks, $troopers, $prior->isNotEmpty());
+    }
+
+    private function placementNote(Unit $section, Trooper $trooper, SectionWeekRoster $roster): ?string
+    {
+        return match (true) {
+            ! $roster->asPlaced => null,
+            ! $trooper->status->isServing() => 'departed',
+            (int) $trooper->primary_section_id !== $section->id => 'moved_out',
+            in_array($trooper->id, $roster->joined, true) => 'joined',
+            default => null,
+        };
     }
 }

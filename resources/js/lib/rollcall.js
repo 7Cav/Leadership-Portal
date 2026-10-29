@@ -34,6 +34,18 @@ export function signatureLabel(value) {
     return SIGNATURES.find((option) => option.value === value)?.label ?? 'Unsigned';
 }
 
+// A row on a week that has ended whose trooper the placement history keeps on it (`RollcallRoster::placementNote`):
+// the badge and its title, or null.
+const PLACEMENT_NOTES = {
+    moved_out: { label: 'Moved out', title: 'In another unit now, and still on this rollcall: they were in this section when the week ended.' },
+    joined: { label: 'Joined', title: 'Moved into this section partway through the week.' },
+    departed: { label: 'Departed', title: 'No longer on any Cav roster, and still on this rollcall: they served this week.' },
+};
+
+export function placementNote(value) {
+    return PLACEMENT_NOTES[value] ?? null;
+}
+
 export function practiceLabel(value) {
     if (value === 'loa') return 'LOA';
 

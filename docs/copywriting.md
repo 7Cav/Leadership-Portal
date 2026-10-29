@@ -369,7 +369,9 @@ tests and comments. They include some route and key names, so read them as rough
 | guidon | A unit's swallowtail flag: two colors split on the diagonal, with text on each half | Roster, Org structure | | flag, banner, pennant |
 | designation | A unit's Cav code such as `2/1/A/1-7` | Toasts, reports | 28 / 9 | unit code |
 | sign in, sign out | Start or end a portal session | Login, user menu | sign in 7 UI; "log in" only in code | log in, log out, login (as a verb) |
-| Departed | A trooper no longer on any Cav roster | Roster, search | | discharged, removed |
+| Departed | A trooper no longer on any Cav roster | Roster, search, past rollcall row badge | | discharged, removed |
+| Moved out | Row badge on a past week's rollcall: the trooper was in the section when the week ended and is in another unit now | Rollcall | new | transferred, left |
+| Joined | Row badge on a past week's rollcall: the trooper moved into the section partway through that week | Rollcall | new | moved in, new |
 | sync | A background read from Cav or the forum | Roster, LOA | 79 / 21 | refresh, import (except "Import from Cav roster") |
 | Import from Cav roster | The Admin step that builds the unit tree and billet mapping | Org structure | | sync (for this step) |
 

@@ -706,13 +706,15 @@ class RollcallController extends Controller
         // Where each section's rollcall stands for the week, so the picker can say which still
         // need work: the counts the home step matrix reads, one query for every section listed. A
         // trooper whose leave covers the week has nothing to sign or mark (3.4): the one LOA
-        // definition says who (AD-21), as on the rollcall screen.
+        // definition says who (AD-21), as on the rollcall screen. Counted over each rollcall's own
+        // troopers: for a week that has ended, the ones it ended with (the 2026-10-29 audit).
         $ids = $sections->modelKeys();
+        $rollcalls = $this->troopers->onRollcalls($ids, $weekStart);
         $covered = array_keys(array_filter(
-            $this->loaCoverage->forTroopers($this->troopers->placedInAny($ids)->modelKeys(), $weekStart),
+            $this->loaCoverage->forTroopers(array_keys($rollcalls->sections), $weekStart),
             fn (LoaCover $cover) => $cover->isCovered(),
         ));
-        $progress = $this->attendance->weekProgress($ids, $weekStart, $covered);
+        $progress = $this->attendance->weekProgress($ids, $weekStart, $covered, $rollcalls->asPlaced ? $rollcalls->sections : null);
 
         return array_map(function (array $option) use ($progress) {
             $week = $progress->get($option['id']);
@@ -759,7 +761,7 @@ class RollcallController extends Controller
         $week = $this->roster->forWeek($section, $weekStart);
         $practice = $week->practice;
         $trooperIds = array_column($week->troopers, 'id');
-        $history = $this->history($section, collect($trooperIds), $weekStart);
+        $history = $this->history(collect($trooperIds), $weekStart);
         $lastSync = $this->rosterSync->current();
         // The one LOA definition (4.4, AD-21), the same the Command refuses a practice mark by: a covered trooper's
         // status is derived as `loa`, so the screen locks the row and never sends one for them (3.4).
@@ -842,20 +844,21 @@ class RollcallController extends Controller
 
     /**
      * Each trooper's Section Practice marks over the {@see HISTORY_WEEKS} completed Cav weeks before `$weekStart`,
-     * oldest first, for the card's attendance strip: the same counting marks the roster matrix reads (one query for
-     * the section) and LOA from the one coverage definition, as the KPI service reads it (one query). A week with no
+     * oldest first, for the card's attendance strip: the same counting marks the roster matrix reads (for the
+     * rollcall's troopers) and LOA from the one coverage definition, as the KPI service reads it (one query). A week with no
      * practice row has a null `status` and is not `held`; `loa` is true when leave covers the week or the week was
      * marked `loa`. A leave that needs review is not shown as LOA, since nothing says the trooper was away (AD-4).
      *
      * @param  Collection<int, int>  $trooperIds
      * @return array<int, list<array{week: string, status: ?string, held: bool, loa: bool}>>
      */
-    private function history(Unit $section, Collection $trooperIds, CarbonImmutable $weekStart): array
+    private function history(Collection $trooperIds, CarbonImmutable $weekStart): array
     {
         $first = $weekStart->subWeeks(self::HISTORY_WEEKS);
         $weeks = array_map(fn (int $offset) => $first->addWeeks($offset)->toDateString(), range(0, self::HISTORY_WEEKS - 1));
 
-        $marks = $this->attendance->countingMarks($section, $first, $weekStart->subWeek())
+        // The rollcall's own troopers wherever they were placed: on a week that has ended, some may have moved or left since.
+        $marks = $this->attendance->countingMarksOf($trooperIds->all(), $first, $weekStart->subWeek(), includeDeparted: true)
             ->groupBy(fn (CountingMark $mark) => $mark->trooperId)
             ->map(fn (Collection $marks) => $marks->keyBy(fn (CountingMark $mark) => $mark->weekStart->toDateString()));
         $covers = $this->loaCoverage->forTroopersOverWeeks($trooperIds, $first, self::HISTORY_WEEKS);

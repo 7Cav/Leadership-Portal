@@ -33,6 +33,17 @@ final readonly class PlacementWeeks
     }
 
     /**
+     * The section `$trooperId` was placed in last during the week opening on `$week` (a `Y-m-d` date), where they
+     * ended it: the section a past week's roster lists them in. Null for a week they were in no section.
+     */
+    public function sectionIn(int $trooperId, string $week): ?int
+    {
+        $sections = $this->weeks[$trooperId][$week] ?? [];
+
+        return $sections === [] ? null : $sections[array_key_last($sections)];
+    }
+
+    /**
      * Every section any of the troopers was in during the span.
      *
      * @return list<int>

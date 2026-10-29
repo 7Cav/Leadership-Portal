@@ -6,6 +6,7 @@ use App\Models\UnaccountedReason;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Repositories\TrooperRepository;
+use Carbon\CarbonImmutable;
 
 /**
  * The leader-written half of a weekly report (5.5) — notes, training subject, and a reason for
@@ -28,10 +29,11 @@ final readonly class ReportContent
      * @param  list<array{trooper_id: int, reason: string}>  $unaccounted
      *
      * @throws InvalidReportContentException when a reason is unknown, a trooper appears twice or
-     *                                       is not placed in `$unit`, or `$unit` is not a section
-     *                                       and still lists troopers.
+     *                                       is not on `$unit`'s rollcall for the week (placed in it
+     *                                       now, or when a week that has ended ended), or `$unit` is
+     *                                       not a section and still lists troopers.
      */
-    public static function checked(Unit $unit, ?string $notes, ?string $trainingSubject, array $unaccounted, TrooperRepository $troopers): self
+    public static function checked(Unit $unit, CarbonImmutable $weekStart, ?string $notes, ?string $trainingSubject, array $unaccounted, TrooperRepository $troopers): self
     {
         $rows = [];
 
@@ -53,7 +55,7 @@ final readonly class ReportContent
             throw InvalidReportContentException::notASection($unit->id);
         }
 
-        $stray = array_values(array_diff(array_keys($rows), $troopers->idsPlacedIn($unit->id, array_keys($rows))->all()));
+        $stray = array_values(array_diff(array_keys($rows), $troopers->idsOnRollcall($unit->id, $weekStart, array_keys($rows))->all()));
 
         if ($stray !== []) {
             throw InvalidReportContentException::notInSection($stray, $unit->id);

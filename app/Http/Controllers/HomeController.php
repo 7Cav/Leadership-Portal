@@ -95,12 +95,11 @@ class HomeController extends Controller
             'kpis' => $roots->isEmpty() ? null : $this->kpiProps($attendance, $roots, $scope, $weekStart),
             'attention' => $roots->isEmpty() ? null : $this->attentionProps($attendance, $chains, $scope, $weekStart),
             'steps' => $this->stepProps($scope, $weekStart, $reports, $sent),
-            'units' => $chains->flatMap(function (ChainNode $chain, int $i) use ($roots, $attendance, $paths, $weekStart) {
+            'units' => $chains->flatMap(function (ChainNode $chain, int $i) use ($attendance, $paths, $weekStart) {
                 $rows = $attendance[$i];
-                $sectionOf = $this->hasLiveRollup($chain) ? $this->troopers->sectionsOfAssignedWithin($roots[$i]) : collect();
 
                 return collect($this->subordinates($chain))
-                    ->map(fn (ChainNode $node) => $this->unitRow($node, $weekStart, $rows, $sectionOf, $paths));
+                    ->map(fn (ChainNode $node) => $this->unitRow($node, $weekStart, $rows, $paths));
             })
                 ->values()
                 ->all(),
@@ -335,7 +334,8 @@ class HomeController extends Controller
     /**
      * The week's five steps for every section in scope (the step matrix): rollcall posted, signed,
      * practice held, attendance marked and report sent, each with the screen and step that does it. Counts
-     * are over the troopers currently assigned to the section, and a trooper on leave for the week
+     * are over the troopers on the section's rollcall for the week (assigned to it now, or for a week that has
+     * ended, the ones it ended with, {@see TrooperRepository::onRollcalls()}), and a trooper on leave for the week
      * counts as signed and marked, since there is nothing to sign or mark for them; a step nobody has started is simply
      * not done, never an invented deadline miss.
      *
@@ -353,12 +353,14 @@ class HomeController extends Controller
         $sections = $this->headcount->reportingLineUnits($this->units->sectionsAmong($scope), $weekStart, $sent);
         $ids = $sections->modelKeys();
         $practices = $this->practices->forSections($ids, $weekStart);
+        // Each rollcall's own troopers: for a week that has ended, the ones it ended with (the 2026-10-29 audit).
+        $rollcalls = $this->troopers->onRollcalls($ids, $weekStart);
         // A trooper whose leave covers the week has no mark to make (3.4): the one LOA definition says who (AD-21).
         $covered = array_keys(array_filter(
-            $this->loaCoverage->forTroopers($this->troopers->placedInAny($ids)->modelKeys(), $weekStart),
+            $this->loaCoverage->forTroopers(array_keys($rollcalls->sections), $weekStart),
             fn (LoaCover $cover) => $cover->isCovered(),
         ));
-        $progress = $this->attendance->weekProgress($ids, $weekStart, $covered);
+        $progress = $this->attendance->weekProgress($ids, $weekStart, $covered, $rollcalls->asPlaced ? $rollcalls->sections : null);
         $date = $weekStart->toDateString();
 
         return $sections->map(function (Unit $section) use ($practices, $progress, $reports, $date) {
@@ -403,34 +405,27 @@ class HomeController extends Controller
         return $root->children === [] ? [$root] : $root->children;
     }
 
-    /** Whether a table row under this root is an unsent non-leaf, the one kind summed live. */
-    private function hasLiveRollup(ChainNode $root): bool
-    {
-        return collect($this->subordinates($root))->contains(fn (ChainNode $node) => $node->live && $node->children !== []);
-    }
-
     /**
      * One table row. A sent report is its frozen snapshot, a leaf is live attendance, and an unsent
      * non-leaf is live for its whole subtree, never the partial sum of the children that happen to
      * have sent: the roll-up semantics (status, holding) stay the chain's own, so the table and the
      * navigator never disagree (AD-13). A sent report whose snapshot cannot be read has `kpis`
      * null: the row says so, and the rest of the table still renders. The live subtree is summed
-     * from the root's per-trooper rows, as the roster totals a unit, rather than read again.
+     * from the root's per-trooper rows, as the roster totals a unit, rather than read again: each row in the section
+     * it counts in, which for a week that has ended is the one the trooper ended it in (the 2026-10-29 audit), so the
+     * row agrees with the sections' own rollcalls and KPIs after a move or a departure.
      *
      * @param  Collection<int, TrooperAttendance>  $rows  the root's per-trooper rows
-     * @param  Collection<int, int>  $sectionOf  trooper id to section id, for the root
      * @param  Collection<int, string>  $paths  unit id to materialized path
      * @return array<string, mixed>
      */
-    private function unitRow(ChainNode $node, CarbonImmutable $weekStart, Collection $rows, Collection $sectionOf, Collection $paths): array
+    private function unitRow(ChainNode $node, CarbonImmutable $weekStart, Collection $rows, Collection $paths): array
     {
         $unit = $node->unit;
         $kpis = $node->live && $node->children !== []
-            ? $this->kpis->sum($rows->filter(function (TrooperAttendance $row) use ($sectionOf, $paths, $unit) {
-                $section = $sectionOf->get($row->trooperId);
-
-                return $section !== null && str_starts_with($paths->get($section, ''), $unit->path);
-            }))
+            ? $this->kpis->sum($rows->filter(
+                fn (TrooperAttendance $row) => $row->sectionId !== null && str_starts_with($paths->get($row->sectionId, ''), $unit->path),
+            ))
             : $node->kpis;
         $date = $weekStart->toDateString();
 

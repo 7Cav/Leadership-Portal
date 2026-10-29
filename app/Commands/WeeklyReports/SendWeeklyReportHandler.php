@@ -107,7 +107,7 @@ class SendWeeklyReportHandler
             return new SentWeeklyReport($existing, alreadySent: true);
         }
 
-        $content = ReportContent::checked($unit, $command->notes, $command->trainingSubject, $command->unaccounted, $this->troopers);
+        $content = ReportContent::checked($unit, $weekStart, $command->notes, $command->trainingSubject, $command->unaccounted, $this->troopers);
         $trainingSubject = SectionTrainingSubject::forSend($unit->id, $this->topics->forSection($unit, $weekStart), $content->trainingSubject);
         $templateVersionId = null;
 
