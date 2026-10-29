@@ -706,13 +706,15 @@ class RollcallController extends Controller
         // Where each section's rollcall stands for the week, so the picker can say which still
         // need work: the counts the home step matrix reads, one query for every section listed. A
         // trooper whose leave covers the week has nothing to sign or mark (3.4): the one LOA
-        // definition says who (AD-21), as on the rollcall screen.
+        // definition says who (AD-21), as on the rollcall screen. Counted over each rollcall's own
+        // troopers: for a week that has ended, the ones it ended with (the 2026-10-29 audit).
         $ids = $sections->modelKeys();
+        $rollcalls = $this->troopers->onRollcalls($ids, $weekStart);
         $covered = array_keys(array_filter(
-            $this->loaCoverage->forTroopers($this->troopers->placedInAny($ids)->modelKeys(), $weekStart),
+            $this->loaCoverage->forTroopers(array_keys($rollcalls->sections), $weekStart),
             fn (LoaCover $cover) => $cover->isCovered(),
         ));
-        $progress = $this->attendance->weekProgress($ids, $weekStart, $covered);
+        $progress = $this->attendance->weekProgress($ids, $weekStart, $covered, $rollcalls->asPlaced ? $rollcalls->sections : null);
 
         return array_map(function (array $option) use ($progress) {
             $week = $progress->get($option['id']);

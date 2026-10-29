@@ -64,14 +64,29 @@ interface TrooperPlacementRepository
     public function sectionsByWeekWithin(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): PlacementWeeks;
 
     /**
-     * The units someone was placed in at any moment of each Cav week from `$firstWeek` to `$lastWeek` (#442), by week
-     * start (Y-m-d): a placement row that overlaps the week. An open row counts only while its trooper still serves,
-     * as a departure has no date.
+     * {@see sectionsByWeekWithin()} for the sections `$sectionIds` rather than a subtree: the troopers on those sections'
+     * rosters for the week `$lastWeek`, each on the one they ended it in. What a page about several sections' rollcalls
+     * reads (the rollcall picker, Home's step matrix), so it agrees with each rollcall. One query.
      *
-     * Read as {@see sectionsByWeek()} reads it: a serving trooper with no history, or whose open row is not their
-     * current `primary_section_id`, counts in their current unit for every week (the rule from before the history
-     * existed), and their rows are not read. A trooper placed nowhere now with no open row (moved out of every unit)
-     * counts through their closed rows. One query, however many weeks.
+     * @param  list<int>  $sectionIds
+     *
+     * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
+     */
+    public function sectionsByWeekAmong(array $sectionIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek): PlacementWeeks;
+
+    /**
+     * The units that had someone in them in each Cav week from `$firstWeek` to `$lastWeek` (#442), by week start
+     * (Y-m-d), read as a past week's roster reads them ({@see sectionsByWeekWithin()}, the 2026-10-29 audit), so the
+     * report chain waits on the sections whose rollcall lists someone that week: a section when someone ended the week
+     * in it ({@see PlacementWeeks::sectionIn()}), and another unit (HQ staff, a group) when someone was in it at any
+     * moment of the week. A trooper who left the Cav counts for the weeks that opened before their `departed_at`, and
+     * one who left before that date was recorded counts for none.
+     *
+     * A serving trooper with no history, or whose open row is not their current `primary_section_id`, counts in their
+     * current unit for every week (the rule from before the history existed), and their rows are not read. A trooper
+     * placed nowhere now with no open row (moved out of every unit) counts through their closed rows, the one case a
+     * past roster does not list (it reads only troopers placed now). One query, however many weeks. Each week's ids
+     * ascending.
      *
      * @return array<string, list<int>> every week of the span, earliest first
      *

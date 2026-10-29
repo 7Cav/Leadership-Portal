@@ -282,9 +282,9 @@ it('rolls the whole batch back — practice, marks and audit — when a write fa
             return $this->inner->countingMarksOf($trooperIds, $firstWeek, $lastWeek, $includeDeparted);
         }
 
-        public function weekProgress(array $sectionIds, CarbonInterface $weekStart, array $excusedTrooperIds = []): Collection
+        public function weekProgress(array $sectionIds, CarbonInterface $weekStart, array $excusedTrooperIds = [], ?array $roster = null): Collection
         {
-            return $this->inner->weekProgress($sectionIds, $weekStart, $excusedTrooperIds);
+            return $this->inner->weekProgress($sectionIds, $weekStart, $excusedTrooperIds, $roster);
         }
     });
 

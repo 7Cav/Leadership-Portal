@@ -29,8 +29,8 @@ use InvalidArgumentException;
  * The report chain asks one thing more of a unit above a section (#478, {@see reportingLineUnits()}): that a unit
  * under it reports. A platoon whose only troopers are its HQ has troopers, so the roster and Home show it, but it has no
  * report to roll up, so its company's roll-up neither sums nor waits on it. For a report's week, a section also counts
- * when someone was placed in it during that week or when it sent that week's report, so a section emptied afterwards
- * still rolls up into its platoon for the week it reported. A past week is judged only by that: a section created or
+ * when that week's rollcall lists someone (they ended the week in it, the 2026-10-29 audit) or when it sent that week's
+ * report, so a section emptied afterwards still rolls up into its platoon for the week it reported. A past week is judged only by that: a section created or
  * filled after it is not one that week waits on. Who is placed now counts for the running week.
  */
 final class Headcount
@@ -125,8 +125,9 @@ final class Headcount
      * {@see withoutEmptyLineUnits()}, since it does have people in it. And a section that sent keeps every unit above it
      * in that week's chain, however empty they are now.
      *
-     * With a week, "has troopers" is read for that week ({@see placedByWeek()}): someone was placed in the section at any
-     * point of it, from the placement history. Who is placed now counts only for the running Cav week, so a section
+     * With a week, "has troopers" is read for that week ({@see placedByWeek()}): from the placement history, someone
+     * ended the week in the section, so is on its rollcall for the week as {@see TrooperRepository::onRollcall()} lists
+     * it (a trooper who moved or left after the week included, one who moved on during it not). Who is placed now counts only for the running Cav week, so a section
      * created or filled after a past week is not one that week waits on. With no week, who is placed now.
      *
      * `$sent` are the ids of the units that sent the week's report: every one under `$units` that matters, since a
@@ -205,8 +206,9 @@ final class Headcount
     }
 
     /**
-     * The units someone was placed in during each Cav week from `$firstWeek` to `$lastWeek`, ids as keys, by week
-     * start (Y-m-d): the placement history ({@see TrooperPlacementRepository::unitIdsPlacedByWeek()}), and for the
+     * The units someone was in during each Cav week from `$firstWeek` to `$lastWeek`, ids as keys, by week start
+     * (Y-m-d): the placement history read as a past week's rollcall reads it
+     * ({@see TrooperPlacementRepository::unitIdsPlacedByWeek()}), and for the
      * running week (or a later one) also the units someone serving is placed in now. A past week is never judged by
      * who is placed now.
      *

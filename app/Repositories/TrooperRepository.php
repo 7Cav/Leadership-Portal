@@ -138,7 +138,7 @@ interface TrooperRepository
      * The troopers on `$section`'s rollcall for the Cav week opening at `$weekStart` (the 2026-10-29 audit). For the
      * running week, or a later one, the serving troopers placed in it now ({@see placedIn()}). For a week that has
      * ended, the ones the placement history puts in it when that week ended
-     * ({@see TrooperPlacementRepository::sectionsByWeekWithin()}), whether they have moved or left the Cav since,
+     * ({@see TrooperPlacementRepository::sectionsByWeekAmong()}), whether they have moved or left the Cav since,
      * so a week whose report is still open keeps its own roster. The rollcall, the attendance writer and the report
      * all read this, and agree with the KPIs of that week.
      *
@@ -147,16 +147,30 @@ interface TrooperRepository
     public function onRollcall(Unit $section, CarbonInterface $weekStart): SectionWeekRoster;
 
     /**
-     * Which of `$trooperIds` are on `$section`'s rollcall for the week ({@see onRollcall()}): who may be marked
-     * there and given a reason on its report. For the running week this is {@see idsPlacedIn()}, which does not look
-     * at standing; for a week that has ended, the troopers {@see onRollcall()} lists. In id order.
+     * Which of `$trooperIds` are on section `$sectionId`'s rollcall for the week ({@see onRollcall()}): who may be
+     * marked there, given a reason on its report, or pre-marked by its capture. For the running week this is
+     * {@see idsPlacedIn()}, which does not look at standing, or with `$serving` {@see servingIdsPlacedIn()} (capture);
+     * for a week that has ended, the troopers {@see onRollcall()} lists, who all served that week. In id order.
      *
      * @param  list<int>  $trooperIds
      * @return Collection<int, int>
      *
      * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
      */
-    public function idsOnRollcall(Unit $section, CarbonInterface $weekStart, array $trooperIds): Collection;
+    public function idsOnRollcall(int $sectionId, CarbonInterface $weekStart, array $trooperIds, bool $serving = false): Collection;
+
+    /**
+     * {@see onRollcall()} for several sections at once, as ids: which section's rollcall each trooper is on for the
+     * week, for a page that counts many rollcalls (the rollcall picker, Home's step matrix) and must agree with each
+     * one. For the running week, the serving troopers placed in them now; for a week that has ended, the ones the
+     * placement history puts in them when it ended ({@see TrooperPlacementRepository::sectionsByWeekAmong()}). One
+     * query.
+     *
+     * @param  list<int>  $sectionIds
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function onRollcalls(array $sectionIds, CarbonInterface $weekStart): WeekRollcalls;
 
     /**
      * The ids of the troopers currently assigned within `$unit`'s subtree — primary unit a section
@@ -183,14 +197,6 @@ interface TrooperRepository
      * How many troopers `unplaced()` would return without a limit.
      */
     public function unplacedCount(): int;
-
-    /**
-     * The troopers currently assigned within `$unit`'s subtree (as `assignedWithin()`), as models
-     * ordered by id — a report's roster, rendered through `display_name`.
-     *
-     * @return Collection<int, Trooper>
-     */
-    public function rosterOf(Unit $unit): Collection;
 
     /**
      * The cached troopers with these `cav_id`s, keyed by `cav_id` — how a portal user is shown by
@@ -249,15 +255,6 @@ interface TrooperRepository
      * @return array<int, list<int>> forum user id => trooper ids
      */
     public function idsByForumUserId(array $forumUserIds): array;
-
-    /**
-     * The same population as {@see assignedWithin()}, each trooper with the section they are
-     * placed in: `trooper_id => primary_section_id`, ascending by trooper — so one query can split
-     * a whole subtree's troopers by section (5.8's batched roll-up).
-     *
-     * @return Collection<int, int>
-     */
-    public function sectionsOfAssignedWithin(Unit $unit): Collection;
 
     /**
      * Every trooper placed within `$unit`'s subtree — departed (`inactive`) troopers included, so
