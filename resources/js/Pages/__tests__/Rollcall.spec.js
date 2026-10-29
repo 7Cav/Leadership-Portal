@@ -1905,6 +1905,23 @@ describe('Rollcall page', () => {
             expect(factory({ sections: [SECTION] }).find('[data-testid="choose-section"]').exists()).toBe(false);
         });
     });
+
+    describe('while last week\'s report is still due', () => {
+        const DUE = { ...WEEK, date: '2026-09-26', start: '2026-09-26T00:00:00+00:00', isCurrent: false, previous: '2026-09-19', next: '2026-10-03', reporting: '2026-09-26' };
+
+        it('names the running week in "This week", since the bare URL opens the week still due', () => {
+            const wrapper = factory({ week: DUE });
+
+            expect(wrapper.findAll('a').find((a) => a.text() === 'This week').attributes('href')).toBe('/rollcall/12?week=2026-10-03');
+            expect(wrapper.find('[data-testid="next-week"]').attributes('href')).toBe('/rollcall/12?week=2026-10-03');
+        });
+
+        it('keeps the running week in the picker link once there', () => {
+            const wrapper = factory({ week: { ...WEEK, reporting: '2026-09-26' } });
+
+            expect(wrapper.find('[data-testid="choose-section"]').attributes('href')).toBe('/rollcall?pick=1&week=2026-10-03');
+        });
+    });
 });
 
 describe('jumping to a trooper from their milpac (?focus=)', () => {

@@ -411,9 +411,9 @@ it("gives the deadline banner the shown week's report: when it is due, whether i
 
     WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->week->subWeek()]);
 
-    // On the due Saturday the rollcall opens on the new week, so a past week is asked for by date.
+    // On the due Saturday the new week is asked for by date: the bare URL opens the week whose report is still due.
     $this->travelTo(CarbonImmutable::parse('2026-10-10 20:00:00', 'UTC'));
-    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}?week=2026-10-10")
         ->assertInertia(fn ($page) => $page->where('week.date', '2026-10-10')->where('report.due', '2026-10-17T23:59:00+00:00'));
     $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}?week=2026-10-03")
         ->assertInertia(fn ($page) => $page->where('report.due', '2026-10-10T23:59:00+00:00')->where('report.sent', false));
@@ -656,3 +656,46 @@ it('reads the strip in the same number of queries however many troopers the sect
 
     expect($queries())->toBe($baseline);
 });
+
+describe('the week a bare URL opens while last week\'s report is due', function () {
+    beforeEach(function () {
+        rollcallTrooper($this->section);
+        // Saturday 10Oct26 20:00Z: the week of 03Oct26 is over, its report due at 23:59Z today.
+        $this->travelTo(CarbonImmutable::parse('2026-10-10 20:00:00', 'UTC'));
+    });
+
+    it('opens the week whose report is still due, keeping the rest of the query', function () {
+        $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}?step=2")
+            ->assertRedirect("/rollcall/{$this->section->id}?step=2&week=2026-10-03");
+
+        $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}?week=2026-10-03")
+            ->assertInertia(fn ($page) => $page->where('week.date', '2026-10-03')->where('week.reporting', '2026-10-03')->where('week.isCurrent', false));
+    });
+
+    it('lets an explicit week win, the running one included', function () {
+        $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}?week=2026-10-10")
+            ->assertOk()->assertInertia(fn ($page) => $page->where('week.date', '2026-10-10')->where('week.isCurrent', true));
+    });
+
+    it('opens the running week once the section has sent the report', function () {
+        WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->week]);
+
+        $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
+            ->assertOk()->assertInertia(fn ($page) => $page->where('week.date', '2026-10-10'));
+    });
+
+    it('opens the running week once the deadline has passed', function () {
+        $this->travelTo(CarbonImmutable::parse('2026-10-11 00:00:00', 'UTC'));
+
+        $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")
+            ->assertOk()->assertInertia(fn ($page) => $page->where('week.date', '2026-10-10')->where('week.reporting', '2026-10-10'));
+    });
+
+    it('keeps a named week on the landing redirect, the running one included', function () {
+        $this->actingAs($this->leader)->get('/rollcall?week=2026-10-10')
+            ->assertRedirect("/rollcall/{$this->section->id}?week=2026-10-10");
+        $this->actingAs($this->leader)->get('/rollcall')
+            ->assertRedirect("/rollcall/{$this->section->id}");
+    });
+});
+

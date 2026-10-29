@@ -295,6 +295,8 @@ describe('previewing with a real section', function () {
         });
         // The card's attendance strip is the page's own; the post, and so the preview, does not read it.
         $rollcall['troopers'] = array_map(fn (array $row) => array_diff_key($row, ['history' => true]), $rollcall['troopers']);
+        // So is the week whose report is still due, which only steers the page's own week links.
+        unset($rollcall['week']['reporting']);
 
         $this->actingAs($this->leader)->getJson("/settings/templates/preview/{$this->section->id}?company={$this->alpha->id}")
             ->assertOk()

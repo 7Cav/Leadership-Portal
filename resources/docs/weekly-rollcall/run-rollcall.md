@@ -20,6 +20,7 @@ checklist:
 1. Choose **Rollcall** in the sidebar. It opens on the section you opened last, or the one you lead. It skips sections with no troopers.
 2. To open another section you lead, choose **Switch section** at the top. Sections with no troopers are listed too, marked **No troopers**.
 3. To fix a past week, pick it in the week selector. Unfinished weeks are flagged.
+4. On the Saturday after a week ends, until your report is due at 23:59 UTC, Rollcall opens on that closing week if your section has not sent its report yet. Choose **This week** for the new week.
 
 ## Record the signatures
 

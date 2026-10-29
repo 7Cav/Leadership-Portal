@@ -148,6 +148,11 @@ class RollcallController extends Controller
      * both while it is still in their scope. `?pick=1` always gets the picker (the page's "Choose a
      * section" link). A view-as preview neither follows nor records the remembered section, so it
      * never moves the real user's choice.
+     *
+     * Without `?week`, a section opens on the week whose report is still due ({@see WeekOf::reporting()}) while
+     * that section has not sent it: on the Saturday after a week ends, the leader lands on the week they still
+     * have to finish, not on the new empty one. Once the report is sent, or the deadline passes, the bare URL
+     * opens the running week. An explicit `?week` always wins, so "This week" still reaches the new week.
      */
     public function show(Request $request, ?int $unit = null): Response|RedirectResponse
     {
@@ -163,7 +168,9 @@ class RollcallController extends Controller
 
         $scope = $this->scope->resolve($user);
         $sections = $this->units->sectionsAmong($scope);
-        $weekQuery = $weekStart->equalTo($currentWeek) ? [] : ['week' => $weekStart->toDateString()];
+        // A week the leader named is kept on the redirect, even the running one: without it the section would open
+        // on a report still due instead.
+        $weekQuery = $request->query('week') === null ? [] : ['week' => $weekStart->toDateString()];
         $previewing = $this->scope->activeViewAs($user) !== null;
 
         if ($unit === null) {
@@ -191,6 +198,12 @@ class RollcallController extends Controller
 
         if (! $previewing) {
             Cookie::queue(self::REMEMBERED_SECTION_COOKIE.$user->id, (string) $section->id, self::REMEMBERED_SECTION_MINUTES);
+        }
+
+        $reportingWeek = WeekOf::reporting(CarbonImmutable::now());
+
+        if ($request->query('week') === null && $reportingWeek->lessThan($currentWeek) && ! $this->reports->isSentFor($section->id, $reportingWeek)) {
+            return redirect()->route('rollcall.show', [...$request->query(), 'unit' => $section->id, 'week' => $reportingWeek->toDateString()]);
         }
 
         return Inertia::render('Rollcall', [
@@ -740,6 +753,9 @@ class RollcallController extends Controller
     {
         return [
             ...$this->roster->week($weekStart, $currentWeek),
+            // The week whose report is still due: the page names a week explicitly in its links while this is not
+            // the running week, since the bare URL may open this one instead.
+            'reporting' => WeekOf::reporting(CarbonImmutable::now())->toDateString(),
             // Older than the week floor: shown read-only, every write for it is refused.
             'beforeFloor' => WeekOf::isBeforeFloor($weekStart),
         ];

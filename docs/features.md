@@ -87,6 +87,9 @@ One section's week, in three steps. It opens on the last section you opened, els
 else a section you are acting lead of, else the first section of the first platoon in your scope. It only lands on a
 section with troopers, unless every section in your scope is empty. The section picker still lists empty sections,
 marked "No troopers", so a leader can open one that is being stood up. A week selector moves back through past weeks (down to the week floor) and flags unfinished ones.
+Opened without a week, a section shows the closing week while its report is still due (until 23:59 UTC on the
+Saturday after the week) and that section has not sent it; "This week" opens the new week. A week chosen in the
+selector or a link always wins.
 
 1. Signatures: for each trooper, Will attend, Cannot attend or Unsigned, as signed on the forum's rollcall thread.
 2. Section practice: Present, Missed, Makeup or Attached. "Mark all present", "Mark the rest missed" and "use last
