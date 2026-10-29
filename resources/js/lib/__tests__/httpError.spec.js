@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { httpErrorMessage, onHttpException } from '../httpError';
+import { httpErrorMessage, onHttpException, onPreviewHttpException } from '../httpError';
 
 describe('httpError', () => {
     it.each([
@@ -16,5 +16,15 @@ describe('httpError', () => {
 
         expect(onHttpException('The unit was not saved', show)({ status: 503 })).toBe(false);
         expect(show).toHaveBeenCalledWith('The unit was not saved (error 503). Try again.');
+    });
+
+    it('lets the blocked page through after a preview switch, and treats any other refusal as a failure', () => {
+        const show = vi.fn();
+        const handler = onPreviewHttpException('The preview did not start', show);
+
+        expect(handler({ status: 403, data: { component: 'Blocked', props: {} } })).toBe(true);
+        expect(show).not.toHaveBeenCalled();
+        expect(handler({ status: 403, data: { component: 'Roster', props: {} } })).toBe(false);
+        expect(show).toHaveBeenCalledWith('The preview did not start. You are not allowed to do that; reload the page, or exit view as first.');
     });
 });

@@ -20,3 +20,13 @@ export function onHttpException(failed, show) {
         return false;
     };
 }
+
+// The `onHttpException` option for starting or stopping view as or act as. The switch itself succeeded when the page it
+// lands on comes back as the blocked page (the previewed or acted-as identity may not open that page, so the server
+// refuses its data and sends the shell only): that page is rendered and the visit counts as done. Any other refusal is
+// a failure, as with `onHttpException`.
+export function onPreviewHttpException(failed, show) {
+    const fail = onHttpException(failed, show);
+
+    return (response) => (response?.data?.component === 'Blocked' ? true : fail(response));
+}
