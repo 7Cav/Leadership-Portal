@@ -50,6 +50,9 @@ function freezeProps(object $test, User $as, Trooper $trooper): array
 }
 
 beforeEach(function () {
+    // One fixed clock for the whole file: the LOR below is filed 73 hours before it, and the tests that travel to
+    // 2026-10-29 12:00 then sit past its 72 hours whatever the real time is.
+    $this->travelTo(CarbonImmutable::parse('2026-10-29 12:00:00'));
     Storage::fake('counseling');
     $this->tree = counselingTree();
     $this->rifleman = $this->tree['rifleman'];
