@@ -21,7 +21,7 @@ checklist:
 2. To open another section you lead, choose **Switch section** at the top. Sections with no troopers are listed too, marked **No troopers**.
 3. To fix a past week, pick it in the week selector. Unfinished weeks are flagged.
 
-> [!good-to-know] A past week lists the troopers who were in your section when that week ended, so you can still finish it after a move or a departure. Their rows say **Moved out** or **Departed**, and **Joined** marks someone who moved in partway through the week. The current week lists who is in your section now.
+> [!good-to-know] A past week lists the troopers who were in your section when that week ended, so you can still finish it after a move or a departure. Their rows say **Moved out** or **Departed**, and **Joined** marks someone who moved in partway through the week. The counts in **Switch section** and on Home follow the same troopers. The current week lists who is in your section now.
 
 ## Record the signatures
 

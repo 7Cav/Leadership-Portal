@@ -237,9 +237,9 @@ it('still answers saved when only the at-risk refresh fails, so the screen never
             return $this->inner->countingMarksOf($trooperIds, $firstWeek, $lastWeek, $includeDeparted);
         }
 
-        public function weekProgress(array $sectionIds, CarbonInterface $weekStart, array $excusedTrooperIds = []): Collection
+        public function weekProgress(array $sectionIds, CarbonInterface $weekStart, array $excusedTrooperIds = [], ?array $roster = null): Collection
         {
-            return $this->inner->weekProgress($sectionIds, $weekStart, $excusedTrooperIds);
+            return $this->inner->weekProgress($sectionIds, $weekStart, $excusedTrooperIds, $roster);
         }
     });
 

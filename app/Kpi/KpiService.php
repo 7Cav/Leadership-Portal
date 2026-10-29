@@ -115,7 +115,7 @@ final class KpiService
         return $sections
             ->map(fn (int $sectionId, int $trooperId) => [
                 'section' => $sectionId,
-                'row' => $this->forTrooper($trooperId, $marks->get($trooperId, collect()), $weekStart, $covers[$trooperId], $window->placements->weeksOf($trooperId)),
+                'row' => $this->forTrooper($trooperId, $sectionId, $marks->get($trooperId, collect()), $weekStart, $covers[$trooperId], $window->placements->weeksOf($trooperId)),
             ])
             ->groupBy('section')
             ->map(fn (Collection $rows) => $this->sum($rows->pluck('row')));
@@ -154,12 +154,12 @@ final class KpiService
         $weekStart = WeekOf::requireStart($weekStart);
         $window = $this->window($unit, $weekStart);
         $marks = $this->byTrooper($window);
-        $troopers = collect(array_keys($window->sections));
-        $covers = $this->coversFor($troopers, $weekStart);
+        $sections = collect($window->sections);
+        $covers = $this->coversFor($sections->keys(), $weekStart);
 
-        return $troopers->mapWithKeys(fn (int $trooperId) => [
-            $trooperId => $this->forTrooper($trooperId, $marks->get($trooperId, collect()), $weekStart, $covers[$trooperId], $window->placements->weeksOf($trooperId)),
-        ]);
+        return $sections->map(fn (int $sectionId, int $trooperId) => $this->forTrooper(
+            $trooperId, $sectionId, $marks->get($trooperId, collect()), $weekStart, $covers[$trooperId], $window->placements->weeksOf($trooperId),
+        ));
     }
 
     /**
@@ -254,7 +254,7 @@ final class KpiService
      * @param  array<string, LoaCover>  $covers  this trooper's LOA coverage per window week, keyed by `week_start` date
      * @param  list<string>  $assignedWeeks  the window weeks they were placed in a section
      */
-    private function forTrooper(int $trooperId, Collection $marks, CarbonImmutable $weekStart, array $covers, array $assignedWeeks): TrooperAttendance
+    private function forTrooper(int $trooperId, int $sectionId, Collection $marks, CarbonImmutable $weekStart, array $covers, array $assignedWeeks): TrooperAttendance
     {
         // `$loaWeeks` holds the weeks leave takes out whether or not a practice row exists for them, so the rollcall
         // denominator drops them too.
@@ -282,6 +282,7 @@ final class KpiService
                 || $thisWeek->contains(fn (CountingMark $mark) => $this->isLoaCovered($mark)),
             makeups: $thisWeek->filter(fn (CountingMark $mark) => $mark->status === AttendanceStatus::Makeup)->count(),
             missedWeeks: $missed->map(fn (CountingMark $mark) => $mark->weekStart->toDateString())->sort()->values()->all(),
+            sectionId: $sectionId,
         );
     }
 

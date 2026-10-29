@@ -55,7 +55,7 @@ final readonly class ReportContent
             throw InvalidReportContentException::notASection($unit->id);
         }
 
-        $stray = array_values(array_diff(array_keys($rows), $troopers->idsOnRollcall($unit, $weekStart, array_keys($rows))->all()));
+        $stray = array_values(array_diff(array_keys($rows), $troopers->idsOnRollcall($unit->id, $weekStart, array_keys($rows))->all()));
 
         if ($stray !== []) {
             throw InvalidReportContentException::notInSection($stray, $unit->id);

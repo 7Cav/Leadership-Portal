@@ -28,8 +28,8 @@ use Carbon\CarbonImmutable;
  * is not a section, and any trooper not placed in that section — a trooper is marked only against
  * their own section's practice (AD-14, AD-18), which also keeps a leader from reaching a trooper
  * outside their scope. For a week that has ended, "placed" means placed there when that week ended,
- * by the placement history (`TrooperRepository::idsOnRollcall`, the 2026-10-29 audit). The placement check runs inside the transaction, so a roster sync landing
- * mid-submit cannot slip a moved trooper through.
+ * by the placement history (`TrooperRepository::idsOnRollcall`, the 2026-10-29 audit). The placement check runs
+ * inside the transaction, so a roster sync landing mid-submit cannot slip a moved trooper through.
  *
  * A practice mark for a trooper the LOA data covers that week is refused too (Story 3.4): their status is
  * derived as `loa` from the synced leave, read through the one {@see LoaCoverage} definition, never chosen
@@ -114,7 +114,7 @@ class MarkAttendanceHandler
                 $trooperIds = $command->trooperIds();
                 // On the week's rollcall: placed in the section now, or for a week that has ended, placed in it when
                 // that week ended (the 2026-10-29 audit), so a move after the week neither strands nor lends the mark.
-                $unplaced = array_values(array_diff($trooperIds, $this->troopers->idsOnRollcall($section, $weekStart, $trooperIds)->all()));
+                $unplaced = array_values(array_diff($trooperIds, $this->troopers->idsOnRollcall($section->id, $weekStart, $trooperIds)->all()));
 
                 if ($unplaced !== []) {
                     throw InvalidAttendanceMarkException::notPlacedInSection($unplaced, $command->sectionId);
@@ -188,8 +188,9 @@ class MarkAttendanceHandler
      * repository. Re-running updates auto rows in place, an automatic makeup included: a trooper
      * {@see preMarkMakeups()} credited for another section's practice who is then seen at their own
      * becomes `present`. Never writes `loa`, and skips a trooper
-     * no longer placed in the practice's section or no longer serving (a departed trooper keeps
-     * their last placement). A trooper the LOA data covers that week is skipped too, by the same
+     * not on the practice's rollcall for its week ({@see TrooperRepository::idsOnRollcall()}): for the running week,
+     * no longer placed in the practice's section or no longer serving (a departed trooper keeps their last placement);
+     * for a week that has ended, not on the roster it ended with, so a trooper moved or gone since is still marked. A trooper the LOA data covers that week is skipped too, by the same
      * {@see LoaCoverage} rule that refuses a manual mark: their status is derived as `loa`, and an
      * auto `present` would be a stored mark the leader could not then change (3.4).
      *
@@ -247,7 +248,9 @@ class MarkAttendanceHandler
                 throw new PracticeConfirmedMeanwhileException($practice);
             }
 
-            $placed = $this->troopers->servingIdsPlacedIn($practice->section_id, $trooperIds)->all();
+            // On the practice's rollcall for its week: serving and placed in the section now, or for a week that has
+            // ended, on the roster it ended with (the 2026-10-29 audit), so a capture of the closing week marks that week's troopers.
+            $placed = $this->troopers->idsOnRollcall($practice->section_id, $practice->week_start, $trooperIds, serving: true)->all();
             $notPlaced = count($trooperIds) - count($placed);
             $covers = $placed === [] ? [] : $this->loaCoverage->forTroopers($placed, $practice->week_start);
 

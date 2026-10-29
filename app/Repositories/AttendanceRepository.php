@@ -175,11 +175,17 @@ interface AttendanceRepository
      * neither does an automatic makeup (the rule {@see countingMarks()} uses); a trooper carrying one
      * still counts as marked.
      *
+     * The troopers counted are the serving ones placed in each section now, unless `$roster` says otherwise: for a
+     * week that has ended, the rollcalls it ended with ({@see TrooperRepository::onRollcalls()}, the 2026-10-29
+     * audit), trooper id => section id, so the counts agree with each rollcall after a move or a departure. Each
+     * trooper counts by their row on that section's practice only. Still one query.
+     *
      * @param  list<int>  $sectionIds
      * @param  list<int>  $excusedTrooperIds
+     * @param  array<int, int>|null  $roster
      * @return Collection<int, SectionWeekProgress>
      *
      * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
      */
-    public function weekProgress(array $sectionIds, CarbonInterface $weekStart, array $excusedTrooperIds = []): Collection;
+    public function weekProgress(array $sectionIds, CarbonInterface $weekStart, array $excusedTrooperIds = [], ?array $roster = null): Collection;
 }
