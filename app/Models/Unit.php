@@ -21,8 +21,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * which would quietly create that reverse edge.
  *
  * `kind` says whether the node is on the line or a group off it ({@see UnitKind}); it is written once, by the creating
- * repository call, and never mass-assigned. `label` is an optional game or team label an Admin sets by hand (DEVCOM's
- * "WARDOGS"), shown next to the name: nothing in Cav's data names it. `lead_position_id` is the billet whose holder
+ * repository call, and never mass-assigned. `label` is an optional team label an Admin sets by hand, shown next to the
+ * name: nothing in Cav's data names it. `game_id` is the game the unit plays, an Admin's pick from the Games list
+ * (policy, 2026-10-29); a unit without one plays the game of the nearest unit above it that has one
+ * (worked out by `UnitGame` in the repository layer). Not mass-assigned. `lead_position_id` is the billet whose holder
  * leads a regimental staff portfolio the import made (shown as its lead, or vacant); written by the import only.
  */
 #[Fillable(['type', 'name', 'callsign', 'label'])]
@@ -37,6 +39,7 @@ class Unit extends Model
             'type' => UnitType::class,
             'kind' => UnitKind::class,
             'lead_position_id' => 'integer',
+            'game_id' => 'integer',
         ];
     }
 
@@ -61,6 +64,11 @@ class Unit extends Model
     public function isLine(): bool
     {
         return $this->kind === null || $this->kind->isLine();
+    }
+
+    public function game(): BelongsTo
+    {
+        return $this->belongsTo(Game::class);
     }
 
     public function parent(): BelongsTo
