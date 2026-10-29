@@ -16,7 +16,7 @@ test('the org page counts HQ staff, hides New Recruits by default and shows wher
     const recruits = page.locator('[data-testid^="unit-row-"]').filter({ hasText: 'New Recruits' });
     await expect(recruits).toHaveCount(0);
     await page.getByTestId('show-recruits').check();
-    await expect(recruits).toContainText('1 trooper');
+    await expect(recruits).toContainText('Headcount 1');
 
     await page.locator('[data-testid^="unit-row-"]').filter({ hasText: 'Extended Leave of Absence' }).click();
     const member = page.getByTestId('group-members').getByTestId('group-member').filter({ hasText: 'Marlowe.E' });
