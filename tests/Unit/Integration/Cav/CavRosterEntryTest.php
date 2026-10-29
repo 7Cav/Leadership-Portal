@@ -210,6 +210,18 @@ describe('CavRosterEntry::fromPayload', function () use ($fetchedAt) {
         CavRosterEntry::fromPayload(1, ['code' => 5, 'message' => 'no profile found', 'details' => []], $fetchedAt);
     })->throws(CavRequestException::class);
 
+    it('trims the text it reads, and reads text that is only spaces as missing', function () use ($fetchedAt) {
+        $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload([
+            'primary' => ['positionTitle' => "  Regimental Technical Aide 	", 'positionId' => '773'],
+            'user' => ['userId' => '3', 'username' => ' Jarvis.A '],
+            'mos' => '   ',
+        ]), $fetchedAt);
+
+        expect($trooper->billet)->toBe('Regimental Technical Aide')
+            ->and($trooper->username)->toBe('Jarvis.A')
+            ->and($trooper->mos)->toBeNull();
+    });
+
     it('rejects a non-positive cav id at construction', function () use ($fetchedAt) {
         new CavRosterEntry(cavId: 0, fetchedAt: $fetchedAt);
     })->throws(CavRequestException::class);

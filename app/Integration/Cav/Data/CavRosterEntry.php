@@ -115,11 +115,15 @@ readonly class CavRosterEntry
 
     /**
      * The API sends an unset string as `''`; carry that through as null so callers do not have
-     * to distinguish "absent" from "empty".
+     * to distinguish "absent" from "empty". Trimmed, as the position groups' titles are
+     * ({@see CavPosition}), so a stray space on the roster cannot make a billet title differ from the one
+     * the import recorded, which would send an approved Admin billet back to pending on every sync.
      */
     private static function text(mixed $value): ?string
     {
-        return is_string($value) && $value !== '' ? $value : null;
+        $value = is_string($value) ? trim($value) : '';
+
+        return $value !== '' ? $value : null;
     }
 
     /**
