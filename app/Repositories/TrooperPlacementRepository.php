@@ -80,6 +80,17 @@ interface TrooperPlacementRepository
     public function trooperIdsInUnitAtWeekEnd(int $unitId, CarbonInterface $weekStart): array;
 
     /**
+     * {@see trooperIdsInUnitAtWeekEnd()} for many units at once, in a fixed number of queries: unit id => trooper ids,
+     * for every unit given (an empty list for one nobody stood in then).
+     *
+     * @param  list<int>  $unitIds
+     * @return array<int, list<int>>
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function trooperIdsInUnitsAtWeekEnd(array $unitIds, CarbonInterface $weekStart): array;
+
+    /**
      * The sections each trooper was placed in during each Cav week from `$firstWeek` to `$lastWeek`, with their
      * current placement ({@see PlacementWeeks}). A week they were in no section (not placed yet, or on HQ staff or in
      * a group) is absent. A trooper placed nowhere now is left out.

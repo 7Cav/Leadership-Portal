@@ -136,26 +136,27 @@ it('opens the running week read-only, saying from when it can be sent', function
     $this->actingAs($this->tree['users']['psg'])->get('/staff-report')->assertRedirect($this->url);
 });
 
-it('shows "Staff report" in the sidebar for platoon and company HQ staff only', function (string $viewer, bool $shown) {
-    $this->actingAs($this->tree['users'][$viewer])->get('/home')->assertInertia(fn (AssertableInertia $page) => $page->where('features.staffReport', $shown));
+it('shows "Staff report" to HQ staff who read only their own and "Staff reports" to readers', function (string $viewer, ?string $nav) {
+    $this->actingAs($this->tree['users'][$viewer])->get('/home')->assertInertia(fn (AssertableInertia $page) => $page->where('features.staffReports', $nav));
 })->with([
-    'a PSG' => ['psg', true],
-    'a PL' => ['pl', true],
-    'a company commander' => ['co', true],
-    'a section leader' => ['sl', false],
-    'a staff department member' => ['s6Member', false],
-    'an Admin with no milpac' => ['admin', false],
+    'a PSG' => ['psg', 'own'],
+    'a PL' => ['pl', 'own'],
+    'a company commander, who reads the platoon HQ' => ['co', 'overview'],
+    'a staff grant on the company' => ['grant', 'overview'],
+    'a section leader' => ['sl', null],
+    'a staff department member' => ['s6Member', null],
+    'an Admin with no milpac' => ['admin', 'overview'],
 ]);
 
 it('shows "Staff report" to a company commander and XO placed on the company HQ node, signed in as themselves', function (string $billet) {
     $trooper = Trooper::factory()->create(['primary_section_id' => $this->tree['units']['company']->id, 'billet' => $billet]);
     $user = User::factory()->create(['cav_id' => $trooper->cav_id]);
 
-    $this->actingAs($user)->get('/home')->assertInertia(fn (AssertableInertia $page) => $page->where('features.staffReport', true));
+    $this->actingAs($user)->get('/home')->assertInertia(fn (AssertableInertia $page) => $page->where('features.staffReports', 'own'));
 
     // An Admin viewing as them does not get it: the link is for the staff member's own session only.
     $this->actingAs($this->tree['users']['admin'])->post('/view-as', ['kind' => 'user', 'id' => $user->id])->assertSessionHasNoErrors();
-    $this->actingAs($this->tree['users']['admin'])->get('/home')->assertInertia(fn (AssertableInertia $page) => $page->where('features.staffReport', false));
+    $this->actingAs($this->tree['users']['admin'])->get('/home')->assertInertia(fn (AssertableInertia $page) => $page->where('features.staffReports', null));
 })->with([
     'the CO' => ['Commander A/1-7'],
     'the XO' => ['Executive Officer A/1-7'],

@@ -36,3 +36,8 @@ minutes: 2
 2. Each practice you picked lists you on that section's roll call: as a **Staff guest** in your own platoon or company, and as a **Guest** anywhere else. You never count in that section's numbers.
 
 > [!good-to-know] Your platoon's or company's report shows whether its HQ staff sent theirs, for the leaders above it. Sending your HQ's own report does not stop you sending yours. For a week that has ended, the portal goes by the HQ you were on when it ended, so you still send it after a move.
+
+## Read your staff's reports
+
+1. If you command or read a unit above a platoon or company HQ, the sidebar shows **Staff reports** instead of **Staff report**. It lists every HQ staff member whose report you read, for one week, with your own on top.
+2. A PL or PSG reads only their own report and keeps **Staff report**. See [Read your staff's reports](/docs/weekly-report/staff-reports) for the overview.

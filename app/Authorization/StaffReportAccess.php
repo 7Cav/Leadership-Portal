@@ -10,6 +10,7 @@ use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
 
 /**
  * Who files a weekly staff report, and who may read one.
@@ -76,6 +77,37 @@ class StaffReportAccess
     public function maySend(User $user, Trooper $trooper): bool
     {
         return $this->scope->isOwnTrooper($user, $trooper);
+    }
+
+    /**
+     * The platoon and company HQs whose staff's reports `$user` reads, down the tree: every one for an Admin, else
+     * each whose parent their scope holds (as {@see mayRead()} reads it). Empty for a PL or PSG, whose scope holds no
+     * HQ's parent: they read only their own.
+     *
+     * @return Collection<int, Unit>
+     */
+    public function readableHqs(User $user): Collection
+    {
+        $admin = $this->scope->actsAsAdmin($user);
+        $scope = $admin ? collect() : $this->scope->resolve($user)->map(fn ($id) => (int) $id)->flip();
+
+        return $this->units->tree()
+            ->filter(fn (Unit $unit) => self::filesFrom($unit)
+                && ($admin || ($unit->parent_id !== null && $scope->has((int) $unit->parent_id))))
+            ->values();
+    }
+
+    /**
+     * What the sidebar's staff report item opens for `$user`: `overview` ("Staff reports") for anyone who reads some HQ
+     * staff's reports, `own` ("Staff report") for an HQ staff member who reads only their own, else null.
+     */
+    public function navFor(User $user): ?string
+    {
+        return match (true) {
+            $this->readableHqs($user)->isNotEmpty() => 'overview',
+            $this->isHqStaffNow($user) => 'own',
+            default => null,
+        };
     }
 
     /** Whether `$user` may read `$trooper`'s staff report from `$hq`: themselves, the chain above the HQ, Admins. */

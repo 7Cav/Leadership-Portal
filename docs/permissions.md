@@ -342,12 +342,16 @@ and the Regimental HQ read count.
 | Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Read a staff member's staff report, and their row on the HQ's report | All | All | No | Above their HQ | Above their HQ | Their own only (11) | Above their HQ | Their own only (11) | Their own only (11) | Above their HQ | Target |
+| Open the staff reports overview (`/staff-reports`) (13) | All | All | No | Yes | Yes | No | If above an HQ | No | No | If above an HQ | Target |
 | Send one (final, no edit) | Their own only (12) | Their own only | Their own only | Their own only | Their own only | Their own only | Their own only | Their own only | Their own only | Their own only | No |
 
 (11) Everyone reads their own. A peer on the same HQ (a PL and their PSG, a CO and their XO) does not read the other's:
 reading starts at the unit above the HQ, so a Platoon Leader reads no other staff report.
 (12) Only the staff member, signed in as themselves: never someone acting as them (an Admin included), and never in a
 view-as preview. A page for another trooper, or a week they file none for, answers 404 to anyone who may not read it.
+(13) Anyone whose read scope holds the unit above at least one platoon or company HQ (`StaffReportAccess::readableHqs()`),
+and Admins. The sidebar item then reads "Staff reports" (the shared `features.staffReports` is `overview`); for HQ
+staff who read only their own it stays "Staff report" (`own`). Everyone else gets a 404.
 
 ## How scope is worked out
 

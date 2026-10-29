@@ -31,8 +31,10 @@ export const NAV_GROUPS = [
             { label: 'Roster', href: '/roster', icon: PhUsersThree },
             { label: 'Roll call', href: '/rollcall', icon: PhClipboardText },
             { label: 'Reports', href: '/reports', icon: PhFileText },
-            // A platoon or company HQ staff member's own weekly staff report, only for them.
-            { label: 'Staff report', href: '/staff-report', icon: PhUserCheck, feature: 'staffReport' },
+            // The weekly staff report item, by the shared `features.staffReports`: a platoon or company HQ staff member who
+            // reads only their own gets "Staff report"; whoever reads some HQ's staff gets the "Staff reports" overview.
+            { label: 'Staff report', href: '/staff-report', icon: PhUserCheck, feature: 'staffReports', featureValue: 'own' },
+            { label: 'Staff reports', href: '/staff-reports', icon: PhUserCheck, feature: 'staffReports', featureValue: 'overview' },
             { label: 'Game identities', href: '/game-identities', icon: PhGameController },
         ],
     },
@@ -69,13 +71,13 @@ export const NAV_GROUPS = [
 
 // The groups and items this viewer sees: admin-only groups for an Admin, and for anyone else only their items whose
 // `allow` prop is true in `props` (the page's shared props); an item that needs an optional feature only while the
-// shared `features` prop switches it on.
+// shared `features` prop switches it on (is true, or equals the item's `featureValue`).
 export function visibleGroups(isAdmin, features = {}, props = {}) {
     return NAV_GROUPS.map((group) => ({
         ...group,
         items: group.items
             .filter((item) => isAdmin || !group.adminOnly || (item.allow && props[item.allow] === true))
-            .filter((item) => !item.feature || features[item.feature] === true),
+            .filter((item) => !item.feature || features[item.feature] === (item.featureValue ?? true)),
     })).filter((group) => group.items.length);
 }
 

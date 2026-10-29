@@ -106,17 +106,31 @@ class StaffReportWeek
      */
     public function hqStaff(Unit $hq, CarbonImmutable $weekStart): array
     {
-        $ids = $this->placements->trooperIdsInUnitAtWeekEnd($hq->id, $weekStart);
+        return $this->staffOfHqs([$hq->id], $weekStart)[$hq->id];
+    }
+
+    /**
+     * {@see hqStaff()} for many HQs at once, in a fixed number of queries whatever their count: HQ id => its staff, for
+     * every HQ given. What the staff reports overview reads.
+     *
+     * @param  list<int>  $hqIds
+     * @return array<int, list<array{trooper: Trooper, report: ?StaffReport}>>
+     */
+    public function staffOfHqs(array $hqIds, CarbonImmutable $weekStart): array
+    {
+        $idsByHq = $this->placements->trooperIdsInUnitsAtWeekEnd($hqIds, $weekStart);
+        $ids = array_values(array_unique(array_merge([], ...array_values($idsByHq))));
         $sent = $this->reports->forTroopers($ids, $weekStart);
+        $troopers = $this->troopers->byIds($ids);
         // The Saturday the week ends, when its roster is read.
         $end = $weekStart->addWeek();
 
-        return $this->troopers->byIds($ids)
+        return array_map(fn (array $hqTroopers) => $troopers->only($hqTroopers)
             ->filter(fn (Trooper $trooper) => $sent->has($trooper->id) || $trooper->status->isServing()
                 || ($trooper->departed_at !== null && $trooper->departed_at->greaterThanOrEqualTo($end)))
             ->sortBy(fn (Trooper $trooper) => [mb_strtolower((string) $trooper->username), $trooper->id])
             ->map(fn (Trooper $trooper) => ['trooper' => $trooper, 'report' => $sent->get($trooper->id)])
             ->values()
-            ->all();
+            ->all(), $idsByHq);
     }
 }

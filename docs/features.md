@@ -395,6 +395,14 @@ platoon's or company's report.
 - Who reads it: the staff member, whoever reads the unit above their HQ (its command and the chain above, a staff grant
   there, an overseer or the Regimental HQ read), and Admins. A peer on the same HQ (a PL and their PSG) does not. See
   [permissions.md](permissions.md#staff-report).
+- Staff reports overview (`/staff-reports?week=<date>`): for anyone who reads some HQ staff's reports, the sidebar item
+  reads "Staff reports" and opens this page instead of "Staff report". It opens the last week to have ended, with
+  arrows between weeks, and lists every platoon and company HQ staff member whose report the viewer reads, grouped by
+  HQ down the tree, each with billet, status ("Sent", "Not sent yet", or "Not due yet" for the running week), what they
+  attended, whether they met one practice a week, and "Open report". Each HQ lists who was on it when the week ended,
+  as the HQ staff panel does. The viewer's own report, when they file one that week, sits on top with "Send your staff
+  report" while it is not sent. A PL or PSG, who reads only their own, keeps "Staff report" and gets a 404 here. Read
+  only. In view as it shows what the target would see, without an own report.
 
 ## Settings menu (Admins)
 
