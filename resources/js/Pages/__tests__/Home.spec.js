@@ -97,7 +97,7 @@ describe('Home page', () => {
         it('renders the step lanes, worklist, section progress and KPIs as empty states', () => {
             const text = factory().text();
 
-            expect(text).toContain('Step tracking starts with rollcalls');
+            expect(text).toContain('Step tracking starts with roll calls');
             expect(text).toContain('Needs attention');
             expect(text).toContain('No sections reporting yet');
             expect(text).toContain('No units in your scope yet');
@@ -116,7 +116,7 @@ describe('Home page', () => {
         it('keeps the section-progress columns so the empty table reads as the real one will', () => {
             const headers = factory().findAll('th').map((th) => th.text());
 
-            expect(headers).toEqual(['Unit', 'Rollcall posted', 'Rollcall signed', 'SP held', 'Attendance marked', 'Report sent']);
+            expect(headers).toEqual(['Unit', 'Roll call posted', 'Roll call signed', 'SP held', 'Attendance marked', 'Report sent']);
         });
     });
 

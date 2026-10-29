@@ -15,8 +15,8 @@ const lanes = computed(() => laneTotals(props.steps));
 </script>
 
 <template>
-    <EmptyState v-if="!steps.length" :icon="PhClockCountdown" title="Step tracking starts with rollcalls" class="border-t border-border py-6">
-        Each section's steps for the week show across these days once rollcalls run in the portal.
+    <EmptyState v-if="!steps.length" :icon="PhClockCountdown" title="Step tracking starts with roll calls" class="border-t border-border py-6">
+        Each section's steps for the week show across these days once roll calls run in the portal.
     </EmptyState>
 
     <template v-else>

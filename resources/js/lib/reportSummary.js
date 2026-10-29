@@ -77,7 +77,7 @@ export function reportSummary({ unit, week, sent = false, sentAt = null, sentBy 
     if (kpis) {
         // Both numbers, labelled apart (#424): the headcount counts staff and groups, "in rollcall" is what the rates are over.
         if (kpis.headcount != null) lines.push(`Headcount ${kpis.headcount}, with staff`);
-        lines.push(`In rollcall ${kpis.strength}${change(delta, 'strength')}`);
+        lines.push(`In roll call ${kpis.strength}${change(delta, 'strength')}`);
         lines.push(`RC ${rate(kpis, delta, 'rc')}, SP ${rate(kpis, delta, 'sp')}, last 30 days`);
         lines.push(`At-risk ${kpis.atRisk}${change(delta, 'atRisk')}, on LOA ${kpis.onLoa}, makeups ${kpis.makeups}`);
     } else {

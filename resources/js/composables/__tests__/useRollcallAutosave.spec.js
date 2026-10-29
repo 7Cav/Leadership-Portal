@@ -196,7 +196,7 @@ describe('rollcall autosave', () => {
     });
 
     it('stops for good when the week is locked: drops the queue, ignores later changes, never retries (AD-12)', async () => {
-        const message = 'The report for this week has been sent, so its rollcall is locked.';
+        const message = 'The report for this week has been sent, so its roll call is locked.';
         const post = vi.fn().mockResolvedValue({ ok: false, status: 409, data: { message, locked: true } });
         const save = setup(post);
 
@@ -258,7 +258,7 @@ describe('rollcall autosave', () => {
         window.dispatchEvent(leaving);
         expect(leaving.defaultPrevented).toBe(true);
         expect(visitGuard({ detail: { visit: { method: 'post' } } })).toBe(false);
-        expect(confirm).toHaveBeenCalledWith('Some rollcall changes are not saved yet. Leave anyway?');
+        expect(confirm).toHaveBeenCalledWith('Some roll call changes are not saved yet. Leave anyway?');
         vi.unstubAllGlobals();
     });
 
@@ -443,7 +443,7 @@ describe('rollcall autosave', () => {
     });
 
     it('explains each kind of failure in words the leader can act on', () => {
-        expect(messageFor({ status: 403, data: null })).toBe('This rollcall is read-only for you right now.');
+        expect(messageFor({ status: 403, data: null })).toBe('This roll call is read-only for you right now.');
         expect(messageFor({ status: 419, data: null })).toBe('Your session expired; reload the page and try again.');
         expect(messageFor({ status: 0, data: null })).toBe('You were signed out. Sign in again, then retry.');
         expect(messageFor({ status: 401, data: { message: 'Unauthenticated.' } })).toBe('You were signed out. Sign in again, then retry.');

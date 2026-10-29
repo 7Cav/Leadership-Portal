@@ -12,7 +12,7 @@ test('a section leader completes and sends the weekly report', async ({ page }) 
     await expect(page.getByTestId('status-badge')).toHaveText('Draft');
     await expect(page.getByTestId('kpi-grid')).toBeVisible();
     // The rollcall figure and the headcount with staff, labelled apart (#424).
-    await expect(page.getByTestId('kpi-grid').locator('[data-kpi="strength"]')).toContainText('In rollcall');
+    await expect(page.getByTestId('kpi-grid').locator('[data-kpi="strength"]')).toContainText('In roll call');
     await expect(page.getByTestId('kpi-grid').locator('[data-kpi="strength"]')).toContainText(/Headcount \d+, with staff/);
 
     await page.getByLabel(/^Reason for .*Kowalczyk\.P$/).selectOption({ label: 'Sick' });

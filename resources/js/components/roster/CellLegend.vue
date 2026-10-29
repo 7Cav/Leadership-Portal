@@ -11,8 +11,8 @@ const RC = [
     ['ok', 'Will attend'],
     ['cn', 'Cannot attend'],
     ['bad', 'Unsigned'],
-    ['open', 'Unsigned (rollcall open)'],
-    ['nil', 'No rollcall posted'],
+    ['open', 'Unsigned (roll call open)'],
+    ['nil', 'No roll call posted'],
 ];
 const SP = [
     ['ok', 'Present'],
@@ -28,11 +28,11 @@ const SP = [
     <div id="roster-legend" class="grid items-start gap-2 px-3 py-2.5 text-xs text-muted-foreground sm:px-4 lg:grid-cols-[auto_1fr] lg:gap-x-6">
         <div class="flex items-center gap-2.5">
             <span aria-hidden="true"><WeekCell rc="ok" sp="mk" /></span>
-            <span class="leading-tight">Each cell is one Cav week, Sat to Fri.<br />Top half rollcall, bottom half SP.</span>
+            <span class="leading-tight">Each cell is one Cav week, Sat to Fri.<br />Top half roll call, bottom half SP.</span>
         </div>
         <div class="space-y-1.5">
             <div class="flex flex-wrap gap-x-4 gap-y-1.5">
-                <span class="w-full font-medium text-foreground sm:w-20">Rollcall</span>
+                <span class="w-full font-medium text-foreground sm:w-20">Roll call</span>
                 <span v-for="[state, label] in RC" :key="state" class="inline-flex items-center gap-1.5">
                     <span class="roster-h inline-block w-[1.125rem]" :class="`roster-h--${state}`" aria-hidden="true" />{{ label }}
                 </span>

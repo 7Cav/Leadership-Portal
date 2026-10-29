@@ -50,7 +50,7 @@ const candidates = computed(() => rows.value.filter((row) => row.candidate).leng
             </span>
             <p class="w-full max-w-[80ch] text-xs text-muted-foreground" data-testid="practice-guests-criteria">
                 Troopers from other units recorded as guests at {{ unitLabel }}'s practices over the last {{ criteria.windowWeeks }} Cav
-                weeks; section leaders add them on the rollcall. A JSAM candidate attended at least {{ criteria.minVisits }} of them and
+                weeks; section leaders add them on the roll call. A JSAM candidate attended at least {{ criteria.minVisits }} of them and
                 {{ criteria.minOwnSpPercent }}% or more of their own section's practices over the same weeks (makeups do not count toward
                 their own). The portal only shows the evidence; the recommendation is yours.
             </p>
@@ -58,7 +58,7 @@ const candidates = computed(() => rows.value.filter((row) => row.candidate).leng
 
         <EmptyState v-if="!rows.length" :icon="PhUsers" title="No guests yet" class="py-8" data-testid="practice-guests-empty">
             Nobody from another unit was added as a guest at these practices in the last {{ criteria.windowWeeks }} Cav weeks. Section
-            leaders add guests on their rollcall.
+            leaders add guests on their roll call.
         </EmptyState>
 
         <div v-else class="overflow-x-auto">

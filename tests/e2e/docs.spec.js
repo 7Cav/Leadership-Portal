@@ -17,7 +17,7 @@ test('a section leader opens a guide from docs home and moves to the next one', 
 
     await page.getByTestId('next-guide').click();
     await expect(page).toHaveURL(/\/docs\/weekly-rollcall\/run-rollcall$/);
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText("Run this week's rollcall");
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText("Run this week's roll call");
     await expect(page.getByTestId('guide-body')).toContainText('Why this matters.');
 });
 
@@ -33,11 +33,11 @@ test('Help on the rollcall opens the rollcall guide, which leads back to the rol
 
     await page.getByRole('link', { name: 'Help for this page' }).click();
     await expect(page).toHaveURL(/\/docs\/weekly-rollcall\/run-rollcall\?from=%2Frollcall/);
-    await expect(page.getByTestId('breadcrumb-current')).toHaveText("Run this week's rollcall");
+    await expect(page.getByTestId('breadcrumb-current')).toHaveText("Run this week's roll call");
     await expect(page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Docs' })).toHaveAttribute('aria-current', 'page');
-    await expect(page.getByTestId('came-from')).toContainText('You opened this from Rollcall.');
+    await expect(page.getByTestId('came-from')).toContainText('You opened this from Roll call.');
 
-    await page.getByTestId('came-from').getByRole('link', { name: 'Back to Rollcall' }).click();
+    await page.getByTestId('came-from').getByRole('link', { name: 'Back to Roll call' }).click();
     await expect(page).toHaveURL(/\/rollcall/);
 });
 
@@ -49,7 +49,7 @@ test('a leader finds a guide with Ctrl K, despite a typo, and opens it with Ente
 
     await page.keyboard.press('Control+k');
     await page.getByTestId('docs-search-input').fill('rolcall');
-    await expect(page.getByTestId('docs-search-results')).toContainText("Run this week's rollcall");
+    await expect(page.getByTestId('docs-search-results')).toContainText("Run this week's roll call");
 
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/\/docs\/weekly-rollcall\/run-rollcall$/);

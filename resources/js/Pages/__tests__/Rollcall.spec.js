@@ -106,7 +106,7 @@ describe('Rollcall page', () => {
         vi.setSystemTime(new Date('2026-10-08T16:50:00Z'));
         const wrapper = factory();
 
-        expect(wrapper.find('h1').text()).toBe('Rollcall, week of 03Oct26');
+        expect(wrapper.find('h1').text()).toBe('Roll call, week of 03Oct26');
         expect(wrapper.find('[data-testid="roster-provenance"]').text()).toBe('Roster from milpac, synced 08Oct26 09:14Z (7 h ago)');
         expect(wrapper.find('[data-testid="roster-provenance"] time').attributes('datetime')).toBe('2026-10-08T09:14:00.000Z');
         expect(wrapper.text()).toContain('Signatures close Fri 09Oct26 23:59Z');
@@ -743,11 +743,11 @@ describe('Rollcall page', () => {
             const pastWeek = { ...WEEK, isCurrent: false, date: '2026-09-26', start: '2026-09-26T00:00:00+00:00', next: '2026-10-03' };
             const wrapper = factory({ locked: true, week: pastWeek });
 
-            expect(wrapper.find('[data-testid="locked-notice"]').text()).toContain('The report for this week has been sent, so its rollcall is locked.');
+            expect(wrapper.find('[data-testid="locked-notice"]').text()).toContain('The report for this week has been sent, so its roll call is locked.');
             expect(wrapper.find('[data-testid="read-only-notice"]').exists()).toBe(false);
             expect(wrapper.find('[data-testid="past-week-notice"]').exists()).toBe(false);
             expect(button(wrapper, 3, 'present').attributes('disabled')).toBeDefined();
-            expect(button(wrapper, 3, 'present').attributes('title')).toBe('The report for this week has been sent, so its rollcall is locked.');
+            expect(button(wrapper, 3, 'present').attributes('title')).toBe('The report for this week has been sent, so its roll call is locked.');
             expect(wrapper.find('[data-testid="mark-all-present"]').exists()).toBe(false);
             expect(wrapper.find('[data-testid="use-last-week"]').exists()).toBe(false);
 
@@ -757,13 +757,13 @@ describe('Rollcall page', () => {
         });
 
         it('turns read-only and stops saving when a save finds the report sent since the page loaded', async () => {
-            post.mockResolvedValue({ ok: false, status: 409, data: { message: 'The report for this week has been sent, so its rollcall is locked.', locked: true } });
+            post.mockResolvedValue({ ok: false, status: 409, data: { message: 'The report for this week has been sent, so its roll call is locked.', locked: true } });
             const wrapper = factory();
 
             await button(wrapper, 3, 'will_attend').trigger('click');
             await vi.advanceTimersByTimeAsync(1000);
 
-            expect(wrapper.find('[data-testid="locked-notice"]').text()).toContain('The report for this week has been sent, so its rollcall is locked.');
+            expect(wrapper.find('[data-testid="locked-notice"]').text()).toContain('The report for this week has been sent, so its roll call is locked.');
             expect(wrapper.find('[data-testid="save-error"]').exists()).toBe(false);
             expect(button(wrapper, 1, 'cannot_attend').attributes('disabled')).toBeDefined();
             expect(reload).toHaveBeenCalledTimes(1);
@@ -828,7 +828,7 @@ describe('Rollcall page', () => {
         });
 
         it.each([
-            ['a company with no active template', { state: 'no_active_template', companyId: 1, versionId: null, version: null, body: null }, 'no rollcall template'],
+            ['a company with no active template', { state: 'no_active_template', companyId: 1, versionId: null, version: null, body: null }, 'no roll call template'],
             ['a section under no company', { state: 'no_owning_company', companyId: null, versionId: null, version: null, body: null }, 'does not sit under a company'],
             ['a template that no longer renders', { ...TEMPLATE, body: '{{#troopers}}' }, 'does not render'],
         ])('writes no post for %s, says why, and cannot be copied', (_name, template, message) => {
@@ -913,7 +913,7 @@ describe('Rollcall page', () => {
             expect(writeText.mock.calls[0][0]).toContain('[tr][td]PFC[/td][td]Trooper2.A[/td][td]Cannot attend[/td][td]Not marked[/td][/tr]');
             expect(post).not.toHaveBeenCalled();
             await vi.waitFor(() => expect(wrapper.find('[data-testid="copy-bbcode"]').text()).toBe('Copy again'));
-            expect(toastSuccess).toHaveBeenCalledWith('BBCode copied', { description: 'Paste it as a reply in the 2/1/A/1-7 rollcall thread.' });
+            expect(toastSuccess).toHaveBeenCalledWith('BBCode copied', { description: 'Paste it as a reply in the 2/1/A/1-7 roll call thread.' });
         });
 
         describe('a copy made before the marks changed', () => {
@@ -956,9 +956,9 @@ describe('Rollcall page', () => {
                 await vi.waitFor(() => expect(wrapper.find('[data-testid="posted-state"]').exists()).toBe(true));
 
                 expect(toastWarning).toHaveBeenCalledWith('Marked posted, but the copied BBCode is out of date', {
-                    description: 'Marks changed after you copied it. Copy it again, update the rollcall post on the forum, then mark it posted again.',
+                    description: 'Marks changed after you copied it. Copy it again, update the roll call post on the forum, then mark it posted again.',
                 });
-                expect(toastSuccess).not.toHaveBeenCalledWith('Rollcall marked posted', expect.anything());
+                expect(toastSuccess).not.toHaveBeenCalledWith('Roll call marked posted', expect.anything());
                 expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Repost the updated BBCode');
             });
 
@@ -976,7 +976,7 @@ describe('Rollcall page', () => {
                 await vi.waitFor(() => expect(wrapper.find('[data-testid="posted-state"]').exists()).toBe(true));
 
                 expect(toastWarning).not.toHaveBeenCalled();
-                expect(toastSuccess).toHaveBeenCalledWith('Rollcall marked posted', expect.anything());
+                expect(toastSuccess).toHaveBeenCalledWith('Roll call marked posted', expect.anything());
                 expect(wrapper.find('[data-testid="posted-state"]').text()).not.toContain('Repost the updated BBCode');
             });
         });
@@ -1015,7 +1015,7 @@ describe('Rollcall page', () => {
             await vi.waitFor(() => expect(wrapper.find('[data-testid="posted-state"]').exists()).toBe(true));
 
             expect(post).toHaveBeenCalledWith('/rollcall/12/posted', { week: '2026-10-03' });
-            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Rollcall posted 08Oct26 16:20Z (30 min ago) by Vasquez.R');
+            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Roll call posted 08Oct26 16:20Z (30 min ago) by Vasquez.R');
             expect(wrapper.find('[data-step="3"]').attributes('aria-label')).toBe('Step 3, Review and post, Posted');
             expect(wrapper.find('[data-testid="mark-posted"]').text()).toBe('Mark posted again');
         });
@@ -1048,25 +1048,25 @@ describe('Rollcall page', () => {
             Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
             const wrapper = factory({ locked: true });
 
-            expect(wrapper.find('[data-testid="locked-notice"]').text()).toContain('You can still copy the rollcall post.');
+            expect(wrapper.find('[data-testid="locked-notice"]').text()).toContain('You can still copy the roll call post.');
             expect(wrapper.find('[data-testid="locked-notice"]').text()).not.toContain('mark it posted');
             await wrapper.find('[data-testid="copy-bbcode"]').trigger('click');
             await vi.waitFor(() => expect(writeText).toHaveBeenCalled());
 
             const markPosted = wrapper.find('[data-testid="mark-posted"]');
             expect(markPosted.attributes('disabled')).toBeDefined();
-            expect(markPosted.attributes('title')).toBe('The report for this week has been sent, so its rollcall is locked.');
+            expect(markPosted.attributes('title')).toBe('The report for this week has been sent, so its roll call is locked.');
         });
 
         it('reloads the week when marking posted is refused because the report was sent since the page loaded', async () => {
             reload.mockClear();
-            post.mockResolvedValue({ ok: false, status: 409, data: { message: 'The report for this week has been sent, so its rollcall is locked.', locked: true } });
+            post.mockResolvedValue({ ok: false, status: 409, data: { message: 'The report for this week has been sent, so its roll call is locked.', locked: true } });
             const wrapper = factory();
 
             await wrapper.find('[data-testid="mark-posted"]').trigger('click');
             await flushPromises();
 
-            expect(toastError).toHaveBeenCalledWith('Could not mark the rollcall posted', { description: 'The report for this week has been sent, so its rollcall is locked.' });
+            expect(toastError).toHaveBeenCalledWith('Could not mark the roll call posted', { description: 'The report for this week has been sent, so its roll call is locked.' });
             expect(wrapper.find('[data-testid="posted-state"]').exists()).toBe(false);
             expect(reload).toHaveBeenCalledTimes(1);
         });
@@ -1137,7 +1137,7 @@ describe('Rollcall page', () => {
             const wrapper = factory();
 
             await wrapper.find('[data-testid="mark-posted"]').trigger('click');
-            await vi.waitFor(() => expect(toastError).toHaveBeenCalledWith('Could not mark the rollcall posted', { description: 'Outside your scope.' }));
+            await vi.waitFor(() => expect(toastError).toHaveBeenCalledWith('Could not mark the roll call posted', { description: 'Outside your scope.' }));
         });
 
         it('flags the post as stale once a mark changes after marking it posted', async () => {
@@ -1472,18 +1472,18 @@ describe('Rollcall page', () => {
             const confirm = wrapper.find('[data-testid="confirm-practice"]');
 
             expect(confirm.attributes('disabled')).toBeDefined();
-            expect(confirm.attributes('title')).toBe('The report for this week has been sent, so its rollcall is locked.');
+            expect(confirm.attributes('title')).toBe('The report for this week has been sent, so its roll call is locked.');
         });
 
         it('reloads the week when a confirmation is refused because the report was sent since the page loaded', async () => {
             reload.mockClear();
-            post.mockResolvedValue({ ok: false, status: 409, data: { message: 'The report for this week has been sent, so its rollcall is locked.', locked: true } });
+            post.mockResolvedValue({ ok: false, status: 409, data: { message: 'The report for this week has been sent, so its roll call is locked.', locked: true } });
             const wrapper = factory({ capture: CAPTURE });
 
             await wrapper.find('[data-testid="confirm-practice"]').trigger('click');
             await flushPromises();
 
-            expect(toastError).toHaveBeenCalledWith('Could not confirm the practice', { description: 'The report for this week has been sent, so its rollcall is locked.' });
+            expect(toastError).toHaveBeenCalledWith('Could not confirm the practice', { description: 'The report for this week has been sent, so its roll call is locked.' });
             expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Not confirmed');
             expect(reload).toHaveBeenCalledTimes(1);
         });
@@ -1522,7 +1522,7 @@ describe('Rollcall page', () => {
             page.url = '/rollcall/12?step=3';
             await wrapper.vm.$nextTick();
             // The stamp carries how long ago it was, which this test does not pin.
-            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Rollcall posted 08Oct26 16:20Z');
+            expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('Roll call posted 08Oct26 16:20Z');
             expect(wrapper.find('[data-testid="posted-state"]').text()).toContain('by Ortega.M');
             expect(wrapper.find('[data-testid="posted-state"]').text()).not.toContain('Repost');
 
@@ -1801,13 +1801,13 @@ describe('Rollcall page', () => {
         });
 
         it('reloads instead of polling when the retry is refused because the week is locked', async () => {
-            post.mockResolvedValue({ ok: false, status: 409, data: { message: 'The report for this week has been sent, so its rollcall is locked.', locked: true } });
+            post.mockResolvedValue({ ok: false, status: 409, data: { message: 'The report for this week has been sent, so its roll call is locked.', locked: true } });
             wrapper = factory({ telemetry: FAILED });
 
             await click();
             await flushPromises();
 
-            expect(toastError).toHaveBeenCalledWith('Could not retry the capture', { description: 'The report for this week has been sent, so its rollcall is locked.' });
+            expect(toastError).toHaveBeenCalledWith('Could not retry the capture', { description: 'The report for this week has been sent, so its roll call is locked.' });
             expect(reload).toHaveBeenCalledTimes(1);
             expect(reload).toHaveBeenCalledWith();
         });

@@ -378,7 +378,7 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
             <div class="min-w-0">
                 <h1 class="text-xl font-semibold tracking-tight">Templates</h1>
                 <p class="mt-1 max-w-[80ch] text-[13px] text-muted-foreground">
-                    The {{ artifactType.label }} a section's rollcall post renders from. A company keeps its own templates and switches on the ones its
+                    The {{ artifactType.label }} a section's roll call post renders from. A company keeps its own templates and switches on the ones its
                     sections may use, and a section can keep its own; a section uses its pick, else the company default, else the regiment default.
                     An edit saves a new version and makes it the active one; older versions are kept as they were.
                 </p>
@@ -425,7 +425,7 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                     </template>
                 </div>
                 <p v-if="openSection" class="border-t border-border px-4 py-2.5 text-[13px] text-muted-foreground" data-testid="section-note">
-                    {{ sectionLabel(openSection) }}'s own templates. Only this section's rollcall can use them, and its leader picks one there beside
+                    {{ sectionLabel(openSection) }}'s own templates. Only this section's roll call can use them, and its leader picks one there beside
                     the company's and the regiment default.
                 </p>
                 <p v-if="openSection && !templates.length" class="border-t border-border px-4 py-2.5 text-[13px] text-muted-foreground" data-testid="no-section-templates">
@@ -774,7 +774,7 @@ const companyLabel = (company) => (company.callsign ? `${company.callsign} ${com
                 <AlertDialogTitle class="text-base leading-snug font-semibold">New template</AlertDialogTitle>
                 <AlertDialogDescription class="text-[13px] text-muted-foreground">
                     <template v-if="openSection">
-                        It starts as a copy of {{ openTemplate?.name ?? 'the default' }}, for {{ sectionLabel(openSection) }}'s rollcall only. Pick it there
+                        It starts as a copy of {{ openTemplate?.name ?? 'the default' }}, for {{ sectionLabel(openSection) }}'s roll call only. Pick it there
                         to use it. Edit it once it is saved.
                     </template>
                     <template v-else>

@@ -39,13 +39,13 @@ watch(
 );
 
 const MAKEUP_ADDED = {
-    marked: 'A makeup is on their own section\'s rollcall for this week.',
-    kept: 'Their own rollcall already had a mark for this week, so it stayed.',
+    marked: 'A makeup is on their own section\'s roll call for this week.',
+    kept: 'Their own roll call already had a mark for this week, so it stayed.',
     locked: 'Their own section\'s week is locked, so no makeup was added there.',
 };
 const MAKEUP_REMOVED = {
-    withdrawn: 'The makeup it put on their own rollcall was taken back.',
-    kept: 'Their own rollcall mark stays as it is.',
+    withdrawn: 'The makeup it put on their own roll call was taken back.',
+    kept: 'Their own roll call mark stays as it is.',
     locked: 'Their own section\'s week is locked, so its mark stays.',
 };
 
@@ -199,7 +199,7 @@ async function undo(guest) {
                     <span class="text-xs font-normal text-muted-foreground tabular-nums">{{ list.length }}</span>
                 </h3>
                 <p class="mt-0.5 max-w-[62ch] text-xs text-muted-foreground">
-                    Add troopers from other sections who attended. Each one counts as a makeup on their own section's rollcall. The
+                    Add troopers from other sections who attended. Each one counts as a makeup on their own section's roll call. The
                     game server does not add guests yet; it will once practices have set times. Staff who attended are listed from their
                     own entries and never count here.{{
                         disabledReason ? ` ${disabledReason}.` : ''
@@ -285,7 +285,7 @@ async function undo(guest) {
                     <template v-if="guest.recordedBy">Added by {{ guest.recordedBy }}</template><template v-else>Added by hand</template>
                 </Badge>
                 <span v-if="guest.source === 'manual' && guest.makeupMissing" class="text-xs text-muted-foreground" data-testid="guest-makeup-missing">
-                    No makeup on their own rollcall yet
+                    No makeup on their own roll call yet
                 </span>
                 <Button
                     v-if="guest.source === 'manual' && guest.makeupMissing && editable"

@@ -102,13 +102,13 @@ const waiting = computed(() => props.children.filter((c) => c.status !== 'sent')
                 <div v-show="open.has(check.id)" :id="`check-${check.id}`" class="px-3 pb-3.5">
                     <template v-if="check.id === 'rollcall' || check.id === 'practice'">
                         <p v-if="check.id === 'practice'" class="mb-2.5 text-xs text-muted-foreground">
-                            Practice marks are recorded in rollcall, where the change is audited.
+                            Practice marks are recorded in roll call, where the change is audited.
                         </p>
                         <p v-else class="mb-2.5 text-xs text-muted-foreground">
                             Signature changes after you send stay out of this report.
                         </p>
                         <Button v-if="rollcallUrl" variant="outline" size="sm" as-child>
-                            <Link :href="rollcallUrl"><PhArrowSquareOut aria-hidden="true" />Open rollcall</Link>
+                            <Link :href="rollcallUrl"><PhArrowSquareOut aria-hidden="true" />Open roll call</Link>
                         </Button>
                     </template>
 

@@ -19,7 +19,7 @@ describe('counseling', () => {
 
     it('names what a record is for, in the order the form offers them', () => {
         expect(Object.keys(COUNSELING_KINDS)).toEqual(['missed_practice', 'conduct']);
-        expect(COUNSELING_KINDS.missed_practice.label).toBe('Missed section practice or rollcall');
+        expect(COUNSELING_KINDS.missed_practice.label).toBe('Missed section practice or roll call');
         expect(COUNSELING_KINDS.conduct.label).toBe('Other conduct');
     });
 

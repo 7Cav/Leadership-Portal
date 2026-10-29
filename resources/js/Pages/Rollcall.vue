@@ -207,7 +207,7 @@ const previewReason = computed(() => {
     return props.week.beforeFloor ? 'Read-only, this week is too far back to change' : null;
 });
 
-const LOCKED_MESSAGE = 'The report for this week has been sent, so its rollcall is locked.';
+const LOCKED_MESSAGE = 'The report for this week has been sent, so its roll call is locked.';
 
 const autosave = props.section
     ? useRollcallAutosave({
@@ -519,7 +519,7 @@ async function copyBbcode() {
     // The text as it was clicked: a mark that lands while the clipboard is busy makes this copy stale, not current.
     const text = bbcode.value;
     const ok = await copyText(text, 'BBCode copied', {
-        description: `Paste it as a reply in the ${props.section.designation} rollcall thread.`,
+        description: `Paste it as a reply in the ${props.section.designation} roll call thread.`,
         failed: 'Could not copy the BBCode',
         fallback: 'Open the BBCode tab and copy it by hand.',
     });
@@ -545,13 +545,13 @@ async function markPosted() {
             editedSincePost.value = staleCopy || edits !== editsBefore;
             if (staleCopy) {
                 toast.warning('Marked posted, but the copied BBCode is out of date', {
-                    description: 'Marks changed after you copied it. Copy it again, update the rollcall post on the forum, then mark it posted again.',
+                    description: 'Marks changed after you copied it. Copy it again, update the roll call post on the forum, then mark it posted again.',
                 });
             } else {
-                toast.success('Rollcall marked posted', { description: `${props.section.designation}, week of ${weekLabel.value}` });
+                toast.success('Roll call marked posted', { description: `${props.section.designation}, week of ${weekLabel.value}` });
             }
         } else {
-            toast.error('Could not mark the rollcall posted', { description: messageFor(result) });
+            toast.error('Could not mark the roll call posted', { description: messageFor(result) });
             // The report was sent since the page loaded: show the week as the server now has it.
             if (result.status === 409 && result.data?.locked) router.reload();
         }
@@ -824,7 +824,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
 </script>
 
 <template>
-    <Head :title="section ? `Rollcall ${section.designation} · 7Cav Leadership Portal` : 'Rollcall · 7Cav Leadership Portal'" />
+    <Head :title="section ? `Roll call ${section.designation} · 7Cav Leadership Portal` : 'Roll call · 7Cav Leadership Portal'" />
 
     <!-- No section chosen: the picker. -->
     <div v-if="!section" class="mx-auto max-w-xl space-y-4">
@@ -835,7 +835,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
         <SectionPicker v-if="sections.length" :sections="sections" :week="weekQuery" />
         <Card v-else class="py-0">
             <EmptyState :icon="PhUsersThree" title="No sections in your scope" class="py-12">
-                Rollcalls are kept per section. Once you lead a section, or hold a grant over one, it is listed here.
+                Roll calls are kept per section. Once you lead a section, or hold a grant over one, it is listed here.
             </EmptyState>
         </Card>
     </div>
@@ -851,7 +851,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                         <Link :href="pickerHref" class="underline-offset-2 hover:text-foreground hover:underline" data-testid="choose-section">Choose a section</Link>
                     </template>
                 </p>
-                <h1 class="text-xl font-semibold tracking-tight sm:text-[22px]">Rollcall, week of {{ weekLabel }}</h1>
+                <h1 class="text-xl font-semibold tracking-tight sm:text-[22px]">Roll call, week of {{ weekLabel }}</h1>
             </div>
             <div class="flex items-center gap-1 text-muted-foreground">
                 <Button variant="ghost" size="icon-sm" class="relative" as-child>
@@ -992,7 +992,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
             data-testid="locked-notice"
         >
             <PhLockSimple class="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
-            <p>{{ lockedReason }} You can still copy the rollcall post.</p>
+            <p>{{ lockedReason }} You can still copy the roll call post.</p>
         </div>
 
         <!-- Only where a change can be made: a read-only week (too far back, a staff grant, a view-as preview, a sent
@@ -1013,7 +1013,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
         <div
             class="sticky top-[var(--shell-top,3rem)] z-20 -mx-4 mt-3 border-b border-border bg-background/95 px-4 pt-3 pb-2 backdrop-blur sm:-mx-6 sm:px-6"
         >
-            <nav aria-label="Rollcall steps">
+            <nav aria-label="Roll call steps">
                 <ol class="grid grid-cols-3 gap-1.5">
                     <li v-for="s in steps" :key="s.n">
                         <button
@@ -1240,7 +1240,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                             Review and post
                         </h2>
                         <p class="mt-0.5 max-w-[62ch] text-[13px] text-muted-foreground">
-                            Check the totals, copy the rollcall post into the rollcall thread on 7cav.us, then mark it posted.
+                            Check the totals, copy the roll call post into the roll call thread on 7cav.us, then mark it posted.
                         </p>
                     </div>
                     <!-- The rollcall can still be posted, but not without seeing who the server saw and nobody accounted for (#176). -->
@@ -1272,7 +1272,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                         <PhCheckCircle v-else class="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
                         <div class="flex-1">
                             <p class="font-medium">
-                                Rollcall posted <TimeAgo :at="posted.at" quiet>{{ postedLabel }}</TimeAgo><template v-if="posted.by"> by {{ posted.by }}</template>
+                                Roll call posted <TimeAgo :at="posted.at" quiet>{{ postedLabel }}</TimeAgo><template v-if="posted.by"> by {{ posted.by }}</template>
                             </p>
                             <p class="mt-0.5 text-xs text-muted-foreground">
                                 <template v-if="editedSincePost">Marks changed since then. Repost the updated BBCode, then mark it posted again.</template>
@@ -1332,7 +1332,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                                 :title="readOnlyReason ?? undefined"
                                 @click="markPosted"
                             >
-                                <PhCheck />{{ posted ? 'Mark posted again' : 'Mark rollcall posted' }}
+                                <PhCheck />{{ posted ? 'Mark posted again' : 'Mark roll call posted' }}
                             </Button>
                         </div>
                     </StepReview>
@@ -1386,8 +1386,8 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                             <li
                                 v-for="(item, index) in [
                                     { label: copyStale ? 'Copy the updated BBCode' : 'Copy the BBCode', done: copied },
-                                    { label: 'Paste it as a reply in the rollcall thread', done: copied && !!posted && !editedSincePost },
-                                    { label: 'Mark the rollcall posted', done: !!posted && !editedSincePost },
+                                    { label: 'Paste it as a reply in the roll call thread', done: copied && !!posted && !editedSincePost },
+                                    { label: 'Mark the roll call posted', done: !!posted && !editedSincePost },
                                 ]"
                                 :key="item.label"
                                 class="flex items-center gap-2.5"
@@ -1428,7 +1428,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
             <DialogContent class="gap-3 p-4 sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle>Switch section</DialogTitle>
-                    <DialogDescription>Open another section's rollcall for the same week.</DialogDescription>
+                    <DialogDescription>Open another section's roll call for the same week.</DialogDescription>
                 </DialogHeader>
                 <SectionPicker :sections="sections" :current-id="section.id" :week="weekQuery" @picked="pickerOpen = false" />
             </DialogContent>

@@ -503,7 +503,7 @@ function useSuggestion() {
                 >
                     <PhInfo class="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
                     <p>
-                        No attendance yet this week. The numbers below are zero until rollcall is signed and section practice is marked;
+                        No attendance yet this week. The numbers below are zero until roll call is signed and section practice is marked;
                         the draft fills in as you go.
                     </p>
                 </div>
@@ -541,7 +541,7 @@ function useSuggestion() {
                                 </template>
                             </dl>
                             <p class="mt-4 text-xs text-muted-foreground">
-                                The snapshot never changes. Later rollcall edits stay out of it.
+                                The snapshot never changes. Later roll call edits stay out of it.
                             </p>
                         </section>
 

@@ -643,7 +643,7 @@ function confirmDelete() {
             <div class="min-w-0">
                 <h1 class="text-xl font-semibold tracking-tight">Org structure</h1>
                 <p class="mt-1 text-[13px] text-muted-foreground">
-                    The chain of command, from regiment down to section. Rosters, rollcalls and reports all roll up along it.
+                    The chain of command, from regiment down to section. Rosters, roll calls and reports all roll up along it.
                 </p>
             </div>
             <div v-if="isAdmin" class="flex items-center gap-2">

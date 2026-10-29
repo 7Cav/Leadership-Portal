@@ -102,7 +102,7 @@ describe('Guide page', () => {
         const guide = show();
 
         expect(guide.get('[data-testid="open-in-portal"]').attributes('href')).toBe('/rollcall');
-        expect(guide.get('[data-testid="open-in-portal"]').text()).toBe('Open Rollcall');
+        expect(guide.get('[data-testid="open-in-portal"]').text()).toBe('Open Roll call');
         expect(guide.find('a[rel="prev"]').attributes('href')).toBe('/docs/basics/roster');
         expect(guide.get('[data-testid="next-guide"]').attributes('href')).toBe('/docs/weekly-rollcall/guests');
     });
@@ -117,7 +117,7 @@ describe('Guide page', () => {
         page.url = '/docs/weekly-rollcall/run?from=/rollcall';
         const guide = show();
 
-        expect(guide.get('[data-testid="came-from"]').text()).toContain('You opened this from Rollcall.');
+        expect(guide.get('[data-testid="came-from"]').text()).toContain('You opened this from Roll call.');
         expect(guide.get('[data-testid="came-from"] a').attributes('href')).toBe('/rollcall');
 
         page.url = '/docs/weekly-rollcall/run';

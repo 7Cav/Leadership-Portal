@@ -48,7 +48,7 @@ const record = (overrides = {}) => ({
     document: { name: 'Brandt DCS.pdf', size: 34 * 1024 },
     driveStatus: 'uploaded',
     kind: 'missed_practice',
-    kindLabel: 'Missed section practice or rollcall',
+    kindLabel: 'Missed section practice or roll call',
     kindAssumed: false,
     flags: [],
     canChange: false,
@@ -77,7 +77,7 @@ describe('CounselingPanel', () => {
         expect(wrapper.get('[data-testid="counseling-count"]').text()).toBe('2');
         expect(dcs.get('[data-testid="counseling-type-badge"]').text()).toBe('DCS: Developmental Counseling Statement');
         expect(dcs.get('[data-testid="counseling-date-text"]').text()).toBe('20Oct26');
-        expect(dcs.get('[data-testid="counseling-kind-text"]').text()).toBe('Missed section practice or rollcall');
+        expect(dcs.get('[data-testid="counseling-kind-text"]').text()).toBe('Missed section practice or roll call');
         expect(dcs.find('[data-testid="counseling-flags"]').exists()).toBe(false);
         expect(dcs.get('[data-testid="counseling-reason-text"]').text()).toContain('No notice given.');
         expect(dcs.get('[data-testid="counseling-issuer"]').text()).toBe('Filed by Okafor.B');

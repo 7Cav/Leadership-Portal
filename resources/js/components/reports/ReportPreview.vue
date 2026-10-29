@@ -158,7 +158,7 @@ const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id ===
                         <TableHeader>
                             <TableRow class="hover:bg-transparent">
                                 <TableHead class="h-auto py-2 text-xs">Trooper</TableHead>
-                                <TableHead class="h-auto py-2 text-xs">Rollcall</TableHead>
+                                <TableHead class="h-auto py-2 text-xs">Roll call</TableHead>
                                 <TableHead class="h-auto py-2 text-xs">SP</TableHead>
                                 <TableHead class="h-auto py-2 text-xs">Note</TableHead>
                             </TableRow>
@@ -239,7 +239,7 @@ const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id ===
             </span>
             <span v-if="sent" class="inline-flex items-center gap-1.5"><PhLockSimple aria-hidden="true" /><span>Frozen <TimeAgo :at="sentAt">{{ stamp(sentAt) }}</TimeAgo></span></span>
             <span v-else-if="unit.isLeaf" class="inline-flex items-center gap-1.5">
-                <PhLightning aria-hidden="true" /><span>Computed from rollcall and attendance at <TimeAgo :at="computedAt">{{ timeOf(computedAt) }}</TimeAgo>. Marks are manual unless noted as game server capture.</span>
+                <PhLightning aria-hidden="true" /><span>Computed from roll call and attendance at <TimeAgo :at="computedAt">{{ timeOf(computedAt) }}</TimeAgo>. Marks are manual unless noted as game server capture.</span>
             </span>
             <span v-else class="inline-flex items-center gap-1.5"><PhStack aria-hidden="true" />Built from the frozen reports of the units below</span>
         </p>

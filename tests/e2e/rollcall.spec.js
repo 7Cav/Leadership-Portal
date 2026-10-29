@@ -10,7 +10,7 @@ test('a section leader lands on their section\'s rollcall', async ({ page }) => 
     await page.goto('/__e2e/login/Vasquez.R?to=/rollcall');
 
     await expect(page).toHaveURL(/\/rollcall\/\d+$/);
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('Rollcall, week of');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Roll call, week of');
     await expect(page.getByText('2/1/A/1-7 weekly cycle')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Signatures' })).toBeVisible();
 
@@ -56,7 +56,7 @@ test('a section leader copies the forum post and marks the rollcall posted', asy
     expect(copied).toContain('[tr]');
 
     await page.getByTestId('mark-posted').click();
-    await expect(page.getByTestId('posted-state')).toContainText('Rollcall posted');
+    await expect(page.getByTestId('posted-state')).toContainText('Roll call posted');
     await page.reload();
     await expect(page.getByTestId('posted-state')).toContainText('by Vasquez.R');
 });

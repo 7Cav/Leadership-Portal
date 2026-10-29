@@ -167,7 +167,7 @@ function entryNote(id) {
                 <fieldset v-if="form.attended === true" class="border-b border-border px-4 py-3" data-testid="practice-picker">
                     <legend class="text-sm font-semibold">Which practices did you attend?</legend>
                     <p class="mt-0.5 text-xs text-muted-foreground">
-                        A practice in your own unit lists you on that section's rollcall as a staff guest, anywhere else as a guest.
+                        A practice in your own unit lists you on that section's roll call as a staff guest, anywhere else as a guest.
                         Neither counts in that section's numbers.
                     </p>
                     <Input v-model="filter" class="mt-2" autocomplete="off" placeholder="Find a section" aria-label="Find a section" data-testid="section-filter" />

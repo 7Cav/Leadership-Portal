@@ -53,7 +53,7 @@ const summary = computed(() => {
             <p v-if="run.unread > run.problems.length">{{ run.unread - run.problems.length }} more not listed.</p>
             <p v-if="run.unread > 0 && run.status !== 'failure'">Threads it could not read are tried again by later syncs.</p>
             <p v-if="run.needsReview > 0">
-                A post that needs review is stored without dates. Leaders see it on the rollcall and in Home's Needs attention; the trooper fixes it on the
+                A post that needs review is stored without dates. Leaders see it on the roll call and in Home's Needs attention; the trooper fixes it on the
                 forum and the next sync reads it again.
             </p>
         </div>

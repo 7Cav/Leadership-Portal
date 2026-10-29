@@ -45,7 +45,7 @@ export const SHORTCUT_GROUPS = [
     },
     {
         id: 'rollcall',
-        title: 'Rollcall',
+        title: 'Roll call',
         href: '/rollcall',
         // Read by Rollcall.vue `onCardKeydown` and its keyboard card.
         shortcuts: [

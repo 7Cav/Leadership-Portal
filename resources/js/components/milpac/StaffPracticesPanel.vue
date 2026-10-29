@@ -78,7 +78,7 @@ function remove(entry) {
 
         <div class="flex flex-col gap-3 border-b border-border px-4 py-3 text-[13px]">
             <p class="text-muted-foreground">
-                Staff are on no section's rollcall, so the practices they attend are kept here. They never count for the host section.
+                Staff are on no section's roll call, so the practices they attend are kept here. They never count for the host section.
                 A game server entry means the capture saw them on the server that Cav week.
             </p>
 

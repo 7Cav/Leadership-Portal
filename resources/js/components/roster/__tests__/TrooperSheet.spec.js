@@ -68,7 +68,7 @@ describe('Trooper sheet', () => {
         expect(recent).toHaveLength(8);
         expect(recent[0].textContent).toContain('03Oct26');
         expect(recent[0].textContent).toContain('Auto, game server capture');
-        expect(recent[1].textContent).toContain('No rollcall posted');
+        expect(recent[1].textContent).toContain('No roll call posted');
     });
 
     // Decided 2026-10-27: after a transfer the new leadership sees the weeks from before the move and the move itself.

@@ -74,7 +74,7 @@ describe('AppLayout', () => {
         it('shows Home, Roster, Rollcall, Reports and Game identities to everyone', () => {
             wrapper = mountLayout();
 
-            for (const label of ['Home', 'Roster', 'Rollcall', 'Reports', 'Game identities']) {
+            for (const label of ['Home', 'Roster', 'Roll call', 'Reports', 'Game identities']) {
                 expect(wrapper.find(`[data-testid="nav-${label}"]`).exists()).toBe(true);
             }
         });

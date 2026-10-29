@@ -8,7 +8,7 @@ import { forumDate } from '@/lib/forumDate';
 // The six KPIs in report order. `polarity` is what an increase means (5.4): +1 good, -1 needs
 // attention. `deltaKey` is the matching field of the server's delta (rates in basis points).
 export const KPIS = [
-    { key: 'strength', label: 'In rollcall', polarity: 1, deltaKey: 'strength' },
+    { key: 'strength', label: 'In roll call', polarity: 1, deltaKey: 'strength' },
     { key: 'rc', label: 'RC % 30d', polarity: 1, deltaKey: 'rcBp', rate: true },
     { key: 'sp', label: 'SP % 30d', polarity: 1, deltaKey: 'spBp', rate: true },
     { key: 'atRisk', label: 'At-risk', polarity: -1, deltaKey: 'atRisk' },
@@ -140,11 +140,11 @@ export function readinessChecks({ isLeaf, troopers, children, content, reviewed,
     return [
         {
             id: 'rollcall',
-            title: 'Rollcall complete',
+            title: 'Roll call complete',
             done: signed === roster.length,
             count: `${signed}/${roster.length}`,
             detail: signed === roster.length ? 'Everyone signed or is on LOA.' : `${roster.length - signed} not signed yet.`,
-            next: 'Chase the unsigned troopers in rollcall',
+            next: 'Chase the unsigned troopers in roll call',
         },
         {
             id: 'practice',
@@ -152,7 +152,7 @@ export function readinessChecks({ isLeaf, troopers, children, content, reviewed,
             done: unmarked.length === 0,
             count: `${marked}/${eligible.length}`,
             detail: unmarked.length ? `${unmarked.map((t) => t.name).join(', ')} not marked.` : 'Every trooper has a practice mark.',
-            next: 'Mark the rest of practice in rollcall',
+            next: 'Mark the rest of practice in roll call',
         },
         {
             id: 'unaccounted',
@@ -262,7 +262,7 @@ export function highlights({ kpis, delta, troopers, reasons, reasonLabels, child
             id: 'rc',
             icon: 'signature',
             tone: signed === rows.length ? 'good' : 'neutral',
-            text: `Rollcall signed by ${signed} of ${rows.length}${rc === null ? '' : `, RC ${rc}% over 30 days`}.`,
+            text: `Roll call signed by ${signed} of ${rows.length}${rc === null ? '' : `, RC ${rc}% over 30 days`}.`,
         });
     }
 

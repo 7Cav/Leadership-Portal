@@ -110,13 +110,13 @@ describe('Settings/AuditLog', () => {
 
     it('links an entry to what it changed, and keeps the raw target beside it', () => {
         const wrapper = makeWrapper({
-            entries: { ...ENTRIES, data: [{ ...ENTRY, link: { href: '/rollcall/7?week=2026-10-03', label: '2/1/A/1-7 rollcall, week of 03Oct26' } }] },
+            entries: { ...ENTRIES, data: [{ ...ENTRY, link: { href: '/rollcall/7?week=2026-10-03', label: '2/1/A/1-7 roll call, week of 03Oct26' } }] },
         });
         const link = wrapper.get('[data-testid="target-link-1"]');
 
         expect(link.element.tagName).toBe('A');
         expect(link.attributes('href')).toBe('/rollcall/7?week=2026-10-03');
-        expect(link.text()).toBe('2/1/A/1-7 rollcall, week of 03Oct26');
+        expect(link.text()).toBe('2/1/A/1-7 roll call, week of 03Oct26');
         expect(wrapper.get('[data-testid="entry-row-1"]').text()).toContain('Unit#7');
     });
 

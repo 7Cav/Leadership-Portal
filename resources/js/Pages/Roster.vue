@@ -587,7 +587,7 @@ function syncNow() {
                 Roster from {{ sync.source
                 }}<template v-if="sync.lastSuccessAt"
                     >, synced {{ clock(sync.lastSuccessAt) }}</template
-                >. Rollcall and SP marks from section leaders. RC and SP cover
+                >. Roll call and SP marks from section leaders. RC and SP cover
                 the last 4 Cav weeks.
             </p>
             <LoaSyncNote v-if="loaSync" :sync="loaSync" />

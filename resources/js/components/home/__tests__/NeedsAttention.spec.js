@@ -129,7 +129,7 @@ describe('NeedsAttention', () => {
             expect(wrapper.findAll('[data-group]').map((g) => g.attributes('data-group'))).toEqual(['at_risk', 'loa_review']);
             expect(wrapper.get('[data-group="loa_review"] h3').text()).toContain('LOA posts that need review');
             expect(row.attributes('href')).toBe('/rollcall/5?week=2026-10-03&focus=8');
-            expect(row.attributes('title')).toBe('Open Lindqvist.E on the 1/1/A/1-7 rollcall');
+            expect(row.attributes('title')).toBe('Open Lindqvist.E on the 1/1/A/1-7 roll call');
             expect(row.text()).toContain('LOA post the sync could not read in 1/1/A/1-7');
             expect(row.get('[data-testid="loa-review-reason"]').text()).toBe('The End Date could not be read.');
             expect(row.text()).toContain('Needs review');

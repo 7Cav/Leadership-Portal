@@ -155,7 +155,7 @@ describe('rollcallPost (3.11)', () => {
         const post = rollcallPost({ state: 'no_active_template', companyId: 1, versionId: null, version: null, body: null }, input());
 
         expect(post).toMatchObject({ state: 'none' });
-        expect(post.message).toContain('no rollcall template');
+        expect(post.message).toContain('no roll call template');
     });
 
     it('says a section that sits under no company has no template to render from', () => {

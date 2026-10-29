@@ -62,7 +62,7 @@ describe('PracticeGuestsPanel', () => {
         expect(text).toContain('80% or more of their own section');
         expect(text).toContain('makeups do not count');
         // Guests come from the host leaders for now; nothing promises the game server adds them.
-        expect(text).toContain('section leaders add them on the rollcall');
+        expect(text).toContain('section leaders add them on the roll call');
         expect(text).not.toMatch(/seen|server/i);
     });
 

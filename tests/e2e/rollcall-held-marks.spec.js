@@ -69,7 +69,7 @@ test('leaving for another week saves the held marks once the leader agrees to le
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByTestId('previous-week').click();
 
-    expect((await asked).message()).toBe('Some rollcall changes are not saved yet. Leave anyway?');
+    expect((await asked).message()).toBe('Some roll call changes are not saved yet. Leave anyway?');
     expect((await save).status()).toBe(200);
     await expect(page).toHaveURL(/week=/);
     await page.goto(new URL(page.url()).pathname + '?step=2');
