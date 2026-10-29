@@ -119,6 +119,15 @@ On the same page:
 Only troopers placed in a section are on a rollcall. HQ staff, staff departments, ELOA, Reservists and New Recruits are
 on none.
 
+The running week's rollcall lists who is placed in the section now. A week that has ended keeps the roster it ended
+with, from the placement history: a trooper who moved to another unit or left the Cav after that week stays on it, can
+still be marked there and given a reason on its report, and counts in its KPIs and strength, while the section they
+moved to cannot mark them for that week. A trooper who moved partway through a week is on the rollcall of the section
+they moved to, and their mark at either section counts (see "Makeups"). Such rows carry a small note: "Moved out",
+"Departed", or "Joined" for one who moved in during the week. A trooper placed before the placement history began
+(27Oct26) and never moved since is in their current section for every week. The roster sync records when a trooper
+leaves the Cav; one who left before it began doing so has no date and is on no past week's rollcall.
+
 ### Reports
 
 - Roll-up workspace (`/reports`): the tree of every line unit in your scope for one Cav week (the current week and the
@@ -199,8 +208,8 @@ sends and is then emptied by a move still rolls up into its platoon for that wee
 week's chain, and drops out from the first week it is empty. A trooper placed before the placement history began
 (27Oct26) and never moved since counts in their current section for every week.
 
-Leaving the Cav has no date in the portal, so once a trooper leaves, the placement they held when they left no longer
-counts for any week, past weeks included (an earlier move, which has dates, still counts). A section whose last trooper
+The report chain does not read when a trooper left the Cav (the rollcall does, see above), so once a trooper leaves,
+the placement they held when they left no longer counts in the chain for any week, past weeks included (an earlier move, which has dates, still counts). A section whose last trooper
 leaves the Cav therefore drops out of the chain for every week it did not send, the week they left included: its
 platoon's roll-up neither waits on it nor sums it for those weeks. A week it sent stays in the chain.
 
@@ -364,7 +373,9 @@ their own section's practice that Cav week.
 ## KPIs
 
 One definition, used by Home, the roster, the reports and the roll-ups. The window is the last 4 whole Cav weeks
-including the current one. Only troopers placed in a section are measured.
+including the current one. Only troopers placed in a section are measured: for the running week, those placed now; for
+a week that has ended, those on that week's rollcall (placed in the section when the week ended, departed ones
+included).
 
 | KPI | Definition |
 | --- | --- |

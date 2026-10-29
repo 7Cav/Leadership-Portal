@@ -227,6 +227,11 @@ it('still answers saved when only the at-risk refresh fails, so the screen never
             throw new RuntimeException('kpi read failed');
         }
 
+        public function countingWindowAsPlaced(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): CountingWindow
+        {
+            throw new RuntimeException('kpi read failed');
+        }
+
         public function countingMarksOf(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection
         {
             return $this->inner->countingMarksOf($trooperIds, $firstWeek, $lastWeek, $includeDeparted);

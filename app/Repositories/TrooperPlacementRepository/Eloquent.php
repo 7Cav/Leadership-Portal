@@ -6,6 +6,7 @@ use App\Models\PlacementSource;
 use App\Models\Trooper;
 use App\Models\TrooperPlacement;
 use App\Models\TrooperStatus;
+use App\Models\Unit;
 use App\Models\UnitType;
 use App\Repositories\PlacementWeeks;
 use App\Repositories\TrooperPlacementRepository;
@@ -138,9 +139,41 @@ class Eloquent implements TrooperPlacementRepository
 
     public function sectionsByWeek(iterable|Builder $troopers, CarbonInterface $firstWeek, CarbonInterface $lastWeek): PlacementWeeks
     {
+        return $this->read($troopers, WeekOf::requireStart($firstWeek), WeekOf::requireStart($lastWeek), null);
+    }
+
+    public function sectionsByWeekWithin(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): PlacementWeeks
+    {
         $first = WeekOf::requireStart($firstWeek);
         $last = WeekOf::requireStart($lastWeek);
+        $end = $last->addWeek();
+        $subtree = Unit::query()->select('id')->where('path', 'like', "{$unit->path}%");
 
+        // Everyone who may count in the unit that week, as one subquery: serving then (serving now, or gone only after
+        // the week opened), and placed under the unit now or by a placement row that overlaps the week. Where each one
+        // ended the week is decided by read(), from the same rows sectionsByWeek() reads.
+        $candidates = Trooper::query()
+            ->select('troopers.id')
+            ->where(fn ($q) => $q->whereIn('troopers.status', TrooperStatus::servingValues())->orWhere('troopers.departed_at', '>', $last))
+            ->where(fn ($q) => $q->whereIn('troopers.primary_section_id', $subtree)
+                ->orWhereExists(fn ($q) => $q->selectRaw('1')
+                    ->from('trooper_placements as during')
+                    ->whereColumn('during.trooper_id', 'troopers.id')
+                    ->whereIn('during.unit_id', $subtree)
+                    ->where(fn ($q) => $q->whereNull('during.placed_from')->orWhere('during.placed_from', '<', $end))
+                    ->where(fn ($q) => $q->whereNull('during.placed_until')->orWhere('during.placed_until', '>', $last))));
+
+        return $this->read($candidates, $first, $last, $unit);
+    }
+
+    /**
+     * {@see sectionsByWeek()}, kept to the troopers whose section at the end of `$last` sits under `$within` when one
+     * is given ({@see sectionsByWeekWithin()}).
+     *
+     * @param  iterable<int>|Builder<Trooper>  $troopers
+     */
+    private function read(iterable|Builder $troopers, CarbonImmutable $first, CarbonImmutable $last, ?Unit $within): PlacementWeeks
+    {
         if ($troopers instanceof Builder) {
             $ids = (clone $troopers)->select('troopers.id');
         } else {
@@ -161,6 +194,8 @@ class Eloquent implements TrooperPlacementRepository
                     ->where(fn ($q) => $q->whereNull('trooper_placements.placed_until')->orWhere('trooper_placements.placed_until', '>', $first));
             })
             ->leftJoin('units', 'units.id', '=', 'trooper_placements.unit_id')
+            // The units' paths, so read() can tell which troopers ended the week under `$within`.
+            ->when($within !== null, fn ($q) => $q->leftJoin('units as current_units', 'current_units.id', '=', 'troopers.primary_section_id'))
             ->orderBy('troopers.id')
             ->orderByRaw('trooper_placements.placed_from is not null')
             ->orderBy('trooper_placements.placed_from')
@@ -174,6 +209,7 @@ class Eloquent implements TrooperPlacementRepository
                 'trooper_placements.placed_from',
                 'trooper_placements.placed_until',
                 'units.type as unit_type',
+                ...($within === null ? [] : ['units.path as unit_path', 'current_units.path as current_path', 'current_units.type as current_type']),
             ])
             ->groupBy('trooper_id');
 
@@ -228,6 +264,30 @@ class Eloquent implements TrooperPlacementRepository
             }
         }
 
-        return new PlacementWeeks($current, $byWeek);
+        if ($within === null) {
+            return new PlacementWeeks($current, $byWeek);
+        }
+
+        // The path of every section met, so a trooper counts only in a section, as `assignedWithin` does: the current
+        // unit of someone read without history may be an HQ node or a group.
+        $paths = [];
+
+        foreach ($rows->flatten(1) as $row) {
+            if ($row->current_type === UnitType::Section->value) {
+                $paths[(int) $row->current_unit] = $row->current_path;
+            }
+
+            if ($row->unit_id !== null && $row->unit_type === UnitType::Section->value) {
+                $paths[(int) $row->unit_id] = $row->unit_path;
+            }
+        }
+
+        $week = $last->toDateString();
+        $kept = array_filter(
+            $byWeek,
+            fn (array $weeks) => isset($weeks[$week]) && str_starts_with($paths[end($weeks[$week])] ?? '', $within->path),
+        );
+
+        return new PlacementWeeks(array_intersect_key($current, $kept), $kept);
     }
 }
