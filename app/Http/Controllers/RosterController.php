@@ -13,6 +13,8 @@ use App\Kpi\Ratio;
 use App\Kpi\TrooperAttendance;
 use App\Kpi\UnitKpis;
 use App\Loa\LoaProvenance;
+use App\Loa\LoaSyncProblems;
+use App\Loa\UpcomingLeave;
 use App\Milpac\BilletTags;
 use App\Milpac\PlacementHistory;
 use App\Milpac\RosterProvenance;
@@ -75,6 +77,8 @@ class RosterController extends Controller
         private readonly UnitGuidonRepository $guidons,
         private readonly StaffPracticeAccess $staffAccess,
         private readonly StaffPracticeHistory $staffHistory,
+        private readonly UpcomingLeave $upcomingLeave,
+        private readonly LoaSyncProblems $loaSyncProblems,
     ) {}
 
     /**
@@ -124,6 +128,9 @@ class RosterController extends Controller
             // The matrix's LOA weeks and the Sheet's "On LOA" and at-risk move with leave: where it comes from and
             // when it last synced (4.3, AD-20).
             'loaSync' => $this->loaProvenance->current()->toArray(),
+            // What the latest LOA sync could not read, for an Admin (follows view-as, like `can.sync`). There is no
+            // leave sync button yet, so this sits beside the leave note on the page that holds the roster sync.
+            'loaSyncProblems' => $this->scope->actsAsAdmin($user) ? $this->loaSyncProblems->latest() : null,
             'can' => [
                 // Follows view-as: a preview of a non-Admin never offers an Admin action (1.13).
                 'sync' => $this->scope->actsAsAdmin($user),
@@ -183,6 +190,8 @@ class RosterController extends Controller
                 'transfers' => $this->placementHistory->transfersOf($found->id),
                 // The section practices a staff member attended (#448), read only here; entered on the milpac.
                 'staffPractices' => $this->staffHistory->for($found, $this->staffAccess->staffUnit($found) !== null),
+                // The first day of a leave starting next Cav week, for the "Leave from" chip; null with none (read-only).
+                'leaveFrom' => $this->upcomingLeave->startingAfter([$found->id], $week)[$found->id] ?? null,
             ],
             'weeks' => $this->weeks($week),
             'currentWeek' => $week->toDateString(),

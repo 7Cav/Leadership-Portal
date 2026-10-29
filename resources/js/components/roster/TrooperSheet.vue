@@ -86,6 +86,9 @@ const makeupHref = computed(() =>
     trooper.value?.missedWeeks?.length ? makeupPmUrl(page.props.forum?.baseUrl, trooper.value.name, trooper.value.missedWeeks) : null,
 );
 
+// A leave starting next Cav week, so the leader planning the next practice sees it coming (read-only).
+const leaveFrom = computed(() => (trooper.value?.leaveFrom ? forumDate(`${trooper.value.leaveFrom}T00:00:00Z`) : null));
+
 const FAILURES = {
     forbidden: ['This trooper is outside your scope', 'You can open troopers only in units you command or were granted.'],
     missing: ['This trooper is not available', 'They may have left their section since the page loaded, or sit outside the units you command or were granted. Reload to see the current roster.'],
@@ -109,6 +112,7 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                             {{ trooper.billet ?? 'No billet on record' }}, {{ trooper.section.callsign ?? trooper.section.name }}
                         </SheetDescription>
                         <SheetTitle class="text-base leading-snug">{{ trooper.displayName }}</SheetTitle>
+                        <Badge v-if="leaveFrom" variant="outline" class="mt-1" title="Leave starting next Cav week, from LOA records" data-testid="leave-from">Leave from {{ leaveFrom }}</Badge>
                     </div>
                 </SheetHeader>
 

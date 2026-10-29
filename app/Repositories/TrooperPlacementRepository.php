@@ -93,4 +93,13 @@ interface TrooperPlacementRepository
      * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
      */
     public function unitIdsPlacedByWeek(CarbonInterface $firstWeek, CarbonInterface $lastWeek): array;
+
+    /**
+     * Which of `$trooperIds` left `$unitId` from `$from` up to (not including) `$until`: a placement row there that
+     * closed in that span. One query. Read for the weekly report's suggested reason ("moved out this week").
+     *
+     * @param  list<int>  $trooperIds
+     * @return list<int>
+     */
+    public function leftUnitBetween(int $unitId, array $trooperIds, CarbonInterface $from, CarbonInterface $until): array;
 }

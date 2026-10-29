@@ -96,8 +96,9 @@ export function unaccountedTroopers(troopers) {
 }
 
 // The readiness checklist (P3). `content` is the leader's live form state; `reviewed` the local
-// "I have read the preview" tick. Leaf and roll-up reports check different things.
-export function readinessChecks({ isLeaf, troopers, children, content, reviewed }) {
+// "I have read the preview" tick. Leaf and roll-up reports check different things. `suggested` lists the troopers
+// whose reason is a pre-selected suggestion the leader has not kept yet: their check stays open until they do.
+export function readinessChecks({ isLeaf, troopers, children, content, reviewed, suggested = [] }) {
     const reviewCheck = {
         id: 'reviewed',
         title: 'Notes reviewed',
@@ -133,6 +134,7 @@ export function readinessChecks({ isLeaf, troopers, children, content, reviewed 
     const unaccounted = unaccountedTroopers(roster);
     const reasons = new Map((content.unaccounted ?? []).map((row) => [row.trooper_id, row.reason]));
     const explained = unaccounted.filter((t) => reasons.get(t.id)).length;
+    const toConfirm = unaccounted.filter((t) => !reasons.get(t.id) && suggested.includes(t.id));
     const subject = (content.trainingSubject ?? '').trim();
 
     return [
@@ -160,7 +162,9 @@ export function readinessChecks({ isLeaf, troopers, children, content, reviewed 
             detail:
                 explained === unaccounted.length
                     ? 'Every miss without a makeup has a reason command can read.'
-                    : `${unaccounted.length - explained} ${unaccounted.length - explained === 1 ? 'miss has' : 'misses have'} no reason yet.`,
+                    : toConfirm.length === unaccounted.length - explained
+                      ? `${plural(toConfirm.length, 'suggested reason')} to keep or change.`
+                      : `${unaccounted.length - explained} ${unaccounted.length - explained === 1 ? 'miss has' : 'misses have'} no reason yet.`,
             next: `Choose a reason for ${unaccounted.filter((t) => !reasons.get(t.id)).map((t) => t.name).join(' and ')}`,
         },
         {

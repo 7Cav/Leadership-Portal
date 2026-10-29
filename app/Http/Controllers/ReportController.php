@@ -20,6 +20,7 @@ use App\Kpi\ReportKpisUnavailableException;
 use App\Kpi\ReportSnapshot;
 use App\Kpi\RollupKpis;
 use App\Kpi\TrooperAttendance;
+use App\Kpi\UnaccountedSuggestions;
 use App\Kpi\UnitKpis;
 use App\Kpi\WeeklyReportKpis;
 use App\Loa\LoaProvenance;
@@ -85,7 +86,7 @@ class ReportController extends Controller
         private readonly PlatoonTrainingTopicRepository $topics,
     ) {}
 
-    public function show(Request $request, int $unit, string $week): Response
+    public function show(Request $request, UnaccountedSuggestions $suggestions, int $unit, string $week): Response
     {
         $unit = $this->unitInScope($request, $unit);
         $weekStart = $this->weekStart($week);
@@ -163,6 +164,9 @@ class ReportController extends Controller
             // Carry-forward: the subject of the section's most recent sent report, offered on an
             // empty field for the leader to accept. Never saved unless they do.
             'suggestedSubject' => $isLeaf && ! $sent ? $history->first()?->training_subject : null,
+            // The reason the portal's own data gives for a trooper (departed, moved out, leave that needs review), by
+            // trooper id, pre-selected for the leader to keep or change. Never saved unless they send or edit.
+            'suggestedReasons' => (object) ($isLeaf && ! $sent ? $suggestions->forSection($unit, $weekStart, $roster) : []),
             // The headcount beside the six: null for a report frozen before it existed, never guessed (#424).
             'kpis' => $snapshot === null ? null : [...$this->kpiProps($snapshot->kpis), 'headcount' => $snapshot->headcount],
             'delta' => $snapshot?->delta === null ? null : $this->deltaProps($snapshot->delta),
