@@ -39,10 +39,14 @@ function unitGameMigration(): object
 
 // The schema as it was before #388. Everything pointing at `games` comes off first, newest first: SQLite does not mind
 // the games migration dropping the table under `game_servers` (#389) or `units.game_id`, but MySQL refuses (error
-// 3730). The #428 columns come off before the games table too.
+// 3730). `units.game_id` only comes off on MySQL: SQLite drops a column by rebuilding the table, which its foreign
+// key check refuses inside the test's transaction while other tables point at units. The #428 columns come off
+// before the games table too.
 function rollBackToPlatformEnum(): void
 {
-    unitGameMigration()->down();
+    if (DB::getDriverName() === 'mysql') {
+        unitGameMigration()->down();
+    }
     gameServersMigration()->down();
     idKindsMigration()->down();
     gamesMigration()->down();
@@ -53,7 +57,9 @@ function restoreGames(): void
     gamesMigration()->up();
     idKindsMigration()->up();
     gameServersMigration()->up();
-    unitGameMigration()->up();
+    if (DB::getDriverName() === 'mysql') {
+        unitGameMigration()->up();
+    }
 }
 
 it('creates the games with their names, id kinds and interfaces', function () {
