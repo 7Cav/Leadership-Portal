@@ -66,6 +66,25 @@ final class WeekOf
     }
 
     /**
+     * The last Cav week to have ended at `$now`: the one before the week containing it. What a staff report opens on,
+     * since one is sent only once its week is over.
+     */
+    public static function lastEnded(DateTimeInterface $now): CarbonImmutable
+    {
+        return self::start($now)->subWeek();
+    }
+
+    /**
+     * Whether the week opening at `$weekStart` is over at `$now`: its Friday has passed.
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public static function hasEnded(CarbonInterface $weekStart, DateTimeInterface $now): bool
+    {
+        return self::next($weekStart)->lessThanOrEqualTo($now);
+    }
+
+    /**
      * When the report for the week opening at `$weekStart` falls due: 23:59Z on the Saturday after
      * the week ends.
      *

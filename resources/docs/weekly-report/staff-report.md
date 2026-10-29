@@ -18,8 +18,9 @@ minutes: 2
 
 ## Open it
 
-1. Choose **Staff report** in the sidebar, or **Open staff report** on Home. It opens the week whose report is due.
-2. It is due when the unit reports are: Saturday 23:59 UTC, the end of the Saturday after the Cav week.
+1. Choose **Staff report** in the sidebar, or **Open staff report** on Home. It opens the week that just ended, the one whose report is due.
+2. You send it once the Cav week is over, from Saturday 00:00 UTC. It is due when the unit reports are: Saturday 23:59 UTC, the end of the Saturday after the Cav week.
+3. The running week opens read-only and says from when you can send it.
 
 ## Answer and pick the practices
 

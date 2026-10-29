@@ -31,6 +31,7 @@ use App\Repositories\SectionPracticeRepository;
 use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\UnitRepository;
 use App\Rollcall\RollcallGuests;
+use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -43,6 +44,8 @@ require_once __DIR__.'/../StaffPractices/fixture.php';
 beforeEach(function () {
     $this->tree = staffPracticeTree();
     $this->week = staffPracticeWeek();
+    // The Saturday after the fixture's week: it has ended and its report is due tonight.
+    Carbon::setTestNow(CarbonImmutable::parse('2026-10-10 12:00:00', 'UTC'));
     $units = app(UnitRepository::class);
     // A second platoon in the same company: outside the PSG's platoon, inside the CO's company.
     $this->platoon2 = $units->create(UnitType::Platoon, '2nd Platoon', '2/A/1-7', $this->tree['units']['company']->id);
@@ -207,11 +210,12 @@ it('refuses a trooper who files no staff report: a section trooper, a staff depa
     }],
 ]);
 
-it('refuses a week before the floor and a future week', function (string $week, string $reason) {
+it('refuses a week before the floor, a future week and the running week', function (string $week, string $reason) {
     expect(staffReportRefusal(fn () => sendStaffReport($this->tree['users']['psg'], $this->psg, false, [], CarbonImmutable::parse($week, 'UTC'))))->toBe($reason);
 })->with([
     'before the floor' => ['2026-05-02', 'before_floor'],
-    'next week' => ['2026-10-10', 'future'],
+    'the running week' => ['2026-10-10', 'not_ended'],
+    'next week' => ['2026-10-17', 'future'],
 ]);
 
 it('is final once sent: no second send, and the week\'s staff entries no longer change on the milpac', function () {

@@ -32,8 +32,8 @@ use Carbon\CarbonImmutable;
  * the same transaction, naming the entry and who had entered it. A guest row from before they joined the HQ is left as it is and still
  * counts as a practice they attended. Nothing is written on the host's rollcall, numbers, reports or makeups.
  *
- * Refused before anything is written: an unknown trooper, anyone but the staff member (403), a week before the floor or
- * in the future, a trooper not on a platoon or company HQ when the week ended (by the placement history, so a past week
+ * Refused before anything is written: an unknown trooper, anyone but the staff member (403), a week before the floor,
+ * in the future or still running (a week is sent once it has ended), a trooper not on a platoon or company HQ when the week ended (by the placement history, so a past week
  * goes by who was on the HQ then) or no longer serving, "Yes" with nothing picked or "No" with picks, a pick that is not
  * a section, and a report already sent. Then one audited transaction (`staff_report.sent`, AD-16, target the report,
  * digest over it and the week's entries): the report row is inserted under its UNIQUE key, so two sends at once land on
@@ -76,6 +76,11 @@ class SendStaffReportHandler
 
         if ($weekStart->greaterThan(WeekOf::start(CarbonImmutable::now()))) {
             throw StaffReportRefusedException::future();
+        }
+
+        // A week is reported once it is over, so the HQ it goes to is the one they ended it on.
+        if (! WeekOf::hasEnded($weekStart, CarbonImmutable::now())) {
+            throw StaffReportRefusedException::weekNotEnded($weekStart);
         }
 
         $hq = $this->access->owes($trooper, $weekStart) ?? throw StaffReportRefusedException::notOwed($trooper->display_name, $weekStart);

@@ -26,7 +26,8 @@ use Inertia\Response;
 /**
  * The weekly staff report: a platoon or company HQ staff member says whether they attended a
  * section practice that week, and which. One page per staff member and week. `/staff-report` opens the viewer's own for
- * the week whose report cycle is running. Orchestration only: the send is one audited Command whose handler decides who
+ * the last week to have ended, the one whose report is due: a week is sent only once it is over. The running week reads
+ * as not sendable yet. Orchestration only: the send is one audited Command whose handler decides who
  * may ({@see StaffReportAccess}: the staff member alone) and which week; a view-as preview is refused before it gets
  * here (`ReadOnlyWhileViewingAs`).
  *
@@ -44,14 +45,14 @@ class StaffReportController extends Controller
         private readonly Headcount $headcount,
     ) {}
 
-    /** The viewer's own staff report for the week whose report cycle is running. */
+    /** The viewer's own staff report for the last week to have ended: the one due. */
     public function own(Request $request): RedirectResponse
     {
         $trooper = $this->access->ownTrooper($request->user()) ?? abort(404);
 
         return redirect()->route('staff-report.show', [
             'trooper' => $trooper->id,
-            'week' => WeekOf::reporting(CarbonImmutable::now())->toDateString(),
+            'week' => WeekOf::lastEnded(CarbonImmutable::now())->toDateString(),
         ]);
     }
 
@@ -69,7 +70,8 @@ class StaffReportController extends Controller
 
         $report = $this->week->report($trooper, $weekStart);
         $beforeFloor = WeekOf::isBeforeFloor($weekStart);
-        $canSend = $self && $report === null && $hq !== null && $trooper->status->isServing() && ! $beforeFloor
+        $ended = WeekOf::hasEnded($weekStart, CarbonImmutable::now());
+        $canSend = $self && $report === null && $hq !== null && $trooper->status->isServing() && ! $beforeFloor && $ended
             && $this->access->maySend($user, $trooper);
         $current = WeekOf::start(CarbonImmutable::now());
 
@@ -86,6 +88,9 @@ class StaffReportController extends Controller
                 'previous' => $weekStart->subWeek()->toDateString(),
                 'next' => $weekStart->addWeek()->lessThanOrEqualTo($current) ? $weekStart->addWeek()->toDateString() : null,
                 'beforeFloor' => $beforeFloor,
+                // A running week is sent from the Saturday it ends.
+                'ended' => $ended,
+                'opensAt' => WeekOf::next($weekStart)->toIso8601String(),
             ],
             'report' => $report === null ? null : $this->withOwn($report, $hq),
             'canSend' => $canSend,

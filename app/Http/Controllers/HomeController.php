@@ -99,7 +99,7 @@ class HomeController extends Controller
             'kpis' => $roots->isEmpty() ? null : $this->kpiProps($attendance, $roots, $scope, $weekStart),
             'attention' => $roots->isEmpty() ? null : $this->attentionProps($attendance, $chains, $scope, $weekStart),
             'steps' => $this->stepProps($scope, $weekStart, $reports, $sent),
-            'staffReport' => $this->staffReportProps($request, $weekStart),
+            'staffReport' => $this->staffReportProps($request),
             'units' => $chains->flatMap(function (ChainNode $chain, int $i) use ($attendance, $paths, $weekStart) {
                 $rows = $attendance[$i];
 
@@ -112,13 +112,21 @@ class HomeController extends Controller
     }
 
     /**
-     * The viewer's own staff report for the week, while they owe one and have not sent it: a
-     * platoon or company HQ staff member signed in as themselves. Null otherwise, so Home shows nothing for it.
+     * The viewer's own staff report for the week that just ended, from the Saturday it ends until its deadline, while
+     * they owe one and have not sent it: a platoon or company HQ staff member signed in as themselves. Null otherwise
+     * (and through the running week, which is sent once it ends), so Home shows nothing for it.
      *
      * @return array{week: string, due: string, href: string}|null
      */
-    private function staffReportProps(Request $request, CarbonImmutable $weekStart): ?array
+    private function staffReportProps(Request $request): ?array
     {
+        $now = CarbonImmutable::now();
+        $weekStart = WeekOf::lastEnded($now);
+
+        if ($now->greaterThan(WeekOf::reportDue($weekStart))) {
+            return null;
+        }
+
         $trooper = $this->staffReports->ownTrooper($request->user());
 
         if ($trooper === null || $this->staffReports->owes($trooper, $weekStart) === null || $this->sentStaffReports->find($trooper->id, $weekStart) !== null) {
