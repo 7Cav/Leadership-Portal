@@ -5,6 +5,7 @@ namespace App\Commands\StaffPractices;
 use App\Authorization\StaffPracticeAccess;
 use App\Models\Trooper;
 use App\Models\UnitType;
+use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use App\Support\Time\WeekOf;
@@ -13,8 +14,8 @@ use Carbon\CarbonImmutable;
 /**
  * The gates both staff practice Commands share (#448): the host must be a section (any section of the regiment, not
  * only one in the actor's scope: staff attend practices across the regiment), and the week must be neither before
- * `WeekOf::floor()` nor in the future. The lock is the staff member's own unit's: a week whose report that unit sent is
- * frozen, as a section's is (AD-12). Only an HQ node sends a weekly report; a staff department has none, so its weeks
+ * `WeekOf::floor()` nor in the future. The lock is the staff member's own unit's in that week: a week whose report the
+ * unit they were placed in then sent is frozen, as a section's is (AD-12). Only an HQ node sends a weekly report; a staff department has none, so its weeks
  * stay open.
  */
 trait GuardsStaffPractice
@@ -40,15 +41,19 @@ trait GuardsStaffPractice
     }
 
     /**
-     * Refused once the trooper's own unit sent its report for the week. Called inside the audited transaction, where
-     * `isSentFor()` holds the report row's shared lock, so a send and this write never interleave.
+     * Refused once a unit the trooper was placed in during that week sent its report for it (audit L3): the unit whose
+     * report froze the week, not the one they are in now, so a move afterwards neither opens a frozen week nor freezes
+     * an open one. A week spent in two units (a move mid-week) is locked by either. Called inside the audited
+     * transaction, where `isSentFor()` holds each report row's shared lock, so a send and this write never interleave.
      *
      * @throws StaffPracticeRefusedException
      */
-    private function refuseLockedWeek(WeeklyReportRepository $reports, Trooper $trooper, CarbonImmutable $weekStart): void
+    private function refuseLockedWeek(WeeklyReportRepository $reports, TrooperPlacementRepository $placements, Trooper $trooper, CarbonImmutable $weekStart): void
     {
-        if ($trooper->primary_section_id !== null && $reports->isSentFor($trooper->primary_section_id, $weekStart)) {
-            throw StaffPracticeRefusedException::locked($weekStart);
+        foreach ($placements->unitIdsOfTrooperInWeek($trooper, $weekStart) as $unitId) {
+            if ($reports->isSentFor($unitId, $weekStart)) {
+                throw StaffPracticeRefusedException::locked($weekStart);
+            }
         }
     }
 

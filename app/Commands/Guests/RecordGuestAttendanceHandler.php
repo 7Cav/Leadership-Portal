@@ -24,7 +24,8 @@ use App\Support\Audit\AuditEnvelope;
  *
  * Refused before anything is written: a host section outside the actor's write scope (AD-8, 403), a unit that is not a
  * section, a week before `WeekOf::floor()`, a trooper who is unknown, not serving, unplaced or in the host section
- * itself ({@see GuardsHostPractice}), and a trooper already recorded at this practice by the capture or as staff. Then one audited
+ * itself ({@see GuardsHostPractice}), and a trooper already recorded at this practice by the capture or as staff (a
+ * staff entry from before they moved into a section is named as one, since it shows on their milpac page, not here). Then one audited
  * transaction (`guest.recorded`, AD-16, target the host practice, digest over the new entry): a host week whose report
  * was really sent is refused first, under the report's shared lock (AD-12, `RollcallWeekLockedException`, as every
  * rollcall write); the host practice is found or created and, under its row lock, refused when its leader confirmed it
@@ -83,7 +84,7 @@ class RecordGuestAttendanceHandler
         $listed = $existing === null ? null : $this->sightings->find($existing->id, $trooper->id);
 
         if ($listed !== null && ! $listed->isManual()) {
-            throw GuestAttendanceRefusedException::alreadyListed($trooper->display_name);
+            throw $this->alreadyHeld($listed, $trooper->display_name);
         }
 
         // Listed by hand already: retry the makeup, which may have failed after the entry was saved.
@@ -117,13 +118,24 @@ class RecordGuestAttendanceHandler
                 $this->refuseNonGuest($this->troopers->find($trooper->id), $command->sectionId, $this->units);
 
                 $sighting = $this->sightings->recordManual($practice, $trooper->id, $actor->id, $this->acting->adminActingAs($actor->id), $this->acting->billetOf($actor->id))
-                    ?? throw GuestAttendanceRefusedException::alreadyListed($trooper->display_name);
+                    ?? throw $this->alreadyHeld($this->sightings->find($practice->id, $trooper->id), $trooper->display_name);
 
                 return new AuditedBatch($practice, $sighting);
             },
         );
 
         return $this->withMakeup($sighting, $practice, $trooper->id, $actor->id);
+    }
+
+    /**
+     * The refusal for a practice that already holds a row for the trooper, naming what holds it (audit L2): a guest
+     * entry, or a staff entry from before they moved into a section, which shows on their milpac page instead.
+     */
+    private function alreadyHeld(?CrossSectionSighting $held, string $name): GuestAttendanceRefusedException
+    {
+        return $held?->isStaff() === true
+            ? GuestAttendanceRefusedException::listedAsStaff($name)
+            : GuestAttendanceRefusedException::alreadyListed($name);
     }
 
     /** The automatic makeup on the guest's own rollcall, through the capture's own path, and what became of it. */

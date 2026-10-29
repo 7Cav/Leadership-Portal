@@ -65,6 +65,34 @@ class Eloquent implements TrooperPlacementRepository
             ->get();
     }
 
+    public function unitIdsOfTrooperInWeek(Trooper $trooper, CarbonInterface $weekStart): array
+    {
+        $week = WeekOf::requireStart($weekStart);
+        $end = $week->addWeek();
+        $current = $trooper->primary_section_id;
+        $rows = TrooperPlacement::query()
+            ->where('trooper_id', $trooper->id)
+            ->orderByRaw('placed_from is not null')
+            ->orderBy('placed_from')
+            ->orderBy('id')
+            ->get(['unit_id', 'placed_from', 'placed_until']);
+        $open = $rows->first(fn (TrooperPlacement $row) => $row->placed_until === null);
+
+        if ($open === null || $current === null || (int) $open->unit_id !== $current) {
+            return $current === null ? [] : [$current];
+        }
+
+        return $rows
+            ->filter(fn (TrooperPlacement $row) => $row->unit_id !== null
+                && ($row->placed_from === null || CarbonImmutable::instance($row->placed_from)->lessThan($end))
+                && ($row->placed_until === null || CarbonImmutable::instance($row->placed_until)->greaterThan($week)))
+            ->pluck('unit_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
     public function leftUnitBetween(int $unitId, array $trooperIds, CarbonInterface $from, CarbonInterface $until): array
     {
         if ($trooperIds === []) {

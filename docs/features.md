@@ -321,7 +321,10 @@ Reservists and New Recruits are groups but not staff. On a staff member's milpac
 lists the section practices they attended, newest week first; the roster's trooper sheet shows the same list, read only.
 
 - Add one: the section (any section of the regiment with troopers in it) and the Cav week (this week and up to 11 back, never before the
-  week floor; the server refuses an older week too). One entry per staff member per section per week. Who may is in
+  week floor; the server refuses an older week too). One entry per staff member per section per week. A practice holds
+  one entry per trooper of either kind, staff or guest: a trooper listed there as a guest before they moved to the
+  staff is told so, and a trooper with a staff entry who has since moved into a section cannot be added there as a
+  guest, with the refusal saying where the other entry is. Who may is in
   [permissions.md](permissions.md#staff-practices). Each entry says who entered it; one the staff member entered
   themselves reads "Self-reported by".
 - Game server: when a practice capture sees a staff member through a linked game identity, the practice is listed as
@@ -331,7 +334,9 @@ lists the section practices they attended, newest week first; the roster's troop
 - Remove one: the same people. A game server sighting cannot be removed by hand. An entry on a section that had no
   practice that week creates one; removing the last such entry removes it again when nothing else is on it (no mark,
   signature, guest, capture, or posted or confirmed rollcall), so it never keeps an Admin from deleting the section.
-- Lock: once the staff member's HQ has sent its weekly report for a week, that week's entries no longer change. A staff
+- Lock: once the HQ the staff member was placed on that week has sent its weekly report for it, that week's entries no
+  longer change. It goes by where they were placed that week (the placement history), not where they are now, so a
+  move afterwards neither opens nor locks a week; a week they spent in two units is locked by either. A staff
   department sends no weekly report, so its weeks stay open.
 - An entry never puts the staff member on the host section's rollcall or its guests, never counts in its numbers,
   reports or JSAM counts, and gives no makeup. Adding and removing are audited. The staff report does not show these
@@ -393,7 +398,10 @@ their own section's practice that Cav week.
   the same week, shown with an "auto" source dot. It never overwrites Present, Attached, LOA or any mark a leader set by
   hand, and is never written into a sent, confirmed or before-floor week, or for a trooper on leave. Adding a guest
   already added by hand tries the makeup again, so a makeup that failed after the guest was saved can be finished; the
-  guest is not listed twice.
+  guest is not listed twice. After a reload, the guest list says so on a hand-added guest whose makeup is missing and
+  offers "Retry makeup", which does the same. It is offered only while a retry could write it: not once their own week
+  is sent or confirmed, their own leader has marked them, they are on leave or no longer serve there, or an automatic
+  makeup is already on any section's practice that week.
 - Removing the guest takes the automatic makeup back, unless something else supports it or a leader has since changed
   or confirmed it. It is taken back from the section it was written to, even if the guest has moved section since.
 - A makeup counts for the trooper's SP. An automatic makeup alone does not make their own section's practice "held".

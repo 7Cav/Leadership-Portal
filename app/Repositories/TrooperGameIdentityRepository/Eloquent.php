@@ -20,6 +20,17 @@ class Eloquent implements TrooperGameIdentityRepository
             ->first();
     }
 
+    public function findByPlatformIds(Game $game, array $platformIds): Collection
+    {
+        $rows = new Collection;
+
+        foreach (array_chunk(array_values(array_unique($platformIds)), 500) as $chunk) {
+            $rows = $rows->concat(TrooperGameIdentity::query()->where('game_id', $game->id)->whereIn('platform_id', $chunk)->orderBy('id')->get());
+        }
+
+        return $rows;
+    }
+
     public function forTrooper(int $trooperId): Collection
     {
         return TrooperGameIdentity::query()->with('game')->where('trooper_id', $trooperId)->orderBy('id')->get();

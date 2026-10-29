@@ -37,6 +37,18 @@ interface TrooperPlacementRepository
     public function historyOf(int $trooperId): Collection;
 
     /**
+     * The units, of any type, one trooper was placed in at any moment of the Cav week starting `$weekStart` (audit
+     * L3): a placement row that overlaps the week, in the order they were placed there. Read as {@see sectionsByWeek()}
+     * reads it: a trooper with no history, or whose open row is not their current `primary_section_id`, is read as
+     * placed in their current unit (none when unplaced).
+     *
+     * @return list<int>
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function unitIdsOfTrooperInWeek(Trooper $trooper, CarbonInterface $weekStart): array;
+
+    /**
      * The sections each trooper was placed in during each Cav week from `$firstWeek` to `$lastWeek`, with their
      * current placement ({@see PlacementWeeks}). A week they were in no section (not placed yet, or on HQ staff or in
      * a group) is absent. A trooper placed nowhere now is left out.
