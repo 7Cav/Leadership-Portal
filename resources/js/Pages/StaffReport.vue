@@ -9,12 +9,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { forumDate } from '@/lib/forumDate';
 import { onHttpException } from '@/lib/httpError';
 import { stamp } from '@/lib/report';
+import { sheetText } from '@/lib/staffReport';
 
-// A platoon or company HQ staff member's own weekly staff report: whether they attended a section
-// practice this week, and which. The server says who may send it (the staff member alone, signed in as themselves),
+// A platoon, company or battalion HQ staff member's own weekly staff report: whether they attended a section
+// practice or an FTX this week, and which, with the other events they attended and their notes. The server says who may send it (the staff member alone, signed in as themselves),
 // which sections the picker offers, which entries are already there and what the game server saw; this page only
 // draws its answers and posts the picks. Once sent it is final and reads back as sent.
 const props = defineProps({
@@ -22,12 +24,15 @@ const props = defineProps({
     trooper: { type: Object, required: true },
     // Whether the viewer is the staff member themselves.
     self: { type: Boolean, default: false },
-    // The platoon or company HQ they were on when the week ended, `{ id, label, type }`, or null: no report that week.
+    // The platoon, company or battalion HQ they were on when the week ended, `{ id, label, type }`, or null: no report that week.
     hq: { type: Object, default: null },
     // `{ date, start, due, overdueUntil, previous, next, beforeFloor, ended, opensAt }`.
     week: { type: Object, required: true },
-    // The report as sent, `{ sentAt, attended, practices: [{ sectionId, section, own }] }`, or null.
+    // The report as sent, `{ sentAt, attended, practiceType, ftx: { name, date }, otherEvents, notes, sheetPushedAt,
+    // practices: [{ sectionId, section, own }] }`, or null.
     report: { type: Object, default: null },
+    // Whether the reports Google Sheet is set up: only then is a report not yet copied there called out.
+    sheetConfigured: { type: Boolean, default: false },
     canSend: { type: Boolean, default: false },
     // The week's staff practice entries already there, `[{ sectionId, section, enteredBy, selfReported }]`.
     entries: { type: Array, default: () => [] },
@@ -36,6 +41,8 @@ const props = defineProps({
     // `[{ id, label, own }]`, their own unit's sections first.
     sections: { type: Array, default: () => [] },
     maxPractices: { type: Number, default: 20 },
+    // `{ ftxName, otherEvents, notes }`: the most characters each takes.
+    limits: { type: Object, default: () => ({ ftxName: 120, otherEvents: 500, notes: 1000 }) },
 });
 
 const entered = computed(() => new Map(props.entries.map((entry) => [entry.sectionId, entry])));
@@ -44,7 +51,23 @@ const seenIds = computed(() => new Set(props.seen));
 const form = useForm({
     attended: props.entries.length ? true : null,
     section_ids: props.entries.map((entry) => entry.sectionId),
+    practice_type: 'sp',
+    ftx_name: '',
+    ftx_date: '',
+    other_events: '',
+    notes: '',
 });
+
+// The days an FTX can fall on: the Cav week, Saturday to Friday.
+const weekEnd = computed(() => {
+    const end = new Date(`${props.week.date}T00:00:00Z`);
+    end.setUTCDate(end.getUTCDate() + 6);
+
+    return end.toISOString().slice(0, 10);
+});
+const isFtx = computed(() => form.attended === true && form.practice_type === 'ftx');
+const ftxDateInWeek = computed(() => form.ftx_date >= props.week.date && form.ftx_date <= weekEnd.value);
+const sheetLine = computed(() => (props.report ? sheetText(props.report.sheetPushedAt, props.sheetConfigured) : null));
 
 const filter = ref('');
 const matching = computed(() => {
@@ -65,12 +88,29 @@ function toggle(id) {
 const canSubmit = computed(() => {
     if (form.processing || form.attended === null) return false;
 
-    return form.attended === false || (form.section_ids.length > 0 && form.section_ids.length <= props.maxPractices);
+    if (form.attended === false) return true;
+    if (form.section_ids.length > props.maxPractices) return false;
+    // An FTX needs its name and a date in the week; its sections are optional. An SP needs a section.
+    if (isFtx.value) return form.ftx_name.trim() !== '' && ftxDateInWeek.value;
+
+    return form.section_ids.length > 0;
 });
 
 function send() {
     if (!canSubmit.value) return;
-    form.transform((data) => ({ attended: data.attended, section_ids: data.attended ? data.section_ids : [] })).post(`/staff-report/${props.trooper.id}/${props.week.date}`, {
+    form.transform((data) => {
+        const ftx = data.attended && data.practice_type === 'ftx';
+
+        return {
+            attended: data.attended,
+            section_ids: data.attended ? data.section_ids : [],
+            practice_type: data.attended ? data.practice_type : null,
+            ftx_name: ftx ? data.ftx_name : null,
+            ftx_date: ftx ? data.ftx_date : null,
+            other_events: data.other_events,
+            notes: data.notes,
+        };
+    }).post(`/staff-report/${props.trooper.id}/${props.week.date}`, {
         preserveScroll: true,
         onSuccess: () => toast.success('Staff report sent'),
         onHttpException: onHttpException('The staff report was not sent', (message) => toast.error(message)),
@@ -122,7 +162,7 @@ function entryNote(id) {
 
         <Card v-if="!hq" class="py-10" data-testid="staff-report-none">
             <EmptyState :icon="PhUserCheck" title="No staff report for this week">
-                {{ self ? 'You were' : `${trooper.displayName} was` }} not on a platoon or company HQ when this week ended, so there is nothing to send.
+                {{ self ? 'You were' : `${trooper.displayName} was` }} not on a platoon, company or battalion HQ when this week ended, so there is nothing to send.
             </EmptyState>
         </Card>
 
@@ -131,11 +171,15 @@ function entryNote(id) {
             <div class="border-b border-border px-4 py-3">
                 <h2 class="text-sm font-semibold">Section practice this week</h2>
                 <p class="mt-0.5" data-testid="staff-report-answer">
-                    <template v-if="report.attended">
+                    <template v-if="report.attended && report.practiceType === 'ftx'">
+                        Attended an FTX, {{ report.ftx?.name }}<template v-if="report.ftx?.date"> on {{ forumDate(report.ftx.date) }}</template>.
+                    </template>
+                    <template v-else-if="report.attended">
                         Attended {{ report.practices.length }} {{ report.practices.length === 1 ? 'section practice' : 'section practices' }}.
                     </template>
                     <template v-else>Did not attend a section practice.</template>
                 </p>
+                <p v-if="sheetLine" class="mt-1 text-xs text-muted-foreground" data-testid="staff-report-sheet">{{ sheetLine }}</p>
             </div>
             <ul v-if="report.practices.length" class="divide-y divide-border" data-testid="staff-report-practices">
                 <li v-for="practice in report.practices" :key="practice.sectionId" class="flex items-center gap-2.5 px-4 py-2.5">
@@ -143,6 +187,16 @@ function entryNote(id) {
                     <Badge variant="outline" class="ml-auto font-normal">{{ practice.own ? 'Staff guest' : 'Guest' }}</Badge>
                 </li>
             </ul>
+            <dl v-if="report.otherEvents || report.notes" class="border-t border-border px-4 py-3">
+                <template v-if="report.otherEvents">
+                    <dt class="text-xs font-medium text-muted-foreground">Other events attended</dt>
+                    <dd class="mb-2 whitespace-pre-line" data-testid="staff-report-other-events">{{ report.otherEvents }}</dd>
+                </template>
+                <template v-if="report.notes">
+                    <dt class="text-xs font-medium text-muted-foreground">Notes</dt>
+                    <dd class="whitespace-pre-line" data-testid="staff-report-notes">{{ report.notes }}</dd>
+                </template>
+            </dl>
         </Card>
 
         <!-- Not sent, and this viewer may send it. -->
@@ -151,7 +205,7 @@ function entryNote(id) {
                 <fieldset class="border-b border-border px-4 py-3">
                     <legend class="text-sm font-semibold">Did you attend a section practice this week?</legend>
                     <p class="mt-0.5 text-xs text-muted-foreground">
-                        Platoon and company HQ staff attend at least one section practice a week, preferably in their own platoon or company.
+                        HQ staff attend at least one section practice a week, preferably in their own unit.
                     </p>
                     <div class="mt-2 flex gap-4">
                         <label class="inline-flex items-center gap-2">
@@ -164,8 +218,33 @@ function entryNote(id) {
                     <p v-if="form.errors.attended" class="mt-1 text-xs text-destructive" data-testid="error-attended">{{ form.errors.attended }}</p>
                 </fieldset>
 
+                <fieldset v-if="form.attended === true" class="border-b border-border px-4 py-3" data-testid="practice-type">
+                    <legend class="text-sm font-semibold">What type of practice?</legend>
+                    <div class="mt-2 flex gap-4">
+                        <label class="inline-flex items-center gap-2">
+                            <input v-model="form.practice_type" type="radio" name="practice_type" value="sp" class="size-4 accent-primary" data-testid="type-sp" />Section practice (SP)
+                        </label>
+                        <label class="inline-flex items-center gap-2">
+                            <input v-model="form.practice_type" type="radio" name="practice_type" value="ftx" class="size-4 accent-primary" data-testid="type-ftx" />FTX
+                        </label>
+                    </div>
+                    <p v-if="form.errors.practice_type" class="mt-1 text-xs text-destructive" data-testid="error-practice-type">{{ form.errors.practice_type }}</p>
+                    <div v-if="isFtx" class="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]" data-testid="ftx-fields">
+                        <label class="flex flex-col gap-1">
+                            <span class="text-xs font-medium">Name of the FTX</span>
+                            <Input v-model="form.ftx_name" :maxlength="limits.ftxName" autocomplete="off" data-testid="ftx-name" />
+                            <span v-if="form.errors.ftx_name" class="text-xs text-destructive" data-testid="error-ftx-name">{{ form.errors.ftx_name }}</span>
+                        </label>
+                        <label class="flex flex-col gap-1">
+                            <span class="text-xs font-medium">Date of the FTX</span>
+                            <Input v-model="form.ftx_date" type="date" :min="week.date" :max="weekEnd" data-testid="ftx-date" />
+                            <span v-if="form.errors.ftx_date" class="text-xs text-destructive" data-testid="error-ftx-date">{{ form.errors.ftx_date }}</span>
+                        </label>
+                    </div>
+                </fieldset>
+
                 <fieldset v-if="form.attended === true" class="border-b border-border px-4 py-3" data-testid="practice-picker">
-                    <legend class="text-sm font-semibold">Which practices did you attend?</legend>
+                    <legend class="text-sm font-semibold">{{ isFtx ? 'Which sections took part? (optional)' : 'Which practices did you attend?' }}</legend>
                     <p class="mt-0.5 text-xs text-muted-foreground">
                         A practice in your own unit lists you on that section's roll call as a staff guest, anywhere else as a guest.
                         Neither counts in that section's numbers.
@@ -203,6 +282,19 @@ function entryNote(id) {
                     </p>
                     <p v-if="form.errors.section_ids" class="mt-1 text-xs text-destructive" data-testid="error-sections">{{ form.errors.section_ids }}</p>
                 </fieldset>
+
+                <div class="flex flex-col gap-3 border-b border-border px-4 py-3">
+                    <label class="flex flex-col gap-1">
+                        <span class="text-sm font-semibold">What other events did you attend? (optional)</span>
+                        <Textarea v-model="form.other_events" :maxlength="limits.otherEvents" rows="2" data-testid="other-events" />
+                        <span v-if="form.errors.other_events" class="text-xs text-destructive" data-testid="error-other-events">{{ form.errors.other_events }}</span>
+                    </label>
+                    <label class="flex flex-col gap-1">
+                        <span class="text-sm font-semibold">Notes (optional)</span>
+                        <Textarea v-model="form.notes" :maxlength="limits.notes" rows="3" data-testid="notes" />
+                        <span v-if="form.errors.notes" class="text-xs text-destructive" data-testid="error-notes">{{ form.errors.notes }}</span>
+                    </label>
+                </div>
 
                 <div class="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
                     <Button type="submit" :disabled="!canSubmit" data-testid="staff-report-send">Send staff report</Button>

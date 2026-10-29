@@ -34,7 +34,7 @@ class StaffReportWeek
      * The sent report, shaped for the page, or null while it is not sent. Each practice says whether it was in the
      * staff member's own unit (`own`), which the host's rollcall lists as a staff guest.
      *
-     * @return array{sentAt: string, attended: bool, practices: list<array{sectionId: int, section: ?string}>}|null
+     * @return array<string, mixed>|null
      */
     public function report(Trooper $trooper, CarbonImmutable $weekStart): ?array
     {
@@ -44,18 +44,45 @@ class StaffReportWeek
     }
 
     /**
-     * @return array{sentAt: string, attended: bool, practices: list<array{sectionId: int, section: ?string}>}
+     * The report as sent. `practiceType` is `sp` or `ftx` (a report sent before the type was asked reads as an SP when
+     * they attended); `ftx` holds the FTX's name and date; `sheetPushedAt` is when the row went to the reports sheet.
+     *
+     * @return array{sentAt: string, attended: bool, practiceType: ?string, ftx: ?array{name: ?string, date: ?string}, otherEvents: ?string, notes: ?string, sheetPushedAt: ?string, practices: list<array{sectionId: int, section: ?string}>}
      */
     public static function reportProps(StaffReport $report): array
     {
+        $type = $report->practice_type ?? ($report->attended ? StaffReport::SP : null);
+
         return [
             'sentAt' => $report->sent_at->toIso8601String(),
             'attended' => $report->attended,
+            'practiceType' => $type,
+            'ftx' => $type === StaffReport::FTX ? ['name' => $report->ftx_name, 'date' => $report->ftx_date?->toDateString()] : null,
+            'otherEvents' => $report->other_events,
+            'notes' => $report->notes,
+            'sheetPushedAt' => $report->sheet_pushed_at?->toIso8601String(),
             'practices' => array_map(fn (array $row) => [
                 'sectionId' => (int) $row['section_id'],
                 'section' => $row['section'] ?? null,
             ], $report->practices ?? []),
         ];
+    }
+
+    /** The trooper's sent report row for the week, or null. */
+    public function find(Trooper $trooper, CarbonImmutable $weekStart): ?StaffReport
+    {
+        return $this->reports->find($trooper->id, $weekStart);
+    }
+
+    /**
+     * Whether a sent report keeps to the rule of one section practice a week: "Yes" with a practice picked, or "Yes"
+     * to an FTX, whose sections are optional.
+     *
+     * @param  array{attended: bool, practiceType: ?string, practices: list<mixed>}  $props  from {@see reportProps()}
+     */
+    public static function metRule(array $props): bool
+    {
+        return $props['attended'] && ($props['practices'] !== [] || $props['practiceType'] === StaffReport::FTX);
     }
 
     /**

@@ -7,16 +7,20 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { forumDate } from '@/lib/forumDate';
 import { stamp } from '@/lib/report';
+import { attendedText, sheetText } from '@/lib/staffReport';
 
-// The staff reports overview: every platoon and company HQ staff member whose staff report the viewer reads, for one
+// The staff reports overview: every platoon, company and battalion HQ staff member whose staff report the viewer reads, for one
 // Cav week, grouped by HQ down the tree. The server says who is listed and each one's status; this page only draws it.
 defineProps({
     // `{ date, start, due, previous, next, ended }`.
     week: { type: Object, required: true },
     // The viewer's own line when they file a report that week, else null. Same shape as a row.
     own: { type: Object, default: null },
-    // `[{ id, label, rows: [{ trooperId, name, billet, hq, status, attended, practices, metRule, href }] }]`.
+    // `[{ id, label, rows: [{ trooperId, name, billet, hq, status, attended, practiceType, ftx, practices, otherEvents,
+    // notes, sheetPushedAt, metRule, href }] }]`.
     groups: { type: Array, default: () => [] },
+    // Whether the reports Google Sheet is set up: only then is a sent report not yet copied there called out.
+    sheetConfigured: { type: Boolean, default: false },
 });
 
 const STATUS = {
@@ -26,13 +30,6 @@ const STATUS = {
 };
 
 const weekUrl = (date) => `/staff-reports?week=${date}`;
-
-function attendedText(row) {
-    if (row.attended === null) return '';
-    if (!row.attended) return 'No';
-
-    return `Yes: ${row.practices.join(', ')}`;
-}
 
 function ruleText(row) {
     if (row.metRule === null) return '';
@@ -106,7 +103,18 @@ function ruleText(row) {
                         <td class="px-4 py-2">
                             <Badge :variant="STATUS[row.status].variant">{{ STATUS[row.status].label }}</Badge>
                         </td>
-                        <td class="px-4 py-2">{{ attendedText(row) }}</td>
+                        <td class="px-4 py-2">
+                            <span data-testid="row-attended">{{ attendedText(row) }}</span>
+                            <p v-if="row.otherEvents" class="text-xs text-muted-foreground" data-testid="row-other-events">Other events: {{ row.otherEvents }}</p>
+                            <p v-if="row.notes" class="text-xs text-muted-foreground" data-testid="row-notes">Notes: {{ row.notes }}</p>
+                            <p
+                                v-if="row.status === 'sent' && sheetText(row.sheetPushedAt, sheetConfigured)"
+                                class="text-xs text-muted-foreground"
+                                data-testid="row-sheet"
+                            >
+                                {{ sheetText(row.sheetPushedAt, sheetConfigured) }}
+                            </p>
+                        </td>
                         <td class="px-4 py-2">{{ ruleText(row) }}</td>
                         <td class="px-4 py-2 text-right">
                             <Link :href="row.href" class="underline-offset-4 hover:underline">Open report</Link>

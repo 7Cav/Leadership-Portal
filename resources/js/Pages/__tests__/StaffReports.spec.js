@@ -55,4 +55,24 @@ describe('StaffReports', () => {
         expect(page.find('[data-testid="own-staff-report-send"]').attributes('href')).toBe('/staff-report/7/2026-10-03');
         expect(page.find('[data-testid="staff-reports-none"]').exists()).toBe(true);
     });
+
+    it('shows an FTX, other events, notes and the sheet marker on a row', () => {
+        const ftx = row({ practiceType: 'ftx', ftx: { name: 'Operation Anvil', date: '2026-10-05' }, practices: [], otherEvents: 'Range day', notes: 'Ran OPFOR.', sheetPushedAt: null });
+        const pushed = row({ trooperId: 8, practiceType: 'sp', sheetPushedAt: '2026-10-10T12:01:00+00:00' });
+        const page = mount(StaffReports, { props: { week: WEEK, sheetConfigured: true, groups: [{ id: 4, label: '1/A/1-7', rows: [ftx, pushed] }] } });
+
+        const first = page.find('[data-testid="staff-reports-row-7"]');
+        expect(first.find('[data-testid="row-attended"]').text()).toBe('Yes, FTX Operation Anvil (05Oct26)');
+        expect(first.find('[data-testid="row-other-events"]').text()).toBe('Other events: Range day');
+        expect(first.find('[data-testid="row-notes"]').text()).toBe('Notes: Ran OPFOR.');
+        expect(first.find('[data-testid="row-sheet"]').text()).toBe('Not sent to the sheet yet');
+        expect(page.find('[data-testid="staff-reports-row-8"] [data-testid="row-sheet"]').text()).toBe('Sent to the sheet');
+    });
+
+    it('says nothing about the sheet when none is set up', () => {
+        const page = mount(StaffReports, { props: { week: WEEK, groups: [{ id: 4, label: '1/A/1-7', rows: [row()] }] } });
+
+        expect(page.find('[data-testid="row-sheet"]').exists()).toBe(false);
+    });
 });
+

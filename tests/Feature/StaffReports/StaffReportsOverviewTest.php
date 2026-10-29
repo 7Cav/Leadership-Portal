@@ -57,7 +57,8 @@ it('shows battalion command the company and platoon HQs down the tree', function
 });
 
 it('shows an Admin every HQ', function () {
-    expect(array_keys(overviewRows($this->tree['users']['admin'])))->toBe(['A/1-7', '1/A/1-7', 'B/1-7', '1/B/1-7']);
+    // The battalion HQ too, where battalion command sits.
+    expect(array_keys(overviewRows($this->tree['users']['admin'])))->toBe(['1-7', 'A/1-7', '1/A/1-7', 'B/1-7', '1/B/1-7']);
 });
 
 it('answers 404 to a PL, a PSG and a section leader, who read only their own', function (string $viewer) {
@@ -81,6 +82,11 @@ it('opens on the last ended week, with sent, not sent and the 1-practice rule', 
             'status' => 'sent',
             'attended' => true,
             'practices' => ['1/1/A/1-7'],
+            'practiceType' => 'sp',
+            'ftx' => null,
+            'otherEvents' => null,
+            'notes' => null,
+            'sheetPushedAt' => null,
             'metRule' => true,
             'href' => route('staff-report.show', ['trooper' => $this->psg->id, 'week' => '2026-10-03']),
         ] && collect($rows)->firstWhere('trooperId', overviewTrooperOf($this->tree['users']['pl'])->id)['status'] === 'notSent'));
@@ -100,7 +106,7 @@ it('reads the running week as not due, and 404s a week that is not a Cav week or
 it('puts the reader\'s own report on top with a link to send it, and not again in their HQ\'s rows', function () {
     $co = overviewTrooperOf($this->tree['users']['co']);
 
-    $this->actingAs($this->battalionCo)->get('/staff-reports')->assertInertia(fn (AssertableInertia $page) => $page->where('own', null));
+    $this->actingAs($this->tree['users']['admin'])->get('/staff-reports')->assertInertia(fn (AssertableInertia $page) => $page->where('own', null));
     $this->actingAs($this->tree['users']['co'])->get('/staff-reports')->assertInertia(fn (AssertableInertia $page) => $page
         ->where('own.trooperId', $co->id)
         ->where('own.status', 'notSent')

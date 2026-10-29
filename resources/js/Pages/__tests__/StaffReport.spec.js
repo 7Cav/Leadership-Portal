@@ -23,7 +23,20 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => {
 
                 return form;
             };
-            form.post = (url, options) => posted(url, transform({ attended: form.attended, section_ids: [...form.section_ids] }), options);
+            form.post = (url, options) =>
+                posted(
+                    url,
+                    transform({
+                        attended: form.attended,
+                        section_ids: [...form.section_ids],
+                        practice_type: form.practice_type,
+                        ftx_name: form.ftx_name,
+                        ftx_date: form.ftx_date,
+                        other_events: form.other_events,
+                        notes: form.notes,
+                    }),
+                    options,
+                );
 
             return form;
         },
@@ -78,7 +91,7 @@ describe('StaffReport page', () => {
         await wrapper.find('[data-testid="section-9"]').trigger('change');
         await wrapper.find('form').trigger('submit');
 
-        expect(posted).toHaveBeenCalledWith('/staff-report/7/2026-10-03', { attended: true, section_ids: [4, 9] }, expect.any(Object));
+        expect(posted).toHaveBeenCalledWith('/staff-report/7/2026-10-03', { attended: true, section_ids: [4, 9], practice_type: 'sp', ftx_name: null, ftx_date: null, other_events: '', notes: '' }, expect.any(Object));
     });
 
     it('posts "No" with no practices', async () => {
@@ -86,7 +99,7 @@ describe('StaffReport page', () => {
         await wrapper.find('[data-testid="attended-no"]').setValue(true);
         await wrapper.find('form').trigger('submit');
 
-        expect(posted).toHaveBeenCalledWith('/staff-report/7/2026-10-03', { attended: false, section_ids: [] }, expect.any(Object));
+        expect(posted).toHaveBeenCalledWith('/staff-report/7/2026-10-03', { attended: false, section_ids: [], practice_type: null, ftx_name: null, ftx_date: null, other_events: '', notes: '' }, expect.any(Object));
     });
 
     it('ticks the week\'s entries, says who entered them, and warns when one is left unticked', async () => {
@@ -159,6 +172,70 @@ describe('StaffReport page', () => {
     it('says when there is no report for the week', () => {
         const wrapper = page({ hq: null, canSend: false });
 
-        expect(wrapper.find('[data-testid="staff-report-none"]').text()).toContain('You were not on a platoon or company HQ when this week ended');
+        expect(wrapper.find('[data-testid="staff-report-none"]').text()).toContain('You were not on a platoon, company or battalion HQ when this week ended');
+    });
+
+    it('asks the type after Yes, SP to start with, and shows the FTX name and date only for an FTX', async () => {
+        const wrapper = page();
+        expect(wrapper.find('[data-testid="practice-type"]').exists()).toBe(false);
+
+        await wrapper.find('[data-testid="attended-yes"]').setValue(true);
+        expect(wrapper.find('[data-testid="type-sp"]').element.checked).toBe(true);
+        expect(wrapper.find('[data-testid="ftx-fields"]').exists()).toBe(false);
+
+        await wrapper.find('[data-testid="type-ftx"]').setValue('ftx');
+        expect(wrapper.find('[data-testid="ftx-fields"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="ftx-date"]').attributes('min')).toBe('2026-10-03');
+        expect(wrapper.find('[data-testid="ftx-date"]').attributes('max')).toBe('2026-10-09');
+        expect(wrapper.find('[data-testid="practice-picker"] legend').text()).toBe('Which sections took part? (optional)');
+
+        await wrapper.find('[data-testid="type-sp"]').setValue('sp');
+        expect(wrapper.find('[data-testid="ftx-fields"]').exists()).toBe(false);
+    });
+
+    it('sends an FTX with its name and a date in the week, without sections, and holds it back otherwise', async () => {
+        const wrapper = page();
+        const send = () => wrapper.find('[data-testid="staff-report-send"]');
+        await wrapper.find('[data-testid="attended-yes"]').setValue(true);
+        await wrapper.find('[data-testid="type-ftx"]').setValue('ftx');
+        expect(send().attributes('disabled')).toBeDefined();
+
+        await wrapper.find('[data-testid="ftx-name"]').setValue('Operation Anvil');
+        await wrapper.find('[data-testid="ftx-date"]').setValue('2026-10-10');
+        // The Saturday after is outside the week.
+        expect(send().attributes('disabled')).toBeDefined();
+
+        await wrapper.find('[data-testid="ftx-date"]').setValue('2026-10-05');
+        await wrapper.find('[data-testid="other-events"]').setValue('Range day');
+        await wrapper.find('[data-testid="notes"]').setValue('Ran OPFOR.');
+        expect(send().attributes('disabled')).toBeUndefined();
+        await wrapper.find('form').trigger('submit');
+
+        expect(posted).toHaveBeenCalledWith(
+            '/staff-report/7/2026-10-03',
+            { attended: true, section_ids: [], practice_type: 'ftx', ftx_name: 'Operation Anvil', ftx_date: '2026-10-05', other_events: 'Range day', notes: 'Ran OPFOR.' },
+            expect.any(Object),
+        );
+    });
+
+    it('reads a sent FTX back with its other events, notes and the sheet marker', () => {
+        const report = {
+            sentAt: '2026-10-10T12:00:00+00:00',
+            attended: true,
+            practiceType: 'ftx',
+            ftx: { name: 'Operation Anvil', date: '2026-10-05' },
+            otherEvents: 'Range day',
+            notes: 'Ran OPFOR.',
+            sheetPushedAt: null,
+            practices: [],
+        };
+        const wrapper = page({ canSend: false, report, sheetConfigured: true });
+
+        expect(wrapper.find('[data-testid="staff-report-answer"]').text()).toBe('Attended an FTX, Operation Anvil on 05Oct26.');
+        expect(wrapper.find('[data-testid="staff-report-other-events"]').text()).toBe('Range day');
+        expect(wrapper.find('[data-testid="staff-report-notes"]').text()).toBe('Ran OPFOR.');
+        expect(wrapper.find('[data-testid="staff-report-sheet"]').text()).toBe('Not sent to the sheet yet');
+        expect(page({ canSend: false, report: { ...report, sheetPushedAt: '2026-10-10T12:01:00+00:00' }, sheetConfigured: true }).find('[data-testid="staff-report-sheet"]').text()).toBe('Sent to the sheet');
+        expect(page({ canSend: false, report }).find('[data-testid="staff-report-sheet"]').exists()).toBe(false);
     });
 });

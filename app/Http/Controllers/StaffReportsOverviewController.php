@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Authorization\StaffReportAccess;
+use App\Commands\StaffReports\PushStaffReportToSheetHandler;
 use App\Milpac\StaffReportWeek;
 use App\Models\StaffReport;
 use App\Models\Trooper;
@@ -14,19 +15,22 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * The staff reports overview: for one Cav week, every platoon and company HQ staff member whose staff report the viewer
- * reads, grouped by HQ down the tree, with whether each sent theirs and attended a section practice. The viewer's own,
- * when they file one, sits on top. Read only: each row links to the staff member's report page.
+ * The staff reports overview: for one Cav week, every platoon, company and battalion HQ staff member whose staff report
+ * the viewer reads, grouped by HQ down the tree, with whether each sent theirs and attended a section practice, and
+ * what else they reported. The viewer's own, when they file one, sits on top. Read only: each row links to the staff
+ * member's report page.
  *
- * Who opens it: whoever reads some HQ's staff ({@see StaffReportAccess::readableHqs()}: command above a platoon or
- * company HQ, a staff grant or read scope there, Admins). Anyone else answers 404, like a page that does not exist
- * (AD-8): a PL or PSG reads only their own, from "Staff report". A view-as preview shows what its target would see.
+ * Who opens it: whoever reads some HQ's staff ({@see StaffReportAccess::readableHqs()}: command above a platoon,
+ * company or battalion HQ, a staff grant or read scope there, Admins; a battalion HQ is read from the regiment). Anyone
+ * else answers 404, like a page that does not exist (AD-8): a PL or PSG reads only their own, from "Staff report". A
+ * view-as preview shows what its target would see.
  */
 class StaffReportsOverviewController extends Controller
 {
     public function __construct(
         private readonly StaffReportAccess $access,
         private readonly StaffReportWeek $week,
+        private readonly PushStaffReportToSheetHandler $sheet,
     ) {}
 
     public function index(Request $request): Response
@@ -36,6 +40,7 @@ class StaffReportsOverviewController extends Controller
         abort_if($hqs->isEmpty(), 404);
 
         $now = CarbonImmutable::now();
+        $sheetConfigured = $this->sheet->sheetConfigured();
         $weekStart = $this->weekStart($request->query('week'), $now);
         $ended = WeekOf::hasEnded($weekStart, $now);
         $current = WeekOf::start($now);
@@ -66,6 +71,7 @@ class StaffReportsOverviewController extends Controller
                 'ended' => $ended,
             ],
             'own' => $this->ownRow($own, $weekStart, $ended),
+            'sheetConfigured' => $sheetConfigured,
             'groups' => $groups,
         ]);
     }
@@ -83,30 +89,22 @@ class StaffReportsOverviewController extends Controller
             return null;
         }
 
-        $report = $this->week->report($own, $weekStart);
-
-        return [
-            ...$this->row($own, null, $hq, $weekStart, $ended),
-            ...($report === null ? [] : [
-                'status' => 'sent',
-                'attended' => $report['attended'],
-                'practices' => array_map(fn (array $practice) => $practice['section'] ?? 'A section no longer in the portal', $report['practices']),
-                'metRule' => $report['attended'] && $report['practices'] !== [],
-            ]),
-        ];
+        return $this->row($own, $this->week->find($own, $weekStart), $hq, $weekStart, $ended);
     }
 
     /**
      * One staff member's line: `status` is `sent`, `notSent` or `notDue` (the running week, sent once it ends).
-     * `metRule` says whether they kept to at least one section practice that week, null while not sent.
+     * `metRule` says whether they kept to at least one section practice (or an FTX) that week, null while not sent.
+     * `practiceType`, `ftx`, `otherEvents`, `notes` and `sheetPushedAt` are as sent ({@see StaffReportWeek::reportProps()}).
      *
-     * @return array{trooperId: int, name: string, billet: ?string, hq: string, status: string, attended: ?bool, practices: list<string>, metRule: ?bool, href: string}
+     * @return array<string, mixed>
      */
     private function row(Trooper $trooper, ?StaffReport $report, Unit $hq, CarbonImmutable $weekStart, bool $ended): array
     {
-        $practices = $report === null ? [] : array_map(
+        $props = $report === null ? null : StaffReportWeek::reportProps($report);
+        $practices = $props === null ? [] : array_map(
             fn (array $practice) => $practice['section'] ?? 'A section no longer in the portal',
-            StaffReportWeek::reportProps($report)['practices'],
+            $props['practices'],
         );
 
         return [
@@ -121,7 +119,12 @@ class StaffReportsOverviewController extends Controller
             },
             'attended' => $report?->attended,
             'practices' => $practices,
-            'metRule' => $report === null ? null : $report->attended && $practices !== [],
+            'practiceType' => $props['practiceType'] ?? null,
+            'ftx' => $props['ftx'] ?? null,
+            'otherEvents' => $props['otherEvents'] ?? null,
+            'notes' => $props['notes'] ?? null,
+            'sheetPushedAt' => $props['sheetPushedAt'] ?? null,
+            'metRule' => $props === null ? null : StaffReportWeek::metRule($props),
             'href' => route('staff-report.show', ['trooper' => $trooper->id, 'week' => $weekStart->toDateString()]),
         ];
     }

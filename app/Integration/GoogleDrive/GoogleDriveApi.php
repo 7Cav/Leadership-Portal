@@ -25,7 +25,8 @@ use Throwable;
  */
 class GoogleDriveApi
 {
-    public const SCOPE = 'https://www.googleapis.com/auth/drive';
+    /** Drive for the counseling copy, Sheets for the weekly staff report rows (the GoogleSheets seam). */
+    public const SCOPE = 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/spreadsheets';
 
     public const TOKEN_URL = GoogleOAuthConnector::BASE_URL.'/token';
 
@@ -73,8 +74,24 @@ class GoogleDriveApi
         return $id;
     }
 
-    private function accessToken(): string
+    /** Whether the service account's email and key are set: what the Sheets push needs, without the Drive folder. */
+    public function hasServiceAccount(): bool
     {
+        return $this->filled('service_account_email') && $this->filled('private_key');
+    }
+
+    /**
+     * A one-hour access token for the service account, for the Drive and Sheets scopes. Public for the Sheets seam
+     * beside this one, which shares the service account; nothing outside Integration ever sees a token.
+     *
+     * @throws GoogleDriveUnavailable
+     */
+    public function accessToken(): string
+    {
+        if (! $this->hasServiceAccount()) {
+            throw GoogleDriveUnavailable::misconfigured('GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL and GOOGLE_DRIVE_PRIVATE_KEY must both be set');
+        }
+
         $response = $this->send(new GoogleOAuthConnector, new RequestAccessTokenRequest($this->assertion()), 'token request');
         $token = $this->json($response)['access_token'] ?? null;
 
