@@ -38,6 +38,6 @@ class InvalidAdminBilletDecisionException extends DomainException
 
     public static function notAdminGroup(): self
     {
-        return new self('This billet is no longer in a group whose billets can make an Admin, so it cannot be approved.');
+        return new self('This billet no longer has a group or title that can make an Admin, so it cannot be approved.');
     }
 }

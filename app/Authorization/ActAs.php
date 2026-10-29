@@ -44,7 +44,7 @@ use Illuminate\Support\Collection;
  * reach through a leader can never exceed that leader's scope. They stop to be an Admin again. The session key's
  * `admin` is the real signed-in user, who for a leader is not an Admin.
  *
- * "Admin" here is always {@see ScopeResolver::isAdmin()}: the flag or an approved Regimental HQ or S6 HQ billet, so an
+ * "Admin" here is always {@see ScopeResolver::isAdmin()}: the flag or an approved Regimental HQ, S6 1IC or S6 2IC billet, so an
  * Admin by billet acts as anyone a flag Admin may, a leader can never act as one, and an Admin
  * acting as one gets that person's non-Admin view only, exactly as for a flag Admin.
  *

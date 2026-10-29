@@ -54,8 +54,8 @@ use Illuminate\Support\Facades\Log;
  * so every run makes `unit_command_mappings` exactly what Cav publishes — new billets added,
  * moved ones repointed, billets no longer listed as a command removed. Still idempotent.
  *
- * **Admin billets.** Every billet in a group `portal.admin_billet_groups` names
- * (`Regimental HQ`, `S6 HQ`) gets an `admin_billets` row, `pending` until an Admin approves it, and every billet that
+ * **Admin billets.** Every billet in a group `portal.admin_billet_groups` names, or titled as `portal.admin_billet_titles` names,
+ * (`Regimental HQ`; `S6 1IC`, `S6 2IC`) gets an `admin_billets` row, `pending` until an Admin approves it, and every billet that
  * has one is checked against the title and group Cav lists it under now, wherever that is: renamed or moved, it goes
  * back to pending and its holder stops being an Admin until an Admin confirms the new names. Moved out of those groups,
  * it can no longer be approved. The import never approves one.
@@ -432,8 +432,8 @@ class ImportOrgStructure
     }
 
     /**
-     * The title and group title of every billet Cav lists, `position id => [title, group title]`, split into those in a
-     * group whose billets may make an Admin ({@see AdminBillet::isAdminGroup()}) and all the others. First listing
+     * The title and group title of every billet Cav lists, `position id => [title, group title]`, split into those that
+     * may make an Admin ({@see AdminBillet::isAdminBillet()}) and all the others. First listing
      * wins, as in {@see plan()}. Pure, no DB access.
      *
      * @param  list<CavPositionGroup>  $groups
@@ -445,14 +445,12 @@ class ImportOrgStructure
         $other = [];
 
         foreach ($groups as $group) {
-            $isAdminGroup = AdminBillet::isAdminGroup($group->title);
-
             foreach ($group->positions as $position) {
                 if (isset($eligible[$position->id]) || isset($other[$position->id])) {
                     continue;
                 }
 
-                if ($isAdminGroup) {
+                if (AdminBillet::isAdminBillet($position->title, $group->title)) {
                     $eligible[$position->id] = [$position->title, $group->title];
                 } else {
                     $other[$position->id] = [$position->title, $group->title];

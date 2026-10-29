@@ -18,7 +18,7 @@ use Illuminate\Notifications\Notifiable;
  * SSO gives the forum no legitimate way to set it. It defaults to false at the DB
  * level and is only ever flipped through an explicit, audited path.
  *
- * The flag is not the only way to be an Admin: an approved Regimental HQ or S6 HQ billet makes its holder one too
+ * The flag is not the only way to be an Admin: an approved Regimental HQ, S6 1IC or S6 2IC billet makes its holder one too
  *. That is worked out by `ScopeResolver::isAdmin()` on every request and never stored
  * here: no save of this model ever writes it to `is_admin`.
  */

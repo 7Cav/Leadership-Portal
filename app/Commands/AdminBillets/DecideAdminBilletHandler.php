@@ -74,8 +74,8 @@ class DecideAdminBilletHandler
                         throw InvalidAdminBilletDecisionException::namesUnknown();
                     }
 
-                    // Moved out of the Admin billet groups: approving would confirm names that make nobody an Admin.
-                    if (! AdminBillet::isAdminGroup($billet->proposed_group_title)) {
+                    // Moved out of the Admin billet groups or renamed off the Admin titles: approving would confirm names that make nobody an Admin.
+                    if (! AdminBillet::isAdminBillet($billet->proposed_title, $billet->proposed_group_title)) {
                         throw InvalidAdminBilletDecisionException::notAdminGroup();
                     }
                 } elseif ($billet->status === AdminBilletStatus::Rejected) {

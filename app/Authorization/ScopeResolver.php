@@ -25,7 +25,7 @@ use Illuminate\Support\Collection;
  * Real authority is deny-by-default: it starts empty and only ever grows, from three sources —
  *
  *  - **Admin** short-circuits to the full tree: the `users.is_admin` flag (AD-7, never a grant), or an approved
- *    Admin billet in Regimental HQ or S6 HQ ({@see isAdmin()}). Every "is this user an Admin" question in
+ *    Admin billet (Regimental HQ, or S6 1IC and S6 2IC) ({@see isAdmin()}). Every "is this user an Admin" question in
  *    the portal is asked of {@see isAdmin()}, never of the flag alone.
  *  - **Roster-derived** (AD-7, Story 1.16) — the unit the user's synced primary Cav billet
  *    commands (`troopers.cav_position_id` → `unit_command_mappings`, written by the org import):
@@ -83,8 +83,8 @@ class ScopeResolver
      *  - the `users.is_admin` flag, a person's own, set and cleared only by the audited flag Command; or
      *  - **Admin by billet**: a serving trooper whose Cav position an Admin approved in `admin_billets`, while the
      *    billet's title and group are still the ones that were confirmed, that group is still one of
-     *    `portal.admin_billet_groups` (Regimental HQ, S6 HQ) and the trooper's own synced title is that title
-     *    ({@see AdminBillet::confirmsHolder()}). Where the trooper is placed does not matter: S6 HQ staff sit in the S6
+     *    `portal.admin_billet_groups` (Regimental HQ) or that title one of `portal.admin_billet_titles` (S6 1IC, S6 2IC), and the trooper's own synced title is that title
+     *    ({@see AdminBillet::confirmsHolder()}). Where the trooper is placed does not matter: the S6 1IC and 2IC sit in the S6
      *    department, not on the regiment. It belongs to the billet, not the person: out of the billet, no longer
      *    serving, or the billet renamed or moved (back to pending), and it is gone on the next request.
      *

@@ -237,13 +237,15 @@ it('lists every Regimental HQ billet as pending, approves none, and sends a rena
         ->and([$moved->status, $moved->proposed_group_title])->toBe([AdminBilletStatus::Pending, 'Support Attachment']);
 });
 
-it('lists every S6 HQ billet as pending too, placing its holders in the S6 department, and approves none', function () {
+it('lists the S6 1IC and S6 2IC in Support Attachment as pending, but none of the rest of that group, and approves none', function () {
     $groups = isgGroups();
     $groups['groups'][] = [
-        'groupId' => '991', 'groupTitle' => 'S6 HQ', 'groupDisplayOrder' => 991,
+        'groupId' => '991', 'groupTitle' => 'Support Attachment', 'groupDisplayOrder' => 991,
         'positions' => [
             ['positionTitle' => 'S6 1IC', 'positionId' => '9050', 'positionDisplayOrder' => 1, 'positionPossibleSecondary' => false],
-            ['positionTitle' => 'S6 Developer', 'positionId' => '9051', 'positionDisplayOrder' => 2, 'positionPossibleSecondary' => false],
+            ['positionTitle' => 'S6 2IC', 'positionId' => '9051', 'positionDisplayOrder' => 2, 'positionPossibleSecondary' => false],
+            ['positionTitle' => 'S1 1IC', 'positionId' => '9052', 'positionDisplayOrder' => 3, 'positionPossibleSecondary' => false],
+            ['positionTitle' => 'S6 Developer', 'positionId' => '9053', 'positionDisplayOrder' => 4, 'positionPossibleSecondary' => false],
         ],
     ];
     MockClient::destroyGlobal();
@@ -251,15 +253,17 @@ it('lists every S6 HQ billet as pending too, placing its holders in the S6 depar
     app(ImportOrgStructure::class)->handle(User::factory()->admin()->create());
 
     $rows = AdminBillet::query()->get()->keyBy('cav_position_id');
-    foreach ([9050 => 'S6 1IC', 9051 => 'S6 Developer'] as $positionId => $title) {
+    foreach ([9050 => 'S6 1IC', 9051 => 'S6 2IC'] as $positionId => $title) {
         expect([$rows->get($positionId)?->status, $rows->get($positionId)?->proposed_title, $rows->get($positionId)?->proposed_group_title, $rows->get($positionId)?->title])
-            ->toBe([AdminBilletStatus::Pending, $title, 'S6 HQ', null]);
+            ->toBe([AdminBilletStatus::Pending, $title, 'Support Attachment', null]);
     }
+
+    // The rest of Support Attachment (S1, other S6 staff) never gets a row.
+    expect($rows->has(9052))->toBeFalse()->and($rows->has(9053))->toBeFalse();
 
     // Placed in the S6 department, not on the regiment: Admin by billet does not depend on it.
     expect(isgPlacements()[9050])->toBe('group|S6')
-        ->and(isgPlacements()[9051])->toBe('group|S6')
-        // Regimental HQ is still listed; other groups' billets still are not.
+                // Regimental HQ is still listed; other groups' billets still are not.
         ->and($rows->get(9010)?->proposed_group_title)->toBe('Regimental HQ')
         ->and($rows->has(9020))->toBeFalse();
 });

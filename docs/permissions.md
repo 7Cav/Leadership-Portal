@@ -5,7 +5,7 @@
 - Who you are in the portal comes from your primary billet on the Cav roster, read fresh on every page load. A
   leadership billet gives you the unit it commands and everything under it. Nobody types in roles.
 - Admin comes from one of two places: the Admin flag on a portal user, set from the server console, or a Regimental HQ
-  or S6 HQ billet an existing Admin has approved (see [Admin by billet](#admin-by-billet)). Admins see and change everything, and
+  or S6 1IC or S6 2IC billet an existing Admin has approved (see [Admin by billet](#admin-by-billet)). Admins see and change everything, and
   are the only ones who can edit the org structure, staff grants and the regiment default roll call template, or read the
   audit log and the activity log.
 - A company's command (and the command above it) manages that company's own roll call templates, and a section's command
@@ -15,7 +15,7 @@
 - Regimental HQ staff (the Chief of Staff, the Adjutants General, the Finance Officer and any other billet in the
   `Regimental HQ` group) read the whole regiment, as a staff grant on the regiment would, while they are placed on the
   regiment and their billet is still in that group. No Admin has to give it.
-  Once an Admin approves their billet, they are Admins, for as long as they hold it. S6 HQ staff become Admins the same
+  Once an Admin approves their billet, they are Admins, for as long as they hold it. The S6 1IC and S6 2IC become Admins the same
   way.
 - A regimental staff officer an Admin names as a unit's overseer (on the Org structure page: an Adjutant General over a
   battalion, the RDC Commander over ACD, DEVCOM and the Reservists) reads that unit and everything under it, as a staff
@@ -32,7 +32,7 @@
 
 | Layer | Billets (exact titles on the Cav roster) | Unit commanded |
 | --- | --- | --- |
-| Admin | The `is_admin` flag, set with `php artisan portal:admin`, or an approved Regimental HQ or S6 HQ billet ([Admin by billet](#admin-by-billet)) | The whole tree |
+| Admin | The `is_admin` flag, set with `php artisan portal:admin`, or an approved Regimental HQ, S6 1IC or S6 2IC billet ([Admin by billet](#admin-by-billet)) | The whole tree |
 | Regiment command | `Regimental Commanding Officer`, `Regimental Executive Officer`, `Regimental Command Sergeant Major` in the `Regimental HQ` group | The regiment (the whole tree) |
 | Regimental staff portfolio officer | `Regimental Security Operations Officer` (SecOps), `Regimental Recruiting Oversight Officer`, `Regimental Information Management Officer` (IMO), `RDC Commander` | Their portfolio node and the staff groups under it |
 | Battalion command | `<bn> Commanding Officer`, `<bn> Executive Officer`, `<bn> Sergeant Major` in a `<bn> Command` group (ACD also: `Auxiliary Commander`, `Auxiliary Executive Officer`, `Auxiliary Sergeant Major`); `DEVCOM 1IC` and `DEVCOM 2IC` in any group | The battalion (DEVCOM for its 1IC and 2IC) |
@@ -44,7 +44,7 @@
 | Staff grant holder | Any billet, plus a grant on the Staff grants page | Read-only on the granted unit(s); write scope only from their own billet |
 | Overseer | Not a billet: an Admin names a serving trooper as the overseer of a battalion or the Reservists on the Org structure page | Read-only on that unit and everything under it, exactly like a staff grant; write scope only from their own billet |
 | Regimental HQ staff | Any billet the import places on the regiment: every billet in the `Regimental HQ` group (`Regimental Chief of Staff`, the Adjutants General, the Finance Officer, new ones Cav adds) | Admin once an Admin approves the billet; until then read-only on the whole regiment, with write scope only from their own billet |
-| S6 HQ staff | Any billet in the `S6 HQ` group (placed in the S6 department by its `S6` code) | Admin once an Admin approves the billet; until then what their billet in the S6 department gives them |
+| S6 1IC and S6 2IC | The `S6 1IC` and `S6 2IC` billets, by title, in Cav's `Support Attachment` group (placed in the S6 department by its `S6` code). The rest of that group (S1, S2, aides) is not Admin-eligible | Admin once an Admin approves the billet; until then what their billet in the S6 department gives them |
 
 Notes:
 
@@ -79,15 +79,15 @@ Notes:
 
 ### Admin by billet
 
-Every billet in the `Regimental HQ` and `S6 HQ` Cav groups can carry full Admin
-rights, tied to the billet, not the person. An existing Admin confirms each billet first. The groups are listed in
-`config/portal.php` (`admin_billet_groups`); changing that list changes who can be an Admin, so it goes through review
+Every billet in the `Regimental HQ` Cav group, and the `S6 1IC` and `S6 2IC` billets by title, can carry full Admin
+rights, tied to the billet, not the person. An existing Admin confirms each billet first. The group and titles are listed in
+`config/portal.php` (`admin_billet_groups`, `admin_billet_titles`); changing either list changes who can be an Admin, so it goes through review
 like code.
 
 - **Who.** A trooper is an Admin by billet while all of these hold: they serve (combat, reserve or ELOA roster), an
   Admin has approved their billet, the billet still has the title and the group that Admin confirmed, that group is
-  still one of the Admin billet groups, and the trooper's own synced billet title is that title. Where they are placed
-  does not matter: S6 HQ staff sit in the S6 department, and a Regimental HQ billet holder placed elsewhere counts too.
+  still one of the Admin billet groups or that title one of the Admin billet titles, and the trooper's own synced billet title is that title. Where they are placed
+  does not matter: the S6 1IC and 2IC sit in the S6 department, and a Regimental HQ billet holder placed elsewhere counts too.
   A billet can have more than one holder (two Adjutants General); each is an Admin.
 - **Confirmation.** The org import lists every billet in those groups under Settings, Staff grants, Admin billets, as
   waiting for an Admin. Nothing is ever approved on its own, and every billet starts out waiting. Any Admin, by flag or
@@ -351,7 +351,7 @@ view-as preview. A page for another trooper, or a week they file none for, answe
 
 ## How scope is worked out
 
-1. Admin: if your user has the Admin flag or an approved Admin billet (Regimental HQ or S6 HQ), your scope is the whole
+1. Admin: if your user has the Admin flag or an approved Admin billet (Regimental HQ, S6 1IC or S6 2IC), your scope is the whole
    tree. Stop here.
 2. Billet: the portal takes your linked milpac, reads your primary billet from the last roster sync and looks up which
    unit that billet commands. The Import from Cav roster step writes that billet to unit mapping (see
@@ -428,7 +428,7 @@ only sign out has none, since it ends the session and signing back in is limited
 | Billet to unit mapping rules | `app/Commands/Units/CommandBillet.php`, `StaffBillet.php` (portfolios), written by `ImportOrgStructure.php` into `unit_command_mappings` |
 | Acting leads | `unit_acting_leads`, `AssignActingLeadHandler`, `RemoveActingLeadHandler` |
 | Oversight (read only) | `unit_oversights`, `SetUnitOversightHandler`; read by `ScopeResolver::realScope()` and `realScopes()` |
-| Who is an Admin (flag or approved Regimental HQ or S6 HQ billet) | `ScopeResolver::isAdmin()` and `adminIdsAmong()`; the groups in `config/portal.php` (`admin_billet_groups`); billets in `admin_billets`, decided by `app/Commands/AdminBillets/DecideAdminBilletHandler.php`, names recorded by `ImportOrgStructure` and `SyncRosterHandler` |
+| Who is an Admin (flag or approved Regimental HQ, S6 1IC or S6 2IC billet) | `ScopeResolver::isAdmin()` and `adminIdsAmong()`; the group and titles in `config/portal.php` (`admin_billet_groups`, `admin_billet_titles`); billets in `admin_billets`, decided by `app/Commands/AdminBillets/DecideAdminBilletHandler.php`, names recorded by `ImportOrgStructure` and `SyncRosterHandler` |
 | Act as (who may act as whom, the picker, the command team order) | `app/Authorization/ActAs.php`, `app/Models/CommandRole.php` (`seniority()`) |
 | View as is read-only | `app/Http/Middleware/ReadOnlyWhileViewingAs.php` (every non-GET except `view-as.store`, `view-as.destroy`, `logout`) |
 | Sign-in and session standing | `app/Commands/Auth/AdmitServingMember.php`, `app/Authorization/ServingSession.php`, `EnsureServingMember` middleware |

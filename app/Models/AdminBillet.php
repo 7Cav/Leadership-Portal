@@ -7,7 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 
 /**
  * A billet whose holder may be an Admin, by Cav's stable position id: a billet in one of
- * the Cav groups `portal.admin_billet_groups` names (Regimental HQ and S6 HQ). An Admin confirms its title and group
+ * the Cav groups `portal.admin_billet_groups` names (Regimental HQ), or one whose title `portal.admin_billet_titles`
+ * names (S6 1IC, S6 2IC). An Admin confirms its title and group
  * (`title`, `group_title`); the org import and the roster sync record the names they see now (`proposed_*`) and put it
  * back to pending when those differ. Written only by `AdminBilletRepository`.
  */
@@ -29,7 +30,22 @@ class AdminBillet extends Model
         ];
     }
 
-    /** Whether a billet in the Cav group `$group` may make its holder an Admin (`portal.admin_billet_groups`). */
+    /**
+     * Whether a billet titled `$title` in the Cav group `$group` may make its holder an Admin: its group is in
+     * `portal.admin_billet_groups`, or its own title is in `portal.admin_billet_titles`.
+     */
+    public static function isAdminBillet(?string $title, ?string $group): bool
+    {
+        if (self::isAdminGroup($group)) {
+            return true;
+        }
+
+        $title = self::name($title);
+
+        return $title !== null && in_array($title, array_map(fn ($name) => trim((string) $name), (array) config('portal.admin_billet_titles', [])), true);
+    }
+
+    /** Whether every billet in the Cav group `$group` may make its holder an Admin (`portal.admin_billet_groups`). */
     public static function isAdminGroup(?string $group): bool
     {
         $group = self::name($group);
@@ -50,7 +66,7 @@ class AdminBillet extends Model
 
     /**
      * Whether a holder whose billet title is `$billet` is an Admin by this billet: approved, the names seen now are the
-     * ones confirmed, the confirmed group is still one that may make an Admin, and the holder's own synced title is that
+     * ones confirmed, the confirmed title or group is still one that may make an Admin, and the holder's own synced title is that
      * title too. The serving half of the rule is `ScopeResolver`'s; where the holder is placed does not matter.
      */
     public function confirmsHolder(?string $billet): bool
@@ -59,7 +75,7 @@ class AdminBillet extends Model
             && self::name($this->title) !== null
             && self::name($this->group_title) !== null
             && ! $this->renamed()
-            && self::isAdminGroup($this->group_title)
+            && self::isAdminBillet($this->title, $this->group_title)
             && self::name($billet) === self::name($this->title);
     }
 
