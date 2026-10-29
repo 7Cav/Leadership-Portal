@@ -15,7 +15,7 @@ use App\Repositories\TrooperRepository;
 use Carbon\CarbonImmutable;
 
 /**
- * What one staff member's week looks like on their staff report page and on their HQ's report (policy, 2026-10-29):
+ * What one staff member's week looks like on their staff report page and on their HQ's report:
  * the report as sent, the staff practice entries already there for the week (what the picker starts from), and the
  * practices the game server saw them at (shown as a hint, never ticked for them). Read only: who may see or send it is
  * the controller's to say, through `StaffReportAccess`.
@@ -98,7 +98,7 @@ class StaffReportWeek
     }
 
     /**
-     * The staff placed on `$hq` when the week ended, each with their sent report (or null), by display name: what the
+     * The staff placed on `$hq` when the week ended, each with their sent report (or null), by username: what the
      * HQ's weekly report shows about its staff.
      *
      * @return list<array{trooper: Trooper, report: ?StaffReport}>
@@ -110,7 +110,7 @@ class StaffReportWeek
 
         return $this->troopers->byIds($ids)
             ->filter(fn (Trooper $trooper) => $trooper->status->isServing())
-            ->sortBy(fn (Trooper $trooper) => mb_strtolower($trooper->display_name))
+            ->sortBy(fn (Trooper $trooper) => [mb_strtolower((string) $trooper->username), $trooper->id])
             ->map(fn (Trooper $trooper) => ['trooper' => $trooper, 'report' => $sent->get($trooper->id)])
             ->values()
             ->all();
