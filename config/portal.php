@@ -69,7 +69,7 @@ return [
     | Admin billet groups
     |--------------------------------------------------------------------------
     |
-    | The Cav position groups whose billets may make their holder an Admin (decided by the S6,
+    | The Cav position groups whose billets may make their holder an Admin (policy,
     | 2026-10-28). The org import lists every billet in these groups on Settings → Staff grants as
     | pending, and an existing Admin approves each one. A billet moved out of these groups stops
     | making anyone an Admin. Exact Cav group titles; a change here is a change to who may be an

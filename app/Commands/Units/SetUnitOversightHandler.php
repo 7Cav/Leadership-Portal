@@ -15,7 +15,7 @@ use App\Support\Audit\AuditEnvelope;
 use App\Support\Audit\ReasonRequiredException;
 
 /**
- * Set or clear who oversees a unit (decided by the S6, 2026-10-29): a regimental staff officer over a battalion or the
+ * Set or clear who oversees a unit (policy, 2026-10-29): a regimental staff officer over a battalion or the
  * Reservists, such as an Adjutant General over 2-7 or the RDC Commander over ACD. Cav's API does not carry it, so an
  * Admin enters it here (AD-22). ScopeResolver then gives the overseer read-only scope over the unit's subtree while they
  * serve, exactly like a staff grant, and never write.

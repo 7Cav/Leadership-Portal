@@ -36,7 +36,7 @@ use Inertia\Response;
  * a grant whose holder is no longer serving. Writes stage through
  * `GrantStaffScope`/`RevokeStaffScope` (AD-16).
  *
- * It also lists the Admin billets (decided by the S6, 2026-10-28): the approved ones, whose holders are Admins, and
+ * It also lists the Admin billets (policy, 2026-10-28): the approved ones, whose holders are Admins, and
  * below them the ones waiting for a decision or rejected, all decided through `DecideAdminBillet`. A small note under
  * the approved ones names the Regimental HQ staff who read the whole regiment from their placement.
  */
@@ -247,7 +247,7 @@ class StaffGrantsController extends Controller
         return redirect()->route('settings.staff-grants');
     }
 
-    /** Approve a billet as an Admin billet (decided by the S6, 2026-10-28). */
+    /** Approve a billet as an Admin billet (policy, 2026-10-28). */
     public function approveAdminBillet(Request $request, int $billet, DecideAdminBilletHandler $handler): RedirectResponse
     {
         return $this->decideAdminBillet($request, $billet, true, $handler);

@@ -77,7 +77,7 @@ final class StaffBillet
      *
      * The Chief of Staff, Finance Officer and Adjutants General have no portfolio for now; they are Regimental HQ staff
      * on the regiment. Commanding nothing, they still read the whole regiment: ScopeResolver gives every serving trooper
-     * placed on the regiment node read-only scope over it (decided by the S6, 2026-10-28). ACD stays a line battalion
+     * placed on the regiment node read-only scope over it (policy, 2026-10-28). ACD stays a line battalion
      * under the regiment: line units never move into this tree.
      */
     public const PORTFOLIOS = [
@@ -101,7 +101,7 @@ final class StaffBillet
     ];
 
     /**
-     * Line units a portfolio oversees, by callsign (decided by the S6, 2026-10-29; the wiki's Reserve & Development
+     * Line units a portfolio oversees, by callsign (policy, 2026-10-29; the wiki's Reserve & Development
      * Command page lists DEVCOM, ACD and the Reserve under RDC). The org page shows each as a reference row under the
      * portfolio in the staff card; the units stay in the line chain of command, nothing moves.
      */
@@ -110,7 +110,7 @@ final class StaffBillet
     ];
 
     /**
-     * Staff groups a line unit lists as its own, by callsign (decided by the S6, 2026-10-29): DEVCOM's staff, whose
+     * Staff groups a line unit lists as its own, by callsign (policy, 2026-10-29): DEVCOM's staff, whose
      * group sits under RDC. The org page shows it as a reference row under the line unit; the group does not move.
      */
     public const LINE_STAFF_GROUPS = [

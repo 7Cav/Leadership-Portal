@@ -469,12 +469,12 @@ describe('Settings/StaffGrants', () => {
 
             await open(wrapper, 'admin-billet-approve-21');
             expect(dialog().textContent).toContain('as an Admin billet?');
-            await typeReason('Confirmed with the S6');
+            await typeReason('Confirmed with Regiment');
             await confirmDialog();
 
             expect(postSpy).toHaveBeenCalledWith(
                 '/settings/staff-grants/admin-billets/21/approve',
-                { reason: 'Confirmed with the S6' },
+                { reason: 'Confirmed with Regiment' },
                 expect.objectContaining({ preserveScroll: true }),
             );
 

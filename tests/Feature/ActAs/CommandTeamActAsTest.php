@@ -15,7 +15,7 @@ use App\Repositories\UserRepository;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 
-// Decided by the S6 on 2026-10-28: inside a unit's command team a senior may act as everyone junior to them in that
+// Policy since 2026-10-28: inside a unit's command team a senior may act as everyone junior to them in that
 // team, at every echelon, by the roster's command team order (CO, XO, then the senior NCO; PL then PSG; SL then ASL).
 // Never upward, never a peer, never anyone in another unit's team. Each holder is placed in the unit their billet
 // commands, as the sync places them, so the junior's command covers the senior's placement.

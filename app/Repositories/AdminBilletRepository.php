@@ -7,7 +7,7 @@ use App\Models\AdminBilletStatus;
 use Illuminate\Support\Collection;
 
 /**
- * Sole DB access for the Regimental HQ and S6 HQ billets that make their holder an Admin (AD-2, decided by the S6,
+ * Sole DB access for the Regimental HQ and S6 HQ billets that make their holder an Admin (AD-2, policy,
  * 2026-10-28). Read by ScopeResolver's Admin rule and the Staff grants page; the names Cav shows are recorded by the org import and
  * the roster sync ({@see observe()}), and a decision only by the audited `DecideAdminBillet` Command.
  */

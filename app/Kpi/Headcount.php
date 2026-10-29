@@ -301,7 +301,7 @@ final class Headcount
     /**
      * Whether troopers placed in `$placed` count towards `$unit`: it is `$unit` or under it. The holding groups (New
      * Recruits, ELOA, Reservists) only count on their own group: the headcount above them is the active regiment,
-     * sections plus staff (decided by the S6, 2026-10-29), and those groups show their own numbers.
+     * sections plus staff (policy, 2026-10-29), and those groups show their own numbers.
      */
     public static function counts(Unit $placed, Unit $unit): bool
     {

@@ -9,7 +9,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\UnitRepository;
 
-// The org page after the S6's requests of 2026-10-29: empty line units are flagged (hidden by the page until asked for,
+// The org page after the 2026-10-29 policy: empty line units are flagged (hidden by the page until asked for,
 // #442's one definition), the staff tree and the line come as one list the page splits in two, ACD and DEVCOM show
 // again under RDC and DEVCOM's staff under DEVCOM, and each battalion and the Reservists carry their overseer.
 
