@@ -79,7 +79,8 @@ it('lets a platoon HQ staff member send their own report, keeping each practice 
         ->and($report->unit_id)->toBe($this->tree['units']['platoon']->id)
         ->and($report->week_start->toDateString())->toBe('2026-10-03')
         ->and($report->sent_by)->toBe($this->tree['users']['psg']->id)
-        ->and($report->practices)->toBe([
+        // MySQL keeps JSON object keys in its own order, so the keys are compared without their order.
+        ->and($report->practices)->toEqual([
             ['section_id' => $this->host->id, 'section' => '1/1/A/1-7'],
             ['section_id' => $this->far->id, 'section' => '1/2/A/1-7'],
         ]);
