@@ -19,7 +19,7 @@ audience: leader
 
 1. Open the menu under your name at the foot of the sidebar and choose **Act as**. The menu only offers it when there is someone below you.
 2. Find the person in **Billet holders below you** and choose them.
-3. Read what it means and choose **Act as them**. Home opens as they see it.
+3. Read what it means and choose **Act as them**. You stay on the page you were on, as they see it. If they cannot see it, the page says so.
 
 > [!good-to-know] Admins start from View as: preview a person or a unit, then choose **Act as them**, **Act as this billet** or, for someone who has never signed in, **Act as their billet** on the gold bar.
 
@@ -33,7 +33,7 @@ audience: leader
 
 ## Stop acting
 
-1. Choose **Stop acting** on the red bar. You are yourself again and Home opens.
+1. Choose **Stop acting** on the red bar. You are yourself again, on the same page.
 2. If the person stops qualifying while you act, for example they leave their billet or the Cav, act as ends on its own and you are yourself again.
 
 ## What act as cannot do
