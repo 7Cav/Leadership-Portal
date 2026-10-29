@@ -23,6 +23,7 @@ checklist:
 1. **Order of battle** lists the units and their troopers by billet.
 2. **Attendance matrix** shows each trooper's section practice mark for the last 20 Cav weeks. Weeks on leave are marked LOA.
 3. Filter by name, rank or billet with the box above the list.
+4. The trooper count under the unit's name, and **Strength** on each unit in the order of battle, are its headcount: everyone serving placed in the unit or under it, HQ staff and staff departments included. New Recruits, ELOA and Reservists count only on their own group. RC and SP are counted over the troopers in sections only, so the headcount never changes them.
 
 ## Open a trooper
 
