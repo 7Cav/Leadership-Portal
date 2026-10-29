@@ -23,7 +23,7 @@ page: /home
 ## Act on what needs attention
 
 1. **Needs attention** lists the units holding up the report chain, the troopers at risk and the LOA posts that need review, each with a link to fix it.
-2. For a trooper at risk, use the makeup link to send them a message about a makeup practice. With several at risk, **Send makeup PM to all** opens one forum conversation to all of them listed, up to 10. Everyone in it sees who else got it, so use it only when that is fine.
+2. For a trooper at risk, use the makeup link to send them a message about a makeup practice.
 3. An LOA post that needs review is one the leave sync could not read. Choose the trooper to mark them on your rollcall, or open the post on the forum and ask them to fix it. For the week it was posted and the week after, the portal neither counts them as on leave nor flags them at risk.
 
 ## Check the units under you

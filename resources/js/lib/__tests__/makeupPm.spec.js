@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GROUP_PM_LIMIT, groupMakeupPmUrl, makeupPmTitle, makeupPmUrl } from '../makeupPm';
+import { makeupPmTitle, makeupPmUrl } from '../makeupPm';
 
 // The makeup PM is only a link to the forum's own "Start conversation" form (XenForo `conversations/add`),
 // pre-filled with the recipient and a title. The portal never sends anything to the forum.
@@ -54,29 +54,5 @@ describe('makeupPmUrl', () => {
         expect(makeupPmUrl('', 'A.B', [])).toBeNull();
         expect(makeupPmUrl('javascript:alert(1)', 'A.B', [])).toBeNull();
         expect(makeupPmUrl('7cav.us', 'A.B', [])).toBeNull();
-    });
-});
-
-describe('groupMakeupPmUrl', () => {
-    it('addresses one conversation to every name, comma separated, titled without weeks', () => {
-        const url = groupMakeupPmUrl('https://7cav.us/', ['Vasquez.R', 'Okafor.T']);
-
-        expect(url.startsWith('https://7cav.us/conversations/add?')).toBe(true);
-        expect(query(url)).toEqual({ to: 'Vasquez.R, Okafor.T', title: 'Section practice makeup' });
-    });
-
-    it('drops blanks and repeats, and stops at the recipient cap', () => {
-        const names = Array.from({ length: 14 }, (_, i) => `Trooper${i}.A`);
-
-        expect(GROUP_PM_LIMIT).toBe(10);
-        expect(query(groupMakeupPmUrl('https://7cav.us', [' ', null, 'A.B', 'A.B', 'C.D'])).to).toBe('A.B, C.D');
-        expect(query(groupMakeupPmUrl('https://7cav.us', names)).to.split(', ')).toEqual(names.slice(0, 10));
-    });
-
-    it('draws no link for fewer than 2 names or without a usable forum address', () => {
-        expect(groupMakeupPmUrl('https://7cav.us', ['A.B'])).toBeNull();
-        expect(groupMakeupPmUrl('https://7cav.us', ['A.B', ' '])).toBeNull();
-        expect(groupMakeupPmUrl('javascript:alert(1)', ['A.B', 'C.D'])).toBeNull();
-        expect(groupMakeupPmUrl(null, ['A.B', 'C.D'])).toBeNull();
     });
 });
