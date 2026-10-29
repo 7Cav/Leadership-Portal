@@ -148,11 +148,11 @@ it('shows "Staff report" to HQ staff who read only their own and "Staff reports"
     'an Admin with no milpac' => ['admin', 'overview'],
 ]);
 
-it('shows "Staff report" to a company commander and XO placed on the company HQ node, signed in as themselves', function (string $billet) {
+it('shows "Staff reports" to a company commander and XO placed on the company HQ node, signed in as themselves, since they read the platoon HQs', function (string $billet) {
     $trooper = Trooper::factory()->create(['primary_section_id' => $this->tree['units']['company']->id, 'billet' => $billet]);
     $user = User::factory()->create(['cav_id' => $trooper->cav_id]);
 
-    $this->actingAs($user)->get('/home')->assertInertia(fn (AssertableInertia $page) => $page->where('features.staffReports', 'own'));
+    $this->actingAs($user)->get('/home')->assertInertia(fn (AssertableInertia $page) => $page->where('features.staffReports', 'overview'));
 
     // An Admin viewing as them does not get it: the link is for the staff member's own session only.
     $this->actingAs($this->tree['users']['admin'])->post('/view-as', ['kind' => 'user', 'id' => $user->id])->assertSessionHasNoErrors();
