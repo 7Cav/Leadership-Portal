@@ -288,7 +288,7 @@ class MarkAttendanceHandler
     }
 
     /**
-     * An automatic makeup (decided by the product owner 2026-10-23, refining AD-14): a trooper is on
+     * An automatic makeup (refining AD-14): a trooper is on
      * exactly one rollcall, their primary section's, so a trooper who attended *another* section's
      * practice (`$host`) has made up their own section's practice. The capture does not call this
      * until practice time slots exist: its window is the whole Cav week so far, on servers every

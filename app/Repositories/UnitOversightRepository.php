@@ -8,7 +8,7 @@ use App\Models\User;
 use Illuminate\Support\Collection;
 
 /**
- * Sole DB access for unit oversight (AD-2, policy, 2026-10-29): the regimental staff officer who oversees a
+ * Sole DB access for unit oversight (AD-2): the regimental staff officer who oversees a
  * unit. Written only by the audited `SetUnitOversightHandler`; read by ScopeResolver (read scope only) and the org page.
  * Every read that confers scope asks for a serving trooper, so oversight whose holder left every roster stops applying on
  * the next read, with the row kept for an Admin to clear on the record.

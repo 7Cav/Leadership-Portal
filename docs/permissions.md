@@ -78,7 +78,7 @@ Notes:
 
 ### Admin by billet
 
-Policy since 2026-10-28: every billet in the `Regimental HQ` and `S6 HQ` Cav groups can carry full Admin
+Every billet in the `Regimental HQ` and `S6 HQ` Cav groups can carry full Admin
 rights, tied to the billet, not the person. An existing Admin confirms each billet first. The groups are listed in
 `config/portal.php` (`admin_billet_groups`); changing that list changes who can be an Admin, so it goes through review
 like code.
@@ -294,7 +294,7 @@ Admins' alone.
 on, corrects or deletes their own records, except that an Admin by the `is_admin` flag still corrects and deletes as an
 Admin. An Admin by billet does not (2026-10-29).
 (9) Not a frozen LOR: 72 hours after an LOR is filed (its appeal window) nobody corrects or deletes it, Admins by flag
-or by billet included (policy, 2026-10-29). A DCS is never frozen.
+or by billet included. A DCS is never frozen.
 (10) Only the serving holder of the Regimental Executive Officer billet (the org import maps it to the regiment)
 overturns a frozen LOR, signed in as themselves: never one filed on themselves, never in a view-as preview, and never
 through act as (S6, 2026-10-29: "only the RXO for now"). An Admin acting as the RXO, the RCO acting as the RXO under the

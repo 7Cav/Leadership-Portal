@@ -13,7 +13,7 @@ use App\Support\Audit\AuditEnvelope;
 use App\Support\Audit\ReasonRequiredException;
 
 /**
- * Approve or reject a billet as an Admin billet (policy, 2026-10-28). Approving confirms the title and group
+ * Approve or reject a billet as an Admin billet. Approving confirms the title and group
  * Cav shows now, so the billet's holder is an Admin while they serve in it and the billet keeps those names in a group
  * that may make an Admin ({@see ScopeResolver::isAdmin()}); a billet whose group is not one of those is never approved.
  * Rejecting leaves it a plain billet until a name changes and it comes back as pending. Rejecting an approved billet is

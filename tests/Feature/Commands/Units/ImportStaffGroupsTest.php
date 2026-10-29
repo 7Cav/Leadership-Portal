@@ -109,7 +109,7 @@ it('builds the default portfolio tree, nesting portfolios, with each group of it
         ->and(isgGroup('JAG')->parent_id)->toBe(isgGroup('SECOPS')->id)
         ->and(isgGroup('S6')->parent_id)->toBe(isgGroup('IMO')->id)
         ->and(isgGroup('IMO')->parent_id)->toBe($regiment->id)
-        // Pending the product owner: directly under the regiment.
+        // Not placed yet: directly under the regiment.
         ->and(isgGroup('S1')->parent_id)->toBe($regiment->id)
         ->and(isgGroup('S7')->parent_id)->toBe($regiment->id)
         // ACD stays a line battalion under the regiment.

@@ -57,7 +57,7 @@ use Throwable;
  * is recorded under its own source so the global "last synced" stamp never claims a roster-wide refresh an
  * echelon sync did not do.
  *
- * A billet that makes its holder an Admin (`admin_billets`, policy, 2026-10-28) is checked
+ * A billet that makes its holder an Admin (`admin_billets`) is checked
  * against the title Cav shows now: renamed, it goes back to pending and its holder stops being an Admin until an Admin
  * confirms the new name. The roster carries no group title; the org import records that.
  */

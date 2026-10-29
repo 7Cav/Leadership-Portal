@@ -2,7 +2,8 @@ import { afterEach, describe, it, expect, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import OrgStructure from '../OrgStructure.vue';
 
-// The 2026-10-29 policy: the line and the staff in two cards, empty line units hidden until asked for, ACD and
+// The org page after the 2026-10-29 changes: the line and the staff in two cards, empty line units hidden until asked
+// for, ACD and
 // DEVCOM shown again under RDC, DEVCOM's staff under DEVCOM, and who oversees each battalion and the Reservists.
 
 const routerPost = vi.fn();

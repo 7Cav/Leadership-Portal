@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Joint Service Achievement Medal evidence (decided by the product owner 2026-10-23): a host section's leader may
+     * Joint Service Achievement Medal evidence: a host section's leader may
      * say by hand that a trooper from another section attended their practice, alongside what the game-server capture
      * saw. `source` widens to `manual` for those entries, and `recorded_by` names the leader who said so, so the guest's
      * own leader can see whose word put the makeup on their rollcall. `nullOnDelete`, like the other actor columns

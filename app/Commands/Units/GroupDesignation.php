@@ -6,7 +6,7 @@ use App\Models\UnitKind;
 use App\Models\UnitType;
 
 /**
- * A node off the line the org import creates (decided by the product owner 2026-10-24): a regimental staff portfolio, a
+ * A node off the line the org import creates: a regimental staff portfolio, a
  * staff department, or a holding group (ELOA, Reservists, New Recruits). Like {@see CavDesignation}, its callsign is
  * its identity across imports, matched on type + callsign, so a re-run finds the node it made and never duplicates it,
  * and an Admin's rename or move of it survives every later import.

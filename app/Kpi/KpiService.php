@@ -164,7 +164,7 @@ final class KpiService
 
     /**
      * A trooper's attendance at their own section's practice, for the Joint Service Achievement Medal's "while still
-     * consistently attending their own" (decided by the product owner 2026-10-23), keyed by trooper id, over the
+     * consistently attending their own", keyed by trooper id, over the
      * trailing `$windowWeeks` Cav weeks ending with `$weekStart`. It is the SP above with one difference: a makeup is
      * never attendance at their own section. A makeup (by hand or automatic) answers the weekly accountability, one
      * section practice or a makeup, and so counts in the SP above; here it never counts as attended, so:

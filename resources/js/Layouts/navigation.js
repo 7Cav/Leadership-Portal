@@ -50,7 +50,7 @@ export const NAV_GROUPS = [
         items: [
             { label: 'Org structure', href: '/settings/org-structure', icon: PhTreeStructure },
             // `count` names a shared prop whose number the sidebar shows beside the item while it is above zero: here the
-            // Regimental HQ billets waiting for an Admin to confirm them (policy, 2026-10-28).
+            // Regimental HQ billets waiting for an Admin to confirm them.
             { label: 'Staff grants', href: '/settings/staff-grants', icon: PhKey, count: 'adminBilletsPending' },
             { label: 'Templates', href: '/settings/templates', icon: PhFileCode },
             { label: 'Games', href: '/settings/games', icon: PhJoystick },

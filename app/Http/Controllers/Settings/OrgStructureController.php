@@ -126,7 +126,7 @@ class OrgStructureController extends Controller
             'lead_vacant' => $leadable->has($unit->id) && ! $leads->has($unit->id),
             'acting_lead' => ($actor = $acting->get($unit->id)) === null ? null : ['id' => $actor->id, 'displayName' => $actor->display_name],
             'empty' => ! $withTroopers->has($unit->id),
-            // Who oversees the unit (policy, 2026-10-29): a battalion or the Reservists. A battalion with no
+            // Who oversees the unit: a battalion or the Reservists. A battalion with no
             // serving overseer reads "Oversight: vacant"; an overseer who left every roster is named, marked not serving.
             'overseeable' => UnitOversight::canOversee($unit),
             'oversight' => ($row = $oversightOf->get($unit->id)) === null ? null : [
@@ -167,7 +167,7 @@ class OrgStructureController extends Controller
                 ->all(),
             // The outcome of an import just run (story 2.9), flashed by `import()` for one render.
             'importResult' => $request->session()->get('org_import'),
-            // Rows shown in a second place without moving the unit (policy, 2026-10-29): ACD and DEVCOM under
+            // Rows shown in a second place without moving the unit: ACD and DEVCOM under
             // RDC in the staff card, DEVCOM's staff under DEVCOM in the chain of command.
             'references' => self::references($tree),
         ]);
@@ -329,8 +329,8 @@ class OrgStructureController extends Controller
     }
 
     /**
-     * Make a serving trooper the overseer of a battalion or the Reservists, replacing whoever was (policy,
-     * 2026-10-29). Admin-only, server-side (AD-6); audited with a required reason by {@see SetUnitOversightHandler}.
+     * Make a serving trooper the overseer of a battalion or the Reservists, replacing whoever was. Admin-only,
+     * server-side (AD-6); audited with a required reason by {@see SetUnitOversightHandler}.
      */
     public function setOversight(Request $request, int $unit, SetUnitOversightHandler $handler): RedirectResponse
     {
@@ -348,7 +348,7 @@ class OrgStructureController extends Controller
     }
 
     /**
-     * Clear a unit's overseer (policy, 2026-10-29). Admin-only (AD-6); audited with a required reason.
+     * Clear a unit's overseer. Admin-only (AD-6); audited with a required reason.
      */
     public function clearOversight(Request $request, int $unit, SetUnitOversightHandler $handler): RedirectResponse
     {

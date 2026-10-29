@@ -69,8 +69,7 @@ return [
     | Admin billet groups
     |--------------------------------------------------------------------------
     |
-    | The Cav position groups whose billets may make their holder an Admin (policy,
-    | 2026-10-28). The org import lists every billet in these groups on Settings → Staff grants as
+    | The Cav position groups whose billets may make their holder an Admin. The org import lists every billet in these groups on Settings → Staff grants as
     | pending, and an existing Admin approves each one. A billet moved out of these groups stops
     | making anyone an Admin. Exact Cav group titles; a change here is a change to who may be an
     | Admin, so it ships through review like any other code.
@@ -88,7 +87,7 @@ return [
     | last `window_weeks` Cav weeks (the current one included), they attended at least `min_visits`
     | practices of the viewed unit's sections while not assigned to them, and their own SP % over the
     | same window (the one KPI definition, AD-21, so LOA weeks leave it as everywhere else) is at
-    | least `min_own_sp_percent`. Agreed with the product owner 2026-10-23; S1 may change them. The
+    | least `min_own_sp_percent`. S1 may change them. The
     | portal never awards: the commander of the benefited unit recommends.
     |
     */
