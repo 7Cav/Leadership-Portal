@@ -45,8 +45,9 @@ export const NAV_GROUPS = [
         items: [{ label: 'Docs', href: '/docs', icon: PhBookOpenText, feature: 'docs' }],
     },
     {
-        // Shown to Admins only (AC). This hides navigation, nothing more: every Settings screen
-        // enforces its own server-side gate (AD-6).
+        // Shown to Admins, and to anyone else only for an item whose `allow` names a shared prop that is true for them
+        // (Templates, for whoever may manage some unit's templates). This hides navigation, nothing more: every Settings
+        // screen enforces its own server-side gate (AD-6).
         id: 'settings',
         label: 'Settings',
         adminOnly: true,
@@ -55,7 +56,7 @@ export const NAV_GROUPS = [
             // `count` names a shared prop whose number the sidebar shows beside the item while it is above zero: here the
             // Regimental HQ billets waiting for an Admin to confirm them.
             { label: 'Staff grants', href: '/settings/staff-grants', icon: PhKey, count: 'adminBilletsPending' },
-            { label: 'Templates', href: '/settings/templates', icon: PhFileCode },
+            { label: 'Templates', href: '/settings/templates', icon: PhFileCode, allow: 'canManageTemplates' },
             { label: 'Games', href: '/settings/games', icon: PhJoystick },
             { label: 'Servers', href: '/settings/servers', icon: PhHardDrives },
             { label: 'Audit log', href: '/settings/audit-log', icon: PhListMagnifyingGlass },
@@ -66,12 +67,16 @@ export const NAV_GROUPS = [
     },
 ];
 
-// The groups and items this viewer sees: admin-only groups for an Admin, and an item that needs an
-// optional feature only while the shared `features` prop switches it on.
-export function visibleGroups(isAdmin, features = {}) {
-    return NAV_GROUPS.filter((group) => isAdmin || !group.adminOnly)
-        .map((group) => ({ ...group, items: group.items.filter((item) => !item.feature || features[item.feature] === true) }))
-        .filter((group) => group.items.length);
+// The groups and items this viewer sees: admin-only groups for an Admin, and for anyone else only their items whose
+// `allow` prop is true in `props` (the page's shared props); an item that needs an optional feature only while the
+// shared `features` prop switches it on.
+export function visibleGroups(isAdmin, features = {}, props = {}) {
+    return NAV_GROUPS.map((group) => ({
+        ...group,
+        items: group.items
+            .filter((item) => isAdmin || !group.adminOnly || (item.allow && props[item.allow] === true))
+            .filter((item) => !item.feature || features[item.feature] === true),
+    })).filter((group) => group.items.length);
 }
 
 function pathOf(url) {

@@ -16,7 +16,7 @@ const page = usePage();
 const { isAdmin } = useIdentity();
 
 // Only the pages this viewer has in the sidebar (the Settings pages are an Admin's).
-const reachable = computed(() => new Set(visibleGroups(isAdmin.value, page.props.features).flatMap((group) => group.items.map((item) => item.href))));
+const reachable = computed(() => new Set(visibleGroups(isAdmin.value, page.props.features, page.props).flatMap((group) => group.items.map((item) => item.href))));
 
 // "Everywhere" first, then the page the viewer is on, then the rest in nav order.
 const groups = computed(() =>

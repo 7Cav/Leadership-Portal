@@ -328,6 +328,25 @@ class ScopeResolver
             ->values();
     }
 
+    /** The units that keep roll call templates of their own: a company, and a section ({@see TemplateAuthority}). */
+    public const TEMPLATE_OWNERS = [UnitType::Company, UnitType::Section];
+
+    /**
+     * Whether the user may manage the templates of at least one unit, by the rule {@see TemplateAuthority} applies to
+     * each: an Admin, or someone who commands a company or a section, or a unit with one beneath it (a battalion, a
+     * platoon). For the shell's Templates link; each write is checked again. Real authority, as a write is.
+     */
+    public function managesAnyTemplates(User $user): bool
+    {
+        if ($this->isAdmin($user)) {
+            return true;
+        }
+
+        $commanded = $this->commandScope($user)->flip();
+
+        return $this->units->tree()->contains(fn (Unit $unit) => $commanded->has($unit->id) && in_array($unit->type, self::TEMPLATE_OWNERS, true));
+    }
+
     /**
      * The units the user commands, by synced billet or as an acting lead, never by staff grant or Admin flag: the one
      * thing a leader's authority over people below them (act as, #432) is measured from.

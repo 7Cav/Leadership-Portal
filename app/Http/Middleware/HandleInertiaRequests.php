@@ -92,6 +92,12 @@ class HandleInertiaRequests extends Middleware
             'canActAs' => fn () => $request->user() ? $this->actAs->offers($request->attributes->get(ActAs::ADMIN_ATTRIBUTE) ?? $request->user()) : false,
             // How many Admin billets wait for an Admin to confirm them, for the
             // sidebar's notice on Staff grants. Only to someone acting as Admin; zero for everyone else.
+            // Whether the sidebar shows Settings > Templates to someone who is not an Admin: anyone who may manage some
+            // unit's roll call templates, by the rule the template writes use. Not during a view-as preview, which never
+            // writes. Navigation only: the page and each write check for themselves.
+            'canManageTemplates' => fn () => $request->user() !== null
+                && $this->scope->activeViewAs($request->user()) === null
+                && $this->scope->managesAnyTemplates($request->user()),
             'adminBilletsPending' => fn () => $request->user() && $this->scope->actsAsAdmin($request->user()) ? $this->adminBillets->pendingCount() : 0,
             // `actAs`: whether the banner offers to act as the preview's target, which only a real Admin may (the
             // server checks again on the start).
