@@ -94,6 +94,7 @@ Names only. Every key is documented in `.env.example` and `.env.production.examp
 | Leave (LOA) sync | `SEVENCAV_FORUM_API_KEY`, `SEVENCAV_FORUM_LOA_NODES`, `SEVENCAV_FORUM_PAF_NODE`, `LOA_SYNC_REQUEST_DELAY_MS` |
 | Practice capture | `CRCON_BASE_URL`, `CRCON_API_KEY`, `BATTLEMETRICS_BASE_URL`, `BATTLEMETRICS_API_KEY`, `BATTLEMETRICS_SERVER_ID`, `NIGHTWATCH_BASE_URL`, `NIGHTWATCH_API_KEY`, `NIGHTWATCH_SERVER_IDS` |
 | Counseling documents to Google Drive | `GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_DRIVE_PRIVATE_KEY`, `GOOGLE_DRIVE_FOLDER_ID` (see below) |
+| Weekly staff reports to Google Sheets | `GOOGLE_SHEETS_REPORTS_SPREADSHEET_ID`, `GOOGLE_SHEETS_STAFF_TAB`, `GOOGLE_SHEETS_BATTALION_TAB` (see below), plus the Drive service account's email and key |
 | Portal rules | `PORTAL_WEEK_FLOOR_WEEKS` (default 20), `JSAM_MIN_VISITS` (3), `JSAM_MIN_OWN_SP_PERCENT` (75), `JSAM_WINDOW_WEEKS` (12) |
 | Demo | `DEMO_TOOLS` (keep false in production) |
 
@@ -121,6 +122,29 @@ The copy runs on the queue (`UploadCounselingDocumentJob`), up to 5 tries. With 
 sent and records show "Portal only". A record that shows "Drive copy failed" after the last try needs its document
 uploaded by hand; the queue worker's log names the record id and why, never the key. The portal only uploads: it
 cannot read, share or delete anything on the Drive, so deleting a record in the portal leaves the Drive copy.
+
+## Weekly staff reports and Google Sheets
+
+Each sent staff report can be appended as one row to the regiment's reports spreadsheet ("2026 Cav Report Master"),
+the sheet the Weekly Staff Report and Weekly Battalion Report forms fed. It uses the same service account as the
+counseling Drive copy.
+
+1. Set up the service account as in the Drive section above. `GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL` and
+   `GOOGLE_DRIVE_PRIVATE_KEY` are needed; the Drive folder is not. The Google Sheets API must be enabled in the
+   service account's Google Cloud project.
+2. Open the spreadsheet, choose Share, and add the service account's email (the key's `client_email`) as an Editor.
+3. Set `GOOGLE_SHEETS_REPORTS_SPREADSHEET_ID` to the long id in the sheet's URL, between `/d/` and `/edit`. The tab
+   names default to `Weekly Staff Report 2O26` and `Weekly Battalion Report 2O26` (with the letter O, as the tabs are
+   named); set `GOOGLE_SHEETS_STAFF_TAB` or `GOOGLE_SHEETS_BATTALION_TAB` only if a tab is renamed, say for a new year.
+   Then `docker compose up -d` (or `php artisan config:cache`).
+
+Platoon and company reports go to the staff tab, battalion reports (ACD included) to the battalion tab, each in that
+tab's column order (`app/Commands/StaffReports/StaffReportSheetRow.php` lists it). Email Address and Score stay empty.
+The staff tab's practice columns are set by `StaffReportSheetRow::STAFF_PRACTICE_COLUMNS`; check it against the tab
+before the first push. The push runs on the queue (`PushStaffReportToSheetJob`), up to 5 tries, and never holds up
+or fails the send. With no spreadsheet id nothing is pushed and nothing errors. A report that still shows "Not sent to
+the sheet yet" after the last try is named in the queue worker's log with why, never the key. The portal only appends
+rows: it cannot read, change or delete anything in the sheet.
 
 ## Content security policy
 

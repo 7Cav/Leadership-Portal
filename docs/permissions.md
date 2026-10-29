@@ -24,7 +24,7 @@
   nobody else's, and only for the person really signed in as themselves: never through act as or view as.
 - "View as" previews the portal as a unit (or, for Admins, as a person). It only narrows what you see, and every change
   is refused while it is on.
-- Platoon and company HQ staff send their own weekly staff report. Nobody sends it for them, Admins included.
+- Platoon, company and battalion HQ staff (ACD included) send their own weekly staff report. Nobody sends it for them, Admins included.
 - Writes also stop at a few hard edges whatever your rank: weeks older than the week floor, weeks whose section report
   was sent, and practices a leader confirmed.
 
@@ -334,9 +334,10 @@ trooper may open (decided 2026-10-28); that opens no other trooper's page.
 
 ### Staff report
 
-A platoon or company HQ staff member (a serving trooper placed on that HQ node when the week ended) files their own
-weekly staff report, once that week has ended. "Above their HQ" is the unit the HQ sits in: the company for a platoon HQ,
-the battalion for a company HQ. Reading follows the read scope there, as unit reports do, so a staff grant, an overseer
+A platoon, company or battalion HQ staff member (a serving trooper placed on that HQ node when the week ended, ACD
+included) files their own weekly staff report, once that week has ended. Regiment HQ, staff departments, ELOA,
+Reservists and New Recruits file none. "Above their HQ" is the unit the HQ sits in: the company for a platoon HQ, the
+battalion for a company HQ, the regiment for a battalion HQ (so regiment command and Admins read those). Reading follows the read scope there, as unit reports do, so a staff grant, an overseer
 and the Regimental HQ read count.
 
 | Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
@@ -349,7 +350,7 @@ and the Regimental HQ read count.
 reading starts at the unit above the HQ, so a Platoon Leader reads no other staff report.
 (12) Only the staff member, signed in as themselves: never someone acting as them (an Admin included), and never in a
 view-as preview. A page for another trooper, or a week they file none for, answers 404 to anyone who may not read it.
-(13) Anyone whose read scope holds the unit above at least one platoon or company HQ (`StaffReportAccess::readableHqs()`),
+(13) Anyone whose read scope holds the unit above at least one platoon, company or battalion HQ (`StaffReportAccess::readableHqs()`),
 and Admins. The sidebar item then reads "Staff reports" (the shared `features.staffReports` is `overview`); for HQ
 staff who read only their own it stays "Staff report" (`own`). Everyone else gets a 404.
 
