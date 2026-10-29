@@ -193,15 +193,15 @@ it('refuses a send during view as, before it reaches the Command', function () {
     expect(StaffReport::query()->count())->toBe(0);
 });
 
-it('refuses a trooper who files no staff report: a section trooper, a staff department, battalion HQ, ELOA', function (Closure $who) {
+it('refuses a trooper who files no staff report: a section trooper, a staff department, regiment HQ, ELOA', function (Closure $who) {
     [$user, $trooper] = $who($this);
 
     expect(staffReportRefusal(fn () => sendStaffReport($user, $trooper, false, [])))->toBe('not_owed');
 })->with([
     'a section trooper' => [fn ($t) => [$t->tree['users']['sl'], trooperOf($t->tree['users']['sl'])]],
     'a staff department member' => [fn ($t) => [$t->tree['users']['s6Member'], $t->tree['troopers']['s6Member']]],
-    'battalion HQ staff' => [function ($t) {
-        $trooper = Trooper::factory()->create(['primary_section_id' => $t->tree['units']['battalion']->id]);
+    'regiment HQ staff' => [function ($t) {
+        $trooper = Trooper::factory()->create(['primary_section_id' => $t->tree['units']['regiment']->id]);
 
         return [User::factory()->create(['cav_id' => $trooper->cav_id]), $trooper];
     }],

@@ -113,7 +113,7 @@ class HomeController extends Controller
 
     /**
      * The viewer's own staff report for the week that just ended, from the Saturday it ends until its deadline, while
-     * they owe one and have not sent it: a platoon or company HQ staff member signed in as themselves. Null otherwise
+     * they owe one and have not sent it: a platoon, company or battalion HQ staff member signed in as themselves. Null otherwise
      * (and through the running week, which is sent once it ends), so Home shows nothing for it.
      *
      * @return array{week: string, due: string, href: string}|null

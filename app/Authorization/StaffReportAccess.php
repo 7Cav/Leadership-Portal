@@ -15,16 +15,18 @@ use Illuminate\Support\Collection;
 /**
  * Who files a weekly staff report, and who may read one.
  *
- * Who files: a serving trooper placed on a platoon or company HQ node when the Cav week ended (the PL, PSG, CO, XO, 1SG
- * and anyone else placed there), by the placement history, so a past week asks who was on the HQ then. Battalion and
- * regiment HQ, staff departments, ELOA, Reservists and New Recruits do not file one.
+ * Who files: a serving trooper placed on a platoon, company or battalion HQ node when the Cav week ended (the PL, PSG,
+ * CO, XO, 1SG, the battalion command team and anyone else placed there, ACD included), by the placement history, so a
+ * past week asks who was on the HQ then. Regiment HQ, staff departments, ELOA, Reservists and New Recruits do not file
+ * one.
  *
  * Who sends it: the staff member themselves, signed in as themselves ({@see ScopeResolver::ownCavId()}): never someone
  * acting as them, never in a view-as preview, and nobody on their behalf, Admins included.
  *
  * Who reads it: the staff member; whoever reads the unit above their HQ (its command and the chain above, plus a staff
- * grant, an overseer or the Regimental HQ read there, as unit reports are read); and Admins. A peer on the same HQ
- * (a PL and their PSG) and anyone below it do not.
+ * grant, an overseer or the Regimental HQ read there, as unit reports are read); and Admins. For a battalion HQ that is
+ * whoever's scope holds the regiment: regiment command and Admins. A peer on the same HQ (a PL and their PSG) and
+ * anyone below it do not.
  */
 class StaffReportAccess
 {
@@ -35,13 +37,13 @@ class StaffReportAccess
         private readonly TrooperPlacementRepository $placements,
     ) {}
 
-    /** Whether a trooper placed on `$unit` files a staff report: a platoon or company HQ node. */
+    /** Whether a trooper placed on `$unit` files a staff report: a platoon, company or battalion HQ node (ACD too). */
     public static function filesFrom(Unit $unit): bool
     {
-        return $unit->type === UnitType::Platoon || $unit->type === UnitType::Company;
+        return $unit->type === UnitType::Platoon || $unit->type === UnitType::Company || $unit->type === UnitType::Battalion;
     }
 
-    /** The platoon or company HQ the trooper was placed on when the week ended, or null when they file none for it. */
+    /** The platoon, company or battalion HQ the trooper was placed on when the week ended, or null when they file none for it. */
     public function hqInWeek(Trooper $trooper, CarbonInterface $weekStart): ?Unit
     {
         $unitId = $this->placements->unitOfTrooperAtWeekEnd($trooper, $weekStart);
@@ -64,7 +66,7 @@ class StaffReportAccess
         return $cavId === null ? null : $this->troopers->byCavId([$cavId])->first();
     }
 
-    /** Whether the user is placed on a platoon or company HQ now, for the sidebar's "Staff report". */
+    /** Whether the user is placed on a platoon, company or battalion HQ now, for the sidebar's "Staff report". */
     public function isHqStaffNow(User $user): bool
     {
         $trooper = $this->ownTrooper($user);
@@ -80,7 +82,7 @@ class StaffReportAccess
     }
 
     /**
-     * The platoon and company HQs whose staff's reports `$user` reads, down the tree: every one for an Admin, else
+     * The platoon, company and battalion HQs whose staff's reports `$user` reads, down the tree: every one for an Admin, else
      * each whose parent their scope holds (as {@see mayRead()} reads it). Empty for a PL or PSG, whose scope holds no
      * HQ's parent: they read only their own.
      *
