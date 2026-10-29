@@ -22,7 +22,7 @@ use Inertia\Testing\AssertableInertia as Assert;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
 
-// Admin by billet: whoever serves in a Regimental HQ or S6 HQ billet is an Admin while
+// Admin by billet: whoever serves in a Regimental HQ billet, or as S6 1IC or S6 2IC, is an Admin while
 // an existing Admin has approved the billet and it still carries the title and group that were confirmed, in a group
 // that may make an Admin. Where the holder is placed does not matter. Tied to the billet, read on every request, never
 // written to `users.is_admin`.
@@ -33,7 +33,7 @@ const RHQA_CHIEF = 'Regimental Chief of Staff';
 
 const RHQA_GROUP = 'Regimental HQ';
 
-const RHQA_S6_GROUP = 'S6 HQ';
+const RHQA_S6_GROUP = 'Support Attachment';
 
 function rhqaPlaced(?Unit $at, array $attributes = []): Trooper
 {
@@ -167,6 +167,8 @@ describe('who is an Admin by billet', function () {
     });
 
     it('stops at once when the billet is renamed, in its title or its group, until an Admin approves the new names', function (array $seen) {
+        // A second Admin billet group, so a move between two of them can be shown.
+        config()->set('portal.admin_billet_groups', [RHQA_GROUP, 'Regimental Staff']);
         $this->actingAs($this->chief)->get('/settings/audit-log')->assertOk();
 
         app(AdminBilletRepository::class)->observe([9010 => $seen], createMissing: false);
@@ -185,8 +187,8 @@ describe('who is an Admin by billet', function () {
         $this->actingAs($this->chief)->get('/settings/audit-log')->assertOk();
     })->with([
         'a new title' => [['Regimental Chief of Staff (Acting)', null]],
-        // Moved to the other Admin billet group: still approvable, and approved again before it counts.
-        'a new group' => [[RHQA_CHIEF, RHQA_S6_GROUP]],
+        // Moved to another Admin billet group: still approvable, and approved again before it counts.
+        'a new group' => [[RHQA_CHIEF, 'Regimental Staff']],
     ]);
 
     it('is not an Admin when the holder\'s own synced title no longer matches the confirmed one', function () {
@@ -535,14 +537,14 @@ describe('confirming billets', function () {
     });
 });
 
-describe('S6 HQ billets', function () {
+describe('S6 1IC and S6 2IC billets', function () {
     beforeEach(function () {
-        // An S6 HQ member: placed in the S6 department by the org import, never on the regiment.
+        // The S6 1IC, in Cav's Support Attachment group: placed in the S6 department by the org import, never on the regiment.
         $this->s6Trooper = rhqaPlaced($this->groups['S6'], ['username' => 'Wire.S', 'billet' => 'S6 1IC', 'cav_position_id' => 9600]);
         $this->s6 = User::factory()->create(['cav_id' => $this->s6Trooper->cav_id, 'username' => 'Wire.S']);
     });
 
-    it('makes the holder of an approved S6 HQ billet an Admin, placed in the S6 department', function () {
+    it('makes the holder of an approved S6 1IC billet in Support Attachment an Admin, placed in the S6 department', function () {
         rhqaBillet(9600, 'S6 1IC', group: RHQA_S6_GROUP);
 
         expect(rhqaIsAdmin($this->s6))->toBeTrue()
@@ -553,7 +555,7 @@ describe('S6 HQ billets', function () {
         expect(app(ScopeResolver::class)->regimentalHqStaff()->pluck('id')->all())->not->toContain($this->s6Trooper->id);
     });
 
-    it('is not an Admin while the S6 HQ billet waits or after it is rejected', function (AdminBilletStatus $status) {
+    it('is not an Admin while the S6 1IC billet waits or after it is rejected', function (AdminBilletStatus $status) {
         rhqaBillet(9600, 'S6 1IC', $status, RHQA_S6_GROUP);
 
         expect(rhqaIsAdmin($this->s6))->toBeFalse();
@@ -563,7 +565,7 @@ describe('S6 HQ billets', function () {
         'rejected' => [AdminBilletStatus::Rejected],
     ]);
 
-    it('lets an Admin approve an S6 HQ billet, audited', function () {
+    it('lets an Admin approve an S6 1IC billet in Support Attachment, audited', function () {
         $billet = rhqaBillet(9600, 'S6 1IC', AdminBilletStatus::Pending, RHQA_S6_GROUP);
 
         $this->actingAs($this->admin)->post("/settings/staff-grants/admin-billets/{$billet->id}/approve", ['reason' => 'S6 runs the portal'])
@@ -573,31 +575,40 @@ describe('S6 HQ billets', function () {
             ->and(AuditLogEntry::query()->where('action', 'admin_billet.approved')->where('target_id', $billet->id)->count())->toBe(1);
     });
 
-    it('ends Admin when the S6 billet moves to a group that cannot make an Admin, and refuses to approve it there', function () {
+    it('never offers the rest of Support Attachment for approval', function () {
+        $billet = rhqaBillet(9601, 'S1 1IC', AdminBilletStatus::Pending, RHQA_S6_GROUP);
+
+        $this->actingAs($this->admin)->post("/settings/staff-grants/admin-billets/{$billet->id}/approve", ['reason' => 'S1'])
+            ->assertSessionHasErrors(['adminBillet' => 'This billet no longer has a group or title that can make an Admin, so it cannot be approved.']);
+        expect($billet->fresh()->status)->toBe(AdminBilletStatus::Pending);
+    });
+
+    it('ends Admin when Cav renames the S6 1IC billet to a title that cannot make an Admin, and refuses to approve it', function () {
         $billet = rhqaBillet(9600, 'S6 1IC', group: RHQA_S6_GROUP);
         $this->actingAs($this->s6)->get('/settings/audit-log')->assertOk();
 
-        app(AdminBilletRepository::class)->observe([9600 => ['S6 1IC', 'Support Attachment']], createMissing: false);
+        app(AdminBilletRepository::class)->observe([9600 => ['S6 Liaison', RHQA_S6_GROUP]], createMissing: false);
+        $this->s6Trooper->update(['billet' => 'S6 Liaison']);
 
-        expect($billet->fresh())->status->toBe(AdminBilletStatus::Pending)->group_title->toBe(RHQA_S6_GROUP);
+        expect($billet->fresh())->status->toBe(AdminBilletStatus::Pending)->title->toBe('S6 1IC');
         $this->actingAs($this->s6)->get('/settings/audit-log')->assertForbidden();
 
         $this->actingAs($this->admin)->post("/settings/staff-grants/admin-billets/{$billet->id}/approve", ['reason' => 'Still the S6 1IC'])
-            ->assertSessionHasErrors(['adminBillet' => 'This billet is no longer in a group whose billets can make an Admin, so it cannot be approved.']);
+            ->assertSessionHasErrors(['adminBillet' => 'This billet no longer has a group or title that can make an Admin, so it cannot be approved.']);
         expect($billet->fresh()->status)->toBe(AdminBilletStatus::Pending)
             ->and(rhqaIsAdmin($this->s6))->toBeFalse();
 
-        // The row says so: the names now, the approved ones under them, and that its group cannot make an Admin.
+        // The row says so: the names now, the approved ones under them, and that it cannot make an Admin.
         $this->actingAs($this->admin)->get('/settings/staff-grants')->assertInertia(fn (Assert $page) => $page
             ->where('adminBillets', fn ($rows) => ($row = collect($rows)->firstWhere('id', $billet->id)) !== null
-                && $row['group'] === 'Support Attachment'
+                && $row['title'] === 'S6 Liaison'
                 && $row['approvedAs'] === ['title' => 'S6 1IC', 'group' => RHQA_S6_GROUP]
                 && $row['adminGroup'] === false));
     });
 
-    it('ends Admin when the group is taken off the Admin billet groups, and shows the approved row as such', function () {
+    it('ends Admin when the title is taken off the Admin billet titles, and shows the approved row as such', function () {
         $billet = rhqaBillet(9600, 'S6 1IC', group: RHQA_S6_GROUP);
-        config()->set('portal.admin_billet_groups', [RHQA_GROUP]);
+        config()->set('portal.admin_billet_titles', ['S6 2IC']);
 
         expect(rhqaIsAdmin($this->s6))->toBeFalse()
             ->and(rhqaIsAdmin($this->chief))->toBeTrue();
@@ -605,7 +616,7 @@ describe('S6 HQ billets', function () {
             ->where('adminViaBillet', fn ($rows) => collect($rows)->firstWhere('id', $billet->id)['adminGroup'] === false));
     });
 
-    it('never makes a stand-in for an S6 HQ billet Admin an Admin', function () {
+    it('never makes a stand-in for an S6 1IC billet Admin an Admin', function () {
         rhqaBillet(9600, 'S6 1IC', group: RHQA_S6_GROUP);
 
         $this->actingAs($this->admin)->post('/act-as', ['kind' => 'user', 'id' => $this->s6->id])->assertRedirect('/home');

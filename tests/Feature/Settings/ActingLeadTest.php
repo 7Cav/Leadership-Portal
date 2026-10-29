@@ -184,3 +184,16 @@ it('refuses a unit whose commanding billet a serving trooper holds, and takes on
 
     expect(UnitActingLead::query()->pluck('unit_id')->sort()->values()->all())->toBe([$this->p1->id, $this->p2->id]);
 });
+
+it('tells the page which units may take an acting lead, by the Command\'s own rule', function () {
+    User::factory()->commanding($this->p1, ['primary_section_id' => $this->p1->id, 'billet' => 'Platoon Leader 1/D/DEVCOM'])->create();
+    $this->actingAs($this->admin)->post(alUrl($this->p2), ['trooper_id' => $this->taylor->id, 'reason' => 'Lead.'])->assertSessionHasNoErrors();
+    $units = alUnits($this->actingAs($this->admin)->get('/settings/org-structure'));
+
+    // Led by a serving Platoon Leader: no acting lead. Already acting-led, or vacant: allowed. A group or the regiment: never.
+    expect($units[$this->p1->id]['acting_lead_allowed'])->toBeFalse()
+        ->and($units[$this->p2->id]['acting_lead_allowed'])->toBeTrue()
+        ->and($units[$this->p3->id]['acting_lead_allowed'])->toBeTrue()
+        ->and($units[$this->staff->id]['acting_lead_allowed'])->toBeFalse()
+        ->and($units[$this->regiment->id]['acting_lead_allowed'])->toBeFalse();
+});

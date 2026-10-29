@@ -266,7 +266,7 @@ function confirmDialog(reason) {
                             {{ billet.title || 'Not known yet' }}
                             <Badge v-if="billet.approvedAs" variant="warning" class="ml-1.5" :data-testid="`admin-via-billet-renamed-${billet.id}`">Renamed</Badge>
                             <Badge v-if="!billet.adminGroup" variant="warning" class="ml-1.5" :data-testid="`admin-via-billet-not-admin-${billet.id}`">
-                                Not an Admin group
+                                Not an Admin billet
                                 <span class="sr-only">. Its holders are not Admins while the billet is in this group.</span>
                             </Badge>
                             <!-- The group on its own quiet line: every row shares one or two groups, so "X in Regimental HQ" on each row is noise. -->
@@ -310,8 +310,8 @@ function confirmDialog(reason) {
             <div class="px-4 pt-3.5 pb-2">
                 <h2 class="text-[15px] font-semibold">Admin billets</h2>
                 <p class="mt-1 text-xs text-muted-foreground">
-                    Approve a Regimental HQ or S6 HQ billet to make whoever holds it an Admin. When Cav renames the billet or moves it to
-                    another group, it waits here again until an Admin approves the new names. A billet moved out of those groups cannot be
+                    Approve a Regimental HQ, S6 1IC or S6 2IC billet to make whoever holds it an Admin. When Cav renames the billet or moves it to
+                    another group, it waits here again until an Admin approves the new names. A billet moved out of Regimental HQ, or an S6 billet renamed, cannot be
                     approved. You cannot decide on a billet you hold.
                 </p>
             </div>
@@ -331,7 +331,7 @@ function confirmDialog(reason) {
                             {{ billet.title || 'Not known yet' }}
                             <Badge v-if="billet.approvedAs" variant="warning" class="ml-1.5" :data-testid="`admin-billet-renamed-${billet.id}`">Renamed</Badge>
                             <Badge v-if="!billet.adminGroup" variant="warning" class="ml-1.5" :data-testid="`admin-billet-not-admin-${billet.id}`">
-                                Not an Admin group
+                                Not an Admin billet
                                 <span class="sr-only">. It cannot be approved while the billet is in this group.</span>
                             </Badge>
                             <!-- The group on its own quiet line: every row shares one or two groups, so "X in Regimental HQ" on each row is noise. -->
@@ -370,7 +370,7 @@ function confirmDialog(reason) {
                 </TableBody>
             </Table>
             <p v-else data-testid="admin-billets-empty" class="border-t border-border px-4 py-6 text-[13px] text-muted-foreground">
-                No billet is waiting for a decision. The org import lists every Regimental HQ and S6 HQ billet here.
+                No billet is waiting for a decision. The org import lists every Regimental HQ, S6 1IC and S6 2IC billet here.
             </p>
         </Card>
 

@@ -890,7 +890,9 @@ it('treats names that differ only by spaces as the same billet, wherever they ar
 
     expect($billet->renamed())->toBeFalse()
         ->and($billet->confirmsHolder(' Rifleman '))->toBeTrue()
-        ->and(AdminBillet::isAdminGroup(' S6 HQ '))->toBeTrue()
+        ->and(AdminBillet::isAdminGroup(' Regimental HQ '))->toBeTrue()
+        ->and(AdminBillet::isAdminBillet(' S6 1IC ', 'Support Attachment'))->toBeTrue()
+        ->and(AdminBillet::isAdminBillet('S1 1IC', 'Support Attachment'))->toBeFalse()
         ->and(app(AdminBilletRepository::class)->observe([773 => [' Rifleman ', ' Regimental HQ ']], createMissing: true))->toBe(1)
         ->and(AdminBillet::query()->where('cav_position_id', 773)->sole()->proposed_title)->toBe('Rifleman')
         ->and(AdminBillet::query()->where('cav_position_id', 773)->sole()->proposed_group_title)->toBe('Regimental HQ');

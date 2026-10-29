@@ -51,7 +51,8 @@ interface TrooperPlacementRepository
     /**
      * The unit one trooper was placed in when the Cav week starting `$weekStart` ended (for the running week, where
      * they are placed now): the staff report's "which HQ were they on that week". Read as
-     * {@see unitIdsOfTrooperInWeek()} reads the history; null when unplaced then.
+     * {@see unitIdsOfTrooperInWeek()} reads the history, and as placed in their current unit when the history only
+     * began after the week ended; null when unplaced then.
      *
      * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
      */

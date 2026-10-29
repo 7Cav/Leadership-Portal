@@ -22,6 +22,7 @@ use App\Models\PlacementSource;
 use App\Models\SectionPractice;
 use App\Models\StaffReport;
 use App\Models\Trooper;
+use App\Models\TrooperPlacement;
 use App\Models\TrooperStatus;
 use App\Models\UnitType;
 use App\Models\User;
@@ -267,6 +268,28 @@ it('goes by who was on the HQ when a past week ended, not by who is there now', 
     // The rifleman owes this week's, not last week's.
     expect(staffReportRefusal(fn () => sendStaffReport($riflemanUser, $rifleman->refresh(), false, [], $lastWeek)))->toBe('not_owed')
         ->and(sendStaffReport($riflemanUser, $rifleman, false, [])->attended)->toBeFalse();
+});
+
+it('reads a trooper whose placement history began after the week ended as placed where they are now', function () {
+    // The PL's only history row starts after the week ended (the history began after it): it says nothing about it.
+    $pl = trooperOf($this->tree['users']['pl']);
+    TrooperPlacement::query()->where('trooper_id', $pl->id)->delete();
+    TrooperPlacement::query()->create(['trooper_id' => $pl->id, 'unit_id' => $this->tree['units']['platoon']->id, 'placed_from' => '2026-10-10 06:00:00', 'placed_until' => null, 'source' => PlacementSource::Sync->value]);
+
+    expect(sendStaffReport($this->tree['users']['pl'], $pl, false, [])->unit_id)->toBe($this->tree['units']['platoon']->id)
+        ->and(collect(app(StaffReportWeek::class)->hqStaff($this->tree['units']['platoon'], $this->week))->map(fn (array $row) => $row['trooper']->id)->all())->toContain($pl->id);
+});
+
+it('still goes by the history when it shows the trooper elsewhere when the week ended', function () {
+    // On a section until after the week ended, then on the platoon HQ: the week was not theirs to report.
+    $rifleman = $this->tree['troopers']['rifleman'];
+    $riflemanUser = User::factory()->create(['cav_id' => $rifleman->cav_id]);
+    TrooperPlacement::query()->where('trooper_id', $rifleman->id)->delete();
+    TrooperPlacement::query()->create(['trooper_id' => $rifleman->id, 'unit_id' => $this->host->id, 'placed_from' => null, 'placed_until' => '2026-10-10 06:00:00', 'source' => PlacementSource::Sync->value]);
+    TrooperPlacement::query()->create(['trooper_id' => $rifleman->id, 'unit_id' => $this->tree['units']['platoon']->id, 'placed_from' => '2026-10-10 06:00:00', 'placed_until' => null, 'source' => PlacementSource::Sync->value]);
+    $rifleman->forceFill(['primary_section_id' => $this->tree['units']['platoon']->id])->save();
+
+    expect(staffReportRefusal(fn () => sendStaffReport($riflemanUser, $rifleman->refresh(), false, [])))->toBe('not_owed');
 });
 
 it('keeps on a past week\'s HQ staff those who served when it ended or sent their report, though gone since', function () {

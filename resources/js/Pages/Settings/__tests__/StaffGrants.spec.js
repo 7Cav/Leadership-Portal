@@ -242,7 +242,7 @@ describe('Settings/StaffGrants', () => {
             {
                 id: 33,
                 title: 'S6 1IC',
-                group: 'S6 HQ',
+                group: 'Support Attachment',
                 status: 'approved',
                 approvedAs: null,
                 adminGroup: false,
@@ -284,7 +284,7 @@ describe('Settings/StaffGrants', () => {
             expect(wrapper.find('[data-testid="admin-via-billet-renamed-31"]').exists()).toBe(false);
             expect(wrapper.text()).not.toContain('Approved as:');
             expect(wrapper.find('[data-testid="admin-via-billet-not-admin-31"]').exists()).toBe(false);
-            expect(wrapper.find('[data-testid="admin-via-billet-not-admin-33"]').text()).toContain('Not an Admin group');
+            expect(wrapper.find('[data-testid="admin-via-billet-not-admin-33"]').text()).toContain('Not an Admin billet');
         });
 
         it('shows the approved names under the billet, with the Renamed tag, when they differ from the names now', () => {
@@ -392,7 +392,7 @@ describe('Settings/StaffGrants', () => {
                 title: 'S6 1IC',
                 group: 'Support Attachment',
                 status: 'pending',
-                approvedAs: { title: 'S6 1IC', group: 'S6 HQ' },
+                approvedAs: { title: 'S6 1IC', group: 'Support Attachment' },
                 adminGroup: false,
                 holders: ['SGT Wire.S'],
                 own: false,
@@ -402,7 +402,7 @@ describe('Settings/StaffGrants', () => {
             {
                 id: 25,
                 title: 'S6 Clerk',
-                group: 'S6 HQ',
+                group: 'Support Attachment',
                 status: 'rejected',
                 approvedAs: null,
                 adminGroup: true,
@@ -444,8 +444,8 @@ describe('Settings/StaffGrants', () => {
 
             expect(wrapper.find('[data-testid="admin-billet-24"]').text()).toContain('S6 1IC');
             expect(wrapper.find('[data-testid="admin-billet-group-24"]').text()).toBe('Support Attachment');
-            expect(wrapper.find('[data-testid="admin-billet-approved-as-24"]').text()).toBe('Approved as: S6 1IC in S6 HQ');
-            expect(wrapper.find('[data-testid="admin-billet-not-admin-24"]').text()).toContain('Not an Admin group');
+            expect(wrapper.find('[data-testid="admin-billet-approved-as-24"]').text()).toBe('Approved as: S6 1IC in Support Attachment');
+            expect(wrapper.find('[data-testid="admin-billet-not-admin-24"]').text()).toContain('Not an Admin billet');
             expect(wrapper.find('[data-testid="admin-billet-approve-24"]').exists()).toBe(false);
             expect(wrapper.find('[data-testid="admin-billet-reject-24"]').exists()).toBe(true);
             expect(wrapper.find('[data-testid="admin-billet-not-admin-21"]').exists()).toBe(false);
@@ -516,7 +516,7 @@ describe('Settings/StaffGrants', () => {
         it('says so when no billet waits, and is not shown to a non-Admin', () => {
             const empty = mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, adminBillets: [], isAdmin: true } });
             expect(empty.find('[data-testid="admin-billets-empty"]').text()).toBe(
-                'No billet is waiting for a decision. The org import lists every Regimental HQ and S6 HQ billet here.',
+                'No billet is waiting for a decision. The org import lists every Regimental HQ, S6 1IC and S6 2IC billet here.',
             );
 
             const leader = mount(StaffGrants, { props: { grants: GRANTS, units: UNITS, users: USERS, adminBillets: BILLETS, isAdmin: false } });

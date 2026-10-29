@@ -187,6 +187,38 @@ describe('ViewAsPicker', () => {
         );
     });
 
+    it('shows no error when the preview starts on a page the target cannot open, and lets Inertia render the blocked page', async () => {
+        respondWith(LEADER_OPTIONS);
+        let handled;
+        mockRouter.post.mockImplementation((url, data, options) => {
+            handled = options.onHttpException?.({ status: 403, data: { component: 'Blocked', props: { mode: 'viewAs', kind: 'unit' } } });
+            options.onSuccess?.();
+            options.onFinish?.();
+        });
+        wrapper = await openPicker();
+
+        await pick('[data-testid="view-as-unit-4"]');
+
+        expect(handled).toBe(true);
+        expect(useViewAs().pickerOpen.value).toBe(false);
+        expect(inBody('[data-testid="view-as-submit-error"]')).toBeNull();
+    });
+
+    it('still says a plain 403 that is not the blocked page failed', async () => {
+        respondWith(LEADER_OPTIONS);
+        let handled;
+        mockRouter.post.mockImplementation((url, data, options) => {
+            handled = options.onHttpException?.({ status: 403, data: '<html>Forbidden</html>' });
+            options.onFinish?.();
+        });
+        wrapper = await openPicker();
+
+        await pick('[data-testid="view-as-unit-4"]');
+
+        expect(handled).toBe(false);
+        expect(inBody('[data-testid="view-as-submit-error"]').textContent).toContain('The preview did not start.');
+    });
+
     it('marks the current target, closes without a request when it is picked again, and offers the way back', async () => {
         mockPage.props.viewAs = { kind: 'unit', id: 5, label: '1/1/A/1-7', designation: '1/1/A/1-7', unitName: '1st Section', admin: false };
         respondWith({ ...LEADER_OPTIONS, current: { kind: 'unit', id: 5 } });

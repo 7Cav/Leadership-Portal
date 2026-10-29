@@ -151,7 +151,7 @@ class StaffGrantsController extends Controller
                 ? ['title' => $billet->title, 'group' => $billet->group_title]
                 : null,
             // An approved billet whose group is no longer an Admin billet group makes nobody an Admin.
-            'adminGroup' => AdminBillet::isAdminGroup($billet->proposed_group_title),
+            'adminGroup' => AdminBillet::isAdminBillet($billet->proposed_title, $billet->proposed_group_title),
             'holders' => $holders->get($billet->cav_position_id, collect())->map(fn (Trooper $trooper) => $trooper->display_name)->values()->all(),
             'own' => $own !== null && (int) $own === $billet->cav_position_id,
             'decidedAt' => $billet->decided_at?->toIso8601String(),

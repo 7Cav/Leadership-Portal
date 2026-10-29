@@ -181,6 +181,13 @@ watch(selectedUnit, () => {
     oversightError.value = null;
 });
 
+// Picking a match puts its name in the box, as a combobox does, so the choice shows; typing again drops it.
+function pickOversight(result) {
+    oversightPick.value = result;
+    oversightQuery.value = result.displayName;
+    oversightResults.value = [];
+}
+
 async function searchOversight() {
     oversightPick.value = null;
     oversightResults.value = await searchTroopers(oversightQuery.value);
@@ -241,6 +248,12 @@ watch(selectedUnit, () => {
     actingReason.value = '';
     actingError.value = null;
 });
+
+function pickActing(result) {
+    actingPick.value = result;
+    actingQuery.value = result.displayName;
+    actingResults.value = [];
+}
 
 async function searchActing() {
     actingPick.value = null;
@@ -851,7 +864,9 @@ function confirmDelete() {
                         </ul>
                     </section>
 
-                    <section v-if="isAdmin && canTakeActingLead" data-testid="acting-lead" aria-label="Acting lead" class="mb-4 rounded-lg border border-dashed border-border p-3">
+                    <section
+                        v-if="isAdmin && canTakeActingLead && (selectedUnit.acting_lead || selectedUnit.acting_lead_allowed)"
+                        data-testid="acting-lead" aria-label="Acting lead" class="mb-4 rounded-lg border border-dashed border-border p-3">
                         <h3 class="text-[13px] font-semibold">Acting lead</h3>
                         <p class="mt-0.5 text-xs text-muted-foreground">
                             For a unit whose lead is not in the roster data, such as a DEVCOM starter platoon run by a DEVCOM Lead. They get a
@@ -868,7 +883,7 @@ function confirmDelete() {
                                         data-testid="acting-result"
                                         class="w-full rounded-sm px-1.5 py-1 text-left hover:bg-accent"
                                         :class="actingPick?.id === result.id && 'bg-accent font-medium'"
-                                        @click="actingPick = result"
+                                        @click="pickActing(result)"
                                     >
                                         {{ result.displayName }}
                                     </button>
@@ -928,7 +943,7 @@ function confirmDelete() {
                                         data-testid="oversight-result"
                                         class="w-full rounded-sm px-1.5 py-1 text-left hover:bg-accent"
                                         :class="oversightPick?.id === result.id && 'bg-accent font-medium'"
-                                        @click="oversightPick = result"
+                                        @click="pickOversight(result)"
                                     >
                                         {{ result.displayName }}
                                     </button>

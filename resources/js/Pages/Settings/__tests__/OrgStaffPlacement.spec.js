@@ -136,7 +136,8 @@ describe('Settings/OrgStructure placement', () => {
 
         it('lets an Admin search for a trooper and make them acting lead, with a reason', async () => {
             vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ troopers: [{ id: 7, displayName: 'SGT Taylor.C', departed: false }, { id: 8, displayName: 'PVT Gone.X', departed: true }] }) })));
-            const wrapper = mountPage({ isAdmin: true });
+            const units = UNITS.map((unit) => (unit.id === 2 ? { ...unit, acting_lead_allowed: true } : unit));
+            const wrapper = mountPage({ isAdmin: true, units });
 
             await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
             const panel = wrapper.find('[data-testid="acting-lead"]');
@@ -151,6 +152,8 @@ describe('Settings/OrgStructure placement', () => {
             expect(results.map((result) => result.text())).toEqual(['SGT Taylor.C']);
 
             await results[0].trigger('click');
+            // The pick shows in the box, as a combobox does.
+            expect(wrapper.find('[data-testid="acting-search"]').element.value).toBe('SGT Taylor.C');
             await wrapper.find('[data-testid="acting-reason"]').setValue('Runs the 1st starter platoon.');
             await wrapper.find('[data-testid="acting-assign"]').trigger('click');
 
@@ -169,6 +172,19 @@ describe('Settings/OrgStructure placement', () => {
             await wrapper.find('[data-testid="acting-remove"]').trigger('click');
 
             expect(routerDelete).toHaveBeenCalledWith('/settings/org-structure/2/acting-lead', expect.objectContaining({ data: { reason: 'Handed over.' } }));
+        });
+
+        it('offers no acting lead form on a unit a serving billet holder leads', async () => {
+            const units = UNITS.map((unit) =>
+                unit.id === 2
+                    ? { ...unit, lead: { displayName: 'COL Cameron.J', billet: 'Platoon Leader 1/D/DEVCOM', source: 'billet' }, lead_vacant: false, acting_lead: null, acting_lead_allowed: false }
+                    : unit,
+            );
+            const wrapper = mountPage({ isAdmin: true, units });
+
+            await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
+            expect(wrapper.find('[data-testid="acting-lead"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="detail-lead"]').text()).toContain('COL Cameron.J');
         });
 
         it('offers no acting lead on a group or the regiment', async () => {

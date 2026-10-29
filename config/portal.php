@@ -76,7 +76,15 @@ return [
     |
     */
 
-    'admin_billet_groups' => ['Regimental HQ', 'S6 HQ'],
+    'admin_billet_groups' => ['Regimental HQ'],
+
+    /*
+    | Single billets that may make their holder an Admin although the rest of their Cav group may not, by exact
+    | trimmed title. The S6 leadership sits in Cav's "Support Attachment" group with S1, S2 and others. A billet
+    | renamed in Cav to a title not listed here stops making anyone an Admin, like a group move.
+    */
+
+    'admin_billet_titles' => ['S6 1IC', 'S6 2IC'],
 
     /*
     |--------------------------------------------------------------------------

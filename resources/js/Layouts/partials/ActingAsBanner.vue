@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import { PhWarningOctagon } from '@phosphor-icons/vue';
 import { toast } from 'vue-sonner';
-import { onHttpException } from '@/lib/httpError';
+import { onPreviewHttpException } from '@/lib/httpError';
 
 // The act-as bar (#379): red, not the view-as gold, because here every click is real. An Admin, or a leader acting as someone below them (#432), is acting with
 // someone else's permissions and everything they change is recorded as them acting for that person. It rides in the
@@ -15,7 +15,7 @@ const stopping = ref(false);
 function stop() {
     stopping.value = true;
     router.delete('/act-as', {
-        onHttpException: onHttpException('Acting did not stop', (message) => toast.error(message)),
+        onHttpException: onPreviewHttpException('Acting did not stop', (message) => toast.error(message)),
         onFinish: () => (stopping.value = false),
     });
 }
