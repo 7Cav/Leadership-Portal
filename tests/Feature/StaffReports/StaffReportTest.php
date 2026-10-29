@@ -33,7 +33,7 @@ use Carbon\CarbonImmutable;
 
 require_once __DIR__.'/../StaffPractices/fixture.php';
 
-// Policy, 2026-10-29: each platoon or company HQ staff member files their own weekly staff report, saying whether they
+// Each platoon or company HQ staff member files their own weekly staff report, saying whether they
 // attended a section practice that week and which. Each practice picked lists them on the host's rollcall, as a staff
 // guest in their own platoon or company and as a guest elsewhere, shown only.
 

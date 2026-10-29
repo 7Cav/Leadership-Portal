@@ -81,7 +81,7 @@ const props = defineProps({
     // The reason the portal's data gives for a trooper (`{ [trooperId]: reason }`): departed, moved out, or leave that
     // needs review. Pre-selected for an unaccounted trooper with no reason yet, for the leader to keep or change.
     suggestedReasons: { type: Object, default: () => ({}) },
-    // A platoon's or company's HQ staff and their own staff reports for the week (policy, 2026-10-29), read only and
+    // A platoon's or company's HQ staff and their own staff reports for the week, read only and
     // live; null for any other unit.
     staffReports: { type: Array, default: null },
 });

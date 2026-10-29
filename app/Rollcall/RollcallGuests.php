@@ -18,7 +18,7 @@ use Illuminate\Support\Collection;
  * rank, own section designation, where the entry came from and who added it), never a milpac link.
  *
  * Staff who said they attended (a staff practice entry, source `staff`, from their staff report or their milpac) are
- * listed after the guests (policy, 2026-10-29): as a staff guest (`staffGuest`) when the section is under the HQ they
+ * listed after the guests: as a staff guest (`staffGuest`) when the section is under the HQ they
  * were placed on when the week ended (their platoon or company), and as a guest otherwise. Shown only: they never count
  * in the section's numbers, KPIs, strength, JSAM counts or makeups, are never on its roster, and the host leader
  * cannot remove them.

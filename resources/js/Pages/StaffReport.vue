@@ -13,7 +13,7 @@ import { forumDate } from '@/lib/forumDate';
 import { onHttpException } from '@/lib/httpError';
 import { stamp } from '@/lib/report';
 
-// A platoon or company HQ staff member's own weekly staff report (policy, 2026-10-29): whether they attended a section
+// A platoon or company HQ staff member's own weekly staff report: whether they attended a section
 // practice this week, and which. The server says who may send it (the staff member alone, signed in as themselves),
 // which sections the picker offers, which entries are already there and what the game server saw; this page only
 // draws its answers and posts the picks. Once sent it is final and reads back as sent.

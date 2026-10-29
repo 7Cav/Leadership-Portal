@@ -140,7 +140,7 @@ describe('Home page', () => {
         });
     });
 
-    describe('staff report (policy, 2026-10-29)', () => {
+    describe('staff report', () => {
         it('reminds a platoon or company HQ staff member of their unsent staff report, with a link to it', () => {
             const staffReport = { week: '2026-10-03', due: '2026-10-10T23:59:00+00:00', href: '/staff-report/7/2026-10-03' };
             const notice = mount(Home, { props: { week: WEEK, staffReport } }).find('[data-testid="home-staff-report"]');

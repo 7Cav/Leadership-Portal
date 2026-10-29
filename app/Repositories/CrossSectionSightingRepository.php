@@ -19,7 +19,7 @@ use Illuminate\Support\Collection;
  * hand.
  *
  * A third writer, the audited staff practice Commands ({@see recordStaff()} and {@see removeStaff()}, #448), keeps the
- * practices a staff member attended (source `staff`), and so does the audited staff report Command (policy, 2026-10-29).
+ * practices a staff member attended (source `staff`), and so does the audited staff report Command.
  * Those rows are never guests: every guest read below (the makeup support, the JSAM visits) reads only
  * `CrossSectionSighting::GUEST_SOURCES`. The rollcall lists them beside its guests through {@see staffForHostPractice()},
  * shown only.
@@ -72,7 +72,7 @@ interface CrossSectionSightingRepository
 
     /**
      * The staff entries of `$trooperId` in the Cav week opening at `$weekStart`, with the host practice and its section
-     * loaded: what their staff report for the week starts from and replaces (policy, 2026-10-29).
+     * loaded: what their staff report for the week starts from and replaces.
      *
      * @return Collection<int, CrossSectionSighting>
      */
@@ -80,7 +80,7 @@ interface CrossSectionSightingRepository
 
     /**
      * Every staff entry at this host practice, with `trooper`, `recordedBy`, `recordedByAdmin` and `recordedAsUnit`
-     * loaded, by username: the staff the rollcall lists beside its guests, shown only (policy, 2026-10-29).
+     * loaded, by username: the staff the rollcall lists beside its guests, shown only.
      *
      * @return Collection<int, CrossSectionSighting>
      */

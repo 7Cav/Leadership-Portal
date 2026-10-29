@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * One platoon or company HQ staff member's weekly staff report (policy, 2026-10-29): whether they attended a section
+ * One platoon or company HQ staff member's weekly staff report: whether they attended a section
  * practice that Cav week (`attended`) and which (`practices`, `[{section_id, section}]`, frozen as sent). UNIQUE on
  * `(trooper_id, week_start)`. A row exists only once the report is sent, and is never changed after. Written only by
  * `StaffReportRepository`, from the audited `SendStaffReport` Command.

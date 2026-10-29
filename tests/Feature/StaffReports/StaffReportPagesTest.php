@@ -16,7 +16,7 @@ use Inertia\Testing\AssertableInertia;
 
 require_once __DIR__.'/../StaffPractices/fixture.php';
 
-// Policy, 2026-10-29: the staff report page, who reads it, how the staff member reaches it (the sidebar and Home), and
+// The staff report page, who reads it, how the staff member reaches it (the sidebar and Home), and
 // how a platoon's or company's report shows whether its HQ staff sent theirs.
 
 beforeEach(function () {

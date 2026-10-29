@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import StaffReport from '../StaffReport.vue';
 
-// Policy, 2026-10-29: the staff report page draws what the server sent and posts the picks; it decides nothing about
+// The staff report page draws what the server sent and posts the picks; it decides nothing about
 // who may send.
 
 const posted = vi.fn();

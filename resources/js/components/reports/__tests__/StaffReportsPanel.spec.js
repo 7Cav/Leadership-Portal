@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import StaffReportsPanel from '../StaffReportsPanel.vue';
 
-// Policy, 2026-10-29: a platoon's or company's report shows, read only, whether each HQ staff member sent their own
+// A platoon's or company's report shows, read only, whether each HQ staff member sent their own
 // staff report and attended a section practice.
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({

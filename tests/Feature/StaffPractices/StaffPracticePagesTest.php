@@ -29,8 +29,8 @@ use Carbon\CarbonImmutable;
 require_once __DIR__.'/fixture.php';
 
 // #448: a staff member's attended practices show on their milpac (where they are entered) and the roster sheet, are
-// taken from the game server capture where it saw them, and are listed on the host section's rollcall (policy,
-// 2026-10-29) but never reach its roster, numbers, reports or anyone's makeup.
+// taken from the game server capture where it saw them, and are listed on the host section's rollcall
+// but never reach its roster, numbers, reports or anyone's makeup.
 
 beforeEach(function () {
     $this->tree = staffPracticeTree();
@@ -222,7 +222,7 @@ it('lists a staff member on the host rollcall beside its guests, shown only: nev
     enterStaffPractice($this->tree['users']['s6Lead'], $this->tree['troopers']['s6Member'], $host->id);
 
     $practice = app(SectionPracticeRepository::class)->find($host->id, $this->week);
-    // Policy, 2026-10-29: the PSG's own platoon holds the host, so a staff guest; S6 is not over it, so a guest.
+    // The PSG's own platoon holds the host, so a staff guest; S6 is not over it, so a guest.
     expect(collect(app(RollcallGuests::class)->forPractice($practice))->map(fn (array $row) => [$row['name'], $row['source'], $row['staffGuest']])->all())
         ->toBe([['Brandt.L', 'staff', true], ['Vance.K', 'staff', false]])
         ->and(Attendance::query()->count())->toBe(0)

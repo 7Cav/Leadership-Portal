@@ -64,7 +64,7 @@ class StaffPracticeRefusedException extends RuntimeException
         return new self("The report for the week of {$weekStart->format('dMy')} has been sent, so that week can no longer change.", 'locked', 'week');
     }
 
-    /** The staff member sent their own staff report for the week (policy, 2026-10-29), which froze its entries. */
+    /** The staff member sent their own staff report for the week, which froze its entries. */
     public static function staffReportSent(string $name, CarbonInterface $weekStart): self
     {
         return new self("{$name} sent their staff report for the week of {$weekStart->format('dMy')}, so that week can no longer change.", 'locked', 'week');

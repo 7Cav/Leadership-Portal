@@ -354,7 +354,7 @@ lists the section practices they attended, newest week first; the roster's troop
 
 ### Staff report
 
-Policy (2026-10-29): platoon HQ and company HQ staff attend at least one section practice a week, preferably in their
+Platoon HQ and company HQ staff attend at least one section practice a week, preferably in their
 own platoon or company, and each files their own weekly staff report saying whether they did and which. "Staff" here
 is a serving trooper placed on a platoon or company HQ node (the PL, PSG, CO, XO, 1SG and anyone else placed there).
 Battalion and regiment HQ, staff departments, ELOA, Reservists and New Recruits file none. It is not a line in the

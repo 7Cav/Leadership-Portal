@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * A platoon or company HQ staff member's own weekly staff report (policy, 2026-10-29): whether they attended at
+     * A platoon or company HQ staff member's own weekly staff report: whether they attended at
      * least one section practice that Cav week, and which. One row per trooper and week, written once when the staff
      * member sends it and never changed after (a sent report is final, as a unit's weekly report is). There is no
      * draft: the page keeps the picks until it is sent.

@@ -116,7 +116,7 @@ class HandleInertiaRequests extends Middleware
             'features' => [
                 'demoTools' => (bool) config('portal.demo_tools'),
                 'docs' => (bool) config('portal.docs'),
-                // "Staff report" (policy, 2026-10-29): for a platoon or company HQ staff member signed in as themselves.
+                // "Staff report": for a platoon or company HQ staff member signed in as themselves.
                 'staffReport' => $request->user() !== null && $this->staffReports->isHqStaffNow($request->user()),
             ],
         ];

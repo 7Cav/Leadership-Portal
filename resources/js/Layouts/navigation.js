@@ -31,7 +31,7 @@ export const NAV_GROUPS = [
             { label: 'Roster', href: '/roster', icon: PhUsersThree },
             { label: 'Rollcall', href: '/rollcall', icon: PhClipboardText },
             { label: 'Reports', href: '/reports', icon: PhFileText },
-            // A platoon or company HQ staff member's own weekly staff report (policy, 2026-10-29), only for them.
+            // A platoon or company HQ staff member's own weekly staff report, only for them.
             { label: 'Staff report', href: '/staff-report', icon: PhUserCheck, feature: 'staffReport' },
             { label: 'Game identities', href: '/game-identities', icon: PhGameController },
         ],

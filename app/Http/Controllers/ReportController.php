@@ -200,7 +200,7 @@ class ReportController extends Controller
 
     /**
      * A platoon's or company's HQ staff for the week and whether each sent their staff report and attended a section
-     * practice (policy, 2026-10-29), read only and live, not frozen with this report. Only the staff whose report the
+     * practice, read only and live, not frozen with this report. Only the staff whose report the
      * viewer may read are listed (the chain above the HQ, the staff member themselves, Admins), so a PL does not see
      * their PSG's here. Null for any other unit.
      *

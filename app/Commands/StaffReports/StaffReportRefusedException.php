@@ -6,7 +6,7 @@ use Carbon\CarbonInterface;
 use RuntimeException;
 
 /**
- * A staff report that cannot be sent, refused before anything is written (policy, 2026-10-29). `field` is the form
+ * A staff report that cannot be sent, refused before anything is written. `field` is the form
  * field the message belongs on, `reason` names the rule:
  *
  * - `unknown_trooper`: no such trooper;

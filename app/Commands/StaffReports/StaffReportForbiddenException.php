@@ -4,7 +4,7 @@ namespace App\Commands\StaffReports;
 
 use RuntimeException;
 
-/** Only the staff member, signed in as themselves, sends their own staff report (policy, 2026-10-29). */
+/** Only the staff member, signed in as themselves, sends their own staff report. */
 class StaffReportForbiddenException extends RuntimeException
 {
     public function __construct()

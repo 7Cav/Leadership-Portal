@@ -19,7 +19,7 @@ use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 
 /**
- * A platoon or company HQ staff member sends their own weekly staff report (policy, 2026-10-29): whether they attended
+ * A platoon or company HQ staff member sends their own weekly staff report: whether they attended
  * at least one section practice that Cav week, and which. Only they send it, signed in as themselves
  * ({@see StaffReportAccess::maySend()}); nobody fills it in for them, Admins included. A sent report is final, as a
  * unit's weekly report is: there is no draft, no edit and no second send.

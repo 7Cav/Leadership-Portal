@@ -3,7 +3,7 @@ import { Link } from '@inertiajs/vue3';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 
-// A platoon's or company's HQ staff for the week (policy, 2026-10-29): whether each sent their own staff report and
+// A platoon's or company's HQ staff for the week: whether each sent their own staff report and
 // attended a section practice. Read only, and live: it is not frozen with this report. The server lists only the
 // staff whose report the viewer may read.
 defineProps({

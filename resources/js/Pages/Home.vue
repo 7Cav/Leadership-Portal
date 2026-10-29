@@ -30,7 +30,7 @@ const props = defineProps({
     units: { type: Array, default: () => [] },
     // The week's five steps per section in scope (the step lanes and matrix).
     steps: { type: Array, default: () => [] },
-    // The viewer's own staff report while it is due and not sent (policy, 2026-10-29), `{ week, due, href }`, or null.
+    // The viewer's own staff report while it is due and not sent, `{ week, due, href }`, or null.
     staffReport: { type: Object, default: null },
 });
 

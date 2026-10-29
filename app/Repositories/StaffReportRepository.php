@@ -8,7 +8,7 @@ use Illuminate\Support\Collection;
 
 /**
  * Sole DB access for `staff_reports` (AD-2): the weekly staff report a platoon or company HQ staff member sends about
- * themselves (policy, 2026-10-29). A row exists only once sent, and is never changed after. The one writer is the
+ * themselves. A row exists only once sent, and is never changed after. The one writer is the
  * audited `SendStaffReport` Command, through {@see send()}.
  */
 interface StaffReportRepository

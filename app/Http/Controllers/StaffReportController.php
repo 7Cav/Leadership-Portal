@@ -24,7 +24,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * The weekly staff report (policy, 2026-10-29): a platoon or company HQ staff member says whether they attended a
+ * The weekly staff report: a platoon or company HQ staff member says whether they attended a
  * section practice that week, and which. One page per staff member and week. `/staff-report` opens the viewer's own for
  * the week whose report cycle is running. Orchestration only: the send is one audited Command whose handler decides who
  * may ({@see StaffReportAccess}: the staff member alone) and which week; a view-as preview is refused before it gets

@@ -17,7 +17,7 @@ use Carbon\CarbonImmutable;
  * only one in the actor's scope: staff attend practices across the regiment), and the week must be neither before
  * `WeekOf::floor()` nor in the future. The lock is the staff member's own unit's in that week: a week whose report the
  * unit they were placed in then sent is frozen, as a section's is (AD-12). Only an HQ node sends a weekly report; a staff department has none, so its weeks
- * stay open. A week the staff member sent their own staff report for (policy, 2026-10-29) is frozen too.
+ * stay open. A week the staff member sent their own staff report for is frozen too.
  */
 trait GuardsStaffPractice
 {

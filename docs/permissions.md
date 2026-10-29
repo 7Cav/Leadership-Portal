@@ -328,7 +328,7 @@ trooper may open (decided 2026-10-28); that opens no other trooper's page.
 ### Staff report
 
 A platoon or company HQ staff member (a serving trooper placed on that HQ node when the week ended) files their own
-weekly staff report (policy, 2026-10-29). "Above their HQ" is the unit the HQ sits in: the company for a platoon HQ,
+weekly staff report. "Above their HQ" is the unit the HQ sits in: the company for a platoon HQ,
 the battalion for a company HQ. Reading follows the read scope there, as unit reports do, so a staff grant, an overseer
 and the Regimental HQ read count.
 

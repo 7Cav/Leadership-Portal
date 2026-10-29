@@ -12,7 +12,7 @@ use App\Repositories\UnitRepository;
 use Carbon\CarbonInterface;
 
 /**
- * Who files a weekly staff report, and who may read one (policy, 2026-10-29).
+ * Who files a weekly staff report, and who may read one.
  *
  * Who files: a serving trooper placed on a platoon or company HQ node when the Cav week ended (the PL, PSG, CO, XO, 1SG
  * and anyone else placed there), by the placement history, so a past week asks who was on the HQ then. Battalion and

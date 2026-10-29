@@ -125,7 +125,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // (Authorization\StaffPracticeAccess); a trooper the viewer cannot see is a 404. On the shared audited-writes throttle.
     Route::post('/troopers/{trooper}/staff-practices', [StaffPracticeController::class, 'store'])->middleware('throttle:audited-writes')->name('staff-practices.store');
     Route::post('/troopers/{trooper}/staff-practices/remove', [StaffPracticeController::class, 'destroy'])->middleware('throttle:audited-writes')->name('staff-practices.remove');
-    // The weekly staff report of a platoon or company HQ staff member (policy, 2026-10-29): one page per staff member and
+    // The weekly staff report of a platoon or company HQ staff member: one page per staff member and
     // week, read by them, the chain above their HQ and Admins; sent once, by the staff member alone, as an audited Command
     // (Authorization\StaffReportAccess). `/staff-report` opens the viewer's own for the week whose report is due.
     Route::get('/staff-report', [StaffReportController::class, 'own'])->name('staff-report.own');

@@ -112,7 +112,7 @@ class HomeController extends Controller
     }
 
     /**
-     * The viewer's own staff report for the week (policy, 2026-10-29), while they owe one and have not sent it: a
+     * The viewer's own staff report for the week, while they owe one and have not sent it: a
      * platoon or company HQ staff member signed in as themselves. Null otherwise, so Home shows nothing for it.
      *
      * @return array{week: string, due: string, href: string}|null

@@ -16,7 +16,7 @@ import { postJson, reloadPage, sessionEnded } from '@/lib/postJson';
 // set times; its older sightings still show, marked as such). A hand-added guest gets an automatic makeup on their own
 // section's rollcall; only a hand-added one can be undone. The server decides who may add (the section's write
 // scope), finds the guests (outside the leader's scope, name, rank and section only) and refuses a locked or confirmed
-// week; this only shows its answers. Staff who said they attended (policy, 2026-10-29) are listed too, as a staff guest
+// week; this only shows its answers. Staff who said they attended are listed too, as a staff guest
 // when the section is under their own platoon or company and as a guest otherwise. They are shown only: they never count
 // here, and nobody removes them from this list.
 const props = defineProps({
