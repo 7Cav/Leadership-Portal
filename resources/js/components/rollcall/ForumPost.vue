@@ -19,12 +19,12 @@ const view = ref('preview');
 <template>
     <section aria-labelledby="forum-post-title" class="mt-5 rounded-lg border border-border bg-card" data-testid="forum-post">
         <div class="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-3.5">
-            <h3 id="forum-post-title" class="text-[13px] font-semibold">Rollcall post</h3>
+            <h3 id="forum-post-title" class="text-[13px] font-semibold">Roll call post</h3>
             <span v-if="post.state === 'ready'" class="text-xs text-muted-foreground" data-testid="template-version">Template version {{ post.version }}</span>
             <span class="ml-auto text-xs text-muted-foreground">Updates as you edit</span>
         </div>
         <Tabs v-if="post.state === 'ready'" v-model="view" :unmount-on-hide="false" class="gap-0 px-4 pt-1 pb-4">
-            <TabsList aria-label="Rollcall post view">
+            <TabsList aria-label="Roll call post view">
                 <TabsTrigger value="preview" data-testid="forum-view-preview"><PhEye aria-hidden="true" />Preview</TabsTrigger>
                 <TabsTrigger value="bbcode" data-testid="forum-view-bbcode"><PhCode aria-hidden="true" />BBCode</TabsTrigger>
             </TabsList>

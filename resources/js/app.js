@@ -4,6 +4,9 @@ import { createApp, h } from 'vue';
 import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { resolveLayout } from './Layouts/resolveLayout';
+import { printConsoleFlags } from './lib/consoleFlags';
+
+printConsoleFlags();
 
 createInertiaApp({
     // Pages load on demand, so each one builds to its own chunk instead of one bundle.

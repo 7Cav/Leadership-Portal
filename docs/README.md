@@ -1,7 +1,7 @@
 # Leadership Portal documentation
 
-The Leadership Portal is the 7th Cavalry Regiment's tool for the weekly leadership cycle: rollcall signatures,
-Section Practice (SP) attendance, the rollcall post for the forum, and the weekly report that rolls up from sections
+The Leadership Portal is the 7th Cavalry Regiment's tool for the weekly leadership cycle: roll call signatures,
+Section Practice (SP) attendance, the roll call post for the forum, and the weekly report that rolls up from sections
 to platoons, companies, battalions and the regiment. It reads the live Cav roster and the forum's leave threads, so
 leaders do not keep their own lists.
 

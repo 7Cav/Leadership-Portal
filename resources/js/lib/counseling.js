@@ -27,7 +27,7 @@ export function fileSize(bytes) {
 
 // What a record is for: it decides which ladder of the regulations it is weighed on (CounselingKind on the server).
 export const COUNSELING_KINDS = {
-    missed_practice: { label: 'Missed section practice or rollcall' },
+    missed_practice: { label: 'Missed section practice or roll call' },
     conduct: { label: 'Other conduct' },
 };
 

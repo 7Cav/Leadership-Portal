@@ -30,7 +30,7 @@ export function messageFor(result) {
     if (result.status === 0 || result.status === 401) return 'You were signed out. Sign in again, then retry.';
     if (result.status === 419) return 'Your session expired; reload the page and try again.';
     if (result.data?.message) return result.data.message;
-    if (result.status === 403) return 'This rollcall is read-only for you right now.';
+    if (result.status === 403) return 'This roll call is read-only for you right now.';
     if (result.status >= 500) return 'The portal hit an error. Your changes are kept; retry in a moment.';
 
     return 'The server did not accept the change.';
@@ -309,7 +309,7 @@ export function useRollcallAutosave({
         const visit = event?.detail?.visit;
         if (visit?.only?.length || visit?.except?.length) return;
 
-        const goAnyway = window.confirm('Some rollcall changes are not saved yet. Leave anyway?');
+        const goAnyway = window.confirm('Some roll call changes are not saved yet. Leave anyway?');
         if (goAnyway) leave();
 
         return goAnyway;

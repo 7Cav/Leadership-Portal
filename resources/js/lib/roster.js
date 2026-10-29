@@ -91,8 +91,8 @@ export const RC_STATES = {
     ok: 'Will attend',
     cn: 'Cannot attend',
     bad: 'Unsigned',
-    open: 'Unsigned (rollcall open)',
-    nil: 'No rollcall posted',
+    open: 'Unsigned (roll call open)',
+    nil: 'No roll call posted',
     loa: 'On LOA',
     out: 'Not in the unit yet',
 };

@@ -98,7 +98,7 @@ const blank = computed(() => !reason.value.trim());
                     <dt class="text-muted-foreground">Notes</dt>
                     <dd class="line-clamp-4 whitespace-pre-line">{{ content.notes?.trim() || 'None' }}</dd>
                     <dt class="text-muted-foreground">After sending</dt>
-                    <dd>Read-only. Later rollcall edits do not change it.</dd>
+                    <dd>Read-only. Later roll call edits do not change it.</dd>
                 </dl>
 
                 <div class="mt-4 space-y-1.5">

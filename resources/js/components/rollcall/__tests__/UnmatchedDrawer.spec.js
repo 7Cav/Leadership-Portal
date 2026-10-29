@@ -44,7 +44,7 @@ describe('UnmatchedDrawer', () => {
         expect(wrapper.find('[data-testid="departed-list"]').text()).toContain('Departed (1)');
         expect(row.text()).toContain('GoneA');
         expect(row.text()).toContain('Departed');
-        expect(row.find('[data-testid="departed-note"]').text()).toBe('Linked to PFC Gone.A, who has left. Not marked on any rollcall.');
+        expect(row.find('[data-testid="departed-note"]').text()).toBe('Linked to PFC Gone.A, who has left. Not marked on any roll call.');
         expect(row.find('button').exists()).toBe(false);
         expect(row.find('select').exists()).toBe(false);
     });

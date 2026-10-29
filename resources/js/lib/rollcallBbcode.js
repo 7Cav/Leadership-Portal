@@ -81,11 +81,11 @@ export function rollcallContext({ section, week, troopers, fireteams = {} }) {
  */
 export function rollcallPost(template, input) {
     if (template?.state === 'no_owning_company') {
-        return { state: 'none', message: 'This section does not sit under a company, so there is no rollcall template for it.' };
+        return { state: 'none', message: 'This section does not sit under a company, so there is no roll call template for it.' };
     }
 
     if (template?.state !== 'resolved' || typeof template.body !== 'string') {
-        return { state: 'none', message: 'This section has no rollcall template, not even the regiment default. An Admin can check Settings, Templates.' };
+        return { state: 'none', message: 'This section has no roll call template, not even the regiment default. An Admin can check Settings, Templates.' };
     }
 
     const out = render(template.body, rollcallContext(input));

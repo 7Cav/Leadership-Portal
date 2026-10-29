@@ -49,7 +49,7 @@ describe('Attendance matrix (roster-s3)', () => {
 
         // Week 17: unsigned and missed. Both halves are slashed, and the cell names both states in words.
         expect(halves(17)).toEqual(['roster-h--bad', 'roster-h--bad']);
-        expect(row.findAll('.cc-focus')[17].attributes('aria-label')).toContain('Rollcall: Unsigned. SP: Missed.');
+        expect(row.findAll('.cc-focus')[17].attributes('aria-label')).toContain('Roll call: Unsigned. SP: Missed.');
         // Week 16: signed and present, so neither half is slashed.
         expect(halves(16)).toEqual(['roster-h--ok', 'roster-h--ok']);
     });

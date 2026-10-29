@@ -123,7 +123,7 @@ describe('highlights', () => {
 
         expect(text).toContain('SP up 5 pts to 75% over 30 days, 0 makeups this week.');
         expect(text).toContain('PFC T2 has missed 2 practices in 30 days and is at-risk. Reason: sick.');
-        expect(text).toContain('Rollcall signed by 2 of 2');
+        expect(text).toContain('Roll call signed by 2 of 2');
     });
 
     it('writes nothing when there are no KPIs', () => {

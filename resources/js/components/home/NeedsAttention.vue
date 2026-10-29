@@ -32,7 +32,7 @@ const TONES = { holding: 'text-warning', at_risk: 'text-destructive', loa_review
 
 function rowTitle(item) {
     if (item.kind === 'holding') return `Open the ${item.unit.designation} report for this week`;
-    if (item.kind === 'loa_review' && item.section) return `Open ${item.trooper.displayName} on the ${item.section.designation} rollcall`;
+    if (item.kind === 'loa_review' && item.section) return `Open ${item.trooper.displayName} on the ${item.section.designation} roll call`;
 
     return `Open ${item.trooper.displayName} on the roster`;
 }

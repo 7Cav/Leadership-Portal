@@ -62,7 +62,7 @@ const TEMPLATES = [
 ];
 
 const props = (overrides = {}) => ({
-    artifactType: { value: 'rollcall_bbcode', label: 'Rollcall BBCode' },
+    artifactType: { value: 'rollcall_bbcode', label: 'Roll call BBCode' },
     companies: COMPANIES,
     company: 1,
     templates: TEMPLATES,
@@ -1058,7 +1058,7 @@ describe("Settings/Templates: a section's own templates", () => {
         const wrapper = sectionPage();
 
         expect(wrapper.get('[data-testid="owner-select"]').element.value).toBe('31');
-        expect(wrapper.get('[data-testid="section-note"]').text()).toContain("1/1/E/2-7 1st Section's own templates. Only this section's rollcall can use them");
+        expect(wrapper.get('[data-testid="section-note"]').text()).toContain("1/1/E/2-7 1st Section's own templates. Only this section's roll call can use them");
         expect(wrapper.find('[data-testid="template-row-40"]').exists()).toBe(true);
         expect(wrapper.find('[data-testid="switch-40"]').exists()).toBe(false);
         expect(wrapper.find('[data-testid="make-default-40"]').exists()).toBe(false);
@@ -1087,7 +1087,7 @@ describe("Settings/Templates: a section's own templates", () => {
 
         await wrapper.get('[data-testid="new-template"]').trigger('click');
         await flushPromises();
-        expect(document.body.querySelector('[data-testid="create-dialog"]').textContent).toContain("for 1/1/E/2-7 1st Section's rollcall only");
+        expect(document.body.querySelector('[data-testid="create-dialog"]').textContent).toContain("for 1/1/E/2-7 1st Section's roll call only");
 
         createState.name = 'Our layout';
         createState.reason = 'Our own post';

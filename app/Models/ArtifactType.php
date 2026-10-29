@@ -15,7 +15,7 @@ enum ArtifactType: string
     public function label(): string
     {
         return match ($this) {
-            self::RollcallBbcode => 'Rollcall BBCode',
+            self::RollcallBbcode => 'Roll call BBCode',
         };
     }
 }

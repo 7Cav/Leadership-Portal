@@ -1,16 +1,16 @@
 ---
 title: Set up fireteams
-summary: Mark fireteam leaders, fill their fireteams, and choose how the rollcall post shows them.
+summary: Mark fireteam leaders, fill their fireteams, and choose how the roll call post shows them.
 section: weekly-rollcall
 order: 3
 audience: leader
 ---
 
-> [!why] The rollcall post lists your section the way your fireteams run, so the troopers know who they report to on the day.
+> [!why] The roll call post lists your section the way your fireteams run, so the troopers know who they report to on the day.
 
 ## Mark the fireteam leaders
 
-1. Open your section's rollcall and find **Fireteam leaders**.
+1. Open your section's roll call and find **Fireteam leaders**.
 2. Choose the troopers who lead a fireteam.
 
 ## Fill the fireteams

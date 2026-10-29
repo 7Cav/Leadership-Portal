@@ -46,7 +46,7 @@ describe('openablePage', () => {
 
 describe('cameFrom', () => {
     it('names the page the "?" help was opened from', () => {
-        expect(cameFrom('/docs/weekly-rollcall/run?from=/rollcall')).toEqual({ href: '/rollcall', label: 'Rollcall' });
+        expect(cameFrom('/docs/weekly-rollcall/run?from=/rollcall')).toEqual({ href: '/rollcall', label: 'Roll call' });
         expect(cameFrom('/docs/admin/games?from=%2Fsettings%2Fgames')).toEqual({ href: '/settings/games', label: 'Games' });
         expect(cameFrom('/docs/x/y?from=/nowhere')).toEqual({ href: '/nowhere', label: 'the previous page' });
     });

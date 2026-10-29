@@ -33,7 +33,7 @@ one that does not exist.
 
 ```markdown
 ---
-title: Run this week's rollcall          # required
+title: Run this week's roll call         # required
 summary: Mark attendance, confirm, post. # required, one sentence
 section: weekly-rollcall                 # required, the folder it is in
 order: 1                                 # required, its place in the section
@@ -42,7 +42,7 @@ page: /rollcall                          # optional: the portal path it explains
 weekly: true                             # optional: a weekly task, listed under "Every week" on docs home
 minutes: 5                               # optional: about how long it takes
 checklist:                               # optional: put it on the "Start here" list
-  label: Run your first rollcall
+  label: Run your first roll call
   audience: leader                       # never wider than the guide's own audience
   order: 3
 ---
@@ -60,7 +60,7 @@ best guide for the page the reader is on.
 - Two call-outs, as a block quote that starts with a marker:
 
   ```markdown
-  > [!why] The weekly report is built from your confirmed rollcall.
+  > [!why] The weekly report is built from your confirmed roll call.
   > [!good-to-know] Troopers on leave are already marked for you.
   ```
 

@@ -29,7 +29,7 @@ export const NAV_GROUPS = [
         items: [
             { label: 'Home', href: '/home', icon: PhHouse },
             { label: 'Roster', href: '/roster', icon: PhUsersThree },
-            { label: 'Rollcall', href: '/rollcall', icon: PhClipboardText },
+            { label: 'Roll call', href: '/rollcall', icon: PhClipboardText },
             { label: 'Reports', href: '/reports', icon: PhFileText },
             // A platoon or company HQ staff member's own weekly staff report, only for them.
             { label: 'Staff report', href: '/staff-report', icon: PhUserCheck, feature: 'staffReport' },

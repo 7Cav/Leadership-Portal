@@ -158,7 +158,7 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                             <span
                                 v-for="cell in cells"
                                 :key="cell.week"
-                                :title="`Week of ${weekLabel(cell.week)}${elsewhere(cell.mark) ? ` at ${elsewhere(cell.mark)}` : ''}. Rollcall: ${RC_STATES[cell.rc]}. SP: ${SP_STATES[cell.sp]}.`"
+                                :title="`Week of ${weekLabel(cell.week)}${elsewhere(cell.mark) ? ` at ${elsewhere(cell.mark)}` : ''}. Roll call: ${RC_STATES[cell.rc]}. SP: ${SP_STATES[cell.sp]}.`"
                                 :class="cell.week === current && 'rounded-[4px] outline outline-[1.5px] outline-offset-2 outline-primary'"
                             >
                                 <WeekCell :rc="cell.rc" :sp="cell.sp" size="xs" />
@@ -203,7 +203,7 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
                         <h3 class="mb-1 text-xs text-muted-foreground">Last 8 weeks, newest first</h3>
                         <table class="w-full text-left" data-testid="sheet-recent">
                             <thead class="sr-only">
-                                <tr><th>Week</th><th>Rollcall</th><th>Section practice</th></tr>
+                                <tr><th>Week</th><th>Roll call</th><th>Section practice</th></tr>
                             </thead>
                             <tbody>
                                 <tr v-for="cell in recent" :key="cell.week" class="border-b border-border align-top last:border-0">
@@ -225,7 +225,7 @@ const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted
 
                 <SheetFooter class="flex-row flex-wrap items-center gap-2 border-t border-border p-4">
                     <Button v-if="links.rollcall" as-child>
-                        <Link :href="`${links.rollcall}${trooper.section.id}`" data-testid="sheet-open-rollcall"><PhClipboardText />Open rollcall</Link>
+                        <Link :href="`${links.rollcall}${trooper.section.id}`" data-testid="sheet-open-rollcall"><PhClipboardText />Open roll call</Link>
                     </Button>
                     <Button v-if="links.trooper" as-child :variant="links.rollcall ? 'outline' : 'default'">
                         <Link :href="`${links.trooper}${trooperId}`" data-testid="sheet-open-trooper"><PhIdentificationCard />Open milpac</Link>

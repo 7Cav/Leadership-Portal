@@ -24,9 +24,11 @@ checklist:
 2. For a game, enter their **Player name** and the game's ID for them. The page says which ID that game uses.
 3. Choose **Save identity**. Each trooper has one identity per game.
 
+> [!good-to-know] **Add identity** opens on the game the trooper's unit plays, set on Org structure or inherited from the unit above, while they have no identity for it. A unit with no game set opens on the game most of its troopers have linked. Once that game is filled in, it opens on another game they are still missing.
+
 ## Change or remove one
 
 1. Choose **Edit** next to the game, change it, and choose **Save changes**.
 2. Or choose **Remove**. Their past attendance stays as it is.
 
-> [!good-to-know] You can also link a player straight from a captured practice's rollcall: see [Link or dismiss an unmatched player](/docs/weekly-rollcall/unmatched-players).
+> [!good-to-know] You can also link a player straight from a captured practice's roll call: see [Link or dismiss an unmatched player](/docs/weekly-rollcall/unmatched-players).

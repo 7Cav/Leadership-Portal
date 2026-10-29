@@ -30,7 +30,7 @@ describe('StepMatrix', () => {
     it('draws a row per section with the five step columns', () => {
         const wrapper = mount(StepMatrix, { props: { steps: [step(1, '1/1/A/1-7'), step(2, '2/1/A/1-7')] } });
 
-        expect(wrapper.findAll('th').map((th) => th.text())).toEqual(['Unit', 'Rollcall posted', 'Rollcall signed', 'SP held', 'Attendance marked', 'Report sent']);
+        expect(wrapper.findAll('th').map((th) => th.text())).toEqual(['Unit', 'Roll call posted', 'Roll call signed', 'SP held', 'Attendance marked', 'Report sent']);
         expect(wrapper.findAll('tbody tr')).toHaveLength(2);
         expect(wrapper.find('tbody tr').text()).toContain('1/A/1-7');
     });
@@ -67,14 +67,14 @@ describe('StepMatrix', () => {
 
 describe('StepLanes', () => {
     it('keeps the empty state when no section is in scope', () => {
-        expect(mount(StepLanes, { props: { steps: [] } }).text()).toContain('Step tracking starts with rollcalls');
+        expect(mount(StepLanes, { props: { steps: [] } }).text()).toContain('Step tracking starts with roll calls');
     });
 
     it('draws the five lanes with their totals, for wide and phone layouts', () => {
         const wrapper = mount(StepLanes, { props: { steps: [step(1, 'A', { held: true, marked: 4, signed: 4 }), step(2, 'B')] } });
 
-        expect(wrapper.findAll('[data-lane]').map((lane) => lane.attributes('data-lane'))).toEqual(['Rollcall posted', 'Rollcall signed', 'SP held', 'Attendance marked', 'Report sent']);
-        expect(wrapper.find('[data-lane="Rollcall signed"]').text()).toContain('4 of 8 signed');
+        expect(wrapper.findAll('[data-lane]').map((lane) => lane.attributes('data-lane'))).toEqual(['Roll call posted', 'Roll call signed', 'SP held', 'Attendance marked', 'Report sent']);
+        expect(wrapper.find('[data-lane="Roll call signed"]').text()).toContain('4 of 8 signed');
         expect(wrapper.find('[data-testid="step-lanes-mobile"]').text()).toContain('1 of 2 held');
     });
 });

@@ -6,7 +6,7 @@ order: 5
 audience: leader
 ---
 
-> [!why] When a leader below you is away, act as lets you do what they would do, such as run their rollcall or send their report, without asking an Admin. Unlike View as, everything you change is real.
+> [!why] When a leader below you is away, act as lets you do what they would do, such as run their roll call or send their report, without asking an Admin. Unlike View as, everything you change is real.
 
 ## Who you can act as
 

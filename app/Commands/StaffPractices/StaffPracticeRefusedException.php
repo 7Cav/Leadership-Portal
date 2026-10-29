@@ -31,7 +31,7 @@ class StaffPracticeRefusedException extends RuntimeException
 
     public static function notStaff(string $name): self
     {
-        return new self("{$name} is not on a staff, so their practices are on their own section's rollcall.", 'not_staff', 'trooper');
+        return new self("{$name} is not on a staff, so their practices are on their own section's roll call.", 'not_staff', 'trooper');
     }
 
     public static function notServing(string $name): self
@@ -83,7 +83,7 @@ class StaffPracticeRefusedException extends RuntimeException
     {
         $how = $captured ? 'seen by the game server' : "added by the section's leader";
 
-        return new self("{$name} is already listed as a guest at that practice, {$how}. That entry is on the section's rollcall, so there is nothing to add here.", 'already_recorded', 'section_id');
+        return new self("{$name} is already listed as a guest at that practice, {$how}. That entry is on the section's roll call, so there is nothing to add here.", 'already_recorded', 'section_id');
     }
 
     public static function notRecorded(): self

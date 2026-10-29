@@ -135,7 +135,7 @@ function aggregate(members, index) {
 function cellLabel(trooper, index) {
     const c = cell(trooper, index);
 
-    return `Week of ${weekLabel(props.weeks[index])}. Rollcall: ${RC_STATES[c.rc]}. SP: ${SP_STATES[c.sp]}.`;
+    return `Week of ${weekLabel(props.weeks[index])}. Roll call: ${RC_STATES[c.rc]}. SP: ${SP_STATES[c.sp]}.`;
 }
 
 function aggregateLabel(row, i) {
@@ -143,7 +143,7 @@ function aggregateLabel(row, i) {
     const rc = agg.due ? `${agg.signed} of ${agg.due} signed` : RC_STATES[agg.rc] ?? 'no data';
     const sp = agg.marked ? `${agg.attended} of ${agg.marked} attended` : SP_STATES[agg.sp] ?? 'no data';
 
-    return `${row.unit.callsign ?? row.unit.name}, week of ${weekLabel(props.weeks[i])}. Rollcall ${rc}. SP ${sp}.`;
+    return `${row.unit.callsign ?? row.unit.name}, week of ${weekLabel(props.weeks[i])}. Roll call ${rc}. SP ${sp}.`;
 }
 
 const byId = computed(() => new Map(props.troopers.map((t) => [t.id, t])));
@@ -160,7 +160,7 @@ function resolveTip(key) {
         return {
             title: `${trooper.displayName}, week of ${weekLabel(week)}${current ? ' (this week)' : ''}`,
             rows: [
-                ['Rollcall', RC_STATES[c.rc], c.rc === 'open' ? 'Rollcall still open' : null],
+                ['Roll call', RC_STATES[c.rc], c.rc === 'open' ? 'Roll call still open' : null],
                 ['SP', SP_STATES[c.sp], sourceLabel(mark)],
             ],
         };
@@ -171,7 +171,7 @@ function resolveTip(key) {
     return {
         title: `${unit.callsign ?? unit.name}, week of ${weekLabel(week)}${current ? ' (this week)' : ''}`,
         rows: [
-            ['Rollcall', agg.due ? `${agg.signed} of ${agg.due} signed` : RC_STATES[agg.rc] ?? 'n/a'],
+            ['Roll call', agg.due ? `${agg.signed} of ${agg.due} signed` : RC_STATES[agg.rc] ?? 'n/a'],
             ['SP', agg.marked ? `${agg.attended} of ${agg.marked} attended` : SP_STATES[agg.sp] ?? 'n/a'],
             ...(agg.loa ? [['LOA', `${agg.loa} trooper${agg.loa === 1 ? '' : 's'}`]] : []),
         ],

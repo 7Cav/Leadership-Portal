@@ -11,7 +11,7 @@ use Carbon\CarbonImmutable;
 
 it('requires each mark to carry a practice status, a rollcall signature, or both', function () {
     expect(fn () => new AttendanceMark(7))
-        ->toThrow(InvalidAttendanceMarkException::class, 'Each trooper needs a practice mark or a rollcall signature.');
+        ->toThrow(InvalidAttendanceMarkException::class, 'Each trooper needs a practice mark or a roll call signature.');
 
     expect((new AttendanceMark(7, AttendanceStatus::Present))->status)->toBe(AttendanceStatus::Present)
         ->and((new AttendanceMark(7, rollcall: RollcallSignature::Unsigned))->rollcall)->toBe(RollcallSignature::Unsigned);

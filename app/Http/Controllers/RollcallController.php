@@ -349,7 +349,7 @@ class RollcallController extends Controller
         } catch (Throwable $e) {
             report($e);
 
-            return response()->json(['message' => 'The portal hit an error marking the rollcall posted. Try again in a moment.'], 500);
+            return response()->json(['message' => 'The portal hit an error marking the roll call posted. Try again in a moment.'], 500);
         }
 
         return response()->json(['posted' => $this->postedProps($practice)]);

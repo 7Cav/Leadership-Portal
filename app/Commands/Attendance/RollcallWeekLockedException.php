@@ -26,7 +26,7 @@ class RollcallWeekLockedException extends RuntimeException
         public readonly int $sectionId,
         public readonly CarbonImmutable $weekStart,
     ) {
-        parent::__construct('The report for this week has been sent, so its rollcall is locked.');
+        parent::__construct('The report for this week has been sent, so its roll call is locked.');
     }
 
     public static function for(int $sectionId, CarbonInterface $weekStart): self

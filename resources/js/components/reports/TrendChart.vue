@@ -15,7 +15,7 @@ const props = defineProps({
 });
 
 const SERIES = [
-    { key: 'rc', label: 'Rollcall %', color: 'var(--chart-1)', shape: 'circle' },
+    { key: 'rc', label: 'Roll call %', color: 'var(--chart-1)', shape: 'circle' },
     { key: 'sp', label: 'SP %', color: 'var(--chart-2)', shape: 'square' },
 ];
 
@@ -104,7 +104,7 @@ const weekLabel = (v) => `Week of ${forumDate(v.week)}${v.current ? (props.live 
                 :height="H"
                 class="block overflow-visible"
                 role="img"
-                aria-label="Rollcall and SP percentage over the last 8 weeks; values in the table that follows"
+                aria-label="Roll call and SP percentage over the last 8 weeks; values in the table that follows"
                 @pointermove="onMove"
                 @pointerleave="hover = null"
             >
@@ -173,16 +173,16 @@ const weekLabel = (v) => `Week of ${forumDate(v.week)}${v.current ? (props.live 
                 aria-hidden="true"
             >
                 <div class="mb-0.5 font-medium">{{ weekLabel(values[hover]) }}</div>
-                <div class="tabular-nums">Rollcall {{ fmt(values[hover].rc) }}</div>
+                <div class="tabular-nums">Roll call {{ fmt(values[hover].rc) }}</div>
                 <div class="tabular-nums">SP {{ fmt(values[hover].sp) }}</div>
             </div>
         </div>
 
         <div class="sr-only">
         <table>
-            <caption>Rollcall and SP percentage by week</caption>
+            <caption>Roll call and SP percentage by week</caption>
             <thead>
-                <tr><th scope="col">Week</th><th scope="col">Rollcall %</th><th scope="col">SP %</th></tr>
+                <tr><th scope="col">Week</th><th scope="col">Roll call %</th><th scope="col">SP %</th></tr>
             </thead>
             <tbody>
                 <tr v-for="v in values" :key="v.week">

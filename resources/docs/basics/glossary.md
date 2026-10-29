@@ -8,12 +8,12 @@ audience: everyone
 
 ## Weeks and attendance
 
-- Cav week: Saturday 00:00 UTC to Friday 23:59 UTC. Every rollcall, report and number in the portal is counted per Cav week.
-- Rollcall: the forum thread troopers sign each week to say whether they will attend, and the portal's screen where a leader records it.
+- Cav week: Saturday 00:00 UTC to Friday 23:59 UTC. Every roll call, report and number in the portal is counted per Cav week.
+- Roll call: the forum thread troopers sign each week to say whether they will attend, and the portal's screen where a leader records it.
 - Section practice (SP): the weekly practice a section holds. Each trooper is marked Present, Missed, Makeup or Attached.
 - Makeup: attending another section's practice instead of your own, which counts for your own section.
-- LOA: leave of absence. A trooper whose leave covers the week is locked on the rollcall and posts as LOA.
-- Week floor: how far back a rollcall or report can still be changed. Older weeks are read only.
+- LOA: leave of absence. A trooper whose leave covers the week is locked on the roll call and posts as LOA.
+- Week floor: how far back a roll call or report can still be changed. Older weeks are read only.
 
 ## Units and people
 
@@ -22,6 +22,7 @@ audience: everyone
 - Echelon: a level of the chain of command: regiment, battalion, company, platoon, section.
 - Section: the smallest line unit, led by a Section Leader and an Assistant Section Leader.
 - Platoon: two or more sections, led by a Platoon Leader and a Platoon Sergeant.
+- Headcount: everyone serving placed in a unit or under it, HQ staff and staff departments included. New Recruits, ELOA and Reservists count only on their own group. Home and the weekly report show it beside In roll call, the troopers in sections that the rates are counted over. It never changes that number or any rate.
 - Billet: a position on the Cav roster, such as Section Leader 1/1/A/1-7. Your billet decides what you can see and change.
 - Acting lead: a trooper an Admin has put in charge of a unit without the billet.
 - View as: a read-only preview of the portal as a unit's leader, or for an Admin as a person.
@@ -33,7 +34,7 @@ audience: everyone
 - Weekly report: a unit's numbers, training subject and notes for the week, sent up the chain. Sending freezes it.
 - Roll-up: a platoon's or higher unit's report, added up from the sent reports below it.
 - Staff report: a platoon or company HQ staff member's own weekly report of the section practices they attended.
-- Staff guest: a staff member listed on a rollcall of a section in their own platoon or company. Shown only, never counted.
+- Staff guest: a staff member listed on a roll call of a section in their own platoon or company. Shown only, never counted.
 - Game identity: a trooper's in-game name and ID, one per game, so the server data can be matched to them.
 - Unit game: the game a unit plays, set by an Admin on Org structure. Every unit under it plays the same game unless it has its own.
 - Unmatched player: someone the game server saw at a practice who is not linked to any trooper yet.

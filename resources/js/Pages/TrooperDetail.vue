@@ -210,7 +210,7 @@ const staleNotice = computed(() => {
                         <tr class="border-b border-border">
                             <th scope="col" class="px-4 py-1.5 font-medium">Week</th>
                             <th scope="col" class="px-2 py-1.5 font-medium">Section</th>
-                            <th scope="col" class="px-2 py-1.5 font-medium">Rollcall</th>
+                            <th scope="col" class="px-2 py-1.5 font-medium">Roll call</th>
                             <th scope="col" class="px-2 py-1.5 pr-4 font-medium">Section practice</th>
                         </tr>
                     </thead>

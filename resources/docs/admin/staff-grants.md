@@ -7,7 +7,7 @@ audience: admin
 page: /settings/staff-grants
 ---
 
-> [!why] Staff such as S1 need to see units they do not command. A grant gives read access only: the holder can open the unit's roster, rollcall, reports and game identities, and can never mark, send or change anything there.
+> [!why] Staff such as S1 need to see units they do not command. A grant gives read access only: the holder can open the unit's roster, roll call, reports and game identities, and can never mark, send or change anything there.
 
 ## Grant or revoke scope
 

@@ -269,7 +269,7 @@ async function dismiss(player) {
                     </p>
                     <p class="truncate font-mono text-xs text-muted-foreground">{{ player.platformId }}</p>
                     <p class="text-xs text-muted-foreground" data-testid="departed-note">
-                        Linked to <bdi>{{ player.trooperName ?? 'a trooper' }}</bdi>, who has left. Not marked on any rollcall.
+                        Linked to <bdi>{{ player.trooperName ?? 'a trooper' }}</bdi>, who has left. Not marked on any roll call.
                     </p>
                 </li>
             </ul>

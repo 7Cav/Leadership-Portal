@@ -398,7 +398,7 @@ it('refuses every batch for a week whose report has been sent, writing nothing a
     WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => $this->weekStart]);
 
     expect(fn () => mark($this->leader, $this->section->id, $this->moment, $marks($this->troopers)))
-        ->toThrow(RollcallWeekLockedException::class, 'The report for this week has been sent, so its rollcall is locked.');
+        ->toThrow(RollcallWeekLockedException::class, 'The report for this week has been sent, so its roll call is locked.');
 
     expect(SectionPractice::query()->count())->toBe(0)
         ->and(Attendance::query()->count())->toBe(0)

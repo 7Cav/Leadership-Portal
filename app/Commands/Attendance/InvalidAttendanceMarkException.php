@@ -29,7 +29,7 @@ class InvalidAttendanceMarkException extends RuntimeException
 
     public static function nothingToRecord(int $trooperId): self
     {
-        return new self('Each trooper needs a practice mark or a rollcall signature. Reload the page and try again.');
+        return new self('Each trooper needs a practice mark or a roll call signature. Reload the page and try again.');
     }
 
     public static function loaIsDerived(int $trooperId): self

@@ -55,7 +55,7 @@ class GuestAttendanceRefusedException extends RuntimeException
 
     public static function ownSection(string $name): self
     {
-        return new self("{$name} is in this section. Mark them on the rollcall instead.", 'own_section');
+        return new self("{$name} is in this section. Mark them on the roll call instead.", 'own_section');
     }
 
     public static function alreadyListed(string $name): self

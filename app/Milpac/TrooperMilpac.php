@@ -190,8 +190,8 @@ final class TrooperMilpac
             $actions[] = ['key' => 'section-roster', 'label' => 'Open section roster', 'href' => route('roster.index', $section->id, absolute: false)];
             // Only a serving trooper has a card on the rollcall (the serving allow-list, `TrooperStatus::serving()`).
             $actions[] = $trooper->status?->isServing() !== true
-                ? ['key' => 'rollcall', 'label' => 'Open in rollcall', 'href' => route('rollcall.show', $section->id, absolute: false)]
-                : ['key' => 'rollcall', 'label' => 'Jump to rollcall', 'href' => route('rollcall.show', ['unit' => $section->id, 'focus' => $trooper->id], absolute: false)];
+                ? ['key' => 'rollcall', 'label' => 'Open in roll call', 'href' => route('rollcall.show', $section->id, absolute: false)]
+                : ['key' => 'rollcall', 'label' => 'Jump to roll call', 'href' => route('rollcall.show', ['unit' => $section->id, 'focus' => $trooper->id], absolute: false)];
         }
 
         $platoon = $section->parent_id === null ? null : $this->units->find($section->parent_id);

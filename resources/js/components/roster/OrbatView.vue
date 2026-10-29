@@ -208,7 +208,7 @@ function stripLabel(trooper) {
     const attended = cells.filter((c) => ['ok', 'mk', 'at'].includes(c.sp)).length;
     const missed = cells.filter((c) => c.sp === 'bad').length;
 
-    return `Last 8 weeks: rollcall signed ${signed} of 8 weeks, section practice attended ${attended}${missed ? `, ${missed} missed` : ''}.`;
+    return `Last 8 weeks: roll call signed ${signed} of 8 weeks, section practice attended ${attended}${missed ? `, ${missed} missed` : ''}.`;
 }
 
 // Floating tip content, keyed `m:<trooperId>:<weekIndex>` or `s:<sectionId>:<weekIndex>`.
@@ -225,7 +225,7 @@ function resolveTip(key) {
         const mark = trooper.weeks[index];
         const cell = weekCell(mark, week, { current, joined: trooper.joined });
 
-        return { title, rows: [['Rollcall', RC_STATES[cell.rc]], ['SP', SP_STATES[cell.sp], sourceLabel(mark)]] };
+        return { title, rows: [['Roll call', RC_STATES[cell.rc]], ['SP', SP_STATES[cell.sp], sourceLabel(mark)]] };
     }
     const unit = unitById.value.get(Number(id));
     const agg = aggregateWeek((membersBySection.value.get(unit.id) ?? []).filter((t) => !t.departed), index, week, current);
@@ -233,7 +233,7 @@ function resolveTip(key) {
     return {
         title: `${unit.callsign ?? unit.name}, ${title.toLowerCase()}`,
         rows: [
-            ['Rollcall', agg.due ? `${agg.signed} of ${agg.due} signed` : RC_STATES[agg.rc] ?? 'n/a'],
+            ['Roll call', agg.due ? `${agg.signed} of ${agg.due} signed` : RC_STATES[agg.rc] ?? 'n/a'],
             ['SP', agg.marked ? `${agg.attended} of ${agg.marked} attended` : SP_STATES[agg.sp] ?? 'n/a'],
         ],
     };

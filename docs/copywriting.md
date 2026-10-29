@@ -20,7 +20,7 @@ In scope: any text a user can read or hear in the portal.
   `ValidationException::withMessages`, `abort(403, '...')` messages, flash messages on the login page, validation
   messages.
 - Text the portal builds for users to paste elsewhere: the makeup PM, the report summary, the report reminder. The
-  rollcall BBCode itself comes from each company's template and is out of scope.
+  roll call BBCode itself comes from each company's template and is out of scope.
 
 Out of scope: code comments, log messages, exception text that only reaches logs, commit messages, issues, PRs and these
 docs. PR and issue wording has its own rules in the working rules.
@@ -33,11 +33,11 @@ the forum. They want to know what state things are in and what to click next.
 | Rule | Do | Don't |
 | --- | --- | --- |
 | Short and plain | "Report sent to 1/A/1-7" | "Your report has been successfully submitted to your chain of command" |
-| Say what happened, then what to do | "Could not mark the rollcall posted" + "Your session expired; reload the page and try again." | "Error 419" |
+| Say what happened, then what to do | "Could not mark the roll call posted" + "Your session expired; reload the page and try again." | "Error 419" |
 | Direct, second person | "You can record a signature for a trooper who told you directly." | "Leaders are able to record signatures..." |
 | No first person | "Could not reach the 7Cav roster to confirm your membership. Try again in a few minutes." | "We couldn't reach the 7th Cavalry roster..." |
 | No filler | "Sign-in was cancelled or could not be verified. Try again." | "...could not be verified. Please try again." |
-| No hype | "Weekly rollcall, section practice attendance and reports for 7Cav leaders." | "Run your platoon, not your spreadsheet." |
+| No hype | "Weekly roll call, section practice attendance and reports for 7Cav leaders." | "Run your platoon, not your spreadsheet." |
 | One apology at most, usually none | "The portal hit an error. Your changes are kept; retry in a moment." | "Sorry! Something went wrong, sorry for the trouble." |
 | Calm, no shouting | "It has not been sent; try again." | "It has NOT been sent; try again." |
 | No jokes or slang | "Nothing needs a look" | "All quiet on the western front" |
@@ -59,12 +59,12 @@ Exclamation marks: never. There is no exception.
 ### Case
 
 - Sentence case for everything: page titles, headings, buttons, labels, menu items, table headers, toasts, dialog
-  titles. "Mark rollcall posted", "Command roll-up", "Game identities".
+  titles. "Mark roll call posted", "Command roll-up", "Game identities".
 - Keep capitals only for proper nouns and fixed names: 7Cav, Cav, Leadership Portal, Admin, the Cav group names
   (ELOA, Reservists, New Recruits), game names (Hell Let Loose (WW2), Hell Let Loose: Vietnam, Arma Reforger, WARDOGS), Discord, BBCode, and billet
   titles written as on the roster ("Section Leader", "Platoon Leader").
 - Billets: capitalise the exact roster title ("the Section Leader", "a Platoon Leader's command over this unit").
-  Lowercase a role used generically ("section leaders add guests on their rollcall", "the leaders who command this
+  Lowercase a role used generically ("section leaders add guests on their roll call", "the leaders who command this
   section").
 - The organisation: "7Cav" in running text ("your 7Cav milpac", "the 7Cav forum"). "7th Cavalry Regiment" only as the
   name of the regiment unit (the top of the tree, the sidebar scope). "7th Cavalry Gaming Regiment" only in the login
@@ -95,7 +95,7 @@ Exclamation marks: never. There is no exception.
 - Write "and", never "&". Write "for example" or "such as", not "e.g.". Write "compared with", not "vs".
 - Ellipsis: none, neither "…" nor "...". Not on menu items or buttons that open a dialog, and not on in-progress
   labels (see Loading and saving).
-- Middle dot "·" only as a separator in page titles (`Rollcall 2/1/A/1-7 · 7Cav Leadership Portal`) and in compact
+- Middle dot "·" only as a separator in page titles (`Roll call 2/1/A/1-7 · 7Cav Leadership Portal`) and in compact
   meta lines (`MOS · source · fetched at`). Never in a sentence.
 
 ### Bold
@@ -110,7 +110,7 @@ Exclamation marks: never. There is no exception.
 - Percent with no space: "85%". KPI labels keep the established compact form: "RC % · 30d", "SP % · 30d".
 - A change in a percentage is in points: "SP up 4 pts to 82% over 30 days". "pts" is allowed only in that line and in
   compact KPI deltas.
-- "of" for parts: "3 of 8 sent", "Rollcall signed by 6 of 9".
+- "of" for parts: "3 of 8 sent", "Roll call signed by 6 of 9".
 - Missing figure: the lone "—" (see Punctuation) in tables, "Numbers not available" in text.
 
 ### Counts and plurals
@@ -172,7 +172,7 @@ SGM, CSM, HQ, MOS, JSAM, DCS, LOR, DEVCOM, RDC, S1 to S7, MP, JAG, WAG, RRD, RTC
 short ranks, and the game names WARDOGS, CRCON, BattleMetrics.
 
 Use the short form only where space is tight (table headers, chips, badges, KPI labels). In sentences prefer the word:
-"section practice", "rollcall", "fireteam leader".
+"section practice", "roll call", "fireteam leader".
 
 Spell out: ORBAT ("order of battle"), TIS and TIG ("time in service", "time in grade"), S-shop ("staff department"),
 AD-n, FR, NFR and story numbers (never in UI text), "wk" ("week"), "vs" ("compared with"), "e.g." ("for example").
@@ -181,7 +181,7 @@ AD-n, FR, NFR and story numbers (never in UI text), "wk" ("week"), "vs" ("compar
 
 ### Buttons and links
 
-- Verb first, specific object: "Send report", "Copy BBCode", "Mark rollcall posted", "Save label", "Make acting lead",
+- Verb first, specific object: "Send report", "Copy BBCode", "Mark roll call posted", "Save label", "Make acting lead",
   "Place trooper". Not "Submit", "OK", "Go", "Yes".
 - One or two words is fine when the context names the object: "Retry", "Undo", "Keep", "Replace", "Dismiss".
 - A repeat action says so: "Copy again", "Mark posted again", "Confirm again".
@@ -189,7 +189,7 @@ AD-n, FR, NFR and story numbers (never in UI text), "wk" ("week"), "vs" ("compar
 - Cancel in a dialog: "Cancel", or "Keep <thing>" when cancelling protects something ("Keep editing", "Keep my edits").
 - Links that leave the portal say where: "View on 7cav.us", "Send makeup PM" plus the screen-reader text "(opens the
   forum in a new tab)".
-- "Open <thing>" for links into another page: "Open report", "Open rollcall", "Open milpac".
+- "Open <thing>" for links into another page: "Open report", "Open roll call", "Open milpac".
 - Step navigation: "Next: section practice", "Next: review and post", "Back".
 
 ### Destructive and irreversible confirmations
@@ -210,10 +210,10 @@ unsaved changes is the only place `window.confirm` stays (the browser's own leav
 
 Success:
 
-- Title: past tense, what happened and to what: "Report sent to A/1-7", "Rollcall marked posted", "Trooper placed",
+- Title: past tense, what happened and to what: "Report sent to A/1-7", "Roll call marked posted", "Trooper placed",
   "BBCode copied", "Linked PlayerOne to Taylor.C".
 - Description: where it applies or what to do next: "2/1/A/1-7, week of 03Oct26", "Paste it as a reply in the
-  2/1/A/1-7 rollcall thread."
+  2/1/A/1-7 roll call thread."
 - Bulk changes offer "Undo" as the action and list the names in the description.
 
 Error:
@@ -267,7 +267,7 @@ is affected, as a line near the top. Use these exact reasons:
 | View as | "Read-only while viewing as <target>" and, near the actions, "Exit view as to mark attendance." |
 | Staff grant | "Read-only: a staff grant lets you view this section, not mark it" (or "this report, not edit or send it") |
 | Week floor | "Read-only, this week is too far back to change" |
-| Sent report | "The report for this week has been sent, so its rollcall is locked." |
+| Sent report | "The report for this week has been sent, so its roll call is locked." |
 | Confirmed practice | "The practice is confirmed, so its guests can no longer change" |
 | Leave | Row badge "LOA" and the source line "On leave of absence, from LOA records. Nothing to mark." |
 | Not your unit | "Only the leaders who command this section can change its fireteams" |
@@ -293,7 +293,7 @@ New locks follow the same shape: "Read-only: <reason>" or "<thing> is locked bec
   screens. Pair it with visible text where the action matters.
 - `aria-label` describes the control and its object: "Undo adding Taylor.C", "Open the 1/A/1-7 report", "Previous
   week, 26Sep26".
-- Status cells read as a sentence: "Week of 03Oct26. Rollcall: Will attend. SP: Present."
+- Status cells read as a sentence: "Week of 03Oct26. Roll call: Will attend. SP: Present."
 - Icon-only buttons always have an `aria-label`.
 
 ### Subtitles and sub-headings
@@ -307,7 +307,7 @@ New locks follow the same shape: "Read-only: <reason>" or "<thing> is locked bec
 ### Page titles and breadcrumbs
 
 - `<Head title>`: page, then context, then the product, separated by " · ":
-  `Rollcall 2/1/A/1-7 · 7Cav Leadership Portal`, `Settings · Staff grants · 7Cav Leadership Portal`.
+  `Roll call 2/1/A/1-7 · 7Cav Leadership Portal`, `Settings · Staff grants · 7Cav Leadership Portal`.
 - The page `<h1>` matches the sidebar label: "Org structure", "Staff grants", "Game identities".
 - Breadcrumbs run from the top of the user's scope down, by callsign or name, with the current unit last and not a
   link. "Back to <section>" or "Back to roster" for a single step up.
@@ -325,25 +325,25 @@ tests and comments. They include some route and key names, so read them as rough
 
 | Canonical | Meaning | Where | Variants found | Avoid |
 | --- | --- | --- | --- | --- |
-| rollcall | The weekly forum thread troopers sign, and the portal page for one section's week | Nav, Rollcall page, reports | rollcall 88 JS / 40 server; "roll call" 0 | roll call, roll-call, Roll Call |
-| rollcall post | The BBCode post the portal builds for the rollcall thread | Rollcall step 3 | "Rollcall post" (step 3 heading) | forum message |
-| sign, signature | A trooper answers the rollcall thread; the answer recorded for them | Rollcall step 1 | sign 44, signature 19 | RSVP, respond |
-| Will attend / Cannot attend / Unsigned | The three signature states. "Unsigned" is the state name on buttons, chips, legends and counts; while the rollcall is still open the legend and matrix say "Unsigned (rollcall open)"; "Not signed yet" only as a sentence fragment in a tooltip or card hint | Rollcall cards, legend, report | "Unsigned", "Unsigned (rollcall open)" (legend, matrix), "Not signed yet" (`TrooperCard.vue` hint) | Can't attend, Not signed yet (as a state label), Yes/No (BBCode only) |
-| section practice, SP | The section's weekly practice, and its attendance | Rollcall step 2, KPIs | "section practice" 11, SP 42 | Section Practice mid-sentence, drill, training night |
-| mark, practice mark | The recorded SP result for one trooper | Rollcall, roster | mark used throughout | status (UI), grade |
-| Present / Missed / Makeup / Attached / LOA / Not marked | The practice marks. LOA is derived, never set by hand | Rollcall cards, legend, report | Not marked | Excused (not a mark; 0 uses), Absent, Unmarked |
-| makeup | A practice attended elsewhere that counts for the trooper's own section; verb "make up" | Rollcall, KPIs, guests | makeup 36 / 17; "make-up" 0 | make-up, make up (as a noun) |
+| roll call | The weekly forum thread troopers sign, and the portal page for one section's week. Two words in all copy: "Roll call" at the start of a label or sentence, "roll call" elsewhere. Code names, routes, URLs, audit actions and template variables keep `rollcall` | Nav, Roll call page, reports | roll call everywhere in copy; `rollcall` only in code | rollcall, Rollcall, roll-call, Roll Call |
+| roll call post | The BBCode post the portal builds for the roll call thread | Roll call step 3 | "Roll call post" (step 3 heading) | forum message |
+| sign, signature | A trooper answers the roll call thread; the answer recorded for them | Roll call step 1 | sign 44, signature 19 | RSVP, respond |
+| Will attend / Cannot attend / Unsigned | The three signature states. "Unsigned" is the state name on buttons, chips, legends and counts; while the roll call is still open the legend and matrix say "Unsigned (roll call open)"; "Not signed yet" only as a sentence fragment in a tooltip or card hint | Roll call cards, legend, report | "Unsigned", "Unsigned (roll call open)" (legend, matrix), "Not signed yet" (`TrooperCard.vue` hint) | Can't attend, Not signed yet (as a state label), Yes/No (BBCode only) |
+| section practice, SP | The section's weekly practice, and its attendance | Roll call step 2, KPIs | "section practice" 11, SP 42 | Section Practice mid-sentence, drill, training night |
+| mark, practice mark | The recorded SP result for one trooper | Roll call, roster | mark used throughout | status (UI), grade |
+| Present / Missed / Makeup / Attached / LOA / Not marked | The practice marks. LOA is derived, never set by hand | Roll call cards, legend, report | Not marked | Excused (not a mark; 0 uses), Absent, Unmarked |
+| makeup | A practice attended elsewhere that counts for the trooper's own section; verb "make up" | Roll call, KPIs, guests | makeup 36 / 17; "make-up" 0 | make-up, make up (as a noun) |
 | unaccounted trooper | Missed with no makeup, needs a reason on the report | Section report | Unaccounted 17 / 13 | unexcused |
 | reason | Fixed list reason for an unaccounted trooper; also the audit reason on Admin actions | Report, Settings | | excuse |
 | at-risk | 2 or more Missed marks in the 30 day window | KPIs, roster, Home | at-risk 7 UI, "at risk" 4 UI | "at risk" as a label |
-| capture | Reading who was on the game server and pre-marking from it | Rollcall banner, sources | capture 16 / 23 | telemetry, scrape, auto-attendance |
+| capture | Reading who was on the game server and pre-marking from it | Roll call banner, sources | capture 16 / 23 | telemetry, scrape, auto-attendance |
 | game server | The source of a capture | Source dots, legend | 8 / 2 | server (alone) |
-| unmatched player | A player the capture saw that no trooper is linked to | Rollcall drawer | unmatched (toasts, server, drawer title "Unmatched players") | unlinked player, unknown player |
-| link, dismiss, restore | What a leader does with an unmatched player | Rollcall drawer | Undo for restore | ignore, hide |
+| unmatched player | A player the capture saw that no trooper is linked to | Roll call drawer | unmatched (toasts, server, drawer title "Unmatched players") | unlinked player, unknown player |
+| link, dismiss, restore | What a leader does with an unmatched player | Roll call drawer | Undo for restore | ignore, hide |
 | game identity | A trooper's in-game name and ID for one game | Nav, Game identities page | game identity 7; "player name" for the name field | account, gamertag |
-| confirm (a practice) | A leader states the captured marks are right | Rollcall | Confirm practice, Confirmed by | approve, verify |
-| guest | A serving trooper from another section recorded at this section's practice | Rollcall, roster | guest 54 / 15 | visitor |
-| staff guest | A platoon or company HQ staff member listed on the rollcall of a section in their own platoon or company; shown only, never counted. Elsewhere they are listed as a guest | Rollcall guests, staff report | new | staff visitor, HQ guest |
+| confirm (a practice) | A leader states the captured marks are right | Roll call | Confirm practice, Confirmed by | approve, verify |
+| guest | A serving trooper from another section recorded at this section's practice | Roll call, roster | guest 54 / 15 | visitor |
+| staff guest | A platoon or company HQ staff member listed on the roll call of a section in their own platoon or company; shown only, never counted. Elsewhere they are listed as a guest | Roll call guests, staff report | new | staff visitor, HQ guest |
 | staff report | A platoon or company HQ staff member's own weekly report: whether they attended a section practice, and which. Sent once, by them | Sidebar, Home, staff report page | new | staff return, SP report |
 | JSAM candidate | A guest who meets the JSAM thresholds | Roster guests panel | 1 | nominee, eligible |
 | own section SP | SP at the trooper's own section only, makeups not counted (JSAM) | Roster guests panel | "practices of their own section" 1 | own SP |
@@ -358,8 +358,8 @@ tests and comments. They include some route and key names, so read them as rough
 | approve, send back (a training plan) | What the company does with a platoon's training plan; "Sent back" is the status, "Waiting for approval" the one before | Training plan page | new (#380) | reject, decline, return |
 | Cav week | Saturday 00:00 UTC to the next Saturday 00:00 UTC | Everywhere | Cav week 6, "week of" 27 | calendar week, Mon to Sun |
 | week floor | Weeks older than this are read-only (`PORTAL_WEEK_FLOOR_WEEKS`) | Docs; UI says "too far back" | UI: "too far back" 2 / 6 | locked week, archived |
-| LOA, ELOA | Leave of absence and extended leave of absence, from forum threads | Rollcall, roster | LOA 39, "on LOA" 19, "on leave" 1, "leave of absence" 1 | absence, away |
-| on LOA | A trooper whose leave covers the week | Rollcall, KPIs | on LOA | on leave (in labels) |
+| LOA, ELOA | Leave of absence and extended leave of absence, from forum threads | Roll call, roster | LOA 39, "on LOA" 19, "on leave" 1, "leave of absence" 1 | absence, away |
+| on LOA | A trooper whose leave covers the week | Roll call, KPIs | on LOA | on leave (in labels) |
 | needs review | A leave post the sync could not read | LOA badge | | invalid, error |
 | trooper | Any 7Cav member on the roster | Everywhere | trooper 426 / 135; member 21 (fireteam members, "Not a member?") | soldier, user (except portal accounts), member (for a trooper) |
 | user | A portal account (sign-in, staff grant holder) | Staff grants, menus | user 19 / 37 | member |
@@ -380,21 +380,22 @@ tests and comments. They include some route and key names, so read them as rough
 | New Recruits | The Cav group of recruits not yet in a section. Only ever this group | Org structure, roster toggle | "New Recruits" 2 | new recruits (for the group), New recruit (for anything else) |
 | Joined recently | Roster badge and filter chip for a trooper who joined in the last 8 Cav weeks | Roster | "Joined recently" (badge, chip, count badge) | New recruit, New |
 | 7Cav | The organisation, in running text | Everywhere | 7Cav, "7th Cavalry Regiment" (regiment unit), "7th Cavalry Gaming Regiment" (login footer) | 7th Cavalry, 7CAV in text |
-| strength | Troopers placed in sections in a unit | KPIs | 28 / 18 | headcount (in UI), size |
+| strength, In roll call | Troopers placed in sections in a unit: the population the KPIs are counted over. Labelled "In roll call" on Home and the report | KPIs | 28 / 18 | size |
+| headcount | Everyone serving placed in a unit or under it, HQ staff and staff departments included; New Recruits, ELOA and Reservists only on their own group. Shown beside "In roll call" as "Headcount 12, with staff", never changing it or a rate. The roster shows it as the unit's trooper count and "Strength" | Home, report, roster | "Headcount" (Home, report) | size, total |
 | activity log | Settings page listing the pages each user opened, for retracing a bug report. Not the audit log, which lists changes | Settings | | page log, visit log, browsing history |
 | Admin | The portal Admin flag, not a billet | Settings, messages | Admin 15 / 20, admin 3 / 5 | admin, administrator, S1 admin |
-| template | A company's rollcall BBCode template | Settings | 54 / 20 | format, layout |
+| template | A company's roll call BBCode template | Settings | 54 / 20 | format, layout |
 | org structure | The unit tree | Nav, Settings | "Org structure" | ORBAT (that is the roster view) |
 | order of battle | The roster's unit view | Roster | 4 | ORBAT |
 | attendance matrix | The roster's 20 week grid | Roster | | heatmap |
-| fireteam, fireteam leader (FTL) | Sub-group of a section and its leader | Rollcall | fireteam 56 / 26, FTL 8 | fire team |
+| fireteam, fireteam leader (FTL) | Sub-group of a section and its leader | Roll call | fireteam 56 / 26, FTL 8 | fire team |
 | callsign | A unit's short name | Org structure, roster | 53 / 17 | call sign, nickname |
 | guidon | A unit's swallowtail flag: two colors split on the diagonal, with text on each half | Roster, Org structure | | flag, banner, pennant |
 | designation | A unit's Cav code such as `2/1/A/1-7` | Toasts, reports | 28 / 9 | unit code |
 | sign in, sign out | Start or end a portal session | Login, user menu | sign in 7 UI; "log in" only in code | log in, log out, login (as a verb) |
-| Departed | A trooper no longer on any Cav roster | Roster, search, past rollcall row badge | | discharged, removed |
-| Moved out | Row badge on a past week's rollcall: the trooper was in the section when the week ended and is in another unit now | Rollcall | new | transferred, left |
-| Joined | Row badge on a past week's rollcall: the trooper moved into the section partway through that week | Rollcall | new | moved in, new |
+| Departed | A trooper no longer on any Cav roster | Roster, search, past roll call row badge | | discharged, removed |
+| Moved out | Row badge on a past week's roll call: the trooper was in the section when the week ended and is in another unit now | Roll call | new | transferred, left |
+| Joined | Row badge on a past week's roll call: the trooper moved into the section partway through that week | Roll call | new | moved in, new |
 | sync | A background read from Cav or the forum | Roster, LOA | 79 / 21 | refresh, import (except "Import from Cav roster") |
 | Import from Cav roster | The Admin step that builds the unit tree and billet mapping | Org structure | | sync (for this step) |
 

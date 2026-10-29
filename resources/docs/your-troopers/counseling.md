@@ -27,7 +27,7 @@ audience: leader
 2. Choose **File a record**.
 3. Pick the **Type**: Developmental Counseling Statement (DCS) or Letter of Reprimand (LOR). Only the types you may file are offered.
 4. Set the **Date** the counseling was given. It cannot be in the future.
-5. Under **What it is for**, choose **Missed section practice or rollcall** or **Other conduct**. It decides which of the regulations' rules the record is weighed on, and it cannot be changed later.
+5. Under **What it is for**, choose **Missed section practice or roll call** or **Other conduct**. It decides which of the regulations' rules the record is weighed on, and it cannot be changed later.
 6. Write the **Reason**.
 7. Attach the **Signed document**: a PDF of 10 MB or less.
 8. Choose **File record**.
@@ -46,7 +46,7 @@ audience: leader
 The portal follows the counseling rules on the 7Cav wiki (7CAV-R-012, 7CAV-R-014 and 7CAV-R-015). Each record is weighed against the records dated before it, never back from today, and "within" includes the last day.
 
 1. Other conduct: a repeat within 90 days of a DCS calls for an LOR, if it was for the same issue. A repeat within 30 days of an LOR is the one repeat LOR, which goes to an Article 15, again if it was for the same issue. The portal cannot tell whether two records were for the same issue, so the flag says "if".
-2. Missed section practice or rollcall: a second miss within 30 days of the last calls for an LOR; from 31 days, another DCS. A miss within 60 days of an LOR calls for a second LOR. A second LOR within 60 days of the first goes to an Article 15, company first, then battalion.
+2. Missed section practice or roll call: a second miss within 30 days of the last calls for an LOR; from 31 days, another DCS. A miss within 60 days of an LOR calls for a second LOR. A second LOR within 60 days of the first goes to an Article 15, company first, then battalion.
 3. LORs on any matter: a second LOR within 90 days authorizes removal as SL or ASL, and a third within 90 days goes to an Article 15.
 
 > [!good-to-know] A flag is a reminder of what the regulations call for. It does not file anything or start any action by itself.

@@ -206,7 +206,7 @@ it('refuses to confirm a week whose report has been sent, as locked, with no sta
     WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => '2026-10-03']);
 
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/confirm", ['week' => '2026-10-03'])
-        ->assertStatus(409)->assertJson(['locked' => true, 'message' => 'The report for this week has been sent, so its rollcall is locked.']);
+        ->assertStatus(409)->assertJson(['locked' => true, 'message' => 'The report for this week has been sent, so its roll call is locked.']);
 
     expect($this->practice->fresh()->confirmed_at)->toBeNull()
         ->and(AuditLogEntry::query()->where('action', 'practice.confirmed')->count())->toBe(0);

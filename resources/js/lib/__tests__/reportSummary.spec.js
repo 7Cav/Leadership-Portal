@@ -27,7 +27,7 @@ describe('reportSummary', () => {
                 '2nd Section (2/1/A/1-7) weekly report, week of 03Oct26',
                 'Sent Thu 08Oct26 16:24Z by SGT Vasquez.R',
                 'Headcount 12, with staff',
-                'In rollcall 9 (+1)',
+                'In roll call 9 (+1)',
                 'RC 88% (+5 pts), SP 75% (-3 pts), last 30 days',
                 'At-risk 2 (+1), on LOA 1, makeups 0',
                 'Trained: Room clearing',
@@ -46,13 +46,13 @@ describe('reportSummary', () => {
         const { headcount, ...legacy } = KPIS;
 
         expect(sent({ kpis: legacy })).not.toContain('Headcount');
-        expect(sent({ kpis: legacy })).toContain('In rollcall 9 (+1)');
+        expect(sent({ kpis: legacy })).toContain('In roll call 9 (+1)');
     });
 
     it('leaves the changes out when there is nothing to compare with', () => {
         const text = sent({ delta: null });
 
-        expect(text).toContain('In rollcall 9\n');
+        expect(text).toContain('In roll call 9\n');
         expect(text).toContain('RC 88%, SP 75%, last 30 days');
         expect(text).toContain('At-risk 2, on LOA 1');
     });

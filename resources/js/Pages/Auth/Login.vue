@@ -24,9 +24,9 @@ defineProps({
 
                 <div class="pitch">
                     <div class="eyebrow">For 7Cav leaders</div>
-                    <h1>Weekly rollcall, section practice and reports, <em>in one place.</em></h1>
+                    <h1>Weekly roll call, section practice and reports, <em>in one place.</em></h1>
                     <ul class="feature-list">
-                        <li><span class="dot">RC</span>Weekly rollcall post, ready to paste on the forum</li>
+                        <li><span class="dot">RC</span>Weekly roll call post, ready to paste on the forum</li>
                         <li><span class="dot">SP</span>Section practice attendance from the game servers</li>
                         <li><span class="dot">R</span>Weekly reports, rolled up the chain</li>
                         <li><span class="dot">M</span>Milpac, counseling and training records for your troopers</li>

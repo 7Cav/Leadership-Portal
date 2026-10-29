@@ -6,9 +6,9 @@
   leadership billet gives you the unit it commands and everything under it. Nobody types in roles.
 - Admin comes from one of two places: the Admin flag on a portal user, set from the server console, or a Regimental HQ
   or S6 HQ billet an existing Admin has approved (see [Admin by billet](#admin-by-billet)). Admins see and change everything, and
-  are the only ones who can edit the org structure, staff grants and the regiment default rollcall template, or read the
+  are the only ones who can edit the org structure, staff grants and the regiment default roll call template, or read the
   audit log and the activity log.
-- A company's command (and the command above it) manages that company's own rollcall templates, and a section's command
+- A company's command (and the command above it) manages that company's own roll call templates, and a section's command
   (and the command above it) manages the section's own.
 - A staff grant (given by an Admin) lets someone read a unit and everything under it. It never lets them change
   anything there.
@@ -57,7 +57,7 @@ Notes:
   MP and JAG. Information Management holds S6. S1, S3, S7 and WAG sit directly under the regiment. An Admin can move a
   department to another portfolio; the import never moves it back.
 - `DEVCOM 1IC` commands DEVCOM as its battalion commander and `DEVCOM 2IC` as its XO, so both have battalion command
-  over DEVCOM, D/DEVCOM and its platoons and sections, rollcall templates included. The org
+  over DEVCOM, D/DEVCOM and its platoons and sections, roll call templates included. The org
   page names the 1IC as DEVCOM's lead; when that billet is vacant the lead shows vacant, and the 2IC keeps their rights.
 - Regimental HQ staff read the regiment because they are placed on the regiment node itself, not because of their
   title: the org import places every `Regimental HQ` billet there, and a trooper an Admin places on the regiment by
@@ -129,7 +129,7 @@ No = refused (the page answers 403 or 404, or the control is not shown).
 | Roster, trooper sheet, readiness matrix | All | All | Own | Own | Own | Own | Own | Own | Empty | Read | Target |
 | A trooper's milpac page | All, plus unplaced | All | Own | Own | Own | Own | Own | Own | Their own only (2) | Read | Target |
 | Find trooper (shell search) | All, plus unplaced | All | Own | Own | Own | Own | Own | Own | Themselves only (2) | Read | Target |
-| Rollcall (sections in scope) | All | All | None (1) | Own | Own | Own | Own | Own | Empty picker | Read | Target |
+| Roll call (sections in scope) | All | All | None (1) | Own | Own | Own | Own | Own | Empty picker | Read | Target |
 | Reports and roll-ups (line units) | All | All | None (1) | Own | Own | Own | Own | Own | None | Read | Target |
 | Game identities (every serving trooper placed in scope: sections, HQ staff, groups) | All | All | Own | Own | Own | Own | Own | Own | None | Read | Target |
 | Settings menu in the sidebar | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
@@ -145,11 +145,11 @@ No = refused (the page answers 403 or 404, or the control is not shown).
 | Activity log (pages each user opened) | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
 | Demo data page (only when `DEMO_TOOLS=true`) | Yes | No | No | No | No | No | No | No | No | No | Only if target is an Admin person |
 
-(1) Portfolio officers command staff groups. Groups have no rollcall, reports or KPIs, so these pages show nothing
+(1) Portfolio officers command staff groups. Groups have no roll call, reports or KPIs, so these pages show nothing
 for their portfolio. They see their staff on the roster and the org page.
 (2) Every signed-in trooper may open their own milpac page, read only, whatever their scope (decided 2026-10-28), and
 the search finds them. It shows their own DCSs and LORs, and a staff member records their own practices there. It opens
-no other trooper, and leaves out the links into their unit (section roster, rollcall, readiness matrix, makeup PM)
+no other trooper, and leaves out the links into their unit (section roster, roll call, readiness matrix, makeup PM)
 unless their scope reaches it. During a view-as preview only the preview's scope counts, and while acting as someone
 only the scope of the person acted as: acting as someone never opens their page through this rule, so it shows only
 what the acting identity's command shows (no DCSs from a shared command, nothing outside its scope).
@@ -157,23 +157,23 @@ what the acting identity's command shows (no DCSs from a shared command, nothing
 editing controls.
 (4) The companies your read scope reaches into, opening on your own, and the sections of those in your scope. Asking
 for any other company or section by URL answers 403. The editing controls show only to those who may use them (see
-"Rollcall templates" below).
+"Roll call templates" below).
 
-### Rollcall writes
+### Roll call writes
 
 | Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Mark signatures and SP attendance (incl. Mark all present) | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Confirm practice | All | All | No | Own | Own | Own | Own | Own | No | No | No |
-| Mark rollcall posted | All | All | No | Own | Own | Own | Own | Own | No | No | No |
+| Mark roll call posted | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Capture "Try again" | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Unmatched player: link, dismiss, restore | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Guests (JSAM): search, add, remove | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Fireteams: mark FTLs, fill fireteams, section display options | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Company fireteam policy | All | All | No | Own | Own | No | If acting lead of the company or above | No | No | No | No |
-| Pick the section's rollcall template (its own, the company's switched-on ones, the regiment default) | All | All | No | Own | Own | Own | Own | Own | No | No | No |
+| Pick the section's roll call template (its own, the company's switched-on ones, the regiment default) | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 
-### Rollcall templates
+### Roll call templates
 
 | Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -184,7 +184,7 @@ for any other company or section by URL answers 403. The editing controls show o
 "Own company" is `commandsUnit()` on the company: its Commander, Executive Officer and First Sergeant, plus the
 battalion and regiment command above. "Own section" is `commandsUnit()` on the section: its Section Leader and
 Assistant Section Leader, plus the platoon, company, battalion and regiment command above. Another company's or
-section's command gets 403. A section's own templates are only offered to and used by that section's rollcall; they
+section's command gets 403. A section's own templates are only offered to and used by that section's roll call; they
 cannot be switched off or made a company default. The regiment default is always available to every section and cannot
 be switched off. A section uses its pick, else the company default if it is switched on, else the regiment default.
 Every one of these writes is in the audit log. Battalion command no longer has a switch over a company's own template
@@ -195,7 +195,7 @@ company's default) is copied into the new company as one of its own, named like 
 version that was in use, and the sections' picks move to the copies. From then on the new company's command manages
 the copies like any of its templates, and the old company's command has no say over them: its later edits, rollbacks
 and switches never reach the moved sections. If the new company later switches a copy off, the sections follow the new
-company and the rollcall says which template the post now uses. A section's own templates belong to the section, so
+company and the roll call says which template the post now uses. A section's own templates belong to the section, so
 they move with it and are not copied. Fireteam settings, labels, unit games and acting leads stay on the units; a moved unit with no game of its own plays its new parent's. The move and what was copied are in the audit log (`unit.moved`, `unit.settings_carried`).
 
 ### Reports
@@ -386,7 +386,7 @@ your next click. Nothing has to be revoked by hand.
 | Future weeks | Marking, confirming, posting, capture and staff practices for a week that has not started. |
 | HQ report sent for the week | That week's staff practice entries of the staff placed on that HQ during that week, wherever they are placed now, entered on the milpac. The staff member's own staff report is not locked by it. |
 | Staff report sent for the week | The staff report itself (no edit, no second send), and that week's staff practice entries of that staff member. |
-| Section report sent for the week | That section's rollcall marks, confirming, marking posted, capture "Try again", guests at that practice and automatic makeups into that week. The sent report itself is frozen. A platoon's topic, and that week's subject in its training plan, are locked once the platoon's report is sent. |
+| Section report sent for the week | That section's roll call marks, confirming, marking posted, capture "Try again", guests at that practice and automatic makeups into that week. The sent report itself is frozen. A platoon's topic, and that week's subject in its training plan, are locked once the platoon's report is sent. |
 | Practice confirmed by a leader | Capture re-runs and linked players no longer change its marks. A leader's own hand edit still saves and clears the confirmation. |
 | Leave covering the week | That trooper's practice mark (the row posts as LOA). Their signature can still be saved. |
 
@@ -402,9 +402,9 @@ only sign out has none, since it ends the session and signing back in is limited
 | --- | --- |
 | 10 per IP, per route | The two sign-in steps |
 | 60 | Find trooper and the guest picker search |
-| 240 | Rollcall mark autosave. The screen waits 0.7 seconds after a change and sends one batch at a time, so marking a whole section in seconds stays far below this. |
+| 240 | Roll call mark autosave. The screen waits 0.7 seconds after a change and sends one batch at a time, so marking a whole section in seconds stays far below this. |
 | 120 | Report draft autosave |
-| 60, shared | Every other audited write: saving a guidon, fireteam changes, company fireteam policy, linking, dismissing and restoring unmatched players, confirming a practice, marking a rollcall posted, guest add and remove, staff practice add and remove, sending a staff report, setting and removing a game identity, platoon topic set and clear, training plan save, approve and send back, every template write (a company's or a section's) and a section's template pick, starting and leaving view as and act as, correcting and deleting a DCS or LOR, overturning an LOR, and the Admin settings writes (org structure, acting leads, oversight, trooper placement, staff grants, games, servers, demo data) |
+| 60, shared | Every other audited write: saving a guidon, fireteam changes, company fireteam policy, linking, dismissing and restoring unmatched players, confirming a practice, marking a roll call posted, guest add and remove, staff practice add and remove, sending a staff report, setting and removing a game identity, platoon topic set and clear, training plan save, approve and send back, every template write (a company's or a section's) and a section's template pick, starting and leaving view as and act as, correcting and deleting a DCS or LOR, overturning an LOR, and the Admin settings writes (org structure, acting leads, oversight, trooper placement, staff grants, games, servers, demo data) |
 | 10 | Sending a report |
 | 20 | Loading the act as picker's list |
 | 30 | Loading the sidebar unit switcher's list (the units in your scope; read only, it changes nothing) |

@@ -71,7 +71,7 @@ it('sends a second LOR for missed practice within 60 days of the first to an Art
         ->and(standingKeys([standingEntry(1, 0, 'lor', 'missed_practice'), standingEntry(2, 61, 'lor', 'missed_practice')]))->toBe([1 => [], 2 => ['lor-removal']]);
 
     expect(CounselingStanding::flags([standingEntry(1, 0, 'lor', 'missed_practice'), standingEntry(2, 1, 'lor', 'missed_practice')])[2][0]['message'])
-        ->toBe('2nd LOR for a missed section practice or rollcall within 60 days of the first: Article 15, company first, then battalion.');
+        ->toBe('2nd LOR for a missed section practice or roll call within 60 days of the first: Article 15, company first, then battalion.');
 });
 
 it('flags an LOR for other conduct within 30 days of another as the possible repeat LOR, and a 2nd LOR in 90 days for removal', function () {

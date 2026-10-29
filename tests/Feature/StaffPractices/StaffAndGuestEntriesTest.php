@@ -43,7 +43,7 @@ it('says a trooper who moved to the staff is already a guest at that practice, a
     $refusal = staffRefusal(fn () => app(RecordStaffPracticeHandler::class)->handle($this->tree['users']['admin'], new RecordStaffPractice($trooper->id, $this->tree['units']['other']->id, $this->week)));
 
     expect($refusal->reason)->toBe('already_recorded')
-        ->and($refusal->getMessage())->toBe("{$trooper->display_name} is already listed as a guest at that practice, {$how}. That entry is on the section's rollcall, so there is nothing to add here.")
+        ->and($refusal->getMessage())->toBe("{$trooper->display_name} is already listed as a guest at that practice, {$how}. That entry is on the section's roll call, so there is nothing to add here.")
         ->and(CrossSectionSighting::query()->sole()->source)->toBe($captured ? 'capture' : 'manual');
 })->with([
     'added by hand' => [false, "added by the section's leader"],

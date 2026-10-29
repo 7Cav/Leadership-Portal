@@ -117,7 +117,7 @@ const hasDemoData = computed(() => props.existing.practices + props.existing.att
             <div class="min-w-0">
                 <h1 class="text-xl font-semibold tracking-tight">Demo data</h1>
                 <p class="mt-1 max-w-[72ch] text-[13px] text-muted-foreground">
-                    Fill past weeks with plausible rollcall signatures, practice marks and sent reports for a unit's real troopers, so every
+                    Fill past weeks with plausible roll call signatures, practice marks and sent reports for a unit's real troopers, so every
                     screen has history to show. Everything generated is tagged as demo data and can be purged in one step.
                 </p>
             </div>

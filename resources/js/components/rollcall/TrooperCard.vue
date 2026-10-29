@@ -122,7 +122,7 @@ const TONE = {
             @pointercancel="onPointerUp"
             tabindex="0"
             data-card-face
-            :aria-label="`${name}, ${kind === 'signature' ? 'rollcall' : 'section practice'}: ${valueLabel}${locked ? ', locked' : ''}`"
+            :aria-label="`${name}, ${kind === 'signature' ? 'roll call' : 'section practice'}: ${valueLabel}${locked ? ', locked' : ''}`"
         >
             <div
                 :class="
@@ -176,7 +176,7 @@ const TONE = {
                 <div
                     v-else
                     role="group"
-                    :aria-label="`${kind === 'signature' ? 'Rollcall signature' : 'Section practice'} for ${name}`"
+                    :aria-label="`${kind === 'signature' ? 'Roll call signature' : 'Section practice'} for ${name}`"
                     :class="
                         cn(
                             'grid auto-cols-fr grid-flow-col gap-[3px] rounded-md bg-muted p-[3px]',

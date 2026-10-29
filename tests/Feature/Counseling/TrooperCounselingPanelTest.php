@@ -120,7 +120,7 @@ it('weighs a record filed late with an earlier date by its date, and shows what 
     expect($records['Filed first, dated later.']['flags'][0]['key'])->toBe('missed-lor')
         ->and($records['Filed second, dated earlier.']['flags'])->toBe([])
         ->and($records['Filed first, dated later.']['kind'])->toBe('missed_practice')
-        ->and($records['Filed first, dated later.']['kindLabel'])->toBe('Missed section practice or rollcall');
+        ->and($records['Filed first, dated later.']['kindLabel'])->toBe('Missed section practice or roll call');
 });
 
 it('shows no favorable action for 30 days after the latest LOR, and not on the 31st', function () {

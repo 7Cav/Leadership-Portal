@@ -76,7 +76,7 @@ const barTone = (percent) => (percent >= 90 ? 'bg-success' : percent >= 60 ? 'bg
         </p>
         <!-- Outside the scrolling table, so it stays centred on a phone. -->
         <EmptyState v-else :icon="PhUsersThree" title="No sections reporting yet" class="py-10">
-            Each section's steps for the week show here once troopers are mapped to sections and rollcalls go out.
+            Each section's steps for the week show here once troopers are mapped to sections and roll calls go out.
         </EmptyState>
     </Card>
 </template>

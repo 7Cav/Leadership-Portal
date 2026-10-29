@@ -17,6 +17,7 @@ test('a section leader opens a guide from docs home and moves to the next one', 
 
     await page.getByTestId('next-guide').click();
     await expect(page).toHaveURL(/\/docs\/weekly-rollcall\/run-rollcall$/);
+    // The browser suite reads the fixture guides in tests/Fixtures/docs, which keep their own titles.
     await expect(page.getByRole('heading', { level: 1 })).toHaveText("Run this week's rollcall");
     await expect(page.getByTestId('guide-body')).toContainText('Why this matters.');
 });
@@ -35,9 +36,9 @@ test('Help on the rollcall opens the rollcall guide, which leads back to the rol
     await expect(page).toHaveURL(/\/docs\/weekly-rollcall\/run-rollcall\?from=%2Frollcall/);
     await expect(page.getByTestId('breadcrumb-current')).toHaveText("Run this week's rollcall");
     await expect(page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Docs' })).toHaveAttribute('aria-current', 'page');
-    await expect(page.getByTestId('came-from')).toContainText('You opened this from Rollcall.');
+    await expect(page.getByTestId('came-from')).toContainText('You opened this from Roll call.');
 
-    await page.getByTestId('came-from').getByRole('link', { name: 'Back to Rollcall' }).click();
+    await page.getByTestId('came-from').getByRole('link', { name: 'Back to Roll call' }).click();
     await expect(page).toHaveURL(/\/rollcall/);
 });
 

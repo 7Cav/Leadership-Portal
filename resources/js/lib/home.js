@@ -6,7 +6,7 @@ import { KPIS, kpiValue } from '@/lib/report';
 // The tile labels of dashboard-v1-tiles.html. `KPIS` carries the order, polarity and delta keys.
 const LABELS = {
     // The rollcall population the rates are over; the headcount with staff sits beside it (#424).
-    strength: 'In rollcall',
+    strength: 'In roll call',
     rc: 'RC % · 30d',
     sp: 'SP % · 30d',
     atRisk: 'At-risk',
@@ -53,7 +53,7 @@ export function tileChange(kpi, series) {
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-export const STEPS = ['Rollcall posted', 'Rollcall signed', 'SP held', 'Attendance marked', 'Report sent'];
+export const STEPS = ['Roll call posted', 'Roll call signed', 'SP held', 'Attendance marked', 'Report sent'];
 
 const weekday = (value) => WEEKDAYS[new Date(value).getUTCDay()];
 
@@ -91,8 +91,8 @@ export function laneTotals(steps) {
     const draft = count((step) => step.report === 'draft');
 
     return [
-        lane('Rollcall posted', count((step) => step.postedAt), steps.length, `${count((step) => step.postedAt)} of ${steps.length} posted`),
-        lane('Rollcall signed', sum('signed'), sum('strength'), `${sum('signed')} of ${sum('strength')} signed`),
+        lane('Roll call posted', count((step) => step.postedAt), steps.length, `${count((step) => step.postedAt)} of ${steps.length} posted`),
+        lane('Roll call signed', sum('signed'), sum('strength'), `${sum('signed')} of ${sum('strength')} signed`),
         lane('SP held', count((step) => step.held), steps.length, `${count((step) => step.held)} of ${steps.length} held`),
         lane('Attendance marked', sum('marked'), sum('strength'), `${sum('marked')} of ${sum('strength')} marked`),
         lane('Report sent', sent, steps.length, `${sent} sent, ${draft} draft, ${steps.length - sent - draft} not started`),
