@@ -307,3 +307,37 @@ it('links the same ID on Hell Let Loose (WW2) and Vietnam, one identity per game
     expect(TrooperGameIdentity::query()->where('trooper_id', $this->mine->id)->pluck('game_id')->all())
         ->toEqualCanonicalizing([game('hll')->id, game('hll-vietnam')->id]);
 });
+
+// Add identity opens on the trooper's usual game (decided by the S6, 2026-10-29): the game or team label on their unit
+// or the nearest one above, when it names a game in use, else the game most of the troopers placed with them have linked.
+it('sends each trooper\'s usual game: the unit\'s game label first, from the nearest unit up, in any case', function () {
+    $this->platoon->forceFill(['label' => 'wardogs'])->save();
+
+    $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
+        ->where('troopers.0.game', 'wardogs'));
+
+    // The section's own label is nearer than the platoon's, and a game's name counts as well as its slug.
+    $this->section->forceFill(['label' => 'Arma Reforger'])->save();
+
+    $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
+        ->where('troopers.0.game', 'arma'));
+});
+
+it('falls back to the game most of the unit has linked when no label names a game in use, else none', function () {
+    $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
+        ->where('troopers.0.game', null));
+
+    // A label that names no game, or a retired one, does not count.
+    $retired = Game::factory()->retired()->create(['slug' => 'squad', 'name' => 'Squad']);
+    $this->section->forceFill(['label' => 'Squad'])->save();
+    $this->platoon->forceFill(['label' => 'Team Bravo'])->save();
+    $first = placedTrooper($this->section);
+    $second = placedTrooper($this->section);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $first->id, 'game_id' => game('arma')->id, 'platform_id' => 'arma-1']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $second->id, 'game_id' => game('arma')->id, 'platform_id' => 'arma-2']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $second->id, 'game_id' => $retired->id, 'platform_id' => 'eos-2']);
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->mine->id, 'game_id' => game('hll')->id, 'platform_id' => '76561198000000777']);
+
+    $this->actingAs($this->leader)->get('/game-identities')->assertInertia(fn (Assert $page) => $page
+        ->where('troopers', fn ($rows) => collect($rows)->every(fn ($row) => $row['game'] === 'arma')));
+});
