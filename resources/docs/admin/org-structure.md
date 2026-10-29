@@ -1,6 +1,6 @@
 ---
-title: Org structure and acting leads
-summary: Keep the unit tree right, and put someone in charge of a unit without the billet.
+title: Org structure, acting leads and oversight
+summary: Keep the unit tree right, put someone in charge of a unit without the billet, and name who oversees a battalion.
 section: admin
 order: 1
 audience: admin
@@ -8,6 +8,12 @@ page: /settings/org-structure
 ---
 
 > [!why] Everyone's access comes from where their billet sits in this tree. A unit in the wrong place gives the wrong people access to it, and a missing acting lead leaves a unit with nobody who can run its rollcall.
+
+## Read the page
+
+The page has two cards. **Chain of command** holds the regiment, its battalions (ACD and DEVCOM included) and everything under them. **Regimental staff** holds the portfolios, their departments and the holding groups. ACD and DEVCOM also show under Reserve & Development Command, and DEVCOM Staff under DEVCOM, as reference rows. Choose one to open the unit where it really sits.
+
+> [!good-to-know] A line unit with nobody in it or under it is hidden. Tick **Show empty units** to see it, for example to rename, move or delete it. It shows again on its own once someone is placed in it.
 
 ## Import from the Cav roster
 
@@ -33,6 +39,13 @@ page: /settings/org-structure
 > [!good-to-know] A unit whose leader billet (CO, PL or SL) someone serving holds already has its lead, so it takes no acting lead. You cannot make yourself acting lead either: ask another Admin.
 
 > [!good-to-know] What this changes, and how to undo it: choose **Remove acting lead** with a reason. Their access to the unit ends on their next page load. Both are in the audit log.
+
+## Set who oversees a battalion
+
+1. Select a battalion or the Reservists. Under **Oversight**, search for the trooper.
+2. Pick them, give a reason, and choose **Set overseer**. They can then see that unit and everything under it, read only, while they serve.
+
+> [!good-to-know] What this changes, and how to undo it: to change the overseer, pick someone else and choose **Set overseer** again. To remove them, choose **Clear overseer** with a reason. Their access ends on their next page load, or when they leave every Cav roster. Every change is in the audit log. The portal sets none of these itself; an Admin enters each one.
 
 ## Set a game or team label
 

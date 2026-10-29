@@ -100,6 +100,23 @@ final class StaffBillet
         'S6' => 'IMO',
     ];
 
+    /**
+     * Line units a portfolio oversees, by callsign (decided by the S6, 2026-10-29; the wiki's Reserve & Development
+     * Command page lists DEVCOM, ACD and the Reserve under RDC). The org page shows each as a reference row under the
+     * portfolio in the staff card; the units stay in the line chain of command, nothing moves.
+     */
+    public const PORTFOLIO_LINE_UNITS = [
+        'RDC' => ['ACD', 'DEVCOM'],
+    ];
+
+    /**
+     * Staff groups a line unit lists as its own, by callsign (decided by the S6, 2026-10-29): DEVCOM's staff, whose
+     * group sits under RDC. The org page shows it as a reference row under the line unit; the group does not move.
+     */
+    public const LINE_STAFF_GROUPS = [
+        'DEVCOM' => ['DEVCOM STAFF'],
+    ];
+
     /** The portfolio a new holding group is created under, by its callsign; the rest sit under the regiment. */
     public const HOLDING_PORTFOLIO = [
         'RES' => 'RDC',

@@ -13,6 +13,7 @@ use App\Repositories\PortalRoleGrantRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitActingLeadRepository;
 use App\Repositories\UnitCommandMappingRepository;
+use App\Repositories\UnitOversightRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\UserRepository;
 use Illuminate\Support\Collection;
@@ -43,12 +44,15 @@ use Illuminate\Support\Collection;
  *    General, the Finance Officer, any billet Cav adds to that group), so general staff whose billet
  *    commands nothing are not scopeless. Read from the placement and the position on every call:
  *    moved elsewhere, on a billet that is not in Regimental HQ, or no longer serving, it is gone.
+ *  - **Oversight** (decided by the S6, 2026-10-29) — a serving trooper an Admin named as a unit's
+ *    overseer (`unit_oversights`: an Adjutant General over a battalion, the RDC Commander over ACD,
+ *    DEVCOM and the Reservists) reads that unit's subtree, exactly as a staff grant on it would.
  *
  * The roster-derived unit and every read-only unit are each expanded to their subtree via the
  * materialized `path` (AD-18) and unioned into one set, so a leader who also holds grants — or a
  * dual-hatted user with several — sees each unit once.
  *
- * Writes are narrower: {@see writeScope()} leaves the grants and the Regimental HQ read out, so a
+ * Writes are narrower: {@see writeScope()} leaves the grants, oversight and the Regimental HQ read out, so a
  * staff grant reads an echelon but never marks, confirms, sends or relinks anything in it. Only
  * Admin and the roster-derived command write.
  *
@@ -69,6 +73,7 @@ class ScopeResolver
         private readonly UnitActingLeadRepository $actingLeads,
         private readonly ActingBillet $billet,
         private readonly AdminBilletRepository $adminBillets,
+        private readonly UnitOversightRepository $oversights,
         private readonly RealActor $real,
     ) {}
 
@@ -238,6 +243,8 @@ class ScopeResolver
             ->map(fn (User $user) => (int) $user->id)
             ->values();
         $grants = $this->grants->grantedUnitIdsByUserId($serving->all());
+        // Only serving troopers' oversight is read, so it needs no serving filter of its own below.
+        $overseen = $this->oversights->unitsOverseenByTroopers($troopers->pluck('id')->map(fn ($id) => (int) $id)->values()->all());
         $servingIds = $serving->flip();
         $byId = $tree->keyBy('id');
         // As isAdmin(): the flag, or an approved Admin billet, read from the troopers already in hand.
@@ -246,19 +253,20 @@ class ScopeResolver
         $onRegiment = $troopers->filter(fn (Trooper $trooper) => self::isRegimentalHqPlacement($byId->get((int) $trooper->primary_section_id)));
         $rhqPositions = $this->regimentalHqPositions($onRegiment);
 
-        return $users->mapWithKeys(function (User $user) use ($tree, $subtree, $troopers, $billets, $acting, $servingIds, $grants, $byId, $billetAdmins, $rhqPositions) {
+        return $users->mapWithKeys(function (User $user) use ($tree, $subtree, $troopers, $billets, $acting, $overseen, $servingIds, $grants, $byId, $billetAdmins, $rhqPositions) {
             if ($user->is_admin || (! $user->notAdminByBillet && $user->cav_id !== null && $billetAdmins->has((int) $user->cav_id))) {
                 return [$user->id => $tree->pluck('id')->values()];
             }
 
             $trooper = $user->cav_id === null ? null : $troopers->get((int) $user->cav_id);
-            // As readOnlyUnitsWhileServing(): while serving, their grants and, for Regimental HQ staff placed on the
-            // regiment itself who still hold a Regimental HQ billet, the regiment. realScope() must add the same:
-            // change both together.
+            // As readOnlyUnitsWhileServing(): while serving, their grants, the units they oversee and, for Regimental HQ
+            // staff placed on the regiment itself who still hold a Regimental HQ billet, the regiment. realScope() must
+            // add the same: change both together.
             $placed = $trooper?->primary_section_id === null ? null : $byId->get((int) $trooper->primary_section_id);
             $rhq = self::isRegimentalHqPlacement($placed) && $rhqPositions->has((int) $trooper->cav_position_id);
             $granted = $servingIds->has($user->id)
                 ? $grants->get($user->id, collect())->map(fn (int $id) => $byId->get($id))
+                    ->merge($overseen->get((int) $trooper->id, collect())->map(fn (Unit $unit) => $byId->get($unit->id)))
                     ->push($rhq ? $placed : null)
                 : collect();
             // As commandedUnits(): a billet held on this request is the only command, else the synced billet and
@@ -380,7 +388,7 @@ class ScopeResolver
 
     /**
      * The units the user reads without commanding them, only while they are a serving trooper: `users.cav_id` linked to
-     * a cached trooper whose standing is on {@see TrooperStatus::serving()}. Two sources, neither ever in
+     * a cached trooper whose standing is on {@see TrooperStatus::serving()}. Three sources, none ever in
      * {@see writeScope()}:
      *
      *  - their staff grants. A grant is staff scope for a *member* of the unit: once the holder leaves (the roster sync
@@ -388,6 +396,8 @@ class ScopeResolver
      *    read, with no one having to remember to revoke it. The rows themselves are kept, so the staff grants page can
      *    show them as lapsed and an Admin can revoke them on the record; a holder who returns to a serving roster gets
      *    them back.
+     *  - the units they oversee (`unit_oversights`, decided by the S6 2026-10-29): read exactly as a grant on each, by
+     *    trooper, so it holds from their first sign-in. Cleared, or the overseer no longer serving, it is gone.
      *  - the regiment, for Regimental HQ staff: a trooper placed directly on the regiment node, where the org import
      *    places every Regimental HQ billet (`CommandBillet::headquartersOf()`), whose position is still a Regimental HQ
      *    billet as Cav lists it now (the `admin_billets` row the import keeps for each, any status,
@@ -397,7 +407,7 @@ class ScopeResolver
      *
      * Admins never reach here, by flag or by billet, so the regiment only matters for Regimental HQ staff whose billet is
      * not (or no longer) an approved Admin billet. This placement rule is the read scope's only: Admin by billet does
-     * not look at placement. The bulk realScopes() (#498) must apply the same two sources.
+     * not look at placement. The bulk realScopes() (#498) must apply the same three sources.
      *
      * @return Collection<int, Unit>
      */
@@ -409,6 +419,7 @@ class ScopeResolver
         }
 
         return $this->grants->grantedUnitsFor($user)
+            ->merge($this->oversights->unitsOverseenBy($user))
             ->push($this->regimentPlacing($trooper))
             ->filter()
             ->values();
