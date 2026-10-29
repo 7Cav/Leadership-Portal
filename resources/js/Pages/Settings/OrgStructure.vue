@@ -42,6 +42,8 @@ const props = defineProps({
     // Who is in each group the viewer may see, by unit id: `{ id, displayName, billet, was }`. `was` is the line
     // unit an ELOA trooper left, or null.
     groupMembers: { type: Object, default: () => ({}) },
+    // The Games list, for the game picker: `{ id, name, retired }`.
+    games: { type: Array, default: () => [] },
 });
 
 // New Recruits are hidden until asked for: they are not yet part of any unit, and never in an ancestor's count.
@@ -94,15 +96,24 @@ const selectedId = ref(null);
 const selectedUnit = computed(() => props.units.find((unit) => unit.id === selectedId.value) ?? null);
 const selectedMembers = computed(() => (selectedUnit.value ? (props.groupMembers[selectedUnit.value.id] ?? null) : null));
 
-// Game or team label (Admin): its own small form, audited on the server.
+// Team label (Admin): its own small form, audited on the server.
 const labelForm = useForm({ label: '' });
+// The game the unit plays (Admin), picked from the Games list; null inherits the game of the nearest unit above.
+const gameForm = useForm({ game_id: null });
 watch(
     selectedUnit,
     (unit) => {
         labelForm.label = unit?.label ?? '';
         labelForm.clearErrors();
+        gameForm.game_id = unit?.game_id ?? null;
+        gameForm.clearErrors();
     },
     { immediate: true },
+);
+
+// Games that are not retired, plus the retired one the selected unit still has, so the picker can show it.
+const gameOptions = computed(() =>
+    props.games.filter((game) => !game.retired || game.id === selectedUnit.value?.game_id),
 );
 
 // Acting lead (Admin): a serving trooper who leads a unit the roster names no lead for, such as a DEVCOM starter
@@ -173,6 +184,13 @@ function removeActing() {
     router.delete(`/settings/org-structure/${selectedUnit.value.id}/acting-lead`, {
         data: { reason: actingReason.value.trim() },
         ...actingOptions('The acting lead was not removed.'),
+    });
+}
+
+function submitGame() {
+    gameForm.patch(`/settings/org-structure/${selectedUnit.value.id}/game`, {
+        preserveScroll: true,
+        onHttpException: onHttpException('The game was not saved', (message) => toast.error(message)),
     });
 }
 
@@ -646,6 +664,10 @@ function requestDelete(id) {
                         <Badge variant="outline" class="capitalize">{{ selectedUnit.type }}</Badge>
                         <Badge v-if="selectedUnit.label" variant="outline" data-testid="detail-label">{{ selectedUnit.label }}</Badge>
                     </h2>
+                    <p v-if="selectedUnit.game" data-testid="detail-game" class="-mt-1.5 mb-3 text-[13px] text-muted-foreground">
+                        Game: {{ selectedUnit.game.name }}<template v-if="selectedUnit.game.retired"> (retired)</template
+                        ><template v-if="selectedUnit.game.from">, from {{ selectedUnit.game.from }}</template>
+                    </p>
                     <p v-if="selectedUnit.lead || selectedUnit.lead_vacant" data-testid="detail-lead" class="-mt-1.5 mb-3 text-[13px] text-muted-foreground">
                         <template v-if="selectedUnit.lead"
                             >Lead: {{ selectedUnit.lead.displayName }}<template v-if="selectedUnit.lead.source === 'acting'"> (acting)</template></template
@@ -717,10 +739,24 @@ function requestDelete(id) {
                         </div>
                     </section>
 
+                    <form v-if="isAdmin" data-testid="game-form" class="mb-4 flex items-end gap-2" @submit.prevent="submitGame">
+                        <div class="grid flex-1 gap-1.5">
+                            <Label for="edit-game">Game</Label>
+                            <NativeSelect id="edit-game" v-model="gameForm.game_id" data-testid="edit-game" :aria-invalid="!!gameForm.errors.game_id">
+                                <option :value="null">None (inherits)</option>
+                                <option v-for="game in gameOptions" :key="game.id" :value="game.id">
+                                    {{ game.name }}<template v-if="game.retired"> (retired)</template>
+                                </option>
+                            </NativeSelect>
+                            <p v-if="gameForm.errors.game_id" class="text-xs text-destructive" data-testid="edit-error-game">{{ gameForm.errors.game_id }}</p>
+                        </div>
+                        <Button type="submit" variant="outline" data-testid="save-game" :disabled="gameForm.processing">Save game</Button>
+                    </form>
+
                     <form v-if="isAdmin" data-testid="label-form" class="mb-4 flex items-end gap-2" @submit.prevent="submitLabel">
                         <div class="grid flex-1 gap-1.5">
-                            <Label for="edit-label">Game or team label</Label>
-                            <Input id="edit-label" v-model="labelForm.label" data-testid="edit-label" type="text" maxlength="40" placeholder="such as WARDOGS" :aria-invalid="!!labelForm.errors.label" />
+                            <Label for="edit-label">Team label</Label>
+                            <Input id="edit-label" v-model="labelForm.label" data-testid="edit-label" type="text" maxlength="40" :aria-invalid="!!labelForm.errors.label" />
                             <p v-if="labelForm.errors.label" class="text-xs text-destructive" data-testid="edit-error-label">{{ labelForm.errors.label }}</p>
                         </div>
                         <Button type="submit" variant="outline" data-testid="save-label" :disabled="labelForm.processing">Save label</Button>

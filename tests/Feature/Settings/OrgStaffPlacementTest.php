@@ -93,7 +93,7 @@ it('lists each group\'s members with an ELOA trooper\'s "was", to viewers whose 
         ->assertInertia(fn ($page) => $page->where('groupMembers', []));
 });
 
-it('lets an Admin set and clear a unit\'s game label, audited, and refuses anyone else', function () {
+it('lets an Admin set and clear a unit\'s team label, audited, and refuses anyone else', function () {
     $this->actingAs($this->admin)->patch("/settings/org-structure/{$this->platoon->id}/label", ['label' => ' WARDOGS '])
         ->assertRedirect('/settings/org-structure')
         ->assertSessionHasNoErrors();
