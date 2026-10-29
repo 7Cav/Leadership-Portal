@@ -354,8 +354,15 @@ class CaptureSectionPracticeHandler
         $links = [];
         $unmatched = [];
 
+        // Every player's link in one read (audit 2, L7), matched back as the database matched it: the row with the very
+        // spelling first, else the one it found without case (MySQL compares IDs that way, and the merge keeps one
+        // player per ID regardless of case).
+        $rows = $this->identities->findByPlatformIds($game, array_map(fn (CrconPlayer $player) => $player->platformId, $presence->players));
+        $exact = $rows->keyBy('platform_id');
+        $folded = $rows->keyBy(fn ($row) => mb_strtolower($row->platform_id));
+
         foreach ($presence->players as $player) {
-            $link = $this->identities->findByPlatformId($game, $player->platformId);
+            $link = $exact->get($player->platformId) ?? $folded->get(mb_strtolower($player->platformId));
 
             if ($link === null) {
                 $unmatched[] = $player;

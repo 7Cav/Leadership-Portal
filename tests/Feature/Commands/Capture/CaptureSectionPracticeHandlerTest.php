@@ -30,6 +30,7 @@ use App\Models\WeeklyReport;
 use App\Repositories\PracticeCapturePlayerRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 // 7.5 / AD-19, AD-14, AD-16: stamp the practice, resolve players, never auto-assign, never read an outage as zero.
 
@@ -110,6 +111,38 @@ it('matches on platform as well as id', function () {
 
     expect($result->matched)->toBe([])->and($result->unmatched)->toHaveCount(1);
 });
+
+// Audit 2, L7: the players' links are read in one query, however many players the server saw.
+it('reads the links of every player it saw in one query, matching each as before', function (int $players) {
+    $elsewhere = Unit::factory()->create(['type' => UnitType::Section]);
+    $seen = [];
+
+    foreach (range(1, $players) as $i) {
+        $trooper = Trooper::factory()->create(['primary_section_id' => $i % 2 === 0 ? $this->section->id : $elsewhere->id]);
+        linkIdentity($trooper, sprintf('7656119%010d', $i));
+        $seen[] = new CrconPlayer("P{$i}", sprintf('7656119%010d', $i));
+    }
+    $seen[] = new CrconPlayer('Stranger', '76561199999999999');
+    // An Epic ID seen in upper case is taken in lower case and still found.
+    $epic = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
+    linkIdentity($epic, str_repeat('ab', 16));
+    $seen[] = new CrconPlayer('Epic', strtoupper(str_repeat('ab', 16)));
+
+    $reads = 0;
+    DB::listen(function ($query) use (&$reads) {
+        if (preg_match('/from [`"]?trooper_game_identities[`"]?/i', $query->sql) === 1 && str_starts_with(strtolower(ltrim($query->sql)), 'select')) {
+            $reads++;
+        }
+    });
+
+    $result = runCapture($this, [answeringSource('crcon', $seen)]);
+
+    expect($reads)->toBe(1)
+        ->and($result->matched)->toHaveCount(intdiv($players, 2) + 1)
+        ->and($result->otherSection)->toHaveCount($players - intdiv($players, 2))
+        ->and(array_map(fn ($player) => $player->platformId, $result->unmatched))->toBe(['76561199999999999'])
+        ->and(collect($result->matched)->pluck('trooperId'))->toContain($epic->id);
+})->with(['a few players' => 4, 'a busy week' => 60]);
 
 it('surfaces a linked trooper from another section instead of crediting them to this practice', function () {
     $elsewhere = Trooper::factory()->create(['primary_section_id' => Unit::factory()->create(['type' => UnitType::Section])->id]);
