@@ -281,6 +281,16 @@ it('writes no makeup when an Undo removes the entry between its commit and the m
             return $this->inner->staffEntriesFor($trooperId);
         }
 
+        public function staffEntriesInWeek(int $trooperId, CarbonInterface $weekStart): Collection
+        {
+            return $this->inner->staffEntriesInWeek($trooperId, $weekStart);
+        }
+
+        public function staffForHostPractice(int $hostPracticeId): Collection
+        {
+            return $this->inner->staffForHostPractice($hostPracticeId);
+        }
+
         public function find(int $hostPracticeId, int $trooperId): ?CrossSectionSighting
         {
             return $this->inner->find($hostPracticeId, $trooperId);
