@@ -258,7 +258,7 @@ export function useRollcallAutosave({
     const retry = () => flush();
     const rejectedMessage = computed(() =>
         rejected.value.length
-            ? `${rejected.value.map(nameOf).join(', ')} ${rejected.value.length === 1 ? 'is' : 'are'} no longer placed in this section, so ${rejected.value.length === 1 ? 'that mark was' : 'those marks were'} not saved. Reload to refresh the roster.`
+            ? `${rejected.value.map(nameOf).join(', ')} ${rejected.value.length === 1 ? 'is' : 'are'} no longer placed in this section, so ${rejected.value.length === 1 ? 'that mark was' : 'those marks were'} not saved. Their new section marks them now; if they still belong here, ask an Admin to check their placement.`
             : null,
     );
     const onLeaveMessage = computed(() =>

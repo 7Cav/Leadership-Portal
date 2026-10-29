@@ -21,8 +21,10 @@ report deadline, 23:59 UTC on the Saturday after it ends, has passed).
   rollcall step or report where it gets done.
 - KPI tiles: the six KPIs (see "KPIs" below) live for your whole scope, with a sparkline of the last four weeks. A past
   week is only drawn when every section in scope with troopers sent its report that week.
-- Needs attention: units holding up the report chain, and at-risk troopers, each linked to the place to fix it, with a
-  makeup PM link for at-risk troopers.
+- Needs attention: units holding up the report chain, at-risk troopers and LOA posts that need review, each linked to
+  the place to fix it, with a makeup PM link for at-risk troopers. An LOA post that needs review is one the LOA sync
+  could not read, for a trooper in your scope, in the reporting week or the running one: it opens the trooper's card
+  on their section's rollcall and links to the post on the forum, where it is fixed.
 - Subordinate units: the units directly under the top of your scope, with their report status and KPIs.
 
 Home only counts line units (regiment, battalions, companies, platoons, sections). Staff groups have no report chain.
@@ -49,12 +51,16 @@ Your scope's units and troopers, from the cached Cav roster.
 - Trooper sheet: click a trooper for their unit, their billet tag and who leads the unit ("leads this platoon as PL"
   for the lead themselves), KPIs and 20 weeks of marks with where each mark came from. It links to the trooper's
   milpac page and their section's rollcall.
+- Leave from: the trooper sheet shows a "Leave from 17Oct26" chip when the trooper's leave starts the next Cav week.
 - Acting leads and portfolio leads are marked; HQ staff appear on their HQ node (platoon, company, battalion or
   regiment).
 - Guests at our practices: troopers from outside the unit recorded at its sections' practices, with visits, last week
   seen and their own section SP. Those who meet the JSAM thresholds are marked as candidates (see "JSAM guests").
 - Sync: an Admin's "Sync now" refreshes the whole roster from Cav; a leader gets a sync of just the unit on screen. Both
   queue a job; reload after a minute. The page shows when the roster and the leave data last synced.
+- Leave sync problems (Admins): under the leave note, what the latest LOA sync could not read: the problems reading the
+  forum (each thread linked to the forum), how many posts it read that need review, or why a failed run stopped. Read
+  from what the sync records; nothing extra is asked of the forum. There is no leave sync button.
 - Guidon: a company, battalion or the regiment can have a guidon, the swallowtail flag split on the diagonal. Its
   command (and the command above it, and Admins) opens "Edit guidon" on the unit's roster to pick the two colors (a set
   palette or any custom color) and the text, with a live preview; nothing is saved until Save. The text starts as the
@@ -87,6 +93,9 @@ One section's week, in three steps. It opens on the last section you opened, els
 else a section you are acting lead of, else the first section of the first platoon in your scope. It only lands on a
 section with troopers, unless every section in your scope is empty. The section picker still lists empty sections,
 marked "No troopers", so a leader can open one that is being stood up. A week selector moves back through past weeks (down to the week floor) and flags unfinished ones.
+Opened without a week, a section shows the closing week while its report is still due (until 23:59 UTC on the
+Saturday after the week) and that section has not sent it; "This week" opens the new week. A week chosen in the
+selector or a link always wins.
 
 1. Signatures: for each trooper, Will attend, Cannot attend or Unsigned, as signed on the forum's rollcall thread.
 2. Section practice: Present, Missed, Makeup or Attached. "Mark all present", "Mark the rest missed" and "use last
@@ -102,7 +111,8 @@ Every change saves in the background as you click, and is written to the audit l
 On the same page:
 
 - LOA: a trooper whose leave covers the week is locked, listed under "On LOA", and posts as `LOA`. A leave post the
-  sync could not read shows a "needs review" badge but stays markable.
+  sync could not read shows a "needs review" badge but stays markable. A trooper whose cleanly read leave starts the
+  next Cav week shows a "Leave from 17Oct26" chip, read-only, so the next practice can be planned around it.
 - Capture review: when game-server data was captured for the practice, marks it made show their source, and the leader
   can confirm the practice ("Confirmed by ..."). Editing a mark by hand afterwards clears the confirmation.
 - Unmatched players: players the capture saw that no trooper is linked to. Link one to a trooper (this also saves their
@@ -128,6 +138,12 @@ on none.
   - Section report: KPIs and the change from last week, a "Ready to send" checklist (Rollcall complete, Practice marked,
     Unaccounted troopers explained, Training subject filled, Notes reviewed), a reason for each unaccounted trooper from
     a fixed list, the training subject (last sent subject offered as a suggestion), notes, history and an 8 week trend.
+  - Suggested reasons: where the portal's data says why a trooper is unaccounted, their reason is pre-selected:
+    "Departed, no longer on the Cav roster", "Moved out of the section this week" (a placement in the section ended
+    during the week), or "LOA posted, the post needs review" (a leave post the LOA sync could not read), in that order
+    when more than one applies. A suggestion is not saved, previewed or sent, and its check stays open, until the
+    leader chooses "Keep suggested reason" or another reason; "Send anyway" leaves it out. A reason already saved is
+    never replaced.
   - Platoon and higher: the same, but the KPIs are the sum of the direct children's sent reports, with each child's
     status. The "Every unit has sent" check names who is holding up the chain. A child with no troopers, or with only
     HQ staff, is not one of them (see "Units with no troopers").
@@ -323,7 +339,7 @@ All run on the queue; a queue worker must be running. Times are UTC.
 | Job | When | What it does | Configured by |
 | --- | --- | --- | --- |
 | Roster sync | Hourly on the hour; Admin "Sync now"; leader unit sync | Reads the Cav roster, updates troopers (rank, billet, status), places each trooper by billet, marks leavers departed. A unit sync only writes that unit's troopers. | `CAV_API_KEY`, `CAV_API_BASE_URL` |
-| LOA sync | Hourly at :15 (new threads), daily at 03:30 (full re-read of recent leave) | Reads LOA and ELOA threads from the configured forum sections. ELOA start and end dates come from the linked PAF thread. Posts it cannot read are stored as "needs review", never guessed. First run reads a year back. | `SEVENCAV_FORUM_API_KEY`, `SEVENCAV_FORUM_LOA_NODES`, `SEVENCAV_FORUM_PAF_NODE`, `LOA_SYNC_REQUEST_DELAY_MS`. Skipped while the key or sections are unset. |
+| LOA sync | Hourly at :15 (new threads), daily at 03:30 (full re-read of recent leave) | Reads LOA and ELOA threads from the configured forum sections. ELOA start and end dates come from the linked PAF thread. Posts it cannot read are stored as "needs review", never guessed. First run reads a year back, newest first, a share each hourly run (40 pages a section, ten minutes in all), carrying on next run where it stopped; until it is done, the leave note on the pages says how far back it has got. A thread that fails to read is kept and read again by id next run, so the rest moves on. A manual sync asked for while one of the same kind is queued or running queues one follow-up run after it, and the page says so in a notice. When the daily full read finishes cleanly, a stored leave whose thread is gone (deleted, hidden or moved out of the leave sections) stops counting; the row is kept and counts again if the thread comes back. | `SEVENCAV_FORUM_API_KEY`, `SEVENCAV_FORUM_LOA_NODES`, `SEVENCAV_FORUM_PAF_NODE`, `LOA_SYNC_REQUEST_DELAY_MS`. Skipped while the key or sections are unset. |
 | Counseling document copy | When a DCS or LOR is filed with Google Drive set up | Copies the document to the 7Cav Google Drive folder. Tried up to 5 times, with pauses of 1, 5, 15 and 60 minutes; the record shows the outcome. | `GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_DRIVE_PRIVATE_KEY`, `GOOGLE_DRIVE_FOLDER_ID`. Skipped (record kept, "Portal only") while any is unset. |
 | Practice capture | When a leader clicks "Try again" on the rollcall. That button only shows after a failed capture, and nothing in the code schedules a first capture. | Reads who was on the game server during the Cav week so far, pre-marks linked troopers in the section as Present (a leader's mark always wins), lists unmatched players. | Each game's telemetry interface, picked on the Games page. CRCON (`CRCON_BASE_URL`, `CRCON_API_KEY`) falls back to BattleMetrics; BattleMetrics (`BATTLEMETRICS_API_KEY`, `BATTLEMETRICS_SERVER_ID`); Nightwatch (`NIGHTWATCH_API_KEY`, `NIGHTWATCH_SERVER_IDS`). Each interface reads the servers set in env, not one per game. A game with no keys, or interface "none", shows "not configured". |
 
@@ -333,7 +349,7 @@ window is the whole week and the servers are shared, so being online does not me
 Activity log pruning runs from the scheduler itself, not the queue: daily at 04:15 `portal:prune-page-visits` deletes
 page visits older than 30 days, in chunks.
 
-The org import (Settings, Org structure, Import from Cav roster) is not scheduled; an Admin runs it.
+The org import (Settings, Org structure, Import from Cav roster) is not scheduled; an Admin runs it. It repoints a billet mapping it wrote when Cav now lists the billet under another unit, and keeps (and counts) a mapping corrected by hand.
 
 ## JSAM guests
 
@@ -377,7 +393,8 @@ including the current one. Only troopers placed in a section are measured.
 | Own section SP (JSAM only) | SP as above, except a makeup never counts as attended, and a week their own section did not hold is left out. |
 
 Leave covering a week takes that week out of both RC and SP for the trooper. A leave post that needs review takes its
-weeks out too (no miss, not in either denominator) but does not count as On LOA. A non-leaf unit's reported KPIs are
+weeks out too (no miss, not in either denominator) but does not count as On LOA: the weeks of the leave dates it gives
+when they can be read, otherwise the week it was posted and the next. A non-leaf unit's reported KPIs are
 the sum of its direct children's sent reports.
 
 ## Technical appendix

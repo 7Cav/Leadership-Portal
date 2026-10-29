@@ -18,7 +18,7 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 ## Import from the Cav roster
 
 1. Open **Settings**, then **Org structure**.
-2. Choose **Import from Cav roster**. It adds units the roster has and the portal does not, and maps billets to units.
+2. Choose **Import from Cav roster**. It adds units the roster has and the portal does not, and maps billets to units. When Cav has moved a billet to another unit, the import moves its mapping too, so the next roster sync places the holder in the new unit. A mapping someone corrected by hand is kept, and the import says how many it kept.
 
 > [!good-to-know] What this changes, and how to undo it: the import adds units and maps billets; it never deletes a unit. To undo a unit it added, delete that unit while it is still empty.
 

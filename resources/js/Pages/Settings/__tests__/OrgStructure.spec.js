@@ -35,6 +35,10 @@ const UNITS = [
 ];
 
 describe('Settings/OrgStructure', () => {
+    const deleteDialog = () => document.body.querySelector('[data-testid="delete-dialog"]');
+    const inDialog = (testid) => document.body.querySelector(`[data-testid="${testid}"]`);
+    const mountAttached = () => mount(OrgStructure, { props: { units: UNITS, isAdmin: true }, attachTo: document.body });
+
     it('renders every unit in the tree', () => {
         const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: false } });
 
@@ -168,44 +172,73 @@ describe('Settings/OrgStructure', () => {
         expect(wrapper.find('[data-testid="edit-error-parent_id"]').text()).toBe('Cannot move "2nd Battalion" under itself.');
     });
 
-    // Story 1.9 AC #4 — delete asks for confirmation before dispatching the request.
-    it('asks for confirmation and calls router.delete when deleting from the detail panel', async () => {
-        vi.stubGlobal('confirm', vi.fn(() => true));
-        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+    // Story 1.9 AC #4: delete asks for confirmation, in the app's dialog, before dispatching the request.
+    it('asks for confirmation in a dialog and calls router.delete when deleting from the detail panel', async () => {
+        deleteSpy = vi.fn();
+        const wrapper = mountAttached();
 
         await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
         await wrapper.find('[data-testid="delete-unit"]').trigger('click');
+        await flushPromises();
 
-        expect(confirm).toHaveBeenCalled();
+        expect(deleteDialog().textContent).toContain('Delete 2nd Battalion?');
+        expect(deleteSpy).not.toHaveBeenCalled();
+
+        inDialog('delete-dialog-confirm').click();
+        await flushPromises();
+
         expect(deleteSpy).toHaveBeenCalledWith('/settings/org-structure/2', expect.objectContaining({ preserveScroll: true }));
-        vi.unstubAllGlobals();
+        wrapper.unmount();
     });
 
-    // A blocked delete (remaining children) 422s with `errors.delete` — the message must
+    // A blocked delete (remaining children) 422s with `errors.delete`: the message must
     // actually reach the page, or a refused delete looks like nothing happened at all.
-    it('shows the server\'s reason when a delete is refused', async () => {
+    it('shows the server\'s reason inside the dialog when a delete is refused', async () => {
         deleteSpy = vi.fn((url, { onError }) => onError({ delete: 'Cannot delete "2nd Battalion": it still has units under it.' }));
-        vi.stubGlobal('confirm', vi.fn(() => true));
-        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+        const wrapper = mountAttached();
 
         await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
         await wrapper.find('[data-testid="delete-unit"]').trigger('click');
+        await flushPromises();
+        inDialog('delete-dialog-confirm').click();
+        await flushPromises();
 
-        expect(wrapper.find('[data-testid="delete-error"]').text()).toBe('Cannot delete "2nd Battalion": it still has units under it.');
-        vi.unstubAllGlobals();
+        expect(inDialog('delete-dialog-error').textContent).toBe('Cannot delete "2nd Battalion": it still has units under it.');
+        wrapper.unmount();
         deleteSpy = vi.fn();
     });
 
-    it('does not delete when the confirmation is declined', async () => {
-        deleteSpy.mockClear();
-        vi.stubGlobal('confirm', vi.fn(() => false));
-        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+    it('says in plain words why a delete failed on an HTTP error, instead of the raw error page', async () => {
+        let handled;
+        deleteSpy = vi.fn((url, { onHttpException }) => {
+            handled = onHttpException({ status: 419 });
+        });
+        const wrapper = mountAttached();
+
+        await wrapper.find('[data-testid="tool-delete-2"]').trigger('click');
+        await flushPromises();
+        inDialog('delete-dialog-confirm').click();
+        await flushPromises();
+
+        expect(handled).toBe(false);
+        expect(inDialog('delete-dialog-error').textContent).toBe('The unit was not deleted. Your session expired; reload the page and try again.');
+        wrapper.unmount();
+        deleteSpy = vi.fn();
+    });
+
+    it('does not delete when the dialog is cancelled', async () => {
+        deleteSpy = vi.fn();
+        const wrapper = mountAttached();
 
         await wrapper.find('[data-testid="unit-row-2"]').trigger('click');
         await wrapper.find('[data-testid="delete-unit"]').trigger('click');
+        await flushPromises();
+        [...deleteDialog().querySelectorAll('button')].find((b) => b.textContent.trim() === 'Cancel').click();
+        await flushPromises();
 
         expect(deleteSpy).not.toHaveBeenCalled();
-        vi.unstubAllGlobals();
+        expect(deleteDialog()).toBeNull();
+        wrapper.unmount();
     });
 
     // Story 1.9 AC #6 — hover tools per row, Admin-only. Battalion (id 2) is non-root and
@@ -252,13 +285,16 @@ describe('Settings/OrgStructure', () => {
     // it emits a raw id (not `{ id }`, unlike `addChild`'s payload), so a mismatch there would
     // silently no-op.
     it('deletes from the tree\'s own 🗑 tool, not just the detail panel', async () => {
-        vi.stubGlobal('confirm', vi.fn(() => true));
-        const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+        deleteSpy = vi.fn();
+        const wrapper = mountAttached();
 
         await wrapper.find('[data-testid="tool-delete-2"]').trigger('click');
+        await flushPromises();
+        inDialog('delete-dialog-confirm').click();
+        await flushPromises();
 
         expect(deleteSpy).toHaveBeenCalledWith('/settings/org-structure/2', expect.objectContaining({ preserveScroll: true }));
-        vi.unstubAllGlobals();
+        wrapper.unmount();
     });
 
     // Story 2.9 — import from the Cav position groups.
@@ -293,6 +329,21 @@ describe('Settings/OrgStructure', () => {
             expect(wrapper.find('[data-testid="import-from-cav"]').attributes('disabled')).toBeUndefined();
         });
 
+        it('says in plain words when the import is refused for too many requests, instead of the raw error page', async () => {
+            let handled;
+            postSpy = vi.fn((url, data, { onHttpException, onFinish }) => {
+                handled = onHttpException({ status: 429 });
+                onFinish();
+            });
+            const wrapper = mount(OrgStructure, { props: { units: UNITS, isAdmin: true } });
+
+            await wrapper.find('[data-testid="import-from-cav"]').trigger('click');
+
+            expect(handled).toBe(false);
+            expect(wrapper.find('[data-testid="import-error"]').text()).toBe('The import did not run. Too many requests; wait a minute and try again.');
+            expect(wrapper.find('[data-testid="import-from-cav"]').attributes('disabled')).toBeUndefined();
+        });
+
         it('reports how many nodes and mappings were created, and what was skipped', () => {
             const wrapper = mount(OrgStructure, {
                 props: {
@@ -315,6 +366,16 @@ describe('Settings/OrgStructure', () => {
             });
 
             expect(wrapper.find('[data-testid="import-result"]').text()).toContain('2 existing mappings point at a different unit');
+        });
+
+        it('reports the mappings it moved to where Cav now lists the billet', () => {
+            const wrapper = mount(OrgStructure, {
+                props: { units: UNITS, isAdmin: true, importResult: { unitsCreated: 0, mappingsCreated: 0, mappingsRepointed: 3, mappingsDiffering: 0, skippedTitles: [] } },
+            });
+
+            const text = wrapper.find('[data-testid="import-result"]').text();
+            expect(text).toContain('3 mappings moved to the unit Cav now lists');
+            expect(text).not.toContain('existing mapping');
         });
 
         // Story 1.16 adds command-billet mapping counts to the same flash. They appear only when

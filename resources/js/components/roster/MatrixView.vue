@@ -8,6 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadio
 import { Skeleton } from '@/components/ui/skeleton';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import EmptyState from '@/components/EmptyState.vue';
+import NoValue from '@/components/NoValue.vue';
 import {
     aggregateWeek,
     displayName,
@@ -417,8 +418,8 @@ function clearAll() {
                                     <WeekCell v-bind="cell(row.trooper, i)" :auto="row.trooper.weeks[i]?.source === 'auto'" />
                                 </span>
                             </td>
-                            <td class="sum sum-rc" :class="toneClass[percentTone(row.trooper.kpis?.rc)]">{{ row.trooper.kpis ? percentLabel(row.trooper.kpis.rc) : '—' }}</td>
-                            <td class="sum sum-sp" :class="toneClass[percentTone(row.trooper.kpis?.sp)]">{{ row.trooper.kpis ? percentLabel(row.trooper.kpis.sp) : '—' }}</td>
+                            <td class="sum sum-rc" :class="toneClass[percentTone(row.trooper.kpis?.rc)]"><template v-if="row.trooper.kpis">{{ percentLabel(row.trooper.kpis.rc) }}</template><NoValue v-else /></td>
+                            <td class="sum sum-sp" :class="toneClass[percentTone(row.trooper.kpis?.sp)]"><template v-if="row.trooper.kpis">{{ percentLabel(row.trooper.kpis.sp) }}</template><NoValue v-else /></td>
                             <td class="sum sum-risk">
                                 <Badge v-if="row.trooper.kpis?.onLoa" variant="outline"><PhLockSimple />LOA</Badge>
                                 <Badge v-else-if="row.trooper.kpis?.atRisk" variant="warning" :title="`Missed ${row.trooper.kpis.missed} of the last 4 section practices`" data-testid="matrix-at-risk"><PhWarning />At-risk</Badge>

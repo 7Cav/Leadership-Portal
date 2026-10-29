@@ -239,13 +239,16 @@ class HomeController extends Controller
      * definition is `TrooperAttendance::atRisk()` (AD-21) and a holding report is the roll-up's own
      * `isHolding()` (AD-13), so the list never disagrees with the tiles or the navigator.
      *
-     * Leave (Epic 4) is not listed here: an expiring LOA would join as another `kind`, and a
-     * `needs_review` LOA must then never produce an at-risk item (AD-4).
+     * A leave post the LOA sync could not read (`needs_review`) is listed as its own `loa_review` kind for the
+     * troopers in the same rows, so a leader sees it before the trooper is marked or the report goes up. It never
+     * produces an at-risk item (AD-4): the one LOA definition already keeps such a trooper out of at-risk. It links
+     * to the trooper's card on the section's rollcall for the week, where the leader marks them, and carries the
+     * forum thread, where the post is fixed.
      *
      * @param  Collection<int, Collection<int, TrooperAttendance>>  $attendance  each root's per-trooper rows
      * @param  Collection<int, ChainNode>  $chains
      * @param  Collection<int, int>  $scope
-     * @return array{items: list<array<string, mixed>>, totals: array{holding: int, atRisk: int}}
+     * @return array{items: list<array<string, mixed>>, totals: array{holding: int, atRisk: int, loaReview: int}}
      */
     private function attentionProps(Collection $attendance, Collection $chains, Collection $scope, CarbonImmutable $weekStart): array
     {
@@ -260,12 +263,17 @@ class HomeController extends Controller
                 ->map(fn (TrooperAttendance $row) => ['trooperId' => $row->trooperId, 'missed' => $row->missed, 'missedWeeks' => $row->missedWeeks]))
             ->values();
 
-        $troopers = $this->troopers->byIds($atRisk->pluck('trooperId')->all());
+        $review = $this->loaReview($attendance, $weekStart);
+        $troopers = $this->troopers->byIds([...$atRisk->pluck('trooperId')->all(), ...array_keys($review)]);
         $sections = $this->units->sectionsAmong($scope)->keyBy('id');
         $atRisk = $atRisk
             ->filter(fn (array $row) => $troopers->has($row['trooperId']))
             ->sortBy(fn (array $row) => [-$row['missed'], mb_strtolower($troopers->get($row['trooperId'])->display_name)])
             ->values();
+
+        $review = collect($review)
+            ->filter(fn (LoaCover $cover, int $trooperId) => $troopers->has($trooperId))
+            ->sortBy(fn (LoaCover $cover, int $trooperId) => mb_strtolower($troopers->get($trooperId)->display_name));
 
         $date = $weekStart->toDateString();
 
@@ -300,9 +308,62 @@ class HomeController extends Controller
                         'href' => route('roster.index', array_filter(['unit' => $trooper->primary_section_id, 'trooper' => $trooper->id])),
                     ];
                 })->all(),
+                ...$review->take(self::WORKLIST_LIMIT)->map(function (LoaCover $cover, int $trooperId) use ($troopers, $sections, $date) {
+                    $trooper = $troopers->get($trooperId);
+                    $section = $sections->get($trooper->primary_section_id);
+
+                    return [
+                        'kind' => 'loa_review',
+                        'id' => "loa-review-{$trooper->id}",
+                        'trooper' => [
+                            'id' => $trooper->id,
+                            'displayName' => $trooper->display_name,
+                            'rankShort' => $trooper->rank_short,
+                            'username' => $trooper->username,
+                        ],
+                        'section' => $section ? self::unitProps($section) : null,
+                        'typeLabel' => $cover->type?->label(),
+                        'reviewReason' => $cover->reviewReason,
+                        'sourceThread' => $cover->sourceThread,
+                        'href' => $section
+                            ? route('rollcall.show', ['unit' => $section->id, 'week' => $date, 'focus' => $trooper->id])
+                            : route('roster.index', ['trooper' => $trooper->id]),
+                    ];
+                })->values()->all(),
             ],
-            'totals' => ['holding' => $holding->count(), 'atRisk' => $atRisk->count()],
+            'totals' => ['holding' => $holding->count(), 'atRisk' => $atRisk->count(), 'loaReview' => $review->count()],
         ];
+    }
+
+    /**
+     * The troopers of these rows with a leave post that needs review in the reporting week, or in the running week
+     * when that is a later one (a post made since the closing week ended), by trooper id. Read from the one LOA
+     * definition (AD-21): its own rule decides which weeks such a post bears on.
+     *
+     * @param  Collection<int, Collection<int, TrooperAttendance>>  $attendance
+     * @return array<int, LoaCover>
+     */
+    private function loaReview(Collection $attendance, CarbonImmutable $weekStart): array
+    {
+        $ids = $attendance->flatMap(fn (Collection $rows) => $rows->map(fn (TrooperAttendance $row) => $row->trooperId))->unique()->values()->all();
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $weeks = WeekOf::start(CarbonImmutable::now())->greaterThan($weekStart) ? 2 : 1;
+        $review = [];
+
+        foreach ($this->loaCoverage->forTroopersOverWeeks($ids, $weekStart, $weeks) as $trooperId => $covers) {
+            // The later week's post first: it is the one a leader can still act on.
+            $cover = collect(array_reverse($covers))->first(fn (LoaCover $cover) => $cover->needsReviewState());
+
+            if ($cover !== null) {
+                $review[$trooperId] = $cover;
+            }
+        }
+
+        return $review;
     }
 
     /**

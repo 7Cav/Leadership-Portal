@@ -23,7 +23,8 @@ page: /home
 
 ## Act on what needs attention
 
-1. **Needs attention** lists the units holding up the report chain and the troopers at risk, each with a link to fix it.
+1. **Needs attention** lists the units holding up the report chain, the troopers at risk and the LOA posts that need review, each with a link to fix it.
 2. For a trooper at risk, use the makeup link to send them a message about a makeup practice.
+3. An LOA post that needs review is one the leave sync could not read. Choose the trooper to mark them on your rollcall, or open the post on the forum and ask them to fix it. For the week it was posted and the week after, the portal neither counts them as on leave nor flags them at risk.
 
 > [!good-to-know] Home counts the line units only: sections, platoons, companies, battalions and the regiment. Staff groups have no report chain, and a unit with nobody in it is left out until someone is placed there. The week shown stays the closing one until its report is due, 23:59 UTC on the Saturday after it ends.

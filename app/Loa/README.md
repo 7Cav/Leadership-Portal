@@ -8,6 +8,10 @@ Everything the portal needs to *read* about leave lives here, so no screen re-de
   `STALE_AFTER_HOURS` (syncs that simply stopped must not look fresh), so the page says it is
   showing the last good cache (AD-4). With no successful sync yet, `neverSynced()` is true and
   `lastSyncedAt` is null: an explicit state, never a blank or an invented time.
+  `backfilling` and `backfilledTo` say whether the sync's first read of the year is still going back through
+  older posts (a share per hourly run, from the cursor the sync saves in `sync_runs.cursor`) and the oldest post
+  it has reached. It is not a staleness signal: recent leave is read first, so only older weeks can miss leave,
+  and the note says so in words.
 - `LoaCoverage::forTroopers($ids, $weekStart)` → `array<trooperId, LoaCover>` (4.4, AD-21): the one
   definition of "is this trooper LOA-covered in this Cav week". Whole Cav weeks (Saturday to
   Friday UTC, `WeekOf`): a leave touching any day covers the week, and an open-ended leave
@@ -21,8 +25,12 @@ Everything the portal needs to *read* about leave lives here, so no screen re-de
     keeps none for such a row, so it applies for the Cav week the thread was posted on the forum
     (`posted_at`) and the week after, then stops: a broken post cannot keep a trooper out of the
     KPIs for good, and the first sync's backfill of old malformed posts shields no one from that sync on. A row with
-    no `posted_at` yet (stored before the column existed) is placed by `created_at` instead.
+    no `posted_at` yet (stored before the column existed) is placed by `created_at` instead. When the
+    post still gives usable leave dates (`review_starts_at`/`review_ends_at`: both read, end not before
+    start, cut to 14 days), it applies to the weeks those days touch instead.
   - A cleanly read leave that covers the week wins over one that needs review.
+  - A withdrawn row (`withdrawn_at` set: a complete full sync no longer found its thread, because it was
+    deleted, hidden or moved out of the leave sections) counts for nothing. It is kept as history.
   - `toArray()` is the badge's prop shape.
 
 - `LoaCover::derivedAttendanceStatus()` (3.4, AD-14): the attendance status a cover derives for the week, `Loa`
@@ -30,6 +38,14 @@ Everything the portal needs to *read* about leave lives here, so no screen re-de
   an absence nor as away. The status is derived here and never stored; `MarkAttendanceHandler` reads it through
   `LoaCoverage` to refuse a hand-entered practice mark for a covered trooper, and to skip that trooper when
   capture pre-marks the practice (7.6), and to skip them when an automatic makeup is pre-marked for them.
+
+- `UpcomingLeave::startingAfter($ids, $weekStart)` → `array<trooperId, 'Y-m-d'>`: the troopers whose cleanly read leave
+  starts in the Cav week after `$weekStart`, for the "Leave from" chip on the rollcall and the roster's trooper sheet.
+  Read through `LoaCoverage`; a needs-review post asserts no start, so it never shows.
+
+- `LoaSyncProblems::latest()`: what the latest finished LOA sync could not read, for an Admin on the roster page: its
+  joined problem text split back into one line per thread (with the thread id), its `needs_review` count, and a failed
+  run's reason. Read from `sync_runs` only.
 
 **May depend on:** `Repositories/` (the facts, never the DB directly, AD-2), `Models/`,
 `Support/Time/` (the week window, AD-11).

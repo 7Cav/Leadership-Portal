@@ -37,4 +37,18 @@ describe('LoaSyncNote', () => {
         expect(el.attributes('data-state')).toBe('problem');
         expect(el.attributes('role')).toBe('status');
     });
+
+    it('adds how far back the first read of the year has got while it is still going, as a note and not a warning', () => {
+        const el = note({ backfilling: true, backfilledTo: '2026-04-02T08:00:00+00:00' });
+
+        expect(el.text()).toBe('Leave from Forum thread, synced 08Oct26 09:14Z. Older leave is still being read, back to 02Apr26 so far');
+        expect(el.attributes('data-state')).toBe('ok');
+    });
+
+    it('says it is still going before it has reached any date, and keeps a warning that applies', () => {
+        expect(note({ backfilling: true, backfilledTo: null }).text()).toBe('Leave from Forum thread, synced 08Oct26 09:14Z. Older leave is still being read');
+        expect(note({ backfilling: true, backfilledTo: '2026-04-02T08:00:00+00:00', stale: true, latestStatus: 'partial' }).text()).toBe(
+            'Leave from Forum thread: the latest sync did not succeed, so on LOA and at-risk use the last good sync, 08Oct26 09:14Z. Older leave is still being read, back to 02Apr26 so far',
+        );
+    });
 });

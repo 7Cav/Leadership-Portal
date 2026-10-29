@@ -16,6 +16,8 @@ const props = defineProps({
     troopers: { type: Array, default: () => [] },
     children: { type: Array, default: () => [] },
     unaccounted: { type: Array, required: true },
+    // `{ [trooperId]: reason }`: reasons pre-selected from the portal's data that the leader has not kept yet.
+    suggested: { type: Object, default: () => ({}) },
     reasons: { type: Array, required: true },
     rollcallUrl: { type: String, default: null },
     readOnly: { type: Boolean, default: false },
@@ -23,7 +25,15 @@ const props = defineProps({
     weekDate: { type: String, default: null },
 });
 
-const emit = defineEmits(['update:unaccounted', 'focus']);
+const emit = defineEmits(['update:unaccounted', 'focus', 'confirm']);
+
+// Why the portal suggests a reason, said in the hint under the picker.
+const SUGGESTED_BECAUSE = {
+    loa_needs_review: 'they posted leave the LOA sync could not read',
+    moved_out: 'they moved out of the section this week',
+    departed: 'they are no longer on the Cav roster',
+};
+const suggestionOf = (id) => (props.suggested?.[id] && props.suggested[id] === reasonOf(id) ? SUGGESTED_BECAUSE[props.suggested[id]] ?? null : null);
 
 const done = computed(() => props.checks.filter((c) => c.done).length);
 const open = ref(new Set(props.checks.filter((c) => !c.done).map((c) => c.id)));
@@ -53,6 +63,8 @@ const reasonOf = (id) => props.unaccounted.find((r) => r.trooper_id === id)?.rea
 function setReason(trooperId, reason) {
     const rest = props.unaccounted.filter((r) => r.trooper_id !== trooperId);
     emit('update:unaccounted', reason ? [...rest, { trooper_id: trooperId, reason }] : rest);
+    // Choosing anything, the suggestion included, makes the reason the leader's own.
+    emit('confirm', trooperId);
 }
 
 const waiting = computed(() => props.children.filter((c) => c.status !== 'sent'));
@@ -120,7 +132,18 @@ const waiting = computed(() => props.children.filter((c) => c.status !== 'sent')
                             </NativeSelect>
                             <p :id="`reason-${t.id}-help`" class="mt-1.5 text-xs text-muted-foreground">
                                 {{ t.atRisk ? `Marked missed with no makeup. ${t.missed} misses in 30 days, at-risk.` : 'Marked missed with no makeup.' }}
+                                <template v-if="suggestionOf(t.id)">Suggested because {{ suggestionOf(t.id) }}. It is not saved until you keep it or choose another reason.</template>
                             </p>
+                            <Button
+                                v-if="suggestionOf(t.id) && !readOnly"
+                                variant="outline"
+                                size="sm"
+                                class="mt-2"
+                                :data-keep="t.id"
+                                @click="emit('confirm', t.id)"
+                            >
+                                Keep suggested reason
+                            </Button>
                         </div>
                     </div>
 

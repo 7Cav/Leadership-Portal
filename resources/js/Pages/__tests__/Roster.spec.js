@@ -129,6 +129,13 @@ describe('Roster page', () => {
         expect(stale.get('[data-testid="loa-sync"]').attributes('role')).toBe('status');
     });
 
+    it('shows an Admin what the latest leave sync could not read, under the leave note, and nothing without it', () => {
+        const run = { status: 'partial', finishedAt: '2026-10-08T12:15:00+00:00', unread: 1, needsReview: 0, failure: null, problems: [{ threadId: 812, text: 'Thread 812: The forum answered 503.' }] };
+
+        expect(factory({ loaSyncProblems: run }).get('[data-testid="loa-sync-problems"]').text()).toContain('1 problem reading the forum');
+        expect(factory().find('[data-testid="loa-sync-problems"]').exists()).toBe(false);
+    });
+
     it('adds how long ago the last sync was, and keeps it current', async () => {
         vi.useFakeTimers();
         try {
