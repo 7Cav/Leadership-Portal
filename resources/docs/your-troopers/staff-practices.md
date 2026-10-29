@@ -19,7 +19,7 @@ audience: everyone
 2. In **Section practices attended**, choose **Add a practice**.
 3. Pick the section whose practice they attended and the Cav week, then choose **Record practice**. Sections with nobody in them are not listed.
 
-> [!good-to-know] One entry per section per week. Only this week and the 11 before it can be entered, never a week before the portal's floor or a future week. Once the staff member's HQ has sent its weekly report for a week, that week can no longer change. A staff department has no weekly report, so its weeks stay open.
+> [!good-to-know] One entry per section per week. If they were listed at that practice as a guest before they joined the staff, that entry stands and the portal says so. Only this week and the 11 before it can be entered, never a week before the portal's floor or a future week. Once the HQ the staff member was on that week has sent its weekly report for it, that week can no longer change, even if they have moved since. A staff department has no weekly report, so its weeks stay open.
 
 ## Read the list
 

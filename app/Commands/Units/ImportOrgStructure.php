@@ -14,7 +14,6 @@ use App\Repositories\UnitBilletMappingRepository;
 use App\Repositories\UnitCommandMappingRepository;
 use App\Repositories\UnitRepository;
 use App\Support\Audit\AuditEnvelope;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
@@ -43,9 +42,10 @@ use Illuminate\Support\Facades\Log;
  *
  * **Additive and idempotent.** An existing node is reused when its type + callsign match the
  * designation (the regiment root also falls back to any existing root regiment, so the tree
- * keeps a single root), and is never renamed, moved or deleted; an existing section mapping is
- * never repointed — one that now disagrees with Cav is counted in the result instead, so a reorg is
- * visible without the import overriding a deliberate correction. A re-run with unchanged input
+ * keeps a single root), and is never renamed, moved or deleted. An existing billet placement the import wrote
+ * (and nobody has changed since) is repointed when Cav now lists the billet elsewhere, so a reorg reaches the roster
+ * sync; one corrected by hand, or never confirmed by the import, is kept and counted in the result instead, so the
+ * import never overrides a deliberate correction (2026-10-29). A re-run with unchanged input
  * therefore creates no unit or mapping — but still records an audit row, so the log shows the
  * import ran.
  *
@@ -54,7 +54,7 @@ use Illuminate\Support\Facades\Log;
  * so every run makes `unit_command_mappings` exactly what Cav publishes — new billets added,
  * moved ones repointed, billets no longer listed as a command removed. Still idempotent.
  *
- * **Admin billets (decided by the S6, 2026-10-28).** Every billet in a group `portal.admin_billet_groups` names
+ * **Admin billets.** Every billet in a group `portal.admin_billet_groups` names
  * (`Regimental HQ`, `S6 HQ`) gets an `admin_billets` row, `pending` until an Admin approves it, and every billet that
  * has one is checked against the title and group Cav lists it under now, wherever that is: renamed or moved, it goes
  * back to pending and its holder stops being an Admin until an Admin confirms the new names. Moved out of those groups,
@@ -122,7 +122,7 @@ class ImportOrgStructure
         ]);
 
         $unitsCreated = 0;
-        $sectionCounts = [0, 0];
+        $sectionCounts = [0, 0, 0];
         $commandCounts = [0, 0, 0, []];
 
         // One import at a time: the lookup of existing units below takes no lock and `units` has no
@@ -182,12 +182,7 @@ class ImportOrgStructure
                         }
                     }
 
-                    $sectionCounts = $this->addMappings(
-                        $sectionByPositionId,
-                        $index,
-                        $this->mappings->unitIdsByPositionId(),
-                        fn (int $unitId, int $positionId) => $this->mappings->create($unitId, $positionId),
-                    );
+                    $sectionCounts = $this->reconcilePlacements($sectionByPositionId, $index);
 
                     $commandCounts = $this->reconcileCommands($commandByPositionId, $index);
 
@@ -205,6 +200,13 @@ class ImportOrgStructure
 
         [$commandsCreated, $commandsRepointed, $commandsRemoved, $unplacedCommands] = $commandCounts;
 
+        if ($sectionCounts[2] > 0) {
+            Log::info('Org-structure import: billet placements repointed to where Cav now lists them.', [
+                'actor_id' => $actor->id,
+                'repointed' => $sectionCounts[2],
+            ]);
+        }
+
         if ($unplacedCommands !== [] || $commandsRepointed > 0 || $commandsRemoved > 0) {
             // The scope-changing outcomes of a run: who gained a different command, who lost one,
             // and which command billets have no node to command (that leader derives no scope).
@@ -218,7 +220,7 @@ class ImportOrgStructure
 
         return new OrgStructureImportResult(
             $unitsCreated, $sectionCounts[0], $sectionCounts[1], $skippedTitles,
-            $commandsCreated, $commandsRepointed, $commandsRemoved,
+            $commandsCreated, $commandsRepointed, $commandsRemoved, $sectionCounts[2],
         );
     }
 
@@ -266,20 +268,28 @@ class ImportOrgStructure
     }
 
     /**
-     * Add every planned `position id => unit key` mapping that does not exist yet; never repoint
-     * one that does — an existing row that now disagrees with Cav is only counted. Returns
-     * `[created, differing]`.
+     * Bring the billet placements in line with Cav, without undoing a correction made by hand. For each planned
+     * `position id => unit key`:
+     *
+     * - no row yet: create it, owned by the import;
+     * - a row the import owns (it still points where the import last put it) that Cav now places elsewhere: repoint it,
+     *   so a reorg reaches the roster sync instead of the sync putting the holder back in the old unit every hour;
+     * - a row the import does not own yet (stored before ownership was recorded) that already points where Cav says:
+     *   adopt it, so the next reorg can repoint it;
+     * - any other row that disagrees with Cav (corrected by hand, or never confirmed): keep it and count it.
+     *
+     * A billet Cav no longer lists is left as it is. Returns `[created, differing, repointed]`.
      *
      * @param  array<int, string>  $unitKeyByPositionId
      * @param  array<string, Unit>  $index
-     * @param  Collection<int, int>  $existing  position id => unit id
-     * @param  callable(int, int): mixed  $create  (unit id, position id)
-     * @return array{0: int, 1: int}
+     * @return array{0: int, 1: int, 2: int}
      */
-    private function addMappings(array $unitKeyByPositionId, array $index, Collection $existing, callable $create): array
+    private function reconcilePlacements(array $unitKeyByPositionId, array $index): array
     {
+        $existing = $this->mappings->forImportByPositionId();
         $created = 0;
         $differing = 0;
+        $repointed = 0;
 
         foreach ($unitKeyByPositionId as $positionId => $unitKey) {
             // An HQ billet of a `<bn> Command` group with no line company has no node to place into, as its commands.
@@ -289,19 +299,24 @@ class ImportOrgStructure
                 continue;
             }
 
-            if ($existing->has($positionId)) {
-                if ($existing->get($positionId) !== $unit->id) {
-                    $differing++;
+            $row = $existing->get($positionId);
+
+            if ($row === null) {
+                $this->mappings->create($unit->id, $positionId);
+                $created++;
+            } elseif ($row['unitId'] === $unit->id) {
+                if ($row['importedUnitId'] !== $unit->id) {
+                    $this->mappings->placeFromImport($positionId, $unit->id);
                 }
-
-                continue;
+            } elseif ($row['importedUnitId'] === $row['unitId']) {
+                $this->mappings->placeFromImport($positionId, $unit->id);
+                $repointed++;
+            } else {
+                $differing++;
             }
-
-            $create($unit->id, $positionId);
-            $created++;
         }
 
-        return [$created, $differing];
+        return [$created, $differing, $repointed];
     }
 
     /**

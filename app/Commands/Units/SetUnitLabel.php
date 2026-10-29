@@ -9,7 +9,7 @@ use App\Support\Audit\AuditEnvelope;
 
 /**
  * Set or clear a unit's team label. Free text, kept apart from the game the unit plays
- * ({@see SetUnitGame}, policy 2026-10-29), since some units label a team rather than a game. Nothing in Cav's data
+ * ({@see SetUnitGame}), since some units label a team rather than a game. Nothing in Cav's data
  * names it, so an Admin sets it by hand. Shown next to the unit's name on the org page, the roster and the rollcall
  * pickers; it changes no scope, placement or KPI.
  *

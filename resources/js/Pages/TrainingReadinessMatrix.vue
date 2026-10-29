@@ -45,7 +45,6 @@ const LEGEND = [
         <div class="flex flex-wrap items-end justify-between gap-3">
             <div class="min-w-0">
                 <h1 id="matrix-title" class="text-xl font-semibold tracking-tight sm:text-[22px]" data-testid="matrix-title">Training readiness <span class="text-muted-foreground">{{ unitLabel }}</span></h1>
-                <p class="mt-1 text-[13px] text-muted-foreground">Who holds which course across the unit, so gaps show without opening each trooper.</p>
             </div>
             <Link :href="`/roster/${unit.id}`" class="inline-flex items-center gap-1 text-[13px] text-primary hover:underline" data-testid="back-to-roster">
                 <PhArrowLeft class="size-3.5" aria-hidden="true" />Back to roster

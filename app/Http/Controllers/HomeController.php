@@ -95,12 +95,11 @@ class HomeController extends Controller
             'kpis' => $roots->isEmpty() ? null : $this->kpiProps($attendance, $roots, $scope, $weekStart),
             'attention' => $roots->isEmpty() ? null : $this->attentionProps($attendance, $chains, $scope, $weekStart),
             'steps' => $this->stepProps($scope, $weekStart, $reports, $sent),
-            'units' => $chains->flatMap(function (ChainNode $chain, int $i) use ($roots, $attendance, $paths, $weekStart) {
+            'units' => $chains->flatMap(function (ChainNode $chain, int $i) use ($attendance, $paths, $weekStart) {
                 $rows = $attendance[$i];
-                $sectionOf = $this->hasLiveRollup($chain) ? $this->troopers->sectionsOfAssignedWithin($roots[$i]) : collect();
 
                 return collect($this->subordinates($chain))
-                    ->map(fn (ChainNode $node) => $this->unitRow($node, $weekStart, $rows, $sectionOf, $paths));
+                    ->map(fn (ChainNode $node) => $this->unitRow($node, $weekStart, $rows, $paths));
             })
                 ->values()
                 ->all(),
@@ -239,13 +238,16 @@ class HomeController extends Controller
      * definition is `TrooperAttendance::atRisk()` (AD-21) and a holding report is the roll-up's own
      * `isHolding()` (AD-13), so the list never disagrees with the tiles or the navigator.
      *
-     * Leave (Epic 4) is not listed here: an expiring LOA would join as another `kind`, and a
-     * `needs_review` LOA must then never produce an at-risk item (AD-4).
+     * A leave post the LOA sync could not read (`needs_review`) is listed as its own `loa_review` kind for the
+     * troopers in the same rows, so a leader sees it before the trooper is marked or the report goes up. It never
+     * produces an at-risk item (AD-4): the one LOA definition already keeps such a trooper out of at-risk. It links
+     * to the trooper's card on the section's rollcall for the week, where the leader marks them, and carries the
+     * forum thread, where the post is fixed.
      *
      * @param  Collection<int, Collection<int, TrooperAttendance>>  $attendance  each root's per-trooper rows
      * @param  Collection<int, ChainNode>  $chains
      * @param  Collection<int, int>  $scope
-     * @return array{items: list<array<string, mixed>>, totals: array{holding: int, atRisk: int}}
+     * @return array{items: list<array<string, mixed>>, totals: array{holding: int, atRisk: int, loaReview: int}}
      */
     private function attentionProps(Collection $attendance, Collection $chains, Collection $scope, CarbonImmutable $weekStart): array
     {
@@ -260,12 +262,17 @@ class HomeController extends Controller
                 ->map(fn (TrooperAttendance $row) => ['trooperId' => $row->trooperId, 'missed' => $row->missed, 'missedWeeks' => $row->missedWeeks]))
             ->values();
 
-        $troopers = $this->troopers->byIds($atRisk->pluck('trooperId')->all());
         $sections = $this->units->sectionsAmong($scope)->keyBy('id');
+        $review = $this->loaReview($attendance, $chains, $sections, $weekStart);
+        $troopers = $this->troopers->byIds([...$atRisk->pluck('trooperId')->all(), ...array_keys($review)]);
         $atRisk = $atRisk
             ->filter(fn (array $row) => $troopers->has($row['trooperId']))
             ->sortBy(fn (array $row) => [-$row['missed'], mb_strtolower($troopers->get($row['trooperId'])->display_name)])
             ->values();
+
+        $review = collect($review)
+            ->filter(fn (array $found, int $trooperId) => $troopers->has($trooperId))
+            ->sortBy(fn (array $found, int $trooperId) => mb_strtolower($troopers->get($trooperId)->display_name));
 
         $date = $weekStart->toDateString();
 
@@ -300,9 +307,95 @@ class HomeController extends Controller
                         'href' => route('roster.index', array_filter(['unit' => $trooper->primary_section_id, 'trooper' => $trooper->id])),
                     ];
                 })->all(),
+                ...$review->take(self::WORKLIST_LIMIT)->map(function (array $found, int $trooperId) use ($troopers, $sections) {
+                    $trooper = $troopers->get($trooperId);
+                    // The section whose rollcall lists them in the week they were found on, which is in the scope.
+                    $section = $sections->get($found['section']);
+                    $cover = $found['cover'];
+
+                    return [
+                        'kind' => 'loa_review',
+                        'id' => "loa-review-{$trooper->id}",
+                        'trooper' => [
+                            'id' => $trooper->id,
+                            'displayName' => $trooper->display_name,
+                            'rankShort' => $trooper->rank_short,
+                            'username' => $trooper->username,
+                        ],
+                        'section' => $section ? self::unitProps($section) : null,
+                        'typeLabel' => $cover->type?->label(),
+                        'reviewReason' => $cover->reviewReason,
+                        'sourceThread' => $cover->sourceThread,
+                        'href' => $section
+                            ? route('rollcall.show', ['unit' => $section->id, 'week' => $found['week'], 'focus' => $trooper->id])
+                            : route('roster.index', ['trooper' => $trooper->id]),
+                    ];
+                })->values()->all(),
             ],
-            'totals' => ['holding' => $holding->count(), 'atRisk' => $atRisk->count()],
+            'totals' => ['holding' => $holding->count(), 'atRisk' => $atRisk->count(), 'loaReview' => $review->count()],
         ];
+    }
+
+    /**
+     * The troopers with a leave post that needs review in the reporting week, or in the running week when that is a
+     * later one (a post made since the closing week ended), by trooper id. Each week is checked against its own roster
+     * in the scope (the 2026-10-29 audit): the reporting week's rows for that week, and the running week's rollcalls of
+     * the scope's sections under the same roots, so a trooper who has left the scope since is not checked for the
+     * running week, and one who joined it this week is. Read from the one LOA definition (AD-21): its own rule decides
+     * which weeks such a post bears on. Each comes with the section and week to open their rollcall card on: the
+     * reporting week's when they are on it, else the running week's.
+     *
+     * @param  Collection<int, Collection<int, TrooperAttendance>>  $attendance
+     * @param  Collection<int, ChainNode>  $chains
+     * @param  Collection<int, Unit>  $sections  the scope's sections, by id
+     * @return array<int, array{cover: LoaCover, section: int, week: string}>
+     */
+    private function loaReview(Collection $attendance, Collection $chains, Collection $sections, CarbonImmutable $weekStart): array
+    {
+        $date = $weekStart->toDateString();
+        $running = WeekOf::start(CarbonImmutable::now());
+        $later = $running->greaterThan($weekStart) ? $running->toDateString() : null;
+        // trooper id => their section, on each week's roster.
+        $rosters = [$date => []];
+
+        foreach ($attendance as $rows) {
+            foreach ($rows as $row) {
+                if ($row->sectionId !== null) {
+                    $rosters[$date][$row->trooperId] = $row->sectionId;
+                }
+            }
+        }
+
+        if ($later !== null) {
+            $roots = $chains->map(fn (ChainNode $chain) => $chain->unit->path);
+            $under = $sections
+                ->filter(fn (Unit $section) => $roots->contains(fn (string $path) => str_starts_with($section->path, $path)))
+                ->keys()
+                ->all();
+            $rosters[$later] = $this->troopers->onRollcalls($under, $running)->sections;
+        }
+
+        $ids = array_keys(array_replace(...array_values($rosters)));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $review = [];
+
+        foreach ($this->loaCoverage->forTroopersOverWeeks($ids, $weekStart, count($rosters)) as $trooperId => $covers) {
+            // The later week's post first: it is the one a leader can still act on. A week counts only for a trooper
+            // on that week's roster.
+            $cover = collect(array_reverse($covers, true))
+                ->first(fn (LoaCover $cover, string $week) => isset($rosters[$week][$trooperId]) && $cover->needsReviewState());
+
+            if ($cover !== null) {
+                $week = isset($rosters[$date][$trooperId]) ? $date : $later;
+                $review[$trooperId] = ['cover' => $cover, 'section' => $rosters[$week][$trooperId], 'week' => $week];
+            }
+        }
+
+        return $review;
     }
 
     /**
@@ -335,7 +428,8 @@ class HomeController extends Controller
     /**
      * The week's five steps for every section in scope (the step matrix): rollcall posted, signed,
      * practice held, attendance marked and report sent, each with the screen and step that does it. Counts
-     * are over the troopers currently assigned to the section, and a trooper on leave for the week
+     * are over the troopers on the section's rollcall for the week (assigned to it now, or for a week that has
+     * ended, the ones it ended with, {@see TrooperRepository::onRollcalls()}), and a trooper on leave for the week
      * counts as signed and marked, since there is nothing to sign or mark for them; a step nobody has started is simply
      * not done, never an invented deadline miss.
      *
@@ -353,12 +447,14 @@ class HomeController extends Controller
         $sections = $this->headcount->reportingLineUnits($this->units->sectionsAmong($scope), $weekStart, $sent);
         $ids = $sections->modelKeys();
         $practices = $this->practices->forSections($ids, $weekStart);
+        // Each rollcall's own troopers: for a week that has ended, the ones it ended with (the 2026-10-29 audit).
+        $rollcalls = $this->troopers->onRollcalls($ids, $weekStart);
         // A trooper whose leave covers the week has no mark to make (3.4): the one LOA definition says who (AD-21).
         $covered = array_keys(array_filter(
-            $this->loaCoverage->forTroopers($this->troopers->placedInAny($ids)->modelKeys(), $weekStart),
+            $this->loaCoverage->forTroopers(array_keys($rollcalls->sections), $weekStart),
             fn (LoaCover $cover) => $cover->isCovered(),
         ));
-        $progress = $this->attendance->weekProgress($ids, $weekStart, $covered);
+        $progress = $this->attendance->weekProgress($ids, $weekStart, $covered, $rollcalls->asPlaced ? $rollcalls->sections : null);
         $date = $weekStart->toDateString();
 
         return $sections->map(function (Unit $section) use ($practices, $progress, $reports, $date) {
@@ -403,34 +499,27 @@ class HomeController extends Controller
         return $root->children === [] ? [$root] : $root->children;
     }
 
-    /** Whether a table row under this root is an unsent non-leaf, the one kind summed live. */
-    private function hasLiveRollup(ChainNode $root): bool
-    {
-        return collect($this->subordinates($root))->contains(fn (ChainNode $node) => $node->live && $node->children !== []);
-    }
-
     /**
      * One table row. A sent report is its frozen snapshot, a leaf is live attendance, and an unsent
      * non-leaf is live for its whole subtree, never the partial sum of the children that happen to
      * have sent: the roll-up semantics (status, holding) stay the chain's own, so the table and the
      * navigator never disagree (AD-13). A sent report whose snapshot cannot be read has `kpis`
      * null: the row says so, and the rest of the table still renders. The live subtree is summed
-     * from the root's per-trooper rows, as the roster totals a unit, rather than read again.
+     * from the root's per-trooper rows, as the roster totals a unit, rather than read again: each row in the section
+     * it counts in, which for a week that has ended is the one the trooper ended it in (the 2026-10-29 audit), so the
+     * row agrees with the sections' own rollcalls and KPIs after a move or a departure.
      *
      * @param  Collection<int, TrooperAttendance>  $rows  the root's per-trooper rows
-     * @param  Collection<int, int>  $sectionOf  trooper id to section id, for the root
      * @param  Collection<int, string>  $paths  unit id to materialized path
      * @return array<string, mixed>
      */
-    private function unitRow(ChainNode $node, CarbonImmutable $weekStart, Collection $rows, Collection $sectionOf, Collection $paths): array
+    private function unitRow(ChainNode $node, CarbonImmutable $weekStart, Collection $rows, Collection $paths): array
     {
         $unit = $node->unit;
         $kpis = $node->live && $node->children !== []
-            ? $this->kpis->sum($rows->filter(function (TrooperAttendance $row) use ($sectionOf, $paths, $unit) {
-                $section = $sectionOf->get($row->trooperId);
-
-                return $section !== null && str_starts_with($paths->get($section, ''), $unit->path);
-            }))
+            ? $this->kpis->sum($rows->filter(
+                fn (TrooperAttendance $row) => $row->sectionId !== null && str_starts_with($paths->get($row->sectionId, ''), $unit->path),
+            ))
             : $node->kpis;
         $date = $weekStart->toDateString();
 

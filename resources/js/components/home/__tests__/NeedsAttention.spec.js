@@ -17,7 +17,19 @@ const risk = (id, name, missed, section = '1/1/A/1-7', extra = {}) => ({
     missed, windowWeeks: 4, href: `/roster/5?trooper=${id}`, ...extra,
 });
 
-const mountList = (items, totals = { holding: items.filter((i) => i.kind === 'holding').length, atRisk: items.filter((i) => i.kind === 'at_risk').length }) =>
+const review = (id, name, extra = {}) => ({
+    kind: 'loa_review', id: `loa-review-${id}`, trooper: { id, displayName: name, rankShort: 'PFC', username: name }, section: { id: 5, designation: '1/1/A/1-7', name: '1st Section' },
+    typeLabel: 'LOA', reviewReason: 'The End Date could not be read.', sourceThread: 'https://7cav.us/threads/loa.9/', href: `/rollcall/5?week=2026-10-03&focus=${id}`, ...extra,
+});
+
+const mountList = (
+    items,
+    totals = {
+        holding: items.filter((i) => i.kind === 'holding').length,
+        atRisk: items.filter((i) => i.kind === 'at_risk').length,
+        loaReview: items.filter((i) => i.kind === 'loa_review').length,
+    },
+) =>
     mount(NeedsAttention, { props: { attention: { items, totals } } });
 
 describe('NeedsAttention', () => {
@@ -106,6 +118,44 @@ describe('NeedsAttention', () => {
             const wrapper = mountList([holding(1, 'draft', '2/1/A/1-7', '1/A/1-7')]);
 
             expect(wrapper.find('[data-testid="makeup-pm"]').exists()).toBe(false);
+        });
+    });
+
+    describe('LOA posts that need review', () => {
+        it('lists them in their own group, after at-risk, each opening the trooper\'s card on the rollcall', () => {
+            const wrapper = mountList([risk(7, 'SGT Vasquez.R', 3), review(8, 'Lindqvist.E')]);
+            const row = wrapper.get('[data-item="loa_review"]');
+
+            expect(wrapper.findAll('[data-group]').map((g) => g.attributes('data-group'))).toEqual(['at_risk', 'loa_review']);
+            expect(wrapper.get('[data-group="loa_review"] h3').text()).toContain('LOA posts that need review');
+            expect(row.attributes('href')).toBe('/rollcall/5?week=2026-10-03&focus=8');
+            expect(row.attributes('title')).toBe('Open Lindqvist.E on the 1/1/A/1-7 rollcall');
+            expect(row.text()).toContain('LOA post the sync could not read in 1/1/A/1-7');
+            expect(row.get('[data-testid="loa-review-reason"]').text()).toBe('The End Date could not be read.');
+            expect(row.text()).toContain('Needs review');
+        });
+
+        it('offers the forum post beside the row, in a new tab, and never a makeup PM', () => {
+            const wrapper = mountList([review(8, 'Lindqvist.E')]);
+            const link = wrapper.get('[data-testid="loa-thread"]');
+
+            expect(link.attributes('href')).toBe('https://7cav.us/threads/loa.9/');
+            expect(link.attributes('target')).toBe('_blank');
+            expect(link.text()).toContain('View the LOA post of Lindqvist.E (opens the forum in a new tab)');
+            expect(wrapper.find('[data-testid="makeup-pm"]').exists()).toBe(false);
+        });
+
+        it('draws no thread link when the post has none, and no reason line without a reason', () => {
+            const wrapper = mountList([review(8, 'Lindqvist.E', { sourceThread: null, reviewReason: null })]);
+
+            expect(wrapper.find('[data-testid="loa-thread"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="loa-review-reason"]').exists()).toBe(false);
+        });
+
+        it('counts the posts the cap left out', () => {
+            const wrapper = mountList([review(8, 'Lindqvist.E')], { holding: 0, atRisk: 0, loaReview: 13 });
+
+            expect(wrapper.get('[data-group="loa_review"]').text()).toContain('12 more');
         });
     });
 });

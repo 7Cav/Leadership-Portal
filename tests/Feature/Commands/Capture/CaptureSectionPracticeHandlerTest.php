@@ -3,6 +3,7 @@
 use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Commands\Capture\CaptureSectionPractice;
 use App\Commands\Capture\CaptureSectionPracticeHandler;
+use App\Commands\Capture\CaptureServer;
 use App\Commands\Capture\CaptureSource;
 use App\Commands\Capture\CaptureSources;
 use App\Commands\Capture\CaptureSourceUnavailable;
@@ -29,6 +30,7 @@ use App\Models\WeeklyReport;
 use App\Repositories\PracticeCapturePlayerRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 // 7.5 / AD-19, AD-14, AD-16: stamp the practice, resolve players, never auto-assign, never read an outage as zero.
 
@@ -110,6 +112,38 @@ it('matches on platform as well as id', function () {
     expect($result->matched)->toBe([])->and($result->unmatched)->toHaveCount(1);
 });
 
+// Audit 2, L7: the players' links are read in one query, however many players the server saw.
+it('reads the links of every player it saw in one query, matching each as before', function (int $players) {
+    $elsewhere = Unit::factory()->create(['type' => UnitType::Section]);
+    $seen = [];
+
+    foreach (range(1, $players) as $i) {
+        $trooper = Trooper::factory()->create(['primary_section_id' => $i % 2 === 0 ? $this->section->id : $elsewhere->id]);
+        linkIdentity($trooper, sprintf('7656119%010d', $i));
+        $seen[] = new CrconPlayer("P{$i}", sprintf('7656119%010d', $i));
+    }
+    $seen[] = new CrconPlayer('Stranger', '76561199999999999');
+    // An Epic ID seen in upper case is taken in lower case and still found.
+    $epic = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
+    linkIdentity($epic, str_repeat('ab', 16));
+    $seen[] = new CrconPlayer('Epic', strtoupper(str_repeat('ab', 16)));
+
+    $reads = 0;
+    DB::listen(function ($query) use (&$reads) {
+        if (preg_match('/from [`"]?trooper_game_identities[`"]?/i', $query->sql) === 1 && str_starts_with(strtolower(ltrim($query->sql)), 'select')) {
+            $reads++;
+        }
+    });
+
+    $result = runCapture($this, [answeringSource('crcon', $seen)]);
+
+    expect($reads)->toBe(1)
+        ->and($result->matched)->toHaveCount(intdiv($players, 2) + 1)
+        ->and($result->otherSection)->toHaveCount($players - intdiv($players, 2))
+        ->and(array_map(fn ($player) => $player->platformId, $result->unmatched))->toBe(['76561199999999999'])
+        ->and(collect($result->matched)->pluck('trooperId'))->toContain($epic->id);
+})->with(['a few players' => 4, 'a busy week' => 60]);
+
 it('surfaces a linked trooper from another section instead of crediting them to this practice', function () {
     $elsewhere = Trooper::factory()->create(['primary_section_id' => Unit::factory()->create(['type' => UnitType::Section])->id]);
     $unplaced = Trooper::factory()->create(['primary_section_id' => null]);
@@ -126,6 +160,28 @@ it('surfaces a linked trooper from another section instead of crediting them to 
         ->and($result->matchedCount())->toBe(2)
         ->and($result->unmatched)->toBe([])
         ->and(Attendance::query()->where('section_practice_id', $this->practice->id)->count())->toBe(0);
+});
+
+it('lists a departed trooper the capture saw as departed, from this section or another, and marks them nowhere', function () {
+    $left = Trooper::factory()->create(['primary_section_id' => $this->section->id, 'status' => TrooperStatus::Inactive]);
+    $leftElsewhere = Trooper::factory()->create(['primary_section_id' => Unit::factory()->create(['type' => UnitType::Section])->id, 'status' => TrooperStatus::Inactive]);
+    linkIdentity($left, '76561190000000030');
+    linkIdentity($leftElsewhere, '76561190000000031');
+
+    $result = runCapture($this, [answeringSource('crcon', [
+        new CrconPlayer('Gone', '76561190000000030'),
+        new CrconPlayer('Gone Too', '76561190000000031'),
+    ])]);
+
+    expect($result->matched)->toBe([])
+        ->and($result->otherSection)->toBe([])
+        ->and(array_column($result->departed, 'trooperId'))->toBe([$left->id, $leftElsewhere->id])
+        ->and($result->seen())->toBe(2)
+        ->and(Attendance::query()->count())->toBe(0)
+        ->and(PracticeCapturePlayer::query()->orderBy('id')->pluck('trooper_id')->all())->toBe([$left->id, $leftElsewhere->id])
+        ->and(app(PracticeCapturePlayerRepository::class)->departedFor($this->practice->id)->pluck('platform_id')->all())->toBe(['76561190000000030', '76561190000000031'])
+        ->and(app(PracticeCapturePlayerRepository::class)->unmatchedFor($this->practice->id))->toHaveCount(0)
+        ->and(SyncRun::query()->sole()->error)->toContain('(0 in another section, 2 departed)');
 });
 
 it('matches a linked trooper placed on an HQ node, but marks them nowhere', function () {
@@ -210,7 +266,7 @@ it('records the counts and who triggered the run', function () {
         ->and($run->inserted)->toBe(1)
         ->and($run->errored)->toBe(1)
         ->and($run->status)->toBe(SyncRunStatus::Partial)
-        ->and($run->error)->toBe('practice '.$this->practice->id.', source crcon: seen 2, matched 1 (0 in another section), unmatched 1; pre-marked 1, left 0 untouched (manual/loa)');
+        ->and($run->error)->toBe('practice '.$this->practice->id.', source crcon: seen 2, matched 1 (0 in another section, 0 departed), unmatched 1; pre-marked 1, left 0 untouched (manual/loa)');
 });
 
 it('audits the stamp when a user triggered the run, and not for the system', function () {
@@ -233,7 +289,15 @@ it('closes the run failed and rethrows on an unexpected error, leaving the pract
     expect(fn () => runCapture($this, [$source]))->toThrow(LogicException::class);
 
     expect(SyncRun::query()->sole()->status)->toBe(SyncRunStatus::Failure)
+        ->and(SyncRun::query()->sole()->internal_error)->toBeTrue()
         ->and($this->practice->fresh()->capture_source)->toBeNull();
+});
+
+it('does not mark a run internal when a source could not answer', function () {
+    runCapture($this, [failingSource('crcon')]);
+
+    expect(SyncRun::query()->sole()->status)->toBe(SyncRunStatus::Failure)
+        ->and(SyncRun::query()->sole()->internal_error)->toBeFalse();
 });
 
 it('closes a run of this practice left in progress by a killed worker, and not one for another practice', function () {
@@ -249,6 +313,62 @@ it('closes a run of this practice left in progress by a killed worker, and not o
 
 // A name past the column once failed the whole run on MySQL, and the raw SQL error (with the
 // player data in it) became the run's stored error.
+it('takes two spellings of one Epic ID as one player, in lower case, and matches the stored identity', function () {
+    $mine = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
+    linkIdentity($mine, '0123456789abcdef0123456789abcdef');
+
+    $result = runCapture($this, [answeringSource('crcon', [
+        new CrconPlayer('Ranger', '0123456789ABCDEF0123456789ABCDEF'),
+        new CrconPlayer('Ranger', '0123456789abcdef0123456789abcdef'),
+    ])]);
+
+    expect($result->matched)->toHaveCount(1)
+        ->and($result->matched[0]['trooperId'])->toBe($mine->id)
+        ->and($result->unmatched)->toBe([])
+        ->and($result->seen())->toBe(1);
+});
+
+it('stores an unmatched ID seen in two letter cases once, keeping the first spelling, and a Steam ID as it is', function () {
+    $result = runCapture($this, [answeringSource('crcon', [
+        new CrconPlayer('Xbox One', 'Xbox-Player-1'),
+        new CrconPlayer('Xbox Two', 'xbox-player-1'),
+        new CrconPlayer('Steam', '76561198000000001'),
+        new CrconPlayer('Epic', 'ABCDEF0123456789ABCDEF0123456789'),
+    ])]);
+
+    expect($result->captured)->toBeTrue()
+        ->and(array_map(fn (CrconPlayer $p) => $p->platformId, $result->unmatched))->toBe(['Xbox-Player-1', '76561198000000001', 'abcdef0123456789abcdef0123456789'])
+        ->and(PracticeCapturePlayer::query()->orderBy('id')->pluck('platform_id')->all())->toBe(['Xbox-Player-1', '76561198000000001', 'abcdef0123456789abcdef0123456789']);
+});
+
+it('counts a player seen on two servers in two letter cases once', function () {
+    app()->instance(CaptureSources::class, new CaptureSources(['crcon' => []], fn () => [
+        new CaptureServer(1, 'A', [answeringSource('crcon', [new CrconPlayer('P', 'Xbox-Player-1')])]),
+        new CaptureServer(2, 'B', [answeringSource('battlemetrics', [new CrconPlayer('P', 'XBOX-PLAYER-1')])]),
+    ]));
+
+    $result = app(CaptureSectionPracticeHandler::class)->handle(new CaptureSectionPractice($this->practice->id, game('hll')->id, $this->start, $this->end, 'system'));
+
+    expect($result->unmatched)->toHaveCount(1)->and(PracticeCapturePlayer::query()->count())->toBe(1);
+});
+
+it('marks a BattleMetrics player number read through the fallback, so it is never taken for a game ID', function () {
+    $result = runCapture($this, [failingSource('crcon'), answeringSource('battlemetrics', [
+        new CrconPlayer('Epic Player', '987654321', CrconPlayer::BATTLEMETRICS_PLAYER),
+        new CrconPlayer('Steam Player', '76561198000000005'),
+    ])]);
+
+    $stored = PracticeCapturePlayer::query()->orderBy('id')->get();
+    expect($result->unmatched)->toHaveCount(2)
+        ->and($stored->pluck('id_source', 'platform_id')->all())->toBe(['987654321' => 'battlemetrics', '76561198000000005' => null]);
+});
+
+it('keeps no marker when BattleMetrics is the server\'s own source, as for Arma', function () {
+    runCapture($this, [answeringSource('battlemetrics', [new CrconPlayer('Arma Player', '987654321', CrconPlayer::BATTLEMETRICS_PLAYER)])], game: game('arma'));
+
+    expect(PracticeCapturePlayer::query()->sole()->id_source)->toBeNull();
+});
+
 it('stores a player name longer than its column cut to fit, keyed on the platform id', function () {
     $long = str_repeat('Ä', 300);
 
@@ -348,7 +468,7 @@ it('writes no sighting and leaves the own rollcall of another section\'s trooper
         ->and(Attendance::query()->where('trooper_id', $away->id)->count())->toBe(0)
         ->and(SectionPractice::query()->count())->toBe(2)
         ->and(AuditLogEntry::query()->where('action', 'attendance.auto_marked')->count())->toBe(0)
-        ->and(SyncRun::query()->sole()->error)->toContain('(2 in another section)')
+        ->and(SyncRun::query()->sole()->error)->toContain('(2 in another section, 0 departed)')
         ->and(SyncRun::query()->sole()->error)->not->toContain('makeup')
         // Still on this practice's review list as other-section players.
         ->and(PracticeCapturePlayer::query()->where('section_practice_id', $this->practice->id)->orderBy('trooper_id')->pluck('trooper_id')->all())

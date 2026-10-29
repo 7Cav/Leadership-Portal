@@ -11,7 +11,7 @@ page: /settings/templates
 
 ## Who manages which
 
-1. The **regiment default** shows in every company's list and is used when a company has nothing switched on. Only Admins edit it.
+1. The regiment default shows in every company's list and is used when a company has nothing switched on. Only Admins edit it.
 2. A company's own templates are managed by its command (CO, XO, 1SG), the battalion and regiment command above it, and Admins.
 3. A section's own templates are managed by its SL and ASL, the platoon, company, battalion and regiment command above it, and Admins. Only that section's rollcall can use them.
 4. A staff grant, or someone viewing as a leader, can read templates but not change them.

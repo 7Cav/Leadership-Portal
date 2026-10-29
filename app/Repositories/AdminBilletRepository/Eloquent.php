@@ -51,6 +51,9 @@ class Eloquent implements AdminBilletRepository
 
         foreach ($seen as $positionId => [$title, $group]) {
             $row = $rows->get($positionId);
+            // Trimmed before anything is compared or stored: a stray space is not a rename.
+            $title = AdminBillet::name($title);
+            $group = AdminBillet::name($group);
 
             if ($row === null) {
                 if ($createMissing) {
@@ -66,8 +69,8 @@ class Eloquent implements AdminBilletRepository
                 continue;
             }
 
-            $group ??= $row->proposed_group_title;
-            $changed = $title !== $row->proposed_title || $group !== $row->proposed_group_title;
+            $group ??= AdminBillet::name($row->proposed_group_title);
+            $changed = $title !== AdminBillet::name($row->proposed_title) || $group !== AdminBillet::name($row->proposed_group_title);
             $row->proposed_title = $title;
             $row->proposed_group_title = $group;
 

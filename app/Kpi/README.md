@@ -5,8 +5,8 @@
 group (staff departments, ELOA, Reservists, New Recruits) are on no rollcall, so they are not measured: no SP, no RC,
 not in a report's strength. A non-leaf's live KPIs therefore stay the sum of its sections', and the report chain
 (`ReportChain`, `RollupKpis`, `EchelonReportKpiSource`) walks line units only, so a group never holds a roll-up up. The
-org page and roster show strength as the headcount instead: everyone serving placed under the unit, HQ staff and groups
-included, New Recruits on their own group only.
+org page and roster show strength as the headcount instead: everyone serving placed under the unit, HQ staff and staff
+departments included; New Recruits, ELOA and Reservists count on their own group only (2026-10-29).
 
 **Headcount beside strength (#424).** `Headcount` is that count, defined once for the roster, Home and the report. Home's
 tiles and a report's header show it labelled "Headcount", next to the measured figure now labelled "In rollcall". It is

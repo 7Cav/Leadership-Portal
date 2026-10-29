@@ -274,7 +274,7 @@ function lastReadLabel(read) {
                 </TableBody>
             </Table>
             <EmptyState v-else :icon="PhHardDrives" title="No servers fetched yet" class="border-t border-border py-10">
-                Fetch servers to list the ones each interface with credentials can see.
+                Choose Fetch servers to list the servers each telemetry service with credentials can see.
             </EmptyState>
         </Card>
     </div>

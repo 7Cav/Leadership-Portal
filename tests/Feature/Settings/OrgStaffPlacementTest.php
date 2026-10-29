@@ -63,8 +63,8 @@ it('counts HQ staff in their unit and every ancestor, and New Recruits only on t
         ->and($units[$this->company->id]['trooper_count'])->toBe(3)
         ->and($units[$this->eloa->id]['trooper_count'])->toBe(1)
         ->and($units[$this->recruits->id]['trooper_count'])->toBe(1)
-        // Regiment: the line and ELOA, not the New Recruit.
-        ->and($units[$this->regiment->id]['trooper_count'])->toBe(4)
+        // Regiment: the line only. ELOA and the New Recruit count on their own groups (2026-10-29).
+        ->and($units[$this->regiment->id]['trooper_count'])->toBe(3)
         ->and($units[$this->recruits->id]['kind'])->toBe('recruit');
 });
 
@@ -164,7 +164,7 @@ it('counts HQ staff in roster strength, keeps them unmeasured, and lists ELOA tr
 
     $this->actingAs($this->admin)->get("/roster/{$this->regiment->id}")
         ->assertInertia(fn ($page) => $page
-            // The line and ELOA; the New Recruit only on their own group.
-            ->where('units.0.kpis.strength', 4)
+            // The line only: ELOA and the New Recruit count on their own groups (2026-10-29).
+            ->where('units.0.kpis.strength', 3)
             ->where('troopers', fn ($rows) => collect($rows)->firstWhere('id', $this->onLeave->id)['was'] === '1/1/A/1-7'));
 });

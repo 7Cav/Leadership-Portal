@@ -5,6 +5,7 @@ namespace App\Commands\Attendance;
 use App\Authorization\ScopeResolver;
 use App\Loa\LoaCoverage;
 use App\Models\AttendanceSource;
+use App\Models\AttendanceStatus;
 use App\Models\SectionPractice;
 use App\Models\UnitType;
 use App\Models\User;
@@ -27,8 +28,9 @@ use Carbon\CarbonImmutable;
  * It refuses, before anything is written: a section outside the actor's scope (AD-8), a unit that
  * is not a section, and any trooper not placed in that section — a trooper is marked only against
  * their own section's practice (AD-14, AD-18), which also keeps a leader from reaching a trooper
- * outside their scope. The placement check runs inside the transaction, so a roster sync landing
- * mid-submit cannot slip a moved trooper through.
+ * outside their scope. For a week that has ended, "placed" means placed there when that week ended,
+ * by the placement history (`TrooperRepository::idsOnRollcall`, the 2026-10-29 audit). The placement check runs
+ * inside the transaction, so a roster sync landing mid-submit cannot slip a moved trooper through.
  *
  * A practice mark for a trooper the LOA data covers that week is refused too (Story 3.4): their status is
  * derived as `loa` from the synced leave, read through the one {@see LoaCoverage} definition, never chosen
@@ -82,7 +84,9 @@ class MarkAttendanceHandler
             throw new MarkAttendanceForbiddenException($command->sectionId);
         }
 
-        if ($this->units->find($command->sectionId)?->type !== UnitType::Section) {
+        $section = $this->units->find($command->sectionId);
+
+        if ($section?->type !== UnitType::Section) {
             throw InvalidAttendanceMarkException::notASection($command->sectionId);
         }
 
@@ -100,7 +104,7 @@ class MarkAttendanceHandler
             action: 'attendance.marked',
             reason: null,
             reasonRequired: false,
-            mutation: function () use ($command, $weekStart, $marks) {
+            mutation: function () use ($command, $section, $weekStart, $marks) {
                 // First, before any write: a sent report freezes the week (AD-12). The shared lock
                 // it takes holds until this transaction ends, so a concurrent send cannot freeze
                 // the week between this check and the marks below.
@@ -109,7 +113,9 @@ class MarkAttendanceHandler
                 }
 
                 $trooperIds = $command->trooperIds();
-                $unplaced = array_values(array_diff($trooperIds, $this->troopers->idsPlacedIn($command->sectionId, $trooperIds)->all()));
+                // On the week's rollcall: placed in the section now, or for a week that has ended, placed in it when
+                // that week ended (the 2026-10-29 audit), so a move after the week neither strands nor lends the mark.
+                $unplaced = array_values(array_diff($trooperIds, $this->troopers->idsOnRollcall($section->id, $weekStart, $trooperIds)->all()));
 
                 if ($unplaced !== []) {
                     throw InvalidAttendanceMarkException::notPlacedInSection($unplaced, $command->sectionId);
@@ -183,8 +189,9 @@ class MarkAttendanceHandler
      * repository. Re-running updates auto rows in place, an automatic makeup included: a trooper
      * {@see preMarkMakeups()} credited for another section's practice who is then seen at their own
      * becomes `present`. Never writes `loa`, and skips a trooper
-     * no longer placed in the practice's section or no longer serving (a departed trooper keeps
-     * their last placement). A trooper the LOA data covers that week is skipped too, by the same
+     * not on the practice's rollcall for its week ({@see TrooperRepository::idsOnRollcall()}): for the running week,
+     * no longer placed in the practice's section or no longer serving (a departed trooper keeps their last placement);
+     * for a week that has ended, not on the roster it ended with, so a trooper moved or gone since is still marked. A trooper the LOA data covers that week is skipped too, by the same
      * {@see LoaCoverage} rule that refuses a manual mark: their status is derived as `loa`, and an
      * auto `present` would be a stored mark the leader could not then change (3.4).
      *
@@ -242,7 +249,9 @@ class MarkAttendanceHandler
                 throw new PracticeConfirmedMeanwhileException($practice);
             }
 
-            $placed = $this->troopers->servingIdsPlacedIn($practice->section_id, $trooperIds)->all();
+            // On the practice's rollcall for its week: serving and placed in the section now, or for a week that has
+            // ended, on the roster it ended with (the 2026-10-29 audit), so a capture of the closing week marks that week's troopers.
+            $placed = $this->troopers->idsOnRollcall($practice->section_id, $practice->week_start, $trooperIds, serving: true)->all();
             $notPlaced = count($trooperIds) - count($placed);
             $covers = $placed === [] ? [] : $this->loaCoverage->forTroopers($placed, $practice->week_start);
 
@@ -279,7 +288,7 @@ class MarkAttendanceHandler
     }
 
     /**
-     * An automatic makeup (decided by the product owner 2026-10-23, refining AD-14): a trooper is on
+     * An automatic makeup (refining AD-14): a trooper is on
      * exactly one rollcall, their primary section's, so a trooper who attended *another* section's
      * practice (`$host`) has made up their own section's practice. The capture does not call this
      * until practice time slots exist: its window is the whole Cav week so far, on servers every
@@ -330,12 +339,14 @@ class MarkAttendanceHandler
             return new MakeupMarkResult(locked: count($trooperIds));
         }
 
-        $troopers = $this->troopers->byIds($trooperIds);
+        // Their own section for the host's week: where they are placed now, or for a week that has ended, the section
+        // whose rollcall lists them that week, so the makeup lands on the rollcall it counts on (the 2026-10-29 audit).
+        $own = $this->troopers->ownSectionsInWeek($trooperIds, $host->week_start);
         $result = new MakeupMarkResult;
         $bySection = [];
 
         foreach ($trooperIds as $trooperId) {
-            $sectionId = $troopers->get($trooperId)?->primary_section_id;
+            $sectionId = $own[$trooperId] ?? null;
 
             // Unplaced (no section of their own to make up), or the host's own trooper, whom preMark() handles.
             if ($sectionId === null || $sectionId === $host->section_id) {
@@ -354,6 +365,70 @@ class MarkAttendanceHandler
         }
 
         return $result;
+    }
+
+    /**
+     * Which of `$trooperIds`, guests at `$host`, still lack the automatic makeup {@see preMarkMakeups()} would write for
+     * them now (the guest list's "Retry makeup", after a makeup step that failed). Read only, under the same guards
+     * without the locks: none in a week before the floor; none placed nowhere, in the host itself, or in a unit that
+     * is not a section; none whose own week is sent or confirmed (a retry would only be refused), whose leave covers
+     * the week, or who is no longer serving there; and none who already holds an automatic makeup on any practice that
+     * week (it may be on a section they have since left) or whose own rollcall row is one a makeup never overwrites (a
+     * manual mark, `present`, `attached`, `loa`). One read per own section, plus one per trooper still in question.
+     *
+     * @param  list<int>  $trooperIds
+     * @return list<int>
+     */
+    public function makeupsMissing(SectionPractice $host, array $trooperIds): array
+    {
+        $trooperIds = array_values(array_unique($trooperIds));
+        sort($trooperIds);
+
+        if ($trooperIds === [] || WeekOf::isBeforeFloor($host->week_start)) {
+            return [];
+        }
+
+        $weekStart = $host->week_start;
+        $bySection = [];
+
+        // Grouped by their own section for the host's week, as preMarkMakeups() groups them.
+        foreach ($this->troopers->ownSectionsInWeek($trooperIds, $weekStart) as $trooperId => $sectionId) {
+            if ($sectionId !== $host->section_id) {
+                $bySection[$sectionId][] = $trooperId;
+            }
+        }
+
+        $missing = [];
+
+        foreach ($bySection as $sectionId => $ids) {
+            sort($ids);
+
+            if ($this->units->find($sectionId)?->type !== UnitType::Section || $this->reports->isSentFor($sectionId, $weekStart)) {
+                continue;
+            }
+
+            $practice = $this->practices->find($sectionId, $weekStart);
+
+            if ($practice?->confirmed_at !== null) {
+                continue;
+            }
+
+            $rows = $practice === null ? collect() : $this->attendance->forPractice($practice)->keyBy('trooper_id');
+
+            foreach ($this->makeupCandidates($sectionId, $weekStart, $ids) as $trooperId) {
+                $row = $rows->get($trooperId);
+                $kept = $row !== null && ($row->source === AttendanceSource::Manual
+                    || in_array($row->status, [AttendanceStatus::Makeup, AttendanceStatus::Loa, AttendanceStatus::Present, AttendanceStatus::Attached], true));
+
+                if (! $kept && $this->attendance->practicesWithAutoMakeup($trooperId, $weekStart)->isEmpty()) {
+                    $missing[] = $trooperId;
+                }
+            }
+        }
+
+        sort($missing);
+
+        return $missing;
     }
 
     /**
@@ -440,15 +515,40 @@ class MarkAttendanceHandler
      * again under the locks inside the audited transaction, and a refusal there rolls back without an entry. Audited as
      * `attendance.auto_unmarked` on the trooper's own practice with `$triggeredBy` (the host leader) as the actor, so
      * the guest's own leader sees who took it back.
+     *
+     * The makeup is looked for where it was written, not in the section the trooper is placed in now: a guest moved to
+     * another section before the Undo has it on the old section's practice, and that one is taken back (each such
+     * practice is, in id order, should there be more than one). With none anywhere, the current section's practice
+     * decides as before.
      */
     public function withdrawMakeup(int $trooperId, CarbonImmutable $weekStart, int $triggeredBy): MakeupWithdrawal
     {
-        $sectionId = $this->troopers->find($trooperId)?->primary_section_id;
-        $practice = $sectionId === null ? null : $this->practices->find($sectionId, $weekStart);
+        $practices = $this->attendance->practicesWithAutoMakeup($trooperId, $weekStart);
 
-        if ($practice === null) {
-            return MakeupWithdrawal::Kept;
+        if ($practices->isEmpty()) {
+            $sectionId = $this->troopers->ownSectionsInWeek([$trooperId], $weekStart)[$trooperId] ?? null;
+            $current = $sectionId === null ? null : $this->practices->find($sectionId, $weekStart);
+            $practices = $current === null ? collect() : collect([$current]);
         }
+
+        $outcome = MakeupWithdrawal::Kept;
+
+        foreach ($practices as $practice) {
+            $one = $this->withdrawMakeupFrom($practice, $trooperId, $weekStart, $triggeredBy);
+
+            // Withdrawn from any wins; else a locked one is the answer, so the leader is told it stayed for that reason.
+            if ($one === MakeupWithdrawal::Withdrawn || ($one === MakeupWithdrawal::Locked && $outcome === MakeupWithdrawal::Kept)) {
+                $outcome = $one;
+            }
+        }
+
+        return $outcome;
+    }
+
+    /** {@see withdrawMakeup()} for one practice holding the makeup. */
+    private function withdrawMakeupFrom(SectionPractice $practice, int $trooperId, CarbonImmutable $weekStart, int $triggeredBy): MakeupWithdrawal
+    {
+        $sectionId = $practice->section_id;
 
         if (WeekOf::isBeforeFloor($weekStart) || $this->reports->isSentFor($sectionId, $weekStart) || $practice->confirmed_at !== null) {
             return MakeupWithdrawal::Locked;
@@ -479,15 +579,16 @@ class MarkAttendanceHandler
     }
 
     /**
-     * Which of `$trooperIds` may take an automatic mark on their section's practice this week: still
-     * serving and placed there, and not covered by leave (whose status is derived as `loa`, 3.4).
+     * Which of `$trooperIds` may take an automatic mark on their section's practice this week: on its rollcall
+     * ({@see TrooperRepository::idsOnRollcall()}: serving and placed there now, or for a week that has ended, on the
+     * roster it ended with), and not covered by leave (whose status is derived as `loa`, 3.4).
      *
      * @param  list<int>  $trooperIds
      * @return list<int>
      */
     private function makeupCandidates(int $sectionId, CarbonImmutable $weekStart, array $trooperIds): array
     {
-        $placed = $this->troopers->servingIdsPlacedIn($sectionId, $trooperIds)->all();
+        $placed = $this->troopers->idsOnRollcall($sectionId, $weekStart, $trooperIds, serving: true)->all();
 
         if ($placed === []) {
             return [];

@@ -2,19 +2,21 @@
 
 namespace App\Authorization;
 
+use App\Models\CommandRole;
 use App\Models\CounselingType;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\TrooperRepository;
 use App\Repositories\UnitActingLeadRepository;
 use App\Repositories\UnitCommandMappingRepository;
 use Illuminate\Support\Collection;
 
 /**
  * Who may file, see, correct and delete a trooper's counseling records (#381, AD-8), decided once per viewer and
- * trooper on top of the {@see ScopeResolver}, the way the regulations and the product owner (2026-10-28) put it:
+ * trooper on top of the {@see ScopeResolver}, the way the regulations and the portal's rules put it:
  *
  *  - **File a DCS**: any leader whose command (billet, acting lead, a held billet, never a staff grant) reaches the
  *    trooper's unit: Section Leader and up, portfolio officers over their departments included. **File an LOR**: only
@@ -26,7 +28,8 @@ use Illuminate\Support\Collection;
  *    nobody files on themselves. The next echelon up does.
  *  - **Their own records**: every trooper sees their own DCSs and LORs, read-only, on their own milpac page
  *    ({@see ScopeResolver::isOwnTrooper()}, decided 2026-10-28), with no command and no grant. They never file, correct
- *    or delete their own; that refusal is the same as before (an Admin keeps changing records as an Admin).
+ *    or delete their own; that refusal is the same as before, except that an Admin by the `users.is_admin` flag keeps
+ *    changing records as an Admin, their own included (an Admin by billet does not, 2026-10-29).
  *  - "Themselves" is also the person really signed in while acting as someone ({@see RealActor}): acting as a billet
  *    or as a person never lets anyone file on, see the DCSs of, or change the records of the one doing the acting:
  *    their own page shows them their DCSs only as themselves, not through the identity they act as.
@@ -37,6 +40,12 @@ use Illuminate\Support\Collection;
  *  - **Correct or delete**: Admins, and the commanders of the unit the record was filed through (the issuer and the
  *    chain above them), as long as they still see the record. A record with no issuing unit (filed by an Admin, or its
  *    unit deleted) is the Admins' alone.
+ *  - **A frozen LOR** (S6, 2026-10-29): 72 hours after it is filed, its appeal window, nobody corrects or deletes it,
+ *    Admins included ({@see CounselingPermissions::frozen()}). Only the **Regimental Executive Officer** (the serving
+ *    holder of the billet titled so, which the org import maps to the regiment) may then overturn it, with a reason; it
+ *    stays on file. Never their own, never in a view-as preview, and only signed in as themselves: "only the RXO for
+ *    now" (S6, 2026-10-29), so nobody acting as anyone overturns, not an Admin acting as the RXO, not the RCO under the
+ *    command team rule, and not the RXO while acting as someone else. A DCS is unchanged.
  *  - **A trooper who has left the Cav** (not serving, {@see TrooperStatus::serving()}): nobody files, corrects or
  *    deletes, Admins included (2026-10-28). Who could see the records still sees and downloads them. Serving again
  *    makes them writable again.
@@ -52,6 +61,7 @@ class CounselingAccess
         private readonly UnitCommandMappingRepository $commands,
         private readonly UnitActingLeadRepository $actingLeads,
         private readonly RealActor $real,
+        private readonly TrooperRepository $troopers,
     ) {}
 
     public function for(User $user, Trooper $trooper): CounselingPermissions
@@ -89,7 +99,30 @@ class CounselingAccess
             departed: $departed,
             issuingUnits: array_map(fn (?Unit $unit) => $unit?->id, $issuing),
             writeScope: $writeScope->map(fn ($id) => (int) $id)->values()->all(),
+            // The request's own user: acting as a person or a billet, that is a copy with the flag off.
+            flagAdmin: (bool) $user->is_admin,
+            regimentalXo: ! $self && $this->isRegimentalXo($user),
         );
+    }
+
+    /**
+     * Whether the person really signed in holds the Regimental Executive Officer billet now, as themselves: nobody is
+     * acting as anyone on this request ({@see RealActor}), no view-as preview is active, their synced title is that billet's (as {@see CommandRole} reads it) and the billet commands the regiment,
+     * which {@see UnitCommandMappingRepository::commandedUnitFor()} answers only while they serve. One query for anyone
+     * whose title is something else, a second for the RXO.
+     */
+    private function isRegimentalXo(User $user): bool
+    {
+        if ($user->cav_id === null || $this->real->get() !== null || $this->scope->activeViewAs($user) !== null) {
+            return false;
+        }
+
+        $trooper = $this->troopers->byCavId([(int) $user->cav_id])->get((int) $user->cav_id);
+        if (CommandRole::fromBillet($trooper?->billet, UnitType::Regiment) !== CommandRole::Xo) {
+            return false;
+        }
+
+        return $this->commands->commandedUnitFor($user)?->type === UnitType::Regiment;
     }
 
     /**

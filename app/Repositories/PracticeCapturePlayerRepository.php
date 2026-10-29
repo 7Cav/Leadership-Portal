@@ -15,9 +15,11 @@ interface PracticeCapturePlayerRepository
     /**
      * Replace everything stored for `$practiceId` with this run's findings, atomically: a re-run
      * never leaves the earlier run's players behind or duplicates them. A player listed twice is
-     * stored once.
+     * stored once, and so is an ID listed in two letter cases (the first is kept).
      *
-     * @param  list<array{platform_id: string, player_name: string, trooper_id: ?int}>  $players
+     * `id_source` marks an ID that is not a game ID (`CrconPlayer::$idSource`); absent or null for a game ID.
+     *
+     * @param  list<array{platform_id: string, player_name: string, trooper_id: ?int, id_source?: ?string}>  $players
      */
     public function replaceForPractice(int $practiceId, Game $game, array $players): void;
 
@@ -37,6 +39,14 @@ interface PracticeCapturePlayerRepository
      * @return Collection<int, PracticeCapturePlayer>
      */
     public function dismissedFor(int $practiceId): Collection;
+
+    /**
+     * The practice's players linked to a trooper who has left (no longer serving), with the trooper loaded: the
+     * drawer lists them as departed, with nothing to link or mark. By name.
+     *
+     * @return Collection<int, PracticeCapturePlayer>
+     */
+    public function departedFor(int $practiceId): Collection;
 
     /**
      * One stored unmatched player of the practice, however it has been resolved since.

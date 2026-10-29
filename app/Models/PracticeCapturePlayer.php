@@ -10,14 +10,20 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * A player a capture run observed in a practice window but did not credit (Story 7.7): `trooper_id`
  * null means unmatched (no identity link, AD-19), set means linked to a trooper whose primary
  * section is elsewhere. Written only by the capture handler through `PracticeCapturePlayerRepository`,
- * replaced on every run.
+ * replaced on every run. `id_source` is set when `platform_id` is not a game ID but a service's own number for the
+ * player (`battlemetrics`: a BattleMetrics player number read through CRCON's fallback); such a player is never linked.
  */
-#[Fillable(['section_practice_id', 'game_id', 'player_name', 'platform_id', 'trooper_id'])]
+#[Fillable(['section_practice_id', 'game_id', 'player_name', 'platform_id', 'trooper_id', 'id_source'])]
 class PracticeCapturePlayer extends Model
 {
     public function game(): BelongsTo
     {
         return $this->belongsTo(Game::class);
+    }
+
+    public function trooper(): BelongsTo
+    {
+        return $this->belongsTo(Trooper::class);
     }
 
     public function practice(): BelongsTo

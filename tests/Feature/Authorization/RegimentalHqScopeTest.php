@@ -4,8 +4,11 @@ use App\Authorization\ScopeResolver;
 use App\Authorization\ViewAs;
 use App\Authorization\ViewAsKind;
 use App\Authorization\ViewAsTarget;
+use App\Models\AdminBillet;
+use App\Models\AdminBilletStatus;
 use App\Models\ArtifactType;
 use App\Models\AuditLogEntry;
+use App\Models\CounselingRecord;
 use App\Models\SectionPractice;
 use App\Models\TemplateVersion;
 use App\Models\Trooper;
@@ -22,9 +25,11 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Queue;
 use Inertia\Testing\AssertableInertia as Assert;
 
-// Regimental HQ staff read the whole regiment (decided by the S6, 2026-10-28): a serving trooper placed directly on the
+// Regimental HQ staff read the whole regiment: a serving trooper placed directly on the
 // regiment, where the org import puts every Regimental HQ billet (the Chief of Staff, the Adjutants General, the
-// Finance Officer), reads everything in it as a staff grant on the regiment does, and writes nothing through it.
+// Finance Officer), reads everything in it as a staff grant on the regiment does, and writes nothing through it. Only
+// while their position is still a Regimental HQ billet (audit 3, 2026-10-29): the import keeps an `admin_billets` row
+// for each, and the roster sync leaves the placement as it was when a new billet maps nowhere.
 // Fixture tree: 7CAV ─┬─ 1-7 ─ A/1-7 ─ 1/A/1-7 ─ 1/1/A/1-7
 //                     ├─ 2-7 ─ B/2-7 ─ 1/B/2-7 ─ 1/1/B/2-7
 //                     └─ ELOA, RES, NR, S6 (groups)
@@ -35,6 +40,14 @@ function rhqPlaced(?Unit $at, array $attributes = []): Trooper
     $trooper->forceFill(['primary_section_id' => $at?->id])->save();
 
     return $trooper;
+}
+
+/** The `admin_billets` row the org import makes for a Regimental HQ billet, still waiting for an Admin. */
+function rhqBilletRow(int $positionId, string $title, string $group = 'Regimental HQ'): AdminBillet
+{
+    return AdminBillet::query()->create([
+        'cav_position_id' => $positionId, 'proposed_title' => $title, 'proposed_group_title' => $group, 'status' => AdminBilletStatus::Pending,
+    ]);
 }
 
 function rhqScope(User $user): array
@@ -64,7 +77,8 @@ beforeEach(function () {
     $this->allUnits = $units->allIds()->all();
 
     // The Chief of Staff: a Regimental HQ billet that commands nothing, placed on the regiment by the org import.
-    $this->chiefTrooper = rhqPlaced($this->regiment, ['username' => 'Tharen.R', 'billet' => 'Regimental Chief of Staff']);
+    $this->chiefTrooper = rhqPlaced($this->regiment, ['username' => 'Tharen.R', 'billet' => 'Regimental Chief of Staff', 'cav_position_id' => 9010]);
+    $this->chiefBillet = rhqBilletRow(9010, 'Regimental Chief of Staff');
     $this->chief = User::factory()->create(['cav_id' => $this->chiefTrooper->cav_id, 'username' => 'Tharen.R']);
 
     $this->troopers = [
@@ -177,6 +191,48 @@ it('ends with the placement or the service, with no step by an Admin', function 
     // Back on the regiment.
     $this->chiefTrooper->forceFill(['primary_section_id' => $this->regiment->id])->save();
     expect(rhqScope($this->chief))->toEqualCanonicalizing($this->allUnits);
+});
+
+it('ends when the position is no longer a Regimental HQ billet, though the sync leaves the placement on the regiment', function () {
+    $lor = CounselingRecord::factory()->lor()->create(['trooper_id' => $this->troopers['other battalion']->id]);
+    $scope = app(ScopeResolver::class);
+
+    // A new billet the import has no mapping for (and so no row): the roster sync updates the position and the title
+    // and keeps the placement, as SyncRosterHandler::resolveSections() leaves an unmapped billet out.
+    $this->chiefTrooper->forceFill(['cav_position_id' => 4242, 'billet' => 'Rifleman'])->save();
+
+    expect(rhqScope($this->chief))->toBe([])
+        ->and($scope->realScopes(collect([$this->chief]))->get($this->chief->id)->all())->toBe([])
+        ->and($scope->regimentalHqStaff()->pluck('id')->all())->toBe([]);
+    $this->actingAs($this->chief)->get(route('troopers.show', $this->troopers['other battalion']))->assertNotFound();
+    $this->actingAs($this->chief)->get(route('counseling.document', $lor->id))->assertNotFound();
+
+    // Back on a Regimental HQ billet: read again.
+    $this->chiefTrooper->forceFill(['cav_position_id' => 9010, 'billet' => 'Regimental Chief of Staff'])->save();
+    expect(rhqScope($this->chief))->toEqualCanonicalizing($this->allUnits)
+        ->and($scope->regimentalHqStaff()->pluck('id')->all())->toBe([$this->chiefTrooper->id]);
+});
+
+it('ends when Cav lists the billet under another group, approved or not', function (AdminBilletStatus $status) {
+    $this->chiefBillet->forceFill(['status' => $status, 'proposed_group_title' => 'S1 Department'])->save();
+    $scope = app(ScopeResolver::class);
+
+    expect(rhqScope($this->chief))->toBe([])
+        ->and($scope->realScopes(collect([$this->chief]))->get($this->chief->id)->all())->toBe([])
+        ->and($scope->regimentalHqStaff()->all())->toBe([]);
+})->with([AdminBilletStatus::Pending, AdminBilletStatus::Rejected]);
+
+it('reads the regiment on a pending or a rejected Regimental HQ billet alike', function (AdminBilletStatus $status) {
+    $this->chiefBillet->forceFill(['status' => $status])->save();
+
+    expect(rhqScope($this->chief))->toEqualCanonicalizing($this->allUnits);
+})->with([AdminBilletStatus::Pending, AdminBilletStatus::Rejected]);
+
+it('reads the regiment when an older row kept stray spaces around the group name', function () {
+    $this->chiefBillet->forceFill(['proposed_group_title' => ' Regimental HQ '])->save();
+
+    expect(rhqScope($this->chief))->toEqualCanonicalizing($this->allUnits)
+        ->and(app(ScopeResolver::class)->realScopes(collect([$this->chief]))->get($this->chief->id)->all())->toEqualCanonicalizing($this->allUnits);
 });
 
 it('gives nothing to holding groups and staff departments under the regiment', function (string $group) {

@@ -8,7 +8,7 @@ weekly: true
 minutes: 2
 ---
 
-> [!why] When the whole platoon trains on one subject, setting it once saves every section leader typing it, and keeps the reports consistent.
+> [!why] When the whole platoon trains on one subject, setting it once saves each section leader typing it and keeps the reports the same.
 
 ## Who can set it
 

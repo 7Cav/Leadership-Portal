@@ -186,7 +186,7 @@ const countdown = computed(() => {
                     <h2 id="attention-title" class="text-[15px] font-semibold">Needs attention</h2>
                 </div>
                 <EmptyState :icon="PhTray" title="No units in your scope yet" class="py-12">
-                    Draft reports holding the chain and at-risk troopers collect here once a unit is assigned to you.
+                    Reports holding up the chain and at-risk troopers show here once a unit is assigned to you.
                 </EmptyState>
             </Card>
 

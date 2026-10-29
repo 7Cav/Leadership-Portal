@@ -6,7 +6,7 @@ order: 3
 audience: leader
 ---
 
-> [!why] The rollcall post lists your section the way your fireteams actually run, so the troopers know who they report to on the day.
+> [!why] The rollcall post lists your section the way your fireteams run, so the troopers know who they report to on the day.
 
 ## Mark the fireteam leaders
 

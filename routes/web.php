@@ -113,10 +113,11 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // Developmental Counseling Statements and Letters of Reprimand (#381). Each write is an audited Command whose handler
     // decides who may file which type and who may change a record (Authorization\CounselingAccess); a trooper or record
     // the viewer cannot see is a 404, the document download included. Filing stores a PDF of up to 10 MB, so it has its
-    // own, tighter throttle (counseling-uploads); corrections and deletes share the audited-writes one.
+    // own, tighter throttle (counseling-uploads); corrections, deletes and overturns share the audited-writes one.
     Route::post('/troopers/{trooper}/counseling', [CounselingController::class, 'store'])->middleware('throttle:counseling-uploads')->name('counseling.store');
     Route::patch('/counseling/{counseling}', [CounselingController::class, 'update'])->middleware('throttle:audited-writes')->name('counseling.update');
     Route::delete('/counseling/{counseling}', [CounselingController::class, 'destroy'])->middleware('throttle:audited-writes')->name('counseling.destroy');
+    Route::post('/counseling/{counseling}/overturn', [CounselingController::class, 'overturn'])->middleware('throttle:audited-writes')->name('counseling.overturn');
     Route::get('/counseling/{counseling}/document', [CounselingController::class, 'document'])->name('counseling.document');
     // The section practices a staff member attended (#448): staff are on no section's rollcall, so the staff member, their
     // staff leader or an Admin enters one on the milpac. Each write is an audited Command whose handler decides who may
@@ -223,6 +224,9 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::patch('/settings/org-structure/{unit}/game', [OrgStructureController::class, 'game'])->middleware('throttle:audited-writes')->name('settings.org-structure.game');
     Route::post('/settings/org-structure/{unit}/acting-lead', [OrgStructureController::class, 'assignActingLead'])->middleware('throttle:audited-writes')->name('settings.org-structure.acting-lead.store');
     Route::delete('/settings/org-structure/{unit}/acting-lead', [OrgStructureController::class, 'removeActingLead'])->middleware('throttle:audited-writes')->name('settings.org-structure.acting-lead.destroy');
+    // Who oversees a battalion or the Reservists: set or clear, Admin-only, audited.
+    Route::post('/settings/org-structure/{unit}/oversight', [OrgStructureController::class, 'setOversight'])->middleware('throttle:audited-writes')->name('settings.org-structure.oversight.store');
+    Route::delete('/settings/org-structure/{unit}/oversight', [OrgStructureController::class, 'clearOversight'])->middleware('throttle:audited-writes')->name('settings.org-structure.oversight.destroy');
     Route::delete('/settings/org-structure/{unit}', [OrgStructureController::class, 'destroy'])->middleware('throttle:audited-writes')->name('settings.org-structure.destroy');
 
     // Place a trooper the sync could not map into a section (Story 2.7). The Admin gate is checked in the
@@ -236,7 +240,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/settings/staff-grants', [StaffGrantsController::class, 'index'])->name('settings.staff-grants');
     Route::post('/settings/staff-grants', [StaffGrantsController::class, 'store'])->middleware('throttle:audited-writes')->name('settings.staff-grants.store');
     Route::delete('/settings/staff-grants/{grant}', [StaffGrantsController::class, 'destroy'])->middleware('throttle:audited-writes')->name('settings.staff-grants.destroy');
-    // Confirming a Regimental HQ billet as an Admin billet (decided by the S6, 2026-10-28), Admin only, audited.
+    // Confirming a Regimental HQ billet as an Admin billet, Admin only, audited.
     Route::post('/settings/staff-grants/admin-billets/{billet}/approve', [StaffGrantsController::class, 'approveAdminBillet'])->middleware('throttle:audited-writes')->name('settings.staff-grants.admin-billets.approve');
     Route::post('/settings/staff-grants/admin-billets/{billet}/reject', [StaffGrantsController::class, 'rejectAdminBillet'])->middleware('throttle:audited-writes')->name('settings.staff-grants.admin-billets.reject');
 

@@ -548,6 +548,17 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[role="group"][aria-label="On LOA"]').exists()).toBe(false);
         });
 
+        it('shows a "Leave from" chip on a trooper whose leave starts next Cav week, and leaves them markable', () => {
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory({ troopers: [trooper(6, 'unsigned', null, { leaveFrom: '2026-10-12' }), trooper(7, 'unsigned', null)] });
+
+            const card = wrapper.find('[data-trooper="6"]');
+            expect(card.find('[data-testid="leave-from"]').text()).toBe('Leave from 12Oct26');
+            expect(card.find('[data-testid="leave-from"]').attributes('title')).toBe('Leave starting next Cav week, from LOA records');
+            expect(card.findAll('button[data-value]')).toHaveLength(4);
+            expect(wrapper.find('[data-trooper="7"] [data-testid="leave-from"]').exists()).toBe(false);
+        });
+
         it('locks a trooper the server says went on leave since the page loaded, and says why, not that they moved', async () => {
             post.mockResolvedValueOnce({ ok: false, status: 422, data: { message: 'on leave', rejected: [3], reason: 'loa_covered' } });
             page.url = '/rollcall/12?step=2';
@@ -1307,6 +1318,14 @@ describe('Rollcall page', () => {
                 expect(wrapper.find('[data-testid="dismiss-confirm"]').exists()).toBe(false);
             });
 
+            it('shows the drawer for a departed trooper the capture saw, even with nobody left to link', () => {
+                const departed = [{ platform: 'hll', platformLabel: 'Hell Let Loose', playerName: 'GoneA', platformId: '7656119000000009', trooperName: 'PFC Gone.A' }];
+                const wrapper = factory({ capture: CAPTURE, unmatched: [], departed });
+
+                expect(wrapper.find('[data-testid="unmatched-drawer"]').exists()).toBe(true);
+                expect(wrapper.find('[data-testid="departed-7656119000000009"]').exists()).toBe(true);
+            });
+
             it('keeps the drawer for the Dismissed list once the last player is dismissed, and undoes from there', async () => {
                 post.mockImplementation(answer);
                 const wrapper = factory({ capture: CAPTURE, unmatched: UNMATCHED });
@@ -1571,6 +1590,25 @@ describe('Rollcall page', () => {
             wrapper = factory({ telemetry: NOT_CONFIGURED });
 
             expect(wrapper.find('[data-testid="telemetry-banner"]').text()).toContain('Capture is not set up for Hell Let Loose, so nothing was pre-filled. Mark attendance by hand.');
+            expect(wrapper.find('[data-testid="telemetry-retry"]').exists()).toBe(false);
+        });
+
+        it('says the portal hit an error, not that a feed could not be read, on an internal error', () => {
+            vi.setSystemTime(new Date('2026-10-08T15:47:00Z'));
+            wrapper = factory({ telemetry: { ...FAILED, feeds: [], detail: 'internal_error' } });
+
+            const text = wrapper.find('[data-testid="telemetry-banner"]').text();
+            expect(text).toContain('The portal hit an error capturing this practice, last tried 08Oct26 15:42Z (5 min ago). Nothing was pre-filled.');
+            expect(text).not.toContain('could not be read');
+            expect(wrapper.find('[data-testid="telemetry-retry"]').exists()).toBe(true);
+        });
+
+        it('says no training server is selected when the env server belongs to another game (#389)', () => {
+            wrapper = factory({ telemetry: { ...NOT_CONFIGURED, platformLabel: 'Hell Let Loose: Vietnam', detail: 'no_server' } });
+
+            expect(wrapper.find('[data-testid="telemetry-banner"]').text()).toContain(
+                'No training server is selected for Hell Let Loose: Vietnam, so nothing was read or pre-filled. Mark attendance by hand.',
+            );
             expect(wrapper.find('[data-testid="telemetry-retry"]').exists()).toBe(false);
         });
 
@@ -1903,6 +1941,23 @@ describe('Rollcall page', () => {
                 '/rollcall?pick=1&week=2026-09-26',
             );
             expect(factory({ sections: [SECTION] }).find('[data-testid="choose-section"]').exists()).toBe(false);
+        });
+    });
+
+    describe('while last week\'s report is still due', () => {
+        const DUE = { ...WEEK, date: '2026-09-26', start: '2026-09-26T00:00:00+00:00', isCurrent: false, previous: '2026-09-19', next: '2026-10-03', reporting: '2026-09-26' };
+
+        it('names the running week in "This week", since the bare URL opens the week still due', () => {
+            const wrapper = factory({ week: DUE });
+
+            expect(wrapper.findAll('a').find((a) => a.text() === 'This week').attributes('href')).toBe('/rollcall/12?week=2026-10-03');
+            expect(wrapper.find('[data-testid="next-week"]').attributes('href')).toBe('/rollcall/12?week=2026-10-03');
+        });
+
+        it('keeps the running week in the picker link once there', () => {
+            const wrapper = factory({ week: { ...WEEK, reporting: '2026-09-26' } });
+
+            expect(wrapper.find('[data-testid="choose-section"]').attributes('href')).toBe('/rollcall?pick=1&week=2026-10-03');
         });
     });
 });

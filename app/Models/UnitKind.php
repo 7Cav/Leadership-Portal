@@ -3,7 +3,7 @@
 namespace App\Models;
 
 /**
- * What a node of the org tree is for (decided by the product owner 2026-10-24). Every echelon of the chain of command
+ * What a node of the org tree is for. Every echelon of the chain of command
  * (regiment down to section) is `Line`: the units that hold rollcalls, report and are measured (AD-14, AD-21). The rest
  * are `UnitType::Group` nodes the org import creates so every serving trooper has a place:
  *

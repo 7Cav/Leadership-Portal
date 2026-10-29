@@ -3,9 +3,10 @@
 namespace App\Commands\Units;
 
 /**
- * What one org-structure import did (story 2.9): how many nodes and billet mappings it created,
- * how many existing mappings now disagree with Cav (kept, never repointed), and which position
- * titles it could not place. An import never updates or deletes a unit or section mapping. The
+ * What one org-structure import did (story 2.9): how many nodes and billet mappings it created, how many of
+ * its own mappings it repointed to where Cav now lists the billet, how many existing mappings disagree with Cav
+ * and were kept (corrected by hand, or never confirmed by the import), and which position titles it could not
+ * place. An import never updates or deletes a unit, and never deletes a billet mapping. The
  * leadership billet → commanded unit mappings (story 1.16) are reconciled to Cav instead, so their
  * counts are created / repointed / removed.
  */
@@ -23,5 +24,6 @@ final readonly class OrgStructureImportResult
         public int $commandMappingsCreated,
         public int $commandMappingsRepointed,
         public int $commandMappingsRemoved,
+        public int $mappingsRepointed = 0,
     ) {}
 }

@@ -606,7 +606,7 @@ describe('the makeup PM (Command Brief principle 2)', function () {
     });
 });
 
-// Decided by the product owner 2026-10-27: "When you transfer to a new area, the new leadership can see your history,
+// "When you transfer to a new area, the new leadership can see your history,
 // it's linked to your profile." Anyone who may see the trooper now sees their signing, practice marks and LOAs from
 // before the move, week by week with the section, and the move itself.
 describe('attendance across transfers', function () {

@@ -9,11 +9,12 @@ page: /settings/staff-grants
 
 > [!why] Staff such as S1 need to see units they do not command. A grant gives read access only: the holder can open the unit's roster, rollcall, reports and game identities, and can never mark, send or change anything there.
 
-## Grant scope
+## Grant or revoke scope
 
 1. Open **Settings**, then **Staff grants**.
 2. Choose the user and the unit. The grant covers the unit and everything under it.
 3. Give a reason and choose **Grant scope**.
+4. To take a grant back, choose **Revoke** next to it under **Current grants**, with a reason. The holder loses read access to that unit on their next page load. To undo it, grant it again. Granting and revoking are both in the audit log.
 
 > [!good-to-know] A grant only counts while its holder is a serving trooper. When they leave the Cav, it stops counting at once and is shown as lapsed.
 
@@ -25,7 +26,7 @@ Under **Admin via billet**, the page lists every approved billet: its title and 
 
 A billet tagged **Not an Admin group** sits in a group whose billets can no longer make an Admin, so its holders are not Admins.
 
-Under the list, a short note names the Regimental HQ staff placed on the regiment. They read the whole regiment, read-only, whether or not their billet is approved.
+Under the list, a short note names the Regimental HQ staff placed on the regiment. They read the whole regiment, read-only, whether or not their billet is approved, until Cav moves them to a billet outside Regimental HQ.
 
 ## Revoke an Admin billet
 
@@ -48,9 +49,3 @@ Every Regimental HQ and S6 HQ billet the org import finds is listed under **Admi
 > [!good-to-know] You cannot approve or reject the billet you hold yourself. Ask another Admin.
 
 While any billet waits, Admins see a count beside **Staff grants** in the sidebar. Rejected billets do not count.
-
-## Revoke a grant
-
-1. Under **Current grants**, choose **Revoke** next to it, with a reason.
-
-> [!good-to-know] What this changes, and how to undo it: the holder loses read access to that unit on their next page load. To undo it, grant it again. Granting and revoking are both in the audit log.

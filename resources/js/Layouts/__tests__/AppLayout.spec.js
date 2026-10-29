@@ -9,6 +9,12 @@ import { useTrooperSearch } from '@/composables/useTrooperSearch';
 // a test move the URL the way an Inertia visit would.
 const mockPage = reactive({ url: '/home', props: { auth: { user: null, profile: null }, viewAs: null } });
 const mockRouter = vi.hoisted(() => ({ post: vi.fn(), delete: vi.fn() }));
+const mockToast = vi.hoisted(() => vi.fn());
+
+vi.mock('vue-sonner', async (importOriginal) => ({
+    ...(await importOriginal()),
+    toast: mockToast,
+}));
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
@@ -25,9 +31,9 @@ const ENRICHED = {
     fetched_at: '2026-08-03T09:14:00+00:00',
 };
 
-function mountLayout({ url = '/home', user = { id: 1, username: 'Hale.S', is_admin: false }, profile = null, viewAs = null, crumb = undefined, canActAs = false, features = {}, adminBilletsPending = 0 } = {}) {
+function mountLayout({ url = '/home', user = { id: 1, username: 'Hale.S', is_admin: false }, profile = null, viewAs = null, crumb = undefined, canActAs = false, features = {}, adminBilletsPending = 0, flash = { notice: null } } = {}) {
     mockPage.url = url;
-    mockPage.props = { auth: { user, profile }, viewAs, crumb, canActAs, features, adminBilletsPending };
+    mockPage.props = { auth: { user, profile }, viewAs, crumb, canActAs, features, adminBilletsPending, flash };
 
     return mount(AppLayout, {
         slots: { default: '<p data-testid="page-body">Page body</p>' },
@@ -198,6 +204,15 @@ describe('AppLayout', () => {
             expect(wrapper.find('[data-testid="breadcrumb-current"]').text()).toBe('Sign in with your 7cav.us account');
             expect(wrapper.find('nav[aria-label="Breadcrumb"]').text()).toContain('Docs');
             expect(wrapper.find('nav[aria-label="Breadcrumb"]').text()).not.toContain('Help');
+        });
+
+        it('sets the docs against the sidebar and centres every other page', () => {
+            wrapper = mountLayout({ url: '/docs/basics/sign-in', features: { docs: true } });
+            expect(wrapper.find('main#main').classes()).not.toContain('mx-auto');
+            wrapper.unmount();
+
+            wrapper = mountLayout({ url: '/home', features: { docs: true } });
+            expect(wrapper.find('main#main').classes()).toContain('mx-auto');
         });
     });
 
@@ -544,6 +559,27 @@ describe('AppLayout', () => {
             await flushPromises();
 
             expect(useTrooperSearch().searchOpen.value).toBe(false);
+        });
+    });
+
+    describe('a flashed notice', () => {
+        beforeEach(() => mockToast.mockClear());
+
+        it('shows it as a toast', () => {
+            wrapper = mountLayout({ flash: { notice: 'A leave sync is already queued or running. Yours will run right after it.' } });
+
+            expect(mockToast).toHaveBeenCalledWith('A leave sync is already queued or running. Yours will run right after it.');
+        });
+
+        it('shows the same notice again on the next response, and nothing when there is none', async () => {
+            wrapper = mountLayout({ flash: { notice: 'Leave sync queued. Reload in a few minutes to see the result.' } });
+
+            mockPage.props = { ...mockPage.props, flash: { notice: 'Leave sync queued. Reload in a few minutes to see the result.' } };
+            await flushPromises();
+            mockPage.props = { ...mockPage.props, flash: { notice: null } };
+            await flushPromises();
+
+            expect(mockToast).toHaveBeenCalledTimes(2);
         });
     });
 });

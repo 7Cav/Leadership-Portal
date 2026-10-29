@@ -11,7 +11,8 @@ use RuntimeException;
  *
  * - `not_a_section`, `before_floor`, `confirmed`: the host practice's week cannot change here;
  * - `unknown_trooper`, `not_serving`, `not_placed`, `own_section`: the trooper cannot be a guest;
- * - `already_listed`: they are already recorded at this practice (by the server or a leader);
+ * - `already_listed`: they are already recorded at this practice (by the server, a leader, or as staff: the message
+ *   says so for a staff entry, which shows on their milpac page, not in the guest list);
  * - `not_listed`: there is no hand-added entry for them to remove;
  * - `captured`: the game server saw them, which a leader cannot take back.
  */
@@ -24,7 +25,7 @@ class GuestAttendanceRefusedException extends RuntimeException
 
     public static function notASection(int $unitId): self
     {
-        return new self("Unit {$unitId} is not a section; guests attend a section's practice.", 'not_a_section');
+        return new self("This unit is not a section; guests attend a section's practice.", 'not_a_section');
     }
 
     public static function weekBeforeFloor(CarbonInterface $weekStart): self
@@ -60,6 +61,15 @@ class GuestAttendanceRefusedException extends RuntimeException
     public static function alreadyListed(string $name): self
     {
         return new self("{$name} is already listed as a guest at this practice.", 'already_listed');
+    }
+
+    /**
+     * The trooper has a staff practice entry for this practice (audit L2): made while they were on a staff, before they
+     * moved into a section. One row per trooper and practice holds either kind, so the refusal says where it is.
+     */
+    public static function listedAsStaff(string $name): self
+    {
+        return new self("{$name} already has a staff practice entry for this practice, on their milpac page, so they cannot also be listed as a guest.", 'already_listed');
     }
 
     public static function notListed(): self

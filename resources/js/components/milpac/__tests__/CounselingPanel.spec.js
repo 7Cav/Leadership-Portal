@@ -266,4 +266,44 @@ describe('CounselingPanel', () => {
 
         expect(sent).toHaveBeenCalledWith('delete', '/counseling/11', expect.objectContaining({ audit_reason: 'Filed on the wrong trooper.' }), expect.any(Object));
     });
+
+    it('offers neither correcting nor deleting on a frozen or overturned LOR', () => {
+        const overturned = { date: '2026-10-29', by: 'Vance.R', reason: 'Appeal upheld.' };
+        const wrapper = panel({
+            records: [record({ type: 'lor', canChange: true, frozen: true }), record({ id: 12, type: 'lor', canChange: true, frozen: true, overturned })],
+        });
+
+        expect(wrapper.find('[data-testid="counseling-edit"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="counseling-delete"]').exists()).toBe(false);
+    });
+
+    it('offers Overturn only where the server allows it, and posts it with the reason given', async () => {
+        const wrapper = panel({
+            records: [record({ type: 'lor', frozen: true, canOverturn: false }), record({ id: 12, type: 'lor', frozen: true, canOverturn: true })],
+        });
+        const [other, open] = wrapper.findAll('[data-testid="counseling-record"]');
+
+        expect(other.find('[data-testid="counseling-overturn"]').exists()).toBe(false);
+
+        await open.get('[data-testid="counseling-overturn"]').trigger('click');
+        expect(open.get('[data-testid="counseling-overturn-form"]').text()).toContain('It stays on file, marked overturned with your reason');
+        await open.get('[data-testid="counseling-overturn-why"]').setValue('Appeal upheld by the RXO.');
+        await open.get('[data-testid="counseling-overturn-form"]').trigger('submit');
+
+        expect(sent).toHaveBeenCalledWith('post', '/counseling/12/overturn', expect.objectContaining({ reason: 'Appeal upheld by the RXO.' }), expect.any(Object));
+    });
+
+    it('shows an overturned LOR muted, with when, by whom and why, and still downloadable', () => {
+        const wrapper = panel({
+            records: [record({ type: 'lor', frozen: true, canOverturn: true, overturned: { date: '2026-10-29', by: 'Hale.S for Vance.R', reason: 'Appeal upheld.' } })],
+        });
+        const row = wrapper.get('[data-testid="counseling-record"]');
+
+        expect(row.attributes('data-overturned')).toBe('true');
+        expect(row.get('[data-testid="counseling-overturned"]').text()).toBe('Overturned on 29Oct26 by Hale.S for Vance.R: Appeal upheld.');
+        expect(row.get('[data-testid="counseling-reason-text"]').classes()).toContain('text-muted-foreground');
+        expect(row.find('[data-testid="counseling-overturn"]').exists()).toBe(false);
+        expect(row.find('[data-testid="counseling-download"]').exists()).toBe(true);
+        expect(panel({ records: [record()] }).find('[data-testid="counseling-overturned"]').exists()).toBe(false);
+    });
 });

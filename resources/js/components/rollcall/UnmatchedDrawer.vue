@@ -28,7 +28,9 @@ const props = defineProps({
     sectionId: { type: Number, required: true },
     // The practice's week (`YYYY-MM-DD`).
     week: { type: String, required: true },
-    // `[{ platform, platformLabel, playerName, platformId }]`.
+    // `[{ platform, platformLabel, playerName, platformId, retired, idSource }]`; `retired` is true when the player's game is
+    // retired, which takes no new links (#388); `idSource` is `battlemetrics` when the ID is a BattleMetrics player number
+    // read through CRCON's fallback, not a game ID.
     players: { type: Array, required: true },
     // The section's troopers, as the rollcall rows: `[{ id, name, displayName, ... }]`.
     troopers: { type: Array, required: true },
@@ -42,6 +44,9 @@ const props = defineProps({
     dismissed: { type: Array, default: () => [] },
     // Undoes one dismissal (the rollcall's, shared with its toast): resolves true once the player is listed again.
     restore: { type: Function, default: null },
+    // Players linked to a trooper who has left, in the `players` shape plus `trooperName`: listed so they are not lost,
+    // with nothing to link or mark (the link exists, and a departed trooper is on no rollcall).
+    departed: { type: Array, default: () => [] },
 });
 
 // `linked` carries the server's answer ({ marked, trooper, atRisk }); `dismissed` the player.
@@ -81,9 +86,20 @@ const trooperName = (id) => {
 };
 
 // `replace`: the platform ID the leader agreed to replace, or null for a plain link.
+// Why a player cannot be linked, when they cannot: their game is retired (#388), or their ID is the BattleMetrics player
+// number read while the game server was down, not their game ID (it would never match a later capture). Dismiss still works.
+const linkBlocked = (player) => {
+    if (player.retired) return `${player.platformLabel} is retired, so no new links can be made. Mark the trooper by hand.`;
+    if (player.idSource === 'battlemetrics') {
+        return 'Seen through BattleMetrics while the game server could not be read. This is their BattleMetrics number, not their game ID, so it cannot be linked. Mark the trooper by hand.';
+    }
+
+    return null;
+};
+
 async function link(player, replace = null) {
     const s = of(player);
-    if (!props.editable || s.busy || s.trooperId === '') return;
+    if (!props.editable || s.busy || s.trooperId === '' || linkBlocked(player)) return;
 
     s.busy = true;
     s.error = null;
@@ -182,7 +198,10 @@ async function dismiss(player) {
                     <p class="truncate font-mono text-xs text-muted-foreground" data-testid="unmatched-id">{{ player.platformId }}</p>
                 </div>
 
+                <p v-if="linkBlocked(player)" class="text-xs text-muted-foreground" data-testid="unmatched-blocked">{{ linkBlocked(player) }}</p>
+
                 <NativeSelect
+                    v-else
                     v-model="of(player).trooperId"
                     :aria-label="`Trooper for ${player.playerName}`"
                     data-testid="unmatched-trooper"
@@ -216,6 +235,7 @@ async function dismiss(player) {
                 </div>
                 <div v-else class="flex flex-wrap items-center gap-2">
                     <Button
+                        v-if="!linkBlocked(player)"
                         size="sm"
                         data-testid="unmatched-link"
                         :disabled="!editable || of(player).busy || of(player).trooperId === ''"
@@ -237,6 +257,23 @@ async function dismiss(player) {
                 </div>
             </li>
         </ul>
+
+        <div v-if="departed.length" class="border-t border-border" data-testid="departed-list">
+            <p class="px-4 pt-2.5 text-xs font-medium text-muted-foreground tabular-nums">Departed ({{ departed.length }})</p>
+            <ul class="max-h-[40vh] divide-y divide-border overflow-y-auto">
+                <li v-for="player in departed" :key="keyOf(player)" class="px-4 py-2" :data-testid="`departed-${player.platformId}`">
+                    <p class="flex items-center gap-2">
+                        <span class="truncate text-muted-foreground">{{ player.playerName }}</span>
+                        <Badge variant="outline" class="shrink-0">{{ player.platformLabel }}</Badge>
+                        <Badge variant="secondary" class="shrink-0">Departed</Badge>
+                    </p>
+                    <p class="truncate font-mono text-xs text-muted-foreground">{{ player.platformId }}</p>
+                    <p class="text-xs text-muted-foreground" data-testid="departed-note">
+                        Linked to <bdi>{{ player.trooperName ?? 'a trooper' }}</bdi>, who has left. Not marked on any rollcall.
+                    </p>
+                </li>
+            </ul>
+        </div>
 
         <!-- Dismissed for this practice (#176): closed by default, since a dismissal is usually right. -->
         <details v-if="dismissed.length" class="group border-t border-border" data-testid="dismissed-list">

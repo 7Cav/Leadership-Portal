@@ -43,7 +43,7 @@ class UnmatchedPlayerResolutionException extends RuntimeException
 
     public static function notInSection(): self
     {
-        return new self("Choose a trooper from this section: pre-marking counts in a trooper's own section (AD-14).");
+        return new self("Choose a trooper from this section: a pre-mark counts only in a trooper's own section.");
     }
 
     public static function alreadyHasIdentity(string $playerName, string $platformId, string $gameLabel): self
@@ -56,6 +56,21 @@ class UnmatchedPlayerResolutionException extends RuntimeException
             self::HAS_OTHER_IDENTITY,
             ['playerName' => $name, 'platformId' => $platformId],
         );
+    }
+
+    /** The ID is a service's own player number read through a fallback, not the player's game ID: never linked. */
+    public static function notAGameId(): self
+    {
+        return new self('This ID is the BattleMetrics player number, read while the game server could not be read, not the player\'s game ID. It cannot be linked. Mark the trooper by hand.');
+    }
+
+    /**
+     * The trooper holds an ID of a known kind on the game, and the server reported one of another kind (or of none): a
+     * replace would swap a working ID for one the capture may never see again, so it is not offered here.
+     */
+    public static function otherIdKind(string $heldKind, string $gameLabel): self
+    {
+        return new self("That trooper's {$gameLabel} ID is a {$heldKind}, and the server reported an ID of another kind, so it was not replaced. If they really changed platform, change it on the Game identities page.");
     }
 
     /** The practice's week is older than `WeekOf::floor()`: linking would pre-mark it. */

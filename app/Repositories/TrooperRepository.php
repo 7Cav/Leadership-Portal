@@ -5,8 +5,10 @@ namespace App\Repositories;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
+use InvalidArgumentException;
 
 /**
  * Sole DB access for the cached roster (AD-2, AD-4). `Sync\SyncRosterHandler` is the only caller
@@ -46,7 +48,8 @@ interface TrooperRepository
      * included: a billet Cav no longer reports must not keep conferring command scope. The same
      * goes for the forum identity and short rank (`username`, `forum_user_id`, `rank_short`,
      * 2.10), so a forum rename follows, the billet title (`billet`, 2.8) and the rank insignia (`rank_image_url`, 3.10).
-     * A row without one of these optional keys writes null.
+     * A row without one of these optional keys writes null. A status that leaves the serving ones stamps
+     * `departed_at` (when it is not already set), and one that returns to them clears it.
      *
      * @param  list<array{cav_id: int, rank: ?string, rank_short?: ?string, rank_image_url?: ?string, username?: ?string, forum_user_id?: ?int, billet?: ?string, mos: ?string, tis: mixed, tig: mixed, status: string, cav_position_id?: ?int}>  $rows
      * @return array{inserted: int, updated: int}
@@ -57,6 +60,7 @@ interface TrooperRepository
      * Flip every cached trooper whose `cav_id` is not in `$activeCavIds` to inactive — retained,
      * never deleted, so dependent `attendance`/`weekly_reports` history survives a roster
      * departure (AD-4, AD-5). Already-inactive rows are left alone rather than re-touched.
+     * Each flipped row gets `departed_at` now, so a past week's rollcall knows they served it.
      * Returns the number of rows actually flipped.
      *
      * With `$withinSectionIds` only troopers placed in those sections are considered, so an echelon-scoped
@@ -131,6 +135,57 @@ interface TrooperRepository
     public function servingIdsPlacedIn(int $sectionId, array $trooperIds): Collection;
 
     /**
+     * The troopers on `$section`'s rollcall for the Cav week opening at `$weekStart` (the 2026-10-29 audit). For the
+     * running week, or a later one, the serving troopers placed in it now ({@see placedIn()}). For a week that has
+     * ended, the ones the placement history puts in it when that week ended
+     * ({@see TrooperPlacementRepository::sectionsByWeekAmong()}), whether they have moved or left the Cav since,
+     * so a week whose report is still open keeps its own roster. The rollcall, the attendance writer and the report
+     * all read this, and agree with the KPIs of that week.
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function onRollcall(Unit $section, CarbonInterface $weekStart): SectionWeekRoster;
+
+    /**
+     * Which of `$trooperIds` are on section `$sectionId`'s rollcall for the week ({@see onRollcall()}): who may be
+     * marked there, given a reason on its report, or pre-marked by its capture. For the running week this is
+     * {@see idsPlacedIn()}, which does not look at standing, or with `$serving` {@see servingIdsPlacedIn()} (capture);
+     * for a week that has ended, the troopers {@see onRollcall()} lists, who all served that week. In id order.
+     *
+     * @param  list<int>  $trooperIds
+     * @return Collection<int, int>
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function idsOnRollcall(int $sectionId, CarbonInterface $weekStart, array $trooperIds, bool $serving = false): Collection;
+
+    /**
+     * {@see onRollcall()} for several sections at once, as ids: which section's rollcall each trooper is on for the
+     * week, for a page that counts many rollcalls (the rollcall picker, Home's step matrix) and must agree with each
+     * one. For the running week, the serving troopers placed in them now; for a week that has ended, the ones the
+     * placement history puts in them when it ended ({@see TrooperPlacementRepository::sectionsByWeekAmong()}). One
+     * query.
+     *
+     * @param  list<int>  $sectionIds
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function onRollcalls(array $sectionIds, CarbonInterface $weekStart): WeekRollcalls;
+
+    /**
+     * Each trooper's own section for the week, the one a makeup for that week belongs to: for the running week, the
+     * unit they are placed in now (whatever it is and whatever their standing; the callers check both), and for a week
+     * that has ended, the section whose rollcall lists them that week ({@see onRollcall()}), whether they moved or
+     * left since. A trooper on no section's rollcall that week, or placed nowhere, is left out.
+     *
+     * @param  list<int>  $trooperIds
+     * @return array<int, int> trooper id => unit id, in trooper id order
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function ownSectionsInWeek(array $trooperIds, CarbonInterface $weekStart): array;
+
+    /**
      * The ids of the troopers currently assigned within `$unit`'s subtree — primary unit a section
      * anywhere under it, not inactive (LOA still counts) — ascending. Strength's population (5.1): HQ staff and
      * groups are on no rollcall and are not measured (2026-10-24, `Trooper::assignedWithin`).
@@ -155,14 +210,6 @@ interface TrooperRepository
      * How many troopers `unplaced()` would return without a limit.
      */
     public function unplacedCount(): int;
-
-    /**
-     * The troopers currently assigned within `$unit`'s subtree (as `assignedWithin()`), as models
-     * ordered by id — a report's roster, rendered through `display_name`.
-     *
-     * @return Collection<int, Trooper>
-     */
-    public function rosterOf(Unit $unit): Collection;
 
     /**
      * The cached troopers with these `cav_id`s, keyed by `cav_id` — how a portal user is shown by
@@ -221,15 +268,6 @@ interface TrooperRepository
      * @return array<int, list<int>> forum user id => trooper ids
      */
     public function idsByForumUserId(array $forumUserIds): array;
-
-    /**
-     * The same population as {@see assignedWithin()}, each trooper with the section they are
-     * placed in: `trooper_id => primary_section_id`, ascending by trooper — so one query can split
-     * a whole subtree's troopers by section (5.8's batched roll-up).
-     *
-     * @return Collection<int, int>
-     */
-    public function sectionsOfAssignedWithin(Unit $unit): Collection;
 
     /**
      * Every trooper placed within `$unit`'s subtree — departed (`inactive`) troopers included, so

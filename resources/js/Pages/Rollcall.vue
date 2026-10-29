@@ -108,6 +108,9 @@ const props = defineProps({
     // The same shape: players this practice's capture saw that a leader dismissed, for the drawer's
     // "Dismissed" list and its Undo (#176).
     dismissed: { type: Array, default: () => [] },
+    // The same shape plus `trooperName`: players the capture saw who are linked to a trooper who has left. Listed as
+    // departed in the drawer, with nothing to link or mark.
+    departed: { type: Array, default: () => [] },
     // Troopers from other sections recorded at this practice (JSAM evidence, 2026-10-23), by the capture or by hand:
     // `[{ trooperId, name, displayName, rank, section, source, recordedBy }]`.
     guests: { type: Array, default: () => [] },
@@ -186,7 +189,9 @@ const unlinkedCount = computed(() => (showUnmatched.value ? unmatchedPlayers.val
 // after the toast is gone, even once nobody is left to link.
 const dismissedPlayers = ref(props.dismissed);
 watch(() => props.dismissed, (dismissed) => (dismissedPlayers.value = dismissed));
-const showDrawer = computed(() => Boolean(props.capture) && (unmatchedPlayers.value.length > 0 || dismissedPlayers.value.length > 0));
+const showDrawer = computed(
+    () => Boolean(props.capture) && (unmatchedPlayers.value.length > 0 || dismissedPlayers.value.length > 0 || props.departed.length > 0),
+);
 
 const liveAtRisk = ref(props.atRisk);
 watch(() => props.atRisk, (atRisk) => (liveAtRisk.value = atRisk));
@@ -753,7 +758,7 @@ onMounted(() => {
 // screen that was just left has sent what it still held, and keep the opening marks as this visit's "before". It is a
 // partial reload of what changes as the week is worked, so a mark set meanwhile neither trips the leave guard nor is
 // overwritten (the rows keep a mark not saved yet).
-const LIVE_PROPS = ['troopers', 'practice', 'atRisk', 'weekStatus', 'fireteams', 'unmatched', 'dismissed', 'capture', 'telemetry', 'locked', 'report'];
+const LIVE_PROPS = ['troopers', 'practice', 'atRisk', 'weekStatus', 'fireteams', 'unmatched', 'dismissed', 'departed', 'capture', 'telemetry', 'locked', 'report'];
 // A save that never answers must not keep the marks stale for good: past a few seconds, read them anyway.
 const LEFT_WAIT_MS = 3000;
 onMounted(() => {
@@ -777,13 +782,18 @@ function go(n) {
     nextTick(() => stepHeading.value?.focus());
 }
 
+// While last week's report is still due the bare URL may open that week, so every link names its week then, the
+// running one included. Otherwise the running week needs none.
+const bareWeek = computed(() => (props.week.reporting ?? props.week.current) === props.week.current);
+
 function weekHref(date) {
-    const params = date && date !== props.week.current ? `?week=${date}` : '';
+    const params = date && (date !== props.week.current || !bareWeek.value) ? `?week=${date}` : '';
 
     return `/rollcall/${props.section.id}${params}`;
 }
 
-const weekQuery = computed(() => (props.week.isCurrent ? null : props.week.date));
+// The bare picker leaves the week out, so a section chosen there opens as the bare URL would.
+const weekQuery = computed(() => (props.week.isCurrent && (bareWeek.value || !props.section) ? null : props.week.date));
 
 // The picker itself, even for a leader the server would land on a section (`?pick`).
 const pickerHref = computed(() => `/rollcall?pick=1${weekQuery.value ? `&week=${weekQuery.value}` : ''}`);
@@ -1069,7 +1079,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                             Signatures
                         </h2>
                         <p class="mt-0.5 max-w-[62ch] text-[13px] text-muted-foreground">
-                            Who signed the rollcall thread for this week. You can record a signature for a trooper who told you directly.
+                            You can record a signature for a trooper who told you directly.
                         </p>
                     </div>
                     <p v-if="editable" class="mt-2 hidden items-center gap-2 text-xs text-muted-foreground pointer-coarse:flex">
@@ -1338,6 +1348,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                     :week="week.date"
                     :players="unmatchedPlayers"
                     :dismissed="dismissedPlayers"
+                    :departed="departed"
                     :restore="restoreDismissed"
                     :troopers="rows"
                     :editable="editable"

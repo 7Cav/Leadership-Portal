@@ -15,14 +15,11 @@ audience: everyone
 3. A gold bar at the top says who you are viewing as.
 4. You stay on the same page, for the unit you picked: from a battalion's roster you land on the roster of the section you picked. A page that has no version for that unit opens Home.
 
-## Look around
+## Look around, then exit
 
 1. Every page now shows only what that unit's leader would see. The roster and the rollcall open where that leader would land.
 2. Buttons that would change something are refused while the preview is on.
-
-## Leave the preview
-
-1. Choose **Exit view as** on the gold bar. You stay on the page you were on.
+3. Choose **Exit view as** on the gold bar to leave. You stay on the page you were on.
 
 ## Move between your units without a preview
 

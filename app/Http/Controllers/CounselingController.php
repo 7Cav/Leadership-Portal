@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Authorization\CounselingAccess;
+use App\Authorization\CounselingPermissions;
 use App\Authorization\ScopeResolver;
 use App\Commands\Counseling\CorrectCounselingRecord;
 use App\Commands\Counseling\CorrectCounselingRecordHandler;
@@ -14,6 +15,8 @@ use App\Commands\Counseling\DeleteCounselingRecordHandler;
 use App\Commands\Counseling\FileCounselingRecord;
 use App\Commands\Counseling\FileCounselingRecordHandler;
 use App\Commands\Counseling\InvalidCounselingRecordException;
+use App\Commands\Counseling\OverturnCounselingRecord;
+use App\Commands\Counseling\OverturnCounselingRecordHandler;
 use App\Commands\Counseling\UploadCounselingDocument;
 use App\Jobs\UploadCounselingDocumentJob;
 use App\Models\CounselingKind;
@@ -34,7 +37,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Developmental Counseling Statements and Letters of Reprimand on a trooper (#381): file one with its signed PDF,
- * correct its date or reason, delete it, and download its document. The trooper page lists them
+ * correct its date or reason, delete it, overturn a frozen LOR (S6, 2026-10-29), and download its document. The trooper page lists them
  * (`TrooperDetailController`, `Milpac\CounselingHistory`).
  *
  * Orchestration only. Every write is an audited Command whose handler decides, through `CounselingAccess` (AD-8), who
@@ -43,7 +46,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * (a known type, a date, a reason, a PDF of at most 10 MB by its content) run first; the handler checks them again.
  *
  * A trooper who has left the Cav has read-only counseling: filing, correcting and deleting are refused here (403)
- * before the form is read, and again in each handler; the download still works for whoever sees the record.
+ * before the form is read, and again in each handler; the download still works for whoever sees the record. So are
+ * correcting and deleting an LOR filed 72 hours ago or more, Admins included: only the Regimental Executive Officer may
+ * then overturn it, which keeps it on file.
  *
  * Once a record is saved with Google Drive configured, its upload is queued (AD-23). Queuing never undoes the filing:
  * a queue that cannot take the job is reported, and the record shows its upload as pending.
@@ -102,7 +107,7 @@ class CounselingController extends Controller
 
     public function update(Request $request, int $counseling, CorrectCounselingRecordHandler $handler, CounselingAccess $access): RedirectResponse
     {
-        $this->refuseDepartedRecord($request, $counseling, $access);
+        $this->refuseReadOnlyRecord($request, $counseling, $access);
 
         $data = $request->validate([
             'counseled_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:today', 'after_or_equal:'.CounselingRules::EARLIEST],
@@ -129,7 +134,7 @@ class CounselingController extends Controller
 
     public function destroy(Request $request, int $counseling, DeleteCounselingRecordHandler $handler, CounselingAccess $access): RedirectResponse
     {
-        $this->refuseDepartedRecord($request, $counseling, $access);
+        $this->refuseReadOnlyRecord($request, $counseling, $access);
 
         $data = $request->validate(['audit_reason' => ['required', 'string', 'max:500']], [
             'audit_reason.required' => 'Say why the record is deleted.',
@@ -137,6 +142,21 @@ class CounselingController extends Controller
         ]);
 
         $record = $this->handle(fn () => $handler->handle($request->user(), new DeleteCounselingRecord($counseling, $data['audit_reason'])));
+
+        return redirect()->route('troopers.show', $record->trooper_id);
+    }
+
+    /**
+     * Overturn a frozen LOR, with the reason shown on it. Who may, and when, is the handler's to decide.
+     */
+    public function overturn(Request $request, int $counseling, OverturnCounselingRecordHandler $handler): RedirectResponse
+    {
+        $data = $request->validate(['reason' => ['required', 'string', 'max:'.OverturnCounselingRecordHandler::REASON_MAX]], [
+            'reason.required' => 'Say why the LOR is overturned.',
+            'reason.max' => 'Keep the reason for overturning to :max characters.',
+        ]);
+
+        $record = $this->handle(fn () => $handler->handle($request->user(), new OverturnCounselingRecord($counseling, $data['reason'])));
 
         return redirect()->route('troopers.show', $record->trooper_id);
     }
@@ -168,15 +188,26 @@ class CounselingController extends Controller
     }
 
     /**
-     * The same for a correction or a delete, once the record is known to be one the viewer sees: a record they do not
-     * see, or that does not exist, answers 404 as before, so the refusal gives nothing away.
+     * The same for a correction or a delete, once the record is known to be one the viewer sees, and for an LOR past its
+     * appeal window or overturned: a record they do not see, or that does not exist, answers 404 as before, so the
+     * refusal gives nothing away.
+     *
+     * @throws CounselingForbiddenException
      */
-    private function refuseDepartedRecord(Request $request, int $counseling, CounselingAccess $access): void
+    private function refuseReadOnlyRecord(Request $request, int $counseling, CounselingAccess $access): void
     {
         $record = $this->records->find($counseling);
         abort_unless($record !== null && $access->for($request->user(), $record->trooper)->sees($record->type), 404);
 
         $this->refuseDeparted($record->trooper);
+
+        if ($record->isOverturned()) {
+            throw CounselingForbiddenException::overturned();
+        }
+
+        if (CounselingPermissions::frozen($record)) {
+            throw CounselingForbiddenException::frozen();
+        }
     }
 
     /**

@@ -16,7 +16,7 @@ use App\Repositories\WeeklyReportRepository;
 use App\Support\Audit\AuditEnvelope;
 
 /**
- * Undo a hand-added guest (decided by the product owner 2026-10-23). Only an entry a leader added (`source = manual`)
+ * Undo a hand-added guest. Only an entry a leader added (`source = manual`)
  * can be removed, by anyone who may write the host section (it is the section's record, not one leader's): what the game
  * server saw is evidence no leader can take back. The host gates are the same as adding one ({@see GuardsHostPractice},
  * and inside the transaction a sent host report, AD-12, and a confirmed host practice, 7.8, are refused under their
@@ -26,7 +26,7 @@ use App\Support\Audit\AuditEnvelope;
  * after the entry is deleted, a trooper still recorded at any practice of that Cav week (a capture sighting, or another
  * leader's entry at another section) keeps the makeup, since that sighting would have written it too. Otherwise
  * {@see MarkAttendanceHandler::withdrawMakeup()} clears it if it is still the automatic makeup and the guest's own week
- * may still change; a leader's mark, `present` from their own capture, and a locked or confirmed own week stay as they
+ * may still change, on the practice it was written to even when the guest has moved section since; a leader's mark, `present` from their own capture, and a locked or confirmed own week stay as they
  * are. Since a sighting is only ever deleted here (and with demo history, #115), an automatic makeup with no sighting
  * left that week can only be the one this entry produced.
  *

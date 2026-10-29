@@ -6,7 +6,7 @@ order: 6
 audience: leader
 ---
 
-> [!why] The counseling panel keeps each record with its signed document in one place, and shows where the trooper stands under the 7Cav regulations, so the next step is not worked out from memory.
+> [!why] The counseling panel keeps each record with its signed document and shows where the trooper stands under the 7Cav regulations, so nobody has to work out the next step from memory.
 
 ## DCS and LOR
 
@@ -19,7 +19,7 @@ audience: leader
 2. An LOR needs command from platoon level up: the Platoon Leader and Platoon Sergeant, the company, battalion and regiment command, an acting lead of a platoon or above, and Admins. A portfolio officer files a DCS on their staff; an LOR on staff comes from regiment command or an Admin.
 3. You never file on yourself, or on someone whose command you share or who commands you: an Assistant Section Leader does not counsel their Section Leader.
 4. A staff grant can read LORs, not DCSs, and cannot file. View as shows only what the previewed leader would see, and files nothing.
-5. A record you may not see is left out of the panel entirely.
+5. A record you may not see is left out of the panel.
 
 ## File a record
 
@@ -56,7 +56,15 @@ The portal follows the counseling rules on the 7Cav wiki (7CAV-R-012, 7CAV-R-014
 1. Choose **Correct** on a record to change its date or reason. Give a **Reason for the correction** and choose **Save correction**. The type and the document stay as filed; to change them, delete the record and file it again.
 2. Choose **Delete** to remove a record and its document from the portal. Give a **Reason for deleting** and choose **Delete record**.
 3. The leader who filed it, the other leaders of the unit they filed it through, and the command above can correct or delete it, as long as they still counsel the trooper. A record an Admin filed is changed by Admins only.
-4. Filing, correcting and deleting are all recorded in the audit log, with the reason.
+4. An LOR can be corrected or deleted only in the 72 hours after it is filed, its appeal window: the trooper has 24 hours to say they appeal, and the appeal is done within 72. After that nobody can correct or delete it, Admins included. A DCS can be changed at any time.
+5. Filing, correcting, deleting and overturning are all recorded in the audit log, with the reason.
+
+## Overturn an LOR
+
+1. Once an LOR is past its 72 hours, only the Regimental Executive Officer can overturn it. They choose **Overturn** on the record, give a **Reason for overturning** and choose **Overturn record**.
+2. The LOR stays on file. It is shown muted with "Overturned on" the date, by whom and why, and its document can still be downloaded.
+3. An overturned LOR no longer counts toward any flag, the no favorable action notice or the filing form's warnings.
+4. The Regimental Executive Officer cannot overturn an LOR filed on themselves. Only the Regimental Executive Officer, signed in as themselves, can overturn: nobody can do it through act as, Admins included.
 
 ## The Google Drive copy
 
@@ -71,5 +79,5 @@ Each record shows where its copy on the 7Cav Google Drive stands:
 
 ## Troopers who have left
 
-1. When a trooper is no longer serving, their counseling records are read-only for everyone, Admins included. Nobody can file, correct or delete a record, and the panel says so.
+1. When a trooper is no longer serving, their counseling records are read-only for everyone, Admins included. Nobody can file, correct or delete a record, and the panel says so. The Regimental Executive Officer can still overturn one of their LORs.
 2. Whoever could see the records still sees and downloads them. If the trooper serves again, the records can be changed again.

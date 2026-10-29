@@ -3,6 +3,7 @@
 namespace App\Commands\Counseling;
 
 use App\Authorization\CounselingAccess;
+use App\Authorization\CounselingPermissions;
 use App\Models\CounselingRecord;
 use App\Models\User;
 use App\Repositories\CounselingDocuments;
@@ -14,7 +15,8 @@ use Throwable;
 
 /**
  * Delete a counseling record (#381), on the same terms as a correction ({@see CorrectCounselingRecordHandler}): the
- * issuer's chain of command or an Admin, with a required reason, and never on a trooper who has left the Cav. One audited action (`counseling.deleted`, AD-16)
+ * issuer's chain of command or an Admin, with a required reason, never on a trooper who has left the Cav, and never an LOR past its 72-hour
+ * appeal window ({@see CounselingPermissions::frozen()}). One audited action (`counseling.deleted`, AD-16)
  * whose digest is the row as it was deleted, its file's SHA-256 included, so the log still proves what was removed.
  *
  * The document on the private disk goes once the row is gone. A file that cannot be removed then is logged by record
@@ -46,6 +48,16 @@ class DeleteCounselingRecordHandler
 
         if ($permissions->departed) {
             throw CounselingForbiddenException::departed($record->trooper);
+        }
+
+        // Past its appeal window an LOR is final for everyone, Admins included (S6, 2026-10-29). An overturned one
+        // stays on file for good.
+        if ($record->isOverturned()) {
+            throw CounselingForbiddenException::overturned();
+        }
+
+        if (CounselingPermissions::frozen($record)) {
+            throw CounselingForbiddenException::frozen();
         }
 
         if (! $permissions->changes($record)) {

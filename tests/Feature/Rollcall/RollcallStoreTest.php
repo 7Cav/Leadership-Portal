@@ -207,6 +207,11 @@ it('still answers saved when only the at-risk refresh fails, so the screen never
             return $this->inner->clearMakeupAuto($practice, $trooperId);
         }
 
+        public function practicesWithAutoMakeup(int $trooperId, CarbonInterface $weekStart): Collection
+        {
+            return $this->inner->practicesWithAutoMakeup($trooperId, $weekStart);
+        }
+
         public function signRollcall(SectionPractice $practice, int $trooperId, RollcallSignature $rollcall): Attendance
         {
             return $this->inner->signRollcall($practice, $trooperId, $rollcall);
@@ -227,14 +232,19 @@ it('still answers saved when only the at-risk refresh fails, so the screen never
             throw new RuntimeException('kpi read failed');
         }
 
+        public function countingWindowAsPlaced(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): CountingWindow
+        {
+            throw new RuntimeException('kpi read failed');
+        }
+
         public function countingMarksOf(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection
         {
             return $this->inner->countingMarksOf($trooperIds, $firstWeek, $lastWeek, $includeDeparted);
         }
 
-        public function weekProgress(array $sectionIds, CarbonInterface $weekStart, array $excusedTrooperIds = []): Collection
+        public function weekProgress(array $sectionIds, CarbonInterface $weekStart, array $excusedTrooperIds = [], ?array $roster = null): Collection
         {
-            return $this->inner->weekProgress($sectionIds, $weekStart, $excusedTrooperIds);
+            return $this->inner->weekProgress($sectionIds, $weekStart, $excusedTrooperIds, $roster);
         }
     });
 

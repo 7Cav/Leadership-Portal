@@ -71,7 +71,7 @@ class Eloquent implements CounselingRecordRepository
     public function forTrooper(int $trooperId): Collection
     {
         return CounselingRecord::query()
-            ->with(['issuedBy', 'issuedByAdmin', 'issuedAsUnit'])
+            ->with(['issuedBy', 'issuedByAdmin', 'issuedAsUnit', 'overturnedBy', 'overturnedByAdmin', 'overturnedAsUnit'])
             ->where('trooper_id', $trooperId)
             ->orderByDesc('counseled_on')
             ->orderByDesc('id')
@@ -83,6 +83,24 @@ class Eloquent implements CounselingRecordRepository
         $record->forceFill(['counseled_on' => $counseledOn->toDateString(), 'reason' => $reason])->save();
 
         return $record->refresh();
+    }
+
+    public function overturn(CounselingRecord $record, CarbonImmutable $at, int $by, ?int $byAdmin, ?int $asUnit, string $reason): ?CounselingRecord
+    {
+        $locked = CounselingRecord::query()->lockForUpdate()->find($record->id);
+        if ($locked === null || $locked->isOverturned()) {
+            return null;
+        }
+
+        $locked->forceFill([
+            'overturned_at' => $at,
+            'overturned_by' => $by,
+            'overturned_by_admin' => $byAdmin,
+            'overturned_as_unit' => $asUnit,
+            'overturn_reason' => $reason,
+        ])->save();
+
+        return $locked->refresh();
     }
 
     public function delete(CounselingRecord $record): ?CounselingRecord

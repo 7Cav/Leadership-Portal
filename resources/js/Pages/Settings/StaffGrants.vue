@@ -10,6 +10,7 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import EmptyState from '@/components/EmptyState.vue';
+import ReasonDialog from '@/components/ReasonDialog.vue';
 import { toast } from 'vue-sonner';
 import { onHttpException } from '@/lib/httpError';
 import { forumDate } from '@/lib/forumDate';
@@ -25,7 +26,7 @@ const props = defineProps({
     // (#499), read-only. Shown as a note, as it comes from their placement, not a grant. Sent only to someone acting
     // as Admin.
     regimentalHq: { type: Array, default: () => [] },
-    // The approved Admin billets (decided by the S6, 2026-10-28): whoever holds one is an Admin. Each with the names
+    // The approved Admin billets: whoever holds one is an Admin. Each with the names
     // Cav shows now, who holds it, who approved it and when, and whether the viewer holds it (`own`).
     adminViaBillet: { type: Array, default: () => [] },
     // The billets in an Admin billet group waiting for a decision or rejected: the names Cav shows now, the approved
@@ -49,13 +50,6 @@ function submitGrant() {
     });
 }
 
-// A revoke needs its own reason (AD-16) but there's no per-row form in the table, so it's
-// prompted inline rather than duplicating the grant form's shape for a single field.
-const revokeError = ref(null);
-
-// Approving or rejecting an Admin billet is audited with a reason (AD-16), prompted as a revoke is.
-const billetError = ref(null);
-
 const STATUS_LABELS = { pending: 'Waiting for an Admin', rejected: 'Rejected' };
 
 function names(title, group) {
@@ -74,46 +68,74 @@ function approvedOn(billet) {
     return billet.decidedBy ? `${forumDate(billet.decidedAt)} by ${billet.decidedBy}` : forumDate(billet.decidedAt);
 }
 
-// Revoking an approved billet is the same audited reject, prompted from the top list, with its error shown there.
-const revokeBilletError = ref(null);
+// Revoking a grant and deciding an Admin billet are audited with a reason (AD-16), asked for in the app's own dialog.
+// `confirming` is the action the dialog is open for. A refusal, whether a validation error or an HTTP one (403, 419, 429,
+// 5xx), shows inside the dialog in plain words, never as Inertia's raw error page.
+const confirming = ref(null);
+const dialogError = ref(null);
+const dialogProcessing = ref(false);
 
-function decideBillet(billet, approve, revoke = false) {
-    const errorRef = revoke ? revokeBilletError : billetError;
-    const verb = approve ? 'approving' : revoke ? 'revoking' : 'rejecting';
-    const reason = window.prompt(`Reason for ${verb} ${billet.title || 'this billet'} as an Admin billet?`);
-    if (reason === null) {
-        return;
-    }
-    if (reason.trim() === '') {
-        errorRef.value = `A reason is required to ${approve ? 'approve' : revoke ? 'revoke' : 'reject'} a billet.`;
-        return;
-    }
+function openDialog(action) {
+    dialogError.value = null;
+    confirming.value = action;
+}
 
-    errorRef.value = null;
-    router.post(`/settings/staff-grants/admin-billets/${billet.id}/${approve ? 'approve' : 'reject'}`, { reason }, {
-        preserveScroll: true,
-        onError: (errors) => {
-            errorRef.value = errors.adminBillet ?? errors.reason ?? 'The decision was not saved. Reload the page and try again.';
-        },
-    });
+function closeDialog() {
+    if (!dialogProcessing.value) confirming.value = null;
 }
 
 function requestRevoke(grant) {
-    const reason = window.prompt(`Reason for revoking ${grant.username}'s grant at ${grant.unit_label}?`);
-    if (reason === null) {
-        return; // Cancelled: a deliberate no-op, not an error.
-    }
-    if (reason.trim() === '') {
-        revokeError.value = 'A reason is required to revoke a grant.';
-        return;
-    }
+    openDialog({
+        title: `Revoke ${grant.username}'s grant at ${grant.unit_label}?`,
+        description: 'They lose the scope this grant gave them from their next page load.',
+        confirmLabel: 'Revoke grant',
+        pendingLabel: 'Revoking',
+        destructive: true,
+        failed: 'The grant was not revoked',
+        send: (reason, options) => router.delete(`/settings/staff-grants/${grant.id}`, { data: { reason }, ...options }),
+        fieldError: (errors) => errors.reason,
+    });
+}
 
-    revokeError.value = null;
-    router.delete(`/settings/staff-grants/${grant.id}`, {
-        data: { reason },
+function decideBillet(billet, approve, revoke = false) {
+    const name = billet.title || 'this billet';
+    const verb = approve ? 'Approve' : revoke ? 'Revoke' : 'Reject';
+
+    openDialog({
+        title: `${verb} ${name} as an Admin billet?`,
+        description: approve
+            ? 'Whoever holds it is an Admin while they hold it and serve.'
+            : 'Whoever holds it stops being an Admin by this billet from their next page load.',
+        confirmLabel: verb,
+        pendingLabel: approve ? 'Approving' : revoke ? 'Revoking' : 'Rejecting',
+        destructive: !approve,
+        failed: 'The decision was not saved',
+        send: (reason, options) => router.post(`/settings/staff-grants/admin-billets/${billet.id}/${approve ? 'approve' : 'reject'}`, { reason }, options),
+        fieldError: (errors) => errors.adminBillet ?? errors.reason,
+    });
+}
+
+function confirmDialog(reason) {
+    const action = confirming.value;
+    if (!action || dialogProcessing.value) return;
+
+    dialogError.value = null;
+    action.send(reason, {
         preserveScroll: true,
+        onStart: () => {
+            dialogProcessing.value = true;
+        },
+        onSuccess: () => {
+            confirming.value = null;
+        },
         onError: (errors) => {
-            revokeError.value = errors.reason ?? 'The revoke failed. Reload the page and try again. If it fails again, check the server logs.';
+            dialogError.value = action.fieldError(errors) ?? Object.values(errors)[0] ?? `${action.failed}. Try again.`;
+        },
+        onHttpException: onHttpException(action.failed, (message) => {
+            dialogError.value = message;
+        }),
+        onFinish: () => {
+            dialogProcessing.value = false;
         },
     });
 }
@@ -138,7 +160,6 @@ function requestRevoke(grant) {
                 <div class="px-4 pt-3.5 pb-2">
                     <h2 class="text-[15px] font-semibold">Current grants</h2>
                 </div>
-                <p v-if="revokeError" data-testid="revoke-error" role="alert" class="px-4 pb-2 text-xs text-destructive">{{ revokeError }}</p>
 
                 <Table v-if="grants.length" sticky-header class="text-[13px]">
                     <TableHeader>
@@ -229,7 +250,6 @@ function requestRevoke(grant) {
                     revoke a billet you hold.
                 </p>
             </div>
-            <p v-if="revokeBilletError" data-testid="revoke-billet-error" role="alert" class="px-4 pb-2 text-xs text-destructive">{{ revokeBilletError }}</p>
 
             <Table v-if="adminViaBillet.length" class="text-[13px]">
                 <TableHeader>
@@ -295,7 +315,6 @@ function requestRevoke(grant) {
                     approved. You cannot decide on a billet you hold.
                 </p>
             </div>
-            <p v-if="billetError" data-testid="billet-error" role="alert" class="px-4 pb-2 text-xs text-destructive">{{ billetError }}</p>
 
             <Table v-if="adminBillets.length" class="text-[13px]">
                 <TableHeader>
@@ -354,5 +373,19 @@ function requestRevoke(grant) {
                 No billet is waiting for a decision. The org import lists every Regimental HQ and S6 HQ billet here.
             </p>
         </Card>
+
+        <ReasonDialog
+            :open="confirming !== null"
+            :title="confirming?.title ?? ''"
+            :description="confirming?.description ?? null"
+            :confirm-label="confirming?.confirmLabel ?? 'Confirm'"
+            :pending-label="confirming?.pendingLabel ?? null"
+            :destructive="confirming?.destructive ?? false"
+            :processing="dialogProcessing"
+            :error="dialogError"
+            testid="staff-grants-dialog"
+            @update:open="(open) => !open && closeDialog()"
+            @confirm="confirmDialog"
+        />
     </div>
 </template>

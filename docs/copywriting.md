@@ -49,6 +49,9 @@ checkbox the user ticks about themselves, such as "I have read the preview and m
 "!" in prose, all-caps words for emphasis, contractions ("don't", "can't", "isn't"; write "do not", "cannot",
 "is not").
 
+No filler: cut "easily", "you can now", "this allows you to", "this lets you" and any sentence that restates the one
+before it. If a sentence still says the same thing without a word, drop the word.
+
 Exclamation marks: never. There is no exception.
 
 ## Mechanics
@@ -94,6 +97,12 @@ Exclamation marks: never. There is no exception.
   labels (see Loading and saving).
 - Middle dot "·" only as a separator in page titles (`Rollcall 2/1/A/1-7 · 7Cav Leadership Portal`) and in compact
   meta lines (`MOS · source · fetched at`). Never in a sentence.
+
+### Bold
+
+- Bold only the exact UI label a guide tells the reader to click or find: "Choose **Send report**."
+- No bold for emphasis, for a lead-in at the start of a list item, or for a term being defined. A glossary entry or a
+  "who to ask" list reads as plain "Cav week: Saturday 00:00 UTC to ...".
 
 ### Numbers and percentages
 
@@ -226,7 +235,7 @@ Info: neutral results with nothing to fix, such as a demo data summary.
 
 ### Form labels, hints and validation
 
-- Label: a noun or short noun phrase, no colon: "Reason", "Player name", "Training subject", "Game or team label".
+- Label: a noun or short noun phrase, no colon: "Reason", "Player name", "Training subject", "Team label".
 - Hint under the field: one sentence that says what the value is used for. "One line, shown as the report headline."
   "Recorded in the audit log with the grant."
 - Placeholder: an example or what to type, never the only label: "Find a trooper by name", "Search by username",
@@ -286,6 +295,14 @@ New locks follow the same shape: "Read-only: <reason>" or "<thing> is locked bec
   week, 26Sep26".
 - Status cells read as a sentence: "Week of 03Oct26. Rollcall: Will attend. SP: Present."
 - Icon-only buttons always have an `aria-label`.
+
+### Subtitles and sub-headings
+
+- Add a subtitle, description line or sub-heading only when it tells the reader something they need. Drop it when it
+  repeats the title or says what the next line shows anyway.
+- This covers card descriptions under card titles (a "Game identities" card does not also need "Manage game
+  identities" under it), page subtitles under the `<h1>`, and guide `##` headings over a section with a single step.
+- In a guide, a single step that needs no heading of its own joins the step before or after it.
 
 ### Page titles and breadcrumbs
 
@@ -348,10 +365,13 @@ tests and comments. They include some route and key names, so read them as rough
 | billet | A trooper's position on the Cav roster | Roster, Org structure | billet 37 / 16, position 1 UI | position, role, job |
 | Developmental Counseling Statement, DCS | A written counseling of a trooper, filed with its signed PDF (#381). Spell it out in labels and headings; "DCS" on badges and in counts. Plural "DCSs" | Milpac counseling panel | new | counseling form, write-up |
 | Letter of Reprimand, LOR | A written reprimand, filed with its signed PDF (#381). Spell it out in labels and headings; "LOR" on badges and in counts. Plural "LORs" | Milpac counseling panel | new | reprimand letter, write-up |
+| overturn, overturned | The Regimental Executive Officer setting aside an LOR after its 72-hour appeal window. The LOR stays on file, marked "Overturned on <date> by <name>: <reason>", and no longer counts toward the rules | Milpac counseling panel | new | revoke, void, rescind, cancel |
+| appeal window | The 72 hours after an LOR is filed, in which it can still be corrected or deleted | Counseling refusals, guide | new | grace period, edit window |
 | scope | The units you can see; "write scope" the ones you can change | Empty states, errors | 32 / 18 | access, permissions (in UI) |
 | staff grant | Admin-given read access to a unit and everything under it | Settings, read-only reasons | staff grant 7 / 7, grant 43 | permission, role |
 | view as | Read-only preview as a unit or (Admins) a person | User menu, banner | view as 15, "viewing as" 4 | impersonate, act as (planned feature, see features.md) |
 | acting lead | A trooper an Admin assigned to lead a unit | Org structure | 6 / 4, "(acting)" | acting leader, temporary lead |
+| overseer, oversight | The regimental staff officer an Admin named to oversee a battalion or the Reservists; reads it, changes nothing. "Oversight: vacant" when a battalion has none | Org structure | new | supervisor, sponsor, owner |
 | portfolio | A regimental staff officer's set of staff departments | Docs, Org structure tree | 0 UI | division, area |
 | HQ | A unit's headquarters node where its staff sit | Roster, Org structure | unit names only | headquarters (in labels) |
 | group | A non-line node: staff departments, ELOA, Reservists, New Recruits | Org structure | "Troopers in this group", "staff group" in server | pool, bucket |
@@ -370,7 +390,9 @@ tests and comments. They include some route and key names, so read them as rough
 | guidon | A unit's swallowtail flag: two colors split on the diagonal, with text on each half | Roster, Org structure | | flag, banner, pennant |
 | designation | A unit's Cav code such as `2/1/A/1-7` | Toasts, reports | 28 / 9 | unit code |
 | sign in, sign out | Start or end a portal session | Login, user menu | sign in 7 UI; "log in" only in code | log in, log out, login (as a verb) |
-| Departed | A trooper no longer on any Cav roster | Roster, search | | discharged, removed |
+| Departed | A trooper no longer on any Cav roster | Roster, search, past rollcall row badge | | discharged, removed |
+| Moved out | Row badge on a past week's rollcall: the trooper was in the section when the week ended and is in another unit now | Rollcall | new | transferred, left |
+| Joined | Row badge on a past week's rollcall: the trooper moved into the section partway through that week | Rollcall | new | moved in, new |
 | sync | A background read from Cav or the forum | Roster, LOA | 79 / 21 | refresh, import (except "Import from Cav roster") |
 | Import from Cav roster | The Admin step that builds the unit tree and billet mapping | Org structure | | sync (for this step) |
 
@@ -394,6 +416,8 @@ Run this before finishing any change that adds or edits user-facing text.
 12. Server messages a user can see name the trooper or unit, never a database ID, and never cite AD or story numbers.
 13. Icon-only controls have an `aria-label` written to the same rules.
 14. If a test asserts on the text, update the test in the same change.
+15. No subtitle or sub-heading that repeats its title, no filler, and bold only on a UI label the reader clicks or
+    finds.
 
 ## Appendix: known deviations
 

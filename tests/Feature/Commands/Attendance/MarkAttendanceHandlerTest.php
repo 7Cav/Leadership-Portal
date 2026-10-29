@@ -252,6 +252,11 @@ it('rolls the whole batch back — practice, marks and audit — when a write fa
             return $this->inner->clearMakeupAuto($practice, $trooperId);
         }
 
+        public function practicesWithAutoMakeup(int $trooperId, CarbonInterface $weekStart): Collection
+        {
+            return $this->inner->practicesWithAutoMakeup($trooperId, $weekStart);
+        }
+
         public function signRollcall(SectionPractice $practice, int $trooperId, RollcallSignature $rollcall): Attendance
         {
             return $this->inner->signRollcall($practice, $trooperId, $rollcall);
@@ -272,14 +277,19 @@ it('rolls the whole batch back — practice, marks and audit — when a write fa
             return $this->inner->countingWindow($unit, $firstWeek, $lastWeek, $includeDeparted);
         }
 
+        public function countingWindowAsPlaced(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): CountingWindow
+        {
+            return $this->inner->countingWindowAsPlaced($unit, $firstWeek, $lastWeek);
+        }
+
         public function countingMarksOf(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection
         {
             return $this->inner->countingMarksOf($trooperIds, $firstWeek, $lastWeek, $includeDeparted);
         }
 
-        public function weekProgress(array $sectionIds, CarbonInterface $weekStart, array $excusedTrooperIds = []): Collection
+        public function weekProgress(array $sectionIds, CarbonInterface $weekStart, array $excusedTrooperIds = [], ?array $roster = null): Collection
         {
-            return $this->inner->weekProgress($sectionIds, $weekStart, $excusedTrooperIds);
+            return $this->inner->weekProgress($sectionIds, $weekStart, $excusedTrooperIds, $roster);
         }
     });
 

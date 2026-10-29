@@ -5,6 +5,7 @@ namespace App\Commands\Capture;
 use App\Models\Game;
 use App\Models\SectionPractice;
 use App\Models\SyncRunStatus;
+use App\Models\TelemetryInterface;
 use App\Repositories\GameRepository;
 use App\Repositories\GameServerRepository;
 use App\Repositories\SyncRunRepository;
@@ -17,7 +18,7 @@ use DateTimeImmutable;
  * What the rollcall screen says about a practice that has no server data (Story 7.9, AD-20, AD-23).
  * Read-only: it decides between "not configured" (the game's env keys are unset, so no capture is
  * attempted), "failed" (the practice's latest capture run found no source that could answer, with
- * when) and nothing (never attempted, or already captured). A source that failed while its fallback
+ * when, or broke on the portal's own error, said as such) and nothing (never attempted, or already captured). A source that failed while its fallback
  * answered is not a failure here: the run succeeded, so the practice is captured. One of several
  * training servers that could not be read is (#389): the run failed, and so does the banner.
  *
@@ -70,7 +71,10 @@ class PracticeTelemetry
         $game = $this->gameOf($sectionId);
 
         if ($game !== null && ! $this->sources->isConfigured($game)) {
-            return CaptureTelemetry::notConfigured($game);
+            // Named apart from missing credentials: an Admin fixes this one by selecting a server, not in env.
+            $noServer = $game->interface !== TelemetryInterface::None && ! $this->servers->hasSelectedFor($game) && ! $this->sources->readsEnvServer($game);
+
+            return CaptureTelemetry::notConfigured($game, $noServer);
         }
 
         $run = $practice === null ? null : $this->syncRuns->latestForPractice('capture', $practice->id);
@@ -79,7 +83,14 @@ class PracticeTelemetry
             return null;
         }
 
-        return CaptureTelemetry::failed($game, DateTimeImmutable::createFromInterface($run->finished_at ?? $run->started_at), $this->feedsOf($game, $run->id));
+        $at = DateTimeImmutable::createFromInterface($run->finished_at ?? $run->started_at);
+
+        // The portal's own error is not a server that could not be read.
+        if ($run->internal_error) {
+            return CaptureTelemetry::internalError($game, $at);
+        }
+
+        return CaptureTelemetry::failed($game, $at, $this->feedsOf($game, $run->id));
     }
 
     /**

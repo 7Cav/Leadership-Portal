@@ -15,6 +15,10 @@ enum UnaccountedReason: string
     case Technical = 'technical';
     case Sick = 'sick';
     case MakeupBooked = 'makeup_booked';
+    // The three the portal can suggest from its own data (2026-10-29): the leader still sees and may change them.
+    case LoaNeedsReview = 'loa_needs_review';
+    case MovedOut = 'moved_out';
+    case Departed = 'departed';
 
     public function label(): string
     {
@@ -24,6 +28,9 @@ enum UnaccountedReason: string
             self::Technical => 'Technical problem (game, mods, connection)',
             self::Sick => 'Sick',
             self::MakeupBooked => 'Makeup booked before next SP',
+            self::LoaNeedsReview => 'LOA posted, the post needs review',
+            self::MovedOut => 'Moved out of the section this week',
+            self::Departed => 'Departed, no longer on the Cav roster',
         };
     }
 }

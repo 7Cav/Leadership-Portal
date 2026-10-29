@@ -32,8 +32,8 @@ use Illuminate\Support\Collection;
  * write scope is the roster-derived command scope, so a staff grant (read-only) confers nothing. A leader never acts
  * as a billet, and never chains: while acting they stop before they act as another.
  *
- * Inside a unit's own command team a senior may also act as everyone junior to them in it (decided by the S6 on
- * 2026-10-28, {@see juniorInTeam()}): the RCO as the RXO and the RCSM, the RXO as the RCSM, a company CO as the XO and
+ * Inside a unit's own command team a senior may also act as everyone junior to them in it ({@see juniorInTeam()}): the
+ * RCO as the RXO and the RCSM, the RXO as the RCSM, a company CO as the XO and
  * the 1SG, a PL as the PSG, an SL as the ASL, by {@see CommandRole::seniority()}. Never the other way, never a peer.
  * That person commands the same unit, so their command covers the leader's placement; the exception to the check
  * above is for them alone, and only while all they reach stays inside that unit. An acting lead stands where the
@@ -44,8 +44,8 @@ use Illuminate\Support\Collection;
  * reach through a leader can never exceed that leader's scope. They stop to be an Admin again. The session key's
  * `admin` is the real signed-in user, who for a leader is not an Admin.
  *
- * "Admin" here is always {@see ScopeResolver::isAdmin()}: the flag or an approved Regimental HQ or S6 HQ billet (decided
- * by the S6, 2026-10-28), so an Admin by billet acts as anyone a flag Admin may, a leader can never act as one, and an Admin
+ * "Admin" here is always {@see ScopeResolver::isAdmin()}: the flag or an approved Regimental HQ or S6 HQ billet, so an
+ * Admin by billet acts as anyone a flag Admin may, a leader can never act as one, and an Admin
  * acting as one gets that person's non-Admin view only, exactly as for a flag Admin.
  *
  * Checked again on every request ({@see target()}). A stored choice that fails is dropped, and the Admin is

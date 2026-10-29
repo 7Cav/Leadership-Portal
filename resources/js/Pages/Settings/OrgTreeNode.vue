@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue';
-import { PhCaretDown, PhCaretRight, PhPencilSimple, PhPlus, PhTrash } from '@phosphor-icons/vue';
+import { PhArrowBendDownRight, PhCaretDown, PhCaretRight, PhPencilSimple, PhPlus, PhTrash } from '@phosphor-icons/vue';
 import Guidon from '@/components/Guidon.vue';
 
 defineOptions({ name: 'OrgTreeNode' });
@@ -14,7 +14,7 @@ const props = defineProps({
     isAdmin: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['select', 'toggle', 'addChild', 'delete']);
+const emit = defineEmits(['select', 'toggle', 'addChild', 'delete', 'reference']);
 
 // Mirrors `settings-v1-tree.html`'s per-row `.tools`: the root (no parent) only ever gets
 // rename, since it can't be re-homed or removed and a sibling regiment isn't this story's
@@ -23,10 +23,47 @@ const ECHELON_ORDER = ['regiment', 'battalion', 'company', 'platoon', 'section']
 const isRoot = computed(() => props.node.parent_id === null);
 // A group (staff department, ELOA, Reservists, New Recruits) gets no add-child tool: groups are the import's.
 const childType = computed(() => (props.node.type === 'group' ? null : (ECHELON_ORDER[ECHELON_ORDER.indexOf(props.node.type) + 1] ?? null)));
+// Who oversees the unit (a battalion or the Reservists), or vacant for a battalion with nobody serving in it.
+const oversightText = computed(() => {
+    if (props.node.oversight) return `Oversight: ${props.node.oversight.displayName}${props.node.oversight.serving ? '' : ' (not serving)'}`;
+    return props.node.oversight_vacant ? 'Oversight: vacant' : null;
+});
 </script>
 
 <template>
-    <li role="none">
+    <!--
+      A reference row: a unit shown here as well as at its own place (ACD under RDC, DEVCOM's staff under DEVCOM). It has
+      no branch and no tools; choosing it opens the unit where it really sits.
+    -->
+    <li v-if="node.ref" role="none">
+        <div
+            :data-testid="`unit-ref-${node.refParentId}-${node.id}`"
+            role="treeitem"
+            tabindex="0"
+            :aria-selected="false"
+            class="flex min-h-8 cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] text-muted-foreground hover:bg-accent/70"
+            @click="emit('reference', node.id)"
+            @keydown.enter.space.prevent="emit('reference', node.id)"
+        >
+            <PhArrowBendDownRight class="size-3.5 shrink-0" aria-hidden="true" />
+            <span class="min-w-0 truncate">
+                {{ node.name }}
+                <span v-if="node.callsign" class="ml-1.5 font-mono text-[11px]">{{ node.callsign }}</span>
+                <span class="ml-1.5 text-[11px]">{{ node.refNote }}</span>
+            </span>
+            <span
+                v-if="node.game"
+                :data-testid="`ref-game-${node.refParentId}-${node.id}`"
+                class="shrink-0 truncate text-[11px]"
+                :title="node.game.from ? `${node.game.name}, from ${node.game.from}` : node.game.name"
+                >{{ node.game.name }}<template v-if="node.game.retired"> (retired)</template
+                ><template v-if="node.game.from"> from {{ node.game.from }}</template></span
+            >
+            <span v-if="oversightText" :data-testid="`ref-oversight-${node.refParentId}-${node.id}`" class="shrink-0 text-[11px]">{{ oversightText }}</span>
+            <span class="ml-auto shrink-0 text-[11px] tabular-nums">{{ node.trooper_count }} {{ node.trooper_count === 1 ? 'trooper' : 'troopers' }}</span>
+        </div>
+    </li>
+    <li v-else role="none">
         <div
             :data-testid="`unit-row-${node.id}`"
             role="treeitem"
@@ -36,6 +73,7 @@ const childType = computed(() => (props.node.type === 'group' ? null : (ECHELON_
             :data-highlighted="node.id === highlightId || undefined"
             class="group relative flex min-h-8 cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] transition-shadow duration-700 hover:bg-accent/70"
             :class="{
+                'text-muted-foreground': node.empty,
                 'bg-accent font-medium shadow-[inset_2px_0_0_var(--primary)]': node.id === selectedId,
                 'ring-2 ring-primary ring-inset duration-150': node.id === highlightId,
             }"
@@ -78,8 +116,18 @@ const childType = computed(() => (props.node.type === 'group' ? null : (ECHELON_
                 class="shrink-0 rounded-sm border border-border px-1 text-[10px] font-semibold tracking-wide text-muted-foreground"
                 >{{ node.label }}</span
             >
-            <!-- A billet commands this unit and nobody serving holds it. No previous holder is remembered. -->
-            <span v-if="node.lead_vacant" :data-testid="`lead-vacant-${node.id}`" class="shrink-0 text-[11px] text-warning">Lead: vacant</span>
+            <!--
+              A billet commands this unit and nobody serving holds it. No previous holder is remembered. Not said of an
+              empty unit, which is shown muted only when asked for.
+            -->
+            <span v-if="node.lead_vacant && !node.empty" :data-testid="`lead-vacant-${node.id}`" class="shrink-0 text-[11px] text-warning">Lead: vacant</span>
+            <span
+                v-if="oversightText"
+                :data-testid="`oversight-${node.id}`"
+                class="shrink-0 text-[11px]"
+                :class="node.oversight?.serving ? 'text-muted-foreground' : 'text-warning'"
+                >{{ oversightText }}</span
+            >
 
             <span class="ml-auto shrink-0 text-[11px] text-muted-foreground tabular-nums">{{ node.trooper_count }} {{ node.trooper_count === 1 ? 'trooper' : 'troopers' }}</span>
 
@@ -140,6 +188,7 @@ const childType = computed(() => (props.node.type === 'group' ? null : (ECHELON_
                 @toggle="(id) => emit('toggle', id)"
                 @add-child="(payload) => emit('addChild', payload)"
                 @delete="(id) => emit('delete', id)"
+                @reference="(id) => emit('reference', id)"
             />
         </ul>
     </li>

@@ -15,13 +15,10 @@ page: /settings/games
 2. Give its **Name**, its **Player ID kinds** (such as Steam ID), and what its **Attendance read by**.
 3. Choose **Add game**.
 
-## Edit a game
+## Edit or retire a game
 
 1. Choose **Edit** next to it, change it, and choose **Save changes**.
+2. For a game no longer played, choose **Retire**. Its links stay, but no new ones can be made, and it stops being captured.
+3. Choose **Bring back** to reinstate it.
 
-## Retire a game no longer played
-
-1. Choose **Retire**. Its links stay, but no new ones can be made, and it stops being captured.
-2. Choose **Bring back** to reinstate it.
-
-> [!good-to-know] What this changes, and how to undo it: retiring is undone by reinstating. A game that is in use, with linked identities, captured practices or a unit that plays it, can only be retired, never deleted; **Delete** is offered only for a game nothing uses.
+> [!good-to-know] A game that is in use, with linked identities, captured practices or a unit that plays it, can only be retired, never deleted; **Delete** is offered only for a game nothing uses.

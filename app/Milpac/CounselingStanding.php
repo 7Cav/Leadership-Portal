@@ -45,6 +45,19 @@ final class CounselingStanding
     public const MISSED_AFTER_LOR_DAYS = 60;
 
     /**
+     * Every window {@see flagsFor()} measures a record against, the windows a forecast breaks its ranges on (audit 2,
+     * I1). Listed one by one, not deduplicated by value, so a rule whose window changes moves its own break. The no
+     * favorable action period runs on today, not between records, so it is not one of them.
+     */
+    public const RULE_WINDOWS = [
+        self::DCS_REPEAT_DAYS,
+        self::LOR_REPEAT_DAYS,
+        self::LOR_WINDOW_DAYS,
+        self::MISSED_REPEAT_DAYS,
+        self::MISSED_AFTER_LOR_DAYS,
+    ];
+
+    /**
      * One record as the rules see it: `day` counts days since the Unix epoch, `kind` is the ladder it is on (a record
      * with no kind is on the conduct ladder).
      *
@@ -99,7 +112,7 @@ final class CounselingStanding
         $breaks = [$first];
         foreach ($ordered as $entry) {
             $breaks[] = $entry['day'];
-            foreach ([self::LOR_REPEAT_DAYS, self::MISSED_AFTER_LOR_DAYS, self::LOR_WINDOW_DAYS] as $days) {
+            foreach (self::RULE_WINDOWS as $days) {
                 $breaks[] = $entry['day'] + $days + 1;
             }
         }

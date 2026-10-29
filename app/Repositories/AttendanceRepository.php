@@ -82,6 +82,15 @@ interface AttendanceRepository
     public function clearMakeupAuto(SectionPractice $practice, int $trooperId): ?Attendance;
 
     /**
+     * The practices of `$weekStart`'s Cav week, of any section, on which `$trooperId` holds an automatic makeup
+     * ({@see markMakeupAuto()}), in id order. Where the makeup is, not where the trooper is placed now: a trooper moved
+     * to another section since keeps it on the old section's practice.
+     *
+     * @return Collection<int, SectionPractice>
+     */
+    public function practicesWithAutoMakeup(int $trooperId, CarbonInterface $weekStart): Collection;
+
+    /**
      * Record the trooper's signature on the week's rollcall thread. Leaves `status`/`source` as
      * they were (both null on a new row — signed, practice not yet marked).
      */
@@ -137,6 +146,17 @@ interface AttendanceRepository
     public function countingWindow(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): CountingWindow;
 
     /**
+     * {@see countingWindow()} for a week that has ended (the 2026-10-29 audit): the population is who counted in `$unit`
+     * that week, `$lastWeek`, by the placement history ({@see TrooperPlacementRepository::sectionsByWeekWithin()}),
+     * not who is assigned now, so a trooper who moved or left after the week stays in it. Each trooper's section in
+     * the window is the one they ended `$lastWeek` in. Departed troopers who served that week are measured too. The
+     * same two queries.
+     *
+     * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
+     */
+    public function countingWindowAsPlaced(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): CountingWindow;
+
+    /**
      * {@see countingMarks()} for a set of troopers instead of a subtree: each serving, placed trooper of `$trooperIds`
      * against the practices of the sections they were placed in, whichever sections those are, with `held` decided by
      * the same rule. For a screen that measures troopers from many sections at once (the JSAM guests' own SP) in one
@@ -164,11 +184,17 @@ interface AttendanceRepository
      * neither does an automatic makeup (the rule {@see countingMarks()} uses); a trooper carrying one
      * still counts as marked.
      *
+     * The troopers counted are the serving ones placed in each section now, unless `$roster` says otherwise: for a
+     * week that has ended, the rollcalls it ended with ({@see TrooperRepository::onRollcalls()}, the 2026-10-29
+     * audit), trooper id => section id, so the counts agree with each rollcall after a move or a departure. Each
+     * trooper counts by their row on that section's practice only. Still one query.
+     *
      * @param  list<int>  $sectionIds
      * @param  list<int>  $excusedTrooperIds
+     * @param  array<int, int>|null  $roster
      * @return Collection<int, SectionWeekProgress>
      *
      * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
      */
-    public function weekProgress(array $sectionIds, CarbonInterface $weekStart, array $excusedTrooperIds = []): Collection;
+    public function weekProgress(array $sectionIds, CarbonInterface $weekStart, array $excusedTrooperIds = [], ?array $roster = null): Collection;
 }
