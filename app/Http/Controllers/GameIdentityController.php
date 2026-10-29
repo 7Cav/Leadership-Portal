@@ -20,6 +20,7 @@ use App\Repositories\GameIdentityLinkException;
 use App\Repositories\GameRepository;
 use App\Repositories\TrooperGameIdentityRepository;
 use App\Repositories\TrooperRepository;
+use App\Repositories\UnitGame;
 use App\Repositories\UnitRepository;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -63,11 +64,12 @@ class GameIdentityController extends Controller
         $scope = $this->scope->resolve($request->user());
         $writable = $this->scope->writeScope($request->user())->flip();
         $inScope = $scope->flip();
-        $units = $this->units->tree()->filter(fn (Unit $unit) => $inScope->has($unit->id))->keyBy('id');
+        $tree = $this->units->tree();
+        $units = $tree->filter(fn (Unit $unit) => $inScope->has($unit->id))->keyBy('id');
         $troopers = $this->troopers->placedInAny($units->keys());
         $identities = $this->identities->forTroopers($troopers->modelKeys())->groupBy('trooper_id');
         $games = $this->games->all();
-        $gameOf = $this->usualGames($this->units->tree()->keyBy('id'), $troopers, $identities, $games);
+        $gameOf = $this->usualGames(UnitGame::resolve($tree), $troopers, $identities, $games);
 
         return Inertia::render('GameIdentities', [
             'platforms' => $games->map(fn (Game $game) => [
@@ -86,7 +88,7 @@ class GameIdentityController extends Controller
                 'section' => $this->designation($units->get($trooper->primary_section_id)),
                 // A staff grant shows the trooper but does not let the viewer change their links.
                 'editable' => $writable->has($trooper->primary_section_id),
-                // The game Add identity opens on while it is still missing: their unit's game label, else the game most
+                // The game Add identity opens on while it is still missing: the game their unit plays, else the game most
                 // troopers placed with them have linked. Null when neither gives one.
                 'game' => $gameOf->get((int) $trooper->primary_section_id),
                 'identities' => ($identities->get($trooper->id) ?? collect())
@@ -166,29 +168,28 @@ class GameIdentityController extends Controller
     }
 
     /**
-     * Each unit's usual game, by unit id, as a game slug: the game or team label an Admin set on the unit or the nearest
-     * unit above it, when it names a game that is not retired (by name or slug, any case), else the game most of the
-     * troopers placed in the unit have an identity for, the game added first on a tie (as the capture picks a
-     * section's game). Only units someone in `$troopers` is placed in are worked out.
+     * Each unit's usual game, by unit id, as a game slug: the game the unit plays, its own or the nearest ancestor's
+     * (policy, 2026-10-29), when it is not retired; else the game most of the troopers placed in the unit have an
+     * identity for, the game added first on a tie (as the capture picks a section's game). Only units someone in
+     * `$troopers` is placed in are worked out.
      *
-     * @param  Collection<int, Unit>  $tree  every unit, by id
+     * @param  array<int, UnitGame>  $unitGames  by unit id
      * @param  Collection<int, Trooper>  $troopers
      * @param  Collection<int, Collection<int, TrooperGameIdentity>>  $identities  by trooper id
      * @param  Collection<int, Game>  $games
      * @return Collection<int, string|null>
      */
-    private function usualGames(Collection $tree, Collection $troopers, Collection $identities, Collection $games): Collection
+    private function usualGames(array $unitGames, Collection $troopers, Collection $identities, Collection $games): Collection
     {
+        $byId = $games->keyBy('id');
         $active = $games->reject(fn (Game $game) => $game->isRetired());
-        $byName = $active->flatMap(fn (Game $game) => [mb_strtolower($game->name) => $game, mb_strtolower($game->slug) => $game]);
 
         return $troopers->groupBy('primary_section_id')->filter(fn ($placed, $unitId) => $unitId !== '')
-            ->map(function (Collection $placed, $unitId) use ($tree, $identities, $active, $byName) {
-                for ($unit = $tree->get((int) $unitId); $unit !== null; $unit = $tree->get((int) $unit->parent_id)) {
-                    $label = mb_strtolower(trim((string) $unit->label));
-                    if ($label !== '' && $byName->has($label)) {
-                        return $byName->get($label)->slug;
-                    }
+            ->map(function (Collection $placed, $unitId) use ($unitGames, $byId, $identities, $active) {
+                $played = isset($unitGames[(int) $unitId]) ? $byId->get($unitGames[(int) $unitId]->gameId) : null;
+
+                if ($played !== null && ! $played->isRetired()) {
+                    return $played->slug;
                 }
 
                 $counts = $placed->flatMap(fn (Trooper $trooper) => $identities->get($trooper->id) ?? collect())->countBy('game_id');

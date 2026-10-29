@@ -27,8 +27,8 @@ const props = defineProps({
     platforms: { type: Array, required: true },
     // `[{ id, displayName, billet, section, editable, game, identities: { [platform]: { playerName, platformId, idKind, mixedScripts } } }]`
     // — the troopers in the viewer's scope, by name. `editable` is false for one the viewer only sees
-    // through a staff grant. `game` is the slug of their unit's usual game (its label, else the one most of the unit has
-    // linked), or null.
+    // through a staff grant. `game` is the slug of their unit's usual game (the game the unit plays, else the one most of
+    // the unit has linked), or null.
     troopers: { type: Array, required: true },
 });
 
