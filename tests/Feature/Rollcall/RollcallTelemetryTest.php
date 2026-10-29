@@ -322,7 +322,7 @@ it('refuses a retry for a week whose report has been sent, as locked, even after
     captureRun($this, SyncRunStatus::Failure);
     WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => '2026-10-03']);
 
-    tryAgain($this)->assertStatus(409)->assertJson(['locked' => true, 'message' => 'The report for this week has been sent, so its rollcall is locked.']);
+    tryAgain($this)->assertStatus(409)->assertJson(['locked' => true, 'message' => 'The report for this week has been sent, so its roll call is locked.']);
 
     Queue::assertNothingPushed();
     expect(AuditLogEntry::query()->count())->toBe(0);

@@ -65,7 +65,7 @@ describe('viewing', function () {
             ->where('company', $this->company->id)
             ->where('active.body', 'second body')
             ->where('active.version', 2)
-            ->where('artifactType', ['value' => 'rollcall_bbcode', 'label' => 'Rollcall BBCode'])
+            ->where('artifactType', ['value' => 'rollcall_bbcode', 'label' => 'Roll call BBCode'])
             ->has('history', 2)
             ->where('history.0.isActive', true)
             ->where('history.1.isActive', false));

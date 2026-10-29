@@ -13,6 +13,6 @@ class MarkRollcallPostedForbiddenException extends AuthorizationException
 {
     public function __construct(int $sectionId)
     {
-        parent::__construct('You may not mark the rollcall of this section posted: it is outside your scope.');
+        parent::__construct('You may not mark the roll call of this section posted: it is outside your scope.');
     }
 }

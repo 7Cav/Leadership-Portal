@@ -70,7 +70,7 @@ it('refuses to mark a week posted once its report has been sent, as locked (AD-1
     WeeklyReport::factory()->sent()->create(['unit_id' => $this->section->id, 'week_start' => '2026-10-03']);
 
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/posted", ['week' => '2026-10-03'])
-        ->assertStatus(409)->assertJson(['locked' => true, 'message' => 'The report for this week has been sent, so its rollcall is locked.']);
+        ->assertStatus(409)->assertJson(['locked' => true, 'message' => 'The report for this week has been sent, so its roll call is locked.']);
 
     expect(SectionPractice::query()->whereNotNull('rollcall_posted_at')->count())->toBe(0)
         ->and(AuditLogEntry::query()->where('action', 'rollcall.posted')->count())->toBe(0);

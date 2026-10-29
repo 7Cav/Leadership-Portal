@@ -143,7 +143,7 @@ class AuditLogController extends Controller
         return match (true) {
             $target instanceof SectionPractice && $target->section !== null => [
                 'href' => route('rollcall.show', ['unit' => $target->section_id, 'week' => $target->week_start->toDateString()], false),
-                'label' => "{$unit($target->section)} rollcall, week of {$target->week_start->format('dMy')}",
+                'label' => "{$unit($target->section)} roll call, week of {$target->week_start->format('dMy')}",
             ],
             $target instanceof WeeklyReport && $target->unit !== null => [
                 'href' => route('reports.show', ['unit' => $target->unit_id, 'week' => $target->week_start->toDateString()], false),
@@ -166,7 +166,7 @@ class AuditLogController extends Controller
             // A section's pick is made on its rollcall; a company's active template on the Templates page.
             $target instanceof UnitTemplateChoice && $target->unit?->type === UnitType::Section => [
                 'href' => route('rollcall.show', ['unit' => $target->unit_id], false),
-                'label' => "{$unit($target->unit)} rollcall template",
+                'label' => "{$unit($target->unit)} roll call template",
             ],
             $target instanceof UnitTemplateChoice && $target->unit !== null => [
                 'href' => route('settings.templates', ['company' => $target->unit_id], false),
@@ -248,7 +248,7 @@ class AuditLogController extends Controller
 
         return [
             'href' => route('rollcall.show', ['unit' => $practice->section_id, 'week' => $practice->week_start->toDateString()], false),
-            'label' => GameIdentityText::reveal($dismissal->player_name)." dismissed, {$section} rollcall, week of {$practice->week_start->format('dMy')}",
+            'label' => GameIdentityText::reveal($dismissal->player_name)." dismissed, {$section} roll call, week of {$practice->week_start->format('dMy')}",
         ];
     }
 

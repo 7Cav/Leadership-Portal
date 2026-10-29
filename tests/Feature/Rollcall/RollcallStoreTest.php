@@ -292,7 +292,7 @@ it('refuses any save for a week whose report has been sent, with a 409 the scree
 
     saveRollcall($this->leader, $this->section->id, $marks($this->trooper))
         ->assertStatus(409)
-        ->assertExactJson(['message' => 'The report for this week has been sent, so its rollcall is locked.', 'locked' => true]);
+        ->assertExactJson(['message' => 'The report for this week has been sent, so its roll call is locked.', 'locked' => true]);
 
     expect(SectionPractice::query()->count())->toBe(0)
         ->and(Attendance::query()->count())->toBe(0)

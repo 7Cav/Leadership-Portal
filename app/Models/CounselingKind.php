@@ -21,7 +21,7 @@ enum CounselingKind: string
     public function label(): string
     {
         return match ($this) {
-            self::MissedPractice => 'Missed section practice or rollcall',
+            self::MissedPractice => 'Missed section practice or roll call',
             self::Conduct => 'Other conduct',
         };
     }

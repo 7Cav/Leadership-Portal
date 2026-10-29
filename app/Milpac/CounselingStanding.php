@@ -190,7 +190,7 @@ final class CounselingStanding
 
         if ($entry['type'] === CounselingType::Lor) {
             if ($missed && $ofType($ladder($within(self::MISSED_AFTER_LOR_DAYS)), CounselingType::Lor) !== []) {
-                $flags[] = ['key' => 'missed-article-15', 'message' => '2nd LOR for a missed section practice or rollcall within 60 days of the first: Article 15, company first, then battalion.'];
+                $flags[] = ['key' => 'missed-article-15', 'message' => '2nd LOR for a missed section practice or roll call within 60 days of the first: Article 15, company first, then battalion.'];
             }
 
             if (! $missed && $ofType($ladder($within(self::LOR_REPEAT_DAYS)), CounselingType::Lor) !== []) {
@@ -209,7 +209,7 @@ final class CounselingStanding
 
         if ($missed) {
             if ($ofType($ladder($within(self::MISSED_AFTER_LOR_DAYS)), CounselingType::Lor) !== []) {
-                $flags[] = ['key' => 'missed-second-lor', 'message' => 'Missed within 60 days of an LOR for a missed section practice or rollcall: a second LOR is called for.'];
+                $flags[] = ['key' => 'missed-second-lor', 'message' => 'Missed within 60 days of an LOR for a missed section practice or roll call: a second LOR is called for.'];
             } elseif ($ladder($within(self::MISSED_REPEAT_DAYS)) !== []) {
                 $flags[] = ['key' => 'missed-lor', 'message' => 'Second miss within 30 days of the last: an LOR is called for.'];
             }
