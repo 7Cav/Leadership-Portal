@@ -111,7 +111,11 @@ class StaffReportController extends Controller
                 'ftxName' => SendStaffReportHandler::MAX_FTX_NAME,
                 'otherEvents' => SendStaffReportHandler::MAX_OTHER_EVENTS,
                 'notes' => SendStaffReportHandler::MAX_NOTES,
+                'officeHourNote' => SendStaffReportHandler::MAX_OFFICE_HOUR_NOTE,
             ],
+            // Where the game server disagrees with the sent report: readers only, never the staff member themselves.
+            'discrepancy' => $report === null || $self ? null
+                : ($this->week->discrepancies([$this->week->find($trooper, $weekStart)], $weekStart)[$trooper->id] ?? null),
         ]);
     }
 
@@ -126,15 +130,18 @@ class StaffReportController extends Controller
             'section_ids' => ['present', 'array', 'max:'.SendStaffReportHandler::MAX_PRACTICES],
             'section_ids.*' => ['integer'],
             // The rules on what goes with what (an FTX's name and date, the week) are the handler's; these bound the request.
-            'practice_type' => ['nullable', 'string', 'in:sp,ftx'],
+            'practice_type' => ['nullable', 'string', 'in:sp,ftx,office_hour'],
             'ftx_name' => ['nullable', 'string', 'max:'.SendStaffReportHandler::MAX_FTX_NAME],
             'ftx_date' => ['nullable', 'string', 'max:10'],
             'other_events' => ['nullable', 'string', 'max:'.SendStaffReportHandler::MAX_OTHER_EVENTS],
             'notes' => ['nullable', 'string', 'max:'.SendStaffReportHandler::MAX_NOTES],
+            'office_hour_date' => ['nullable', 'string', 'max:10'],
+            'office_hour_note' => ['nullable', 'string', 'max:'.SendStaffReportHandler::MAX_OFFICE_HOUR_NOTE],
         ], [
             'attended.required' => 'Answer whether you attended a section practice this week.',
             'section_ids.max' => 'Pick at most :max practices.',
-            'practice_type.in' => 'Pick Section practice (SP) or FTX.',
+            'practice_type.in' => 'Pick Section practice (SP), FTX or, on a battalion HQ, Office hour.',
+            'office_hour_note.max' => 'Keep the office hour note to :max characters.',
             'ftx_name.max' => 'Keep the FTX name to :max characters.',
             'other_events.max' => 'Keep the other events to :max characters.',
             'notes.max' => 'Keep the notes to :max characters.',
@@ -151,6 +158,8 @@ class StaffReportController extends Controller
                 $data['ftx_date'] ?? null,
                 $data['other_events'] ?? null,
                 $data['notes'] ?? null,
+                $data['office_hour_date'] ?? null,
+                $data['office_hour_note'] ?? null,
             ));
         } catch (StaffReportForbiddenException $e) {
             abort(403, $e->getMessage());
@@ -169,19 +178,43 @@ class StaffReportController extends Controller
 
     /**
      * Every section with troopers in it (#442), the staff member's own unit's first: the ones under their HQ are the
-     * preferred practices, and the host's rollcall lists them there as a staff guest.
+     * preferred practices, and the host's rollcall lists them there as a staff guest. `group` names the closest unit
+     * above the HQ (the HQ itself, its company, its battalion) that holds the section, null for any other section, so
+     * the picker groups them nearest first.
      *
-     * @return list<array{id: int, label: string, own: bool}>
+     * @return list<array{id: int, label: string, own: bool, group: ?string}>
      */
     private function sections(?Unit $hq): array
     {
-        return $this->headcount->withoutEmptyLineUnits($this->units->tree()->filter(fn (Unit $unit) => $unit->type === UnitType::Section))
-            ->map(fn (Unit $unit) => [
-                'id' => $unit->id,
-                'label' => $unit->callsign ?? $unit->name,
-                'own' => $hq !== null && str_starts_with($unit->path, $hq->path),
-            ])
-            ->sortBy([['own', 'desc'], ['label', 'asc']])
+        $tree = $this->units->tree();
+        $byId = $tree->keyBy('id');
+        $ancestors = [];
+        for ($node = $hq, $guard = 0; $node !== null && $guard < 8 && $node->type !== UnitType::Regiment; $guard++) {
+            $ancestors[] = $node;
+            $node = $node->parent_id === null ? null : $byId->get($node->parent_id);
+        }
+
+        return $this->headcount->withoutEmptyLineUnits($tree->filter(fn (Unit $unit) => $unit->type === UnitType::Section))
+            ->map(function (Unit $unit) use ($hq, $ancestors) {
+                $rank = count($ancestors);
+                $group = null;
+                foreach ($ancestors as $i => $ancestor) {
+                    if (str_starts_with($unit->path, $ancestor->path)) {
+                        [$rank, $group] = [$i, $ancestor->callsign ?? $ancestor->name];
+                        break;
+                    }
+                }
+
+                return [
+                    'id' => $unit->id,
+                    'label' => $unit->callsign ?? $unit->name,
+                    'own' => $hq !== null && str_starts_with($unit->path, $hq->path),
+                    'group' => $group,
+                    'rank' => $rank,
+                ];
+            })
+            ->sortBy([['rank', 'asc'], ['label', 'asc']])
+            ->map(fn (array $row) => array_diff_key($row, ['rank' => true]))
             ->values()
             ->all();
     }

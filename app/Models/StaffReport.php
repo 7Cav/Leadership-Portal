@@ -8,13 +8,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * One platoon, company or battalion HQ staff member's weekly staff report: whether they attended a section
- * practice that Cav week (`attended`), what kind (`practice_type`, `sp` or `ftx`, with the FTX's `ftx_name` and
- * `ftx_date`), which sections (`practices`, `[{section_id, section}]`), the other events they attended and their notes,
+ * practice that Cav week (`attended`), what kind (`practice_type`, `sp`, `ftx` or, for battalion HQ staff, `office_hour`, with the FTX's
+ * `ftx_name` and `ftx_date` or the office hour's `office_hour_date` and `office_hour_note`), which sections (`practices`, `[{section_id, section}]`), the other events they attended and their notes,
  * all frozen as sent. UNIQUE on `(trooper_id, week_start)`. A row exists only once the report is sent, and is never
  * changed after, but for `sheet_pushed_at`, the Google Sheet push's own bookkeeping. Written only by
  * `StaffReportRepository`, from the audited `SendStaffReport` Command and the queued sheet push.
  */
-#[Fillable(['trooper_id', 'unit_id', 'week_start', 'attended', 'practice_type', 'ftx_name', 'ftx_date', 'practices', 'other_events', 'notes', 'sent_at', 'sent_by'])]
+#[Fillable(['trooper_id', 'unit_id', 'week_start', 'attended', 'practice_type', 'ftx_name', 'ftx_date', 'office_hour_date', 'office_hour_note', 'practices', 'other_events', 'notes', 'sent_at', 'sent_by'])]
 class StaffReport extends Model
 {
     protected function casts(): array
@@ -24,6 +24,7 @@ class StaffReport extends Model
             'sent_at' => 'immutable_datetime',
             'attended' => 'boolean',
             'ftx_date' => 'immutable_date',
+            'office_hour_date' => 'immutable_date',
             'practices' => 'array',
             'sheet_pushed_at' => 'immutable_datetime',
         ];
@@ -32,6 +33,9 @@ class StaffReport extends Model
     public const SP = 'sp';
 
     public const FTX = 'ftx';
+
+    /** An hour of office hours in place of the hour of play: battalion HQ staff only, self-reported. */
+    public const OFFICE_HOUR = 'office_hour';
 
     public function trooper(): BelongsTo
     {

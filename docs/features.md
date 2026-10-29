@@ -188,7 +188,7 @@ leaves the Cav; one who left before it began doing so has no date and is on no p
     roll call.
   - Weeks before the week floor open read-only.
   - HQ staff reports (a platoon's, company's or battalion's report only): each staff member on that HQ when the week ended (placed where they are now when their placement history began after it), with
-    "Not sent", "Attended 2 practices", the FTX's name and date, or "Did not attend", with other events and notes, linked to their staff report. Read only and live: it is not
+    "Not sent", "Attended 2 practices", the FTX's name and date, an office hour, or "Did not attend", with other events and notes, linked to their staff report. Read only and live: it is not
     frozen with the unit's report. It lists only the staff whose report the viewer may read (see "Staff report").
 
 ### Unit switcher and View as
@@ -371,11 +371,17 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
 - Where: "Staff report" in the sidebar for platoon, company and battalion HQ staff, and the reminder on Home. Both open
   `/staff-report/<trooper>/<week>` for the last week to have ended, the one whose report is due; the arrows move
   between weeks. The running week opens read-only, saying from when it can be sent.
-- Filling it in: "Did you attend a section practice this week?" Yes or No. Yes asks the type, "Section practice
-  (SP)" (picked to start with) or "FTX", and offers every section with troopers in it, the staff member's own unit's
-  first, with a search. An SP needs one or more sections. An FTX needs its name (up to 120 characters) and its date,
-  a day in that Cav week; its sections are optional, as an FTX may span several. "What other events did you attend"
-  (up to 500 characters) and notes (up to 1000) are optional for everyone. Which HQ level the report is for
+- Filling it in: the week, its dates and the deadline sit at the top. "Did you attend a section practice this week?"
+  is two large buttons, Yes and No. Yes asks the type in a segmented control, "Section practice" (picked to start with),
+  "FTX" or, for battalion HQ staff only, "Office hour", and for an SP or an FTX offers every section with troopers in
+  it, grouped nearest first (their own HQ, then its company, then its battalion, then the rest), with a search; each
+  pick shows as a chip that removes it. An SP needs one or more sections. An FTX needs its name (up to 120 characters) and its date,
+  a day in that Cav week; its sections are optional, as an FTX may span several. An office hour is an hour of office
+  hours held in place of the hour at a section practice: it needs its date, a day in that Cav week, and a short note
+  (up to 200 characters), takes no section, and is self-reported, never checked against the game server. A platoon or
+  company HQ staff member who sends one is refused. Other events attended (up to 500 characters) and notes (up to 1000)
+  are optional for everyone, folded away until opened. A bar kept at the bottom of the screen reads the answer back as
+  it will be sent, says what is still missing, and holds "Send staff report". Which HQ level the report is for
   (platoon, company or battalion) comes from the HQ and is never asked. The week's staff practice
   entries are ticked already, each saying who entered it. A practice the game server saw them at says "Seen on the game
   server" and is never ticked for them: the capture reads the whole Cav week, so it only says they were on the server.
@@ -383,7 +389,8 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   the week on. Only the staff member, signed in as themselves, sends it. Nobody sends it for them, Admins included, and
   never through act as or view as. It is due when the unit reports are, 23:59 UTC on the Saturday after the week. A
   sent report is final, as a unit's report is: there is no edit and no second send. The type, the FTX's name and date,
-  other events and notes are frozen with it. There is no draft: the picks stay
+  the office hour's date and note, other events and notes are frozen with it. The sent report reads back with a check,
+  when it was sent, and that it is final. There is no draft: the picks stay
   on the page until it is sent.
 - What sending writes: the staff report, and the week's staff practice entries set to exactly the practices picked
   (an entry for a section not picked, one a leader entered on the milpac say, is taken off, and the page warns before
@@ -400,12 +407,19 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
 - Who reads it: the staff member, whoever reads the unit above their HQ (its command and the chain above, a staff grant
   there, an overseer or the Regimental HQ read), and Admins. A peer on the same HQ (a PL and their PSG) does not. See
   [permissions.md](permissions.md#staff-report).
+- Game server check: a reader (never the staff member about their own report) sees a small warning icon, with a
+  tooltip, on the overview row, the HQ staff panel and the report page when the practice capture disagrees with a sent
+  report: a section whose practice they reported was captured that week and the capture did not see them, or a captured
+  practice that week saw them (through a linked game identity) at a section they did not report, all of them when they
+  answered No. A practice with no capture says nothing, and an FTX or an office hour is never compared. The overview
+  reads it for every row at once.
 - Staff reports overview (`/staff-reports?week=<date>`): for anyone who reads some HQ staff's reports, the sidebar item
   reads "Staff reports" and opens this page instead of "Staff report". It opens the last week to have ended, with
   arrows between weeks, and lists every platoon, company and battalion HQ staff member whose report the viewer reads,
   grouped by HQ down the tree, each with billet, status ("Sent", "Not sent yet", or "Not due yet" for the running
-  week), what they attended (SP and sections, or the FTX's name and date), other events, notes, whether they met one
-  practice a week (an FTX counts), the sheet marker, and "Open report". A battalion HQ's staff are read by regiment
+  week), what they attended (SP and sections, the FTX's name and date, or an office hour), other events, notes,
+  "1 SP met" or "Missed" (an FTX and an office hour count), and the sheet marker; the name opens their report. Filters
+  narrow it to "Not sent" or "Missed", each with its count. On a phone each line stacks into a card. A battalion HQ's staff are read by regiment
   command and Admins. Each HQ lists who was on it when the week ended,
   as the HQ staff panel does. The viewer's own report, when they file one that week, sits on top with "Send your staff
   report" while it is not sent. A PL or PSG, who reads only their own, keeps "Staff report" and gets a 404 here. Read

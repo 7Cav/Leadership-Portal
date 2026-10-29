@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Models\Game;
 use App\Models\PracticeCapturePlayer;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
 /**
@@ -61,4 +62,14 @@ interface PracticeCapturePlayerRepository
      * @return Collection<int, PracticeCapturePlayer>
      */
     public function seenTrooper(int $trooperId): Collection;
+
+    /**
+     * The sections whose practice capture in the Cav week of `$weekStart` saw each of `$trooperIds`, matched on the row's
+     * trooper or through a game identity linked to them since: trooper id => [section id => section label]. A trooper
+     * seen nowhere has no key. One query, however many troopers.
+     *
+     * @param  list<int>  $trooperIds
+     * @return array<int, array<int, string>>
+     */
+    public function seenInWeek(array $trooperIds, CarbonInterface $weekStart): array;
 }

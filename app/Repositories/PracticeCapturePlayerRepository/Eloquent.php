@@ -6,6 +6,8 @@ use App\Models\Game;
 use App\Models\PracticeCapturePlayer;
 use App\Models\TrooperStatus;
 use App\Repositories\PracticeCapturePlayerRepository;
+use App\Support\Time\WeekOf;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -104,5 +106,42 @@ class Eloquent implements PracticeCapturePlayerRepository
             ->unique('section_practice_id')
             ->values()
             ->toBase();
+    }
+
+    public function seenInWeek(array $trooperIds, CarbonInterface $weekStart): array
+    {
+        if ($trooperIds === []) {
+            return [];
+        }
+
+        $rows = DB::table('practice_capture_players')
+            ->join('section_practices', 'section_practices.id', '=', 'practice_capture_players.section_practice_id')
+            ->join('units', 'units.id', '=', 'section_practices.section_id')
+            ->leftJoin('trooper_game_identities', fn ($join) => $join
+                ->on('trooper_game_identities.game_id', '=', 'practice_capture_players.game_id')
+                ->on('trooper_game_identities.platform_id', '=', 'practice_capture_players.platform_id'))
+            ->where('section_practices.week_start', WeekOf::requireStart($weekStart))
+            ->where(fn ($query) => $query->whereIn('practice_capture_players.trooper_id', $trooperIds)
+                ->orWhereIn('trooper_game_identities.trooper_id', $trooperIds))
+            ->select([
+                'practice_capture_players.trooper_id as seen_id',
+                'trooper_game_identities.trooper_id as linked_id',
+                'section_practices.section_id',
+                'units.callsign',
+                'units.name',
+            ])
+            ->get();
+
+        $wanted = array_flip($trooperIds);
+        $out = [];
+        foreach ($rows as $row) {
+            foreach (array_unique(array_filter([$row->seen_id, $row->linked_id], fn ($id) => $id !== null)) as $id) {
+                if (isset($wanted[(int) $id])) {
+                    $out[(int) $id][(int) $row->section_id] = (string) ($row->callsign ?? $row->name);
+                }
+            }
+        }
+
+        return $out;
     }
 }

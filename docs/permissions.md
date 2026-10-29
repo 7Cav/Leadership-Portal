@@ -348,6 +348,10 @@ and the Regimental HQ read count.
 
 (11) Everyone reads their own. A peer on the same HQ (a PL and their PSG, a CO and their XO) does not read the other's:
 reading starts at the unit above the HQ, so a Platoon Leader reads no other staff report.
+Only battalion HQ staff (ACD included) may report an office hour in place of a section practice; a platoon or company HQ
+staff member's office hour is refused. The game server warning on a sent report is shown to its readers only, never
+to the staff member about their own.
+
 (12) Only the staff member, signed in as themselves: never someone acting as them (an Admin included), and never in a
 view-as preview. A page for another trooper, or a week they file none for, answers 404 to anyone who may not read it.
 (13) Anyone whose read scope holds the unit above at least one platoon, company or battalion HQ (`StaffReportAccess::readableHqs()`),

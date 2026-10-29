@@ -23,7 +23,8 @@ use Illuminate\Support\Collection;
  * The battalion tab, A to P: Timestamp, Lastname.Firstinitial, Organization, Week Ending, then the battalion block
  * (Battalion Billet, "Did you spend one hour", "Section Practice Attended", "What other Event(s) did you attend",
  * Optional notes), then the same block for ACD (ACD Billet first), then Email Address and Score, which stay empty: the
- * portal has neither. An FTX has no column there, so it leads the other events.
+ * portal has neither. An FTX has no column there, so it leads the other events, and so does a battalion HQ staff member's office hour
+ * ("Office hour (10/5/2026): note").
  */
 final class StaffReportSheetRow
 {
@@ -80,11 +81,15 @@ final class StaffReportSheetRow
         $ftx = $report->practice_type === StaffReport::FTX
             ? 'FTX: '.$report->ftx_name.($report->ftx_date === null ? '' : ' ('.$report->ftx_date->format('n/j/Y').')')
             : null;
+        // An office hour has no column either: it leads the other events as an FTX does.
+        $officeHour = $report->practice_type === StaffReport::OFFICE_HOUR
+            ? 'Office hour'.($report->office_hour_date === null ? '' : ' ('.$report->office_hour_date->format('n/j/Y').')').': '.$report->office_hour_note
+            : null;
         $block = [
             (string) $trooper->billet,
             $report->attended ? 'Yes' : 'No',
             self::practices($report),
-            implode('; ', array_filter([$ftx, $report->other_events], fn (?string $part) => $part !== null && $part !== '')),
+            implode('; ', array_filter([$ftx, $officeHour, $report->other_events], fn (?string $part) => $part !== null && $part !== '')),
             (string) $report->notes,
         ];
         $empty = array_fill(0, 5, '');
@@ -124,6 +129,7 @@ final class StaffReportSheetRow
         return match ($report->practice_type) {
             StaffReport::FTX => 'FTX',
             StaffReport::SP => 'Section Practice (SP)',
+            StaffReport::OFFICE_HOUR => 'Office hour',
             default => '',
         };
     }

@@ -20,7 +20,8 @@ use Carbon\CarbonImmutable;
 
 /**
  * A platoon, company or battalion HQ staff member sends their own weekly staff report: whether they attended
- * at least one section practice that Cav week, what kind (a section practice or an FTX), which, the other events they
+ * at least one section practice that Cav week, what kind (a section practice, an FTX or, for battalion HQ staff, an
+ * office hour), which, the other events they
  * attended and their notes. Only they send it, signed in as themselves
  * ({@see StaffReportAccess::maySend()}); nobody fills it in for them, Admins included. A sent report is final, as a
  * unit's weekly report is: there is no draft, no edit and no second send.
@@ -36,7 +37,8 @@ use Carbon\CarbonImmutable;
  * Refused before anything is written: an unknown trooper, anyone but the staff member (403), a week before the floor,
  * in the future or still running (a week is sent once it has ended), a trooper not on a platoon, company or battalion HQ when the week ended (by the placement history, so a past week
  * goes by who was on the HQ then) or no longer serving, "Yes" to an SP with nothing picked or "No" with picks or an FTX,
- * a practice type other than SP or FTX, an FTX without a name or with a date outside the week, text over its limit, a
+ * a practice type other than SP or FTX (or, on a battalion HQ, an office hour), an FTX without a name or with a date
+ * outside the week, an office hour without a note or with a date outside the week or with sections picked, text over its limit, a
  * pick that is not a section, and a report already sent. Then one audited transaction (`staff_report.sent`, AD-16, target the report,
  * digest over it and the week's entries): the report row is inserted under its UNIQUE key, so two sends at once land on
  * one and the second is told it was already sent. The HQ's own weekly report does not lock this: the staff member's
@@ -52,6 +54,8 @@ class SendStaffReportHandler
     public const MAX_OTHER_EVENTS = 500;
 
     public const MAX_NOTES = 1000;
+
+    public const MAX_OFFICE_HOUR_NOTE = 200;
 
     public function __construct(
         private readonly StaffReportAccess $access,
@@ -92,7 +96,7 @@ class SendStaffReportHandler
         }
 
         $hq = $this->access->owes($trooper, $weekStart) ?? throw StaffReportRefusedException::notOwed($trooper->display_name, $weekStart);
-        $fields = $this->fields($command, $weekStart);
+        $fields = $this->fields($command, $weekStart, $hq);
         $sections = $this->pickedSections($command, $fields['practice_type']);
 
         if ($this->reports->find($trooper->id, $weekStart) !== null) {
@@ -173,27 +177,37 @@ class SendStaffReportHandler
     }
 
     /**
-     * The rest of what was sent, checked and trimmed: the practice type (SP unless FTX is picked, null with "No"), the
-     * FTX's name and date (only for an FTX, both required, the date inside the Cav week), other events and notes (empty
-     * text is null).
+     * The rest of what was sent, checked and trimmed: the practice type (SP unless FTX or office hour is picked, null
+     * with "No"), the FTX's name and date (only for an FTX, both required, the date inside the Cav week), the office
+     * hour's date and note (only for an office hour, which only battalion HQ staff report: an hour of office hours in
+     * place of the hour of play, self-reported and unverified), other events and notes (empty text is null).
      *
-     * @return array{practice_type: ?string, ftx_name: ?string, ftx_date: ?string, other_events: ?string, notes: ?string}
+     * @return array{practice_type: ?string, ftx_name: ?string, ftx_date: ?string, office_hour_date: ?string, office_hour_note: ?string, other_events: ?string, notes: ?string}
      *
      * @throws StaffReportRefusedException
      */
-    private function fields(SendStaffReport $command, CarbonImmutable $weekStart): array
+    private function fields(SendStaffReport $command, CarbonImmutable $weekStart, Unit $hq): array
     {
         $type = $command->practiceType === null || $command->practiceType === '' ? null : $command->practiceType;
         $ftxName = self::text($command->ftxName);
         $ftxDate = self::text($command->ftxDate);
+        $officeDate = self::text($command->officeHourDate);
+        $officeNote = self::text($command->officeHourNote);
 
-        if ($type !== null && ! in_array($type, [StaffReport::SP, StaffReport::FTX], true)) {
+        if ($type !== null && ! in_array($type, [StaffReport::SP, StaffReport::FTX, StaffReport::OFFICE_HOUR], true)) {
             throw StaffReportRefusedException::unknownPracticeType();
+        }
+
+        if ($type === StaffReport::OFFICE_HOUR && $hq->type !== UnitType::Battalion) {
+            throw StaffReportRefusedException::officeHourNotBattalion();
         }
 
         if (! $command->attended) {
             if ($type === StaffReport::FTX || $ftxName !== null || $ftxDate !== null) {
                 throw StaffReportRefusedException::ftxWithNo();
+            }
+            if ($type === StaffReport::OFFICE_HOUR || $officeDate !== null || $officeNote !== null) {
+                throw StaffReportRefusedException::officeHourFieldsElsewhere();
             }
             $type = null;
         } else {
@@ -208,13 +222,26 @@ class SendStaffReportHandler
                 throw StaffReportRefusedException::tooLong('ftx_name', 'the FTX name', self::MAX_FTX_NAME);
             }
 
-            $date = $ftxDate === null ? false : CarbonImmutable::createFromFormat('!Y-m-d', $ftxDate, 'UTC');
-            if ($date === false || $date->toDateString() !== $ftxDate || ! WeekOf::start($date)->equalTo($weekStart)) {
+            if (! self::inWeek($ftxDate, $weekStart)) {
                 throw StaffReportRefusedException::ftxDateOutsideWeek($weekStart);
             }
         } elseif ($ftxName !== null || $ftxDate !== null) {
             // An SP has no FTX name or date: the form clears them, so these came from somewhere else.
             throw StaffReportRefusedException::ftxFieldsWithSp();
+        }
+
+        if ($type === StaffReport::OFFICE_HOUR) {
+            if (! self::inWeek($officeDate, $weekStart)) {
+                throw StaffReportRefusedException::officeHourDateOutsideWeek($weekStart);
+            }
+            if ($officeNote === null) {
+                throw StaffReportRefusedException::officeHourNoteMissing();
+            }
+            if (mb_strlen($officeNote) > self::MAX_OFFICE_HOUR_NOTE) {
+                throw StaffReportRefusedException::tooLong('office_hour_note', 'the office hour note', self::MAX_OFFICE_HOUR_NOTE);
+            }
+        } elseif ($officeDate !== null || $officeNote !== null) {
+            throw StaffReportRefusedException::officeHourFieldsElsewhere();
         }
 
         $otherEvents = self::text($command->otherEvents);
@@ -231,9 +258,19 @@ class SendStaffReportHandler
             'practice_type' => $type,
             'ftx_name' => $type === StaffReport::FTX ? $ftxName : null,
             'ftx_date' => $type === StaffReport::FTX ? $ftxDate : null,
+            'office_hour_date' => $type === StaffReport::OFFICE_HOUR ? $officeDate : null,
+            'office_hour_note' => $type === StaffReport::OFFICE_HOUR ? $officeNote : null,
             'other_events' => $otherEvents,
             'notes' => $notes,
         ];
+    }
+
+    /** Whether `$date` is a real `YYYY-MM-DD` inside the Cav week opening on `$weekStart`. */
+    private static function inWeek(?string $date, CarbonImmutable $weekStart): bool
+    {
+        $parsed = $date === null ? false : CarbonImmutable::createFromFormat('!Y-m-d', $date, 'UTC');
+
+        return $parsed !== false && $parsed->toDateString() === $date && WeekOf::start($parsed)->equalTo($weekStart);
     }
 
     private static function text(?string $value): ?string
@@ -257,6 +294,10 @@ class SendStaffReportHandler
         // An FTX may span several sections or none in particular: its name and date say what it was.
         if ($command->attended && $type === StaffReport::SP && $ids === []) {
             throw StaffReportRefusedException::noPractice();
+        }
+
+        if ($command->attended && $type === StaffReport::OFFICE_HOUR && $ids !== []) {
+            throw StaffReportRefusedException::officeHourWithSections();
         }
 
         if (! $command->attended && $ids !== []) {

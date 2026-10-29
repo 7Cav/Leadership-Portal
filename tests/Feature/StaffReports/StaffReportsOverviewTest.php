@@ -84,11 +84,13 @@ it('opens on the last ended week, with sent, not sent and the 1-practice rule', 
             'practices' => ['1/1/A/1-7'],
             'practiceType' => 'sp',
             'ftx' => null,
+            'officeHour' => null,
             'otherEvents' => null,
             'notes' => null,
             'sheetPushedAt' => null,
             'metRule' => true,
             'href' => route('staff-report.show', ['trooper' => $this->psg->id, 'week' => '2026-10-03']),
+            'discrepancy' => null,
         ] && collect($rows)->firstWhere('trooperId', overviewTrooperOf($this->tree['users']['pl'])->id)['status'] === 'notSent'));
 });
 

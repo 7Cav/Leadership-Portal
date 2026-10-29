@@ -9,6 +9,8 @@ use Carbon\CarbonImmutable;
  * whether they attended a section practice (`$attended`) and, if so, what kind (`$practiceType`, `sp` when not given)
  * and the sections whose practice they attended (`$sectionIds`: one or more for an SP, optional for an FTX, which
  * names itself with `$ftxName` and `$ftxDate`). `$otherEvents` and `$notes` are optional free text.
+ * A battalion HQ staff member may report an office hour instead (`$practiceType` `office_hour`), with its
+ * `$officeHourDate` and `$officeHourNote`.
  */
 final readonly class SendStaffReport
 {
@@ -25,5 +27,7 @@ final readonly class SendStaffReport
         public ?string $ftxDate = null,
         public ?string $otherEvents = null,
         public ?string $notes = null,
+        public ?string $officeHourDate = null,
+        public ?string $officeHourNote = null,
     ) {}
 }
