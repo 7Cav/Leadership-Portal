@@ -99,13 +99,26 @@ class Eloquent implements TrooperPlacementRepository
             return [];
         }
 
+        $from = CarbonImmutable::instance($from)->utc();
+        $until = CarbonImmutable::instance($until)->utc();
+
+        // Each one's last row in the unit decides: open (still there) or closed at or after `$until` (back by then, or
+        // left later) is not a move out in the span, however often they left and came back inside it.
         return TrooperPlacement::query()
             ->where('unit_id', $unitId)
             ->whereIn('trooper_id', $trooperIds)
-            ->where('placed_until', '>=', CarbonImmutable::instance($from)->utc())
-            ->where('placed_until', '<', CarbonImmutable::instance($until)->utc())
-            ->distinct()
-            ->pluck('trooper_id')
+            ->get(['trooper_id', 'placed_until'])
+            ->groupBy('trooper_id')
+            ->filter(function ($rows) use ($from, $until) {
+                if ($rows->contains(fn (TrooperPlacement $row) => $row->placed_until === null)) {
+                    return false;
+                }
+
+                $last = CarbonImmutable::instance($rows->max('placed_until'))->utc();
+
+                return $last->greaterThanOrEqualTo($from) && $last->lessThan($until);
+            })
+            ->keys()
             ->map(fn ($id) => (int) $id)
             ->sort()
             ->values()

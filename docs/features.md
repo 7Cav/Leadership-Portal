@@ -23,8 +23,8 @@ report deadline, 23:59 UTC on the Saturday after it ends, has passed).
   week is only drawn when every section in scope with troopers sent its report that week.
 - Needs attention: units holding up the report chain, at-risk troopers and LOA posts that need review, each linked to
   the place to fix it, with a makeup PM link for at-risk troopers. An LOA post that needs review is one the LOA sync
-  could not read, for a trooper in your scope, in the reporting week or the running one: it opens the trooper's card
-  on their section's rollcall and links to the post on the forum, where it is fixed.
+  could not read, in the reporting week or the running one, for a trooper on that week's rollcall in your scope: it
+  opens the trooper's card on that rollcall and links to the post on the forum, where it is fixed.
 - Subordinate units: the units directly under the top of your scope, with their report status and KPIs.
 
 Home only counts line units (regiment, battalions, companies, platoons, sections). Staff groups have no report chain.
@@ -156,11 +156,11 @@ leaves the Cav; one who left before it began doing so has no date and is on no p
     Unaccounted troopers explained, Training subject filled, Notes reviewed), a reason for each unaccounted trooper from
     a fixed list, the training subject (last sent subject offered as a suggestion), notes, history and an 8 week trend.
   - Suggested reasons: where the portal's data says why a trooper is unaccounted, their reason is pre-selected:
-    "Departed, no longer on the Cav roster", "Moved out of the section this week" (a placement in the section ended
-    during the week), or "LOA posted, the post needs review" (a leave post the LOA sync could not read), in that order
-    when more than one applies. A suggestion is not saved, previewed or sent, and its check stays open, until the
-    leader chooses "Keep suggested reason" or another reason; "Send anyway" leaves it out. A reason already saved is
-    never replaced.
+    "Departed, no longer on the Cav roster", "Moved out of the section this week" (they left the section during the
+    week and were not back in it when the week ended), or "LOA posted, the post needs review" (a leave post the LOA
+    sync could not read), in that order when more than one applies. A suggestion is not saved, previewed or sent, and
+    its check stays open, until the leader chooses "Keep suggested reason" or another reason; "Send anyway" leaves it
+    out. A reason already saved is never replaced.
   - Platoon and higher: the same, but the KPIs are the sum of the direct children's sent reports, with each child's
     status. The "Every unit has sent" check names who is holding up the chain. A child with no troopers, or with only
     HQ staff, is not one of them (see "Units with no troopers").
@@ -363,7 +363,7 @@ All run on the queue; a queue worker must be running. Times are UTC.
 | Job | When | What it does | Configured by |
 | --- | --- | --- | --- |
 | Roster sync | Hourly on the hour; Admin "Sync now"; leader unit sync | Reads the Cav roster, updates troopers (rank, billet, status), places each trooper by billet, marks leavers departed. A unit sync only writes that unit's troopers. | `CAV_API_KEY`, `CAV_API_BASE_URL` |
-| LOA sync | Hourly at :15 (new threads), daily at 03:30 (full re-read of recent leave) | Reads LOA and ELOA threads from the configured forum sections. ELOA start and end dates come from the linked PAF thread. Posts it cannot read are stored as "needs review", never guessed. First run reads a year back, newest first, a share each hourly run (40 pages a section, ten minutes in all), carrying on next run where it stopped; until it is done, the leave note on the pages says how far back it has got. A thread that fails to read is kept and read again by id next run, so the rest moves on. A manual sync asked for while one of the same kind is queued or running queues one follow-up run after it, and the page says so in a notice. When the daily full read finishes cleanly, a stored leave whose thread is gone (deleted, hidden or moved out of the leave sections) stops counting; the row is kept and counts again if the thread comes back. | `SEVENCAV_FORUM_API_KEY`, `SEVENCAV_FORUM_LOA_NODES`, `SEVENCAV_FORUM_PAF_NODE`, `LOA_SYNC_REQUEST_DELAY_MS`. Skipped while the key or sections are unset. |
+| LOA sync | Hourly at :15 (new threads), daily at 03:30 (full re-read of recent leave) | Reads LOA and ELOA threads from the configured forum sections. ELOA start and end dates come from the linked PAF thread. Posts it cannot read are stored as "needs review", never guessed. First run reads a year back, newest first, a share each hourly run (40 pages a section, ten minutes in all), carrying on next run where it stopped; until it is done, the leave note on the pages says how far back it has got. A thread that fails to read is kept and read again by id next run, so the rest moves on. A manual sync asked for while one of the same kind is queued or running queues one follow-up run after it, and the page says so in a notice. When the daily full read finishes cleanly, a stored leave whose thread is gone (deleted, hidden or moved out of the leave sections) stops counting; the row is kept and counts again if the thread comes back. Before that, each such thread is asked for by id, so one the listing missed while it paged keeps counting, and an unclear answer withdraws nothing that run. | `SEVENCAV_FORUM_API_KEY`, `SEVENCAV_FORUM_LOA_NODES`, `SEVENCAV_FORUM_PAF_NODE`, `LOA_SYNC_REQUEST_DELAY_MS`. Skipped while the key or sections are unset. |
 | Counseling document copy | When a DCS or LOR is filed with Google Drive set up | Copies the document to the 7Cav Google Drive folder. Tried up to 5 times, with pauses of 1, 5, 15 and 60 minutes; the record shows the outcome. | `GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_DRIVE_PRIVATE_KEY`, `GOOGLE_DRIVE_FOLDER_ID`. Skipped (record kept, "Portal only") while any is unset. |
 | Practice capture | When a leader clicks "Try again" on the rollcall. That button only shows after a failed capture, and nothing in the code schedules a first capture. | Reads who was on the game server during the Cav week so far, pre-marks linked troopers in the section as Present (a leader's mark always wins), lists unmatched players. | Each game's telemetry interface, picked on the Games page. CRCON (`CRCON_BASE_URL`, `CRCON_API_KEY`) falls back to BattleMetrics; BattleMetrics (`BATTLEMETRICS_API_KEY`, `BATTLEMETRICS_SERVER_ID`); Nightwatch (`NIGHTWATCH_API_KEY`, `NIGHTWATCH_SERVER_IDS`). A game reads the training servers an Admin selected for it on the Servers page. With none selected, Hell Let Loose (WW2) on CRCON, Arma Reforger on BattleMetrics and WARDOGS on Nightwatch read the server set in env; any other game, or one of those switched to another interface, reads nothing until a server is selected, and its rollcall says so. A game with no keys, or interface "none", shows "not configured". |
 
@@ -391,7 +391,9 @@ while still attending their own. The portal shows the evidence; it never awards.
 ## Makeups
 
 A trooper is on exactly one rollcall, their own section's. Attending another section's practice counts as a makeup for
-their own section's practice that Cav week.
+their own section's practice that Cav week. For a week that has ended, their own section is the one whose rollcall
+lists them that week (see "Rollcall"), so a trooper who moved since gets the makeup on that rollcall, and a section
+cannot add one of its own troopers of that week as a guest.
 
 - Their own leader can mark Makeup by hand.
 - When a host leader adds them as a guest, the portal writes an automatic makeup on their own section's rollcall for

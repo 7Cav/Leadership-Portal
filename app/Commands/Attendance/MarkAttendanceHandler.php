@@ -339,12 +339,14 @@ class MarkAttendanceHandler
             return new MakeupMarkResult(locked: count($trooperIds));
         }
 
-        $troopers = $this->troopers->byIds($trooperIds);
+        // Their own section for the host's week: where they are placed now, or for a week that has ended, the section
+        // whose rollcall lists them that week, so the makeup lands on the rollcall it counts on (the 2026-10-29 audit).
+        $own = $this->troopers->ownSectionsInWeek($trooperIds, $host->week_start);
         $result = new MakeupMarkResult;
         $bySection = [];
 
         foreach ($trooperIds as $trooperId) {
-            $sectionId = $troopers->get($trooperId)?->primary_section_id;
+            $sectionId = $own[$trooperId] ?? null;
 
             // Unplaced (no section of their own to make up), or the host's own trooper, whom preMark() handles.
             if ($sectionId === null || $sectionId === $host->section_id) {
@@ -389,9 +391,10 @@ class MarkAttendanceHandler
         $weekStart = $host->week_start;
         $bySection = [];
 
-        foreach ($this->troopers->byIds($trooperIds) as $trooper) {
-            if ($trooper->primary_section_id !== null && $trooper->primary_section_id !== $host->section_id) {
-                $bySection[$trooper->primary_section_id][] = $trooper->id;
+        // Grouped by their own section for the host's week, as preMarkMakeups() groups them.
+        foreach ($this->troopers->ownSectionsInWeek($trooperIds, $weekStart) as $trooperId => $sectionId) {
+            if ($sectionId !== $host->section_id) {
+                $bySection[$sectionId][] = $trooperId;
             }
         }
 
@@ -523,7 +526,7 @@ class MarkAttendanceHandler
         $practices = $this->attendance->practicesWithAutoMakeup($trooperId, $weekStart);
 
         if ($practices->isEmpty()) {
-            $sectionId = $this->troopers->find($trooperId)?->primary_section_id;
+            $sectionId = $this->troopers->ownSectionsInWeek([$trooperId], $weekStart)[$trooperId] ?? null;
             $current = $sectionId === null ? null : $this->practices->find($sectionId, $weekStart);
             $practices = $current === null ? collect() : collect([$current]);
         }
@@ -576,15 +579,16 @@ class MarkAttendanceHandler
     }
 
     /**
-     * Which of `$trooperIds` may take an automatic mark on their section's practice this week: still
-     * serving and placed there, and not covered by leave (whose status is derived as `loa`, 3.4).
+     * Which of `$trooperIds` may take an automatic mark on their section's practice this week: on its rollcall
+     * ({@see TrooperRepository::idsOnRollcall()}: serving and placed there now, or for a week that has ended, on the
+     * roster it ended with), and not covered by leave (whose status is derived as `loa`, 3.4).
      *
      * @param  list<int>  $trooperIds
      * @return list<int>
      */
     private function makeupCandidates(int $sectionId, CarbonImmutable $weekStart, array $trooperIds): array
     {
-        $placed = $this->troopers->servingIdsPlacedIn($sectionId, $trooperIds)->all();
+        $placed = $this->troopers->idsOnRollcall($sectionId, $weekStart, $trooperIds, serving: true)->all();
 
         if ($placed === []) {
             return [];

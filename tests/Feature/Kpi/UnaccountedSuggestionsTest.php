@@ -8,6 +8,7 @@ use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Repositories\TrooperPlacementRepository;
+use App\Repositories\TrooperRepository;
 use Carbon\CarbonImmutable;
 
 // The reason the weekly report pre-selects for an unaccounted trooper when the portal's own data says why
@@ -78,4 +79,28 @@ it('suggests nothing for a cleanly read leave, which the rollcall already excuse
 
     expect(suggest($this->section, $this->week, [$away]))->toBe([])
         ->and(suggest($this->section, $this->week, []))->toBe([]);
+});
+
+it('does not call a trooper who left the section and came back within the week moved out', function () {
+    $back = Trooper::factory()->create(['primary_section_id' => $this->section->id]);
+    moveOut($back, $this->section, $this->other, '2026-10-06 18:00:00');
+    app(TrooperPlacementRepository::class)->record([$back->id => [$this->other->id, $this->section->id]], PlacementSource::Sync, CarbonImmutable::parse('2026-10-08 09:00:00', 'UTC'));
+
+    expect(suggest($this->section, $this->week, [$back]))->toBe([]);
+});
+
+it('suggests moved out on a week that has ended only for a trooper its roster lists who moved out during it', function () {
+    // Tuesday of the week: one moves to a staff group, which has no rollcall, so the section's roster still lists him.
+    $group = Unit::factory()->create(['type' => UnitType::Group, 'callsign' => 'ELOA']);
+    $toStaff = Trooper::factory()->create(['primary_section_id' => $group->id]);
+    moveOut($toStaff, $this->section, $group, '2026-10-06 18:00:00');
+    // Saturday after it, with the report still due: another moves to the other section.
+    $after = Trooper::factory()->create(['primary_section_id' => $this->other->id]);
+    moveOut($after, $this->section, $this->other, '2026-10-10 08:00:00');
+    CarbonImmutable::setTestNow('2026-10-10 12:00:00');
+
+    $roster = app(TrooperRepository::class)->onRollcall($this->section, $this->week)->troopers;
+
+    expect($roster->pluck('id')->sort()->values()->all())->toBe([$toStaff->id, $after->id])
+        ->and(app(UnaccountedSuggestions::class)->forSection($this->section, $this->week, $roster))->toBe([$toStaff->id => 'moved_out']);
 });

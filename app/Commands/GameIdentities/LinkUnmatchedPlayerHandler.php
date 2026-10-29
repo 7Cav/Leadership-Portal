@@ -90,7 +90,9 @@ class LinkUnmatchedPlayerHandler
 
         $trooper = $this->authorizedTrooper($actor, $command->trooperId, $this->scope, $this->troopers);
 
-        if ($trooper->primary_section_id !== $practice->section_id) {
+        // On the practice's rollcall for its week: placed in the section now, or for a week that has ended, on the
+        // roster it ended with, so the pre-mark below can count (the 2026-10-29 audit).
+        if ($this->troopers->idsOnRollcall($practice->section_id, $practice->week_start, [$trooper->id])->isEmpty()) {
             throw UnmatchedPlayerResolutionException::notInSection();
         }
 

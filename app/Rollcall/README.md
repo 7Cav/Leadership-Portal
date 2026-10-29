@@ -96,7 +96,8 @@ it; it shows the evidence.
 - **Adding a guest by hand** (`RecordGuestAttendance`): gated by the host section's write scope (a staff grant and a
   view-as preview only read), refused for a week before `WeekOf::floor()`, a host week whose report was really sent
   (409, `locked`) and a confirmed host practice. The guest must be serving, placed in a section, and not in the host
-  section. The picker (`GET /rollcall/{unit}/guests/search`) finds serving troopers outside the leader's scope by
+  section; for a week that has ended, "placed" means the section whose rollcall lists them that week
+  (`TrooperRepository::ownSectionsInWeek`), where the makeup goes too. The picker (`GET /rollcall/{unit}/guests/search`) finds serving troopers outside the leader's scope by
   username and answers only id, username, rank and own section designation, never the milpac.
 - **The makeup it brings.** A hand-added guest gets the same automatic makeup on their own section's rollcall as a
   capture sighting, through `MarkAttendanceHandler::preMarkMakeups()` with all its guards (same Cav week, never over

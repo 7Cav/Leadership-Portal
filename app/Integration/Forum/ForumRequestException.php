@@ -24,6 +24,9 @@ class ForumRequestException extends RuntimeException
      */
     public bool $permanent = false;
 
+    /** Whether the forum answered, and the thread or section is not one of the configured leave sections. */
+    public bool $outsideLeaveSections = false;
+
     public function isPermanent(): bool
     {
         return $this->permanent || in_array($this->httpStatus, [403, 404, 410], true);
@@ -77,7 +80,10 @@ class ForumRequestException extends RuntimeException
 
     public static function notALoaSection(int $nodeId): self
     {
-        return new self("Forum section {$nodeId} is not a configured LOA section, so it is not read.");
+        $exception = new self("Forum section {$nodeId} is not a configured LOA section, so it is not read.");
+        $exception->outsideLeaveSections = true;
+
+        return $exception;
     }
 
     public static function pafNotConfigured(): self

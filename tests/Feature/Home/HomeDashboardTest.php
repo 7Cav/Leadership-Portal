@@ -22,6 +22,7 @@ use App\Models\User;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\SyncRunRepository;
+use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
 use Carbon\CarbonImmutable;
@@ -560,5 +561,44 @@ describe('Week step matrix', function () {
         $this->s11Troopers[3]->forceFill(['status' => TrooperStatus::Inactive])->save();
 
         dashboard($this->sectionLeader)(fn ($page) => $page->where('steps.0.strength', 3));
+    });
+});
+
+describe('LOA posts that need review after a move (the 2026-10-29 audit)', function () {
+    // Saturday 10Oct26, with the 03Oct26 reports due at 23:59: the sync moved one of 1/1/A's troopers to Bravo and
+    // one of Bravo's to 1/1/A at 08:00. Each week is checked against its own roster in the viewer's scope.
+    beforeEach(function () {
+        CarbonImmutable::setTestNow('2026-10-10 08:00:00');
+        $this->leaving = $this->s11Troopers[0];
+        $this->joining = $this->sbTroopers[0];
+        app(TrooperRepository::class)->updatePrimarySections([$this->leaving->cav_id => $this->sb->id, $this->joining->cav_id => $this->s11->id]);
+        CarbonImmutable::setTestNow('2026-10-10 12:00:00');
+    });
+
+    it('does not show the old leader a running-week post of a trooper who has left their section', function () {
+        Loa::factory()->needsReview()->create(['trooper_id' => $this->leaving->id, 'posted_at' => '2026-10-10 09:00:00']);
+
+        dashboard($this->sectionLeader)(fn ($page) => $page->where('attention.totals.loaReview', 0));
+    });
+
+    it('still shows the old leader a closing-week post of that trooper, on the rollcall that lists them that week', function () {
+        Loa::factory()->needsReview()->create(['trooper_id' => $this->leaving->id, 'posted_at' => '2026-10-04 12:00:00']);
+
+        dashboard($this->sectionLeader)(fn ($page) => $page
+            ->where('attention.totals.loaReview', 1)
+            ->where('attention.items.0.kind', 'loa_review')
+            ->where('attention.items.0.trooper.id', $this->leaving->id)
+            ->where('attention.items.0.section.designation', '1/1/A/1-7')
+            ->where('attention.items.0.href', route('rollcall.show', ['unit' => $this->s11->id, 'week' => '2026-10-03', 'focus' => $this->leaving->id])));
+    });
+
+    it('shows the new leader a running-week post of a trooper who joined their section this week', function () {
+        Loa::factory()->needsReview()->create(['trooper_id' => $this->joining->id, 'posted_at' => '2026-10-10 09:00:00']);
+
+        dashboard($this->sectionLeader)(fn ($page) => $page
+            ->where('attention.totals.loaReview', 1)
+            ->where('attention.items.0.trooper.id', $this->joining->id)
+            ->where('attention.items.0.section.designation', '1/1/A/1-7')
+            ->where('attention.items.0.href', route('rollcall.show', ['unit' => $this->s11->id, 'week' => '2026-10-10', 'focus' => $this->joining->id])));
     });
 });
