@@ -265,7 +265,8 @@ through the identity they act as.
 | File a Letter of Reprimand (LOR) | All | All | No (5) | Own | Own | Own | If acting lead of a platoon or above | No | No | No | No |
 | See a DCS and download its document | All | All | Own | Own | Own | Own | Own | Own section | Their own (8) | Their own (8) | Target (6) |
 | See an LOR and download its document | All | All | Own | Own | Own | Own | Own | Own | Their own (8) | Read | Target |
-| Correct the date or reason, or delete (reason required) | All | The issuer's chain (7) | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | No | No | No |
+| Correct the date or reason, or delete (reason required) | All (9) | The issuer's chain (7) | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | No | No | No |
+| Overturn a frozen LOR (reason required) | No (10) | The RXO only (10) | No | No | No | No | No | No | No | No | No |
 
 (5) An LOR needs command from platoon level up on the line. A portfolio officer files a DCS on their staff; an LOR on
 staff comes from regiment command or an Admin.
@@ -279,10 +280,18 @@ Admins' alone.
 (decided 2026-10-28), signed in as themselves (not while acting as or viewing as anyone). It is read only: nobody files
 on, corrects or deletes their own records, except that an Admin by the `is_admin` flag still corrects and deletes as an
 Admin. An Admin by billet does not (2026-10-29).
+(9) Not a frozen LOR: 72 hours after an LOR is filed (its appeal window) nobody corrects or deletes it, Admins by flag
+or by billet included (decided by the S6, 2026-10-29). A DCS is never frozen.
+(10) Only the serving holder of the Regimental Executive Officer billet (the org import maps it to the regiment)
+overturns a frozen LOR, never one filed on themselves and never in a view-as preview. Whoever may act as the RXO (an
+Admin, or the RCO as the senior of the regiment's command team) may overturn as them, and is named beside them on the
+record and in the audit log. Acting as a billet never can. The overturned LOR stays on file, is marked so, and counts
+toward no flag.
 
 A trooper who has left the Cav (no longer serving) has read-only counseling: nobody may file a DCS or LOR on them, or
 correct or delete one, Admins included, and the panel says so. Whoever could see their records still sees and downloads
-them. If they serve again, the rules above apply again.
+them. If they serve again, the rules above apply again. The RXO may still overturn a frozen LOR of theirs: that corrects
+the record and adds nothing to it.
 
 A record the viewer may not see is left out of the page entirely, and its download answers 404 like a record that does
 not exist, also on a departed trooper. The flags and the filing form's forecast are worked out from the records the
@@ -361,7 +370,7 @@ only sign out has none, since it ends the session and signing back in is limited
 | 60 | Find trooper and the guest picker search |
 | 240 | Rollcall mark autosave. The screen waits 0.7 seconds after a change and sends one batch at a time, so marking a whole section in seconds stays far below this. |
 | 120 | Report draft autosave |
-| 60, shared | Every other audited write: saving a guidon, fireteam changes, company fireteam policy, linking, dismissing and restoring unmatched players, confirming a practice, marking a rollcall posted, guest add and remove, staff practice add and remove, setting and removing a game identity, platoon topic set and clear, training plan save, approve and send back, every template write (a company's or a section's) and a section's template pick, starting and leaving view as and act as, correcting and deleting a DCS or LOR, and the Admin settings writes (org structure, acting leads, trooper placement, staff grants, games, servers, demo data) |
+| 60, shared | Every other audited write: saving a guidon, fireteam changes, company fireteam policy, linking, dismissing and restoring unmatched players, confirming a practice, marking a rollcall posted, guest add and remove, staff practice add and remove, setting and removing a game identity, platoon topic set and clear, training plan save, approve and send back, every template write (a company's or a section's) and a section's template pick, starting and leaving view as and act as, correcting and deleting a DCS or LOR, overturning an LOR, and the Admin settings writes (org structure, acting leads, trooper placement, staff grants, games, servers, demo data) |
 | 10 | Sending a report |
 | 20 | Loading the act as picker's list |
 | 30 | Loading the sidebar unit switcher's list (the units in your scope; read only, it changes nothing) |
@@ -385,7 +394,7 @@ only sign out has none, since it ends the session and signing back in is limited
 | Admin-only checks | In the controllers (`OrgStructureController`, `StaffGrantsController`, `TrooperPlacementController`, `RosterSyncController`, `LoaSyncController`, `AuditLogController`, `DemoDataController`) and again in some handlers. There are no Laravel policies. |
 | Write gates | Each handler under `app/Commands/*` checks `writeScope()` (attendance, capture, guests, game identities, reports, a section's template pick) or `commandsUnit()` (fireteams, company policy, platoon topic, guidon, training plans, the review on the owning company in `TrainingPlanRules`, company and section templates through `Commands/Templates/TemplateAuthority`) |
 | Staff practices | `app/Authorization/StaffPracticeAccess.php` on `commandsUnit()`; checked in each `app/Commands/StaffPractices` handler |
-| Counseling (DCS, LOR) | `app/Authorization/CounselingAccess.php` on `ScopeResolver::commandingUnitsOver()`, `writeScope()` and `canSee()`; checked again in each `app/Commands/Counseling` handler and on the download |
+| Counseling (DCS, LOR) | `app/Authorization/CounselingAccess.php` on `ScopeResolver::commandingUnitsOver()`, `writeScope()` and `canSee()`; the LOR freeze and who overturns in `CounselingPermissions::frozen()` and `overturns()`; checked again in each `app/Commands/Counseling` handler and on the download |
 | Week floor | `app/Support/Time/WeekOf.php` (`floor()`, `isBeforeFloor()`), `config/portal.php` |
 | Rate limiters | `app/Providers/AppServiceProvider.php`, unit sync cooldown in `UnitRosterSyncController` |
 
