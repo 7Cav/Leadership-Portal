@@ -51,6 +51,14 @@ const oversightText = computed(() => {
                 <span v-if="node.callsign" class="ml-1.5 font-mono text-[11px]">{{ node.callsign }}</span>
                 <span class="ml-1.5 text-[11px]">{{ node.refNote }}</span>
             </span>
+            <span
+                v-if="node.game"
+                :data-testid="`ref-game-${node.refParentId}-${node.id}`"
+                class="shrink-0 truncate text-[11px]"
+                :title="node.game.from ? `${node.game.name}, from ${node.game.from}` : node.game.name"
+                >{{ node.game.name }}<template v-if="node.game.retired"> (retired)</template
+                ><template v-if="node.game.from"> from {{ node.game.from }}</template></span
+            >
             <span v-if="oversightText" :data-testid="`ref-oversight-${node.refParentId}-${node.id}`" class="shrink-0 text-[11px]">{{ oversightText }}</span>
             <span class="ml-auto shrink-0 text-[11px] tabular-nums">{{ node.trooper_count }} {{ node.trooper_count === 1 ? 'trooper' : 'troopers' }}</span>
         </div>
@@ -91,7 +99,17 @@ const oversightText = computed(() => {
                 {{ node.name }}
                 <span v-if="node.callsign" class="ml-1.5 font-mono text-[11px] text-muted-foreground">{{ node.callsign }}</span>
             </span>
-            <!-- The game or team label an Admin set (DEVCOM's "WARDOGS"). -->
+            <!-- The game the unit plays: its own in full, one it inherits muted with the unit it comes from. -->
+            <span
+                v-if="node.game"
+                :data-testid="`unit-game-${node.id}`"
+                class="shrink-0 truncate text-[11px]"
+                :class="node.game.from ? 'text-muted-foreground/80' : 'font-medium text-muted-foreground'"
+                :title="node.game.from ? `${node.game.name}, from ${node.game.from}` : node.game.name"
+                >{{ node.game.name }}<template v-if="node.game.retired"> (retired)</template
+                ><template v-if="node.game.from"> from {{ node.game.from }}</template></span
+            >
+            <!-- The team label an Admin set. -->
             <span
                 v-if="node.label"
                 :data-testid="`unit-label-${node.id}`"
