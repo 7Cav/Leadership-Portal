@@ -54,7 +54,7 @@ use Illuminate\Support\Facades\Log;
  * so every run makes `unit_command_mappings` exactly what Cav publishes — new billets added,
  * moved ones repointed, billets no longer listed as a command removed. Still idempotent.
  *
- * **Admin billets (policy, 2026-10-28).** Every billet in a group `portal.admin_billet_groups` names
+ * **Admin billets.** Every billet in a group `portal.admin_billet_groups` names
  * (`Regimental HQ`, `S6 HQ`) gets an `admin_billets` row, `pending` until an Admin approves it, and every billet that
  * has one is checked against the title and group Cav lists it under now, wherever that is: renamed or moved, it goes
  * back to pending and its holder stops being an Admin until an Admin confirms the new names. Moved out of those groups,

@@ -16,7 +16,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\UnitRepository;
 
-// #381: who may file, see and change a DCS or an LOR (decided by the product owner 2026-10-28).
+// #381: who may file, see and change a DCS or an LOR.
 // Fixture tree: 7CAV ─┬─ 1-7 ─ A/1-7 ─ 1/A/1-7 ─┬─ 1/1/A/1-7 (SL Sl.One, ASL Asl.One)
 //                     │                          └─ 2/1/A/1-7 (SL Sl.Two)
 //                     └─ S6 (staff department, portfolio officer Imo.Officer)

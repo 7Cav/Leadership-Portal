@@ -22,7 +22,7 @@ class PageVisit extends Model
     /** @use HasFactory<PageVisitFactory> */
     use HasFactory;
 
-    /** How long a visit is kept (the product owner's decision for #382). */
+    /** How long a visit is kept (#382). */
     public const RETENTION_DAYS = 30;
 
     /** The longest address stored, matching the column; anything longer is cut. */

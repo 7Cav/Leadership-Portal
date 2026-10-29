@@ -3,7 +3,7 @@
 namespace App\Kpi;
 
 /**
- * What makes a guest a Joint Service Achievement Medal candidate (decided by the product owner 2026-10-23, agreed with
+ * What makes a guest a Joint Service Achievement Medal candidate (agreed with
  * S1): at least `$minVisits` practices of the viewed unit's sections attended while not assigned to them ("multiple"),
  * and their own SP % at least `$minOwnSpPercent` ("consistently attending their own"), both over the last
  * `$windowWeeks` Cav weeks, the current one included. Read from `config('portal.jsam.*')` so S1 can change them.

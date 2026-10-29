@@ -8,7 +8,7 @@ use App\Repositories\UnitRepository;
 use App\Support\Audit\AuditEnvelope;
 
 /**
- * Set or clear a unit's game or team label (decided by the product owner 2026-10-24): DEVCOM's units play one game each
+ * Set or clear a unit's game or team label: DEVCOM's units play one game each
  * ("WARDOGS"), and nothing in Cav's data says which, so an Admin sets it by hand. Shown next to the unit's name on the
  * org page, the roster and the rollcall pickers; it changes no scope, placement or KPI.
  *

@@ -16,7 +16,7 @@ use App\Repositories\WeeklyReportRepository;
 use App\Support\Audit\AuditEnvelope;
 
 /**
- * Undo a hand-added guest (decided by the product owner 2026-10-23). Only an entry a leader added (`source = manual`)
+ * Undo a hand-added guest. Only an entry a leader added (`source = manual`)
  * can be removed, by anyone who may write the host section (it is the section's record, not one leader's): what the game
  * server saw is evidence no leader can take back. The host gates are the same as adding one ({@see GuardsHostPractice},
  * and inside the transaction a sent host report, AD-12, and a confirmed host practice, 7.8, are refused under their

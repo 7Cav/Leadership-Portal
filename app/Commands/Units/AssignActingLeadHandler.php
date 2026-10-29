@@ -17,7 +17,7 @@ use App\Support\Audit\AuditEnvelope;
 use App\Support\Audit\ReasonRequiredException;
 
 /**
- * Assign an acting lead (decided by the product owner 2026-10-25): a serving trooper who leads a unit the Cav roster
+ * Assign an acting lead: a serving trooper who leads a unit the Cav roster
  * names no lead for. The case it exists for is a `DEVCOM Lead`, rostered to DEVCOM staff, who runs one or more DEVCOM
  * starter platoons as their Platoon Leader; the roster does not say which, so an Admin says so here. ScopeResolver
  * then gives them exactly a Platoon Leader's command over the unit, and only while they serve.

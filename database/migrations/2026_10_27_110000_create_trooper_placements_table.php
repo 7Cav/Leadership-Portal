@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Where each trooper was placed, and when (decided by the product owner 2026-10-27: after a transfer the new
+     * Where each trooper was placed, and when (after a transfer the new
      * leadership sees the trooper's rollcall signing, section practice attendance and LOAs from before the move). One
      * row per stretch of a primary placement: `placed_from` to `placed_until`, open while `placed_until` is null.
      * Written by the roster sync and the Admin's manual placement whenever `troopers.primary_section_id` changes.

@@ -17,7 +17,7 @@ use App\Models\User;
 use App\Repositories\UnitRepository;
 use Illuminate\Support\Collection;
 
-// Regimental oversight (policy, 2026-10-29): an Admin names the staff officer who oversees a battalion or the
+// Regimental oversight: an Admin names the staff officer who oversees a battalion or the
 // Reservists (an Adjutant General over 2-7, the RDC Commander over ACD, DEVCOM and the Reservists). Portal-owned, audited
 // with a reason, and read by ScopeResolver as a staff grant on the unit: read-only, only while the overseer serves.
 // Fixture tree: 7CAV ─┬─ 1-7 ─ A/1-7 ─ 1/A/1-7

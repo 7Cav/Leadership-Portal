@@ -26,7 +26,7 @@ use Illuminate\Support\Facades\Validator;
 use Throwable;
 
 /**
- * The rollcall's "Guests" area (decided by the product owner 2026-10-23): a host section's leader adds a trooper from
+ * The rollcall's "Guests" area: a host section's leader adds a trooper from
  * another section who attended this week's practice, or takes back one they added, and finds that trooper by username.
  * Each write is one audited Command whose handler checks the host section's write scope (AD-8, AD-16); a view-as preview
  * is refused before it gets here (`ReadOnlyWhileViewingAs`), and a staff grant is refused by the handler.

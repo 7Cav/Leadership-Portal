@@ -11,7 +11,7 @@ use Carbon\CarbonInterface;
 use InvalidArgumentException;
 
 /**
- * "Guests at our practices" (decided by the product owner 2026-10-23): the evidence a commander needs to recommend the
+ * "Guests at our practices": the evidence a commander needs to recommend the
  * Joint Service Achievement Medal, which is "awarded for attending multiple section practices to which they are not
  * assigned while still consistently attending their own" and "recommended by the benefitted combat line unit
  * commander" (7Cav Awards and Decorations, 3.8.4). The portal never awards anything; it lists the guests and marks the

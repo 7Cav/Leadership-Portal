@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * A billet whose holder may be an Admin (policy, 2026-10-28), by Cav's stable position id: a billet in one of
+ * A billet whose holder may be an Admin, by Cav's stable position id: a billet in one of
  * the Cav groups `portal.admin_billet_groups` names (Regimental HQ and S6 HQ). An Admin confirms its title and group
  * (`title`, `group_title`); the org import and the roster sync record the names they see now (`proposed_*`) and put it
  * back to pending when those differ. Written only by `AdminBilletRepository`.
