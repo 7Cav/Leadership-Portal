@@ -10,7 +10,7 @@ use App\Repositories\UnitRepository;
 use App\Support\Audit\AuditEnvelope;
 
 /**
- * Set or clear the game a unit plays (policy, 2026-10-29), picked from the Games list. Every unit under it plays the
+ * Set or clear the game a unit plays, picked from the Games list. Every unit under it plays the
  * same game unless it has one of its own ({@see UnitGame}). Game identities opens on it, and the
  * capture reads a section's practice from it.
  *

@@ -22,8 +22,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  *
  * `kind` says whether the node is on the line or a group off it ({@see UnitKind}); it is written once, by the creating
  * repository call, and never mass-assigned. `label` is an optional team label an Admin sets by hand, shown next to the
- * name: nothing in Cav's data names it. `game_id` is the game the unit plays, an Admin's pick from the Games list
- * (policy, 2026-10-29); a unit without one plays the game of the nearest unit above it that has one
+ * name: nothing in Cav's data names it. `game_id` is the game the unit plays, an Admin's pick from the Games list;
+ * a unit without one plays the game of the nearest unit above it that has one
  * (worked out by `UnitGame` in the repository layer). Not mass-assigned. `lead_position_id` is the billet whose holder
  * leads a regimental staff portfolio the import made (shown as its lead, or vacant); written by the import only.
  */

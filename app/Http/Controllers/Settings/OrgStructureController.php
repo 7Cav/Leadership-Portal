@@ -79,7 +79,7 @@ class OrgStructureController extends Controller
     public function index(Request $request, ScopeResolver $scope, UnitGuidonRepository $guidons, GameRepository $gameRepository): Response
     {
         $tree = $this->units->tree();
-        // The game each unit plays, its own or the nearest ancestor's (policy, 2026-10-29), worked out once over the tree.
+        // The game each unit plays, its own or the nearest ancestor's, worked out once over the tree.
         $games = $gameRepository->all()->keyBy('id');
         $gameOf = collect(UnitGame::resolve($tree))
             ->filter(fn (UnitGame $played) => $games->has($played->gameId))
@@ -247,7 +247,7 @@ class OrgStructureController extends Controller
     }
 
     /**
-     * Set the game a unit plays from the Games list, or clear it so the unit inherits again (policy, 2026-10-29).
+     * Set the game a unit plays from the Games list, or clear it so the unit inherits again.
      * Admin-only, server-side (AD-6); audited by {@see SetUnitGame} (AD-16). A game that is gone or retired comes back
      * as a form error on `game_id`.
      */

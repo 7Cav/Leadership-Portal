@@ -308,7 +308,7 @@ it('links the same ID on Hell Let Loose (WW2) and Vietnam, one identity per game
         ->toEqualCanonicalizing([game('hll')->id, game('hll-vietnam')->id]);
 });
 
-// Add identity opens on the trooper's usual game (policy, 2026-10-29): the game their unit plays, its own or the nearest
+// Add identity opens on the trooper's usual game: the game their unit plays, its own or the nearest
 // unit's above, when it is not retired, else the game most of the troopers placed with them have linked.
 it('sends each trooper\'s usual game: the game their unit plays, its own or the nearest unit\'s above', function () {
     $this->platoon->forceFill(['game_id' => game('wardogs')->id])->save();

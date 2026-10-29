@@ -5,7 +5,7 @@ namespace App\Repositories;
 use App\Models\Unit;
 
 /**
- * The game a unit plays (policy, 2026-10-29): its own `game_id`, else the game of the nearest unit above it that has
+ * The game a unit plays: its own `game_id`, else the game of the nearest unit above it that has
  * one. `$from` is that ancestor, or null when the game is the unit's own. Retired or not is the reader's call: Game
  * identities never opens on a retired game, while the capture still reads one.
  *

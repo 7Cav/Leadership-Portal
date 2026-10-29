@@ -10,7 +10,7 @@ use App\Repositories\UnitRepository;
 use Inertia\Testing\AssertableInertia as Assert;
 
 // Settings, Org structure: an Admin sets the game a unit plays from the Games list, and every unit under it plays the
-// same game unless it has one of its own (policy, 2026-10-29). The team label stays free text beside it.
+// same game unless it has one of its own. The team label stays free text beside it.
 
 /** @return array<int, array<string, mixed>> the page's units by id */
 function ougUnits($response): array

@@ -168,8 +168,8 @@ class GameIdentityController extends Controller
     }
 
     /**
-     * Each unit's usual game, by unit id, as a game slug: the game the unit plays, its own or the nearest ancestor's
-     * (policy, 2026-10-29), when it is not retired; else the game most of the troopers placed in the unit have an
+     * Each unit's usual game, by unit id, as a game slug: the game the unit plays, its own or the nearest ancestor's,
+     * when it is not retired; else the game most of the troopers placed in the unit have an
      * identity for, the game added first on a tie (as the capture picks a section's game). Only units someone in
      * `$troopers` is placed in are worked out.
      *

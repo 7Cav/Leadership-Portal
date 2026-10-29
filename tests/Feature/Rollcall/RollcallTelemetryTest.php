@@ -182,7 +182,7 @@ it('still reads a retired game: retiring stops new links, not the capture of the
     telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.platformLabel', 'Hell Let Loose (WW2)')->where('telemetry.canRetry', true));
 });
 
-// The game the section plays (policy, 2026-10-29), its own or the nearest unit's above, comes before what most of it has
+// The game the section plays, its own or the nearest unit's above, comes before what most of it has
 // linked, for the banner and the retry alike. With no unit game anywhere, the tests above hold unchanged.
 
 /** Put the test's section under a new platoon, with paths the repository can walk (AD-18). */

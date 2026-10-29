@@ -3,7 +3,7 @@ import { reactive } from 'vue';
 import { mount } from '@vue/test-utils';
 import OrgStructure from '../OrgStructure.vue';
 
-// The game a unit plays on the org page (policy, 2026-10-29): an Admin picks it from the Games list, a unit under it
+// The game a unit plays on the org page: an Admin picks it from the Games list, a unit under it
 // inherits it, and the tree shows an inherited game muted with the unit it comes from.
 
 const gamePatch = vi.fn();

@@ -21,8 +21,8 @@ use DateTimeImmutable;
  * answered is not a failure here: the run succeeded, so the practice is captured. One of several
  * training servers that could not be read is (#389): the run failed, and so does the banner.
  *
- * A section's game ({@see gameOf()}) is the game it plays as an Admin set it on the section or the nearest unit above
- * (policy, 2026-10-29). With none set, it is read from the identities linked to its troopers: the one most of them have,
+ * A section's game ({@see gameOf()}) is the game it plays as an Admin set it on the section or the nearest unit above.
+ * With none set, it is read from the identities linked to its troopers: the one most of them have,
  * the game added first on a tie (HLL before Arma before WARDOGS). A retired game still counts either way: retiring stops
  * new links, not the capture of the ones made. The retry ({@see RequestPracticeCaptureHandler}) and the rollcall banner
  * both ask here, so they always agree on the game.
