@@ -59,7 +59,7 @@ describe('SubordinateUnits', () => {
 
         await wrapper.find('[data-sort="strength"]').trigger('click');
         expect(rows(wrapper)).toEqual(['P2', 'P3', 'P1']);
-        expect(wrapper.find('th[aria-sort="ascending"]').text()).toContain('Strength');
+        expect(wrapper.find('th[aria-sort="ascending"]').text()).toContain('In roll call');
 
         await wrapper.find('[data-sort="strength"]').trigger('click');
         expect(rows(wrapper).filter((name, index) => index < 3)).toEqual(['P1', 'P3', 'P2']);
