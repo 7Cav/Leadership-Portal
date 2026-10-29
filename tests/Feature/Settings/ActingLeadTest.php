@@ -1,6 +1,8 @@
 <?php
 
 use App\Authorization\ScopeResolver;
+use App\Models\AdminBillet;
+use App\Models\AdminBilletStatus;
 use App\Models\AuditLogEntry;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
@@ -135,4 +137,50 @@ it('refuses a second acting lead, a departed trooper, a group or the regiment, a
 
     expect(UnitActingLead::count())->toBe(1)
         ->and(AuditLogEntry::where('action', 'unit.acting_lead_assigned')->count())->toBe(1);
+});
+
+// Audit 3 (2026-10-29): the command would outlast the Admin who gave it to themselves, which an Admin by billet loses
+// with a rename, and a unit whose commanding billet a serving trooper holds already has its lead.
+it('refuses an Admin making themselves acting lead, by flag or by an approved billet', function () {
+    $this->admin->forceFill(['cav_id' => Trooper::factory()->create(['status' => TrooperStatus::Combat])->cav_id])->save();
+    $mine = Trooper::query()->where('cav_id', $this->admin->cav_id)->sole();
+
+    $this->actingAs($this->admin)->post(alUrl($this->p1), ['trooper_id' => $mine->id, 'reason' => 'Covering it myself.'])
+        ->assertSessionHasErrors(['acting_lead' => 'You cannot make yourself an acting lead. Another Admin can.']);
+
+    $chief = Trooper::factory()->create(['status' => TrooperStatus::Combat, 'billet' => 'Regimental Chief of Staff', 'cav_position_id' => 9010]);
+    $chief->forceFill(['primary_section_id' => $this->regiment->id])->save();
+    AdminBillet::query()->create([
+        'cav_position_id' => 9010, 'title' => 'Regimental Chief of Staff', 'group_title' => 'Regimental HQ',
+        'proposed_title' => 'Regimental Chief of Staff', 'proposed_group_title' => 'Regimental HQ', 'status' => AdminBilletStatus::Approved,
+    ]);
+    $chiefUser = User::factory()->create(['cav_id' => $chief->cav_id]);
+    expect(app(ScopeResolver::class)->isAdmin($chiefUser))->toBeTrue();
+
+    $this->actingAs($chiefUser)->post(alUrl($this->devcom), ['trooper_id' => $chief->id, 'reason' => 'Covering it myself.'])
+        ->assertSessionHasErrors(['acting_lead' => 'You cannot make yourself an acting lead. Another Admin can.']);
+    // Another Admin may.
+    $this->actingAs($chiefUser)->post(alUrl($this->p2), ['trooper_id' => $this->taylor->id, 'reason' => 'Starter platoon lead.'])
+        ->assertSessionHasNoErrors();
+
+    expect(UnitActingLead::query()->pluck('trooper_id')->all())->toBe([$this->taylor->id]);
+});
+
+it('refuses a unit whose commanding billet a serving trooper holds, and takes one whose holder left or holds a junior billet', function () {
+    $pl = User::factory()->commanding($this->p1, ['primary_section_id' => $this->p1->id, 'username' => 'Mercer.J', 'billet' => 'Platoon Leader 1/D/DEVCOM'])->create();
+    $plTrooper = Trooper::query()->where('cav_id', $pl->cav_id)->sole();
+
+    $this->actingAs($this->admin)->post(alUrl($this->p1), ['trooper_id' => $this->taylor->id, 'reason' => 'Lead.'])
+        ->assertSessionHasErrors(['acting_lead' => "1/D/DEVCOM is led by {$plTrooper->display_name} on their billet, so it takes no acting lead."]);
+    expect(UnitActingLead::count())->toBe(0);
+
+    // Their Platoon Sergeant does not lead the platoon (#444), so a platoon with only a PSG takes one.
+    User::factory()->commanding($this->p2, ['primary_section_id' => $this->p2->id, 'billet' => 'Platoon Sergeant 2/D/DEVCOM'])->create();
+    $this->actingAs($this->admin)->post(alUrl($this->p2), ['trooper_id' => $this->taylor->id, 'reason' => 'Lead.'])->assertSessionHasNoErrors();
+
+    // The Platoon Leader leaves the Cav: the platoon is vacant again and takes one.
+    $plTrooper->forceFill(['status' => TrooperStatus::Inactive])->save();
+    $this->actingAs($this->admin)->post(alUrl($this->p1), ['trooper_id' => $this->taylor->id, 'reason' => 'Lead.'])->assertSessionHasNoErrors();
+
+    expect(UnitActingLead::query()->pluck('unit_id')->sort()->values()->all())->toBe([$this->p1->id, $this->p2->id]);
 });

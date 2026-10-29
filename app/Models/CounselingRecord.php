@@ -18,6 +18,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * `counseling` disk that the portal named itself; `document_sha256` is what the audit digest carries of the file.
  * `kind` says which ladder of the regulations the record belongs to ({@see CounselingKind}); null on a record filed
  * before the portal asked, ruled as other conduct.
+ *
+ * An LOR is frozen 72 hours after it is filed (`CounselingPermissions::frozen()`); after that only the
+ * Regimental Executive Officer can overturn it, which sets `overturned_at`, who did it (`overturned_by`, with
+ * `overturned_by_admin` and `overturned_as_unit` as for the issuer) and `overturn_reason`. An overturned LOR stays on
+ * file and no longer counts toward the counseling rules.
  */
 class CounselingRecord extends Model
 {
@@ -35,6 +40,7 @@ class CounselingRecord extends Model
             'document_size' => 'integer',
             'drive_status' => DriveUploadStatus::class,
             'drive_attempted_at' => 'immutable_datetime',
+            'overturned_at' => 'immutable_datetime',
         ];
     }
 
@@ -69,5 +75,28 @@ class CounselingRecord extends Model
     public function issuedAsUnit(): BelongsTo
     {
         return $this->belongsTo(Unit::class, 'issued_as_unit');
+    }
+
+    public function isOverturned(): bool
+    {
+        return $this->overturned_at !== null;
+    }
+
+    /** The Regimental Executive Officer who overturned this LOR, or null. */
+    public function overturnedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'overturned_by');
+    }
+
+    /** The one who overturned it acting as `overturned_by` (#379, #432), or null. */
+    public function overturnedByAdmin(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'overturned_by_admin');
+    }
+
+    /** The unit whose billet `overturned_by` held while acting as one, or null. */
+    public function overturnedAsUnit(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class, 'overturned_as_unit');
     }
 }

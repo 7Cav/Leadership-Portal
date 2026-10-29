@@ -13,11 +13,12 @@
 - A staff grant (given by an Admin) lets someone read a unit and everything under it. It never lets them change
   anything there.
 - Regimental HQ staff (the Chief of Staff, the Adjutants General, the Finance Officer and any other billet in the
-  `Regimental HQ` group) read the whole regiment, as a staff grant on the regiment would. No Admin has to give it.
+  `Regimental HQ` group) read the whole regiment, as a staff grant on the regiment would, while they are placed on the
+  regiment and their billet is still in that group. No Admin has to give it.
   Once an Admin approves their billet, they are Admins, for as long as they hold it. S6 HQ staff become Admins the same
   way.
 - Every trooper may open their own milpac page, read only, with their own DCSs and LORs, whatever their billet. It opens
-  nobody else's.
+  nobody else's, and only for the person really signed in as themselves: never through act as or view as.
 - "View as" previews the portal as a unit (or, for Admins, as a person). It only narrows what you see, and every change
   is refused while it is on.
 - Writes also stop at a few hard edges whatever your rank: weeks older than the week floor, weeks whose section report
@@ -137,7 +138,9 @@ for their portfolio. They see their staff on the roster and the org page.
 (2) Every signed-in trooper may open their own milpac page, read only, whatever their scope (decided 2026-10-28), and
 the search finds them. It shows their own DCSs and LORs, and a staff member records their own practices there. It opens
 no other trooper, and leaves out the links into their unit (section roster, rollcall, readiness matrix, makeup PM)
-unless their scope reaches it. During a view-as preview only the preview's scope counts.
+unless their scope reaches it. During a view-as preview only the preview's scope counts, and while acting as someone
+only the scope of the person acted as: acting as someone never opens their page through this rule, so it shows only
+what the acting identity's command shows (no DCSs from a shared command, nothing outside its scope).
 (3) Not in the sidebar for non-Admins, but any signed-in user can open it by URL and read it. Only Admins see the
 editing controls.
 (4) The companies your read scope reaches into, opening on your own, and the sections of those in your scope. Asking
@@ -207,12 +210,15 @@ their own plan unless they also command the company.
 | Org structure: Import from Cav roster | Yes | No | No |
 | Org structure: place a trooper the sync could not place | Yes | No | No |
 | Org structure: set or clear a unit's game or team label | Yes | No | No |
-| Org structure: assign or remove an acting lead | Yes | No | No |
+| Org structure: assign or remove an acting lead (10) | Yes | No | No |
 | Staff grants: grant or revoke | Yes | No | No |
 | Games: add, edit, retire, reinstate or delete a game (a game in use can only be retired) | Yes | No | No |
 | Demo data: generate or purge (only when `DEMO_TOOLS=true`) | Yes | No | No |
 | Whole-roster sync ("Sync now" on the roster) | Yes | No | No |
 | Manual LOA sync (route only, no button in the UI; during a running sync it queues one follow-up) | Yes | No | No |
+
+(10) Only for a line unit below the regiment whose commanding billet (CO, PL or SL) no serving trooper holds, and never
+yourself: another Admin assigns an Admin. A unit with only its XO, PSG or ASL serving still takes one.
 
 ### Game identities and syncs
 
@@ -259,7 +265,8 @@ through the identity they act as.
 | File a Letter of Reprimand (LOR) | All | All | No (5) | Own | Own | Own | If acting lead of a platoon or above | No | No | No | No |
 | See a DCS and download its document | All | All | Own | Own | Own | Own | Own | Own section | Their own (8) | Their own (8) | Target (6) |
 | See an LOR and download its document | All | All | Own | Own | Own | Own | Own | Own | Their own (8) | Read | Target |
-| Correct the date or reason, or delete (reason required) | All | The issuer's chain (7) | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | No | No | No |
+| Correct the date or reason, or delete (reason required) | All (9) | The issuer's chain (7) | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | No | No | No |
+| Overturn a frozen LOR (reason required) | No (10) | The RXO only (10) | No | No | No | No | No | No | No | No | No |
 
 (5) An LOR needs command from platoon level up on the line. A portfolio officer files a DCS on their staff; an LOR on
 staff comes from regiment command or an Admin.
@@ -270,12 +277,21 @@ every DCS.
 everyone above, as long as they still counsel the trooper by the rules above. A record an Admin filed (no unit) is the
 Admins' alone.
 (8) Every trooper, in every column, sees their own DCSs and LORs on their own milpac page and downloads their documents
-(decided 2026-10-28). It is read only: nobody files on, corrects or deletes their own records, except that an Admin
-still corrects and deletes as an Admin.
+(decided 2026-10-28), signed in as themselves (not while acting as or viewing as anyone). It is read only: nobody files
+on, corrects or deletes their own records, except that an Admin by the `is_admin` flag still corrects and deletes as an
+Admin. An Admin by billet does not (2026-10-29).
+(9) Not a frozen LOR: 72 hours after an LOR is filed (its appeal window) nobody corrects or deletes it, Admins by flag
+or by billet included (decided by the S6, 2026-10-29). A DCS is never frozen.
+(10) Only the serving holder of the Regimental Executive Officer billet (the org import maps it to the regiment)
+overturns a frozen LOR, signed in as themselves: never one filed on themselves, never in a view-as preview, and never
+through act as (S6, 2026-10-29: "only the RXO for now"). An Admin acting as the RXO, the RCO acting as the RXO under the
+command team rule, and the RXO while acting as someone else are all refused. The overturned LOR stays on file, is marked so, and counts
+toward no flag.
 
 A trooper who has left the Cav (no longer serving) has read-only counseling: nobody may file a DCS or LOR on them, or
 correct or delete one, Admins included, and the panel says so. Whoever could see their records still sees and downloads
-them. If they serve again, the rules above apply again.
+them. If they serve again, the rules above apply again. The RXO may still overturn a frozen LOR of theirs: that corrects
+the record and adds nothing to it.
 
 A record the viewer may not see is left out of the page entirely, and its download answers 404 like a record that does
 not exist, also on a departed trooper. The flags and the filing form's forecast are worked out from the records the
@@ -304,8 +320,10 @@ trooper may open (decided 2026-10-28); that opens no other trooper's page.
    [operations.md](operations.md)). Your scope is that unit and everything under it.
 3. Acting leads: every unit an Admin made you acting lead of is added, each with its subtree.
 4. Staff grants: every unit you were granted is added to your read scope, each with its subtree.
-5. Regimental HQ staff: if your milpac is placed directly on the regiment, the whole regiment is added to your read
-   scope.
+5. Regimental HQ staff: if your milpac is placed directly on the regiment and your billet is one Cav lists under
+   Regimental HQ now (the org import records each in `admin_billets`, approved or not), the whole regiment is added to
+   your read scope. A move to a billet the sync cannot place leaves you on the regiment, but the read ends with the
+   billet.
 6. View as: if a preview is on, your scope is cut down to the target. It is checked again on every request, so a
    preview stops on its own when you lose the authority it relied on.
 
@@ -352,7 +370,7 @@ only sign out has none, since it ends the session and signing back in is limited
 | 60 | Find trooper and the guest picker search |
 | 240 | Rollcall mark autosave. The screen waits 0.7 seconds after a change and sends one batch at a time, so marking a whole section in seconds stays far below this. |
 | 120 | Report draft autosave |
-| 60, shared | Every other audited write: saving a guidon, fireteam changes, company fireteam policy, linking, dismissing and restoring unmatched players, confirming a practice, marking a rollcall posted, guest add and remove, staff practice add and remove, setting and removing a game identity, platoon topic set and clear, training plan save, approve and send back, every template write (a company's or a section's) and a section's template pick, starting and leaving view as and act as, correcting and deleting a DCS or LOR, and the Admin settings writes (org structure, acting leads, trooper placement, staff grants, games, servers, demo data) |
+| 60, shared | Every other audited write: saving a guidon, fireteam changes, company fireteam policy, linking, dismissing and restoring unmatched players, confirming a practice, marking a rollcall posted, guest add and remove, staff practice add and remove, setting and removing a game identity, platoon topic set and clear, training plan save, approve and send back, every template write (a company's or a section's) and a section's template pick, starting and leaving view as and act as, correcting and deleting a DCS or LOR, overturning an LOR, and the Admin settings writes (org structure, acting leads, trooper placement, staff grants, games, servers, demo data) |
 | 10 | Sending a report |
 | 20 | Loading the act as picker's list |
 | 30 | Loading the sidebar unit switcher's list (the units in your scope; read only, it changes nothing) |
@@ -376,7 +394,7 @@ only sign out has none, since it ends the session and signing back in is limited
 | Admin-only checks | In the controllers (`OrgStructureController`, `StaffGrantsController`, `TrooperPlacementController`, `RosterSyncController`, `LoaSyncController`, `AuditLogController`, `DemoDataController`) and again in some handlers. There are no Laravel policies. |
 | Write gates | Each handler under `app/Commands/*` checks `writeScope()` (attendance, capture, guests, game identities, reports, a section's template pick) or `commandsUnit()` (fireteams, company policy, platoon topic, guidon, training plans, the review on the owning company in `TrainingPlanRules`, company and section templates through `Commands/Templates/TemplateAuthority`) |
 | Staff practices | `app/Authorization/StaffPracticeAccess.php` on `commandsUnit()`; checked in each `app/Commands/StaffPractices` handler |
-| Counseling (DCS, LOR) | `app/Authorization/CounselingAccess.php` on `ScopeResolver::commandingUnitsOver()`, `writeScope()` and `canSee()`; checked again in each `app/Commands/Counseling` handler and on the download |
+| Counseling (DCS, LOR) | `app/Authorization/CounselingAccess.php` on `ScopeResolver::commandingUnitsOver()`, `writeScope()` and `canSee()`; the LOR freeze and who overturns in `CounselingPermissions::frozen()` and `overturns()`; checked again in each `app/Commands/Counseling` handler and on the download |
 | Week floor | `app/Support/Time/WeekOf.php` (`floor()`, `isBeforeFloor()`), `config/portal.php` |
 | Rate limiters | `app/Providers/AppServiceProvider.php`, unit sync cooldown in `UnitRosterSyncController` |
 

@@ -255,7 +255,8 @@ game's default kind when it fits none.
 On a trooper's milpac page, the Counseling panel holds their Developmental Counseling Statements (DCS) and Letters of
 Reprimand (LOR), newest first. Who may file and see which is in [permissions.md](permissions.md#counseling-dcs-and-lor).
 A trooper sees their own records on their own page and downloads them, read only: nobody files on, corrects or deletes
-their own.
+their own (an Admin by the flag excepted). Acting as someone never shows their records through this: only what the
+acting identity's command shows.
 
 - File a record: the type, what it is for (a missed section practice or rollcall, or other conduct), the date it was
   given, the reason and the signed document, a PDF of 10 MB or less. What it is for is required, and stays as filed
@@ -285,6 +286,16 @@ their own.
   serves again, the records can be changed again.
 - Correct or delete: the date and reason can be corrected, never the type or the document; a record can be deleted
   with its document. Both need a reason and are audited, as is filing. A copy already on Google Drive stays there.
+- An LOR is frozen 72 hours after it is filed (its appeal window: the wiki gives the trooper 24 hours to say they
+  appeal and the appeal 72 hours to finish, with no further appeal). Until then it can be corrected or deleted as
+  above, for a typo, the wrong trooper or an upheld appeal. From then on nobody corrects or deletes it, Admins
+  included, and the server refuses with "This LOR was filed more than 72 hours ago, so it can no longer be changed.
+  The Regimental Executive Officer can overturn it." The 72 hours run from when it was filed, not the date it carries.
+  A DCS never freezes.
+- Overturn: the Regimental Executive Officer, signed in as themselves (never through act as), may overturn a frozen
+  LOR, with a reason (audited as `counseling.overturned`). It is never deleted: it stays in the list, muted, with "Overturned on <date> by <name>:
+  <reason>", its document still downloads for whoever could see it, and it no longer counts toward any flag, the no
+  favorable action notice or the filing form's forecast. A departed trooper's LOR can be overturned too.
 
 ### Staff practices
 
@@ -313,8 +324,9 @@ lists the section practices they attended, newest week first; the roster's troop
 
 | Page | What it does |
 | --- | --- |
-| Org structure | The unit tree with each unit's lead (commanding billet holder, portfolio officer, DEVCOM's 1IC or acting lead, or vacant) and headcount. Admins can add, rename, move and delete units (a unit with anything attached cannot be deleted), run Import from Cav roster, set a game or team label on a unit (shown next to its name), assign or remove an acting lead (reason required), and place a trooper the sync could not place. Staff groups list their members; ELOA shows each trooper's last line unit ("was"). |
-| Staff grants | Grant a non-Admin user read access to a unit and everything under it, or revoke it, with a reason. Lapsed grants (holder no longer serving) are flagged. Every billet in the Regimental HQ and S6 HQ Cav groups (the list is `admin_billet_groups` in `config/portal.php`) makes its holders Admins by billet once an Admin approves it, while they serve and hold it, wherever they are placed. Admin via billet lists the approved billets with their holders and who approved them when, each with Revoke (a reason is required); Admin billets below lists the waiting and rejected ones to approve or reject, with a reason. A billet whose title or group Cav changes waits for approval again, shows the names it was approved as, and its holder is not an Admin meanwhile. A billet moved out of those groups is marked and cannot be approved. Nobody decides on their own billet. Regimental HQ staff placed on the regiment read the whole regiment without a grant, named in a short note under Admin via billet. The sidebar shows Admins how many billets wait. |
+| Org structure | The unit tree with each unit's lead (commanding billet holder, portfolio officer, DEVCOM's 1IC or acting lead, or vacant) and headcount. Admins can add, rename, move and delete units (a unit with anything attached cannot be deleted), run Import from Cav roster, set a game or team label on a unit (shown next to its name), assign or remove an acting lead (reason required; only on a unit whose commanding billet nobody serving holds, and
+never themselves), and place a trooper the sync could not place. Staff groups list their members; ELOA shows each trooper's last line unit ("was"). |
+| Staff grants | Grant a non-Admin user read access to a unit and everything under it, or revoke it, with a reason. Lapsed grants (holder no longer serving) are flagged. Every billet in the Regimental HQ and S6 HQ Cav groups (the list is `admin_billet_groups` in `config/portal.php`) makes its holders Admins by billet once an Admin approves it, while they serve and hold it, wherever they are placed. Admin via billet lists the approved billets with their holders and who approved them when, each with Revoke (a reason is required); Admin billets below lists the waiting and rejected ones to approve or reject, with a reason. A billet whose title or group Cav changes waits for approval again, shows the names it was approved as, and its holder is not an Admin meanwhile. A billet moved out of those groups is marked and cannot be approved. Nobody decides on their own billet. Regimental HQ staff placed on the regiment read the whole regiment without a grant while their billet is still in Regimental HQ, named in a short note under Admin via billet. The sidebar shows Admins how many billets wait. |
 | Templates | Rollcall BBCode templates. A company keeps named templates of its own, and the regiment default (edited by Admins only) shows in every company's list. A company's command (CO, XO, 1SG, the battalion and regiment command above, an acting lead of the company) and Admins can add a template, edit it, roll it back, switch it on or off for the company's sections, and make a switched-on one the company default. A section can keep named templates of its own the same way: choose the section under "Templates of" to list them; its command (SL, ASL, the platoon, company, battalion and regiment command above, an acting lead) and Admins can add, edit and roll them back, and only that section's rollcall can use them. A section uses its leader's pick (one of its own, a switched-on company template or the regiment default), else the company default while it is switched on, else the regiment default, so a section always has a post. A platoon moved to another company gets copies of the company templates its sections used, owned and managed by the new company (named like "Training (from A/1-7)"), so its posts read the same and the old company's later edits never reach them; if the new company later switches a copy off, the rollcall says which template the post now uses. A section's own templates move with it and are not copied. A non-Admin sees only the companies in their scope, opening on their own, and only the sections in their scope. Each save is a new version with a reason, listed with who saved it ("Hale.S for Pike.S" when an Admin acted as them, "Hale.S acting as Company Commander A/1-7" when an Admin held the billet); any older version can be activated again. The preview fills itself from the company's first section in your scope (sample data when there is none), or any other section you pick. The template language is a small Mustache subset (`{{name}}`, repeated and conditional blocks, `upper` and `lower`); mistakes are refused on save. |
 | Games | The games the regiment plays: name, the kinds of player ID it asks for (the first is the default), and which telemetry interface reads its attendance (CRCON, BattleMetrics, Nightwatch or none). Add, edit, retire or reinstate a game; delete one only while nothing uses it. The kinds whose ID shape is checked are marked. Admins also see "Identities to check": saved identities that break the ID shape or name rules, with what to check; nothing in it is changed, fix each on Game identities. |
 | Audit log | Every audited change (and every view as start and stop): who, what, when, the reason, filterable by actor, action, target, date and unit (including everything under it). |
@@ -379,7 +391,7 @@ included).
 
 | KPI | Definition |
 | --- | --- |
-| Strength | Troopers placed in sections in the unit. (The org page and roster headcount also count HQ staff and groups.) |
+| Strength | Troopers placed in sections in the unit. (The org page and roster headcount also count HQ staff and staff departments; New Recruits, ELOA and Reservists count only on their own groups.) |
 | RC % · 30d | Weeks with a signed rollcall (Will attend or Cannot attend) divided by all weeks in the window. |
 | SP % · 30d | Practices marked Present, Makeup or Attached, divided by the practices their own section held. A practice is held once a leader put an SP mark on anyone. A week the trooper attended always counts as eligible for them. |
 | At-risk | Troopers with 2 or more practices explicitly marked Missed in the window. Unmarked is never a miss. |

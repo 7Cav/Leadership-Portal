@@ -18,6 +18,7 @@ use App\Commands\Units\SetUnitLabel;
 use App\Commands\Units\UnitHasDependentsException;
 use App\Commands\Units\UpdateUnit;
 use App\Http\Controllers\Controller;
+use App\Kpi\Headcount;
 use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitKind;
@@ -97,9 +98,10 @@ class OrgStructureController extends Controller
             'guidon' => $guidonOf->get($unit->id)?->design(),
             'path' => $unit->path,
             'own_count' => $byUnit->get($unit->id, 0),
+            // The headcount's own rule, so this page and the roster agree: New Recruits, ELOA and the Reservists count
+            // only on their own group.
             'trooper_count' => $byUnit
-                ->filter(fn (int $count, int $id) => str_starts_with($placedIn->get($id)->path, $unit->path)
-                    && ($placedIn->get($id)->kind !== UnitKind::Recruit || $unit->kind === UnitKind::Recruit))
+                ->filter(fn (int $count, int $id) => Headcount::counts($placedIn->get($id), $unit))
                 ->sum(),
             // Who leads the unit now (`UnitLead`): a command billet's serving holder, a portfolio officer, or an acting
             // lead an Admin assigned. Vacant when the unit should have a lead and nobody serving fills it; no history

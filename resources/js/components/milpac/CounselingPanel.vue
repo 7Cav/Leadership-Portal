@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { useForm } from '@inertiajs/vue3';
-import { PhDownloadSimple, PhFilePdf, PhLock, PhPencilSimple, PhPlus, PhTrash, PhWarning } from '@phosphor-icons/vue';
+import { PhArrowCounterClockwise, PhDownloadSimple, PhFilePdf, PhLock, PhPencilSimple, PhPlus, PhTrash, PhWarning } from '@phosphor-icons/vue';
 import InlineNotice from '@/components/InlineNotice.vue';
 import MilpacPanel from '@/components/milpac/MilpacPanel.vue';
 import { Badge } from '@/components/ui/badge';
@@ -18,8 +18,10 @@ import { toast } from 'vue-sonner';
 // The trooper's Developmental Counseling Statements and Letters of Reprimand (#381). The server sends only the records
 // this viewer may see, where they stand under the regulations (each record's flags, the no favorable action banner, and
 // for the form what a new record would earn by its date), and what the viewer may do (file either type, change each
-// record; nothing at all on a trooper who has left the Cav). This component draws that and posts the forms. Hiding a
-// control is cosmetic: every route checks again.
+// record; nothing at all on a trooper who has left the Cav). An LOR is frozen 72 hours after it is filed: from then on
+// only the Regimental Executive Officer may overturn it (`canOverturn`), and an overturned one stays listed, muted, with
+// who overturned it and why. This component draws that and posts the forms. Hiding a control is cosmetic: every route
+// checks again.
 const props = defineProps({
     trooperId: { type: Number, required: true },
     // `Milpac\CounselingHistory` plus `sees` and `canFile`, from TrooperDetailController.
@@ -78,11 +80,18 @@ function submitFiling() {
 // Correcting and deleting: one record at a time, inline, each with the reason the audit log keeps.
 const editingId = ref(null);
 const deletingId = ref(null);
+const overturningId = ref(null);
 const editForm = useForm({ counseled_on: '', reason: '', audit_reason: '' });
 const deleteForm = useForm({ audit_reason: '' });
+const overturnForm = useForm({ reason: '' });
+
+// A frozen or overturned LOR is never corrected or deleted, whatever `canChange` says.
+const changeable = (record) => record.canChange && !record.frozen && !record.overturned;
+const busyWith = (record) => [editingId.value, deletingId.value, overturningId.value].includes(record.id);
 
 function startEdit(record) {
     deletingId.value = null;
+    overturningId.value = null;
     editingId.value = record.id;
     editForm.clearErrors();
     editForm.counseled_on = record.date;
@@ -92,14 +101,24 @@ function startEdit(record) {
 
 function startDelete(record) {
     editingId.value = null;
+    overturningId.value = null;
     deletingId.value = record.id;
     deleteForm.clearErrors();
     deleteForm.audit_reason = '';
 }
 
+function startOverturn(record) {
+    editingId.value = null;
+    deletingId.value = null;
+    overturningId.value = record.id;
+    overturnForm.clearErrors();
+    overturnForm.reason = '';
+}
+
 function cancelChange() {
     editingId.value = null;
     deletingId.value = null;
+    overturningId.value = null;
 }
 
 function submitEdit(record) {
@@ -121,6 +140,17 @@ function submitDelete(record) {
             deletingId.value = null;
         },
         onHttpException: onHttpException('Could not delete the record', (message) => toast.error(message)),
+    });
+}
+
+function submitOverturn(record) {
+    overturnForm.post(`/counseling/${record.id}/overturn`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            toast.success('Letter of Reprimand overturned');
+            overturningId.value = null;
+        },
+        onHttpException: onHttpException('Could not overturn the record', (message) => toast.error(message)),
     });
 }
 
@@ -229,6 +259,7 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
                 class="flex flex-col gap-1.5 border-b border-border px-4 py-3 text-[13px] last:border-b-0"
                 data-testid="counseling-record"
                 :data-type="record.type"
+                :data-overturned="record.overturned ? 'true' : undefined"
             >
                 <div class="flex flex-wrap items-center gap-2">
                     <Badge :variant="record.type === 'lor' ? 'danger' : 'warning'" :title="typeLabel(record.type)" data-testid="counseling-type-badge">
@@ -248,8 +279,12 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
                     Filed before the portal asked what a record is for, so the other conduct rules apply to it.
                 </p>
 
-                <p class="whitespace-pre-line" data-testid="counseling-reason-text">{{ record.reason }}</p>
+                <p class="whitespace-pre-line" :class="{ 'text-muted-foreground': record.overturned }" data-testid="counseling-reason-text">{{ record.reason }}</p>
                 <p class="text-xs text-muted-foreground" data-testid="counseling-issuer">Filed by {{ record.issuer }}</p>
+                <p v-if="record.overturned" class="flex items-start gap-1 text-xs text-muted-foreground" data-testid="counseling-overturned">
+                    <PhArrowCounterClockwise class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                    <span class="whitespace-pre-line">Overturned on {{ forumDate(record.overturned.date) }} by {{ record.overturned.by }}: {{ record.overturned.reason }}</span>
+                </p>
 
                 <div class="flex flex-wrap items-center gap-2">
                     <a
@@ -261,7 +296,7 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
                         <span class="text-muted-foreground">({{ fileSize(record.document.size) }})</span>
                         <PhDownloadSimple class="size-3" aria-hidden="true" /><span class="sr-only">Download</span>
                     </a>
-                    <template v-if="record.canChange && editingId !== record.id && deletingId !== record.id">
+                    <template v-if="changeable(record) && !busyWith(record)">
                         <Button variant="ghost" size="sm" class="ml-auto" data-testid="counseling-edit" @click="startEdit(record)">
                             <PhPencilSimple aria-hidden="true" />Correct
                         </Button>
@@ -269,6 +304,16 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
                             <PhTrash aria-hidden="true" />Delete
                         </Button>
                     </template>
+                    <Button
+                        v-if="record.canOverturn && !record.overturned && !busyWith(record)"
+                        variant="ghost"
+                        size="sm"
+                        class="ml-auto"
+                        data-testid="counseling-overturn"
+                        @click="startOverturn(record)"
+                    >
+                        <PhArrowCounterClockwise aria-hidden="true" />Overturn
+                    </Button>
                 </div>
 
                 <form v-if="editingId === record.id" class="mt-1 space-y-2 rounded-md border border-border p-3" data-testid="counseling-edit-form" @submit.prevent="submitEdit(record)">
@@ -303,6 +348,19 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
                     </div>
                     <div class="flex gap-2">
                         <Button type="submit" size="sm" variant="destructive" :disabled="deleteForm.processing" data-testid="counseling-delete-confirm">Delete record</Button>
+                        <Button type="button" size="sm" variant="outline" @click="cancelChange">Cancel</Button>
+                    </div>
+                </form>
+
+                <form v-if="overturningId === record.id" class="mt-1 space-y-2 rounded-md border border-border p-3" data-testid="counseling-overturn-form" @submit.prevent="submitOverturn(record)">
+                    <p class="text-xs">Overturn this Letter of Reprimand? It stays on file, marked overturned with your reason, and no longer counts toward the counseling rules.</p>
+                    <div class="grid gap-1.5">
+                        <Label :for="`overturn-why-${record.id}`">Reason for overturning</Label>
+                        <Input :id="`overturn-why-${record.id}`" v-model="overturnForm.reason" maxlength="500" data-testid="counseling-overturn-why" />
+                        <p v-if="overturnForm.errors.reason" class="text-xs text-destructive" data-testid="counseling-overturn-why-error">{{ overturnForm.errors.reason }}</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <Button type="submit" size="sm" :disabled="overturnForm.processing" data-testid="counseling-overturn-confirm">Overturn record</Button>
                         <Button type="button" size="sm" variant="outline" @click="cancelChange">Cancel</Button>
                     </div>
                 </form>

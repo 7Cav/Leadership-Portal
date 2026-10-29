@@ -99,6 +99,7 @@ it('puts the writes the 2026-10-28 review found unlimited on the right buckets',
         // The import reads Cav on the request, so it shares the roster sync's tight bucket.
         'settings.org-structure.import' => 'roster-sync',
         'counseling.store' => 'counseling-uploads',
+        'counseling.overturn' => 'audited-writes',
     ];
 
     foreach ($expected as $name => $limiter) {

@@ -26,7 +26,10 @@ const contentsOpen = ref(false);
     <div
         class="grid grid-cols-1 items-start gap-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-9 xl:grid-cols-[260px_minmax(0,1fr)_280px]"
     >
-        <div class="lg:sticky lg:top-[calc(var(--shell-top,3rem)+1.25rem)] lg:row-span-2 lg:max-h-[calc(100dvh-var(--shell-top,3rem)-2.5rem)] lg:overflow-auto lg:pr-1">
+        <div
+            class="[scrollbar-color:var(--border)_transparent] [scrollbar-width:thin] lg:sticky lg:top-[calc(var(--shell-top,3rem)+1.25rem)] lg:row-span-2 lg:max-h-[calc(100dvh-var(--shell-top,3rem)-2.5rem)] lg:overflow-auto lg:pr-1"
+            data-testid="docs-contents-column"
+        >
             <Button
                 variant="outline"
                 class="w-full justify-start lg:hidden"
