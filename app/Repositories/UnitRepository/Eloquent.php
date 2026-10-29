@@ -8,6 +8,7 @@ use App\Models\Unit;
 use App\Models\UnitKind;
 use App\Models\UnitType;
 use App\Repositories\TrooperPlacementRepository;
+use App\Repositories\UnitGame;
 use App\Repositories\UnitPath;
 use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
@@ -50,6 +51,26 @@ class Eloquent implements UnitRepository
         $unit->update(['label' => $label]);
 
         return $unit;
+    }
+
+    public function setGame(Unit $unit, ?int $gameId): Unit
+    {
+        $unit->forceFill(['game_id' => $gameId])->save();
+
+        return $unit;
+    }
+
+    public function gameOf(int $unitId): ?UnitGame
+    {
+        // `path` is "1/5/9/": the ids from the root down to this unit, itself last (AD-18).
+        $path = Unit::query()->whereKey($unitId)->value('path');
+        $chain = array_filter(explode('/', (string) $path), fn (string $id) => $id !== '');
+
+        if ($chain === []) {
+            return null;
+        }
+
+        return UnitGame::resolve(Unit::query()->whereIn('id', $chain)->get())[$unitId] ?? null;
     }
 
     public function setLeadPosition(Unit $unit, ?int $cavPositionId): Unit

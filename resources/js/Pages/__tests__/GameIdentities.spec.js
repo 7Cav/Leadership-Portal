@@ -160,6 +160,25 @@ describe('GameIdentities page', () => {
         expect(put).toHaveBeenCalledWith('/game-identities/1/arma', expect.objectContaining({ preserveScroll: true }));
     });
 
+    it("opens on the trooper's usual game while it is missing, and on another missing game once it is filled in", async () => {
+        const wardogs = [...PLATFORMS, { value: 'wardogs', label: 'WARDOGS', idKinds: ['Steam ID'] }];
+        const troopers = [
+            { ...trooper(2, 'PFC Dube.R'), game: 'arma' },
+            { ...trooper(1, 'SGT Ortega.M', { arma: { playerName: 'OrtegaCav', platformId: 'a1' } }), game: 'arma' },
+            { ...trooper(3, 'SPC Halvorsen.K'), game: null },
+        ];
+        const wrapper = mount(GameIdentities, { props: { platforms: wardogs, troopers } });
+
+        await wrapper.get('[data-testid="open-2"]').trigger('click');
+        expect(wrapper.get('[data-testid="identity-game"]').element.value).toBe('arma');
+
+        await wrapper.get('[data-testid="open-1"]').trigger('click');
+        expect(wrapper.get('[data-testid="identity-game"]').element.value).toBe('hll');
+
+        await wrapper.get('[data-testid="open-3"]').trigger('click');
+        expect(wrapper.get('[data-testid="identity-game"]').element.value).toBe('hll');
+    });
+
     it('says why a save was refused in the notice instead of showing the raw error page', async () => {
         const wrapper = factory();
         await wrapper.get('[data-testid="open-1"]').trigger('click');

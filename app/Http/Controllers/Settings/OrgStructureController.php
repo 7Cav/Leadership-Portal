@@ -10,11 +10,13 @@ use App\Commands\Units\CreateUnit;
 use App\Commands\Units\DeleteUnit;
 use App\Commands\Units\ImportOrgStructure;
 use App\Commands\Units\InvalidActingLeadException;
+use App\Commands\Units\InvalidUnitGameException;
 use App\Commands\Units\InvalidUnitOversightException;
 use App\Commands\Units\InvalidUnitPlacementException;
 use App\Commands\Units\OrgStructureImportFailedException;
 use App\Commands\Units\RemoveActingLead;
 use App\Commands\Units\RemoveActingLeadHandler;
+use App\Commands\Units\SetUnitGame;
 use App\Commands\Units\SetUnitLabel;
 use App\Commands\Units\SetUnitOversight;
 use App\Commands\Units\SetUnitOversightHandler;
@@ -24,13 +26,16 @@ use App\Commands\Units\UnitOversightForbiddenException;
 use App\Commands\Units\UpdateUnit;
 use App\Http\Controllers\Controller;
 use App\Kpi\Headcount;
+use App\Models\Game;
 use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitKind;
 use App\Models\UnitOversight;
 use App\Models\UnitType;
+use App\Repositories\GameRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitActingLeadRepository;
+use App\Repositories\UnitGame;
 use App\Repositories\UnitGuidonRepository;
 use App\Repositories\UnitLeadRepository;
 use App\Repositories\UnitOversightRepository;
@@ -80,9 +85,19 @@ class OrgStructureController extends Controller
      * Everyone authenticated may view the tree (AC #3); only the Admin flag gates authoring
      * (checked client-side for the hidden control, and again below on write — AC #5).
      */
-    public function index(Request $request, ScopeResolver $scope, UnitGuidonRepository $guidons, Headcount $headcount, UnitOversightRepository $oversights): Response
+    public function index(Request $request, ScopeResolver $scope, UnitGuidonRepository $guidons, Headcount $headcount, UnitOversightRepository $oversights, GameRepository $gameRepository): Response
     {
         $tree = $this->units->tree();
+        // The game each unit plays, its own or the nearest ancestor's, worked out once over the tree.
+        $games = $gameRepository->all()->keyBy('id');
+        $gameOf = collect(UnitGame::resolve($tree))
+            ->filter(fn (UnitGame $played) => $games->has($played->gameId))
+            ->map(fn (UnitGame $played) => [
+                'id' => $played->gameId,
+                'name' => $games->get($played->gameId)->name,
+                'retired' => $games->get($played->gameId)->isRetired(),
+                'from' => $played->from === null ? null : ($played->from->callsign ?? $played->from->name),
+            ]);
         // Troopers placed in each unit, rolled up every branch: a unit's count is the serving troopers placed anywhere
         // under its path, HQ staff on their HQ node and the groups included (2026-10-24, AD-18). New Recruits count on
         // their own group only, never in an ancestor's: they are not yet part of any unit. The prefix test relies on
@@ -106,6 +121,10 @@ class OrgStructureController extends Controller
             'name' => $unit->name,
             'callsign' => $unit->callsign,
             'label' => $unit->label,
+            // The game an Admin set on this unit, and the one it plays: its own, else the nearest ancestor's, with the
+            // unit it comes from. Null when no unit on its chain has one.
+            'game_id' => $unit->game_id,
+            'game' => $gameOf->get($unit->id),
             // The unit's saved guidon (#446), drawn next to its name; null when it has none.
             'guidon' => $guidonOf->get($unit->id)?->design(),
             'path' => $unit->path,
@@ -147,6 +166,9 @@ class OrgStructureController extends Controller
         return Inertia::render('Settings/OrgStructure', [
             'units' => $units,
             'isAdmin' => $isAdmin,
+            // The Games list, for the game picker. Retired games are sent flagged: the picker offers none of them, but
+            // names the one a unit still has.
+            'games' => $games->map(fn (Game $game) => ['id' => $game->id, 'name' => $game->name, 'retired' => $game->isRetired()])->values(),
             // Troopers the sync could not place (2.6). Admin-tier only: a cached trooper's reported
             // billet is not part of any leader's scope yet, so everyone else gets null and the panel
             // is absent. Sent as props only to an Admin, never merely hidden by the page (AD-8, AD-6).
@@ -263,8 +285,8 @@ class OrgStructureController extends Controller
     }
 
     /**
-     * Set or clear a unit's game or team label (2026-10-24, DEVCOM's "WARDOGS"). Admin-only, server-side (AD-6);
-     * audited by {@see SetUnitLabel} (AD-16).
+     * Set or clear a unit's team label (2026-10-24). Admin-only, server-side (AD-6); audited by {@see SetUnitLabel}
+     * (AD-16).
      */
     public function label(Request $request, int $unit, SetUnitLabel $command): RedirectResponse
     {
@@ -272,9 +294,31 @@ class OrgStructureController extends Controller
 
         $data = $request->validate([
             'label' => ['nullable', 'string', 'max:'.SetUnitLabel::MAX_LENGTH],
-        ], ['label.max' => 'Keep the game or team label to :max characters.']);
+        ], ['label.max' => 'Keep the team label to :max characters.']);
 
         $command->handle($request->user(), $unit, $data['label'] ?? null);
+
+        return redirect()->route('settings.org-structure');
+    }
+
+    /**
+     * Set the game a unit plays from the Games list, or clear it so the unit inherits again.
+     * Admin-only, server-side (AD-6); audited by {@see SetUnitGame} (AD-16). A game that is gone or retired comes back
+     * as a form error on `game_id`.
+     */
+    public function game(Request $request, int $unit, SetUnitGame $command): RedirectResponse
+    {
+        $unit = $this->adminUnit($request, $unit);
+
+        $data = $request->validate([
+            'game_id' => ['nullable', 'integer'],
+        ], ['game_id.integer' => 'Choose a game from the list.']);
+
+        try {
+            $command->handle($request->user(), $unit, isset($data['game_id']) ? (int) $data['game_id'] : null);
+        } catch (InvalidUnitGameException $e) {
+            throw ValidationException::withMessages(['game_id' => $e->getMessage()]);
+        }
 
         return redirect()->route('settings.org-structure');
     }

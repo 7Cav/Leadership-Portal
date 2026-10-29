@@ -35,6 +35,7 @@ audience: everyone
 - Staff report: a platoon or company HQ staff member's own weekly report of the section practices they attended.
 - Staff guest: a staff member listed on a rollcall of a section in their own platoon or company. Shown only, never counted.
 - Game identity: a trooper's in-game name and ID, one per game, so the server data can be matched to them.
+- Unit game: the game a unit plays, set by an Admin on Org structure. Every unit under it plays the same game unless it has its own.
 - Unmatched player: someone the game server saw at a practice who is not linked to any trooper yet.
 - JSAM: Joint Service Achievement Medal. A guest who keeps attending another unit's practices may be a candidate.
 

@@ -25,9 +25,20 @@ interface UnitRepository
     public function create(UnitType $type, string $name, ?string $callsign, ?int $parentId, UnitKind $kind = UnitKind::Line): Unit;
 
     /**
-     * Set or clear the unit's game or team label (`WARDOGS`), shown next to its name.
+     * Set or clear the unit's team label, shown next to its name.
      */
     public function setLabel(Unit $unit, ?string $label): Unit;
+
+    /**
+     * Set the game the unit plays, or clear it (null) so it inherits the game of the nearest unit above it.
+     */
+    public function setGame(Unit $unit, ?int $gameId): Unit;
+
+    /**
+     * The game the unit plays, its own or the nearest ancestor's ({@see UnitGame}), read from its chain in two queries
+     * however deep it sits. Null when no unit on its chain has a game, or the unit is gone.
+     */
+    public function gameOf(int $unitId): ?UnitGame;
 
     /**
      * Set the billet whose holder leads this unit (a staff portfolio's officer), or clear it.

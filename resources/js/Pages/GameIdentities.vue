@@ -25,9 +25,10 @@ const props = defineProps({
     // `[{ value, label, idKinds, idHints, retired }]` — one per game an Admin keeps; `idKinds` lists its ID kinds, the first
     // being the default, and `idHints` the shape of each kind the server checks, by kind.
     platforms: { type: Array, required: true },
-    // `[{ id, displayName, billet, section, editable, identities: { [platform]: { playerName, platformId, idKind, mixedScripts } } }]`
+    // `[{ id, displayName, billet, section, editable, game, identities: { [platform]: { playerName, platformId, idKind, mixedScripts } } }]`
     // — the troopers in the viewer's scope, by name. `editable` is false for one the viewer only sees
-    // through a staff grant.
+    // through a staff grant. `game` is the slug of their unit's usual game (the game the unit plays, else the one most of
+    // the unit has linked), or null.
     troopers: { type: Array, required: true },
 });
 
@@ -89,12 +90,19 @@ const queueList = ref(null);
 // The panel sits beside the list from the `lg` breakpoint (sticky), and under it below that.
 const sideBySide = () => window.matchMedia?.('(min-width: 1024px)').matches ?? false;
 
-// Open the panel on a trooper: the first game they are missing, or their first game when full.
+// The game Add identity opens on: their unit's usual game while it is still missing, else the first game they are
+// missing, else their first game when every one is filled in.
+const startingGame = (trooper) => {
+    const missing = missingOf(trooper);
+    return (missing.find((p) => p.value === trooper.game) ?? missing[0] ?? active.value[0])?.value ?? '';
+};
+
+// Open the panel on a trooper, on their starting game.
 // Then bring it into view: below `lg` it is under the whole list, so scroll to it; beside the list
 // it is sticky and already there. Focus goes to the first field (the panel when there is no form).
 function open(trooper) {
     selectedId.value = trooper.id;
-    fill(trooper, (missingOf(trooper)[0] ?? active.value[0])?.value ?? '');
+    fill(trooper, startingGame(trooper));
 
     nextTick(() => {
         const el = panel.value;

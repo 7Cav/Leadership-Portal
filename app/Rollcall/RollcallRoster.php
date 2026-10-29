@@ -53,7 +53,7 @@ final class RollcallRoster
             'designation' => $section->callsign ?? $section->name,
             'name' => $section->name,
             'platoon' => $parent ? ($parent->callsign ?? $parent->name) : null,
-            // The game or team label an Admin set (2026-10-24): the section's own, else its platoon's.
+            // The team label an Admin set (2026-10-24): the section's own, else its platoon's.
             'label' => $section->label ?? $parent?->label,
         ];
     }

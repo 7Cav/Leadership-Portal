@@ -8,6 +8,7 @@ use App\Models\GameServer;
 use App\Models\PracticeCapturePlayer;
 use App\Models\TelemetryInterface;
 use App\Models\TrooperGameIdentity;
+use App\Models\Unit;
 use App\Repositories\GameInUseException;
 use App\Repositories\GameRepository;
 use Illuminate\Database\QueryException;
@@ -17,7 +18,7 @@ use Illuminate\Support\Facades\DB;
 class Eloquent implements GameRepository
 {
     /** The models whose rows name a game: one in use by any of them is retired, never deleted. */
-    private const USERS = [TrooperGameIdentity::class, PracticeCapturePlayer::class, GamePlayerDismissal::class, GameServer::class];
+    private const USERS = [TrooperGameIdentity::class, PracticeCapturePlayer::class, GamePlayerDismissal::class, GameServer::class, Unit::class];
 
     public function all(): Collection
     {
@@ -66,7 +67,7 @@ class Eloquent implements GameRepository
     {
         return collect(self::USERS)
             ->flatMap(fn (string $model) => $model::query()->distinct()->pluck('game_id'))
-            // A server not yet linked to a game has no game_id, and no game to be in use.
+            // A server not yet linked to a game, or a unit that inherits its game, has no game_id, and no game to be in use.
             ->filter()
             ->unique()
             ->sort()

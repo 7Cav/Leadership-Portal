@@ -26,7 +26,6 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 
 1. Choose **Add unit**, or select a unit to edit it.
 2. Set its **Name**, **Callsign**, **Echelon** and **Parent**, and choose **Save unit**.
-3. To show a game or team label next to the unit's name, select the unit, fill in **Game or team label** (such as WARDOGS), and choose **Save label**.
 
 > [!good-to-know] What this changes, and how to undo it: moving a unit moves everyone's access with it on the next page load. Move it back the same way. A unit with troopers, reports or anything else attached cannot be deleted.
 
@@ -40,6 +39,17 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 > [!good-to-know] A unit whose leader billet (CO, PL or SL) someone serving holds already has its lead, so it takes no acting lead. You cannot make yourself acting lead either: ask another Admin.
 
 > [!good-to-know] What this changes, and how to undo it: choose **Remove acting lead** with a reason. Their access to the unit ends on their next page load. Both are in the audit log.
+
+## Set the game a unit plays
+
+1. Select the unit, pick its **Game** from the list, and choose **Save game**. The list has the games kept on the Games page that are not retired.
+2. Every unit under it plays the same game, unless it has its own. The game shows next to each unit's name; one a unit inherits is muted, with the unit it comes from, such as "WARDOGS from 2/A/1-7".
+
+> [!good-to-know] What this changes, and how to undo it: Game identities opens Add identity on this game, and the practice capture reads the section's practice from it. Pick **None (inherits)** to clear it, and the unit plays the game of the nearest unit above it again. A unit keeps a game that has since been retired, marked retired, until you change it. Both are in the audit log.
+
+## Set a team label
+
+1. Select the unit, fill in **Team label**, and choose **Save label**. It shows next to the unit's name. It is free text and changes nothing else.
 
 ## Set who oversees a battalion
 
