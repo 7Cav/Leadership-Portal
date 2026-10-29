@@ -49,6 +49,25 @@ interface TrooperPlacementRepository
     public function unitIdsOfTrooperInWeek(Trooper $trooper, CarbonInterface $weekStart): array;
 
     /**
+     * The unit one trooper was placed in when the Cav week starting `$weekStart` ended (for the running week, where
+     * they are placed now): the staff report's "which HQ were they on that week". Read as
+     * {@see unitIdsOfTrooperInWeek()} reads the history; null when unplaced then.
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function unitOfTrooperAtWeekEnd(Trooper $trooper, CarbonInterface $weekStart): ?int;
+
+    /**
+     * The troopers placed in `$unitId` when the Cav week starting `$weekStart` ended, by {@see unitOfTrooperAtWeekEnd()}:
+     * a past week's HQ staff as they stood then, not as they stand now. Ordered by trooper id.
+     *
+     * @return list<int>
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function trooperIdsInUnitAtWeekEnd(int $unitId, CarbonInterface $weekStart): array;
+
+    /**
      * The sections each trooper was placed in during each Cav week from `$firstWeek` to `$lastWeek`, with their
      * current placement ({@see PlacementWeeks}). A week they were in no section (not placed yet, or on HQ staff or in
      * a group) is absent. A trooper placed nowhere now is left out.

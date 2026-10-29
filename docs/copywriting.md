@@ -343,6 +343,8 @@ tests and comments. They include some route and key names, so read them as rough
 | game identity | A trooper's in-game name and ID for one game | Nav, Game identities page | game identity 7; "player name" for the name field | account, gamertag |
 | confirm (a practice) | A leader states the captured marks are right | Rollcall | Confirm practice, Confirmed by | approve, verify |
 | guest | A serving trooper from another section recorded at this section's practice | Rollcall, roster | guest 54 / 15 | visitor |
+| staff guest | A platoon or company HQ staff member listed on the rollcall of a section in their own platoon or company; shown only, never counted. Elsewhere they are listed as a guest | Rollcall guests, staff report | new | staff visitor, HQ guest |
+| staff report | A platoon or company HQ staff member's own weekly report: whether they attended a section practice, and which. Sent once, by them | Sidebar, Home, staff report page | new | staff return, SP report |
 | JSAM candidate | A guest who meets the JSAM thresholds | Roster guests panel | 1 | nominee, eligible |
 | own section SP | SP at the trooper's own section only, makeups not counted (JSAM) | Roster guests panel | "practices of their own section" 1 | own SP |
 | report, weekly report | A unit's weekly report | Reports | report everywhere | AAR, submission |

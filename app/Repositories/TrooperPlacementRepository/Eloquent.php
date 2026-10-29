@@ -93,6 +93,66 @@ class Eloquent implements TrooperPlacementRepository
             ->all();
     }
 
+    public function unitOfTrooperAtWeekEnd(Trooper $trooper, CarbonInterface $weekStart): ?int
+    {
+        return $this->unitsAtWeekEnd(collect([$trooper]), $weekStart)[$trooper->id] ?? null;
+    }
+
+    public function trooperIdsInUnitAtWeekEnd(int $unitId, CarbonInterface $weekStart): array
+    {
+        // Everyone who was ever placed there or is placed there now; the history then says where each stood at the end.
+        $candidates = Trooper::query()
+            ->where('primary_section_id', $unitId)
+            ->orWhereIn('id', TrooperPlacement::query()->select('trooper_id')->where('unit_id', $unitId))
+            ->orderBy('id')
+            ->get(['id', 'primary_section_id']);
+
+        return collect($this->unitsAtWeekEnd($candidates, $weekStart))
+            ->filter(fn (?int $unit) => $unit === $unitId)
+            ->keys()
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Where each trooper stood at the end of the week: the placement row that holds the last instant of the week. A
+     * trooper with no history, or whose open row is not their current unit, is read as placed in their current unit,
+     * as {@see unitIdsOfTrooperInWeek()} reads them.
+     *
+     * @param  Collection<int, Trooper>  $troopers
+     * @return array<int, ?int> trooper id => unit id
+     */
+    private function unitsAtWeekEnd(Collection $troopers, CarbonInterface $weekStart): array
+    {
+        $end = WeekOf::requireStart($weekStart)->addWeek();
+        $rows = $troopers->isEmpty() ? collect() : TrooperPlacement::query()
+            ->whereIn('trooper_id', $troopers->pluck('id')->all())
+            ->get(['trooper_id', 'unit_id', 'placed_from', 'placed_until'])
+            ->groupBy('trooper_id');
+        $units = [];
+
+        foreach ($troopers as $trooper) {
+            $own = $rows->get($trooper->id, collect());
+            $current = $trooper->primary_section_id === null ? null : (int) $trooper->primary_section_id;
+            $open = $own->first(fn (TrooperPlacement $row) => $row->placed_until === null);
+
+            if ($open === null || $current === null || (int) $open->unit_id !== $current) {
+                $units[$trooper->id] = $current;
+
+                continue;
+            }
+
+            // The row that started before the week ended and had not ended by then (still open, or closed at or after
+            // the end). A trooper placed only after the week ended was nowhere then.
+            $holding = $own->first(fn (TrooperPlacement $row) => ($row->placed_from === null || CarbonImmutable::instance($row->placed_from)->lessThan($end))
+                && ($row->placed_until === null || CarbonImmutable::instance($row->placed_until)->greaterThanOrEqualTo($end)));
+            $units[$trooper->id] = $holding?->unit_id === null ? null : (int) $holding->unit_id;
+        }
+
+        return $units;
+    }
+
     public function leftUnitBetween(int $unitId, array $trooperIds, CarbonInterface $from, CarbonInterface $until): array
     {
         if ($trooperIds === []) {

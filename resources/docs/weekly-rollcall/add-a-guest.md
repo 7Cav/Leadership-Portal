@@ -29,3 +29,8 @@ audience: leader
 2. The makeup it gave them on their own section's rollcall is taken back, unless their own leader had already marked them. This works even if they have moved to another section since.
 
 > [!good-to-know] A guest the game server saw cannot be removed by hand. Once a practice is confirmed, guests can no longer be added or removed.
+
+## Staff in the list
+
+1. Staff who attended your practice are listed from their own staff entries: **Staff guest** when your section is in their platoon or company, **Guest** otherwise.
+2. They are shown only. They never count in your numbers, get no makeup, and cannot be removed here.

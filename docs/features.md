@@ -26,6 +26,8 @@ report deadline, 23:59 UTC on the Saturday after it ends, has passed).
   could not read, in the reporting week or the running one, for a trooper on that week's rollcall in your scope: it
   opens the trooper's card on that rollcall and links to the post on the forum, where it is fixed.
 - Subordinate units: the units directly under the top of your scope, with their report status and KPIs.
+- Staff report: for platoon and company HQ staff, a line saying their own staff report for the week is not sent yet,
+  with "Open staff report". It goes once they send it (see "Staff report" below).
 
 Home only counts line units (regiment, battalions, companies, platoons, sections). Staff groups have no report chain.
 A line unit with no troopers is left out (see "Units with no troopers" below).
@@ -127,7 +129,10 @@ On the same page:
   when the last capture failed, naming the feeds tried. A capture that broke on an error inside the portal says so
   instead of blaming a feed. "Try again" queues a new capture for the week so far.
 - Guests: add a serving trooper from another section who attended this practice, or remove one you added. See "JSAM
-  guests" and "Makeups".
+  guests" and "Makeups". Staff who said they attended (a staff practice entry, from their staff report or their milpac)
+  are listed there too: "Staff guest" when the section is under the platoon or company HQ they were on when the week
+  ended, "Guest" otherwise. They are shown only: they never count in the section's numbers, KPIs, strength, JSAM counts
+  or makeups, are never on its roster, and the host leader cannot remove them.
 - Fireteams: mark fireteam leaders (FTLs), put troopers in their fireteams, and choose how the post shows them. A company
   command can set a policy for all its sections (show or hide FTLs, leaders first, and whether SL and ASL may lead a
   fireteam), which overrides the sections' own choices while it is set.
@@ -181,6 +186,9 @@ leaves the Cav; one who left before it began doing so has no date and is on no p
   - A sent report is read back exactly as frozen and never recalculated. Sending a section's report locks that week's
     rollcall.
   - Weeks before the week floor open read-only.
+  - HQ staff reports (a platoon's or company's report only): each staff member on that HQ when the week ended, with
+    "Not sent", "Attended 2 practices" or "Did not attend", linked to their staff report. Read only and live: it is not
+    frozen with the unit's report. It lists only the staff whose report the viewer may read (see "Staff report").
 
 ### Unit switcher and View as
 
@@ -341,9 +349,43 @@ lists the section practices they attended, newest week first; the roster's troop
   longer change. It goes by where they were placed that week (the placement history), not where they are now, so a
   move afterwards neither opens nor locks a week; a week they spent in two units is locked by either. A staff
   department sends no weekly report, so its weeks stay open.
-- An entry never puts the staff member on the host section's rollcall or its guests, never counts in its numbers,
-  reports or JSAM counts, and gives no makeup. Adding and removing are audited. The staff report does not show these
-  yet (#449).
+- Lock: once the staff member has sent their own staff report for a week (see below), that week's entries no longer
+  change either, from anyone.
+- An entry lists the staff member beside the host section's guests (see "Rollcall"), shown only: it never puts them on
+  the host's roster, never counts in its numbers, reports or JSAM counts, and gives no makeup. Adding and removing are
+  audited.
+
+### Staff report
+
+Platoon HQ and company HQ staff attend at least one section practice a week, preferably in their
+own platoon or company, and each files their own weekly staff report saying whether they did and which. "Staff" here
+is a serving trooper placed on a platoon or company HQ node (the PL, PSG, CO, XO, 1SG and anyone else placed there).
+Battalion and regiment HQ, staff departments, ELOA, Reservists and New Recruits file none. It is not a line in the
+platoon's or company's report.
+
+- Where: "Staff report" in the sidebar for platoon and company HQ staff, and the reminder on Home. Both open
+  `/staff-report/<trooper>/<week>` for the week whose report cycle is running; the arrows move between weeks.
+- Filling it in: "Did you attend a section practice this week?" Yes or No. Yes offers every section with troopers in
+  it, the staff member's own platoon's or company's first, with a search; pick one or more. The week's staff practice
+  entries are ticked already, each saying who entered it. A practice the game server saw them at says "Seen on the game
+  server" and is never ticked for them: the capture reads the whole Cav week, so it only says they were on the server.
+- Sending: only the staff member, signed in as themselves, sends it. Nobody sends it for them, Admins included, and
+  never through act as or view as. It is due when the unit reports are, 23:59 UTC on the Saturday after the week. A
+  sent report is final, as a unit's report is: there is no edit and no second send. There is no draft: the picks stay
+  on the page until it is sent.
+- What sending writes: the staff report, and the week's staff practice entries set to exactly the practices picked
+  (an entry for a section not picked, one a leader entered on the milpac say, is taken off, and the page warns before
+  sending). "No" is a sent report with no practice, and takes off the week's entries. A guest entry from before they
+  joined the HQ stays as it is. Each pick lists them on the host's rollcall as a staff guest or a guest (see
+  "Rollcall"). Sending is audited as `staff_report.sent`.
+- The HQ's own weekly report does not lock it: a PSG still sends theirs after their platoon's report went. Once sent,
+  that week's staff practice entries are locked.
+- Past weeks: a week that has ended goes by who was on the HQ when it ended, from the placement history. A staff member
+  who has since moved into a section still sends the past week's; someone who joined the HQ after it ended has none
+  for it. Weeks before the week floor open read-only.
+- Who reads it: the staff member, whoever reads the unit above their HQ (its command and the chain above, a staff grant
+  there, an overseer or the Regimental HQ read), and Admins. A peer on the same HQ (a PL and their PSG) does not. See
+  [permissions.md](permissions.md#staff-report).
 
 ## Settings menu (Admins)
 
@@ -447,5 +489,6 @@ the sum of its direct children's sent reports.
 | Reports | `app/Commands/WeeklyReports/`, `app/Kpi/RollupKpis.php`, `ReportChain.php`, `resources/js/lib/report.js` |
 | Training plans | `app/Commands/TrainingPlans/`, `TrainingPlanController`, `resources/js/Pages/Reports/TrainingPlan.vue`, `resources/js/lib/trainingPlan.js` |
 | Staff practices | `app/Commands/StaffPractices/`, `app/Authorization/StaffPracticeAccess.php`, `app/Milpac/StaffPracticeHistory.php`, `resources/js/components/milpac/StaffPracticesPanel.vue` (stored in `cross_section_sightings` with source `staff`) |
+| Staff report | `app/Commands/StaffReports/`, `app/Authorization/StaffReportAccess.php`, `app/Milpac/StaffReportWeek.php`, `StaffReportController`, `resources/js/Pages/StaffReport.vue`, `resources/js/components/reports/StaffReportsPanel.vue` (`staff_reports`; the practices picked are `cross_section_sightings` rows with source `staff`) |
 | Counseling | `app/Commands/Counseling/`, `app/Authorization/CounselingAccess.php`, `app/Milpac/CounselingHistory.php`, `app/Milpac/CounselingStanding.php`, `app/Integration/GoogleDrive/`, `app/Jobs/UploadCounselingDocumentJob.php`, `resources/js/components/milpac/CounselingPanel.vue` |
 | Units with no troopers | `app/Kpi/Headcount.php` (`withoutEmptyLineUnits` for the roster and Home, `reportingLineUnits` for the report chain) |

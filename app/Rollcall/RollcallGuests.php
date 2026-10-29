@@ -7,6 +7,7 @@ use App\Models\SectionPractice;
 use App\Models\Trooper;
 use App\Models\Unit;
 use App\Repositories\CrossSectionSightingRepository;
+use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\UnitRepository;
 use Illuminate\Support\Collection;
 
@@ -15,12 +16,19 @@ use Illuminate\Support\Collection;
  * game-server capture or by the host leader's hand, in the shape the page and the guest endpoints share. A guest comes
  * from outside the section and often outside the leader's scope, so each row carries only what the list shows (name,
  * rank, own section designation, where the entry came from and who added it), never a milpac link.
+ *
+ * Staff who said they attended (a staff practice entry, source `staff`, from their staff report or their milpac) are
+ * listed after the guests: as a staff guest (`staffGuest`) when the section is under the HQ they
+ * were placed on when the week ended (their platoon or company), and as a guest otherwise. Shown only: they never count
+ * in the section's numbers, KPIs, strength, JSAM counts or makeups, are never on its roster, and the host leader
+ * cannot remove them.
  */
 class RollcallGuests
 {
     public function __construct(
         private readonly CrossSectionSightingRepository $sightings,
         private readonly UnitRepository $units,
+        private readonly TrooperPlacementRepository $placements,
     ) {}
 
     /**
@@ -28,7 +36,7 @@ class RollcallGuests
      * rules: a hand-added one among them is offered "Retry makeup".
      *
      * @param  list<int>  $makeupMissing
-     * @return list<array{trooperId: int, name: ?string, displayName: string, rank: ?string, section: ?string, source: string, recordedBy: ?string, makeupMissing: bool}>
+     * @return list<array{trooperId: int, name: ?string, displayName: string, rank: ?string, section: ?string, source: string, recordedBy: ?string, makeupMissing: bool, staffGuest: bool}>
      */
     public function forPractice(?SectionPractice $practice, array $makeupMissing = []): array
     {
@@ -37,14 +45,46 @@ class RollcallGuests
         }
 
         $rows = $this->sightings->forHostPractice($practice->id);
+        $staff = $this->sightings->staffForHostPractice($practice->id);
 
-        if ($rows->isEmpty()) {
+        if ($rows->isEmpty() && $staff->isEmpty()) {
             return [];
         }
 
         $units = $this->units->tree()->keyBy('id');
+        $host = $units->get($practice->section_id);
 
-        return $rows->map(fn (CrossSectionSighting $row) => $this->shape($row, $row->trooper, $units, in_array($row->trooper_id, $makeupMissing, true)))->values()->all();
+        return $rows->map(fn (CrossSectionSighting $row) => $this->shape($row, $row->trooper, $units, in_array($row->trooper_id, $makeupMissing, true)))
+            ->concat($staff->map(fn (CrossSectionSighting $row) => [
+                ...$this->shape($row, $row->trooper, $units),
+                'recordedBy' => self::enteredBy($row),
+                'staffGuest' => $host instanceof Unit && $this->underOwnHq($row->trooper, $practice, $host, $units),
+            ]))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Whether the host section is under the HQ the staff member was placed on when the practice's week ended: their own
+     * platoon or company, which lists them as a staff guest.
+     *
+     * @param  Collection<int, Unit>  $units
+     */
+    private function underOwnHq(Trooper $trooper, SectionPractice $practice, Unit $host, Collection $units): bool
+    {
+        $hq = $units->get($this->placements->unitOfTrooperAtWeekEnd($trooper, $practice->week_start));
+
+        return $hq instanceof Unit && $hq->id !== $host->id && str_starts_with($host->path, $hq->path);
+    }
+
+    /** Who entered a staff entry, as the milpac words it ("Hale.S for Vasquez.R" for an Admin acting as them). */
+    private static function enteredBy(CrossSectionSighting $row): ?string
+    {
+        return match (true) {
+            $row->recordedByAdmin !== null => "{$row->recordedByAdmin->username} for {$row->recordedBy?->username}",
+            $row->recordedAsUnit !== null => "{$row->recordedBy?->username} acting as {$row->recordedAsUnit->billet()}",
+            default => $row->recordedBy?->username,
+        };
     }
 
     /**
@@ -52,7 +92,7 @@ class RollcallGuests
      * set only on a hand-added guest, the one kind a leader can retry.
      *
      * @param  Collection<int, Unit>  $units
-     * @return array{trooperId: int, name: ?string, displayName: string, rank: ?string, section: ?string, source: string, recordedBy: ?string, makeupMissing: bool}
+     * @return array{trooperId: int, name: ?string, displayName: string, rank: ?string, section: ?string, source: string, recordedBy: ?string, makeupMissing: bool, staffGuest: bool}
      */
     public function shape(CrossSectionSighting $row, Trooper $trooper, Collection $units, bool $makeupMissing = false): array
     {
@@ -73,13 +113,14 @@ class RollcallGuests
                 default => $row->recordedBy?->username,
             },
             'makeupMissing' => $makeupMissing && $row->isManual(),
+            'staffGuest' => false,
         ];
     }
 
     /**
      * {@see shape()} for one entry just written, reading the org tree itself.
      *
-     * @return array{trooperId: int, name: ?string, displayName: string, rank: ?string, section: ?string, source: string, recordedBy: ?string, makeupMissing: bool}
+     * @return array{trooperId: int, name: ?string, displayName: string, rank: ?string, section: ?string, source: string, recordedBy: ?string, makeupMissing: bool, staffGuest: bool}
      */
     public function one(CrossSectionSighting $row, Trooper $trooper, bool $makeupMissing = false): array
     {

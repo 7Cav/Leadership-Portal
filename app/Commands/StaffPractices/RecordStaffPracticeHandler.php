@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Repositories\AuditedBatch;
 use App\Repositories\CrossSectionSightingRepository;
 use App\Repositories\SectionPracticeRepository;
+use App\Repositories\StaffReportRepository;
 use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
@@ -55,6 +56,7 @@ class RecordStaffPracticeHandler
         private readonly CrossSectionSightingRepository $sightings,
         private readonly WeeklyReportRepository $reports,
         private readonly TrooperPlacementRepository $placements,
+        private readonly StaffReportRepository $staffReports,
         private readonly AuditEnvelope $audit,
         private readonly ActingFor $acting,
     ) {}
@@ -101,7 +103,7 @@ class RecordStaffPracticeHandler
             reason: null,
             reasonRequired: false,
             mutation: function () use ($actor, $command, $weekStart, $trooper, &$sighting) {
-                $this->refuseLockedWeek($this->reports, $this->placements, $trooper, $weekStart);
+                $this->refuseLockedWeek($this->reports, $this->placements, $this->staffReports, $trooper, $weekStart);
 
                 $current = $this->refuseNonStaff($this->access, $this->troopers->find($trooper->id));
                 // A demo week stays demo (audit 2, L1): the entry is the staff member's, nothing of the host's.

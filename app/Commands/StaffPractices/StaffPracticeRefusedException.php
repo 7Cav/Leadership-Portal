@@ -12,7 +12,7 @@ use RuntimeException;
  * - `unknown_trooper`, `not_staff`, `not_serving`: the trooper cannot have a staff entry;
  * - `not_a_section`: practices are a section's;
  * - `before_floor`, `future`: the week cannot change;
- * - `locked`: the staff member's HQ sent its report for the week;
+ * - `locked`: the staff member's HQ sent its report for the week, or they sent their own staff report for it;
  * - `already_recorded`: the trooper is already recorded at that practice, as staff or as a guest of the section (the
  *   message says which, since a guest entry shows on the section's rollcall, not in the staff list);
  * - `not_recorded`: there is no staff entry to remove.
@@ -62,6 +62,12 @@ class StaffPracticeRefusedException extends RuntimeException
     public static function locked(CarbonInterface $weekStart): self
     {
         return new self("The report for the week of {$weekStart->format('dMy')} has been sent, so that week can no longer change.", 'locked', 'week');
+    }
+
+    /** The staff member sent their own staff report for the week, which froze its entries. */
+    public static function staffReportSent(string $name, CarbonInterface $weekStart): self
+    {
+        return new self("{$name} sent their staff report for the week of {$weekStart->format('dMy')}, so that week can no longer change.", 'locked', 'week');
     }
 
     public static function alreadyRecorded(string $name): self

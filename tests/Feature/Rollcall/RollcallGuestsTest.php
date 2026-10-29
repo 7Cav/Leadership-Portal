@@ -59,7 +59,7 @@ it('records a hand-added guest at the host practice, audited with the leader as 
         ->assertExactJson([
             'guest' => [
                 'trooperId' => $this->guest->id, 'name' => 'Visitor.V', 'displayName' => $this->guest->display_name, 'rank' => 'PFC',
-                'section' => '3/2/B/1-7', 'source' => 'manual', 'recordedBy' => 'Host.L', 'makeupMissing' => false,
+                'section' => '3/2/B/1-7', 'source' => 'manual', 'recordedBy' => 'Host.L', 'makeupMissing' => false, 'staffGuest' => false,
             ],
             'makeup' => 'marked',
         ]);

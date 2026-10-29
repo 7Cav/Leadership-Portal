@@ -120,7 +120,9 @@ The candidates are read in `Kpi/PracticeGuests` and shown on the roster (see `Kp
 Only troopers placed in a section. HQ staff are placed on their HQ node (a platoon, company, battalion or the regiment)
 and staff, ELOA, Reservists and New Recruits in a group: none of those is a section, so they are on no rollcall, get no
 practice, capture or makeup, and are never offered as a guest (`GuardsHostPractice` and the guest picker ask for a
-section placement).
+section placement). A staff member's own staff practice entry (from their staff report or their milpac) lists
+them in the host's "Guests" area through `RollcallGuests`: `staffGuest` when the host is under the
+HQ they were on when the week ended, a guest otherwise. Shown only, never on the roster or in any count.
 
 **May depend on:** `Repositories/` (never the DB directly, AD-2) and `Models/`.
 **Reached from:** `Http/Controllers/`. Read-only: templates are written only by the audited

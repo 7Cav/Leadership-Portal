@@ -118,6 +118,31 @@ class Eloquent implements CrossSectionSightingRepository
             ->toBase();
     }
 
+    public function staffEntriesInWeek(int $trooperId, CarbonInterface $weekStart): Collection
+    {
+        return CrossSectionSighting::query()
+            ->with(['practice.section', 'recordedBy', 'recordedByAdmin', 'recordedAsUnit'])
+            ->where('trooper_id', $trooperId)
+            ->where('source', CrossSectionSighting::SOURCE_STAFF)
+            ->where('week_start', WeekOf::requireStart($weekStart))
+            ->orderBy('id')
+            ->get()
+            ->toBase();
+    }
+
+    public function staffForHostPractice(int $hostPracticeId): Collection
+    {
+        return CrossSectionSighting::query()
+            ->with(['trooper', 'recordedBy', 'recordedByAdmin', 'recordedAsUnit'])
+            ->where('section_practice_id', $hostPracticeId)
+            ->where('source', CrossSectionSighting::SOURCE_STAFF)
+            ->orderBy('id')
+            ->get()
+            ->sortBy(fn (CrossSectionSighting $row) => [mb_strtolower((string) $row->trooper?->username), $row->trooper_id])
+            ->values()
+            ->toBase();
+    }
+
     public function find(int $hostPracticeId, int $trooperId): ?CrossSectionSighting
     {
         return CrossSectionSighting::query()

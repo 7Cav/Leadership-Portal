@@ -26,6 +26,7 @@ use App\Http\Controllers\Settings\StaffGrantsController;
 use App\Http\Controllers\Settings\TemplatesController;
 use App\Http\Controllers\Settings\TrooperPlacementController;
 use App\Http\Controllers\StaffPracticeController;
+use App\Http\Controllers\StaffReportController;
 use App\Http\Controllers\TrainingPlanController;
 use App\Http\Controllers\TrainingReadinessMatrixController;
 use App\Http\Controllers\TrooperDetailController;
@@ -124,6 +125,14 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // (Authorization\StaffPracticeAccess); a trooper the viewer cannot see is a 404. On the shared audited-writes throttle.
     Route::post('/troopers/{trooper}/staff-practices', [StaffPracticeController::class, 'store'])->middleware('throttle:audited-writes')->name('staff-practices.store');
     Route::post('/troopers/{trooper}/staff-practices/remove', [StaffPracticeController::class, 'destroy'])->middleware('throttle:audited-writes')->name('staff-practices.remove');
+    // The weekly staff report of a platoon or company HQ staff member: one page per staff member and
+    // week, read by them, the chain above their HQ and Admins; sent once, by the staff member alone, as an audited Command
+    // (Authorization\StaffReportAccess). `/staff-report` opens the viewer's own for the week whose report is due.
+    Route::get('/staff-report', [StaffReportController::class, 'own'])->name('staff-report.own');
+    Route::get('/staff-report/{trooper}/{week}', [StaffReportController::class, 'show'])
+        ->where('week', '\d{4}-\d{2}-\d{2}')->name('staff-report.show');
+    Route::post('/staff-report/{trooper}/{week}', [StaffReportController::class, 'send'])
+        ->where('week', '\d{4}-\d{2}-\d{2}')->middleware('throttle:audited-writes')->name('staff-report.send');
 
     // The training-readiness matrix of one unit (Story 6.9): troopers by courses, scope-gated in the controller
     // through the ScopeResolver (AD-8). The milpac's quick action links to the trooper's platoon. Like the roster's
