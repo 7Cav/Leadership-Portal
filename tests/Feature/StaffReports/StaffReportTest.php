@@ -114,6 +114,20 @@ it('records "No" as a sent report with no practice, and takes off the week\'s en
         ->and(SectionPractice::query()->count())->toBe(0);
 });
 
+it('audits each entry the send takes off, naming the entry and who had entered it', function () {
+    $entry = app(RecordStaffPracticeHandler::class)->handle($this->tree['users']['pl'], new RecordStaffPractice($this->psg->id, $this->host->id, $this->week));
+
+    sendStaffReport($this->tree['users']['psg'], $this->psg, true, [$this->far->id]);
+
+    $removed = AuditLogEntry::query()->where('action', 'staff_practice.removed')->sole();
+    expect($removed->actor_id)->toBe($this->tree['users']['psg']->id)
+        ->and($removed->target_type)->toBe('CrossSectionSighting')
+        ->and((int) $removed->target_id)->toBe($entry->id)
+        ->and($removed->reason)->toContain('1/1/A/1-7')
+        ->and($removed->reason)->toContain($this->tree['users']['pl']->username)
+        ->and(AuditLogEntry::query()->where('action', 'staff_report.sent')->count())->toBe(1);
+});
+
 it('keeps an entry already there for a section it picked, and drops one it did not', function () {
     $record = app(RecordStaffPracticeHandler::class);
     $kept = $record->handle($this->tree['users']['pl'], new RecordStaffPractice($this->psg->id, $this->host->id, $this->week));
