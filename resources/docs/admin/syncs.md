@@ -13,6 +13,7 @@ audience: admin
 1. The roster syncs every hour.
 2. Leave syncs every hour at a quarter past, reading new posts, and once a day at 03:30 UTC reading every thread again.
 3. Pages that show roster or leave data say when it last synced, and warn when a sync failed.
+4. The first leave sync reads a year of posts, newest first. That takes several hourly runs; each one carries on where the last stopped. Until it is done, the leave note says "Older leave is still being read" and how far back it has got. This week's leave is read first.
 
 ## Sync the whole roster now
 
@@ -25,5 +26,6 @@ audience: admin
 
 1. There is no button for leave yet. If leave is wrong after the hourly run, ask S6 to run the leave sync on the server.
 2. When the latest leave sync had problems, **Roster** shows Admins a warning under the leave note. Open it to see the threads it could not read, each linked to the forum, and how many posts need review. A post that needs review is fixed by the trooper on the forum; the next sync reads it again.
+3. A leave post that is deleted, hidden or moved out of the leave sections stops counting after the next clean daily read. If it is put back, it counts again.
 
 > [!good-to-know] What this changes, and how to undo it: a sync only refreshes the portal's copy. To undo a wrong change, fix the milpac or the leave post at the source, then sync again.

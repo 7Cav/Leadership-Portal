@@ -145,7 +145,7 @@ describe('rollcall autosave', () => {
         expect(post).toHaveBeenCalledTimes(2);
         expect(post).toHaveBeenLastCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 1, status: 'present' }] });
         expect(save.state.value).toBe('saved');
-        expect(save.rejectedMessage.value).toBe('Trooper2.A is no longer placed in this section, so that mark was not saved. Reload to refresh the roster.');
+        expect(save.rejectedMessage.value).toBe('Trooper2.A is no longer placed in this section, so that mark was not saved. Their new section marks them now; if they still belong here, ask an Admin to check their placement.');
 
         save.queue(2, 'status', 'missed');
         expect(save.pendingCount.value).toBe(0);

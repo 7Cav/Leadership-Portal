@@ -135,3 +135,22 @@ it('finds the latest closed run of any outcome, skipping one still in progress (
 it('returns null when a source has never finished a run', function () {
     expect(syncRunRepository()->latestFinished('roster'))->toBeNull();
 });
+
+it('saves a cursor while a run is going, and hands back the latest one saved for the source, whatever that run became', function () {
+    $this->travelTo(now()->startOfHour());
+    $older = syncRunRepository()->open('loa', 'system');
+    syncRunRepository()->saveCursor($older, ['sections' => [180 => ['page' => 3]]]);
+
+    $this->travelTo(now()->addHour());
+    $killed = syncRunRepository()->open('loa', 'system');
+    syncRunRepository()->saveCursor($killed, ['sections' => [180 => ['page' => 9]]]);
+    syncRunRepository()->failOrphaned('loa');
+
+    // A later run that saved none (a full LOA run), and another source's cursor, are passed over.
+    $this->travelTo(now()->addHour());
+    syncRunRepository()->complete(syncRunRepository()->open('loa', 'system'), 0, 0, 0, 0);
+    syncRunRepository()->saveCursor(syncRunRepository()->open('roster', 'system'), ['other' => true]);
+
+    expect(syncRunRepository()->latestCursor('loa'))->toBe(['sections' => [180 => ['page' => 9]]])
+        ->and(syncRunRepository()->latestCursor('capture'))->toBeNull();
+});

@@ -52,7 +52,7 @@ Artisan::command('portal:sync-loas {--full : Re-read recent and open leave, not 
 Schedule::command('portal:sync-roster')->hourly();
 Schedule::command('portal:sync-loas')->hourlyAt(15)->when(fn () => SyncLoasJob::isConfigured());
 
-// A daily full run: the hourly ones only read threads newer than the last good run, so a post edited after that
+// A daily full run: once past its first read of the year, an hourly run reads only threads posted since the last, so a post edited after that
 // (an LOA extended, say) is caught here. It skips leave that ended more than two weeks ago.
 Schedule::command('portal:sync-loas --full')->dailyAt('03:30')->when(fn () => SyncLoasJob::isConfigured());
 

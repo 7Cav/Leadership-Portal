@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { percent } from '@/lib/report';
 import EmptyState from '@/components/EmptyState.vue';
+import NoValue from '@/components/NoValue.vue';
 
 // The subordinate-units table (Story 5.11): each direct subordinate of the viewer's scope with its
 // KPIs and send status, sortable, each row drilling through to the unit's report. Values and the
@@ -128,8 +129,8 @@ const own = computed(() => props.units.length === 1 && props.units[0].type === '
                         </TableCell>
                         <template v-else>
                             <TableCell class="py-2 text-right tabular-nums">{{ row.unit.kpis.strength }}</TableCell>
-                            <TableCell class="py-2 text-right tabular-nums">{{ row.rc === null ? '—' : `${row.rc}%` }}</TableCell>
-                            <TableCell class="py-2 text-right tabular-nums">{{ row.sp === null ? '—' : `${row.sp}%` }}</TableCell>
+                            <TableCell class="py-2 text-right tabular-nums"><NoValue v-if="row.rc === null" /><template v-else>{{ row.rc }}%</template></TableCell>
+                            <TableCell class="py-2 text-right tabular-nums"><NoValue v-if="row.sp === null" /><template v-else>{{ row.sp }}%</template></TableCell>
                             <TableCell class="py-2 text-right tabular-nums" :class="row.unit.kpis.atRisk ? 'font-medium text-warning' : 'text-muted-foreground'">
                                 {{ row.unit.kpis.atRisk }}
                             </TableCell>

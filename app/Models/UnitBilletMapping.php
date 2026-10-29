@@ -13,9 +13,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * (`cav_position_id`), never their section, so this portal-owned table is the documented
  * bridge `Sync\SyncRosterHandler` reads to resolve `troopers.primary_section_id`.
  * Not synced: the Admin-triggered org-structure import (2.9) seeds it additively from the Cav
- * position groups, and never overwrites a row that already exists.
+ * position groups, and repoints only a row it owns (`imported_unit_id` still equal to `unit_id`), never one
+ * corrected by hand.
  */
-#[Fillable(['unit_id', 'cav_position_id'])]
+#[Fillable(['unit_id', 'imported_unit_id', 'cav_position_id'])]
 class UnitBilletMapping extends Model
 {
     /** @use HasFactory<UnitBilletMappingFactory> */

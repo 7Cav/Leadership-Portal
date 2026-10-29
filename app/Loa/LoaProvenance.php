@@ -36,12 +36,19 @@ final class LoaProvenance
         $lastSyncedAt = $lastGood?->finished_at ? CarbonImmutable::instance($lastGood->finished_at) : null;
         $tooOld = $lastSyncedAt !== null && $lastSyncedAt->lessThan(CarbonImmutable::now()->subHours(self::STALE_AFTER_HOURS));
 
+        // How far the sync's first read of the year has got, from the cursor it saves as it goes (SyncLoasHandler).
+        $cursor = $this->syncRuns->latestCursor(SyncRun::SOURCE_LOA);
+        $backfilling = (bool) ($cursor['backfilling'] ?? false);
+        $reachedBack = $backfilling && is_string($cursor['reachedBack'] ?? null) ? CarbonImmutable::parse($cursor['reachedBack']) : null;
+
         return new LoaSyncState(
             source: self::SOURCE_LABEL,
             lastSyncedAt: $lastSyncedAt,
             stale: $tooOld || ($latest !== null && $latest->status !== SyncRunStatus::Success),
             latestStatus: $latest?->status->value,
             latestFinishedAt: $latest?->finished_at ? CarbonImmutable::instance($latest->finished_at) : null,
+            backfilling: $backfilling,
+            backfilledTo: $reachedBack,
         );
     }
 }
