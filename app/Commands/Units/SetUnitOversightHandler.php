@@ -2,6 +2,7 @@
 
 namespace App\Commands\Units;
 
+use App\Authorization\RealActor;
 use App\Authorization\ScopeResolver;
 use App\Models\UnitOversight;
 use App\Models\User;
@@ -36,6 +37,7 @@ class SetUnitOversightHandler
         private readonly AuditEnvelope $audit,
         private readonly ScopeResolver $scope,
         private readonly ActingFor $acting,
+        private readonly RealActor $real,
     ) {}
 
     /**
@@ -87,6 +89,15 @@ class SetUnitOversightHandler
 
         if (! $trooper->status->isServing()) {
             throw InvalidUnitOversightException::notServing($trooper->display_name);
+        }
+
+        // As with acting leads: an Admin never names themselves (the actor, or the person really signed in while acting),
+        // so the read it gives cannot outlast their Admin rights.
+        $self = collect([$actor->cav_id, $this->real->get()?->cav_id])->filter(fn ($cavId) => $cavId !== null)
+            ->contains(fn ($cavId) => (int) $cavId === (int) $trooper->cav_id);
+
+        if ($self) {
+            throw InvalidUnitOversightException::self();
         }
 
         if ($current !== null && $current->trooper_id === $trooper->id) {

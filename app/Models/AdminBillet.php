@@ -69,7 +69,7 @@ class AdminBillet extends Model
      */
     public function inRegimentalHq(): bool
     {
-        return $this->proposed_group_title === self::REGIMENTAL_HQ;
+        return trim((string) $this->proposed_group_title) === self::REGIMENTAL_HQ;
     }
 
     /** Whether the names seen now differ from the confirmed ones, or nothing was confirmed yet. */
