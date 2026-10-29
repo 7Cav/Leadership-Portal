@@ -52,4 +52,10 @@ class CounselingRecordFactory extends Factory
     {
         return $this->state(['type' => CounselingType::Lor]);
     }
+
+    /** Filed `$hours` hours ago: 73 by default, past the LOR's 72-hour appeal window, so an LOR is frozen. */
+    public function filedHoursAgo(int $hours = 73): static
+    {
+        return $this->state(fn () => ['created_at' => now()->subHours($hours), 'updated_at' => now()->subHours($hours)]);
+    }
 }

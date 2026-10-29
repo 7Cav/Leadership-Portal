@@ -113,10 +113,11 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // Developmental Counseling Statements and Letters of Reprimand (#381). Each write is an audited Command whose handler
     // decides who may file which type and who may change a record (Authorization\CounselingAccess); a trooper or record
     // the viewer cannot see is a 404, the document download included. Filing stores a PDF of up to 10 MB, so it has its
-    // own, tighter throttle (counseling-uploads); corrections and deletes share the audited-writes one.
+    // own, tighter throttle (counseling-uploads); corrections, deletes and overturns share the audited-writes one.
     Route::post('/troopers/{trooper}/counseling', [CounselingController::class, 'store'])->middleware('throttle:counseling-uploads')->name('counseling.store');
     Route::patch('/counseling/{counseling}', [CounselingController::class, 'update'])->middleware('throttle:audited-writes')->name('counseling.update');
     Route::delete('/counseling/{counseling}', [CounselingController::class, 'destroy'])->middleware('throttle:audited-writes')->name('counseling.destroy');
+    Route::post('/counseling/{counseling}/overturn', [CounselingController::class, 'overturn'])->middleware('throttle:audited-writes')->name('counseling.overturn');
     Route::get('/counseling/{counseling}/document', [CounselingController::class, 'document'])->name('counseling.document');
     // The section practices a staff member attended (#448): staff are on no section's rollcall, so the staff member, their
     // staff leader or an Admin enters one on the milpac. Each write is an audited Command whose handler decides who may

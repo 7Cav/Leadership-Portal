@@ -36,6 +36,8 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 1. Select the unit and choose **Make acting lead**.
 2. Pick the trooper, give a reason, and save. They get exactly a platoon leader's rights over that unit and everything under it.
 
+> [!good-to-know] A unit whose leader billet (CO, PL or SL) someone serving holds already has its lead, so it takes no acting lead. You cannot make yourself acting lead either: ask another Admin.
+
 > [!good-to-know] What this changes, and how to undo it: choose **Remove acting lead** with a reason. Their access to the unit ends on their next page load. Both are in the audit log.
 
 ## Set who oversees a battalion
