@@ -99,6 +99,9 @@ class HandleInertiaRequests extends Middleware
             'forum' => [
                 'baseUrl' => rtrim((string) config('services.sevencav.base_url'), '/'),
             ],
+            // A one-line outcome a write flashed for the next render (`notice`), which the shell shows as a toast: what
+            // happened to a request whose result is not on the page yet, like a leave sync queued behind a running one.
+            'flash' => fn () => ['notice' => $request->hasSession() ? $request->session()->get('notice') : null],
             // Optional tools the shell's navigation shows only when switched on (#115: Settings →
             // Demo data, DEMO_TOOLS=true; #409: the docs, DOCS_ENABLED=true). Navigation only — each
             // screen enforces its own gate.
