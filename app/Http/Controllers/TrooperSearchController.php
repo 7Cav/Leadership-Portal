@@ -60,8 +60,8 @@ class TrooperSearchController extends Controller
         // One row over the limit says whether there are more than shown, without counting them all.
         $admin = $this->scope->actsAsAdmin($user);
         // The viewer's own trooper too, as the milpac page opens it for them (ScopeResolver::isOwnTrooper(): never in a
-        // view-as preview). Nobody else outside the scope.
-        $own = $user->cav_id !== null && $this->scope->activeViewAs($user) === null ? (int) $user->cav_id : null;
+        // view-as preview, never while acting as someone). Nobody else outside the scope.
+        $own = $this->scope->ownCavId($user);
         $found = $this->troopers->searchByUsername($this->usernameTerms($term), $this->cavIdIn($term), $this->scope->resolve($user), $admin, self::LIMIT + 1, $own);
         $units = $this->units->tree()->keyBy('id');
 

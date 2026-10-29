@@ -2,6 +2,8 @@
 
 use App\Authorization\ScopeResolver;
 use App\Integration\Cav\CavApi;
+use App\Models\AdminBillet;
+use App\Models\AdminBilletStatus;
 use App\Models\PlacementSource;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
@@ -175,7 +177,16 @@ it('leaves a trooper whose billet maps nowhere where they were', function () {
         ->and(Trooper::where('cav_id', 20)->sole()->placement_source)->toBe(PlacementSource::Manual);
 });
 
+/** The `admin_billets` row the org import keeps for a Regimental HQ billet, waiting for an Admin. */
+function spRhqBillet(int $positionId, string $title): void
+{
+    AdminBillet::query()->create([
+        'cav_position_id' => $positionId, 'proposed_title' => $title, 'proposed_group_title' => 'Regimental HQ', 'status' => AdminBilletStatus::Pending,
+    ]);
+}
+
 it('gives the Regimental HQ staff it places on the regiment read scope over it, until the billet moves', function () {
+    spRhqBillet(904, 'Regimental Chief of Staff');
     spSync(combat: ['6' => spRow('904', 'Regimental Chief of Staff', username: 'Tharen.R'), '7' => spRow('903', 'S6 1IC', username: 'Byte.S')]);
     $chief = User::factory()->create(['cav_id' => 6]);
     $s6 = User::factory()->create(['cav_id' => 7]);
@@ -191,4 +202,19 @@ it('gives the Regimental HQ staff it places on the regiment read scope over it, 
 
     expect(spPlacedIn(6))->toBe($this->s6->id)
         ->and($scope->resolve($chief)->all())->toBe([]);
+});
+
+// Audit 3 (2026-10-29): a billet that maps nowhere leaves the placement on the regiment, but not the read.
+it('ends the Regimental HQ read when the sync moves them to a billet that maps nowhere, though it keeps the placement', function () {
+    spRhqBillet(904, 'Regimental Chief of Staff');
+    spSync(combat: ['6' => spRow('904', 'Regimental Chief of Staff', username: 'Tharen.R')]);
+    $chief = User::factory()->create(['cav_id' => 6]);
+    $scope = app(ScopeResolver::class);
+    expect($scope->resolve($chief)->all())->toEqualCanonicalizing(app(UnitRepository::class)->allIds()->all());
+
+    spSync(combat: ['6' => spRow('9999', 'Something Unmapped', username: 'Tharen.R')]);
+
+    expect(spPlacedIn(6))->toBe($this->regiment->id)
+        ->and($scope->resolve($chief)->all())->toBe([])
+        ->and($scope->regimentalHqStaff()->all())->toBe([]);
 });

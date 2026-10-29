@@ -23,7 +23,7 @@ page: /troopers/{trooper}
 
 ## Open your own page
 
-1. Search for your own name. Everyone can open their own milpac page, with or without a billet.
+1. Search for your own name. Everyone can open their own milpac page, with or without a billet, signed in as themselves (not while acting as or viewing as someone).
 2. It is read only. It shows your counseling records (DCS and LOR) and lets you download them, but you can never file, correct or delete your own.
 3. If you serve on a staff, you record the section practices you attended there.
 

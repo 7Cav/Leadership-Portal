@@ -1,6 +1,8 @@
 <?php
 
 use App\Authorization\ScopeResolver;
+use App\Models\AdminBillet;
+use App\Models\AdminBilletStatus;
 use App\Models\PortalRoleGrant;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
@@ -68,14 +70,20 @@ it('lists exactly the serving troopers placed on the regiment as Regimental HQ s
         return $trooper;
     };
     $troopers = [
-        'chief' => $placed($regiment, ['username' => 'Tharen.R', 'rank_short' => 'COL', 'billet' => 'Regimental Chief of Staff']),
-        'finance' => $placed($regiment, ['username' => 'Abbot.F', 'rank_short' => 'MAJ', 'billet' => 'Regimental Finance Officer', 'status' => TrooperStatus::Reserve]),
-        'departed' => $placed($regiment, ['username' => 'Doyle.K', 'billet' => 'Regimental Adjutant General', 'status' => TrooperStatus::Inactive]),
+        'chief' => $placed($regiment, ['username' => 'Tharen.R', 'rank_short' => 'COL', 'billet' => 'Regimental Chief of Staff', 'cav_position_id' => 9010]),
+        'finance' => $placed($regiment, ['username' => 'Abbot.F', 'rank_short' => 'MAJ', 'billet' => 'Regimental Finance Officer', 'status' => TrooperStatus::Reserve, 'cav_position_id' => 9011]),
+        'departed' => $placed($regiment, ['username' => 'Doyle.K', 'billet' => 'Regimental Adjutant General', 'status' => TrooperStatus::Inactive, 'cav_position_id' => 9012]),
+        // Left on the regiment by a move to a billet the sync cannot place (audit 3): no longer Regimental HQ staff.
+        'moved' => $placed($regiment, ['username' => 'Moved.M', 'billet' => 'Rifleman', 'cav_position_id' => 4242]),
         'eloa' => $placed($eloa, ['username' => 'Leave.E', 'status' => TrooperStatus::Eloa]),
         's6' => $placed($s6, ['username' => 'Wire.S']),
         'battalion' => $placed($battalion, ['username' => 'Bat.B']),
         'unplaced' => $placed(null, ['username' => 'Nowhere.N']),
     ];
+    // The org import's row for each Regimental HQ billet, approved or not.
+    foreach ([9010 => 'Regimental Chief of Staff', 9011 => 'Regimental Finance Officer', 9012 => 'Regimental Adjutant General'] as $position => $title) {
+        AdminBillet::query()->create(['cav_position_id' => $position, 'proposed_title' => $title, 'proposed_group_title' => 'Regimental HQ', 'status' => AdminBilletStatus::Pending]);
+    }
 
     $this->actingAs(User::factory()->admin()->create())->get('/settings/staff-grants')
         ->assertOk()
