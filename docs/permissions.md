@@ -24,6 +24,7 @@
   nobody else's, and only for the person really signed in as themselves: never through act as or view as.
 - "View as" previews the portal as a unit (or, for Admins, as a person). It only narrows what you see, and every change
   is refused while it is on.
+- Platoon and company HQ staff send their own weekly staff report. Nobody sends it for them, Admins included.
 - Writes also stop at a few hard edges whatever your rank: weeks older than the week floor, weeks whose section report
   was sent, and practices a leader confirmed.
 
@@ -324,6 +325,23 @@ trooper may open (decided 2026-10-28); that opens no other trooper's page.
 
 (9) A staff member may add and remove their own entries, which read as self-reported, from their own milpac page.
 
+### Staff report
+
+A platoon or company HQ staff member (a serving trooper placed on that HQ node when the week ended) files their own
+weekly staff report (policy, 2026-10-29). "Above their HQ" is the unit the HQ sits in: the company for a platoon HQ,
+the battalion for a company HQ. Reading follows the read scope there, as unit reports do, so a staff grant, an overseer
+and the Regimental HQ read count.
+
+| Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Read a staff member's staff report, and their row on the HQ's report | All | All | No | Above their HQ | Above their HQ | Their own only (11) | Above their HQ | Their own only (11) | Their own only (11) | Above their HQ | Target |
+| Send one (final, no edit) | Their own only (12) | Their own only | Their own only | Their own only | Their own only | Their own only | Their own only | Their own only | Their own only | Their own only | No |
+
+(11) Everyone reads their own. A peer on the same HQ (a PL and their PSG, a CO and their XO) does not read the other's:
+reading starts at the unit above the HQ, so a Platoon Leader reads no other staff report.
+(12) Only the staff member, signed in as themselves: never someone acting as them (an Admin included), and never in a
+view-as preview. A page for another trooper, or a week they file none for, answers 404 to anyone who may not read it.
+
 ## How scope is worked out
 
 1. Admin: if your user has the Admin flag or an approved Admin billet (Regimental HQ or S6 HQ), your scope is the whole
@@ -365,7 +383,8 @@ your next click. Nothing has to be revoked by hand.
 | --- | --- |
 | Week floor (`PORTAL_WEEK_FLOOR_WEEKS`, default 20 Cav weeks back) | Marking, confirming, marking posted, capture, linking unmatched players, guests, staff practices, report drafts and sends, the platoon topic, a training plan's weeks. Older reports open read-only. |
 | Future weeks | Marking, confirming, posting, capture and staff practices for a week that has not started. |
-| HQ report sent for the week | That week's staff practice entries of the staff placed on that HQ during that week, wherever they are placed now. |
+| HQ report sent for the week | That week's staff practice entries of the staff placed on that HQ during that week, wherever they are placed now, entered on the milpac. The staff member's own staff report is not locked by it. |
+| Staff report sent for the week | The staff report itself (no edit, no second send), and that week's staff practice entries of that staff member. |
 | Section report sent for the week | That section's rollcall marks, confirming, marking posted, capture "Try again", guests at that practice and automatic makeups into that week. The sent report itself is frozen. A platoon's topic, and that week's subject in its training plan, are locked once the platoon's report is sent. |
 | Practice confirmed by a leader | Capture re-runs and linked players no longer change its marks. A leader's own hand edit still saves and clears the confirmation. |
 | Leave covering the week | That trooper's practice mark (the row posts as LOA). Their signature can still be saved. |
@@ -384,7 +403,7 @@ only sign out has none, since it ends the session and signing back in is limited
 | 60 | Find trooper and the guest picker search |
 | 240 | Rollcall mark autosave. The screen waits 0.7 seconds after a change and sends one batch at a time, so marking a whole section in seconds stays far below this. |
 | 120 | Report draft autosave |
-| 60, shared | Every other audited write: saving a guidon, fireteam changes, company fireteam policy, linking, dismissing and restoring unmatched players, confirming a practice, marking a rollcall posted, guest add and remove, staff practice add and remove, setting and removing a game identity, platoon topic set and clear, training plan save, approve and send back, every template write (a company's or a section's) and a section's template pick, starting and leaving view as and act as, correcting and deleting a DCS or LOR, overturning an LOR, and the Admin settings writes (org structure, acting leads, oversight, trooper placement, staff grants, games, servers, demo data) |
+| 60, shared | Every other audited write: saving a guidon, fireteam changes, company fireteam policy, linking, dismissing and restoring unmatched players, confirming a practice, marking a rollcall posted, guest add and remove, staff practice add and remove, sending a staff report, setting and removing a game identity, platoon topic set and clear, training plan save, approve and send back, every template write (a company's or a section's) and a section's template pick, starting and leaving view as and act as, correcting and deleting a DCS or LOR, overturning an LOR, and the Admin settings writes (org structure, acting leads, oversight, trooper placement, staff grants, games, servers, demo data) |
 | 10 | Sending a report |
 | 20 | Loading the act as picker's list |
 | 30 | Loading the sidebar unit switcher's list (the units in your scope; read only, it changes nothing) |
@@ -409,6 +428,7 @@ only sign out has none, since it ends the session and signing back in is limited
 | Admin-only checks | In the controllers (`OrgStructureController`, `StaffGrantsController`, `TrooperPlacementController`, `RosterSyncController`, `LoaSyncController`, `AuditLogController`, `DemoDataController`) and again in some handlers. There are no Laravel policies. |
 | Write gates | Each handler under `app/Commands/*` checks `writeScope()` (attendance, capture, guests, game identities, reports, a section's template pick) or `commandsUnit()` (fireteams, company policy, platoon topic, guidon, training plans, the review on the owning company in `TrainingPlanRules`, company and section templates through `Commands/Templates/TemplateAuthority`) |
 | Staff practices | `app/Authorization/StaffPracticeAccess.php` on `commandsUnit()`; checked in each `app/Commands/StaffPractices` handler |
+| Staff report | `app/Authorization/StaffReportAccess.php` (`maySend()` on `isOwnTrooper()`, `mayRead()` on `resolve()` of the unit above the HQ); checked in `SendStaffReportHandler` and `StaffReportController` |
 | Counseling (DCS, LOR) | `app/Authorization/CounselingAccess.php` on `ScopeResolver::commandingUnitsOver()`, `writeScope()` and `canSee()`; the LOR freeze and who overturns in `CounselingPermissions::frozen()` and `overturns()`; checked again in each `app/Commands/Counseling` handler and on the download |
 | Week floor | `app/Support/Time/WeekOf.php` (`floor()`, `isBeforeFloor()`), `config/portal.php` |
 | Rate limiters | `app/Providers/AppServiceProvider.php`, unit sync cooldown in `UnitRosterSyncController` |
