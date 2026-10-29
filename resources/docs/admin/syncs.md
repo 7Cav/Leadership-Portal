@@ -26,6 +26,6 @@ audience: admin
 ## When leave looks wrong
 
 1. When the latest leave sync had problems, **Roster** shows Admins a warning under the leave note. Open it to see the threads it could not read, each linked to the forum, and how many posts need review. A post that needs review is fixed by the trooper on the forum; the next sync reads it again.
-2. A leave post that is deleted, hidden or moved out of the leave sections stops counting after the next clean daily read. If it is put back, it counts again.
+2. A leave post that is deleted, hidden or moved out of the leave sections stops counting after the next clean daily read, once the forum confirms it is gone. If it is put back, it counts again.
 
 > [!good-to-know] What this changes, and how to undo it: a sync only refreshes the portal's copy. To undo a wrong change, fix the milpac or the leave post at the source, then sync again.

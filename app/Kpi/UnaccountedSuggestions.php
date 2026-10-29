@@ -19,6 +19,11 @@ use InvalidArgumentException;
  * nothing is saved or sent unless the leader does. A trooper the data says nothing about gets none.
  *
  * When more than one applies, the firmest fact wins: departed, then moved out, then leave that needs review.
+ *
+ * "Moved out" is read from the placement history: their placement in the section ended during the week and they were
+ * not back in it when the week ended (the 2026-10-29 audit). On a report such a trooper is one the week's roster still
+ * lists because they moved to a unit with no rollcall (HQ staff, a group); one who left and came back within the week is
+ * not suggested it, and neither is one who moved only after the week.
  */
 final class UnaccountedSuggestions
 {
@@ -48,7 +53,8 @@ final class UnaccountedSuggestions
         foreach ($troopers as $trooper) {
             $reason = match (true) {
                 $trooper->status !== null && ! $trooper->status->isServing() => UnaccountedReason::Departed,
-                isset($movedOut[$trooper->id]) => UnaccountedReason::MovedOut,
+                // Out of the section by the week's end and not placed in it now: one who left and came back is not.
+                isset($movedOut[$trooper->id]) && $trooper->primary_section_id !== $section->id => UnaccountedReason::MovedOut,
                 $covers[$trooper->id]->needsReviewState() => UnaccountedReason::LoaNeedsReview,
                 default => null,
             };

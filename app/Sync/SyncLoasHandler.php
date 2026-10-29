@@ -187,6 +187,29 @@ class SyncLoasHandler
             return 0;
         }
 
+        // The listings page by offset, so a thread deleted while the run pages through a section moves the rest up,
+        // and one can fall between two pages unseen (the 2026-10-29 audit). Each stored thread the listings missed is
+        // asked for by id before anything is withdrawn: one the forum still shows in a leave section stays.
+        foreach ($this->loas->unseenThreadIds($nodes, array_keys($seen), $horizon) as $threadId) {
+            $this->pause();
+
+            try {
+                if ($this->forum->fetchLoaThread($threadId)->summary->isVisible()) {
+                    $seen[$threadId] = true;
+                }
+            } catch (ForumRequestException $e) {
+                // Gone (not found, forbidden, or out of the leave sections) is what withdrawing is for; anything else
+                // leaves the answer open, so nothing is withdrawn this run.
+                if (! $e->isPermanent() && ! $e->outsideLeaveSections) {
+                    $problems[] = "Thread {$threadId}: {$e->getMessage()}";
+                }
+            }
+        }
+
+        if ($problems !== []) {
+            return 0;
+        }
+
         $result = $this->loas->withdrawUnseen($nodes, array_keys($seen), $horizon, $now);
         $tally['updated'] += $result['restored'];
 

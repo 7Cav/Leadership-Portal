@@ -107,8 +107,10 @@ interface TrooperPlacementRepository
     public function unitIdsPlacedByWeek(CarbonInterface $firstWeek, CarbonInterface $lastWeek): array;
 
     /**
-     * Which of `$trooperIds` left `$unitId` from `$from` up to (not including) `$until`: a placement row there that
-     * closed in that span. One query. Read for the weekly report's suggested reason ("moved out this week").
+     * Which of `$trooperIds` moved out of `$unitId` from `$from` up to (not including) `$until`, and were not back in
+     * it by `$until`: their last placement row there closed in that span. One who left and came back inside the span,
+     * or is still placed there, is not among them. One query. Read for the weekly report's suggested reason ("moved
+     * out this week").
      *
      * @param  list<int>  $trooperIds
      * @return list<int>

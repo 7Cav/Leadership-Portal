@@ -93,4 +93,14 @@ interface LoaRepository
      * @return array{withdrawn: int, restored: int}
      */
     public function withdrawUnseen(array $forumNodeIds, array $seenThreadIds, CarbonImmutable $postedFrom, CarbonImmutable $at): array;
+
+    /**
+     * The threads of the rows {@see withdrawUnseen()} would withdraw with these arguments, so the sync can ask the
+     * forum about each one first. In id order.
+     *
+     * @param  list<int>  $forumNodeIds
+     * @param  list<int>  $seenThreadIds
+     * @return list<int>
+     */
+    public function unseenThreadIds(array $forumNodeIds, array $seenThreadIds, CarbonImmutable $postedFrom): array;
 }

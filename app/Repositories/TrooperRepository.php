@@ -173,6 +173,19 @@ interface TrooperRepository
     public function onRollcalls(array $sectionIds, CarbonInterface $weekStart): WeekRollcalls;
 
     /**
+     * Each trooper's own section for the week, the one a makeup for that week belongs to: for the running week, the
+     * unit they are placed in now (whatever it is and whatever their standing; the callers check both), and for a week
+     * that has ended, the section whose rollcall lists them that week ({@see onRollcall()}), whether they moved or
+     * left since. A trooper on no section's rollcall that week, or placed nowhere, is left out.
+     *
+     * @param  list<int>  $trooperIds
+     * @return array<int, int> trooper id => unit id, in trooper id order
+     *
+     * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
+     */
+    public function ownSectionsInWeek(array $trooperIds, CarbonInterface $weekStart): array;
+
+    /**
      * The ids of the troopers currently assigned within `$unit`'s subtree — primary unit a section
      * anywhere under it, not inactive (LOA still counts) — ascending. Strength's population (5.1): HQ staff and
      * groups are on no rollcall and are not measured (2026-10-24, `Trooper::assignedWithin`).
