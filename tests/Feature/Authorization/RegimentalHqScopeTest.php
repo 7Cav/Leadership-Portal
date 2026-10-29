@@ -228,6 +228,13 @@ it('reads the regiment on a pending or a rejected Regimental HQ billet alike', f
     expect(rhqScope($this->chief))->toEqualCanonicalizing($this->allUnits);
 })->with([AdminBilletStatus::Pending, AdminBilletStatus::Rejected]);
 
+it('reads the regiment when an older row kept stray spaces around the group name', function () {
+    $this->chiefBillet->forceFill(['proposed_group_title' => ' Regimental HQ '])->save();
+
+    expect(rhqScope($this->chief))->toEqualCanonicalizing($this->allUnits)
+        ->and(app(ScopeResolver::class)->realScopes(collect([$this->chief]))->get($this->chief->id)->all())->toEqualCanonicalizing($this->allUnits);
+});
+
 it('gives nothing to holding groups and staff departments under the regiment', function (string $group) {
     $member = User::factory()->create(['cav_id' => rhqPlaced($this->groups[$group])->cav_id]);
 
