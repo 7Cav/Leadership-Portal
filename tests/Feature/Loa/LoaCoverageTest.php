@@ -347,6 +347,18 @@ describe('a leave that needs review', function () {
     });
 });
 
+describe('a withdrawn leave', function () {
+    it('counts for nothing, clean or needing review, and is not even fetched', function () {
+        $trooper = Trooper::factory()->create();
+        coverageLeave($trooper, '2026-10-03', '2026-10-09', ['withdrawn_at' => '2026-10-08 12:00:00']);
+        Loa::factory()->needsReview()->create(['trooper_id' => $trooper->id, 'posted_at' => '2026-10-05 09:00:00', 'withdrawn_at' => '2026-10-08 12:00:00']);
+
+        expect(coverageOf($trooper)->state)->toBe(LoaCoverageState::None)
+            ->and(coverageOf($trooper)->suppressesAtRisk())->toBeFalse()
+            ->and(app(LoaRepository::class)->touchingWeeks([$trooper->id], coverageWeek(), 1))->toHaveCount(0);
+    });
+});
+
 describe('who a leave belongs to', function () {
     it('reports no coverage for a trooper with no leave', function () {
         $trooper = Trooper::factory()->create();

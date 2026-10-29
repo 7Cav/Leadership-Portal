@@ -23,6 +23,8 @@ Everything the portal needs to *read* about leave lives here, so no screen re-de
     KPIs for good, and the first sync's backfill of old malformed posts shields no one from that sync on. A row with
     no `posted_at` yet (stored before the column existed) is placed by `created_at` instead.
   - A cleanly read leave that covers the week wins over one that needs review.
+  - A withdrawn row (`withdrawn_at` set: a complete full sync no longer found its thread, because it was
+    deleted, hidden or moved out of the leave sections) counts for nothing. It is kept as history.
   - `toArray()` is the badge's prop shape.
 
 - `LoaCover::derivedAttendanceStatus()` (3.4, AD-14): the attendance status a cover derives for the week, `Loa`

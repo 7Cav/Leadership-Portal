@@ -40,7 +40,7 @@ interface LoaRepository
      *   the column existed, and not read again since) is placed by `created_at` instead.
      *
      * A superset: it says which rows to look at, the resolver decides which weeks each one touches. Rows with
-     * no trooper never match. Read-only.
+     * no trooper, and withdrawn rows, never match. Read-only.
      *
      * @param  list<int>  $trooperIds
      * @return Collection<int, Loa>
@@ -72,9 +72,23 @@ interface LoaRepository
      * date. A return that was already applied is skipped, and one with no open ELOA to end is counted, not
      * stored.
      *
+     * A write also clears `withdrawn_at`: a thread read again is there again.
+     *
      * @param  list<LoaWrite>  $writes
      * @param  list<LoaReturn>  $returns
      * @return array{created: int, updated: int, closed: int, unmatchedReturns: int}
      */
     public function sync(array $writes, array $returns): array;
+
+    /**
+     * After a complete full run: every row from one of `$forumNodeIds` posted on or after `$postedFrom` whose thread
+     * is not in `$seenThreadIds` is marked withdrawn at `$at` (deleted, hidden or moved out of the leave sections), and
+     * any withdrawn row whose thread is in `$seenThreadIds` is put back. Rows are never deleted, so the history stays.
+     * A row with no `posted_at` is left alone, since it cannot be placed inside the window. One transaction.
+     *
+     * @param  list<int>  $forumNodeIds  the sections the run read in full
+     * @param  list<int>  $seenThreadIds  the visible threads it found there
+     * @return array{withdrawn: int, restored: int}
+     */
+    public function withdrawUnseen(array $forumNodeIds, array $seenThreadIds, CarbonImmutable $postedFrom, CarbonImmutable $at): array;
 }
