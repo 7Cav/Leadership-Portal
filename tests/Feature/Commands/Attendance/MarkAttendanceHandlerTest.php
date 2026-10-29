@@ -272,6 +272,11 @@ it('rolls the whole batch back — practice, marks and audit — when a write fa
             return $this->inner->countingWindow($unit, $firstWeek, $lastWeek, $includeDeparted);
         }
 
+        public function countingWindowAsPlaced(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): CountingWindow
+        {
+            return $this->inner->countingWindowAsPlaced($unit, $firstWeek, $lastWeek);
+        }
+
         public function countingMarksOf(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection
         {
             return $this->inner->countingMarksOf($trooperIds, $firstWeek, $lastWeek, $includeDeparted);

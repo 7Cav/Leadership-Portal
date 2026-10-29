@@ -5,6 +5,7 @@ namespace App\Repositories;
 use App\Models\PlacementSource;
 use App\Models\Trooper;
 use App\Models\TrooperPlacement;
+use App\Models\Unit;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -49,6 +50,18 @@ interface TrooperPlacementRepository
      * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
      */
     public function sectionsByWeek(iterable|Builder $troopers, CarbonInterface $firstWeek, CarbonInterface $lastWeek): PlacementWeeks;
+
+    /**
+     * {@see sectionsByWeek()} for the troopers who count in `$unit` in the week `$lastWeek` (the 2026-10-29 audit): a
+     * past week's roster, kept as it stood when that week ended rather than as it stands now. A trooper counts where
+     * the history puts them at the end of the week ({@see PlacementWeeks::sectionIn()}), so a trooper who moved during
+     * it is on one section's roster, the one they moved to, and a section anywhere under `$unit` must be that one. They
+     * must also have served that week: serving now, or gone with a `departed_at` after the week opened. A trooper who
+     * left before that date was recorded never counts in a past week. One query, however many troopers.
+     *
+     * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
+     */
+    public function sectionsByWeekWithin(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): PlacementWeeks;
 
     /**
      * The units someone was placed in at any moment of each Cav week from `$firstWeek` to `$lastWeek` (#442), by week

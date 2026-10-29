@@ -34,6 +34,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * `username`, `forum_user_id` and `rank_short` are synced too (2.10): the forum identity 7Cav
  * names a member by. Render a trooper through `display_name`, never by hand. So is `rank_image_url`,
  * the rank insignia the rollcall template prints (3.10), only ever an https URL on 7cav.us.
+ *
+ * `departed_at` is when the sync saw them leave every serving roster, cleared when they come back (2026-10-29): a
+ * past week's rollcall keeps a trooper who left after it opened. Null for one who left before it was recorded.
  */
 #[Fillable(['cav_id', 'username', 'forum_user_id', 'rank', 'rank_short', 'rank_image_url', 'billet', 'mos', 'tis', 'tig', 'status', 'cav_position_id'])]
 class Trooper extends Model
@@ -50,6 +53,7 @@ class Trooper extends Model
             'tis' => 'date',
             'tig' => 'date',
             'status' => TrooperStatus::class,
+            'departed_at' => 'immutable_datetime',
             'cav_position_id' => 'integer',
             'forum_user_id' => 'integer',
             'placement_source' => PlacementSource::class,

@@ -27,7 +27,8 @@ use Carbon\CarbonImmutable;
  * It refuses, before anything is written: a section outside the actor's scope (AD-8), a unit that
  * is not a section, and any trooper not placed in that section — a trooper is marked only against
  * their own section's practice (AD-14, AD-18), which also keeps a leader from reaching a trooper
- * outside their scope. The placement check runs inside the transaction, so a roster sync landing
+ * outside their scope. For a week that has ended, "placed" means placed there when that week ended,
+ * by the placement history (`TrooperRepository::idsOnRollcall`, the 2026-10-29 audit). The placement check runs inside the transaction, so a roster sync landing
  * mid-submit cannot slip a moved trooper through.
  *
  * A practice mark for a trooper the LOA data covers that week is refused too (Story 3.4): their status is
@@ -82,7 +83,9 @@ class MarkAttendanceHandler
             throw new MarkAttendanceForbiddenException($command->sectionId);
         }
 
-        if ($this->units->find($command->sectionId)?->type !== UnitType::Section) {
+        $section = $this->units->find($command->sectionId);
+
+        if ($section?->type !== UnitType::Section) {
             throw InvalidAttendanceMarkException::notASection($command->sectionId);
         }
 
@@ -100,7 +103,7 @@ class MarkAttendanceHandler
             action: 'attendance.marked',
             reason: null,
             reasonRequired: false,
-            mutation: function () use ($command, $weekStart, $marks) {
+            mutation: function () use ($command, $section, $weekStart, $marks) {
                 // First, before any write: a sent report freezes the week (AD-12). The shared lock
                 // it takes holds until this transaction ends, so a concurrent send cannot freeze
                 // the week between this check and the marks below.
@@ -109,7 +112,9 @@ class MarkAttendanceHandler
                 }
 
                 $trooperIds = $command->trooperIds();
-                $unplaced = array_values(array_diff($trooperIds, $this->troopers->idsPlacedIn($command->sectionId, $trooperIds)->all()));
+                // On the week's rollcall: placed in the section now, or for a week that has ended, placed in it when
+                // that week ended (the 2026-10-29 audit), so a move after the week neither strands nor lends the mark.
+                $unplaced = array_values(array_diff($trooperIds, $this->troopers->idsOnRollcall($section, $weekStart, $trooperIds)->all()));
 
                 if ($unplaced !== []) {
                     throw InvalidAttendanceMarkException::notPlacedInSection($unplaced, $command->sectionId);

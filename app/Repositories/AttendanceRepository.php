@@ -137,6 +137,17 @@ interface AttendanceRepository
     public function countingWindow(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): CountingWindow;
 
     /**
+     * {@see countingWindow()} for a week that has ended (the 2026-10-29 audit): the population is who counted in `$unit`
+     * that week, `$lastWeek`, by the placement history ({@see TrooperPlacementRepository::sectionsByWeekWithin()}),
+     * not who is assigned now, so a trooper who moved or left after the week stays in it. Each trooper's section in
+     * the window is the one they ended `$lastWeek` in. Departed troopers who served that week are measured too. The
+     * same two queries.
+     *
+     * @throws InvalidArgumentException when either bound is not a Saturday 00:00 UTC.
+     */
+    public function countingWindowAsPlaced(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): CountingWindow;
+
+    /**
      * {@see countingMarks()} for a set of troopers instead of a subtree: each serving, placed trooper of `$trooperIds`
      * against the practices of the sections they were placed in, whichever sections those are, with `held` decided by
      * the same rule. For a screen that measures troopers from many sections at once (the JSAM guests' own SP) in one

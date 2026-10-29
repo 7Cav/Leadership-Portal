@@ -35,7 +35,14 @@ use InvalidArgumentException;
  * they joined never do. A unit's KPIs stay the sum of its current members' rows, their weeks
  * elsewhere included: the same rows the roster shows per trooper, so one definition (AD-21), and
  * a sent report keeps the numbers frozen when it was sent. A trooper with no placement history
- * reads as placed in their current section for every week. Per trooper, over the window:
+ * reads as placed in their current section for every week.
+ *
+ * That is the running week (and any later one). A week that has ended is measured over who was in the
+ * unit that week instead (the 2026-10-29 audit, `AttendanceRepository::countingWindowAsPlaced`): each
+ * trooper the placement history puts in a section under it when the week ended, a trooper who left the
+ * Cav after the week opened included, and each row counts in that section. So a move or a departure
+ * between the end of a week and its report changes neither the week's report nor its rollcall, which
+ * lists the same troopers. Per trooper, over the window:
  *
  * - **RC** (MVP amendment, #23): weeks with a signed rollcall (`will_attend` or `cannot_attend`)
  *   ÷ assigned weeks: the window weeks they were placed in a section, whether or not a practice
@@ -90,7 +97,8 @@ final class KpiService
      * per-trooper rows, split by the section each trooper is placed in, in a fixed number of queries however
      * many sections (5.8's roll-up of a whole battalion): where everyone was placed, their marks, and LOA coverage (4.8). A section with no
      * assigned trooper is absent; its KPIs are `UnitKpis::none()`. Equal, section by section, to `forUnit()`: a
-     * trooper's row is counted in their current section, their weeks elsewhere included.
+     * trooper's row is counted in their current section (for a week that has ended, the section they ended it in),
+     * their weeks elsewhere included.
      *
      * @return Collection<int, UnitKpis>
      *
@@ -211,7 +219,13 @@ final class KpiService
      */
     private function window(Unit $unit, CarbonImmutable $weekStart): CountingWindow
     {
-        return $this->attendance->countingWindow($unit, $weekStart->subWeeks(self::WINDOW_WEEKS - 1), $weekStart);
+        $first = $weekStart->subWeeks(self::WINDOW_WEEKS - 1);
+
+        // A week that has ended is measured over who was in the unit that week (the 2026-10-29 audit), so its report
+        // agrees with its rollcall after a move or a departure; the running week over who is assigned now.
+        return $weekStart->lessThan(WeekOf::start(CarbonImmutable::now()))
+            ? $this->attendance->countingWindowAsPlaced($unit, $first, $weekStart)
+            : $this->attendance->countingWindow($unit, $first, $weekStart);
     }
 
     /**

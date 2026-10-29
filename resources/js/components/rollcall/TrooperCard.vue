@@ -6,7 +6,7 @@ import LoaBadge from '@/components/LoaBadge.vue';
 import AttendanceStrip from '@/components/rollcall/AttendanceStrip.vue';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { fullName, initials, isLocked, optionsFor, practiceLabel, signatureLabel } from '@/lib/rollcall';
+import { fullName, initials, isLocked, optionsFor, placementNote, practiceLabel, signatureLabel } from '@/lib/rollcall';
 
 // One trooper on the guided week (mockups/v2/rollcall-r3.html `.rc-card`): who they are, how the
 // current value came to be (the shared source indicator, 3.9), and big status buttons for the step's question — their rollcall
@@ -37,6 +37,8 @@ const options = computed(() => optionsFor(props.kind));
 const value = computed(() => (props.kind === 'signature' ? props.trooper.rollcall : props.trooper.status));
 const valueLabel = computed(() => (props.kind === 'signature' ? signatureLabel(value.value) : practiceLabel(value.value)));
 const name = computed(() => fullName(props.trooper));
+// On a week that has ended: moved out or departed since, or joined partway through it.
+const note = computed(() => placementNote(props.trooper.placement));
 
 // Last week's mark, offered while this week's is still open (3.7 pre-fill).
 const suggestion = computed(() =>
@@ -138,6 +140,7 @@ const TONE = {
                         <p class="truncate text-sm leading-tight font-semibold">{{ name }}</p>
                         <div class="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
                             <AttendanceStrip v-if="trooper.history?.length" :weeks="trooper.history" :joined="trooper.joined" />
+                            <Badge v-if="note" variant="outline" :title="note.title" data-testid="placement-note">{{ note.label }}</Badge>
                             <LoaBadge v-if="cover" :cover="cover" :sync="loaSync" />
                             <template v-if="locked">
                                 <AttendanceSourceIndicator v-if="!cover" status="loa" :source="trooper.source" />

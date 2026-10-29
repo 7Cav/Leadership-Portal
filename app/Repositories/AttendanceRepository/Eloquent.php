@@ -13,6 +13,7 @@ use App\Models\Unit;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\CountingMark;
 use App\Repositories\CountingWindow;
+use App\Repositories\PlacementWeeks;
 use App\Repositories\SectionWeekProgress;
 use App\Repositories\TrooperPlacementRepository;
 use App\Support\Time\WeekOf;
@@ -160,6 +161,21 @@ class Eloquent implements AttendanceRepository
         return $this->countingMarksFor($population, $firstWeek, $lastWeek);
     }
 
+    public function countingWindowAsPlaced(Unit $unit, CarbonInterface $firstWeek, CarbonInterface $lastWeek): CountingWindow
+    {
+        $from = WeekOf::requireStart($firstWeek);
+        $to = WeekOf::requireStart($lastWeek);
+        $placements = $this->placements->sectionsByWeekWithin($unit, $from, $to);
+        $week = $to->toDateString();
+        $sections = [];
+
+        foreach (array_keys($placements->current) as $trooperId) {
+            $sections[$trooperId] = $placements->sectionIn($trooperId, $week);
+        }
+
+        return $this->countingMarksFrom($placements, $from, $to, $sections);
+    }
+
     public function countingMarksOf(array $trooperIds, CarbonInterface $firstWeek, CarbonInterface $lastWeek, bool $includeDeparted = false): Collection
     {
         WeekOf::requireStart($firstWeek);
@@ -196,10 +212,21 @@ class Eloquent implements AttendanceRepository
         $from = WeekOf::requireStart($firstWeek);
         $to = WeekOf::requireStart($lastWeek);
         $placements = $this->placements->sectionsByWeek($population, $from, $to);
+
+        return $this->countingMarksFrom($placements, $from, $to, $placements->current);
+    }
+
+    /**
+     * The marks half of {@see countingMarksFor()}, for placements already read.
+     *
+     * @param  array<int, int>  $countIn  trooper id => the section they count in, for the window's `sections`
+     */
+    private function countingMarksFrom(PlacementWeeks $placements, CarbonImmutable $from, CarbonImmutable $to, array $countIn): CountingWindow
+    {
         $sectionIds = $placements->sectionIds();
 
         if ($sectionIds === []) {
-            return new CountingWindow(collect(), $placements->current, $placements);
+            return new CountingWindow(collect(), $countIn, $placements);
         }
 
         // A practice is held once any row on it carries a leader's SP mark. Signatures alone do
@@ -281,7 +308,7 @@ class Eloquent implements AttendanceRepository
             }
         }
 
-        return new CountingWindow(collect($marks), $placements->current, $placements);
+        return new CountingWindow(collect($marks), $countIn, $placements);
     }
 
     /**
