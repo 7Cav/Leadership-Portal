@@ -31,7 +31,7 @@ const props = defineProps({
     units: { type: Array, required: true },
     isAdmin: { type: Boolean, required: true },
     // Flashed once by the import action (Story 2.9):
-    // `{ unitsCreated, mappingsCreated, mappingsDiffering, skippedTitles }`.
+    // `{ unitsCreated, mappingsCreated, mappingsRepointed, mappingsDiffering, skippedTitles }`.
     importResult: { type: Object, default: null },
     // Troopers the roster sync could not place into a section (Story 2.6), as
     // `{ id, cav_id, username, rank, mos, billet, position_id }`. Null when the server withholds
@@ -536,9 +536,12 @@ function requestDelete(id) {
             <p>
                 Imported from the Cav roster: {{ importResult.unitsCreated }} {{ importResult.unitsCreated === 1 ? 'node' : 'nodes' }} and
                 {{ importResult.mappingsCreated }} placement {{ importResult.mappingsCreated === 1 ? 'mapping' : 'mappings' }} created.
+                <template v-if="importResult.mappingsRepointed">
+                    {{ importResult.mappingsRepointed }} {{ importResult.mappingsRepointed === 1 ? 'mapping' : 'mappings' }} moved to the unit Cav now lists.
+                </template>
                 <template v-if="importResult.mappingsDiffering">
                     {{ importResult.mappingsDiffering }} existing {{ importResult.mappingsDiffering === 1 ? 'mapping points' : 'mappings point' }}
-                    at a different unit than Cav now lists, kept as they are.
+                    at a different unit than Cav now lists but {{ importResult.mappingsDiffering === 1 ? 'was' : 'were' }} not set by the import, kept as they are.
                 </template>
                 <!-- Story 1.16's command-billet counts: shown only when the server sends them. -->
                 <template v-if="importResult.commandMappingsCreated !== undefined">

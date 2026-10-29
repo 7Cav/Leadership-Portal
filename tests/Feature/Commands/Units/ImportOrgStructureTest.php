@@ -326,10 +326,17 @@ it('rolls every write back when the import fails part-way (single transaction)',
             return false;
         }
 
+        public function forImportByPositionId(): Collection
+        {
+            return collect();
+        }
+
         public function create(int $unitId, int $cavPositionId): UnitBilletMapping
         {
             throw new RuntimeException('disk full');
         }
+
+        public function placeFromImport(int $cavPositionId, int $unitId): void {}
     });
 
     expect(fn () => iosImport())->toThrow(RuntimeException::class, 'disk full');
@@ -375,9 +382,9 @@ it('maps a position id Cav lists twice to the first section listing it', functio
         ->and(iosMappings())->toBe([203 => '1/1/A/1-7']);
 });
 
-it('counts, but never repoints, an existing mapping that Cav now places elsewhere', function () {
-    iosImport();
-    // Cav reorgs: billet 201 (was Section Leader 1/1/A/1-7) is now listed under 2/1/A/1-7.
+/** The fixture after a reorg: billet 201 (Section Leader 1/1/A/1-7) is now listed under 2/1/A/1-7. */
+function iosReorgedFixture(): array
+{
     $payload = iosFixture();
     foreach ($payload['groups'] as &$group) {
         foreach ($group['positions'] as &$position) {
@@ -387,13 +394,56 @@ it('counts, but never repoints, an existing mapping that Cav now places elsewher
         }
     }
     unset($group, $position);
-    iosFake($payload);
+
+    return $payload;
+}
+
+it('repoints a mapping it wrote when Cav now places the billet elsewhere, inside the audited import', function () {
+    iosImport();
+    iosFake(iosReorgedFixture());
+
+    $result = iosImport();
+
+    expect($result->mappingsRepointed)->toBe(1)
+        ->and($result->mappingsDiffering)->toBe(0)
+        ->and($result->mappingsCreated)->toBe(0)
+        ->and(iosMappings()[201])->toBe('2/1/A/1-7')
+        ->and(UnitBilletMapping::query()->where('cav_position_id', 201)->sole()->imported_unit_id)->toBe(iosUnit(UnitType::Section, '2/1/A/1-7')->id)
+        ->and(app(UnitBilletMappingRepository::class)->unitIdsByPositionId()->get(201))->toBe(iosUnit(UnitType::Section, '2/1/A/1-7')->id)
+        ->and(AuditLogEntry::query()->where('action', 'org_structure.imported')->count())->toBe(2);
+});
+
+it('keeps, and counts, a mapping corrected by hand when Cav moves the billet', function () {
+    iosImport();
+    $handPicked = iosUnit(UnitType::Section, '1/2/A/1-7');
+    UnitBilletMapping::query()->where('cav_position_id', 201)->update(['unit_id' => $handPicked->id]);
+    iosFake(iosReorgedFixture());
 
     $result = iosImport();
 
     expect($result->mappingsDiffering)->toBe(1)
-        ->and($result->mappingsCreated)->toBe(0)
-        ->and(iosMappings()[201])->toBe('1/1/A/1-7');
+        ->and($result->mappingsRepointed)->toBe(0)
+        ->and(iosMappings()[201])->toBe('1/2/A/1-7');
+});
+
+it('keeps a mapping it never wrote that disagrees with Cav, and adopts one that agrees so a later reorg moves it', function () {
+    iosImport();
+    $handPicked = iosUnit(UnitType::Section, '1/2/A/1-7');
+    // Rows stored before the import recorded what it wrote: one agreeing with Cav, one not.
+    UnitBilletMapping::query()->where('cav_position_id', 201)->update(['imported_unit_id' => null]);
+    UnitBilletMapping::query()->where('cav_position_id', 203)->update(['imported_unit_id' => null, 'unit_id' => $handPicked->id]);
+
+    $result = iosImport();
+
+    expect($result->mappingsDiffering)->toBe(1)
+        ->and(iosMappings()[203])->toBe('1/2/A/1-7')
+        ->and(UnitBilletMapping::query()->where('cav_position_id', 203)->sole()->imported_unit_id)->toBeNull()
+        ->and(UnitBilletMapping::query()->where('cav_position_id', 201)->sole()->imported_unit_id)->toBe(iosUnit(UnitType::Section, '1/1/A/1-7')->id);
+
+    iosFake(iosReorgedFixture());
+
+    expect(iosImport()->mappingsRepointed)->toBe(1)
+        ->and(iosMappings()[201])->toBe('2/1/A/1-7');
 });
 
 it('reports zero differing mappings on an unchanged re-run', function () {

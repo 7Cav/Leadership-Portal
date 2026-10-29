@@ -317,6 +317,16 @@ describe('Settings/OrgStructure', () => {
             expect(wrapper.find('[data-testid="import-result"]').text()).toContain('2 existing mappings point at a different unit');
         });
 
+        it('reports the mappings it moved to where Cav now lists the billet', () => {
+            const wrapper = mount(OrgStructure, {
+                props: { units: UNITS, isAdmin: true, importResult: { unitsCreated: 0, mappingsCreated: 0, mappingsRepointed: 3, mappingsDiffering: 0, skippedTitles: [] } },
+            });
+
+            const text = wrapper.find('[data-testid="import-result"]').text();
+            expect(text).toContain('3 mappings moved to the unit Cav now lists');
+            expect(text).not.toContain('existing mapping');
+        });
+
         // Story 1.16 adds command-billet mapping counts to the same flash. They appear only when
         // the server sends them, so this page works on either side of that change.
         it('reports command-billet mappings created, repointed and removed when the server sends them', () => {

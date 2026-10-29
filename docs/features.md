@@ -321,7 +321,7 @@ window is the whole week and the servers are shared, so being online does not me
 Activity log pruning runs from the scheduler itself, not the queue: daily at 04:15 `portal:prune-page-visits` deletes
 page visits older than 30 days, in chunks.
 
-The org import (Settings, Org structure, Import from Cav roster) is not scheduled; an Admin runs it.
+The org import (Settings, Org structure, Import from Cav roster) is not scheduled; an Admin runs it. It repoints a billet mapping it wrote when Cav now lists the billet under another unit, and keeps (and counts) a mapping corrected by hand.
 
 ## JSAM guests
 
