@@ -10,25 +10,34 @@ use App\Commands\Units\CreateUnit;
 use App\Commands\Units\DeleteUnit;
 use App\Commands\Units\ImportOrgStructure;
 use App\Commands\Units\InvalidActingLeadException;
+use App\Commands\Units\InvalidUnitOversightException;
 use App\Commands\Units\InvalidUnitPlacementException;
 use App\Commands\Units\OrgStructureImportFailedException;
 use App\Commands\Units\RemoveActingLead;
 use App\Commands\Units\RemoveActingLeadHandler;
 use App\Commands\Units\SetUnitLabel;
+use App\Commands\Units\SetUnitOversight;
+use App\Commands\Units\SetUnitOversightHandler;
+use App\Commands\Units\StaffBillet;
 use App\Commands\Units\UnitHasDependentsException;
+use App\Commands\Units\UnitOversightForbiddenException;
 use App\Commands\Units\UpdateUnit;
 use App\Http\Controllers\Controller;
+use App\Kpi\Headcount;
 use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitKind;
+use App\Models\UnitOversight;
 use App\Models\UnitType;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitActingLeadRepository;
 use App\Repositories\UnitGuidonRepository;
 use App\Repositories\UnitLeadRepository;
+use App\Repositories\UnitOversightRepository;
 use App\Repositories\UnitRepository;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -71,7 +80,7 @@ class OrgStructureController extends Controller
      * Everyone authenticated may view the tree (AC #3); only the Admin flag gates authoring
      * (checked client-side for the hidden control, and again below on write — AC #5).
      */
-    public function index(Request $request, ScopeResolver $scope, UnitGuidonRepository $guidons): Response
+    public function index(Request $request, ScopeResolver $scope, UnitGuidonRepository $guidons, Headcount $headcount, UnitOversightRepository $oversights): Response
     {
         $tree = $this->units->tree();
         // Troopers placed in each unit, rolled up every branch: a unit's count is the serving troopers placed anywhere
@@ -84,6 +93,10 @@ class OrgStructureController extends Controller
         $leads = $this->leads->leadsOf($tree->modelKeys());
         $acting = $this->actingLeads->leadsOf($tree->modelKeys());
         $guidonOf = $guidons->all();
+        // A line unit with nobody serving in it or under it (#442's one definition, `Headcount`). The page hides it until
+        // asked, so an Admin can still reach one to rename, move or delete it.
+        $withTroopers = $headcount->withoutEmptyLineUnits($tree)->pluck('id')->flip();
+        $oversightOf = $oversights->forUnits($tree->modelKeys());
 
         $units = $tree->map(fn (Unit $unit) => [
             'id' => $unit->id,
@@ -111,6 +124,17 @@ class OrgStructureController extends Controller
             ],
             'lead_vacant' => $leadable->has($unit->id) && ! $leads->has($unit->id),
             'acting_lead' => ($actor = $acting->get($unit->id)) === null ? null : ['id' => $actor->id, 'displayName' => $actor->display_name],
+            'empty' => ! $withTroopers->has($unit->id),
+            // Who oversees the unit (decided by the S6, 2026-10-29): a battalion or the Reservists. A battalion with no
+            // serving overseer reads "Oversight: vacant"; an overseer who left every roster is named, marked not serving.
+            'overseeable' => UnitOversight::canOversee($unit),
+            'oversight' => ($row = $oversightOf->get($unit->id)) === null ? null : [
+                'trooperId' => $row->trooper->id,
+                'displayName' => $row->trooper->display_name,
+                'serving' => $row->trooper->status?->isServing() ?? false,
+            ],
+            'oversight_vacant' => $unit->type === UnitType::Battalion
+                && ! ($oversightOf->get($unit->id)?->trooper->status?->isServing() ?? false),
         ])->values();
 
         // Follows a view-as preview (Story 1.13): authoring controls hide as they would for the
@@ -142,7 +166,37 @@ class OrgStructureController extends Controller
                 ->all(),
             // The outcome of an import just run (story 2.9), flashed by `import()` for one render.
             'importResult' => $request->session()->get('org_import'),
+            // Rows shown in a second place without moving the unit (decided by the S6, 2026-10-29): ACD and DEVCOM under
+            // RDC in the staff card, DEVCOM's staff under DEVCOM in the chain of command.
+            'references' => self::references($tree),
         ]);
+    }
+
+    /**
+     * The reference rows the org page draws, as `{parent_id, unit_id}`: a unit shown again under a node that is not
+     * its parent ({@see StaffBillet::PORTFOLIO_LINE_UNITS}, {@see StaffBillet::LINE_STAFF_GROUPS}). Matched by callsign
+     * and side of the tree, so a renamed or missing unit simply has no reference.
+     *
+     * @param  Collection<int, Unit>  $tree
+     * @return list<array{parent_id: int, unit_id: int}>
+     */
+    private static function references(Collection $tree): array
+    {
+        $line = $tree->filter(fn (Unit $unit) => $unit->isLine())->keyBy('callsign');
+        $groups = $tree->reject(fn (Unit $unit) => $unit->isLine())->keyBy('callsign');
+        $references = [];
+
+        foreach ([[StaffBillet::PORTFOLIO_LINE_UNITS, $groups, $line], [StaffBillet::LINE_STAFF_GROUPS, $line, $groups]] as [$map, $parents, $children]) {
+            foreach ($map as $parent => $callsigns) {
+                foreach ($callsigns as $callsign) {
+                    if ($parents->has($parent) && $children->has($callsign)) {
+                        $references[] = ['parent_id' => $parents->get($parent)->id, 'unit_id' => $children->get($callsign)->id];
+                    }
+                }
+            }
+        }
+
+        return $references;
     }
 
     /**
@@ -267,6 +321,50 @@ class OrgStructureController extends Controller
         } catch (InvalidActingLeadException $e) {
             throw ValidationException::withMessages(['acting_lead' => $e->getMessage()]);
         } catch (ActingLeadForbiddenException $e) {
+            abort(403, $e->getMessage());
+        }
+
+        return redirect()->route('settings.org-structure');
+    }
+
+    /**
+     * Make a serving trooper the overseer of a battalion or the Reservists, replacing whoever was (decided by the S6,
+     * 2026-10-29). Admin-only, server-side (AD-6); audited with a required reason by {@see SetUnitOversightHandler}.
+     */
+    public function setOversight(Request $request, int $unit, SetUnitOversightHandler $handler): RedirectResponse
+    {
+        $this->adminUnit($request, $unit);
+
+        $data = $request->validate([
+            'trooper_id' => ['required', 'integer'],
+            'reason' => ['required', 'string', 'max:500'],
+        ], [
+            'trooper_id.required' => 'Choose the trooper who oversees this unit.',
+            ...self::REASON_MESSAGES,
+        ]);
+
+        return $this->oversight($request, new SetUnitOversight($unit, (int) $data['trooper_id'], $data['reason']), $handler);
+    }
+
+    /**
+     * Clear a unit's overseer (decided by the S6, 2026-10-29). Admin-only (AD-6); audited with a required reason.
+     */
+    public function clearOversight(Request $request, int $unit, SetUnitOversightHandler $handler): RedirectResponse
+    {
+        $this->adminUnit($request, $unit);
+
+        $data = $request->validate(['reason' => ['required', 'string', 'max:500']], self::REASON_MESSAGES);
+
+        return $this->oversight($request, new SetUnitOversight($unit, null, $data['reason']), $handler);
+    }
+
+    private function oversight(Request $request, SetUnitOversight $command, SetUnitOversightHandler $handler): RedirectResponse
+    {
+        try {
+            $handler->handle($request->user(), $command);
+        } catch (InvalidUnitOversightException $e) {
+            throw ValidationException::withMessages(['oversight' => $e->getMessage()]);
+        } catch (UnitOversightForbiddenException $e) {
             abort(403, $e->getMessage());
         }
 

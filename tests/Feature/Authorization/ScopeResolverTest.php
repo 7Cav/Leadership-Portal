@@ -265,9 +265,9 @@ it('resolves roster-derived scope in a fixed number of queries, however large th
 
     // The Admin rule's trooper and approved-billet reads (Admin via billet no longer depends on placement, so the billet
     // read always runs), the holder's serving check, grants, the billet → commanded unit join, the acting-lead join
-    // (2026-10-25), and one path-prefix subtree query.
+    // (2026-10-25), the oversight join (2026-10-29), and one path-prefix subtree query.
     expect($scope)->toHaveCount(7)
-        ->and(DB::getQueryLog())->toHaveCount(7);
+        ->and(DB::getQueryLog())->toHaveCount(8);
 });
 
 it('adds one subtree query per held grant, never one per unit in a subtree', function () {
@@ -281,8 +281,8 @@ it('adds one subtree query per held grant, never one per unit in a subtree', fun
     app(ScopeResolver::class)->resolve($leader);
 
     // The Admin rule's trooper and approved-billet reads, the serving check, grants (with their units eager-loaded), the
-    // commanded-unit join, the acting-lead join, and 1 + 2 subtree queries.
-    expect(DB::getQueryLog())->toHaveCount(10);
+    // commanded-unit join, the acting-lead join, the oversight join, and 1 + 2 subtree queries.
+    expect(DB::getQueryLog())->toHaveCount(11);
 });
 
 // ── commandsUnit: who may trigger a sync of a unit (a write, so narrower than reading it) ──

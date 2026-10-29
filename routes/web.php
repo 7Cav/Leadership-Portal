@@ -222,6 +222,9 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::patch('/settings/org-structure/{unit}/label', [OrgStructureController::class, 'label'])->middleware('throttle:audited-writes')->name('settings.org-structure.label');
     Route::post('/settings/org-structure/{unit}/acting-lead', [OrgStructureController::class, 'assignActingLead'])->middleware('throttle:audited-writes')->name('settings.org-structure.acting-lead.store');
     Route::delete('/settings/org-structure/{unit}/acting-lead', [OrgStructureController::class, 'removeActingLead'])->middleware('throttle:audited-writes')->name('settings.org-structure.acting-lead.destroy');
+    // Who oversees a battalion or the Reservists (decided by the S6, 2026-10-29): set or clear, Admin-only, audited.
+    Route::post('/settings/org-structure/{unit}/oversight', [OrgStructureController::class, 'setOversight'])->middleware('throttle:audited-writes')->name('settings.org-structure.oversight.store');
+    Route::delete('/settings/org-structure/{unit}/oversight', [OrgStructureController::class, 'clearOversight'])->middleware('throttle:audited-writes')->name('settings.org-structure.oversight.destroy');
     Route::delete('/settings/org-structure/{unit}', [OrgStructureController::class, 'destroy'])->middleware('throttle:audited-writes')->name('settings.org-structure.destroy');
 
     // Place a trooper the sync could not map into a section (Story 2.7). The Admin gate is checked in the
