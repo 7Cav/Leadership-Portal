@@ -351,6 +351,7 @@ tests and comments. They include some route and key names, so read them as rough
 | staff grant | Admin-given read access to a unit and everything under it | Settings, read-only reasons | staff grant 7 / 7, grant 43 | permission, role |
 | view as | Read-only preview as a unit or (Admins) a person | User menu, banner | view as 15, "viewing as" 4 | impersonate, act as (planned feature, see features.md) |
 | acting lead | A trooper an Admin assigned to lead a unit | Org structure | 6 / 4, "(acting)" | acting leader, temporary lead |
+| overseer, oversight | The regimental staff officer an Admin named to oversee a battalion or the Reservists; reads it, changes nothing. "Oversight: vacant" when a battalion has none | Org structure | new | supervisor, sponsor, owner |
 | portfolio | A regimental staff officer's set of staff departments | Docs, Org structure tree | 0 UI | division, area |
 | HQ | A unit's headquarters node where its staff sit | Roster, Org structure | unit names only | headquarters (in labels) |
 | group | A non-line node: staff departments, ELOA, Reservists, New Recruits | Org structure | "Troopers in this group", "staff group" in server | pool, bucket |
