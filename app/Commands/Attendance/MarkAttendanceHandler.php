@@ -440,15 +440,40 @@ class MarkAttendanceHandler
      * again under the locks inside the audited transaction, and a refusal there rolls back without an entry. Audited as
      * `attendance.auto_unmarked` on the trooper's own practice with `$triggeredBy` (the host leader) as the actor, so
      * the guest's own leader sees who took it back.
+     *
+     * The makeup is looked for where it was written, not in the section the trooper is placed in now: a guest moved to
+     * another section before the Undo has it on the old section's practice, and that one is taken back (each such
+     * practice is, in id order, should there be more than one). With none anywhere, the current section's practice
+     * decides as before.
      */
     public function withdrawMakeup(int $trooperId, CarbonImmutable $weekStart, int $triggeredBy): MakeupWithdrawal
     {
-        $sectionId = $this->troopers->find($trooperId)?->primary_section_id;
-        $practice = $sectionId === null ? null : $this->practices->find($sectionId, $weekStart);
+        $practices = $this->attendance->practicesWithAutoMakeup($trooperId, $weekStart);
 
-        if ($practice === null) {
-            return MakeupWithdrawal::Kept;
+        if ($practices->isEmpty()) {
+            $sectionId = $this->troopers->find($trooperId)?->primary_section_id;
+            $current = $sectionId === null ? null : $this->practices->find($sectionId, $weekStart);
+            $practices = $current === null ? collect() : collect([$current]);
         }
+
+        $outcome = MakeupWithdrawal::Kept;
+
+        foreach ($practices as $practice) {
+            $one = $this->withdrawMakeupFrom($practice, $trooperId, $weekStart, $triggeredBy);
+
+            // Withdrawn from any wins; else a locked one is the answer, so the leader is told it stayed for that reason.
+            if ($one === MakeupWithdrawal::Withdrawn || ($one === MakeupWithdrawal::Locked && $outcome === MakeupWithdrawal::Kept)) {
+                $outcome = $one;
+            }
+        }
+
+        return $outcome;
+    }
+
+    /** {@see withdrawMakeup()} for one practice holding the makeup. */
+    private function withdrawMakeupFrom(SectionPractice $practice, int $trooperId, CarbonImmutable $weekStart, int $triggeredBy): MakeupWithdrawal
+    {
+        $sectionId = $practice->section_id;
 
         if (WeekOf::isBeforeFloor($weekStart) || $this->reports->isSentFor($sectionId, $weekStart) || $practice->confirmed_at !== null) {
             return MakeupWithdrawal::Locked;

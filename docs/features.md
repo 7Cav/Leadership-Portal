@@ -350,7 +350,7 @@ their own section's practice that Cav week.
   the same week, shown with an "auto" source dot. It never overwrites Present, Attached, LOA or any mark a leader set by
   hand, and is never written into a sent, confirmed or before-floor week, or for a trooper on leave.
 - Removing the guest takes the automatic makeup back, unless something else supports it or a leader has since changed
-  or confirmed it.
+  or confirmed it. It is taken back from the section it was written to, even if the guest has moved section since.
 - A makeup counts for the trooper's SP. An automatic makeup alone does not make their own section's practice "held".
 
 ## KPIs

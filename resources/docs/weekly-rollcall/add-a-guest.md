@@ -24,6 +24,6 @@ audience: leader
 ## Take a guest back off
 
 1. Choose **Undo** next to a guest you added by hand.
-2. The makeup it gave them on their own section's rollcall is taken back, unless their own leader had already marked them.
+2. The makeup it gave them on their own section's rollcall is taken back, unless their own leader had already marked them. This works even if they have moved to another section since.
 
 > [!good-to-know] A guest the game server saw cannot be removed by hand. Once a practice is confirmed, guests can no longer be added or removed.

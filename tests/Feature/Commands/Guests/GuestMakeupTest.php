@@ -132,6 +132,25 @@ it('takes the makeup back with the entry when nothing else supports it, audited 
         ->and(CrossSectionSighting::query()->count())->toBe(0);
 });
 
+it('takes the makeup back from the section it was written to when the guest has moved section since', function () {
+    recordGuest($this);
+    $this->guest->forceFill(['primary_section_id' => $this->other->id])->save();
+
+    expect(withdrawGuest($this))->toBe(MakeupWithdrawal::Withdrawn)
+        ->and(homeMark($this)->status)->toBeNull()
+        ->and(homeMark($this)->source)->toBeNull()
+        ->and(AuditLogEntry::query()->where('action', 'attendance.auto_unmarked')->sole()->target_id)->toEqual(homeMark($this)->section_practice_id);
+});
+
+it('leaves the makeup on the old section when that week is locked, after the guest moved', function () {
+    recordGuest($this);
+    $this->guest->forceFill(['primary_section_id' => $this->other->id])->save();
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->home->id, 'week_start' => $this->week]);
+
+    expect(withdrawGuest($this))->toBe(MakeupWithdrawal::Locked)
+        ->and(homeMark($this)->status)->toBe(AttendanceStatus::Makeup);
+});
+
 it('keeps the makeup when another sighting that week still supports it', function (string $source) {
     recordGuest($this);
     $elsewhere = app(SectionPracticeRepository::class)->findOrCreate($this->other->id, $this->week);
