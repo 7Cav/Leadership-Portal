@@ -26,7 +26,7 @@ Under **Admin via billet**, the page lists every approved billet: its title and 
 
 A billet tagged **Not an Admin group** sits in a group whose billets can no longer make an Admin, so its holders are not Admins.
 
-Under the list, a short note names the Regimental HQ staff placed on the regiment. They read the whole regiment, read-only, whether or not their billet is approved.
+Under the list, a short note names the Regimental HQ staff placed on the regiment. They read the whole regiment, read-only, whether or not their billet is approved, until Cav moves them to a billet outside Regimental HQ.
 
 ## Revoke an Admin billet
 

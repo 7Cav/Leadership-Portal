@@ -14,6 +14,9 @@ use Illuminate\Database\Eloquent\Model;
 #[Fillable(['cav_position_id', 'title', 'group_title', 'proposed_title', 'proposed_group_title', 'status', 'decided_by', 'decided_by_admin', 'decided_as_unit', 'decided_at'])]
 class AdminBillet extends Model
 {
+    /** The Cav group of the regiment's own staff, whose billets the org import places on the regiment node. */
+    public const REGIMENTAL_HQ = 'Regimental HQ';
+
     protected function casts(): array
     {
         return [
@@ -46,6 +49,15 @@ class AdminBillet extends Model
             && $this->proposed_group_title === $this->group_title
             && self::isAdminGroup($this->group_title)
             && $billet === $this->title;
+    }
+
+    /**
+     * Whether Cav lists this billet under Regimental HQ now (the group last seen, whatever was confirmed): what keeps its
+     * holder's Regimental HQ read scope (`ScopeResolver`), approved or not.
+     */
+    public function inRegimentalHq(): bool
+    {
+        return $this->proposed_group_title === self::REGIMENTAL_HQ;
     }
 
     /** Whether the names seen now differ from the confirmed ones, or nothing was confirmed yet. */

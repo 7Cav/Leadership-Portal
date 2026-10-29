@@ -46,7 +46,8 @@ interface CounselingRecordRepository
 
     /**
      * A trooper's records, newest first (by date, then by id), each with its issuer, the Admin who filed it for them
-     * and the billet held loaded, so the page names the issuer without a query per record.
+     * and the billet held loaded, and the same for whoever overturned it, so the page names them without a query per
+     * record.
      *
      * @return Collection<int, CounselingRecord>
      */
@@ -54,6 +55,13 @@ interface CounselingRecordRepository
 
     /** Correct the date and the reason. The type and the document never change. */
     public function update(CounselingRecord $record, CarbonImmutable $counseledOn, string $reason): CounselingRecord;
+
+    /**
+     * Mark an LOR overturned (S6, 2026-10-29): when, by whom (with the one acting as them, and the billet held, as on a
+     * filing) and why. Re-read under a lock in the caller's transaction, so two overturns at once cannot both land: null
+     * when the record is gone or already overturned. Nothing else on the record changes.
+     */
+    public function overturn(CounselingRecord $record, CarbonImmutable $at, int $by, ?int $byAdmin, ?int $asUnit, string $reason): ?CounselingRecord;
 
     /**
      * Delete the record, re-read under a lock in the caller's transaction so the model handed back (and digested by

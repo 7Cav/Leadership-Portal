@@ -5,6 +5,7 @@ use App\Authorization\ScopeResolver;
 use App\Models\AdminBillet;
 use App\Models\AdminBilletStatus;
 use App\Models\AuditLogEntry;
+use App\Models\CounselingRecord;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
@@ -16,6 +17,7 @@ use App\Repositories\AdminBilletRepository;
 use App\Repositories\UnitRepository;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
@@ -325,6 +327,28 @@ describe('act as and view as', function () {
         $this->actingAs($this->leader)->post('/view-as', ['kind' => 'user', 'id' => $this->chief->id])->assertSessionHasErrors('view_as');
     });
 
+    // Audit 3 (2026-10-29): the shared Admin flag is for the shell, so it follows the preview like every page does,
+    // while the banner still offers act as to the real Admin.
+    it('shares is_admin as the preview shows it, and still offers act as from it', function (string $who) {
+        $admin = $who === 'flag' ? $this->admin : $this->chief;
+        $this->actingAs($admin)->get('/home')->assertInertia(fn (Assert $page) => $page->where('auth.user.is_admin', true));
+
+        $this->actingAs($admin)->post('/view-as', ['kind' => 'user', 'id' => $this->leader->id])->assertSessionHasNoErrors();
+        $this->actingAs($admin)->get('/home')->assertInertia(fn (Assert $page) => $page
+            ->where('auth.user.is_admin', false)
+            ->where('viewAs.admin', false)
+            ->where('viewAs.actAs', true));
+        $this->actingAs($admin)->delete('/view-as');
+
+        $this->actingAs($admin)->post('/view-as', ['kind' => 'unit', 'id' => $this->section->id])->assertSessionHasNoErrors();
+        $this->actingAs($admin)->get('/home')->assertInertia(fn (Assert $page) => $page->where('auth.user.is_admin', false)->where('viewAs.actAs', true));
+    })->with(['flag', 'billet']);
+
+    it('never offers a leader act as from their own unit preview', function () {
+        $this->actingAs($this->leader)->post('/view-as', ['kind' => 'unit', 'id' => $this->section->id])->assertSessionHasNoErrors();
+        $this->actingAs($this->leader)->get('/home')->assertInertia(fn (Assert $page) => $page->where('auth.user.is_admin', false)->where('viewAs.actAs', false));
+    });
+
     it('marks a billet Admin as an Admin in the view as people list', function () {
         $people = collect($this->actingAs($this->admin)->getJson('/view-as/options')->assertOk()->json('people'));
 
@@ -588,5 +612,39 @@ describe('S6 HQ billets', function () {
 
         $this->actingAs($this->admin)->get('/settings/audit-log')->assertForbidden();
         expect(app(ScopeResolver::class)->isAdmin(app(ActAs::class)->withoutAdmin($this->s6->fresh())))->toBeFalse();
+    });
+});
+
+// Audit 3 (2026-10-29): "an Admin still corrects and deletes their own records as an Admin" was accepted for the Admins
+// someone chose by the flag. An Admin by billet holds it because of Cav's billet list, so their own stay out of reach.
+describe('their own counseling records', function () {
+    beforeEach(function () {
+        Storage::fake('counseling');
+    });
+
+    it('never lets a billet Admin correct or delete their own records', function () {
+        $lor = CounselingRecord::factory()->lor()->create(['trooper_id' => $this->chiefTrooper->id, 'issuer_unit_id' => null, 'reason' => 'As filed.']);
+        $props = $this->actingAs($this->chief)->get(route('troopers.show', $this->chiefTrooper->id))->assertOk()->viewData('page')['props'];
+
+        expect(rhqaIsAdmin($this->chief))->toBeTrue()
+            ->and(collect($props['counseling']['records'])->firstWhere('id', $lor->id)['canChange'])->toBeFalse();
+        $this->actingAs($this->chief)->patch(route('counseling.update', $lor->id), [
+            'counseled_on' => now()->subDays(4)->toDateString(), 'reason' => 'Changed.', 'audit_reason' => 'Mine.',
+        ])->assertForbidden();
+        $this->actingAs($this->chief)->delete(route('counseling.destroy', $lor->id), ['audit_reason' => 'Mine.'])->assertForbidden();
+
+        expect($lor->fresh()?->reason)->toBe('As filed.');
+        // Another Admin still may.
+        expect(collect($this->actingAs($this->admin)->get(route('troopers.show', $this->chiefTrooper->id))->viewData('page')['props']['counseling']['records'])
+            ->firstWhere('id', $lor->id)['canChange'])->toBeTrue();
+    });
+
+    it('still lets a flag Admin change their own records, as the S6 accepted', function () {
+        $mine = Trooper::query()->where('cav_id', $this->admin->cav_id)->sole();
+        $lor = CounselingRecord::factory()->lor()->create(['trooper_id' => $mine->id, 'issuer_unit_id' => null]);
+
+        $this->actingAs($this->admin)->delete(route('counseling.destroy', $lor->id), ['audit_reason' => 'Filed in error.'])->assertRedirect();
+
+        expect(CounselingRecord::query()->whereKey($lor->id)->exists())->toBeFalse();
     });
 });

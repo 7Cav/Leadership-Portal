@@ -45,7 +45,7 @@ it('previews a trooper with no account from their billet, read only, recorded ag
     $this->actingAs($this->admin)->post('/view-as', ['kind' => 'trooper', 'id' => $this->roscoe->id])->assertSessionHasNoErrors();
 
     $this->actingAs($this->admin)->get('/home')->assertInertia(fn (Assert $page) => $page->where('viewAs', [
-        'kind' => 'trooper', 'id' => $this->roscoe->id, 'label' => '2LT Roscoe.N', 'designation' => '1/B/2-7', 'unitName' => '1st Platoon', 'admin' => false,
+        'kind' => 'trooper', 'id' => $this->roscoe->id, 'label' => '2LT Roscoe.N', 'designation' => '1/B/2-7', 'unitName' => '1st Platoon', 'admin' => false, 'actAs' => true,
     ]));
     $this->actingAs($this->admin)->get("/rollcall/{$this->section->id}")->assertOk();
     $this->actingAs($this->admin)->get("/rollcall/{$this->other->id}")->assertForbidden();
