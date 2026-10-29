@@ -1100,7 +1100,7 @@ describe('a thread that goes away', function () {
         $trooper = storedThenGone();
         expect(app(LoaCoverage::class)->forTrooper($trooper->id, CarbonImmutable::parse('2026-10-10', 'UTC'))->state)->toBe(LoaCoverageState::Covered);
 
-        forumWith([180 => [[]]]);
+        forumWith([180 => [[]]], [4001 => MockResponse::make(['errors' => []], 404)]);
         runLoaSync(1, true);
 
         $row = Loa::sole();
@@ -1135,6 +1135,47 @@ describe('a thread that goes away', function () {
         runLoaSync(1, true);
 
         expect(Loa::sole()->withdrawn_at)->toBeNull()->and(latestLoaRun()->inactivated)->toBe(0);
+    });
+
+    it('keeps a live thread the listing missed, as when another thread is deleted while the run pages, after asking the forum for it', function () {
+        storedThenGone();
+        // The listing moved up by one between two pages: 4001 is on neither page the run read, but the forum still has it.
+        $other = loaThread(4002, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-06 08:00');
+        $live = loaThread(4001, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-05 08:00');
+        $client = forumWith([180 => [[$other]]], [4002 => $other, 4001 => $live]);
+
+        runLoaSync(1, true);
+
+        expect(Loa::query()->where('forum_thread_id', 4001)->sole()->withdrawn_at)->toBeNull()
+            ->and(latestLoaRun()->status)->toBe(SyncRunStatus::Success)
+            ->and(latestLoaRun()->inactivated)->toBe(0)
+            ->and(collect(askedFor($client))->filter(fn ($endpoint) => $endpoint === '/api/threads/4001')->count())->toBe(1);
+    });
+
+    it('withdraws a thread the listing missed once the forum says it is hidden, gone or out of the leave sections', function (MockResponse|array $answer) {
+        storedThenGone();
+        forumWith([180 => [[]]], [4001 => $answer]);
+
+        runLoaSync(1, true);
+
+        expect(Loa::sole()->withdrawn_at)->not->toBeNull()
+            ->and(latestLoaRun()->status)->toBe(SyncRunStatus::Success)
+            ->and(latestLoaRun()->inactivated)->toBe(1);
+    })->with([
+        'hidden' => [loaThread(4001, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-05 08:00', 180, 'deleted')],
+        'gone' => [MockResponse::make(['errors' => []], 404)],
+        'moved out of the leave sections' => [loaThread(4001, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-05 08:00', 7)],
+    ]);
+
+    it('withdraws nothing when the forum cannot say whether a thread the listing missed is still there', function () {
+        storedThenGone();
+        forumWith([180 => [[]]], [4001 => MockResponse::make([], 503)]);
+
+        runLoaSync(1, true);
+
+        expect(Loa::sole()->withdrawn_at)->toBeNull()
+            ->and(latestLoaRun()->status)->toBe(SyncRunStatus::Partial)
+            ->and(latestLoaRun()->inactivated)->toBe(0);
     });
 
     it('withdraws nothing on an incremental run, which does not see every thread', function () {
@@ -1177,7 +1218,7 @@ describe('a thread that goes away', function () {
 
     it('counts a withdrawn leave again once a later run finds its thread', function () {
         $trooper = storedThenGone();
-        forumWith([180 => [[]]]);
+        forumWith([180 => [[]]], [4001 => MockResponse::make(['errors' => []], 404)]);
         runLoaSync(1, true);
         expect(Loa::sole()->withdrawn_at)->not->toBeNull();
 

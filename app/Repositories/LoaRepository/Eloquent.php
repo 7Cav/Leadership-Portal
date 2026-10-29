@@ -10,6 +10,7 @@ use App\Repositories\LoaReturn;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\DB;
 
 class Eloquent implements LoaRepository
@@ -165,16 +166,7 @@ class Eloquent implements LoaRepository
                 return ['withdrawn' => 0, 'restored' => $restored];
             }
 
-            $unseen = Loa::query()
-                ->whereIn('forum_node_id', $forumNodeIds)
-                ->whereNull('withdrawn_at')
-                ->whereNotNull('posted_at')
-                ->where('posted_at', '>=', $postedFrom)
-                ->pluck('forum_thread_id', 'id')
-                ->reject(fn ($threadId) => isset($seen[(int) $threadId]))
-                ->keys()
-                ->all();
-
+            $unseen = $this->unseen($forumNodeIds, $seen, $postedFrom)->keys()->all();
             $withdrawn = 0;
 
             foreach (array_chunk($unseen, 500) as $ids) {
@@ -183,6 +175,38 @@ class Eloquent implements LoaRepository
 
             return ['withdrawn' => $withdrawn, 'restored' => $restored];
         });
+    }
+
+    public function unseenThreadIds(array $forumNodeIds, array $seenThreadIds, CarbonImmutable $postedFrom): array
+    {
+        if ($forumNodeIds === []) {
+            return [];
+        }
+
+        return $this->unseen($forumNodeIds, array_flip($seenThreadIds), $postedFrom)
+            ->map(fn ($threadId) => (int) $threadId)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The rows {@see withdrawUnseen()} would withdraw: thread id by row id.
+     *
+     * @param  list<int>  $forumNodeIds
+     * @param  array<int, mixed>  $seen  keyed by thread id
+     * @return SupportCollection<int, int|string>
+     */
+    private function unseen(array $forumNodeIds, array $seen, CarbonImmutable $postedFrom): SupportCollection
+    {
+        return Loa::query()
+            ->whereIn('forum_node_id', $forumNodeIds)
+            ->whereNull('withdrawn_at')
+            ->whereNotNull('posted_at')
+            ->where('posted_at', '>=', $postedFrom)
+            ->pluck('forum_thread_id', 'id')
+            ->reject(fn ($threadId) => isset($seen[(int) $threadId]));
     }
 
     /**
