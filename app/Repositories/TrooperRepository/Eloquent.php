@@ -9,9 +9,13 @@ use App\Models\Unit;
 use App\Models\UnitKind;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\SectionWeekRoster;
 use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\TrooperRepository;
+use App\Repositories\WeekRollcalls;
+use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
@@ -60,6 +64,12 @@ class Eloquent implements TrooperRepository
                 ],
             );
 
+            // When they left every serving roster, for a past week's rollcall (2026-10-29): set as the status leaves
+            // the serving ones, cleared when it returns. A trooper first seen already departed has no known date.
+            if (! $trooper->wasRecentlyCreated && $trooper->wasChanged('status')) {
+                $trooper->forceFill(['departed_at' => $trooper->status->isServing() ? null : ($trooper->departed_at ?? CarbonImmutable::now())])->save();
+            }
+
             if ($trooper->wasRecentlyCreated) {
                 $inserted++;
             } elseif ($trooper->wasChanged()) {
@@ -79,7 +89,7 @@ class Eloquent implements TrooperRepository
             // Not a serving check: "not already departed", so a trooper holding any other standing who
             // has left every roster is marked departed too, and the count only reports new departures.
             ->where('status', '!=', TrooperStatus::Inactive->value)
-            ->update(['status' => TrooperStatus::Inactive->value]);
+            ->update(['status' => TrooperStatus::Inactive->value, 'departed_at' => CarbonImmutable::now()]);
     }
 
     public function countDepartingWithStatus(TrooperStatus $status, array $activeCavIds): int
@@ -193,6 +203,78 @@ class Eloquent implements TrooperRepository
             ->pluck('id');
     }
 
+    public function onRollcall(Unit $section, CarbonInterface $weekStart): SectionWeekRoster
+    {
+        $weekStart = WeekOf::requireStart($weekStart);
+
+        if (! $this->hasEnded($weekStart)) {
+            return new SectionWeekRoster($this->placedIn($section->id));
+        }
+
+        $placements = $this->placements->sectionsByWeekAmong([$section->id], $weekStart, $weekStart);
+        $ids = array_keys($placements->current);
+        $week = $weekStart->toDateString();
+
+        return new SectionWeekRoster(
+            $ids === [] ? new EloquentCollection : Trooper::query()->whereIn('id', $ids)->orderBy('id')->get(),
+            asPlaced: true,
+            // Placed somewhere else first that week, then here.
+            joined: array_values(array_filter($ids, fn (int $id) => count($placements->weeks[$id][$week] ?? []) > 1)),
+        );
+    }
+
+    public function idsOnRollcall(int $sectionId, CarbonInterface $weekStart, array $trooperIds, bool $serving = false): Collection
+    {
+        $weekStart = WeekOf::requireStart($weekStart);
+
+        if (! $this->hasEnded($weekStart)) {
+            return $serving ? $this->servingIdsPlacedIn($sectionId, $trooperIds) : $this->idsPlacedIn($sectionId, $trooperIds);
+        }
+
+        if ($trooperIds === []) {
+            return collect();
+        }
+
+        $on = array_keys($this->placements->sectionsByWeekAmong([$sectionId], $weekStart, $weekStart)->current);
+
+        return collect(array_values(array_intersect($on, array_map('intval', $trooperIds))))->sort()->values();
+    }
+
+    public function onRollcalls(array $sectionIds, CarbonInterface $weekStart): WeekRollcalls
+    {
+        $weekStart = WeekOf::requireStart($weekStart);
+
+        if ($sectionIds === []) {
+            return new WeekRollcalls([], $this->hasEnded($weekStart));
+        }
+
+        if (! $this->hasEnded($weekStart)) {
+            return new WeekRollcalls(Trooper::query()
+                ->whereIn('primary_section_id', $sectionIds)
+                ->whereIn('status', TrooperStatus::servingValues())
+                ->orderBy('id')
+                ->pluck('primary_section_id', 'id')
+                ->map(fn ($sectionId) => (int) $sectionId)
+                ->all());
+        }
+
+        $placements = $this->placements->sectionsByWeekAmong($sectionIds, $weekStart, $weekStart);
+        $week = $weekStart->toDateString();
+        $sections = [];
+
+        foreach (array_keys($placements->current) as $trooperId) {
+            $sections[$trooperId] = (int) $placements->sectionIn($trooperId, $week);
+        }
+
+        return new WeekRollcalls($sections, asPlaced: true);
+    }
+
+    /** A week before the running one: its roster is the one it ended with (the 2026-10-29 audit). */
+    private function hasEnded(CarbonImmutable $weekStart): bool
+    {
+        return $weekStart->lessThan(WeekOf::start(CarbonImmutable::now()));
+    }
+
     public function assignedWithin(Unit $unit): Collection
     {
         return Trooper::query()->assignedWithin($unit)->orderBy('id')->pluck('id');
@@ -231,11 +313,6 @@ class Eloquent implements TrooperRepository
         return Trooper::query()
             ->whereNull('primary_section_id')
             ->whereIn('status', TrooperStatus::servingValues());
-    }
-
-    public function rosterOf(Unit $unit): Collection
-    {
-        return Trooper::query()->assignedWithin($unit)->orderBy('id')->get()->toBase();
     }
 
     public function byCavId(array $cavIds): Collection
@@ -299,13 +376,6 @@ class Eloquent implements TrooperRepository
         }
 
         return $found;
-    }
-
-    public function sectionsOfAssignedWithin(Unit $unit): Collection
-    {
-        return Trooper::query()->assignedWithin($unit)->orderBy('id')
-            ->pluck('primary_section_id', 'id')
-            ->map(fn ($sectionId) => (int) $sectionId);
     }
 
     public function placedWithin(Unit $unit): EloquentCollection

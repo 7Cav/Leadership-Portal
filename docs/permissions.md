@@ -212,7 +212,7 @@ their own plan unless they also command the company.
 | Games: add, edit, retire, reinstate or delete a game (a game in use can only be retired) | Yes | No | No |
 | Demo data: generate or purge (only when `DEMO_TOOLS=true`) | Yes | No | No |
 | Whole-roster sync ("Sync now" on the roster) | Yes | No | No |
-| Manual LOA sync (route only, no button in the UI) | Yes | No | No |
+| Manual LOA sync (route only, no button in the UI; during a running sync it queues one follow-up) | Yes | No | No |
 
 ### Game identities and syncs
 

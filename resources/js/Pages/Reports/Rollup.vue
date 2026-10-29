@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import EmptyState from '@/components/EmptyState.vue';
+import NoValue from '@/components/NoValue.vue';
 import { copyText } from '@/lib/clipboard';
 import { forumDate } from '@/lib/forumDate';
 import {
@@ -347,9 +348,9 @@ function pct(ratio) {
                             <!-- A sent snapshot this row depends on cannot be read: no numbers, never a plausible zero. -->
                             <template v-if="!row.node.kpis">
                                 <div role="gridcell" class="rt-num rt-wide text-warning" data-testid="kpis-unavailable">Unavailable</div>
-                                <div role="gridcell" class="rt-num text-muted-foreground">—</div>
-                                <div role="gridcell" class="rt-num text-muted-foreground">—</div>
-                                <div role="gridcell" class="rt-num rt-wide text-muted-foreground">—</div>
+                                <div role="gridcell" class="rt-num text-muted-foreground"><NoValue label="Unavailable" /></div>
+                                <div role="gridcell" class="rt-num text-muted-foreground"><NoValue label="Unavailable" /></div>
+                                <div role="gridcell" class="rt-num rt-wide text-muted-foreground"><NoValue label="Unavailable" /></div>
                             </template>
                             <template v-else>
                                 <div role="gridcell" class="rt-num rt-wide" :class="{ 'text-muted-foreground': row.node.live && !row.hasChildren }">

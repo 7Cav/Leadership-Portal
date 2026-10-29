@@ -20,6 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { forumDate } from '@/lib/forumDate';
 import { vStickyHead } from '@/lib/stickyHead';
 import EmptyState from '@/components/EmptyState.vue';
+import NoValue from '@/components/NoValue.vue';
 import { useSlashClaim } from '@/composables/useSlashShortcut';
 import {
     aggregateWeek,
@@ -492,8 +493,8 @@ function clearAll() {
                                     </span>
                                 </span>
                             </td>
-                            <td class="text-right tabular-nums" :class="toneClass[percentTone(row.trooper.kpis?.rc)]">{{ row.trooper.kpis ? percentLabel(row.trooper.kpis.rc) : '—' }}</td>
-                            <td class="text-right tabular-nums" :class="toneClass[percentTone(row.trooper.kpis?.sp)]">{{ row.trooper.kpis ? percentLabel(row.trooper.kpis.sp) : '—' }}</td>
+                            <td class="text-right tabular-nums" :class="toneClass[percentTone(row.trooper.kpis?.rc)]"><template v-if="row.trooper.kpis">{{ percentLabel(row.trooper.kpis.rc) }}</template><NoValue v-else /></td>
+                            <td class="text-right tabular-nums" :class="toneClass[percentTone(row.trooper.kpis?.sp)]"><template v-if="row.trooper.kpis">{{ percentLabel(row.trooper.kpis.sp) }}</template><NoValue v-else /></td>
                             <td>
                                 <span class="inline-flex gap-1">
                                     <Badge v-if="row.trooper.kpis?.atRisk" variant="danger" data-testid="flag-at-risk"><PhWarning />At-risk, {{ row.trooper.kpis.missed }} missed</Badge>

@@ -33,10 +33,10 @@ use Throwable;
  * - A player with no link is **unmatched**: recorded, surfaced, never assigned to anyone. One read through a fallback
  *   that could only give its own player number (BattleMetrics standing in for CRCON) is stored with that marked
  *   (`id_source`), so the rollcall says so and the number is never linked in place of a game ID.
- * - A player linked to a trooper whose primary section is not this practice's is surfaced as
+ * - A player linked to a trooper who is not on this practice's rollcall for its week is surfaced as
  *   **other-section**, and never credited (AD-14: a trooper is on one rollcall, their primary
- *   section's). The capture does not give them a makeup on their own section's rollcall either, and
- *   records no `cross_section_sightings` row: until the portal has practice time slots, the capture
+ *   section's; for a week that has ended, the section they ended it in, `TrooperRepository::idsOnRollcall`).
+ *   The capture does not give them a makeup on their own section's rollcall either, and records no `cross_section_sightings` row: until the portal has practice time slots, the capture
  *   window is the whole Cav week so far and the game servers are shared by every section, so being
  *   seen does not mean they were at this practice (decided 2026-10-23). Makeups come from a leader. A staff member
  *   (HQ staff or a staff department, on no rollcall) is surfaced the same way, and that stored row is what their milpac
@@ -173,7 +173,7 @@ class CaptureSectionPracticeHandler
             // Every server that answered (#389), cut to the column's width; a practice has a handful at most.
             $serverRef = Str::limit(implode(', ', array_map(fn (array $answer) => $answer['source']->serverRef, $answers)), 250);
 
-            $result = $this->resolve($presence, $sourceName, $game, $practice->section_id);
+            $result = $this->resolve($presence, $sourceName, $game, $practice);
             $this->persistUnresolved($practice->id, $game, $result);
 
             // Pre-mark before stamping, so a captured practice implies its marks were written;
@@ -349,7 +349,7 @@ class CaptureSectionPracticeHandler
         return CaptureResult::weekLocked();
     }
 
-    private function resolve(CrconPresence $presence, string $source, Game $game, int $sectionId): CaptureResult
+    private function resolve(CrconPresence $presence, string $source, Game $game, SectionPractice $practice): CaptureResult
     {
         $links = [];
         $unmatched = [];
@@ -371,7 +371,11 @@ class CaptureSectionPracticeHandler
             }
         }
 
-        $troopers = $this->troopers->byIds(array_values(array_unique(array_column($links, 'trooperId'))));
+        // On the practice's rollcall for its week: placed in the section now, or for a week that has ended, on the
+        // roster it ended with (the 2026-10-29 audit), so a capture of the closing week credits that week's troopers.
+        $linked = array_values(array_unique(array_column($links, 'trooperId')));
+        $troopers = $this->troopers->byIds($linked);
+        $onRollcall = $linked === [] ? [] : array_flip($this->troopers->idsOnRollcall($practice->section_id, $practice->week_start, $linked)->all());
         $matched = [];
         $otherSection = [];
         $departed = [];
@@ -379,11 +383,11 @@ class CaptureSectionPracticeHandler
         foreach ($links as $link) {
             $trooper = $troopers->get($link['trooperId']);
 
-            // A trooper who has left keeps their last placement, so they are told apart before the section is: listed as
+            // A trooper who has left keeps their last placement, so they are told apart before the rollcall is: listed as
             // departed, never credited (the pre-mark would skip them anyway).
             if ($trooper === null || ! $trooper->status->isServing()) {
                 $departed[] = $link;
-            } elseif ($trooper->primary_section_id === $sectionId) {
+            } elseif (isset($onRollcall[$link['trooperId']])) {
                 $matched[] = $link;
             } else {
                 $otherSection[] = $link;

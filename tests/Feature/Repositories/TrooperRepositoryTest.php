@@ -267,28 +267,6 @@ it('lists the active troopers placed anywhere in a unit\'s subtree, by id', func
 });
 
 // 5.8: the same population split by section, so one query feeds a whole roll-up.
-it('maps the troopers assigned in a subtree to their section, by trooper id', function () {
-    $platoon = Unit::factory()->create(['path' => '800/']);
-    $first = Unit::factory()->create(['path' => '800/801/']);
-    $second = Unit::factory()->create(['path' => '800/802/']);
-    $outside = Unit::factory()->create(['path' => '8000/']);
-
-    $place = function (Unit $unit, TrooperStatus $status = TrooperStatus::Combat) {
-        $trooper = Trooper::factory()->create(['status' => $status]);
-        $trooper->forceFill(['primary_section_id' => $unit->id])->save();
-
-        return $trooper->id;
-    };
-
-    $a = $place($second);
-    $b = $place($first, TrooperStatus::Eloa);
-    $place($first, TrooperStatus::Inactive);
-    $place($outside);
-
-    expect(app(TrooperRepository::class)->sectionsOfAssignedWithin($platoon)->all())
-        ->toBe([$a => $second->id, $b => $first->id]);
-});
-
 it('writes the primary billet id with the synced columns, overwriting the previous one (1.16)', function () {
     $repo = app(TrooperRepository::class);
     $row = ['cav_id' => 1, 'rank' => 'Corporal', 'mos' => '11B', 'tis' => null, 'tig' => null, 'status' => TrooperStatus::Combat->value];
@@ -302,16 +280,6 @@ it('writes the primary billet id with the synced columns, overwriting the previo
     // Cav reported no usable billet this time: the stale one is cleared, never kept.
     $repo->upsertActive([[...$row, 'cav_position_id' => null]]);
     expect(Trooper::where('cav_id', 1)->sole()->cav_position_id)->toBeNull();
-});
-
-it('lists a unit\'s assigned troopers as models, by id (5.3)', function () {
-    $section = Unit::factory()->create(['path' => '900/']);
-    $first = Trooper::factory()->create(['primary_section_id' => $section->id]);
-    $second = Trooper::factory()->create(['primary_section_id' => $section->id]);
-    Trooper::factory()->create(['primary_section_id' => $section->id, 'status' => TrooperStatus::Inactive]);
-    Trooper::factory()->create();
-
-    expect(app(TrooperRepository::class)->rosterOf($section)->pluck('id')->all())->toBe([$first->id, $second->id]);
 });
 
 it('finds troopers by cav id, keyed by it, leaving out unknown ids', function () {

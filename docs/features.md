@@ -126,6 +126,16 @@ On the same page:
 Only troopers placed in a section are on a rollcall. HQ staff, staff departments, ELOA, Reservists and New Recruits are
 on none.
 
+The running week's rollcall lists who is placed in the section now. A week that has ended keeps the roster it ended
+with, from the placement history, and so does everything that counts it: the section picker's progress, Home's step
+matrix and unit table, the report chain, and a capture's pre-marks. A trooper who moved to another unit or left the
+Cav after that week stays on it, can still be marked there and given a reason on its report, and counts in its KPIs and strength, while the section they
+moved to cannot mark them for that week. A trooper who moved partway through a week is on the rollcall of the section
+they moved to, and their mark at either section counts (see "Makeups"). Such rows carry a small note: "Moved out",
+"Departed", or "Joined" for one who moved in during the week. A trooper placed before the placement history began
+(27Oct26) and never moved since is in their current section for every week. The roster sync records when a trooper
+leaves the Cav; one who left before it began doing so has no date and is on no past week's rollcall.
+
 ### Reports
 
 - Roll-up workspace (`/reports`): the tree of every line unit in your scope for one Cav week (the current week and the
@@ -199,17 +209,19 @@ and Needs attention leave it out as the report chain does, and its own report sa
 the report chain, a section counts when it has troopers, and a platoon, company or battalion counts when a unit under
 it does.
 
-The report chain asks about the report's own week: a section counts for a week when it had troopers at any point of it
-(from the placement history), and any unit counts when it sent that week's report. Who is placed now counts only for
+The report chain asks about the report's own week: a section counts for a week when that week's rollcall lists
+someone (from the placement history, a trooper who ended the week in it), and any unit counts when it sent that week's
+report. So a section a trooper left partway through a week, with nobody else in it, is not one that week waits on. Who is placed now counts only for
 the running Cav week. So a section stood up or filled after a week is not one that week waits on, and a section that
 sends and is then emptied by a move still rolls up into its platoon for that week, keeps its platoon and company in that
 week's chain, and drops out from the first week it is empty. A trooper placed before the placement history began
 (27Oct26) and never moved since counts in their current section for every week.
 
-Leaving the Cav has no date in the portal, so once a trooper leaves, the placement they held when they left no longer
-counts for any week, past weeks included (an earlier move, which has dates, still counts). A section whose last trooper
-leaves the Cav therefore drops out of the chain for every week it did not send, the week they left included: its
-platoon's roll-up neither waits on it nor sums it for those weeks. A week it sent stays in the chain.
+A trooper who leaves the Cav still counts in the chain for every week that opened before they left, as they stay on
+those weeks' rollcalls (see above), so a section whose last trooper leaves drops out from the first week after they
+went. One who left before the roster sync recorded the date counts for no week. A week a section sent stays in the
+chain. A trooper an Admin left unplaced still counts through their earlier placements, though no past rollcall lists
+them.
 
 The same week rule decides which sections Home's step matrix lists for the running week, which sections each past
 point of Home's sparkline waits on, and which of your top units the roll-up workspace and Home start from for a week
@@ -323,7 +335,7 @@ All run on the queue; a queue worker must be running. Times are UTC.
 | Job | When | What it does | Configured by |
 | --- | --- | --- | --- |
 | Roster sync | Hourly on the hour; Admin "Sync now"; leader unit sync | Reads the Cav roster, updates troopers (rank, billet, status), places each trooper by billet, marks leavers departed. A unit sync only writes that unit's troopers. | `CAV_API_KEY`, `CAV_API_BASE_URL` |
-| LOA sync | Hourly at :15 (new threads), daily at 03:30 (full re-read of recent leave) | Reads LOA and ELOA threads from the configured forum sections. ELOA start and end dates come from the linked PAF thread. Posts it cannot read are stored as "needs review", never guessed. First run reads a year back. | `SEVENCAV_FORUM_API_KEY`, `SEVENCAV_FORUM_LOA_NODES`, `SEVENCAV_FORUM_PAF_NODE`, `LOA_SYNC_REQUEST_DELAY_MS`. Skipped while the key or sections are unset. |
+| LOA sync | Hourly at :15 (new threads), daily at 03:30 (full re-read of recent leave) | Reads LOA and ELOA threads from the configured forum sections. ELOA start and end dates come from the linked PAF thread. Posts it cannot read are stored as "needs review", never guessed. First run reads a year back, newest first, a share each hourly run (40 pages a section, ten minutes in all), carrying on next run where it stopped; until it is done, the leave note on the pages says how far back it has got. A thread that fails to read is kept and read again by id next run, so the rest moves on. A manual sync asked for while one of the same kind is queued or running queues one follow-up run after it, and the page says so in a notice. When the daily full read finishes cleanly, a stored leave whose thread is gone (deleted, hidden or moved out of the leave sections) stops counting; the row is kept and counts again if the thread comes back. | `SEVENCAV_FORUM_API_KEY`, `SEVENCAV_FORUM_LOA_NODES`, `SEVENCAV_FORUM_PAF_NODE`, `LOA_SYNC_REQUEST_DELAY_MS`. Skipped while the key or sections are unset. |
 | Counseling document copy | When a DCS or LOR is filed with Google Drive set up | Copies the document to the 7Cav Google Drive folder. Tried up to 5 times, with pauses of 1, 5, 15 and 60 minutes; the record shows the outcome. | `GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_DRIVE_PRIVATE_KEY`, `GOOGLE_DRIVE_FOLDER_ID`. Skipped (record kept, "Portal only") while any is unset. |
 | Practice capture | When a leader clicks "Try again" on the rollcall. That button only shows after a failed capture, and nothing in the code schedules a first capture. | Reads who was on the game server during the Cav week so far, pre-marks linked troopers in the section as Present (a leader's mark always wins), lists unmatched players. | Each game's telemetry interface, picked on the Games page. CRCON (`CRCON_BASE_URL`, `CRCON_API_KEY`) falls back to BattleMetrics; BattleMetrics (`BATTLEMETRICS_API_KEY`, `BATTLEMETRICS_SERVER_ID`); Nightwatch (`NIGHTWATCH_API_KEY`, `NIGHTWATCH_SERVER_IDS`). A game reads the training servers an Admin selected for it on the Servers page. With none selected, Hell Let Loose (WW2) on CRCON, Arma Reforger on BattleMetrics and WARDOGS on Nightwatch read the server set in env; any other game, or one of those switched to another interface, reads nothing until a server is selected, and its rollcall says so. A game with no keys, or interface "none", shows "not configured". |
 
@@ -333,7 +345,7 @@ window is the whole week and the servers are shared, so being online does not me
 Activity log pruning runs from the scheduler itself, not the queue: daily at 04:15 `portal:prune-page-visits` deletes
 page visits older than 30 days, in chunks.
 
-The org import (Settings, Org structure, Import from Cav roster) is not scheduled; an Admin runs it.
+The org import (Settings, Org structure, Import from Cav roster) is not scheduled; an Admin runs it. It repoints a billet mapping it wrote when Cav now lists the billet under another unit, and keeps (and counts) a mapping corrected by hand.
 
 ## JSAM guests
 
@@ -369,7 +381,9 @@ their own section's practice that Cav week.
 ## KPIs
 
 One definition, used by Home, the roster, the reports and the roll-ups. The window is the last 4 whole Cav weeks
-including the current one. Only troopers placed in a section are measured.
+including the current one. Only troopers placed in a section are measured: for the running week, those placed now; for
+a week that has ended, those on that week's rollcall (placed in the section when the week ended, departed ones
+included).
 
 | KPI | Definition |
 | --- | --- |
@@ -382,7 +396,8 @@ including the current one. Only troopers placed in a section are measured.
 | Own section SP (JSAM only) | SP as above, except a makeup never counts as attended, and a week their own section did not hold is left out. |
 
 Leave covering a week takes that week out of both RC and SP for the trooper. A leave post that needs review takes its
-weeks out too (no miss, not in either denominator) but does not count as On LOA. A non-leaf unit's reported KPIs are
+weeks out too (no miss, not in either denominator) but does not count as On LOA: the weeks of the leave dates it gives
+when they can be read, otherwise the week it was posted and the next. A non-leaf unit's reported KPIs are
 the sum of its direct children's sent reports.
 
 ## Technical appendix

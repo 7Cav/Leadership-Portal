@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { PhClockCounterClockwise, PhFileText, PhGitDiff, PhLockSimple } from '@phosphor-icons/vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import EmptyState from '@/components/EmptyState.vue';
+import NoValue from '@/components/NoValue.vue';
 import TimeAgo from '@/components/TimeAgo.vue';
 import { forumDate } from '@/lib/forumDate';
 import { KPIS, formatKpi, kpiValue, percent, sentenceDiff, stamp } from '@/lib/report';
@@ -75,7 +76,8 @@ const DIFF = { added: 'text-foreground', removed: 'text-muted-foreground line-th
                 >
                     <span class="text-[13px] font-medium">Week of {{ forumDate(entry.week) }}</span>
                     <span class="justify-self-end text-xs text-muted-foreground tabular-nums">
-                        RC {{ percent(entry.kpis?.rc) ?? '—' }} SP {{ percent(entry.kpis?.sp) ?? '—' }}
+                        RC <template v-if="percent(entry.kpis?.rc) !== null">{{ percent(entry.kpis?.rc) }}</template><NoValue v-else />
+                        SP <template v-if="percent(entry.kpis?.sp) !== null">{{ percent(entry.kpis?.sp) }}</template><NoValue v-else />
                     </span>
                     <span class="col-span-2 truncate text-xs text-muted-foreground">Sent <TimeAgo :at="entry.sentAt" :tooltip="false">{{ stamp(entry.sentAt) }}</TimeAgo></span>
                 </button>

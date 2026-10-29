@@ -13,6 +13,11 @@ use Carbon\CarbonImmutable;
  * start date (it is the day the PAF was submitted, found by following `pafThreadId`). Its `Expected return date`
  * is only an expectation, since an ELOA can be extended: it is read into `expectedReturnAt` for display (null when
  * it cannot be read, which is not a reason to review the thread) and never becomes `endsAt`.
+ *
+ * `reviewStartsAt`/`reviewEndsAt` are the dates an LOA post that needs review still gives, when both can be read,
+ * the end is not before the start, and both are within three years of today; the end is cut to 14 days after the
+ * start, the longest an LOA runs. They assert no leave: they only say which weeks the needs-review shield covers.
+ * Null on a thread read cleanly.
  */
 final readonly class ParsedLoaThread
 {
@@ -31,6 +36,8 @@ final readonly class ParsedLoaThread
         public ?int $pafThreadId,
         public string $excerpt,
         public array $reasons,
+        public ?CarbonImmutable $reviewStartsAt = null,
+        public ?CarbonImmutable $reviewEndsAt = null,
     ) {}
 
     public function status(): LoaParseStatus

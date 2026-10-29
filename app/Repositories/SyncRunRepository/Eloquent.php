@@ -41,6 +41,21 @@ class Eloquent implements SyncRunRepository
         ])->save();
     }
 
+    public function saveCursor(SyncRun $run, array $cursor): void
+    {
+        $run->forceFill(['cursor' => $cursor])->save();
+    }
+
+    public function latestCursor(string $source): ?array
+    {
+        return SyncRun::query()
+            ->where('source', $source)
+            ->whereNotNull('cursor')
+            ->orderByDesc('started_at')
+            ->orderByDesc('id')
+            ->value('cursor');
+    }
+
     public function fail(SyncRun $run, string $error, bool $internal = false): void
     {
         $run->forceFill([
