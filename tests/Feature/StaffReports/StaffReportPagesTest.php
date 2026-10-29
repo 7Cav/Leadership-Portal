@@ -126,10 +126,10 @@ it('answers 404 for a week that is not a Cav week or has not started', function 
 it('opens the running week read-only, saying from when it can be sent', function () {
     $this->actingAs($this->tree['users']['psg'])->get(route('staff-report.show', ['trooper' => $this->psg->id, 'week' => '2026-10-10']))
         ->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
-            ->where('canSend', false)
-            ->where('week.ended', false)
-            ->where('week.opensAt', '2026-10-17T00:00:00+00:00')
-            ->where('sections', []));
+        ->where('canSend', false)
+        ->where('week.ended', false)
+        ->where('week.opensAt', '2026-10-17T00:00:00+00:00')
+        ->where('sections', []));
 
     // Still the ended week from the sidebar after its deadline: it is the one owed.
     Carbon::setTestNow(CarbonImmutable::parse('2026-10-11 09:00:00', 'UTC'));
