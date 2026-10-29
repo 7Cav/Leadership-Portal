@@ -62,7 +62,7 @@ it('lists a player linked to a departed trooper as departed, with the trooper na
     $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")->assertInertia(fn (Assert $page) => $page
         ->has('unmatched', 1)
         ->has('departed', 1)
-        ->where('departed.0', ['platform' => 'hll', 'platformLabel' => 'Hell Let Loose (WW2)', 'playerName' => 'GoneA', 'platformId' => '76561190000000040', 'trooperName' => $left->fresh()->display_name]));
+        ->where('departed.0', ['platform' => 'hll', 'platformLabel' => 'Hell Let Loose (WW2)', 'playerName' => 'GoneA', 'platformId' => '76561190000000040', 'retired' => false, 'trooperName' => $left->fresh()->display_name]));
 
     // Not linkable from the drawer: the link exists, and it is not an unmatched player.
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this, ['platform_id' => '76561190000000040']))
@@ -76,7 +76,7 @@ it('lists the unmatched players of a captured practice, with the capture seam fo
     $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")->assertInertia(fn (Assert $page) => $page
         ->where('capture', ['source' => 'crcon', 'capturedAt' => '2026-10-08T12:00:00+00:00'])
         ->has('unmatched', 1)
-        ->where('unmatched.0', ['platform' => 'hll', 'platformLabel' => 'Hell Let Loose (WW2)', 'playerName' => 'Ortega', 'platformId' => '76561190000000001']));
+        ->where('unmatched.0', ['platform' => 'hll', 'platformLabel' => 'Hell Let Loose (WW2)', 'playerName' => 'Ortega', 'platformId' => '76561190000000001', 'retired' => false]));
 });
 
 it('writes out hidden characters in a captured player name, so an override cannot reorder the text around it, and keeps the ID as reported', function () {
@@ -148,6 +148,17 @@ it('refuses to link a player of a retired game, and changes nothing (#388)', fun
 
     expect(TrooperGameIdentity::query()->count())->toBe(0)
         ->and(Attendance::query()->count())->toBe(0);
+});
+
+it('marks the players of a retired game so the drawer offers no Link, and refuses before asking to replace', function () {
+    TrooperGameIdentity::factory()->create(['trooper_id' => $this->ortega->id, 'game_id' => game('hll')->id, 'platform_id' => '76561190000000099']);
+    game('hll')->forceFill(['retired_at' => now()])->save();
+
+    $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")->assertInertia(fn (Assert $page) => $page->where('unmatched.0.retired', true));
+    $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/link", linkBody($this))
+        ->assertStatus(422)
+        ->assertJsonMissingPath('reason')
+        ->assertJsonPath('message', 'Hell Let Loose (WW2) is retired, so no identity can be linked to it.');
 });
 
 it('refuses a game that does not exist, to link, dismiss or undo', function (string $action) {
@@ -380,7 +391,7 @@ it('lists this practice\'s dismissed players for the drawer, and undoing one lis
 
     $this->actingAs($this->leader)->get("/rollcall/{$this->section->id}")->assertInertia(fn (Assert $page) => $page
         ->where('unmatched', [])
-        ->where('dismissed', [['platform' => 'hll', 'platformLabel' => 'Hell Let Loose (WW2)', 'playerName' => 'Ortega', 'platformId' => '76561190000000001']]));
+        ->where('dismissed', [['platform' => 'hll', 'platformLabel' => 'Hell Let Loose (WW2)', 'playerName' => 'Ortega', 'platformId' => '76561190000000001', 'retired' => false]]));
 
     $this->actingAs($this->leader)->postJson("/rollcall/{$this->section->id}/unmatched/restore", linkBody($this))
         ->assertOk()->assertJsonPath('restored', true);

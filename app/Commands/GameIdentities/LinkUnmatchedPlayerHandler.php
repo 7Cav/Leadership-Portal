@@ -69,6 +69,11 @@ class LinkUnmatchedPlayerHandler
     {
         [$practice, $player] = $this->listedPlayer($actor, $this->scope, $this->practices, $this->captured, $command);
 
+        // Before the replace question: a leader must not be asked to replace an ID for a link that cannot be made.
+        if ($command->game->isRetired()) {
+            throw GameRetiredException::for($command->game);
+        }
+
         if (WeekOf::isBeforeFloor($practice->week_start)) {
             throw UnmatchedPlayerResolutionException::weekBeforeFloor($practice->week_start);
         }

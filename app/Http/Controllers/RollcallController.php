@@ -915,6 +915,8 @@ class RollcallController extends Controller
             // around it. The ID is sent as reported: the drawer posts it back to link or dismiss that player.
             'playerName' => GameIdentityText::reveal($player->player_name),
             'platformId' => $player->platform_id,
+            // A retired game takes no new links (#388), so the drawer offers no Link for its players.
+            'retired' => $player->game->isRetired(),
         ];
 
         return [

@@ -49,6 +49,16 @@ describe('UnmatchedDrawer', () => {
         expect(row.find('select').exists()).toBe(false);
     });
 
+    it('offers no Link for a player of a retired game, says why, and still lets them be dismissed', () => {
+        const wrapper = factory({ players: [{ ...PLAYERS[0], retired: true }] });
+        const row = card(wrapper, '7656119000000001');
+
+        expect(row.find('[data-testid="unmatched-blocked"]').text()).toBe('Hell Let Loose is retired, so no new links can be made. Mark the trooper by hand.');
+        expect(row.find('[data-testid="unmatched-link"]').exists()).toBe(false);
+        expect(row.find('select').exists()).toBe(false);
+        expect(row.find('[data-testid="unmatched-dismiss"]').exists()).toBe(true);
+    });
+
     it('suggests by name closeness but never picks a trooper', () => {
         const wrapper = factory();
         const first = card(wrapper, '7656119000000001');

@@ -28,7 +28,8 @@ const props = defineProps({
     sectionId: { type: Number, required: true },
     // The practice's week (`YYYY-MM-DD`).
     week: { type: String, required: true },
-    // `[{ platform, platformLabel, playerName, platformId }]`.
+    // `[{ platform, platformLabel, playerName, platformId, retired }]`; `retired` is true when the player's game is retired,
+    // which takes no new links (#388).
     players: { type: Array, required: true },
     // The section's troopers, as the rollcall rows: `[{ id, name, displayName, ... }]`.
     troopers: { type: Array, required: true },
@@ -84,9 +85,12 @@ const trooperName = (id) => {
 };
 
 // `replace`: the platform ID the leader agreed to replace, or null for a plain link.
+// Why a player cannot be linked, when they cannot: their game is retired (#388). Dismiss still works.
+const linkBlocked = (player) => (player.retired ? `${player.platformLabel} is retired, so no new links can be made. Mark the trooper by hand.` : null);
+
 async function link(player, replace = null) {
     const s = of(player);
-    if (!props.editable || s.busy || s.trooperId === '') return;
+    if (!props.editable || s.busy || s.trooperId === '' || linkBlocked(player)) return;
 
     s.busy = true;
     s.error = null;
@@ -185,7 +189,10 @@ async function dismiss(player) {
                     <p class="truncate font-mono text-xs text-muted-foreground" data-testid="unmatched-id">{{ player.platformId }}</p>
                 </div>
 
+                <p v-if="linkBlocked(player)" class="text-xs text-muted-foreground" data-testid="unmatched-blocked">{{ linkBlocked(player) }}</p>
+
                 <NativeSelect
+                    v-else
                     v-model="of(player).trooperId"
                     :aria-label="`Trooper for ${player.playerName}`"
                     data-testid="unmatched-trooper"
@@ -219,6 +226,7 @@ async function dismiss(player) {
                 </div>
                 <div v-else class="flex flex-wrap items-center gap-2">
                     <Button
+                        v-if="!linkBlocked(player)"
                         size="sm"
                         data-testid="unmatched-link"
                         :disabled="!editable || of(player).busy || of(player).trooperId === ''"
