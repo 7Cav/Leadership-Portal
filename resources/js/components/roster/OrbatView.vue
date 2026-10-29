@@ -394,7 +394,7 @@ function clearAll() {
                                         </span>
                                     </div>
                                     <dl class="flex items-center gap-6">
-                                        <div><dt class="text-[11px] leading-tight text-muted-foreground">Strength</dt><dd class="text-[13px] leading-tight font-semibold tabular-nums">{{ row.unit.kpis.strength }}</dd></div>
+                                        <div title="Everyone serving in the unit and under it, HQ staff included. New Recruits, ELOA and Reservists count on their own group."><dt class="text-[11px] leading-tight text-muted-foreground">Headcount</dt><dd class="text-[13px] leading-tight font-semibold tabular-nums">{{ row.unit.kpis.strength }}</dd></div>
                                         <div><dt class="text-[11px] leading-tight text-muted-foreground">RC 30d</dt><dd class="text-[13px] leading-tight font-semibold tabular-nums" :class="toneClass[percentTone(row.unit.kpis.rc)]">{{ percentLabel(row.unit.kpis.rc) }}</dd></div>
                                         <div><dt class="text-[11px] leading-tight text-muted-foreground">SP 30d</dt><dd class="text-[13px] leading-tight font-semibold tabular-nums" :class="toneClass[percentTone(row.unit.kpis.sp)]">{{ percentLabel(row.unit.kpis.sp) }}</dd></div>
                                     </dl>

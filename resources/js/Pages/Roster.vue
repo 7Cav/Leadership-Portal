@@ -333,10 +333,9 @@ function syncNow() {
                 >
                     {{ unit.name }}.
                     <template v-if="strength">
-                        <span class="tabular-nums">{{ strength }}</span>
-                        trooper{{ strength === 1 ? "" : "s"
-                        }}<template v-if="composition"
-                            >{{ " " }}{{ composition }}</template
+                        Headcount <span class="tabular-nums">{{ strength }}</span
+                        ><template v-if="composition"
+                            >,{{ " " }}{{ composition }}</template
                         >. RC 30d
                         <span
                             class="font-medium text-foreground tabular-nums"

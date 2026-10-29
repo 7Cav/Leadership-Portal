@@ -325,7 +325,7 @@ function clearAll() {
                                 <span class="font-medium text-foreground">{{ row.unit.callsign ?? row.unit.name }}</span>
                                 <span v-if="row.unit.leader" class="hidden sm:inline">{{ ' ' }}{{ row.unit.leader.displayName }}</span>
                             </td>
-                            <td :colspan="range.length + 3">{{ row.unit.kpis.strength }} troopers</td>
+                            <td :colspan="range.length + 3">Headcount {{ row.unit.kpis.strength }}</td>
                         </tr>
 
                         <tr v-else-if="row.kind === 'section' || row.kind === 'average'" :class="row.kind === 'average' ? 'tr-avg' : 'tr-agg'" :data-testid="`agg-${row.unit.id}`">

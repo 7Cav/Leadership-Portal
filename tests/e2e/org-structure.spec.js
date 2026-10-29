@@ -9,7 +9,7 @@ test('the org page counts HQ staff, hides New Recruits by default and shows wher
     await page.goto('/__e2e/login/Pike.S?to=/settings/org-structure');
 
     const platoon = page.locator('[data-testid^="unit-row-"]').filter({ hasText: 'DEVCOM Platoon' });
-    await expect(platoon).toContainText('2 troopers');
+    await expect(platoon).toContainText('Headcount 2');
     await expect(platoon).toContainText('WARDOGS');
     await expect(platoon).toContainText('Lead: vacant');
 
