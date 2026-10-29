@@ -140,6 +140,20 @@ describe('Home page', () => {
         });
     });
 
+    describe('staff report (policy, 2026-10-29)', () => {
+        it('reminds a platoon or company HQ staff member of their unsent staff report, with a link to it', () => {
+            const staffReport = { week: '2026-10-03', due: '2026-10-10T23:59:00+00:00', href: '/staff-report/7/2026-10-03' };
+            const notice = mount(Home, { props: { week: WEEK, staffReport } }).find('[data-testid="home-staff-report"]');
+
+            expect(notice.text()).toContain('Your staff report for the week of 03Oct26 is not sent yet. It is due 10Oct26 23:59Z.');
+            expect(notice.find('[data-testid="home-staff-report-link"]').attributes('href')).toBe('/staff-report/7/2026-10-03');
+        });
+
+        it('shows nothing when there is no staff report to send', () => {
+            expect(factory().find('[data-testid="home-staff-report"]').exists()).toBe(false);
+        });
+    });
+
     describe('degraded roster enrichment', () => {
         it('shows no warning when enrichment succeeded or never ran degraded (AC #2)', () => {
             expect(factory(null).find('[role="alert"]').exists()).toBe(false);

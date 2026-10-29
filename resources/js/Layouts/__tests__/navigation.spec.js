@@ -80,6 +80,17 @@ describe('navigation', () => {
         expect(visibleGroups(false, { demoTools: true }).map((group) => group.id)).toEqual(['leadership']);
     });
 
+    it('shows Staff report only to platoon and company HQ staff (the staffReport feature), and keeps it active on a week', () => {
+        const leadership = (features) =>
+            visibleGroups(false, features)
+                .find((group) => group.id === 'leadership')
+                .items.map((item) => item.label);
+
+        expect(leadership({})).not.toContain('Staff report');
+        expect(leadership({ staffReport: true })).toContain('Staff report');
+        expect(isActive('/staff-report/12/2026-10-03', '/staff-report')).toBe(true);
+    });
+
     it('locates the Demo data page for its breadcrumb', () => {
         expect(locate('/settings/demo-data').item.label).toBe('Demo data');
     });

@@ -31,6 +31,7 @@ import ReadinessChecklist from '@/components/reports/ReadinessChecklist.vue';
 import ReportDeadlineBanner from '@/components/reports/ReportDeadlineBanner.vue';
 import ReportPreview from '@/components/reports/ReportPreview.vue';
 import SendDialog from '@/components/reports/SendDialog.vue';
+import StaffReportsPanel from '@/components/reports/StaffReportsPanel.vue';
 import TimeAgo from '@/components/TimeAgo.vue';
 import { forumDate } from '@/lib/forumDate';
 import {
@@ -80,6 +81,9 @@ const props = defineProps({
     // The reason the portal's data gives for a trooper (`{ [trooperId]: reason }`): departed, moved out, or leave that
     // needs review. Pre-selected for an unaccounted trooper with no reason yet, for the leader to keep or change.
     suggestedReasons: { type: Object, default: () => ({}) },
+    // A platoon's or company's HQ staff and their own staff reports for the week (policy, 2026-10-29), read only and
+    // live; null for any other unit.
+    staffReports: { type: Array, default: null },
 });
 
 const page = usePage();
@@ -671,6 +675,8 @@ function useSuggestion() {
                         />
                     </div>
                 </div>
+
+                <StaffReportsPanel v-if="staffReports" class="mt-5" :rows="staffReports" />
 
                 <div
                     v-if="!sent && !week.beforeFloor"

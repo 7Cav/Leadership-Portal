@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Authorization\ActAs;
 use App\Authorization\ScopeResolver;
+use App\Authorization\StaffReportAccess;
 use App\Kpi\Headcount;
 use App\Repositories\AdminBilletRepository;
 use Illuminate\Http\Request;
@@ -25,6 +26,7 @@ class HandleInertiaRequests extends Middleware
         private readonly ActAs $actAs,
         private readonly Headcount $headcount,
         private readonly AdminBilletRepository $adminBillets,
+        private readonly StaffReportAccess $staffReports,
     ) {}
 
     /**
@@ -114,6 +116,8 @@ class HandleInertiaRequests extends Middleware
             'features' => [
                 'demoTools' => (bool) config('portal.demo_tools'),
                 'docs' => (bool) config('portal.docs'),
+                // "Staff report" (policy, 2026-10-29): for a platoon or company HQ staff member signed in as themselves.
+                'staffReport' => $request->user() !== null && $this->staffReports->isHqStaffNow($request->user()),
             ],
         ];
     }

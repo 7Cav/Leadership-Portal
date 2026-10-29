@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
+use App\Authorization\StaffReportAccess;
 use App\Commands\WeeklyReports\InvalidPlatoonTrainingTopicException;
 use App\Commands\WeeklyReports\InvalidReportContentException;
 use App\Commands\WeeklyReports\SaveReportDraft;
@@ -25,6 +26,7 @@ use App\Kpi\UnitKpis;
 use App\Kpi\WeeklyReportKpis;
 use App\Loa\LoaProvenance;
 use App\Milpac\RosterProvenance;
+use App\Milpac\StaffReportWeek;
 use App\Models\PlatoonTrainingTopic;
 use App\Models\Trooper;
 use App\Models\UnaccountedReason;
@@ -84,6 +86,8 @@ class ReportController extends Controller
         private readonly UserRepository $users,
         private readonly LoaProvenance $loaProvenance,
         private readonly PlatoonTrainingTopicRepository $topics,
+        private readonly StaffReportAccess $staffReportAccess,
+        private readonly StaffReportWeek $staffReportWeek,
     ) {}
 
     public function show(Request $request, UnaccountedSuggestions $suggestions, int $unit, string $week): Response
@@ -190,7 +194,36 @@ class ReportController extends Controller
             // (4.3, AD-20). A sent report is frozen and a roll-up reads its children's frozen reports: neither has any.
             'loaSync' => $isLeaf && ! $sent ? $this->loaProvenance->current()->toArray() : null,
             'computedAt' => CarbonImmutable::now('UTC')->toIso8601String(),
+            'staffReports' => $this->staffReportRows($request, $unit, $weekStart),
         ]);
+    }
+
+    /**
+     * A platoon's or company's HQ staff for the week and whether each sent their staff report and attended a section
+     * practice (policy, 2026-10-29), read only and live, not frozen with this report. Only the staff whose report the
+     * viewer may read are listed (the chain above the HQ, the staff member themselves, Admins), so a PL does not see
+     * their PSG's here. Null for any other unit.
+     *
+     * @return list<array{trooperId: int, name: string, sent: bool, attended: ?bool, practices: int, href: string}>|null
+     */
+    private function staffReportRows(Request $request, Unit $unit, CarbonImmutable $weekStart): ?array
+    {
+        if (! StaffReportAccess::filesFrom($unit)) {
+            return null;
+        }
+
+        return collect($this->staffReportWeek->hqStaff($unit, $weekStart))
+            ->filter(fn (array $row) => $this->staffReportAccess->mayRead($request->user(), $row['trooper'], $unit))
+            ->map(fn (array $row) => [
+                'trooperId' => $row['trooper']->id,
+                'name' => $row['trooper']->display_name,
+                'sent' => $row['report'] !== null,
+                'attended' => $row['report']?->attended,
+                'practices' => count($row['report']?->practices ?? []),
+                'href' => route('staff-report.show', ['trooper' => $row['trooper']->id, 'week' => $weekStart->toDateString()]),
+            ])
+            ->values()
+            ->all();
     }
 
     public function draft(Request $request, SaveReportDraftHandler $handler, int $unit, string $week): RedirectResponse

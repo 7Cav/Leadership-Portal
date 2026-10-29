@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
+use App\Authorization\StaffReportAccess;
 use App\Kpi\ChainNode;
 use App\Kpi\ChildReport;
 use App\Kpi\ChildReportStatus;
@@ -20,6 +21,7 @@ use App\Models\WeeklyReport;
 use App\Models\WeeklyReportStatus;
 use App\Repositories\AttendanceRepository;
 use App\Repositories\SectionPracticeRepository;
+use App\Repositories\StaffReportRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
@@ -65,6 +67,8 @@ class HomeController extends Controller
         private readonly ReportChain $chain,
         private readonly LoaCoverage $loaCoverage,
         private readonly Headcount $headcount,
+        private readonly StaffReportAccess $staffReports,
+        private readonly StaffReportRepository $sentStaffReports,
     ) {}
 
     public function show(Request $request): Response
@@ -95,6 +99,7 @@ class HomeController extends Controller
             'kpis' => $roots->isEmpty() ? null : $this->kpiProps($attendance, $roots, $scope, $weekStart),
             'attention' => $roots->isEmpty() ? null : $this->attentionProps($attendance, $chains, $scope, $weekStart),
             'steps' => $this->stepProps($scope, $weekStart, $reports, $sent),
+            'staffReport' => $this->staffReportProps($request, $weekStart),
             'units' => $chains->flatMap(function (ChainNode $chain, int $i) use ($attendance, $paths, $weekStart) {
                 $rows = $attendance[$i];
 
@@ -104,6 +109,27 @@ class HomeController extends Controller
                 ->values()
                 ->all(),
         ]);
+    }
+
+    /**
+     * The viewer's own staff report for the week (policy, 2026-10-29), while they owe one and have not sent it: a
+     * platoon or company HQ staff member signed in as themselves. Null otherwise, so Home shows nothing for it.
+     *
+     * @return array{week: string, due: string, href: string}|null
+     */
+    private function staffReportProps(Request $request, CarbonImmutable $weekStart): ?array
+    {
+        $trooper = $this->staffReports->ownTrooper($request->user());
+
+        if ($trooper === null || $this->staffReports->owes($trooper, $weekStart) === null || $this->sentStaffReports->find($trooper->id, $weekStart) !== null) {
+            return null;
+        }
+
+        return [
+            'week' => $weekStart->toDateString(),
+            'due' => WeekOf::reportDue($weekStart)->toIso8601String(),
+            'href' => route('staff-report.show', ['trooper' => $trooper->id, 'week' => $weekStart->toDateString()]),
+        ];
     }
 
     /**

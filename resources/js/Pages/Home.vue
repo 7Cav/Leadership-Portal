@@ -1,10 +1,11 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { Head, router, usePage } from '@inertiajs/vue3';
-import { PhChartLine, PhTray, PhWarning } from '@phosphor-icons/vue';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { PhChartLine, PhTray, PhUserCheck, PhWarning } from '@phosphor-icons/vue';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { forumDate } from '@/lib/forumDate';
+import { forumDate, forumDateTime } from '@/lib/forumDate';
 import EmptyState from '@/components/EmptyState.vue';
 import KpiTiles from '@/components/home/KpiTiles.vue';
 import StepLanes from '@/components/home/StepLanes.vue';
@@ -29,6 +30,8 @@ const props = defineProps({
     units: { type: Array, default: () => [] },
     // The week's five steps per section in scope (the step lanes and matrix).
     steps: { type: Array, default: () => [] },
+    // The viewer's own staff report while it is due and not sent (policy, 2026-10-29), `{ week, due, href }`, or null.
+    staffReport: { type: Object, default: null },
 });
 
 const page = usePage();
@@ -178,6 +181,22 @@ const countdown = computed(() => {
 
             <StepLanes :steps="steps" />
         </Card>
+
+        <!-- A platoon or company HQ staff member's own staff report, until they send it. -->
+        <div
+            v-if="staffReport"
+            class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-card px-4 py-3 text-[13px]"
+            data-testid="home-staff-report"
+        >
+            <PhUserCheck class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <p class="min-w-0 flex-1">
+                Your staff report for the week of {{ forumDate(staffReport.week + 'T00:00:00Z') }} is not sent yet. It is due
+                {{ forumDateTime(staffReport.due) }}Z.
+            </p>
+            <Button size="sm" variant="outline" as-child>
+                <Link :href="staffReport.href" data-testid="home-staff-report-link">Open staff report</Link>
+            </Button>
+        </div>
 
         <div class="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,0.62fr)_minmax(0,1fr)]">
             <NeedsAttention v-if="attention" :attention="attention" />
