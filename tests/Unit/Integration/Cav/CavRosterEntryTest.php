@@ -212,7 +212,7 @@ describe('CavRosterEntry::fromPayload', function () use ($fetchedAt) {
 
     it('trims the text it reads, and reads text that is only spaces as missing', function () use ($fetchedAt) {
         $trooper = CavRosterEntry::fromPayload(1, rosterEntryPayload([
-            'primary' => ['positionTitle' => "  Regimental Technical Aide 	", 'positionId' => '773'],
+            'primary' => ['positionTitle' => '  Regimental Technical Aide 	', 'positionId' => '773'],
             'user' => ['userId' => '3', 'username' => ' Jarvis.A '],
             'mos' => '   ',
         ]), $fetchedAt);
