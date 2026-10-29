@@ -2,12 +2,14 @@
 
 namespace App\Authorization;
 
+use App\Models\CommandRole;
 use App\Models\CounselingType;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\TrooperRepository;
 use App\Repositories\UnitActingLeadRepository;
 use App\Repositories\UnitCommandMappingRepository;
 use Illuminate\Support\Collection;
@@ -38,6 +40,12 @@ use Illuminate\Support\Collection;
  *  - **Correct or delete**: Admins, and the commanders of the unit the record was filed through (the issuer and the
  *    chain above them), as long as they still see the record. A record with no issuing unit (filed by an Admin, or its
  *    unit deleted) is the Admins' alone.
+ *  - **A frozen LOR** (S6, 2026-10-29): 72 hours after it is filed, its appeal window, nobody corrects or deletes it,
+ *    Admins included ({@see CounselingPermissions::frozen()}). Only the **Regimental Executive Officer** (the serving
+ *    holder of the billet titled so, which the org import maps to the regiment) may then overturn it, with a reason; it
+ *    stays on file. Never their own, and never in a view-as preview. Whoever may act as them (an Admin, or the RCO as
+ *    the senior of their command team) may overturn as them, and is named beside them. Acting as a billet never can:
+ *    a held billet is the unit's lead, not its XO. A DCS is unchanged.
  *  - **A trooper who has left the Cav** (not serving, {@see TrooperStatus::serving()}): nobody files, corrects or
  *    deletes, Admins included (2026-10-28). Who could see the records still sees and downloads them. Serving again
  *    makes them writable again.
@@ -53,6 +61,7 @@ class CounselingAccess
         private readonly UnitCommandMappingRepository $commands,
         private readonly UnitActingLeadRepository $actingLeads,
         private readonly RealActor $real,
+        private readonly TrooperRepository $troopers,
     ) {}
 
     public function for(User $user, Trooper $trooper): CounselingPermissions
@@ -92,7 +101,28 @@ class CounselingAccess
             writeScope: $writeScope->map(fn ($id) => (int) $id)->values()->all(),
             // The request's own user: acting as a person or a billet, that is a copy with the flag off.
             flagAdmin: (bool) $user->is_admin,
+            regimentalXo: ! $self && $this->isRegimentalXo($user),
         );
+    }
+
+    /**
+     * Whether the identity the request runs as holds the Regimental Executive Officer billet now, outside a view-as
+     * preview: their synced title is that billet's (as {@see CommandRole} reads it) and the billet commands the regiment,
+     * which {@see UnitCommandMappingRepository::commandedUnitFor()} answers only while they serve. One query for anyone
+     * whose title is something else, a second for the RXO.
+     */
+    private function isRegimentalXo(User $user): bool
+    {
+        if ($user->cav_id === null || $this->scope->activeViewAs($user) !== null) {
+            return false;
+        }
+
+        $trooper = $this->troopers->byCavId([(int) $user->cav_id])->get((int) $user->cav_id);
+        if (CommandRole::fromBillet($trooper?->billet, UnitType::Regiment) !== CommandRole::Xo) {
+            return false;
+        }
+
+        return $this->commands->commandedUnitFor($user)?->type === UnitType::Regiment;
     }
 
     /**

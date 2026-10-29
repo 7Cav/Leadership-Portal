@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Authorization\CounselingAccess;
+use App\Authorization\CounselingPermissions;
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffPracticeAccess;
 use App\Commands\StaffPractices\RecordStaffPracticeHandler;
@@ -99,6 +100,9 @@ class TrooperDetailController extends Controller
                 $permissions->seesLor,
                 fn (CounselingRecord $record) => $writable && $permissions->changes($record),
                 $files,
+                // A frozen LOR (72 hours after filing) is overturned by the Regimental Executive Officer only.
+                fn (CounselingRecord $record) => $writable && $permissions->overturns($record),
+                fn (CounselingRecord $record) => CounselingPermissions::frozen($record),
             ),
             // Left the Cav: the records are read-only for everyone, and the panel says so.
             'departed' => $permissions->departed,
