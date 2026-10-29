@@ -85,8 +85,9 @@ const editForm = useForm({ counseled_on: '', reason: '', audit_reason: '' });
 const deleteForm = useForm({ audit_reason: '' });
 const overturnForm = useForm({ reason: '' });
 
-// A frozen or overturned LOR is never corrected or deleted, whatever `canChange` says.
-const changeable = (record) => record.canChange && !record.frozen && !record.overturned;
+// A frozen or overturned LOR is never corrected or deleted, whatever `canChange` says. An expired DCS (90 days after it
+// was counseled, listed for Admins only) is shown read-only.
+const changeable = (record) => record.canChange && !record.frozen && !record.overturned && !record.expired;
 const busyWith = (record) => [editingId.value, deletingId.value, overturningId.value].includes(record.id);
 
 function startEdit(record) {
@@ -260,6 +261,7 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
                 data-testid="counseling-record"
                 :data-type="record.type"
                 :data-overturned="record.overturned ? 'true' : undefined"
+                :data-expired="record.expired ? 'true' : undefined"
             >
                 <div class="flex flex-wrap items-center gap-2">
                     <Badge :variant="record.type === 'lor' ? 'danger' : 'warning'" :title="typeLabel(record.type)" data-testid="counseling-type-badge">
@@ -267,6 +269,9 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
                     </Badge>
                     <time :datetime="record.date" class="font-mono text-xs" data-testid="counseling-date-text">{{ forumDate(record.date) }}</time>
                     <span v-if="record.kindLabel" class="text-xs text-muted-foreground" data-testid="counseling-kind-text">{{ record.kindLabel }}</span>
+                    <Badge v-if="record.expired" variant="secondary" data-testid="counseling-expired">
+                        Expired <time :datetime="record.expired.date">{{ forumDate(record.expired.date) }}</time>
+                    </Badge>
                     <Badge :variant="drive(record.driveStatus).tone" class="ml-auto" data-testid="counseling-drive">{{ drive(record.driveStatus).label }}</Badge>
                 </div>
 

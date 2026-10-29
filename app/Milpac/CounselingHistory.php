@@ -26,6 +26,12 @@ use Closure;
  * All of it is worked out only from the records the viewer sees, so a flag never gives away a DCS. An LOR the Regimental
  * Executive Officer overturned (S6, 2026-10-29) stays in the list, marked so, but counts toward none of it: it carries no
  * flags, earns none for the records after it, and starts no no-favorable-action period.
+ *
+ * A DCS expires 90 days after it was counseled ({@see CounselingRecord::isExpired()}). Only an Admin sees it in the list,
+ * marked expired with the date. It still counts for the records dated within its windows (a repeat DCS within 90 days
+ * of it, a second missed practice or roll call within 30), so a record's flags stay the same when an earlier DCS
+ * expires. Every window is 90 days or shorter, so an expired DCS never reaches a record dated today or later: it adds
+ * nothing to the warnings, and to the forecast only for a date given back within its window.
  */
 class CounselingHistory
 {
@@ -36,16 +42,20 @@ class CounselingHistory
      * @param  list<CounselingType>  $files  the types the viewer may file, for the form's forecast
      * @param  (Closure(CounselingRecord): bool)|null  $overturns  whether the viewer may overturn a record (none if null)
      * @param  (Closure(CounselingRecord): bool)|null  $frozen  whether a record is past its appeal window (none if null)
+     * @param  bool  $seesExpired  whether the viewer sees an expired DCS (Admins only)
      * @return array{records: list<array<string, mixed>>, warnings: list<array{key: string, message: string, until: string}>, forecast: array<string, array<string, list<array{from: string, flags: list<array{key: string, message: string}>}>>>}
      */
-    public function for(Trooper $trooper, bool $seesDcs, bool $seesLor, Closure $changes, array $files = [], ?Closure $overturns = null, ?Closure $frozen = null): array
+    public function for(Trooper $trooper, bool $seesDcs, bool $seesLor, Closure $changes, array $files = [], ?Closure $overturns = null, ?Closure $frozen = null, bool $seesExpired = false): array
     {
-        $visible = ($seesDcs || $seesLor ? $this->records->forTrooper($trooper->id) : collect())
+        $today = CarbonImmutable::now('UTC')->startOfDay();
+        $counted = ($seesDcs || $seesLor ? $this->records->forTrooper($trooper->id) : collect())
             ->filter(fn (CounselingRecord $record) => $record->type === CounselingType::Dcs ? $seesDcs : $seesLor)
             ->values();
+        $visible = $counted
+            ->filter(fn (CounselingRecord $record) => $seesExpired || ! $record->isExpired($today))
+            ->values();
 
-        $today = CarbonImmutable::now('UTC')->startOfDay();
-        $entries = $visible
+        $entries = $counted
             ->reject(fn (CounselingRecord $record) => $record->isOverturned())
             ->map(fn (CounselingRecord $record) => CounselingStanding::fromRecord($record))
             ->values()
@@ -82,6 +92,7 @@ class CounselingHistory
                     'by' => self::actor($record->overturnedBy, $record->overturnedByAdmin, $record->overturnedAsUnit),
                     'reason' => $record->overturn_reason,
                 ] : null,
+                'expired' => $record->isExpired($today) ? ['date' => $record->expiresOn()->toDateString()] : null,
                 'canOverturn' => $overturns !== null && $overturns($record),
             ])->all(),
             'warnings' => $noFavorableAction === null ? [] : [$noFavorableAction],

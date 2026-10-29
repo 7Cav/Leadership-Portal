@@ -46,6 +46,8 @@ use Illuminate\Support\Collection;
  *    stays on file. Never their own, never in a view-as preview, and only signed in as themselves: "only the RXO for
  *    now" (S6, 2026-10-29), so nobody acting as anyone overturns, not an Admin acting as the RXO, not the RCO under the
  *    command team rule, and not the RXO while acting as someone else. A DCS is unchanged.
+ *  - **An expired DCS** (90 days after it was counseled, {@see \App\Models\CounselingRecord::isExpired()}): seen
+ *    by Admins only, read-only to everyone but them. Leaders and the trooper no longer see it.
  *  - **A trooper who has left the Cav** (not serving, {@see TrooperStatus::serving()}): nobody files, corrects or
  *    deletes, Admins included (2026-10-28). Who could see the records still sees and downloads them. Serving again
  *    makes them writable again.
@@ -102,6 +104,8 @@ class CounselingAccess
             // The request's own user: acting as a person or a billet, that is a copy with the flag off.
             flagAdmin: (bool) $user->is_admin,
             regimentalXo: ! $self && $this->isRegimentalXo($user),
+            // An expired DCS is the Admins' alone, and follows a view-as preview like every other DCS read.
+            seesExpired: $canSee && $readsAsAdmin,
         );
     }
 

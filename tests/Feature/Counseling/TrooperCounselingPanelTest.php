@@ -159,7 +159,8 @@ it('says a record from before the portal asked what it is for was ruled as other
     ($this->record)('dcs', 10, ['kind' => 'missed_practice', 'reason' => 'A miss.']);
     ($this->record)('dcs', 300, ['kind' => null, 'reason' => 'Legacy, alone.']);
 
-    $records = collect(counselingProps('pl', $this)['records'])->keyBy('reason');
+    // An Admin, who still sees the 300-day-old DCS after it expired.
+    $records = collect(counselingProps('admin', $this)['records'])->keyBy('reason');
 
     expect($records['Legacy, near a miss.']['kindAssumed'])->toBeTrue()
         ->and($records['Legacy, alone.']['kindAssumed'])->toBeFalse()
