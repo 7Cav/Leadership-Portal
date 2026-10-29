@@ -164,7 +164,7 @@ it('counts HQ staff in roster strength, keeps them unmeasured, and lists ELOA tr
 
     $this->actingAs($this->admin)->get("/roster/{$this->regiment->id}")
         ->assertInertia(fn ($page) => $page
-            // The line and ELOA; the New Recruit only on their own group.
-            ->where('units.0.kpis.strength', 4)
+            // The line only: ELOA and the New Recruit count on their own groups (2026-10-29).
+            ->where('units.0.kpis.strength', 3)
             ->where('troopers', fn ($rows) => collect($rows)->firstWhere('id', $this->onLeave->id)['was'] === '1/1/A/1-7'));
 });
