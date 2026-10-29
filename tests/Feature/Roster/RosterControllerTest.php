@@ -284,6 +284,20 @@ it('names the leave source and its last sync, stale once the latest LOA sync fai
         ->where('loaSync.latestStatus', 'partial'));
 });
 
+it('shows an Admin what the latest LOA sync could not read, and nobody else, nor an Admin viewing as a leader', function () {
+    SyncRun::factory()->create(['source' => SyncRun::SOURCE_LOA, 'status' => SyncRunStatus::Partial, 'finished_at' => '2026-10-08 11:30:00', 'errored' => 1, 'needs_review' => 2, 'error' => 'Thread 812: The forum answered 503.']);
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin)->get('/roster')->assertInertia(fn ($page) => $page
+        ->where('loaSyncProblems.unread', 1)
+        ->where('loaSyncProblems.needsReview', 2)
+        ->where('loaSyncProblems.problems', [['threadId' => 812, 'text' => 'Thread 812: The forum answered 503.']]));
+    $this->actingAs($this->leader)->get('/roster')->assertInertia(fn ($page) => $page->where('loaSyncProblems', null));
+
+    $this->actingAs($admin)->post('/view-as', ['kind' => 'user', 'id' => $this->leader->id]);
+    $this->actingAs($admin)->get('/roster')->assertInertia(fn ($page) => $page->where('loaSyncProblems', null));
+});
+
 it('reports no sync yet rather than inventing a time', function () {
     $this->actingAs($this->leader)->get('/roster')->assertInertia(fn ($page) => $page
         ->where('sync.lastSuccessAt', null)

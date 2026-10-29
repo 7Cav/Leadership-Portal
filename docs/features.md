@@ -61,6 +61,9 @@ Your scope's units and troopers, from the cached Cav roster.
   seen and their own section SP. Those who meet the JSAM thresholds are marked as candidates (see "JSAM guests").
 - Sync: an Admin's "Sync now" refreshes the whole roster from Cav; a leader gets a sync of just the unit on screen. Both
   queue a job; reload after a minute. The page shows when the roster and the leave data last synced.
+- Leave sync problems (Admins): under the leave note, what the latest LOA sync could not read: the problems reading the
+  forum (each thread linked to the forum), how many posts it read that need review, or why a failed run stopped. Read
+  from what the sync records; nothing extra is asked of the forum. There is no leave sync button.
 - Guidon: a company, battalion or the regiment can have a guidon, the swallowtail flag split on the diagonal. Its
   command (and the command above it, and Admins) opens "Edit guidon" on the unit's roster to pick the two colors (a set
   palette or any custom color) and the text, with a live preview; nothing is saved until Save. The text starts as the

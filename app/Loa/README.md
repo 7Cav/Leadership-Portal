@@ -35,6 +35,10 @@ Everything the portal needs to *read* about leave lives here, so no screen re-de
   starts in the Cav week after `$weekStart`, for the "Leave from" chip on the rollcall and the roster's trooper sheet.
   Read through `LoaCoverage`; a needs-review post asserts no start, so it never shows.
 
+- `LoaSyncProblems::latest()`: what the latest finished LOA sync could not read, for an Admin on the roster page: its
+  joined problem text split back into one line per thread (with the thread id), its `needs_review` count, and a failed
+  run's reason. Read from `sync_runs` only.
+
 **May depend on:** `Repositories/` (the facts, never the DB directly, AD-2), `Models/`,
 `Support/Time/` (the week window, AD-11).
 **Reached from:** the screens that show leave (the rollcall page, and Home's step matrix, which counts it), `Kpi/` and `Commands/Attendance/MarkAttendanceHandler`. Read-only: the LOA sync (`Sync/SyncLoasHandler`) is the one
