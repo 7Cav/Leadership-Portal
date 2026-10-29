@@ -27,6 +27,21 @@ describe('StaffReportsPanel', () => {
         expect(wrapper.find('[data-testid="staff-report-row-1"] a').attributes('href')).toBe('/staff-report/1/2026-10-03');
     });
 
+    it('shows an office hour, and the game server warning only on a row that has one', () => {
+        const wrapper = mount(StaffReportsPanel, {
+            props: {
+                rows: [
+                    row({ sent: true, attended: true, practiceType: 'office_hour', officeHour: { date: '2026-10-06', note: 'NCO questions' } }),
+                    row({ trooperId: 2, sent: true, attended: true, practices: 1, discrepancy: { notSeen: ['1/1/A/1-7'], seenElsewhere: [] } }),
+                ],
+            },
+        });
+
+        expect(wrapper.find('[data-testid="staff-report-row-1"] [data-testid="staff-report-state"]').text()).toBe('Yes, office hour (06Oct26)');
+        expect(wrapper.find('[data-testid="staff-report-row-1"] [data-testid="staff-report-discrepancy"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="staff-report-row-2"] [data-testid="staff-report-discrepancy"]').exists()).toBe(true);
+    });
+
     it('says when there is nobody to show', () => {
         expect(mount(StaffReportsPanel, { props: { rows: [] } }).find('[data-testid="staff-reports-empty"]').exists()).toBe(true);
     });
