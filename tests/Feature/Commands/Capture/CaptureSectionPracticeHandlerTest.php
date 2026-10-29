@@ -319,6 +319,23 @@ it('counts a player seen on two servers in two letter cases once', function () {
     expect($result->unmatched)->toHaveCount(1)->and(PracticeCapturePlayer::query()->count())->toBe(1);
 });
 
+it('marks a BattleMetrics player number read through the fallback, so it is never taken for a game ID', function () {
+    $result = runCapture($this, [failingSource('crcon'), answeringSource('battlemetrics', [
+        new CrconPlayer('Epic Player', '987654321', CrconPlayer::BATTLEMETRICS_PLAYER),
+        new CrconPlayer('Steam Player', '76561198000000005'),
+    ])]);
+
+    $stored = PracticeCapturePlayer::query()->orderBy('id')->get();
+    expect($result->unmatched)->toHaveCount(2)
+        ->and($stored->pluck('id_source', 'platform_id')->all())->toBe(['987654321' => 'battlemetrics', '76561198000000005' => null]);
+});
+
+it('keeps no marker when BattleMetrics is the server\'s own source, as for Arma', function () {
+    runCapture($this, [answeringSource('battlemetrics', [new CrconPlayer('Arma Player', '987654321', CrconPlayer::BATTLEMETRICS_PLAYER)])], game: game('arma'));
+
+    expect(PracticeCapturePlayer::query()->sole()->id_source)->toBeNull();
+});
+
 it('stores a player name longer than its column cut to fit, keyed on the platform id', function () {
     $long = str_repeat('Ä', 300);
 

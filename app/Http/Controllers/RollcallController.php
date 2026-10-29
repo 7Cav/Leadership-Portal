@@ -917,6 +917,8 @@ class RollcallController extends Controller
             'platformId' => $player->platform_id,
             // A retired game takes no new links (#388), so the drawer offers no Link for its players.
             'retired' => $player->game->isRetired(),
+            // Set when the ID is a service's own number, not a game ID (`battlemetrics`): read through the fallback, never linked.
+            'idSource' => $player->id_source,
         ];
 
         return [

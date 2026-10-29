@@ -28,8 +28,9 @@ const props = defineProps({
     sectionId: { type: Number, required: true },
     // The practice's week (`YYYY-MM-DD`).
     week: { type: String, required: true },
-    // `[{ platform, platformLabel, playerName, platformId, retired }]`; `retired` is true when the player's game is retired,
-    // which takes no new links (#388).
+    // `[{ platform, platformLabel, playerName, platformId, retired, idSource }]`; `retired` is true when the player's game is
+    // retired, which takes no new links (#388); `idSource` is `battlemetrics` when the ID is a BattleMetrics player number
+    // read through CRCON's fallback, not a game ID.
     players: { type: Array, required: true },
     // The section's troopers, as the rollcall rows: `[{ id, name, displayName, ... }]`.
     troopers: { type: Array, required: true },
@@ -85,8 +86,16 @@ const trooperName = (id) => {
 };
 
 // `replace`: the platform ID the leader agreed to replace, or null for a plain link.
-// Why a player cannot be linked, when they cannot: their game is retired (#388). Dismiss still works.
-const linkBlocked = (player) => (player.retired ? `${player.platformLabel} is retired, so no new links can be made. Mark the trooper by hand.` : null);
+// Why a player cannot be linked, when they cannot: their game is retired (#388), or their ID is the BattleMetrics player
+// number read while the game server was down, not their game ID (it would never match a later capture). Dismiss still works.
+const linkBlocked = (player) => {
+    if (player.retired) return `${player.platformLabel} is retired, so no new links can be made. Mark the trooper by hand.`;
+    if (player.idSource === 'battlemetrics') {
+        return 'Seen through BattleMetrics while the game server could not be read. This is their BattleMetrics number, not their game ID, so it cannot be linked. Mark the trooper by hand.';
+    }
+
+    return null;
+};
 
 async function link(player, replace = null) {
     const s = of(player);

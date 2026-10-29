@@ -32,6 +32,7 @@ class Eloquent implements PracticeCapturePlayerRepository
                     'player_name' => mb_substr($player['player_name'], 0, self::NAME_LENGTH),
                     'platform_id' => $player['platform_id'],
                     'trooper_id' => $player['trooper_id'],
+                    'id_source' => $player['id_source'] ?? null,
                 ]);
             }
         });

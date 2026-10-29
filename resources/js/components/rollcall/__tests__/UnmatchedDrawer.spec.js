@@ -59,6 +59,17 @@ describe('UnmatchedDrawer', () => {
         expect(row.find('[data-testid="unmatched-dismiss"]').exists()).toBe(true);
     });
 
+    it('says a BattleMetrics number read through the fallback is not a game ID, and offers no Link for it', () => {
+        const wrapper = factory({ players: [{ ...PLAYERS[0], platformId: '987654321', idSource: 'battlemetrics' }] });
+        const row = card(wrapper, '987654321');
+
+        expect(row.find('[data-testid="unmatched-blocked"]').text()).toBe(
+            'Seen through BattleMetrics while the game server could not be read. This is their BattleMetrics number, not their game ID, so it cannot be linked. Mark the trooper by hand.',
+        );
+        expect(row.find('[data-testid="unmatched-link"]').exists()).toBe(false);
+        expect(row.find('[data-testid="unmatched-dismiss"]').exists()).toBe(true);
+    });
+
     it('suggests by name closeness but never picks a trooper', () => {
         const wrapper = factory();
         const first = card(wrapper, '7656119000000001');

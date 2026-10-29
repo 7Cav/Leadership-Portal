@@ -30,7 +30,9 @@ use Throwable;
  * `captured_at` and `capture_source` on the practice, and resolves each observed player through
  * `trooper_game_identities`.
  *
- * - A player with no link is **unmatched**: recorded, surfaced, never assigned to anyone.
+ * - A player with no link is **unmatched**: recorded, surfaced, never assigned to anyone. One read through a fallback
+ *   that could only give its own player number (BattleMetrics standing in for CRCON) is stored with that marked
+ *   (`id_source`), so the rollcall says so and the number is never linked in place of a game ID.
  * - A player linked to a trooper whose primary section is not this practice's is surfaced as
  *   **other-section**, and never credited (AD-14: a trooper is on one rollcall, their primary
  *   section's). The capture does not give them a makeup on their own section's rollcall either, and
@@ -261,6 +263,16 @@ class CaptureSectionPracticeHandler
                 $this->servers->recordRead($source->gameServerId, $runId, true, null);
             }
 
+            // A service's own player number is the ID every capture of the server reads when that service is the
+            // server's own source (an Arma server on BattleMetrics), so it is an ID like any other there. Read through
+            // a fallback (CRCON's BattleMetrics twin), it is not the ID the server itself reports, so it stays marked.
+            if ($source === ($server->sources[0] ?? null)) {
+                $presence = new CrconPresence(
+                    array_map(fn (CrconPlayer $p) => $p->idSource === null ? $p : new CrconPlayer($p->playerName, $p->platformId), $presence->players),
+                    $presence->windowStart, $presence->windowEnd, $presence->fetchedAt,
+                );
+            }
+
             return ['source' => $source, 'presence' => $presence];
         }
 
@@ -288,7 +300,7 @@ class CaptureSectionPracticeHandler
         foreach ($presences as $presence) {
             foreach ($presence->players as $player) {
                 $id = preg_match('/^[0-9a-f]{32}$/i', $player->platformId) === 1 ? strtolower($player->platformId) : $player->platformId;
-                $byPlatformId[mb_strtolower($id)] ??= $id === $player->platformId ? $player : new CrconPlayer($player->playerName, $id);
+                $byPlatformId[mb_strtolower($id)] ??= $id === $player->platformId ? $player : new CrconPlayer($player->playerName, $id, $player->idSource);
             }
         }
 
@@ -308,9 +320,9 @@ class CaptureSectionPracticeHandler
     private function persistUnresolved(int $practiceId, Game $game, CaptureResult $result): void
     {
         $this->capturePlayers->replaceForPractice($practiceId, $game, [
-            ...array_map(fn (CrconPlayer $p) => ['platform_id' => $p->platformId, 'player_name' => $p->playerName, 'trooper_id' => null],
+            ...array_map(fn (CrconPlayer $p) => ['platform_id' => $p->platformId, 'player_name' => $p->playerName, 'trooper_id' => null, 'id_source' => $p->idSource],
                 $result->unmatched),
-            ...array_map(fn (array $row) => ['platform_id' => $row['player']->platformId, 'player_name' => $row['player']->playerName, 'trooper_id' => $row['trooperId']],
+            ...array_map(fn (array $row) => ['platform_id' => $row['player']->platformId, 'player_name' => $row['player']->playerName, 'trooper_id' => $row['trooperId'], 'id_source' => $row['player']->idSource],
                 [...$result->otherSection, ...$result->departed]),
         ]);
     }

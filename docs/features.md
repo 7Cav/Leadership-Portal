@@ -109,7 +109,10 @@ On the same page:
   game identity and marks them present), dismiss them, or restore a dismissed one. An ID the server reports in two letter cases is one
   player (an Epic ID is taken in lower case). A player linked to a trooper who has left is listed
   under "Departed", with the trooper named; they are not marked and there is nothing to link. A player of a retired game
-  has no Link, since a retired game takes no new links; they can still be dismissed.
+  has no Link, since a retired game takes no new links; they can still be dismissed. A player seen through
+  BattleMetrics while CRCON could not be read, for whom BattleMetrics had only its own player number, says so and has
+  no Link either: that number is not their game ID. Linking never swaps a trooper's Steam or Epic ID for an ID of
+  another kind; change that on the Game identities page if they really changed platform.
 - Telemetry banner: says when the section's game has no capture source set up (or no training server selected), or
   when the last capture failed, naming the feeds tried. A capture that broke on an error inside the portal says so
   instead of blaming a feed. "Try again" queues a new capture for the week so far.
