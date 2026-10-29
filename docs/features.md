@@ -273,8 +273,8 @@ acting identity's command shows.
   included, and the server refuses with "This LOR was filed more than 72 hours ago, so it can no longer be changed.
   The Regimental Executive Officer can overturn it." The 72 hours run from when it was filed, not the date it carries.
   A DCS never freezes.
-- Overturn: the Regimental Executive Officer may overturn a frozen LOR, with a reason (audited as
-  `counseling.overturned`). It is never deleted: it stays in the list, muted, with "Overturned on <date> by <name>:
+- Overturn: the Regimental Executive Officer, signed in as themselves (never through act as), may overturn a frozen
+  LOR, with a reason (audited as `counseling.overturned`). It is never deleted: it stays in the list, muted, with "Overturned on <date> by <name>:
   <reason>", its document still downloads for whoever could see it, and it no longer counts toward any flag, the no
   favorable action notice or the filing form's forecast. A departed trooper's LOR can be overturned too.
 

@@ -197,7 +197,7 @@ it('refuses an overturn by anyone but the RXO, Admins and the RCO as themselves 
     $this->actingAs($this->rxo)->post(route('counseling.overturn', 999999), ['reason' => 'x'])->assertNotFound();
 
     expect(fn () => app(OverturnCounselingRecordHandler::class)->handle($this->tree['users']['admin'], new OverturnCounselingRecord($this->lor->id, 'Appeal upheld.')))
-        ->toThrow(CounselingForbiddenException::class, 'Only the Regimental Executive Officer can overturn a Letter of Reprimand.');
+        ->toThrow(CounselingForbiddenException::class, 'Only the Regimental Executive Officer, signed in as themselves, can overturn an LOR.');
     expect($this->lor->fresh()->overturned_at)->toBeNull()
         ->and(AuditLogEntry::query()->count())->toBe(0);
 });
@@ -290,28 +290,38 @@ it('offers Overturn to the RXO only, on frozen LORs only, and Correct on none of
         ->and($admin[$open->id])->toMatchArray(['frozen' => false, 'canChange' => true]);
 });
 
-it('lets an Admin acting as the RXO overturn, named beside them, and never on the Admin themselves', function () {
+it('refuses an Admin acting as the RXO: only the RXO, signed in as themselves, overturns', function () {
     $admin = $this->tree['users']['admin'];
     $this->actingAs($admin)->post('/act-as', ['kind' => 'user', 'id' => $this->rxo->id])->assertRedirect('/home');
 
-    expect(collect(freezeProps($this, $admin, $this->rifleman)['records'])->firstWhere('id', $this->lor->id)['canOverturn'])->toBeTrue();
-    $this->actingAs($admin)->post(route('counseling.overturn', $this->lor->id), ['reason' => 'Appeal upheld.'])->assertRedirect();
+    expect(collect(freezeProps($this, $admin, $this->rifleman)['records'])->firstWhere('id', $this->lor->id)['canOverturn'])->toBeFalse();
+    $this->actingAs($admin)->post(route('counseling.overturn', $this->lor->id), ['reason' => 'Appeal upheld.'])
+        ->assertForbidden()
+        ->assertSee('Only the Regimental Executive Officer, signed in as themselves, can overturn an LOR.');
 
-    $record = $this->lor->fresh();
-    expect($record->overturned_by)->toBe($this->rxo->id)
-        ->and($record->overturned_by_admin)->toBe($admin->id);
-    expect(AuditLogEntry::query()->where('action', 'counseling.overturned')->sole())
-        ->actor_id->toBe($admin->id)
-        ->on_behalf_of_id->toBe($this->rxo->id);
-    expect(collect(freezeProps($this, $admin, $this->rifleman)['records'])->firstWhere('id', $this->lor->id)['overturned']['by'])
-        ->toBe('Hale.S for Vance.R');
+    expect($this->lor->fresh()->overturned_at)->toBeNull()
+        ->and(AuditLogEntry::query()->where('action', 'counseling.overturned')->count())->toBe(0);
 });
 
-it('lets the RCO acting as the RXO overturn as them', function () {
+it('refuses the RCO acting as the RXO under the command team rule', function () {
     $this->actingAs($this->rco)->post('/act-as', ['kind' => 'user', 'id' => $this->rxo->id])->assertRedirect('/home');
 
-    $this->actingAs($this->rco)->post(route('counseling.overturn', $this->lor->id), ['reason' => 'Appeal upheld.'])->assertRedirect();
-    expect($this->lor->fresh()->overturned_by_admin)->toBe($this->rco->id);
+    expect(collect(freezeProps($this, $this->rco, $this->rifleman)['records'])->firstWhere('id', $this->lor->id)['canOverturn'])->toBeFalse();
+    $this->actingAs($this->rco)->post(route('counseling.overturn', $this->lor->id), ['reason' => 'Appeal upheld.'])->assertForbidden();
+
+    expect($this->lor->fresh()->overturned_at)->toBeNull();
+});
+
+it('lets the RXO overturn again once signed in as themselves, after an act as ends', function () {
+    $this->actingAs($this->rco)->post('/act-as', ['kind' => 'user', 'id' => $this->rxo->id])->assertRedirect('/home');
+    $this->actingAs($this->rco)->delete('/act-as');
+
+    expect(collect(freezeProps($this, $this->rxo, $this->rifleman)['records'])->firstWhere('id', $this->lor->id)['canOverturn'])->toBeTrue();
+    $this->actingAs($this->rxo)->post(route('counseling.overturn', $this->lor->id), ['reason' => 'Appeal upheld.'])->assertRedirect();
+
+    expect($this->lor->fresh())
+        ->overturned_by->toBe($this->rxo->id)
+        ->overturned_by_admin->toBeNull();
 });
 
 it('never lets the RXO overturn during a view-as preview, and offers nothing then', function () {

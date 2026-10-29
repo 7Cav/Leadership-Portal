@@ -65,6 +65,6 @@ class CounselingForbiddenException extends AuthorizationException
 
     public static function overturn(): self
     {
-        return new self('Only the Regimental Executive Officer can overturn a Letter of Reprimand.');
+        return new self('Only the Regimental Executive Officer, signed in as themselves, can overturn an LOR.');
     }
 }

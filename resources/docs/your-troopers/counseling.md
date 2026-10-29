@@ -64,7 +64,7 @@ The portal follows the counseling rules on the 7Cav wiki (7CAV-R-012, 7CAV-R-014
 1. Once an LOR is past its 72 hours, only the Regimental Executive Officer can overturn it. They choose **Overturn** on the record, give a **Reason for overturning** and choose **Overturn record**.
 2. The LOR stays on file. It is shown muted with "Overturned on" the date, by whom and why, and its document can still be downloaded.
 3. An overturned LOR no longer counts toward any flag, the no favorable action notice or the filing form's warnings.
-4. The Regimental Executive Officer cannot overturn an LOR filed on themselves.
+4. The Regimental Executive Officer cannot overturn an LOR filed on themselves. Only the Regimental Executive Officer, signed in as themselves, can overturn: nobody can do it through act as, Admins included.
 
 ## The Google Drive copy
 

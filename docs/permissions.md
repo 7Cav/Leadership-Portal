@@ -283,9 +283,9 @@ Admin. An Admin by billet does not (2026-10-29).
 (9) Not a frozen LOR: 72 hours after an LOR is filed (its appeal window) nobody corrects or deletes it, Admins by flag
 or by billet included (decided by the S6, 2026-10-29). A DCS is never frozen.
 (10) Only the serving holder of the Regimental Executive Officer billet (the org import maps it to the regiment)
-overturns a frozen LOR, never one filed on themselves and never in a view-as preview. Whoever may act as the RXO (an
-Admin, or the RCO as the senior of the regiment's command team) may overturn as them, and is named beside them on the
-record and in the audit log. Acting as a billet never can. The overturned LOR stays on file, is marked so, and counts
+overturns a frozen LOR, signed in as themselves: never one filed on themselves, never in a view-as preview, and never
+through act as (S6, 2026-10-29: "only the RXO for now"). An Admin acting as the RXO, the RCO acting as the RXO under the
+command team rule, and the RXO while acting as someone else are all refused. The overturned LOR stays on file, is marked so, and counts
 toward no flag.
 
 A trooper who has left the Cav (no longer serving) has read-only counseling: nobody may file a DCS or LOR on them, or

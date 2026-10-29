@@ -14,13 +14,14 @@ use App\Support\Audit\ReasonRequiredException;
 use Carbon\CarbonImmutable;
 
 /**
- * Overturn a frozen LOR (S6, 2026-10-29): only the Regimental Executive Officer, never on themselves, and only once its
+ * Overturn a frozen LOR (S6, 2026-10-29): only the Regimental Executive Officer, signed in as themselves (never through
+ * act as, by anyone: "only the RXO for now"), never on themselves, and only once its
  * 72-hour appeal window has passed ({@see CounselingPermissions::frozen()}); before that the issuer's chain corrects or
  * deletes it. A record the actor cannot see is not found; anything else refused is a 403. A departed trooper's LOR may
  * be overturned: it corrects the record and adds nothing to it.
  *
  * The record is never deleted. One audited action (`counseling.overturned`, AD-16) whose reason is required and is
- * stored on the record too, with when and by whom, the one acting as them named beside them as on a filing (#379).
+ * stored on the record too, with when and by whom. The acting who-columns stay, as on every record, and stay empty.
  * From then on the LOR is shown as overturned and no longer counts toward the counseling rules.
  */
 class OverturnCounselingRecordHandler
@@ -65,7 +66,8 @@ class OverturnCounselingRecordHandler
             throw CounselingForbiddenException::overturnOwn();
         }
 
-        if (! $permissions->overturns($record)) {
+        // Checked here as well as in CounselingAccess: nobody acting as anyone overturns.
+        if ($this->acting->admin() !== null || ! $permissions->overturns($record)) {
             throw CounselingForbiddenException::overturn();
         }
 

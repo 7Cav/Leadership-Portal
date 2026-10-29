@@ -43,9 +43,9 @@ use Illuminate\Support\Collection;
  *  - **A frozen LOR** (S6, 2026-10-29): 72 hours after it is filed, its appeal window, nobody corrects or deletes it,
  *    Admins included ({@see CounselingPermissions::frozen()}). Only the **Regimental Executive Officer** (the serving
  *    holder of the billet titled so, which the org import maps to the regiment) may then overturn it, with a reason; it
- *    stays on file. Never their own, and never in a view-as preview. Whoever may act as them (an Admin, or the RCO as
- *    the senior of their command team) may overturn as them, and is named beside them. Acting as a billet never can:
- *    a held billet is the unit's lead, not its XO. A DCS is unchanged.
+ *    stays on file. Never their own, never in a view-as preview, and only signed in as themselves: "only the RXO for
+ *    now" (S6, 2026-10-29), so nobody acting as anyone overturns, not an Admin acting as the RXO, not the RCO under the
+ *    command team rule, and not the RXO while acting as someone else. A DCS is unchanged.
  *  - **A trooper who has left the Cav** (not serving, {@see TrooperStatus::serving()}): nobody files, corrects or
  *    deletes, Admins included (2026-10-28). Who could see the records still sees and downloads them. Serving again
  *    makes them writable again.
@@ -106,14 +106,14 @@ class CounselingAccess
     }
 
     /**
-     * Whether the identity the request runs as holds the Regimental Executive Officer billet now, outside a view-as
-     * preview: their synced title is that billet's (as {@see CommandRole} reads it) and the billet commands the regiment,
+     * Whether the person really signed in holds the Regimental Executive Officer billet now, as themselves: nobody is
+     * acting as anyone on this request ({@see RealActor}), no view-as preview is active, their synced title is that billet's (as {@see CommandRole} reads it) and the billet commands the regiment,
      * which {@see UnitCommandMappingRepository::commandedUnitFor()} answers only while they serve. One query for anyone
      * whose title is something else, a second for the RXO.
      */
     private function isRegimentalXo(User $user): bool
     {
-        if ($user->cav_id === null || $this->scope->activeViewAs($user) !== null) {
+        if ($user->cav_id === null || $this->real->get() !== null || $this->scope->activeViewAs($user) !== null) {
             return false;
         }
 

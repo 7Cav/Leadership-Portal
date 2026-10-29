@@ -27,8 +27,9 @@ final readonly class CounselingPermissions
      * @param  list<int>  $writeScope  the viewer's write scope (AD-8), narrowed by an active view-as
      * @param  bool  $flagAdmin  an Admin by the `users.is_admin` flag, as themselves: the only one who changes their own
      *                           records (an Admin by billet does not, 2026-10-29)
-     * @param  bool  $regimentalXo  the viewer holds the Regimental Executive Officer billet, as themselves or as someone
-     *                              acts as them, and no view-as preview is active: the one who may overturn a frozen LOR
+     * @param  bool  $regimentalXo  the person really signed in holds the Regimental Executive Officer billet, signed in as
+     *                              themselves (nobody acting as anyone, no view-as preview): the one who may overturn a
+     *                              frozen LOR
      */
     public function __construct(
         public bool $seesDcs,
