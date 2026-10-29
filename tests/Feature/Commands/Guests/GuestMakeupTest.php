@@ -1,6 +1,7 @@
 <?php
 
 use App\Commands\Attendance\MakeupWithdrawal;
+use App\Commands\Attendance\MarkAttendanceHandler;
 use App\Commands\Guests\RecordGuestAttendance;
 use App\Commands\Guests\RecordGuestAttendanceHandler;
 use App\Commands\Guests\RemoveGuestAttendance;
@@ -130,6 +131,50 @@ it('takes the makeup back with the entry when nothing else supports it, audited 
         ->and($entry->actor_id)->toBe($this->leader->id)
         ->and((int) $entry->target_id)->toBe($mark->section_practice_id)
         ->and(CrossSectionSighting::query()->count())->toBe(0);
+});
+
+it('takes the makeup back from the section it was written to when the guest has moved section since', function () {
+    recordGuest($this);
+    $this->guest->forceFill(['primary_section_id' => $this->other->id])->save();
+
+    expect(withdrawGuest($this))->toBe(MakeupWithdrawal::Withdrawn)
+        ->and(homeMark($this)->status)->toBeNull()
+        ->and(homeMark($this)->source)->toBeNull()
+        ->and(AuditLogEntry::query()->where('action', 'attendance.auto_unmarked')->sole()->target_id)->toEqual(homeMark($this)->section_practice_id);
+});
+
+it('leaves the makeup on the old section when that week is locked, after the guest moved', function () {
+    recordGuest($this);
+    $this->guest->forceFill(['primary_section_id' => $this->other->id])->save();
+    WeeklyReport::factory()->sent()->create(['unit_id' => $this->home->id, 'week_start' => $this->week]);
+
+    expect(withdrawGuest($this))->toBe(MakeupWithdrawal::Locked)
+        ->and(homeMark($this)->status)->toBe(AttendanceStatus::Makeup);
+});
+
+it('retries the makeup when a guest whose makeup failed after the entry was saved is added again', function () {
+    $failing = Mockery::mock(app(MarkAttendanceHandler::class))->makePartial();
+    $failing->shouldReceive('preMarkMakeups')->once()->andThrow(new RuntimeException('connection lost'));
+    app()->instance(MarkAttendanceHandler::class, $failing);
+
+    expect(fn () => recordGuest($this))->toThrow(RuntimeException::class);
+    expect(CrossSectionSighting::query()->sole()->source)->toBe('manual')->and(homeMark($this))->toBeNull();
+
+    app()->forgetInstance(MarkAttendanceHandler::class);
+
+    expect(recordGuest($this))->toBe('marked')
+        ->and(homeMark($this)->status)->toBe(AttendanceStatus::Makeup)
+        ->and(CrossSectionSighting::query()->count())->toBe(1)
+        ->and(AuditLogEntry::query()->where('action', 'guest.recorded')->count())->toBe(1);
+});
+
+it('retries a makeup that was locked out once the own week opens, without listing the guest twice', function () {
+    $report = WeeklyReport::factory()->sent()->create(['unit_id' => $this->home->id, 'week_start' => $this->week]);
+    expect(recordGuest($this))->toBe('locked');
+
+    $report->delete();
+
+    expect(recordGuest($this))->toBe('marked')->and(CrossSectionSighting::query()->count())->toBe(1);
 });
 
 it('keeps the makeup when another sighting that week still supports it', function (string $source) {

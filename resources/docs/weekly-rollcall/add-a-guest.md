@@ -19,11 +19,11 @@ audience: leader
 2. Type part of the trooper's name and pick them. Only serving troopers from other sections are offered.
 3. They are listed as **Added by hand**.
 
-> [!good-to-know] If the game server already saw them at this practice, they are listed already and cannot be added twice.
+> [!good-to-know] If the game server already saw them at this practice, they are listed already and cannot be added twice. If adding a guest ends in an error, add them again: they are not listed twice, and their makeup is tried again.
 
 ## Take a guest back off
 
 1. Choose **Undo** next to a guest you added by hand.
-2. The makeup it gave them on their own section's rollcall is taken back, unless their own leader had already marked them.
+2. The makeup it gave them on their own section's rollcall is taken back, unless their own leader had already marked them. This works even if they have moved to another section since.
 
 > [!good-to-know] A guest the game server saw cannot be removed by hand. Once a practice is confirmed, guests can no longer be added or removed.

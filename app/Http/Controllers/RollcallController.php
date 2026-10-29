@@ -899,14 +899,15 @@ class RollcallController extends Controller
      * practice has been captured. `capture` drives the capture banner (7.8); the drawer renders only
      * when there are players. A practice with no capture gets `telemetry` instead (7.9). `dismissed`
      * are the players this practice's capture saw that a leader dismissed, for the drawer's
-     * "Dismissed" list and its Undo (#176), in the same shape.
+     * "Dismissed" list and its Undo (#176), in the same shape. `departed` are the players linked to a trooper who has
+     * left, with that trooper's name: listed so they are not lost, with nothing to link or mark.
      *
-     * @return array{capture: ?array{source: string, capturedAt: string}, unmatched: list<array<string, string>>, dismissed: list<array<string, string>>}
+     * @return array{capture: ?array{source: string, capturedAt: string}, unmatched: list<array<string, string>>, dismissed: list<array<string, string>>, departed: list<array<string, ?string>>}
      */
     private function captureProps(?SectionPractice $practice): array
     {
         if ($practice?->captured_at === null) {
-            return ['capture' => null, 'unmatched' => [], 'dismissed' => []];
+            return ['capture' => null, 'unmatched' => [], 'dismissed' => [], 'departed' => []];
         }
 
         $shape = fn (PracticeCapturePlayer $player) => [
@@ -917,12 +918,19 @@ class RollcallController extends Controller
             // around it. The ID is sent as reported: the drawer posts it back to link or dismiss that player.
             'playerName' => GameIdentityText::reveal($player->player_name),
             'platformId' => $player->platform_id,
+            // A retired game takes no new links (#388), so the drawer offers no Link for its players.
+            'retired' => $player->game->isRetired(),
+            // Set when the ID is a service's own number, not a game ID (`battlemetrics`): read through the fallback, never linked.
+            'idSource' => $player->id_source,
         ];
 
         return [
             'capture' => ['source' => $practice->capture_source, 'capturedAt' => $practice->captured_at->toIso8601String()],
             'unmatched' => $this->capturePlayers->unmatchedFor($practice->id)->map($shape)->values()->all(),
             'dismissed' => $this->capturePlayers->dismissedFor($practice->id)->map($shape)->values()->all(),
+            'departed' => $this->capturePlayers->departedFor($practice->id)
+                ->map(fn (PracticeCapturePlayer $player) => [...$shape($player), 'trooperName' => $player->trooper?->display_name])
+                ->values()->all(),
         ];
     }
 
@@ -933,7 +941,9 @@ class RollcallController extends Controller
      * attempted. The failure is never read as an empty practice: the marks stay the manual ones.
      * `feeds` names the sources that were tried, so the banner says which feed is down (#176).
      *
-     * @return array{state: string, platformLabel: ?string, feeds: list<string>, lastAttemptAt: ?string, canRetry: bool}|null
+     * `detail` is {@see CaptureTelemetry::$detail}.
+     *
+     * @return array{state: string, platformLabel: ?string, feeds: list<string>, lastAttemptAt: ?string, canRetry: bool, detail: ?string}|null
      */
     private function telemetryProps(int $sectionId, ?SectionPractice $practice): ?array
     {
@@ -945,6 +955,7 @@ class RollcallController extends Controller
             'feeds' => $state->feeds,
             'lastAttemptAt' => $state->lastAttemptAt?->format(DATE_ATOM),
             'canRetry' => $state->canRetry,
+            'detail' => $state->detail,
         ] : null;
     }
 

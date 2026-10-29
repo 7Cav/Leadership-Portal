@@ -8,8 +8,8 @@ namespace App\Models;
  * The capture's source map, `App\Commands\Capture\CaptureSources`, maps each to the sources a capture tries.
  *
  * A game's servers are picked on the Servers page (#389) and each is read by its own interface; credentials stay in
- * env, one set per interface (AD-23). A game with no server selected reads its interface's legacy env server, and a
- * game set to `none` is not captured at all.
+ * env, one set per interface (AD-23). A game with no server selected reads its interface's legacy env server when that
+ * server is its own (`CaptureSources::LEGACY_GAMES`), else nothing, and a game set to `none` is not captured at all.
  */
 enum TelemetryInterface: string
 {

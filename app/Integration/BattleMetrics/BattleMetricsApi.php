@@ -37,7 +37,9 @@ class BattleMetricsApi
 
     /**
      * Identifier types, in order of preference, that make a stable platform id. Anything else
-     * falls back to the BattleMetrics player id, which is stable but BattleMetrics-specific.
+     * falls back to the BattleMetrics player id, which is stable but BattleMetrics-specific: that player is marked
+     * {@see CrconPlayer::BATTLEMETRICS_PLAYER}, since the number is not the ID CRCON reports for them (an Epic or Xbox
+     * player of HLL, read here while CRCON is down).
      */
     private const PLATFORM_ID_TYPES = ['reforgerUUID', 'steamID', 'playFabID'];
 
@@ -134,7 +136,8 @@ class BattleMetricsApi
 
         foreach ($names as $playerId => $name) {
             $platformId = $this->platformId($identifiers[$playerId] ?? [], (string) $playerId);
-            $byPlatformId[$platformId] ??= new CrconPlayer($name !== '' ? $name : $platformId, $platformId);
+            $idSource = $platformId === (string) $playerId ? CrconPlayer::BATTLEMETRICS_PLAYER : null;
+            $byPlatformId[$platformId] ??= new CrconPlayer($name !== '' ? $name : $platformId, $platformId, $idSource);
         }
 
         return new CrconPresence(array_values($byPlatformId), $windowStart, $windowEnd, CarbonImmutable::now()->toDateTimeImmutable());

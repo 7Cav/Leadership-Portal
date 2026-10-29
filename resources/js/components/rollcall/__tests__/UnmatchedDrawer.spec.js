@@ -34,6 +34,42 @@ describe('UnmatchedDrawer', () => {
         expect(first.find('[data-testid="unmatched-link"]').attributes('disabled')).toBeDefined();
     });
 
+    it('lists a departed trooper the capture saw, marked departed, with nothing to link or dismiss', () => {
+        const wrapper = factory({
+            players: [],
+            departed: [{ platform: 'hll', platformLabel: 'Hell Let Loose', playerName: 'GoneA', platformId: '7656119000000009', trooperName: 'PFC Gone.A' }],
+        });
+        const row = wrapper.find('[data-testid="departed-7656119000000009"]');
+
+        expect(wrapper.find('[data-testid="departed-list"]').text()).toContain('Departed (1)');
+        expect(row.text()).toContain('GoneA');
+        expect(row.text()).toContain('Departed');
+        expect(row.find('[data-testid="departed-note"]').text()).toBe('Linked to PFC Gone.A, who has left. Not marked on any rollcall.');
+        expect(row.find('button').exists()).toBe(false);
+        expect(row.find('select').exists()).toBe(false);
+    });
+
+    it('offers no Link for a player of a retired game, says why, and still lets them be dismissed', () => {
+        const wrapper = factory({ players: [{ ...PLAYERS[0], retired: true }] });
+        const row = card(wrapper, '7656119000000001');
+
+        expect(row.find('[data-testid="unmatched-blocked"]').text()).toBe('Hell Let Loose is retired, so no new links can be made. Mark the trooper by hand.');
+        expect(row.find('[data-testid="unmatched-link"]').exists()).toBe(false);
+        expect(row.find('select').exists()).toBe(false);
+        expect(row.find('[data-testid="unmatched-dismiss"]').exists()).toBe(true);
+    });
+
+    it('says a BattleMetrics number read through the fallback is not a game ID, and offers no Link for it', () => {
+        const wrapper = factory({ players: [{ ...PLAYERS[0], platformId: '987654321', idSource: 'battlemetrics' }] });
+        const row = card(wrapper, '987654321');
+
+        expect(row.find('[data-testid="unmatched-blocked"]').text()).toBe(
+            'Seen through BattleMetrics while the game server could not be read. This is their BattleMetrics number, not their game ID, so it cannot be linked. Mark the trooper by hand.',
+        );
+        expect(row.find('[data-testid="unmatched-link"]').exists()).toBe(false);
+        expect(row.find('[data-testid="unmatched-dismiss"]').exists()).toBe(true);
+    });
+
     it('suggests by name closeness but never picks a trooper', () => {
         const wrapper = factory();
         const first = card(wrapper, '7656119000000001');

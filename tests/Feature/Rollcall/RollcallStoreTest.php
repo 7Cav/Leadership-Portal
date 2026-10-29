@@ -207,6 +207,11 @@ it('still answers saved when only the at-risk refresh fails, so the screen never
             return $this->inner->clearMakeupAuto($practice, $trooperId);
         }
 
+        public function practicesWithAutoMakeup(int $trooperId, CarbonInterface $weekStart): Collection
+        {
+            return $this->inner->practicesWithAutoMakeup($trooperId, $weekStart);
+        }
+
         public function signRollcall(SectionPractice $practice, int $trooperId, RollcallSignature $rollcall): Attendance
         {
             return $this->inner->signRollcall($practice, $trooperId, $rollcall);

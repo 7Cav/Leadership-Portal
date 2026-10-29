@@ -12,6 +12,9 @@ use App\Integration\Crcon\Data\CrconPlayer;
  * `weekLocked` means the practice was left un-captured because the section's weekly report for
  * its week has been really sent (AD-12): that week's attendance is frozen, so no auto mark is
  * written and the practice is not stamped.
+ *
+ * A player linked to a trooper who has left the regiment (no longer serving) is `departed`: listed for the leader as
+ * such, never credited and never marked, whatever section they were last in.
  */
 final readonly class CaptureResult
 {
@@ -20,6 +23,7 @@ final readonly class CaptureResult
      * @param  list<array{player: CrconPlayer, trooperId: int}>  $otherSection  linked, but to a trooper whose primary section is elsewhere — surfaced, never credited
      * @param  list<CrconPlayer>  $unmatched  no link — surfaced for a human, never auto-assigned (AD-19)
      * @param  list<string>  $unavailableReasons
+     * @param  list<array{player: CrconPlayer, trooperId: int}>  $departed  linked to a trooper no longer serving: listed as departed, never credited
      */
     private function __construct(
         public bool $captured,
@@ -30,6 +34,7 @@ final readonly class CaptureResult
         public array $unavailableReasons,
         public bool $attempted = true,
         public bool $weekLocked = false,
+        public array $departed = [],
     ) {}
 
     /** The week's report has been sent: nothing captured, nothing written. */
@@ -42,10 +47,11 @@ final readonly class CaptureResult
      * @param  list<array{player: CrconPlayer, trooperId: int}>  $matched
      * @param  list<array{player: CrconPlayer, trooperId: int}>  $otherSection
      * @param  list<CrconPlayer>  $unmatched
+     * @param  list<array{player: CrconPlayer, trooperId: int}>  $departed
      */
-    public static function captured(string $source, array $matched, array $otherSection, array $unmatched): self
+    public static function captured(string $source, array $matched, array $otherSection, array $unmatched, array $departed = []): self
     {
-        return new self(true, $source, $matched, $otherSection, $unmatched, []);
+        return new self(true, $source, $matched, $otherSection, $unmatched, [], departed: $departed);
     }
 
     /**
@@ -65,13 +71,13 @@ final readonly class CaptureResult
     /** Players observed: every resolved or unresolved one. */
     public function seen(): int
     {
-        return count($this->matched) + count($this->otherSection) + count($this->unmatched);
+        return count($this->matched) + count($this->otherSection) + count($this->departed) + count($this->unmatched);
     }
 
-    /** Players linked to any trooper, in this section or not. */
+    /** Players linked to any trooper, in this section or not, serving or departed. */
     public function matchedCount(): int
     {
-        return count($this->matched) + count($this->otherSection);
+        return count($this->matched) + count($this->otherSection) + count($this->departed);
     }
 
     public function unmatchedCount(): int

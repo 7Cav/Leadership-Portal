@@ -106,9 +106,16 @@ On the same page:
 - Capture review: when game-server data was captured for the practice, marks it made show their source, and the leader
   can confirm the practice ("Confirmed by ..."). Editing a mark by hand afterwards clears the confirmation.
 - Unmatched players: players the capture saw that no trooper is linked to. Link one to a trooper (this also saves their
-  game identity and marks them present), dismiss them, or restore a dismissed one.
-- Telemetry banner: says when the section's game has no capture source set up, or when the last capture failed, naming
-  the feeds tried. "Try again" queues a new capture for the week so far.
+  game identity and marks them present), dismiss them, or restore a dismissed one. An ID the server reports in two letter cases is one
+  player (an Epic ID is taken in lower case). A player linked to a trooper who has left is listed
+  under "Departed", with the trooper named; they are not marked and there is nothing to link. A player of a retired game
+  has no Link, since a retired game takes no new links; they can still be dismissed. A player seen through
+  BattleMetrics while CRCON could not be read, for whom BattleMetrics had only its own player number, says so and has
+  no Link either: that number is not their game ID. Linking never swaps a trooper's Steam or Epic ID for an ID of
+  another kind; change that on the Game identities page if they really changed platform.
+- Telemetry banner: says when the section's game has no capture source set up (or no training server selected), or
+  when the last capture failed, naming the feeds tried. A capture that broke on an error inside the portal says so
+  instead of blaming a feed. "Try again" queues a new capture for the week so far.
 - Guests: add a serving trooper from another section who attended this practice, or remove one you added. See "JSAM
   guests" and "Makeups".
 - Fireteams: mark fireteam leaders (FTLs), put troopers in their fireteams, and choose how the post shows them. A company
@@ -337,7 +344,7 @@ All run on the queue; a queue worker must be running. Times are UTC.
 | Roster sync | Hourly on the hour; Admin "Sync now"; leader unit sync | Reads the Cav roster, updates troopers (rank, billet, status), places each trooper by billet, marks leavers departed. A unit sync only writes that unit's troopers. | `CAV_API_KEY`, `CAV_API_BASE_URL` |
 | LOA sync | Hourly at :15 (new threads), daily at 03:30 (full re-read of recent leave) | Reads LOA and ELOA threads from the configured forum sections. ELOA start and end dates come from the linked PAF thread. Posts it cannot read are stored as "needs review", never guessed. First run reads a year back, newest first, a share each hourly run (40 pages a section, ten minutes in all), carrying on next run where it stopped; until it is done, the leave note on the pages says how far back it has got. A thread that fails to read is kept and read again by id next run, so the rest moves on. A manual sync asked for while one of the same kind is queued or running queues one follow-up run after it, and the page says so in a notice. When the daily full read finishes cleanly, a stored leave whose thread is gone (deleted, hidden or moved out of the leave sections) stops counting; the row is kept and counts again if the thread comes back. | `SEVENCAV_FORUM_API_KEY`, `SEVENCAV_FORUM_LOA_NODES`, `SEVENCAV_FORUM_PAF_NODE`, `LOA_SYNC_REQUEST_DELAY_MS`. Skipped while the key or sections are unset. |
 | Counseling document copy | When a DCS or LOR is filed with Google Drive set up | Copies the document to the 7Cav Google Drive folder. Tried up to 5 times, with pauses of 1, 5, 15 and 60 minutes; the record shows the outcome. | `GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_DRIVE_PRIVATE_KEY`, `GOOGLE_DRIVE_FOLDER_ID`. Skipped (record kept, "Portal only") while any is unset. |
-| Practice capture | When a leader clicks "Try again" on the rollcall. That button only shows after a failed capture, and nothing in the code schedules a first capture. | Reads who was on the game server during the Cav week so far, pre-marks linked troopers in the section as Present (a leader's mark always wins), lists unmatched players. | Each game's telemetry interface, picked on the Games page. CRCON (`CRCON_BASE_URL`, `CRCON_API_KEY`) falls back to BattleMetrics; BattleMetrics (`BATTLEMETRICS_API_KEY`, `BATTLEMETRICS_SERVER_ID`); Nightwatch (`NIGHTWATCH_API_KEY`, `NIGHTWATCH_SERVER_IDS`). Each interface reads the servers set in env, not one per game. A game with no keys, or interface "none", shows "not configured". |
+| Practice capture | When a leader clicks "Try again" on the rollcall. That button only shows after a failed capture, and nothing in the code schedules a first capture. | Reads who was on the game server during the Cav week so far, pre-marks linked troopers in the section as Present (a leader's mark always wins), lists unmatched players. | Each game's telemetry interface, picked on the Games page. CRCON (`CRCON_BASE_URL`, `CRCON_API_KEY`) falls back to BattleMetrics; BattleMetrics (`BATTLEMETRICS_API_KEY`, `BATTLEMETRICS_SERVER_ID`); Nightwatch (`NIGHTWATCH_API_KEY`, `NIGHTWATCH_SERVER_IDS`). A game reads the training servers an Admin selected for it on the Servers page. With none selected, Hell Let Loose (WW2) on CRCON, Arma Reforger on BattleMetrics and WARDOGS on Nightwatch read the server set in env; any other game, or one of those switched to another interface, reads nothing until a server is selected, and its rollcall says so. A game with no keys, or interface "none", shows "not configured". |
 
 The capture does not record other sections' troopers as guests or makeups for now: without set practice times the
 window is the whole week and the servers are shared, so being online does not mean being at that practice.
@@ -368,9 +375,11 @@ their own section's practice that Cav week.
 - Their own leader can mark Makeup by hand.
 - When a host leader adds them as a guest, the portal writes an automatic makeup on their own section's rollcall for
   the same week, shown with an "auto" source dot. It never overwrites Present, Attached, LOA or any mark a leader set by
-  hand, and is never written into a sent, confirmed or before-floor week, or for a trooper on leave.
+  hand, and is never written into a sent, confirmed or before-floor week, or for a trooper on leave. Adding a guest
+  already added by hand tries the makeup again, so a makeup that failed after the guest was saved can be finished; the
+  guest is not listed twice.
 - Removing the guest takes the automatic makeup back, unless something else supports it or a leader has since changed
-  or confirmed it.
+  or confirmed it. It is taken back from the section it was written to, even if the guest has moved section since.
 - A makeup counts for the trooper's SP. An automatic makeup alone does not make their own section's practice "held".
 
 ## KPIs

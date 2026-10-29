@@ -130,6 +130,16 @@ it('refuses a trooper already recorded at this practice, by the server or by han
     expect(CrossSectionSighting::query()->sole()->source)->toBe('capture');
 });
 
+it('answers a guest already added by hand with the guest again and their makeup, not a refusal', function () {
+    addGuest($this->leader, $this->host->id, $this->guest->id)->assertOk();
+
+    addGuest($this->leader, $this->host->id, $this->guest->id)->assertOk()
+        ->assertJsonPath('guest.trooperId', $this->guest->id)
+        ->assertJsonPath('makeup', 'marked');
+
+    expect(CrossSectionSighting::query()->count())->toBe(1);
+});
+
 it('refuses a week the host may no longer change', function () {
     // A confirmed host practice (7.8).
     $practice = app(SectionPracticeRepository::class)->findOrCreate($this->host->id, $this->week);

@@ -4,6 +4,7 @@ use App\Commands\Capture\CaptureSources;
 use App\Jobs\CaptureSectionPracticeJob;
 use App\Models\AuditLogEntry;
 use App\Models\Game;
+use App\Models\GameServer;
 use App\Models\SectionPractice;
 use App\Models\SyncRun;
 use App\Models\SyncRunStatus;
@@ -48,6 +49,13 @@ function telemetryOf(object $test)
     return $test->actingAs($test->leader)->get("/rollcall/{$test->section->id}");
 }
 
+it('reports a capture that broke on an error inside the portal as an internal error, naming no feed', function () {
+    captureRun($this, SyncRunStatus::Failure)->forceFill(['internal_error' => true, 'error' => 'the capture hit an unexpected error (practice 1, QueryException)'])->save();
+
+    telemetryOf($this)->assertInertia(fn (Assert $page) => $page
+        ->where('telemetry', ['state' => 'failed', 'platformLabel' => 'Hell Let Loose (WW2)', 'feeds' => [], 'lastAttemptAt' => '2026-10-08T15:42:00+00:00', 'canRetry' => true, 'detail' => 'internal_error']));
+});
+
 it('shows nothing for a practice whose capture was never attempted', function () {
     telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry', null)->where('capture', null));
 });
@@ -56,7 +64,7 @@ it('shows the failure with its time and the unchanged manual marks when the last
     captureRun($this, SyncRunStatus::Failure);
 
     telemetryOf($this)->assertInertia(fn (Assert $page) => $page
-        ->where('telemetry', ['state' => 'failed', 'platformLabel' => 'Hell Let Loose (WW2)', 'feeds' => ['crcon'], 'lastAttemptAt' => '2026-10-08T15:42:00+00:00', 'canRetry' => true])
+        ->where('telemetry', ['state' => 'failed', 'platformLabel' => 'Hell Let Loose (WW2)', 'feeds' => ['crcon'], 'lastAttemptAt' => '2026-10-08T15:42:00+00:00', 'canRetry' => true, 'detail' => null])
         ->where('capture', null)
         ->where('unmatched', [])
         ->where('troopers.0.status', null)
@@ -86,7 +94,7 @@ it('says telemetry is not configured when the game has no source with keys set, 
     captureRun($this, SyncRunStatus::Failure);
 
     telemetryOf($this)->assertInertia(fn (Assert $page) => $page
-        ->where('telemetry', ['state' => 'not_configured', 'platformLabel' => 'Hell Let Loose (WW2)', 'feeds' => [], 'lastAttemptAt' => null, 'canRetry' => false]));
+        ->where('telemetry', ['state' => 'not_configured', 'platformLabel' => 'Hell Let Loose (WW2)', 'feeds' => [], 'lastAttemptAt' => null, 'canRetry' => false, 'detail' => null]));
 });
 
 it('names every feed of the game that was tried, in the order a capture tries them (#176)', function () {
@@ -153,9 +161,10 @@ it('breaks a tie between games by the game added first: HLL over Arma', function
     telemetryOf($this)->assertInertia(fn (Assert $page) => $page->where('telemetry.platformLabel', 'Hell Let Loose (WW2)'));
 });
 
-it('reads a game an Admin added through the interface picked for it (#388)', function () {
+it('reads a game an Admin added through the interface picked for it, from its own selected server (#388, #389)', function () {
     $squad = Game::factory()->create(['name' => 'Squad', 'interface' => TelemetryInterface::Crcon]);
     TrooperGameIdentity::query()->update(['game_id' => $squad->id]);
+    GameServer::factory()->trainingFor($squad->id)->create(['interface' => TelemetryInterface::Crcon, 'external_id' => 'squad-crcon']);
     captureRun($this, SyncRunStatus::Failure);
 
     telemetryOf($this)->assertInertia(fn (Assert $page) => $page
@@ -163,6 +172,17 @@ it('reads a game an Admin added through the interface picked for it (#388)', fun
         ->where('telemetry.platformLabel', 'Squad')
         ->where('telemetry.feeds', ['crcon'])
         ->where('telemetry.canRetry', true));
+});
+
+it('never reads the env server of another game for a game added with no server selected: not set up, and says why', function () {
+    $squad = Game::factory()->create(['name' => 'Squad', 'interface' => TelemetryInterface::Crcon]);
+    TrooperGameIdentity::query()->update(['game_id' => $squad->id]);
+
+    telemetryOf($this)->assertInertia(fn (Assert $page) => $page
+        ->where('telemetry.state', 'not_configured')
+        ->where('telemetry.platformLabel', 'Squad')
+        ->where('telemetry.detail', 'no_server'));
+    tryAgain($this)->assertStatus(422)->assertJsonPath('message', 'Capture is not set up for Squad. Mark attendance by hand.');
 });
 
 it('follows an Admin changing the game\'s interface: set to none, the game is not configured and cannot be retried (#388)', function () {

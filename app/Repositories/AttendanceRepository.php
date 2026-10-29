@@ -82,6 +82,15 @@ interface AttendanceRepository
     public function clearMakeupAuto(SectionPractice $practice, int $trooperId): ?Attendance;
 
     /**
+     * The practices of `$weekStart`'s Cav week, of any section, on which `$trooperId` holds an automatic makeup
+     * ({@see markMakeupAuto()}), in id order. Where the makeup is, not where the trooper is placed now: a trooper moved
+     * to another section since keeps it on the old section's practice.
+     *
+     * @return Collection<int, SectionPractice>
+     */
+    public function practicesWithAutoMakeup(int $trooperId, CarbonInterface $weekStart): Collection;
+
+    /**
      * Record the trooper's signature on the week's rollcall thread. Leaves `status`/`source` as
      * they were (both null on a new row — signed, practice not yet marked).
      */

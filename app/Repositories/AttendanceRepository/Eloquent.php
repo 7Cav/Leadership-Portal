@@ -130,6 +130,20 @@ class Eloquent implements AttendanceRepository
         });
     }
 
+    public function practicesWithAutoMakeup(int $trooperId, CarbonInterface $weekStart): Collection
+    {
+        return SectionPractice::query()
+            ->where('week_start', WeekOf::start(CarbonImmutable::instance($weekStart)))
+            ->whereExists(fn ($query) => $query->from('attendance')
+                ->whereColumn('attendance.section_practice_id', 'section_practices.id')
+                ->where('attendance.trooper_id', $trooperId)
+                ->where('attendance.status', AttendanceStatus::Makeup->value)
+                ->where('attendance.source', AttendanceSource::Auto->value))
+            ->orderBy('id')
+            ->get()
+            ->toBase();
+    }
+
     public function signRollcall(
         SectionPractice $practice,
         int $trooperId,
