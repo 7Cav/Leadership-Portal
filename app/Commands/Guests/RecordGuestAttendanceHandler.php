@@ -18,7 +18,7 @@ use App\Support\Audit\ActingFor;
 use App\Support\Audit\AuditEnvelope;
 
 /**
- * A host section's leader adds a guest by hand (decided by the product owner 2026-10-23): "X from another section
+ * A host section's leader adds a guest by hand: "X from another section
  * attended our practice". It is the leader's word standing in for what the game-server capture would have seen, so it
  * is recorded and acted on exactly like a capture sighting, with `source = manual` and the leader as `recorded_by`.
  *

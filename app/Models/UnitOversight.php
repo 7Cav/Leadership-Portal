@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * The regimental staff officer who oversees a unit (decided by the S6, 2026-10-29): an Adjutant General over a
+ * The regimental staff officer who oversees a unit: an Adjutant General over a
  * battalion, the RDC Commander over ACD, DEVCOM and the Reservists. Portal-owned (AD-22), one per unit. ScopeResolver
  * reads it as read-only scope over the unit's subtree while the overseer serves, exactly like a staff grant, never as
  * write. Written only by the audited `SetUnitOversightHandler`.
@@ -28,7 +28,7 @@ class UnitOversight extends Model
 
     /**
      * Whether `$unit` takes an overseer: a battalion (1-7, 2-7, 3-7, ACD, DEVCOM) or the Reservists. Nothing else for now
-     * (decided 2026-10-29, the smallest set the S6 named).
+     * (the smallest set needed).
      */
     public static function canOversee(Unit $unit): bool
     {

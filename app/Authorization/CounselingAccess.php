@@ -16,7 +16,7 @@ use Illuminate\Support\Collection;
 
 /**
  * Who may file, see, correct and delete a trooper's counseling records (#381, AD-8), decided once per viewer and
- * trooper on top of the {@see ScopeResolver}, the way the regulations and the product owner (2026-10-28) put it:
+ * trooper on top of the {@see ScopeResolver}, the way the regulations and the portal's rules put it:
  *
  *  - **File a DCS**: any leader whose command (billet, acting lead, a held billet, never a staff grant) reaches the
  *    trooper's unit: Section Leader and up, portfolio officers over their departments included. **File an LOR**: only

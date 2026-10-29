@@ -25,7 +25,7 @@ use Illuminate\Support\Collection;
  * Real authority is deny-by-default: it starts empty and only ever grows, from three sources —
  *
  *  - **Admin** short-circuits to the full tree: the `users.is_admin` flag (AD-7, never a grant), or an approved
- *    Admin billet in Regimental HQ or S6 HQ (decided by the S6, 2026-10-28; {@see isAdmin()}). Every "is this user an Admin" question in
+ *    Admin billet in Regimental HQ or S6 HQ ({@see isAdmin()}). Every "is this user an Admin" question in
  *    the portal is asked of {@see isAdmin()}, never of the flag alone.
  *  - **Roster-derived** (AD-7, Story 1.16) — the unit the user's synced primary Cav billet
  *    commands (`troopers.cav_position_id` → `unit_command_mappings`, written by the org import):
@@ -37,14 +37,14 @@ use Illuminate\Support\Collection;
  *    roster can't imply. A grant counts only while its holder is a serving trooper (the same
  *    allow-list the roster-derived half uses), so a staffer who leaves the Cav loses it at once
  *    rather than when someone remembers to revoke it.
- *  - **Regimental HQ staff** (decided by the S6, 2026-10-28) — a serving trooper placed directly on
+ *  - **Regimental HQ staff** — a serving trooper placed directly on
  *    the regiment node, whose position is still a Regimental HQ billet, reads the whole regiment, exactly
  *    as a staff grant on the regiment would.
  *    The org import places every Regimental HQ billet there (the Chief of Staff, the Adjutants
  *    General, the Finance Officer, any billet Cav adds to that group), so general staff whose billet
  *    commands nothing are not scopeless. Read from the placement and the position on every call:
  *    moved elsewhere, on a billet that is not in Regimental HQ, or no longer serving, it is gone.
- *  - **Oversight** (decided by the S6, 2026-10-29) — a serving trooper an Admin named as a unit's
+ *  - **Oversight** — a serving trooper an Admin named as a unit's
  *    overseer (`unit_oversights`: an Adjutant General over a battalion, the RDC Commander over ACD,
  *    DEVCOM and the Reservists) reads that unit's subtree, exactly as a staff grant on it would.
  *
@@ -78,7 +78,7 @@ class ScopeResolver
     ) {}
 
     /**
-     * Whether the user is an Admin right now, the one definition every Admin check reads (decided by the S6, 2026-10-28):
+     * Whether the user is an Admin right now, the one definition every Admin check reads:
      *
      *  - the `users.is_admin` flag, a person's own, set and cleared only by the audited flag Command; or
      *  - **Admin by billet**: a serving trooper whose Cav position an Admin approved in `admin_billets`, while the
@@ -396,7 +396,7 @@ class ScopeResolver
      *    read, with no one having to remember to revoke it. The rows themselves are kept, so the staff grants page can
      *    show them as lapsed and an Admin can revoke them on the record; a holder who returns to a serving roster gets
      *    them back.
-     *  - the units they oversee (`unit_oversights`, decided by the S6 2026-10-29): read exactly as a grant on each, by
+     *  - the units they oversee (`unit_oversights`): read exactly as a grant on each, by
      *    trooper, so it holds from their first sign-in. Cleared, or the overseer no longer serving, it is gone.
      *  - the regiment, for Regimental HQ staff: a trooper placed directly on the regiment node, where the org import
      *    places every Regimental HQ billet (`CommandBillet::headquartersOf()`), whose position is still a Regimental HQ

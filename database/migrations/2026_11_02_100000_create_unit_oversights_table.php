@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Portal-owned (AD-22): the regimental staff officer who oversees a unit (decided by the S6, 2026-10-29), such as an
+     * Portal-owned (AD-22): the regimental staff officer who oversees a unit, such as an
      * Adjutant General over a battalion or the RDC Commander over ACD, DEVCOM and the Reservists. Cav's API does not
      * carry it. One overseer per unit, by trooper, so it holds before they first sign in. Read by ScopeResolver as read
      * scope over the unit's subtree while the overseer serves, never as write. Written only by the audited

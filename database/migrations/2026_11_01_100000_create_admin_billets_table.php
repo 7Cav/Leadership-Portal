@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Portal-owned (AD-22): which Regimental HQ billets make their holder an Admin (decided by the S6, 2026-10-28). One
+     * Portal-owned (AD-22): which Regimental HQ billets make their holder an Admin. One
      * row per Cav position, keyed on its stable `cav_position_id`, never on the title, which Cav may rename. An existing
      * Admin confirms a billet's title and group; its holder is an Admin while they serve on the regiment and the billet
      * still carries exactly the names that were confirmed. The org import and the roster sync record the names they see

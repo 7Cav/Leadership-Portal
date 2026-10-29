@@ -223,7 +223,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::patch('/settings/org-structure/{unit}/label', [OrgStructureController::class, 'label'])->middleware('throttle:audited-writes')->name('settings.org-structure.label');
     Route::post('/settings/org-structure/{unit}/acting-lead', [OrgStructureController::class, 'assignActingLead'])->middleware('throttle:audited-writes')->name('settings.org-structure.acting-lead.store');
     Route::delete('/settings/org-structure/{unit}/acting-lead', [OrgStructureController::class, 'removeActingLead'])->middleware('throttle:audited-writes')->name('settings.org-structure.acting-lead.destroy');
-    // Who oversees a battalion or the Reservists (decided by the S6, 2026-10-29): set or clear, Admin-only, audited.
+    // Who oversees a battalion or the Reservists: set or clear, Admin-only, audited.
     Route::post('/settings/org-structure/{unit}/oversight', [OrgStructureController::class, 'setOversight'])->middleware('throttle:audited-writes')->name('settings.org-structure.oversight.store');
     Route::delete('/settings/org-structure/{unit}/oversight', [OrgStructureController::class, 'clearOversight'])->middleware('throttle:audited-writes')->name('settings.org-structure.oversight.destroy');
     Route::delete('/settings/org-structure/{unit}', [OrgStructureController::class, 'destroy'])->middleware('throttle:audited-writes')->name('settings.org-structure.destroy');
@@ -239,7 +239,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/settings/staff-grants', [StaffGrantsController::class, 'index'])->name('settings.staff-grants');
     Route::post('/settings/staff-grants', [StaffGrantsController::class, 'store'])->middleware('throttle:audited-writes')->name('settings.staff-grants.store');
     Route::delete('/settings/staff-grants/{grant}', [StaffGrantsController::class, 'destroy'])->middleware('throttle:audited-writes')->name('settings.staff-grants.destroy');
-    // Confirming a Regimental HQ billet as an Admin billet (decided by the S6, 2026-10-28), Admin only, audited.
+    // Confirming a Regimental HQ billet as an Admin billet, Admin only, audited.
     Route::post('/settings/staff-grants/admin-billets/{billet}/approve', [StaffGrantsController::class, 'approveAdminBillet'])->middleware('throttle:audited-writes')->name('settings.staff-grants.admin-billets.approve');
     Route::post('/settings/staff-grants/admin-billets/{billet}/reject', [StaffGrantsController::class, 'rejectAdminBillet'])->middleware('throttle:audited-writes')->name('settings.staff-grants.admin-billets.reject');
 

@@ -53,7 +53,7 @@ class HandleInertiaRequests extends Middleware
             // layer stays terminal in the Deptrac graph.
             'auth' => [
                 // `is_admin` is whether the shell shows this request's user as an Admin, by the flag or by an approved
-                // Admin billet (ScopeResolver::actsAsAdmin(), decided by the S6 2026-10-28), worked out on this request
+                // Admin billet (ScopeResolver::actsAsAdmin()), worked out on this request
                 // and never the stored column alone. While an Admin acts as someone it answers for who the request runs
                 // as; during a view-as preview, for whoever is previewed, as every page does. Display only: the server's
                 // gates ask the ScopeResolver themselves.
@@ -88,7 +88,7 @@ class HandleInertiaRequests extends Middleware
             // Whether the shell offers the act-as picker (#432): a leader with people below them, or an Admin acting as
             // one. Navigation only: every start is checked again by ActAs.
             'canActAs' => fn () => $request->user() ? $this->actAs->offers($request->attributes->get(ActAs::ADMIN_ATTRIBUTE) ?? $request->user()) : false,
-            // How many Admin billets wait for an Admin to confirm them (decided by the S6, 2026-10-28), for the
+            // How many Admin billets wait for an Admin to confirm them, for the
             // sidebar's notice on Staff grants. Only to someone acting as Admin; zero for everyone else.
             'adminBilletsPending' => fn () => $request->user() && $this->scope->actsAsAdmin($request->user()) ? $this->adminBillets->pendingCount() : 0,
             // `actAs`: whether the banner offers to act as the preview's target, which only a real Admin may (the

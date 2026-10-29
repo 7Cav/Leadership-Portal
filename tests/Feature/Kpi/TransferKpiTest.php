@@ -17,7 +17,7 @@ use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
-// Decided by the product owner 2026-10-27: after a transfer the new leadership sees the trooper's rollcall signing,
+// After a transfer the new leadership sees the trooper's rollcall signing,
 // section practice attendance and LOAs from before the move. The KPIs read each week against the section the trooper
 // was placed in that week, so their old marks still count and the new section's earlier practices never do.
 // Fixture tree: regiment ─ battalion ─┬─ 1st platoon ─ section A (2-1/A/1-7)

@@ -13,7 +13,7 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\UnitRepository;
 
-// Acting leads (decided by the product owner 2026-10-25): an Admin assigns a serving trooper to lead a unit the roster
+// Acting leads: an Admin assigns a serving trooper to lead a unit the roster
 // names no lead for, such as a DEVCOM Lead running DEVCOM starter platoons. It is a Platoon Leader's command over the
 // unit while they serve, audited with a required reason, one per unit, several per trooper.
 

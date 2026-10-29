@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Acting leads (decided by the product owner 2026-10-25): a serving trooper an Admin assigns to lead a unit whose
+     * Acting leads: a serving trooper an Admin assigns to lead a unit whose
      * lead the Cav roster does not name, such as a DEVCOM starter platoon run by a `DEVCOM Lead`. One per unit at most;
      * a trooper may lead several. Portal-owned and audited; read by ScopeResolver as a command over that unit.
      *

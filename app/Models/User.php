@@ -19,7 +19,7 @@ use Illuminate\Notifications\Notifiable;
  * level and is only ever flipped through an explicit, audited path.
  *
  * The flag is not the only way to be an Admin: an approved Regimental HQ or S6 HQ billet makes its holder one too
- * (decided by the S6, 2026-10-28). That is worked out by `ScopeResolver::isAdmin()` on every request and never stored
+ *. That is worked out by `ScopeResolver::isAdmin()` on every request and never stored
  * here: no save of this model ever writes it to `is_admin`.
  */
 #[Fillable(['forum_user_id', 'cav_id', 'username', 'email'])]

@@ -26,7 +26,7 @@ const props = defineProps({
     // (#499), read-only. Shown as a note, as it comes from their placement, not a grant. Sent only to someone acting
     // as Admin.
     regimentalHq: { type: Array, default: () => [] },
-    // The approved Admin billets (decided by the S6, 2026-10-28): whoever holds one is an Admin. Each with the names
+    // The approved Admin billets: whoever holds one is an Admin. Each with the names
     // Cav shows now, who holds it, who approved it and when, and whether the viewer holds it (`own`).
     adminViaBillet: { type: Array, default: () => [] },
     // The billets in an Admin billet group waiting for a decision or rejected: the names Cav shows now, the approved

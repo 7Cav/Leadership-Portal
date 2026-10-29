@@ -22,7 +22,7 @@ use Inertia\Testing\AssertableInertia as Assert;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
 
-// Admin by billet (decided by the S6, 2026-10-28): whoever serves in a Regimental HQ or S6 HQ billet is an Admin while
+// Admin by billet: whoever serves in a Regimental HQ or S6 HQ billet is an Admin while
 // an existing Admin has approved the billet and it still carries the title and group that were confirmed, in a group
 // that may make an Admin. Where the holder is placed does not matter. Tied to the billet, read on every request, never
 // written to `users.is_admin`.
@@ -387,7 +387,7 @@ describe('confirming billets', function () {
     it('lets an approved billet Admin approve another billet, audited with the reason', function () {
         expect(rhqaIsAdmin($this->finance))->toBeFalse();
 
-        $this->actingAs($this->chief)->post("/settings/staff-grants/admin-billets/{$this->financeBillet->id}/approve", ['reason' => 'Confirmed with the S6'])
+        $this->actingAs($this->chief)->post("/settings/staff-grants/admin-billets/{$this->financeBillet->id}/approve", ['reason' => 'Confirmed with Regiment'])
             ->assertRedirect(route('settings.staff-grants'))
             ->assertSessionHasNoErrors();
 
@@ -404,7 +404,7 @@ describe('confirming billets', function () {
         expect($entry->actor_id)->toBe($this->chief->id)
             ->and($entry->target_type)->toBe('AdminBillet')
             ->and((string) $entry->target_id)->toBe((string) $this->financeBillet->id)
-            ->and($entry->reason)->toBe('Confirmed with the S6')
+            ->and($entry->reason)->toBe('Confirmed with Regiment')
             ->and($entry->on_behalf_of_id)->toBeNull();
     });
 
@@ -639,7 +639,7 @@ describe('their own counseling records', function () {
             ->firstWhere('id', $lor->id)['canChange'])->toBeTrue();
     });
 
-    it('still lets a flag Admin change their own records, as the S6 accepted', function () {
+    it('still lets a flag Admin change their own records', function () {
         $mine = Trooper::query()->where('cav_id', $this->admin->cav_id)->sole();
         $lor = CounselingRecord::factory()->lor()->create(['trooper_id' => $mine->id, 'issuer_unit_id' => null]);
 

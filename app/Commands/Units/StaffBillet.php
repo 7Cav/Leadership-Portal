@@ -5,7 +5,7 @@ namespace App\Commands\Units;
 use App\Models\UnitKind;
 
 /**
- * Where a billet outside the line companies places its holder (decided by the product owner 2026-10-24), read by the
+ * Where a billet outside the line companies places its holder, read by the
  * org import from the Cav position groups. The one place that says which staff groups exist, what they are called and
  * which portfolio a department starts under:
  *
@@ -67,17 +67,17 @@ final class StaffBillet
     /**
      * The portfolio tree: callsign → [name, the officer's billet title, the portfolio it sits under or null for the
      * regiment]. With {@see DEPARTMENT_PORTFOLIO} and {@see HOLDING_PORTFOLIO}, the one place the default staff tree is
-     * written down (product owner, 2026-10-25):
+     * written down:
      *
      *   Executive Officer → Reserve & Development Command (RDC Commander) → DEVCOM staff, Reservists
      *   Recruiting Oversight → RRD, RTC, S5
      *   Security Operations → S2, MP, JAG
      *   Information Management → S6 (with the Regimental Technical Aides)
-     *   S1, S3, S7, WAG: under the regiment until the product owner places them
+     *   S1, S3, S7, WAG: under the regiment until they are placed
      *
      * The Chief of Staff, Finance Officer and Adjutants General have no portfolio for now; they are Regimental HQ staff
      * on the regiment. Commanding nothing, they still read the whole regiment: ScopeResolver gives every serving trooper
-     * placed on the regiment node read-only scope over it (decided by the S6, 2026-10-28). ACD stays a line battalion
+     * placed on the regiment node read-only scope over it. ACD stays a line battalion
      * under the regiment: line units never move into this tree.
      */
     public const PORTFOLIOS = [
@@ -101,7 +101,7 @@ final class StaffBillet
     ];
 
     /**
-     * Line units a portfolio oversees, by callsign (decided by the S6, 2026-10-29; the wiki's Reserve & Development
+     * Line units a portfolio oversees, by callsign (the wiki's Reserve & Development
      * Command page lists DEVCOM, ACD and the Reserve under RDC). The org page shows each as a reference row under the
      * portfolio in the staff card; the units stay in the line chain of command, nothing moves.
      */
@@ -110,7 +110,7 @@ final class StaffBillet
     ];
 
     /**
-     * Staff groups a line unit lists as its own, by callsign (decided by the S6, 2026-10-29): DEVCOM's staff, whose
+     * Staff groups a line unit lists as its own, by callsign: DEVCOM's staff, whose
      * group sits under RDC. The org page shows it as a reference row under the line unit; the group does not move.
      */
     public const LINE_STAFF_GROUPS = [

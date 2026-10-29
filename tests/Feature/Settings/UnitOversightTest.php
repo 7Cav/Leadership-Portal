@@ -17,7 +17,7 @@ use App\Models\User;
 use App\Repositories\UnitRepository;
 use Illuminate\Support\Collection;
 
-// Regimental oversight (decided by the S6, 2026-10-29): an Admin names the staff officer who oversees a battalion or the
+// Regimental oversight: an Admin names the staff officer who oversees a battalion or the
 // Reservists (an Adjutant General over 2-7, the RDC Commander over ACD, DEVCOM and the Reservists). Portal-owned, audited
 // with a reason, and read by ScopeResolver as a staff grant on the unit: read-only, only while the overseer serves.
 // Fixture tree: 7CAV ─┬─ 1-7 ─ A/1-7 ─ 1/A/1-7
@@ -58,7 +58,7 @@ beforeEach(function () {
 });
 
 it('lets an Admin set an overseer, audited with the reason against the unit', function () {
-    $this->actingAs($this->admin)->post(ovUrl($this->second), ['trooper_id' => $this->rob->id, 'reason' => 'Named by the S6.'])
+    $this->actingAs($this->admin)->post(ovUrl($this->second), ['trooper_id' => $this->rob->id, 'reason' => 'Named by Regiment.'])
         ->assertRedirect('/settings/org-structure')
         ->assertSessionHasNoErrors();
 
@@ -68,14 +68,14 @@ it('lets an Admin set an overseer, audited with the reason against the unit', fu
         ->and($row->trooper_id)->toBe($this->rob->id)
         ->and($row->set_by)->toBe($this->admin->id)
         ->and($row->set_by_admin)->toBeNull()
-        ->and($entry->reason)->toBe('Named by the S6.')
+        ->and($entry->reason)->toBe('Named by Regiment.')
         ->and($entry->target_type)->toBe('Unit')
         ->and($entry->target_id)->toBe((string) $this->second->id);
 });
 
 it('replaces the overseer, and clears them with a reason on the record', function () {
     $other = Trooper::factory()->create(['username' => 'LaCombe.M', 'status' => TrooperStatus::Combat]);
-    $this->actingAs($this->admin)->post(ovUrl($this->second), ['trooper_id' => $this->rob->id, 'reason' => 'Named by the S6.']);
+    $this->actingAs($this->admin)->post(ovUrl($this->second), ['trooper_id' => $this->rob->id, 'reason' => 'Named by Regiment.']);
     $this->actingAs($this->admin)->post(ovUrl($this->second), ['trooper_id' => $other->id, 'reason' => 'Swapped.'])->assertSessionHasNoErrors();
 
     expect(UnitOversight::query()->sole()->trooper_id)->toBe($other->id);
@@ -122,7 +122,7 @@ it('refuses an Admin naming themselves, so the read cannot outlast their Admin r
     expect(UnitOversight::count())->toBe(0)->and(AuditLogEntry::count())->toBe(0);
 
     // Another Admin can.
-    $this->actingAs($this->admin)->post(ovUrl($this->second), ['trooper_id' => $this->rob->id, 'reason' => 'Named by the S6.'])->assertSessionHasNoErrors();
+    $this->actingAs($this->admin)->post(ovUrl($this->second), ['trooper_id' => $this->rob->id, 'reason' => 'Named by Regiment.'])->assertSessionHasNoErrors();
     expect(UnitOversight::query()->sole()->trooper_id)->toBe($this->rob->id);
 });
 
@@ -137,7 +137,7 @@ it('gives the overseer read scope over the unit and nothing to write', function 
     $scope = app(ScopeResolver::class);
     $before = ovIds($scope->realScope($this->robUser));
 
-    $this->actingAs($this->admin)->post(ovUrl($this->first), ['trooper_id' => $this->rob->id, 'reason' => 'Named by the S6.']);
+    $this->actingAs($this->admin)->post(ovUrl($this->first), ['trooper_id' => $this->rob->id, 'reason' => 'Named by Regiment.']);
 
     expect(ovIds($scope->realScope($this->robUser)))->toBe(ovIds(collect([...$before, $this->first->id, $this->alpha->id, $this->platoon->id])))
         ->and($scope->resolve($this->robUser)->all())->not->toContain($this->second->id)
@@ -152,7 +152,7 @@ it('gives the overseer read scope over the unit and nothing to write', function 
 
 it('ends the read when the overseer stops serving, and again when it is cleared', function () {
     $scope = app(ScopeResolver::class);
-    $this->actingAs($this->admin)->post(ovUrl($this->first), ['trooper_id' => $this->rob->id, 'reason' => 'Named by the S6.']);
+    $this->actingAs($this->admin)->post(ovUrl($this->first), ['trooper_id' => $this->rob->id, 'reason' => 'Named by Regiment.']);
 
     $this->rob->forceFill(['status' => TrooperStatus::Inactive])->save();
     expect($scope->realScope($this->robUser)->all())->toBe([])

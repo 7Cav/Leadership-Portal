@@ -25,7 +25,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Queue;
 use Inertia\Testing\AssertableInertia as Assert;
 
-// Regimental HQ staff read the whole regiment (decided by the S6, 2026-10-28): a serving trooper placed directly on the
+// Regimental HQ staff read the whole regiment: a serving trooper placed directly on the
 // regiment, where the org import puts every Regimental HQ billet (the Chief of Staff, the Adjutants General, the
 // Finance Officer), reads everything in it as a staff grant on the regiment does, and writes nothing through it. Only
 // while their position is still a Regimental HQ billet (audit 3, 2026-10-29): the import keeps an `admin_billets` row

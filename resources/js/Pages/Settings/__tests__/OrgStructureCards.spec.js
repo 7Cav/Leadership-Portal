@@ -2,7 +2,8 @@ import { afterEach, describe, it, expect, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import OrgStructure from '../OrgStructure.vue';
 
-// The S6's requests of 2026-10-29: the line and the staff in two cards, empty line units hidden until asked for, ACD and
+// The org page after the 2026-10-29 changes: the line and the staff in two cards, empty line units hidden until asked
+// for, ACD and
 // DEVCOM shown again under RDC, DEVCOM's staff under DEVCOM, and who oversees each battalion and the Reservists.
 
 const routerPost = vi.fn();
@@ -180,10 +181,10 @@ describe('Settings/OrgStructure cards', () => {
         await panel.find('[data-testid="oversight-search"]').trigger('input');
         await flushPromises();
         await wrapper.find('[data-testid="oversight-result"]').trigger('click');
-        await wrapper.find('[data-testid="oversight-reason"]').setValue('Named by the S6.');
+        await wrapper.find('[data-testid="oversight-reason"]').setValue('Named by Regiment.');
         await wrapper.find('[data-testid="oversight-set"]').trigger('click');
 
-        expect(routerPost).toHaveBeenCalledWith('/settings/org-structure/3/oversight', { trooper_id: 72, reason: 'Named by the S6.' }, expect.any(Object));
+        expect(routerPost).toHaveBeenCalledWith('/settings/org-structure/3/oversight', { trooper_id: 72, reason: 'Named by Regiment.' }, expect.any(Object));
     });
 
     it('lets an Admin clear an overseer only with a reason', async () => {
