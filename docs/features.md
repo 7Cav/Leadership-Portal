@@ -329,6 +329,13 @@ acting identity's command shows.
   LOR, with a reason (audited as `counseling.overturned`). It is never deleted: it stays in the list, muted, with "Overturned on <date> by <name>:
   <reason>", its document still downloads for whoever could see it, and it no longer counts toward any flag, the no
   favorable action notice or the filing form's forecast. A departed trooper's LOR can be overturned too.
+- A DCS expires 90 days after the date it was counseled (`counseled_on`): day 90 is still active, from day 91 it has
+  expired. It is worked out from the date on every read (`CounselingRecord::isExpired()`), with no job. It is never
+  deleted: the row, its PDF and its Google Drive copy stay. Leaders and the trooper no longer see it, its document
+  included; Admins see it marked "Expired" with the date, read only on the page, and download its PDF. Leaders cannot
+  correct or delete it; Admins keep their rights. Every rule window is 90 days or shorter, so it never counts toward
+  a record dated today; it still counts for a record dated within its window (the repeat DCS within 90 days, the
+  second miss within 30), so those flags stay. An LOR never expires.
 
 ### Staff practices
 
