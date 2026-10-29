@@ -164,7 +164,15 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
                 </header>
             </div>
 
-            <main id="main" tabindex="-1" class="mx-auto w-full max-w-[1440px] flex-1 px-4 py-5 outline-none sm:px-6">
+            <!-- The docs sit against the sidebar rather than centred: their own contents column is a second sidebar,
+                 and centring the page left a wide gap between the two on large screens. -->
+            <main
+                id="main"
+                tabindex="-1"
+                class="w-full max-w-[1440px] flex-1 px-4 py-5 outline-none sm:px-6"
+                :class="onDocs ? '' : 'mx-auto'"
+                :data-docs-width="onDocs ? 'left' : null"
+            >
                 <slot />
             </main>
         </SidebarInset>

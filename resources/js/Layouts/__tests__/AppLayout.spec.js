@@ -199,6 +199,15 @@ describe('AppLayout', () => {
             expect(wrapper.find('nav[aria-label="Breadcrumb"]').text()).toContain('Docs');
             expect(wrapper.find('nav[aria-label="Breadcrumb"]').text()).not.toContain('Help');
         });
+
+        it('sets the docs against the sidebar and centres every other page', () => {
+            wrapper = mountLayout({ url: '/docs/basics/sign-in', features: { docs: true } });
+            expect(wrapper.find('main#main').classes()).not.toContain('mx-auto');
+            wrapper.unmount();
+
+            wrapper = mountLayout({ url: '/home', features: { docs: true } });
+            expect(wrapper.find('main#main').classes()).toContain('mx-auto');
+        });
     });
 
     describe('theme', () => {
