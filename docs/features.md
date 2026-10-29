@@ -291,7 +291,9 @@ lists the section practices they attended, newest week first; the roster's troop
 - Remove one: the same people. A game server sighting cannot be removed by hand. An entry on a section that had no
   practice that week creates one; removing the last such entry removes it again when nothing else is on it (no mark,
   signature, guest, capture, or posted or confirmed rollcall), so it never keeps an Admin from deleting the section.
-- Lock: once the staff member's HQ has sent its weekly report for a week, that week's entries no longer change. A staff
+- Lock: once the HQ the staff member was placed on that week has sent its weekly report for it, that week's entries no
+  longer change. It goes by where they were placed that week (the placement history), not where they are now, so a
+  move afterwards neither opens nor locks a week; a week they spent in two units is locked by either. A staff
   department sends no weekly report, so its weeks stay open.
 - An entry never puts the staff member on the host section's rollcall or its guests, never counts in its numbers,
   reports or JSAM counts, and gives no makeup. Adding and removing are audited. The staff report does not show these

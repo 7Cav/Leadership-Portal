@@ -333,7 +333,7 @@ your next click. Nothing has to be revoked by hand.
 | --- | --- |
 | Week floor (`PORTAL_WEEK_FLOOR_WEEKS`, default 20 Cav weeks back) | Marking, confirming, marking posted, capture, linking unmatched players, guests, staff practices, report drafts and sends, the platoon topic, a training plan's weeks. Older reports open read-only. |
 | Future weeks | Marking, confirming, posting, capture and staff practices for a week that has not started. |
-| HQ report sent for the week | That week's staff practice entries of the staff placed on that HQ. |
+| HQ report sent for the week | That week's staff practice entries of the staff placed on that HQ during that week, wherever they are placed now. |
 | Section report sent for the week | That section's rollcall marks, confirming, marking posted, capture "Try again", guests at that practice and automatic makeups into that week. The sent report itself is frozen. A platoon's topic, and that week's subject in its training plan, are locked once the platoon's report is sent. |
 | Practice confirmed by a leader | Capture re-runs and linked players no longer change its marks. A leader's own hand edit still saves and clears the confirmation. |
 | Leave covering the week | That trooper's practice mark (the row posts as LOA). Their signature can still be saved. |

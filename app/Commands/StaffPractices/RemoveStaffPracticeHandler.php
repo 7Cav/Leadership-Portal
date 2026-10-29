@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Repositories\AuditedBatch;
 use App\Repositories\CrossSectionSightingRepository;
 use App\Repositories\SectionPracticeRepository;
+use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
@@ -36,6 +37,7 @@ class RemoveStaffPracticeHandler
         private readonly SectionPracticeRepository $practices,
         private readonly CrossSectionSightingRepository $sightings,
         private readonly WeeklyReportRepository $reports,
+        private readonly TrooperPlacementRepository $placements,
         private readonly AuditEnvelope $audit,
     ) {}
 
@@ -64,7 +66,7 @@ class RemoveStaffPracticeHandler
             reason: null,
             reasonRequired: false,
             mutation: function () use ($trooper, $weekStart, $practice) {
-                $this->refuseLockedWeek($this->reports, $trooper, $weekStart);
+                $this->refuseLockedWeek($this->reports, $this->placements, $trooper, $weekStart);
 
                 // Someone else removed it meanwhile.
                 if (! $this->sightings->removeStaff($practice->id, $trooper->id)) {

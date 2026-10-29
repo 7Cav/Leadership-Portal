@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Repositories\AuditedBatch;
 use App\Repositories\CrossSectionSightingRepository;
 use App\Repositories\SectionPracticeRepository;
+use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Repositories\WeeklyReportRepository;
@@ -29,7 +30,7 @@ use Carbon\CarbonImmutable;
  * Refused before anything is written: an unknown trooper, an actor who may not speak for them (403), a trooper who is not
  * staff or no longer serving, a unit that is not a section, a week before `WeekOf::floor()`, more than {@see WEEKS} weeks
  * back or in the future, and a trooper already recorded at that practice by any source. Then one audited transaction (`staff_practice.recorded`,
- * AD-16, target the trooper, digest over the new entry): a week whose report the trooper's own unit sent is refused under
+ * AD-16, target the trooper, digest over the new entry): a week whose report the unit the trooper was in that week sent is refused under
  * the report's lock ({@see GuardsStaffPractice}); the trooper is read again (a roster sync may have moved them); the host
  * practice is found or created (a generated demo practice stays demo, so the demo purge still clears its marks); the entry
  * is inserted under the UNIQUE key, so two people entering it at once land on one row and the second is told it is
@@ -52,6 +53,7 @@ class RecordStaffPracticeHandler
         private readonly SectionPracticeRepository $practices,
         private readonly CrossSectionSightingRepository $sightings,
         private readonly WeeklyReportRepository $reports,
+        private readonly TrooperPlacementRepository $placements,
         private readonly AuditEnvelope $audit,
         private readonly ActingFor $acting,
     ) {}
@@ -96,7 +98,7 @@ class RecordStaffPracticeHandler
             reason: null,
             reasonRequired: false,
             mutation: function () use ($actor, $command, $weekStart, $trooper, &$sighting) {
-                $this->refuseLockedWeek($this->reports, $trooper, $weekStart);
+                $this->refuseLockedWeek($this->reports, $this->placements, $trooper, $weekStart);
 
                 $current = $this->refuseNonStaff($this->access, $this->troopers->find($trooper->id));
                 // A demo week stays demo (audit 2, L1): the entry is the staff member's, nothing of the host's.
