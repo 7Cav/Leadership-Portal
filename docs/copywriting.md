@@ -153,7 +153,8 @@ All times in the portal are UTC. The Cav works in Zulu time.
 - Show a unit by its callsign, falling back to its name (`unit.callsign ?? unit.name`), as the roster and matrix do.
   In toasts, report titles and anything pasted to the forum or Discord, use the designation
   (`unitLabel()`, `section.designation`).
-- A game or team label set on a unit shows next to its name as set ("WARDOGS"). Do not reword it.
+- A unit's team label shows next to its name as set. Do not reword it.
+- A unit's game shows next to its name by the game's name. One it inherits reads "WARDOGS from 2/A/1-7", muted.
 
 ### Abbreviations
 

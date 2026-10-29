@@ -181,7 +181,7 @@ version that was in use, and the sections' picks move to the copies. From then o
 the copies like any of its templates, and the old company's command has no say over them: its later edits, rollbacks
 and switches never reach the moved sections. If the new company later switches a copy off, the sections follow the new
 company and the rollcall says which template the post now uses. A section's own templates belong to the section, so
-they move with it and are not copied. Fireteam settings, labels and acting leads stay on the units. The move and what was copied are in the audit log (`unit.moved`, `unit.settings_carried`).
+they move with it and are not copied. Fireteam settings, labels, unit games and acting leads stay on the units; a moved unit with no game of its own plays its new parent's. The move and what was copied are in the audit log (`unit.moved`, `unit.settings_carried`).
 
 ### Reports
 
@@ -206,7 +206,8 @@ their own plan unless they also command the company.
 | Org structure: create, rename or move a unit, delete an empty unit | Yes | No | No |
 | Org structure: Import from Cav roster | Yes | No | No |
 | Org structure: place a trooper the sync could not place | Yes | No | No |
-| Org structure: set or clear a unit's game or team label | Yes | No | No |
+| Org structure: set or clear the game a unit plays (from the Games list, not a retired game) | Yes | No | No |
+| Org structure: set or clear a unit's team label | Yes | No | No |
 | Org structure: assign or remove an acting lead | Yes | No | No |
 | Staff grants: grant or revoke | Yes | No | No |
 | Games: add, edit, retire, reinstate or delete a game (a game in use can only be retired) | Yes | No | No |

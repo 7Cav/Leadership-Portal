@@ -24,4 +24,4 @@ page: /settings/games
 1. Choose **Retire**. Its links stay, but no new ones can be made, and it stops being captured.
 2. Choose **Bring back** to reinstate it.
 
-> [!good-to-know] What this changes, and how to undo it: retiring is undone by reinstating. A game that is in use, with linked identities or captured practices, can only be retired, never deleted; **Delete** is offered only for a game nothing uses.
+> [!good-to-know] What this changes, and how to undo it: retiring is undone by reinstating. A game that is in use, with linked identities, captured practices or a unit that plays it, can only be retired, never deleted; **Delete** is offered only for a game nothing uses.
