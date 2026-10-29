@@ -19,7 +19,7 @@ const props = defineProps({
 
 const COLUMNS = [
     { key: 'designation', label: 'Unit', numeric: false },
-    { key: 'strength', label: 'Strength', numeric: true },
+    { key: 'strength', label: 'In roll call', numeric: true },
     { key: 'rc', label: 'RC %', numeric: true },
     { key: 'sp', label: 'SP %', numeric: true },
     { key: 'atRisk', label: 'At-risk', numeric: true },

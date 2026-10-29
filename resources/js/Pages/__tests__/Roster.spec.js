@@ -101,7 +101,7 @@ describe('Roster page', () => {
     });
 
     it('summarises the unit with KPIs from the server', () => {
-        expect(factory().find('[data-testid="scope-line"]').text()).toBe('1st Platoon. 4 troopers in 2 sections. RC 30d 83%, SP 30d 80%.');
+        expect(factory().find('[data-testid="scope-line"]').text()).toBe('1st Platoon. Headcount 4, in 2 sections. RC 30d 83%, SP 30d 80%.');
     });
 
     it('shows the roster source and last successful sync, flagging a failed attempt (AD-20)', () => {

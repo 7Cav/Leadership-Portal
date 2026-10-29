@@ -467,7 +467,7 @@ included).
 
 | KPI | Definition |
 | --- | --- |
-| Strength | Troopers placed in sections in the unit. (The org page and roster headcount also count HQ staff and staff departments; New Recruits, ELOA and Reservists count only on their own groups.) |
+| In roll call (`strength`) | Troopers placed in sections in the unit. (The Headcount on the org page and roster also counts HQ staff and staff departments; New Recruits, ELOA and Reservists count only on their own groups.) |
 | RC % · 30d | Weeks with a signed roll call (Will attend or Cannot attend) divided by all weeks in the window. |
 | SP % · 30d | Practices marked Present, Makeup or Attached, divided by the practices their own section held. A practice is held once a leader put an SP mark on anyone. A week the trooper attended always counts as eligible for them. |
 | At-risk | Troopers with 2 or more practices explicitly marked Missed in the window. Unmarked is never a miss. |

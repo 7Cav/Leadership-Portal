@@ -55,7 +55,7 @@ const items = computed(() => {
     const sp = percent(kpis.sp);
 
     return [
-        { label: 'Strength', value: kpis.strength, change: delta?.strength, better: null },
+        { label: 'In roll call', value: kpis.strength, change: delta?.strength, better: null },
         { label: 'RC % 30d', value: rc === null ? null : `${rc}%`, change: points(delta?.rcBp), unit: ' pts', better: 'up' },
         { label: 'SP % 30d', value: sp === null ? null : `${sp}%`, change: points(delta?.spBp), unit: ' pts', better: 'up' },
         { label: 'At-risk', value: kpis.atRisk, change: delta?.atRisk, better: 'down' },

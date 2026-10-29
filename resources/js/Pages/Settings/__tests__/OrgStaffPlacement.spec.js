@@ -38,8 +38,8 @@ describe('Settings/OrgStructure placement', () => {
     it('counts HQ staff in their unit: the platoon shows its own PSG plus its section', () => {
         const wrapper = mountPage();
 
-        expect(wrapper.find('[data-testid="unit-row-2"]').text()).toContain('3 troopers');
-        expect(wrapper.find('[data-testid="unit-row-3"]').text()).toContain('2 troopers');
+        expect(wrapper.find('[data-testid="unit-row-2"]').text()).toContain('Headcount 3');
+        expect(wrapper.find('[data-testid="unit-row-3"]').text()).toContain('Headcount 2');
     });
 
     it('hides New Recruits by default and shows them on the toggle', async () => {
@@ -49,7 +49,7 @@ describe('Settings/OrgStructure placement', () => {
         expect(wrapper.find('[data-testid="unit-row-4"]').exists()).toBe(true);
 
         await wrapper.find('[data-testid="show-recruits"]').setValue(true);
-        expect(wrapper.find('[data-testid="unit-row-5"]').text()).toContain('1 trooper');
+        expect(wrapper.find('[data-testid="unit-row-5"]').text()).toContain('Headcount 1');
     });
 
     it('offers no toggle when there is no New Recruits group', () => {
