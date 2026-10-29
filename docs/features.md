@@ -156,11 +156,11 @@ leaves the Cav; one who left before it began doing so has no date and is on no p
     Unaccounted troopers explained, Training subject filled, Notes reviewed), a reason for each unaccounted trooper from
     a fixed list, the training subject (last sent subject offered as a suggestion), notes, history and an 8 week trend.
   - Suggested reasons: where the portal's data says why a trooper is unaccounted, their reason is pre-selected:
-    "Departed, no longer on the Cav roster", "Moved out of the section this week" (a placement in the section ended
-    during the week), or "LOA posted, the post needs review" (a leave post the LOA sync could not read), in that order
-    when more than one applies. A suggestion is not saved, previewed or sent, and its check stays open, until the
-    leader chooses "Keep suggested reason" or another reason; "Send anyway" leaves it out. A reason already saved is
-    never replaced.
+    "Departed, no longer on the Cav roster", "Moved out of the section this week" (they left the section during the
+    week and were not back in it when the week ended), or "LOA posted, the post needs review" (a leave post the LOA
+    sync could not read), in that order when more than one applies. A suggestion is not saved, previewed or sent, and
+    its check stays open, until the leader chooses "Keep suggested reason" or another reason; "Send anyway" leaves it
+    out. A reason already saved is never replaced.
   - Platoon and higher: the same, but the KPIs are the sum of the direct children's sent reports, with each child's
     status. The "Every unit has sent" check names who is holding up the chain. A child with no troopers, or with only
     HQ staff, is not one of them (see "Units with no troopers").
