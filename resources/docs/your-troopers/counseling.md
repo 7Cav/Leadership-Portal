@@ -6,7 +6,7 @@ order: 6
 audience: leader
 ---
 
-> [!why] The counseling panel keeps each record with its signed document in one place, and shows where the trooper stands under the 7Cav regulations, so the next step is not worked out from memory.
+> [!why] The counseling panel keeps each record with its signed document and shows where the trooper stands under the 7Cav regulations, so nobody has to work out the next step from memory.
 
 ## DCS and LOR
 
@@ -19,7 +19,7 @@ audience: leader
 2. An LOR needs command from platoon level up: the Platoon Leader and Platoon Sergeant, the company, battalion and regiment command, an acting lead of a platoon or above, and Admins. A portfolio officer files a DCS on their staff; an LOR on staff comes from regiment command or an Admin.
 3. You never file on yourself, or on someone whose command you share or who commands you: an Assistant Section Leader does not counsel their Section Leader.
 4. A staff grant can read LORs, not DCSs, and cannot file. View as shows only what the previewed leader would see, and files nothing.
-5. A record you may not see is left out of the panel entirely.
+5. A record you may not see is left out of the panel.
 
 ## File a record
 

@@ -25,7 +25,7 @@ class GuestAttendanceRefusedException extends RuntimeException
 
     public static function notASection(int $unitId): self
     {
-        return new self("Unit {$unitId} is not a section; guests attend a section's practice.", 'not_a_section');
+        return new self("This unit is not a section; guests attend a section's practice.", 'not_a_section');
     }
 
     public static function weekBeforeFloor(CarbonInterface $weekStart): self

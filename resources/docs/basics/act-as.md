@@ -27,7 +27,7 @@ audience: leader
 
 1. A red bar at the top says **Acting as** and who. It stays on screen on every page.
 2. You have exactly their permissions and lose your own until you stop. Every page shows what they would see, and every button does what it would do for them.
-3. Everything you change is recorded with both names, your name for theirs: a report sent while acting shows as sent by "Taylor.C for Jay.JH". When an Admin acts as a billet, it shows as "Taylor.C acting as Section Leader 1/1/A/1-7". The audit log names you as the one who did it, acting as them.
+3. Everything you change is recorded with both names: a report sent while acting shows as sent by "Taylor.C for Jay.JH". When an Admin acts as a billet, it shows as "Taylor.C acting as Section Leader 1/1/A/1-7". The audit log names you as the one who did it, acting as them.
 
 > [!good-to-know] Starting and stopping act as is recorded in the audit log.
 
@@ -42,11 +42,11 @@ audience: leader
 2. You cannot act as someone whose own command covers you. If you are acting lead of the platoon above your own section, you cannot act as your own Section Leader.
 3. You cannot act as someone whose own access, such as a staff grant or an acting lead, reaches outside your units.
 4. No chains: while you act as someone, you cannot act as anyone else. Stop first.
-5. An Admin who acts as another Admin gets none of their Admin rights, only their billet, acting leads and grants. An Admin acting as a leader can then act only as the people below that leader, and stops to be an Admin again.
+5. An Admin who acts as another Admin gets none of their Admin rights, only their billet, acting leads and grants. An Admin acting as a leader can act only as the people below that leader; to be an Admin again, stop acting.
 6. Acting as someone never lets you file counseling on yourself or see your own counseling records.
 7. Acting as someone does not open their own milpac page the way they open it. You see their page only where their command reaches it, and none of their DCSs that you could not see as yourself.
 
 ## Act as compared with View as
 
-1. [View as](/docs/basics/view-as) is a read-only preview with a gold bar. Nothing can be changed while it is on, so it is safe for a look around.
+1. [View as](/docs/basics/view-as) is a read-only preview with a gold bar. Nothing can be changed while it is on.
 2. Act as has a red bar, and every change is real. Use View as to check what someone sees, and act as only when something has to be done in their place.

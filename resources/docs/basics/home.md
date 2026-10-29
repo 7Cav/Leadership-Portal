@@ -7,7 +7,7 @@ audience: everyone
 page: /home
 ---
 
-> [!why] Home is the quickest way to see what is still to do this week across every section you lead, and who to chase.
+> [!why] Home shows what is still to do this week across every section you lead, and who to chase.
 
 ## Read the week bar
 
@@ -19,15 +19,12 @@ page: /home
 
 1. The tiles show the six numbers for everything you lead, live for this week, with the last four weeks beside them.
 2. A past week only shows once every section you lead with troopers sent its report that week.
+3. The table below lists the units directly under you, with where each report stands and their numbers.
 
 ## Act on what needs attention
 
 1. **Needs attention** lists the units holding up the report chain, the troopers at risk and the LOA posts that need review, each with a link to fix it.
 2. For a trooper at risk, use the makeup link to send them a message about a makeup practice.
 3. An LOA post that needs review is one the leave sync could not read. Choose the trooper to mark them on your rollcall, or open the post on the forum and ask them to fix it. For the week it was posted and the week after, the portal neither counts them as on leave nor flags them at risk.
-
-## Check the units under you
-
-1. The table lists the units directly under you, with where each report stands and their numbers.
 
 > [!good-to-know] Home counts the line units only: sections, platoons, companies, battalions and the regiment. Staff groups have no report chain, and a unit with nobody in it is left out until someone is placed there. The week shown stays the closing one until its report is due, 23:59 UTC on the Saturday after it ends.

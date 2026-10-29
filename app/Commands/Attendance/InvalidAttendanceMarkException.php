@@ -34,7 +34,7 @@ class InvalidAttendanceMarkException extends RuntimeException
 
     public static function loaIsDerived(int $trooperId): self
     {
-        return new self('A trooper cannot be marked LOA by hand: LOA comes from LOA records and is never entered.');
+        return new self('A trooper cannot be marked LOA by hand: LOA comes from LOA records.');
     }
 
     /**

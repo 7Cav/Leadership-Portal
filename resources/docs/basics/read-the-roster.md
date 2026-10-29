@@ -11,7 +11,7 @@ checklist:
   order: 2
 ---
 
-> [!why] The roster is the portal's copy of the Cav roster for the units you lead. It is where you see who is in your unit, who is on leave and who has been missing practice.
+> [!why] The roster is the portal's copy of the Cav roster for the units you lead. It shows who is in your unit, who is on leave and who has been missing practice.
 
 ## Open the roster
 

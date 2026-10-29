@@ -1079,7 +1079,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                             Signatures
                         </h2>
                         <p class="mt-0.5 max-w-[62ch] text-[13px] text-muted-foreground">
-                            Who signed the rollcall thread for this week. You can record a signature for a trooper who told you directly.
+                            You can record a signature for a trooper who told you directly.
                         </p>
                     </div>
                     <p v-if="editable" class="mt-2 hidden items-center gap-2 text-xs text-muted-foreground pointer-coarse:flex">

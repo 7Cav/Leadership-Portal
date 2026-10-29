@@ -16,8 +16,7 @@ const lanes = computed(() => laneTotals(props.steps));
 
 <template>
     <EmptyState v-if="!steps.length" :icon="PhClockCountdown" title="Step tracking starts with rollcalls" class="border-t border-border py-6">
-        Rollcall posting and signing, section practice, attendance and report sending will track across these
-        days once rollcalls run in the portal.
+        Each section's steps for the week show across these days once rollcalls run in the portal.
     </EmptyState>
 
     <template v-else>

@@ -49,6 +49,9 @@ checkbox the user ticks about themselves, such as "I have read the preview and m
 "!" in prose, all-caps words for emphasis, contractions ("don't", "can't", "isn't"; write "do not", "cannot",
 "is not").
 
+No filler: cut "easily", "you can now", "this allows you to", "this lets you" and any sentence that restates the one
+before it. If a sentence still says the same thing without a word, drop the word.
+
 Exclamation marks: never. There is no exception.
 
 ## Mechanics
@@ -94,6 +97,12 @@ Exclamation marks: never. There is no exception.
   labels (see Loading and saving).
 - Middle dot "·" only as a separator in page titles (`Rollcall 2/1/A/1-7 · 7Cav Leadership Portal`) and in compact
   meta lines (`MOS · source · fetched at`). Never in a sentence.
+
+### Bold
+
+- Bold only the exact UI label a guide tells the reader to click or find: "Choose **Send report**."
+- No bold for emphasis, for a lead-in at the start of a list item, or for a term being defined. A glossary entry or a
+  "who to ask" list reads as plain "Cav week: Saturday 00:00 UTC to ...".
 
 ### Numbers and percentages
 
@@ -286,6 +295,14 @@ New locks follow the same shape: "Read-only: <reason>" or "<thing> is locked bec
 - Status cells read as a sentence: "Week of 03Oct26. Rollcall: Will attend. SP: Present."
 - Icon-only buttons always have an `aria-label`.
 
+### Subtitles and sub-headings
+
+- Add a subtitle, description line or sub-heading only when it tells the reader something they need. Drop it when it
+  repeats the title or says what the next line shows anyway.
+- This covers card descriptions under card titles (a "Game identities" card does not also need "Manage game
+  identities" under it), page subtitles under the `<h1>`, and guide `##` headings over a section with a single step.
+- In a guide, a single step that needs no heading of its own joins the step before or after it.
+
 ### Page titles and breadcrumbs
 
 - `<Head title>`: page, then context, then the product, separated by " · ":
@@ -398,6 +415,8 @@ Run this before finishing any change that adds or edits user-facing text.
 12. Server messages a user can see name the trooper or unit, never a database ID, and never cite AD or story numbers.
 13. Icon-only controls have an `aria-label` written to the same rules.
 14. If a test asserts on the text, update the test in the same change.
+15. No subtitle or sub-heading that repeats its title, no filler, and bold only on a UI label the reader clicks or
+    finds.
 
 ## Appendix: known deviations
 

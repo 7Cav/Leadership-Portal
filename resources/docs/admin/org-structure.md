@@ -26,6 +26,7 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 
 1. Choose **Add unit**, or select a unit to edit it.
 2. Set its **Name**, **Callsign**, **Echelon** and **Parent**, and choose **Save unit**.
+3. To show a game or team label next to the unit's name, select the unit, fill in **Game or team label** (such as WARDOGS), and choose **Save label**.
 
 > [!good-to-know] What this changes, and how to undo it: moving a unit moves everyone's access with it on the next page load. Move it back the same way. A unit with troopers, reports or anything else attached cannot be deleted.
 
@@ -46,7 +47,3 @@ The page has two cards. **Chain of command** holds the regiment, its battalions 
 2. Pick them, give a reason, and choose **Set overseer**. They can then see that unit and everything under it, read only, while they serve.
 
 > [!good-to-know] What this changes, and how to undo it: to change the overseer, pick someone else and choose **Set overseer** again. To remove them, choose **Clear overseer** with a reason. Their access ends on their next page load, or when they leave every Cav roster. Every change is in the audit log. The portal sets none of these itself; an Admin enters each one.
-
-## Set a game or team label
-
-1. Select the unit, fill in **Game or team label** (such as WARDOGS), and choose **Save label**. It shows next to the unit's name.

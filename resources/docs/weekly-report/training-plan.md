@@ -35,7 +35,7 @@ page: /reports/{unit}/plans/{month?}
 ## Review a plan
 
 1. Open the platoon's plan. When it is waiting for approval and you command the company, a panel headed **Review for** and the company's name shows beside it.
-2. Choose **Approve** to put the plan to work.
+2. Choose **Approve** to apply the plan.
 3. To send it back instead, write what should change under **What should change** and choose **Send back**. The plan shows **Sent back**, and the platoon sees your comment above its weeks.
 4. A platoon whose plan was sent back changes it and chooses **Send for approval** again. It can also send it again unchanged.
 

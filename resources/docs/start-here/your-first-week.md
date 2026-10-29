@@ -6,7 +6,7 @@ order: 1
 audience: everyone
 ---
 
-The **Start here** list on the right of every docs page tracks these for you. Tick each one off when you have done it.
+The **Start here** list on the right of every docs page tracks these. Tick each one off when you have done it.
 
 ## For everyone
 

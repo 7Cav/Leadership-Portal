@@ -6,7 +6,7 @@ order: 2
 audience: leader
 ---
 
-> [!why] A trooper who attends another section's practice gets a makeup for their own section. Recording them here is what gives them that credit, and it counts towards a JSAM if they keep coming.
+> [!why] A trooper who attends another section's practice gets a makeup for their own section. Recording them here gives them that credit, and counts towards a JSAM if they keep coming.
 
 ## Open the guests panel
 
