@@ -106,7 +106,7 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     // Scope-gated in the controller through the ScopeResolver (AD-8). The trooper Sheet reads its
     // detail as JSON; that route is declared first so `troopers` is never taken for a unit id.
     Route::get('/roster/troopers/{trooper}', [RosterController::class, 'trooper'])->name('roster.trooper');
-    // A unit's strength week by week, scoped like the roster. Read only.
+    // The old strength trends address: redirects to the roster with the Strength tab open.
     Route::get('/roster/{unit}/strength', [StrengthTrendsController::class, 'show'])->name('roster.strength');
     Route::get('/roster/{unit?}', [RosterController::class, 'index'])->name('roster.index');
     // The shell's trooper search (JSON): troopers in the viewer's scope by username, for a jump to their milpac. It

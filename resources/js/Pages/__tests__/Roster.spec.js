@@ -6,6 +6,7 @@ import Roster from '../Roster.vue';
 import { CURRENT, roster, WEEKS } from '../../components/roster/__tests__/fixture';
 
 const replace = vi.fn();
+const reload = vi.fn();
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
 vi.mock('vue-sonner', () => ({ toast: { success: (...a) => toastSuccess(...a), error: (...a) => toastError(...a) } }));
@@ -16,7 +17,7 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => ({
     ...(await importOriginal()),
     Head: { props: ['title'], template: '<head :data-title="title"></head>' },
     Link: { props: ['href'], template: '<a :href="href"><slot /></a>' },
-    router: { replace: (...a) => replace(...a), post: (...a) => post(...a), on: () => () => {} },
+    router: { replace: (...a) => replace(...a), reload: (...a) => reload(...a), post: (...a) => post(...a), on: () => () => {} },
     usePage: () => mockPage,
 }));
 vi.mock('@/components/roster/TrooperSheet.vue', () => ({
@@ -54,6 +55,7 @@ const factory = (over) => mount({ render: () => h(TooltipProvider, () => h(Roste
 describe('Roster page', () => {
     beforeEach(() => {
         replace.mockReset();
+        reload.mockReset();
         post.mockReset();
         mockPage.url = '/roster/1';
         mockPage.props = {};
@@ -75,6 +77,36 @@ describe('Roster page', () => {
 
         expect(wrapper.find('[data-testid="roster-matrix"]').exists()).toBe(true);
         expect(replace).toHaveBeenLastCalledWith(expect.objectContaining({ url: '/roster/1?view=matrix', preserveState: true }));
+    });
+
+    it('loads the Strength tab with a partial reload and keeps it in the URL', async () => {
+        const wrapper = factory();
+
+        await wrapper.find('[data-testid="view-strength"]').trigger('mousedown', { button: 0 });
+
+        expect(wrapper.find('[data-testid="roster-strength"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="strength-loading"]').exists()).toBe(true);
+        expect(replace).toHaveBeenLastCalledWith(expect.objectContaining({ url: '/roster/1?view=strength' }));
+        expect(reload).toHaveBeenCalledWith(expect.objectContaining({ only: ['strengthTrends'], data: { view: 'strength' } }));
+    });
+
+    it('opens on the Strength tab from the URL and asks for a new range', async () => {
+        mockPage.url = '/roster/1?view=strength';
+        const strengthTrends = {
+            range: '12',
+            weeks: [{ week: '2026-10-31', headcount: 5, strength: 4, in: null, out: null, source: 'live' }],
+            change: { headcount: null, strength: null },
+            children: [],
+        };
+        const wrapper = factory({ strengthTrends });
+
+        expect(wrapper.find('[data-testid="roster-orbat"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="strength-change"]').exists()).toBe(true);
+        expect(reload).not.toHaveBeenCalled();
+
+        await wrapper.find('[data-range="52"]').trigger('click');
+
+        expect(reload).toHaveBeenCalledWith(expect.objectContaining({ only: ['strengthTrends'], data: { view: 'strength', range: '52' } }));
     });
 
     it('shows a saved guidon next to the unit and in the picker, and nothing for a unit with none (#446)', () => {

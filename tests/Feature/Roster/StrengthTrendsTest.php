@@ -5,13 +5,14 @@ use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Kpi\StrengthTrends;
 use App\Models\WeeklyReport;
 use App\Repositories\TrooperPlacementRepository;
 use App\Repositories\UnitRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
-// The strength trends page: a unit's headcount and in roll call per Cav week. A sent week reads its frozen snapshot, an
+// The roster's Strength tab: a unit's headcount and in roll call per Cav week. A sent week reads its frozen snapshot, an
 // unsent ended week is rebuilt from the placement history, and a week before the history with no report is a gap.
 // Now is Wednesday 2026-11-25, so the running week opens 2026-11-21 and the history covers 2026-10-24 on.
 //   7CAV ─ 1/A/1-7 (platoon, HQ staff) ─┬─ 1/1/A/1-7
@@ -25,10 +26,21 @@ function stPlace(Unit $unit): Trooper
     return $trooper;
 }
 
-/** @return array<string, mixed> the page props for `$unit` */
+/** @return array<string, mixed> the Strength tab's props for `$unit` */
 function stProps($test, Unit $unit, string $range = '12', ?User $as = null): array
 {
-    return $test->actingAs($as ?? $test->admin)->get("/roster/{$unit->id}/strength?range={$range}")->assertOk()->viewData('page')['props'];
+    return $test->actingAs($as ?? $test->admin)->get("/roster/{$unit->id}?view=strength&range={$range}")->assertOk()->viewData('page')['props']['strengthTrends'];
+}
+
+/** The queries one StrengthTrends read takes. */
+function stQueries(Unit $unit, ?int $weeks): int
+{
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+    app(StrengthTrends::class)->forUnit($unit, $weeks);
+    DB::disableQueryLog();
+
+    return count(DB::getQueryLog());
 }
 
 function stWeek(array $props, string $date): array
@@ -103,24 +115,66 @@ it('shows the children headcounts for comparison', function () {
         ->and(collect($section['points'])->firstWhere('week', '2026-11-14')['headcount'])->toBe(3);
 });
 
+it('sends the tab props only while the Strength tab is open', function () {
+    $this->actingAs($this->admin);
+
+    expect($this->get("/roster/{$this->platoon->id}")->assertOk()->viewData('page')['props']['strengthTrends'])->toBeNull()
+        ->and($this->get("/roster/{$this->platoon->id}?view=matrix")->viewData('page')['props']['strengthTrends'])->toBeNull();
+
+    $props = stProps($this, $this->platoon, '26');
+
+    expect($props)->toHaveKeys(['range', 'weeks', 'change', 'children'])
+        ->and($props['range'])->toBe('26')
+        ->and($props['weeks'])->toHaveCount(26)
+        ->and(stProps($this, $this->platoon, 'all')['range'])->toBe('all')
+        ->and(stProps($this, $this->platoon, 'bogus')['range'])->toBe('12');
+});
+
+it('redirects the old strength address to the roster with the Strength tab open', function () {
+    $this->actingAs($this->admin);
+
+    $this->get("/roster/{$this->platoon->id}/strength")->assertRedirect("/roster/{$this->platoon->id}?view=strength");
+    $this->get("/roster/{$this->platoon->id}/strength?range=52")->assertRedirect("/roster/{$this->platoon->id}?view=strength&range=52");
+    $this->get("/roster/{$this->platoon->id}/strength?range=all")->assertRedirect("/roster/{$this->platoon->id}?view=strength&range=all");
+});
+
 it('refuses a unit outside the viewer scope', function () {
     // A serving Section Leader of 2nd Section reads their own section, not the platoon above it.
-    $this->actingAs(User::factory()->commanding($this->section2)->create())->get("/roster/{$this->platoon->id}/strength")->assertForbidden();
-    $this->actingAs($this->admin)->get('/roster/999999/strength')->assertForbidden();
+    $this->actingAs(User::factory()->commanding($this->section2)->create())->get("/roster/{$this->platoon->id}?view=strength")->assertForbidden();
+    $this->actingAs($this->admin)->get('/roster/999999?view=strength')->assertForbidden();
+});
+
+it('gives a battalion its companies with their platoons under them, and a company none', function () {
+    $units = app(UnitRepository::class);
+    $battalion = $units->create(UnitType::Battalion, '1st Battalion', '1-7', $this->regiment->id);
+    $company = $units->create(UnitType::Company, 'Alpha Company', 'A/1-7', $battalion->id);
+    $units->move($this->platoon, $company->id);
+    $platoon2 = $units->create(UnitType::Platoon, '2nd Platoon', '2/A/1-7', $company->id);
+    stPlace($units->create(UnitType::Section, '1st Section', '1/2/A/1-7', $platoon2->id));
+    WeeklyReport::factory()->sent()->create([
+        'unit_id' => $platoon2->id,
+        'week_start' => CarbonImmutable::parse('2026-10-31 00:00:00', 'UTC'),
+        'kpis' => ['strength' => 6, 'headcount' => 6],
+    ]);
+
+    $alpha = collect(stProps($this, $battalion)['children'])->firstWhere('id', $company->id);
+    $platoons = collect($alpha['children']);
+    $first = collect($platoons->firstWhere('id', $this->platoon->id)['points']);
+    $second = collect($platoons->firstWhere('id', $platoon2->id)['points']);
+
+    expect($platoons->pluck('id')->all())->toBe([$this->platoon->id, $platoon2->id])
+        ->and($platoons->firstWhere('id', $this->platoon->id)['designation'])->toBe('1/A/1-7')
+        ->and($first->firstWhere('week', '2026-11-14')['headcount'])->toBe(5)
+        // A sent platoon week reads its snapshot, like every other series.
+        ->and($second->firstWhere('week', '2026-10-31')['headcount'])->toBe(6)
+        ->and($second->firstWhere('week', '2026-11-21')['headcount'])->toBe(1)
+        // Below a battalion the comparison stops at the children.
+        ->and(collect(stProps($this, $company)['children'])->every(fn ($c) => $c['children'] === []))->toBeTrue();
 });
 
 it('reads in a fixed number of queries whatever the range or the size of the unit', function () {
-    $count = function (string $range) {
-        DB::flushQueryLog();
-        DB::enableQueryLog();
-        stProps($this, $this->platoon, $range);
-        DB::disableQueryLog();
-
-        return count(DB::getQueryLog());
-    };
-
-    $count('12'); // warm up whatever a first request reads once
-    $small = $count('12');
+    stQueries($this->platoon, 12); // warm up whatever a first read takes once
+    $small = stQueries($this->platoon, 12);
 
     $units = app(UnitRepository::class);
     foreach (range(3, 6) as $n) {
@@ -134,6 +188,33 @@ it('reads in a fixed number of queries whatever the range or the size of the uni
         ]);
     }
 
-    expect($count('all'))->toBe($small)
-        ->and($count('52'))->toBe($small);
+    expect($small)->toBeLessThanOrEqual(3)
+        ->and(stQueries($this->platoon, null))->toBe($small)
+        ->and(stQueries($this->platoon, 52))->toBe($small);
+});
+
+it('reads a battalion with its platoons in the same fixed number of queries', function () {
+    $units = app(UnitRepository::class);
+    $battalion = $units->create(UnitType::Battalion, '1st Battalion', '1-7', $this->regiment->id);
+    $company = $units->create(UnitType::Company, 'Alpha Company', 'A/1-7', $battalion->id);
+    $units->move($this->platoon, $company->id);
+
+    stQueries($battalion, 12);
+    $small = stQueries($battalion, 12);
+
+    foreach (['B', 'C'] as $letter) {
+        $more = $units->create(UnitType::Company, "{$letter} Company", "{$letter}/1-7", $battalion->id);
+        foreach (range(1, 3) as $n) {
+            $platoon = $units->create(UnitType::Platoon, "Platoon {$n}", "{$n}/{$letter}/1-7", $more->id);
+            stPlace($units->create(UnitType::Section, 'Section', "1/{$n}/{$letter}/1-7", $platoon->id));
+            WeeklyReport::factory()->sent()->create([
+                'unit_id' => $platoon->id,
+                'week_start' => CarbonImmutable::parse('2026-10-31 00:00:00', 'UTC'),
+                'kpis' => ['strength' => 1, 'headcount' => 1],
+            ]);
+        }
+    }
+
+    expect($small)->toBeLessThanOrEqual(3)
+        ->and(stQueries($battalion, null))->toBe($small);
 });
