@@ -23,9 +23,9 @@ use Inertia\Testing\AssertableInertia as Assert;
 
 function leaderPerson(int $cavId, string $username, ?int $position, ?TrooperStatus $status = null, array $user = []): User
 {
-    Trooper::factory()->create(['cav_id' => $cavId, 'cav_position_id' => $position, 'status' => $status ?? TrooperStatus::Combat, 'rank' => 'SGT', 'username' => $username]);
+    $trooper = Trooper::factory()->create(['cav_id' => $cavId, 'cav_position_id' => $position, 'status' => $status ?? TrooperStatus::Combat, 'rank' => 'SGT', 'username' => $username]);
 
-    return User::factory()->create(['cav_id' => $cavId, 'username' => $username] + $user);
+    return User::factory()->create(['cav_id' => $cavId, 'forum_user_id' => $trooper->forum_user_id, 'username' => $username] + $user);
 }
 
 beforeEach(function () {
@@ -334,8 +334,8 @@ describe('the picker', function () {
 
 describe('an Admin acting as a leader', function () {
     beforeEach(function () {
-        Trooper::factory()->create(['cav_id' => 990, 'status' => TrooperStatus::Combat]);
-        $this->admin = User::factory()->admin()->create(['username' => 'Root.R', 'cav_id' => 990]);
+        $trooper = Trooper::factory()->create(['cav_id' => 990, 'status' => TrooperStatus::Combat]);
+        $this->admin = User::factory()->admin()->create(['username' => 'Root.R', 'cav_id' => 990, 'forum_user_id' => $trooper->forum_user_id]);
     });
 
     it('may act as someone below that leader, recorded with the Admin as actor', function () {

@@ -12,6 +12,7 @@
         { "name": "a role column only when the section shows fireteam leaders", "template": "[TR]{{#fireteams_shown}}[TH]Role[/TH]{{/fireteams_shown}}[/TR]{{#troopers}}{{#fireteams_shown}}[TD]{{role}}[/TD]{{/fireteams_shown}}{{^fireteams_shown}}-{{/fireteams_shown}}{{/troopers}}" },
         { "name": "an empty-section branch", "template": "{{#troopers}}{{name}}{{/troopers}}{{^troopers}}No troopers this week.{{/troopers}}" },
         { "name": "status flags as sections", "template": "{{#troopers}}{{#sp_present}}Y{{/sp_present}}{{#sp_missed}}N{{/sp_missed}}{{#sp_makeup}}MU{{/sp_makeup}}{{#sp_attached}}ATT{{/sp_attached}}{{#sp_loa}}LOA{{/sp_loa}}{{#sp_unmarked}}-{{/sp_unmarked}}{{/troopers}}" },
+        { "name": "the excused and make-up requested flags", "template": "{{#troopers}}{{#sp_excused}}EX{{/sp_excused}}{{#rc_makeup_requested}}MU{{/rc_makeup_requested}}{{#rc_excused}}EX{{/rc_excused}}{{/troopers}}" },
         { "name": "signature flags and an inverted flag", "template": "{{#troopers}}{{#rc_yes}}Y{{/rc_yes}}{{#rc_no}}N{{/rc_no}}{{^rc_yes}}not yes{{/rc_yes}}{{#rc_unsigned}}-{{/rc_unsigned}}{{/troopers}}" },
         { "name": "leave details and a needs-review flag", "template": "{{#troopers}}x{{/troopers}}" },
         { "name": "filters", "template": "{{week|upper}} {{unit|lower}}{{#troopers}}{{name | upper}}{{/troopers}}" },

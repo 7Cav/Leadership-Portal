@@ -548,7 +548,7 @@ it('sends each trooper\'s last four completed weeks of practice marks, oldest fi
     $trooper = rollcallTrooper($this->section, ['username' => 'Adams.P', 'tis' => '2024-01-01']);
     $other = rollcallTrooper($this->section, ['username' => 'Baker.Q', 'tis' => '2024-01-01']);
     practiceWeek($this->section, $this->week->subWeeks(5), [$trooper->id => AttendanceStatus::Missed]);
-    practiceWeek($this->section, $this->week->subWeeks(4), [$trooper->id => AttendanceStatus::Present, $other->id => AttendanceStatus::Attached]);
+    practiceWeek($this->section, $this->week->subWeeks(4), [$trooper->id => AttendanceStatus::Present, $other->id => AttendanceStatus::Excused]);
     // Three weeks back: no practice row at all.
     practiceWeek($this->section, $this->week->subWeeks(2), [$trooper->id => AttendanceStatus::Missed]);
     practiceWeek($this->section, $this->week->subWeek(), [$trooper->id => AttendanceStatus::Makeup]);
@@ -560,17 +560,17 @@ it('sends each trooper\'s last four completed weeks of practice marks, oldest fi
             ->where('troopers.0.id', $trooper->id)
             ->where('troopers.0.joined', '2024-01-01')
             ->where('troopers.0.history', [
-                ['week' => '2026-09-05', 'status' => 'present', 'held' => true, 'loa' => false],
-                ['week' => '2026-09-12', 'status' => null, 'held' => false, 'loa' => false],
-                ['week' => '2026-09-19', 'status' => 'missed', 'held' => true, 'loa' => false],
-                ['week' => '2026-09-26', 'status' => 'makeup', 'held' => true, 'loa' => false],
+                ['week' => '2026-09-05', 'status' => 'present', 'source' => 'manual', 'held' => true, 'loa' => false, 'excused' => null],
+                ['week' => '2026-09-12', 'status' => null, 'source' => null, 'held' => false, 'loa' => false, 'excused' => null],
+                ['week' => '2026-09-19', 'status' => 'missed', 'source' => 'manual', 'held' => true, 'loa' => false, 'excused' => null],
+                ['week' => '2026-09-26', 'status' => 'makeup', 'source' => 'manual', 'held' => true, 'loa' => false, 'excused' => null],
             ])
             // A held week the trooper was not marked in reads as held and unmarked, never as a miss.
             ->where('troopers.1.history', [
-                ['week' => '2026-09-05', 'status' => 'attached', 'held' => true, 'loa' => false],
-                ['week' => '2026-09-12', 'status' => null, 'held' => false, 'loa' => false],
-                ['week' => '2026-09-19', 'status' => null, 'held' => true, 'loa' => false],
-                ['week' => '2026-09-26', 'status' => null, 'held' => true, 'loa' => false],
+                ['week' => '2026-09-05', 'status' => 'excused', 'source' => 'manual', 'held' => true, 'loa' => false, 'excused' => null],
+                ['week' => '2026-09-12', 'status' => null, 'source' => null, 'held' => false, 'loa' => false, 'excused' => null],
+                ['week' => '2026-09-19', 'status' => null, 'source' => null, 'held' => true, 'loa' => false, 'excused' => null],
+                ['week' => '2026-09-26', 'status' => null, 'source' => null, 'held' => true, 'loa' => false, 'excused' => null],
             ]));
 });
 

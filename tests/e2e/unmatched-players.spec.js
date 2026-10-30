@@ -28,7 +28,7 @@ test('a section leader links unmatched players to troopers, replacing an old ID 
     await expect(page.getByTestId('unmatched-banner')).toContainText('2 players need a trooper');
     await expect(count).toHaveText('2 unmatched players');
     const dubeCard = page.locator('[data-trooper]').filter({ hasText: 'Dube.R' });
-    await expect(dubeCard.getByRole('button', { name: /^Present/ })).toHaveAttribute('aria-pressed', 'true');
+    await expect(dubeCard.getByRole('button', { name: /^Attended/ })).toHaveAttribute('aria-pressed', 'true');
 
     // Halvorsen.K is linked to HalvoOld: the leader is asked, and Cancel changes nothing.
     const halvo = page.getByTestId('unmatched-76561198000009003');
@@ -49,7 +49,7 @@ test('a section leader links unmatched players to troopers, replacing an old ID 
     await expect(halvo).toHaveCount(0);
     await expect(count).toHaveText('1 unmatched player');
     const halvoCard = page.locator('[data-trooper]').filter({ hasText: 'Halvorsen.K' });
-    await expect(halvoCard.getByRole('button', { name: /^Present/ })).toHaveAttribute('aria-pressed', 'true');
+    await expect(halvoCard.getByRole('button', { name: /^Attended/ })).toHaveAttribute('aria-pressed', 'true');
 
     const rando = page.getByTestId('unmatched-76561198000009002');
     const dismissRando = async () => {
@@ -82,6 +82,6 @@ test('a section leader links unmatched players to troopers, replacing an old ID 
     await expect(page.getByTestId('unmatched-banner')).toHaveCount(0);
     await expect(page.getByTestId('unmatched-76561198000009002')).toHaveCount(0);
     await expect(page.getByTestId('dismissed-76561198000009002')).toHaveCount(1);
-    await expect(page.locator('[data-trooper]').filter({ hasText: 'Dube.R' }).getByRole('button', { name: /^Present/ })).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('[data-trooper]').filter({ hasText: 'Halvorsen.K' }).getByRole('button', { name: /^Present/ })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('[data-trooper]').filter({ hasText: 'Dube.R' }).getByRole('button', { name: /^Attended/ })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('[data-trooper]').filter({ hasText: 'Halvorsen.K' }).getByRole('button', { name: /^Attended/ })).toHaveAttribute('aria-pressed', 'true');
 });

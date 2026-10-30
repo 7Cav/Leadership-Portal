@@ -17,12 +17,15 @@ const row = (overrides = {}) => ({
     sp: 'Yes',
     sp_present: true,
     sp_missed: false,
+    sp_excused: false,
     sp_makeup: false,
     sp_attached: false,
     sp_loa: false,
     sp_unmarked: false,
     rc_yes: true,
     rc_no: false,
+    rc_makeup_requested: false,
+    rc_excused: false,
     rc_unsigned: false,
     ...overrides,
 });
@@ -106,10 +109,30 @@ describe('the sample section for the template preview', () => {
 
         expect(sample.count).toBe(String(sample.troopers.length));
         expect(sample.signed).toBe(String(sample.troopers.filter((row) => row.rc_yes).length));
-        expect(sample.attended).toBe(String(sample.troopers.filter((row) => row.sp_present || row.sp_makeup || row.sp_attached).length));
+        expect(sample.attended).toBe(String(sample.troopers.filter((row) => row.sp_present || row.sp_makeup).length));
         for (const row of sample.troopers) expect(row.rank_icon).toMatch(/^https:\/\/7cav\.us\/data\/roster_ranks\/0\/\d+\.jpg\?\d+$/);
         // Sized so every rank looks the same: a sergeant's chevrons, a corporal's, a specialist's badge, a PFC's, a private's.
-        expect(sample.troopers.map((row) => row.rank_icon_width)).toEqual(['11px', '13px', '13px', '13px', '17px']);
+        expect(sample.troopers.map((row) => row.rank_icon_width)).toEqual(['11px', '13px', '13px', '13px', '17px', '17px']);
+    });
+
+    it('shows every status of 2026-10-30 in its rows, and never the retired attached', () => {
+        const sample = sampleContext();
+        const flag = (name) => sample.troopers.some((row) => row[name]);
+
+        for (const name of ['sp_present', 'sp_missed', 'sp_excused', 'sp_makeup', 'sp_loa', 'sp_unmarked', 'rc_yes', 'rc_no', 'rc_makeup_requested', 'rc_excused', 'rc_unsigned']) {
+            expect(flag(name), name).toBe(true);
+        }
+        expect(flag('sp_attached')).toBe(false);
+    });
+
+    it('describes the retired sp_attached as no longer set, and the new flags in the new words', () => {
+        const meaning = Object.fromEntries(templateLegend().flatMap((group) => group.entries.map((entry) => [entry.name, entry.meaning])));
+
+        expect(meaning.sp_attached).toContain('No longer set');
+        expect(meaning.sp_makeup).toContain('Make-up complete');
+        expect(meaning.rc_no).toContain('will not attend');
+        expect(meaning.rc_makeup_requested).toContain('make-up requested');
+        expect(meaning.sp_excused).toContain('Excused');
     });
 });
 
@@ -165,22 +188,22 @@ describe('render', () => {
         expect(render(template, context({ attended: '10' })).text).toBe('10 attended');
     });
 
-    it('renders each status the way the template defines it: present, missed, makeup, attached and LOA', () => {
-        const template = '{{#troopers}}{{name}}={{#sp_present}}✓{{/sp_present}}{{#sp_missed}}✗{{/sp_missed}}{{#sp_makeup}}MU{{/sp_makeup}}{{#sp_attached}}ATT{{/sp_attached}}{{#sp_loa}}LOA{{/sp_loa}}{{#sp_unmarked}}-{{/sp_unmarked}};{{/troopers}}';
-        const flags = (name) => ({ sp_present: false, sp_missed: false, sp_makeup: false, sp_attached: false, sp_loa: false, sp_unmarked: false, [name]: true });
+    it('renders each status the way the template defines it: attended, not attended, make-up complete, excused and LOA', () => {
+        const template = '{{#troopers}}{{name}}={{#sp_present}}✓{{/sp_present}}{{#sp_missed}}✗{{/sp_missed}}{{#sp_makeup}}MU{{/sp_makeup}}{{#sp_excused}}EX{{/sp_excused}}{{#sp_loa}}LOA{{/sp_loa}}{{#sp_unmarked}}-{{/sp_unmarked}};{{/troopers}}';
+        const flags = (name) => ({ sp_present: false, sp_missed: false, sp_makeup: false, sp_excused: false, sp_attached: false, sp_loa: false, sp_unmarked: false, [name]: true });
 
         const out = render(template, context({
             troopers: [
                 row({ name: 'A', ...flags('sp_present') }),
                 row({ name: 'B', ...flags('sp_missed') }),
                 row({ name: 'C', ...flags('sp_makeup') }),
-                row({ name: 'D', ...flags('sp_attached') }),
+                row({ name: 'D', ...flags('sp_excused') }),
                 row({ name: 'E', ...flags('sp_loa') }),
                 row({ name: 'F', ...flags('sp_unmarked') }),
             ],
         }));
 
-        expect(out.text).toBe('A=✓;B=✗;C=MU;D=ATT;E=LOA;F=-;');
+        expect(out.text).toBe('A=✓;B=✗;C=MU;D=EX;E=LOA;F=-;');
     });
 
     it('renders the signature three ways, including an inverted flag', () => {

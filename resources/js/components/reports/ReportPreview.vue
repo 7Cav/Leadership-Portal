@@ -10,6 +10,7 @@ import LoaSyncNote from '@/components/LoaSyncNote.vue';
 import TimeAgo from '@/components/TimeAgo.vue';
 import { forumDate } from '@/lib/forumDate';
 import { baselineText, formatKpi, KPIS, stamp, timeOf, unitLabel } from '@/lib/report';
+import { excusedReason, practiceOf, signatureOf } from '@/lib/rollcall';
 import { reportSummary } from '@/lib/reportSummary';
 import HighlightList from './HighlightList.vue';
 import KpiGrid from './KpiGrid.vue';
@@ -60,17 +61,20 @@ const hints = computed(() => {
     };
 });
 
+// The roll call page's words (2026-10-30). Excused shares the warning tone with LOA.
 const RC = {
     will_attend: ['Will attend', 'success'],
-    cannot_attend: ['Cannot attend', 'outline'],
+    cannot_attend: ['Will not attend', 'outline'],
+    makeup_requested: ['Make-up requested', 'info'],
+    excused: ['Excused', 'warning'],
     unsigned: ['Unsigned', 'warning'],
 };
 const SP = {
-    present: ['Present', 'success'],
-    missed: ['Missed', 'danger'],
-    makeup: ['Makeup', 'info'],
-    attached: ['Attached', 'info'],
-    loa: ['LOA', 'outline'],
+    present: ['Attended', 'success'],
+    missed: ['Not attended', 'danger'],
+    excused: ['Excused', 'warning'],
+    makeup: ['Make-up complete', 'info'],
+    loa: ['LOA', 'warning'],
 };
 
 function noteFor(trooper) {
@@ -79,6 +83,8 @@ function noteFor(trooper) {
     if (reason) parts.push(props.reasonLabels[reason]);
     if (trooper.atRisk) parts.push(`At-risk, ${trooper.missed} misses in 30 days`);
     if (trooper.source === 'auto') parts.push('Marked from game server capture');
+    // An automatic Excused shows on a half nobody recorded; say why once.
+    if (trooper.excused && (signatureOf(trooper) === 'excused' || practiceOf(trooper) === 'excused')) parts.push(excusedReason(trooper.excused));
 
     return parts.join('. ');
 }
@@ -167,11 +173,11 @@ const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id ===
                             <TableRow v-for="t in troopers" :key="t.id">
                                 <TableCell class="font-medium">{{ t.name }}</TableCell>
                                 <TableCell>
-                                    <Badge v-if="t.onLoa && t.rollcall === 'unsigned'" variant="outline">LOA</Badge>
-                                    <Badge v-else :variant="RC[t.rollcall][1]">{{ RC[t.rollcall][0] }}</Badge>
+                                    <Badge v-if="t.onLoa && t.rollcall === 'unsigned'" variant="warning">LOA</Badge>
+                                    <Badge v-else :variant="RC[signatureOf(t)][1]">{{ RC[signatureOf(t)][0] }}</Badge>
                                 </TableCell>
                                 <TableCell>
-                                    <Badge v-if="t.status" :variant="SP[t.status][1]">{{ SP[t.status][0] }}</Badge>
+                                    <Badge v-if="practiceOf(t)" :variant="SP[practiceOf(t)][1]">{{ SP[practiceOf(t)][0] }}</Badge>
                                     <Badge v-else variant="warning">Not marked</Badge>
                                 </TableCell>
                                 <TableCell class="min-w-[12rem] text-xs whitespace-normal text-muted-foreground">{{ noteFor(t) }}</TableCell>
@@ -187,6 +193,16 @@ const childLabel = (id) => unitLabel((props.children ?? []).find((c) => c.id ===
                     <li v-for="row in content.unaccounted" :key="row.trooper_id">
                         <span class="font-medium">{{ names[row.trooper_id] ?? 'A trooper no longer in the section' }}</span>
                         <span class="text-muted-foreground">, {{ reasonLabels[row.reason] }}</span>
+                    </li>
+                </ul>
+            </div>
+
+            <div v-if="sent && unit.isLeaf && content.makeupChecks?.length" class="border-t border-border px-5 py-4" data-testid="makeup-checks-sent">
+                <h3 class="mb-1.5 text-[13px] font-semibold">Make-ups checked at send</h3>
+                <ul class="space-y-1 text-[13px]">
+                    <li v-for="row in content.makeupChecks" :key="row.trooper_id">
+                        <span class="font-medium">{{ names[row.trooper_id] ?? 'A trooper no longer in the section' }}</span>
+                        <span class="text-muted-foreground">, {{ row.done ? 'made it up' : 'did not make it up' }}</span>
                     </li>
                 </ul>
             </div>

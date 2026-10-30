@@ -138,8 +138,8 @@ describe('act as and view as', function () {
         $regiment = $repo->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);
         $this->section = $repo->create(UnitType::Section, '1st Section', '1/1/A/1-7', $regiment->id);
         UnitCommandMapping::factory()->create(['unit_id' => $this->section->id, 'cav_position_id' => 5900]);
-        Trooper::factory()->create(['cav_id' => 901, 'cav_position_id' => 5900, 'status' => TrooperStatus::Combat, 'rank' => 'SGT']);
-        $this->user->forceFill(['cav_id' => 901])->save();
+        $trooper = Trooper::factory()->create(['cav_id' => 901, 'cav_position_id' => 5900, 'status' => TrooperStatus::Combat, 'rank' => 'SGT']);
+        $this->user->forceFill(['cav_id' => 901, 'forum_user_id' => $trooper->forum_user_id])->save();
         Trooper::factory()->create(['cav_id' => 950, 'status' => TrooperStatus::Combat]);
         $this->admin = User::factory()->admin()->create(['username' => 'Hale.S', 'cav_id' => 950]);
     });

@@ -49,7 +49,7 @@ describe('Attendance matrix (roster-s3)', () => {
 
         // Week 17: unsigned and missed. Both halves are slashed, and the cell names both states in words.
         expect(halves(17)).toEqual(['roster-h--bad', 'roster-h--bad']);
-        expect(row.findAll('.cc-focus')[17].attributes('aria-label')).toContain('Roll call: Unsigned. SP: Missed.');
+        expect(row.findAll('.cc-focus')[17].attributes('aria-label')).toContain('Roll call: Unsigned. SP: Not attended.');
         // Week 16: signed and present, so neither half is slashed.
         expect(halves(16)).toEqual(['roster-h--ok', 'roster-h--ok']);
     });
@@ -103,7 +103,7 @@ describe('Attendance matrix (roster-s3)', () => {
 
         const tip = document.body.querySelector('[data-testid="roster-tip"]');
         expect(tip.textContent).toContain('Reyes.M, week of 03Oct26 (this week)');
-        expect(tip.textContent).toContain('Missed');
+        expect(tip.textContent).toContain('Not attended');
         expect(tip.textContent).toContain('Manual, section leader');
         wrapper.unmount();
     });

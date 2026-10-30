@@ -103,11 +103,11 @@ it('writes source = manual and wins over an existing auto-sourced row', function
     ]);
 
     mark($this->leader, $this->section->id, $this->moment, [
-        new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Attached),
+        new AttendanceMark($this->troopers[0]->id, AttendanceStatus::Excused),
     ]);
 
     $row = Attendance::query()->sole();
-    expect($row->status)->toBe(AttendanceStatus::Attached)
+    expect($row->status)->toBe(AttendanceStatus::Excused)
         ->and($row->source)->toBe(AttendanceSource::Manual);
 });
 

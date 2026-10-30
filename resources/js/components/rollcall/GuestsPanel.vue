@@ -39,12 +39,12 @@ watch(
 );
 
 const MAKEUP_ADDED = {
-    marked: 'A makeup is on their own section\'s roll call for this week.',
+    marked: 'Their own section\'s roll call shows Make-up complete for this week.',
     kept: 'Their own roll call already had a mark for this week, so it stayed.',
-    locked: 'Their own section\'s week is locked, so no makeup was added there.',
+    locked: 'Their own section\'s week is locked, so no make-up was recorded there.',
 };
 const MAKEUP_REMOVED = {
-    withdrawn: 'The makeup it put on their own roll call was taken back.',
+    withdrawn: 'The Make-up complete it put on their own roll call was taken back.',
     kept: 'Their own roll call mark stays as it is.',
     locked: 'Their own section\'s week is locked, so its mark stays.',
 };
@@ -161,13 +161,13 @@ async function retry(guest) {
     try {
         const result = await postJson(`/rollcall/${props.sectionId}/guests`, { week: props.week, trooper_id: guest.trooperId }).catch(unreachable);
         if (!result.ok) {
-            toast.error(`Could not retry the makeup for ${label(guest)}`, { description: messageFor(result) });
+            toast.error(`Could not retry the make-up for ${label(guest)}`, { description: messageFor(result) });
             return;
         }
         const updated = result.data.guest;
         list.value = list.value.map((g) => (g.trooperId === updated.trooperId ? updated : g));
-        if (result.data.makeup === 'marked') toast.success(`Makeup added for ${label(updated)}`, { description: MAKEUP_ADDED.marked });
-        else toast.warning(`No makeup added for ${label(updated)}`, { description: MAKEUP_ADDED[result.data.makeup] ?? MAKEUP_ADDED.kept });
+        if (result.data.makeup === 'marked') toast.success(`Make-up recorded for ${label(updated)}`, { description: MAKEUP_ADDED.marked });
+        else toast.warning(`No make-up recorded for ${label(updated)}`, { description: MAKEUP_ADDED[result.data.makeup] ?? MAKEUP_ADDED.kept });
     } finally {
         busy.value = null;
     }
@@ -199,7 +199,7 @@ async function undo(guest) {
                     <span class="text-xs font-normal text-muted-foreground tabular-nums">{{ list.length }}</span>
                 </h3>
                 <p class="mt-0.5 max-w-[62ch] text-xs text-muted-foreground">
-                    Add troopers from other sections who attended. Each one counts as a makeup on their own section's roll call. The
+                    Add troopers from other sections who attended. Each one counts as Make-up complete on their own section's roll call. The
                     game server does not add guests yet; it will once practices have set times. Staff who attended are listed from their
                     own entries and never count here.{{
                         disabledReason ? ` ${disabledReason}.` : ''
@@ -285,7 +285,7 @@ async function undo(guest) {
                     <template v-if="guest.recordedBy">Added by {{ guest.recordedBy }}</template><template v-else>Added by hand</template>
                 </Badge>
                 <span v-if="guest.source === 'manual' && guest.makeupMissing" class="text-xs text-muted-foreground" data-testid="guest-makeup-missing">
-                    No makeup on their own roll call yet
+                    No make-up on their own roll call yet
                 </span>
                 <Button
                     v-if="guest.source === 'manual' && guest.makeupMissing && editable"
@@ -294,10 +294,10 @@ async function undo(guest) {
                     class="ml-auto"
                     data-testid="guest-retry"
                     :disabled="busy !== null"
-                    :aria-label="`Retry the makeup for ${guest.name}`"
+                    :aria-label="`Retry the make-up for ${guest.name}`"
                     @click="retry(guest)"
                 >
-                    <PhCircleNotch v-if="busy === guest.trooperId" class="animate-spin" aria-hidden="true" />Retry makeup
+                    <PhCircleNotch v-if="busy === guest.trooperId" class="animate-spin" aria-hidden="true" />Retry make-up
                 </Button>
                 <Button
                     v-if="guest.source === 'manual' && editable"

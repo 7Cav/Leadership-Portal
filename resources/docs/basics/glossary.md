@@ -10,8 +10,10 @@ audience: everyone
 
 - Cav week: Saturday 00:00 UTC to Friday 23:59 UTC. Every roll call, report and number in the portal is counted per Cav week.
 - Roll call: the forum thread troopers sign each week to say whether they will attend, and the portal's screen where a leader records it.
-- Section practice (SP): the weekly practice a section holds. Each trooper is marked Present, Missed, Makeup or Attached.
-- Makeup: attending another section's practice instead of your own, which counts for your own section.
+- Section practice (SP): the weekly practice a section holds. Each trooper is marked Attended, Not attended, Excused or Make-up complete.
+- Excused: a week that counts for nothing, like LOA. A leader sets it, or it is set automatically for a trooper's first week after a transfer into a section or after joining.
+- Make-up requested: a roll call answer that counts as signed. The trooper owes a make-up for that week until one is recorded.
+- Make-up complete: a missed practice made up, for example at another section's practice instead of your own. It counts for your own section.
 - LOA: leave of absence. A trooper whose leave covers the week is locked on the roll call and posts as LOA.
 - Week floor: how far back a roll call or report can still be changed. Older weeks are read only.
 

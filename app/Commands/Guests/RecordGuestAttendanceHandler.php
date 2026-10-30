@@ -35,7 +35,7 @@ use App\Support\Audit\AuditEnvelope;
  *
  * Once that has committed, the guest's own section's rollcall gets the automatic makeup through
  * {@see MarkAttendanceHandler::preMarkMakeups()}, the very path a capture sighting takes, with all its guards (same Cav
- * week, never over `present`/`attached`/`loa` or any manual mark, never into a locked, confirmed or before-floor week,
+ * week, never over `present`/`loa` or any manual mark, never into a locked, confirmed or before-floor week,
  * skipped for leave and for a trooper no longer serving there). It is audited as `attendance.auto_marked` with the host
  * leader as the actor, on the guest's own practice, so the guest's own leader sees whose word it was and can change it.
  * As with a capture, the entry stands even when the makeup could not be written. The makeup is written only while a

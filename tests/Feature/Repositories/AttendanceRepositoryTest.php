@@ -357,7 +357,7 @@ it('never writes a makeup over a manual mark, loa, or an attended mark', functio
     'manual missed' => [AttendanceStatus::Missed, AttendanceSource::Manual],
     'manual makeup' => [AttendanceStatus::Makeup, AttendanceSource::Manual],
     'auto present' => [AttendanceStatus::Present, AttendanceSource::Auto],
-    'auto attached' => [AttendanceStatus::Attached, AttendanceSource::Auto],
+    'manual excused' => [AttendanceStatus::Excused, AttendanceSource::Manual],
     'loa' => [AttendanceStatus::Loa, AttendanceSource::Auto],
 ]);
 

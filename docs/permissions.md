@@ -163,7 +163,7 @@ for any other company or section by URL answers 403. The editing controls show o
 
 | Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Mark signatures and SP attendance (incl. Mark all present) | All | All | No | Own | Own | Own | Own | Own | No | No | No |
+| Mark signatures and SP attendance (incl. Mark all attended, Excused, Make-up requested and Make-up complete) | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Confirm practice | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Mark roll call posted | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Capture "Try again" | All | All | No | Own | Own | Own | Own | Own | No | No | No |
@@ -207,7 +207,7 @@ they move with it and are not copied. Fireteam settings, labels, unit games and 
 | Action | Adm | Rgt | Pf | Bn | Co | Plt | Act | Sec | None | Grant | VA |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Save a report draft | All | All | No | Own | Own | Own | Own | Own | No | No | No |
-| Send (freeze) a report, incl. "Send anyway" | All | All | No | Own | Own | Own | Own | Own | No | No | No |
+| Send (freeze) a report, incl. "Send anyway" and answering "Make-ups still owed" (a "Made it up" marks Make-up complete) | All | All | No | Own | Own | Own | Own | Own | No | No | No |
 | Set or clear the platoon training topic | All | All | No | Own | Own | Own | Own (if it covers the platoon) | No | No | No | No |
 | Read a platoon's monthly training plan | All | All | No | Own | Own | Own | Own | No | No | Read | Target |
 | Write a platoon's monthly training plan | All | All | No | Own | Own | Own | Own (if it covers the platoon) | No | No | No | No |
@@ -231,6 +231,7 @@ their own plan unless they also command the company.
 | Org structure: set, change or clear a unit's overseer | Yes | No | No |
 | Staff grants: grant or revoke | Yes | No | No |
 | Games: add, edit, retire, reinstate or delete a game (a game in use can only be retired) | Yes | No | No |
+| Changelog: add (a date's batch), edit, delete (reason required) or bulk import entries, dismiss the "Changelog outdated" bar (only the usernames in `changelog_editors` in `config/portal.php`, signed in as themselves, never while acted as; reading it is open to everyone) | Editors only (11) | Editors only (11) | No |
 | Demo data: generate or purge (only when `DEMO_TOOLS=true`) | Yes | No | No |
 | Whole-roster sync ("Sync now" on the roster) | Yes | No | No |
 | Manual LOA sync (route only, no button in the UI; during a running sync it queues one follow-up) | Yes | No | No |
@@ -238,6 +239,8 @@ their own plan unless they also command the company.
 
 (10) Only for a line unit below the regiment whose commanding billet (CO, PL or SL) no serving trooper holds, and never
 yourself: another Admin assigns an Admin. A unit with only its XO, PSG or ASL serving still takes one.
+
+(11) Being an Admin gives nothing here: only the changelog editors write the changelog, whatever their billet.
 
 ### Game identities and syncs
 
@@ -394,8 +397,11 @@ your next click. Nothing has to be revoked by hand.
 - A departed trooper's billet, acting leads, staff grants, oversight and Regimental HQ read stop counting on the next request. The
   rows stay, so an Admin sees a lapsed grant flagged on the Staff grants page and can revoke it on the record. If the trooper returns
   to a serving roster, they count again.
-- An Admin by flag is never signed out by roster data. An Admin by billet is a serving trooper like any other: departed,
+- An Admin by flag is never signed out by roster standing. An Admin by billet is a serving trooper like any other: departed,
   they are signed out and lose Admin with it.
+- Anyone linked to a milpac, an Admin by flag too, is signed out when the cached trooper for that milpac carries a different
+  forum account or none. Cav can give a milpac id to someone else, and the old link must not pass on the new holder's billet.
+  Someone the roster sync has not caught up with yet can sign in again after the next sync.
 
 ### Where everyone stops: locks
 

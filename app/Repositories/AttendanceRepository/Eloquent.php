@@ -96,10 +96,10 @@ class Eloquent implements AttendanceRepository
                 }
             }
 
-            // A leader's say, the LOA mark, and an attended mark all stay: a makeup is only ever an
-            // upgrade over nothing or over an automatic miss.
+            // A leader's say (an Excused they set included), the LOA mark, and an attended mark all stay: a makeup is
+            // only ever an upgrade over nothing or over an automatic miss.
             $keeps = $row->source === AttendanceSource::Manual
-                || in_array($row->status, [AttendanceStatus::Loa, AttendanceStatus::Present, AttendanceStatus::Attached], true);
+                || in_array($row->status, [AttendanceStatus::Loa, AttendanceStatus::Present], true);
 
             if ($keeps) {
                 return null;
@@ -245,7 +245,8 @@ class Eloquent implements AttendanceRepository
 
         // A practice is held once any row on it carries a leader's SP mark. Signatures alone do
         // not hold it, and neither does `loa` (derived from LOA data, it says nothing about
-        // whether the practice ran) nor an automatic makeup, which records a practice attended
+        // whether the practice ran), `excused` (the same: it takes the week out for that trooper)
+        // nor an automatic makeup, which records a practice attended
         // elsewhere and is written whether or not this section practised. Only practices in the
         // window, of the sections the population was placed in, are read.
         $held = Attendance::query()
@@ -254,7 +255,7 @@ class Eloquent implements AttendanceRepository
             ->whereBetween('section_practices.week_start', [$from, $to])
             ->whereIn('section_practices.section_id', $sectionIds)
             ->whereNotNull('attendance.status')
-            ->where('attendance.status', '!=', AttendanceStatus::Loa->value)
+            ->whereNotIn('attendance.status', [AttendanceStatus::Loa->value, AttendanceStatus::Excused->value])
             ->whereRaw(self::notAutoMakeupSql())
             ->groupBy('attendance.section_practice_id');
 
@@ -303,7 +304,7 @@ class Eloquent implements AttendanceRepository
                     continue;
                 }
 
-                $chosen = $options->last(fn (array $option) => in_array($statusOf($option), [AttendanceStatus::Present, AttendanceStatus::Makeup, AttendanceStatus::Attached], true))
+                $chosen = $options->last(fn (array $option) => $statusOf($option)?->attended() ?? false)
                     ?? $options->last(fn (array $option) => $statusOf($option) !== null)
                     ?? $options->last();
                 $signedAt = $signed($chosen) ? $chosen : $options->first($signed);
@@ -339,6 +340,7 @@ class Eloquent implements AttendanceRepository
 
         $unsigned = RollcallSignature::Unsigned->value;
         $loa = AttendanceStatus::Loa->value;
+        $excusedMark = AttendanceStatus::Excused->value;
         $excused = array_values(array_unique(array_map('intval', $excusedTrooperIds)));
         // An excused trooper counts as signed, marked and on LOA whether or not they have a row, and never as unsigned;
         // `or` keeps one with a row from counting twice.
@@ -362,7 +364,7 @@ class Eloquent implements AttendanceRepository
             ->selectRaw('count(troopers.id) as strength')
             ->selectRaw("coalesce(sum(case when (attendance.rollcall is not null and attendance.rollcall != '{$unsigned}'){$excusedSql} then 1 else 0 end), 0) as signed", $excused)
             ->selectRaw("coalesce(sum(case when attendance.status is not null{$excusedSql} then 1 else 0 end), 0) as marked", $excused)
-            ->selectRaw("coalesce(sum(case when attendance.status is not null and attendance.status != '{$loa}' and ".self::notAutoMakeupSql().' then 1 else 0 end), 0) as held_marks')
+            ->selectRaw("coalesce(sum(case when attendance.status is not null and attendance.status != '{$loa}' and attendance.status != '{$excusedMark}' and ".self::notAutoMakeupSql().' then 1 else 0 end), 0) as held_marks')
             ->selectRaw("coalesce(sum(case when attendance.status = '{$loa}'{$excusedSql} then 1 else 0 end), 0) as on_loa", $excused)
             ->selectRaw("coalesce(sum(case when (attendance.status is null or attendance.status != '{$loa}') and (attendance.rollcall is null or attendance.rollcall = '{$unsigned}'){$notExcusedSql} then 1 else 0 end), 0) as not_signed", $excused)
             ->selectRaw('max(section_practices.rollcall_posted_at) as posted_at')
@@ -433,6 +435,7 @@ class Eloquent implements AttendanceRepository
         $excused = array_flip(array_map('intval', $excusedTrooperIds));
         $unsigned = RollcallSignature::Unsigned->value;
         $loa = AttendanceStatus::Loa->value;
+        $excusedMark = AttendanceStatus::Excused->value;
         $makeup = AttendanceStatus::Makeup->value;
         $auto = AttendanceSource::Auto->value;
         $progress = [];
@@ -450,8 +453,8 @@ class Eloquent implements AttendanceRepository
 
                 $counts['signed'] += ($rollcall !== null && $rollcall !== $unsigned) || $isExcused ? 1 : 0;
                 $counts['marked'] += $status !== null || $isExcused ? 1 : 0;
-                // Held by a leader's mark: never by LOA, and never by an automatic makeup.
-                $counts['held'] = $counts['held'] || ($status !== null && $status !== $loa && ! ($status === $makeup && $row->source === $auto));
+                // Held by a leader's mark: never by LOA or Excused, and never by an automatic makeup.
+                $counts['held'] = $counts['held'] || ($status !== null && $status !== $loa && $status !== $excusedMark && ! ($status === $makeup && $row->source === $auto));
                 $counts['onLoa'] += $status === $loa || $isExcused ? 1 : 0;
                 $counts['unsigned'] += ! $isExcused && $status !== $loa && ($rollcall === null || $rollcall === $unsigned) ? 1 : 0;
             }

@@ -29,12 +29,12 @@ use Inertia\Testing\AssertableInertia as Assert;
 
 function ctPerson(int $cavId, string $username, ?int $position, ?string $billet, ?Unit $placedIn, array $user = []): User
 {
-    Trooper::factory()->create([
+    $trooper = Trooper::factory()->create([
         'cav_id' => $cavId, 'cav_position_id' => $position, 'billet' => $billet, 'status' => TrooperStatus::Combat,
         'rank' => 'SGT', 'username' => $username, 'primary_section_id' => $placedIn?->id,
     ]);
 
-    return User::factory()->create(['cav_id' => $cavId, 'username' => $username] + $user);
+    return User::factory()->create(['cav_id' => $cavId, 'forum_user_id' => $trooper->forum_user_id, 'username' => $username] + $user);
 }
 
 /** A billet holder: their billet maps to `$unit` (the position is the cav id plus 7000) and they are placed in it. */

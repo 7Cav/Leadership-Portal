@@ -33,6 +33,7 @@ use App\Commands\GameIdentities\RestoreDismissedPlayer;
 use App\Commands\GameIdentities\RestoreDismissedPlayerHandler;
 use App\Commands\GameIdentities\UnmatchedPlayerResolutionException;
 use App\Jobs\CaptureSectionPracticeJob;
+use App\Kpi\AutoExcused;
 use App\Kpi\Headcount;
 use App\Kpi\KpiService;
 use App\Kpi\TrooperAttendance;
@@ -145,6 +146,7 @@ class RollcallController extends Controller
         private readonly CrossSectionSightingRepository $sightings,
         private readonly MarkAttendanceHandler $makeups,
         private readonly UpcomingLeave $upcomingLeave,
+        private readonly AutoExcused $autoExcused,
     ) {}
 
     /**
@@ -248,7 +250,7 @@ class RollcallController extends Controller
             'marks' => ['present', 'array', 'max:500'],
             'marks.*.trooper_id' => ['required', 'integer', 'distinct'],
             'marks.*.status' => ['nullable', Rule::in(array_map(fn (AttendanceStatus $s) => $s->value, [
-                AttendanceStatus::Present, AttendanceStatus::Missed, AttendanceStatus::Makeup, AttendanceStatus::Attached,
+                AttendanceStatus::Present, AttendanceStatus::Missed, AttendanceStatus::Excused, AttendanceStatus::Makeup,
             ]))],
             'marks.*.rollcall' => ['nullable', Rule::enum(RollcallSignature::class)],
         ]);
@@ -292,13 +294,13 @@ class RollcallController extends Controller
             return response()->json(['message' => 'The portal hit an error saving this change. Try again in a moment.'], 500);
         }
 
-        // The marks are committed. The at-risk refresh is a convenience on top: if it fails, the
+        // The marks are committed. The at-risk and owed make-up refresh is a convenience on top: if it fails, the
         // save still answers as saved — never as failed, which would make the screen resend it.
         try {
-            $atRisk = $this->atRisk($this->units->find($unit), $weekStart);
+            $followUps = $this->followUps($this->units->find($unit), $weekStart);
         } catch (Throwable $e) {
             report($e);
-            $atRisk = null;
+            $followUps = ['atRisk' => null, 'makeupOwed' => null];
         }
 
         // A practice-mark save clears the confirmation (7.8); the screen takes the state from here
@@ -312,7 +314,7 @@ class RollcallController extends Controller
 
         return response()->json([
             'savedAt' => CarbonImmutable::now()->toIso8601String(),
-            'atRisk' => $atRisk,
+            ...$followUps,
             ...$confirmation,
         ]);
     }
@@ -729,10 +731,11 @@ class RollcallController extends Controller
         // troopers: for a week that has ended, the ones it ended with (the 2026-10-29 audit).
         $ids = $sections->modelKeys();
         $rollcalls = $this->troopers->onRollcalls($ids, $weekStart);
-        $covered = array_keys(array_filter(
+        // An automatic Excused (a first week after a transfer or joining) has nothing to chase either.
+        $covered = [...array_keys(array_filter(
             $this->loaCoverage->forTroopers(array_keys($rollcalls->sections), $weekStart),
             fn (LoaCover $cover) => $cover->isCovered(),
-        ));
+        )), ...array_keys($this->autoExcused->forTroopers(array_keys($rollcalls->sections), $weekStart))];
         $progress = $this->attendance->weekProgress($ids, $weekStart, $covered, $rollcalls->asPlaced ? $rollcalls->sections : null);
 
         return array_map(function (array $option) use ($progress) {
@@ -790,6 +793,9 @@ class RollcallController extends Controller
         $covers = $this->loaCoverage->forTroopers($trooperIds, $weekStart);
         // Leave starting the week after this one, for the leader planning the next practice (read-only).
         $leaveFrom = $this->upcomingLeave->startingAfter($trooperIds, $weekStart);
+        // The automatic Excused of a first week after a transfer or joining (2026-10-30): `recruit` or `transfer`, or null.
+        // Only a default: the screen shows it on whichever of the two facts nobody recorded, and a leader's choice wins.
+        $excused = $this->autoExcused->forTroopers($trooperIds, $weekStart);
 
         return [
             'troopers' => array_map(fn (array $row) => [
@@ -798,6 +804,7 @@ class RollcallController extends Controller
                 // shape; null with none. A leave that needs review derives no status, so that row stays markable.
                 'loa' => $covers[$row['id']]->suppressesAtRisk() ? $covers[$row['id']]->toArray() : null,
                 'leaveFrom' => $leaveFrom[$row['id']] ?? null,
+                'excused' => $excused[$row['id']] ?? null,
                 'history' => $history[$row['id']],
             ], $week->troopers),
             'priorWeekMarked' => $week->priorWeekMarked,
@@ -807,7 +814,7 @@ class RollcallController extends Controller
             // A draft, no report, or a generated demo report (#115) leaves it open.
             'locked' => $this->reports->isSentFor($section->id, $weekStart),
             'weekStatus' => $this->weekStatus($section, $currentWeek, $trooperIds),
-            'atRisk' => $this->atRisk($section, $weekStart),
+            ...$this->followUps($section, $weekStart),
             'roster' => [
                 'source' => $lastSync->source,
                 'syncedAt' => $lastSync->lastSyncedAt?->toIso8601String(),
@@ -852,6 +859,14 @@ class RollcallController extends Controller
                 }
             }
         }
+        // An automatically excused week has nothing left to mark either; each trooper still counts once.
+        foreach ($this->autoExcused->forTroopersOverWeeks($trooperIds, $firstWeek, self::STATUS_WEEKS) as $trooperId => $weeks) {
+            foreach (array_keys($weeks) as $date) {
+                if (! in_array($trooperId, $covered[$date] ?? [], true)) {
+                    $covered[$date][] = $trooperId;
+                }
+            }
+        }
 
         $practices = $this->practices->weekStatuses($section->id, $firstWeek, $currentWeek->subWeek(), $covered);
         $strength = count($trooperIds);
@@ -874,9 +889,10 @@ class RollcallController extends Controller
      * rollcall's troopers) and LOA from the one coverage definition, as the KPI service reads it (one query). A week with no
      * practice row has a null `status` and is not `held`; `loa` is true when leave covers the week or the week was
      * marked `loa`. A leave that needs review is not shown as LOA, since nothing says the trooper was away (AD-4).
+     * `excused` is the automatic Excused of that week ({@see AutoExcused}), `recruit` or `transfer`, or null.
      *
      * @param  Collection<int, int>  $trooperIds
-     * @return array<int, list<array{week: string, status: ?string, held: bool, loa: bool}>>
+     * @return array<int, list<array{week: string, status: ?string, source: ?string, held: bool, loa: bool, excused: ?string}>>
      */
     private function history(Collection $trooperIds, CarbonImmutable $weekStart): array
     {
@@ -888,15 +904,18 @@ class RollcallController extends Controller
             ->groupBy(fn (CountingMark $mark) => $mark->trooperId)
             ->map(fn (Collection $marks) => $marks->keyBy(fn (CountingMark $mark) => $mark->weekStart->toDateString()));
         $covers = $this->loaCoverage->forTroopersOverWeeks($trooperIds, $first, self::HISTORY_WEEKS);
+        $excused = $this->autoExcused->forTroopersOverWeeks($trooperIds, $first, self::HISTORY_WEEKS);
 
-        return $trooperIds->mapWithKeys(fn (int $id) => [$id => array_map(function (string $week) use ($id, $marks, $covers) {
+        return $trooperIds->mapWithKeys(fn (int $id) => [$id => array_map(function (string $week) use ($id, $marks, $covers, $excused) {
             $mark = $marks->get($id)?->get($week);
 
             return [
                 'week' => $week,
                 'status' => $mark?->status?->value,
+                'source' => $mark?->source?->value,
                 'held' => $mark?->held ?? false,
                 'loa' => $covers[$id][$week]->isCovered() || $mark?->status === AttendanceStatus::Loa,
+                'excused' => $excused[$id][$week] ?? null,
             ];
         }, $weeks)])->all();
     }
@@ -993,7 +1012,36 @@ class RollcallController extends Controller
      */
     private function atRisk(Unit $section, CarbonImmutable $weekStart): array
     {
-        return $this->kpis->trooperAttendance($section, $weekStart)
+        return $this->followUps($section, $weekStart)['atRisk'];
+    }
+
+    /**
+     * What the leader follows up on, from one read of the KPI service's per-trooper rows (AD-21): the at-risk troopers
+     * ({@see atRisk()}) and, under `makeupOwed`, each trooper who asked for a make-up on the roll call in a window week
+     * and has none recorded yet, with those weeks oldest first (`TrooperAttendance::$makeupOwedWeeks`, 2026-10-30).
+     *
+     * @return array{atRisk: list<array{trooperId: int, missed: int, windowWeeks: int}>, makeupOwed: list<array{trooperId: int, weeks: list<string>}>}
+     */
+    private function followUps(Unit $section, CarbonImmutable $weekStart): array
+    {
+        $rows = $this->kpis->trooperAttendance($section, $weekStart);
+
+        return [
+            'atRisk' => $this->atRiskOf($rows),
+            'makeupOwed' => $rows
+                ->filter(fn (TrooperAttendance $row) => $row->makeupOwedWeeks !== [])
+                ->map(fn (TrooperAttendance $row) => ['trooperId' => $row->trooperId, 'weeks' => $row->makeupOwedWeeks])
+                ->values()->all(),
+        ];
+    }
+
+    /**
+     * @param  Collection<int, TrooperAttendance>  $rows
+     * @return list<array{trooperId: int, missed: int, windowWeeks: int}>
+     */
+    private function atRiskOf(Collection $rows): array
+    {
+        return $rows
             ->filter(fn (TrooperAttendance $row) => $row->atRisk())
             ->map(fn (TrooperAttendance $row) => [
                 'trooperId' => $row->trooperId,

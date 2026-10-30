@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffPracticeAccess;
 use App\Commands\Units\SaveUnitGuidonHandler;
+use App\Kpi\AutoExcused;
 use App\Kpi\Headcount;
 use App\Kpi\KpiService;
 use App\Kpi\PracticeGuest;
@@ -81,6 +82,7 @@ class RosterController extends Controller
         private readonly UpcomingLeave $upcomingLeave,
         private readonly LoaSyncProblems $loaSyncProblems,
         private readonly StrengthTrends $strengthTrends,
+        private readonly AutoExcused $autoExcused,
     ) {}
 
     /**
@@ -194,7 +196,7 @@ class RosterController extends Controller
         $marks = $this->historyMarks($section, $week)->get($found->id, collect());
         // The unit's lead as its roster header names it, acting leads included, and the trooper's own billet tag (#443).
         $lead = $this->leads->leadsOf([$section->id])->get($section->id);
-        $row = $this->trooperRow($found, $kpis, $marks, $week, $this->billetTags->of(collect([$found]))->get($found->id));
+        $row = $this->trooperRow($found, $kpis, $marks, $week, $this->billetTags->of(collect([$found]))->get($found->id), $this->excusedWeeks([$found->id], $week)[$found->id] ?? []);
         // Each week's section by name, for the weeks they were somewhere else (2026-10-27).
         $labels = $marks->pluck('sectionId')->filter()->unique()
             ->mapWithKeys(fn (int $id) => [$id => ($unit = $this->units->find($id)) === null ? null : ($unit->callsign ?? $unit->name)]);
@@ -278,6 +280,7 @@ class RosterController extends Controller
         $placed = $this->troopers->placedWithin($unit);
         $attendance = $this->kpis->trooperAttendance($unit, $week);
         $marks = $this->historyMarks($unit, $week);
+        $excused = $this->excusedWeeks($placed->modelKeys(), $week);
         // The unit headers name the unit's lead, acting leads and portfolio officers included (2026-10-25); each
         // trooper's tag is the command billet they hold in their unit, or their acting lead (#443).
         $tags = $this->billetTags->of($placed);
@@ -314,6 +317,7 @@ class RosterController extends Controller
             $marks->get($t->id, collect()),
             $week,
             $tags->get($t->id),
+            $excused[$t->id] ?? [],
         ))->values()->all();
 
         return ['units' => $units, 'troopers' => $troopers];
@@ -359,9 +363,10 @@ class RosterController extends Controller
 
     /**
      * @param  Collection<int, CountingMark>  $marks  this trooper's marks over the history window
+     * @param  array<string, string>  $excused  their automatically excused history weeks ({@see AutoExcused})
      * @return array<string, mixed>
      */
-    private function trooperRow(Trooper $t, ?TrooperAttendance $kpis, Collection $marks, CarbonImmutable $week, ?string $role): array
+    private function trooperRow(Trooper $t, ?TrooperAttendance $kpis, Collection $marks, CarbonImmutable $week, ?string $role, array $excused = []): array
     {
         $byWeek = $marks->keyBy(fn (CountingMark $m) => $m->weekStart->toDateString());
 
@@ -407,7 +412,21 @@ class RosterController extends Controller
                     'sectionId' => $mark->sectionId,
                 ];
             }, $this->weeks($week)),
+            // The history weeks excused automatically (2026-10-30), `Y-m-d` => `recruit` or `transfer`: the cell shows
+            // Excused on whichever half nobody recorded.
+            'excusedWeeks' => (object) $excused,
         ];
+    }
+
+    /**
+     * The automatically excused weeks ({@see AutoExcused}) of these troopers over the history window.
+     *
+     * @param  list<int>  $trooperIds
+     * @return array<int, array<string, string>>
+     */
+    private function excusedWeeks(array $trooperIds, CarbonImmutable $week): array
+    {
+        return $this->autoExcused->forTroopersOverWeeks($trooperIds, $week->subWeeks(self::HISTORY_WEEKS - 1), self::HISTORY_WEEKS);
     }
 
     /**

@@ -68,7 +68,10 @@ describe('shortcutIndex', () => {
     it('gives the position of the number pressed, or -1', () => {
         expect(shortcutIndex(key('1'), 'rollcall.practice')).toBe(0);
         expect(shortcutIndex(key('4'), 'rollcall.practice')).toBe(3);
-        expect(shortcutIndex(key('4'), 'rollcall.signature')).toBe(-1);
+        expect(shortcutIndex(key('5'), 'rollcall.practice')).toBe(-1);
+        // Five signatures since 2026-10-30: will attend, will not attend, make-up requested, excused, unsigned.
+        expect(shortcutIndex(key('5'), 'rollcall.signature')).toBe(4);
+        expect(shortcutIndex(key('6'), 'rollcall.signature')).toBe(-1);
         expect(shortcutIndex(key('2', { ctrlKey: true }), 'rollcall.signature')).toBe(-1);
     });
 });
@@ -90,6 +93,9 @@ describe('key labels', () => {
 
     it('shows a number range by its ends', () => {
         expect(displayKeys(SHORTCUTS['rollcall.practice'])).toEqual(['1', '4']);
+        expect(displayKeys(SHORTCUTS['rollcall.signature'])).toEqual(['1', '5']);
+        expect(SHORTCUTS['rollcall.practice'].label).toBe('Set the practice mark (Attended, Not attended, Excused, Make-up complete)');
+        expect(SHORTCUTS['rollcall.signature'].label).toBe('Set the signature (Will attend, Will not attend, Make-up requested, Excused, Unsigned)');
         expect(displayKeys(SHORTCUTS['rollcall.next'])).toEqual(['j', 'ArrowDown']);
     });
 });

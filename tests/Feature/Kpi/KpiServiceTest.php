@@ -111,11 +111,11 @@ it('keeps a trooper on LOA in strength', function () {
     expect($kpis->strength)->toBe(1)->and($kpis->onLoa)->toBe(1);
 });
 
-it('computes SP % as attended ÷ held practices, crediting present, makeup and attached', function () {
+it('computes SP % as attended ÷ held practices, crediting attended and make-up complete', function () {
     $trooper = kpiTrooper($this->sectionA);
     kpiMark($trooper, $this->sectionA, 3, AttendanceStatus::Present);
     kpiMark($trooper, $this->sectionA, 2, AttendanceStatus::Makeup);
-    kpiMark($trooper, $this->sectionA, 1, AttendanceStatus::Attached);
+    kpiMark($trooper, $this->sectionA, 1, AttendanceStatus::Makeup);
     kpiMark($trooper, $this->sectionA, 0, AttendanceStatus::Missed);
 
     $sp = $this->kpis->forUnit($this->sectionA, kpiWeek())->sp30d;
@@ -213,7 +213,7 @@ it('measures own-section attendance without makeups, over held own practices onl
     $practiceRepo = app(SectionPracticeRepository::class);
     kpiMark($a, $this->sectionA, 11, AttendanceStatus::Present);   // first week of 12
     kpiMark($a, $this->sectionA, 12, AttendanceStatus::Present);   // before it
-    kpiMark($a, $this->sectionA, 6, AttendanceStatus::Attached);
+    kpiMark($a, $this->sectionA, 6, AttendanceStatus::Present);
     kpiMark($a, $this->sectionA, 5, AttendanceStatus::Missed);
     // Their own practice was held (someone else present) but they made it up elsewhere: eligible, not attended.
     kpiMark(kpiTrooper($this->sectionA), $this->sectionA, 3, AttendanceStatus::Present);
@@ -667,12 +667,13 @@ it('computes a regiment-sized subtree in a constant number of queries', function
     $queries = count(DB::getQueryLog());
     DB::disableQueryLog();
 
-    // Attendance marks, the placed troopers, and the LOA rows that bear on the window (4.8): three, however many troopers.
-    expect($queries)->toBeLessThanOrEqual(3);
+    // Attendance marks, the placed troopers, the LOA rows that bear on the window (4.8), and the transfers and join dates
+    // that excuse a first week (2026-10-30): four, however many troopers.
+    expect($queries)->toBeLessThanOrEqual(4);
 });
 
 // 5.8: a whole chain's section KPIs in one pass, each equal to that section's forUnit().
-it('computes every section under a unit at once, each equal to its own forUnit(), in three queries', function () {
+it('computes every section under a unit at once, each equal to its own forUnit(), in four queries', function () {
     $a1 = kpiTrooper($this->sectionA);
     $a2 = kpiTrooper($this->sectionA);
     $b1 = kpiTrooper($this->sectionB);
@@ -686,8 +687,8 @@ it('computes every section under a unit at once, each equal to its own forUnit()
     $queries = count(DB::getQueryLog());
     DB::disableQueryLog();
 
-    // The marks, where everyone is placed, and the LOA coverage of the window (4.8).
-    expect($queries)->toBe(3)
+    // The marks, where everyone is placed, the LOA coverage of the window (4.8), and the automatic Excused (2026-10-30).
+    expect($queries)->toBe(4)
         ->and($bySection->keys()->sort()->values()->all())->toBe([$this->sectionA->id, $this->sectionB->id])
         ->and($bySection[$this->sectionA->id])->toEqual($this->kpis->forUnit($this->sectionA, kpiWeek()))
         ->and($bySection[$this->sectionB->id])->toEqual($this->kpis->forUnit($this->sectionB, kpiWeek()))

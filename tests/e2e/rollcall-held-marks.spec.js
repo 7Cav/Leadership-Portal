@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-// "Mark all present" and "Mark the rest missed" hold their saves for the Undo window. Leaving the step or the page
+// "Mark all attended" and "Mark the rest not attended" hold their saves for the Undo window. Leaving the step or the page
 // sends them at once instead of dropping them with the hold's timer. Against RollcallHeldMarksSeeder: each leader's
 // section has three troopers nobody has marked this week, and every test has its own section, since a saved practice
 // mark cannot be cleared again.
@@ -27,14 +27,14 @@ test('moving to the next step saves the held marks at once and closes their Undo
     await openPractice(page, 'Novak.B');
 
     await page.getByTestId('mark-rest-missed').click();
-    await expect(page.getByText('Marked 3 as missed')).toBeVisible();
+    await expect(page.getByText('Marked 3 as not attended')).toBeVisible();
     const save = nextSave(page, 3_000);
     await page.getByRole('button', { name: /^Step 3,/ }).click();
 
     const response = await save;
     expect(response.status()).toBe(200);
     expect(response.request().postDataJSON().marks).toHaveLength(3);
-    await expect(page.getByText('Marked 3 as missed')).toBeHidden();
+    await expect(page.getByText('Marked 3 as not attended')).toBeHidden();
     await expectAllMarkedAfterReload(page);
 });
 
@@ -76,7 +76,7 @@ test('leaving for another week saves the held marks once the leader agrees to le
     await expect(practiceStep(page)).toHaveAttribute('aria-label', /All marked/);
 });
 
-test('closing the tab right after "Mark all present" still saves the marks', async ({ context }) => {
+test('closing the tab right after "Mark all attended" still saves the marks', async ({ context }) => {
     const page = await context.newPage();
     await openPractice(page, 'Patel.D');
     const url = new URL(page.url()).pathname;

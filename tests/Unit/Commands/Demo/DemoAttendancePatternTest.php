@@ -34,10 +34,10 @@ it('keeps the same at-risk trooper every week, missing three weeks in four', fun
         ->and($marks->filter(fn ($m) => $m['status'] === AttendanceStatus::Present && $m['rollcall'] === RollcallSignature::WillAttend)->count())->toBe(2);
 });
 
-it('never hand-enters loa', function () use ($troopers, $week) {
+it('never hand-enters loa or excused', function () use ($troopers, $week) {
     $statuses = collect(range(0, 30))->flatMap(fn (int $back) => array_column(DemoAttendancePattern::forSectionWeek(3, $week->subWeeks($back), $troopers), 'status'));
 
     expect($statuses->contains(AttendanceStatus::Loa))->toBeFalse()
         ->and($statuses->contains(AttendanceStatus::Makeup))->toBeTrue()
-        ->and($statuses->contains(AttendanceStatus::Attached))->toBeTrue();
+        ->and($statuses->contains(AttendanceStatus::Excused))->toBeFalse();
 });

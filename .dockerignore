@@ -8,6 +8,9 @@
 .env.*
 !.env.example
 !.env.production.example
+# Do not bake a database dump into either build stage or the runtime image.
+backup*.sql
+backups/
 .deptrac.cache
 .phpunit.result.cache
 node_modules

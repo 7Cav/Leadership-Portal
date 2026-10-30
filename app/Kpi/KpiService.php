@@ -44,11 +44,11 @@ use InvalidArgumentException;
  * between the end of a week and its report changes neither the week's report nor its rollcall, which
  * lists the same troopers. Per trooper, over the window:
  *
- * - **RC** (MVP amendment, #23): weeks with a signed rollcall (`will_attend` or `cannot_attend`)
- *   ÷ assigned weeks: the window weeks they were placed in a section, whether or not a practice
+ * - **RC** (MVP amendment, #23): weeks with a signed roll call (will attend, will not attend, or make-up requested,
+ *   {@see RollcallSignature::isSigned()}) ÷ assigned weeks: the window weeks they were placed in a section, whether or not a practice
  *   was held (all {@see WINDOW_WEEKS} for a trooper in a section the whole window). A signature
  *   is recorded against the section-week's practice row, so a week with no row counts unsigned.
- * - **SP**: practices marked present, makeup or attached ÷ the *held* practices (one row per
+ * - **SP**: practices marked present or makeup (attended or make-up complete) ÷ the *held* practices (one row per
  *   section-week, AD-14's counting SP) of the section they were placed in that week. A practice is held
  *   once any attendance row on it carries a leader's SP mark (`loa`, derived from LOA data,
  *   does not count, and neither does an automatic makeup); a week with no practice row, or a row that
@@ -61,6 +61,9 @@ use InvalidArgumentException;
  *   counts, a makeup included; the makeup is always recorded on the trooper's own section's row.
  * - **missed**: practices explicitly marked `missed`. An unmarked trooper is never read as a miss
  *   — the service does not assert absence it was not told about (the AD-4 fail-safe).
+ * - An **excused** week (2026-10-30) leaves a denominator the way leave does, one rate at a time: a signature of
+ *   `excused` leaves RC, a practice marked `excused` leaves SP, and the automatic Excused of a trooper's first week
+ *   after a transfer or after joining ({@see AutoExcused}) leaves whichever of the two no leader has recorded.
  * - An **LOA-covered** week leaves both denominators and is never a miss. Coverage is `LoaCoverage` (4.4), the
  *   one definition, whether or not a practice row exists for the week. A week where a leave that could not be
  *   read (`needs_review`) may apply is left out the same way: it is not a miss and not in a denominator, but it
@@ -74,14 +77,13 @@ final class KpiService
 {
     public const WINDOW_WEEKS = 4;
 
-    private const ATTENDED = [AttendanceStatus::Present, AttendanceStatus::Makeup, AttendanceStatus::Attached];
-
-    /** Attended at their own section's practice ({@see ownSectionPractice()}): {@see ATTENDED} without the makeup. */
-    private const ATTENDED_AT_OWN = [AttendanceStatus::Present, AttendanceStatus::Attached];
+    /** Attended at their own section's practice ({@see ownSectionPractice()}): attended, without the makeup. */
+    private const ATTENDED_AT_OWN = [AttendanceStatus::Present];
 
     public function __construct(
         private readonly AttendanceRepository $attendance,
         private readonly LoaCoverage $loa,
+        private readonly AutoExcused $autoExcused,
     ) {}
 
     /**
@@ -111,11 +113,12 @@ final class KpiService
         $marks = $this->byTrooper($window);
         $sections = collect($window->sections);
         $covers = $this->coversFor($sections->keys(), $weekStart);
+        $excused = $this->excusedFor($sections->keys(), $weekStart);
 
         return $sections
             ->map(fn (int $sectionId, int $trooperId) => [
                 'section' => $sectionId,
-                'row' => $this->forTrooper($trooperId, $sectionId, $marks->get($trooperId, collect()), $weekStart, $covers[$trooperId], $window->placements->weeksOf($trooperId)),
+                'row' => $this->forTrooper($trooperId, $sectionId, $marks->get($trooperId, collect()), $weekStart, $covers[$trooperId], $window->placements->weeksOf($trooperId), $excused[$trooperId] ?? []),
             ])
             ->groupBy('section')
             ->map(fn (Collection $rows) => $this->sum($rows->pluck('row')));
@@ -156,9 +159,10 @@ final class KpiService
         $marks = $this->byTrooper($window);
         $sections = collect($window->sections);
         $covers = $this->coversFor($sections->keys(), $weekStart);
+        $excused = $this->excusedFor($sections->keys(), $weekStart);
 
         return $sections->map(fn (int $sectionId, int $trooperId) => $this->forTrooper(
-            $trooperId, $sectionId, $marks->get($trooperId, collect()), $weekStart, $covers[$trooperId], $window->placements->weeksOf($trooperId),
+            $trooperId, $sectionId, $marks->get($trooperId, collect()), $weekStart, $covers[$trooperId], $window->placements->weeksOf($trooperId), $excused[$trooperId] ?? [],
         ));
     }
 
@@ -173,7 +177,8 @@ final class KpiService
      * - eligible: their own section's practice was held that week (AD-14's `held`, the same rule as above), whether
      *   they attended it, missed it or made it up elsewhere; a week their own section did not practise stays out, even
      *   when they made it up, so visits to other sections can never stand in for their own;
-     * - a week leave covers (`LoaCoverage`, or an `loa` mark) leaves the ratio exactly as above.
+     * - a week leave covers (`LoaCoverage`, or an `loa` mark), or one that is excused (by hand or automatically,
+     *   {@see AutoExcused}), leaves the ratio exactly as above.
      *
      * For troopers from many sections at once in two queries (their counting marks and their leave), whichever
      * sections they belong to. A trooper who is departed, unplaced or unknown gets `0/0`, which says nothing.
@@ -200,11 +205,12 @@ final class KpiService
             ->countingMarksOf($ids->all(), $weekStart->subWeeks($windowWeeks - 1), $weekStart)
             ->groupBy(fn (CountingMark $mark) => $mark->trooperId);
         $covers = $this->coversFor($ids, $weekStart, $windowWeeks);
+        $excused = $this->excusedFor($ids, $weekStart, $windowWeeks);
 
-        return $ids->mapWithKeys(function (int $trooperId) use ($marks, $covers) {
+        return $ids->mapWithKeys(function (int $trooperId) use ($marks, $covers, $excused) {
             $own = $marks->get($trooperId, collect());
-            $loaWeeks = $this->loaWeeks($own, $covers[$trooperId] ?? []);
-            $eligible = $own->reject(fn (CountingMark $mark) => $loaWeeks->contains($mark->weekStart->toDateString()));
+            $out = $this->practiceExcluded($own, $this->loaWeeks($own, $covers[$trooperId] ?? []), $excused[$trooperId] ?? []);
+            $eligible = $own->reject(fn (CountingMark $mark) => $out->contains($mark->weekStart->toDateString()));
 
             return [$trooperId => new Ratio(
                 $eligible->filter(fn (CountingMark $mark) => $mark->held && in_array($mark->status, self::ATTENDED_AT_OWN, true))->count(),
@@ -250,31 +256,50 @@ final class KpiService
     }
 
     /**
+     * The automatically excused weeks ({@see AutoExcused}) of these troopers over the window ending with `$weekStart`,
+     * in two queries.
+     *
+     * @param  iterable<int>  $trooperIds
+     * @return array<int, array<string, string>>
+     */
+    private function excusedFor(iterable $trooperIds, CarbonImmutable $weekStart, int $windowWeeks = self::WINDOW_WEEKS): array
+    {
+        return $this->autoExcused->forTroopersOverWeeks($trooperIds, $weekStart->subWeeks($windowWeeks - 1), $windowWeeks);
+    }
+
+    /**
      * @param  Collection<int, CountingMark>  $marks  this trooper's counting marks in the window
      * @param  array<string, LoaCover>  $covers  this trooper's LOA coverage per window week, keyed by `week_start` date
      * @param  list<string>  $assignedWeeks  the window weeks they were placed in a section
+     * @param  array<string, string>  $excused  this trooper's automatically excused window weeks ({@see AutoExcused})
      */
-    private function forTrooper(int $trooperId, int $sectionId, Collection $marks, CarbonImmutable $weekStart, array $covers, array $assignedWeeks): TrooperAttendance
+    private function forTrooper(int $trooperId, int $sectionId, Collection $marks, CarbonImmutable $weekStart, array $covers, array $assignedWeeks, array $excused = []): TrooperAttendance
     {
         // `$loaWeeks` holds the weeks leave takes out whether or not a practice row exists for them, so the rollcall
-        // denominator drops them too.
+        // denominator drops them too. Excused weeks leave each rate on their own: a signature and a practice mark are
+        // separate facts, and a leader may excuse one and not the other.
         $loaWeeks = $this->loaWeeks($marks, $covers);
-        $eligible = $marks->reject(fn (CountingMark $mark) => $loaWeeks->contains($mark->weekStart->toDateString()));
+        $rollcallOut = $this->rollcallExcluded($marks, $loaWeeks, $excused);
+        $practiceOut = $this->practiceExcluded($marks, $loaWeeks, $excused);
+        $signing = $marks->reject(fn (CountingMark $mark) => $rollcallOut->contains($mark->weekStart->toDateString()));
+        $eligible = $marks->reject(fn (CountingMark $mark) => $practiceOut->contains($mark->weekStart->toDateString()));
         $thisWeek = $marks->filter(fn (CountingMark $mark) => $mark->weekStart->equalTo($weekStart));
         $missed = $eligible->filter(fn (CountingMark $mark) => $mark->status === AttendanceStatus::Missed);
+        $attended = fn (CountingMark $mark) => $mark->status?->attended() ?? false;
 
         return new TrooperAttendance(
             trooperId: $trooperId,
             rollcall: new Ratio(
-                $eligible->filter(fn (CountingMark $mark) => $mark->rollcall !== RollcallSignature::Unsigned)->count(),
+                // Will attend, will not attend and make-up requested are each an answer on the thread.
+                $signing->filter(fn (CountingMark $mark) => $mark->rollcall->isSigned())->count(),
                 // Only the weeks they were in a section: a week before they joined one is not theirs to sign.
-                count(array_diff($assignedWeeks, $loaWeeks->all())),
+                count(array_diff($assignedWeeks, $rollcallOut->all())),
             ),
             practice: new Ratio(
-                $eligible->filter(fn (CountingMark $mark) => in_array($mark->status, self::ATTENDED, true))->count(),
+                $eligible->filter($attended)->count(),
                 // Held, or attended by this trooper: an automatic makeup does not hold the practice for the
                 // section, but the trooper who made it up still practised that week, so it counts for them.
-                $eligible->filter(fn (CountingMark $mark) => $mark->held || in_array($mark->status, self::ATTENDED, true))->count(),
+                $eligible->filter(fn (CountingMark $mark) => $mark->held || $attended($mark))->count(),
             ),
             missed: $missed->count(),
             // Covered, not merely suppressed: a leave that needs review is never asserted as "on LOA".
@@ -283,7 +308,67 @@ final class KpiService
             makeups: $thisWeek->filter(fn (CountingMark $mark) => $mark->status === AttendanceStatus::Makeup)->count(),
             missedWeeks: $missed->map(fn (CountingMark $mark) => $mark->weekStart->toDateString())->sort()->values()->all(),
             sectionId: $sectionId,
+            // Make-up requested on the roll call and no make-up (or attendance) recorded since: the trooper still owes it.
+            makeupOwedWeeks: $marks
+                ->reject(fn (CountingMark $mark) => $loaWeeks->contains($mark->weekStart->toDateString()))
+                ->filter(fn (CountingMark $mark) => self::owesMakeup($mark))
+                ->map(fn (CountingMark $mark) => $mark->weekStart->toDateString())
+                ->sort()->values()->all(),
         );
+    }
+
+    /**
+     * A week whose roll call says make-up requested and whose practice holds no make-up yet. Attending their own
+     * practice after all, an excused practice, or leave settle it too: there is nothing left to make up.
+     */
+    public static function owesMakeup(CountingMark $mark): bool
+    {
+        return $mark->rollcall === RollcallSignature::MakeupRequested
+            && ! in_array($mark->status, [AttendanceStatus::Makeup, AttendanceStatus::Present, AttendanceStatus::Excused, AttendanceStatus::Loa], true);
+    }
+
+    /**
+     * The window weeks that leave RC %: leave ({@see loaWeeks()}), a signature of excused, and an automatically excused
+     * week nobody signed ({@see AutoExcused::excusesSignature()}), with a practice row or without one.
+     *
+     * @param  Collection<int, CountingMark>  $marks
+     * @param  Collection<int, string>  $loaWeeks
+     * @param  array<string, string>  $excused
+     * @return Collection<int, string>
+     */
+    private function rollcallExcluded(Collection $marks, Collection $loaWeeks, array $excused): Collection
+    {
+        $byWeek = $marks->keyBy(fn (CountingMark $mark) => $mark->weekStart->toDateString());
+
+        return $loaWeeks
+            ->merge($marks->filter(fn (CountingMark $mark) => $mark->rollcall === RollcallSignature::Excused)->map(fn (CountingMark $mark) => $mark->weekStart->toDateString()))
+            ->merge(collect(array_keys($excused))->filter(fn (string $week) => AutoExcused::excusesSignature($byWeek->get($week)?->rollcall)))
+            ->unique()
+            ->values();
+    }
+
+    /**
+     * The window weeks that leave SP %: leave, a practice marked excused, and an automatically excused week no leader
+     * marked ({@see AutoExcused::excusesPractice()}).
+     *
+     * @param  Collection<int, CountingMark>  $marks
+     * @param  Collection<int, string>  $loaWeeks
+     * @param  array<string, string>  $excused
+     * @return Collection<int, string>
+     */
+    private function practiceExcluded(Collection $marks, Collection $loaWeeks, array $excused): Collection
+    {
+        $byWeek = $marks->keyBy(fn (CountingMark $mark) => $mark->weekStart->toDateString());
+
+        return $loaWeeks
+            ->merge($marks->filter(fn (CountingMark $mark) => $mark->status === AttendanceStatus::Excused)->map(fn (CountingMark $mark) => $mark->weekStart->toDateString()))
+            ->merge(collect(array_keys($excused))->filter(function (string $week) use ($byWeek) {
+                $mark = $byWeek->get($week);
+
+                return AutoExcused::excusesPractice($mark?->status, $mark?->source);
+            }))
+            ->unique()
+            ->values();
     }
 
     /**

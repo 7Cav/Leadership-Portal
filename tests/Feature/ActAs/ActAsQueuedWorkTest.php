@@ -38,9 +38,9 @@ use Saloon\Http\Faking\MockResponse;
 
 function qwPerson(int $cavId, string $username, ?int $position): User
 {
-    Trooper::factory()->create(['cav_id' => $cavId, 'cav_position_id' => $position, 'status' => TrooperStatus::Combat, 'rank' => 'SGT', 'username' => $username]);
+    $trooper = Trooper::factory()->create(['cav_id' => $cavId, 'cav_position_id' => $position, 'status' => TrooperStatus::Combat, 'rank' => 'SGT', 'username' => $username]);
 
-    return User::factory()->create(['cav_id' => $cavId, 'username' => $username]);
+    return User::factory()->create(['cav_id' => $cavId, 'forum_user_id' => $trooper->forum_user_id, 'username' => $username]);
 }
 
 beforeEach(function () {

@@ -54,8 +54,9 @@ final class CounselingRules
     }
 
     /**
-     * A PDF of at most 10 MB: the file must start with the PDF signature (`%PDF-`), and the content sniffer must agree.
-     * The extension and the type the browser claimed play no part.
+     * A PDF of at most 10 MB: the file must start with the PDF signature (`%PDF-`), the content sniffer must agree,
+     * and {@see PdfContentScanner} must find it complete, without a password and without scripts, automatic actions
+     * or attachments. The extension and the type the browser claimed play no part here.
      *
      * @throws InvalidCounselingRecordException
      */
@@ -82,6 +83,14 @@ final class CounselingRules
         if ($head !== '%PDF-' || $sniffed !== 'application/pdf') {
             throw InvalidCounselingRecordException::notPdf();
         }
+
+        match (PdfContentScanner::problem((string) file_get_contents($path))) {
+            null => null,
+            PdfContentScanner::INCOMPLETE => throw InvalidCounselingRecordException::incompletePdf(),
+            PdfContentScanner::ENCRYPTED => throw InvalidCounselingRecordException::encryptedPdf(),
+            PdfContentScanner::ACTIVE => throw InvalidCounselingRecordException::activePdf(),
+            default => throw InvalidCounselingRecordException::uncheckedPdf(),
+        };
     }
 
     /**

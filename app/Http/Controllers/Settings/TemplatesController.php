@@ -11,6 +11,7 @@ use App\Commands\Templates\SetCompanyTemplate;
 use App\Commands\Templates\SwitchTemplate;
 use App\Commands\Templates\TemplateAuthority;
 use App\Http\Controllers\Controller;
+use App\Kpi\AutoExcused;
 use App\Loa\LoaCoverage;
 use App\Models\ArtifactType;
 use App\Models\Template;
@@ -164,7 +165,7 @@ class TemplatesController extends Controller
      * display goes along in the rollcall page's shape ({@see SectionFireteams::options()}), since it sets the post's
      * order and its FTL lines; the preview changes nothing, so it says the viewer may edit neither.
      */
-    public function previewSection(Request $request, int $unit, ScopeResolver $scope, LoaCoverage $loa, SectionFireteams $fireteams): JsonResponse
+    public function previewSection(Request $request, int $unit, ScopeResolver $scope, LoaCoverage $loa, SectionFireteams $fireteams, AutoExcused $autoExcused): JsonResponse
     {
         // Answered as JSON, like the rollcall page's own background calls: the page reads it with fetch, not a visit.
         $validator = Validator::make($request->query(), ['company' => ['required', 'integer']]);
@@ -188,6 +189,8 @@ class TemplatesController extends Controller
         // page's do (`LoaCover::toArray()` when it covers them or needs review). The page's attendance strip is not
         // part of the post, so it is left out here.
         $covers = $loa->forTroopers(array_column($troopers, 'id'), $week);
+        // The automatic Excused of a first week, which the post prints like a leader's Excused while nobody overrode it.
+        $excused = $autoExcused->forTroopers(array_column($troopers, 'id'), $week);
 
         return response()->json([
             'section' => $this->roster->section($section, $sections),
@@ -195,6 +198,7 @@ class TemplatesController extends Controller
             'troopers' => array_map(fn (array $row) => [
                 ...$row,
                 'loa' => $covers[$row['id']]->suppressesAtRisk() ? $covers[$row['id']]->toArray() : null,
+                'excused' => $excused[$row['id']] ?? null,
             ], $troopers),
             'fireteams' => $fireteams->options($section, canEdit: false, canEditPolicy: false),
         ]);

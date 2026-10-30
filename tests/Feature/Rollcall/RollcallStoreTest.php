@@ -40,11 +40,11 @@ function saveRollcall(User $user, int $unitId, array $marks, string $week = '202
 
 it('writes a practice mark and a signature as one manual, audited row', function () {
     saveRollcall($this->leader, $this->section->id, [
-        ['trooper_id' => $this->trooper->id, 'status' => 'attached', 'rollcall' => 'will_attend'],
-    ])->assertOk()->assertJsonStructure(['savedAt', 'atRisk']);
+        ['trooper_id' => $this->trooper->id, 'status' => 'makeup', 'rollcall' => 'will_attend'],
+    ])->assertOk()->assertJsonStructure(['savedAt', 'atRisk', 'makeupOwed']);
 
     $row = Attendance::query()->sole();
-    expect($row->status)->toBe(AttendanceStatus::Attached)
+    expect($row->status)->toBe(AttendanceStatus::Makeup)
         ->and($row->source)->toBe(AttendanceSource::Manual)
         ->and($row->rollcall)->toBe(RollcallSignature::WillAttend)
         ->and($row->sectionPractice->week_start->equalTo($this->week))->toBeTrue()
@@ -104,7 +104,8 @@ it('refuses loa and unknown values as input', function (array $mark) {
     expect(Attendance::query()->count())->toBe(0);
 })->with([
     'loa' => [['status' => 'loa']],
-    'unknown status' => [['status' => 'excused']],
+    'unknown status' => [['status' => 'excused_late']],
+    'the old attached' => [['status' => 'attached']],
     'unknown signature' => [['rollcall' => 'maybe']],
     'nothing to record' => [[]],
 ]);

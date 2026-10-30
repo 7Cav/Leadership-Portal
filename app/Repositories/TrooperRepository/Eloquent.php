@@ -212,7 +212,7 @@ class Eloquent implements TrooperRepository
         }
 
         $placements = $this->placements->sectionsByWeekAmong([$section->id], $weekStart, $weekStart);
-        $ids = array_keys($placements->current);
+        $ids = $this->joinedBy(array_keys($placements->current), $weekStart);
         $week = $weekStart->toDateString();
 
         return new SectionWeekRoster(
@@ -235,7 +235,7 @@ class Eloquent implements TrooperRepository
             return collect();
         }
 
-        $on = array_keys($this->placements->sectionsByWeekAmong([$sectionId], $weekStart, $weekStart)->current);
+        $on = $this->joinedBy(array_keys($this->placements->sectionsByWeekAmong([$sectionId], $weekStart, $weekStart)->current), $weekStart);
 
         return collect(array_values(array_intersect($on, array_map('intval', $trooperIds))))->sort()->values();
     }
@@ -262,7 +262,7 @@ class Eloquent implements TrooperRepository
         $week = $weekStart->toDateString();
         $sections = [];
 
-        foreach (array_keys($placements->current) as $trooperId) {
+        foreach ($this->joinedBy(array_keys($placements->current), $weekStart) as $trooperId) {
             $sections[$trooperId] = (int) $placements->sectionIn($trooperId, $week);
         }
 
@@ -314,6 +314,30 @@ class Eloquent implements TrooperRepository
     }
 
     /** A week before the running one: its roster is the one it ended with (the 2026-10-29 audit). */
+    /**
+     * Which of `$ids` had joined the Cav by the end of the week opening at `$weekStart`: a join date (`tis`) before the
+     * next week opens, or none known. A trooper with no placement history is read as placed in their current section
+     * every week, so without this a recruit who joined later would show on the roll calls of weeks before they joined.
+     * One query, none for an empty list.
+     *
+     * @param  list<int>  $ids
+     * @return list<int>
+     */
+    private function joinedBy(array $ids, CarbonImmutable $weekStart): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        return Trooper::query()
+            ->whereIn('id', $ids)
+            ->where(fn ($q) => $q->whereNull('tis')->orWhere('tis', '<', $weekStart->addWeek()->toDateString()))
+            ->orderBy('id')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
     private function hasEnded(CarbonImmutable $weekStart): bool
     {
         return $weekStart->lessThan(WeekOf::start(CarbonImmutable::now()));

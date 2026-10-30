@@ -24,7 +24,7 @@ it('refuses loa as a hand-entered status — LOA is derived, never marked (3.4)'
 
 it('accepts every status a leader may hand-enter', function (AttendanceStatus $status) {
     expect((new AttendanceMark(7, $status))->status)->toBe($status);
-})->with([AttendanceStatus::Present, AttendanceStatus::Missed, AttendanceStatus::Makeup, AttendanceStatus::Attached]);
+})->with([AttendanceStatus::Present, AttendanceStatus::Missed, AttendanceStatus::Makeup, AttendanceStatus::Excused]);
 
 it('refuses a batch that marks the same trooper twice', function () {
     expect(fn () => new MarkAttendance(

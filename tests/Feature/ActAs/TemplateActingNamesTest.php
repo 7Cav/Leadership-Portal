@@ -39,7 +39,7 @@ function tanCommander(Unit $unit, int $positionId, string $username): User
     UnitCommandMapping::factory()->create(['unit_id' => $unit->id, 'cav_position_id' => $positionId]);
     $trooper = Trooper::factory()->create(['cav_position_id' => $positionId, 'username' => $username, 'status' => TrooperStatus::Combat]);
 
-    return User::factory()->create(['cav_id' => $trooper->cav_id, 'username' => $username]);
+    return User::factory()->create(['cav_id' => $trooper->cav_id, 'forum_user_id' => $trooper->forum_user_id, 'username' => $username]);
 }
 
 /** Start acting: as a person (`$target` a user) or as a billet (`$target` a unit). */

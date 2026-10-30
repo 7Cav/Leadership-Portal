@@ -92,7 +92,7 @@ class ReportScreenSeeder extends Seeder
         }
 
         // This week: mostly marked, one trooper unmarked, one unaccounted miss, nothing written yet.
-        $statuses = [AttendanceStatus::Present, AttendanceStatus::Present, AttendanceStatus::Present, AttendanceStatus::Makeup, AttendanceStatus::Missed, null, AttendanceStatus::Attached, AttendanceStatus::Present];
+        $statuses = [AttendanceStatus::Present, AttendanceStatus::Present, AttendanceStatus::Present, AttendanceStatus::Makeup, AttendanceStatus::Missed, null, AttendanceStatus::Makeup, AttendanceStatus::Present];
         foreach ($troopers as $i => $trooper) {
             $this->mark($this->section, $trooper, $week, $statuses[$i], $i === 5 ? RollcallSignature::CannotAttend : RollcallSignature::WillAttend);
         }
