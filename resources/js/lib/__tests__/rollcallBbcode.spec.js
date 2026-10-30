@@ -8,7 +8,7 @@ const TROOPERS = [
     t(1, 'Vasquez.R', 'will_attend', 'present', 'SGT'),
     t(2, 'Okafor.T', 'cannot_attend', 'missed'),
     t(3, 'Kowalczyk.P', 'cannot_attend', 'makeup'),
-    t(4, 'Reyes.M', 'will_attend', 'attached', 'PVT'),
+    t(4, 'Reyes.M', 'makeup_requested', 'excused', 'PVT'),
     t(5, 'Doyle.A', 'unsigned', null, 'PVT'),
     t(6, 'Tanaka.H', 'unsigned', 'loa'),
 ];
@@ -33,7 +33,7 @@ describe('rollcallContext (3.11)', () => {
         expect(by['Vasquez.R']).toMatchObject({ sp: 'Yes', sp_present: true, sp_unmarked: false });
         expect(by['Okafor.T']).toMatchObject({ sp: 'No', sp_missed: true });
         expect(by['Kowalczyk.P']).toMatchObject({ sp: 'MU', sp_makeup: true });
-        expect(by['Reyes.M']).toMatchObject({ sp: 'Att', sp_attached: true });
+        expect(by['Reyes.M']).toMatchObject({ sp: 'EX', sp_excused: true, sp_attached: false });
         expect(by['Doyle.A']).toMatchObject({ sp: '', sp_unmarked: true });
         expect(by['Tanaka.H']).toMatchObject({ sp: 'LOA', sp_loa: true });
     });
@@ -70,10 +70,34 @@ describe('rollcallContext (3.11)', () => {
         expect(by['Vasquez.R']).toMatchObject({ rc: 'Yes', rc_yes: true, rc_unsigned: false });
         expect(by['Okafor.T']).toMatchObject({ rc: 'No', rc_no: true });
         expect(by['Doyle.A']).toMatchObject({ rc: '', rc_unsigned: true });
+        expect(by['Reyes.M']).toMatchObject({ rc: 'MU', rc_makeup_requested: true, rc_unsigned: false, rc_yes: false });
     });
 
-    it('counts who signed and who attended, a makeup and an attachment included', () => {
-        expect(context).toMatchObject({ count: '6', signed: '2', attended: '3' });
+    it('counts who signed as will attend and who attended, a make-up complete included', () => {
+        expect(context).toMatchObject({ count: '6', signed: '1', attended: '2' });
+    });
+
+    it('prints an automatic Excused on the halves nobody recorded, and what a leader recorded on the rest (2026-10-30)', () => {
+        const rows = rollcallContext(input([
+            { ...t(7, 'Ito.K', 'unsigned', null), excused: 'transfer' },
+            { ...t(8, 'Diaz.L', 'will_attend', 'present'), excused: 'recruit' },
+            { ...t(9, 'Park.J', 'excused', 'excused') },
+        ])).troopers;
+        const by = Object.fromEntries(rows.map((row) => [row.name, row]));
+
+        expect(by['Ito.K']).toMatchObject({ rc: 'EX', rc_excused: true, rc_unsigned: false, sp: 'EX', sp_excused: true, sp_unmarked: false });
+        expect(by['Diaz.L']).toMatchObject({ rc: 'Yes', rc_excused: false, sp: 'Yes', sp_excused: false });
+        expect(by['Park.J']).toMatchObject({ rc: 'EX', rc_excused: true, sp: 'EX', sp_excused: true });
+    });
+
+    it('fills the starter row with the new marks: make-up requested and excused', () => {
+        const starter = '{{#troopers}}{{name}}:{{#rc_yes}}✓{{/rc_yes}}{{#rc_no}}✗{{/rc_no}}{{#rc_makeup_requested}}MU{{/rc_makeup_requested}}{{#rc_excused}}EX{{/rc_excused}}{{#rc_unsigned}}-{{/rc_unsigned}}|{{#sp_present}}✓{{/sp_present}}{{#sp_missed}}✗{{/sp_missed}}{{#sp_excused}}EX{{/sp_excused}}{{#sp_makeup}}MU{{/sp_makeup}}{{#sp_loa}}LOA{{/sp_loa}}{{#sp_unmarked}}-{{/sp_unmarked}}\n{{/troopers}}';
+        const out = rollcallPost(resolved(starter), input([
+            t(1, 'Adams.P', 'makeup_requested', 'makeup'),
+            t(2, 'Baker.Q', 'cannot_attend', 'excused'),
+        ]));
+
+        expect(out.text).toBe('Adams.P:MU|MU\nBaker.Q:✗|EX\n');
     });
 
     it('gives each trooper their rank insignia for {{rank_icon}}, only an https URL on 7cav.us, else empty', () => {
@@ -128,7 +152,7 @@ describe('rollcallPost (3.11)', () => {
         expect(post).toEqual({
             state: 'ready',
             version: 3,
-            text: '[b]2/1/A/1-7[/b] 2/6\nVasquez.R=ok;Kowalczyk.P=ok;Okafor.T=No;Tanaka.H=ok;Doyle.A=ok;Reyes.M=ok;',
+            text: '[b]2/1/A/1-7[/b] 1/6\nVasquez.R=ok;Kowalczyk.P=ok;Okafor.T=No;Tanaka.H=ok;Doyle.A=ok;Reyes.M=ok;',
         });
     });
 
@@ -137,7 +161,7 @@ describe('rollcallPost (3.11)', () => {
         const before = rollcallPost(template, input());
         const after = rollcallPost(template, input(TROOPERS.map((row) => (row.id === 2 ? { ...row, status: 'present' } : row))));
 
-        expect([before.text, after.text]).toEqual(['3', '4']);
+        expect([before.text, after.text]).toEqual(['2', '3']);
     });
 
     it('follows the template: a new version changes the post for the same marks', () => {

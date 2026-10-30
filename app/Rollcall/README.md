@@ -44,7 +44,7 @@ has no way to edit one; authoring is the company's or the section's command's (a
 
 Leave comes from `Loa/LoaCoverage`, the one definition (3.4, 4.4, AD-21), sent per trooper as `loa` (`LoaCover::toArray()`)
 with the LOA source and last sync (`loaSync`, AD-20). Nothing stores an `loa` mark: a covered trooper's row is locked, listed
-under "On LOA", left out of "Mark all present" and last week's marks, and posts as `LOA`. `MarkAttendance` still refuses a
+under "On LOA", left out of "Mark all attended" and last week's marks, and posts as `LOA`. `MarkAttendance` still refuses a
 practice mark for them; if a leave syncs after the page loaded, the refusal says `loa_covered`, the screen locks the row and
 keeps saving their signature. A leave that needs review asserts nothing (AD-4): the row stays markable and only shows the
 badge. Home's "signed" and "marked" steps count a covered trooper as done.

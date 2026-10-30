@@ -19,8 +19,8 @@ describe('attendance provenance (3.9)', () => {
 
     it.each([
         ['present', 'manual', 'manual', 'Manual'],
-        ['attached', 'auto', 'auto', 'Auto'],
-        ['makeup', 'manual', 'makeup', 'Makeup'],
+        ['excused', 'manual', 'manual', 'Manual'],
+        ['makeup', 'manual', 'makeup', 'Make-up complete'],
         ['makeup', 'auto', 'auto', 'Auto'],
         [null, null, 'unmarked', 'Not marked'],
     ])('renders %s / %s as the %s indicator', (status, source, kind, label) => {
@@ -39,7 +39,7 @@ describe('attendance provenance (3.9)', () => {
         expect(el.classes()).toContain('border');
     });
 
-    it('lists auto, manual and makeup in the legend', () => {
-        expect(mount(AttendanceSourceLegend).findAll('li').map((li) => li.text())).toEqual(['Auto', 'Manual', 'Makeup']);
+    it('lists auto, manual and make-up complete in the legend', () => {
+        expect(mount(AttendanceSourceLegend).findAll('li').map((li) => li.text())).toEqual(['Auto', 'Manual', 'Make-up complete']);
     });
 });

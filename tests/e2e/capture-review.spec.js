@@ -19,7 +19,7 @@ test('a section leader reviews a captured practice, overrides an auto mark and c
     await expect(reyes.locator('[data-provenance="auto"]')).toHaveCount(0);
 
     // Overriding one auto mark makes it a manual one; the untouched one stays auto.
-    await okafor.getByRole('button', { name: /^Missed/ }).click();
+    await okafor.getByRole('button', { name: /^Not attended/ }).click();
     await expect(okafor.locator('[data-provenance="manual"]')).toBeVisible();
     await expect(lindqvist.locator('[data-provenance="auto"]')).toBeVisible();
     await expect(page.getByTestId('save-state')).toContainText('Saved');
@@ -31,7 +31,7 @@ test('a section leader reviews a captured practice, overrides an auto mark and c
     await page.reload();
     await page.getByRole('button', { name: /^Step 2, Section practice/ }).click();
     await expect(page.getByTestId('confirm-badge')).toHaveText('Confirmed');
-    await expect(page.locator('[data-trooper]').filter({ hasText: 'Okafor.D' }).getByRole('button', { name: /^Missed/ })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('[data-trooper]').filter({ hasText: 'Okafor.D' }).getByRole('button', { name: /^Not attended/ })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('[data-trooper]').filter({ hasText: 'Okafor.D' }).locator('[data-provenance="manual"]')).toBeVisible();
 });
 
@@ -45,7 +45,7 @@ test('an automatic makeup shows on the trooper\'s own rollcall with the auto sou
     await page.getByRole('button', { name: /^Step 2, Section practice/ }).click();
 
     const mbatha = page.locator('[data-trooper]').filter({ hasText: 'Mbatha.Z' });
-    await expect(mbatha.getByRole('button', { name: /^Makeup/ })).toHaveAttribute('aria-pressed', 'true');
+    await expect(mbatha.getByRole('button', { name: /^Make-up complete/ })).toHaveAttribute('aria-pressed', 'true');
     await expect(mbatha.locator('[data-provenance="auto"]')).toBeVisible();
     await expect(mbatha.locator('[data-provenance="makeup"]')).toHaveCount(0);
 });

@@ -1,6 +1,7 @@
 <script setup>
 import {
-    PhArrowBendUpRight,
+    PhCalendarCheck,
+    PhClockCounterClockwise,
     PhMinus,
     PhQuestion,
     PhSignature,
@@ -25,7 +26,8 @@ const ICONS = {
     miss: PhUserMinus,
     question: PhQuestion,
     signature: PhSignature,
-    attached: PhArrowBendUpRight,
+    excused: PhCalendarCheck,
+    makeup: PhClockCounterClockwise,
     stack: PhStack,
     target: PhTarget,
 };

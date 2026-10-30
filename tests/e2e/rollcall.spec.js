@@ -27,19 +27,19 @@ test('a section leader signs and marks practice, and finds both saved after a re
     const card = () => page.locator(`[data-trooper="${id}"]`);
 
     const signed = saved(page);
-    await card().getByRole('button', { name: /^Cannot attend/ }).click();
+    await card().getByRole('button', { name: /^Will not attend/ }).click();
     expect((await signed).status()).toBe(200);
     await expect(page.getByTestId('save-state')).toContainText('Saved');
 
     await page.getByRole('button', { name: /^Step 2, Section practice/ }).click();
     const marked = saved(page);
-    await card().getByRole('button', { name: /^Attached/ }).click();
+    await card().getByRole('button', { name: /^Excused/ }).click();
     expect((await marked).status()).toBe(200);
 
     await page.reload();
-    await expect(card().getByRole('button', { name: /^Attached/ })).toHaveAttribute('aria-pressed', 'true');
+    await expect(card().getByRole('button', { name: /^Excused/ })).toHaveAttribute('aria-pressed', 'true');
     await page.getByRole('button', { name: /^Step 1, Signatures/ }).click();
-    await expect(card().getByRole('button', { name: /^Cannot attend/ })).toHaveAttribute('aria-pressed', 'true');
+    await expect(card().getByRole('button', { name: /^Will not attend/ })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('a section leader copies the forum post and marks the rollcall posted', async ({ page, context }) => {

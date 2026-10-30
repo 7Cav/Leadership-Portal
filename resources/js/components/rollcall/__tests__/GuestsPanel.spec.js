@@ -80,7 +80,7 @@ describe('GuestsPanel', () => {
         expect(post).toHaveBeenCalledWith('/rollcall/12/guests', { week: '2026-10-03', trooper_id: 9 });
         expect(wrapper.find('[data-testid="guest-9"]').text()).toContain('Visitor.V');
         expect(wrapper.find('[data-testid="guest-picker"]').exists()).toBe(false);
-        expect(toastSuccess).toHaveBeenCalledWith('Added PFC Visitor.V as a guest', { description: "A makeup is on their own section's roll call for this week." });
+        expect(toastSuccess).toHaveBeenCalledWith('Added PFC Visitor.V as a guest', { description: "Their own section's roll call shows Make-up complete for this week." });
     });
 
     it('says why a guest was refused, and keeps the list as it was', async () => {
@@ -105,7 +105,7 @@ describe('GuestsPanel', () => {
 
         expect(post).toHaveBeenCalledWith('/rollcall/12/guests/remove', { week: '2026-10-03', trooper_id: 8 });
         expect(wrapper.find('[data-testid="guest-8"]').exists()).toBe(false);
-        expect(toastSuccess).toHaveBeenCalledWith('Removed PFC Added.A', { description: 'The makeup it put on their own roll call was taken back.' });
+        expect(toastSuccess).toHaveBeenCalledWith('Removed PFC Added.A', { description: 'The Make-up complete it put on their own roll call was taken back.' });
     });
 
     // Review L5: the server's length refusal (422) is not a broken connection, as in the shell's search (#346).
@@ -157,8 +157,8 @@ describe('GuestsPanel', () => {
         const wrapper = factory({ guests: [{ ...SEEN, makeupMissing: true }, { ...ADDED, makeupMissing: true }, { ...ADDED, trooperId: 10, makeupMissing: false }] });
 
         expect(wrapper.find('[data-testid="guest-7"] [data-testid="guest-retry"]').exists()).toBe(false);
-        expect(wrapper.find('[data-testid="guest-8"] [data-testid="guest-retry"]').text()).toBe('Retry makeup');
-        expect(wrapper.find('[data-testid="guest-8"] [data-testid="guest-makeup-missing"]').text()).toBe('No makeup on their own roll call yet');
+        expect(wrapper.find('[data-testid="guest-8"] [data-testid="guest-retry"]').text()).toBe('Retry make-up');
+        expect(wrapper.find('[data-testid="guest-8"] [data-testid="guest-makeup-missing"]').text()).toBe('No make-up on their own roll call yet');
         expect(wrapper.find('[data-testid="guest-10"] [data-testid="guest-retry"]').exists()).toBe(false);
         expect(factory({ guests: [{ ...ADDED, makeupMissing: true }], editable: false }).find('[data-testid="guest-retry"]').exists()).toBe(false);
     });
@@ -173,7 +173,7 @@ describe('GuestsPanel', () => {
         expect(post).toHaveBeenCalledWith('/rollcall/12/guests', { week: '2026-10-03', trooper_id: 8 });
         expect(wrapper.findAll('[data-testid^="guest-8"]')).toHaveLength(1);
         expect(wrapper.find('[data-testid="guest-retry"]').exists()).toBe(false);
-        expect(toastSuccess).toHaveBeenCalledWith('Makeup added for PFC Added.A', expect.objectContaining({ description: "A makeup is on their own section's roll call for this week." }));
+        expect(toastSuccess).toHaveBeenCalledWith('Make-up recorded for PFC Added.A', expect.objectContaining({ description: "Their own section's roll call shows Make-up complete for this week." }));
     });
 
     it('says why when the retry wrote no makeup, and offers it again only while the server still says it is missing', async () => {
@@ -184,6 +184,6 @@ describe('GuestsPanel', () => {
         await flushPromises();
 
         expect(wrapper.find('[data-testid="guest-retry"]').exists()).toBe(false);
-        expect(toastWarning).toHaveBeenCalledWith('No makeup added for PFC Added.A', expect.objectContaining({ description: "Their own section's week is locked, so no makeup was added there." }));
+        expect(toastWarning).toHaveBeenCalledWith('No make-up recorded for PFC Added.A', expect.objectContaining({ description: "Their own section's week is locked, so no make-up was recorded there." }));
     });
 });

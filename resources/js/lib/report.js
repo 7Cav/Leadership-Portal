@@ -1,4 +1,5 @@
 import { forumDate } from '@/lib/forumDate';
+import { owesMakeup, practiceOf, signatureOf } from '@/lib/rollcall';
 
 // Presentation rules for the weekly report screen (Stories 5.3–5.5, mockups/v2/report-p3.html).
 // The numbers themselves come from the server (KpiService, AD-21); this file only formats them,
@@ -89,6 +90,9 @@ export function baselineText(baseline) {
 }
 
 const isLoa = (t) => t.onLoa || t.status === 'loa';
+// Excused (by a leader or automatically in a first week, 2026-10-30) is accounted, like leave: nothing to chase.
+const signedOrOut = (t) => signatureOf(t) !== 'unsigned' || isLoa(t);
+const practiceOut = (t) => isLoa(t) || practiceOf(t) === 'excused';
 
 // The week's unaccounted troopers: marked missed with no makeup. Each needs a reason (5.5).
 export function unaccountedTroopers(troopers) {
@@ -127,8 +131,8 @@ export function readinessChecks({ isLeaf, troopers, children, content, reviewed,
     }
 
     const roster = troopers ?? [];
-    const signed = roster.filter((t) => t.rollcall !== 'unsigned' || isLoa(t)).length;
-    const eligible = roster.filter((t) => !isLoa(t));
+    const signed = roster.filter(signedOrOut).length;
+    const eligible = roster.filter((t) => !practiceOut(t));
     const marked = eligible.filter((t) => t.status !== null).length;
     const unmarked = eligible.filter((t) => t.status === null);
     const unaccounted = unaccountedTroopers(roster);
@@ -143,7 +147,7 @@ export function readinessChecks({ isLeaf, troopers, children, content, reviewed,
             title: 'Roll call complete',
             done: signed === roster.length,
             count: `${signed}/${roster.length}`,
-            detail: signed === roster.length ? 'Everyone signed or is on LOA.' : `${roster.length - signed} not signed yet.`,
+            detail: signed === roster.length ? 'Everyone signed, is excused or is on LOA.' : `${roster.length - signed} not signed yet.`,
             next: 'Chase the unsigned troopers in roll call',
         },
         {
@@ -250,13 +254,13 @@ export function highlights({ kpis, delta, troopers, reasons, reasonLabels, child
         list.push({ id: `miss-${t.id}`, icon: 'miss', tone: 'bad', text: `${t.name} missed practice with no makeup. ${reasonText(t.id)}` }),
     );
 
-    const unmarked = rows.filter((t) => t.status === null && !isLoa(t));
+    const unmarked = rows.filter((t) => practiceOf(t) === null && !isLoa(t));
     if (unmarked.length && rows.length) {
         list.push({ id: 'unmarked', icon: 'question', tone: 'warn', text: `${plural(unmarked.length, 'trooper')} not marked for this week's practice yet.` });
     }
 
     if (rows.length) {
-        const signed = rows.filter((t) => t.rollcall !== 'unsigned' || isLoa(t)).length;
+        const signed = rows.filter(signedOrOut).length;
         const rc = percent(kpis.rc);
         list.push({
             id: 'rc',
@@ -266,8 +270,11 @@ export function highlights({ kpis, delta, troopers, reasons, reasonLabels, child
         });
     }
 
-    rows.filter((t) => t.status === 'attached').forEach((t) =>
-        list.push({ id: `att-${t.id}`, icon: 'attached', tone: 'neutral', text: `${t.name} trained with another unit, credited to the section.` }),
+    rows.filter(owesMakeup).forEach((t) =>
+        list.push({ id: `owed-${t.id}`, icon: 'makeup', tone: 'warn', text: `${t.name} asked for a make-up and has none recorded yet.` }),
+    );
+    rows.filter((t) => !isLoa(t) && practiceOf(t) === 'excused').forEach((t) =>
+        list.push({ id: `exc-${t.id}`, icon: 'excused', tone: 'neutral', text: `${t.name} is excused this week${t.excused && t.status === null ? ', automatically in their first week' : ''}.` }),
     );
 
     return list;

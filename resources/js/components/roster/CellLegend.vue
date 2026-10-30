@@ -9,16 +9,16 @@ defineProps({
 
 const RC = [
     ['ok', 'Will attend'],
-    ['cn', 'Cannot attend'],
+    ['cn', 'Will not attend'],
+    ['mr', 'Make-up requested'],
     ['bad', 'Unsigned'],
     ['open', 'Unsigned (roll call open)'],
     ['nil', 'No roll call posted'],
 ];
 const SP = [
-    ['ok', 'Present'],
-    ['mk', 'Makeup'],
-    ['at', 'Attached'],
-    ['bad', 'Missed'],
+    ['ok', 'Attended'],
+    ['mk', 'Make-up complete'],
+    ['bad', 'Not attended'],
     ['open', 'Not marked yet'],
     ['nil', 'No SP held'],
 ];
@@ -46,6 +46,7 @@ const SP = [
             <div class="flex flex-wrap gap-x-4 gap-y-1.5">
                 <span class="w-full font-medium text-foreground sm:w-20">Both</span>
                 <span class="inline-flex items-center gap-1.5"><span class="roster-h roster-h--loa inline-block w-[1.125rem]" aria-hidden="true" />LOA</span>
+                <span class="inline-flex items-center gap-1.5"><span class="roster-h roster-h--ex inline-block w-[1.125rem]" aria-hidden="true" />Excused</span>
                 <span class="inline-flex items-center gap-1.5"><span class="roster-h roster-h--out inline-block w-[1.125rem]" aria-hidden="true" />Not in the unit yet</span>
                 <span class="inline-flex items-center gap-1.5"><span class="roster-cc roster-cc--auto w-[1.125rem]" aria-hidden="true"><span class="roster-h roster-h--ok" /></span>Auto capture, game server</span>
                 <span v-if="aggregate" class="inline-flex items-center gap-1.5">

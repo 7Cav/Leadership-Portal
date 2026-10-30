@@ -58,9 +58,11 @@ import {
     feedLabel,
     isLocked,
     landingStep,
+    makeupOwedList,
     optionsFor,
     practiceGroups,
     practiceLabel,
+    practiceOf,
     signatureGroups,
     signatureLabel,
     stepsOf,
@@ -92,6 +94,8 @@ const props = defineProps({
     weekStatus: { type: Array, default: () => [] },
     // `[{ trooperId, missed, windowWeeks }]`, from the shared KPI service (AD-21).
     atRisk: { type: Array, default: () => [] },
+    // `[{ trooperId, weeks }]`: who asked for a make-up in a window week and has none recorded yet (2026-10-30).
+    makeupOwed: { type: Array, default: () => [] },
     // `{ source, syncedAt }` (AD-20).
     roster: { type: Object, default: null },
     practice: { type: Object, default: null },
@@ -195,6 +199,8 @@ const showDrawer = computed(
 
 const liveAtRisk = ref(props.atRisk);
 watch(() => props.atRisk, (atRisk) => (liveAtRisk.value = atRisk));
+const liveMakeupOwed = ref(props.makeupOwed);
+watch(() => props.makeupOwed, (owed) => (liveMakeupOwed.value = owed));
 
 // A view-as preview (Story 1.13) and a staff grant are read-only: the server refuses every write
 // then, so the screen says so up front instead of letting saves fail. So is a week before the week floor.
@@ -215,6 +221,7 @@ const autosave = props.section
           week: props.week.date,
           onSaved: (data) => {
               liveAtRisk.value = data.atRisk ?? liveAtRisk.value;
+              liveMakeupOwed.value = data.makeupOwed ?? liveMakeupOwed.value;
               // A hand edit of a mark clears an earlier confirmation on the server (7.8).
               if ('confirmation' in data) confirmation.value = data.confirmation;
           },
@@ -349,7 +356,7 @@ function onLinked({ player, marked, trooper, atRisk }) {
     liveAtRisk.value = atRisk ?? liveAtRisk.value;
     const name = row ? displayName(row) : `trooper ${trooper.id}`;
     if (newerHere) toast.success(`Linked ${player.playerName} to ${name}`, { description: 'The mark you just set stays.' });
-    else if (marked) toast.success(`Linked ${player.playerName} to ${name}`, { description: 'Marked present for this practice.' });
+    else if (marked) toast.success(`Linked ${player.playerName} to ${name}`, { description: 'Marked attended for this practice.' });
     else if (confirmation.value) toast.success(`Linked ${player.playerName} to ${name}`, { description: 'The practice is confirmed, so its marks were not changed.' });
     else toast.success(`Linked ${player.playerName} to ${name}`, { description: 'Their existing mark was kept.' });
 }
@@ -387,12 +394,13 @@ async function restoreDismissed(player) {
     return true;
 }
 
-const unmarked = computed(() => rows.value.filter((t) => !isLocked(t) && t.status === null));
+// Not marked yet, an automatic Excused aside: "Mark all present" and "Mark the rest missed" leave an excused first week alone.
+const unmarked = computed(() => rows.value.filter((t) => !isLocked(t) && practiceOf(t) === null));
 const prefillable = computed(() => unmarked.value.filter((t) => t.priorStatus && t.priorStatus !== 'loa'));
 
 function markAllPresent() {
     const entries = unmarked.value.map((trooper) => ({ trooper, value: 'present' }));
-    applyMany(entries, `Marked ${entries.length} as present`);
+    applyMany(entries, `Marked ${entries.length} as attended`);
 }
 
 // Everyone still unmarked missed the practice: the same rows as "Mark all present" (LOA rows are
@@ -400,7 +408,7 @@ function markAllPresent() {
 function markRestMissed() {
     if (!editable.value) return;
     const entries = unmarked.value.map((trooper) => ({ trooper, value: 'missed' }));
-    applyMany(entries, `Marked ${entries.length} as missed`);
+    applyMany(entries, `Marked ${entries.length} as not attended`);
 }
 
 function useLastWeek() {
@@ -408,7 +416,7 @@ function useLastWeek() {
     applyMany(entries, `Used last week's marks for ${entries.length}`);
 }
 
-// Keyboard (mockup aside): J / K or the arrows move between cards, 1–4 set the focused card.
+// Keyboard (mockup aside): J / K or the arrows move between cards, the number keys set the focused card.
 function onCardKeydown(event) {
     const face = event.target.closest?.('[data-card-face]');
     if (!face || event.target !== face || event.metaKey || event.ctrlKey || event.altKey) return;
@@ -449,7 +457,7 @@ function onCardKeydown(event) {
     }
 }
 
-// The number keys the keyboard card shows for this step: "1 to 3" for signatures, "1 to 4" for marks.
+// The number keys the keyboard card shows for this step: "1 to 5" for signatures, "1 to 4" for marks.
 const markKeys = computed(() => displayKeys(SHORTCUTS[step.value === 1 ? 'rollcall.signature' : 'rollcall.practice']).map(keyLabel));
 
 // What changed on this visit, for the review step.
@@ -758,7 +766,7 @@ onMounted(() => {
 // screen that was just left has sent what it still held, and keep the opening marks as this visit's "before". It is a
 // partial reload of what changes as the week is worked, so a mark set meanwhile neither trips the leave guard nor is
 // overwritten (the rows keep a mark not saved yet).
-const LIVE_PROPS = ['troopers', 'practice', 'atRisk', 'weekStatus', 'fireteams', 'unmatched', 'dismissed', 'departed', 'capture', 'telemetry', 'locked', 'report'];
+const LIVE_PROPS = ['troopers', 'practice', 'atRisk', 'makeupOwed', 'weekStatus', 'fireteams', 'unmatched', 'dismissed', 'departed', 'capture', 'telemetry', 'locked', 'report'];
 // A save that never answers must not keep the marks stale for good: past a few seconds, read them anyway.
 const LEFT_WAIT_MS = 3000;
 onMounted(() => {
@@ -821,6 +829,10 @@ const practiceFilter = ref('all');
 
 const signatureView = computed(() => signatureGroups(orderedRows.value));
 const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFilter.value === 'open'));
+// What "Needs a look" lists: not marked, not attended, or still owing a make-up.
+const openCount = computed(() => practiceGroups(rows.value, true).reduce((sum, group) => sum + group.troopers.length, 0));
+// Who owes a make-up (2026-10-30): earlier weeks from the server, this week read live from the cards.
+const makeupOwed = computed(() => makeupOwedList(orderedRows.value, liveMakeupOwed.value, props.week.date));
 </script>
 
 <template>
@@ -1083,7 +1095,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                         </p>
                     </div>
                     <p v-if="editable" class="mt-2 hidden items-center gap-2 text-xs text-muted-foreground pointer-coarse:flex">
-                        <PhHandSwipeRight class="size-4" aria-hidden="true" />Swipe a card right for will attend, left for cannot attend.
+                        <PhHandSwipeRight class="size-4" aria-hidden="true" />Swipe a card right for will attend, left for will not attend.
                     </p>
                     <div v-for="group in signatureView" :key="group.id" role="group" :aria-label="group.title">
                         <div class="flex items-baseline justify-between gap-3 px-1 pt-3.5 pb-1.5 text-[13px] font-semibold">
@@ -1117,14 +1129,14 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                                 Section practice
                             </h2>
                             <p class="mt-0.5 max-w-[62ch] text-[13px] text-muted-foreground">
-                                Mark everyone who was expected. Troopers who said they could not attend are listed first.
+                                Mark everyone who was expected. Troopers who said they will not attend or asked for a make-up are listed first.
                             </p>
                         </div>
                         <div class="inline-flex gap-0.5 rounded-md bg-muted p-0.5" role="group" aria-label="Show">
                             <button
                                 v-for="option in [
                                     { id: 'all', label: 'All', count: rows.length },
-                                    { id: 'open', label: 'Needs a look', count: counts.unmarked + counts.missed },
+                                    { id: 'open', label: 'Needs a look', count: openCount },
                                 ]"
                                 :key="option.id"
                                 type="button"
@@ -1174,13 +1186,13 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                     </div>
 
                     <p v-if="editable" class="mt-2 hidden items-center gap-2 text-xs text-muted-foreground pointer-coarse:flex">
-                        <PhHandSwipeRight class="size-4" aria-hidden="true" />Swipe a card right for present, left for missed.
+                        <PhHandSwipeRight class="size-4" aria-hidden="true" />Swipe a card right for attended, left for not attended.
                     </p>
                     <div v-if="editable && unmarked.length" class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
                         <span>Sets the {{ unmarked.length }} {{ unmarked.length === 1 ? 'trooper' : 'troopers' }} not marked yet. Marks you already set stay.</span>
                         <div class="flex flex-wrap gap-2 sm:ml-auto">
                             <Button variant="outline" size="sm" data-testid="mark-all-present" @click="markAllPresent">
-                                <PhChecks />Mark all present
+                                <PhChecks />Mark all attended
                             </Button>
                             <Button
                                 variant="outline"
@@ -1189,7 +1201,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                                 :disabled="!editable || !unmarked.length"
                                 @click="markRestMissed"
                             >
-                                <PhX />Mark the rest missed
+                                <PhX />Mark the rest not attended
                             </Button>
                         </div>
                     </div>
@@ -1280,7 +1292,7 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                             </p>
                         </div>
                     </div>
-                    <StepReview :troopers="orderedRows" :at-risk="liveAtRisk" @go="go">
+                    <StepReview :troopers="orderedRows" :at-risk="liveAtRisk" :makeup-owed="makeupOwed" @go="go">
                         <template #changes>
                             <section aria-labelledby="review-changes" class="rounded-lg border border-border bg-card" data-testid="changes">
                                 <div class="flex items-baseline justify-between gap-3 px-4 pt-3.5 pb-1">
@@ -1363,7 +1375,9 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                         <p class="text-xs text-muted-foreground">Signatures close {{ closesLabel }}.</p>
                         <dl class="mt-3 divide-y divide-border">
                             <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Will attend</dt><dd class="font-medium tabular-nums">{{ counts.willAttend }}</dd></div>
-                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Cannot attend</dt><dd class="font-medium tabular-nums">{{ counts.cannotAttend }}</dd></div>
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Will not attend</dt><dd class="font-medium tabular-nums">{{ counts.cannotAttend }}</dd></div>
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Make-up requested</dt><dd class="font-medium tabular-nums">{{ counts.makeupRequested }}</dd></div>
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Excused</dt><dd class="font-medium text-muted-foreground tabular-nums">{{ counts.excusedSignature }}</dd></div>
                             <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Unsigned</dt><dd :class="cn('font-medium tabular-nums', counts.unsigned && 'text-warning')">{{ counts.unsigned }}</dd></div>
                             <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">On LOA</dt><dd class="font-medium text-muted-foreground tabular-nums">{{ counts.loa }}</dd></div>
                         </dl>
@@ -1372,10 +1386,11 @@ const practiceView = computed(() => practiceGroups(orderedRows.value, practiceFi
                         <p class="mb-1 font-semibold">Section practice</p>
                         <p class="text-xs text-muted-foreground">Week of {{ weekLabel }}.</p>
                         <dl class="mt-3 divide-y divide-border">
-                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Present</dt><dd class="font-medium tabular-nums">{{ counts.present }}</dd></div>
-                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Missed</dt><dd :class="cn('font-medium tabular-nums', counts.missed && 'text-destructive')">{{ counts.missed }}</dd></div>
-                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Makeup</dt><dd class="font-medium tabular-nums">{{ counts.makeup }}</dd></div>
-                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Attached</dt><dd class="font-medium tabular-nums">{{ counts.attached }}</dd></div>
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Attended</dt><dd class="font-medium tabular-nums">{{ counts.present }}</dd></div>
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Not attended</dt><dd :class="cn('font-medium tabular-nums', counts.missed && 'text-destructive')">{{ counts.missed }}</dd></div>
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Excused</dt><dd class="font-medium text-muted-foreground tabular-nums">{{ counts.excused }}</dd></div>
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Make-up complete</dt><dd class="font-medium tabular-nums">{{ counts.makeup }}</dd></div>
+                            <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Owes a make-up</dt><dd :class="cn('font-medium tabular-nums', makeupOwed.length && 'text-warning')">{{ makeupOwed.length }}</dd></div>
                             <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">Not marked</dt><dd :class="cn('font-medium tabular-nums', counts.unmarked && 'text-warning')">{{ counts.unmarked }}</dd></div>
                             <div class="flex justify-between py-1.5"><dt class="text-muted-foreground">On LOA</dt><dd class="font-medium text-muted-foreground tabular-nums">{{ counts.loa }}</dd></div>
                         </dl>

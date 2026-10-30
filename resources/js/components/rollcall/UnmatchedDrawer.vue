@@ -21,7 +21,7 @@ import { suggestTroopers } from '@/lib/unmatched';
 // The "Not matched to a trooper" drawer (Story 7.7), binding design mockups/v2/capture-review.html
 // variant C: every player the capture saw but no trooper is linked to, each with a trooper picker
 // and two actions. The picker only *orders* by name closeness: nothing is ever chosen for the
-// leader, and "Link and mark present" stays disabled until they choose (AD-19). The server does the
+// leader, and "Link and mark attended" stays disabled until they choose (AD-19). The server does the
 // work (an audited link, then the manual-wins pre-mark) and scope-gates both actions (AD-8). A trooper who already
 // holds another ID on the game is never overwritten silently: the leader is asked to replace or cancel (#176).
 const props = defineProps({
@@ -242,7 +242,7 @@ async function dismiss(player) {
                         :title="disabledReason ?? undefined"
                         @click="link(player)"
                     >
-                        <PhCircleNotch v-if="of(player).busy" class="animate-spin" aria-hidden="true" />Link and mark present
+                        <PhCircleNotch v-if="of(player).busy" class="animate-spin" aria-hidden="true" />Link and mark attended
                     </Button>
                     <Button
                         variant="outline"

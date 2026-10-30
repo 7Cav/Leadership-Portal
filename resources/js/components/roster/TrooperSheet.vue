@@ -68,7 +68,7 @@ const cells = computed(() =>
         week,
         index,
         mark: trooper.value.weeks[index],
-        ...weekCell(trooper.value.weeks[index], week, { current: week === current.value, joined: trooper.value.joined }),
+        ...weekCell(trooper.value.weeks[index], week, { current: week === current.value, joined: trooper.value.joined, excused: trooper.value.excusedWeeks?.[week] ?? null }),
     })),
 );
 const recent = computed(() => cells.value.slice(-8).reverse());
@@ -96,8 +96,8 @@ const FAILURES = {
     error: ['Could not load the trooper', 'Try again in a moment.'],
 };
 
-const RC_TONE = { ok: 'success', cn: 'warning', bad: 'danger' };
-const SP_TONE = { ok: 'success', mk: 'success', at: 'info', bad: 'danger' };
+const RC_TONE = { ok: 'success', cn: 'warning', mr: 'info', ex: 'warning', bad: 'danger' };
+const SP_TONE = { ok: 'success', mk: 'success', ex: 'warning', bad: 'danger' };
 const toneClass = { bad: 'text-destructive', warn: 'text-warning', ok: '', muted: 'text-muted-foreground' };
 </script>
 

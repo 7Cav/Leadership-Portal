@@ -121,7 +121,7 @@ describe('Rollcall page', () => {
         const groups = wrapper.findAll('[role="group"][aria-label]').filter((g) => !g.attributes('aria-label').includes(' for '));
 
         expect(wrapper.find('h2').text()).toBe('Signatures');
-        expect(groups.map((g) => g.attributes('aria-label'))).toEqual(['Unsigned', 'Cannot attend', 'Will attend']);
+        expect(groups.map((g) => g.attributes('aria-label'))).toEqual(['Unsigned', 'Will not attend', 'Will attend']);
     });
 
     it('deep-links a step through the URL', async () => {
@@ -204,14 +204,14 @@ describe('Rollcall page', () => {
         });
     });
 
-    it('lists "said they cannot attend" first on the practice step, and shows last week\'s mark as the pre-fill', () => {
+    it('lists "said they will not attend" first on the practice step, and shows last week\'s mark as the pre-fill', () => {
         page.url = '/rollcall/12?step=2';
         const wrapper = factory();
 
         expect(wrapper.find('[data-testid="prefill-banner"]').text()).toContain('Pre-filled from last week');
-        const first = wrapper.find('[role="group"][aria-label="Said they cannot attend"]');
+        const first = wrapper.find('[role="group"][aria-label="Said they will not attend"]');
         expect(first.text()).toContain('Trooper2.A');
-        expect(first.find('[data-testid="prior-mark"]').text()).toBe('Last week: Missed');
+        expect(first.find('[data-testid="prior-mark"]').text()).toBe('Last week: Not attended');
     });
 
     it('says nothing was pre-filled when last week has no marks', () => {
@@ -360,17 +360,67 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-testid="save-state"]').text()).toBe('Saved 16:20Z (31 min ago)');
         });
 
-        it('offers present, missed, makeup and attached on the practice step, and records a manual source', async () => {
+        it('offers attended, not attended, excused and make-up complete on the practice step, and records a manual source', async () => {
             page.url = '/rollcall/12?step=2';
             const wrapper = factory();
 
             expect(wrapper.find('[data-trooper="3"]').findAll('button[data-value]').map((b) => b.attributes('data-value'))).toEqual([
-                'present', 'missed', 'makeup', 'attached',
+                'present', 'missed', 'excused', 'makeup',
             ]);
-            await button(wrapper, 3, 'attached').trigger('click');
+            expect(wrapper.find('[data-trooper="3"]').findAll('button[data-value]').map((b) => b.text().replace(/, key \d$/, ''))).toEqual([
+                'Attended', 'Not attended', 'Excused', 'Make-up complete',
+            ]);
+            await button(wrapper, 3, 'makeup').trigger('click');
             await vi.advanceTimersByTimeAsync(1000);
 
-            expect(post).toHaveBeenCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 3, status: 'attached' }] });
+            expect(post).toHaveBeenCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 3, status: 'makeup' }] });
+        });
+
+        it('offers will attend, will not attend, make-up requested, excused and unsigned on the signature step', async () => {
+            const wrapper = factory();
+
+            expect(wrapper.find('[data-trooper="3"]').findAll('button[data-value]').map((b) => b.attributes('data-value'))).toEqual([
+                'will_attend', 'cannot_attend', 'makeup_requested', 'excused', 'unsigned',
+            ]);
+            await button(wrapper, 3, 'makeup_requested').trigger('click');
+            await vi.advanceTimersByTimeAsync(1000);
+
+            expect(post).toHaveBeenCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 3, rollcall: 'makeup_requested' }] });
+        });
+
+        it('lists who owes a make-up in the review step, earlier weeks from the server and this week live', async () => {
+            page.url = '/rollcall/12?step=3';
+            const wrapper = factory({
+                troopers: [trooper(3, 'makeup_requested', null), trooper(4, 'will_attend', 'present')],
+                makeupOwed: [{ trooperId: 3, weeks: ['2026-09-26', '2026-10-03'] }, { trooperId: 4, weeks: ['2026-09-19'] }],
+            });
+            const owed = wrapper.get('[data-testid="makeup-owed"]');
+
+            expect(owed.findAll('li')).toHaveLength(2);
+            expect(owed.text()).toContain('Make-up requested for the week of 26Sep26, 03Oct26');
+            expect(owed.text()).toContain('Make-up requested for the week of 19Sep26');
+
+            page.url = '/rollcall/12?step=2';
+            await wrapper.vm.$nextTick();
+            expect(wrapper.find('[data-trooper="3"] [data-testid="owes-makeup"]').exists()).toBe(true);
+            await button(wrapper, 3, 'makeup').trigger('click');
+            expect(wrapper.find('[data-trooper="3"] [data-testid="owes-makeup"]').exists()).toBe(false);
+        });
+
+        it('shows an automatic Excused pressed and badged, and lets the leader override it by hand', async () => {
+            page.url = '/rollcall/12?step=2';
+            const wrapper = factory({ troopers: [trooper(3, 'unsigned', null, { excused: 'transfer' })] });
+
+            expect(wrapper.find('[data-trooper="3"] button[data-value="excused"]').attributes('aria-pressed')).toBe('true');
+            expect(wrapper.find('[data-trooper="3"] [data-testid="auto-excused"]').attributes('title')).toContain('after a transfer');
+            // "Mark all present" leaves an automatically excused first week alone.
+            expect(wrapper.find('[data-testid="mark-all-present"]').exists()).toBe(false);
+
+            await button(wrapper, 3, 'present').trigger('click');
+            await vi.advanceTimersByTimeAsync(1000);
+
+            expect(post).toHaveBeenCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 3, status: 'present' }] });
+            expect(wrapper.find('[data-trooper="3"] [data-testid="auto-excused"]').exists()).toBe(false);
         });
 
         it('marks every unmarked, non-LOA trooper present in one action, and Undo takes it back unsent', async () => {
@@ -385,7 +435,7 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-trooper="4"]').text()).toContain('LOA, nothing to mark');
 
             const [title, options] = toastSuccess.mock.calls[0];
-            expect(title).toBe('Marked 2 as present');
+            expect(title).toBe('Marked 2 as attended');
             await vi.advanceTimersByTimeAsync(1000);
             expect(post).not.toHaveBeenCalled();
 
@@ -459,7 +509,7 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-trooper="4"]').text()).toContain('LOA, nothing to mark');
 
             const [title, options] = toastSuccess.mock.calls[0];
-            expect(title).toBe('Marked 2 as missed');
+            expect(title).toBe('Marked 2 as not attended');
             expect(options.description).toBe('Trooper2.A, Trooper3.A');
             expect(options.duration).toBe(6000);
         });
@@ -531,7 +581,7 @@ describe('Rollcall page', () => {
             expect(wrapper.find('[data-testid="use-last-week"]').text()).toBe("Use last week's marks (1)");
 
             await wrapper.find('[data-testid="mark-all-present"]').trigger('click');
-            expect(toastSuccess.mock.calls[0][0]).toBe('Marked 1 as present');
+            expect(toastSuccess.mock.calls[0][0]).toBe('Marked 1 as attended');
             await vi.advanceTimersByTimeAsync(7000);
 
             expect(post).toHaveBeenCalledTimes(1);
@@ -593,7 +643,7 @@ describe('Rollcall page', () => {
             expect(post).toHaveBeenCalledTimes(2);
             expect(post).toHaveBeenLastCalledWith('/rollcall/12', { week: '2026-10-03', marks: [{ trooper_id: 2, status: 'present' }] });
             expect(wrapper.find('[data-trooper="3"] button[data-value="present"][aria-pressed="true"]').exists()).toBe(false);
-            expect(summary('Present')).toBe(counts.present);
+            expect(summary('Attended')).toBe(counts.present);
             expect(summary('On LOA')).toBe(counts.loa);
 
             page.url = '/rollcall/12?step=3';
@@ -614,8 +664,10 @@ describe('Rollcall page', () => {
             expect(document.activeElement).toBe(faces()[0].element);
 
             const id = faces()[0].element.closest('[data-trooper]').dataset.trooper;
-            await faces()[0].trigger('keydown', { key: '3' });
+            await faces()[0].trigger('keydown', { key: '4' });
             expect(button(wrapper, id, 'makeup').attributes('aria-pressed')).toBe('true');
+            await faces()[0].trigger('keydown', { key: '3' });
+            expect(button(wrapper, id, 'excused').attributes('aria-pressed')).toBe('true');
         });
 
         describe('when a mark takes the focused card off the "Needs a look" list', () => {
@@ -670,15 +722,15 @@ describe('Rollcall page', () => {
         it('takes the keyboard card and the number keys from the shortcut list', async () => {
             const wrapper = factory();
 
-            // Signatures: three buttons, so 1 to 3, and 4 does nothing.
+            // Signatures: five buttons, so 1 to 5, and 6 does nothing.
             expect(wrapper.find('[data-testid="keyboard-move"]').text()).toContain('J K');
-            expect(wrapper.find('[data-testid="keyboard-mark"]').text()).toContain('1 to 3');
+            expect(wrapper.find('[data-testid="keyboard-mark"]').text()).toContain('1 to 5');
             const face = wrapper.findAll('[data-card-face]')[0];
             const id = face.element.closest('[data-trooper]').dataset.trooper;
-            const pressed = () => ['will_attend', 'cannot_attend', 'unsigned'].map((value) => button(wrapper, id, value).attributes('aria-pressed'));
+            const pressed = () => ['will_attend', 'cannot_attend', 'makeup_requested', 'excused', 'unsigned'].map((value) => button(wrapper, id, value).attributes('aria-pressed'));
             const before = pressed();
             face.element.focus();
-            await face.trigger('keydown', { key: '4' });
+            await face.trigger('keydown', { key: '6' });
             expect(pressed()).toEqual(before);
             await face.trigger('keydown', { key: '2' });
             expect(button(wrapper, id, 'cannot_attend').attributes('aria-pressed')).toBe('true');
@@ -1096,7 +1148,7 @@ describe('Rollcall page', () => {
 
             const changes = wrapper.find('[data-testid="changes"]').text();
             expect(changes).toContain('Trooper2.A');
-            expect(changes).toContain('Present');
+            expect(changes).toContain('Attended');
         });
 
         it('does not read the marks again for a screen the server just answered', async () => {
@@ -1230,7 +1282,7 @@ describe('Rollcall page', () => {
 
             expect(wrapper.find('[data-testid="unmatched-drawer"]').exists()).toBe(false);
             expect(wrapper.find('[data-testid="unmatched-banner"]').exists()).toBe(false);
-            expect(wrapper.find('[data-trooper="3"]').text()).toContain('Present');
+            expect(wrapper.find('[data-trooper="3"]').text()).toContain('Attended');
         });
 
         describe('the unlinked count in the stepper (#176)', () => {
@@ -1497,7 +1549,7 @@ describe('Rollcall page', () => {
             });
             expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed');
 
-            const missed = wrapper.findAll('[data-trooper="1"] button').find((b) => b.text().startsWith('Missed'));
+            const missed = wrapper.findAll('[data-trooper="1"] button').find((b) => b.text().startsWith('Not attended'));
             await missed.trigger('click');
             expect(wrapper.find('[data-testid="confirm-badge"]').text()).toBe('Confirmed');
             await vi.advanceTimersByTimeAsync(1000);

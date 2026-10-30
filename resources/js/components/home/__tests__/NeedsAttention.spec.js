@@ -159,3 +159,25 @@ describe('NeedsAttention', () => {
         });
     });
 });
+
+// 2026-10-30: a trooper who asked for a make-up on the roll call stays on the list until one is recorded.
+describe('NeedsAttention, owed make-ups', () => {
+    const owed = (id, name, weeks) => ({
+        kind: 'makeup_owed', id: `makeup-owed-${id}`, trooper: { id, displayName: name, rankShort: 'PFC', username: name },
+        section: { id: 5, designation: '1/1/A/1-7', name: '1st Section' }, weeks, href: `/rollcall/5?week=${weeks.at(-1)}&focus=${id}`,
+    });
+
+    it('lists each trooper who owes a make-up with the weeks, linking to their card on the roll call', () => {
+        const wrapper = mount(NeedsAttention, {
+            props: { attention: { items: [owed(9, 'PFC Adams.P', ['2026-09-26', '2026-10-03'])], totals: { holding: 0, atRisk: 0, loaReview: 0, makeupOwed: 1 } } },
+        });
+        const row = wrapper.get('[data-item="makeup_owed"]');
+
+        expect(wrapper.findAll('[data-group]').map((g) => g.attributes('data-group'))).toEqual(['makeup_owed']);
+        expect(wrapper.get('[data-group="makeup_owed"] h3').text()).toContain('Owe a make-up');
+        expect(row.attributes('href')).toBe('/rollcall/5?week=2026-10-03&focus=9');
+        expect(row.attributes('title')).toBe('Open PFC Adams.P on the 1/1/A/1-7 roll call');
+        expect(row.text()).toContain('Make-up requested for 26Sep26, 03Oct26 in 1/1/A/1-7');
+        expect(row.text()).toContain('Owes a make-up');
+    });
+});

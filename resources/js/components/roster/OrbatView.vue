@@ -191,7 +191,7 @@ function cellsFor(trooper) {
         return {
             week,
             index,
-            ...weekCell(trooper.weeks[index], week, { current: week === props.currentWeek, joined: trooper.joined }),
+            ...weekCell(trooper.weeks[index], week, { current: week === props.currentWeek, joined: trooper.joined, excused: trooper.excusedWeeks?.[week] ?? null }),
             auto: trooper.weeks[index]?.source === 'auto',
         };
     });
@@ -204,8 +204,8 @@ function aggregateCells(members) {
 
 function stripLabel(trooper) {
     const cells = cellsFor(trooper);
-    const signed = cells.filter((c) => c.rc === 'ok' || c.rc === 'cn').length;
-    const attended = cells.filter((c) => ['ok', 'mk', 'at'].includes(c.sp)).length;
+    const signed = cells.filter((c) => c.rc === 'ok' || c.rc === 'cn' || c.rc === 'mr').length;
+    const attended = cells.filter((c) => ['ok', 'mk'].includes(c.sp)).length;
     const missed = cells.filter((c) => c.sp === 'bad').length;
 
     return `Last 8 weeks: roll call signed ${signed} of 8 weeks, section practice attended ${attended}${missed ? `, ${missed} missed` : ''}.`;
@@ -223,7 +223,7 @@ function resolveTip(key) {
     if (kind === 'm') {
         const trooper = byId.value.get(Number(id));
         const mark = trooper.weeks[index];
-        const cell = weekCell(mark, week, { current, joined: trooper.joined });
+        const cell = weekCell(mark, week, { current, joined: trooper.joined, excused: trooper.excusedWeeks?.[week] ?? null });
 
         return { title, rows: [['Roll call', RC_STATES[cell.rc]], ['SP', SP_STATES[cell.sp], sourceLabel(mark)]] };
     }

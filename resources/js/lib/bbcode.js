@@ -23,8 +23,11 @@ export const TOP_FLAGS = ['fireteams_shown'];
 export const LISTS = ['troopers'];
 /** Names printable inside {{#troopers}}. */
 export const ROW_STRINGS = ['n', 'role', 'rank', 'rank_short', 'rank_icon', 'rank_icon_width', 'name', 'display_name', 'rc', 'sp'];
-/** Yes-or-no names, usable only as sections, inside {{#troopers}}. */
-export const ROW_FLAGS = ['sp_present', 'sp_missed', 'sp_makeup', 'sp_attached', 'sp_loa', 'sp_unmarked', 'rc_yes', 'rc_no', 'rc_unsigned', 'is_sl', 'is_asl', 'is_ftl'];
+/**
+ * Yes-or-no names, usable only as sections, inside {{#troopers}}. `sp_attached` is never set since Attached merged into
+ * Make-up complete; it stays so a template saved before still renders.
+ */
+export const ROW_FLAGS = ['sp_present', 'sp_missed', 'sp_excused', 'sp_makeup', 'sp_attached', 'sp_loa', 'sp_unmarked', 'rc_yes', 'rc_no', 'rc_makeup_requested', 'rc_excused', 'rc_unsigned', 'is_sl', 'is_asl', 'is_ftl'];
 export const FILTERS = ['upper', 'lower'];
 
 // What each name means, and an example: what a value prints, or how a section or filter is written. For the legend on
@@ -38,7 +41,7 @@ const MEANINGS = {
     week_end: ['The Friday the week ends', '22May26'],
     count: ['How many troopers are in the section', '8'],
     signed: ['How many signed the roll call as will attend', '6'],
-    attended: ['How many were present, made up or attached at practice', '5'],
+    attended: ['How many attended practice or completed a make-up', '5'],
     troopers: ['Repeats what is inside once for each trooper. {{^troopers}}...{{/troopers}} shows when the section is empty', '{{#troopers}}{{n}}. {{display_name}}{{/troopers}}'],
     n: ["The trooper's row number, from 1. The list runs SL, ASL, fireteam leaders when the section shows them, then everyone else, each by rank", '1'],
     role: ["The trooper's role: Section Leader, Assistant Section Leader, or the fireteam they lead (FTL Alpha) when the section shows fireteam leaders. Empty for everyone else", 'Section Leader (FTL Alpha)'],
@@ -48,16 +51,19 @@ const MEANINGS = {
     rank_icon_width: ['The width to show the rank insignia at, such as 11px, so every rank looks the same size. Empty when Cav has no insignia', '[IMG width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/IMG]'],
     name: ['The forum username', 'Jay.JH'],
     display_name: ['Short rank and username, as the forum names a member', 'SGT Jay.JH'],
-    rc: ['The roll call answer: Yes or No, empty when unsigned', 'Yes'],
-    sp: ['The practice mark: Yes, No, MU, Att or LOA, empty when not marked', 'MU'],
-    sp_present: ['Present at section practice', '{{#sp_present}}✓{{/sp_present}}'],
-    sp_missed: ['Missed section practice', '{{#sp_missed}}✗{{/sp_missed}}'],
-    sp_makeup: ['Made up a missed practice', '{{#sp_makeup}}MU{{/sp_makeup}}'],
-    sp_attached: ['Trained with another unit, credited to this section', '{{#sp_attached}}ATT{{/sp_attached}}'],
+    rc: ['The roll call answer: Yes (will attend), No (will not attend), MU (make-up requested) or EX (excused), empty when unsigned', 'Yes'],
+    sp: ['The practice mark: Yes (attended), No (not attended), EX (excused), MU (make-up complete) or LOA, empty when not marked', 'MU'],
+    sp_present: ['Attended section practice', '{{#sp_present}}✓{{/sp_present}}'],
+    sp_missed: ['Did not attend section practice', '{{#sp_missed}}✗{{/sp_missed}}'],
+    sp_excused: ['Excused from section practice this week, by a leader or automatically in a first week', '{{#sp_excused}}EX{{/sp_excused}}'],
+    sp_makeup: ['Make-up complete: made up the practice, at another section or otherwise', '{{#sp_makeup}}MU{{/sp_makeup}}'],
+    sp_attached: ['No longer set: Attached is now Make-up complete. Kept so older templates still render', '{{#sp_attached}}ATT{{/sp_attached}}'],
     sp_loa: ['On LOA for the week', '{{#sp_loa}}LOA{{/sp_loa}}'],
     sp_unmarked: ['No practice mark yet', '{{#sp_unmarked}}-{{/sp_unmarked}}'],
     rc_yes: ['Signed the roll call: will attend', '{{#rc_yes}}✓{{/rc_yes}}'],
-    rc_no: ['Signed the roll call: cannot attend', '{{#rc_no}}✗{{/rc_no}}'],
+    rc_no: ['Signed the roll call: will not attend', '{{#rc_no}}✗{{/rc_no}}'],
+    rc_makeup_requested: ['Signed the roll call: make-up requested', '{{#rc_makeup_requested}}MU{{/rc_makeup_requested}}'],
+    rc_excused: ['Excused from the roll call this week, by a leader or automatically in a first week', '{{#rc_excused}}EX{{/rc_excused}}'],
     rc_unsigned: ['Has not signed the roll call', '{{#rc_unsigned}}-{{/rc_unsigned}}'],
     is_sl: ['The Section Leader', '{{#is_sl}}(SL) {{/is_sl}}'],
     is_asl: ['The Assistant Section Leader', '{{#is_asl}}(ASL) {{/is_asl}}'],
@@ -121,24 +127,28 @@ export function sampleContext() {
         rank_icon_width: icon ? `${insigniaWidth(SAMPLE_ICON(icon))}px` : '',
         name,
         display_name: `${rankShort} ${name}`,
-        rc: { yes: 'Yes', no: 'No' }[rc] ?? '',
-        sp: { present: 'Yes', missed: 'No', makeup: 'MU', attached: 'Att', loa: 'LOA' }[sp] ?? '',
+        rc: { yes: 'Yes', no: 'No', makeup: 'MU', excused: 'EX' }[rc] ?? '',
+        sp: { present: 'Yes', missed: 'No', excused: 'EX', makeup: 'MU', loa: 'LOA' }[sp] ?? '',
         sp_present: sp === 'present',
         sp_missed: sp === 'missed',
+        sp_excused: sp === 'excused',
         sp_makeup: sp === 'makeup',
-        sp_attached: sp === 'attached',
+        sp_attached: false,
         sp_loa: sp === 'loa',
         sp_unmarked: sp === null,
         rc_yes: rc === 'yes',
         rc_no: rc === 'no',
+        rc_makeup_requested: rc === 'makeup',
+        rc_excused: rc === 'excused',
         rc_unsigned: rc === null,
     });
     const troopers = [
         row(1, example('role'), example('rank'), example('rank_short'), '18.jpg?1741376797', example('name'), 'yes', 'makeup'),
         row(2, 'FTL Bravo', 'Corporal', 'CPL', '19.jpg?1741376805', 'Adams.P', 'yes', 'present'),
         row(3, '', 'Specialist', 'SPC', '20.jpg?1741376814', 'Reyes.M', 'no', 'loa'),
-        row(4, '', 'Private First Class', 'PFC', '21.jpg?1741376823', 'Novak.T', 'yes', 'attached'),
+        row(4, '', 'Private First Class', 'PFC', '21.jpg?1741376823', 'Novak.T', 'makeup', 'missed'),
         row(5, '', 'Private', 'PVT', '22.jpg?1741376831', 'Okafor.B', null, null),
+        row(6, '', 'Private', 'PVT', '22.jpg?1741376831', 'Ibarra.L', 'excused', 'excused'),
     ];
 
     return {
@@ -149,7 +159,7 @@ export function sampleContext() {
         week_end: example('week_end'),
         count: String(troopers.length),
         signed: String(troopers.filter((trooper) => trooper.rc_yes).length),
-        attended: String(troopers.filter((trooper) => trooper.sp_present || trooper.sp_makeup || trooper.sp_attached).length),
+        attended: String(troopers.filter((trooper) => trooper.sp_present || trooper.sp_makeup).length),
         fireteams_shown: troopers.some((trooper) => trooper.is_ftl),
         troopers,
     };

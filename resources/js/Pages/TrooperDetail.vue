@@ -52,8 +52,8 @@ const historyRows = computed(() => {
         .map((week) => ({ ...week, ...historyCell(week, { current: week.week === current }), current: week.week === current }))
         .reverse();
 });
-const RC_TONE = { ok: 'success', cn: 'warning', bad: 'danger' };
-const SP_TONE = { ok: 'success', mk: 'success', at: 'info', bad: 'danger' };
+const RC_TONE = { ok: 'success', cn: 'warning', mr: 'info', ex: 'warning', bad: 'danger' };
+const SP_TONE = { ok: 'success', mk: 'success', ex: 'warning', bad: 'danger' };
 
 const status = computed(() => trooperStatusOf(props.trooper.status));
 // The makeup PM opens the forum's own "start conversation" form, pre-filled; the leader sends it there.

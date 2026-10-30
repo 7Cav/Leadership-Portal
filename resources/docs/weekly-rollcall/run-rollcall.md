@@ -33,16 +33,20 @@ checklist:
 
 ## Record the signatures
 
-1. In step 1, **Signatures**, set each trooper to **Will attend**, **Cannot attend** or **Unsigned**, as they signed this week's forum thread.
+1. In step 1, **Signatures**, set each trooper to **Will attend**, **Will not attend**, **Make-up requested**, **Excused** or **Unsigned**, as they signed this week's forum thread.
 2. Every change saves as you click. If a save fails, the page says your last changes are not saved and keeps them on screen. Choose **Retry**.
 
 > [!good-to-know] Troopers whose leave covers the week are locked and listed under **On LOA**. They post as LOA; you do not mark them. A trooper whose leave starts next Cav week shows **Leave from** and the date; mark them as usual this week.
 
+> [!good-to-know] **Excused** counts for nothing, like LOA: the week leaves the trooper's RC or SP and is accounted on the report. A trooper's first week in your section after a transfer, and a new recruit's first week, are excused for you: the card shows **Excused, automatic**. Choose any other button to override it.
+
+> [!good-to-know] **Make-up requested** counts as signed. The trooper then shows **Owes a make-up** here and on Home's **Needs attention** until you mark **Make-up complete** for that week, or a host section adds them as a guest.
+
 ## Mark section practice
 
-1. In step 2, **Section practice**, mark each trooper **Present**, **Missed**, **Makeup** or **Attached**.
-2. **Mark all present** and **Mark the rest missed** fill many rows at once. Choose **Undo** on the notice to take it back.
-3. With the keyboard, J and K or the arrow keys move between troopers, and 1 to 4 set the mark. Press `?` for **All keyboard shortcuts**.
+1. In step 2, **Section practice**, mark each trooper **Attended**, **Not attended**, **Excused** or **Make-up complete**. A trooper who trained at another section's practice is **Make-up complete**.
+2. **Mark all attended** and **Mark the rest not attended** fill many rows at once, and leave an automatically excused trooper alone. Choose **Undo** on the notice to take it back.
+3. With the keyboard, J and K or the arrow keys move between troopers. The number keys set the mark: 1 to 5 for signatures, 1 to 4 for practice. Press `?` for **All keyboard shortcuts**.
 
 ## Check what the game server saw
 
@@ -51,11 +55,11 @@ checklist:
 3. If the banner says the server could not be read, mark by hand, or choose **Try again** to read it again.
 4. Players the server saw who are linked to no trooper are listed for you to link or dismiss. See [Link or dismiss an unmatched player](/docs/weekly-rollcall/unmatched-players).
 
-## Guests and makeups
+## Guests and make-ups
 
-1. A trooper from another section who came to your practice is a guest. It gives them a makeup on their own section's roll call. See [Add a guest to practice](/docs/weekly-rollcall/add-a-guest).
+1. A trooper from another section who came to your practice is a guest. It records **Make-up complete** on their own section's roll call. See [Add a guest to practice](/docs/weekly-rollcall/add-a-guest).
 2. Staff who say they attended show as **Staff guest**, marked **Staff, not counted here**.
-3. If a guest's makeup did not reach their own roll call, choose **Retry makeup**.
+3. If a guest's make-up did not reach their own roll call, choose **Retry make-up**.
 4. Once the practice is confirmed, its guests can no longer change.
 
 ## Copy the post and put it on the forum

@@ -1,12 +1,13 @@
 <script setup>
 import { computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
-import { PhArrowSquareOut, PhCalendarX, PhCaretRight, PhCheckCircle, PhEnvelopeSimple, PhFileText, PhUserMinus } from '@phosphor-icons/vue';
+import { PhArrowSquareOut, PhCalendarX, PhCaretRight, PhCheckCircle, PhClockCounterClockwise, PhEnvelopeSimple, PhFileText, PhUserMinus } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import EmptyState from '@/components/EmptyState.vue';
 import { makeupPmUrl } from '@/lib/makeupPm';
+import { weekLabel } from '@/lib/roster';
 
 // The "Needs attention" worklist (Story 5.10): reports holding up the chain, at-risk troopers and leave posts the
 // LOA sync could not read, each row a link to the screen that resolves it. The server decides what belongs (the shared
@@ -26,13 +27,17 @@ const makeupHref = (item) =>
 const holding = computed(() => props.attention.items.filter((item) => item.kind === 'holding'));
 const atRisk = computed(() => props.attention.items.filter((item) => item.kind === 'at_risk'));
 const loaReview = computed(() => props.attention.items.filter((item) => item.kind === 'loa_review'));
+// Asked for a make-up on the roll call and none recorded yet (2026-10-30).
+const makeupOwed = computed(() => props.attention.items.filter((item) => item.kind === 'makeup_owed'));
 
-const ICONS = { holding: PhFileText, at_risk: PhUserMinus, loa_review: PhCalendarX };
-const TONES = { holding: 'text-warning', at_risk: 'text-destructive', loa_review: 'text-warning' };
+const ICONS = { holding: PhFileText, at_risk: PhUserMinus, loa_review: PhCalendarX, makeup_owed: PhClockCounterClockwise };
+const TONES = { holding: 'text-warning', at_risk: 'text-destructive', loa_review: 'text-warning', makeup_owed: 'text-info' };
+
+const weeksText = (weeks) => weeks.map(weekLabel).join(', ');
 
 function rowTitle(item) {
     if (item.kind === 'holding') return `Open the ${item.unit.designation} report for this week`;
-    if (item.kind === 'loa_review' && item.section) return `Open ${item.trooper.displayName} on the ${item.section.designation} roll call`;
+    if ((item.kind === 'loa_review' || item.kind === 'makeup_owed') && item.section) return `Open ${item.trooper.displayName} on the ${item.section.designation} roll call`;
 
     return `Open ${item.trooper.displayName} on the roster`;
 }
@@ -42,6 +47,7 @@ const groups = computed(() =>
         { key: 'holding', title: 'Holding up the report chain', items: holding.value, total: props.attention.totals.holding, all: '/reports', allLabel: 'See every report' },
         { key: 'at_risk', title: 'At-risk troopers', items: atRisk.value, total: props.attention.totals.atRisk, all: '/roster', allLabel: 'Open the roster' },
         { key: 'loa_review', title: 'LOA posts that need review', items: loaReview.value, total: props.attention.totals.loaReview ?? 0, all: '/roster', allLabel: 'Open the roster' },
+        { key: 'makeup_owed', title: 'Owe a make-up', items: makeupOwed.value, total: props.attention.totals.makeupOwed ?? 0, all: '/rollcall', allLabel: 'Open the roll call' },
     ].filter((group) => group.items.length),
 );
 </script>
@@ -54,7 +60,7 @@ const groups = computed(() =>
         </div>
 
         <EmptyState v-if="!groups.length" :icon="PhCheckCircle" title="All clear" class="py-12" data-testid="all-clear">
-            No report is holding up the chain, no trooper is at-risk and no LOA post needs review this week.
+            No report is holding up the chain, no trooper is at-risk or owes a make-up, and no LOA post needs review this week.
         </EmptyState>
 
         <div v-else class="p-1.5 pb-2">
@@ -80,6 +86,9 @@ const groups = computed(() =>
                                     <template v-if="item.kind === 'holding'">
                                         {{ item.status === 'draft' ? 'Draft report' : 'Report not started' }}, holding up {{ item.holds.designation }}
                                     </template>
+                                    <template v-else-if="item.kind === 'makeup_owed'">
+                                        Make-up requested for {{ weeksText(item.weeks) }}<template v-if="item.section"> in {{ item.section.designation }}</template>
+                                    </template>
                                     <template v-else-if="item.kind === 'loa_review'">
                                         {{ item.typeLabel ?? 'LOA' }} post the sync could not read<template v-if="item.section"> in {{ item.section.designation }}</template>
                                         <span v-if="item.reviewReason" class="block truncate" data-testid="loa-review-reason">{{ item.reviewReason }}</span>
@@ -94,6 +103,7 @@ const groups = computed(() =>
                                     {{ item.status === 'draft' ? 'Draft' : 'Not started' }}
                                 </Badge>
                                 <Badge v-else-if="item.kind === 'loa_review'" variant="warning">Needs review</Badge>
+                                <Badge v-else-if="item.kind === 'makeup_owed'" variant="info">Owes a make-up</Badge>
                                 <Badge v-else variant="danger" class="tabular-nums">{{ item.missed }} missed</Badge>
                                 <PhCaretRight class="size-3.5 text-muted-foreground" aria-hidden="true" />
                             </span>

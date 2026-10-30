@@ -1,7 +1,7 @@
 <script setup>
 // One Cav week as a split cell (roster-s3.html `.cc`): top half the rollcall signature, bottom
-// half the section practice. Missed and unsigned carry a slash and LOA a hatch, so the state never
-// rests on colour alone. Section aggregate rows pass heat levels `g1`–`g4` instead. Without `rc`
+// half the section practice. Missed and unsigned carry a slash, LOA and Excused a yellow hatch (LOA's denser, with an
+// outline), and a make-up a striped fill, so the state never rests on colour alone. Section aggregate rows pass heat levels `g1`–`g4` instead. Without `rc`
 // only the SP half renders (the rollcall card's attendance strip).
 defineProps({
     rc: { type: String, default: null },
@@ -52,11 +52,9 @@ defineProps({
 .roster-h--g3 {
     background: color-mix(in oklab, var(--success) 45%, transparent);
 }
-.roster-h--mk {
+.roster-h--mk,
+.roster-h--mr {
     background: repeating-linear-gradient(135deg, var(--success) 0 2.5px, color-mix(in oklab, var(--success) 32%, transparent) 2.5px 5px);
-}
-.roster-h--at {
-    background: var(--info);
 }
 .roster-h--cn,
 .roster-h--g2 {
@@ -76,8 +74,11 @@ defineProps({
     border: 1px dashed color-mix(in oklab, var(--muted-foreground) 75%, transparent);
 }
 .roster-h--loa {
-    background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--muted-foreground) 55%, transparent) 0 1.5px, transparent 1.5px 4.5px);
-    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--muted-foreground) 35%, transparent);
+    background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--warning) 70%, transparent) 0 1.5px, transparent 1.5px 4.5px);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 45%, transparent);
+}
+.roster-h--ex {
+    background: repeating-linear-gradient(90deg, color-mix(in oklab, var(--warning) 60%, transparent) 0 2px, transparent 2px 5px);
 }
 .roster-h--out,
 .roster-h--none {
