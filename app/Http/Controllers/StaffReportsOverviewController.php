@@ -172,6 +172,7 @@ class StaffReportsOverviewController extends Controller
             'otherEvents' => $props['otherEvents'] ?? null,
             'notes' => $props['notes'] ?? null,
             'sheetPushedAt' => $props['sheetPushedAt'] ?? null,
+            'presence' => $props['presence'] ?? null,
             'metRule' => $props === null ? null : StaffReportWeek::metRule($props),
             'href' => route('staff-report.show', ['trooper' => $trooper->id, 'week' => $weekStart->toDateString()]),
         ];

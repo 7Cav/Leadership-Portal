@@ -5,6 +5,7 @@ import { PhCaretLeft, PhCaretRight, PhUserCheck } from '@phosphor-icons/vue';
 import EmptyState from '@/components/EmptyState.vue';
 import StaffHqHealth from '@/components/reports/StaffHqHealth.vue';
 import StaffReportDiscrepancy from '@/components/reports/StaffReportDiscrepancy.vue';
+import StaffReportPresence from '@/components/reports/StaffReportPresence.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -161,6 +162,7 @@ function openRow(event, row) {
                             <span class="inline-flex items-center gap-1.5">
                                 <span data-testid="row-attended">{{ attendedText(row) }}</span>
                                 <StaffReportDiscrepancy :discrepancy="row.discrepancy" />
+                                <StaffReportPresence :presence="row.presence" />
                             </span>
                             <p v-if="row.officeHour?.note" class="text-xs text-muted-foreground" data-testid="row-office-hour">Office hour: {{ row.officeHour.note }}</p>
                             <p v-if="row.otherEvents" class="text-xs text-muted-foreground" data-testid="row-other-events">Other events: {{ row.otherEvents }}</p>

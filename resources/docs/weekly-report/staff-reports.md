@@ -33,4 +33,6 @@ minutes: 2
 
 > [!good-to-know] A warning icon beside an answer means the game server's practice capture disagrees with it: a practice they reported was captured and did not see them, or a captured practice they did not report saw them. Point at the icon to read which. A practice with no capture never shows one, nor does an FTX or an office hour, which the game server does not capture. Staff never see it on their own report.
 
+> [!good-to-know] A red **Self-report conflicts with CRCON data** badge (the capture system of that game) was set when the report was sent: a practice they picked was captured and none of the picked captures saw them. It never changes afterwards. **No CRCON data** means nothing they picked was captured, so there was nothing to compare.
+
 > [!good-to-know] You see the staff of every HQ under a unit you command or read: a company commander sees their platoon HQs, battalion command sees company and platoon HQs, regiment command also sees the battalion HQs, and Admins see all. A PL or PSG sees only their own report. For a week that has ended, each HQ lists who was on it when the week ended.

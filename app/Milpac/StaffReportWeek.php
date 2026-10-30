@@ -48,9 +48,10 @@ class StaffReportWeek
 
     /**
      * The report as sent. `practiceType` is `sp`, `ftx` or `office_hour` (a report sent before the type was asked reads as an SP when
-     * they attended); `ftx` holds the FTX's name and date, `officeHour` the office hour's date and note; `sheetPushedAt` is when the row went to the reports sheet.
+     * they attended); `ftx` holds the FTX's name and date, `officeHour` the office hour's date and note; `sheetPushedAt` is when the row went to the reports sheet; `presence` is the game server check frozen at send
+     * (`check` `conflict`, `confirmed` or `no_data`, `source` the system's name, "CRCON" for HLL), null when none was made.
      *
-     * @return array{sentAt: string, attended: bool, practiceType: ?string, ftx: ?array{name: ?string, date: ?string}, officeHour: ?array{date: ?string, note: ?string}, otherEvents: ?string, notes: ?string, sheetPushedAt: ?string, practices: list<array{sectionId: int, section: ?string}>}
+     * @return array{sentAt: string, attended: bool, practiceType: ?string, ftx: ?array{name: ?string, date: ?string}, officeHour: ?array{date: ?string, note: ?string}, otherEvents: ?string, notes: ?string, sheetPushedAt: ?string, presence: ?array{check: string, source: string}, practices: list<array{sectionId: int, section: ?string}>}
      */
     public static function reportProps(StaffReport $report): array
     {
@@ -65,6 +66,7 @@ class StaffReportWeek
             'otherEvents' => $report->other_events,
             'notes' => $report->notes,
             'sheetPushedAt' => $report->sheet_pushed_at?->toIso8601String(),
+            'presence' => $report->presence_check === null ? null : ['check' => $report->presence_check, 'source' => $report->presence_source ?? 'game server'],
             'practices' => array_map(fn (array $row) => [
                 'sectionId' => (int) $row['section_id'],
                 'section' => $row['section'] ?? null,

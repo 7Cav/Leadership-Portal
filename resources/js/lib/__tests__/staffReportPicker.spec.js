@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pickerCollapses, pickerGroups } from '@/lib/staffReport';
+import { pickerCollapses, pickerGroups, presenceText } from '@/lib/staffReport';
 
 const section = (id, label, platoon, group = null, own = false) => ({ id, label, platoon, group, own });
 
@@ -29,5 +29,14 @@ describe('pickerGroups', () => {
 
         expect(pickerCollapses(few)).toBe(false);
         expect(pickerCollapses(many)).toBe(true);
+    });
+});
+
+describe('presenceText', () => {
+    it('names the system for a conflict and for no data, and says nothing when it agreed', () => {
+        expect(presenceText({ check: 'conflict', source: 'CRCON' })).toBe('Self-report conflicts with CRCON data');
+        expect(presenceText({ check: 'no_data', source: 'CRCON' })).toBe('No CRCON data');
+        expect(presenceText({ check: 'confirmed', source: 'CRCON' })).toBe('');
+        expect(presenceText(null)).toBe('');
     });
 });

@@ -49,6 +49,19 @@ export function discrepancyLines(discrepancy) {
     return lines;
 }
 
+/**
+ * The game server check frozen on a sent report, `{ check, source }`: "Self-report conflicts with CRCON data" for a
+ * conflict, "No CRCON data" when nothing was captured, and empty when it agreed or there was no check.
+ */
+export function presenceText(presence) {
+    if (!presence) return '';
+    const source = presence.source || 'game server';
+    if (presence.check === 'conflict') return `Self-report conflicts with ${source} data`;
+    if (presence.check === 'no_data') return `No ${source} data`;
+
+    return '';
+}
+
 // More platoons than this in the practice picker and it spans a battalion: every platoon but the staff member's own
 // starts collapsed.
 export const PICKER_COLLAPSE_OVER = 4;

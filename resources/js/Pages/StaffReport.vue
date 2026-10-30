@@ -22,6 +22,7 @@ import EmptyState from '@/components/EmptyState.vue';
 import ReportDeadlineBanner from '@/components/reports/ReportDeadlineBanner.vue';
 import StaffHqHealth from '@/components/reports/StaffHqHealth.vue';
 import StaffReportDiscrepancy from '@/components/reports/StaffReportDiscrepancy.vue';
+import StaffReportPresence from '@/components/reports/StaffReportPresence.vue';
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -336,6 +337,7 @@ function entryNote(id) {
                             <template v-else>Did not attend a section practice.</template>
                         </span>
                         <StaffReportDiscrepancy :discrepancy="discrepancy" />
+                        <StaffReportPresence :presence="report.presence" />
                     </h2>
                     <p class="mt-0.5 text-xs text-muted-foreground">
                         Sent {{ stamp(report.sentAt) }}. A sent staff report is final.

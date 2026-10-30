@@ -419,6 +419,13 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   joined the HQ stays as it is. Each pick lists them on the host's roll call as a staff guest or a guest (see
   "Roll call"). Sending is audited as `staff_report.sent`, and each entry it takes off as `staff_practice.removed`,
   naming who had entered it.
+- Game server check: sending a section practice report compares it with the game server's presence data and freezes
+  the result on the report. When at least one picked practice was captured that week and none of the picked captures
+  saw the staff member through a linked game identity, the report is still sent but carries a red "Self-report
+  conflicts with CRCON data" (the capture system of the section's game: CRCON for Hell Let Loose, BattleMetrics or
+  Nightwatch for others, "game server" when the game has none). When no picked practice was captured it reads "No
+  CRCON data" and is never flagged. "No", an FTX and an office hour are not checked. The check shows on the sent
+  report, on the staff reports overview row and on the unit report's staff panel, and later captures do not change it.
 - The HQ's own weekly report does not lock it: a PSG still sends theirs after their platoon's report went. Once sent,
   that week's staff practice entries are locked.
 - Past weeks: a week that has ended goes by who was on the HQ when it ended, from the placement history. A staff member

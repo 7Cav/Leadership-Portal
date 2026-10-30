@@ -5,14 +5,18 @@ namespace App\Commands\StaffReports;
 use App\Authorization\StaffReportAccess;
 use App\Models\CrossSectionSighting;
 use App\Models\StaffReport;
+use App\Models\TelemetryInterface;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Models\User;
 use App\Repositories\AuditedBatch;
 use App\Repositories\CrossSectionSightingRepository;
+use App\Repositories\GameRepository;
+use App\Repositories\PracticeCapturePlayerRepository;
 use App\Repositories\SectionPracticeRepository;
 use App\Repositories\StaffReportRepository;
 use App\Repositories\TrooperRepository;
+use App\Repositories\UnitGame;
 use App\Repositories\UnitRepository;
 use App\Support\Audit\AuditEnvelope;
 use App\Support\Time\WeekOf;
@@ -41,7 +45,7 @@ use Carbon\CarbonImmutable;
  * outside the week, an office hour without a note or with a date outside the week or with sections picked, text over its limit, a
  * pick that is not a section, and a report already sent. Then one audited transaction (`staff_report.sent`, AD-16, target the report,
  * digest over it and the week's entries): the report row is inserted under its UNIQUE key, so two sends at once land on
- * one and the second is told it was already sent. The HQ's own weekly report does not lock this: the staff member's
+ * one and the second is told it was already sent. The game server check ({@see presenceCheck()}) is computed before the transaction and frozen on the row. The HQ's own weekly report does not lock this: the staff member's
  * week is theirs to report until they send it.
  */
 class SendStaffReportHandler
@@ -65,6 +69,8 @@ class SendStaffReportHandler
         private readonly CrossSectionSightingRepository $sightings,
         private readonly StaffReportRepository $reports,
         private readonly AuditEnvelope $audit,
+        private readonly PracticeCapturePlayerRepository $captures,
+        private readonly GameRepository $games,
     ) {}
 
     /**
@@ -102,6 +108,8 @@ class SendStaffReportHandler
         if ($this->reports->find($trooper->id, $weekStart) !== null) {
             throw StaffReportRefusedException::alreadySent($weekStart);
         }
+
+        $fields = [...$fields, ...$this->presenceCheck($trooper->id, $weekStart, $fields['practice_type'], $sections)];
 
         $report = null;
         $this->audit->recordBatch(
@@ -150,6 +158,48 @@ class SendStaffReportHandler
         );
 
         return $report;
+    }
+
+    /**
+     * What the game server's presence data says about a section practice report, frozen with it: `conflict` when at
+     * least one picked practice was captured that week and no picked capture saw the staff member through a linked
+     * game identity, `confirmed` when one did, `no_data` when none of the picked practices was captured (no data is
+     * never a conflict). `presence_source` names the system the capture reads for the section's game ("CRCON" for
+     * Hell Let Loose), or "game server" when the game has none. Only a section practice is checked: "No", an FTX
+     * and an office hour carry nulls. The report is sent either way.
+     *
+     * @param  list<Unit>  $sections
+     * @return array{presence_check: ?string, presence_source: ?string}
+     */
+    private function presenceCheck(int $trooperId, CarbonImmutable $weekStart, ?string $type, array $sections): array
+    {
+        if ($type !== StaffReport::SP || $sections === []) {
+            return ['presence_check' => null, 'presence_source' => null];
+        }
+
+        $captured = $this->practices->forSections(array_map(fn (Unit $section) => $section->id, $sections), $weekStart)
+            ->filter(fn ($practice) => $practice->captured_at !== null)
+            ->keyBy('section_id');
+        if ($captured->isEmpty()) {
+            return ['presence_check' => StaffReport::PRESENCE_NO_DATA, 'presence_source' => $this->sourceLabel($sections[0]->id)];
+        }
+
+        $seen = $this->captures->seenInWeek([$trooperId], $weekStart)[$trooperId] ?? [];
+        $hit = $captured->keys()->contains(fn ($sectionId) => isset($seen[(int) $sectionId]));
+
+        return [
+            'presence_check' => $hit ? StaffReport::PRESENCE_CONFIRMED : StaffReport::PRESENCE_CONFLICT,
+            'presence_source' => $this->sourceLabel((int) $captured->keys()->first()),
+        ];
+    }
+
+    /** The on-screen name of the system that captures the section's game (its telemetry interface), or "game server". */
+    private function sourceLabel(int $sectionId): string
+    {
+        $gameId = (UnitGame::resolve($this->units->tree())[$sectionId] ?? null)?->gameId;
+        $interface = $gameId === null ? null : $this->games->find($gameId)?->interface;
+
+        return $interface === null || $interface === TelemetryInterface::None ? 'game server' : $interface->label();
     }
 
     /**
