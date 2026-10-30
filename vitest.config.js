@@ -6,7 +6,13 @@ import vue from '@vitejs/plugin-vue';
 // no PHP, no DB. The Laravel plugin is intentionally omitted (it resolves a build
 // manifest that doesn't exist under test). Browser-level checks live in Playwright.
 export default defineConfig({
-    plugins: [vue()],
+    // Match Vite's asset handling: root-absolute `/assets/*` URLs are served from
+    // public/ and must not become filesystem imports in component tests.
+    plugins: [vue({
+        template: {
+            transformAssetUrls: { base: null, includeAbsolute: false },
+        },
+    })],
     // `@/` → resources/js, the alias shadcn-vue's generated components import through
     // (components.json, jsconfig.json).
     resolve: {
