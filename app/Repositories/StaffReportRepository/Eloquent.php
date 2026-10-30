@@ -44,7 +44,7 @@ class Eloquent implements StaffReportRepository
 
     public function send(int $trooperId, ?int $unitId, CarbonInterface $weekStart, bool $attended, array $practices, int $sentBy, array $fields = []): ?StaffReport
     {
-        $fields = array_intersect_key($fields, array_flip(['practice_type', 'ftx_name', 'ftx_date', 'office_hour_date', 'office_hour_note', 'other_events', 'notes']));
+        $fields = array_intersect_key($fields, array_flip(['practice_type', 'ftx_name', 'ftx_date', 'office_hour_date', 'office_hour_note', 'other_events', 'notes', 'presence_check', 'presence_source']));
 
         $row = StaffReport::query()->createOrFirst(
             ['trooper_id' => $trooperId, 'week_start' => WeekOf::requireStart($weekStart)],

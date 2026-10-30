@@ -48,3 +48,54 @@ export function discrepancyLines(discrepancy) {
 
     return lines;
 }
+
+/**
+ * The game server check frozen on a sent report, `{ check, source }`: "Self-report conflicts with CRCON data" for a
+ * conflict, "No CRCON data" when nothing was captured, and empty when it agreed or there was no check.
+ */
+export function presenceText(presence) {
+    if (!presence) return '';
+    const source = presence.source || 'game server';
+    if (presence.check === 'conflict') return `Self-report conflicts with ${source} data`;
+    if (presence.check === 'no_data') return `No ${source} data`;
+
+    return '';
+}
+
+// More platoons than this in the practice picker and it spans a battalion: every platoon but the staff member's own
+// starts collapsed.
+export const PICKER_COLLAPSE_OVER = 4;
+
+/**
+ * The practice picker's sections, grouped nearest unit first (`group`, null for the rest) and within each by platoon,
+ * keeping the order the server sent (nearest first, then order of battle). A platoon is `own` when it holds one of the
+ * HQ's own sections.
+ *
+ * @returns {{ key: string, label: string, platoons: { key: string, label: string|null, own: boolean, rows: object[] }[] }[]}
+ */
+export function pickerGroups(sections) {
+    const out = [];
+    for (const section of sections) {
+        const key = section.group ?? '';
+        let group = out.find((candidate) => candidate.key === key);
+        if (!group) {
+            group = { key, label: section.group ? `In ${section.group}` : 'Other sections', platoons: [] };
+            out.push(group);
+        }
+        const platoonKey = section.platoon ?? '';
+        let platoon = group.platoons.find((candidate) => candidate.key === platoonKey);
+        if (!platoon) {
+            platoon = { key: platoonKey, label: section.platoon ?? null, own: false, rows: [] };
+            group.platoons.push(platoon);
+        }
+        platoon.own ||= Boolean(section.own);
+        platoon.rows.push(section);
+    }
+
+    return out;
+}
+
+/** Whether the picker collapses platoons: only when it spans more than PICKER_COLLAPSE_OVER of them. */
+export function pickerCollapses(groups) {
+    return groups.reduce((sum, group) => sum + group.platoons.length, 0) > PICKER_COLLAPSE_OVER;
+}
