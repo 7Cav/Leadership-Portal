@@ -153,7 +153,7 @@ describe('TrooperDetail', () => {
             expect(rows[2].text()).toContain('Present');
             expect(rows[3].text()).toContain('On LOA');
             expect(rows[19].get('[data-testid="attendance-section"]').text()).toBe('None');
-            expect(rows[19].text()).toContain('Not in the unit yet');
+            expect(rows[19].text()).toContain('No section that week');
         });
 
         it('leaves the transfers out for a trooper who never moved, and the panel out with no history', () => {
