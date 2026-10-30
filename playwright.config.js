@@ -4,7 +4,10 @@ import { E2E_ENV } from './tests/e2e/env.js';
 
 // The test sign-in route accepts only this run's local browser. The cookie is scoped to
 // 127.0.0.1 and HttpOnly, so it is not sent to third-party sites or readable by page scripts.
-const e2eLoginToken = randomBytes(32).toString('hex');
+// Every worker process loads this config again, so the token is drawn once in the runner and
+// handed down through the environment; a fresh one per worker would never match the server's.
+process.env.E2E_LOGIN_TOKEN ||= randomBytes(32).toString('hex');
+const e2eLoginToken = process.env.E2E_LOGIN_TOKEN;
 
 // Playwright browser E2E (Story 1.3). Boots the real Laravel app and drives a real
 // browser against it. Assets must be built first (`npm run build`) so @vite resolves
