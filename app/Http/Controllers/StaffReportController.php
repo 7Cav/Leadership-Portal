@@ -186,13 +186,14 @@ class StaffReportController extends Controller
      * Every section with troopers in it (#442), the staff member's own unit's first: the ones under their HQ are the
      * preferred practices, and the host's rollcall lists them there as a staff guest. `group` names the closest unit
      * above the HQ (the HQ itself, its company, its battalion) that holds the section, null for any other section, so
-     * the picker groups them nearest first.
+     * the picker groups them nearest first, then in order of battle (the unit tree's order, not by name). `platoon`
+     * names the section's parent unit, which the picker uses as a small heading.
      *
      * Only sections that play the HQ's game are offered ({@see UnitGame}, inherited down the tree): an HLL HQ sees HLL
      * sections. When the HQ or a section has no game on its chain, that section is kept, since nothing says it plays
      * another game.
      *
-     * @return list<array{id: int, label: string, own: bool, group: ?string}>
+     * @return list<array{id: int, label: string, own: bool, group: ?string, platoon: ?string}>
      */
     private function sections(?Unit $hq): array
     {
@@ -208,7 +209,7 @@ class StaffReportController extends Controller
 
         return $this->headcount->withoutEmptyLineUnits($tree->filter(fn (Unit $unit) => $unit->type === UnitType::Section
             && ($hqGame === null || ! isset($games[$unit->id]) || $games[$unit->id]->gameId === $hqGame)))
-            ->map(function (Unit $unit) use ($hq, $ancestors) {
+            ->map(function (Unit $unit, int $order) use ($hq, $ancestors, $byId) {
                 $rank = count($ancestors);
                 $group = null;
                 foreach ($ancestors as $i => $ancestor) {
@@ -223,11 +224,13 @@ class StaffReportController extends Controller
                     'label' => $unit->callsign ?? $unit->name,
                     'own' => $hq !== null && str_starts_with($unit->path, $hq->path),
                     'group' => $group,
+                    'platoon' => ($parent = $byId->get($unit->parent_id)) === null ? null : ($parent->callsign ?? $parent->name),
                     'rank' => $rank,
+                    'order' => $order,
                 ];
             })
-            ->sortBy([['rank', 'asc'], ['label', 'asc']])
-            ->map(fn (array $row) => array_diff_key($row, ['rank' => true]))
+            ->sortBy([['rank', 'asc'], ['order', 'asc']])
+            ->map(fn (array $row) => array_diff_key($row, ['rank' => true, 'order' => true]))
             ->values()
             ->all();
     }

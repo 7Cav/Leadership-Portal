@@ -65,10 +65,22 @@ it('offers the staff member the picker, their own platoon\'s sections first, wit
         ->where('entries.0.selfReported', false)
         ->where('seen', [$this->tree['units']['other']->id])
         ->where('sections', [
-            ['id' => $this->host->id, 'label' => '1/1/A/1-7', 'own' => true, 'group' => '1/A/1-7'],
-            ['id' => $this->tree['units']['other']->id, 'label' => '2/1/A/1-7', 'own' => true, 'group' => '1/A/1-7'],
-            ['id' => $far->id, 'label' => '1/2/A/1-7', 'own' => false, 'group' => 'A/1-7'],
+            ['id' => $this->host->id, 'label' => '1/1/A/1-7', 'own' => true, 'group' => '1/A/1-7', 'platoon' => '1/A/1-7'],
+            ['id' => $this->tree['units']['other']->id, 'label' => '2/1/A/1-7', 'own' => true, 'group' => '1/A/1-7', 'platoon' => '1/A/1-7'],
+            ['id' => $far->id, 'label' => '1/2/A/1-7', 'own' => false, 'group' => 'A/1-7', 'platoon' => '2/A/1-7'],
         ]));
+});
+
+it('lists the sections beyond the HQ in order of battle, not by name', function () {
+    $platoon2 = app(UnitRepository::class)->create(UnitType::Platoon, '2nd Platoon', '2/A/1-7', $this->tree['units']['company']->id);
+    // Created in the order of battle; by name "10/2/A/1-7" would sort before "9/2/A/1-7".
+    $ninth = app(UnitRepository::class)->create(UnitType::Section, '9th Section', '9/2/A/1-7', $platoon2->id);
+    $tenth = app(UnitRepository::class)->create(UnitType::Section, '10th Section', '10/2/A/1-7', $platoon2->id);
+    Trooper::factory()->create(['primary_section_id' => $ninth->id]);
+    Trooper::factory()->create(['primary_section_id' => $tenth->id]);
+
+    $this->actingAs($this->tree['users']['psg'])->get($this->url)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+        ->where('sections', fn ($sections) => collect($sections)->where('platoon', '2/A/1-7')->pluck('label')->values()->all() === ['9/2/A/1-7', '10/2/A/1-7']));
 });
 
 it('sends from the page and reads back as sent, picker gone', function () {
