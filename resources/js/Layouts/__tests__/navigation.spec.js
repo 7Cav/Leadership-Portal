@@ -80,7 +80,7 @@ describe('navigation', () => {
         expect(settingsItems(undefined)).not.toContain('Demo data');
         expect(settingsItems({ demoTools: false })).not.toContain('Demo data');
         expect(settingsItems({ demoTools: true })).toContain('Demo data');
-        expect(visibleGroups(false, { demoTools: true }).map((group) => group.id)).toEqual(['leadership']);
+        expect(visibleGroups(false, { demoTools: true }).map((group) => group.id)).toEqual(['leadership', 'help']);
     });
 
     it('shows Settings > Templates alone to a non-Admin who may manage templates (canManageTemplates)', () => {
