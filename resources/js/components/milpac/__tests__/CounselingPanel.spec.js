@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick, toRaw } from 'vue';
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import CounselingPanel from '../CounselingPanel.vue';
 
 // #381: the counseling panel draws what the server sent and posts the forms; it decides nothing about who may look.
 
 const sent = vi.fn();
 vi.mock('vue-sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+
+const previewed = vi.fn();
+vi.mock('@/lib/postJson', () => ({ postJson: (...args) => previewed(...args) }));
 
 vi.mock('@inertiajs/vue3', async (importOriginal) => {
     const { reactive } = await import('vue');
@@ -29,8 +32,14 @@ vi.mock('@inertiajs/vue3', async (importOriginal) => {
                     Object.assign(this, data);
                 },
             });
+            let transform = (payload) => payload;
+            form.transform = (callback) => {
+                transform = callback;
+
+                return form;
+            };
             for (const method of ['post', 'patch', 'delete']) {
-                form[method] = (url, options) => sent(method, url, { ...form }, options);
+                form[method] = (url, options) => sent(method, url, transform({ ...form }), options);
             }
 
             return form;
@@ -68,7 +77,11 @@ const counseling = (overrides = {}) => ({
 const panel = (overrides = {}) => mount(CounselingPanel, { props: { trooperId: 7, counseling: counseling(overrides) } });
 
 describe('CounselingPanel', () => {
-    beforeEach(() => sent.mockReset());
+    beforeEach(() => {
+        sent.mockReset();
+        previewed.mockReset();
+        document.body.innerHTML = '';
+    });
 
     it('lists each record with its type, date, what it is for, reason, issuer, document and Drive status', () => {
         const wrapper = panel({ records: [record(), record({ id: 12, type: 'lor', typeLabel: 'Letter of Reprimand', kind: null, kindLabel: null, driveStatus: 'skipped' })] });
@@ -305,5 +318,302 @@ describe('CounselingPanel', () => {
         expect(row.find('[data-testid="counseling-overturn"]').exists()).toBe(false);
         expect(row.find('[data-testid="counseling-download"]').exists()).toBe(true);
         expect(panel({ records: [record()] }).find('[data-testid="counseling-overturned"]').exists()).toBe(false);
+    });
+
+    describe('a demo document', () => {
+        // Clicks the download link and reports whether the panel stopped the download; the listener on the document
+        // runs after the panel's own and keeps jsdom from navigating.
+        async function clickDownload(wrapper) {
+            let prevented = null;
+            const listener = (event) => {
+                prevented = event.defaultPrevented;
+                event.preventDefault();
+            };
+            document.addEventListener('click', listener);
+            wrapper.get('[data-testid="counseling-download"]').element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            document.removeEventListener('click', listener);
+            await nextTick();
+
+            return prevented;
+        }
+
+        it('says it is a demo file instead of downloading it', async () => {
+            const wrapper = mount(CounselingPanel, {
+                props: { trooperId: 7, counseling: counseling({ records: [record({ document: { name: 'dcs-signed.pdf', size: 52, demo: true } })] }) },
+                attachTo: document.body,
+            });
+
+            expect(await clickDownload(wrapper)).toBe(true);
+            expect(document.body.querySelector('[data-testid="counseling-demo-dialog"]')?.textContent).toContain(
+                'This file is a demo file and will not be downloaded. You can generate a real one with the form.',
+            );
+            wrapper.unmount();
+        });
+
+        it('leaves a real document to download', async () => {
+            const wrapper = mount(CounselingPanel, { props: { trooperId: 7, counseling: counseling({ records: [record()] }) }, attachTo: document.body });
+
+            expect(await clickDownload(wrapper)).toBe(false);
+            expect(document.body.querySelector('[data-testid="counseling-demo-dialog"]')).toBeNull();
+            wrapper.unmount();
+        });
+    });
+
+    describe('filling in the form in the portal', () => {
+        const parties = {
+            trooper: { rank: 'PFC', name: 'Brandt.L', billet: 'Rifleman' },
+            authority: { rank: 'SGT', name: 'Okafor.B', billet: 'Section Leader' },
+        };
+
+        async function openForm(overrides = {}) {
+            const wrapper = mount(CounselingPanel, {
+                props: { trooperId: 7, counseling: counseling({ canFile: { dcs: true, lor: true }, formParties: parties, ...overrides }) },
+                attachTo: document.body,
+            });
+            await wrapper.get('[data-testid="counseling-file-open"]').trigger('click');
+
+            return wrapper;
+        }
+
+        async function fillSection2(wrapper) {
+            await wrapper.get('[data-testid="counseling-kind"]').setValue('conduct');
+            await wrapper.get('[data-testid="counseling-reason"]').setValue('Disrespect toward an NCO.');
+            await wrapper.get('[data-testid="counseling-form-infraction"]').setValue('Swore at the SL during practice.');
+            await wrapper.get('[data-testid="counseling-form-regulation"]').setValue('7CAV-R-042');
+            await wrapper.get('[data-testid="counseling-form-discussion"]').setValue('Talked it through after practice.');
+            await wrapper.get('[data-testid="counseling-form-plan_authority"]').setValue('Check in next week.');
+        }
+
+        it('switches between uploading a PDF and filling in the form', async () => {
+            const wrapper = await openForm();
+
+            expect(wrapper.find('[data-testid="counseling-document"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="counseling-generate"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="counseling-preview"]').exists()).toBe(false);
+
+            await wrapper.get('[data-testid="counseling-source-form"]').setValue(true);
+
+            expect(wrapper.find('[data-testid="counseling-document"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="counseling-generate"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="counseling-preview"]').exists()).toBe(true);
+            expect(wrapper.get('label[for="counseling-date"]').text()).toBe('Date of letter');
+
+            await wrapper.get('[data-testid="counseling-source-upload"]').setValue(true);
+            expect(wrapper.find('[data-testid="counseling-document"]').exists()).toBe(true);
+            wrapper.unmount();
+        });
+
+        it('shows section 1 from the roster, read only, with the authority named for the type', async () => {
+            const wrapper = await openForm();
+            await wrapper.get('[data-testid="counseling-source-form"]').setValue(true);
+
+            const trooper = wrapper.get('[data-testid="counseling-party-trooper"]');
+            const authority = wrapper.get('[data-testid="counseling-party-authority"]');
+            expect(trooper.text()).toContain('PFC');
+            expect(trooper.get('[data-testid="counseling-party-name"]').text()).toBe('Brandt.L');
+            expect(trooper.text()).toContain('Rifleman');
+            expect(authority.text()).toContain('Counselling authority');
+            expect(authority.get('[data-testid="counseling-party-name"]').text()).toBe('Okafor.B');
+            expect(wrapper.get('[data-testid="counseling-section-1"]').find('input').exists()).toBe(false);
+            expect(wrapper.get('[data-testid="counseling-date"]').element.value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+            await wrapper.get('[data-testid="counseling-type"]').setValue('lor');
+            expect(wrapper.get('[data-testid="counseling-party-authority"]').text()).toContain('Disciplining authority');
+            wrapper.unmount();
+        });
+
+        it('asks for the consequence and the appeal on an LOR only', async () => {
+            const wrapper = await openForm();
+            await wrapper.get('[data-testid="counseling-source-form"]').setValue(true);
+
+            expect(wrapper.find('[data-testid="counseling-form-consequences"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="counseling-form-appeal"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="counseling-dcs-fixed"]').exists()).toBe(true);
+
+            await wrapper.get('[data-testid="counseling-type"]').setValue('lor');
+            expect(wrapper.find('[data-testid="counseling-form-consequences"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="counseling-form-appeal"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="counseling-form-special_punishments"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="counseling-form-removal"]').exists()).toBe(false);
+
+            await wrapper.get('[data-testid="counseling-consequence-removal"]').setValue(true);
+            expect(wrapper.find('[data-testid="counseling-form-removal"]').exists()).toBe(true);
+            wrapper.unmount();
+        });
+
+        it('files an LOR from the form as plain data, with no file and the consequence and appeal chosen', async () => {
+            const wrapper = await openForm();
+            await wrapper.get('[data-testid="counseling-source-form"]').setValue(true);
+            await wrapper.get('[data-testid="counseling-type"]').setValue('lor');
+            await fillSection2(wrapper);
+            await wrapper.get('[data-testid="counseling-consequence-nfa"]').setValue(true);
+            await wrapper.get('[data-testid="counseling-consequence-removal"]').setValue(true);
+            await wrapper.get('[data-testid="counseling-removal-section_leader"]').setValue(true);
+            await wrapper.get('[data-testid="counseling-appeal-do_not"]').setValue(true);
+            await wrapper.get('[data-testid="counseling-form"]').trigger('submit');
+
+            expect(sent).toHaveBeenCalledOnce();
+            const [method, url, data, options] = sent.mock.calls[0];
+            expect(method).toBe('post');
+            expect(url).toBe('/troopers/7/counseling');
+            expect(data.source).toBe('form');
+            expect(data.document).toBeUndefined();
+            expect(data.form.infraction).toBe('Swore at the SL during practice.');
+            expect(data.form.consequences).toEqual(['nfa', 'removal']);
+            expect(data.form.removal).toBe('section_leader');
+            expect(data.form.appeal).toBe('do_not');
+            expect(options.forceFormData).toBe(false);
+            wrapper.unmount();
+        });
+
+        it('leaves the LOR fields out of a DCS', async () => {
+            const wrapper = await openForm();
+            await wrapper.get('[data-testid="counseling-source-form"]').setValue(true);
+            await fillSection2(wrapper);
+            await wrapper.get('[data-testid="counseling-form"]').trigger('submit');
+
+            const [, , data] = sent.mock.calls[0];
+            expect(data.type).toBe('dcs');
+            expect(data.form).not.toHaveProperty('appeal');
+            expect(data.form).not.toHaveProperty('consequences');
+            wrapper.unmount();
+        });
+
+        it('previews the document the server renders, in a frame that runs nothing', async () => {
+            previewed.mockResolvedValue({ ok: true, status: 200, data: { html: '<p>7CAV-R-042 &lt;script&gt;</p>' } });
+            const wrapper = await openForm();
+            await wrapper.get('[data-testid="counseling-source-form"]').setValue(true);
+            await fillSection2(wrapper);
+            await wrapper.get('[data-testid="counseling-preview"]').trigger('click');
+            await flushPromises();
+
+            expect(previewed).toHaveBeenCalledOnce();
+            const [url, body] = previewed.mock.calls[0];
+            expect(url).toBe('/troopers/7/counseling/preview');
+            expect(body.type).toBe('dcs');
+            expect(body.form.plan_authority).toBe('Check in next week.');
+            expect(sent).not.toHaveBeenCalled();
+
+            const frame = document.body.querySelector('[data-testid="counseling-preview-frame"]');
+            expect(frame).not.toBeNull();
+            expect(frame.getAttribute('sandbox')).toBe('');
+            expect(frame.getAttribute('srcdoc')).toContain('7CAV-R-042');
+            wrapper.unmount();
+        });
+
+        it('shows a preview refusal next to the fields it names', async () => {
+            previewed.mockResolvedValue({ ok: false, status: 422, data: { errors: { 'form.infraction': ['Give the infraction and its details.'] } } });
+            const wrapper = await openForm();
+            await wrapper.get('[data-testid="counseling-source-form"]').setValue(true);
+            await wrapper.get('[data-testid="counseling-preview"]').trigger('click');
+            await flushPromises();
+
+            expect(wrapper.get('[data-testid="counseling-error-form-infraction"]').text()).toBe('Give the infraction and its details.');
+            expect(document.body.querySelector('[data-testid="counseling-preview-frame"]')).toBeNull();
+            wrapper.unmount();
+        });
+
+        it('clears a field\'s error as soon as it is edited', async () => {
+            previewed.mockResolvedValue({
+                ok: false,
+                status: 422,
+                data: { errors: { 'form.infraction': ['Give the infraction and its details.'], kind: ['Choose what the record is for.'] } },
+            });
+            const wrapper = await openForm();
+            await wrapper.get('[data-testid="counseling-source-form"]').setValue(true);
+            await wrapper.get('[data-testid="counseling-preview"]').trigger('click');
+            await flushPromises();
+            expect(wrapper.find('[data-testid="counseling-error-form-infraction"]').exists()).toBe(true);
+
+            await wrapper.get('[data-testid="counseling-form-infraction"]').setValue('Swore at the SL.');
+            expect(wrapper.find('[data-testid="counseling-error-form-infraction"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="counseling-error-kind"]').exists()).toBe(true);
+
+            await wrapper.get('[data-testid="counseling-kind"]').setValue('conduct');
+            expect(wrapper.find('[data-testid="counseling-error-kind"]').exists()).toBe(false);
+            wrapper.unmount();
+        });
+    });
+
+    describe('the 72-hour freeze and the trooper\'s appeal', () => {
+        it('shows a Frozen badge with the time it froze, and no correct or appeal line then', () => {
+            const wrapper = panel({ records: [record({ frozen: true, freezesAt: '2026-11-02T10:00:00Z', canChange: true })] });
+
+            expect(wrapper.get('[data-testid="counseling-frozen"]').text()).toBe('Frozen 2026-11-02 10:00Z');
+            expect(wrapper.get('[data-testid="counseling-frozen"] time').attributes('datetime')).toBe('2026-11-02T10:00:00Z');
+            expect(wrapper.find('[data-testid="counseling-correct-until"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="counseling-appeal-until"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="counseling-edit"]').exists()).toBe(false);
+        });
+
+        it('tells the chain until when the record can be corrected', () => {
+            const wrapper = panel({ records: [record({ frozen: false, freezesAt: '2026-11-02T10:00:00Z', canChange: true })] });
+
+            expect(wrapper.get('[data-testid="counseling-correct-until"]').text()).toBe('Can be corrected until 2026-11-02 10:00Z');
+            expect(wrapper.find('[data-testid="counseling-frozen"]').exists()).toBe(false);
+        });
+
+        it('tells the trooper until when they can appeal an LOR, or comment on or dispute a DCS', () => {
+            const wrapper = panel({
+                records: [
+                    record({ id: 12, type: 'lor', frozen: false, freezesAt: '2026-11-02T10:00:00Z', canAppeal: true }),
+                    record({ frozen: false, freezesAt: '2026-11-01T08:30:00Z', canAppeal: true }),
+                ],
+            });
+            const [lor, dcs] = wrapper.findAll('[data-testid="counseling-record"]');
+
+            expect(lor.get('[data-testid="counseling-appeal-until"]').text()).toBe('Appeal until 2026-11-02 10:00Z');
+            expect(lor.get('[data-testid="counseling-appeal-open"]').text()).toBe('Appeal');
+            expect(dcs.get('[data-testid="counseling-appeal-until"]').text()).toBe('Comment or dispute until 2026-11-01 08:30Z');
+            expect(dcs.get('[data-testid="counseling-appeal-open"]').text()).toBe('Comment or dispute');
+            expect(wrapper.find('[data-testid="counseling-correct-until"]').exists()).toBe(false);
+        });
+
+        it('flags a filed appeal for the leader and shows the statement with its time', () => {
+            const wrapper = panel({
+                records: [record({ id: 12, type: 'lor', canChange: true, freezesAt: '2026-11-02T10:00:00Z', appeal: { at: '2026-10-30T12:00:00Z', statement: 'It was a misunderstanding.' } })],
+            });
+
+            expect(wrapper.get('[data-testid="counseling-appeal-filed"]').text()).toBe('Appeal filed');
+            expect(wrapper.get('[data-testid="counseling-appeal"]').text()).toBe('Appeal filed 2026-10-30 12:00Z: It was a misunderstanding.');
+            expect(wrapper.find('[data-testid="counseling-appeal-open"]').exists()).toBe(false);
+        });
+
+        it('calls a filed DCS answer a comment or dispute', () => {
+            const wrapper = panel({ records: [record({ appeal: { at: '2026-10-30T12:00:00Z', statement: 'I told my SL.' } })] });
+
+            expect(wrapper.get('[data-testid="counseling-appeal-filed"]').text()).toBe('Comment or dispute filed');
+        });
+
+        it('opens the appeal dialog, refuses an empty statement, and posts the statement', async () => {
+            const wrapper = mount(CounselingPanel, {
+                props: { trooperId: 7, counseling: counseling({ records: [record({ id: 12, type: 'lor', freezesAt: '2026-11-02T10:00:00Z', canAppeal: true })] }) },
+                attachTo: document.body,
+            });
+            await wrapper.get('[data-testid="counseling-appeal-open"]').trigger('click');
+            await flushPromises();
+
+            const dialog = document.body.querySelector('[data-testid="counseling-appeal-dialog"]');
+            expect(dialog).not.toBeNull();
+            expect(dialog.textContent).toContain('Appeal this LOR');
+            expect(dialog.textContent).toContain('2026-11-02 10:00Z');
+            const textarea = document.body.querySelector('[data-testid="counseling-appeal-statement"]');
+            expect(textarea.getAttribute('maxlength')).toBe('2000');
+
+            document.body.querySelector('[data-testid="counseling-appeal-form"]').dispatchEvent(new Event('submit'));
+            await flushPromises();
+            expect(sent).not.toHaveBeenCalled();
+            expect(document.body.querySelector('[data-testid="counseling-appeal-error"]').textContent).toBe('Write your statement.');
+
+            textarea.value = 'It was a misunderstanding.';
+            textarea.dispatchEvent(new Event('input'));
+            // The Textarea passes its value up on the next tick.
+            await flushPromises();
+            document.body.querySelector('[data-testid="counseling-appeal-form"]').dispatchEvent(new Event('submit'));
+            await flushPromises();
+
+            expect(sent).toHaveBeenCalledWith('post', '/counseling/12/appeal', expect.objectContaining({ statement: 'It was a misunderstanding.' }), expect.any(Object));
+            wrapper.unmount();
+        });
     });
 });

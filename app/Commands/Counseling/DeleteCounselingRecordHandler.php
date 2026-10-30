@@ -15,7 +15,7 @@ use Throwable;
 
 /**
  * Delete a counseling record (#381), on the same terms as a correction ({@see CorrectCounselingRecordHandler}): the
- * issuer's chain of command or an Admin, with a required reason, never on a trooper who has left the Cav, and never an LOR past its 72-hour
+ * issuer's chain of command or an Admin, with a required reason, never on a trooper who has left the Cav, and never a DCS or LOR past its 72-hour
  * appeal window ({@see CounselingPermissions::frozen()}). One audited action (`counseling.deleted`, AD-16)
  * whose digest is the row as it was deleted, its file's SHA-256 included, so the log still proves what was removed.
  *
@@ -50,14 +50,14 @@ class DeleteCounselingRecordHandler
             throw CounselingForbiddenException::departed($record->trooper);
         }
 
-        // Past its appeal window an LOR is final for everyone, Admins included (S6, 2026-10-29). An overturned one
+        // Past its 72-hour appeal window a DCS or LOR is final for everyone, Admins included. An overturned one
         // stays on file for good.
         if ($record->isOverturned()) {
             throw CounselingForbiddenException::overturned();
         }
 
         if (CounselingPermissions::frozen($record)) {
-            throw CounselingForbiddenException::frozen();
+            throw CounselingForbiddenException::frozen($record->type);
         }
 
         if (! $permissions->changes($record)) {

@@ -23,6 +23,9 @@ class CounselingDocuments
 {
     public const DISK = 'counseling';
 
+    /** The path prefix of a seeded demo document ({@see isDemo()}). Nothing the portal stores starts with it. */
+    public const DEMO_PREFIX = 'demo/';
+
     /**
      * Copy the file at `$sourcePath` (the upload's temporary file) onto the private disk.
      */
@@ -69,7 +72,20 @@ class CounselingDocuments
 
     public function delete(string $path): void
     {
+        if (self::isDemo($path)) {
+            return;
+        }
+
         $this->disk()->delete($this->checked($path));
+    }
+
+    /**
+     * Whether `$path` names a demo document: a seeded record's (`CounselingSeeder`), under {@see DEMO_PREFIX}, with no
+     * file behind it. The download refuses it and the page says so instead of downloading.
+     */
+    public static function isDemo(string $path): bool
+    {
+        return str_starts_with($path, self::DEMO_PREFIX) && self::isOurs(substr($path, strlen(self::DEMO_PREFIX)));
     }
 
     private function disk(): Filesystem

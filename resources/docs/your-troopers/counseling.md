@@ -1,6 +1,6 @@
 ---
 title: File a DCS or LOR
-summary: Keep a trooper's Developmental Counseling Statements and Letters of Reprimand on their milpac page, with the signed document.
+summary: Keep a trooper's Developmental Counseling Statements and Letters of Reprimand on their milpac page, with the signed document or one made from the form in the portal.
 section: your-troopers
 order: 6
 audience: leader
@@ -26,13 +26,21 @@ audience: leader
 1. Open the trooper's milpac page (see [Find a trooper](/docs/basics/find-a-trooper)). The **Counseling** panel lists their records, newest first.
 2. Choose **File a record**.
 3. Pick the **Type**: Developmental Counseling Statement (DCS) or Letter of Reprimand (LOR). Only the types you may file are offered.
-4. Set the **Date** the counseling was given. It cannot be in the future.
-5. Under **What it is for**, choose **Missed section practice or roll call** or **Other conduct**. It decides which of the regulations' rules the record is weighed on, and it cannot be changed later.
-6. Write the **Reason**.
-7. Attach the **Signed document**: a PDF of 10 MB or less, ending in `.pdf`.
-8. Choose **File record**.
+4. Under **Document**, choose **Fill in the form here** or **Upload a PDF**.
+5. Set the **Date** the counseling was given (the **Date of letter** on the form). It cannot be in the future.
+6. Under **What it is for**, choose **Missed section practice or roll call** or **Other conduct**. It decides which of the regulations' rules the record is weighed on, and it cannot be changed later.
+7. Write the **Reason**, or with the form a short **Summary** for the list of records.
+8. With **Upload a PDF**, attach the **Signed document**: a PDF of 10 MB or less, ending in `.pdf`.
+9. With **Fill in the form here**, fill in the regiment's form (7CAV-R-042 for a DCS, 7CAV-R-043 for an LOR):
+   1. Section 1, the rank, name and billet of the trooper and of you as the authority, comes from the roster and cannot be changed.
+   2. Give the infraction and its details, the regulation, order or SOP, the notes of the discussion and the plan of action for the authority. The trooper's and other columns of the plan, and the comments, are optional.
+   3. For an LOR, tick at least one recommended consequence. For a removal, choose the Section Leader or Assistant Section Leader position. Add any special punishments ordered, and say whether the trooper wishes to appeal.
+   4. Choose **Preview** to see the document as it will be filed.
+10. Choose **File record**. A form becomes a PDF the portal makes, filed like an uploaded one.
 
 > [!good-to-know] Before you file, the form says what flags the new record would earn with the date and purpose you chose. Filing the same record twice within 10 minutes is refused as already filed, so a double click never counts twice.
+
+> [!good-to-know] The appeal outcome on an LOR form is left blank when you file. The appeal authority fills it in later, outside the portal.
 
 > [!good-to-know] The portal keeps only plain documents. It refuses a PDF that has a password, that looks damaged, or that carries scripts, attachments or actions that run on their own, as many fillable forms do. If yours is refused, print it to a new PDF (for example with Microsoft Print to PDF) and attach that copy. Web links in the document are fine.
 
@@ -66,12 +74,20 @@ The portal follows the counseling rules on the 7Cav wiki (7CAV-R-012, 7CAV-R-014
 1. Choose **Correct** on a record to change its date or reason. Give a **Reason for the correction** and choose **Save correction**. The type and the document stay as filed; to change them, delete the record and file it again.
 2. Choose **Delete** to remove a record and its document from the portal. Give a **Reason for deleting** and choose **Delete record**.
 3. The leader who filed it, the other leaders of the unit they filed it through, and the command above can correct or delete it, as long as they still counsel the trooper. A record an Admin filed is changed by Admins only.
-4. An LOR can be corrected or deleted only in the 72 hours after it is filed, its appeal window: the trooper has 24 hours to say they appeal, and the appeal is done within 72. After that nobody can correct or delete it, Admins included. A DCS can be changed until it expires, and after that by Admins only.
-5. Filing, correcting, deleting and overturning are all recorded in the audit log, with the reason.
+4. A DCS or LOR can be corrected or deleted only in the 72 hours after it is filed. Until then the record shows "Can be corrected until" the date and time in UTC. After that it is marked "Frozen" with that time, and nobody can correct or delete it, Admins included. A frozen DCS still expires after 90 days.
+5. Filing, correcting, deleting, appealing and overturning are all recorded in the audit log, with the reason or statement.
+
+## Appeal a record on yourself
+
+1. On your own milpac page, a record filed on you in the last 72 hours shows "Appeal until" the date and time in UTC on an LOR, or "Comment or dispute until" on a DCS. A DCS is not subject to appeal, so on a DCS you add your comments or dispute it instead.
+2. Choose **Appeal** (or **Comment or dispute**), write **Your statement** (up to 2000 characters) and choose **File appeal** (or **File comment**).
+3. You can file one per record, signed in as yourself. Nobody can do it for you, and it cannot be done through act as or view as.
+4. It is added to the record with the time. Your chain of command sees it there, and the record is flagged "Appeal filed" (or "Comment or dispute filed").
+5. On an LOR made from the form in the portal, the form's appeal answer is set to "do wish to appeal".
 
 ## Overturn an LOR
 
-1. Once an LOR is past its 72 hours, only the Regimental Executive Officer can overturn it. They choose **Overturn** on the record, give a **Reason for overturning** and choose **Overturn record**.
+1. Once an LOR is past its 72 hours, only the Regimental Executive Officer can overturn it. A DCS cannot be overturned. They choose **Overturn** on the record, give a **Reason for overturning** and choose **Overturn record**.
 2. The LOR stays on file. It is shown muted with "Overturned on" the date, by whom and why, and its document can still be downloaded.
 3. An overturned LOR no longer counts toward any flag, the no favorable action notice or the filing form's warnings.
 4. The Regimental Executive Officer cannot overturn an LOR filed on themselves. Only the Regimental Executive Officer, signed in as themselves, can overturn: nobody can do it through act as, Admins included.

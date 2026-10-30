@@ -46,7 +46,7 @@ it('lists every record, newest first, with its issuer, document and Drive status
             'date' => now('UTC')->subDays(5)->toDateString(),
             'reason' => 'Disrespect toward an NCO.',
             'issuer' => 'Mercer.J',
-            'document' => ['name' => 'lor.pdf', 'size' => 2048],
+            'document' => ['name' => 'lor.pdf', 'size' => 2048, 'demo' => false],
             'driveStatus' => 'skipped',
             'kind' => null,
             'kindLabel' => null,

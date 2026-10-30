@@ -31,15 +31,17 @@ interface CounselingRecordRepository
         ?int $issuerUnitId,
         StoredDocument $document,
         DriveUploadStatus $driveStatus,
+        ?array $formData = null,
     ): CounselingRecord;
 
     /**
      * Whether the trooper already has a record of `$type` with this date, reason and document (by SHA-256) filed at or
      * after `$since`: a double submit. Called inside the filing's transaction, it first locks the trooper's row, so two
      * filings on one trooper run one after the other and the second sees the first; the read itself is a locking one,
-     * so it sees the latest committed rows whatever snapshot the transaction holds.
+     * so it sees the latest committed rows whatever snapshot the transaction holds. With `$formData` (a document the
+     * portal generated) the form is compared in place of the document's hash.
      */
-    public function filedSince(int $trooperId, CounselingType $type, CarbonImmutable $counseledOn, string $reason, string $sha256, CarbonImmutable $since): bool;
+    public function filedSince(int $trooperId, CounselingType $type, CarbonImmutable $counseledOn, string $reason, string $sha256, CarbonImmutable $since, ?array $formData = null): bool;
 
     /** The record with its trooper loaded, or null. */
     public function find(int $id): ?CounselingRecord;
@@ -62,6 +64,13 @@ interface CounselingRecordRepository
      * when the record is gone or already overturned. Nothing else on the record changes.
      */
     public function overturn(CounselingRecord $record, CarbonImmutable $at, int $by, ?int $byAdmin, ?int $asUnit, string $reason): ?CounselingRecord;
+
+    /**
+     * Record the trooper's appeal (LOR) or comment or dispute (DCS): when, by whom and what they wrote. On an LOR made
+     * from the portal's form, the form's appeal answer becomes `do`. Re-read under a lock in the caller's transaction,
+     * so two at once cannot both land: null when the record is gone or already appealed.
+     */
+    public function appeal(CounselingRecord $record, CarbonImmutable $at, int $by, string $statement): ?CounselingRecord;
 
     /**
      * Delete the record, re-read under a lock in the caller's transaction so the model handed back (and digested by

@@ -8,6 +8,7 @@ use App\Models\CounselingType;
 use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\User;
+use App\Repositories\CounselingDocuments;
 use App\Repositories\CounselingRecordRepository;
 use Carbon\CarbonImmutable;
 use Closure;
@@ -43,9 +44,10 @@ class CounselingHistory
      * @param  (Closure(CounselingRecord): bool)|null  $overturns  whether the viewer may overturn a record (none if null)
      * @param  (Closure(CounselingRecord): bool)|null  $frozen  whether a record is past its appeal window (none if null)
      * @param  bool  $seesExpired  whether the viewer sees an expired DCS (Admins only)
+     * @param  (Closure(CounselingRecord): bool)|null  $appeals  whether the viewer, the trooper, may appeal a record (none if null)
      * @return array{records: list<array<string, mixed>>, warnings: list<array{key: string, message: string, until: string}>, forecast: array<string, array<string, list<array{from: string, flags: list<array{key: string, message: string}>}>>>}
      */
-    public function for(Trooper $trooper, bool $seesDcs, bool $seesLor, Closure $changes, array $files = [], ?Closure $overturns = null, ?Closure $frozen = null, bool $seesExpired = false): array
+    public function for(Trooper $trooper, bool $seesDcs, bool $seesLor, Closure $changes, array $files = [], ?Closure $overturns = null, ?Closure $frozen = null, bool $seesExpired = false, ?Closure $appeals = null): array
     {
         $today = CarbonImmutable::now('UTC')->startOfDay();
         $counted = ($seesDcs || $seesLor ? $this->records->forTrooper($trooper->id) : collect())
@@ -82,8 +84,11 @@ class CounselingHistory
                 'date' => $record->counseled_on->toDateString(),
                 'reason' => $record->reason,
                 'issuer' => self::issuer($record),
-                'document' => ['name' => $record->document_name, 'size' => $record->document_size],
+                // A seeded demo record's document has no file: the page says so instead of downloading.
+                'document' => ['name' => $record->document_name, 'size' => $record->document_size, 'demo' => CounselingDocuments::isDemo($record->document_path)],
                 'driveStatus' => $record->drive_status->value,
+                // The document was made in the portal from the regiment's form, not uploaded.
+                'generated' => $record->form_data !== null,
                 'flags' => $flags[$record->id] ?? [],
                 'canChange' => $changes($record),
                 'frozen' => $frozen !== null && $frozen($record),
@@ -94,6 +99,14 @@ class CounselingHistory
                 ] : null,
                 'expired' => $record->isExpired($today) ? ['date' => $record->expiresOn()->toDateString()] : null,
                 'canOverturn' => $overturns !== null && $overturns($record),
+                // When it freezes (72 hours after it was filed), as an ISO 8601 UTC instant.
+                'freezesAt' => $record->freezesAt()?->utc()->format('Y-m-d\TH:i:s\Z'),
+                // The trooper's appeal (LOR) or comment or dispute (DCS), seen by whoever sees the record.
+                'appeal' => $record->isAppealed() ? [
+                    'at' => $record->appealed_at->utc()->format('Y-m-d\TH:i:s\Z'),
+                    'statement' => $record->appeal_statement,
+                ] : null,
+                'canAppeal' => $appeals !== null && $appeals($record),
             ])->all(),
             'warnings' => $noFavorableAction === null ? [] : [$noFavorableAction],
             'forecast' => $forecast,

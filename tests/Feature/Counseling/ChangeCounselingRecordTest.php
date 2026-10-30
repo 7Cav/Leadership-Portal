@@ -167,6 +167,32 @@ it('never reads a path from a stored record that the portal did not make', funct
     expect(fn () => app(CounselingDocuments::class)->download('../../.env', 'x.pdf'))->toThrow(RuntimeException::class);
 });
 
+it('marks a seeded demo document on the page and answers its download with a short 404', function () {
+    $this->dcs->forceFill(['document_path' => CounselingDocuments::DEMO_PREFIX.'0f0e0d0c-0b0a-4908-8706-050403020100.pdf'])->save();
+
+    $records = collect($this->actingAs($this->tree['users']['pl'])->get(route('troopers.show', $this->rifleman->id))
+        ->assertOk()->viewData('page')['props']['counseling']['records'])->keyBy('id');
+    expect($records[$this->dcs->id]['document']['demo'])->toBeTrue()
+        ->and($records[$this->lor->id]['document']['demo'])->toBeFalse();
+
+    $this->actingAs($this->tree['users']['pl'])->get(route('counseling.document', $this->dcs->id))
+        ->assertNotFound()
+        ->assertSeeText('This file is a demo file and will not be downloaded. You can generate a real one with the form.');
+    // Still only for someone who may see the record.
+    $this->actingAs($this->tree['users']['grant'])->get(route('counseling.document', $this->dcs->id))
+        ->assertNotFound()->assertDontSeeText('demo file');
+});
+
+it('tells a demo path from a stored one, and deletes a demo record without touching the disk', function () {
+    expect(CounselingDocuments::isDemo('demo/0f0e0d0c-0b0a-4908-8706-050403020100.pdf'))->toBeTrue()
+        ->and(CounselingDocuments::isDemo('0f0e0d0c-0b0a-4908-8706-050403020100.pdf'))->toBeFalse()
+        ->and(CounselingDocuments::isDemo('demo/../../.env'))->toBeFalse()
+        ->and(app(CounselingDocuments::class)->exists('demo/0f0e0d0c-0b0a-4908-8706-050403020100.pdf'))->toBeFalse();
+
+    app(CounselingDocuments::class)->delete('demo/0f0e0d0c-0b0a-4908-8706-050403020100.pdf');
+    Storage::disk('counseling')->assertExists($this->lor->document_path);
+});
+
 it('sends a signed-out visitor to sign in from every counseling route', function () {
     $this->get(route('counseling.document', $this->lor->id))->assertRedirect(route('login'));
     $this->post(route('counseling.store', $this->rifleman->id))->assertRedirect(route('login'));

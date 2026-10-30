@@ -62,3 +62,90 @@ export function documentProblem(file) {
 export function todayUtc(now = new Date()) {
     return now.toISOString().slice(0, 10);
 }
+
+// The portal's own DCS or LOR form (7CAV-R-042, 7CAV-R-043), filled in instead of uploading a signed PDF. The server
+// renders the PDF from it and fills section 1 itself. The labels are the official form's own.
+export const DOCUMENT_SOURCES = {
+    form: { label: 'Fill in the form here' },
+    upload: { label: 'Upload a PDF' },
+};
+
+export const LOR_CONSEQUENCES = {
+    nfa: { label: 'Any instance: 30 days NFA' },
+    removal: { label: '2nd instance (in 90 days): removal from a position' },
+    article_15: { label: "Unit Commander escalation to Article 15 Commander's Investigation" },
+    special_punishment: { label: 'Any special punishment directed by a General Staff Officer (to follow)' },
+};
+
+export const LOR_REMOVALS = {
+    section_leader: { label: 'Section Leader position' },
+    assistant_section_leader: { label: 'Assistant Section Leader position' },
+};
+
+export const LOR_APPEALS = {
+    do: { label: 'Wishes to appeal' },
+    do_not: { label: 'Does not wish to appeal' },
+};
+
+// The server's caps (CounselingForm on the server), so a textarea stops where the server would refuse.
+export const FORM_LIMITS = {
+    infraction: 3000,
+    regulation: 500,
+    discussion: 3000,
+    plan_authority: 2000,
+    plan_trooper: 2000,
+    plan_other: 2000,
+    comments_authority: 1000,
+    comments_trooper: 1000,
+    comments_other: 1000,
+    special_punishments: 3000,
+};
+
+export function emptyCounselingForm() {
+    return {
+        infraction: '',
+        regulation: '',
+        discussion: '',
+        plan_authority: '',
+        plan_trooper: '',
+        plan_other: '',
+        comments_authority: '',
+        comments_trooper: '',
+        comments_other: '',
+        consequences: [],
+        removal: '',
+        special_punishments: '',
+        appeal: '',
+    };
+}
+
+// What the form sends for a type: a DCS leaves the LOR fields out, which its form covers with fixed text.
+export function counselingFormPayload(form, type) {
+    const { consequences, removal, special_punishments, appeal, ...shared } = form;
+    if (type !== 'lor') return { ...shared };
+
+    return { ...shared, consequences: [...consequences], removal: consequences.includes('removal') ? removal : '', special_punishments, appeal };
+}
+
+// A record freezes 72 hours after it is filed. `at` is the server's ISO 8601 UTC instant; shown as "2026-11-02 10:00Z".
+export function utcStamp(at) {
+    if (typeof at !== 'string' || at.length < 16) return '';
+
+    return `${at.slice(0, 10)} ${at.slice(11, 16)}Z`;
+}
+
+// The trooper's answer to a record, in the words of its type: an LOR is appealed. The regiment's DCS form says a DCS is
+// not subject to appeal, so on a DCS it is a comment or dispute.
+export const APPEAL_WORDS = {
+    lor: { action: 'Appeal', until: 'Appeal until', filed: 'Appeal filed', title: 'Appeal this LOR', submit: 'File appeal' },
+    dcs: {
+        action: 'Comment or dispute',
+        until: 'Comment or dispute until',
+        filed: 'Comment or dispute filed',
+        title: 'Comment on or dispute this DCS',
+        submit: 'File comment',
+    },
+};
+
+// The server's cap on the trooper's statement (AppealCounselingRecordHandler::STATEMENT_MAX).
+export const APPEAL_STATEMENT_MAX = 2000;

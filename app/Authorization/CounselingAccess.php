@@ -41,12 +41,15 @@ use Illuminate\Support\Collection;
  *  - **Correct or delete**: Admins, and the commanders of the unit the record was filed through (the issuer and the
  *    chain above them), as long as they still see the record. A record with no issuing unit (filed by an Admin, or its
  *    unit deleted) is the Admins' alone.
- *  - **A frozen LOR** (S6, 2026-10-29): 72 hours after it is filed, its appeal window, nobody corrects or deletes it,
- *    Admins included ({@see CounselingPermissions::frozen()}). Only the **Regimental Executive Officer** (the serving
- *    holder of the billet titled so, which the org import maps to the regiment) may then overturn it, with a reason; it
- *    stays on file. Never their own, never in a view-as preview, and only signed in as themselves: "only the RXO for
- *    now" (S6, 2026-10-29), so nobody acting as anyone overturns, not an Admin acting as the RXO, not the RCO under the
- *    command team rule, and not the RXO while acting as someone else. A DCS is unchanged.
+ *  - **A frozen record**: 72 hours after a DCS or LOR is filed, its appeal window, nobody corrects or deletes it,
+ *    Admins included ({@see CounselingPermissions::frozen()}). Only an LOR may then be overturned, by the **Regimental
+ *    Executive Officer** (the serving holder of the billet titled so, which the org import maps to the regiment), with a
+ *    reason; it stays on file. Never their own, never in a view-as preview, and only signed in as themselves, so nobody
+ *    acting as anyone overturns, not an Admin acting as the RXO, not the RCO under the command team rule, and not the RXO
+ *    while acting as someone else. A DCS has no overturn.
+ *  - **The trooper's appeal**: within those 72 hours the trooper may file one appeal on an LOR, or one comment or
+ *    dispute on a DCS ({@see CounselingPermissions::appeals()}), on their own record, signed in as themselves: never
+ *    through act as or a view-as preview.
  *  - **An expired DCS** (90 days after it was counseled, {@see CounselingRecord::isExpired()}): seen
  *    by Admins only, read-only to everyone but them. Leaders and the trooper no longer see it.
  *  - **A trooper who has left the Cav** (not serving, {@see TrooperStatus::serving()}): nobody files, corrects or
@@ -107,7 +110,20 @@ class CounselingAccess
             regimentalXo: ! $self && $this->isRegimentalXo($user),
             // An expired DCS is the Admins' alone, and follows a view-as preview like every other DCS read.
             seesExpired: $canSee && $readsAsAdmin,
+            appealsOwn: $this->appealsOwn($user, $trooper),
         );
+    }
+
+    /**
+     * Whether `$trooper` is the viewer, signed in as themselves: nobody is acting as anyone on this request
+     * ({@see RealActor}) and no view-as preview is active. Only then may they appeal their own records.
+     */
+    private function appealsOwn(User $user, Trooper $trooper): bool
+    {
+        return $user->cav_id !== null
+            && (int) $user->cav_id === (int) $trooper->cav_id
+            && $this->real->get() === null
+            && $this->scope->activeViewAs($user) === null;
     }
 
     /**

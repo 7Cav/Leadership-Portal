@@ -6,6 +6,7 @@ use App\Authorization\CounselingAccess;
 use App\Authorization\CounselingPermissions;
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffPracticeAccess;
+use App\Commands\Counseling\CounselingFormParties;
 use App\Commands\StaffPractices\RecordStaffPracticeHandler;
 use App\Kpi\AttendanceHistory;
 use App\Kpi\Headcount;
@@ -53,6 +54,7 @@ class TrooperDetailController extends Controller
         private readonly StaffPracticeAccess $staffAccess,
         private readonly StaffPracticeHistory $staffHistory,
         private readonly Headcount $headcount,
+        private readonly CounselingFormParties $formParties,
     ) {}
 
     /**
@@ -104,6 +106,8 @@ class TrooperDetailController extends Controller
                 fn (CounselingRecord $record) => $writable && $permissions->overturns($record),
                 fn (CounselingRecord $record) => CounselingPermissions::frozen($record),
                 $permissions->seesExpired,
+                // Within those 72 hours the trooper, signed in as themselves, may appeal (or comment on a DCS).
+                fn (CounselingRecord $record) => $writable && $permissions->appeals($record),
             ),
             // Left the Cav: the records are read-only for everyone, and the panel says so.
             'departed' => $permissions->departed,
@@ -116,6 +120,9 @@ class TrooperDetailController extends Controller
                 CounselingType::Dcs->value => $writable && $permissions->filesDcs,
                 CounselingType::Lor->value => $writable && $permissions->filesLor,
             ],
+            // Section 1 of the portal's form, shown read-only to a viewer who may file: the PDF is rendered from the
+            // same roster rows, never from what the browser sends back.
+            'formParties' => $files !== [] ? $this->formParties->for($trooper, $user) : null,
         ];
     }
 

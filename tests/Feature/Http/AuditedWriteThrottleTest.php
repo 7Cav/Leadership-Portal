@@ -106,6 +106,7 @@ it('puts the writes the 2026-10-28 review found unlimited on the right buckets',
         'settings.org-structure.import' => 'roster-sync',
         'counseling.store' => 'counseling-uploads',
         'counseling.overturn' => 'audited-writes',
+        'counseling.preview' => 'audited-writes',
     ];
 
     foreach ($expected as $name => $limiter) {

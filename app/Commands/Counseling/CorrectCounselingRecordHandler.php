@@ -13,8 +13,8 @@ use App\Support\Audit\ReasonRequiredException;
 /**
  * Correct the date or reason of a counseling record (#381). Only someone who sees the record and commands the unit it
  * was filed through (the issuer's chain), or an Admin, may ({@see CounselingAccess}); a record the actor cannot see
- * is not found, one they see but may not change is a 403, and so is any record of a trooper who has left the Cav, and an LOR filed 72 hours ago or more
- * ({@see CounselingPermissions::frozen()}), which only the Regimental Executive Officer may overturn. Saving what is already stored records nothing; a change is
+ * is not found, one they see but may not change is a 403, and so is any record of a trooper who has left the Cav, and a DCS or LOR filed 72 hours ago or more
+ * ({@see CounselingPermissions::frozen()}); only an LOR may then be overturned, by the Regimental Executive Officer. Saving what is already stored records nothing; a change is
  * one audited action (`counseling.corrected`, AD-16) whose reason is required.
  */
 class CorrectCounselingRecordHandler
@@ -44,13 +44,13 @@ class CorrectCounselingRecordHandler
             throw CounselingForbiddenException::departed($record->trooper);
         }
 
-        // Past its appeal window an LOR is final for everyone, Admins included (S6, 2026-10-29).
+        // Past its 72-hour appeal window a DCS or LOR is final for everyone, Admins included.
         if ($record->isOverturned()) {
             throw CounselingForbiddenException::overturned();
         }
 
         if (CounselingPermissions::frozen($record)) {
-            throw CounselingForbiddenException::frozen();
+            throw CounselingForbiddenException::frozen($record->type);
         }
 
         if (! $permissions->changes($record)) {
