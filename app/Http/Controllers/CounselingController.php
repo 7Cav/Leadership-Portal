@@ -35,6 +35,7 @@ use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -67,6 +68,9 @@ class CounselingController extends Controller
     public const SOURCE_UPLOAD = 'upload';
 
     public const SOURCE_FORM = 'form';
+
+    /** What the download of a seeded demo document answers. */
+    public const DEMO_DOCUMENT = 'This file is a demo file and will not be downloaded. You can generate a real one with the form.';
 
     public function __construct(
         private readonly ScopeResolver $scope,
@@ -220,12 +224,18 @@ class CounselingController extends Controller
 
     /**
      * The record's document, only for someone who may see the record: anyone else gets the same 404 as for a record
-     * that does not exist. Served as an attachment named after the record, never after the uploaded file.
+     * that does not exist. Served as an attachment named after the record, never after the uploaded file. A seeded demo
+     * record has no file: it answers 404 with a short note (the page says so before asking).
      */
-    public function document(Request $request, int $counseling, CounselingAccess $access, CounselingDocuments $documents): StreamedResponse
+    public function document(Request $request, int $counseling, CounselingAccess $access, CounselingDocuments $documents): StreamedResponse|Response
     {
         $record = $this->records->find($counseling);
         abort_unless($record !== null && $access->for($request->user(), $record->trooper)->seesRecord($record), 404);
+
+        if (CounselingDocuments::isDemo($record->document_path)) {
+            return response(self::DEMO_DOCUMENT, 404, ['Content-Type' => 'text/plain; charset=UTF-8']);
+        }
+
         abort_unless($documents->exists($record->document_path), 404);
 
         return $documents->download($record->document_path, $record->fileName($record->trooper));
