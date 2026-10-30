@@ -150,7 +150,7 @@ describe('TrooperDetail', () => {
             expect(rows[2].text()).toContain('19Sep26');
             expect(rows[2].get('[data-testid="attendance-section"]').text()).toBe('2/1/A/1-7');
             expect(rows[2].text()).toContain('Will attend');
-            expect(rows[2].text()).toContain('Present');
+            expect(rows[2].text()).toContain('Attended');
             expect(rows[3].text()).toContain('On LOA');
             expect(rows[19].get('[data-testid="attendance-section"]').text()).toBe('None');
             expect(rows[19].text()).toContain('No section that week');
@@ -163,6 +163,17 @@ describe('TrooperDetail', () => {
     });
 
     describe('page structure', () => {
+        it('splits the panels into a profile column and a record column', () => {
+            const counseling = { records: [], counts: { dcs: 0, lor: 0 }, warnings: [], windowDays: 90, sees: { dcs: true, lor: true }, canFile: { dcs: false, lor: false } };
+            const wrapper = page({ counseling, attendance: [{ week: '2026-10-26', section: null, rollcall: null, status: null, source: null, held: false, loa: false }] });
+            const profile = wrapper.get('[data-testid="column-profile"]');
+            const record = wrapper.get('[data-testid="column-record"]');
+
+            expect(wrapper.get('[data-testid="trooper-columns"]').classes()).toContain('lg:grid-cols-2');
+            for (const id of ['id-block', 'courses-panel', 'awards-panel']) expect(profile.find(`[data-testid="${id}"]`).exists()).toBe(true);
+            for (const id of ['attendance-panel', 'counseling-panel', 'timeline-panel']) expect(record.find(`[data-testid="${id}"]`).exists()).toBe(true);
+        });
+
         it('names the person once: the h1 is the name and the card heading is the billet', () => {
             const wrapper = page();
 

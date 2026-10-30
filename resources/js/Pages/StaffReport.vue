@@ -1,11 +1,29 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { toast } from 'vue-sonner';
-import { PhBroadcast, PhCaretLeft, PhCaretRight, PhCheckCircle, PhLockSimple, PhMagnifyingGlass, PhUserCheck, PhX } from '@phosphor-icons/vue';
+import {
+    PhBroadcast,
+    PhCaretDown,
+    PhCaretLeft,
+    PhCaretRight,
+    PhCheck,
+    PhCheckCircle,
+    PhChalkboardTeacher,
+    PhLockSimple,
+    PhMagnifyingGlass,
+    PhTent,
+    PhUserCheck,
+    PhUsersThree,
+    PhX,
+    PhXCircle,
+} from '@phosphor-icons/vue';
 import EmptyState from '@/components/EmptyState.vue';
 import ReportDeadlineBanner from '@/components/reports/ReportDeadlineBanner.vue';
+import StaffHqHealth from '@/components/reports/StaffHqHealth.vue';
 import StaffReportDiscrepancy from '@/components/reports/StaffReportDiscrepancy.vue';
+import StaffReportPresence from '@/components/reports/StaffReportPresence.vue';
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -14,7 +32,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { forumDate } from '@/lib/forumDate';
 import { onHttpException } from '@/lib/httpError';
 import { stamp } from '@/lib/report';
-import { attendedText, sheetText } from '@/lib/staffReport';
+import { attendedText, pickerCollapses, pickerGroups, sheetText } from '@/lib/staffReport';
 
 // A platoon, company or battalion HQ staff member's own weekly staff report: whether they attended a section
 // practice this week, an FTX or (battalion HQ staff only) an office hour, which, with the other events they attended
@@ -47,6 +65,8 @@ const props = defineProps({
     limits: { type: Object, default: () => ({ ftxName: 120, otherEvents: 500, notes: 1000, officeHourNote: 200 }) },
     // For a reader only: where the game server disagrees with the sent report, `{ notSeen, seenElsewhere }`, or null.
     discrepancy: { type: Object, default: null },
+    // For a reader only: the HQ's unit health that week ({@see StaffHqHealth.vue}), or null.
+    health: { type: Object, default: null },
 });
 
 const entered = computed(() => new Map(props.entries.map((entry) => [entry.sectionId, entry])));
@@ -67,10 +87,14 @@ const form = useForm({
     notes: '',
 });
 
+const ATTENDED = [
+    { value: true, label: 'Yes', hint: 'A practice, an FTX or an office hour', icon: PhCheckCircle },
+    { value: false, label: 'No', hint: 'Not this week', icon: PhXCircle },
+];
 const TYPES = computed(() => [
-    { value: 'sp', label: 'Section practice' },
-    { value: 'ftx', label: 'FTX' },
-    ...(officeHourOffered.value ? [{ value: 'office_hour', label: 'Office hour' }] : []),
+    { value: 'sp', label: 'Section practice', hint: 'Pick the sections', icon: PhUsersThree },
+    { value: 'ftx', label: 'FTX', hint: 'Its name and date', icon: PhTent },
+    ...(officeHourOffered.value ? [{ value: 'office_hour', label: 'Office hour', hint: 'Its date and a note', icon: PhChalkboardTeacher }] : []),
 ]);
 
 // The days an FTX or an office hour can fall on: the Cav week, Saturday to Friday.
@@ -90,21 +114,22 @@ const matching = computed(() => {
 
     return needle ? props.sections.filter((section) => section.label.toLowerCase().includes(needle)) : props.sections;
 });
-// Grouped in the order the server sent them, nearest unit first.
-const groups = computed(() => {
-    const out = [];
-    for (const section of matching.value) {
-        const key = section.group ?? '';
-        let group = out.find((candidate) => candidate.key === key);
-        if (!group) {
-            group = { key, label: section.group ? `In ${section.group}` : 'Other sections', rows: [] };
-            out.push(group);
-        }
-        group.rows.push(section);
-    }
-
-    return out;
-});
+// Grouped in the order the server sent them, nearest unit first, then by platoon in order of battle.
+const groups = computed(() => pickerGroups(matching.value));
+// Across a battalion every platoon but the staff member's own starts collapsed; a search opens them all.
+const collapses = computed(() => !filter.value.trim() && pickerCollapses(pickerGroups(props.sections)));
+const toggled = ref(new Set());
+const platoonId = (group, platoon) => `${group.key}|${platoon.key}`;
+function platoonOpen(group, platoon) {
+    const flipped = toggled.value.has(platoonId(group, platoon));
+    return !collapses.value || platoon.own ? !flipped : flipped;
+}
+function togglePlatoon(group, platoon) {
+    const next = new Set(toggled.value);
+    const id = platoonId(group, platoon);
+    if (!next.delete(id)) next.add(id);
+    toggled.value = next;
+}
 const picked = computed(() => new Set(form.section_ids));
 // Entries already there that are no longer picked: sending takes them off.
 const dropped = computed(() => props.entries.filter((entry) => type.value !== 'sp' && type.value !== 'ftx' ? true : !picked.value.has(entry.sectionId)));
@@ -132,6 +157,59 @@ const missing = computed(() => {
 });
 const canSubmit = computed(() => !form.processing && missing.value === null);
 
+// One question at a time: Yes or No, then (for Yes) what it was and its details, then the optional extras. A step is
+// reachable once every step before it is answered; Send stays beside the steps the whole way.
+const steps = computed(() => [
+    { key: 'attended', label: 'Attended' },
+    ...(form.attended === false ? [] : [
+        { key: 'kind', label: 'What' },
+        { key: 'details', label: type.value === 'office_hour' ? 'Office hour' : type.value === 'ftx' ? 'FTX' : 'Practices' },
+    ]),
+    { key: 'extras', label: 'Notes' },
+]);
+const step = ref(props.entries.length ? 'details' : 'attended');
+// Whether the Notes step was ever open: Send asks first when it was not, so nobody skips it by accident.
+const notesVisited = ref(false);
+watch(step, (key) => {
+    if (key === 'extras') notesVisited.value = true;
+}, { immediate: true });
+const askingNotes = ref(false);
+const stepIndex = computed(() => Math.max(0, steps.value.findIndex((item) => item.key === step.value)));
+
+// What still stops a step, in the words of `missing`.
+function missingAt(key) {
+    if (key === 'attended') return form.attended === null ? 'Answer Yes or No.' : null;
+    if (key === 'details') return missing.value;
+
+    return null;
+}
+const stepMissing = computed(() => missingAt(step.value));
+const reachable = (i) => steps.value.slice(0, i).every((item) => missingAt(item.key) === null);
+
+// A step that leaves the list (Details once No is picked) falls back to the last one still there.
+watch(steps, (list) => {
+    if (!list.some((item) => item.key === step.value)) step.value = list[list.length - 1].key;
+});
+
+function next() {
+    if (stepMissing.value === null && stepIndex.value < steps.value.length - 1) step.value = steps.value[stepIndex.value + 1].key;
+}
+function back() {
+    if (stepIndex.value > 0) step.value = steps.value[stepIndex.value - 1].key;
+}
+function answer(value) {
+    form.attended = value;
+    step.value = value ? 'kind' : 'extras';
+}
+function pickType(value) {
+    form.practice_type = value;
+    step.value = 'details';
+}
+
+const tile = 'flex min-h-24 flex-col items-start gap-1 rounded-xl border p-4 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring';
+const tileOn = 'border-primary bg-primary/10 text-foreground';
+const tileOff = 'border-border bg-card text-muted-foreground hover:border-primary/40 hover:bg-accent/60 hover:text-foreground';
+
 // The answer as it will read once sent.
 const summary = computed(() => {
     if (form.attended === null) return 'Not answered yet';
@@ -146,6 +224,24 @@ const summary = computed(() => {
 });
 
 function send() {
+    if (!canSubmit.value) return;
+    if (!notesVisited.value) {
+        askingNotes.value = true;
+
+        return;
+    }
+    submit();
+}
+function sendAnyway() {
+    askingNotes.value = false;
+    submit();
+}
+function goToNotes() {
+    askingNotes.value = false;
+    step.value = 'extras';
+}
+
+function submit() {
     if (!canSubmit.value) return;
     form.transform((data) => {
         const kind = data.attended ? data.practice_type : null;
@@ -179,15 +275,12 @@ function entryNote(id) {
     return entry.selfReported ? 'Already entered by you' : `Entered by ${entry.enteredBy ?? 'a user no longer in the portal'}`;
 }
 
-const segment = 'flex-1 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring';
-const segmentOn = 'bg-card text-foreground shadow-xs';
-const segmentOff = 'text-muted-foreground hover:text-foreground';
 </script>
 
 <template>
     <Head :title="`Staff report, week of ${forumDate(week.start)} · 7Cav Leadership Portal`" />
 
-    <div class="flex max-w-3xl flex-col gap-4" data-testid="staff-report-page">
+    <div class="flex flex-col gap-4" :class="canSend && !report ? 'max-w-5xl' : 'max-w-3xl'" data-testid="staff-report-page">
         <section aria-labelledby="page-title" class="flex flex-wrap items-end gap-x-6 gap-y-3">
             <div class="min-w-0">
                 <p class="text-xs text-muted-foreground" data-testid="staff-report-who">
@@ -244,6 +337,7 @@ const segmentOff = 'text-muted-foreground hover:text-foreground';
                             <template v-else>Did not attend a section practice.</template>
                         </span>
                         <StaffReportDiscrepancy :discrepancy="discrepancy" />
+                        <StaffReportPresence :presence="report.presence" />
                     </h2>
                     <p class="mt-0.5 text-xs text-muted-foreground">
                         Sent {{ stamp(report.sentAt) }}. A sent staff report is final.
@@ -272,175 +366,266 @@ const segmentOff = 'text-muted-foreground hover:text-foreground';
             </dl>
         </Card>
 
-        <!-- Not sent, and this viewer may send it. -->
-        <form v-else-if="canSend" class="flex flex-col gap-4" data-testid="staff-report-form" @submit.prevent="send">
+        <!-- Not sent, and this viewer may send it: one question at a time, with the answer so far beside it. -->
+        <form v-else-if="canSend" class="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]" data-testid="staff-report-form" @submit.prevent="send">
+            <!-- Send asks first when the Notes step was never opened. -->
+            <AlertDialog :open="askingNotes" @update:open="(open) => (askingNotes = open)">
+                <AlertDialogContent class="sm:max-w-md" data-testid="notes-dialog">
+                    <AlertDialogTitle class="text-base leading-snug font-semibold">Send without notes?</AlertDialogTitle>
+                    <AlertDialogDescription class="text-[13px] text-muted-foreground">
+                        You have not opened the Notes step. Send now if there is nothing else command should know about your week.
+                    </AlertDialogDescription>
+                    <AlertDialogFooter class="flex-row flex-wrap justify-end gap-2">
+                        <AlertDialogCancel class="mt-0" data-testid="notes-dialog-go" @click="goToNotes">Go to Notes</AlertDialogCancel>
+                        <Button type="button" :disabled="!canSubmit" data-testid="notes-dialog-send" @click="sendAnyway">Send anyway</Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
             <Card class="gap-0 py-0 text-[13px]">
-                <fieldset class="px-4 py-4">
-                    <legend class="text-sm font-semibold">Did you attend a section practice this week?</legend>
-                    <p class="mt-0.5 text-xs text-muted-foreground">HQ staff attend at least one a week, preferably in their own unit.</p>
-                    <div class="mt-3 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Attended a section practice">
+                <ol class="flex items-center gap-1 border-b px-3 py-2.5" aria-label="Steps" data-testid="stepper">
+                    <li v-for="(item, i) in steps" :key="item.key" class="flex min-w-0 flex-1 items-center gap-1">
                         <button
-                            v-for="choice in [{ value: true, label: 'Yes' }, { value: false, label: 'No' }]"
-                            :key="String(choice.value)"
                             type="button"
-                            role="radio"
-                            :aria-checked="form.attended === choice.value"
-                            class="h-12 rounded-lg border text-sm font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            :class="form.attended === choice.value ? 'border-primary bg-primary/10 text-foreground' : 'border-border bg-card text-muted-foreground hover:bg-accent/70 hover:text-foreground'"
-                            :data-testid="choice.value ? 'attended-yes' : 'attended-no'"
-                            @click="form.attended = choice.value"
+                            class="flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
+                            :class="item.key === step ? 'text-foreground' : reachable(i) ? 'text-muted-foreground hover:text-foreground' : 'text-muted-foreground/60'"
+                            :aria-current="item.key === step ? 'step' : undefined"
+                            :disabled="!reachable(i)"
+                            :data-testid="`step-${item.key}`"
+                            @click="step = item.key"
                         >
-                            {{ choice.label }}
-                        </button>
-                    </div>
-                    <p v-if="form.errors.attended" class="mt-1.5 text-xs text-destructive" data-testid="error-attended">{{ form.errors.attended }}</p>
-                </fieldset>
-
-                <div v-if="form.attended === true" class="border-t border-border px-4 py-4" data-testid="practice-type">
-                    <p id="practice-type-label" class="text-sm font-semibold">What was it?</p>
-                    <div class="mt-2 flex gap-1 rounded-lg bg-muted p-1" role="radiogroup" aria-labelledby="practice-type-label">
-                        <button
-                            v-for="option in TYPES"
-                            :key="option.value"
-                            type="button"
-                            role="radio"
-                            :aria-checked="form.practice_type === option.value"
-                            :class="[segment, form.practice_type === option.value ? segmentOn : segmentOff]"
-                            :data-testid="`type-${option.value}`"
-                            @click="form.practice_type = option.value"
-                        >
-                            {{ option.label }}
-                        </button>
-                    </div>
-                    <p v-if="form.errors.practice_type" class="mt-1.5 text-xs text-destructive" data-testid="error-practice-type">{{ form.errors.practice_type }}</p>
-
-                    <div v-if="type === 'ftx'" class="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]" data-testid="ftx-fields">
-                        <label class="flex flex-col gap-1">
-                            <span class="text-xs font-medium">Name of the FTX</span>
-                            <Input v-model="form.ftx_name" :maxlength="limits.ftxName" autocomplete="off" data-testid="ftx-name" />
-                            <span v-if="form.errors.ftx_name" class="text-xs text-destructive" data-testid="error-ftx-name">{{ form.errors.ftx_name }}</span>
-                        </label>
-                        <label class="flex flex-col gap-1">
-                            <span class="text-xs font-medium">Date</span>
-                            <Input v-model="form.ftx_date" type="date" :min="week.date" :max="weekEnd" data-testid="ftx-date" />
-                            <span v-if="form.errors.ftx_date" class="text-xs text-destructive" data-testid="error-ftx-date">{{ form.errors.ftx_date }}</span>
-                        </label>
-                    </div>
-
-                    <div v-if="type === 'office_hour'" class="mt-4 grid gap-3" data-testid="office-hour-fields">
-                        <p class="text-xs text-muted-foreground">An hour of office hours counts in place of the hour at a section practice. It is not checked against the game server.</p>
-                        <label class="flex flex-col gap-1 sm:max-w-48">
-                            <span class="text-xs font-medium">Date</span>
-                            <Input v-model="form.office_hour_date" type="date" :min="week.date" :max="weekEnd" data-testid="office-hour-date" />
-                            <span v-if="form.errors.office_hour_date" class="text-xs text-destructive" data-testid="error-office-hour-date">{{ form.errors.office_hour_date }}</span>
-                        </label>
-                        <label class="flex flex-col gap-1">
-                            <span class="flex items-baseline text-xs font-medium">
-                                What was it?
-                                <span class="ml-auto font-normal text-muted-foreground tabular-nums">{{ form.office_hour_note.length }}/{{ limits.officeHourNote }}</span>
+                            <span
+                                class="grid size-5 shrink-0 place-items-center rounded-full text-[11px] tabular-nums"
+                                :class="item.key === step ? 'bg-primary text-primary-foreground' : i < stepIndex ? 'bg-primary/15 text-foreground' : 'bg-muted'"
+                            >
+                                <PhCheck v-if="i < stepIndex" class="size-3" aria-hidden="true" />
+                                <template v-else>{{ i + 1 }}</template>
                             </span>
-                            <Input v-model="form.office_hour_note" :maxlength="limits.officeHourNote" autocomplete="off" data-testid="office-hour-note" />
-                            <span v-if="form.errors.office_hour_note" class="text-xs text-destructive" data-testid="error-office-hour-note">{{ form.errors.office_hour_note }}</span>
-                        </label>
-                    </div>
-                </div>
+                            <span class="hidden truncate sm:inline">{{ item.label }}</span>
+                        </button>
+                        <span v-if="i < steps.length - 1" class="h-px flex-1 bg-border" aria-hidden="true" />
+                    </li>
+                </ol>
 
-                <div v-if="type === 'sp' || type === 'ftx'" class="border-t border-border px-4 py-4" data-testid="practice-picker">
-                    <p class="text-sm font-semibold">{{ type === 'ftx' ? 'Sections that took part (optional)' : 'Which practices did you attend?' }}</p>
-                    <p class="mt-0.5 text-xs text-muted-foreground">
-                        In your own unit you are listed on that section's roll call as a staff guest, anywhere else as a guest. Neither counts in its numbers.
-                    </p>
-
-                    <ul v-if="form.section_ids.length" class="mt-3 flex flex-wrap gap-1.5" aria-label="Picked sections" data-testid="picked-chips">
-                        <li v-for="id in form.section_ids" :key="id">
-                            <span class="inline-flex items-center gap-1 rounded-md border border-primary/40 bg-primary/10 py-0.5 pr-0.5 pl-2 font-mono text-xs">
-                                {{ labels.get(id) ?? 'A section' }}
-                                <button
-                                    type="button"
-                                    class="grid size-5 place-items-center rounded-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                                    :aria-label="`Remove ${labels.get(id) ?? 'this section'}`"
-                                    :data-testid="`chip-remove-${id}`"
-                                    @click="toggle(id)"
-                                >
-                                    <PhX class="size-3" aria-hidden="true" />
-                                </button>
-                            </span>
-                        </li>
-                    </ul>
-
-                    <div class="relative mt-3">
-                        <PhMagnifyingGlass class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-                        <Input v-model="filter" class="pl-8" autocomplete="off" placeholder="Find a section" aria-label="Find a section" data-testid="section-filter" />
-                    </div>
-
-                    <div class="mt-2 max-h-80 overflow-y-auto rounded-md border border-border">
-                        <div v-for="group in groups" :key="group.key" :data-testid="`sections-${group.key || 'others'}`">
-                            <p class="sticky top-0 z-10 border-b border-border bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">{{ group.label }}</p>
-                            <ul class="divide-y divide-border">
-                                <li v-for="section in group.rows" :key="section.id">
-                                    <label class="flex cursor-pointer flex-wrap items-center gap-x-2.5 gap-y-1 px-2.5 py-2 hover:bg-accent/70">
-                                        <input
-                                            type="checkbox"
-                                            class="size-4 accent-primary"
-                                            :checked="picked.has(section.id)"
-                                            :data-testid="`section-${section.id}`"
-                                            @change="toggle(section.id)"
-                                        />
-                                        <span class="font-mono">{{ section.label }}</span>
-                                        <Badge v-if="seenIds.has(section.id)" variant="outline" class="font-normal" :data-testid="`seen-${section.id}`">
-                                            <PhBroadcast aria-hidden="true" />Seen on the game server
-                                        </Badge>
-                                        <span v-if="entryNote(section.id)" class="ml-auto text-xs text-muted-foreground" :data-testid="`entered-${section.id}`">
-                                            {{ entryNote(section.id) }}
-                                        </span>
-                                    </label>
-                                </li>
-                            </ul>
+                <div class="min-h-[18rem] px-4 py-4">
+                    <!-- 1. Yes or No. -->
+                    <fieldset v-if="step === 'attended'" data-testid="step-panel-attended">
+                        <legend class="text-base font-semibold">Did you attend a section practice this week?</legend>
+                        <p class="mt-0.5 text-xs text-muted-foreground">HQ staff attend at least one a week, preferably in their own unit.</p>
+                        <div class="mt-4 grid grid-cols-2 gap-3" role="radiogroup" aria-label="Attended a section practice">
+                            <button
+                                v-for="choice in ATTENDED"
+                                :key="String(choice.value)"
+                                type="button"
+                                role="radio"
+                                :aria-checked="form.attended === choice.value"
+                                :class="[tile, form.attended === choice.value ? tileOn : tileOff]"
+                                :data-testid="choice.value ? 'attended-yes' : 'attended-no'"
+                                @click="answer(choice.value)"
+                            >
+                                <component :is="choice.icon" class="size-6" :class="form.attended === choice.value ? 'text-primary' : ''" aria-hidden="true" />
+                                <span class="text-base font-semibold">{{ choice.label }}</span>
+                                <span class="text-xs font-normal text-muted-foreground">{{ choice.hint }}</span>
+                            </button>
                         </div>
-                        <p v-if="!matching.length" class="px-2.5 py-3 text-xs text-muted-foreground" data-testid="sections-empty">No section matches "{{ filter.trim() }}".</p>
+                        <p v-if="form.errors.attended" class="mt-1.5 text-xs text-destructive" data-testid="error-attended">{{ form.errors.attended }}</p>
+                    </fieldset>
+
+                    <!-- 2. What it was. -->
+                    <fieldset v-else-if="step === 'kind'" data-testid="practice-type">
+                        <legend class="text-base font-semibold">What was it?</legend>
+                        <div class="mt-4 grid gap-3" :class="TYPES.length === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'" role="radiogroup" aria-label="What was it">
+                            <button
+                                v-for="option in TYPES"
+                                :key="option.value"
+                                type="button"
+                                role="radio"
+                                :aria-checked="form.practice_type === option.value"
+                                :class="[tile, form.practice_type === option.value ? tileOn : tileOff]"
+                                :data-testid="`type-${option.value}`"
+                                @click="pickType(option.value)"
+                            >
+                                <component :is="option.icon" class="size-6" :class="form.practice_type === option.value ? 'text-primary' : ''" aria-hidden="true" />
+                                <span class="text-sm font-semibold">{{ option.label }}</span>
+                                <span class="text-xs font-normal text-muted-foreground">{{ option.hint }}</span>
+                            </button>
+                        </div>
+                        <p v-if="form.errors.practice_type" class="mt-1.5 text-xs text-destructive" data-testid="error-practice-type">{{ form.errors.practice_type }}</p>
+                    </fieldset>
+
+                    <!-- 3. The details of that kind. -->
+                    <div v-else-if="step === 'details'" class="flex flex-col gap-4" data-testid="step-panel-details">
+                        <div v-if="type === 'ftx'" class="grid gap-3 sm:grid-cols-[1fr_auto]" data-testid="ftx-fields">
+                            <label class="flex flex-col gap-1">
+                                <span class="text-xs font-medium">Name of the FTX</span>
+                                <Input v-model="form.ftx_name" :maxlength="limits.ftxName" autocomplete="off" data-testid="ftx-name" />
+                                <span v-if="form.errors.ftx_name" class="text-xs text-destructive" data-testid="error-ftx-name">{{ form.errors.ftx_name }}</span>
+                            </label>
+                            <label class="flex flex-col gap-1">
+                                <span class="text-xs font-medium">Date</span>
+                                <Input v-model="form.ftx_date" type="date" :min="week.date" :max="weekEnd" data-testid="ftx-date" />
+                                <span v-if="form.errors.ftx_date" class="text-xs text-destructive" data-testid="error-ftx-date">{{ form.errors.ftx_date }}</span>
+                            </label>
+                        </div>
+
+                        <div v-if="type === 'office_hour'" class="grid gap-3" data-testid="office-hour-fields">
+                            <p class="text-xs text-muted-foreground">An hour of office hours counts in place of the hour at a section practice. It is not checked against the game server.</p>
+                            <label class="flex flex-col gap-1 sm:max-w-48">
+                                <span class="text-xs font-medium">Date</span>
+                                <Input v-model="form.office_hour_date" type="date" :min="week.date" :max="weekEnd" data-testid="office-hour-date" />
+                                <span v-if="form.errors.office_hour_date" class="text-xs text-destructive" data-testid="error-office-hour-date">{{ form.errors.office_hour_date }}</span>
+                            </label>
+                            <label class="flex flex-col gap-1">
+                                <span class="flex items-baseline text-xs font-medium">
+                                    What was it?
+                                    <span class="ml-auto font-normal text-muted-foreground tabular-nums">{{ form.office_hour_note.length }}/{{ limits.officeHourNote }}</span>
+                                </span>
+                                <Input v-model="form.office_hour_note" :maxlength="limits.officeHourNote" autocomplete="off" data-testid="office-hour-note" />
+                                <span v-if="form.errors.office_hour_note" class="text-xs text-destructive" data-testid="error-office-hour-note">{{ form.errors.office_hour_note }}</span>
+                            </label>
+                        </div>
+
+                        <div v-if="type === 'sp' || type === 'ftx'" data-testid="practice-picker">
+                            <p class="text-base font-semibold">{{ type === 'ftx' ? 'Sections that took part (optional)' : 'Which practices did you attend?' }}</p>
+                            <p class="mt-0.5 text-xs text-muted-foreground">
+                                Sections that play your HQ's game. In your own unit you are on the roll call as a staff guest, anywhere else as a guest.
+                            </p>
+
+                            <div class="relative mt-3">
+                                <PhMagnifyingGlass class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                                <Input v-model="filter" class="pl-8" autocomplete="off" placeholder="Find a section" aria-label="Find a section" data-testid="section-filter" />
+                            </div>
+
+                            <div class="mt-2 max-h-[min(32rem,60vh)] overflow-y-auto pr-1">
+                                <div v-for="group in groups" :key="group.key" class="mb-2" :data-testid="`sections-${group.key || 'others'}`">
+                                    <p class="sticky top-0 z-10 bg-card py-1 text-xs font-medium text-muted-foreground">{{ group.label }}</p>
+                                    <div v-for="platoon in group.platoons" :key="platoon.key" class="mb-1.5" :data-testid="`platoon-${platoon.key || 'none'}`">
+                                        <button
+                                            v-if="platoon.label && (group.platoons.length > 1 || platoon.key !== group.key)"
+                                            type="button"
+                                            class="flex min-h-8 w-full items-center gap-1.5 rounded-md px-1 text-left text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                                            :aria-expanded="platoonOpen(group, platoon)"
+                                            :aria-controls="`platoon-rows-${group.key || 'others'}-${platoon.key}`"
+                                            :data-testid="`platoon-toggle-${platoon.key}`"
+                                            @click="togglePlatoon(group, platoon)"
+                                        >
+                                            <PhCaretDown class="size-3.5 transition-transform" :class="platoonOpen(group, platoon) ? '' : '-rotate-90'" aria-hidden="true" />
+                                            <span class="font-mono">{{ platoon.label }}</span>
+                                            <span class="font-normal">({{ platoon.rows.length }})</span>
+                                        </button>
+                                        <ul
+                                            v-show="platoonOpen(group, platoon)"
+                                            :id="`platoon-rows-${group.key || 'others'}-${platoon.key}`"
+                                            class="grid gap-1.5 sm:grid-cols-2"
+                                        >
+                                            <li v-for="section in platoon.rows" :key="section.id">
+                                                <label
+                                                    class="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 transition-colors has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring has-[input:focus-visible]:ring-inset"
+                                                    :class="picked.has(section.id) ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent/70'"
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        class="size-3.5 shrink-0 accent-primary focus-visible:outline-none"
+                                                        :checked="picked.has(section.id)"
+                                                        :data-testid="`section-${section.id}`"
+                                                        @change="toggle(section.id)"
+                                                    />
+                                                    <span class="min-w-0 flex-1">
+                                                        <span class="block font-mono">{{ section.label }}</span>
+                                                        <span v-if="entryNote(section.id)" class="block text-xs text-muted-foreground" :data-testid="`entered-${section.id}`">{{ entryNote(section.id) }}</span>
+                                                    </span>
+                                                    <Badge v-if="seenIds.has(section.id)" variant="outline" class="font-normal" :data-testid="`seen-${section.id}`">
+                                                        <PhBroadcast aria-hidden="true" />Seen on the game server
+                                                    </Badge>
+                                                </label>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                <p v-if="!matching.length" class="py-3 text-xs text-muted-foreground" data-testid="sections-empty">
+                                    <template v-if="filter.trim()">No section matches "{{ filter.trim() }}".</template>
+                                    <template v-else>No section plays your HQ's game.</template>
+                                </p>
+                            </div>
+                            <p v-if="seen.length" class="mt-2 text-xs text-muted-foreground">
+                                Seen on the game server means a capture saw you on the server that week. It is not picked for you.
+                            </p>
+                            <p v-if="form.errors.section_ids" class="mt-1.5 text-xs text-destructive" data-testid="error-sections">{{ form.errors.section_ids }}</p>
+                        </div>
                     </div>
-                    <p v-if="seen.length" class="mt-2 text-xs text-muted-foreground">
-                        Seen on the game server means a capture saw you on the server that week. It is not picked for you.
-                    </p>
-                    <p v-if="form.errors.section_ids" class="mt-1.5 text-xs text-destructive" data-testid="error-sections">{{ form.errors.section_ids }}</p>
+
+                    <!-- 4. Notes and other events, optional. -->
+                    <div v-else class="flex flex-col gap-4" data-testid="step-panel-extras">
+                        <p class="text-base font-semibold">Notes <span class="text-sm font-normal text-muted-foreground">(optional)</span></p>
+                        <p class="-mt-3 text-xs text-muted-foreground">Anything command should know about your week, and any other events you attended.</p>
+                        <label class="flex flex-col gap-1" data-testid="other-events-section">
+                            <span class="text-xs font-medium">Other events attended</span>
+                            <Textarea v-model="form.other_events" :maxlength="limits.otherEvents" rows="2" data-testid="other-events" />
+                            <span v-if="form.errors.other_events" class="text-xs text-destructive" data-testid="error-other-events">{{ form.errors.other_events }}</span>
+                        </label>
+                        <label class="flex flex-col gap-1" data-testid="notes-section">
+                            <span class="text-xs font-medium">Notes</span>
+                            <Textarea v-model="form.notes" :maxlength="limits.notes" rows="3" data-testid="notes" />
+                            <span v-if="form.errors.notes" class="text-xs text-destructive" data-testid="error-notes">{{ form.errors.notes }}</span>
+                        </label>
+                    </div>
                 </div>
 
-                <details class="group border-t border-border" :open="!!form.other_events || !!form.errors.other_events" data-testid="other-events-section">
-                    <summary class="cursor-pointer list-none px-4 py-3 text-sm font-semibold marker:hidden hover:bg-accent/40">
-                        Other events attended <span class="font-normal text-muted-foreground">(optional)</span>
-                    </summary>
-                    <div class="px-4 pb-4">
-                        <Textarea v-model="form.other_events" :maxlength="limits.otherEvents" rows="2" aria-label="Other events attended" data-testid="other-events" />
-                        <span v-if="form.errors.other_events" class="text-xs text-destructive" data-testid="error-other-events">{{ form.errors.other_events }}</span>
-                    </div>
-                </details>
-                <details class="group border-t border-border" :open="!!form.notes || !!form.errors.notes" data-testid="notes-section">
-                    <summary class="cursor-pointer list-none px-4 py-3 text-sm font-semibold marker:hidden hover:bg-accent/40">
-                        Notes <span class="font-normal text-muted-foreground">(optional)</span>
-                    </summary>
-                    <div class="px-4 pb-4">
-                        <Textarea v-model="form.notes" :maxlength="limits.notes" rows="3" aria-label="Notes" data-testid="notes" />
-                        <span v-if="form.errors.notes" class="text-xs text-destructive" data-testid="error-notes">{{ form.errors.notes }}</span>
-                    </div>
-                </details>
+                <div class="flex items-center gap-2 border-t px-4 py-3">
+                    <Button v-if="stepIndex > 0" type="button" variant="ghost" size="sm" data-testid="step-back" @click="back">
+                        <PhCaretLeft aria-hidden="true" />Back
+                    </Button>
+                    <p v-if="stepMissing" class="ml-auto text-xs text-muted-foreground" data-testid="step-missing">{{ stepMissing }}</p>
+                    <Button v-if="stepIndex < steps.length - 1" type="button" size="sm" :class="stepMissing ? '' : 'ml-auto'" :disabled="!!stepMissing" data-testid="step-next" @click="next">
+                        Next<PhCaretRight aria-hidden="true" />
+                    </Button>
+                </div>
             </Card>
 
-            <!-- The answer as it will be sent, and Send, kept in reach at the bottom of the screen. -->
-            <div class="sticky bottom-0 z-20 -mx-4 border-t border-border bg-background/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-lg sm:border" data-testid="send-bar">
-                <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-                    <div class="min-w-0 flex-1 text-[13px]">
-                        <p class="truncate font-medium" data-testid="send-summary">{{ summary }}</p>
-                        <p v-if="missing" class="text-xs text-muted-foreground" data-testid="send-missing">{{ missing }}</p>
-                        <p v-else class="text-xs text-muted-foreground">Once sent, your staff report cannot be changed.</p>
+            <!-- The answer as it will be sent, and Send: beside the steps on a wide screen, under them on a phone. -->
+            <Card class="gap-0 py-0 text-[13px] lg:sticky lg:top-4" data-testid="send-bar">
+                <h2 class="border-b px-4 py-2.5 text-sm font-semibold">Your report</h2>
+                <dl class="grid gap-2.5 px-4 py-3">
+                    <div>
+                        <dt class="text-xs text-muted-foreground">Attended</dt>
+                        <dd class="font-medium" data-testid="send-summary">{{ summary }}</dd>
                     </div>
-                    <Button type="submit" :disabled="!canSubmit" data-testid="staff-report-send">Send staff report</Button>
+                    <div v-if="form.attended === true && (type === 'sp' || type === 'ftx') && form.section_ids.length">
+                        <dt class="text-xs text-muted-foreground">{{ type === 'ftx' ? 'Sections' : 'Practices' }}</dt>
+                        <dd>
+                            <ul class="mt-1 flex flex-wrap gap-1.5" aria-label="Picked sections" data-testid="picked-chips">
+                                <li v-for="id in form.section_ids" :key="id">
+                                    <span class="inline-flex items-center gap-1 rounded-md border border-primary/40 bg-primary/10 py-0.5 pr-0.5 pl-2 font-mono text-xs">
+                                        {{ labels.get(id) ?? 'A section' }}
+                                        <button
+                                            type="button"
+                                            class="grid size-5 place-items-center rounded-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                                            :aria-label="`Remove ${labels.get(id) ?? 'this section'}`"
+                                            :data-testid="`chip-remove-${id}`"
+                                            @click="toggle(id)"
+                                        >
+                                            <PhX class="size-3" aria-hidden="true" />
+                                        </button>
+                                    </span>
+                                </li>
+                            </ul>
+                        </dd>
+                    </div>
+                    <div v-if="form.other_events.trim() || form.notes.trim()">
+                        <dt class="text-xs text-muted-foreground">Also</dt>
+                        <dd data-testid="send-extras">{{ [form.other_events.trim() && 'Other events', form.notes.trim() && 'Notes'].filter(Boolean).join(', ') }}</dd>
+                    </div>
+                </dl>
+                <div class="border-t px-4 py-3">
+                    <p v-if="missing" class="mb-2 text-xs text-muted-foreground" data-testid="send-missing">{{ missing }}</p>
+                    <p v-else class="mb-2 text-xs text-muted-foreground">Once sent, your staff report cannot be changed.</p>
+                    <Button type="submit" class="w-full" :disabled="!canSubmit" data-testid="staff-report-send">Send staff report</Button>
+                    <p v-if="dropped.length && form.attended !== null" class="mt-2 text-xs text-warning" data-testid="dropped-note">
+                        Sending takes off the {{ dropped.length === 1 ? 'entry' : 'entries' }} you left out:
+                        {{ dropped.map((entry) => entry.section).join(', ') }}.
+                    </p>
+                    <p v-if="form.errors.report" role="alert" class="mt-2 text-xs text-destructive" data-testid="error-report">{{ form.errors.report }}</p>
                 </div>
-                <p v-if="dropped.length && form.attended !== null" class="mt-1.5 text-xs text-warning" data-testid="dropped-note">
-                    Sending takes off the {{ dropped.length === 1 ? 'entry' : 'entries' }} you left out:
-                    {{ dropped.map((entry) => entry.section).join(', ') }}.
-                </p>
-                <p v-if="form.errors.report" role="alert" class="mt-1.5 text-xs text-destructive" data-testid="error-report">{{ form.errors.report }}</p>
-            </div>
+            </Card>
         </form>
 
         <!-- Not sent, and this viewer only reads it, or the week can no longer be sent. -->
@@ -452,5 +637,7 @@ const segmentOff = 'text-muted-foreground hover:text-foreground';
                 <template v-else>Only {{ trooper.displayName }} can send their staff report.</template>
             </EmptyState>
         </Card>
+
+        <StaffHqHealth v-if="health" :health="health" />
     </div>
 </template>

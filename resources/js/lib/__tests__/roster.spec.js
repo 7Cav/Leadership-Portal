@@ -17,10 +17,12 @@ import {
     RANK_ORDER,
     rankIndex,
     rankTier,
+    RC_STATES,
     readOrbatSort,
     shortDuration,
     SORTS,
     sourceLabel,
+    SP_STATES,
     transferLabel,
     weekCell,
     weekLabel,
@@ -34,7 +36,23 @@ describe('weekCell (4.7)', () => {
     it('reads a signed, attended week', () => {
         expect(weekCell(mark(), '2026-09-26')).toEqual({ rc: 'ok', sp: 'ok' });
         expect(weekCell(mark({ rollcall: 'cannot_attend', status: 'makeup' }), '2026-09-26')).toEqual({ rc: 'cn', sp: 'mk' });
-        expect(weekCell(mark({ status: 'attached' }), '2026-09-26').sp).toBe('at');
+        expect(weekCell(mark({ rollcall: 'makeup_requested', status: 'excused' }), '2026-09-26')).toEqual({ rc: 'mr', sp: 'ex' });
+        expect(weekCell(mark({ rollcall: 'excused', status: 'missed' }), '2026-09-26')).toEqual({ rc: 'ex', sp: 'bad' });
+    });
+
+    it('names the states in the words of 2026-10-30, with no Attached left', () => {
+        expect(RC_STATES).toMatchObject({ ok: 'Will attend', cn: 'Will not attend', mr: 'Make-up requested', ex: 'Excused' });
+        expect(SP_STATES).toMatchObject({ ok: 'Attended', bad: 'Not attended', mk: 'Make-up complete', ex: 'Excused' });
+        expect(SP_STATES).not.toHaveProperty('at');
+    });
+
+    it('shows an automatic Excused on each half nobody recorded, and what a leader recorded otherwise', () => {
+        expect(weekCell(null, '2026-09-26', { excused: 'transfer' })).toEqual({ rc: 'ex', sp: 'ex' });
+        expect(weekCell(mark({ rollcall: 'unsigned', status: null, held: true }), '2026-09-26', { excused: 'recruit' })).toEqual({ rc: 'ex', sp: 'ex' });
+        expect(weekCell(mark({ rollcall: 'will_attend', status: 'missed', source: 'manual' }), '2026-09-26', { excused: 'transfer' })).toEqual({ rc: 'ok', sp: 'bad' });
+        expect(weekCell(mark({ rollcall: 'unsigned', status: 'missed', source: 'auto' }), '2026-09-26', { excused: 'transfer' })).toEqual({ rc: 'ex', sp: 'ex' });
+        // The mark's own `excused` (the roll call's history entries) reads the same.
+        expect(weekCell({ ...mark({ status: null, held: false }), excused: 'transfer' }, '2026-09-26').sp).toBe('ex');
     });
 
     it('slashes a missed SP and a past unsigned rollcall, but leaves this week\'s unsigned open', () => {
@@ -245,6 +263,17 @@ describe('aggregateWeek', () => {
     it('shows no data for a week nobody had a practice row', () => {
         expect(aggregateWeek([{ weeks: [null] }], 0, '2026-09-26', false)).toMatchObject({ rc: 'nil', sp: 'nil' });
     });
+
+    it('counts make-up requested as signed, and leaves an excused member out of both shares, like LOA', () => {
+        const members = [
+            { weeks: [mark({ rollcall: 'makeup_requested', status: 'makeup' })] },
+            { weeks: [mark({ rollcall: 'excused', status: 'excused' })] },
+            { weeks: [mark({ rollcall: 'unsigned', status: null })], excusedWeeks: { '2026-09-26': 'transfer' } },
+            { weeks: [mark({ rollcall: 'unsigned', status: 'missed' })] },
+        ];
+
+        expect(aggregateWeek(members, 0, '2026-09-26', false)).toMatchObject({ signed: 1, due: 2, attended: 1, marked: 2 });
+    });
 });
 
 describe('displayName', () => {
@@ -435,6 +464,11 @@ describe('transfers and the attendance history', () => {
     it('reads a week at the old section like a roster week', () => {
         expect(historyCell(week())).toEqual({ rc: 'ok', sp: 'ok' });
         expect(historyCell(week({ rollcall: 'unsigned', status: 'missed' }))).toEqual({ rc: 'bad', sp: 'bad' });
+    });
+
+    it('shows a first week excused automatically on the milpac, with or without a practice row', () => {
+        expect(historyCell(week({ rollcall: null, status: null, held: false, excused: 'recruit' }))).toEqual({ rc: 'ex', sp: 'ex' });
+        expect(historyCell(week({ rollcall: 'will_attend', status: null, excused: 'transfer' }))).toEqual({ rc: 'ok', sp: 'ex' });
     });
 
     it('shows leave over the marks, a week in no section as none (no section that week), and a week with no practice row as nothing posted', () => {

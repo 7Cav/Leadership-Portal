@@ -193,8 +193,9 @@ it('flags a sent unit whose descendant is still open', function () {
 });
 
 // Seven reads of its own (two of them which units had troopers that week, #442: the tree and the placement history; a
-// past week never reads who is placed now), plus the LOA coverage of the window (4.8): one more, however many units.
-it('reads a whole battalion in eight queries, however many units it holds', function () {
+// past week never reads who is placed now), plus the LOA coverage of the window (4.8) and the automatically excused
+// weeks (who joined or transferred in the window, AutoExcused): one more each, however many units.
+it('reads a whole battalion in nine queries, however many units it holds', function () {
     $units = app(UnitRepository::class);
     $count = function (Unit $root) {
         DB::flushQueryLog();
@@ -222,7 +223,7 @@ it('reads a whole battalion in eight queries, however many units it holds', func
         }
     }
 
-    expect($small)->toBe(8)->and($count($this->battalion))->toBe(8);
+    expect($small)->toBe(9)->and($count($this->battalion))->toBe(9);
 });
 
 it('shows a unit with an unreadable sent snapshot as unknown, never a plausible zero, and still builds the rest of the chain', function () {

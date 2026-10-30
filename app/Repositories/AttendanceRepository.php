@@ -60,8 +60,8 @@ interface AttendanceRepository
      * The automatic makeup write (decided 2026-10-23): `status = makeup`, `source = auto` on the
      * trooper's own section's practice, for a trooper seen at another section's practice that week
      * (a host leader's hand-added guest; not called by the capture until practice time slots exist). It never downgrades and never overrides a leader: a row that already carries a
-     * `manual` mark of any status, an `loa` mark, or an attended mark (`present` or `attached`,
-     * whatever its source) is left untouched. An unmarked row (none yet, or rollcall-only) and an
+     * `manual` mark of any status (an `excused` included), an `loa` mark, or `present` (whatever its source) is left
+     * untouched. An unmarked row (none yet, or rollcall-only) and an
      * `auto` `missed` row become the makeup; an existing auto makeup is kept in place. The guard is
      * evaluated against a locking read inside this write's own transaction, as in
      * {@see markPracticeAuto()}, which is also what later replaces an auto makeup with `present` when
@@ -74,8 +74,8 @@ interface AttendanceRepository
      * Take back an automatic makeup (decided 2026-10-23): when the host leader removes the guest entry that alone
      * supported it, the `makeup`/`auto` mark {@see markMakeupAuto()} wrote on the trooper's own section's practice is
      * cleared to unmarked (`status` and `source` null; the row and its rollcall signature stay). Anything else is left
-     * exactly as it is: a leader's manual mark (a makeup marked by hand included), `present` or `attached` (the
-     * trooper's own practice was captured since), `loa`, `missed`, or no row. Decided against a locking read inside
+     * exactly as it is: a leader's manual mark (a makeup marked by hand included), `present` (the trooper's own
+     * practice was captured since), `loa`, `missed`, or no row. Decided against a locking read inside
      * this write's own transaction, as {@see markMakeupAuto()} is. Returns the cleared row, or null when nothing was
      * cleared.
      */
@@ -178,7 +178,8 @@ interface AttendanceRepository
      * practice row yet counts as nothing signed or marked. One query, however many sections.
      *
      * `$excusedTrooperIds` are troopers whose practice status is derived rather than marked (their leave covers the
-     * week, 3.4, as `LoaCoverage` decides; the caller asks it, since a Repository cannot). Each counts as signed, as
+     * week, 3.4, as `LoaCoverage` decides, or their first week after a transfer or joining is excused automatically,
+     * as `Kpi\AutoExcused` decides; the caller asks them, since a Repository cannot). Each counts as signed, as
      * marked and as on LOA, once, whether or not a row exists, and never as unsigned, so a section with someone on
      * leave can reach its full strength on both steps. They never make the practice held, and
      * neither does an automatic makeup (the rule {@see countingMarks()} uses); a trooper carrying one

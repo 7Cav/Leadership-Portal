@@ -124,7 +124,7 @@ const anyRows = computed(() => rows.value.some((row) => row.kind === 'trooper' |
 function cell(trooper, index) {
     const week = props.weeks[index];
 
-    return weekCell(trooper.weeks[index], week, { current: week === props.currentWeek, joined: trooper.joined });
+    return weekCell(trooper.weeks[index], week, { current: week === props.currentWeek, joined: trooper.joined, excused: trooper.excusedWeeks?.[week] ?? null });
 }
 function aggregate(members, index) {
     const week = props.weeks[index];

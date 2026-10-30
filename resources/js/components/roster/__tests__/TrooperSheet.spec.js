@@ -88,7 +88,7 @@ describe('Trooper sheet', () => {
         const recent = sheet.querySelectorAll('[data-testid="sheet-recent"] tbody tr');
         expect(recent[0].querySelector('[data-testid="sheet-week-section"]')).toBeNull();
         expect(recent[2].querySelector('[data-testid="sheet-week-section"]').textContent).toBe('At 1/2/A/1-7');
-        expect(recent[2].textContent).toContain('Present');
+        expect(recent[2].textContent).toContain('Attended');
     });
 
     it('shows a "Leave from" chip for a leave starting next Cav week, and none without one', async () => {

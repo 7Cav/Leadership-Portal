@@ -139,7 +139,8 @@ interface TrooperRepository
      * running week, or a later one, the serving troopers placed in it now ({@see placedIn()}). For a week that has
      * ended, the ones the placement history puts in it when that week ended
      * ({@see TrooperPlacementRepository::sectionsByWeekAmong()}), whether they have moved or left the Cav since,
-     * so a week whose report is still open keeps its own roster. The rollcall, the attendance writer and the report
+     * so a week whose report is still open keeps its own roster. A trooper whose join date (`tis`) falls after that
+     * week is never on it, whatever the placement history says. The rollcall, the attendance writer and the report
      * all read this, and agree with the KPIs of that week.
      *
      * @throws InvalidArgumentException when `$weekStart` is not a Saturday 00:00 UTC.
@@ -163,8 +164,8 @@ interface TrooperRepository
      * {@see onRollcall()} for several sections at once, as ids: which section's rollcall each trooper is on for the
      * week, for a page that counts many rollcalls (the rollcall picker, Home's step matrix) and must agree with each
      * one. For the running week, the serving troopers placed in them now; for a week that has ended, the ones the
-     * placement history puts in them when it ended ({@see TrooperPlacementRepository::sectionsByWeekAmong()}). One
-     * query.
+     * placement history puts in them when it ended ({@see TrooperPlacementRepository::sectionsByWeekAmong()}), less
+     * anyone who joined the Cav after it. Two queries.
      *
      * @param  list<int>  $sectionIds
      *

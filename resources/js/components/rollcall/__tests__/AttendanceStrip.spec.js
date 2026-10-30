@@ -21,22 +21,35 @@ describe('AttendanceStrip', () => {
         expect(squares(wrapper)[2].find('.roster-h').classes()).toContain('roster-h--bad');
         const label = wrapper.get('[data-testid="attendance-strip"]');
         expect(label.attributes('role')).toBe('img');
-        expect(label.attributes('aria-label')).toBe('Last 4 weeks: present, present, missed, LOA');
+        expect(label.attributes('aria-label')).toBe('Last 4 weeks: attended, attended, not attended, LOA');
     });
 
     it('titles each square with its week and state', () => {
         const titles = squares(strip()).map((square) => square.attributes('title'));
 
-        expect(titles).toEqual(['Week of 05Sep26: Present', 'Week of 12Sep26: Present', 'Week of 19Sep26: Missed', 'Week of 26Sep26: On LOA']);
+        expect(titles).toEqual(['Week of 05Sep26: Attended', 'Week of 12Sep26: Attended', 'Week of 19Sep26: Not attended', 'Week of 26Sep26: On LOA']);
     });
 
-    it('tells makeup, attached, not marked yet and no practice held apart', () => {
+    it('tells make-up complete, excused, not marked yet and no practice held apart', () => {
         const wrapper = strip({
-            weeks: [week('2026-09-05', 'makeup'), week('2026-09-12', 'attached'), week('2026-09-19', null, { held: true }), week('2026-09-26', null)],
+            weeks: [week('2026-09-05', 'makeup'), week('2026-09-12', 'excused'), week('2026-09-19', null, { held: true }), week('2026-09-26', null)],
         });
 
-        expect(states(wrapper)).toEqual(['mk', 'at', 'open', 'nil']);
-        expect(wrapper.get('[role="img"]').attributes('aria-label')).toBe('Last 4 weeks: makeup, attached, not marked yet, no SP held');
+        expect(states(wrapper)).toEqual(['mk', 'ex', 'open', 'nil']);
+        expect(wrapper.get('[role="img"]').attributes('aria-label')).toBe('Last 4 weeks: make-up complete, excused, not marked yet, no SP held');
+    });
+
+    it('shows an automatically excused first week as excused until a leader marks it', () => {
+        const wrapper = strip({
+            weeks: [
+                { ...week('2026-09-05', null, { held: true }), excused: 'transfer' },
+                { ...week('2026-09-12', null), excused: 'recruit' },
+                { ...week('2026-09-19', 'present'), source: 'manual', excused: 'transfer' },
+                { ...week('2026-09-26', 'missed'), source: 'auto', excused: 'transfer' },
+            ],
+        });
+
+        expect(states(wrapper)).toEqual(['ex', 'ex', 'ok', 'ex']);
     });
 
     it('shows LOA over whatever mark the week carries, and an old loa mark as LOA', () => {
@@ -53,7 +66,7 @@ describe('AttendanceStrip', () => {
 
         expect(states(wrapper)).toEqual(['out', 'out', 'nil', 'ok']);
         expect(wrapper.get('[role="img"]').attributes('aria-label')).toBe(
-            'Last 4 weeks: not in the unit yet, not in the unit yet, no SP held, present',
+            'Last 4 weeks: not in the unit yet, not in the unit yet, no SP held, attended',
         );
     });
 });
@@ -76,7 +89,7 @@ describe('TrooperCard attendance strip', () => {
     it.each(['signature', 'practice'])('shows the strip on the %s step', (kind) => {
         const wrapper = mount(TrooperCard, { props: { trooper: trooper(), kind, editable: true } });
 
-        expect(wrapper.get('[data-testid="attendance-strip"]').attributes('aria-label')).toBe('Last 4 weeks: present, present, missed, LOA');
+        expect(wrapper.get('[data-testid="attendance-strip"]').attributes('aria-label')).toBe('Last 4 weeks: attended, attended, not attended, LOA');
     });
 
     it('shows it on a locked LOA card too, and leaves it out when there is no history', () => {

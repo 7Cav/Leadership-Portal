@@ -10,6 +10,8 @@ x-app: &app
     DB_CONNECTION: mysql
     DB_HOST: mysql
     DB_PORT: 3306
+    # .env also supplies Compose's MYSQL_ROOT_PASSWORD, but app processes never need it.
+    DB_ROOT_PASSWORD: ""
     LOG_CHANNEL: stderr
     # Caddy reaches the app from inside the fixed `portal` subnet below.
     TRUSTED_PROXIES: ${PORTAL_SUBNET:-172.30.0.0/24}

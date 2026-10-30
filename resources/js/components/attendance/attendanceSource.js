@@ -7,7 +7,7 @@ import { PhArrowUUpLeft, PhBroadcast, PhCircleDashed, PhLockSimple, PhUserCheck 
 export const SOURCES = {
     auto: { label: 'Auto', detail: 'Captured automatically from the game server.', icon: PhBroadcast, tone: 'text-info' },
     manual: { label: 'Manual', detail: 'Marked by hand by a leader.', icon: PhUserCheck, tone: 'text-foreground' },
-    makeup: { label: 'Makeup', detail: 'Made up at another practice, marked by hand.', icon: PhArrowUUpLeft, tone: 'text-info' },
+    makeup: { label: 'Make-up complete', detail: 'Made up at another practice or otherwise, marked by hand.', icon: PhArrowUUpLeft, tone: 'text-info' },
     loa: { label: 'LOA', detail: 'On leave of absence, from LOA records. Nothing to mark.', icon: PhLockSimple, tone: 'text-muted-foreground' },
     unmarked: { label: 'Not marked', detail: 'No practice mark recorded yet.', icon: PhCircleDashed, tone: 'text-muted-foreground' },
 };

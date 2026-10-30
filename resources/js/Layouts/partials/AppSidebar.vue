@@ -87,9 +87,7 @@ function closeOnMobile() {
                     <DropdownMenu v-model:open="menuOpen">
                         <DropdownMenuTrigger as-child>
                             <SidebarMenuButton size="lg" data-testid="scope-switcher" :aria-label="`Scope: ${scopeName}`">
-                                <span class="grid size-8 shrink-0 place-items-center rounded-md bg-foreground">
-                                    <img src="/assets/cav-shield.png" alt="" class="size-6 object-contain" />
-                                </span>
+                                <img src="/assets/cav-shield.png" alt="" class="size-8 shrink-0 object-contain" />
                                 <span class="grid min-w-0 flex-1 leading-tight">
                                     <span class="truncate text-[13px] font-semibold" data-testid="scope-switcher-label">{{ label }}</span>
                                     <span class="truncate text-xs text-muted-foreground">{{ scopeName }}</span>
@@ -147,6 +145,12 @@ function closeOnMobile() {
                                 >
                                     <component :is="item.icon" />
                                     <span>{{ item.label }}</span>
+                                    <!-- Something new on that screen since the viewer last opened it (the changelog). -->
+                                    <span
+                                        v-if="item.dot && page.props[item.dot] === true"
+                                        class="ml-auto size-2 shrink-0 rounded-full bg-info group-data-[collapsible=icon]:hidden"
+                                        :data-testid="`nav-dot-${item.label}`"
+                                    ><span class="sr-only">New entries</span></span>
                                     <!-- Something on that screen waits for an Admin (the Admin billets to confirm). -->
                                     <Badge
                                         v-if="item.count && page.props[item.count] > 0"

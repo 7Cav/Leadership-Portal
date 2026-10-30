@@ -30,7 +30,7 @@ audience: leader
 5. Set the **Date** the counseling was given (the **Date of letter** on the form). It cannot be in the future.
 6. Under **What it is for**, choose **Missed section practice or roll call** or **Other conduct**. It decides which of the regulations' rules the record is weighed on, and it cannot be changed later.
 7. Write the **Reason**, or with the form a short **Summary** for the list of records.
-8. With **Upload a PDF**, attach the **Signed document**: a PDF of 10 MB or less.
+8. With **Upload a PDF**, attach the **Signed document**: a PDF of 10 MB or less, ending in `.pdf`.
 9. With **Fill in the form here**, fill in the regiment's form (7CAV-R-042 for a DCS, 7CAV-R-043 for an LOR):
    1. Section 1, the rank, name and billet of the trooper and of you as the authority, comes from the roster and cannot be changed.
    2. Give the infraction and its details, the regulation, order or SOP, the notes of the discussion and the plan of action for the authority. The trooper's and other columns of the plan, and the comments, are optional.
@@ -41,6 +41,8 @@ audience: leader
 > [!good-to-know] Before you file, the form says what flags the new record would earn with the date and purpose you chose. Filing the same record twice within 10 minutes is refused as already filed, so a double click never counts twice.
 
 > [!good-to-know] The appeal outcome on an LOR form is left blank when you file. The appeal authority fills it in later, outside the portal.
+
+> [!good-to-know] The portal keeps only plain documents. It refuses a PDF that has a password, that looks damaged, or that carries scripts, attachments or actions that run on their own, as many fillable forms do. If yours is refused, print it to a new PDF (for example with Microsoft Print to PDF) and attach that copy. Web links in the document are fine.
 
 ## Read the flags
 

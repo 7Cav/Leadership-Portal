@@ -708,8 +708,8 @@ describe('Settings/Templates', () => {
             const post = wrapper.get('[data-testid="template-preview-post"]');
 
             expect(post.get('strong').text()).toBe('1/E/2-7');
-            expect(post.findAll('td').map((cell) => cell.text())).toEqual(['SGT Jay.JH', 'CPL Adams.P', 'SPC Reyes.M', 'PFC Novak.T', 'PVT Okafor.B']);
-            expect(wrapper.get('[data-testid="template-preview"]').text()).toContain('sample section of 5 troopers');
+            expect(post.findAll('td').map((cell) => cell.text())).toEqual(['SGT Jay.JH', 'CPL Adams.P', 'SPC Reyes.M', 'PFC Novak.T', 'PVT Okafor.B', 'PVT Ibarra.L']);
+            expect(wrapper.get('[data-testid="template-preview"]').text()).toContain('sample section of 6 troopers');
         });
 
         it('follows the editor a moment after the Admin stops typing', async () => {
@@ -846,7 +846,7 @@ describe('Settings/Templates', () => {
                 await pick(wrapper, '');
 
                 expect(wrapper.get('[data-testid="template-preview-post"] strong').text()).toBe('1/E/2-7');
-                expect(wrapper.get('[data-testid="template-preview-note"]').text()).toContain('sample section of 5 troopers');
+                expect(wrapper.get('[data-testid="template-preview-note"]').text()).toContain('sample section of 6 troopers');
             });
 
             it('keeps the sample and says why when the section cannot be loaded', async () => {

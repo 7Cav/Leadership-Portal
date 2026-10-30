@@ -117,6 +117,7 @@ interface WeeklyReportRepository
      *
      * @param  array<string, mixed>  $kpis
      * @param  list<array{trooper_id: int, reason: string}>  $unaccounted
+     * @param  list<array{trooper_id: int, done: bool}>|null  $makeupChecks  a section's answers on owed make-ups, null for none asked
      *
      * `$sentByAdmin` is the Admin who sent it while acting as `$sentBy` (#379), named beside them; `$sentAsUnit` the
      * unit whose billet `$sentBy` (an Admin) held when sending it. Null otherwise.
@@ -139,6 +140,7 @@ interface WeeklyReportRepository
         array $unaccounted = [],
         ?int $sentByAdmin = null,
         ?int $sentAsUnit = null,
+        ?array $makeupChecks = null,
     ): WeeklyReport;
 
     /**

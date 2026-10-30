@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffReportAccess;
+use App\Kpi\AutoExcused;
 use App\Kpi\ChainNode;
 use App\Kpi\ChildReport;
 use App\Kpi\ChildReportStatus;
@@ -69,6 +70,7 @@ class HomeController extends Controller
         private readonly Headcount $headcount,
         private readonly StaffReportAccess $staffReports,
         private readonly StaffReportRepository $sentStaffReports,
+        private readonly AutoExcused $autoExcused,
     ) {}
 
     public function show(Request $request): Response
@@ -278,10 +280,14 @@ class HomeController extends Controller
      * to the trooper's card on the section's rollcall for the week, where the leader marks them, and carries the
      * forum thread, where the post is fixed.
      *
+     * A trooper who asked for a make-up on the roll call in a window week and has none recorded yet
+     * (`TrooperAttendance::$makeupOwedWeeks`, 2026-10-30) is a `makeup_owed` item, linked to their card on the roll call
+     * of the latest week they owe, until a make-up is recorded from a capture, a guest entry or by hand.
+     *
      * @param  Collection<int, Collection<int, TrooperAttendance>>  $attendance  each root's per-trooper rows
      * @param  Collection<int, ChainNode>  $chains
      * @param  Collection<int, int>  $scope
-     * @return array{items: list<array<string, mixed>>, totals: array{holding: int, atRisk: int, loaReview: int}}
+     * @return array{items: list<array<string, mixed>>, totals: array{holding: int, atRisk: int, loaReview: int, makeupOwed: int}}
      */
     private function attentionProps(Collection $attendance, Collection $chains, Collection $scope, CarbonImmutable $weekStart): array
     {
@@ -296,9 +302,16 @@ class HomeController extends Controller
                 ->map(fn (TrooperAttendance $row) => ['trooperId' => $row->trooperId, 'missed' => $row->missed, 'missedWeeks' => $row->missedWeeks]))
             ->values();
 
+        // Asked for a make-up on the roll call and none recorded yet (2026-10-30), from the same per-trooper rows.
+        $owed = $attendance
+            ->flatMap(fn (Collection $rows) => $rows
+                ->filter(fn (TrooperAttendance $row) => $row->makeupOwedWeeks !== [])
+                ->map(fn (TrooperAttendance $row) => ['trooperId' => $row->trooperId, 'weeks' => $row->makeupOwedWeeks, 'sectionId' => $row->sectionId]))
+            ->values();
+
         $sections = $this->units->sectionsAmong($scope)->keyBy('id');
         $review = $this->loaReview($attendance, $chains, $sections, $weekStart);
-        $troopers = $this->troopers->byIds([...$atRisk->pluck('trooperId')->all(), ...array_keys($review)]);
+        $troopers = $this->troopers->byIds([...$atRisk->pluck('trooperId')->all(), ...array_keys($review), ...$owed->pluck('trooperId')->all()]);
         $atRisk = $atRisk
             ->filter(fn (array $row) => $troopers->has($row['trooperId']))
             ->sortBy(fn (array $row) => [-$row['missed'], mb_strtolower($troopers->get($row['trooperId'])->display_name)])
@@ -307,6 +320,11 @@ class HomeController extends Controller
         $review = collect($review)
             ->filter(fn (array $found, int $trooperId) => $troopers->has($trooperId))
             ->sortBy(fn (array $found, int $trooperId) => mb_strtolower($troopers->get($trooperId)->display_name));
+
+        $owed = $owed
+            ->filter(fn (array $row) => $troopers->has($row['trooperId']))
+            ->sortBy(fn (array $row) => [$row['weeks'][0], mb_strtolower($troopers->get($row['trooperId'])->display_name)])
+            ->values();
 
         $date = $weekStart->toDateString();
 
@@ -365,8 +383,29 @@ class HomeController extends Controller
                             : route('roster.index', ['trooper' => $trooper->id]),
                     ];
                 })->values()->all(),
+                ...$owed->take(self::WORKLIST_LIMIT)->map(function (array $row) use ($troopers, $sections) {
+                    $trooper = $troopers->get($row['trooperId']);
+                    $section = $row['sectionId'] === null ? null : $sections->get($row['sectionId']);
+
+                    return [
+                        'kind' => 'makeup_owed',
+                        'id' => "makeup-owed-{$trooper->id}",
+                        'trooper' => [
+                            'id' => $trooper->id,
+                            'displayName' => $trooper->display_name,
+                            'rankShort' => $trooper->rank_short,
+                            'username' => $trooper->username,
+                        ],
+                        'section' => $section ? self::unitProps($section) : null,
+                        // The weeks still owed, oldest first; the row opens the roll call of the latest one.
+                        'weeks' => $row['weeks'],
+                        'href' => $section
+                            ? route('rollcall.show', ['unit' => $section->id, 'week' => end($row['weeks']), 'focus' => $trooper->id])
+                            : route('roster.index', ['trooper' => $trooper->id]),
+                    ];
+                })->all(),
             ],
-            'totals' => ['holding' => $holding->count(), 'atRisk' => $atRisk->count(), 'loaReview' => $review->count()],
+            'totals' => ['holding' => $holding->count(), 'atRisk' => $atRisk->count(), 'loaReview' => $review->count(), 'makeupOwed' => $owed->count()],
         ];
     }
 
@@ -484,10 +523,11 @@ class HomeController extends Controller
         // Each rollcall's own troopers: for a week that has ended, the ones it ended with (the 2026-10-29 audit).
         $rollcalls = $this->troopers->onRollcalls($ids, $weekStart);
         // A trooper whose leave covers the week has no mark to make (3.4): the one LOA definition says who (AD-21).
-        $covered = array_keys(array_filter(
+        // An automatic Excused (a first week after a transfer or joining) has nothing to chase either.
+        $covered = [...array_keys(array_filter(
             $this->loaCoverage->forTroopers(array_keys($rollcalls->sections), $weekStart),
             fn (LoaCover $cover) => $cover->isCovered(),
-        ));
+        )), ...array_keys($this->autoExcused->forTroopers(array_keys($rollcalls->sections), $weekStart))];
         $progress = $this->attendance->weekProgress($ids, $weekStart, $covered, $rollcalls->asPlaced ? $rollcalls->sections : null);
         $date = $weekStart->toDateString();
 

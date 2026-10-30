@@ -33,6 +33,18 @@ members' rows, earlier weeks elsewhere included, so the roster and the totals ne
 reads as placed in their current section for every week, as before. `AttendanceHistory` shows the same marks week by
 week on the milpac, with each week's section and LOA.
 
+**Statuses of 2026-10-30.** Practice: `present` (Attended), `missed` (Not attended), `excused`, `makeup` (Make-up
+complete, which took over `attached`), `loa`. Signature: `will_attend`, `cannot_attend` (Will not attend),
+`makeup_requested`, `excused`, `unsigned`. RC counts `will_attend`, `cannot_attend` and `makeup_requested` as signed
+(`RollcallSignature::isSigned()`); SP counts `present` and `makeup` as attended (`AttendanceStatus::attended()`).
+Excused leaves a rate like leave, one rate at a time: a signature of `excused` leaves RC, a practice mark of `excused`
+leaves SP, and neither holds a practice. `AutoExcused` is the one definition of the automatic Excused: the Cav week a
+trooper was placed into a section (a placement row with a known `placed_from` in a section) or joined the Cav (`tis`).
+It is never stored; it applies to whichever half nobody recorded (an unsigned signature, an empty practice mark or an
+automatic one that is not attended), so a leader's choice always wins. `TrooperAttendance::$makeupOwedWeeks` lists the
+window weeks signed `makeup_requested` with no make-up, attendance, Excused or LOA since (`KpiService::owesMakeup()`),
+read by the roll call's "Owes a make-up" list and Home's Needs attention.
+
 `KpiService` is the **only** code that defines and computes the six canonical KPIs —
 strength, RC % · 30d, SP % · 30d, at-risk, on LOA, makeups — for a unit's subtree and a Cav
 week. The dashboard, the weekly report snapshot, the roll-up and Epic 4's at-risk flag all

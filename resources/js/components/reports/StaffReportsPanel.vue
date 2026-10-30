@@ -1,6 +1,7 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
 import StaffReportDiscrepancy from '@/components/reports/StaffReportDiscrepancy.vue';
+import StaffReportPresence from '@/components/reports/StaffReportPresence.vue';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { attendedText } from '@/lib/staffReport';
@@ -26,6 +27,7 @@ defineProps({
                 <Link :href="row.href" class="font-medium underline-offset-2 hover:underline">{{ row.name }}</Link>
                 <span class="ml-auto inline-flex items-center gap-1.5">
                     <StaffReportDiscrepancy :discrepancy="row.discrepancy" />
+                    <StaffReportPresence :presence="row.presence" />
                     <Badge v-if="!row.sent" variant="warning" data-testid="staff-report-state">Not sent</Badge>
                     <Badge v-else-if="row.attended && (row.practiceType === 'ftx' || row.practiceType === 'office_hour')" variant="success" data-testid="staff-report-state">
                         {{ attendedText({ attended: true, practiceType: row.practiceType, ftx: row.ftx, officeHour: row.officeHour, practices: [] }) }}

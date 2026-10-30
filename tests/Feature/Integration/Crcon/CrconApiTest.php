@@ -3,6 +3,7 @@
 use App\Integration\Crcon\CrconApi;
 use App\Integration\Crcon\CrconFailureReason;
 use App\Integration\Crcon\CrconUnavailable;
+use App\Integration\Crcon\Requests\FetchPlayerProfileRequest;
 use App\Integration\Crcon\Requests\FetchPlayersHistoryRequest;
 use Saloon\Http\Faking\MockClient;
 use Saloon\Http\Faking\MockResponse;
@@ -15,6 +16,7 @@ use Saloon\Http\Response;
  * touches a real server.
  */
 const CRCON_URL = 'crcon.test/api/get_players_history';
+const CRCON_PROFILE_URL = 'crcon.test/api/get_player_profile*';
 
 function crcon(?array $config = ['base_url' => 'https://crcon.test', 'api_key' => 'test-key']): CrconApi
 {
@@ -29,6 +31,20 @@ function crconWindow(): array
 function crconPlayer(string $id, string $name, array $sessions): array
 {
     return ['player_id' => $id, 'names' => [['name' => $name]], 'sessions' => $sessions];
+}
+
+/** A history row as real CRCON sends it: `sessions` empty, the span in epoch milliseconds. */
+function crconHistoryRow(string $id, string $name, string $firstSeen, string $lastSeen): array
+{
+    $ms = fn (string $t) => (new DateTimeImmutable($t, new DateTimeZone('UTC')))->getTimestamp() * 1000;
+
+    return ['player_id' => $id, 'names' => [['name' => $name]], 'sessions' => [], 'sessions_count' => 3,
+        'first_seen_timestamp_ms' => $ms($firstSeen), 'last_seen_timestamp_ms' => $ms($lastSeen)];
+}
+
+function crconProfile(array $sessions): MockResponse
+{
+    return MockResponse::make(['result' => ['sessions' => $sessions], 'failed' => false, 'error' => null]);
 }
 
 function crconResult(array $players, array $extra = []): MockResponse
@@ -81,10 +97,13 @@ it('excludes players whose sessions fall wholly outside the window', function ()
 it('falls back to the first/last-seen span when no sessions are supplied', function () {
     $ms = fn (string $t) => (new DateTimeImmutable($t, new DateTimeZone('UTC')))->getTimestamp() * 1000;
 
-    MockClient::global([CRCON_URL => crconResult([
-        ['player_id' => '1', 'names' => [['name' => 'In']], 'first_seen_timestamp_ms' => $ms('2026-10-01 10:00'), 'last_seen_timestamp_ms' => $ms('2026-10-10 20:00')],
-        ['player_id' => '2', 'names' => [['name' => 'Out']], 'first_seen_timestamp_ms' => $ms('2026-10-01 10:00'), 'last_seen_timestamp_ms' => $ms('2026-10-10 18:00')],
-    ])]);
+    MockClient::global([
+        CRCON_URL => crconResult([
+            ['player_id' => '1', 'names' => [['name' => 'In']], 'first_seen_timestamp_ms' => $ms('2026-10-01 10:00'), 'last_seen_timestamp_ms' => $ms('2026-10-10 20:00')],
+            ['player_id' => '2', 'names' => [['name' => 'Out']], 'first_seen_timestamp_ms' => $ms('2026-10-01 10:00'), 'last_seen_timestamp_ms' => $ms('2026-10-10 18:00')],
+        ]),
+        CRCON_PROFILE_URL => crconProfile([]),
+    ]);
 
     [$start, $end] = crconWindow();
     $ids = array_map(fn ($p) => $p->platformId, crcon()->fetchPresence($start, $end)->players);
@@ -231,4 +250,72 @@ it('fails on a session with an unparseable end instead of treating it as still r
     [$start, $end] = crconWindow();
 
     expect(fn () => crcon()->fetchPresence($start, $end))->toThrow(CrconUnavailable::class);
+});
+
+it('reads sessions from the player profile when the history returns none', function () {
+    $mock = MockClient::global([
+        CRCON_URL => crconResult([
+            // The span covers the window, but the sessions show they were not on during it.
+            crconHistoryRow('1', 'Gap', '2026-10-01 10:00', '2026-10-10 23:00'),
+            crconHistoryRow('2', 'Played', '2026-10-01 10:00', '2026-10-10 23:00'),
+        ]),
+        CRCON_PROFILE_URL => fn (PendingRequest $request) => $request->query()->get('player_id') === '1'
+            ? crconProfile([
+                ['id' => 2, 'player_id' => '1', 'start' => '2026-10-10T22:00:00+00:00', 'end' => '2026-10-10T23:00:00+00:00'],
+                ['id' => 1, 'player_id' => '1', 'start' => '2026-10-10T17:00:00+00:00', 'end' => '2026-10-10T18:30:00+00:00'],
+            ])
+            : crconProfile([
+                ['id' => 3, 'player_id' => '2', 'start' => '2026-10-10T19:30:00+00:00', 'end' => '2026-10-10T20:15:00+00:00'],
+            ]),
+    ]);
+
+    [$start, $end] = crconWindow();
+    $ids = array_map(fn ($p) => $p->platformId, crcon()->fetchPresence($start, $end)->players);
+
+    expect($ids)->toBe(['2']);
+    $mock->assertSent(fn (Request $request) => $request instanceof FetchPlayerProfileRequest);
+});
+
+it('falls back to the first/last-seen span for one player whose profile cannot be read', function () {
+    MockClient::global([
+        CRCON_URL => crconResult([
+            crconHistoryRow('1', 'Broken', '2026-10-01 10:00', '2026-10-10 20:00'),
+            crconHistoryRow('2', 'Fine', '2026-10-01 10:00', '2026-10-10 23:00'),
+        ]),
+        CRCON_PROFILE_URL => fn (PendingRequest $request) => $request->query()->get('player_id') === '1'
+            ? MockResponse::make('oops', 500)
+            : crconProfile([['start' => '2026-10-10T19:30:00+00:00', 'end' => '2026-10-10T20:15:00+00:00']]),
+    ]);
+
+    [$start, $end] = crconWindow();
+    $ids = array_map(fn ($p) => $p->platformId, crcon()->fetchPresence($start, $end)->players);
+
+    expect($ids)->toBe(['1', '2']);
+});
+
+it('falls back to the span when a profile carries an unusable session', function () {
+    MockClient::global([
+        CRCON_URL => crconResult([crconHistoryRow('1', 'Odd', '2026-10-01 10:00', '2026-10-10 20:00')]),
+        CRCON_PROFILE_URL => crconProfile([['start' => 'not a date', 'end' => null]]),
+    ]);
+
+    [$start, $end] = crconWindow();
+
+    expect(crcon()->fetchPresence($start, $end)->players)->toHaveCount(1);
+});
+
+it('reads each profile once per run and skips players last seen before the window', function () {
+    $mock = MockClient::global([
+        CRCON_URL => crconResult([
+            crconHistoryRow('1', 'Twice', '2026-10-01 10:00', '2026-10-10 23:00'),
+            crconHistoryRow('1', 'Twice', '2026-10-01 10:00', '2026-10-10 23:00'),
+            crconHistoryRow('2', 'Gone', '2026-10-01 10:00', '2026-10-10 18:00'),
+        ]),
+        CRCON_PROFILE_URL => crconProfile([['start' => '2026-10-10T21:30:00+00:00', 'end' => '2026-10-10T23:00:00+00:00']]),
+    ]);
+
+    [$start, $end] = crconWindow();
+
+    expect(crcon()->fetchPresence($start, $end)->players)->toBe([]);
+    $mock->assertSentCount(2);
 });

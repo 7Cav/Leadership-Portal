@@ -123,9 +123,9 @@ beforeEach(function () {
 
     // The roster cache agrees with the mocked Cav world: every milpac id these tests resolve to is a
     // serving trooper, so the sign-in gate admits whoever links to one and the tests stay about
-    // enrichment.
+    // enrichment. Each carries forum user 4, the account the mocked forum signs in.
     foreach ([77, 81, 31] as $cavId) {
-        Trooper::factory()->create(['cav_id' => $cavId]);
+        Trooper::factory()->create(['cav_id' => $cavId, 'forum_user_id' => 4]);
     }
 });
 

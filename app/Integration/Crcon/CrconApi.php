@@ -4,6 +4,7 @@ namespace App\Integration\Crcon;
 
 use App\Integration\Crcon\Data\CrconPlayer;
 use App\Integration\Crcon\Data\CrconPresence;
+use App\Integration\Crcon\Requests\FetchPlayerProfileRequest;
 use App\Integration\Crcon\Requests\FetchPlayersHistoryRequest;
 use App\Integration\Crcon\Requests\FetchPublicInfoRequest;
 use App\Integration\ListedServer;
@@ -18,8 +19,8 @@ use Throwable;
  * The single door out to CRCON (AD-3). A CommandHandler (the 7.5 capture run) calls this; it
  * owns the connector and request so no HTTP client to CRCON exists anywhere else.
  *
- * **Read-only by construction** (proposal §9.4): the request classes are a player-history query
- * and the server's public info. Nothing here can kick, ban, message or otherwise change the game server, so presence
+ * **Read-only by construction** (proposal §9.4): the request classes are a player-history query,
+ * a player-profile read and the server's public info. Nothing here can kick, ban, message or otherwise change the game server, so presence
  * is read and nothing is changed. The key reaches this class only via injected config (AD-23).
  *
  * **Every failure leaves through {@see CrconUnavailable}** — unreachable, timeout, HTTP error,
@@ -35,6 +36,13 @@ class CrconApi
     public const SERVER_ID = 'crcon';
 
     private ?CrconConnector $connector = null;
+
+    /**
+     * Profile sessions already read in this run, by platform id; null when the profile could not be read.
+     *
+     * @var array<string, list<mixed>|null>
+     */
+    private array $profileSessions = [];
 
     /**
      * `?array`: `config('services.crcon')` is null if the block is missing, and a TypeError at
@@ -62,6 +70,7 @@ class CrconApi
         $byPlatformId = [];
 
         $seen = 0;
+        $this->profileSessions = [];
 
         for ($page = 1; $page <= self::MAX_PAGES; $page++) {
             $result = $this->fetchPage($windowStart, $page);
@@ -231,13 +240,29 @@ class CrconApi
 
     /**
      * Whether the player was on the server at any point in the window, judged from their
-     * sessions when CRCON supplies them, else from their first/last-seen span.
+     * sessions, else from their first/last-seen span.
+     *
+     * The history endpoint returns an empty `sessions` list, so for a player last seen at or after
+     * the window start the sessions come from their profile instead. The first/last-seen span is
+     * only the fallback for a profile with no sessions or one that could not be read: one bad
+     * profile must not fail the whole capture, and the span can only over-report, never miss.
      *
      * @param  array<string, mixed>  $row
      */
     private function wasPresent(array $row, DateTimeImmutable $start, DateTimeImmutable $end): bool
     {
         $sessions = $row['sessions'] ?? null;
+
+        if (! is_array($sessions) || $sessions === []) {
+            $last = $this->moment($row['last_seen_timestamp_ms'] ?? null);
+
+            // Someone last seen before the window opened cannot have been in it; skip the profile read.
+            if ($last !== null && $last < $start) {
+                return false;
+            }
+
+            $sessions = $this->profileSessions($this->platformId($row));
+        }
 
         if (is_array($sessions) && $sessions !== []) {
             foreach ($sessions as $session) {
@@ -273,6 +298,38 @@ class CrconApi
         }
 
         return $first <= $end && $last >= $start;
+    }
+
+    /**
+     * The sessions on a player's profile, read once per run. Null when the profile could not be read
+     * or carried a session without a usable start or end.
+     *
+     * @return list<mixed>|null
+     */
+    private function profileSessions(string $platformId): ?array
+    {
+        if (array_key_exists($platformId, $this->profileSessions)) {
+            return $this->profileSessions[$platformId];
+        }
+
+        try {
+            $sessions = $this->send(new FetchPlayerProfileRequest($platformId))['sessions'] ?? null;
+        } catch (CrconUnavailable) {
+            $sessions = null;
+        }
+
+        if (is_array($sessions)) {
+            foreach ($sessions as $session) {
+                // A profile we cannot read falls back to the span instead of failing the capture.
+                if (! is_array($session) || $this->moment($session['start'] ?? null) === null
+                    || (($session['end'] ?? null) !== null && $this->moment($session['end']) === null)) {
+                    $sessions = null;
+                    break;
+                }
+            }
+        }
+
+        return $this->profileSessions[$platformId] = is_array($sessions) ? array_values($sessions) : null;
     }
 
     /**

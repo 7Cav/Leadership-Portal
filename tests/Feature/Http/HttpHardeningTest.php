@@ -5,8 +5,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 /**
- * Small HTTP edges: production answers only for its own host, the e2e sign-in route refuses outside e2e
- * wherever it was registered, and no path answers cross-origin requests.
+ * Small HTTP edges: production answers only for its own host, the e2e sign-in route refuses
+ * outside the loopback server's disposable database, and no path answers cross-origin requests.
  */
 afterEach(function () {
     // Trusted hosts are static on the Symfony request, so they would leak into later tests.
@@ -30,8 +30,8 @@ it('still answers for the APP_URL host in production', function () {
     $this->get('https://portal.7cav.test/home')->assertRedirect('https://portal.7cav.test/login');
 });
 
-it('refuses the e2e sign-in route outside e2e, even when a cached route table carries it', function () {
-    $user = User::factory()->create(['username' => 'Jarvis.A']);
+it('refuses the e2e sign-in route without both e2e and its dedicated database, even when a cached route table carries it', function () {
+    User::factory()->create(['username' => 'Jarvis.A']);
 
     // What a `route:cache` built under APP_ENV=e2e would hold: the route, registered.
     app()['env'] = 'e2e';
@@ -42,8 +42,9 @@ it('refuses the e2e sign-in route outside e2e, even when a cached route table ca
     $this->assertGuest();
 
     app()['env'] = 'e2e';
-    $this->get('/__e2e/login/Jarvis.A')->assertRedirect('/home');
-    $this->assertAuthenticatedAs($user);
+    // This suite uses in-memory SQLite. Only Playwright's e2e.sqlite may sign in through this route.
+    $this->get('/__e2e/login/Jarvis.A')->assertNotFound();
+    $this->assertGuest();
 });
 
 it('answers no cross-origin preflight, on api paths included', function () {

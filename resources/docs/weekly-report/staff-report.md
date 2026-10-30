@@ -24,25 +24,29 @@ minutes: 2
 
 ## Answer and pick the practices
 
-1. Answer **Did you attend a section practice this week?** with **Yes** or **No**.
-2. For Yes, pick what it was: **Section practice**, **FTX** or, on a battalion HQ, **Office hour**. Section practice is picked to start with.
-3. For a section practice, pick each one you attended. Sections are grouped nearest first: your own HQ, its company, its battalion, then the rest. **Find a section** narrows the list. Each pick shows as a chip above the list; its x takes it off.
+The form asks one question at a time. The numbered steps at the top show where you are; **Back** and **Next** move between them, and you can go back to any step you have answered.
+
+1. Answer **Did you attend a section practice this week?** with **Yes** or **No**. No skips straight to the last step.
+2. For Yes, pick what it was: **Section practice**, **FTX** or, on a battalion HQ, **Office hour**.
+3. For a section practice, pick each one you attended. Only sections that play your HQ's game are listed, plus any section with no game set. They are grouped nearest first: your own HQ, its company, its battalion, then the rest, in order of battle under a heading for each platoon. When the list spans many platoons, only your own platoon starts open; click a platoon's heading to open it. **Find a section** narrows the list and opens every platoon.
 4. For an FTX, give its name and its date, a day in that Cav week. Picking the sections that took part is optional.
 5. For an office hour, give its date, a day in that Cav week, and a short note of what it was, up to 200 characters. It counts in place of the hour at a section practice. Only battalion HQ staff can report one.
-6. Practices already entered for you this week are picked, with who entered them. Take off one you did not attend: sending takes it off.
-7. Open **Other events attended** or **Notes** to add them, if you like. Both are optional.
+6. Practices already entered for you this week are picked, with who entered them, and the form opens on them. Take off one you did not attend: sending takes it off.
+7. The last step is **Notes**: write anything command should know about your week, and add **Other events attended** if you like. Both are optional.
 
 > [!good-to-know] **Seen on the game server** means a capture saw you on the server that Cav week. It is never ticked for you, because the capture reads the whole week, not one practice.
 
 ## Send it
 
-1. The bar at the bottom of the screen reads your answer back and says what is still missing. Choose **Send staff report**. Once sent, it cannot be changed.
+1. The **Your report** card beside the steps (under them on a phone) reads your answer back, shows each picked section as a chip whose x takes it off, and says what is still missing. Choose **Send staff report** there. If you never opened **Notes**, it first asks whether you have nothing to add: choose **Send anyway** or **Go to Notes**. Once sent, it cannot be changed.
 2. Each practice you picked lists you on that section's roll call: as a **Staff guest** in your own platoon, company or battalion, and as a **Guest** anywhere else. You never count in that section's numbers.
-3. Your report is also copied to the regiment's reports sheet. Your report page says **Sent to the sheet** once it is there.
+3. The portal compares the practices you picked with the game server's capture for that week (CRCON for Hell Let Loose). If a picked practice was captured and none of them saw you, your report is still sent but shows **Self-report conflicts with CRCON data** to you and to your chain of command. With no capture it shows a red **No CRCON data** alert, since your report could not be checked. Link your game identity so the capture can find you.
+4. Your report is also copied to the regiment's reports sheet. Your report page says **Sent to the sheet** once it is there.
 
 > [!good-to-know] Your unit's report shows whether its HQ staff sent theirs, for the leaders above it. Sending your HQ's own report does not stop you sending yours. For a week that has ended, the portal goes by the HQ you were on when it ended, so you still send it after a move.
 
 ## Read your staff's reports
 
 1. If you command or read a unit above a platoon, company or battalion HQ, the sidebar shows **Staff reports** instead of **Staff report**. It lists every HQ staff member whose report you read, for one week, with your own on top.
-2. A PL or PSG reads only their own report and keeps **Staff report**. See [Read your staff's reports](/docs/weekly-report/staff-reports) for the overview.
+2. Opening someone else's report also shows their HQ unit's health for that week, as on the overview.
+3. A PL or PSG reads only their own report and keeps **Staff report**. See [Read your staff's reports](/docs/weekly-report/staff-reports) for the overview.

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { freshSection } from './fresh-section.js';
 
 // Stories 3.7–3.10 happy path, against the shared E2E seed (Database\Seeders\ReportRollupSeeder):
 // Vasquez.R leads 2/1/A/1-7, whose troopers carry four weeks of rollcalls and practice marks.
@@ -19,27 +20,32 @@ test('a section leader lands on their section\'s rollcall', async ({ page }) => 
     await expect(page.getByTestId('prefill-banner')).toBeVisible();
 });
 
+// It writes marks, so it runs on a section of its own (GameIdentitySectionSeeder): the seeded section is shared with
+// the tests beside it, which mark it posted or read it in parallel, and a retry would start from the marks the first
+// attempt left there.
 test('a section leader signs and marks practice, and finds both saved after a reload', async ({ page }) => {
-    await page.goto('/__e2e/login/Vasquez.R?to=/rollcall');
+    const leader = freshSection();
+    await page.goto(`/__e2e/login/${leader}?to=/rollcall`);
     await expect(page).toHaveURL(/\/rollcall\/\d+$/);
+    await page.getByRole('button', { name: /^Step 1, Signatures/ }).click();
 
     const id = await page.locator('[data-trooper]').first().getAttribute('data-trooper');
     const card = () => page.locator(`[data-trooper="${id}"]`);
 
     const signed = saved(page);
-    await card().getByRole('button', { name: /^Cannot attend/ }).click();
+    await card().getByRole('button', { name: /^Will not attend/ }).click();
     expect((await signed).status()).toBe(200);
     await expect(page.getByTestId('save-state')).toContainText('Saved');
 
     await page.getByRole('button', { name: /^Step 2, Section practice/ }).click();
     const marked = saved(page);
-    await card().getByRole('button', { name: /^Attached/ }).click();
+    await card().getByRole('button', { name: /^Excused/ }).click();
     expect((await marked).status()).toBe(200);
 
     await page.reload();
-    await expect(card().getByRole('button', { name: /^Attached/ })).toHaveAttribute('aria-pressed', 'true');
+    await expect(card().getByRole('button', { name: /^Excused/ })).toHaveAttribute('aria-pressed', 'true');
     await page.getByRole('button', { name: /^Step 1, Signatures/ }).click();
-    await expect(card().getByRole('button', { name: /^Cannot attend/ })).toHaveAttribute('aria-pressed', 'true');
+    await expect(card().getByRole('button', { name: /^Will not attend/ })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('a section leader copies the forum post and marks the rollcall posted', async ({ page, context }) => {

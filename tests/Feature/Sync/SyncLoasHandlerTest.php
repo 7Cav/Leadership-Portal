@@ -381,15 +381,48 @@ describe('finding the trooper by username', function () {
 });
 
 describe('finding the trooper by forum user id', function () {
-    it('prefers the id in the [USER=id] mention, so a renamed trooper still gets their leave', function () {
-        $renamed = Trooper::factory()->create(['username' => 'Smith.JR', 'forum_user_id' => 11111]);
-        $namesake = Trooper::factory()->create(['username' => 'Smith.J', 'forum_user_id' => 99999]);
+    it('uses the id when its displayed name identifies the same trooper', function () {
+        $trooper = Trooper::factory()->create(['username' => 'Smith.J', 'forum_user_id' => 11111]);
         $thread = loaThread(4001, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-05 08:00');
         forumWith([180 => [[$thread]]], [4001 => $thread]);
 
         runLoaSync();
 
-        expect(Loa::sole()->trooper_id)->toBe($renamed->id)->and($namesake->id)->not->toBe($renamed->id);
+        expect(Loa::sole()->trooper_id)->toBe($trooper->id)
+            ->and(Loa::sole()->parse_status)->toBe(LoaParseStatus::Ok);
+    });
+
+    it('quarantines a mention whose id identifies a trooper but its displayed name matches nobody', function () {
+        $victim = Trooper::factory()->create(['username' => 'Smith.JR', 'forum_user_id' => 11111]);
+        $thread = loaThread(4001, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-05 08:00');
+        forumWith([180 => [[$thread]]], [4001 => $thread]);
+
+        runLoaSync();
+
+        $loa = Loa::sole();
+        expect($loa->trooper_id)->toBeNull()
+            ->and($loa->parse_status)->toBe(LoaParseStatus::NeedsReview)
+            ->and($loa->starts_at)->toBeNull()
+            ->and($loa->review_reason)->toBe('The Username does not match the forum user id.')
+            ->and(app(LoaCoverage::class)->forTroopers([$victim->id], CarbonImmutable::parse('2026-10-10', 'UTC'))[$victim->id]->state)->toBe(LoaCoverageState::None);
+    });
+
+    it('quarantines a mention whose id and displayed name identify different troopers', function () {
+        $victim = Trooper::factory()->create(['username' => 'Hart.A', 'forum_user_id' => 11111]);
+        Trooper::factory()->create(['username' => 'Smith.J', 'forum_user_id' => 99999]);
+        $thread = loaThread(4001, LOA_TITLE_SMITH, loaBody('loa-on-behalf'), '2026-10-05 08:00');
+        forumWith([180 => [[$thread]]], [4001 => $thread]);
+
+        runLoaSync();
+
+        $loa = Loa::sole();
+        expect($loa->trooper_id)->toBeNull()
+            ->and($loa->parse_status)->toBe(LoaParseStatus::NeedsReview)
+            ->and($loa->starts_at)->toBeNull()
+            ->and($loa->review_reason)->toBe('The Username does not match the forum user id.')
+            ->and($loa->raw_username)->toBe('Smith.J')
+            ->and(app(LoaCoverage::class)->forTroopers([$victim->id], CarbonImmutable::parse('2026-10-10', 'UTC'))[$victim->id]->state)->toBe(LoaCoverageState::None)
+            ->and(latestLoaRun()->needs_review)->toBe(1);
     });
 
     it('falls back to the username when no trooper carries that forum id', function () {

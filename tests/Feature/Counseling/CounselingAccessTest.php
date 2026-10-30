@@ -110,7 +110,7 @@ it('never lets a leader file on someone who holds the same command, or on themse
         ->and(counselingFor($this->users['co'], ($this->trooperOf)('co'))->filesLor)->toBeFalse();
 
     $admin = $this->users['admin'];
-    $admin->forceFill(['cav_id' => $this->rifleman->cav_id])->save();
+    $admin->forceFill(['cav_id' => $this->rifleman->cav_id, 'forum_user_id' => $this->rifleman->forum_user_id])->save();
     expect(counselingFor($admin, $this->rifleman)->filesDcs)->toBeFalse();
 });
 

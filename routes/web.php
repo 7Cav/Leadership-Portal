@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ActAsController;
 use App\Http\Controllers\Auth\ForumAuthController;
+use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\CounselingController;
 use App\Http\Controllers\DocsController;
 use App\Http\Controllers\GameIdentityController;
@@ -47,7 +48,7 @@ use Illuminate\Support\Facades\Route;
 // route taking one of these ids cannot forget the constraint (RouteIdConstraintTest walks the
 // routes and fails on an id-like parameter missing from this list). Don't add `whereNumber()` or
 // `where()` for these on a route: it replaces the global pattern rather than adding to it.
-foreach (['unit', 'grant', 'trooper', 'version', 'game', 'server', 'counseling', 'template', 'billet'] as $id) {
+foreach (['unit', 'grant', 'trooper', 'version', 'game', 'server', 'counseling', 'template', 'billet', 'entry'] as $id) {
     Route::pattern($id, '[0-9]{1,18}');
 }
 
@@ -184,6 +185,16 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::get('/game-identities', [GameIdentityController::class, 'index'])->name('game-identities.index');
     Route::put('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'update'])->middleware('throttle:audited-writes')->name('game-identities.update');
     Route::delete('/game-identities/{trooper}/{platform}', [GameIdentityController::class, 'destroy'])->middleware('throttle:audited-writes')->name('game-identities.destroy');
+
+    // The changelog: open to everyone signed in; only the changelog editors write it, each write audited and on the
+    // shared audited-writes throttle. The import preview writes nothing but shares the throttle, as every POST does.
+    Route::get('/changelog', [ChangelogController::class, 'index'])->name('changelog.index');
+    Route::post('/changelog', [ChangelogController::class, 'store'])->middleware('throttle:audited-writes')->name('changelog.store');
+    Route::post('/changelog/import/preview', [ChangelogController::class, 'preview'])->middleware('throttle:audited-writes')->name('changelog.import.preview');
+    Route::post('/changelog/import', [ChangelogController::class, 'import'])->middleware('throttle:audited-writes')->name('changelog.import');
+    Route::post('/changelog/outdated/dismiss', [ChangelogController::class, 'dismiss'])->middleware('throttle:audited-writes')->name('changelog.outdated.dismiss');
+    Route::patch('/changelog/{entry}', [ChangelogController::class, 'update'])->middleware('throttle:audited-writes')->name('changelog.update');
+    Route::delete('/changelog/{entry}', [ChangelogController::class, 'destroy'])->middleware('throttle:audited-writes')->name('changelog.destroy');
 
     // The in-portal guides (#409). Docs home and one guide, filtered to what the viewer may read (the controller asks
     // the ScopeResolver, so view-as applies); every docs route answers 404 while `portal.docs` is off. Guide ids are
@@ -326,13 +337,26 @@ Route::middleware(['auth', EnsureServingMember::class])->group(function () {
     Route::delete('/settings/demo-data', [DemoDataController::class, 'destroy'])->middleware('throttle:audited-writes')->name('settings.demo-data.destroy');
 });
 
-// Browser-test sign-in (Story 5.8). The real login is a 7cav.us OAuth round-trip a test cannot
-// drive, so the Playwright server — and only it, running as APP_ENV=e2e against its own throwaway
-// SQLite database — signs a seeded user in by username. Never registered in any other environment,
-// and the closure checks again, so a route cache built under e2e and deployed elsewhere still refuses.
+// Browser-test sign-in (Story 5.8). Only the loopback Playwright server using its dedicated
+// throwaway SQLite file and a fresh test-browser cookie may sign in by username. Check
+// these at request time too: a cached route table or an accidental APP_ENV=e2e on a
+// public deployment must not bypass SSO.
 if (app()->environment('e2e')) {
     Route::get('/__e2e/login/{username}', function (string $username) {
-        abort_unless(app()->environment('e2e'), 404);
+        $database = (string) config('database.connections.sqlite.database');
+        $resolved = realpath($database);
+        $testToken = (string) config('portal.e2e_login_token');
+        abort_unless(
+            app()->environment('e2e')
+                && in_array(request()->server('REMOTE_ADDR'), ['127.0.0.1', '::1'], true)
+                && config('database.default') === 'sqlite'
+                && blank(config('database.connections.sqlite.url'))
+                && $resolved !== false
+                && $resolved === realpath(database_path('e2e.sqlite'))
+                && $testToken !== ''
+                && hash_equals($testToken, (string) request()->cookie('e2e_login_token')),
+            404,
+        );
 
         $user = app(UserRepository::class)->withUsername($username)->sole();
         auth()->login($user);

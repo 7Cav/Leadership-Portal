@@ -97,7 +97,7 @@ it('refuses a forum account that holds no milpac, and says why on the login scre
 });
 
 it('signs in a trooper linked to a serving milpac, on any serving roster', function (TrooperStatus $status, string $roster) {
-    Trooper::factory()->create(['cav_id' => 77, 'status' => $status]);
+    Trooper::factory()->create(['cav_id' => 77, 'forum_user_id' => 4, 'status' => $status]);
 
     gateSignIn([
         ...gateRosters(MockResponse::make(['profiles' => []])),
@@ -114,7 +114,7 @@ it('signs in a trooper linked to a serving milpac, on any serving roster', funct
 
 it('signs in on the cache alone while Cav is down, on any serving standing', function (TrooperStatus $status) {
     User::create(['forum_user_id' => 4, 'cav_id' => 77, 'username' => 'Hale.S']);
-    Trooper::factory()->create(['cav_id' => 77, 'status' => $status]);
+    Trooper::factory()->create(['cav_id' => 77, 'forum_user_id' => 4, 'status' => $status]);
 
     gateSignIn(['api.7cav.us/api/v1/milpacs/profile/id/77' => MockResponse::make([], 503)])
         ->assertRedirect(route('home'));
@@ -128,7 +128,7 @@ it('signs in on the cache alone while Cav is down, on any serving standing', fun
 
 it('refuses a trooper whose milpac the roster cache shows departed, Cav up or down', function (array $cav) {
     User::create(['forum_user_id' => 4, 'cav_id' => 77, 'username' => 'Hale.S']);
-    Trooper::factory()->create(['cav_id' => 77, 'status' => TrooperStatus::Inactive]);
+    Trooper::factory()->create(['cav_id' => 77, 'forum_user_id' => 4, 'status' => TrooperStatus::Inactive]);
 
     // A departed trooper is a fact the cache holds on its own, so an outage does not soften it into
     // "try again later".
@@ -149,7 +149,7 @@ it('refuses a trooper whose milpac the roster cache shows departed, Cav up or do
 it('refuses a trooper Cav lists live on a non-serving roster, even while the cache still shows them serving', function (string $roster) {
     // The cache trails Cav by up to one sync; a live answer is the fresher fact.
     User::create(['forum_user_id' => 4, 'cav_id' => 77, 'username' => 'Hale.S']);
-    Trooper::factory()->create(['cav_id' => 77, 'status' => TrooperStatus::Combat]);
+    Trooper::factory()->create(['cav_id' => 77, 'forum_user_id' => 4, 'status' => TrooperStatus::Combat]);
 
     gateSignIn(['api.7cav.us/api/v1/milpacs/profile/id/77' => MockResponse::make(gateRosterEntry(4, $roster))])
         ->assertRedirect(route('login'))
@@ -165,7 +165,7 @@ it('refuses a trooper Cav lists live on a non-serving roster, even while the cac
 it('signs in a trooper Cav lists live on a serving roster whom the cache still shows departed', function () {
     // Back from a discharge since the last sync: Cav's live answer admits them.
     User::create(['forum_user_id' => 4, 'cav_id' => 77, 'username' => 'Hale.S']);
-    Trooper::factory()->create(['cav_id' => 77, 'status' => TrooperStatus::Inactive]);
+    Trooper::factory()->create(['cav_id' => 77, 'forum_user_id' => 4, 'status' => TrooperStatus::Inactive]);
 
     gateSignIn(['api.7cav.us/api/v1/milpacs/profile/id/77' => MockResponse::make(gateRosterEntry(4, 'ROSTER_TYPE_RESERVE'))])
         ->assertRedirect(route('home'));
@@ -176,7 +176,7 @@ it('signs in a trooper Cav lists live on a serving roster whom the cache still s
 it('keeps that session past the next request, until a clean roster sync started after the sign-in has run', function () {
     $this->travelTo(CarbonImmutable::parse('2026-10-13 12:00:00', 'UTC'));
     User::create(['forum_user_id' => 4, 'cav_id' => 77, 'username' => 'Hale.S']);
-    Trooper::factory()->create(['cav_id' => 77, 'status' => TrooperStatus::Inactive]);
+    Trooper::factory()->create(['cav_id' => 77, 'forum_user_id' => 4, 'status' => TrooperStatus::Inactive]);
     // The sync that cached the discharge ran before this sign-in.
     SyncRun::factory()->create(['started_at' => now()->subHour(), 'finished_at' => now()->subHour()]);
 
@@ -202,7 +202,7 @@ it('keeps that session past the next request, until a clean roster sync started 
 it('does not let an Admin sign-in outlast the flag when Cav listed them as a past member', function () {
     $this->travelTo(CarbonImmutable::parse('2026-10-13 12:00:00', 'UTC'));
     $admin = User::factory()->admin()->create(['forum_user_id' => 4, 'cav_id' => 77, 'username' => 'Hale.S']);
-    Trooper::factory()->create(['cav_id' => 77, 'status' => TrooperStatus::Inactive]);
+    Trooper::factory()->create(['cav_id' => 77, 'forum_user_id' => 4, 'status' => TrooperStatus::Inactive]);
     SyncRun::factory()->create(['started_at' => now()->subHour(), 'finished_at' => now()->subHour()]);
 
     // The Admin flag admits them; Cav's answer said they had left, so it vouches for nothing.
@@ -229,7 +229,7 @@ it('signs in an Admin who holds no milpac — Admins are never locked out by ros
 
 it('signs in a trooper whose stored link the cache confirms as serving while Cav is down (Story 1.7)', function () {
     User::create(['forum_user_id' => 4, 'cav_id' => 77, 'username' => 'Hale.S']);
-    Trooper::factory()->create(['cav_id' => 77]);
+    Trooper::factory()->create(['cav_id' => 77, 'forum_user_id' => 4]);
 
     gateSignIn([
         'api.7cav.us/api/v1/milpacs/profile/id/77' => MockResponse::make([], 503),

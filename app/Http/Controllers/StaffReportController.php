@@ -13,10 +13,12 @@ use App\Commands\StaffReports\StaffReportRefusedException;
 use App\Jobs\PushStaffReportToSheetJob;
 use App\Kpi\Headcount;
 use App\Kpi\KpiService;
+use App\Kpi\StaffHqHealth;
 use App\Milpac\StaffReportWeek;
 use App\Models\Unit;
 use App\Models\UnitType;
 use App\Repositories\TrooperRepository;
+use App\Repositories\UnitGame;
 use App\Repositories\UnitRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
@@ -48,6 +50,7 @@ class StaffReportController extends Controller
         private readonly StaffReportWeek $week,
         private readonly Headcount $headcount,
         private readonly PushStaffReportToSheetHandler $sheet,
+        private readonly StaffHqHealth $health,
     ) {}
 
     /** The viewer's own staff report for the last week to have ended: the one due. */
@@ -116,6 +119,9 @@ class StaffReportController extends Controller
             // Where the game server disagrees with the sent report: readers only, never the staff member themselves.
             'discrepancy' => $report === null || $self ? null
                 : ($this->week->discrepancies([$this->week->find($trooper, $weekStart)], $weekStart)[$trooper->id] ?? null),
+            // A reader's view only: how the HQ's unit stood that week and the weeks before, and how many of its staff
+            // kept to the one practice rule. Never on the staff member's own page.
+            'health' => $self || $hq === null ? null : $this->healthOf($hq, $weekStart),
         ]);
     }
 
@@ -180,22 +186,30 @@ class StaffReportController extends Controller
      * Every section with troopers in it (#442), the staff member's own unit's first: the ones under their HQ are the
      * preferred practices, and the host's rollcall lists them there as a staff guest. `group` names the closest unit
      * above the HQ (the HQ itself, its company, its battalion) that holds the section, null for any other section, so
-     * the picker groups them nearest first.
+     * the picker groups them nearest first, then in order of battle (battalion, company letter, platoon, section; {@see battleKey()}). `platoon`
+     * names the section's parent unit, which the picker uses as a small heading.
      *
-     * @return list<array{id: int, label: string, own: bool, group: ?string}>
+     * Only sections that play the HQ's game are offered ({@see UnitGame}, inherited down the tree): an HLL HQ sees HLL
+     * sections. When the HQ or a section has no game on its chain, that section is kept, since nothing says it plays
+     * another game.
+     *
+     * @return list<array{id: int, label: string, own: bool, group: ?string, platoon: ?string}>
      */
     private function sections(?Unit $hq): array
     {
         $tree = $this->units->tree();
         $byId = $tree->keyBy('id');
+        $games = UnitGame::resolve($tree);
+        $hqGame = $hq === null ? null : ($games[$hq->id] ?? null)?->gameId;
         $ancestors = [];
         for ($node = $hq, $guard = 0; $node !== null && $guard < 8 && $node->type !== UnitType::Regiment; $guard++) {
             $ancestors[] = $node;
             $node = $node->parent_id === null ? null : $byId->get($node->parent_id);
         }
 
-        return $this->headcount->withoutEmptyLineUnits($tree->filter(fn (Unit $unit) => $unit->type === UnitType::Section))
-            ->map(function (Unit $unit) use ($hq, $ancestors) {
+        return $this->headcount->withoutEmptyLineUnits($tree->filter(fn (Unit $unit) => $unit->type === UnitType::Section
+            && ($hqGame === null || ! isset($games[$unit->id]) || $games[$unit->id]->gameId === $hqGame)))
+            ->map(function (Unit $unit, int $order) use ($hq, $ancestors, $byId) {
                 $rank = count($ancestors);
                 $group = null;
                 foreach ($ancestors as $i => $ancestor) {
@@ -210,13 +224,83 @@ class StaffReportController extends Controller
                     'label' => $unit->callsign ?? $unit->name,
                     'own' => $hq !== null && str_starts_with($unit->path, $hq->path),
                     'group' => $group,
+                    'platoon' => ($parent = $byId->get($unit->parent_id)) === null ? null : ($parent->callsign ?? $parent->name),
                     'rank' => $rank,
+                    'order' => $order,
+                    'battle' => self::battleKey($unit->callsign),
                 ];
             })
-            ->sortBy([['rank', 'asc'], ['label', 'asc']])
-            ->map(fn (array $row) => array_diff_key($row, ['rank' => true]))
+            ->sort(fn (array $a, array $b) => ($a['rank'] <=> $b['rank']) ?: self::battleCompare($a['battle'], $b['battle']) ?: ($a['order'] <=> $b['order']))
+            ->map(fn (array $row) => array_diff_key($row, ['rank' => true, 'order' => true, 'battle' => true]))
             ->values()
             ->all();
+    }
+
+    /**
+     * A sort key in order of battle from a callsign read top down: "2/1/D/1-7" is battalion 1, company D, platoon 1,
+     * section 2. Battalions of the regiment ("1-7", "2-7") come first by number, then companies by letter, then
+     * platoons and sections by number. Anything else (DEVCOM and similar, or no callsign) sorts after them, and ties
+     * keep the unit tree's order. The tree alone is not enough: siblings there sit in creation order, which follows
+     * the org sync and not the order of battle.
+     *
+     * @return list<int|string>
+     */
+    private static function battleKey(?string $callsign): array
+    {
+        $segments = $callsign === null || trim($callsign) === '' ? [] : array_reverse(explode('/', trim($callsign)));
+        if ($segments === [] || preg_match('/^(\d+)-\d+$/', $segments[0], $battalion) !== 1) {
+            return [1, $callsign ?? ''];
+        }
+
+        $key = [0, (int) $battalion[1]];
+        foreach (array_slice($segments, 1) as $segment) {
+            // Numbers before letters at one level, numbers by value, letters A to Z.
+            $key[] = ctype_digit($segment) ? sprintf('0%08d', (int) $segment) : '1'.strtoupper($segment);
+        }
+
+        return $key;
+    }
+
+    /**
+     * Two {@see battleKey()} keys compared level by level (PHP's array `<=>` would compare their lengths first), a
+     * shorter key that is a prefix of the other first.
+     *
+     * @param  list<int|string>  $a
+     * @param  list<int|string>  $b
+     */
+    private static function battleCompare(array $a, array $b): int
+    {
+        foreach ($a as $i => $value) {
+            if (! array_key_exists($i, $b)) {
+                return 1;
+            }
+            $order = is_int($value) && is_int($b[$i]) ? $value <=> $b[$i] : strcmp((string) $value, (string) $b[$i]);
+            if ($order !== 0) {
+                return $order;
+            }
+        }
+
+        return count($a) <=> count($b);
+    }
+
+    /**
+     * {@see StaffHqHealth} for the HQ's unit, with how many of the HQ's staff that week sent a report that keeps to the
+     * one practice rule.
+     *
+     * @return array<string, mixed>
+     */
+    private function healthOf(Unit $hq, CarbonImmutable $weekStart): array
+    {
+        $staff = $this->week->hqStaff($hq, $weekStart);
+
+        return [
+            ...$this->health->forUnit($hq, $weekStart),
+            'staff' => [
+                'total' => count($staff),
+                'met' => count(array_filter($staff, fn (array $row) => $row['report'] !== null
+                    && StaffReportWeek::metRule(StaffReportWeek::reportProps($row['report'])))),
+            ],
+        ];
     }
 
     /**

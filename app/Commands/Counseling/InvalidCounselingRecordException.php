@@ -50,6 +50,26 @@ class InvalidCounselingRecordException extends RuntimeException
         return new self('document', 'Attach the signed document as a PDF.');
     }
 
+    public static function incompletePdf(): self
+    {
+        return new self('document', 'This PDF looks incomplete or damaged. Save it again and attach the new copy.');
+    }
+
+    public static function encryptedPdf(): self
+    {
+        return new self('document', 'This PDF has a password or encryption. Attach a copy without one.');
+    }
+
+    public static function activePdf(): self
+    {
+        return new self('document', 'This PDF has scripts, attachments or actions that run on their own, which the portal does not accept. Print it to a new PDF and attach that copy.');
+    }
+
+    public static function uncheckedPdf(): self
+    {
+        return new self('document', 'This PDF could not be checked. Print it to a new PDF and attach that copy.');
+    }
+
     public static function alreadyFiled(): self
     {
         return new self('document', 'This record is already filed.');

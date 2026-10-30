@@ -29,14 +29,16 @@ final class AttendanceHistory
         private readonly TrooperPlacementRepository $placements,
         private readonly UnitRepository $units,
         private readonly LoaCoverage $loa,
+        private readonly AutoExcused $autoExcused,
     ) {}
 
     /**
      * The {@see WEEKS} Cav weeks ending with `$weekStart`, oldest first. `section` is the section they were placed in
      * that week (null when in none: not placed yet, on HQ staff or in a group); a week with no practice row there has
-     * no `rollcall` or `status`. `loa` is true for a week leave covers or a practice marked `loa`.
+     * no `rollcall` or `status`. `loa` is true for a week leave covers or a practice marked `loa`. `excused` is why the
+     * week was excused automatically ({@see AutoExcused}: `recruit` or `transfer`), or null.
      *
-     * @return list<array{week: string, section: ?array{id: int, label: string}, rollcall: ?string, status: ?string, source: ?string, held: bool, loa: bool}>
+     * @return list<array{week: string, section: ?array{id: int, label: string}, rollcall: ?string, status: ?string, source: ?string, held: bool, loa: bool, excused: ?string}>
      */
     public function forTrooper(Trooper $trooper, CarbonInterface $weekStart): array
     {
@@ -47,9 +49,10 @@ final class AttendanceHistory
             ->keyBy(fn (CountingMark $mark) => $mark->weekStart->toDateString());
         $placed = $this->placements->sectionsByWeek([$trooper->id], $first, $last)->weeks[$trooper->id] ?? [];
         $covers = $this->loa->forTroopersOverWeeks([$trooper->id], $first, self::WEEKS)[$trooper->id] ?? [];
+        $excused = $this->autoExcused->forTroopersOverWeeks([$trooper->id], $first, self::WEEKS)[$trooper->id] ?? [];
         $labels = [];
 
-        return array_map(function (int $offset) use ($first, $marks, $placed, $covers, &$labels) {
+        return array_map(function (int $offset) use ($first, $marks, $placed, $covers, $excused, &$labels) {
             $week = $first->addWeeks($offset)->toDateString();
             /** @var CountingMark|null $mark */
             $mark = $marks->get($week);
@@ -63,6 +66,7 @@ final class AttendanceHistory
                 'source' => $mark?->source?->value,
                 'held' => $mark->held ?? false,
                 'loa' => (isset($covers[$week]) && $covers[$week]->isCovered()) || $mark?->status === AttendanceStatus::Loa,
+                'excused' => $excused[$week] ?? null,
             ];
         }, range(0, self::WEEKS - 1));
     }
