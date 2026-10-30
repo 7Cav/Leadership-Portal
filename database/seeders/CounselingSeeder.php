@@ -35,10 +35,16 @@ class CounselingSeeder extends Seeder
 
         $tag = CarbonImmutable::now('UTC')->format('His').random_int(100, 999);
 
-        // Its own path prefix (4), apart from the other seeders' (5 to 9).
-        $company = Unit::factory()->create(['type' => UnitType::Company, 'name' => 'Foxtrot Company', 'callsign' => 'F/1-7', 'path' => "4{$tag}/"]);
-        $platoon = Unit::factory()->create(['type' => UnitType::Platoon, 'name' => '1st Platoon', 'callsign' => '1/F/1-7', 'parent_id' => $company->id, 'path' => "4{$tag}/1/"]);
-        $section = Unit::factory()->create(['type' => UnitType::Section, 'name' => '1st Section', 'callsign' => '1/1/F/1-7', 'parent_id' => $platoon->id, 'path' => "4{$tag}/1/1/"]);
+        // The org's own 1/F/1-7 and its 1st Section when the tree already has them, so the portal never shows two units
+        // with one callsign (the staff report's picker listed the platoon twice). Otherwise its own path prefix (4),
+        // apart from the other seeders' (5 to 9).
+        $platoon = Unit::query()->where('type', UnitType::Platoon)->where('callsign', '1/F/1-7')->first();
+        $section = $platoon === null ? null : Unit::query()->where('parent_id', $platoon->id)->where('callsign', '1/1/F/1-7')->first();
+        if ($platoon === null || $section === null) {
+            $company = Unit::factory()->create(['type' => UnitType::Company, 'name' => 'Foxtrot Company', 'callsign' => 'F/1-7', 'path' => "4{$tag}/"]);
+            $platoon = Unit::factory()->create(['type' => UnitType::Platoon, 'name' => '1st Platoon', 'callsign' => '1/F/1-7', 'parent_id' => $company->id, 'path' => "4{$tag}/1/"]);
+            $section = Unit::factory()->create(['type' => UnitType::Section, 'name' => '1st Section', 'callsign' => '1/1/F/1-7', 'parent_id' => $platoon->id, 'path' => "4{$tag}/1/1/"]);
+        }
 
         $pl = $this->leader('1LT', 'Lindqvist.P', (int) "{$tag}1", $platoon, (int) "{$tag}91");
         $sl = $this->leader('SGT', 'Sato.K', (int) "{$tag}2", $section, (int) "{$tag}92");
