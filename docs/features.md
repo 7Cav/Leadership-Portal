@@ -158,7 +158,8 @@ Cav after that week stays on it, can still be marked there and given a reason on
 moved to cannot mark them for that week. A trooper who moved partway through a week is on the roll call of the section
 they moved to, and their mark at either section counts (see "Makeups"). Such rows carry a small note: "Moved out",
 "Departed", or "Joined" for one who moved in during the week. A trooper placed before the placement history began
-(27Oct26) and never moved since is in their current section for every week. The roster sync records when a trooper
+(27Oct26) and never moved since is in their current section for every week since they joined the Cav: a recruit
+is on no roll call of a week that ended before their join date. The roster sync records when a trooper
 leaves the Cav; one who left before it began doing so has no date and is on no past week's roll call.
 
 ### Reports
