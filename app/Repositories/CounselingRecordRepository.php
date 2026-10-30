@@ -66,6 +66,13 @@ interface CounselingRecordRepository
     public function overturn(CounselingRecord $record, CarbonImmutable $at, int $by, ?int $byAdmin, ?int $asUnit, string $reason): ?CounselingRecord;
 
     /**
+     * Record the trooper's appeal (LOR) or comment or dispute (DCS): when, by whom and what they wrote. On an LOR made
+     * from the portal's form, the form's appeal answer becomes `do`. Re-read under a lock in the caller's transaction,
+     * so two at once cannot both land: null when the record is gone or already appealed.
+     */
+    public function appeal(CounselingRecord $record, CarbonImmutable $at, int $by, string $statement): ?CounselingRecord;
+
+    /**
      * Delete the record, re-read under a lock in the caller's transaction so the model handed back (and digested by
      * the audit log) is the row as it was deleted. Null when it is already gone.
      */

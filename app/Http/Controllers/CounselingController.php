@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Authorization\CounselingAccess;
 use App\Authorization\CounselingPermissions;
 use App\Authorization\ScopeResolver;
+use App\Commands\Counseling\AppealCounselingRecord;
+use App\Commands\Counseling\AppealCounselingRecordHandler;
 use App\Commands\Counseling\CorrectCounselingRecord;
 use App\Commands\Counseling\CorrectCounselingRecordHandler;
 use App\Commands\Counseling\CounselingForbiddenException;
@@ -51,8 +53,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  *
  * A trooper who has left the Cav has read-only counseling: filing, correcting and deleting are refused here (403)
  * before the form is read, and again in each handler; the download still works for whoever sees the record. So are
- * correcting and deleting an LOR filed 72 hours ago or more, Admins included: only the Regimental Executive Officer may
- * then overturn it, which keeps it on file.
+ * correcting and deleting a DCS or LOR filed 72 hours ago or more, Admins included: only an LOR may then be overturned,
+ * by the Regimental Executive Officer, which keeps it on file. Within those 72 hours the trooper may file one appeal on
+ * an LOR, or one comment or dispute on a DCS, signed in as themselves.
  *
  * Instead of uploading, the leader may fill in the regiment's form in the portal (`source=form`): the portal renders
  * the PDF ({@see CounselingFormPdf}) and files it through the same handler, so it takes the upload's path from there.
@@ -219,6 +222,22 @@ class CounselingController extends Controller
     }
 
     /**
+     * The trooper's appeal (LOR) or comment or dispute (DCS), with the statement shown on the record. Who may, and
+     * when, is the handler's to decide.
+     */
+    public function appeal(Request $request, int $counseling, AppealCounselingRecordHandler $handler): RedirectResponse
+    {
+        $data = $request->validate(['statement' => ['required', 'string', 'max:'.AppealCounselingRecordHandler::STATEMENT_MAX]], [
+            'statement.required' => 'Write your statement.',
+            'statement.max' => 'Keep your statement to :max characters.',
+        ]);
+
+        $record = $this->handle(fn () => $handler->handle($request->user(), new AppealCounselingRecord($counseling, $data['statement'])));
+
+        return redirect()->route('troopers.show', $record->trooper_id);
+    }
+
+    /**
      * The record's document, only for someone who may see the record: anyone else gets the same 404 as for a record
      * that does not exist. Served as an attachment named after the record, never after the uploaded file.
      */
@@ -245,8 +264,8 @@ class CounselingController extends Controller
     }
 
     /**
-     * The same for a correction or a delete, once the record is known to be one the viewer sees, and for an LOR past its
-     * appeal window or overturned: a record they do not see, or that does not exist, answers 404 as before, so the
+     * The same for a correction or a delete, once the record is known to be one the viewer sees, and for a record past
+     * its appeal window or an overturned LOR: a record they do not see, or that does not exist, answers 404 as before, so the
      * refusal gives nothing away.
      *
      * @throws CounselingForbiddenException
@@ -263,7 +282,7 @@ class CounselingController extends Controller
         }
 
         if (CounselingPermissions::frozen($record)) {
-            throw CounselingForbiddenException::frozen();
+            throw CounselingForbiddenException::frozen($record->type);
         }
     }
 

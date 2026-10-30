@@ -23,8 +23,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * `form_data` holds what the leader filled in when the portal generated the document from its own form (the
  * regiment's 7CAV-R-042 or 7CAV-R-043 layout), so the PDF can be made again; null for an uploaded document.
  *
- * An LOR is frozen 72 hours after it is filed (`CounselingPermissions::frozen()`); after that only the
- * Regimental Executive Officer can overturn it, which sets `overturned_at`, who did it (`overturned_by`, with
+ * A DCS or LOR is frozen 72 hours after it is filed (`CounselingPermissions::frozen()`, {@see freezesAt()}). Within
+ * those 72 hours the trooper may file one appeal (on an LOR) or one comment or dispute (on a DCS): `appealed_at`,
+ * `appealed_by` and `appeal_statement`. After that only the Regimental Executive Officer can overturn an LOR, which sets `overturned_at`, who did it (`overturned_by`, with
  * `overturned_by_admin` and `overturned_as_unit` as for the issuer) and `overturn_reason`. An overturned LOR stays on
  * file and no longer counts toward the counseling rules.
  *
@@ -52,6 +53,7 @@ class CounselingRecord extends Model
             'drive_status' => DriveUploadStatus::class,
             'drive_attempted_at' => 'immutable_datetime',
             'overturned_at' => 'immutable_datetime',
+            'appealed_at' => 'immutable_datetime',
             'form_data' => 'array',
         ];
     }
@@ -105,6 +107,29 @@ class CounselingRecord extends Model
         $today ??= CarbonImmutable::now('UTC');
 
         return $expires !== null && $today->startOfDay()->greaterThanOrEqualTo($expires->startOfDay());
+    }
+
+    /**
+     * When the record freezes: {@see \App\Authorization\CounselingPermissions::APPEAL_HOURS} hours after it was filed
+     * (`created_at`), never from the date it carries. Null for a record not yet saved.
+     */
+    public function freezesAt(): ?CarbonImmutable
+    {
+        return $this->created_at === null
+            ? null
+            : CarbonImmutable::instance($this->created_at)->addHours(\App\Authorization\CounselingPermissions::APPEAL_HOURS);
+    }
+
+    /** Whether the trooper filed their appeal (LOR) or comment or dispute (DCS) on this record. */
+    public function isAppealed(): bool
+    {
+        return $this->appealed_at !== null;
+    }
+
+    /** The trooper who appealed, or null. */
+    public function appealedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'appealed_by');
     }
 
     public function isOverturned(): bool

@@ -11,11 +11,11 @@ use Carbon\CarbonImmutable;
  * page listing many records asks the ScopeResolver once, not once per record. `$departed`: the trooper has left the Cav,
  * so nothing may be filed on them, corrected or deleted, by anyone; what could be seen still is.
  *
- * An LOR is **frozen** once its appeal window has passed, 72 hours after it was filed (S6, 2026-10-29; the wiki gives the
- * trooper 24 hours to say they appeal and the appeal 72 hours to finish, with no further appeal). Until then whoever may
- * change it still can (a typo, the wrong trooper, an upheld appeal). From then on nobody corrects or deletes it, Admins
- * included, by flag or by billet: only the Regimental Executive Officer may overturn it ({@see overturns()}), which
- * keeps it on file. A DCS never freezes.
+ * A DCS or LOR is **frozen** 72 hours after it was filed ({@see frozen()}). Until then the issuer's chain (and Admins)
+ * may still correct or delete it (a typo, the wrong trooper, an upheld appeal), and the trooper may file one appeal on
+ * an LOR, or one comment or dispute on a DCS ({@see appeals()}). From then on nobody corrects or deletes it, Admins
+ * included, by flag or by billet. Only an LOR may then be overturned, by the Regimental Executive Officer
+ * ({@see overturns()}), which keeps it on file; a DCS has no overturn. A frozen DCS still expires after 90 days.
  *
  * An **expired DCS** ({@see CounselingRecord::isExpired()}, 90 days after it was counseled) is seen by Admins only
  * ({@see $seesExpired}): to anyone else, the trooper themselves included, it is as if it did not exist. Leaders never
@@ -23,7 +23,7 @@ use Carbon\CarbonImmutable;
  */
 final readonly class CounselingPermissions
 {
-    /** How long after it is filed an LOR may still be corrected or deleted: its appeal window. */
+    /** How long after it is filed a DCS or LOR may still be corrected, deleted or appealed: its appeal window. */
     public const APPEAL_HOURS = 72;
 
     /**
@@ -35,6 +35,8 @@ final readonly class CounselingPermissions
      *                              themselves (nobody acting as anyone, no view-as preview): the one who may overturn a
      *                              frozen LOR
      * @param  bool  $seesExpired  an Admin reading as one: the only one who sees an expired DCS
+     * @param  bool  $appealsOwn  the viewer is the trooper, signed in as themselves: nobody acting as anyone and no
+     *                            view-as preview. The only one who may appeal their records
      */
     public function __construct(
         public bool $seesDcs,
@@ -49,22 +51,22 @@ final readonly class CounselingPermissions
         public bool $flagAdmin,
         public bool $regimentalXo,
         public bool $seesExpired = false,
+        public bool $appealsOwn = false,
     ) {}
 
     /**
-     * Whether `$record` is a frozen LOR: filed {@see APPEAL_HOURS} hours ago or more, so its appeal window has passed
-     * (exactly 72 hours after filing it is frozen). Judged from when it was filed (`created_at`), never from the date it
-     * carries, on the server's clock.
+     * Whether `$record` is frozen: filed {@see APPEAL_HOURS} hours ago or more, a DCS or an LOR (exactly 72 hours after
+     * filing it is frozen). Judged from when it was filed (`created_at`), never from the date it carries, on the
+     * server's clock.
      */
     public static function frozen(CounselingRecord $record, ?CarbonImmutable $now = null): bool
     {
-        if ($record->type !== CounselingType::Lor || $record->created_at === null) {
+        $freezesAt = $record->freezesAt();
+        if ($freezesAt === null) {
             return false;
         }
 
-        $now ??= CarbonImmutable::now();
-
-        return $now->greaterThanOrEqualTo(CarbonImmutable::instance($record->created_at)->addHours(self::APPEAL_HOURS));
+        return ($now ?? CarbonImmutable::now())->greaterThanOrEqualTo($freezesAt);
     }
 
     public function sees(CounselingType $type): bool
@@ -96,7 +98,7 @@ final readonly class CounselingPermissions
      * trooper's command, no longer changes what was filed before. Nobody changes the records of a departed trooper.
      * Nobody changes their own, except an Admin by the flag: an Admin by billet holds it because of Cav's billet list,
      * not because someone chose them, so their own records stay out of their reach like anyone's. Nobody changes a
-     * frozen or overturned LOR ({@see frozen()}), Admins included. Only an Admin changes an expired DCS.
+     * frozen record ({@see frozen()}) or an overturned LOR, Admins included. Only an Admin changes an expired DCS.
      */
     public function changes(CounselingRecord $record): bool
     {
@@ -134,5 +136,20 @@ final readonly class CounselingPermissions
             && $this->seesLor
             && ! $record->isOverturned()
             && self::frozen($record);
+    }
+
+    /**
+     * Whether the viewer may file their appeal (LOR) or comment or dispute (DCS) on `$record`: they are the trooper,
+     * signed in as themselves ({@see $appealsOwn}), they see the record, it is not frozen yet, not overturned, and has no
+     * appeal yet (one per record). Nothing is appealed on a trooper who has left the Cav, whose records are read-only.
+     */
+    public function appeals(CounselingRecord $record): bool
+    {
+        return $this->appealsOwn
+            && ! $this->departed
+            && $this->seesRecord($record)
+            && ! $record->isAppealed()
+            && ! $record->isOverturned()
+            && ! self::frozen($record);
     }
 }

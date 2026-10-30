@@ -112,6 +112,23 @@ class Eloquent implements CounselingRecordRepository
         return $locked->refresh();
     }
 
+    public function appeal(CounselingRecord $record, CarbonImmutable $at, int $by, string $statement): ?CounselingRecord
+    {
+        $locked = CounselingRecord::query()->lockForUpdate()->find($record->id);
+        if ($locked === null || $locked->isAppealed()) {
+            return null;
+        }
+
+        $fields = ['appealed_at' => $at, 'appealed_by' => $by, 'appeal_statement' => $statement];
+        if ($locked->type === CounselingType::Lor && is_array($locked->form_data)) {
+            $fields['form_data'] = [...$locked->form_data, 'appeal' => 'do'];
+        }
+
+        $locked->forceFill($fields)->save();
+
+        return $locked->refresh();
+    }
+
     public function delete(CounselingRecord $record): ?CounselingRecord
     {
         $locked = CounselingRecord::query()->lockForUpdate()->find($record->id);

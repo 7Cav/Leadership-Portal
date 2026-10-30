@@ -10,7 +10,7 @@ use Illuminate\Auth\Access\AuthorizationException;
  * The actor may not file, correct or delete this counseling record (#381, AD-8): their command does not reach the
  * trooper at the echelon the record needs, the record was filed through a chain they are not in, or the trooper has
  * left the Cav (no longer serving, `TrooperStatus::serving()`), which makes their records read-only for everyone, or the
- * record is an LOR past its appeal window, which only the Regimental Executive Officer may overturn. Enforced in the
+ * record is past its 72-hour appeal window (only an LOR may then be overturned, by the Regimental Executive Officer). Enforced in the
  * handlers whatever the page offered. An `AuthorizationException`, so an HTTP caller that lets it propagate answers 403.
  */
 class CounselingForbiddenException extends AuthorizationException
@@ -32,10 +32,32 @@ class CounselingForbiddenException extends AuthorizationException
         return new self('Only the issuer\'s chain of command or an Admin can change this record.');
     }
 
-    /** An LOR past its 72-hour appeal window (S6, 2026-10-29): nobody corrects or deletes it, Admins included. */
-    public static function frozen(): self
+    /** A record past its 72-hour appeal window: nobody corrects or deletes it, Admins included. Only an LOR is overturned. */
+    public static function frozen(CounselingType $type = CounselingType::Lor): self
     {
-        return new self('This LOR was filed more than 72 hours ago, so it can no longer be changed. The Regimental Executive Officer can overturn it.');
+        return new self($type === CounselingType::Lor
+            ? 'This LOR was filed more than 72 hours ago, so it can no longer be changed. The Regimental Executive Officer can overturn it.'
+            : 'This DCS was filed more than 72 hours ago, so it can no longer be changed.');
+    }
+
+    /** The trooper's appeal, or comment or dispute, comes only within the 72 hours after the record was filed. */
+    public static function appealClosed(CounselingType $type): self
+    {
+        return new self($type === CounselingType::Lor
+            ? 'This LOR was filed more than 72 hours ago, so it can no longer be appealed.'
+            : 'This DCS was filed more than 72 hours ago, so it can no longer be commented on or disputed.');
+    }
+
+    public static function alreadyAppealed(CounselingType $type): self
+    {
+        return new self($type === CounselingType::Lor
+            ? 'You already appealed this LOR.'
+            : 'You already commented on or disputed this DCS.');
+    }
+
+    public static function appeal(): self
+    {
+        return new self('Only the trooper, signed in as themselves, can appeal their own record.');
     }
 
     public static function overturned(): self

@@ -106,6 +106,8 @@ class TrooperDetailController extends Controller
                 fn (CounselingRecord $record) => $writable && $permissions->overturns($record),
                 fn (CounselingRecord $record) => CounselingPermissions::frozen($record),
                 $permissions->seesExpired,
+                // Within those 72 hours the trooper, signed in as themselves, may appeal (or comment on a DCS).
+                fn (CounselingRecord $record) => $writable && $permissions->appeals($record),
             ),
             // Left the Cav: the records are read-only for everyone, and the panel says so.
             'departed' => $permissions->departed,
