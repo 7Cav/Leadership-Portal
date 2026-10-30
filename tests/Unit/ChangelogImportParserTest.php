@@ -18,9 +18,21 @@ it('reads each bullet under a date as one entry, with an indented block as its d
     expect($result['errors'])->toBe([])
         ->and($result['entries'])->toBe([
             ['line' => 4, 'date' => '2026-10-30', 'body' => 'First change', 'details' => "More about it.\n\n- a nested list"],
-            ['line' => 8, 'date' => '2026-10-30', 'body' => 'Second change', 'details' => null],
-            ['line' => 11, 'date' => '2026-10-29', 'body' => 'Older change', 'details' => null],
+            ['line' => 8, 'date' => '2026-10-30', 'body' => 'Second change', 'details' => null, 'major' => false],
+            ['line' => 11, 'date' => '2026-10-29', 'body' => 'Older change', 'details' => null, 'major' => false],
         ]);
+});
+
+it('flags a change that starts with [major] as major and drops the marker', function () {
+    $result = parseChangelog("## 2026-10-30
+- [major] Big change
+- [MAJOR]Also big
+- Small change
+- Mentions [major] later");
+
+    expect($result['errors'])->toBe([])
+        ->and(array_column($result['entries'], 'body'))->toBe(['Big change', 'Also big', 'Small change', 'Mentions [major] later'])
+        ->and(array_column($result['entries'], 'major'))->toBe([true, true, false, false]);
 });
 
 it('takes text after the date on the heading as the first entry', function (string $separator) {
@@ -50,5 +62,7 @@ it('names the line of each problem', function (string $markdown, string $message
     'empty bullet' => ["## 2026-10-01\n- ", 'Line 2: the bullet has no text'],
     'long change' => ["## 2026-10-01\n- ".str_repeat('a', 301), 'Line 2: the change is longer than 300'],
     'long details' => ["## 2026-10-01\n- A\n  ".str_repeat('a', 2001), 'Line 2: the additional information is longer than 2000'],
+    'empty major' => ["## 2026-10-01
+- [major]", 'Line 2: the change has no text after [major]'],
     'nothing' => ['Just text', 'No entries found'],
 ]);

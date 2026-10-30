@@ -245,3 +245,32 @@ it('saves nothing from an import with a bad heading', function () {
     expect(ChangelogEntry::count())->toBe(0)
         ->and(AuditLogEntry::where('action', 'changelog.imported')->count())->toBe(0);
 });
+
+it('saves entries as full changelog only unless flagged major, on add, edit and import', function () {
+    $this->actingAs($this->editor)->post('/changelog', ['date' => '2026-10-30', 'entries' => [
+        ['body' => 'Small', 'details' => null],
+        ['body' => 'Big', 'details' => null, 'major' => true],
+    ]])->assertRedirect('/changelog');
+
+    expect(ChangelogEntry::orderBy('id')->pluck('major', 'body')->all())->toBe(['Small' => false, 'Big' => true]);
+
+    $this->actingAs($this->member)->get('/changelog')->assertInertia(fn (Assert $page) => $page
+        ->where('days.0.entries.0.major', false)
+        ->where('days.0.entries.1.major', true));
+
+    $small = ChangelogEntry::where('body', 'Small')->sole();
+    $this->actingAs($this->editor)->patch("/changelog/{$small->id}", entryData(['body' => 'Small', 'major' => true]))->assertRedirect('/changelog');
+    expect($small->fresh()->major)->toBeTrue();
+    $this->actingAs($this->editor)->patch("/changelog/{$small->id}", entryData(['body' => 'Small']))->assertRedirect('/changelog');
+    expect($small->fresh()->major)->toBeFalse();
+
+    $markdown = "## 2026-10-31\n- [major] Imported big\n- Imported small";
+    $this->actingAs($this->editor)->postJson('/changelog/import/preview', ['markdown' => $markdown])
+        ->assertJsonPath('entries.0.body', 'Imported big')
+        ->assertJsonPath('entries.0.major', true)
+        ->assertJsonPath('entries.1.major', false);
+    $this->actingAs($this->editor)->post('/changelog/import', ['markdown' => $markdown, 'skip_duplicates' => true])->assertRedirect('/changelog');
+
+    expect(ChangelogEntry::where('body', 'Imported big')->sole()->major)->toBeTrue()
+        ->and(ChangelogEntry::where('body', 'Imported small')->sole()->major)->toBeFalse();
+});
