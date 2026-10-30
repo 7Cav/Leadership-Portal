@@ -1,0 +1,1176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Counseling Rework</title>
+<!--
+ | DCS / LOR rework (#565), the combined variant: v3's case file on desktop, v2's one-step-at-a-time flow on a phone.
+ | Built on the portal's own pieces: the tokens from resources/css/app.css and the class strings of the shadcn-vue
+ | components in resources/js/components/ui (Button, Badge, Card, Input, Textarea, Label, NativeSelect, Tabs, Table,
+ | Progress, ToggleGroup segment, Sheet) and the shell from layouts/AppLayout.vue + partials/AppSidebar.vue.
+ | Not product code.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.1.11"></script>
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<script>
+  // Same as app.blade.php: theme <html> before paint.
+  if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.classList.add('dark');
+</script>
+<style type="text/tailwindcss">
+@custom-variant dark (&:is(.dark *));
+
+:root {
+    --background: hsl(75 10% 97.5%);
+    --foreground: hsl(75 14% 10%);
+    --card: hsl(75 12% 99.5%);
+    --card-foreground: hsl(75 14% 10%);
+    --popover: hsl(75 12% 99.5%);
+    --primary: hsl(43 87% 55%);
+    --primary-foreground: hsl(75 20% 9%);
+    --secondary: hsl(75 9% 93.5%);
+    --secondary-foreground: hsl(75 14% 10%);
+    --muted: hsl(75 9% 93.5%);
+    --muted-foreground: hsl(75 6% 37%);
+    --accent: hsl(75 10% 92%);
+    --accent-foreground: hsl(75 14% 10%);
+    --border: hsl(75 9% 87%);
+    --input: hsl(75 9% 82%);
+    --ring: hsl(40 92% 38%);
+    --success: hsl(148 52% 30%);
+    --warning: hsl(32 92% 38%);
+    --destructive: hsl(3 68% 46%);
+    --info: hsl(206 64% 40%);
+    --sidebar: hsl(75 10% 95.5%);
+    --sidebar-foreground: hsl(75 12% 16%);
+    --sidebar-accent: hsl(75 10% 90%);
+    --sidebar-accent-foreground: hsl(75 14% 10%);
+    --sidebar-border: hsl(75 9% 86%);
+    --nav-active-icon: hsl(40 92% 38%);
+    --gold-ink: hsl(40 92% 30%);
+    --radius: 6px;
+}
+.dark {
+    --background: hsl(75 8% 6.5%);
+    --foreground: hsl(75 10% 92%);
+    --card: hsl(75 7% 9%);
+    --card-foreground: hsl(75 10% 92%);
+    --popover: hsl(75 7% 9%);
+    --primary: hsl(43 90% 58%);
+    --primary-foreground: hsl(75 20% 8%);
+    --secondary: hsl(75 6% 13.5%);
+    --secondary-foreground: hsl(75 10% 92%);
+    --muted: hsl(75 6% 13.5%);
+    --muted-foreground: hsl(75 6% 63%);
+    --accent: hsl(75 6% 15%);
+    --accent-foreground: hsl(75 10% 92%);
+    --border: hsl(75 6% 17.5%);
+    --input: hsl(75 6% 22%);
+    --ring: hsl(43 90% 58%);
+    --success: hsl(148 45% 52%);
+    --warning: hsl(36 90% 58%);
+    --destructive: hsl(3 78% 64%);
+    --info: hsl(206 72% 64%);
+    --sidebar: hsl(75 8% 5%);
+    --sidebar-foreground: hsl(75 8% 86%);
+    --sidebar-accent: hsl(75 6% 13%);
+    --sidebar-accent-foreground: hsl(75 10% 92%);
+    --sidebar-border: hsl(75 6% 14%);
+    --nav-active-icon: hsl(43 90% 58%);
+    --gold-ink: hsl(43 90% 62%);
+    color-scheme: dark;
+}
+
+@theme inline {
+    --font-sans: 'Geist', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --color-success: var(--success);
+    --color-warning: var(--warning);
+    --color-info: var(--info);
+    --color-gold-ink: var(--gold-ink);
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --radius-sm: 4px;
+    --radius-md: var(--radius);
+    --radius-lg: 10px;
+    --radius-xl: 10px;
+}
+
+@layer base {
+    * { @apply border-border outline-ring/50; }
+    html { -webkit-text-size-adjust: 100%; overflow-x: clip; }
+    body { @apply bg-background text-foreground font-sans antialiased; font-feature-settings: 'ss01'; }
+    :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+    .ph { font-size: 1rem; line-height: 1; }
+}
+
+/* The shadcn-vue components, with the class strings copied from resources/js/components/ui. */
+@layer components {
+    .btn { @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-[13px] font-medium transition-all active:translate-y-px disabled:pointer-events-none disabled:opacity-50 shrink-0 outline-none focus-visible:ring-ring/50 focus-visible:ring-3 h-8 px-3; }
+    .btn-default { @apply bg-primary text-primary-foreground hover:bg-primary/90; }
+    .btn-outline { @apply border bg-card hover:bg-accent hover:text-accent-foreground; }
+    .btn-secondary { @apply bg-secondary text-secondary-foreground hover:bg-secondary/80; }
+    .btn-ghost { @apply hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50; }
+    .btn-destructive { @apply bg-destructive text-white hover:bg-destructive/90 dark:bg-destructive/60; }
+    .btn-sm { @apply h-7 gap-1.5 px-2.5 text-xs; }
+    .btn-lg { @apply h-10 px-6; }
+    .btn-icon { @apply size-8 px-0; }
+    .btn-icon-sm { @apply size-7 px-0; }
+
+    .badge { @apply inline-flex items-center justify-center rounded-sm border h-5 px-1.5 text-[11px] font-medium w-fit whitespace-nowrap shrink-0 gap-1 overflow-hidden; }
+    .badge .ph { font-size: 0.75rem; }
+    .badge-default { @apply border-transparent bg-primary text-primary-foreground; }
+    .badge-secondary { @apply border-transparent bg-secondary text-secondary-foreground; }
+    .badge-outline { @apply bg-card text-muted-foreground; }
+    .badge-success { @apply text-success border-success/30 bg-success/8; }
+    .badge-warning { @apply text-warning border-warning/35 bg-warning/8; }
+    .badge-danger { @apply text-destructive border-destructive/30 bg-destructive/8; }
+    .badge-info { @apply text-info border-info/30 bg-info/8; }
+
+    .card { @apply bg-card text-card-foreground flex flex-col rounded-xl border; }
+    .panel-head { @apply flex items-center gap-2 border-b border-border px-4 py-3; }
+    .panel-title { @apply text-[15px] leading-none font-semibold; }
+
+    .label { @apply flex items-center gap-2 text-xs leading-none font-medium text-muted-foreground select-none; }
+    .input { @apply placeholder:text-muted-foreground dark:bg-input/30 border-input h-8 w-full min-w-0 rounded-md border bg-card px-2.5 py-1 text-[13px] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-3; }
+    .textarea { @apply border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 flex min-h-16 w-full rounded-md border bg-card px-2.5 py-1.5 text-[13px] outline-none focus-visible:ring-3; field-sizing: content; }
+    .select { @apply border-input dark:bg-input/30 h-8 w-full min-w-0 appearance-none rounded-md border bg-card px-2.5 py-1 pr-8 text-[13px] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-3; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='%23888'%3E%3Cpath d='M213.66 101.66l-80 80a8 8 0 0 1-11.32 0l-80-80a8 8 0 0 1 11.32-11.32L128 164.69l74.34-74.35a8 8 0 0 1 11.32 11.32Z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.625rem center; background-size: 0.875rem; }
+    .field { @apply grid gap-1.5; }
+    .hint { @apply text-xs text-muted-foreground; }
+
+    .checkbox { @apply appearance-none border-input size-4 shrink-0 rounded-[4px] border bg-card shadow-xs outline-none focus-visible:ring-ring/50 focus-visible:ring-3 checked:bg-primary checked:border-primary; }
+    .checkbox:checked { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='%23191a12'%3E%3Cpath d='M232.49 80.49l-128 128a12 12 0 0 1-17 0l-56-56a12 12 0 1 1 17-17L96 183 215.51 63.51a12 12 0 0 1 17 17Z'/%3E%3C/svg%3E"); background-size: 0.75rem; background-position: center; background-repeat: no-repeat; }
+
+    .tabs-list { @apply text-muted-foreground flex w-full items-center gap-4 overflow-x-auto border-b border-border whitespace-nowrap; }
+    .tabs-trigger { @apply relative inline-flex items-center gap-1.5 py-2.5 text-[13px] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground rounded-sm after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:rounded-full after:bg-transparent aria-selected:text-foreground aria-selected:after:bg-foreground; }
+
+    .segment { @apply inline-flex items-center gap-0.5 rounded-md bg-muted p-0.5; }
+    .segment-item { @apply inline-flex items-center justify-center gap-1.5 h-[1.625rem] rounded-sm px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground aria-pressed:bg-card aria-pressed:text-foreground aria-pressed:shadow-[0_1px_2px_hsl(75_20%_10%/0.12)]; }
+
+    .notice { @apply flex items-start gap-2.5 rounded-md border p-3 text-[13px] border-border bg-muted/50; }
+    .notice > .ph { @apply mt-0.5 shrink-0 text-muted-foreground; }
+    .notice-warning { @apply border-warning/40 bg-warning/8; }
+    .notice-warning > .ph { @apply text-warning; }
+
+    .nav-btn { @apply flex w-full items-center gap-2 overflow-hidden rounded-md p-2 h-8 text-left text-[13px] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground aria-[current=page]:bg-sidebar-accent aria-[current=page]:font-semibold aria-[current=page]:shadow-[inset_2px_0_0_var(--primary)]; }
+    .nav-btn[aria-current=page] > .ph { color: var(--nav-active-icon); }
+
+    .dt { @apply text-[11px] font-medium tracking-wide text-muted-foreground uppercase; }
+    .th { @apply px-2 py-1.5 text-[11px] font-medium text-muted-foreground text-left whitespace-nowrap; }
+    .td { @apply px-2 py-2.5 align-middle; }
+}
+</style>
+<style>
+  /* The filled 7CAV-R-043 preview: a sheet of paper, so it stays white in both themes. */
+  .paper { background: #fff; color: #1b1b1b; font: 7.5px/1.35 'Geist', system-ui, sans-serif; border-radius: 4px; padding: 14px 14px 18px; box-shadow: 0 1px 2px hsl(75 20% 20% / .1); }
+  .paper h4 { font-size: 9.5px; font-weight: 700; text-align: center; letter-spacing: .02em; margin: 0 0 2px; }
+  .paper .sub { text-align: center; color: #555; margin-bottom: 8px; }
+  .paper .sec { font-weight: 700; background: #ececec; padding: 2px 4px; margin-top: 6px; }
+  .paper .row { display: grid; grid-template-columns: 30% 1fr; border: 1px solid #c9c9c9; border-top: 0; }
+  .paper .row > span { padding: 2px 4px; }
+  .paper .row > span:first-child { background: #f6f6f6; border-right: 1px solid #c9c9c9; color: #444; }
+  .paper .fill { color: #0f2f6b; }
+  .paper .empty { background: repeating-linear-gradient(90deg, #eadfbf 0 6px, transparent 6px 9px); height: 1px; margin-top: 6px; }
+  .paper .box { display: inline-block; width: 7px; height: 7px; border: 1px solid #777; vertical-align: -1px; margin-right: 3px; }
+  dialog::backdrop { background: rgb(0 0 0 / .5); }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0s !important; animation: none !important; } }
+</style>
+</head>
+<body>
+
+<!-- Mockup chrome, not part of the design: jump between the screens. -->
+<div class="flex flex-wrap items-center gap-x-3 gap-y-1 bg-foreground px-4 py-1.5 text-xs text-background">
+  <span class="font-semibold">Mockup · #565 counseling</span>
+  <nav class="flex flex-wrap gap-x-3 gap-y-1 opacity-90" aria-label="Mockup screens">
+    <a href="#case" class="underline-offset-2 hover:underline aria-[current=page]:font-semibold aria-[current=page]:underline" data-route="case">1 · Leader writes an LOR</a>
+    <a href="#respond" class="underline-offset-2 hover:underline aria-[current=page]:font-semibold aria-[current=page]:underline" data-route="respond">2 · Trooper responds</a>
+    <a href="#appeals" class="underline-offset-2 hover:underline aria-[current=page]:font-semibold aria-[current=page]:underline" data-route="appeals">3 · Appeal decision</a>
+    <a href="#milpac" class="underline-offset-2 hover:underline aria-[current=page]:font-semibold aria-[current=page]:underline" data-route="milpac">4 · Records on the milpac</a>
+    <a href="#import" class="underline-offset-2 hover:underline aria-[current=page]:font-semibold aria-[current=page]:underline" data-route="import">5 · Backfill import</a>
+  </nav>
+</div>
+
+<div class="flex min-h-dvh">
+  <!-- ============ Sidebar (partials/AppSidebar.vue) ============ -->
+  <div id="sidebar-backdrop" class="fixed inset-0 z-40 hidden bg-black/50 md:hidden"></div>
+  <aside id="sidebar" class="sticky top-0 hidden h-dvh w-[15.5rem] shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-[17rem]">
+    <div class="border-b border-sidebar-border p-2">
+      <button class="nav-btn h-12! text-sm">
+        <span class="grid size-8 shrink-0 place-items-center rounded-md bg-foreground"><span class="text-[10px] font-bold text-primary">7</span></span>
+        <span class="grid min-w-0 flex-1 leading-tight">
+          <span class="truncate text-[13px] font-semibold" data-scope>2/B/1-7</span>
+          <span class="truncate text-xs text-muted-foreground" data-scope-name>2nd Platoon, Bravo Company</span>
+        </span>
+        <i class="ph ph-caret-up-down ml-auto text-muted-foreground"></i>
+      </button>
+    </div>
+    <nav aria-label="Primary" class="flex flex-1 flex-col gap-2 overflow-y-auto py-2">
+      <div class="px-2">
+        <p class="flex h-7 items-center px-2 text-xs text-muted-foreground">Leadership</p>
+        <ul class="flex flex-col gap-0.5">
+          <li><a class="nav-btn" href="#respond" data-nav="home"><i class="ph ph-house"></i><span>Home</span></a></li>
+          <li><a class="nav-btn" href="#milpac" data-nav="roster"><i class="ph ph-users-three"></i><span>Roster</span></a></li>
+          <li><a class="nav-btn" href="#"><i class="ph ph-clipboard-text"></i><span>Roll call</span></a></li>
+          <li><a class="nav-btn" href="#"><i class="ph ph-file-text"></i><span>Reports</span></a></li>
+          <li><a class="nav-btn" href="#appeals" data-nav="appeals" data-appeals-nav><i class="ph ph-scales"></i><span>Appeals</span><span class="badge badge-warning ml-auto" data-appeal-count-wrap><span data-appeal-count>2</span><span class="sr-only"> waiting for your decision</span></span></a></li>
+          <li><a class="nav-btn" href="#"><i class="ph ph-game-controller"></i><span>Game identities</span></a></li>
+        </ul>
+      </div>
+      <div class="px-2">
+        <p class="flex h-7 items-center px-2 text-xs text-muted-foreground">Help</p>
+        <ul><li><a class="nav-btn" href="#"><i class="ph ph-book-open-text"></i><span>Docs</span></a></li></ul>
+      </div>
+      <!-- Settings: Admins only, like the rest of that group. -->
+      <div class="px-2" data-admin-only hidden>
+        <p class="flex h-7 items-center px-2 text-xs text-muted-foreground">Settings</p>
+        <ul class="flex flex-col gap-0.5">
+          <li><a class="nav-btn" href="#"><i class="ph ph-tree-structure"></i><span>Org structure</span></a></li>
+          <li><a class="nav-btn" href="#"><i class="ph ph-key"></i><span>Staff grants</span></a></li>
+          <li><a class="nav-btn" href="#import" data-nav="import"><i class="ph ph-tray-arrow-down"></i><span>Counseling import</span></a></li>
+          <li><a class="nav-btn" href="#"><i class="ph ph-list-magnifying-glass"></i><span>Audit log</span></a></li>
+        </ul>
+      </div>
+    </nav>
+    <div class="border-t border-sidebar-border p-2">
+      <button class="nav-btn h-auto! min-h-12 py-1.5">
+        <span class="grid size-8 shrink-0 place-items-center rounded-full border border-border bg-muted text-xs font-semibold" data-persona-initials>VT</span>
+        <span class="grid min-w-0 flex-1 leading-tight">
+          <span class="truncate text-[13px] font-medium" data-persona-name>2LT Varga.T</span>
+          <span class="truncate text-xs text-muted-foreground" data-persona-role>Platoon Leader</span>
+        </span>
+        <i class="ph ph-dots-three-vertical ml-auto text-muted-foreground"></i>
+      </button>
+    </div>
+  </aside>
+
+  <div class="flex min-w-0 flex-1 flex-col">
+    <!-- ============ Top bar (layouts/AppLayout.vue) ============ -->
+    <header class="sticky top-0 z-30 flex h-12 items-center gap-2 border-b border-border bg-background/90 px-3 backdrop-blur sm:px-4">
+      <button class="btn btn-ghost btn-icon-sm" id="sidebar-toggle" aria-label="Toggle sidebar"><i class="ph ph-sidebar-simple"></i></button>
+      <span class="mx-1 h-4 w-px bg-border"></span>
+      <ol class="flex min-w-0 items-center gap-1.5 text-[13px] whitespace-nowrap text-muted-foreground" data-crumbs></ol>
+      <div class="ml-auto flex items-center gap-1.5">
+        <button class="btn btn-ghost btn-sm text-muted-foreground"><i class="ph ph-magnifying-glass"></i><span class="hidden sm:inline">Find trooper</span><kbd class="hidden rounded-sm border border-border bg-muted px-1 font-mono text-[11px] leading-4 text-muted-foreground sm:inline">/</kbd></button>
+        <button class="btn btn-ghost btn-sm text-muted-foreground"><i class="ph-bold ph-question"></i><span class="hidden sm:inline">Help</span></button>
+        <button class="btn btn-ghost btn-sm text-muted-foreground"><i class="ph ph-user-switch"></i><span class="hidden sm:inline">View as</span></button>
+        <button class="btn btn-ghost btn-icon-sm" id="theme-toggle" aria-label="Toggle theme"><i class="ph ph-moon"></i></button>
+      </div>
+    </header>
+
+    <main id="main" class="mx-auto w-full max-w-[1440px] flex-1 px-4 py-5 sm:px-6">
+
+      <!-- =====================================================================================
+           1 · CASE: the leader writes an LOR. Desktop: case file (steps + document side column).
+               Phone: one step at a time with a bottom Back / Continue bar; the document is a tab.
+           ===================================================================================== -->
+      <section data-view="case" class="flex flex-col gap-5 max-lg:pb-20">
+        <div class="flex flex-wrap items-end justify-between gap-3">
+          <div class="min-w-0">
+            <a href="#milpac" class="mb-2 inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground"><i class="ph ph-arrow-left text-sm!"></i>Back to Okafor.D</a>
+            <div class="flex flex-wrap items-center gap-2">
+              <h1 class="text-xl font-semibold tracking-tight" data-case-title>Letter of Reprimand</h1>
+              <span class="badge badge-outline" data-status>Draft</span>
+              <span class="badge badge-info" data-invite-badge><i class="ph ph-envelope-simple"></i>Invite sent</span>
+            </div>
+            <p class="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[13px] text-muted-foreground">
+              <span>PFC Okafor.D</span><span>· Rifleman, 2/2/B/1-7</span><span>· Missed section practice or roll call</span><span>· <span data-form-no>7CAV-R-043</span></span>
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <span class="self-center text-xs text-muted-foreground" data-saved-label role="status">Saved 2 min ago</span>
+            <button class="btn btn-outline btn-sm" data-save data-draft-only><i class="ph ph-floppy-disk"></i>Save draft</button>
+            <button class="btn btn-ghost btn-sm text-destructive hover:text-destructive" data-open="delete-draft" data-draft-only><i class="ph ph-trash"></i>Delete draft</button>
+            <button class="btn btn-outline btn-sm" data-open="withdraw" data-shared-only hidden><i class="ph ph-arrow-u-up-left"></i>Withdraw</button>
+          </div>
+        </div>
+
+        <!-- The clocks this record runs on, like the trooper card's facts grid. -->
+        <!-- Phone: only the clock that is running; the rest sit under Document. -->
+        <div class="notice notice-warning" data-shared-only hidden><i class="ph ph-check-circle"></i><div><span class="font-medium">Shared with PFC Okafor.D.</span> The After-Action PM went to the trooper, S1 1IC, S1 2IC and the oversight officer. Your fields are locked; withdraw to change them.</div></div>
+        <div class="notice notice-warning lg:hidden" data-draft-only><i class="ph ph-clock"></i><div>Meeting window closes <span class="font-medium tabular-nums">31 Oct 1900Z</span>, in 1 day 4 h.</div></div>
+        <dl class="card hidden grid-cols-4 overflow-hidden text-[13px] lg:grid">
+          <div class="flex flex-col gap-0.5 border-r border-b border-border px-4 py-3 lg:border-b-0">
+            <dt class="dt">Meeting window</dt>
+            <dd class="font-medium tabular-nums">Closes 31 Oct 1900Z</dd>
+            <dd class="text-xs text-warning">in 1 day 4 h</dd>
+          </div>
+          <div class="flex flex-col gap-0.5 border-b border-border px-4 py-3 lg:border-r lg:border-b-0">
+            <dt class="dt">Trooper's appeal choice</dt>
+            <dd class="font-medium">24 h after you share</dd>
+            <dd class="text-xs text-muted-foreground">Not started</dd>
+          </div>
+          <div class="flex flex-col gap-0.5 border-r border-border px-4 py-3">
+            <dt class="dt">Appeal decision</dt>
+            <dd class="font-medium">72 h, by CPT Halvorsen.R</dd>
+            <dd class="text-xs text-muted-foreground">Only if appealed</dd>
+          </div>
+          <div class="flex flex-col gap-0.5 px-4 py-3">
+            <dt class="dt">Locks</dt>
+            <dd class="font-medium">72 h after you share</dd>
+            <dd class="text-xs text-muted-foreground">Or when an appeal is decided</dd>
+          </div>
+        </dl>
+
+        <!-- Phone only: Steps / Document, the portal's underline tabs. -->
+        <div class="tabs-list lg:hidden" role="tablist">
+          <button class="tabs-trigger" role="tab" aria-selected="true" data-pane-tab="steps"><i class="ph ph-list-numbers"></i>Steps</button>
+          <button class="tabs-trigger" role="tab" aria-selected="false" data-pane-tab="doc"><i class="ph ph-file-pdf"></i>Document</button>
+        </div>
+
+        <div class="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
+          <!-- ---------- Steps ---------- -->
+          <div class="flex min-w-0 flex-col gap-3" data-pane="steps">
+            <!-- Phone: where you are in the six steps. -->
+            <div class="flex flex-col gap-2 lg:hidden">
+              <div class="flex items-baseline justify-between gap-3 text-[13px]">
+                <span class="font-medium" data-step-label>Step 4 of 6 · The meeting</span>
+                <span class="text-xs text-muted-foreground tabular-nums" data-step-done>3 done</span>
+              </div>
+              <div class="relative h-1.5 w-full overflow-hidden rounded-full bg-muted"><div class="h-full rounded-full bg-foreground transition-all duration-300" data-step-bar style="width:50%"></div></div>
+            </div>
+
+            <!-- Step 1 -->
+            <article class="group card overflow-hidden data-[state=current]:shadow-[inset_2px_0_0_var(--primary)] max-lg:not-data-[state=current]:hidden" data-step="0">
+              <header class="flex items-center gap-3 px-4 py-3">
+                <span class="grid size-6 shrink-0 place-items-center rounded-full border border-border text-xs font-semibold tabular-nums text-muted-foreground group-data-[state=current]:border-primary group-data-[state=current]:bg-primary group-data-[state=current]:text-primary-foreground group-data-[state=done]:border-success/30 group-data-[state=done]:bg-success/8 group-data-[state=done]:text-success"><span class="group-data-[state=done]:hidden">1</span><i class="ph-bold ph-check hidden text-xs! group-data-[state=done]:inline"></i></span>
+                <div class="min-w-0 flex-1">
+                  <h2 class="text-sm font-semibold group-data-[state=todo]:text-muted-foreground">Trooper and type</h2>
+                  <p class="hidden truncate text-xs text-muted-foreground group-data-[state=done]:block">PFC Okafor.D · Letter of Reprimand · Missed section practice or roll call</p>
+                </div>
+                <button class="btn btn-ghost btn-sm hidden group-data-[state=done]:inline-flex" data-goto="0"><i class="ph ph-pencil-simple"></i>Edit</button>
+              </header>
+              <div class="hidden flex-col gap-4 border-t border-border px-4 py-4 group-data-[state=current]:flex">
+                <div class="grid gap-4 sm:grid-cols-2">
+                  <div class="field"><label class="label" for="c-trooper">Trooper</label><input id="c-trooper" class="input" value="PFC Okafor.D · 2/2/B/1-7"></div>
+                  <div class="field"><span class="label">Type</span>
+                    <div class="segment w-fit max-w-full flex-wrap" role="group" aria-label="Type"><button class="segment-item" aria-pressed="false" data-type="dcs">Developmental Counseling (DCS)</button><button class="segment-item" aria-pressed="true" data-type="lor">Reprimand (LOR)</button></div>
+                  </div>
+                </div>
+                <div class="field"><label class="label" for="c-kind">What it is for</label>
+                  <select id="c-kind" class="select"><option>Missed section practice or roll call</option><option>Other conduct</option></select>
+                </div>
+                <div class="rounded-md border border-border bg-muted/50 p-3">
+                  <p class="mb-2 text-xs text-muted-foreground"><i class="ph ph-arrows-clockwise mr-1 align-[-2px] text-sm!"></i>Section 1, from milpac. It stays live while this is a draft and is fixed when you share.</p>
+                  <dl class="grid gap-x-6 gap-y-2 text-[13px] sm:grid-cols-2">
+                    <div><dt class="dt">Trooper</dt><dd>PFC · Okafor.D · Rifleman</dd></div>
+                    <div><dt class="dt">Disciplining authority</dt><dd>2LT · Varga.T · Platoon Leader</dd></div>
+                  </dl>
+                </div>
+              </div>
+              <footer class="hidden items-center justify-between gap-2 border-t border-border px-4 py-3 lg:group-data-[state=current]:flex">
+                <button class="btn btn-ghost" data-save><i class="ph ph-floppy-disk"></i>Save draft</button>
+                <div class="flex gap-2"><button class="btn btn-outline" data-back>Back</button><button class="btn btn-default" data-next>Continue</button></div>
+              </footer>
+            </article>
+
+            <!-- Step 2 -->
+            <article class="group card overflow-hidden data-[state=current]:shadow-[inset_2px_0_0_var(--primary)] max-lg:not-data-[state=current]:hidden" data-step="1">
+              <header class="flex items-center gap-3 px-4 py-3">
+                <span class="grid size-6 shrink-0 place-items-center rounded-full border border-border text-xs font-semibold tabular-nums text-muted-foreground group-data-[state=current]:border-primary group-data-[state=current]:bg-primary group-data-[state=current]:text-primary-foreground group-data-[state=done]:border-success/30 group-data-[state=done]:bg-success/8 group-data-[state=done]:text-success"><span class="group-data-[state=done]:hidden">2</span><i class="ph-bold ph-check hidden text-xs! group-data-[state=done]:inline"></i></span>
+                <div class="min-w-0 flex-1">
+                  <h2 class="text-sm font-semibold group-data-[state=todo]:text-muted-foreground">What happened</h2>
+                  <p class="hidden truncate text-xs text-muted-foreground group-data-[state=done]:block">Missed section practice 3 of the last 4 weeks, after a DCS on 14 Sep</p>
+                </div>
+                <button class="btn btn-ghost btn-sm hidden group-data-[state=done]:inline-flex" data-goto="1"><i class="ph ph-pencil-simple"></i>Edit</button>
+              </header>
+              <div class="hidden flex-col gap-4 border-t border-border px-4 py-4 group-data-[state=current]:flex">
+                <div class="field"><label class="label" for="c-inf">Evidenced infraction / previous instances</label>
+                  <textarea id="c-inf" class="textarea" rows="3">Missed section practice on 10, 17 and 24 Oct without an LOA. Counselled by DCS on 14 Sep for missed roll calls.</textarea>
+                  <p class="hint">Dates and what was missed. The portal adds the earlier records it knows about below.</p>
+                </div>
+                <div class="notice"><i class="ph ph-clock-counter-clockwise"></i><div>On file: DCS 14 Sep (inactive, still counts until 13 Dec) and DCS 3 Oct (active).</div></div>
+                <div class="field"><label class="label" for="c-reg">Associated regulation / order / SOP</label><input id="c-reg" class="input" value="2/B/1-7 Platoon SOP, attendance"></div>
+              </div>
+              <footer class="hidden items-center justify-between gap-2 border-t border-border px-4 py-3 lg:group-data-[state=current]:flex">
+                <button class="btn btn-ghost" data-save><i class="ph ph-floppy-disk"></i>Save draft</button>
+                <div class="flex gap-2"><button class="btn btn-outline" data-back>Back</button><button class="btn btn-default" data-next>Continue</button></div>
+              </footer>
+            </article>
+
+            <!-- Step 3 -->
+            <article class="group card overflow-hidden data-[state=current]:shadow-[inset_2px_0_0_var(--primary)] max-lg:not-data-[state=current]:hidden" data-step="2">
+              <header class="flex items-center gap-3 px-4 py-3">
+                <span class="grid size-6 shrink-0 place-items-center rounded-full border border-border text-xs font-semibold tabular-nums text-muted-foreground group-data-[state=current]:border-primary group-data-[state=current]:bg-primary group-data-[state=current]:text-primary-foreground group-data-[state=done]:border-success/30 group-data-[state=done]:bg-success/8 group-data-[state=done]:text-success"><span class="group-data-[state=done]:hidden">3</span><i class="ph-bold ph-check hidden text-xs! group-data-[state=done]:inline"></i></span>
+                <div class="min-w-0 flex-1">
+                  <h2 class="text-sm font-semibold group-data-[state=todo]:text-muted-foreground">Meeting invite</h2>
+                  <p class="hidden truncate text-xs text-muted-foreground group-data-[state=done]:block">PM sent from your forum account 28 Oct 2004Z · Okafor.D picked Thu 29 Oct 2000Z</p>
+                </div>
+                <span class="badge badge-success hidden group-data-[state=done]:inline-flex">Sent</span>
+              </header>
+              <div class="hidden flex-col gap-4 border-t border-border px-4 py-4 group-data-[state=current]:flex">
+                <div class="grid gap-3 sm:grid-cols-3">
+                  <div class="field"><label class="label">Option 1 (Zulu)</label><input class="input" value="Thu 29 Oct 2000Z"></div>
+                  <div class="field"><label class="label">Option 2 (Zulu)</label><input class="input" value="Fri 30 Oct 1900Z"></div>
+                  <div class="field"><label class="label">Option 3 (Zulu)</label><input class="input" value="Sat 31 Oct 1700Z"></div>
+                </div>
+                <div class="rounded-md border border-border">
+                  <p class="border-b border-border px-3 py-2 text-xs text-muted-foreground">PM to Okafor.D · <span class="text-foreground">Meeting: Letter of Reprimand</span></p>
+                  <p class="px-3 py-2 text-[13px]">I need to meet with you about a Letter of Reprimand within the next 72 hours. Please reply with the time that works for you: Thu 29 Oct 2000Z, Fri 30 Oct 1900Z or Sat 31 Oct 1700Z.</p>
+                </div>
+                <div class="flex flex-wrap gap-2"><button class="btn btn-outline" data-invite><i class="ph ph-paper-plane-tilt"></i>Send invite again</button><span class="self-center text-xs text-muted-foreground">Optional for a DCS: skip it if you reached them by voice within 24 h.</span></div>
+              </div>
+              <footer class="hidden items-center justify-between gap-2 border-t border-border px-4 py-3 lg:group-data-[state=current]:flex">
+                <button class="btn btn-ghost" data-save><i class="ph ph-floppy-disk"></i>Save draft</button>
+                <div class="flex gap-2"><button class="btn btn-outline" data-back>Back</button><button class="btn btn-default" data-next>Continue</button></div>
+              </footer>
+            </article>
+
+            <!-- Step 4: the open one -->
+            <article class="group card overflow-hidden data-[state=current]:shadow-[inset_2px_0_0_var(--primary)] max-lg:not-data-[state=current]:hidden" data-step="3">
+              <header class="flex items-center gap-3 px-4 py-3">
+                <span class="grid size-6 shrink-0 place-items-center rounded-full border border-border text-xs font-semibold tabular-nums text-muted-foreground group-data-[state=current]:border-primary group-data-[state=current]:bg-primary group-data-[state=current]:text-primary-foreground group-data-[state=done]:border-success/30 group-data-[state=done]:bg-success/8 group-data-[state=done]:text-success"><span class="group-data-[state=done]:hidden">4</span><i class="ph-bold ph-check hidden text-xs! group-data-[state=done]:inline"></i></span>
+                <div class="min-w-0 flex-1">
+                  <h2 class="text-sm font-semibold group-data-[state=todo]:text-muted-foreground">The meeting</h2>
+                  <p class="hidden truncate text-xs text-muted-foreground group-data-[state=done]:block">Held 29 Oct 2000Z · plan of action agreed</p>
+                  <p class="hidden text-xs text-muted-foreground group-data-[state=current]:block">Write it up after you have met. The trooper adds their part once you share.</p>
+                </div>
+                <button class="btn btn-ghost btn-sm hidden group-data-[state=done]:inline-flex" data-goto="3"><i class="ph ph-pencil-simple"></i>Edit</button>
+              </header>
+              <div class="hidden flex-col gap-4 border-t border-border px-4 py-4 group-data-[state=current]:flex">
+                <div class="field max-w-xs"><label class="label" for="c-date">Date of letter (meeting date)</label><input id="c-date" type="date" class="input" value="2026-10-29"></div>
+                <div class="field"><label class="label" for="c-notes">Notes of discussion</label>
+                  <textarea id="c-notes" class="textarea" rows="4" placeholder="What was said, in your words. The trooper reads this." data-live="notes"></textarea>
+                  <p class="text-xs text-destructive" data-required="notes">Needed before you can share.</p>
+                </div>
+                <div class="grid gap-4 sm:grid-cols-2">
+                  <div class="field"><label class="label" for="c-plan">Agreed plan of action: disciplining authority</label><textarea id="c-plan" class="textarea" rows="3" placeholder="What you will do" data-live="plan"></textarea></div>
+                  <div class="field"><label class="label" for="c-misc">Agreed plan of action: misc / others</label><textarea id="c-misc" class="textarea" rows="3" placeholder="Optional, e.g. the section leader"></textarea></div>
+                </div>
+                <div class="field"><label class="label" for="c-comm">Any comments: disciplining authority</label><textarea id="c-comm" class="textarea" rows="2" placeholder="Optional"></textarea></div>
+              </div>
+              <footer class="hidden items-center justify-between gap-2 border-t border-border px-4 py-3 lg:group-data-[state=current]:flex">
+                <button class="btn btn-ghost" data-save><i class="ph ph-floppy-disk"></i>Save draft</button>
+                <div class="flex gap-2"><button class="btn btn-outline" data-back>Back</button><button class="btn btn-default" data-next>Continue</button></div>
+              </footer>
+            </article>
+
+            <!-- Step 5 -->
+            <article class="group card overflow-hidden data-[state=current]:shadow-[inset_2px_0_0_var(--primary)] max-lg:not-data-[state=current]:hidden" data-step="4">
+              <header class="flex items-center gap-3 px-4 py-3">
+                <span class="grid size-6 shrink-0 place-items-center rounded-full border border-border text-xs font-semibold tabular-nums text-muted-foreground group-data-[state=current]:border-primary group-data-[state=current]:bg-primary group-data-[state=current]:text-primary-foreground group-data-[state=done]:border-success/30 group-data-[state=done]:bg-success/8 group-data-[state=done]:text-success"><span class="group-data-[state=done]:hidden">5</span><i class="ph-bold ph-check hidden text-xs! group-data-[state=done]:inline"></i></span>
+                <div class="min-w-0 flex-1">
+                  <h2 class="text-sm font-semibold group-data-[state=todo]:text-muted-foreground">Consequence</h2>
+                  <p class="hidden truncate text-xs text-muted-foreground group-data-[state=done]:block">30 days no favorable action</p>
+                </div>
+                <button class="btn btn-ghost btn-sm hidden group-data-[state=done]:inline-flex" data-goto="4"><i class="ph ph-pencil-simple"></i>Edit</button>
+              </header>
+              <div class="hidden flex-col gap-4 border-t border-border px-4 py-4 group-data-[state=current]:flex">
+                <fieldset class="grid gap-2.5">
+                  <legend class="label mb-2.5">Recommended consequence</legend>
+                  <label class="flex items-center gap-2 text-[13px]"><input type="checkbox" class="checkbox" checked data-cons="0">Any instance: 30 days no favorable action</label>
+                  <label class="flex items-center gap-2 text-[13px]"><input type="checkbox" class="checkbox" data-cons="1">2nd in 90 days: removal from Section Leader</label>
+                  <label class="flex items-center gap-2 text-[13px]"><input type="checkbox" class="checkbox" data-cons="2">2nd in 90 days: removal from Assistant Section Leader</label>
+                  <label class="flex items-center gap-2 text-[13px]"><input type="checkbox" class="checkbox" data-cons="3">Escalate to Article 15 Commander's Investigation</label>
+                </fieldset>
+                <div class="field"><label class="label" for="c-special">Special punishments ordered</label><textarea id="c-special" class="textarea" rows="2" placeholder="Optional"></textarea></div>
+              </div>
+              <footer class="hidden items-center justify-between gap-2 border-t border-border px-4 py-3 lg:group-data-[state=current]:flex">
+                <button class="btn btn-ghost" data-save><i class="ph ph-floppy-disk"></i>Save draft</button>
+                <div class="flex gap-2"><button class="btn btn-outline" data-back>Back</button><button class="btn btn-default" data-next>Continue</button></div>
+              </footer>
+            </article>
+
+            <!-- Step 6 -->
+            <article class="group card overflow-hidden data-[state=current]:shadow-[inset_2px_0_0_var(--primary)] max-lg:not-data-[state=current]:hidden" data-step="5">
+              <header class="flex items-center gap-3 px-4 py-3">
+                <span class="grid size-6 shrink-0 place-items-center rounded-full border border-border text-xs font-semibold tabular-nums text-muted-foreground group-data-[state=current]:border-primary group-data-[state=current]:bg-primary group-data-[state=current]:text-primary-foreground"><span>6</span></span>
+                <div class="min-w-0 flex-1">
+                  <h2 class="text-sm font-semibold group-data-[state=todo]:text-muted-foreground">Review and share</h2>
+                  <p class="text-xs text-muted-foreground group-data-[state=current]:hidden">Locks your part and sends the After-Action PM</p>
+                </div>
+              </header>
+              <div class="hidden flex-col gap-4 border-t border-border px-4 py-4 group-data-[state=current]:flex">
+                <div>
+                  <p class="label mb-2">The After-Action PM goes to</p>
+                  <ul class="divide-y divide-border rounded-md border border-border text-[13px]">
+                    <li class="flex items-center justify-between gap-3 px-3 py-2"><span>PFC Okafor.D</span><span class="text-xs text-muted-foreground">Trooper · link to respond</span></li>
+                    <li class="flex items-center justify-between gap-3 px-3 py-2"><span>1LT Brandt.K</span><span class="text-xs text-muted-foreground">S1 1IC · link to the PDF</span></li>
+                    <li class="flex items-center justify-between gap-3 px-3 py-2"><span>SFC Moreau.L</span><span class="text-xs text-muted-foreground">S1 2IC · link to the PDF</span></li>
+                    <li class="flex items-center justify-between gap-3 px-3 py-2"><span>MAJ Ilves.P</span><span class="text-xs text-muted-foreground">Oversight officer, 1-7 · link to the PDF</span></li>
+                  </ul>
+                </div>
+                <label class="flex items-start gap-2 text-[13px]"><input type="checkbox" class="checkbox mt-0.5" data-live="met">I met PFC Okafor.D on 29 Oct and went through this letter with them.</label>
+                <div class="notice"><i class="ph ph-info"></i><div>Once shared you can no longer edit your fields. You can withdraw it back to a draft, with a reason, until it locks.</div></div>
+              </div>
+              <footer class="hidden items-center justify-between gap-2 border-t border-border px-4 py-3 lg:group-data-[state=current]:flex">
+                <button class="btn btn-ghost" data-save><i class="ph ph-floppy-disk"></i>Save draft</button>
+                <div class="flex gap-2"><button class="btn btn-outline" data-back>Back</button><button class="btn btn-default" data-share><i class="ph ph-paper-plane-tilt"></i>Share with trooper</button></div>
+              </footer>
+            </article>
+          </div>
+
+          <!-- ---------- Document side column ---------- -->
+          <aside class="flex min-w-0 flex-col gap-4 max-lg:hidden lg:sticky lg:top-16" data-pane="doc">
+            <div class="card overflow-hidden">
+              <div class="panel-head"><h2 class="panel-title">Document</h2><span class="badge badge-outline">7CAV-R-043</span><button class="btn btn-ghost btn-sm ml-auto"><i class="ph ph-download-simple"></i>Draft PDF</button></div>
+              <div class="bg-muted/50 p-4">
+                <div class="paper mx-auto max-w-[19rem]">
+                  <h4 data-paper-title>7TH CAVALRY REGIMENT · LETTER OF REPRIMAND</h4>
+                  <div class="sub">7CAV-R-043 · Date of letter <span class="fill">29 Oct 2026</span></div>
+                  <div class="sec">Section 1 · Administrative data</div>
+                  <div class="row"><span>Trooper</span><span class="fill">PFC · Okafor.D · Rifleman</span></div>
+                  <div class="row"><span>Disciplining authority</span><span class="fill">2LT · Varga.T · Platoon Leader</span></div>
+                  <div class="sec">Section 2 · Infraction</div>
+                  <div class="row"><span>Evidenced infraction</span><span class="fill">Missed section practice on 10, 17 and 24 Oct without an LOA. DCS 14 Sep.</span></div>
+                  <div class="row"><span>Regulation / SOP</span><span class="fill">2/B/1-7 Platoon SOP, attendance</span></div>
+                  <div class="row"><span>Notes of discussion</span><span data-paper="notes"><div class="empty"></div><div class="empty"></div></span></div>
+                  <div class="sec">Section 3 · Plan of action</div>
+                  <div class="row"><span>Disciplining authority</span><span data-paper="plan"><div class="empty"></div></span></div>
+                  <div class="row"><span>Trooper</span><span style="color:#888">Filled in by the trooper</span></div>
+                  <div class="sec">Section 4 · Consequence</div>
+                  <div style="padding:3px 4px;border:1px solid #c9c9c9;border-top:0"><span class="box" data-paper-box="0"></span>30 days no favorable action<br><span class="box" data-paper-box="1"></span>Removal from SL&nbsp;&nbsp;<span class="box" data-paper-box="2"></span>Removal from ASL<br><span class="box" data-paper-box="3"></span>Article 15 investigation</div>
+                  <div class="sec">Section 5 · Appeal</div>
+                  <div style="padding:3px 4px;border:1px solid #c9c9c9;border-top:0;color:#888">DO / DO NOT wish to appeal · filled in by the trooper</div>
+                </div>
+              </div>
+              <p class="border-t border-border px-4 py-2.5 text-xs text-muted-foreground">Built from the record when someone opens it. The file is deleted after 72 hours. Saving the draft updates it.</p>
+            </div>
+
+            <div class="card overflow-hidden lg:hidden">
+              <div class="panel-head"><h2 class="panel-title">Deadlines</h2></div>
+              <dl class="divide-y divide-border text-[13px]">
+                <div class="flex justify-between gap-3 px-4 py-2.5"><dt class="text-muted-foreground">Meeting window</dt><dd class="text-right font-medium">31 Oct 1900Z</dd></div>
+                <div class="flex justify-between gap-3 px-4 py-2.5"><dt class="text-muted-foreground">Trooper's appeal choice</dt><dd class="text-right font-medium">24 h after share</dd></div>
+                <div class="flex justify-between gap-3 px-4 py-2.5"><dt class="text-muted-foreground">Appeal decision</dt><dd class="text-right font-medium">72 h, CPT Halvorsen.R</dd></div>
+                <div class="flex justify-between gap-3 px-4 py-2.5"><dt class="text-muted-foreground">Locks</dt><dd class="text-right font-medium">72 h after share</dd></div>
+              </dl>
+            </div>
+
+            <div class="card overflow-hidden">
+              <div class="panel-head"><h2 class="panel-title">Before you can share</h2><span class="badge badge-secondary ml-auto rounded-full tabular-nums" data-check-count>3 / 6</span></div>
+              <ul class="flex flex-col gap-2 px-4 py-3 text-[13px]">
+                <li class="flex items-center gap-2"><i class="ph-fill ph-check-circle text-success"></i>Trooper and type</li>
+                <li class="flex items-center gap-2"><i class="ph-fill ph-check-circle text-success"></i>Infraction and regulation</li>
+                <li class="flex items-center gap-2"><i class="ph-fill ph-check-circle text-success"></i>Meeting invite sent</li>
+                <li class="flex items-center gap-2 text-muted-foreground" data-check="notes"><i class="ph ph-circle"></i>Notes of discussion</li>
+                <li class="flex items-center gap-2 text-muted-foreground" data-check="plan"><i class="ph ph-circle"></i>Your plan of action</li>
+                <li class="flex items-center gap-2 text-muted-foreground" data-check="met"><i class="ph ph-circle"></i>Meeting confirmed</li>
+              </ul>
+            </div>
+
+            <div class="card overflow-hidden">
+              <div class="panel-head"><h2 class="panel-title">Who can see this</h2></div>
+              <dl class="grid gap-3 px-4 py-3 text-[13px]">
+                <div><dt class="dt">Now (draft)</dt><dd class="mt-0.5">You, 2/B/1-7 platoon command, B/1-7 command and Admins.</dd></div>
+                <div><dt class="dt">After you share</dt><dd class="mt-0.5">Also Okafor.D, their section leaders, S1 and the oversight officer. Permanent for an LOR.</dd></div>
+              </dl>
+            </div>
+          </aside>
+        </div>
+
+        <!-- Phone: Back / Continue in thumb reach (v2's bar), starts beside the sidebar on a tablet. -->
+        <div class="fixed inset-x-0 bottom-0 z-20 flex items-center gap-2 border-t border-border bg-background/95 px-4 py-3 backdrop-blur md:left-[15.5rem] lg:hidden" style="padding-bottom:max(.75rem,env(safe-area-inset-bottom))" data-mobile-bar>
+          <button class="btn btn-outline btn-lg px-4" data-back><i class="ph ph-arrow-left"></i><span class="sr-only">Back</span></button>
+          <button class="btn btn-outline btn-lg px-4" data-save><i class="ph ph-floppy-disk"></i><span class="sr-only">Save draft</span></button>
+          <button class="btn btn-default btn-lg flex-1" data-next><span data-next-label>Continue</span></button>
+        </div>
+      </section>
+
+      <!-- =====================================================================================
+           2 · RESPOND: the trooper's side, opened from the After-Action PM or Home.
+           ===================================================================================== -->
+      <section data-view="respond" class="mx-auto flex max-w-2xl flex-col gap-5" hidden>
+        <div class="flex flex-wrap items-end justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-xs text-muted-foreground">Shared with you 29 Oct 2214Z</p>
+            <h1 class="text-xl font-semibold tracking-tight">Letter of Reprimand</h1>
+            <p class="mt-1 text-[13px] text-muted-foreground">From 2LT Varga.T, Platoon Leader 2/B/1-7 · Missed section practice or roll call</p>
+          </div>
+          <button class="btn btn-outline btn-sm"><i class="ph ph-download-simple"></i>Download PDF</button>
+        </div>
+
+        <div class="notice" data-responded hidden><i class="ph ph-check-circle text-success!"></i><div><span class="font-medium" data-responded-title>Response submitted.</span> <span data-responded-body>Your leader and S1 have been told.</span></div></div>
+        <div class="card flex-row flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3" data-countdown>
+          <div class="min-w-0">
+            <p class="text-xs text-muted-foreground">Answer whether you appeal by 30 Oct 2214Z</p>
+            <p class="text-lg leading-tight font-semibold tabular-nums">21 h 40 min left</p>
+          </div>
+          <p class="text-[13px] text-muted-foreground sm:ml-auto sm:max-w-[22rem]">Without an answer the letter stands as written. It locks 72 hours after it was shared.</p>
+        </div>
+
+        <div class="card overflow-hidden">
+          <div class="panel-head"><h2 class="panel-title">What your leader wrote</h2></div>
+          <dl class="divide-y divide-border text-[13px]">
+            <div class="px-4 py-3"><dt class="dt">Evidenced infraction</dt><dd class="mt-1">Missed section practice on 10, 17 and 24 Oct without an LOA. Counselled by DCS on 14 Sep for missed roll calls.</dd></div>
+            <div class="px-4 py-3"><dt class="dt">Regulation / SOP</dt><dd class="mt-1">2/B/1-7 Platoon SOP, attendance</dd></div>
+            <div class="px-4 py-3"><dt class="dt">Notes of discussion</dt><dd class="mt-1">We met on 29 Oct. Okafor.D said work shifts changed in October and he did not know an LOA was needed for practice. We went through the LOA process together.</dd></div>
+            <div class="px-4 py-3"><dt class="dt">Plan of action: disciplining authority</dt><dd class="mt-1">Check in weekly before practice for the next four weeks. Section leader to confirm attendance on the roll call.</dd></div>
+            <div class="px-4 py-3"><dt class="dt">Recommended consequence</dt><dd class="mt-1 flex flex-wrap gap-1.5"><span class="badge badge-warning">30 days no favorable action</span></dd></div>
+          </dl>
+        </div>
+
+        <form class="card overflow-hidden" data-respond-form novalidate>
+          <div class="panel-head"><h2 class="panel-title">Your part</h2><span class="ml-auto text-xs text-muted-foreground">You submit once</span></div>
+          <div class="flex flex-col gap-4 px-4 py-4">
+            <div class="field"><label class="label" for="r-plan">Agreed plan of action: trooper</label><textarea id="r-plan" class="textarea" rows="3" placeholder="What you will do"></textarea></div>
+            <div class="field"><label class="label" for="r-comm">Any comments</label><textarea id="r-comm" class="textarea" rows="2" placeholder="Optional"></textarea></div>
+            <fieldset class="grid gap-2">
+              <legend class="label mb-2">Do you wish to appeal this letter?</legend>
+              <div class="grid gap-2 sm:grid-cols-2">
+                <label class="flex cursor-pointer items-start gap-3 rounded-md border border-input bg-card p-3 text-[13px] has-checked:border-ring has-checked:bg-accent">
+                  <input type="radio" name="appeal" class="mt-0.5 accent-[var(--primary)]" checked data-appeal="no">
+                  <span><span class="block font-medium">I do not wish to appeal</span><span class="text-xs text-muted-foreground">The letter locks as written.</span></span>
+                </label>
+                <label class="flex cursor-pointer items-start gap-3 rounded-md border border-input bg-card p-3 text-[13px] has-checked:border-ring has-checked:bg-accent">
+                  <input type="radio" name="appeal" class="mt-0.5 accent-[var(--primary)]" data-appeal="yes">
+                  <span><span class="block font-medium">I wish to appeal</span><span class="text-xs text-muted-foreground">CPT Halvorsen.R, B/1-7 Commander, decides within 72 hours.</span></span>
+                </label>
+              </div>
+            </fieldset>
+            <div class="field" id="appeal-reason" hidden><label class="label" for="r-why">Why you appeal</label><textarea id="r-why" class="textarea" rows="3" placeholder="Required"></textarea><p class="text-xs text-destructive" data-why-error hidden>Say why you appeal, so the commander can decide.</p></div>
+          </div>
+          <div class="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3">
+            <span class="text-xs text-muted-foreground">Your leader and S1 are told when you submit.</span>
+            <button type="submit" class="btn btn-default max-sm:w-full max-sm:h-10"><i class="ph ph-check"></i>Submit response</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- =====================================================================================
+           3 · APPEALS: the appeal authority's queue; deciding opens a sheet.
+           ===================================================================================== -->
+      <section data-view="appeals" class="flex flex-col gap-5" hidden>
+        <div>
+          <h1 class="text-xl font-semibold tracking-tight">Appeals</h1>
+          <p class="mt-1 text-[13px] text-muted-foreground">Letters of Reprimand from units directly under B/1-7 that the trooper appealed. Decide each within 72 hours. Your decision is final.</p>
+        </div>
+
+        <div class="card overflow-hidden">
+          <div class="px-4"><div class="tabs-list" role="tablist"><button class="tabs-trigger" role="tab" aria-selected="true" data-appeal-tab="waiting">Waiting <span class="badge badge-warning" data-appeal-count>2</span></button><button class="tabs-trigger" role="tab" aria-selected="false" data-appeal-tab="decided">Decided <span class="badge badge-secondary" data-decided-count>1</span></button></div></div>
+
+          <!-- Table from sm up -->
+          <div class="hidden overflow-x-auto sm:block">
+            <table class="w-full text-[13px]">
+              <thead><tr class="border-b border-border"><th class="th pl-4">Trooper</th><th class="th">Issued by</th><th class="th">Consequence</th><th class="th">Appealed</th><th class="th">Decide by</th><th class="th pr-4"><span class="sr-only">Action</span></th></tr></thead>
+              <tbody>
+                <tr class="border-b border-border hover:bg-muted/50" data-appeal="Okafor.D">
+                  <td class="td pl-4"><span class="font-medium">PFC Okafor.D</span><span class="block text-xs text-muted-foreground">2/2/B/1-7</span></td>
+                  <td class="td">2LT Varga.T</td>
+                  <td class="td">30 days no favorable action</td>
+                  <td class="td tabular-nums text-muted-foreground">30 Oct 0912Z</td>
+                  <td class="td"><span class="badge badge-warning"><i class="ph ph-clock"></i>2 Nov 0912Z · 58 h</span></td>
+                  <td class="td pr-4 text-right"><button class="btn btn-outline btn-sm" data-open="decide" data-who="Okafor.D">Decide</button></td>
+                </tr>
+                <tr class="border-b border-border hover:bg-muted/50" data-appeal="Lindqvist.A">
+                  <td class="td pl-4"><span class="font-medium">SPC Lindqvist.A</span><span class="block text-xs text-muted-foreground">1/1/B/1-7</span></td>
+                  <td class="td">1LT Castellano.R</td>
+                  <td class="td">Removal from ASL</td>
+                  <td class="td tabular-nums text-muted-foreground">28 Oct 1650Z</td>
+                  <td class="td"><span class="badge badge-danger"><i class="ph ph-clock"></i>31 Oct 1650Z · 9 h</span></td>
+                  <td class="td pr-4 text-right"><button class="btn btn-outline btn-sm" data-open="decide" data-who="Lindqvist.A">Decide</button></td>
+                </tr>
+                <tr class="border-b border-border text-muted-foreground" data-appeal-decided hidden>
+                  <td class="td pl-4"><span class="font-medium text-foreground">CPL Haddad.S</span><span class="block text-xs">3/1/B/1-7</span></td>
+                  <td class="td">1LT Castellano.R</td><td class="td">30 days no favorable action</td><td class="td tabular-nums">21 Oct 1102Z</td>
+                  <td class="td"><span class="badge badge-outline">Have not amended</span></td><td class="td pr-4 text-right"><button class="btn btn-ghost btn-sm">View</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <!-- Phone: the same rows as a list -->
+          <ul class="divide-y divide-border sm:hidden">
+            <li class="flex flex-col gap-2 px-4 py-3 text-[13px]" data-appeal="Okafor.D">
+              <div class="flex items-start justify-between gap-3"><div><p class="font-medium">PFC Okafor.D</p><p class="text-xs text-muted-foreground">From 2LT Varga.T · 30 days no favorable action</p></div><span class="badge badge-warning">58 h</span></div>
+              <button class="btn btn-outline h-10" data-open="decide" data-who="Okafor.D">Decide</button>
+            </li>
+            <li class="flex flex-col gap-2 px-4 py-3 text-[13px]" data-appeal="Lindqvist.A">
+              <div class="flex items-start justify-between gap-3"><div><p class="font-medium">SPC Lindqvist.A</p><p class="text-xs text-muted-foreground">From 1LT Castellano.R · Removal from ASL</p></div><span class="badge badge-danger">9 h</span></div>
+              <button class="btn btn-outline h-10" data-open="decide" data-who="Lindqvist.A">Decide</button>
+            </li>
+            <li class="flex flex-col gap-1 px-4 py-3 text-[13px] text-muted-foreground" data-appeal-decided hidden><div class="flex justify-between gap-3"><span class="font-medium text-foreground">CPL Haddad.S</span><span class="badge badge-outline">Have not amended</span></div><span class="text-xs">From 1LT Castellano.R · decided 22 Oct</span></li>
+          </ul>
+          <p class="px-4 py-8 text-center text-[13px] text-muted-foreground" data-appeals-empty hidden>No appeals waiting. New ones show here with a 72-hour clock.</p>
+        </div>
+      </section>
+
+      <!-- =====================================================================================
+           4 · MILPAC: the Counseling panel on the trooper page, as Okafor.D's platoon leader sees it.
+           ===================================================================================== -->
+      <section data-view="milpac" class="flex flex-col gap-5" hidden>
+        <div class="min-w-0">
+          <a href="#" class="mb-2 inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground"><i class="ph ph-arrow-left text-sm!"></i>Back to 2/2/B/1-7</a>
+          <h1 class="text-xl font-semibold tracking-tight">PFC Okafor.D</h1>
+          <p class="mt-1 flex flex-wrap gap-x-2 text-[13px] text-muted-foreground"><span>Rifleman</span><span>· 2/2/B/1-7</span><span>· Milpac ID #4417</span></p>
+        </div>
+        <nav aria-label="Leadership actions" class="flex flex-wrap gap-2">
+          <a class="btn btn-outline btn-sm" href="#case"><i class="ph ph-plus"></i>New DCS or LOR</a>
+          <button class="btn btn-outline btn-sm">Leave of absence</button>
+        </nav>
+
+        <div class="card w-full max-w-xl overflow-hidden">
+          <div class="panel-head"><h2 class="panel-title">Counseling</h2><span class="badge badge-secondary ml-auto rounded-full tabular-nums" data-record-count>4</span></div>
+
+          <div class="flex flex-col gap-3 border-b border-border px-4 py-3">
+            <div class="notice notice-warning"><i class="ph ph-warning"></i><div>Two DCSs count in the last 90 days. A third, or an LOR, escalates under the counseling rules.</div></div>
+            <!-- The 90 days that count, newest on the right. -->
+            <div>
+              <div class="mb-1.5 flex justify-between text-[11px] text-muted-foreground tabular-nums"><span>1 Aug</span><span>Counts toward standing (90 days)</span><span>Today</span></div>
+              <div class="relative h-2 rounded-full bg-muted">
+                <div class="absolute inset-y-0 rounded-full bg-muted-foreground/35" style="left:48%;right:0" title="DCS 14 Sep, counting until 13 Dec"></div>
+                <div class="absolute inset-y-0 rounded-full bg-foreground" style="left:69%;right:0" title="DCS 3 Oct, active until 2 Nov"></div>
+                <div class="absolute -top-0.5 h-3 w-0.5 rounded-full bg-primary" style="left:48%"></div>
+                <div class="absolute -top-0.5 h-3 w-0.5 rounded-full bg-primary" style="left:69%"></div>
+              </div>
+              <div class="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground"><span class="inline-flex items-center gap-1.5"><span class="size-2 rounded-full bg-foreground"></span>Active: the trooper sees it</span><span class="inline-flex items-center gap-1.5"><span class="size-2 rounded-full bg-muted-foreground/35"></span>Inactive: Platoon Leader and up</span></div>
+            </div>
+          </div>
+
+          <ul class="divide-y divide-border">
+            <li class="flex flex-col gap-1.5 px-4 py-3 text-[13px]" data-draft-row>
+              <div class="flex flex-wrap items-center gap-2"><span class="badge badge-outline" data-row-type>LOR</span><span class="font-medium">Missed section practice or roll call</span><span class="badge badge-outline ml-auto" data-row-status>Draft</span></div>
+              <p class="text-xs text-muted-foreground" data-row-note>Started 28 Oct by 2LT Varga.T · Meeting invite sent · only you and the chain see it</p>
+              <div class="flex gap-1"><a class="btn btn-ghost btn-sm -ml-2" href="#case"><i class="ph ph-arrow-right"></i>Continue</a></div>
+            </li>
+            <li class="flex flex-col gap-1.5 px-4 py-3 text-[13px]">
+              <div class="flex flex-wrap items-center gap-2"><span class="badge badge-outline">DCS</span><span class="font-medium">Missed section practice or roll call</span><span class="badge badge-success ml-auto">Active</span></div>
+              <p class="text-xs text-muted-foreground">3 Oct by SGT Pereira.M · Acknowledged · the trooper sees it until 2 Nov</p>
+              <div class="flex gap-1"><button class="btn btn-ghost btn-sm -ml-2"><i class="ph ph-eye"></i>Open</button><button class="btn btn-ghost btn-sm"><i class="ph ph-download-simple"></i>PDF</button></div>
+            </li>
+            <li class="flex flex-col gap-1.5 px-4 py-3 text-[13px]">
+              <div class="flex flex-wrap items-center gap-2"><span class="badge badge-outline">DCS</span><span class="font-medium">Missed section practice or roll call</span><span class="badge badge-secondary ml-auto">Inactive</span></div>
+              <p class="text-xs text-muted-foreground">14 Sep by SGT Pereira.M · hidden from the trooper · counts until 13 Dec</p>
+              <div class="flex gap-1"><button class="btn btn-ghost btn-sm -ml-2"><i class="ph ph-eye"></i>Open</button><button class="btn btn-ghost btn-sm"><i class="ph ph-download-simple"></i>PDF</button></div>
+            </li>
+            <li class="flex flex-col gap-1.5 px-4 py-3 text-[13px] text-muted-foreground">
+              <div class="flex flex-wrap items-center gap-2"><span class="badge badge-outline">DCS</span><span>Other conduct</span><span class="badge badge-outline ml-auto">Imported</span></div>
+              <p class="text-xs">12 Mar 2025 by SSG Duval.E · from the Drive backfill · expired, no longer counts</p>
+              <div class="flex gap-1"><button class="btn btn-ghost btn-sm -ml-2"><i class="ph ph-download-simple"></i>Original PDF</button></div>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- =====================================================================================
+           5 · IMPORT: backfill from Drive links or PDFs, with a dry run first.
+           ===================================================================================== -->
+      <section data-view="import" class="flex flex-col gap-5" hidden>
+        <div>
+          <h1 class="text-xl font-semibold tracking-tight">Counseling import</h1>
+          <p class="mt-1 max-w-[70ch] text-[13px] text-muted-foreground">Bring in DCSs and LORs that live as PDFs on Google Drive. Admins only. Nothing is saved until you confirm the check.</p>
+          <p class="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground"><i class="ph ph-terminal-window"></i>Same import from the server: <code class="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">php artisan counseling:import bravo-2025.csv --files=pdfs/ --dry-run</code></p>
+        </div>
+
+        <div class="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div class="card overflow-hidden">
+            <div class="panel-head"><h2 class="panel-title">1. Fill in the template</h2></div>
+            <div class="flex flex-col gap-3 px-4 py-4 text-[13px]">
+              <p>One row per document. Give a <code class="rounded-sm bg-muted px-1 font-mono text-xs">drive_url</code> or the <code class="rounded-sm bg-muted px-1 font-mono text-xs">file</code> name of a PDF you upload next. The other columns are optional: the portal reads them from the form when it can.</p>
+              <p class="flex flex-wrap gap-1"><span class="badge badge-outline font-mono">drive_url</span><span class="badge badge-outline font-mono">file</span><span class="badge badge-outline font-mono">type</span><span class="badge badge-outline font-mono">trooper</span><span class="badge badge-outline font-mono">kind</span><span class="badge badge-outline font-mono">issuer</span><span class="badge badge-outline font-mono">counseled_on</span></p>
+              <div><button class="btn btn-outline btn-sm"><i class="ph ph-download-simple"></i>Download CSV template</button></div>
+            </div>
+          </div>
+          <div class="card overflow-hidden">
+            <div class="panel-head"><h2 class="panel-title">2. Upload and check</h2></div>
+            <div class="flex flex-col gap-4 px-4 py-4">
+              <div class="field"><label class="label" for="i-csv">CSV file</label><input id="i-csv" type="file" accept=".csv" class="text-[13px] file:mr-3 file:rounded-md file:border file:border-input file:bg-card file:px-2.5 file:py-1 file:text-[13px]"></div>
+              <div class="field"><label class="label" for="i-pdf">PDFs named in the file column (optional)</label><input id="i-pdf" type="file" multiple accept="application/pdf" class="text-[13px] file:mr-3 file:rounded-md file:border file:border-input file:bg-card file:px-2.5 file:py-1 file:text-[13px]"><p class="hint">Drive links must be shared as "Anyone with the link". Folder links are not supported.</p></div>
+              <div><button class="btn btn-default" data-check-files><i class="ph ph-magnifying-glass"></i>Check files</button></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card items-center px-6 py-10 text-center" data-result-empty>
+          <span class="mb-3 grid size-10 place-items-center rounded-lg border border-border text-xl text-muted-foreground"><i class="ph ph-list-checks text-xl!"></i></span>
+          <p class="text-sm font-medium">No check yet</p>
+          <p class="mt-1 max-w-[42ch] text-xs text-muted-foreground">Upload the CSV and press Check files. Each row shows here as import, needs review or skipped, before anything is saved.</p>
+        </div>
+        <div class="card overflow-hidden" data-result hidden>
+          <div class="panel-head flex-wrap"><h2 class="panel-title">3. Check result</h2><span class="text-xs text-muted-foreground">bravo-2025.csv · 46 rows · checked 30 Oct 2231Z</span></div>
+          <div class="px-4"><div class="tabs-list" role="tablist">
+            <button class="tabs-trigger" role="tab" aria-selected="true" data-filter="all">All <span class="badge badge-secondary">46</span></button>
+            <button class="tabs-trigger" role="tab" aria-selected="false" data-filter="import">Import <span class="badge badge-success">38</span></button>
+            <button class="tabs-trigger" role="tab" aria-selected="false" data-filter="review">Needs review <span class="badge badge-warning">6</span></button>
+            <button class="tabs-trigger" role="tab" aria-selected="false" data-filter="skip">Skipped <span class="badge badge-outline">2</span></button>
+          </div></div>
+          <div class="hidden overflow-x-auto sm:block">
+            <table class="w-full text-[13px]">
+              <thead><tr class="border-b border-border"><th class="th pl-4">Row</th><th class="th">Source</th><th class="th">Type</th><th class="th">Trooper</th><th class="th">Issuer</th><th class="th">Date</th><th class="th pr-4">Result</th></tr></thead>
+              <tbody>
+                <tr data-row="import" class="border-b border-border"><td class="td pl-4 tabular-nums text-muted-foreground">2</td><td class="td font-mono text-xs">drive …/1Qw8Tz</td><td class="td">DCS</td><td class="td">PFC Okafor.D</td><td class="td">SSG Duval.E</td><td class="td tabular-nums">12 Mar 2025</td><td class="td pr-4"><span class="badge badge-success">Import</span></td></tr>
+                <tr data-row="import" class="border-b border-border"><td class="td pl-4 tabular-nums text-muted-foreground">3</td><td class="td font-mono text-xs">lor-haddad.pdf</td><td class="td">LOR</td><td class="td">CPL Haddad.S</td><td class="td">1LT Castellano.R</td><td class="td tabular-nums">2 Jun 2025</td><td class="td pr-4"><span class="badge badge-success">Import</span></td></tr>
+                <tr data-row="review" class="border-b border-border"><td class="td pl-4 tabular-nums text-muted-foreground">7</td><td class="td font-mono text-xs">drive …/9Kp2Lm</td><td class="td">DCS</td><td class="td"><select class="select h-7 w-40 text-xs"><option>Two match "Novak.J"</option><option>PVT Novak.J (1/2/B)</option><option>SPC Novak.J (2/1/B)</option></select></td><td class="td">SGT Pereira.M</td><td class="td tabular-nums">19 Aug 2025</td><td class="td pr-4"><span class="badge badge-warning">Needs review</span></td></tr>
+                <tr data-row="review" class="border-b border-border"><td class="td pl-4 tabular-nums text-muted-foreground">11</td><td class="td font-mono text-xs">scan-0412.pdf</td><td class="td">?</td><td class="td">CPL Haddad.S</td><td class="td text-muted-foreground">Not read</td><td class="td text-muted-foreground">Not read</td><td class="td pr-4"><span class="badge badge-warning" title="Scanned, no form fields">Needs review</span></td></tr>
+                <tr data-row="skip"><td class="td pl-4 tabular-nums text-muted-foreground">14</td><td class="td font-mono text-xs">drive …/folders/7Ab</td><td class="td text-muted-foreground">-</td><td class="td text-muted-foreground">-</td><td class="td text-muted-foreground">-</td><td class="td text-muted-foreground">-</td><td class="td pr-4"><span class="badge badge-outline" title="Folder links are not supported">Skipped: folder link</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <ul class="divide-y divide-border text-[13px] sm:hidden">
+            <li data-row="import" class="flex flex-col gap-1 px-4 py-3"><div class="flex justify-between gap-2"><span class="font-medium">Row 2 · DCS · PFC Okafor.D</span><span class="badge badge-success">Import</span></div><span class="text-xs text-muted-foreground">SSG Duval.E · 12 Mar 2025 · Drive link</span></li>
+            <li data-row="import" class="flex flex-col gap-1 px-4 py-3"><div class="flex justify-between gap-2"><span class="font-medium">Row 3 · LOR · CPL Haddad.S</span><span class="badge badge-success">Import</span></div><span class="text-xs text-muted-foreground">1LT Castellano.R · 2 Jun 2025 · lor-haddad.pdf</span></li>
+            <li data-row="review" class="flex flex-col gap-2 px-4 py-3"><div class="flex justify-between gap-2"><span class="font-medium">Row 7 · DCS</span><span class="badge badge-warning">Needs review</span></div><select class="select"><option>Two troopers match "Novak.J"</option><option>PVT Novak.J (1/2/B)</option><option>SPC Novak.J (2/1/B)</option></select></li>
+            <li data-row="review" class="flex flex-col gap-1 px-4 py-3"><div class="flex justify-between gap-2"><span class="font-medium">Row 11 · scan-0412.pdf</span><span class="badge badge-warning">Needs review</span></div><span class="text-xs text-muted-foreground">Scanned, no form fields. Fill it in after import.</span></li>
+            <li data-row="skip" class="flex flex-col gap-1 px-4 py-3"><div class="flex justify-between gap-2"><span class="font-medium">Row 14</span><span class="badge badge-outline">Skipped</span></div><span class="text-xs text-muted-foreground">Folder links are not supported.</span></li>
+          </ul>
+          <div class="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3">
+            <span class="text-xs text-muted-foreground">Rows needing review are imported and flagged for you to complete. Skipped rows are left out.</span>
+            <button class="btn btn-default max-sm:h-10 max-sm:w-full" data-import><i class="ph ph-tray-arrow-down"></i>Import 44 records</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- ============ Decide sheet (ui/sheet, side right; bottom on a phone) ============ -->
+<dialog id="decide" class="m-0 ml-auto h-dvh max-h-none w-full max-w-md border-l border-border bg-background p-0 text-foreground shadow-lg max-sm:mt-auto max-sm:h-auto max-sm:max-h-[90dvh] max-sm:max-w-none max-sm:rounded-t-lg max-sm:border-t max-sm:border-l-0">
+  <form method="dialog" class="flex h-full flex-col" data-decide-form>
+    <div class="flex items-start gap-3 border-b border-border p-4">
+      <div class="min-w-0 flex-1">
+        <h2 class="font-semibold">Appeal: <span data-decide-who>PFC Okafor.D</span></h2>
+        <p class="text-[13px] text-muted-foreground">LOR from 2LT Varga.T · decide by 2 Nov 0912Z</p>
+      </div>
+      <button class="btn btn-ghost btn-icon-sm" value="close" aria-label="Close"><i class="ph ph-x"></i></button>
+    </div>
+    <div class="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
+      <div class="notice"><i class="ph ph-quotes"></i><div><p class="mb-1 text-xs text-muted-foreground">The trooper's reason</p>My shifts changed in October and I posted in the section thread each week. I did not know practice needed an LOA. I accept the DCS but think an LOR is too much.</div></div>
+      <dl class="grid gap-3 text-[13px]">
+        <div><dt class="dt">Evidenced infraction</dt><dd class="mt-0.5">Missed section practice on 10, 17 and 24 Oct without an LOA.</dd></div>
+        <div><dt class="dt">Consequence as written</dt><dd class="mt-1"><span class="badge badge-warning">30 days no favorable action</span></dd></div>
+      </dl>
+      <a href="#" class="inline-flex items-center gap-1 text-[13px] text-gold-ink hover:underline"><i class="ph ph-file-pdf"></i>Open the full letter (PDF)</a>
+      <div class="field"><span class="label">Your decision</span>
+        <div class="segment w-fit" role="group" aria-label="Decision"><button type="button" class="segment-item" aria-pressed="true" data-decision="keep">Have not amended</button><button type="button" class="segment-item" aria-pressed="false" data-decision="amend">Have amended</button></div>
+      </div>
+      <fieldset class="grid gap-2.5" id="amend-fields" hidden>
+        <legend class="label mb-2.5">Amended consequence</legend>
+        <label class="flex items-center gap-2 text-[13px]"><input type="checkbox" class="checkbox">Any instance: 30 days no favorable action</label>
+        <label class="flex items-center gap-2 text-[13px]"><input type="checkbox" class="checkbox">2nd in 90 days: removal from Section Leader</label>
+        <label class="flex items-center gap-2 text-[13px]"><input type="checkbox" class="checkbox">2nd in 90 days: removal from Assistant Section Leader</label>
+        <label class="flex items-center gap-2 text-[13px]"><input type="checkbox" class="checkbox">Escalate to Article 15 Commander's Investigation</label>
+      </fieldset>
+      <div class="field"><label class="label" for="d-why">Reason</label><textarea id="d-why" class="textarea" rows="3" placeholder="Required. The trooper, the issuer and S1 read this."></textarea><p class="text-xs text-destructive" data-decide-error hidden>Give a reason for your decision.</p></div>
+    </div>
+    <div class="flex justify-end gap-2 border-t border-border p-4" style="padding-bottom:max(1rem,env(safe-area-inset-bottom))">
+      <button class="btn btn-outline" value="close">Cancel</button>
+      <button type="button" class="btn btn-default" data-record-decision>Record decision</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ============ Alert dialogs (ui/alert-dialog) ============ -->
+<dialog id="delete-draft" class="m-auto w-[calc(100%-2rem)] max-w-lg rounded-lg border border-border bg-background p-6 text-foreground shadow-lg">
+  <form method="dialog" class="grid gap-4">
+    <div class="grid gap-2"><h2 class="text-lg font-semibold">Delete this draft?</h2><p class="text-[13px] text-muted-foreground">It was never shared, so only the deletion is kept in the audit log. The meeting invite PM stays in Okafor.D's inbox.</p></div>
+    <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button class="btn btn-outline" value="cancel">Cancel</button><button class="btn btn-destructive" value="delete" data-confirm-delete>Delete draft</button></div>
+  </form>
+</dialog>
+<dialog id="withdraw" class="m-auto w-[calc(100%-2rem)] max-w-lg rounded-lg border border-border bg-background p-6 text-foreground shadow-lg">
+  <form method="dialog" class="grid gap-4">
+    <div class="grid gap-2"><h2 class="text-lg font-semibold">Withdraw to draft?</h2><p class="text-[13px] text-muted-foreground">The trooper loses access until you share again, and is told by PM with your reason.</p></div>
+    <div class="field"><label class="label" for="w-why">Reason</label><input id="w-why" class="input" placeholder="Required"><p class="text-xs text-destructive" data-withdraw-error hidden>Give a reason.</p></div>
+    <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button class="btn btn-outline" value="cancel">Cancel</button><button type="button" class="btn btn-default" data-confirm-withdraw>Withdraw</button></div>
+  </form>
+</dialog>
+
+<!-- Toasts (vue-sonner, bottom right) -->
+<ol class="pointer-events-none fixed right-4 bottom-4 z-[60] flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2 max-lg:bottom-20" data-toaster aria-live="polite"></ol>
+
+<script>
+(function () {
+  function $(s, r) { return (r || document).querySelector(s); }
+  function $$(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
+  function show(el, on) { el.hidden = !on; }
+
+  // ---------- Toasts (vue-sonner look) ----------
+  function toast(msg, tone) {
+    var li = document.createElement('li');
+    li.className = 'pointer-events-auto flex items-start gap-2.5 rounded-lg border border-border bg-card px-4 py-3 text-[13px] shadow-lg';
+    var icon = tone === 'error' ? 'ph-warning-circle text-destructive' : 'ph-check-circle text-success';
+    li.innerHTML = '<i class="ph-fill ' + icon + ' mt-0.5 shrink-0"></i><span></span>';
+    li.lastChild.textContent = msg;
+    $('[data-toaster]').appendChild(li);
+    setTimeout(function () { li.remove(); }, 4200);
+  }
+
+  // ---------- Views: crumbs, persona, scope, nav ----------
+  var LEADER = ['2LT Varga.T', 'Platoon Leader', 'VT'], PLATOON = ['2/B/1-7', '2nd Platoon, Bravo Company'];
+  var VIEWS = {
+    case:    { crumbs: ['2/B/1-7', 'Roster', 'Okafor.D', 'LOR draft'], nav: 'roster', who: LEADER, scope: PLATOON },
+    respond: { crumbs: ['2/2/B/1-7', 'Home', 'Letter of Reprimand'], nav: 'home', who: ['PFC Okafor.D', 'Rifleman', 'OD'], scope: ['2/2/B/1-7', '2nd Section'], trooper: true },
+    appeals: { crumbs: ['B/1-7', 'Appeals'], nav: 'appeals', who: ['CPT Halvorsen.R', 'Commander, B/1-7', 'HR'], scope: ['B/1-7', 'Bravo Company'] },
+    milpac:  { crumbs: ['2/B/1-7', 'Roster', 'Okafor.D'], nav: 'roster', who: LEADER, scope: PLATOON },
+    import:  { crumbs: ['7CAV', 'Settings', 'Counseling import'], nav: 'import', who: ['1LT Rask.E', 'S1 Officer · Admin', 'RE'], scope: ['7CAV', '7th Cavalry Regiment'], admin: true }
+  };
+  function route() {
+    var id = location.hash.slice(1);
+    if (!VIEWS[id]) id = 'case';
+    var v = VIEWS[id];
+    $$('[data-view]').forEach(function (el) { show(el, el.dataset.view === id); });
+    $$('[data-route]').forEach(function (a) { if (a.dataset.route === id) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+    $$('[data-nav]').forEach(function (a) { if (a.dataset.nav === v.nav) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+    $$('[data-admin-only]').forEach(function (el) { show(el, !!v.admin); });
+    show($('[data-appeals-nav]').parentNode, !v.trooper);
+    $('[data-persona-name]').textContent = v.who[0];
+    $('[data-persona-role]').textContent = v.who[1];
+    $('[data-persona-initials]').textContent = v.who[2];
+    $('[data-scope]').textContent = v.scope[0];
+    $('[data-scope-name]').textContent = v.scope[1];
+    var crumbs = id === 'case' ? ['2/B/1-7', 'Roster', 'Okafor.D', (kind === 'dcs' ? 'DCS' : 'LOR') + (state === 'draft' ? ' draft' : '')] : v.crumbs;
+    var ol = $('[data-crumbs]'); ol.innerHTML = '';
+    crumbs.forEach(function (c, i) {
+      var last = i === crumbs.length - 1;
+      if (i > 0) { var sep = document.createElement('li'); sep.className = 'hidden sm:block'; sep.innerHTML = '<i class="ph ph-caret-right text-xs!"></i>'; ol.appendChild(sep); }
+      var li = document.createElement('li');
+      li.className = last ? 'min-w-0 truncate font-medium text-foreground' : 'hidden sm:inline-flex';
+      li.textContent = c; ol.appendChild(li);
+    });
+    closeSidebar();
+    window.scrollTo(0, 0);
+  }
+  window.addEventListener('hashchange', route);
+
+  // ---------- Sidebar: a sheet on a phone ----------
+  var sidebar = $('#sidebar'), backdrop = $('#sidebar-backdrop');
+  function closeSidebar() { if (innerWidth < 768) { sidebar.classList.add('hidden'); backdrop.classList.add('hidden'); } }
+  $('#sidebar-toggle').addEventListener('click', function () {
+    if (innerWidth < 768) { sidebar.classList.toggle('hidden'); sidebar.classList.toggle('flex'); backdrop.classList.toggle('hidden'); }
+    else sidebar.classList.toggle('md:flex');
+  });
+  backdrop.addEventListener('click', closeSidebar);
+  $('#theme-toggle').addEventListener('click', function () { document.documentElement.classList.toggle('dark'); });
+
+  // =====================================================================================
+  // 1 · Case
+  // =====================================================================================
+  var NAMES = ['Trooper and type', 'What happened', 'Meeting invite', 'The meeting', 'Consequence', 'Review and share'];
+  var state = 'draft';     // draft | shared | deleted
+  var kind = 'lor';        // lor | dcs (a DCS has no consequence step)
+  var cur = 3;
+  var savedAt = Date.now() - 120000, dirty = false;
+
+  function steps() { return kind === 'dcs' ? [0, 1, 2, 3, 5] : [0, 1, 2, 3, 4, 5]; }
+  function render() {
+    var list = steps(), pos = list.indexOf(cur), shared = state === 'shared';
+    $$('[data-step]').forEach(function (el) {
+      var i = +el.dataset.step;
+      el.hidden = list.indexOf(i) < 0;
+      el.dataset.state = shared || list.indexOf(i) < pos ? 'done' : i === cur ? 'current' : 'todo';
+    });
+    $$('[data-goto]').forEach(function (b) { b.hidden = shared; });
+    $('[data-step-label]').textContent = 'Step ' + (pos + 1) + ' of ' + list.length + ' · ' + NAMES[cur];
+    $('[data-step-done]').textContent = pos + ' done';
+    $('[data-step-bar]').style.width = ((pos + 1) / list.length * 100) + '%';
+    $('[data-next-label]').textContent = cur === 5 ? 'Share with trooper' : 'Continue';
+    $$('[data-back]').forEach(function (b) { b.disabled = pos === 0; });
+    $$('[data-draft-only]').forEach(function (el) { show(el, !shared); });
+    $$('[data-shared-only]').forEach(function (el) { show(el, shared); });
+    show($('[data-mobile-bar]'), !shared && !$('[data-pane=steps]').classList.contains('max-lg:hidden'));
+    $$('[data-pane=steps] input, [data-pane=steps] textarea, [data-pane=steps] select, [data-pane=steps] .segment-item').forEach(function (f) { f.disabled = shared; });
+    var status = $('[data-status]');
+    status.textContent = shared ? 'Shared' : 'Draft';
+    status.className = 'badge ' + (shared ? 'badge-success' : 'badge-outline');
+    $('[data-invite-badge]').hidden = shared;
+    var row = $('[data-draft-row]');
+    if (row) {
+      $('[data-row-status]', row).textContent = shared ? 'Shared' : 'Draft';
+      $('[data-row-status]', row).className = 'badge ml-auto ' + (shared ? 'badge-info' : 'badge-outline');
+      $('[data-row-type]', row).textContent = kind.toUpperCase();
+      $('[data-row-note]', row).textContent = shared ? 'Shared 31 Oct by 2LT Varga.T · waiting for the trooper (24 h)' : 'Started 28 Oct by 2LT Varga.T · ' + savedText().toLowerCase() + ' · only you and the chain see it';
+    }
+    checklist();
+  }
+
+  // Saving: any time, from any step, on desktop and phone. Continue saves too.
+  function savedText() {
+    if (dirty) return 'Unsaved changes';
+    var m = Math.round((Date.now() - savedAt) / 60000);
+    return m < 1 ? 'Saved just now' : 'Saved ' + m + ' min ago';
+  }
+  function paintSaved() { $('[data-saved-label]').textContent = savedText(); }
+  function save(quiet) {
+    savedAt = Date.now(); dirty = false; paintSaved();
+    if (!quiet) toast('Draft saved. Only you and your chain can see it.');
+  }
+  setInterval(paintSaved, 30000);
+  $('[data-view=case]').addEventListener('input', function () { if (state === 'draft') { dirty = true; paintSaved(); } });
+
+  // What still blocks sharing, the document preview, and the field errors, all live from the form.
+  function missing() {
+    var m = [];
+    if (!$('[data-live=notes]').value.trim()) m.push('notes');
+    if (!$('[data-live=plan]').value.trim()) m.push('plan');
+    if (!$('[data-live=met]').checked) m.push('met');
+    return m;
+  }
+  function checklist() {
+    var m = missing();
+    $$('[data-check]').forEach(function (li) {
+      var ok = m.indexOf(li.dataset.check) < 0;
+      li.classList.toggle('text-muted-foreground', !ok);
+      li.firstElementChild.className = ok ? 'ph-fill ph-check-circle text-success' : 'ph ph-circle';
+    });
+    $('[data-check-count]').textContent = (6 - m.length) + ' / 6';
+    show($('[data-required=notes]'), m.indexOf('notes') >= 0);
+    paper('notes'); paper('plan');
+    $$('[data-cons]').forEach(function (c) { $('[data-paper-box="' + c.dataset.cons + '"]').style.background = c.checked ? '#0f2f6b' : ''; });
+  }
+  function paper(key) {
+    var v = $('[data-live=' + key + ']').value.trim(), cell = $('[data-paper=' + key + ']');
+    if (v) { cell.className = 'fill'; cell.textContent = v; }
+    else { cell.className = ''; cell.innerHTML = '<div class="empty"></div>' + (key === 'notes' ? '<div class="empty"></div>' : ''); }
+  }
+  $('[data-view=case]').addEventListener('input', checklist);
+  $('[data-view=case]').addEventListener('change', checklist);
+
+  function go(delta) {
+    var list = steps(), pos = list.indexOf(cur) + delta;
+    if (pos < 0 || pos >= list.length) return;
+    if (delta > 0) save(true);
+    cur = list[pos]; render();
+    if (innerWidth < 1024) window.scrollTo(0, 0);
+  }
+
+  function share() {
+    var m = missing();
+    if (m.length) {
+      var names = { notes: 'notes of discussion', plan: 'your plan of action', met: 'confirm the meeting' };
+      toast('Before you can share: ' + m.map(function (k) { return names[k]; }).join(', ') + '.', 'error');
+      cur = m[0] === 'met' ? 5 : 3; render();
+      return;
+    }
+    state = 'shared'; dirty = false; render(); window.scrollTo(0, 0);
+    toast('Shared. After-Action PM sent to Okafor.D, S1 1IC, S1 2IC and the oversight officer.');
+  }
+
+  function setKind(k) {
+    kind = k;
+    if (k === 'dcs' && cur === 4) cur = 5;
+    $('[data-case-title]').textContent = k === 'dcs' ? 'Developmental Counseling Statement' : 'Letter of Reprimand';
+    $('[data-form-no]').textContent = k === 'dcs' ? '7CAV-R-042' : '7CAV-R-043';
+    $$('.badge').forEach(function (b) { if (/7CAV-R-04[23]/.test(b.textContent)) b.textContent = k === 'dcs' ? '7CAV-R-042' : '7CAV-R-043'; });
+    $('[data-paper-title]').textContent = '7TH CAVALRY REGIMENT · ' + (k === 'dcs' ? 'DEVELOPMENTAL COUNSELLING STATEMENT' : 'LETTER OF REPRIMAND');
+    dirty = true; paintSaved(); render(); route();
+  }
+
+  function pane(which) {
+    var steps = $('[data-pane=steps]'), doc = $('[data-pane=doc]');
+    steps.classList.toggle('max-lg:hidden', which === 'doc');
+    doc.classList.toggle('max-lg:hidden', which !== 'doc');
+    $$('[data-pane-tab]').forEach(function (b) { b.setAttribute('aria-selected', b.dataset.paneTab === which ? 'true' : 'false'); });
+    render();
+  }
+
+  // =====================================================================================
+  // 2 · Respond
+  // =====================================================================================
+  $$('[data-appeal]').forEach(function (r) { if (r.type === 'radio') r.addEventListener('change', function () { show($('#appeal-reason'), $('[data-appeal=yes]').checked); }); });
+  $('[data-respond-form]').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var appeal = $('[data-appeal=yes]').checked, why = $('#r-why').value.trim();
+    show($('[data-why-error]'), appeal && !why);
+    if (appeal && !why) { $('#r-why').focus(); return; }
+    this.hidden = true;
+    $('[data-countdown]').hidden = true;
+    $('[data-responded-title]').textContent = appeal ? 'Appeal submitted.' : 'Response submitted.';
+    $('[data-responded-body]').textContent = appeal
+      ? 'CPT Halvorsen.R, B/1-7 Commander, has 72 hours to decide. The letter stays open until then. Your leader and S1 have been told.'
+      : 'The letter locks 72 hours after it was shared. Your leader and S1 have been told.';
+    show($('[data-responded]'), true);
+    window.scrollTo(0, 0);
+    toast(appeal ? 'Appeal sent to CPT Halvorsen.R.' : 'Response submitted.');
+  });
+
+  // =====================================================================================
+  // 3 · Appeals
+  // =====================================================================================
+  var deciding = null, waiting = 2, decided = 1, appealTab = 'waiting';
+  function paintAppeals() {
+    $$('[data-appeal-count]').forEach(function (el) { el.textContent = waiting; });
+    show($('[data-appeal-count-wrap]'), waiting > 0);
+    $('[data-decided-count]').textContent = decided;
+    $$('tr[data-appeal], li[data-appeal]').forEach(function (r) { r.style.display = appealTab === 'waiting' && !r.dataset.done ? '' : 'none'; });
+    $$('[data-appeal-decided]').forEach(function (r) { r.hidden = appealTab !== 'decided'; });
+    show($('[data-appeals-empty]'), appealTab === 'waiting' && waiting === 0);
+    $$('[data-appeal-tab]').forEach(function (b) { b.setAttribute('aria-selected', b.dataset.appealTab === appealTab ? 'true' : 'false'); });
+  }
+  function recordDecision() {
+    var why = $('#d-why').value.trim();
+    show($('[data-decide-error]'), !why);
+    if (!why) { $('#d-why').focus(); return; }
+    var amended = $('[data-decision=amend]').getAttribute('aria-pressed') === 'true';
+    $$('[data-appeal="' + deciding + '"]').forEach(function (r) { r.dataset.done = '1'; });
+    waiting--; decided++;
+    $('#decide').close();
+    paintAppeals();
+    toast((amended ? 'Have amended' : 'Have not amended') + ': the LOR for ' + deciding + ' is locked. The trooper, the issuer and S1 have been told.');
+  }
+
+  // =====================================================================================
+  // 5 · Import (Admins)
+  // =====================================================================================
+  function filterRows(f) {
+    $$('[data-row]').forEach(function (r) { r.style.display = f === 'all' || r.dataset.row === f ? '' : 'none'; });
+    $$('[data-filter]').forEach(function (b) { b.setAttribute('aria-selected', b.dataset.filter === f ? 'true' : 'false'); });
+  }
+
+  // ---------- One click handler for every screen ----------
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('button, a');
+    if (!t || t.disabled) return;
+    var d = t.dataset;
+    if ('next' in d) { if (cur === 5) share(); else go(1); }
+    else if ('back' in d) go(-1);
+    else if ('save' in d) save();
+    else if ('share' in d) share();
+    else if ('goto' in d) { cur = +d.goto; render(); }
+    else if ('invite' in d) toast('Meeting invite sent again from your forum account.');
+    else if (d.paneTab) pane(d.paneTab);
+    else if (d.type) { setSeg(t); setKind(d.type); }
+    else if (d.decision) { setSeg(t); show($('#amend-fields'), d.decision === 'amend'); }
+    else if (d.open) {
+      if (d.who) { deciding = d.who; $('[data-decide-who]').textContent = (d.who === 'Okafor.D' ? 'PFC ' : 'SPC ') + d.who; $('#d-why').value = ''; show($('[data-decide-error]'), false); }
+      $('#' + d.open).showModal();
+    }
+    else if ('recordDecision' in d) recordDecision();
+    else if (d.appealTab) { appealTab = d.appealTab; paintAppeals(); }
+    else if ('confirmDelete' in d) {
+      state = 'deleted';
+      var row = $('[data-draft-row]'); if (row) row.remove();
+      $('[data-record-count]').textContent = '3';
+      location.hash = '#milpac';
+      toast('Draft deleted.');
+    }
+    else if ('confirmWithdraw' in d) {
+      var why = $('#w-why').value.trim();
+      show($('[data-withdraw-error]'), !why);
+      if (!why) return;
+      $('#withdraw').close(); $('#w-why').value = '';
+      state = 'draft'; cur = 3; render();
+      toast('Withdrawn to draft. Okafor.D was told by PM.');
+    }
+    else if ('checkFiles' in d) { show($('[data-result-empty]'), false); show($('[data-result]'), true); filterRows('all'); toast('Checked 46 rows. Nothing is saved yet.'); }
+    else if (d.filter) filterRows(d.filter);
+    else if ('import' in d) { t.disabled = true; t.lastChild.textContent = 'Import queued'; toast('Import queued: 44 records. Each shows on the trooper\'s milpac when it is done.'); }
+  });
+  function setSeg(t) { $$('.segment-item', t.parentNode).forEach(function (b) { b.setAttribute('aria-pressed', b === t ? 'true' : 'false'); }); }
+
+  render();
+  paintAppeals();
+  route();
+})();
+</script>
+</body>
+</html>
