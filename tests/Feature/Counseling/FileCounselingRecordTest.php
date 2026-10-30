@@ -155,6 +155,21 @@ it('judges the document by its bytes: a renamed file, a lie about its type and a
     'a png named .pdf' => [fn () => UploadedFile::fake()->createWithContent('dcs.pdf', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='))],
     'over 10 MB' => [fn () => UploadedFile::fake()->create('dcs.pdf', 10 * 1024 + 1, 'application/pdf')],
     'no file' => [fn () => null],
+    'a real pdf without the .pdf extension' => [fn () => UploadedFile::fake()->createWithContent('dcs.exe', counselingPdfBytes())],
+]);
+
+it('refuses a PDF it cannot trust, saying why in plain words, and stores nothing', function (string $bytes, string $message) {
+    $this->actingAs($this->tree['users']['sl'])
+        ->from(route('troopers.show', $this->rifleman->id))
+        ->post(route('counseling.store', $this->rifleman->id), ($this->file)(['document' => UploadedFile::fake()->createWithContent('dcs.pdf', $bytes)]))
+        ->assertSessionHasErrors(['document' => $message]);
+
+    nothingFiled();
+})->with([
+    'a script' => [str_replace('/Type /Catalog', '/Type /Catalog /OpenAction << /S /JavaScript /JS (app.alert(1)) >>', counselingPdfBytes()), 'This PDF has scripts, attachments or actions that run on their own, which the portal does not accept. Print it to a new PDF and attach that copy.'],
+    'an attachment' => [str_replace('/Type /Catalog', '/Type /Catalog /Names << /EmbeddedFiles 9 0 R >>', counselingPdfBytes()), 'This PDF has scripts, attachments or actions that run on their own, which the portal does not accept. Print it to a new PDF and attach that copy.'],
+    'a password' => [str_replace('/Root 1 0 R', '/Root 1 0 R /Encrypt 9 0 R', counselingPdfBytes()), 'This PDF has a password or encryption. Attach a copy without one.'],
+    'no end marker' => [str_replace('%%EOF', '', counselingPdfBytes()), 'This PDF looks incomplete or damaged. Save it again and attach the new copy.'],
 ]);
 
 it('refuses a future date, a missing reason and an unknown type', function (array $overrides, string $field) {
