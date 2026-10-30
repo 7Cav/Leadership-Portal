@@ -95,7 +95,7 @@ describe('acting as someone', function () {
         // The Admin is a trooper of 1st Section in their own right.
         $this->adminTrooper = Trooper::factory()->create(['primary_section_id' => $this->tree['units']['section']->id, 'username' => 'Hale.S']);
         $this->admin = $this->tree['users']['admin'];
-        $this->admin->forceFill(['cav_id' => $this->adminTrooper->cav_id])->save();
+        $this->admin->forceFill(['cav_id' => $this->adminTrooper->cav_id, 'forum_user_id' => $this->adminTrooper->forum_user_id])->save();
         $this->dcs = ownCommandDcs($this->adminTrooper, $this->tree['units']['company']->id);
     });
 

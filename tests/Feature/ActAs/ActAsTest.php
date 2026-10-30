@@ -22,12 +22,12 @@ beforeEach(function () {
     $this->other = $repo->create(UnitType::Section, '2nd Section', '2/1/A/1-7', $regiment->id);
 
     UnitCommandMapping::factory()->create(['unit_id' => $this->section->id, 'cav_position_id' => 5900]);
-    Trooper::factory()->create(['cav_id' => 901, 'cav_position_id' => 5900, 'status' => TrooperStatus::Combat, 'rank' => 'SGT']);
-    $this->leader = User::factory()->create(['cav_id' => 901, 'username' => 'Vasquez.R']);
+    $leaderTrooper = Trooper::factory()->create(['cav_id' => 901, 'cav_position_id' => 5900, 'status' => TrooperStatus::Combat, 'rank' => 'SGT']);
+    $this->leader = User::factory()->create(['cav_id' => 901, 'forum_user_id' => $leaderTrooper->forum_user_id, 'username' => 'Vasquez.R']);
 
     // The Admin holds a milpac too, so losing the flag leaves them signed in as a plain member.
-    Trooper::factory()->create(['cav_id' => 950, 'status' => TrooperStatus::Combat]);
-    $this->admin = User::factory()->admin()->create(['username' => 'Hale.S', 'cav_id' => 950]);
+    $adminTrooper = Trooper::factory()->create(['cav_id' => 950, 'status' => TrooperStatus::Combat]);
+    $this->admin = User::factory()->admin()->create(['username' => 'Hale.S', 'cav_id' => 950, 'forum_user_id' => $adminTrooper->forum_user_id]);
 });
 
 // Each request signs the Admin in afresh, as a real request does: the session is the Admin's, and only the request's
@@ -110,8 +110,8 @@ it('records nothing on anyone\'s behalf once the Admin is themselves again', fun
 });
 
 it('holds an Admin acting as someone to that person\'s reach: to act as another, they stop first (#432)', function () {
-    Trooper::factory()->create(['cav_id' => 902, 'status' => TrooperStatus::Combat]);
-    $second = User::factory()->create(['cav_id' => 902]);
+    $trooper = Trooper::factory()->create(['cav_id' => 902, 'status' => TrooperStatus::Combat]);
+    $second = User::factory()->create(['cav_id' => 902, 'forum_user_id' => $trooper->forum_user_id]);
     startActing($this);
 
     // Acting as a section leader, nobody below them to act as: the Admin's own reach is set aside until they stop.
@@ -212,8 +212,8 @@ it('shows on the audit log who acted for whom', function () {
 });
 
 it('counts rate limits against the Admin really signed in, not the person acted as: switching people opens no new bucket', function () {
-    Trooper::factory()->create(['cav_id' => 902, 'status' => TrooperStatus::Combat]);
-    $second = User::factory()->create(['cav_id' => 902]);
+    $secondTrooper = Trooper::factory()->create(['cav_id' => 902, 'status' => TrooperStatus::Combat]);
+    $second = User::factory()->create(['cav_id' => 902, 'forum_user_id' => $secondTrooper->forum_user_id]);
     $trooper = Trooper::factory()->create(['primary_section_id' => $this->section->id, 'status' => TrooperStatus::Combat]);
     $upload = fn () => $this->actingAs($this->admin)->post("/troopers/{$trooper->id}/counseling", []);
 

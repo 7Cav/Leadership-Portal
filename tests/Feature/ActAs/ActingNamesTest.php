@@ -42,7 +42,7 @@ function anCommander(int $unitId, int $positionId, string $username, string $ran
     UnitCommandMapping::factory()->create(['unit_id' => $unitId, 'cav_position_id' => $positionId]);
     $trooper = Trooper::factory()->create(['cav_position_id' => $positionId, 'username' => $username, 'rank_short' => $rank, 'status' => TrooperStatus::Combat]);
 
-    return User::factory()->create(['cav_id' => $trooper->cav_id, 'username' => $username]);
+    return User::factory()->create(['cav_id' => $trooper->cav_id, 'forum_user_id' => $trooper->forum_user_id, 'username' => $username]);
 }
 
 function anActAs(object $test, User $user): void

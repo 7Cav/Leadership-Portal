@@ -142,8 +142,8 @@ it('refuses a second acting lead, a departed trooper, a group or the regiment, a
 // Audit 3 (2026-10-29): the command would outlast the Admin who gave it to themselves, which an Admin by billet loses
 // with a rename, and a unit whose commanding billet a serving trooper holds already has its lead.
 it('refuses an Admin making themselves acting lead, by flag or by an approved billet', function () {
-    $this->admin->forceFill(['cav_id' => Trooper::factory()->create(['status' => TrooperStatus::Combat])->cav_id])->save();
-    $mine = Trooper::query()->where('cav_id', $this->admin->cav_id)->sole();
+    $mine = Trooper::factory()->create(['status' => TrooperStatus::Combat]);
+    $this->admin->forceFill(['cav_id' => $mine->cav_id, 'forum_user_id' => $mine->forum_user_id])->save();
 
     $this->actingAs($this->admin)->post(alUrl($this->p1), ['trooper_id' => $mine->id, 'reason' => 'Covering it myself.'])
         ->assertSessionHasErrors(['acting_lead' => 'You cannot make yourself an acting lead. Another Admin can.']);

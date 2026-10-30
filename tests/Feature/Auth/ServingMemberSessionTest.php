@@ -1,9 +1,14 @@
 <?php
 
+use App\Authorization\ServingSession;
 use App\Integration\Cav\Data\RosterType;
 use App\Models\Trooper;
 use App\Models\TrooperStatus;
+use App\Models\UnitCommandMapping;
+use App\Models\UnitType;
 use App\Models\User;
+use App\Repositories\TrooperRepository;
+use App\Repositories\UnitRepository;
 use App\Sync\SyncRosterHandler;
 
 /**
@@ -24,10 +29,52 @@ it('ends the session of a member the cache now shows departed', function () {
     $this->assertGuest();
 });
 
+it('ends a former holder\'s session before a reassigned Cav id can confer its new billet', function () {
+    $units = app(UnitRepository::class);
+    $regiment = $units->create(UnitType::Regiment, '7th Cavalry Regiment', '7CAV', null);
+    $oldSection = $units->create(UnitType::Section, '1st Section', '1/1/A/1-7', $regiment->id);
+    $newSection = $units->create(UnitType::Section, '2nd Section', '2/1/A/1-7', $regiment->id);
+    $oldHolder = User::factory()->commanding($oldSection)->create();
+    $newPosition = UnitCommandMapping::factory()->create(['unit_id' => $newSection->id]);
+
+    $this->actingAs($oldHolder)->get(route('roster.index', $oldSection->id))->assertOk();
+
+    // Roster sync upserts by cav_id, replacing the forum identity and billet in this row.
+    $cached = Trooper::query()->where('cav_id', $oldHolder->cav_id)->sole();
+    app(TrooperRepository::class)->sync([[
+        'cav_id' => $cached->cav_id,
+        'forum_user_id' => $oldHolder->forum_user_id + 1,
+        'rank' => $cached->rank,
+        'mos' => $cached->mos,
+        'tis' => $cached->tis,
+        'tig' => $cached->tig,
+        'cav_position_id' => $newPosition->cav_position_id,
+        'status' => TrooperStatus::Combat,
+    ]], [$oldHolder->cav_id]);
+
+    expect(app(ServingSession::class)->mustEndAmong(collect([$oldHolder]))->all())->toBe([$oldHolder->id]);
+
+    $this->get(route('roster.index', $newSection->id))
+        ->assertRedirect(route('login'))
+        ->assertSessionHas('error', 'Your forum account is not linked to a serving 7Cav milpac.');
+    $this->assertGuest();
+});
+
 it('never ends an Admin session over roster data', function () {
-    $admin = User::factory()->admin()->create(['cav_id' => Trooper::factory()->create(['status' => TrooperStatus::Inactive->value])->cav_id]);
+    $admin = User::factory()->admin()->serving()->create();
+    Trooper::query()->where('cav_id', $admin->cav_id)->update(['status' => TrooperStatus::Inactive->value]);
 
     $this->actingAs($admin)->get(route('home'))->assertOk();
+});
+
+it('ends a flag Admin session when its Cav id now belongs to another forum identity', function () {
+    $admin = User::factory()->admin()->serving()->create();
+    $this->actingAs($admin)->get(route('home'))->assertOk();
+
+    Trooper::query()->where('cav_id', $admin->cav_id)->update(['forum_user_id' => $admin->forum_user_id + 1]);
+
+    $this->get(route('home'))->assertRedirect(route('login'));
+    $this->assertGuest();
 });
 
 it('never ends an Admin session for want of a milpac link', function () {
