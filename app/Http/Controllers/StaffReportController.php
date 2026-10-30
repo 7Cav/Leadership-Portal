@@ -13,9 +13,11 @@ use App\Commands\StaffReports\StaffReportRefusedException;
 use App\Jobs\PushStaffReportToSheetJob;
 use App\Kpi\Headcount;
 use App\Kpi\KpiService;
+use App\Kpi\StaffHqHealth;
 use App\Milpac\StaffReportWeek;
 use App\Models\Unit;
 use App\Models\UnitType;
+use App\Repositories\UnitGame;
 use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Support\Time\WeekOf;
@@ -48,6 +50,7 @@ class StaffReportController extends Controller
         private readonly StaffReportWeek $week,
         private readonly Headcount $headcount,
         private readonly PushStaffReportToSheetHandler $sheet,
+        private readonly StaffHqHealth $health,
     ) {}
 
     /** The viewer's own staff report for the last week to have ended: the one due. */
@@ -116,6 +119,9 @@ class StaffReportController extends Controller
             // Where the game server disagrees with the sent report: readers only, never the staff member themselves.
             'discrepancy' => $report === null || $self ? null
                 : ($this->week->discrepancies([$this->week->find($trooper, $weekStart)], $weekStart)[$trooper->id] ?? null),
+            // A reader's view only: how the HQ's unit stood that week and the weeks before, and how many of its staff
+            // kept to the one practice rule. Never on the staff member's own page.
+            'health' => $self || $hq === null ? null : $this->healthOf($hq, $weekStart),
         ]);
     }
 
@@ -182,19 +188,26 @@ class StaffReportController extends Controller
      * above the HQ (the HQ itself, its company, its battalion) that holds the section, null for any other section, so
      * the picker groups them nearest first.
      *
+     * Only sections that play the HQ's game are offered ({@see UnitGame}, inherited down the tree): an HLL HQ sees HLL
+     * sections. When the HQ or a section has no game on its chain, that section is kept, since nothing says it plays
+     * another game.
+     *
      * @return list<array{id: int, label: string, own: bool, group: ?string}>
      */
     private function sections(?Unit $hq): array
     {
         $tree = $this->units->tree();
         $byId = $tree->keyBy('id');
+        $games = UnitGame::resolve($tree);
+        $hqGame = $hq === null ? null : ($games[$hq->id] ?? null)?->gameId;
         $ancestors = [];
         for ($node = $hq, $guard = 0; $node !== null && $guard < 8 && $node->type !== UnitType::Regiment; $guard++) {
             $ancestors[] = $node;
             $node = $node->parent_id === null ? null : $byId->get($node->parent_id);
         }
 
-        return $this->headcount->withoutEmptyLineUnits($tree->filter(fn (Unit $unit) => $unit->type === UnitType::Section))
+        return $this->headcount->withoutEmptyLineUnits($tree->filter(fn (Unit $unit) => $unit->type === UnitType::Section
+            && ($hqGame === null || ! isset($games[$unit->id]) || $games[$unit->id]->gameId === $hqGame)))
             ->map(function (Unit $unit) use ($hq, $ancestors) {
                 $rank = count($ancestors);
                 $group = null;
@@ -217,6 +230,26 @@ class StaffReportController extends Controller
             ->map(fn (array $row) => array_diff_key($row, ['rank' => true]))
             ->values()
             ->all();
+    }
+
+    /**
+     * {@see StaffHqHealth} for the HQ's unit, with how many of the HQ's staff that week sent a report that keeps to the
+     * one practice rule.
+     *
+     * @return array<string, mixed>
+     */
+    private function healthOf(Unit $hq, CarbonImmutable $weekStart): array
+    {
+        $staff = $this->week->hqStaff($hq, $weekStart);
+
+        return [
+            ...$this->health->forUnit($hq, $weekStart),
+            'staff' => [
+                'total' => count($staff),
+                'met' => count(array_filter($staff, fn (array $row) => $row['report'] !== null
+                    && StaffReportWeek::metRule(StaffReportWeek::reportProps($row['report'])))),
+            ],
+        ];
     }
 
     /**

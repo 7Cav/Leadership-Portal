@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Authorization\StaffReportAccess;
 use App\Commands\StaffReports\PushStaffReportToSheetHandler;
+use App\Kpi\StaffHqHealth;
 use App\Milpac\StaffReportWeek;
 use App\Models\StaffReport;
 use App\Models\Trooper;
@@ -11,6 +12,7 @@ use App\Models\Unit;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -31,6 +33,7 @@ class StaffReportsOverviewController extends Controller
         private readonly StaffReportAccess $access,
         private readonly StaffReportWeek $week,
         private readonly PushStaffReportToSheetHandler $sheet,
+        private readonly StaffHqHealth $health,
     ) {}
 
     public function index(Request $request): Response
@@ -83,7 +86,41 @@ class StaffReportsOverviewController extends Controller
             'own' => $this->ownRow($own, $weekStart, $ended),
             'sheetConfigured' => $sheetConfigured,
             'groups' => $groups,
+            // One HQ's unit health at a time, so the page reads a bounded number of queries however many HQs it lists:
+            // `?hq=` picks it among the listed HQs, else the first listed.
+            'health' => $this->healthFor($request->query('hq'), $groups, $hqs, $staff, $weekStart),
         ]);
+    }
+
+    /**
+     * {@see StaffHqHealth} for the picked HQ, with how many of its staff kept to the one practice rule, or null when no HQ
+     * is listed.
+     *
+     * @param  list<array{id: int}>  $groups
+     * @param  Collection<int, Unit>  $hqs
+     * @param  array<int, list<array{trooper: Trooper, report: ?StaffReport}>>  $staff
+     * @return array<string, mixed>|null
+     */
+    private function healthFor(mixed $picked, array $groups, Collection $hqs, array $staff, CarbonImmutable $weekStart): ?array
+    {
+        $listed = array_column($groups, 'id');
+        $id = is_string($picked) && ctype_digit($picked) && in_array((int) $picked, $listed, true) ? (int) $picked : ($listed[0] ?? null);
+        $hq = $id === null ? null : $hqs->firstWhere('id', $id);
+        if ($hq === null) {
+            return null;
+        }
+
+        $rows = $staff[$hq->id] ?? [];
+
+        return [
+            ...$this->health->forUnit($hq, $weekStart),
+            'staff' => [
+                'total' => count($rows),
+                'met' => count(array_filter($rows, fn (array $row) => $row['report'] !== null
+                    && StaffReportWeek::metRule(StaffReportWeek::reportProps($row['report'])))),
+            ],
+            'hqs' => array_map(fn (array $group) => ['id' => $group['id'], 'label' => $group['label']], $groups),
+        ];
     }
 
     /**
