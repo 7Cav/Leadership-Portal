@@ -1,5 +1,5 @@
 {{--
-    The regiment's counseling forms as one A4 page: 7CAV-R-042 (Developmental Counselling Statement) and 7CAV-R-043
+    The regiment's counseling forms on A4 (one page, more when the answers are long): 7CAV-R-042 (Developmental Counselling Statement) and 7CAV-R-043
     (Letter of Reprimand). The titles, labels and fixed text are copied from the official forms, spelling included.
     Rendered to PDF by App\Commands\Counseling\CounselingFormPdf and shown as the preview, so both are the same page.
 
@@ -24,7 +24,14 @@
     @page { size: A4 portrait; margin: 22mm 18mm 18mm 18mm; }
     body { font-family: "DejaVu Sans", sans-serif; font-size: 8.5pt; color: #000; margin: 0; background: #fff; }
     table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-    td, th { border: 0.6pt solid #000; padding: 1.5pt 3pt; vertical-align: top; text-align: left; font-weight: normal; word-wrap: break-word; }
+    td, th { border: 0.6pt solid #000; padding: 1.5pt 3pt; vertical-align: top; text-align: left; font-weight: normal; word-wrap: break-word; overflow-wrap: break-word; }
+    /* Over more than one page: the header rows repeat, a long answer breaks between its lines, short rows stay whole. */
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+    tr.long { page-break-inside: auto; }
+    td { orphans: 3; widows: 3; }
+    .keep { page-break-after: avoid; }
+    table.section { margin-top: -0.6pt; }
     .title { font-size: 15pt; font-weight: bold; text-align: center; padding: 3pt; }
     .b { font-weight: bold; }
     .i { font-style: italic; }
@@ -36,12 +43,20 @@
     .foot { text-align: center; }
     .sym { font-size: 10pt; }
     .indent { padding-left: 14pt; }
+    .running { display: none; }
+    @media print {
+        .running { display: block; position: fixed; bottom: -12mm; left: 0; right: 0; font-size: 7pt; color: #444; }
+        .running .page:after { content: "Page " counter(page) " of " counter(pages); }
+        .running .page { float: right; }
+    }
 </style>
 </head>
 <body>
+<div class="running">{{ $lor ? '7CAV-R-043' : '7CAV-R-042' }} · {{ $parties['trooper']['name'] }} · {{ $date }}<span class="page"></span></div>
 <table>
     <colgroup><col style="width: 25%"><col style="width: 25%"><col style="width: 25%"><col style="width: 25%"></colgroup>
-    <tr><th colspan="4" class="title">{{ $lor ? '7CAV-R-043 – Letter of Reprimand' : '7CAV-R-042 – Developmental Counselling Statement' }}</th></tr>
+    <thead><tr><th colspan="4" class="title">{{ $lor ? '7CAV-R-043 – Letter of Reprimand' : '7CAV-R-042 – Developmental Counselling Statement' }}</th></tr></thead>
+    <tbody>
 
     <tr><td class="b">Section 1</td><td></td><td>Date (<span class="i">of Letter</span>)</td><td data-field="date">{{ $date }}</td></tr>
     <tr><td>Title</td><td>Rank</td><td>Name (<span class="i">Last.F</span>)</td><td>Billet</td></tr>
@@ -58,34 +73,45 @@
         <td>{{ $parties['authority']['billet'] }}</td>
     </tr>
 
-    <tr><td class="b">Section 2</td><td colspan="3"></td></tr>
-    <tr>
+    <tr class="keep"><td class="b">Section 2</td><td colspan="3"></td></tr>
+    <tr class="long">
         <td class="i tall">Evidenced infraction and associated details / Previous instances and counsellings</td>
         <td colspan="3" data-field="infraction">{!! $text($form['infraction'] ?? '') !!}</td>
     </tr>
-    <tr>
+    <tr class="long">
         <td class="i tall">Associated regulation / order / SOP</td>
         <td colspan="3" data-field="regulation">{!! $text($form['regulation'] ?? '') !!}</td>
     </tr>
-    <tr>
+    <tr class="long">
         <td class="i tall">Notes of discussion</td>
         <td colspan="3" data-field="discussion">{!! $text($form['discussion'] ?? '') !!}</td>
     </tr>
-    <tr>
-        <td rowspan="2" class="i">Agreed plan of action</td>
-        <td>Counselling Authority</td><td>Trooper</td><td>Misc / Others</td>
-    </tr>
-    <tr>
+    </tbody>
+</table>
+{{-- Its own table, so its column headings repeat on every page the plan and comments run over. --}}
+<table class="section">
+    <colgroup><col style="width: 25%"><col style="width: 25%"><col style="width: 25%"><col style="width: 25%"></colgroup>
+    <thead>
+        <tr><td class="i">Agreed plan of action</td><td>Counselling Authority</td><td>Trooper</td><td>Misc / Others</td></tr>
+    </thead>
+    <tbody>
+    <tr class="long">
+        <td class="plan"></td>
         <td class="plan" data-field="plan-authority">{!! $text($form['plan_authority'] ?? '') !!}</td>
         <td class="plan">{!! $text($form['plan_trooper'] ?? '') !!}</td>
         <td class="plan">{!! $text($form['plan_other'] ?? '') !!}</td>
     </tr>
-    <tr>
+    <tr class="long">
         <td class="i comments">Any comments</td>
         <td>{!! $text($form['comments_authority'] ?? '') !!}</td>
         <td>{!! $text($form['comments_trooper'] ?? '') !!}</td>
         <td>{!! $text($form['comments_other'] ?? '') !!}</td>
     </tr>
+    </tbody>
+</table>
+<table class="section">
+    <colgroup><col style="width: 25%"><col style="width: 25%"><col style="width: 25%"><col style="width: 25%"></colgroup>
+    <tbody>
 
     @if ($lor)
         <tr>
@@ -99,7 +125,7 @@
                 <span class="sym">{!! $box($picked('special_punishment')) !!}</span> Any special punishment directed by a General Staff Officer (<span class="i">to follow</span>)
             </td>
         </tr>
-        <tr>
+        <tr class="long">
             <td class="i comments">Special punishments ordered</td>
             <td colspan="3" data-field="special-punishments">{!! $text($form['special_punishments'] ?? '') !!}</td>
         </tr>
@@ -137,9 +163,10 @@
     @if ($lor)
         <tr><td colspan="4" class="foot">RECORDS must be kept for permanently in MILPACS (Send to S1 once complete)</td></tr>
     @else
-        <tr><td colspan="4" class="foot">RECORDS must be kept for 90 days only in the 7<sup>th</sup> Cavalry Google Drive. Send up Chain of Command when complete.</td></tr>
+        <tr><td colspan="4" class="foot">RECORDS must be kept for 90 days only in the 7<sup>th</sup> Cavalry Google Drive and/or Leadership Portal. Send up Chain of Command when complete.</td></tr>
     @endif
     <tr><td colspan="4" class="foot">THIS DOCUMENT must include all relevant information and content of the verbal discussion had with the trooper unless no effort was made to contact the Disciplining Authority within 72 hours.</td></tr>
+    </tbody>
 </table>
 </body>
 </html>

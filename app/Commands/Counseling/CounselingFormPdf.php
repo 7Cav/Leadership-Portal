@@ -9,7 +9,7 @@ use Dompdf\Options;
 use Illuminate\Contracts\View\Factory as ViewFactory;
 
 /**
- * Renders a DCS or LOR from the portal's form as the regiment's one-page A4 form, through the Blade view
+ * Renders a DCS or LOR from the portal's form as the regiment's A4 form (more pages when the answers are long, header rows repeated), through the Blade view
  * `pdf.counseling`. {@see html()} is also the preview, so what the leader sees is what is filed.
  *
  * dompdf (pure PHP, no system binaries) runs with remote access, PHP and JavaScript off and its file access kept to

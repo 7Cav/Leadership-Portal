@@ -98,7 +98,7 @@ it('renders the trooper, the issuer and the infraction on the official DCS form'
         ->toContain('Okafor.B')
         ->toContain('Swore at the SL during practice on 12Oct26.')
         ->toContain('Not applicable for Counselling Statements.')
-        ->toContain('RECORDS must be kept for 90 days only')
+        ->toContain('RECORDS must be kept for 90 days only in the 7<sup>th</sup> Cavalry Google Drive and/or Leadership Portal. Send up Chain of Command when complete.')
         ->toContain('PROCEDURAL REFERENCE – For use only in conjunction with 7CAV-R-042.')
         ->not->toContain('Disciplining Authority')
         // Nothing is loaded from anywhere.
