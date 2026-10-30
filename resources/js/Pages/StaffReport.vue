@@ -22,6 +22,7 @@ import EmptyState from '@/components/EmptyState.vue';
 import ReportDeadlineBanner from '@/components/reports/ReportDeadlineBanner.vue';
 import StaffHqHealth from '@/components/reports/StaffHqHealth.vue';
 import StaffReportDiscrepancy from '@/components/reports/StaffReportDiscrepancy.vue';
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -166,6 +167,12 @@ const steps = computed(() => [
     { key: 'extras', label: 'Notes' },
 ]);
 const step = ref(props.entries.length ? 'details' : 'attended');
+// Whether the Notes step was ever open: Send asks first when it was not, so nobody skips it by accident.
+const notesVisited = ref(false);
+watch(step, (key) => {
+    if (key === 'extras') notesVisited.value = true;
+}, { immediate: true });
+const askingNotes = ref(false);
 const stepIndex = computed(() => Math.max(0, steps.value.findIndex((item) => item.key === step.value)));
 
 // What still stops a step, in the words of `missing`.
@@ -216,6 +223,24 @@ const summary = computed(() => {
 });
 
 function send() {
+    if (!canSubmit.value) return;
+    if (!notesVisited.value) {
+        askingNotes.value = true;
+
+        return;
+    }
+    submit();
+}
+function sendAnyway() {
+    askingNotes.value = false;
+    submit();
+}
+function goToNotes() {
+    askingNotes.value = false;
+    step.value = 'extras';
+}
+
+function submit() {
     if (!canSubmit.value) return;
     form.transform((data) => {
         const kind = data.attended ? data.practice_type : null;
@@ -341,6 +366,19 @@ function entryNote(id) {
 
         <!-- Not sent, and this viewer may send it: one question at a time, with the answer so far beside it. -->
         <form v-else-if="canSend" class="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]" data-testid="staff-report-form" @submit.prevent="send">
+            <!-- Send asks first when the Notes step was never opened. -->
+            <AlertDialog :open="askingNotes" @update:open="(open) => (askingNotes = open)">
+                <AlertDialogContent class="sm:max-w-md" data-testid="notes-dialog">
+                    <AlertDialogTitle class="text-base leading-snug font-semibold">Send without notes?</AlertDialogTitle>
+                    <AlertDialogDescription class="text-[13px] text-muted-foreground">
+                        You have not opened the Notes step. Send now if there is nothing else command should know about your week.
+                    </AlertDialogDescription>
+                    <AlertDialogFooter class="flex-row flex-wrap justify-end gap-2">
+                        <AlertDialogCancel class="mt-0" data-testid="notes-dialog-go" @click="goToNotes">Go to Notes</AlertDialogCancel>
+                        <Button type="button" :disabled="!canSubmit" data-testid="notes-dialog-send" @click="sendAnyway">Send anyway</Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
             <Card class="gap-0 py-0 text-[13px]">
                 <ol class="flex items-center gap-1 border-b px-3 py-2.5" aria-label="Steps" data-testid="stepper">
                     <li v-for="(item, i) in steps" :key="item.key" class="flex min-w-0 flex-1 items-center gap-1">
@@ -479,12 +517,12 @@ function entryNote(id) {
                                         >
                                             <li v-for="section in platoon.rows" :key="section.id">
                                                 <label
-                                                    class="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2 transition-colors focus-within:ring-2 focus-within:ring-ring"
+                                                    class="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 transition-colors has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring has-[input:focus-visible]:ring-inset"
                                                     :class="picked.has(section.id) ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent/70'"
                                                 >
                                                     <input
                                                         type="checkbox"
-                                                        class="size-4 accent-primary"
+                                                        class="size-3.5 shrink-0 accent-primary focus-visible:outline-none"
                                                         :checked="picked.has(section.id)"
                                                         :data-testid="`section-${section.id}`"
                                                         @change="toggle(section.id)"

@@ -38,7 +38,7 @@ The form asks one question at a time. The numbered steps at the top show where y
 
 ## Send it
 
-1. The **Your report** card beside the steps (under them on a phone) reads your answer back, shows each picked section as a chip whose x takes it off, and says what is still missing. Choose **Send staff report** there. Once sent, it cannot be changed.
+1. The **Your report** card beside the steps (under them on a phone) reads your answer back, shows each picked section as a chip whose x takes it off, and says what is still missing. Choose **Send staff report** there. If you never opened **Notes**, it first asks whether you have nothing to add: choose **Send anyway** or **Go to Notes**. Once sent, it cannot be changed.
 2. Each practice you picked lists you on that section's roll call: as a **Staff guest** in your own platoon, company or battalion, and as a **Guest** anywhere else. You never count in that section's numbers.
 3. Your report is also copied to the regiment's reports sheet. Your report page says **Sent to the sheet** once it is there.
 

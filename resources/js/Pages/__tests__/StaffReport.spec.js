@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import StaffReport from '../StaffReport.vue';
 
 // The staff report page draws what the server sent and posts the picks; it decides nothing about
@@ -180,8 +180,53 @@ describe('StaffReport page', () => {
         expect(sendButton(wrapper).attributes('disabled')).toBeUndefined();
         expect(wrapper.find('[data-testid="step-next"]').attributes('disabled')).toBeUndefined();
 
+        await wrapper.find('[data-testid="step-extras"]').trigger('click');
         await wrapper.find('form').trigger('submit');
         expect(posted).toHaveBeenCalledWith('/staff-report/7/2026-10-03', { attended: true, section_ids: [4, 9], practice_type: 'sp', ...NONE }, expect.any(Object));
+    });
+
+    it('asks before sending when the Notes step was never opened, and sends anyway or goes to Notes', async () => {
+        const wrapper = mount(StaffReport, {
+            props: { trooper: { id: 7, displayName: 'PVT Brandt.L' }, self: true, hq: HQ, week: WEEK, canSend: true, sections: SECTIONS },
+            attachTo: document.body,
+        });
+        await wrapper.find('[data-testid="attended-yes"]').trigger('click');
+        await wrapper.find('[data-testid="type-sp"]').trigger('click');
+        await wrapper.find('[data-testid="section-4"]').trigger('change');
+
+        await wrapper.find('form').trigger('submit');
+        await flushPromises();
+        expect(posted).not.toHaveBeenCalled();
+        expect(document.body.querySelector('[data-testid="notes-dialog"]')?.textContent).toContain('Send without notes?');
+
+        document.body.querySelector('[data-testid="notes-dialog-go"]').click();
+        await flushPromises();
+        expect(wrapper.find('[data-testid="step-panel-extras"]').exists()).toBe(true);
+        expect(posted).not.toHaveBeenCalled();
+
+        // Notes seen once: Send goes straight through.
+        await wrapper.find('form').trigger('submit');
+        expect(posted).toHaveBeenCalledTimes(1);
+        wrapper.unmount();
+        document.body.innerHTML = '';
+    });
+
+    it('sends anyway from the question', async () => {
+        const wrapper = mount(StaffReport, {
+            props: { trooper: { id: 7, displayName: 'PVT Brandt.L' }, self: true, hq: HQ, week: WEEK, canSend: true, sections: SECTIONS },
+            attachTo: document.body,
+        });
+        await wrapper.find('[data-testid="attended-yes"]').trigger('click');
+        await wrapper.find('[data-testid="type-sp"]').trigger('click');
+        await wrapper.find('[data-testid="section-4"]').trigger('change');
+        await wrapper.find('form').trigger('submit');
+        await flushPromises();
+
+        document.body.querySelector('[data-testid="notes-dialog-send"]').click();
+        await flushPromises();
+        expect(posted).toHaveBeenCalledWith('/staff-report/7/2026-10-03', { attended: true, section_ids: [4], practice_type: 'sp', ...NONE }, expect.any(Object));
+        wrapper.unmount();
+        document.body.innerHTML = '';
     });
 
     it('posts "No" with no practices', async () => {
@@ -294,6 +339,7 @@ describe('StaffReport page', () => {
         expect(wrapper.find('[data-testid="send-missing"]').text()).toBe('Say in a few words what the office hour was.');
         await wrapper.find('[data-testid="office-hour-note"]').setValue('Questions from new NCOs');
         expect(wrapper.find('[data-testid="send-summary"]').text()).toBe('Yes, office hour (06Oct26)');
+        await wrapper.find('[data-testid="step-extras"]').trigger('click');
         await wrapper.find('form').trigger('submit');
 
         expect(posted).toHaveBeenCalledWith(

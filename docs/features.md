@@ -390,7 +390,8 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   "Did you attend a section practice this week?" as two large choices, Yes and No. Yes moves on to "What was it?":
   large choices for "Section practice", "FTX" or, for battalion HQ staff only, "Office hour". Then its details: for an
   SP or an FTX the sections, grouped nearest first (their own HQ, then its company, then its battalion, then the rest),
-  each in order of battle under a platoon heading, with a search. When the list spans more than four platoons, every
+  each in order of battle (battalion, then company letter, then platoon, read from the callsign; units outside
+  the regiment's numbered battalions, such as DEVCOM, last) under a platoon heading, with a search. When the list spans more than four platoons, every
   platoon but the staff member's own starts collapsed and opens on a click; a search opens them all. Only sections that play the HQ's game are offered (the unit's game, inherited down the tree): an HLL
   HQ sees HLL sections. A section, or an HQ, with no game on its chain is never left out for it. An SP needs one or
   more sections. An FTX needs its name (up to 120 characters) and its date, a day in that Cav week; its sections are
@@ -400,7 +401,8 @@ not a line in the unit's report. It replaces the regiment's Weekly Staff Report 
   one is refused. No goes straight to the last step, "Notes": free-text notes (up to 1000 characters) and other
   events attended (up to 500), optional for everyone. A summary card beside the steps (under them on a phone) reads the
   answer back as it will be sent, shows each picked section as a chip that removes it, says what is still missing, and
-  holds "Send staff report". Which HQ level the report is for (platoon, company or battalion) comes from the HQ and is
+  holds "Send staff report". When the Notes step was never opened, Send first asks "Send without notes?" with
+  "Send anyway" and "Go to Notes". Which HQ level the report is for (platoon, company or battalion) comes from the HQ and is
   never asked. The week's staff practice entries are ticked already, each saying who entered it, and the form then
   opens on the sections. A practice the game server saw them at says "Seen on the game server" and is never ticked
   for them: the capture reads the whole Cav week, so it only says they were on the server.
