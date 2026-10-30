@@ -4,6 +4,7 @@ use App\Authorization\ViewAs;
 use App\Authorization\ViewAsKind;
 use App\Authorization\ViewAsTarget;
 use App\Commands\Counseling\CounselingForm;
+use App\Commands\Counseling\CounselingFormRows;
 use App\Commands\Counseling\FileCounselingRecordHandler;
 use App\Integration\GoogleDrive\GoogleDriveApi;
 use App\Jobs\UploadCounselingDocumentJob;
@@ -98,9 +99,10 @@ it('renders the trooper, the issuer and the infraction on the official DCS form'
         ->toContain('Okafor.B')
         ->toContain('Swore at the SL during practice on 12Oct26.')
         ->toContain('Not applicable for Counselling Statements.')
-        ->toContain('RECORDS must be kept for 90 days only')
+        ->toContain('RECORDS must be kept for 90 days only in the 7<sup>th</sup> Cavalry Google Drive and/or Leadership Portal. Send up Chain of Command when complete.')
         ->toContain('PROCEDURAL REFERENCE – For use only in conjunction with 7CAV-R-042.')
-        ->not->toContain('Disciplining Authority')
+        // The authority row is the DCS one; the shared footer may still name the Disciplining Authority.
+        ->not->toContain('<td class="i">Disciplining Authority</td>')
         // Nothing is loaded from anywhere.
         ->not->toMatch('/(src|href)=["\']?https?:/i');
 });
@@ -309,4 +311,33 @@ it('gives a viewer who may file section 1 for the form, read from the roster', f
 
     $grant = $this->actingAs($this->tree['users']['grant'])->get(route('troopers.show', $this->rifleman->id))->assertOk()->viewData('page')['props']['counseling'];
     expect($grant['formParties'])->toBeNull();
+});
+
+it('prints a long plan as several rows under a repeating header, losing no text', function () {
+    $plan = trim(str_repeat('Attend every section practice for the next four weeks and report to the SL afterwards. ', 15))
+        ."\nAlso read the SOP. ".str_repeat('x', 60);
+    $html = ($this->previewHtml)('sl', ($this->form)(['plan_authority' => $plan]));
+
+    // The plan table carries its own header row, which dompdf repeats on every page it runs over.
+    expect($html)->toMatch('/<thead>\s*<tr><td class="i">Agreed plan of action<\/td><td>Counselling Authority<\/td>/');
+
+    $chunks = CounselingFormRows::rows([$plan, 'Apologise to the SL.', ''], CounselingFormRows::NARROW);
+    expect(count($chunks))->toBeGreaterThan(3);
+    foreach ($chunks as $i => $row) {
+        $lines = substr_count($row[0], "\n") + 1;
+        expect($lines)->toBeGreaterThanOrEqual(CounselingFormRows::MIN_LINES);
+        expect($html)->toContain(nl2br(e($row[0]), false));
+    }
+
+    $squash = fn (string $text) => preg_replace('/\s+/', '', $text);
+    expect($squash(implode('', array_column($chunks, 0))))->toBe($squash($plan))
+        ->and($squash(implode('', array_column($chunks, 1))))->toBe('ApologisetotheSL.');
+});
+
+it('never leaves a last row of fewer than three lines', function () {
+    $lines = implode("\n", array_map(fn ($n) => "line {$n}", range(1, CounselingFormRows::LINES + 1)));
+    $rows = CounselingFormRows::rows([$lines], CounselingFormRows::WIDE);
+
+    expect($rows)->toHaveCount(1)
+        ->and(substr_count($rows[0][0], "\n") + 1)->toBe(CounselingFormRows::LINES + 1);
 });

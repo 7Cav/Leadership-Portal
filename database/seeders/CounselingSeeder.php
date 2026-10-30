@@ -16,14 +16,13 @@ use App\Repositories\CounselingDocuments;
 use Carbon\CarbonImmutable;
 use Database\Seeders\Concerns\RefusesOutsideDevEnvironments;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
  * Counseling records for the browser test (#381), under their own company and usernames. `Lindqvist.P` leads 1st
  * Platoon of Foxtrot Company (1/F/1-7) and `Sato.K` its 1st Section (1/1/F/1-7), both by billet. `Novak.E`, a rifleman
- * in that section, already has a DCS from Sato.K and an LOR from Lindqvist.P, each 20 days ago, with their documents
- * on the private disk. Refuses to run outside local, testing and e2e: its users lead units by command billet.
+ * in that section, already has a DCS from Sato.K and an LOR from Lindqvist.P, each 20 days ago, with demo documents
+ * (no file behind them, {@see CounselingDocuments::isDemo()}). Refuses to run outside local, testing and e2e: its users lead units by command billet.
  */
 class CounselingSeeder extends Seeder
 {
@@ -63,9 +62,10 @@ class CounselingSeeder extends Seeder
 
     private function record(Trooper $trooper, CounselingType $type, CounselingKind $kind, User $issuer, Unit $through, string $reason): void
     {
+        // A demo document: its path is under the demo prefix and no file is written, so the page says it is a demo
+        // instead of downloading it. The bytes only give the record a size and a checksum.
         $bytes = "%PDF-1.4\n% seeded {$type->short()} for {$trooper->username}\n%%EOF\n";
-        $path = Str::uuid()->toString().'.pdf';
-        Storage::disk(CounselingDocuments::DISK)->put($path, $bytes);
+        $path = CounselingDocuments::DEMO_PREFIX.Str::uuid()->toString().'.pdf';
 
         CounselingRecord::factory()->create([
             'trooper_id' => $trooper->id,

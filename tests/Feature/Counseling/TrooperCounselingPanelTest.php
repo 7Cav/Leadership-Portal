@@ -46,7 +46,7 @@ it('lists every record, newest first, with its issuer, document and Drive status
             'date' => now('UTC')->subDays(5)->toDateString(),
             'reason' => 'Disrespect toward an NCO.',
             'issuer' => 'Mercer.J',
-            'document' => ['name' => 'lor.pdf', 'size' => 2048],
+            'document' => ['name' => 'lor.pdf', 'size' => 2048, 'demo' => false],
             'driveStatus' => 'skipped',
             'kind' => null,
             'kindLabel' => null,
@@ -101,7 +101,8 @@ it('flags a DCS dated within 90 days of an earlier one, by their dates, and keep
     ($this->record)('dcs', 80, ['kind' => 'conduct', 'reason' => 'First.']);
     ($this->record)('dcs', 2, ['kind' => 'conduct', 'reason' => 'Second.']);
 
-    $flags = fn () => collect(counselingProps('pl', $this)['records'])->pluck('flags', 'reason')->all();
+    // Read as an Admin: a DCS expires for leaders after 90 days, and an Admin still sees it.
+    $flags = fn () => collect(counselingProps('admin', $this)['records'])->pluck('flags', 'reason')->all();
     $expected = ['Second.' => [['key' => 'dcs-repeat', 'message' => 'Repeat within 90 days of a DCS: an LOR is the next step if it was for the same issue.']], 'First.' => []];
 
     expect($flags())->toBe($expected);

@@ -8,6 +8,7 @@ use App\Models\CounselingType;
 use App\Models\Trooper;
 use App\Models\Unit;
 use App\Models\User;
+use App\Repositories\CounselingDocuments;
 use App\Repositories\CounselingRecordRepository;
 use Carbon\CarbonImmutable;
 use Closure;
@@ -83,7 +84,8 @@ class CounselingHistory
                 'date' => $record->counseled_on->toDateString(),
                 'reason' => $record->reason,
                 'issuer' => self::issuer($record),
-                'document' => ['name' => $record->document_name, 'size' => $record->document_size],
+                // A seeded demo record's document has no file: the page says so instead of downloading.
+                'document' => ['name' => $record->document_name, 'size' => $record->document_size, 'demo' => CounselingDocuments::isDemo($record->document_path)],
                 'driveStatus' => $record->drive_status->value,
                 // The document was made in the portal from the regiment's form, not uploaded.
                 'generated' => $record->form_data !== null,

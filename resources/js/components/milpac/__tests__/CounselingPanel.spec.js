@@ -320,6 +320,45 @@ describe('CounselingPanel', () => {
         expect(panel({ records: [record()] }).find('[data-testid="counseling-overturned"]').exists()).toBe(false);
     });
 
+    describe('a demo document', () => {
+        // Clicks the download link and reports whether the panel stopped the download; the listener on the document
+        // runs after the panel's own and keeps jsdom from navigating.
+        async function clickDownload(wrapper) {
+            let prevented = null;
+            const listener = (event) => {
+                prevented = event.defaultPrevented;
+                event.preventDefault();
+            };
+            document.addEventListener('click', listener);
+            wrapper.get('[data-testid="counseling-download"]').element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            document.removeEventListener('click', listener);
+            await nextTick();
+
+            return prevented;
+        }
+
+        it('says it is a demo file instead of downloading it', async () => {
+            const wrapper = mount(CounselingPanel, {
+                props: { trooperId: 7, counseling: counseling({ records: [record({ document: { name: 'dcs-signed.pdf', size: 52, demo: true } })] }) },
+                attachTo: document.body,
+            });
+
+            expect(await clickDownload(wrapper)).toBe(true);
+            expect(document.body.querySelector('[data-testid="counseling-demo-dialog"]')?.textContent).toContain(
+                'This file is a demo file and will not be downloaded. You can generate a real one with the form.',
+            );
+            wrapper.unmount();
+        });
+
+        it('leaves a real document to download', async () => {
+            const wrapper = mount(CounselingPanel, { props: { trooperId: 7, counseling: counseling({ records: [record()] }) }, attachTo: document.body });
+
+            expect(await clickDownload(wrapper)).toBe(false);
+            expect(document.body.querySelector('[data-testid="counseling-demo-dialog"]')).toBeNull();
+            wrapper.unmount();
+        });
+    });
+
     describe('filling in the form in the portal', () => {
         const parties = {
             trooper: { rank: 'PFC', name: 'Brandt.L', billet: 'Rifleman' },
@@ -471,6 +510,27 @@ describe('CounselingPanel', () => {
 
             expect(wrapper.get('[data-testid="counseling-error-form-infraction"]').text()).toBe('Give the infraction and its details.');
             expect(document.body.querySelector('[data-testid="counseling-preview-frame"]')).toBeNull();
+            wrapper.unmount();
+        });
+
+        it('clears a field\'s error as soon as it is edited', async () => {
+            previewed.mockResolvedValue({
+                ok: false,
+                status: 422,
+                data: { errors: { 'form.infraction': ['Give the infraction and its details.'], kind: ['Choose what the record is for.'] } },
+            });
+            const wrapper = await openForm();
+            await wrapper.get('[data-testid="counseling-source-form"]').setValue(true);
+            await wrapper.get('[data-testid="counseling-preview"]').trigger('click');
+            await flushPromises();
+            expect(wrapper.find('[data-testid="counseling-error-form-infraction"]').exists()).toBe(true);
+
+            await wrapper.get('[data-testid="counseling-form-infraction"]').setValue('Swore at the SL.');
+            expect(wrapper.find('[data-testid="counseling-error-form-infraction"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="counseling-error-kind"]').exists()).toBe(true);
+
+            await wrapper.get('[data-testid="counseling-kind"]').setValue('conduct');
+            expect(wrapper.find('[data-testid="counseling-error-kind"]').exists()).toBe(false);
             wrapper.unmount();
         });
     });

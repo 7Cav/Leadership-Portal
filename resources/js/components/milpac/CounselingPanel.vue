@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useForm } from '@inertiajs/vue3';
 import { PhArrowCounterClockwise, PhChatText, PhDownloadSimple, PhEye, PhFilePdf, PhLock, PhPencilSimple, PhPlus, PhTrash, PhWarning } from '@phosphor-icons/vue';
 import InlineNotice from '@/components/InlineNotice.vue';
@@ -90,6 +90,22 @@ const formError = (field) => fileForm.errors[`form.${field}`];
 const formLevelError = computed(() => (generating.value ? fileForm.errors.document : null));
 const hint = computed(() => forecastFlags(props.counseling.forecast, fileForm.type, fileForm.kind, fileForm.counseled_on));
 
+// An error goes as soon as its field is edited, so a fixed field stops showing red before the next Preview or File.
+for (const key of ['type', 'kind', 'counseled_on', 'reason', 'document']) {
+    watch(
+        () => fileForm[key],
+        () => fileForm.clearErrors(key),
+    );
+}
+watch(
+    () => ({ ...fileForm.form }),
+    (now, before) => {
+        for (const key of Object.keys(now)) {
+            if (now[key] !== before?.[key]) fileForm.clearErrors(`form.${key}`);
+        }
+    },
+);
+
 function openFiling() {
     fileForm.reset();
     fileForm.clearErrors();
@@ -163,6 +179,16 @@ function submitFiling() {
 }
 
 // Correcting and deleting: one record at a time, inline, each with the reason the audit log keeps.
+// A seeded demo record's document has no file behind it: say so instead of starting a download that would fail.
+const demoDocumentOpen = ref(false);
+
+function openDocument(event, record) {
+    if (record.document?.demo) {
+        event.preventDefault();
+        demoDocumentOpen.value = true;
+    }
+}
+
 const editingId = ref(null);
 const deletingId = ref(null);
 const overturningId = ref(null);
@@ -397,9 +423,10 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
                     <fieldset v-for="group in COLUMN_GROUPS" :key="group.key" class="grid gap-2">
                         <legend class="mb-1.5 text-sm font-medium">{{ group.label }}</legend>
                         <div class="grid gap-3 sm:grid-cols-3">
-                            <div v-for="column in COLUMNS" :key="column.key" class="grid gap-1.5">
-                                <Label :for="`counseling-form-${group.key}_${column.key}`" class="text-xs">{{ column.label }}</Label>
+                            <div v-for="column in COLUMNS" :key="column.key" class="flex min-w-0 flex-col gap-1.5">
+                                <Label :for="`counseling-form-${group.key}_${column.key}`" class="truncate text-xs">{{ column.label }}</Label>
                                 <Textarea
+                                    class="field-sizing-fixed resize-none overflow-y-auto"
                                     :id="`counseling-form-${group.key}_${column.key}`"
                                     v-model="fileForm.form[`${group.key}_${column.key}`]"
                                     :rows="group.rows"
@@ -554,6 +581,7 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
                         :href="`/counseling/${record.id}/document`"
                         class="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                         data-testid="counseling-download"
+                        @click="openDocument($event, record)"
                     >
                         <PhFilePdf class="size-3.5" aria-hidden="true" />{{ record.document.name }}
                         <span class="text-muted-foreground">({{ fileSize(record.document.size) }})</span>
@@ -659,6 +687,15 @@ const drive = (status) => DRIVE_STATUS[status] ?? { label: status, tone: 'outlin
                         <Button type="button" size="sm" variant="outline" @click="appealing = null">Cancel</Button>
                     </div>
                 </form>
+            </DialogContent>
+        </Dialog>
+
+        <Dialog v-model:open="demoDocumentOpen">
+            <DialogContent class="sm:max-w-md" data-testid="counseling-demo-dialog">
+                <DialogTitle class="text-base font-semibold">Demo file</DialogTitle>
+                <DialogDescription class="text-[13px] text-muted-foreground">
+                    This file is a demo file and will not be downloaded. You can generate a real one with the form.
+                </DialogDescription>
             </DialogContent>
         </Dialog>
 

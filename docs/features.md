@@ -300,7 +300,8 @@ acting identity's command shows.
   other plan columns and the comments are optional); an LOR also asks for at least one recommended consequence (a
   removal names its position), any special punishments and whether the trooper wishes to appeal. The appeal outcome
   stays blank, for the appeal authority later. **Preview** shows the page the PDF is made from. The portal renders
-  the one-page A4 PDF on the server (dompdf, nothing loaded from anywhere, every field printed as text), then files
+  an A4 PDF on the server (dompdf, nothing loaded from anywhere, every field printed as text; a long answer runs
+  over several pages as several rows, with the table header repeated), then files
   it exactly as an upload: the same checks, storage, Drive copy and `counseling.filed` audit entry, with the reason
   "Generated in the portal." The form is kept on the record (`form_data`), and the list says the record was made
   from it. A repeat is judged on the form, since two renders of one form differ byte for byte. The file
