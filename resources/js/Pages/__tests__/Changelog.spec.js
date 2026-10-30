@@ -38,28 +38,67 @@ const DAYS = [
     {
         date: '2026-10-30',
         entries: [
-            { id: 3, body: 'Newest change', detailsHtml: '<p>More <strong>here</strong></p>', details: 'More **here**' },
-            { id: 4, body: 'Second on the day', detailsHtml: null, details: null },
+            { id: 3, body: 'Newest change', major: true, detailsHtml: '<p>More <strong>here</strong></p>', details: 'More **here**' },
+            { id: 4, body: 'Second on the day', major: false, detailsHtml: null, details: null },
         ],
     },
-    { date: '2026-10-01', entries: [{ id: 1, body: 'Older change', detailsHtml: null, details: null }] },
+    { date: '2026-10-01', entries: [{ id: 1, body: 'Older change', major: false, detailsHtml: null, details: null }] },
 ];
 
 let wrapper;
 const mountPage = (props) => (wrapper = mount(Changelog, { props: { days: DAYS, isEditor: false, ...props }, attachTo: document.body }));
 const body = (selector) => document.body.querySelector(selector);
+const openFull = () => wrapper.get('[data-testid="changelog-full-toggle"]').trigger('click');
 
 afterEach(() => {
     wrapper?.unmount();
     document.body.innerHTML = '';
+    window.localStorage.clear();
+    vi.restoreAllMocks();
     vi.clearAllMocks();
 });
 
 describe('Changelog page', () => {
-    it('lists dates newest first as forum dates, each with its entries as rows, and no editor tools for a reader', () => {
+    it('shows major changes and keeps the full changelog collapsed until opened, then remembers it', async () => {
         mountPage();
 
-        expect(wrapper.findAll('[data-testid^="changelog-day-"] h2').map((h) => h.text())).toEqual(['30Oct26', '01Oct26']);
+        expect(wrapper.get('[data-testid="changelog-major-days"]').findAll('[data-testid="changelog-entry-body"]').map((e) => e.text())).toEqual(['Newest change']);
+        const toggle = wrapper.get('[data-testid="changelog-full-toggle"]');
+        expect(toggle.attributes('aria-expanded')).toBe('false');
+        expect(toggle.text()).toContain('3 entries');
+        expect(wrapper.find('[data-testid="changelog-days"]').exists()).toBe(false);
+
+        await toggle.trigger('click');
+        expect(wrapper.get('[data-testid="changelog-days"]').findAll('[data-testid="changelog-entry-body"]')).toHaveLength(3);
+        expect(wrapper.find('[data-testid="changelog-major-3"]').exists()).toBe(true);
+        expect(window.localStorage.getItem('changelog.fullOpen')).toBe('1');
+
+        wrapper.unmount();
+        mountPage();
+        expect(wrapper.get('[data-testid="changelog-full-toggle"]').attributes('aria-expanded')).toBe('true');
+    });
+
+    it('renders collapsed when localStorage throws', () => {
+        vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+            throw new Error('blocked');
+        });
+        mountPage();
+
+        expect(wrapper.get('[data-testid="changelog-full-toggle"]').attributes('aria-expanded')).toBe('false');
+        expect(wrapper.find('[data-testid="changelog-major-days"]').exists()).toBe(true);
+    });
+
+    it('says so when there are no major changes', () => {
+        mountPage({ days: [DAYS[1]] });
+
+        expect(wrapper.find('[data-testid="changelog-major-empty"]').exists()).toBe(true);
+    });
+
+    it('lists dates newest first as forum dates, each with its entries as rows, and no editor tools for a reader', async () => {
+        mountPage();
+        await openFull();
+
+        expect(wrapper.findAll('[data-testid^="changelog-day-"] h3').map((h) => h.text())).toEqual(['30Oct26', '01Oct26']);
         expect(wrapper.get('[data-testid="changelog-day-2026-10-30"]').findAll('[data-testid="changelog-entry-body"]').map((e) => e.text())).toEqual([
             'Newest change',
             'Second on the day',
@@ -70,6 +109,7 @@ describe('Changelog page', () => {
 
     it('starts additional information collapsed and opens it with the chevron', async () => {
         mountPage();
+        await openFull();
 
         expect(wrapper.find('[data-testid="changelog-toggle-4"]').exists()).toBe(false);
         const toggle = wrapper.get('[data-testid="changelog-toggle-3"]');
@@ -79,6 +119,8 @@ describe('Changelog page', () => {
         await toggle.trigger('click');
         expect(toggle.attributes('aria-expanded')).toBe('true');
         expect(wrapper.get('[data-testid="changelog-details-3"]').html()).toContain('<strong>here</strong>');
+        // The same entry under Major changes opens on its own.
+        expect(wrapper.find('[data-testid="major-changelog-details-3"]').exists()).toBe(false);
     });
 
     it('shows the empty state with no entries', () => {
@@ -115,6 +157,7 @@ describe('Changelog page', () => {
         const details = body('[data-testid="changelog-row-details-2"]');
         details.value = 'Some **detail**';
         details.dispatchEvent(new Event('input'));
+        body('[data-testid="changelog-row-major-2"]').click();
         await flushPromises();
 
         expect(body('[data-testid="changelog-add-save"]').textContent.trim()).toBe('Add 2 entries');
@@ -126,25 +169,28 @@ describe('Changelog page', () => {
             {
                 date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
                 entries: [
-                    { body: 'First', details: null },
-                    { body: 'Third', details: 'Some **detail**' },
+                    { body: 'First', details: null, major: false },
+                    { body: 'Third', details: 'Some **detail**', major: true },
                 ],
             },
             expect.any(Object),
         );
     });
 
-    it('edits one entry with its details', async () => {
+    it('edits one entry with its details and major flag', async () => {
         mountPage({ isEditor: true });
+        await openFull();
         await wrapper.get('[data-testid="changelog-edit-3"]').trigger('click');
         await flushPromises();
 
         expect(body('[data-testid="changelog-edit-body"]').value).toBe('Newest change');
         expect(body('[data-testid="changelog-edit-details"]').value).toBe('More **here**');
 
+        body('[data-testid="changelog-edit-major"]').click();
+        await flushPromises();
         body('[data-testid="changelog-edit-save"]').click();
         await flushPromises();
-        expect(formPost).toHaveBeenCalledWith('/changelog/3', { date: '2026-10-30', body: 'Newest change', details: 'More **here**' }, expect.any(Object));
+        expect(formPost).toHaveBeenCalledWith('/changelog/3', { date: '2026-10-30', body: 'Newest change', details: 'More **here**', major: false }, expect.any(Object));
     });
 
     it('previews an import grouped by date, marks the entries it would skip, and imports the rest', async () => {
@@ -153,7 +199,7 @@ describe('Changelog page', () => {
             data: {
                 entries: [
                     { line: 2, date: '2026-10-01', body: 'Older change', details: null, duplicate: true },
-                    { line: 3, date: '2026-10-01', body: 'Fresh', details: 'More', duplicate: false },
+                    { line: 3, date: '2026-10-01', body: 'Fresh', details: 'More', major: true, duplicate: false },
                 ],
                 errors: [],
             },
@@ -169,6 +215,7 @@ describe('Changelog page', () => {
         expect(wrapper.get('[data-testid="changelog-import-entries"] h3').text()).toBe('01Oct26');
         expect(wrapper.find('[data-testid="preview-skipped-2"]').exists()).toBe(true);
         expect(wrapper.find('[data-testid="preview-details-3"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="preview-major-3"]').exists()).toBe(true);
         expect(wrapper.get('[data-testid="changelog-import-save"]').text()).toBe('Import 1 entry');
 
         await wrapper.get('[data-testid="changelog-import-save"]').trigger('click');

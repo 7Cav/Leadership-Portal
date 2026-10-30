@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { PhCaretRight, PhClockCounterClockwise, PhPencilSimple, PhPlus, PhTrash, PhUploadSimple } from '@phosphor-icons/vue';
 import { Badge } from '@/components/ui/badge';
@@ -17,12 +17,14 @@ import { forumDate } from '@/lib/forumDate';
 import { onHttpException } from '@/lib/httpError';
 import { postJson } from '@/lib/postJson';
 
-// The changelog: what changed in the portal, grouped by (Zulu) date, newest first, for everyone. Each entry is one line;
+// The changelog: what changed in the portal, grouped by (Zulu) date, newest first, for everyone. Two columns: "Major
+// changes" lists only the entries flagged major; "Full changelog" lists every entry and starts collapsed unless this
+// viewer opened it before (remembered in this browser only). On a phone the two stack, major first. Each entry is one line;
 // one with additional information has a chevron that opens it. A changelog editor also adds a date's batch of entries,
 // edits or deletes each entry, and bulk imports. Details arrive as HTML the server rendered from Markdown with raw HTML
 // stripped.
 const props = defineProps({
-    // `[{ date, entries: [{ id, body, detailsHtml, details }] }]`, newest date first; `details` (the Markdown) only for an editor.
+    // `[{ date, entries: [{ id, body, major, detailsHtml, details }] }]`, newest date first; `details` (the Markdown) only for an editor.
     days: { type: Array, required: true },
     isEditor: { type: Boolean, required: true },
 });
@@ -34,7 +36,38 @@ const MAX_BATCH = 50;
 // Today in Zulu: the dates are UTC days.
 const today = () => new Date().toISOString().slice(0, 10);
 
-// Which entries have their details open. All start collapsed.
+// The major column: the same days with only their major entries, days left empty dropped.
+const majorDays = computed(() =>
+    props.days.map((day) => ({ date: day.date, entries: day.entries.filter((entry) => entry.major) })).filter((day) => day.entries.length > 0),
+);
+const entryCount = computed(() => props.days.reduce((total, day) => total + day.entries.length, 0));
+
+// Whether the full changelog is open, remembered per viewer in localStorage. Storage can be missing or throw (private
+// windows, blocked site data); the page then just starts collapsed.
+const FULL_OPEN_KEY = 'changelog.fullOpen';
+function readFullOpen() {
+    try {
+        return window.localStorage.getItem(FULL_OPEN_KEY) === '1';
+    } catch {
+        return false;
+    }
+}
+const fullOpen = ref(typeof window !== 'undefined' && readFullOpen());
+watch(fullOpen, (value) => {
+    try {
+        window.localStorage.setItem(FULL_OPEN_KEY, value ? '1' : '0');
+    } catch {
+        // Not remembered; nothing else depends on it.
+    }
+});
+
+// The two columns, rendered with the same list. `prefix` keeps ids and test ids apart, since a major entry is in both.
+const columns = computed(() => [
+    { key: 'major', prefix: 'major-', days: majorDays.value },
+    { key: 'full', prefix: '', days: props.days },
+]);
+
+// Which entries have their details open, keyed by column prefix and id. All start collapsed.
 const open = ref(new Set());
 function toggle(id) {
     const next = new Set(open.value);
@@ -45,7 +78,7 @@ function toggle(id) {
 
 // The Add dialog: one date and its rows. The outdated bar's "Add entry" opens it with `?add=1`.
 let nextKey = 1;
-const blankRow = () => ({ key: nextKey++, body: '', hasDetails: false, details: '' });
+const blankRow = () => ({ key: nextKey++, body: '', major: false, hasDetails: false, details: '' });
 const addOpen = ref(props.isEditor && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('add'));
 const addForm = useForm({ date: today(), rows: [blankRow()] });
 const addCount = ref(3);
@@ -105,7 +138,7 @@ function submitAdd() {
             date: data.date,
             entries: sent.value.map((index) => {
                 const row = data.rows[index];
-                return { body: row.body, details: row.hasDetails && row.details.trim() !== '' ? row.details : null };
+                return { body: row.body, details: row.hasDetails && row.details.trim() !== '' ? row.details : null, major: row.major };
             }),
         }))
         .post('/changelog', {
@@ -117,13 +150,14 @@ function submitAdd() {
 
 // Edit one entry.
 const editing = ref(null);
-const editForm = useForm({ date: '', body: '', hasDetails: false, details: '' });
+const editForm = useForm({ date: '', body: '', major: false, hasDetails: false, details: '' });
 
 function edit(date, entry) {
     importOpen.value = false;
     editForm.clearErrors();
     editForm.date = date;
     editForm.body = entry.body;
+    editForm.major = !!entry.major;
     editForm.details = entry.details ?? '';
     editForm.hasDetails = (entry.details ?? '') !== '';
     editing.value = entry;
@@ -131,7 +165,7 @@ function edit(date, entry) {
 
 function submitEdit() {
     editForm
-        .transform((data) => ({ date: data.date, body: data.body, details: data.hasDetails && data.details.trim() !== '' ? data.details : null }))
+        .transform((data) => ({ date: data.date, body: data.body, details: data.hasDetails && data.details.trim() !== '' ? data.details : null, major: data.major }))
         .patch(`/changelog/${editing.value.id}`, {
             preserveScroll: true,
             onSuccess: () => (editing.value = null),
@@ -231,7 +265,7 @@ function runImport() {
 <template>
     <Head title="Changelog · 7Cav Leadership Portal" />
 
-    <div class="max-w-3xl space-y-5">
+    <div class="max-w-6xl space-y-5">
         <div class="flex flex-wrap items-start justify-between gap-3">
             <h1 class="text-xl font-semibold tracking-tight">Changelog</h1>
             <div v-if="isEditor" class="flex flex-wrap gap-2">
@@ -240,11 +274,11 @@ function runImport() {
             </div>
         </div>
 
-        <Card v-if="isEditor && importOpen" class="gap-3 p-4" data-testid="changelog-import-panel">
+        <Card v-if="isEditor && importOpen" class="max-w-3xl gap-3 p-4" data-testid="changelog-import-panel">
             <h2 class="text-[15px] font-semibold">Bulk import</h2>
             <p class="text-[13px] text-muted-foreground">
                 Start each date with a heading like "## 2026-10-29". Put each change under it on a line starting with "- ". Indent lines under a change
-                to add additional information.
+                to add additional information. Start a change with "[major]" to also list it under Major changes.
             </p>
             <Textarea v-model="markdown" rows="10" class="font-mono text-xs" aria-label="Markdown to import" data-testid="changelog-import-markdown" @input="preview = null" />
             <label class="flex items-center gap-2 text-[13px]">
@@ -274,6 +308,7 @@ function runImport() {
                                     {{ entry.body }}
                                     <span v-if="entry.details" class="text-muted-foreground" :data-testid="`preview-details-${entry.line}`">(with additional information)</span>
                                 </span>
+                                <Badge v-if="entry.major" variant="secondary" :data-testid="`preview-major-${entry.line}`">Major</Badge>
                                 <Badge v-if="skipped(entry)" variant="outline" :data-testid="`preview-skipped-${entry.line}`">Skipped, already exists</Badge>
                             </li>
                         </ul>
@@ -282,56 +317,91 @@ function runImport() {
             </template>
         </Card>
 
-        <div v-if="days.length" class="space-y-5" data-testid="changelog-days">
-            <section v-for="day in days" :key="day.date" :data-testid="`changelog-day-${day.date}`">
-                <h2 class="border-b border-border pb-1 text-[13px] font-semibold tabular-nums">
-                    <time :datetime="day.date">{{ forumDate(day.date) }}</time>
+        <div v-if="days.length" class="grid items-start gap-x-8 gap-y-6 lg:grid-cols-2" data-testid="changelog-columns">
+            <section
+                v-for="column in columns"
+                :key="column.key"
+                class="min-w-0"
+                :aria-labelledby="`changelog-${column.key}-heading`"
+                :data-testid="`changelog-column-${column.key}`"
+            >
+                <h2 v-if="column.key === 'major'" :id="`changelog-${column.key}-heading`" class="text-[15px] font-semibold">Major changes</h2>
+                <h2 v-else :id="`changelog-${column.key}-heading`" class="text-[15px] font-semibold">
+                    <button
+                        type="button"
+                        class="-ml-1 flex items-center gap-1.5 rounded-sm px-1 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        :aria-expanded="fullOpen"
+                        aria-controls="changelog-full-list"
+                        data-testid="changelog-full-toggle"
+                        @click="fullOpen = !fullOpen"
+                    >
+                        <PhCaretRight class="size-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': fullOpen }" weight="bold" aria-hidden="true" />
+                        Full changelog
+                        <span class="text-xs font-normal text-muted-foreground tabular-nums">{{ entryCount === 1 ? '1 entry' : `${entryCount} entries` }}</span>
+                    </button>
                 </h2>
-                <ul class="mt-1.5 space-y-0.5">
-                    <li v-for="entry in day.entries" :key="entry.id" class="group" :data-testid="`changelog-entry-${entry.id}`">
-                        <div class="flex items-start gap-2 rounded-sm py-0.5 text-[13px] leading-5">
-                            <button
-                                v-if="entry.detailsHtml"
-                                type="button"
-                                class="mt-0.5 -ml-0.5 flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                                :aria-expanded="open.has(entry.id)"
-                                :aria-controls="`changelog-details-${entry.id}`"
-                                :aria-label="open.has(entry.id) ? 'Hide additional information' : 'Show additional information'"
-                                :data-testid="`changelog-toggle-${entry.id}`"
-                                @click="toggle(entry.id)"
-                            >
-                                <PhCaretRight class="size-3.5 transition-transform" :class="{ 'rotate-90': open.has(entry.id) }" weight="bold" />
-                            </button>
-                            <span v-else class="flex size-4 shrink-0 items-center justify-center" aria-hidden="true">
-                                <span class="size-1.5 rounded-full bg-muted-foreground/60" />
-                            </span>
-                            <span class="min-w-0 flex-1 break-words" data-testid="changelog-entry-body">{{ entry.body }}</span>
-                            <span v-if="isEditor" class="flex shrink-0 gap-0.5 sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
-                                <Button variant="ghost" size="icon" class="size-6" aria-label="Edit entry" :data-testid="`changelog-edit-${entry.id}`" @click="edit(day.date, entry)">
-                                    <PhPencilSimple class="size-3.5" />
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    class="size-6 text-destructive"
-                                    aria-label="Delete entry"
-                                    :data-testid="`changelog-delete-${entry.id}`"
-                                    @click="requestDelete(entry)"
-                                >
-                                    <PhTrash class="size-3.5" />
-                                </Button>
-                            </span>
-                        </div>
-                        <!-- eslint-disable-next-line vue/no-v-html -- server-rendered markdown, raw HTML stripped -->
-                        <div
-                            v-if="entry.detailsHtml && open.has(entry.id)"
-                            :id="`changelog-details-${entry.id}`"
-                            class="docs-prose mb-1.5 ml-6 border-l-2 border-border pl-3 text-[13px] text-muted-foreground"
-                            :data-testid="`changelog-details-${entry.id}`"
-                            v-html="entry.detailsHtml"
-                        />
-                    </li>
-                </ul>
+
+                <p v-if="column.key === 'major' && column.days.length === 0" class="mt-2 text-[13px] text-muted-foreground" data-testid="changelog-major-empty">
+                    No major changes yet. Every change is in the full changelog.
+                </p>
+                <div
+                    v-else-if="column.key === 'major' || fullOpen"
+                    :id="column.key === 'full' ? 'changelog-full-list' : undefined"
+                    class="mt-3 space-y-5"
+                    :data-testid="column.key === 'full' ? 'changelog-days' : 'changelog-major-days'"
+                >
+                    <section v-for="day in column.days" :key="day.date" :data-testid="`${column.prefix}changelog-day-${day.date}`">
+                        <h3 class="border-b border-border pb-1 text-[13px] font-semibold tabular-nums">
+                            <time :datetime="day.date">{{ forumDate(day.date) }}</time>
+                        </h3>
+                        <ul class="mt-1.5 space-y-0.5">
+                            <li v-for="entry in day.entries" :key="entry.id" class="group" :data-testid="`${column.prefix}changelog-entry-${entry.id}`">
+                                <div class="flex items-start gap-2 rounded-sm py-0.5 text-[13px] leading-5">
+                                    <button
+                                        v-if="entry.detailsHtml"
+                                        type="button"
+                                        class="mt-0.5 -ml-0.5 flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                                        :aria-expanded="open.has(column.prefix + entry.id)"
+                                        :aria-controls="`${column.prefix}changelog-details-${entry.id}`"
+                                        :aria-label="open.has(column.prefix + entry.id) ? 'Hide additional information' : 'Show additional information'"
+                                        :data-testid="`${column.prefix}changelog-toggle-${entry.id}`"
+                                        @click="toggle(column.prefix + entry.id)"
+                                    >
+                                        <PhCaretRight class="size-3.5 transition-transform" :class="{ 'rotate-90': open.has(column.prefix + entry.id) }" weight="bold" />
+                                    </button>
+                                    <span v-else class="flex size-4 shrink-0 items-center justify-center" aria-hidden="true">
+                                        <span class="size-1.5 rounded-full bg-muted-foreground/60" />
+                                    </span>
+                                    <span class="min-w-0 flex-1 break-words" data-testid="changelog-entry-body">{{ entry.body }}</span>
+                                    <Badge v-if="column.key === 'full' && entry.major" variant="secondary" class="h-5 shrink-0 px-1.5 text-[11px]" :data-testid="`changelog-major-${entry.id}`">Major</Badge>
+                                    <span v-if="isEditor" class="flex shrink-0 gap-0.5 sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
+                                        <Button variant="ghost" size="icon" class="size-6" aria-label="Edit entry" :data-testid="`${column.prefix}changelog-edit-${entry.id}`" @click="edit(day.date, entry)">
+                                            <PhPencilSimple class="size-3.5" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            class="size-6 text-destructive"
+                                            aria-label="Delete entry"
+                                            :data-testid="`${column.prefix}changelog-delete-${entry.id}`"
+                                            @click="requestDelete(entry)"
+                                        >
+                                            <PhTrash class="size-3.5" />
+                                        </Button>
+                                    </span>
+                                </div>
+                                <!-- eslint-disable-next-line vue/no-v-html -- server-rendered markdown, raw HTML stripped -->
+                                <div
+                                    v-if="entry.detailsHtml && open.has(column.prefix + entry.id)"
+                                    :id="`${column.prefix}changelog-details-${entry.id}`"
+                                    class="docs-prose mb-1.5 ml-6 border-l-2 border-border pl-3 text-[13px] text-muted-foreground"
+                                    :data-testid="`${column.prefix}changelog-details-${entry.id}`"
+                                    v-html="entry.detailsHtml"
+                                />
+                            </li>
+                        </ul>
+                    </section>
+                </div>
             </section>
         </div>
         <EmptyState v-else :icon="PhClockCounterClockwise" title="No entries yet" class="py-10" data-testid="changelog-empty">
@@ -342,7 +412,7 @@ function runImport() {
             <DialogContent class="max-h-[90dvh] overflow-y-auto sm:max-w-2xl" data-testid="changelog-add-dialog">
                 <DialogHeader>
                     <DialogTitle>Add entries</DialogTitle>
-                    <DialogDescription>One change per row. Press Enter in a row to add one below it.</DialogDescription>
+                    <DialogDescription>One change per row. Press Enter in a row to add one below it. Every change goes in the full changelog; tick Major change to also list it under Major changes.</DialogDescription>
                 </DialogHeader>
                 <form class="space-y-3" @submit.prevent="submitAdd">
                     <div class="space-y-1.5">
@@ -388,10 +458,16 @@ function runImport() {
                                     <PhTrash class="size-4" />
                                 </Button>
                             </div>
-                            <label class="flex items-center gap-2 text-xs text-muted-foreground">
-                                <Checkbox v-model="row.hasDetails" :data-testid="`changelog-row-has-details-${index}`" />
-                                Add additional information
-                            </label>
+                            <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+                                <label class="flex items-center gap-2">
+                                    <Checkbox v-model="row.major" :data-testid="`changelog-row-major-${index}`" />
+                                    Major change
+                                </label>
+                                <label class="flex items-center gap-2">
+                                    <Checkbox v-model="row.hasDetails" :data-testid="`changelog-row-has-details-${index}`" />
+                                    Add additional information
+                                </label>
+                            </div>
                             <Textarea
                                 v-if="row.hasDetails"
                                 v-model="row.details"
@@ -442,6 +518,10 @@ function runImport() {
                         <Input id="changelog-edit-body" v-model="editForm.body" :maxlength="MAX_BODY" data-testid="changelog-edit-body" :aria-invalid="!!editForm.errors.body" />
                         <p v-if="editForm.errors.body" class="text-xs text-destructive">{{ editForm.errors.body }}</p>
                     </div>
+                    <label class="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Checkbox v-model="editForm.major" data-testid="changelog-edit-major" />
+                        Major change
+                    </label>
                     <label class="flex items-center gap-2 text-xs text-muted-foreground">
                         <Checkbox v-model="editForm.hasDetails" data-testid="changelog-edit-has-details" />
                         Add additional information
