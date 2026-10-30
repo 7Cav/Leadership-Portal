@@ -329,12 +329,19 @@ acting identity's command shows.
   serves again, the records can be changed again.
 - Correct or delete: the date and reason can be corrected, never the type or the document; a record can be deleted
   with its document. Both need a reason and are audited, as is filing. A copy already on Google Drive stays there.
-- An LOR is frozen 72 hours after it is filed (its appeal window: the wiki gives the trooper 24 hours to say they
-  appeal and the appeal 72 hours to finish, with no further appeal). Until then it can be corrected or deleted as
-  above, for a typo, the wrong trooper or an upheld appeal. From then on nobody corrects or deletes it, Admins
-  included, and the server refuses with "This LOR was filed more than 72 hours ago, so it can no longer be changed.
-  The Regimental Executive Officer can overturn it." The 72 hours run from when it was filed, not the date it carries.
-  A DCS never freezes.
+- A DCS or LOR is frozen 72 hours after it is filed. Until then the issuer's chain (and Admins) can correct or
+  delete it as above, and the record shows "Can be corrected until <date>Z" to them. From then on nobody corrects or
+  deletes it, Admins included: the record carries a "Frozen <date>Z" badge and the server refuses with "This LOR was
+  filed more than 72 hours ago, so it can no longer be changed. The Regimental Executive Officer can overturn it." (on
+  a DCS: "This DCS was filed more than 72 hours ago, so it can no longer be changed."). The 72 hours run from when it
+  was filed, not the date it carries. Only an LOR can be overturned; a frozen DCS still expires after 90 days.
+- Appeal: within those 72 hours the trooper, on their own milpac page and signed in as themselves (never through act
+  as or view as), may file one statement per record (required, up to 2000 characters): **Appeal** on an LOR,
+  **Comment or dispute** on a DCS, which the regiment's DCS form says is not subject to appeal. They see "Appeal until
+  <date>Z" (or "Comment or dispute until"). It is stored on the record with the time and who filed it, audited as
+  `counseling.appealed` with the statement as the reason, and shown to whoever sees the record, flagged "Appeal filed"
+  (or "Comment or dispute filed"). On an LOR made from the portal's form, the form's appeal answer becomes "do wish to
+  appeal". The stored PDF is not made again.
 - Overturn: the Regimental Executive Officer, signed in as themselves (never through act as), may overturn a frozen
   LOR, with a reason (audited as `counseling.overturned`). It is never deleted: it stays in the list, muted, with "Overturned on <date> by <name>:
   <reason>", its document still downloads for whoever could see it, and it no longer counts toward any flag, the no

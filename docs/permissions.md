@@ -287,6 +287,7 @@ through the identity they act as.
 | See a DCS and download its document | All | All | Own | Own | Own | Own | Own | Own section | Their own (8) | Their own (8) | Target (6) |
 | See an LOR and download its document | All | All | Own | Own | Own | Own | Own | Own | Their own (8) | Read | Target |
 | Correct the date or reason, or delete (reason required) | All (9) | The issuer's chain (7) | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | The issuer's chain | No | No | No |
+| Appeal (LOR) or comment or dispute (DCS) within 72 hours (statement required) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | Their own (11) | No |
 | Overturn a frozen LOR (reason required) | No (10) | The RXO only (10) | No | No | No | No | No | No | No | No | No |
 
 (5) An LOR needs command from platoon level up on the line. A portfolio officer files a DCS on their staff; an LOR on
@@ -301,8 +302,11 @@ Admins' alone.
 (decided 2026-10-28), signed in as themselves (not while acting as or viewing as anyone). It is read only: nobody files
 on, corrects or deletes their own records, except that an Admin by the `is_admin` flag still corrects and deletes as an
 Admin. An Admin by billet does not (2026-10-29).
-(9) Not a frozen LOR: 72 hours after an LOR is filed (its appeal window) nobody corrects or deletes it, Admins by flag
-or by billet included. A DCS is never frozen.
+(9) Not a frozen record: 72 hours after a DCS or LOR is filed nobody corrects or deletes it, Admins by flag or by
+billet included. A DCS has no overturn.
+(11) Only the trooper the record is on, signed in as themselves, within the 72 hours after it was filed, once per
+record, and not once they have left the Cav. Nobody files it for them: not their chain, not an Admin, and not anyone
+through act as or a view-as preview. Whoever sees the record sees the statement.
 (10) Only the serving holder of the Regimental Executive Officer billet (the org import maps it to the regiment)
 overturns a frozen LOR, signed in as themselves: never one filed on themselves, never in a view-as preview, and never
 through act as (S6, 2026-10-29: "only the RXO for now"). An Admin acting as the RXO, the RCO acting as the RXO under the
@@ -444,7 +448,7 @@ only sign out has none, since it ends the session and signing back in is limited
 | Write gates | Each handler under `app/Commands/*` checks `writeScope()` (attendance, capture, guests, game identities, reports, a section's template pick) or `commandsUnit()` (fireteams, company policy, platoon topic, guidon, training plans, the review on the owning company in `TrainingPlanRules`, company and section templates through `Commands/Templates/TemplateAuthority`) |
 | Staff practices | `app/Authorization/StaffPracticeAccess.php` on `commandsUnit()`; checked in each `app/Commands/StaffPractices` handler |
 | Staff report | `app/Authorization/StaffReportAccess.php` (`maySend()` on `isOwnTrooper()`, `mayRead()` on `resolve()` of the unit above the HQ); checked in `SendStaffReportHandler` and `StaffReportController` |
-| Counseling (DCS, LOR) | `app/Authorization/CounselingAccess.php` on `ScopeResolver::commandingUnitsOver()`, `writeScope()` and `canSee()`; the LOR freeze and who overturns in `CounselingPermissions::frozen()` and `overturns()`; checked again in each `app/Commands/Counseling` handler and on the download |
+| Counseling (DCS, LOR) | `app/Authorization/CounselingAccess.php` on `ScopeResolver::commandingUnitsOver()`, `writeScope()` and `canSee()`; the 72-hour freeze, who overturns and who appeals in `CounselingPermissions::frozen()`, `overturns()` and `appeals()`; checked again in each `app/Commands/Counseling` handler and on the download |
 | Week floor | `app/Support/Time/WeekOf.php` (`floor()`, `isBeforeFloor()`), `config/portal.php` |
 | Rate limiters | `app/Providers/AppServiceProvider.php`, unit sync cooldown in `UnitRosterSyncController` |
 
