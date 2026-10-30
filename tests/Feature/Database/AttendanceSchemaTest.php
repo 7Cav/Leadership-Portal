@@ -112,7 +112,7 @@ it('accepts a practice row with zero attendance rows — an empty roster is vali
 });
 
 it('rejects a status outside the five allowed values at the data layer', function () {
-    expect(fn () => DB::table('attendance')->insert(rawAttendanceRow(['status' => 'excused'])))
+    expect(fn () => DB::table('attendance')->insert(rawAttendanceRow(['status' => 'attached'])))
         ->toThrow(QueryException::class);
 });
 
