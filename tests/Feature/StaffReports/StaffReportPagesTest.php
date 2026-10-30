@@ -136,26 +136,29 @@ it('opens the running week read-only, saying from when it can be sent', function
     $this->actingAs($this->tree['users']['psg'])->get('/staff-report')->assertRedirect($this->url);
 });
 
-it('shows "Staff report" in the sidebar for platoon and company HQ staff only', function (string $viewer, bool $shown) {
-    $this->actingAs($this->tree['users'][$viewer])->get('/home')->assertInertia(fn (AssertableInertia $page) => $page->where('features.staffReport', $shown));
+it('shows "Staff report" to HQ staff who read only their own and "Staff reports" to readers', function (string $viewer, ?string $nav) {
+    $this->actingAs($this->tree['users'][$viewer])->get('/home')->assertInertia(fn (AssertableInertia $page) => $page->where('features.staffReports', $nav));
 })->with([
-    'a PSG' => ['psg', true],
-    'a PL' => ['pl', true],
-    'a company commander' => ['co', true],
-    'a section leader' => ['sl', false],
-    'a staff department member' => ['s6Member', false],
-    'an Admin with no milpac' => ['admin', false],
+    'a PSG' => ['psg', 'own'],
+    'a PL' => ['pl', 'own'],
+    'a company commander, who reads the platoon HQ' => ['co', 'overview'],
+    'a staff grant on the company' => ['grant', 'overview'],
+    'a section leader' => ['sl', null],
+    'a staff department member' => ['s6Member', null],
+    'an Admin with no milpac' => ['admin', 'overview'],
 ]);
 
-it('shows "Staff report" to a company commander and XO placed on the company HQ node, signed in as themselves', function (string $billet) {
+it('shows "Staff report" to a company commander and XO placed on the company HQ node with no command billet mapped, who read only their own', function (string $billet) {
     $trooper = Trooper::factory()->create(['primary_section_id' => $this->tree['units']['company']->id, 'billet' => $billet]);
     $user = User::factory()->create(['cav_id' => $trooper->cav_id]);
+    // Their billet's title alone gives no command scope, so they read no HQ; a CO whose billet commands the company
+    // reads the platoon HQ and gets the overview (the 'co' case above).
 
-    $this->actingAs($user)->get('/home')->assertInertia(fn (AssertableInertia $page) => $page->where('features.staffReport', true));
+    $this->actingAs($user)->get('/home')->assertInertia(fn (AssertableInertia $page) => $page->where('features.staffReports', 'own'));
 
     // An Admin viewing as them does not get it: the link is for the staff member's own session only.
     $this->actingAs($this->tree['users']['admin'])->post('/view-as', ['kind' => 'user', 'id' => $user->id])->assertSessionHasNoErrors();
-    $this->actingAs($this->tree['users']['admin'])->get('/home')->assertInertia(fn (AssertableInertia $page) => $page->where('features.staffReport', false));
+    $this->actingAs($this->tree['users']['admin'])->get('/home')->assertInertia(fn (AssertableInertia $page) => $page->where('features.staffReports', null));
 })->with([
     'the CO' => ['Commander A/1-7'],
     'the XO' => ['Executive Officer A/1-7'],
@@ -189,14 +192,14 @@ it('shows on a platoon\'s report whether its HQ staff sent theirs, to those who 
 
     $this->actingAs($this->tree['users']['co'])->get($url)->assertInertia(fn (AssertableInertia $page) => $page
         ->where('staffReports', [
-            ['trooperId' => $this->psg->id, 'name' => $this->psg->display_name, 'sent' => true, 'attended' => true, 'practices' => 1, 'href' => $this->url],
-            ['trooperId' => $pl->id, 'name' => $pl->display_name, 'sent' => false, 'attended' => null, 'practices' => 0, 'href' => route('staff-report.show', ['trooper' => $pl->id, 'week' => '2026-10-03'])],
+            ['trooperId' => $this->psg->id, 'name' => $this->psg->display_name, 'sent' => true, 'attended' => true, 'practices' => 1, 'practiceType' => 'sp', 'ftx' => null, 'otherEvents' => null, 'notes' => null, 'sheetPushedAt' => null, 'href' => $this->url],
+            ['trooperId' => $pl->id, 'name' => $pl->display_name, 'sent' => false, 'attended' => null, 'practices' => 0, 'practiceType' => null, 'ftx' => null, 'otherEvents' => null, 'notes' => null, 'sheetPushedAt' => null, 'href' => route('staff-report.show', ['trooper' => $pl->id, 'week' => '2026-10-03'])],
         ]));
 
     // The PL reads their own row only, not their PSG's.
     $this->actingAs($this->tree['users']['pl'])->get($url)->assertInertia(fn (AssertableInertia $page) => $page
         ->where('staffReports', [
-            ['trooperId' => $pl->id, 'name' => $pl->display_name, 'sent' => false, 'attended' => null, 'practices' => 0, 'href' => route('staff-report.show', ['trooper' => $pl->id, 'week' => '2026-10-03'])],
+            ['trooperId' => $pl->id, 'name' => $pl->display_name, 'sent' => false, 'attended' => null, 'practices' => 0, 'practiceType' => null, 'ftx' => null, 'otherEvents' => null, 'notes' => null, 'sheetPushedAt' => null, 'href' => route('staff-report.show', ['trooper' => $pl->id, 'week' => '2026-10-03'])],
         ]));
 
     // A section's report has none.

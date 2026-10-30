@@ -4,10 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Authorization\ScopeResolver;
 use App\Authorization\StaffReportAccess;
+use App\Commands\StaffReports\PushStaffReportToSheet;
+use App\Commands\StaffReports\PushStaffReportToSheetHandler;
 use App\Commands\StaffReports\SendStaffReport;
 use App\Commands\StaffReports\SendStaffReportHandler;
 use App\Commands\StaffReports\StaffReportForbiddenException;
 use App\Commands\StaffReports\StaffReportRefusedException;
+use App\Jobs\PushStaffReportToSheetJob;
 use App\Kpi\Headcount;
 use App\Kpi\KpiService;
 use App\Milpac\StaffReportWeek;
@@ -17,6 +20,7 @@ use App\Repositories\TrooperRepository;
 use App\Repositories\UnitRepository;
 use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -24,12 +28,12 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * The weekly staff report: a platoon or company HQ staff member says whether they attended a
- * section practice that week, and which. One page per staff member and week. `/staff-report` opens the viewer's own for
- * the last week to have ended, the one whose report is due: a week is sent only once it is over. The running week reads
- * as not sendable yet. Orchestration only: the send is one audited Command whose handler decides who
- * may ({@see StaffReportAccess}: the staff member alone) and which week; a view-as preview is refused before it gets
- * here (`ReadOnlyWhileViewingAs`).
+ * The weekly staff report: a platoon, company or battalion HQ staff member says whether they attended a
+ * section practice or an FTX that week, and which, with the other events they attended and their notes. One page per
+ * staff member and week. `/staff-report` opens the viewer's own for the last week to have ended, the one whose report
+ * is due: a week is sent only once it is over. The running week reads as not sendable yet. Orchestration only: the send
+ * is one audited Command whose handler decides who may ({@see StaffReportAccess}: the staff member alone) and which
+ * week; a view-as preview is refused before it gets here (`ReadOnlyWhileViewingAs`).
  *
  * Reading one: the staff member, the chain above their HQ (as the unit above it is read) and Admins. Anyone else, and a
  * trooper who files no report for that week, answers 404, like a page that does not exist (AD-8).
@@ -43,6 +47,7 @@ class StaffReportController extends Controller
         private readonly UnitRepository $units,
         private readonly StaffReportWeek $week,
         private readonly Headcount $headcount,
+        private readonly PushStaffReportToSheetHandler $sheet,
     ) {}
 
     /** The viewer's own staff report for the last week to have ended: the one due. */
@@ -93,6 +98,8 @@ class StaffReportController extends Controller
                 'opensAt' => WeekOf::next($weekStart)->toIso8601String(),
             ],
             'report' => $report === null ? null : $this->withOwn($report, $hq),
+            // Whether the reports Google Sheet is set up, so a reader is told when a row has not gone to it yet.
+            'sheetConfigured' => $this->sheet->sheetConfigured(),
             'canSend' => $canSend,
             // What the picker starts from: the week's staff practice entries (ticked, with who entered each) and the
             // practices the game server saw them at (a hint, never ticked for them).
@@ -100,10 +107,15 @@ class StaffReportController extends Controller
             'seen' => $canSend ? $this->week->seenSectionIds($trooper, $weekStart) : [],
             'sections' => $canSend ? $this->sections($hq) : [],
             'maxPractices' => SendStaffReportHandler::MAX_PRACTICES,
+            'limits' => [
+                'ftxName' => SendStaffReportHandler::MAX_FTX_NAME,
+                'otherEvents' => SendStaffReportHandler::MAX_OTHER_EVENTS,
+                'notes' => SendStaffReportHandler::MAX_NOTES,
+            ],
         ]);
     }
 
-    public function send(Request $request, SendStaffReportHandler $handler, int $trooper, string $week): RedirectResponse
+    public function send(Request $request, SendStaffReportHandler $handler, Dispatcher $bus, int $trooper, string $week): RedirectResponse
     {
         $found = $this->troopers->find($trooper);
         abort_unless($found !== null && ($this->scope->isOwnTrooper($request->user(), $found) || $this->scope->canSee($request->user(), $found)), 404);
@@ -113,22 +125,43 @@ class StaffReportController extends Controller
             'attended' => ['required', 'boolean'],
             'section_ids' => ['present', 'array', 'max:'.SendStaffReportHandler::MAX_PRACTICES],
             'section_ids.*' => ['integer'],
+            // The rules on what goes with what (an FTX's name and date, the week) are the handler's; these bound the request.
+            'practice_type' => ['nullable', 'string', 'in:sp,ftx'],
+            'ftx_name' => ['nullable', 'string', 'max:'.SendStaffReportHandler::MAX_FTX_NAME],
+            'ftx_date' => ['nullable', 'string', 'max:10'],
+            'other_events' => ['nullable', 'string', 'max:'.SendStaffReportHandler::MAX_OTHER_EVENTS],
+            'notes' => ['nullable', 'string', 'max:'.SendStaffReportHandler::MAX_NOTES],
         ], [
             'attended.required' => 'Answer whether you attended a section practice this week.',
             'section_ids.max' => 'Pick at most :max practices.',
+            'practice_type.in' => 'Pick Section practice (SP) or FTX.',
+            'ftx_name.max' => 'Keep the FTX name to :max characters.',
+            'other_events.max' => 'Keep the other events to :max characters.',
+            'notes.max' => 'Keep the notes to :max characters.',
         ]);
 
         try {
-            $handler->handle($request->user(), new SendStaffReport(
+            $report = $handler->handle($request->user(), new SendStaffReport(
                 $found->id,
                 $weekStart,
                 (bool) $data['attended'],
                 array_map('intval', $data['section_ids']),
+                $data['practice_type'] ?? null,
+                $data['ftx_name'] ?? null,
+                $data['ftx_date'] ?? null,
+                $data['other_events'] ?? null,
+                $data['notes'] ?? null,
             ));
         } catch (StaffReportForbiddenException $e) {
             abort(403, $e->getMessage());
         } catch (StaffReportRefusedException $e) {
             throw ValidationException::withMessages([$e->field => $e->getMessage()]);
+        }
+
+        // The copy to the reports Google Sheet is queued and never part of the send: if it cannot even be queued, the
+        // report stands and reads "Not sent to the sheet yet".
+        if ($this->sheet->sheetConfigured()) {
+            rescue(fn () => $bus->dispatch(new PushStaffReportToSheetJob(new PushStaffReportToSheet($report->id))));
         }
 
         return redirect()->route('staff-report.show', ['trooper' => $found->id, 'week' => $weekStart->toDateString()]);

@@ -34,7 +34,7 @@ class StaffReportWeek
      * The sent report, shaped for the page, or null while it is not sent. Each practice says whether it was in the
      * staff member's own unit (`own`), which the host's rollcall lists as a staff guest.
      *
-     * @return array{sentAt: string, attended: bool, practices: list<array{sectionId: int, section: ?string}>}|null
+     * @return array<string, mixed>|null
      */
     public function report(Trooper $trooper, CarbonImmutable $weekStart): ?array
     {
@@ -44,18 +44,45 @@ class StaffReportWeek
     }
 
     /**
-     * @return array{sentAt: string, attended: bool, practices: list<array{sectionId: int, section: ?string}>}
+     * The report as sent. `practiceType` is `sp` or `ftx` (a report sent before the type was asked reads as an SP when
+     * they attended); `ftx` holds the FTX's name and date; `sheetPushedAt` is when the row went to the reports sheet.
+     *
+     * @return array{sentAt: string, attended: bool, practiceType: ?string, ftx: ?array{name: ?string, date: ?string}, otherEvents: ?string, notes: ?string, sheetPushedAt: ?string, practices: list<array{sectionId: int, section: ?string}>}
      */
     public static function reportProps(StaffReport $report): array
     {
+        $type = $report->practice_type ?? ($report->attended ? StaffReport::SP : null);
+
         return [
             'sentAt' => $report->sent_at->toIso8601String(),
             'attended' => $report->attended,
+            'practiceType' => $type,
+            'ftx' => $type === StaffReport::FTX ? ['name' => $report->ftx_name, 'date' => $report->ftx_date?->toDateString()] : null,
+            'otherEvents' => $report->other_events,
+            'notes' => $report->notes,
+            'sheetPushedAt' => $report->sheet_pushed_at?->toIso8601String(),
             'practices' => array_map(fn (array $row) => [
                 'sectionId' => (int) $row['section_id'],
                 'section' => $row['section'] ?? null,
             ], $report->practices ?? []),
         ];
+    }
+
+    /** The trooper's sent report row for the week, or null. */
+    public function find(Trooper $trooper, CarbonImmutable $weekStart): ?StaffReport
+    {
+        return $this->reports->find($trooper->id, $weekStart);
+    }
+
+    /**
+     * Whether a sent report keeps to the rule of one section practice a week: "Yes" with a practice picked, or "Yes"
+     * to an FTX, whose sections are optional.
+     *
+     * @param  array{attended: bool, practiceType: ?string, practices: list<mixed>}  $props  from {@see reportProps()}
+     */
+    public static function metRule(array $props): bool
+    {
+        return $props['attended'] && ($props['practices'] !== [] || $props['practiceType'] === StaffReport::FTX);
     }
 
     /**
@@ -106,17 +133,31 @@ class StaffReportWeek
      */
     public function hqStaff(Unit $hq, CarbonImmutable $weekStart): array
     {
-        $ids = $this->placements->trooperIdsInUnitAtWeekEnd($hq->id, $weekStart);
+        return $this->staffOfHqs([$hq->id], $weekStart)[$hq->id];
+    }
+
+    /**
+     * {@see hqStaff()} for many HQs at once, in a fixed number of queries whatever their count: HQ id => its staff, for
+     * every HQ given. What the staff reports overview reads.
+     *
+     * @param  list<int>  $hqIds
+     * @return array<int, list<array{trooper: Trooper, report: ?StaffReport}>>
+     */
+    public function staffOfHqs(array $hqIds, CarbonImmutable $weekStart): array
+    {
+        $idsByHq = $this->placements->trooperIdsInUnitsAtWeekEnd($hqIds, $weekStart);
+        $ids = array_values(array_unique(array_merge([], ...array_values($idsByHq))));
         $sent = $this->reports->forTroopers($ids, $weekStart);
+        $troopers = $this->troopers->byIds($ids);
         // The Saturday the week ends, when its roster is read.
         $end = $weekStart->addWeek();
 
-        return $this->troopers->byIds($ids)
+        return array_map(fn (array $hqTroopers) => $troopers->only($hqTroopers)
             ->filter(fn (Trooper $trooper) => $sent->has($trooper->id) || $trooper->status->isServing()
                 || ($trooper->departed_at !== null && $trooper->departed_at->greaterThanOrEqualTo($end)))
             ->sortBy(fn (Trooper $trooper) => [mb_strtolower((string) $trooper->username), $trooper->id])
             ->map(fn (Trooper $trooper) => ['trooper' => $trooper, 'report' => $sent->get($trooper->id)])
             ->values()
-            ->all();
+            ->all(), $idsByHq);
     }
 }

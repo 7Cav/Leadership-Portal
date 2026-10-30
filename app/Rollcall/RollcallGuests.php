@@ -19,7 +19,7 @@ use Illuminate\Support\Collection;
  *
  * Staff who said they attended (a staff practice entry, source `staff`, from their staff report or their milpac) are
  * listed after the guests: as a staff guest (`staffGuest`) when the section is under the HQ they
- * were placed on when the week ended (their platoon or company), and as a guest otherwise. Shown only: they never count
+ * were placed on when the week ended (their platoon, company or battalion), and as a guest otherwise. Shown only: they never count
  * in the section's numbers, KPIs, strength, JSAM counts or makeups, are never on its roster, and the host leader
  * cannot remove them.
  */
@@ -68,7 +68,7 @@ class RollcallGuests
 
     /**
      * Whether the host section is under `$hq`, the unit the staff member was placed on when the practice's week ended:
-     * their own platoon or company, which lists them as a staff guest.
+     * their own platoon, company or battalion, which lists them as a staff guest.
      */
     private static function underOwnHq(?Unit $hq, Unit $host): bool
     {

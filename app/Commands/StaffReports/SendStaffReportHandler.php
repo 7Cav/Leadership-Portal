@@ -19,8 +19,9 @@ use App\Support\Time\WeekOf;
 use Carbon\CarbonImmutable;
 
 /**
- * A platoon or company HQ staff member sends their own weekly staff report: whether they attended
- * at least one section practice that Cav week, and which. Only they send it, signed in as themselves
+ * A platoon, company or battalion HQ staff member sends their own weekly staff report: whether they attended
+ * at least one section practice that Cav week, what kind (a section practice or an FTX), which, the other events they
+ * attended and their notes. Only they send it, signed in as themselves
  * ({@see StaffReportAccess::maySend()}); nobody fills it in for them, Admins included. A sent report is final, as a
  * unit's weekly report is: there is no draft, no edit and no second send.
  *
@@ -33,9 +34,10 @@ use Carbon\CarbonImmutable;
  * counts as a practice they attended. Nothing is written on the host's rollcall, numbers, reports or makeups.
  *
  * Refused before anything is written: an unknown trooper, anyone but the staff member (403), a week before the floor,
- * in the future or still running (a week is sent once it has ended), a trooper not on a platoon or company HQ when the week ended (by the placement history, so a past week
- * goes by who was on the HQ then) or no longer serving, "Yes" with nothing picked or "No" with picks, a pick that is not
- * a section, and a report already sent. Then one audited transaction (`staff_report.sent`, AD-16, target the report,
+ * in the future or still running (a week is sent once it has ended), a trooper not on a platoon, company or battalion HQ when the week ended (by the placement history, so a past week
+ * goes by who was on the HQ then) or no longer serving, "Yes" to an SP with nothing picked or "No" with picks or an FTX,
+ * a practice type other than SP or FTX, an FTX without a name or with a date outside the week, text over its limit, a
+ * pick that is not a section, and a report already sent. Then one audited transaction (`staff_report.sent`, AD-16, target the report,
  * digest over it and the week's entries): the report row is inserted under its UNIQUE key, so two sends at once land on
  * one and the second is told it was already sent. The HQ's own weekly report does not lock this: the staff member's
  * week is theirs to report until they send it.
@@ -44,6 +46,12 @@ class SendStaffReportHandler
 {
     /** The most practices one report takes: far more than a week holds, a bound on the request only. */
     public const MAX_PRACTICES = 20;
+
+    public const MAX_FTX_NAME = 120;
+
+    public const MAX_OTHER_EVENTS = 500;
+
+    public const MAX_NOTES = 1000;
 
     public function __construct(
         private readonly StaffReportAccess $access,
@@ -84,7 +92,8 @@ class SendStaffReportHandler
         }
 
         $hq = $this->access->owes($trooper, $weekStart) ?? throw StaffReportRefusedException::notOwed($trooper->display_name, $weekStart);
-        $sections = $this->pickedSections($command);
+        $fields = $this->fields($command, $weekStart);
+        $sections = $this->pickedSections($command, $fields['practice_type']);
 
         if ($this->reports->find($trooper->id, $weekStart) !== null) {
             throw StaffReportRefusedException::alreadySent($weekStart);
@@ -96,7 +105,7 @@ class SendStaffReportHandler
             action: 'staff_report.sent',
             reason: null,
             reasonRequired: false,
-            mutation: function () use ($actor, $trooper, $weekStart, $hq, $sections, $command, &$report) {
+            mutation: function () use ($actor, $trooper, $weekStart, $hq, $sections, $fields, $command, &$report) {
                 if ($this->reports->isSent($trooper->id, $weekStart)) {
                     throw StaffReportRefusedException::alreadySent($weekStart);
                 }
@@ -129,6 +138,7 @@ class SendStaffReportHandler
                     $command->attended,
                     array_map(fn (Unit $section) => ['section_id' => $section->id, 'section' => $section->callsign ?? $section->name], $sections),
                     $actor->id,
+                    $fields,
                 ) ?? throw StaffReportRefusedException::alreadySent($weekStart);
 
                 return new AuditedBatch($report, ...array_values(array_filter($entries, fn (?CrossSectionSighting $row) => $row !== null)));
@@ -163,17 +173,89 @@ class SendStaffReportHandler
     }
 
     /**
+     * The rest of what was sent, checked and trimmed: the practice type (SP unless FTX is picked, null with "No"), the
+     * FTX's name and date (only for an FTX, both required, the date inside the Cav week), other events and notes (empty
+     * text is null).
+     *
+     * @return array{practice_type: ?string, ftx_name: ?string, ftx_date: ?string, other_events: ?string, notes: ?string}
+     *
+     * @throws StaffReportRefusedException
+     */
+    private function fields(SendStaffReport $command, CarbonImmutable $weekStart): array
+    {
+        $type = $command->practiceType === null || $command->practiceType === '' ? null : $command->practiceType;
+        $ftxName = self::text($command->ftxName);
+        $ftxDate = self::text($command->ftxDate);
+
+        if ($type !== null && ! in_array($type, [StaffReport::SP, StaffReport::FTX], true)) {
+            throw StaffReportRefusedException::unknownPracticeType();
+        }
+
+        if (! $command->attended) {
+            if ($type === StaffReport::FTX || $ftxName !== null || $ftxDate !== null) {
+                throw StaffReportRefusedException::ftxWithNo();
+            }
+            $type = null;
+        } else {
+            $type ??= StaffReport::SP;
+        }
+
+        if ($type === StaffReport::FTX) {
+            if ($ftxName === null) {
+                throw StaffReportRefusedException::ftxNameMissing();
+            }
+            if (mb_strlen($ftxName) > self::MAX_FTX_NAME) {
+                throw StaffReportRefusedException::tooLong('ftx_name', 'the FTX name', self::MAX_FTX_NAME);
+            }
+
+            $date = $ftxDate === null ? false : CarbonImmutable::createFromFormat('!Y-m-d', $ftxDate, 'UTC');
+            if ($date === false || $date->toDateString() !== $ftxDate || ! WeekOf::start($date)->equalTo($weekStart)) {
+                throw StaffReportRefusedException::ftxDateOutsideWeek($weekStart);
+            }
+        } elseif ($ftxName !== null || $ftxDate !== null) {
+            // An SP has no FTX name or date: the form clears them, so these came from somewhere else.
+            throw StaffReportRefusedException::ftxFieldsWithSp();
+        }
+
+        $otherEvents = self::text($command->otherEvents);
+        $notes = self::text($command->notes);
+
+        if ($otherEvents !== null && mb_strlen($otherEvents) > self::MAX_OTHER_EVENTS) {
+            throw StaffReportRefusedException::tooLong('other_events', 'the other events', self::MAX_OTHER_EVENTS);
+        }
+        if ($notes !== null && mb_strlen($notes) > self::MAX_NOTES) {
+            throw StaffReportRefusedException::tooLong('notes', 'the notes', self::MAX_NOTES);
+        }
+
+        return [
+            'practice_type' => $type,
+            'ftx_name' => $type === StaffReport::FTX ? $ftxName : null,
+            'ftx_date' => $type === StaffReport::FTX ? $ftxDate : null,
+            'other_events' => $otherEvents,
+            'notes' => $notes,
+        ];
+    }
+
+    private static function text(?string $value): ?string
+    {
+        $value = $value === null ? null : trim($value);
+
+        return $value === null || $value === '' ? null : $value;
+    }
+
+    /**
      * The sections picked, each once and in the order given, checked against the answer.
      *
      * @return list<Unit>
      *
      * @throws StaffReportRefusedException
      */
-    private function pickedSections(SendStaffReport $command): array
+    private function pickedSections(SendStaffReport $command, ?string $type): array
     {
         $ids = array_values(array_unique(array_map('intval', $command->sectionIds)));
 
-        if ($command->attended && $ids === []) {
+        // An FTX may span several sections or none in particular: its name and date say what it was.
+        if ($command->attended && $type === StaffReport::SP && $ids === []) {
             throw StaffReportRefusedException::noPractice();
         }
 
