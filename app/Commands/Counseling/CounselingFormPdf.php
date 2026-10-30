@@ -39,6 +39,20 @@ class CounselingFormPdf
      */
     public function pdf(CounselingType $type, CarbonImmutable $date, array $parties, CounselingForm $form): string
     {
+        $dompdf = new Dompdf(self::options());
+        $dompdf->loadHtml($this->html($type, $date, $parties, $form), 'UTF-8');
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        return (string) $dompdf->output();
+    }
+
+    /**
+     * dompdf's settings: nothing fetched over the network, no PHP or JavaScript in the page, and local files only from
+     * the view's own directory.
+     */
+    public static function options(): Options
+    {
         $options = new Options;
         $options->setIsRemoteEnabled(false);
         $options->setIsPhpEnabled(false);
@@ -47,12 +61,7 @@ class CounselingFormPdf
         $options->setDefaultFont('DejaVu Sans');
         $options->setDefaultPaperSize('a4');
 
-        $dompdf = new Dompdf($options);
-        $dompdf->loadHtml($this->html($type, $date, $parties, $form), 'UTF-8');
-        $dompdf->setPaper('A4', 'portrait');
-        $dompdf->render();
-
-        return (string) $dompdf->output();
+        return $options;
     }
 
     /**

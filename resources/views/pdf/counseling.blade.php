@@ -3,15 +3,16 @@
     (Letter of Reprimand). The titles, labels and fixed text are copied from the official forms, spelling included.
     Rendered to PDF by App\Commands\Counseling\CounselingFormPdf and shown as the preview, so both are the same page.
 
-    Every value a leader typed is printed through e() ({{ }} or nl2br(e())): markup, scripts and Markdown in it stay
+    Every value a leader typed is printed through {{ }}, the long answers as nl2br(e()) in an HtmlString: markup, scripts and Markdown in it stay
     text. Nothing is loaded from anywhere: no remote images, fonts or styles (dompdf runs with remote access off).
 
     Expects: $lor (bool), $date (string), $parties (trooper/authority: rank, name, billet), $form (CounselingForm::toArray()).
 --}}
 @php
-    $text = fn (?string $value) => nl2br(e((string) $value), false);
-    $box = fn (bool $on) => $on ? '&#9746;' : '&#9744;';
-    $radio = fn (bool $on) => $on ? '&#9673;' : '&#9675;';
+    // Each helper returns an HtmlString built from e(), so it prints through {{ }} without being escaped twice.
+    $text = fn (?string $value) => new \Illuminate\Support\HtmlString(nl2br(e((string) $value), false));
+    $box = fn (bool $on) => new \Illuminate\Support\HtmlString($on ? '&#9746;' : '&#9744;');
+    $radio = fn (bool $on) => new \Illuminate\Support\HtmlString($on ? '&#9673;' : '&#9675;');
     $picked = fn (string $c) => in_array($c, $form['consequences'] ?? [], true);
     // Long answers as several rows, so a page can break between them (dompdf cannot split one row).
     $rows = fn (array $columns, int $width) => \App\Commands\Counseling\CounselingFormRows::rows($columns, $width);
@@ -81,19 +82,19 @@
     @foreach ($rows([$form['infraction'] ?? ''], $wide) as $i => $row)
         <tr @class(['cont' => $i > 0])>
             <td @class(['i', 'tall' => $loop->count === 1])>{{ $i === 0 ? 'Evidenced infraction and associated details / Previous instances and counsellings' : '' }}</td>
-            <td colspan="3" @if ($i === 0) data-field="infraction" @endif>{!! $text($row[0]) !!}</td>
+            <td colspan="3" @if ($i === 0) data-field="infraction" @endif>{{ $text($row[0]) }}</td>
         </tr>
     @endforeach
     @foreach ($rows([$form['regulation'] ?? ''], $wide) as $i => $row)
         <tr @class(['cont' => $i > 0])>
             <td @class(['i', 'tall' => $loop->count === 1])>{{ $i === 0 ? 'Associated regulation / order / SOP' : '' }}</td>
-            <td colspan="3" @if ($i === 0) data-field="regulation" @endif>{!! $text($row[0]) !!}</td>
+            <td colspan="3" @if ($i === 0) data-field="regulation" @endif>{{ $text($row[0]) }}</td>
         </tr>
     @endforeach
     @foreach ($rows([$form['discussion'] ?? ''], $wide) as $i => $row)
         <tr @class(['cont' => $i > 0])>
             <td @class(['i', 'tall' => $loop->count === 1])>{{ $i === 0 ? 'Notes of discussion' : '' }}</td>
-            <td colspan="3" @if ($i === 0) data-field="discussion" @endif>{!! $text($row[0]) !!}</td>
+            <td colspan="3" @if ($i === 0) data-field="discussion" @endif>{{ $text($row[0]) }}</td>
         </tr>
     @endforeach
     </tbody>
@@ -108,17 +109,17 @@
     @foreach ($rows([$form['plan_authority'] ?? '', $form['plan_trooper'] ?? '', $form['plan_other'] ?? ''], $narrow) as $i => $row)
         <tr @class(['cont' => $i > 0])>
             <td @class(['plan' => $loop->count === 1])></td>
-            <td @class(['plan' => $loop->count === 1]) @if ($i === 0) data-field="plan-authority" @endif>{!! $text($row[0]) !!}</td>
-            <td @class(['plan' => $loop->count === 1])>{!! $text($row[1]) !!}</td>
-            <td @class(['plan' => $loop->count === 1])>{!! $text($row[2]) !!}</td>
+            <td @class(['plan' => $loop->count === 1]) @if ($i === 0) data-field="plan-authority" @endif>{{ $text($row[0]) }}</td>
+            <td @class(['plan' => $loop->count === 1])>{{ $text($row[1]) }}</td>
+            <td @class(['plan' => $loop->count === 1])>{{ $text($row[2]) }}</td>
         </tr>
     @endforeach
     @foreach ($rows([$form['comments_authority'] ?? '', $form['comments_trooper'] ?? '', $form['comments_other'] ?? ''], $narrow) as $i => $row)
         <tr @class(['cont' => $i > 0])>
             <td @class(['i', 'comments' => $loop->count === 1])>{{ $i === 0 ? 'Any comments' : '' }}</td>
-            <td>{!! $text($row[0]) !!}</td>
-            <td>{!! $text($row[1]) !!}</td>
-            <td>{!! $text($row[2]) !!}</td>
+            <td>{{ $text($row[0]) }}</td>
+            <td>{{ $text($row[1]) }}</td>
+            <td>{{ $text($row[2]) }}</td>
         </tr>
     @endforeach
     </tbody>
@@ -131,26 +132,26 @@
         <tr>
             <td class="i">Recommended Consequence</td>
             <td colspan="3" data-field="consequences">
-                <span class="sym">{!! $box($picked('nfa')) !!}</span> Any Instance – 30 Days NFA<br>
-                <span class="sym">{!! $box($picked('removal')) !!}</span> 2<sup>nd</sup> Instance (in 90 days) – Removal from<br>
-                <span class="indent"><span class="sym">{!! $radio(($form['removal'] ?? null) === 'section_leader') !!}</span> Section Leader position (if applicable)</span><br>
-                <span class="indent"><span class="sym">{!! $radio(($form['removal'] ?? null) === 'assistant_section_leader') !!}</span> Assistant Section Leader position (if applicable)</span><br>
-                <span class="sym">{!! $box($picked('article_15')) !!}</span> Unit Commander escalation to Article 15 Commander’s Investigation<br>
-                <span class="sym">{!! $box($picked('special_punishment')) !!}</span> Any special punishment directed by a General Staff Officer (<span class="i">to follow</span>)
+                <span class="sym">{{ $box($picked('nfa')) }}</span> Any Instance – 30 Days NFA<br>
+                <span class="sym">{{ $box($picked('removal')) }}</span> 2<sup>nd</sup> Instance (in 90 days) – Removal from<br>
+                <span class="indent"><span class="sym">{{ $radio(($form['removal'] ?? null) === 'section_leader') }}</span> Section Leader position (if applicable)</span><br>
+                <span class="indent"><span class="sym">{{ $radio(($form['removal'] ?? null) === 'assistant_section_leader') }}</span> Assistant Section Leader position (if applicable)</span><br>
+                <span class="sym">{{ $box($picked('article_15')) }}</span> Unit Commander escalation to Article 15 Commander’s Investigation<br>
+                <span class="sym">{{ $box($picked('special_punishment')) }}</span> Any special punishment directed by a General Staff Officer (<span class="i">to follow</span>)
             </td>
         </tr>
         @foreach ($rows([$form['special_punishments'] ?? ''], $wide) as $i => $row)
             <tr @class(['cont' => $i > 0])>
                 <td @class(['i', 'comments' => $loop->count === 1])>{{ $i === 0 ? 'Special punishments ordered' : '' }}</td>
-                <td colspan="3" @if ($i === 0) data-field="special-punishments" @endif>{!! $text($row[0]) !!}</td>
+                <td colspan="3" @if ($i === 0) data-field="special-punishments" @endif>{{ $text($row[0]) }}</td>
             </tr>
         @endforeach
         <tr>
             <td class="i">Right to Appeal</td>
             <td colspan="3" data-field="appeal">
                 I, the disciplining authority, have informed the trooper of their right to appeal in accordance with 7CAV-R-043 and have been informed that
-                they <span class="b">DO</span> <span class="sym">{!! $radio(($form['appeal'] ?? null) === 'do') !!}</span>
-                or <span class="b">DO NOT</span> <span class="sym">{!! $radio(($form['appeal'] ?? null) === 'do_not') !!}</span>
+                they <span class="b">DO</span> <span class="sym">{{ $radio(($form['appeal'] ?? null) === 'do') }}</span>
+                or <span class="b">DO NOT</span> <span class="sym">{{ $radio(($form['appeal'] ?? null) === 'do_not') }}</span>
                 wish to appeal to one level higher in the chain of command.
             </td>
         </tr>
