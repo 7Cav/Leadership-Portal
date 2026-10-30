@@ -231,7 +231,7 @@ function runImport() {
 <template>
     <Head title="Changelog · 7Cav Leadership Portal" />
 
-    <div class="mx-auto max-w-3xl space-y-5">
+    <div class="max-w-3xl space-y-5">
         <div class="flex flex-wrap items-start justify-between gap-3">
             <h1 class="text-xl font-semibold tracking-tight">Changelog</h1>
             <div v-if="isEditor" class="flex flex-wrap gap-2">
