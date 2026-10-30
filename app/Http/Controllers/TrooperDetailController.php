@@ -103,6 +103,7 @@ class TrooperDetailController extends Controller
                 // A frozen LOR (72 hours after filing) is overturned by the Regimental Executive Officer only.
                 fn (CounselingRecord $record) => $writable && $permissions->overturns($record),
                 fn (CounselingRecord $record) => CounselingPermissions::frozen($record),
+                $permissions->seesExpired,
             ),
             // Left the Cav: the records are read-only for everyone, and the panel says so.
             'departed' => $permissions->departed,
