@@ -119,9 +119,10 @@ it('does not flag at-risk from misses recorded at the new section for weeks befo
 
     $row = $this->kpis->trooperAttendance($this->sectionB, xferWeek())[$mover->id];
 
+    // The week of the move is their first at B, excused automatically while nobody marked it (2026-10-30).
     expect($row->missed)->toBe(0)
         ->and($row->atRisk())->toBeFalse()
-        ->and($row->practice)->toEqual(new Ratio(2, 4));
+        ->and($row->practice)->toEqual(new Ratio(2, 3));
 });
 
 it('carries the old section\'s misses with the trooper, so at-risk follows them', function () {
@@ -242,8 +243,9 @@ it('counts the trooper in their current section\'s KPIs with their earlier weeks
 
     expect($a->strength)->toBe(0)
         ->and($b->strength)->toBe(2)
-        // The stayer 4 of 4, the mover their week at A plus two unmarked held weeks at B.
-        ->and($b->sp30d)->toEqual(new Ratio(5, 7))
+        // The stayer 4 of 4, the mover their week at A plus an unmarked held week at B: the week of the move is
+        // excused automatically (2026-10-30).
+        ->and($b->sp30d)->toEqual(new Ratio(5, 6))
         ->and($bySection[$this->sectionB->id])->toEqual($b)
         ->and($bySection->has($this->sectionA->id))->toBeFalse();
 });
@@ -260,7 +262,7 @@ it('reads a regiment in the same number of queries with placement history as wit
     $queries = count(DB::getQueryLog());
     DB::disableQueryLog();
 
-    expect($queries)->toBeLessThanOrEqual(3);
+    expect($queries)->toBeLessThanOrEqual(4);
 });
 
 it('measures the JSAM own-section SP against the section the trooper was in that week', function () {
@@ -270,5 +272,6 @@ it('measures the JSAM own-section SP against the section the trooper was in that
     xferMove($this, $mover, $this->sectionB, 1);
     xferMark($mover, $this->sectionB, 0, AttendanceStatus::Present);
 
-    expect($this->kpis->ownSectionPractice([$mover->id], xferWeek(), 4)[$mover->id])->toEqual(new Ratio(2, 4));
+    // Weeks 3 and 0 attended, week 2 missed; week 1, the move, is excused automatically (2026-10-30).
+    expect($this->kpis->ownSectionPractice([$mover->id], xferWeek(), 4)[$mover->id])->toEqual(new Ratio(2, 3));
 });

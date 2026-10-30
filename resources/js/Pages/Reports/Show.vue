@@ -304,6 +304,10 @@ const noAttendanceYet = computed(
 );
 
 // ---- Send (5.6 via the pre-send overview, 5.5) ----
+// Who asked for a make-up on this week's roll call and has none recorded: the send asks, for each, whether they made it up.
+const makeupOwed = computed(() =>
+    props.unit.isLeaf && !sent.value ? (props.troopers ?? []).filter((t) => t.owesMakeup).map((t) => ({ trooperId: t.id, name: t.name })) : [],
+);
 const dialogOpen = ref(false);
 const sending = ref(false);
 const sendError = ref(null);
@@ -319,11 +323,11 @@ function rearm() {
     if (save.state === 'pending' && !timer) timer = setTimeout(saveDraft, 800);
 }
 
-function confirmSend(reason) {
+function confirmSend(reason, makeupChecks = []) {
     clearTimeout(timer);
     timer = null;
     sending.value = true;
-    router.post(`${baseUrl.value}/send`, { ...payload(), reason }, {
+    router.post(`${baseUrl.value}/send`, { ...payload(), reason, makeup_checks: makeupChecks }, {
         preserveScroll: true,
         onSuccess: () => {
             dialogOpen.value = false;
@@ -333,7 +337,7 @@ function confirmSend(reason) {
             nextTick(() => document.getElementById('sent-title')?.focus());
         },
         onError: (errors) => {
-            sendError.value = errors.reason ?? errors.report ?? errors.unaccounted ?? Object.values(errors)[0];
+            sendError.value = errors.reason ?? errors.report ?? errors.makeup_checks ?? errors.unaccounted ?? Object.values(errors)[0];
             rearm();
         },
         onHttpException: (response) => {
@@ -666,7 +670,7 @@ function useSuggestion() {
                             :troopers="troopers"
                             :children="children"
                             :missing-children="missingChildren"
-                            :content="sent ? content : chosen"
+                            :content="sent ? { ...content, makeupChecks: report.makeupChecks ?? [] } : chosen"
                             :reason-labels="reasonLabels"
                             :names="names"
                             :roster-sync="rosterSync"
@@ -742,6 +746,7 @@ function useSuggestion() {
             :content="chosen"
             :open-checks="openItems"
             :missing-units="missingUnits"
+            :makeup-owed="makeupOwed"
             :default-reason="defaultSendReason(openItems, missingUnits)"
             :processing="sending"
             :error="sendError"

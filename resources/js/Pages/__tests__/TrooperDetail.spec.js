@@ -150,7 +150,7 @@ describe('TrooperDetail', () => {
             expect(rows[2].text()).toContain('19Sep26');
             expect(rows[2].get('[data-testid="attendance-section"]').text()).toBe('2/1/A/1-7');
             expect(rows[2].text()).toContain('Will attend');
-            expect(rows[2].text()).toContain('Present');
+            expect(rows[2].text()).toContain('Attended');
             expect(rows[3].text()).toContain('On LOA');
             expect(rows[19].get('[data-testid="attendance-section"]').text()).toBe('None');
             expect(rows[19].text()).toContain('No section that week');

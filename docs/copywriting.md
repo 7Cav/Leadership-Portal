@@ -293,7 +293,7 @@ New locks follow the same shape: "Read-only: <reason>" or "<thing> is locked bec
   screens. Pair it with visible text where the action matters.
 - `aria-label` describes the control and its object: "Undo adding Taylor.C", "Open the 1/A/1-7 report", "Previous
   week, 26Sep26".
-- Status cells read as a sentence: "Week of 03Oct26. Roll call: Will attend. SP: Present."
+- Status cells read as a sentence: "Week of 03Oct26. Roll call: Will attend. SP: Attended."
 - Icon-only buttons always have an `aria-label`.
 
 ### Subtitles and sub-headings
@@ -328,12 +328,13 @@ tests and comments. They include some route and key names, so read them as rough
 | roll call | The weekly forum thread troopers sign, and the portal page for one section's week. Two words in all copy: "Roll call" at the start of a label or sentence, "roll call" elsewhere. Code names, routes, URLs, audit actions and template variables keep `rollcall` | Nav, Roll call page, reports | roll call everywhere in copy; `rollcall` only in code | rollcall, Rollcall, roll-call, Roll Call |
 | roll call post | The BBCode post the portal builds for the roll call thread | Roll call step 3 | "Roll call post" (step 3 heading) | forum message |
 | sign, signature | A trooper answers the roll call thread; the answer recorded for them | Roll call step 1 | sign 44, signature 19 | RSVP, respond |
-| Will attend / Cannot attend / Unsigned | The three signature states. "Unsigned" is the state name on buttons, chips, legends and counts; while the roll call is still open the legend and matrix say "Unsigned (roll call open)"; "Not signed yet" only as a sentence fragment in a tooltip or card hint | Roll call cards, legend, report | "Unsigned", "Unsigned (roll call open)" (legend, matrix), "Not signed yet" (`TrooperCard.vue` hint) | Can't attend, Not signed yet (as a state label), Yes/No (BBCode only) |
+| Will attend / Will not attend / Make-up requested / Excused / LOA / Unsigned | The signature states. Will attend, Will not attend and Make-up requested count as signed; Excused and LOA take the week out of RC. "Unsigned" is the state name on buttons, chips, legends and counts; while the roll call is still open the legend and matrix say "Unsigned (roll call open)"; "Not signed yet" only as a sentence fragment in a tooltip or card hint | Roll call cards, legend, report | "Unsigned", "Unsigned (roll call open)" (legend, matrix), "Not signed yet" (`TrooperCard.vue` hint) | Cannot attend, Can't attend, Not signed yet (as a state label), Yes/No/MU/EX (BBCode only) |
 | section practice, SP | The section's weekly practice, and its attendance | Roll call step 2, KPIs | "section practice" 11, SP 42 | Section Practice mid-sentence, drill, training night |
 | mark, practice mark | The recorded SP result for one trooper | Roll call, roster | mark used throughout | status (UI), grade |
-| Present / Missed / Makeup / Attached / LOA / Not marked | The practice marks. LOA is derived, never set by hand | Roll call cards, legend, report | Not marked | Excused (not a mark; 0 uses), Absent, Unmarked |
-| makeup | A practice attended elsewhere that counts for the trooper's own section; verb "make up" | Roll call, KPIs, guests | makeup 36 / 17; "make-up" 0 | make-up, make up (as a noun) |
-| unaccounted trooper | Missed with no makeup, needs a reason on the report | Section report | Unaccounted 17 / 13 | unexcused |
+| Attended / Not attended / Excused / Make-up complete / LOA / Not marked | The practice marks. LOA comes from the LOA data, never set by hand. Make-up complete covers a practice made up at another section's practice (the old "Attached") or otherwise | Roll call cards, legend, report | Not marked | Present, Missed, Makeup, Attached (retired labels), Absent, Unmarked |
+| Excused | A week that counts for nothing, like LOA: out of the RC or SP rate, accounted on the report. Set by a leader, or automatically ("Excused, automatic") for a trooper's first week after a transfer into the section or after joining. Shares the yellow warning tone with LOA | Roll call cards, legend, report, roster | Excused, "Excused, automatic" | excuse (as a reason on the report), exempt, waived |
+| make-up | A practice made up, counted for the trooper's own section. As a status: "Make-up requested" (signature) and "Make-up complete" (practice). In new prose the noun is "make-up"; verb "make up". Older strings still saying "makeup" (the makeup PM, the Makeups KPI) move over when next touched | Roll call, KPIs, guests | Make-up complete, Make-up requested, "owes a make-up" | makeup in new copy, make up (as a noun) |
+| unaccounted trooper | Not attended with no make-up, needs a reason on the report. Excused and LOA are accounted | Section report | Unaccounted 17 / 13 | unexcused |
 | reason | Fixed list reason for an unaccounted trooper; also the audit reason on Admin actions | Report, Settings | | excuse |
 | at-risk | 2 or more Missed marks in the 30 day window | KPIs, roster, Home | at-risk 7 UI, "at risk" 4 UI | "at risk" as a label |
 | capture | Reading who was on the game server and pre-marking from it | Roll call banner, sources | capture 16 / 23 | telemetry, scrape, auto-attendance |

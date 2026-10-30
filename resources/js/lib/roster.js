@@ -89,7 +89,9 @@ export function percentTone(ratio) {
 
 export const RC_STATES = {
     ok: 'Will attend',
-    cn: 'Cannot attend',
+    cn: 'Will not attend',
+    mr: 'Make-up requested',
+    ex: 'Excused',
     bad: 'Unsigned',
     open: 'Unsigned (roll call open)',
     nil: 'No roll call posted',
@@ -99,10 +101,10 @@ export const RC_STATES = {
 };
 
 export const SP_STATES = {
-    ok: 'Present',
-    mk: 'Makeup',
-    at: 'Attached',
-    bad: 'Missed',
+    ok: 'Attended',
+    mk: 'Make-up complete',
+    ex: 'Excused',
+    bad: 'Not attended',
     open: 'Not marked yet',
     pending: 'Not held yet',
     nil: 'No SP held',
@@ -111,20 +113,25 @@ export const SP_STATES = {
     none: 'No section that week',
 };
 
-const SP_BY_STATUS = { present: 'ok', makeup: 'mk', attached: 'at', missed: 'bad', loa: 'loa' };
+const SP_BY_STATUS = { present: 'ok', makeup: 'mk', excused: 'ex', missed: 'bad', loa: 'loa' };
+const RC_BY_SIGNATURE = { will_attend: 'ok', cannot_attend: 'cn', makeup_requested: 'mr', excused: 'ex' };
 
 /**
  * How one trooper-week renders: the rollcall half and the SP half, each a state key into
  * RC_STATES / SP_STATES. `mark` is the controller's week entry (null when the section had no
- * practice row that week); `joined` the trooper's Cav join date.
+ * practice row that week); `joined` the trooper's Cav join date. `excused` (or the mark's own `excused`) is why the
+ * week is excused automatically (`recruit` or `transfer`, 2026-10-30): it shows on each half nobody recorded, an
+ * unsigned signature and an empty or automatic, unattended practice mark, as the KPIs read it.
  */
-export function weekCell(mark, weekStart, { current = false, joined = null } = {}) {
+export function weekCell(mark, weekStart, { current = false, joined = null, excused = null } = {}) {
+    const auto = excused ?? mark?.excused ?? null;
     if (joined && endOfWeek(weekStart) < joined) return { rc: 'out', sp: 'out' };
-    if (!mark) return { rc: current ? 'open' : 'nil', sp: current ? 'pending' : 'nil' };
+    if (!mark) return auto ? { rc: 'ex', sp: 'ex' } : { rc: current ? 'open' : 'nil', sp: current ? 'pending' : 'nil' };
     if (mark.status === 'loa') return { rc: 'loa', sp: 'loa' };
 
-    const rc = { will_attend: 'ok', cannot_attend: 'cn' }[mark.rollcall] ?? (current ? 'open' : 'bad');
-    let sp = SP_BY_STATUS[mark.status];
+    const rc = RC_BY_SIGNATURE[mark.rollcall] ?? (auto ? 'ex' : current ? 'open' : 'bad');
+    const autoPractice = auto && (!mark.status || (mark.source === 'auto' && mark.status !== 'present' && mark.status !== 'makeup'));
+    let sp = autoPractice ? 'ex' : SP_BY_STATUS[mark.status];
     if (!sp) sp = mark.held ? 'open' : current ? 'pending' : 'nil';
 
     return { rc, sp };
@@ -184,8 +191,8 @@ export function historyCell(week, { current = false } = {}) {
     if (week.loa) return { rc: 'loa', sp: 'loa' };
     if (!week.section) return { rc: 'none', sp: 'none' };
 
-    // No practice row at that section that week: nothing was posted or held.
-    return weekCell(week.rollcall === null ? null : week, week.week, { current });
+    // No practice row at that section that week: nothing was posted or held, unless the week is excused automatically.
+    return weekCell(week.rollcall === null ? null : week, week.week, { current, excused: week.excused ?? null });
 }
 
 /** The trooper joined within the last 8 Cav weeks (the order-of-battle strip's window). */
@@ -348,17 +355,18 @@ export function aggregateWeek(members, index, weekStart, current) {
 
     for (const member of members) {
         const mark = member.weeks?.[index];
-        const cell = weekCell(mark, weekStart, { current, joined: member.joined });
+        const cell = weekCell(mark, weekStart, { current, joined: member.joined, excused: member.excusedWeeks?.[weekStart] ?? null });
         if (cell.rc === 'out') continue;
         if (mark) anyMark = true;
         if (cell.rc === 'loa') loa++;
-        if (cell.rc === 'ok' || cell.rc === 'cn') {
+        // Excused (`ex`) is neither due nor eligible, like LOA: it counts on neither side.
+        if (cell.rc === 'ok' || cell.rc === 'cn' || cell.rc === 'mr') {
             signed++;
             due++;
         } else if (cell.rc === 'bad') {
             due++;
         }
-        if (['ok', 'mk', 'at'].includes(cell.sp)) {
+        if (['ok', 'mk'].includes(cell.sp)) {
             attended++;
             marked++;
         } else if (cell.sp === 'bad') {

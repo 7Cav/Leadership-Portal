@@ -1,29 +1,34 @@
 import {
-    PhArrowSquareIn,
     PhArrowUUpLeft,
+    PhCalendarCheck,
     PhCheck,
+    PhClockCounterClockwise,
     PhMinus,
     PhX,
 } from '@phosphor-icons/vue';
 import { initialsOf } from './initials';
 
-// The vocabulary of the rollcall screen (Stories 3.7–3.10, mockups/v2/rollcall-r3.html). Values are
-// the `attendance.rollcall` / `attendance.status` enums; the order is the order of the buttons on a
-// trooper card, so the 1–4 keyboard shortcuts follow it.
+// The vocabulary of the rollcall screen (Stories 3.7–3.10, mockups/v2/rollcall-r3.html; statuses of 2026-10-30).
+// Values are the `attendance.rollcall` / `attendance.status` enums; the order is the order of the buttons on a trooper
+// card, so the number keys follow it. Excused shares the warning tone with LOA: the week counts for nothing.
 
-// A trooper's signature on the week's rollcall thread.
+// A trooper's signature on the week's roll call thread. Will attend, will not attend and make-up requested each count
+// as signed; excused takes the week out of RC.
 export const SIGNATURES = [
     { value: 'will_attend', label: 'Will attend', tone: 'ok', icon: PhCheck },
-    { value: 'cannot_attend', label: 'Cannot attend', tone: 'bad', icon: PhX },
+    { value: 'cannot_attend', label: 'Will not attend', tone: 'bad', icon: PhX },
+    { value: 'makeup_requested', label: 'Make-up requested', tone: 'info', icon: PhClockCounterClockwise },
+    { value: 'excused', label: 'Excused', tone: 'warn', icon: PhCalendarCheck },
     { value: 'unsigned', label: 'Unsigned', tone: 'neutral', icon: PhMinus },
 ];
 
-// A Section Practice mark a leader may set by hand. `loa` is derived from LOA data, never chosen.
+// A Section Practice mark a leader may set by hand. `loa` is derived from LOA data, never chosen. Make-up complete
+// covers a practice made up anywhere, the old "Attached" (another section's practice) included.
 export const PRACTICE = [
-    { value: 'present', label: 'Present', tone: 'ok', icon: PhCheck },
-    { value: 'missed', label: 'Missed', tone: 'bad', icon: PhX },
-    { value: 'makeup', label: 'Makeup', tone: 'info', icon: PhArrowUUpLeft },
-    { value: 'attached', label: 'Attached', tone: 'info', icon: PhArrowSquareIn },
+    { value: 'present', label: 'Attended', tone: 'ok', icon: PhCheck },
+    { value: 'missed', label: 'Not attended', tone: 'bad', icon: PhX },
+    { value: 'excused', label: 'Excused', tone: 'warn', icon: PhCalendarCheck },
+    { value: 'makeup', label: 'Make-up complete', tone: 'info', icon: PhArrowUUpLeft },
 ];
 
 export function optionsFor(kind) {
@@ -32,6 +37,58 @@ export function optionsFor(kind) {
 
 export function signatureLabel(value) {
     return SIGNATURES.find((option) => option.value === value)?.label ?? 'Unsigned';
+}
+
+// Why a week is excused automatically (`trooper.excused` from the server, `Kpi\AutoExcused`): the first week after
+// joining the Cav, or after being placed into a section.
+const EXCUSED_REASONS = {
+    recruit: 'First week after joining the Cav, excused automatically.',
+    transfer: 'First week in this section after a transfer, excused automatically.',
+};
+
+export function excusedReason(reason) {
+    return EXCUSED_REASONS[reason] ?? null;
+}
+
+// The automatic Excused covers a fact only while no one recorded it: an unsigned signature, and a practice mark that is
+// empty or an automatic one that is not attended. Whatever a leader sets wins. The server reads the same rule
+// (`AutoExcused::excusesSignature()` / `excusesPractice()`).
+export function autoExcusesSignature(trooper) {
+    return Boolean(trooper.excused) && (!trooper.rollcall || trooper.rollcall === 'unsigned');
+}
+
+export function autoExcusesPractice(trooper) {
+    if (!trooper.excused) return false;
+    if (trooper.status === null || trooper.status === undefined) return true;
+
+    return trooper.source === 'auto' && !['present', 'makeup', 'loa'].includes(trooper.status);
+}
+
+// The signature and the practice mark as they count: what was recorded, else the automatic Excused.
+export function signatureOf(trooper) {
+    return autoExcusesSignature(trooper) ? 'excused' : trooper.rollcall;
+}
+
+export function practiceOf(trooper) {
+    if (isLocked(trooper)) return 'loa';
+
+    return autoExcusesPractice(trooper) ? 'excused' : (trooper.status ?? null);
+}
+
+// A make-up asked for on the roll call and not recorded yet (`KpiService::owesMakeup()`): made up, attended after all,
+// excused or on leave settles it. Read from what was recorded, as the server reads it.
+export function owesMakeup(trooper) {
+    return trooper.rollcall === 'makeup_requested' && !isLocked(trooper) && !['makeup', 'present', 'excused', 'loa'].includes(trooper.status);
+}
+
+// The roll call page's "Owes a make-up" list: the server's earlier window weeks (`makeupOwed`, refreshed on each save),
+// with this week read live from the cards. Each entry is `{ trooper, weeks }`, weeks oldest first.
+export function makeupOwedList(troopers, serverList, week) {
+    const earlier = new Map((serverList ?? []).map((row) => [row.trooperId, row.weeks.filter((w) => w !== week)]));
+
+    return troopers
+        .map((trooper) => ({ trooper, weeks: [...(earlier.get(trooper.id) ?? []), ...(owesMakeup(trooper) ? [week] : [])] }))
+        .filter((row) => row.weeks.length);
 }
 
 // A row on a week that has ended whose trooper the placement history keeps on it (`RollcallRoster::placementNote`):
@@ -50,6 +107,11 @@ export function practiceLabel(value) {
     if (value === 'loa') return 'LOA';
 
     return PRACTICE.find((option) => option.value === value)?.label ?? 'Not marked';
+}
+
+// "Will attend", "Attended": a value as it reads inside a sentence, a shared word kept as one ("LOA").
+export function inSentence(label) {
+    return label === 'LOA' ? label : label.charAt(0).toLowerCase() + label.slice(1);
 }
 
 // An LOA-derived row is locked: nothing on it may be set by hand (3.4 / 3.8). The leave comes from the server's
@@ -89,22 +151,27 @@ export function initials(trooper) {
 }
 
 // Totals over the section, LOA rows counted on their own (they are neither expected to sign nor
-// to attend).
+// to attend). Each counts the value as it counts: an automatic Excused is excused, not unsigned or unmarked.
 export function countsOf(troopers) {
     const active = troopers.filter((trooper) => !isLocked(trooper));
     const count = (predicate) => active.filter(predicate).length;
+    const sig = (value) => count((t) => signatureOf(t) === value);
+    const sp = (value) => count((t) => practiceOf(t) === value);
 
     return {
         total: active.length,
         loa: troopers.length - active.length,
-        willAttend: count((t) => t.rollcall === 'will_attend'),
-        cannotAttend: count((t) => t.rollcall === 'cannot_attend'),
-        unsigned: count((t) => t.rollcall === 'unsigned'),
-        present: count((t) => t.status === 'present'),
-        missed: count((t) => t.status === 'missed'),
-        makeup: count((t) => t.status === 'makeup'),
-        attached: count((t) => t.status === 'attached'),
-        unmarked: count((t) => t.status === null),
+        willAttend: sig('will_attend'),
+        cannotAttend: sig('cannot_attend'),
+        makeupRequested: sig('makeup_requested'),
+        excusedSignature: sig('excused'),
+        unsigned: sig('unsigned'),
+        present: sp('present'),
+        missed: sp('missed'),
+        excused: sp('excused'),
+        makeup: sp('makeup'),
+        unmarked: sp(null),
+        makeupOwed: count(owesMakeup),
     };
 }
 
@@ -207,26 +274,30 @@ export function weeksNeedingWork(weekStatus, date) {
 
 // Step 1 groups by signature, the ones to chase first.
 export function signatureGroups(troopers) {
-    const by = (value) => troopers.filter((t) => !isLocked(t) && t.rollcall === value);
+    const by = (value) => troopers.filter((t) => !isLocked(t) && signatureOf(t) === value);
 
     return [
         { id: 'unsigned', title: 'Unsigned', troopers: by('unsigned') },
-        { id: 'cannot', title: 'Cannot attend', troopers: by('cannot_attend') },
+        { id: 'cannot', title: 'Will not attend', troopers: by('cannot_attend') },
+        { id: 'makeup', title: 'Make-up requested', troopers: by('makeup_requested') },
         { id: 'will', title: 'Will attend', troopers: by('will_attend') },
+        { id: 'excused', title: 'Excused', troopers: by('excused') },
         { id: 'loa', title: 'On LOA', troopers: troopers.filter(isLocked) },
     ].filter((group) => group.troopers.length);
 }
 
-// Step 2 groups by what the trooper said, "cannot attend" first: those are the marks most likely
-// to need a decision. `onlyOpen` narrows to the rows that still need a look.
+// Step 2 groups by what the trooper said, "will not attend" and "make-up requested" first: those are the marks most
+// likely to need a decision. `onlyOpen` narrows to the rows that still need a look.
 export function practiceGroups(troopers, onlyOpen = false) {
-    const open = (t) => !onlyOpen || t.status === null || t.status === 'missed';
-    const by = (value) => troopers.filter((t) => !isLocked(t) && t.rollcall === value && open(t));
+    const open = (t) => !onlyOpen || practiceOf(t) === null || practiceOf(t) === 'missed' || owesMakeup(t);
+    const by = (value) => troopers.filter((t) => !isLocked(t) && signatureOf(t) === value && open(t));
 
     return [
-        { id: 'cannot', title: 'Said they cannot attend', hint: 'Check these first', troopers: by('cannot_attend') },
+        { id: 'cannot', title: 'Said they will not attend', hint: 'Check these first', troopers: by('cannot_attend') },
+        { id: 'makeup', title: 'Asked for a make-up', hint: 'Mark Make-up complete once it is done', troopers: by('makeup_requested') },
         { id: 'unsigned', title: 'Did not sign', troopers: by('unsigned') },
         { id: 'will', title: 'Said they will attend', troopers: by('will_attend') },
+        { id: 'excused', title: 'Excused from the roll call', troopers: by('excused') },
         { id: 'loa', title: 'On LOA', troopers: onlyOpen ? [] : troopers.filter(isLocked) },
     ].filter((group) => group.troopers.length);
 }

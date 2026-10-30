@@ -2,15 +2,15 @@ import { render } from './bbcode';
 import { fireteamNames, orderTroopers, roleLabel } from './fireteams';
 import { forumDate } from './forumDate';
 import { insigniaWidth } from './rankInsignia';
-import { displayName, fullName, isLocked, rankIconOf, rankOf } from './rollcall';
+import { displayName, fullName, practiceOf, rankIconOf, rankOf, signatureOf } from './rollcall';
 
 // The rollcall forum post (Stories 3.10, 3.11). The post is whatever the section's company has as its active template
 // (3.5, resolved by the server on every render, 3.6, AD-17) filled with the week's marks. There is no built-in copy to
 // fall back to: a company with no template shows what is missing instead of a post nobody wrote. The portal never
 // posts it (AD-20); the leader copies it into the week's rollcall thread.
 
-const RC_WORDS = { will_attend: 'Yes', cannot_attend: 'No' };
-const SP_WORDS = { present: 'Yes', missed: 'No', makeup: 'MU', attached: 'Att', loa: 'LOA' };
+const RC_WORDS = { will_attend: 'Yes', cannot_attend: 'No', makeup_requested: 'MU', excused: 'EX' };
+const SP_WORDS = { present: 'Yes', missed: 'No', excused: 'EX', makeup: 'MU', loa: 'LOA' };
 
 /**
  * The values a template can print, from the section, the week and each trooper's current marks. The troopers are
@@ -25,8 +25,9 @@ export function rollcallContext({ section, week, troopers, fireteams = {} }) {
     const ordered = orderTroopers(troopers, fireteams);
     const names = fireteamNames(ordered, fireteams);
     const rows = ordered.map((trooper, index) => {
-        const sp = isLocked(trooper) ? 'loa' : trooper.status;
-        const rc = trooper.rollcall;
+        // As they count: leave as LOA, and the automatic Excused of a first week where nobody recorded otherwise.
+        const sp = practiceOf(trooper);
+        const rc = signatureOf(trooper);
         const icon = rankIconOf(trooper);
 
         return {
@@ -46,13 +47,17 @@ export function rollcallContext({ section, week, troopers, fireteams = {} }) {
             sp: SP_WORDS[sp] ?? '',
             sp_present: sp === 'present',
             sp_missed: sp === 'missed',
+            sp_excused: sp === 'excused',
             sp_makeup: sp === 'makeup',
-            sp_attached: sp === 'attached',
+            // Attached merged into Make-up complete (2026-10-30): never set, kept so an older template still renders.
+            sp_attached: false,
             sp_loa: sp === 'loa',
             sp_unmarked: sp === null,
             rc_yes: rc === 'will_attend',
             rc_no: rc === 'cannot_attend',
-            rc_unsigned: rc !== 'will_attend' && rc !== 'cannot_attend',
+            rc_makeup_requested: rc === 'makeup_requested',
+            rc_excused: rc === 'excused',
+            rc_unsigned: !RC_WORDS[rc],
         };
     });
 
@@ -64,7 +69,7 @@ export function rollcallContext({ section, week, troopers, fireteams = {} }) {
         week_end: forumDate(week.closes),
         count: String(rows.length),
         signed: String(rows.filter((row) => row.rc_yes).length),
-        attended: String(rows.filter((row) => row.sp_present || row.sp_makeup || row.sp_attached).length),
+        attended: String(rows.filter((row) => row.sp_present || row.sp_makeup).length),
         fireteams_shown: names.size > 0,
         troopers: rows,
     };

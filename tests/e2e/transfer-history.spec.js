@@ -21,6 +21,6 @@ test('a section leader sees a transferred trooper\'s weeks at the old section an
     const panel = page.getByTestId('attendance-panel');
     await expect(panel.getByTestId('transfers')).toContainText('Moved from 2/1/E/1-7 to 1/1/E/1-7');
     const oldWeeks = panel.getByTestId('attendance-week').filter({ has: page.getByTestId('attendance-section').getByText('2/1/E/1-7', { exact: true }) });
-    await expect(oldWeeks.filter({ hasText: 'Present' })).toHaveCount(2);
+    await expect(oldWeeks.filter({ hasText: /Attended/ })).toHaveCount(2);
     await expect(oldWeeks.filter({ hasText: 'Will attend' })).toHaveCount(2);
 });

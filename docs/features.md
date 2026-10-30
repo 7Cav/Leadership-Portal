@@ -24,7 +24,9 @@ report deadline, 23:59 UTC on the Saturday after it ends, has passed).
 - Needs attention: units holding up the report chain, at-risk troopers and LOA posts that need review, each linked to
   the place to fix it, with a makeup PM link for at-risk troopers. An LOA post that needs review is one the LOA sync
   could not read, in the reporting week or the running one, for a trooper on that week's roll call in your scope: it
-  opens the trooper's card on that roll call and links to the post on the forum, where it is fixed.
+  opens the trooper's card on that roll call and links to the post on the forum, where it is fixed. "Owe a make-up"
+  lists the troopers who signed Make-up requested in a window week and have no make-up recorded yet, with those weeks,
+  each opening their card on the roll call of the latest one.
 - Subordinate units: the units directly under the top of your scope, with their report status and KPIs.
 - Staff report: for platoon, company and battalion HQ staff, a line saying their own staff report for the week that just ended
   is not sent yet, with "Open staff report", from the Saturday the week ends until its deadline. It goes once they send
@@ -107,9 +109,12 @@ Opened without a week, a section shows the closing week while its report is stil
 Saturday after the week) and that section has not sent it; "This week" opens the new week. A week chosen in the
 selector or a link always wins.
 
-1. Signatures: for each trooper, Will attend, Cannot attend or Unsigned, as signed on the forum's roll call thread.
-2. Section practice: Present, Missed, Makeup or Attached. "Mark all present", "Mark the rest missed" and "use last
-   week's marks" fill many rows at once, with Undo. Number keys work as shortcuts (press `?` for the list).
+1. Signatures: for each trooper, Will attend, Will not attend, Make-up requested, Excused or Unsigned, as signed on the
+   forum's roll call thread. Make-up requested counts as signed; Excused takes the week out of RC.
+2. Section practice: Attended, Not attended, Excused or Make-up complete. Make-up complete also covers a practice
+   attended at another section (the old "Attached", merged into it). "Mark all attended", "Mark the rest not attended"
+   and "use last week's marks" fill many rows at once, with Undo, and leave an excused first week alone. Number keys
+   work as shortcuts, 1 to 5 for signatures and 1 to 4 for marks (press `?` for the list).
 3. Review and post: the changes made on this visit, then the forum post as BBCode, built from the section's template
    and the current marks. Copy it, post it on the forum yourself, then click to mark it posted. The portal never posts
    to the forum. If marks change after you copied, the page tells you the copy is out of date. The section's leaders
@@ -120,15 +125,28 @@ Every change saves in the background as you click, and is written to the audit l
 
 On the same page:
 
-- LOA: a trooper whose leave covers the week is locked, listed under "On LOA", and posts as `LOA`. A leave post the
+- LOA: a trooper whose leave covers the week is locked, shows the LOA button pressed on both tabs (every other card shows it unpressed and disabled: it is set only from the LOA thread), is listed under "On LOA", and posts as `LOA`. A leave post the
   sync could not read shows a "needs review" badge but stays markable. A trooper whose cleanly read leave starts the
   next Cav week shows a "Leave from 17Oct26" chip, read-only, so the next practice can be planned around it.
+- Excused: like LOA, the week counts for nothing (out of RC or SP, accounted on the report), in the same yellow. A
+  section's leader can set it on the signature, the practice mark or both. A trooper's first Cav week after being
+  placed into a section (from the placement history) and a new recruit's first week (from the join date) are excused
+  automatically: the card shows Excused pressed with an "Excused, automatic" badge on each half nobody has recorded,
+  and any button a leader picks overrides it. The post prints `EX`.
+- Owes a make-up: a trooper signed Make-up requested shows "Owes a make-up" on their card, in the review step's
+  "Owes a make-up" list (with the window weeks still owed) and on Home's Needs attention, until a Make-up complete is
+  recorded for that week, from a guest entry or by hand. Attended, Excused or LOA for the week settle it too.
+  Section staff and up (the section's leader and every command above it) can set Make-up complete. If a trooper still
+  owes the week's make-up when the section's report is sent, the send dialog lists them under "Make-ups still owed" and
+  will not send until the leader answers "Made it up" or "Did not" for each. "Made it up" records Make-up complete
+  (an audited mark, in the sender's name) before the numbers freeze; "Did not" leaves the mark. The answers are frozen
+  with the report and shown on it as "Make-ups checked at send".
 - Capture review: when game-server data was captured for the practice, marks it made show their source, and the leader
   can confirm the practice ("Confirmed by ..."). Editing a mark by hand afterwards clears the confirmation.
   On CRCON a player counts as present when one of their sessions overlaps the practice. The sessions come from each
   player's profile; if a profile cannot be read or has no sessions, the player's first and last seen times are used instead.
 - Unmatched players: players the capture saw that no trooper is linked to. Link one to a trooper (this also saves their
-  game identity and marks them present), dismiss them, or restore a dismissed one. An ID the server reports in two letter cases is one
+  game identity and marks them attended), dismiss them, or restore a dismissed one. An ID the server reports in two letter cases is one
   player (an Epic ID is taken in lower case). A player linked to a trooper who has left is listed
   under "Departed", with the trooper named; they are not marked and there is nothing to link. A player of a retired game
   has no Link, since a retired game takes no new links; they can still be dismissed. A player seen through
@@ -519,7 +537,7 @@ All run on the queue; a queue worker must be running. Times are UTC.
 | Roster sync | Hourly on the hour; Admin "Sync now"; leader unit sync | Reads the Cav roster, updates troopers (rank, billet, status), places each trooper by billet, marks leavers departed. A unit sync only writes that unit's troopers. | `CAV_API_KEY`, `CAV_API_BASE_URL` |
 | LOA sync | Hourly at :15 (new threads), daily at 03:30 (full re-read of recent leave) | Reads LOA and ELOA threads from the configured forum sections. ELOA start and end dates come from the linked PAF thread. Posts it cannot read are stored as "needs review", never guessed, and so is a post whose tagged forum account and typed username name different troopers. First run reads a year back, newest first, a share each hourly run (40 pages a section, ten minutes in all), carrying on next run where it stopped; until it is done, the leave note on the pages says how far back it has got. A thread that fails to read is kept and read again by id next run, so the rest moves on. A manual sync asked for while one of the same kind is queued or running queues one follow-up run after it, and the page says so in a notice. When the daily full read finishes cleanly, a stored leave whose thread is gone (deleted, hidden or moved out of the leave sections) stops counting; the row is kept and counts again if the thread comes back. Before that, each such thread is asked for by id, so one the listing missed while it paged keeps counting, and an unclear answer withdraws nothing that run. | `SEVENCAV_FORUM_API_KEY`, `SEVENCAV_FORUM_LOA_NODES`, `SEVENCAV_FORUM_PAF_NODE`, `LOA_SYNC_REQUEST_DELAY_MS`. Skipped while the key or sections are unset. |
 | Counseling document copy | When a DCS or LOR is filed with Google Drive set up | Copies the document to the 7Cav Google Drive folder. Tried up to 5 times, with pauses of 1, 5, 15 and 60 minutes; the record shows the outcome. | `GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_DRIVE_PRIVATE_KEY`, `GOOGLE_DRIVE_FOLDER_ID`. Skipped (record kept, "Portal only") while any is unset. |
-| Practice capture | When a leader clicks "Try again" on the roll call. That button only shows after a failed capture, and nothing in the code schedules a first capture. | Reads who was on the game server during the Cav week so far, pre-marks linked troopers in the section as Present (a leader's mark always wins), lists unmatched players. | Each game's telemetry interface, picked on the Games page. CRCON (`CRCON_BASE_URL`, `CRCON_API_KEY`) falls back to BattleMetrics; BattleMetrics (`BATTLEMETRICS_API_KEY`, `BATTLEMETRICS_SERVER_ID`); Nightwatch (`NIGHTWATCH_API_KEY`, `NIGHTWATCH_SERVER_IDS`). A game reads the training servers an Admin selected for it on the Servers page. With none selected, Hell Let Loose (WW2) on CRCON, Arma Reforger on BattleMetrics and WARDOGS on Nightwatch read the server set in env; any other game, or one of those switched to another interface, reads nothing until a server is selected, and its roll call says so. A game with no keys, or interface "none", shows "not configured". |
+| Practice capture | When a leader clicks "Try again" on the roll call. That button only shows after a failed capture, and nothing in the code schedules a first capture. | Reads who was on the game server during the Cav week so far, pre-marks linked troopers in the section as Attended (a leader's mark always wins), lists unmatched players. | Each game's telemetry interface, picked on the Games page. CRCON (`CRCON_BASE_URL`, `CRCON_API_KEY`) falls back to BattleMetrics; BattleMetrics (`BATTLEMETRICS_API_KEY`, `BATTLEMETRICS_SERVER_ID`); Nightwatch (`NIGHTWATCH_API_KEY`, `NIGHTWATCH_SERVER_IDS`). A game reads the training servers an Admin selected for it on the Servers page. With none selected, Hell Let Loose (WW2) on CRCON, Arma Reforger on BattleMetrics and WARDOGS on Nightwatch read the server set in env; any other game, or one of those switched to another interface, reads nothing until a server is selected, and its roll call says so. A game with no keys, or interface "none", shows "not configured". |
 
 The capture does not record other sections' troopers as guests or makeups for now: without set practice times the
 window is the whole week and the servers are shared, so being online does not mean being at that practice.
@@ -549,13 +567,13 @@ their own section's practice that Cav week. For a week that has ended, their own
 lists them that week (see "Roll call"), so a trooper who moved since gets the makeup on that roll call, and a section
 cannot add one of its own troopers of that week as a guest.
 
-- Their own leader can mark Makeup by hand.
-- When a host leader adds them as a guest, the portal writes an automatic makeup on their own section's roll call for
-  the same week, shown with an "auto" source dot. It never overwrites Present, Attached, LOA or any mark a leader set by
+- Their own leader can mark Make-up complete by hand.
+- When a host leader adds them as a guest, the portal writes an automatic Make-up complete on their own section's roll
+  call for the same week, shown with an "auto" source dot. It never overwrites Attended, LOA or any mark a leader set by
   hand, and is never written into a sent, confirmed or before-floor week, or for a trooper on leave. Adding a guest
   already added by hand tries the makeup again, so a makeup that failed after the guest was saved can be finished; the
   guest is not listed twice. After a reload, the guest list says so on a hand-added guest whose makeup is missing and
-  offers "Retry makeup", which does the same. It is offered only while a retry could write it: not once their own week
+  offers "Retry make-up", which does the same. It is offered only while a retry could write it: not once their own week
   is sent or confirmed, their own leader has marked them, they are on leave or no longer serve there, or an automatic
   makeup is already on any section's practice that week.
 - Removing the guest takes the automatic makeup back, unless something else supports it or a leader has since changed
@@ -572,14 +590,16 @@ included).
 | KPI | Definition |
 | --- | --- |
 | In roll call (`strength`) | Troopers placed in sections in the unit. (The Headcount on the org page and roster also counts HQ staff and staff departments; New Recruits, ELOA and Reservists count only on their own groups.) |
-| RC % · 30d | Weeks with a signed roll call (Will attend or Cannot attend) divided by all weeks in the window. |
-| SP % · 30d | Practices marked Present, Makeup or Attached, divided by the practices their own section held. A practice is held once a leader put an SP mark on anyone. A week the trooper attended always counts as eligible for them. |
-| At-risk | Troopers with 2 or more practices explicitly marked Missed in the window. Unmarked is never a miss. |
+| RC % · 30d | Weeks with a signed roll call (Will attend, Will not attend or Make-up requested) divided by the weeks in the window that are not on leave or excused. |
+| SP % · 30d | Practices marked Attended or Make-up complete, divided by the practices their own section held that are not on leave or excused. A practice is held once a leader put an SP mark other than Excused on anyone. A week the trooper attended always counts as eligible for them. |
+| At-risk | Troopers with 2 or more practices explicitly marked Not attended in the window. Unmarked is never a miss. |
 | On LOA | Troopers whose leave covers the current week. |
 | Makeups | Makeup marks in the current week. |
 | Own section SP (JSAM only) | SP as above, except a makeup never counts as attended, and a week their own section did not hold is left out. |
 
-Leave covering a week takes that week out of both RC and SP for the trooper. A leave post that needs review takes its
+Leave covering a week takes that week out of both RC and SP for the trooper. Excused works the same way, one rate at a
+time: an Excused signature leaves RC, an Excused practice mark leaves SP, and an automatic Excused (a first week after a
+transfer into a section or after joining) leaves whichever of the two no leader recorded. A leave post that needs review takes its
 weeks out too (no miss, not in either denominator) but does not count as On LOA: the weeks of the leave dates it gives
 when they can be read, otherwise the week it was posted and the next. A non-leaf unit's reported KPIs are
 the sum of its direct children's sent reports.

@@ -16,7 +16,7 @@ audience: leader
 ## Link a player
 
 1. Choose the trooper the player is, or choose **Choose a trooper** to pick someone else.
-2. Choose **Link and mark present**. This saves their game identity and marks them present.
+2. Choose **Link and mark attended**. This saves their game identity and marks them attended.
 
 > [!good-to-know] If the trooper already has a different ID for that game, the portal asks before replacing it. Choose **Keep** to leave the old one.
 >
@@ -24,7 +24,7 @@ audience: leader
 
 ## Players you cannot link
 
-Some players have no **Link and mark present**, and the panel says why. Mark the trooper by hand instead.
+Some players have no **Link and mark attended**, and the panel says why. Mark the trooper by hand instead.
 
 - The game is retired, so it takes no new links.
 - The player was seen through BattleMetrics while the game server could not be read, and BattleMetrics only had its own number for them, not their game ID.

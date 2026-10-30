@@ -376,7 +376,7 @@ describe('the starter template, filled', () => {
 [B]Roll Call Accountability[/B]
 [TABLE]
 [TR][TH]#[/TH][TH]Name[/TH][TH]Signed RC[/TH][TH]Attended SP[/TH][/TR]
-{{#troopers}}[TR][TD]{{n}}[/TD][TD]{{#rank_icon}}[IMG width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/IMG] {{/rank_icon}}{{rank}} {{name}}[/TD][TD]{{#rc_yes}}✓{{/rc_yes}}{{#rc_no}}✗{{/rc_no}}{{#rc_unsigned}}-{{/rc_unsigned}}[/TD][TD]{{#sp_present}}✓{{/sp_present}}{{#sp_missed}}✗{{/sp_missed}}{{#sp_makeup}}MU{{/sp_makeup}}{{#sp_attached}}ATT{{/sp_attached}}{{#sp_loa}}LOA{{/sp_loa}}{{#sp_unmarked}}-{{/sp_unmarked}}[/TD][/TR]
+{{#troopers}}[TR][TD]{{n}}[/TD][TD]{{#rank_icon}}[IMG width="{{rank_icon_width}}" height="auto"]{{rank_icon}}[/IMG] {{/rank_icon}}{{rank}} {{name}}[/TD][TD]{{#rc_yes}}✓{{/rc_yes}}{{#rc_no}}✗{{/rc_no}}{{#rc_makeup_requested}}MU{{/rc_makeup_requested}}{{#rc_excused}}EX{{/rc_excused}}{{#rc_unsigned}}-{{/rc_unsigned}}[/TD][TD]{{#sp_present}}✓{{/sp_present}}{{#sp_missed}}✗{{/sp_missed}}{{#sp_excused}}EX{{/sp_excused}}{{#sp_makeup}}MU{{/sp_makeup}}{{#sp_loa}}LOA{{/sp_loa}}{{#sp_unmarked}}-{{/sp_unmarked}}[/TD][/TR]
 {{/troopers}}{{^troopers}}[TR][TD]No troopers are placed in this section.[/TD][/TR]
 {{/troopers}}[/TABLE]`;
 
@@ -394,6 +394,8 @@ describe('the starter template, filled', () => {
         expect(rows[0]).toEqual(['tr', [['th', ['#']], ['th', ['Name']], ['th', ['Signed RC']], ['th', ['Attended SP']]]]);
         expect(rows[1]).toEqual(['tr', [['td', ['1']], ['td', [icon('18.jpg?1741376797', '11px'), ' Sergeant Jay.JH']], ['td', ['✓']], ['td', ['MU']]]]);
         expect(rows[5]).toEqual(['tr', [['td', ['5']], ['td', [icon('22.jpg?1741376831', '17px'), ' Private Okafor.B']], ['td', ['-']], ['td', ['-']]]]);
+        // Excused on both halves prints EX in each cell.
+        expect(rows[6]).toEqual(['tr', [['td', ['6']], ['td', [icon('22.jpg?1741376831', '17px'), ' Private Ibarra.L']], ['td', ['EX']], ['td', ['EX']]]]);
     });
 
     it('prints just the name for a trooper Cav has no insignia for', () => {

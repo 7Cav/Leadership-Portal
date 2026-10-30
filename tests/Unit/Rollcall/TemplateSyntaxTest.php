@@ -37,11 +37,17 @@ it('has a case for every name it lets a template use, so the lists cannot drift 
 it('ships a starter template that follows its own grammar and uses every status', function () {
     expect(TemplateSyntax::check(TemplateSyntax::STARTER))->toBeNull();
 
-    foreach (['sp_present', 'sp_missed', 'sp_makeup', 'sp_attached', 'sp_loa', 'sp_unmarked', 'rc_yes', 'rc_no', 'rc_unsigned'] as $flag) {
+    foreach (['sp_present', 'sp_missed', 'sp_excused', 'sp_makeup', 'sp_loa', 'sp_unmarked', 'rc_yes', 'rc_no', 'rc_makeup_requested', 'rc_excused', 'rc_unsigned'] as $flag) {
         expect(TemplateSyntax::STARTER)->toContain("{{#{$flag}}}");
     }
 
-    expect(TemplateSyntax::STARTER)->toContain('{{^troopers}}');
+    // Attached merged into Make-up complete (2026-10-30): the starter no longer prints it.
+    expect(TemplateSyntax::STARTER)->toContain('{{^troopers}}')
+        ->and(TemplateSyntax::STARTER)->not->toContain('sp_attached');
+});
+
+it('still accepts a template saved with the retired sp_attached flag, so it keeps rendering', function () {
+    expect(TemplateSyntax::check('{{#troopers}}{{#sp_attached}}ATT{{/sp_attached}}{{/troopers}}'))->toBeNull();
 });
 
 it('starts each trooper with their rank insignia, only when Cav has one, so a missing icon prints no empty [IMG]', function () {

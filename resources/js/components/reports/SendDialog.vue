@@ -27,6 +27,8 @@ const props = defineProps({
     content: { type: Object, required: true },
     openChecks: { type: Array, default: () => [] },
     missingUnits: { type: Array, default: () => [] },
+    // `[{ trooperId, name }]`: asked for a make-up on this week's roll call and none recorded. Each needs an answer.
+    makeupOwed: { type: Array, default: () => [] },
     defaultReason: { type: String, required: true },
     processing: { type: Boolean, default: false },
     error: { type: String, default: null },
@@ -35,12 +37,31 @@ const props = defineProps({
 const emit = defineEmits(['update:open', 'confirm']);
 
 const reason = ref(props.defaultReason);
+// The leader's answer per owed trooper: true made it up, false did not. Asked fresh each time the dialog opens.
+const answers = ref({});
 watch(
     () => props.open,
     (isOpen) => {
-        if (isOpen) reason.value = props.defaultReason;
+        if (isOpen) {
+            reason.value = props.defaultReason;
+            answers.value = {};
+        }
     },
 );
+
+const unanswered = computed(() => props.makeupOwed.filter((row) => typeof answers.value[row.trooperId] !== 'boolean').length);
+
+function answer(trooperId, done) {
+    answers.value = { ...answers.value, [trooperId]: done };
+}
+
+function confirm() {
+    emit(
+        'confirm',
+        reason.value.trim(),
+        props.makeupOwed.map((row) => ({ trooper_id: row.trooperId, done: answers.value[row.trooperId] })),
+    );
+}
 
 const anyway = computed(() => props.openChecks.length > 0 || props.missingUnits.length > 0);
 const destination = computed(() => (props.unit.parent ? unitLabel(props.unit.parent) : 'command'));
@@ -80,6 +101,43 @@ const blank = computed(() => !reason.value.trim());
                     </div>
                 </div>
 
+                <fieldset v-if="makeupOwed.length" class="mt-4 rounded-md border border-border px-3 py-2.5" data-testid="makeup-checks">
+                    <legend class="px-1 text-[13px] font-semibold">Make-ups still owed</legend>
+                    <p class="text-xs text-muted-foreground">
+                        These troopers asked for a make-up this week and none is recorded. Did they make it up? A yes records
+                        Make-up complete before the report freezes.
+                    </p>
+                    <ul class="mt-2 space-y-2">
+                        <li
+                            v-for="row in makeupOwed"
+                            :key="row.trooperId"
+                            class="flex flex-wrap items-center justify-between gap-2 text-[13px]"
+                            :data-makeup-trooper="row.trooperId"
+                        >
+                            <span class="min-w-0 font-medium">{{ row.name }}</span>
+                            <span role="group" :aria-label="`Did ${row.name} make it up?`" class="inline-flex gap-[3px] rounded-md bg-muted p-[3px]">
+                                <button
+                                    v-for="choice in [
+                                        { done: true, label: 'Made it up' },
+                                        { done: false, label: 'Did not' },
+                                    ]"
+                                    :key="String(choice.done)"
+                                    type="button"
+                                    :aria-pressed="answers[row.trooperId] === choice.done"
+                                    :data-done="String(choice.done)"
+                                    class="min-h-9 rounded-sm px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground aria-pressed:bg-card aria-pressed:text-foreground aria-pressed:shadow-xs"
+                                    @click="answer(row.trooperId, choice.done)"
+                                >
+                                    {{ choice.label }}
+                                </button>
+                            </span>
+                        </li>
+                    </ul>
+                    <p v-if="unanswered" class="mt-2 text-xs text-muted-foreground" data-testid="makeup-unanswered">
+                        Answer for {{ unanswered === 1 ? 'one more trooper' : `${unanswered} more troopers` }} to send.
+                    </p>
+                </fieldset>
+
                 <dl v-if="kpis" class="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-[13px] sm:grid-cols-3" data-testid="send-kpis">
                     <div v-for="kpi in KPIS" :key="kpi.key">
                         <dt class="text-xs text-muted-foreground">{{ kpi.label }}</dt>
@@ -117,7 +175,7 @@ const blank = computed(() => !reason.value.trim());
 
             <AlertDialogFooter class="flex-row flex-wrap justify-end gap-2 border-t border-border px-5 py-4">
                 <AlertDialogCancel :disabled="processing" class="mt-0">Keep editing</AlertDialogCancel>
-                <Button :disabled="blank || processing" data-testid="send-confirm" @click="emit('confirm', reason.trim())">
+                <Button :disabled="blank || processing || unanswered > 0" data-testid="send-confirm" @click="confirm">
                     <PhCircleNotch v-if="processing" class="animate-spin" aria-hidden="true" />
                     <PhPaperPlaneTilt v-else aria-hidden="true" />
                     {{ processing ? 'Freezing' : anyway ? 'Send anyway' : 'Freeze and send' }}

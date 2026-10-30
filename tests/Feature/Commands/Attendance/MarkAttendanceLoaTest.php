@@ -63,7 +63,7 @@ describe('a trooper whose leave covers the week', function () {
         'present' => AttendanceStatus::Present,
         'missed' => AttendanceStatus::Missed,
         'makeup' => AttendanceStatus::Makeup,
-        'attached' => AttendanceStatus::Attached,
+        'excused' => AttendanceStatus::Excused,
     ]);
 
     it('refuses the whole batch and writes nothing, not even the practice row, the other marks or the audit entry', function () {

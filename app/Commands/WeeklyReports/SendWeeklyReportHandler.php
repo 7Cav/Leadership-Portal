@@ -3,8 +3,16 @@
 namespace App\Commands\WeeklyReports;
 
 use App\Authorization\ScopeResolver;
+use App\Commands\Attendance\AttendanceMark;
+use App\Commands\Attendance\MarkAttendance;
+use App\Commands\Attendance\MarkAttendanceHandler;
+use App\Kpi\KpiService;
 use App\Kpi\ReportKpisUnavailableException;
+use App\Kpi\TrooperAttendance;
 use App\Kpi\WeeklyReportKpis;
+use App\Models\AttendanceStatus;
+use App\Models\Unit;
+use App\Models\UnitType;
 use App\Models\User;
 use App\Models\WeeklyReportStatus;
 use App\Repositories\PlatoonTrainingTopicRepository;
@@ -54,6 +62,13 @@ use Carbon\CarbonInterface;
  * template the report never rendered from. When a report-layout type lands, resolve the unit's
  * version through `TemplateResolver` (the owning company's active version) and pass its id to
  * `send()`; `contentDigest()` already covers it.
+ *
+ * **Make-ups still owed.** A section's send must answer, once each, for every trooper who asked for a make-up on the
+ * week's roll call and has none recorded ({@see KpiService::owesMakeup()}): did they make it up or not. Anything else
+ * is refused with {@see MakeupChecksIncompleteException} before a write. A "did" is recorded as Make-up complete
+ * through {@see MarkAttendanceHandler} (its own audited write, by the sender) before the snapshot is taken, so the
+ * frozen numbers count it; a "did not" leaves the mark as it is. Both answers are frozen with the report as
+ * `makeup_checks`. If the send then fails, the make-ups stay recorded: the leader said they happened.
  */
 class SendWeeklyReportHandler
 {
@@ -68,6 +83,8 @@ class SendWeeklyReportHandler
         private readonly AuditEnvelope $audit,
         private readonly PlatoonTrainingTopicRepository $topics,
         private readonly ActingFor $acting,
+        private readonly KpiService $kpis,
+        private readonly MarkAttendanceHandler $attendance,
     ) {}
 
     /**
@@ -110,6 +127,16 @@ class SendWeeklyReportHandler
         $content = ReportContent::checked($unit, $weekStart, $command->notes, $command->trainingSubject, $command->unaccounted, $this->troopers);
         $trainingSubject = SectionTrainingSubject::forSend($unit->id, $this->topics->forSection($unit, $weekStart), $content->trainingSubject);
         $templateVersionId = null;
+        $makeupChecks = $this->makeupChecks($unit->type === UnitType::Section ? $this->owedThisWeek($unit, $weekStart) : [], $command->makeupChecks);
+        $madeUp = array_values(array_map(fn (array $check) => $check['trooper_id'], array_filter($makeupChecks ?? [], fn (array $check) => $check['done'])));
+
+        if ($madeUp !== []) {
+            $this->attendance->handle($actor, new MarkAttendance(
+                $unit->id,
+                $weekStart->toDateTimeImmutable(),
+                ...array_map(fn (int $trooperId) => new AttendanceMark($trooperId, AttendanceStatus::Makeup), $madeUp),
+            ));
+        }
 
         try {
             $report = $this->audit->record(
@@ -117,7 +144,7 @@ class SendWeeklyReportHandler
                 action: self::ACTION,
                 reason: $command->reason,
                 reasonRequired: true,
-                mutation: function () use ($unit, $weekStart, $content, $actor, $templateVersionId, $trainingSubject) {
+                mutation: function () use ($unit, $weekStart, $content, $actor, $templateVersionId, $trainingSubject, $makeupChecks) {
                     // Lock the report row first, then read the numbers it freezes. A rollcall save
                     // holds a shared lock on this row until it commits (`isSentFor()`), so the
                     // lock is granted only once every save that got in first has committed — and
@@ -134,7 +161,7 @@ class SendWeeklyReportHandler
                         $kpis,
                         $content->notes,
                         $actor->id,
-                        self::contentDigest($unit->id, $weekStart, $kpis, $content->notes, $templateVersionId, $trainingSubject, $content->unaccounted),
+                        self::contentDigest($unit->id, $weekStart, $kpis, $content->notes, $templateVersionId, $trainingSubject, $content->unaccounted, $makeupChecks),
                         $templateVersionId,
                         $trainingSubject,
                         $content->unaccounted,
@@ -142,6 +169,7 @@ class SendWeeklyReportHandler
                         $this->acting->adminActingAs($actor->id),
                         // An Admin holding a billet sends in their own name, as that unit's leader.
                         $this->acting->billetOf($actor->id),
+                        $makeupChecks,
                     );
                 },
             );
@@ -166,6 +194,8 @@ class SendWeeklyReportHandler
      *
      * @param  array<string, mixed>  $kpis
      * @param  list<array{trooper_id: int, reason: string}>  $unaccounted
+     * @param  list<array{trooper_id: int, done: bool}>|null  $makeupChecks  left out of the digest when null, so a
+     *                                                                       report sent before it existed still verifies
      */
     public static function contentDigest(
         int $unitId,
@@ -175,8 +205,10 @@ class SendWeeklyReportHandler
         ?int $templateVersionId,
         ?string $trainingSubject = null,
         array $unaccounted = [],
+        ?array $makeupChecks = null,
     ): string {
         return hash('sha256', json_encode(self::sortKeys([
+            ...($makeupChecks === null ? [] : ['makeup_checks' => $makeupChecks]),
             'unit_id' => $unitId,
             'week_start' => CarbonImmutable::instance($weekStart)->utc()->toIso8601String(),
             'kpis' => $kpis,
@@ -185,6 +217,63 @@ class SendWeeklyReportHandler
             'unaccounted' => $unaccounted,
             'template_version_id' => $templateVersionId,
         ]), JSON_THROW_ON_ERROR | JSON_PRESERVE_ZERO_FRACTION));
+    }
+
+    /**
+     * The troopers on the section's roll call who asked for a make-up this week and have none recorded, in id order.
+     *
+     * @return list<int>
+     */
+    private function owedThisWeek(Unit $section, CarbonImmutable $weekStart): array
+    {
+        $week = $weekStart->toDateString();
+
+        return $this->kpis->trooperAttendance($section, $weekStart)
+            ->filter(fn (TrooperAttendance $row) => in_array($week, $row->makeupOwedWeeks, true))
+            ->map(fn (TrooperAttendance $row) => $row->trooperId)
+            ->sort()->values()->all();
+    }
+
+    /**
+     * The answers as frozen, in trooper id order: exactly one for each owed trooper, none for anyone else. Null when
+     * nobody owed a make-up, so nothing is asked or stored.
+     *
+     * @param  list<int>  $owed
+     * @param  list<array{trooper_id: int, done: bool}>  $given
+     * @return list<array{trooper_id: int, done: bool}>|null
+     *
+     * @throws MakeupChecksIncompleteException
+     */
+    private function makeupChecks(array $owed, array $given): ?array
+    {
+        $answers = [];
+        $notOwed = [];
+
+        foreach ($given as $check) {
+            $trooperId = (int) $check['trooper_id'];
+
+            if (! in_array($trooperId, $owed, true) || isset($answers[$trooperId])) {
+                $notOwed[] = $trooperId;
+
+                continue;
+            }
+
+            $answers[$trooperId] = ['trooper_id' => $trooperId, 'done' => (bool) $check['done']];
+        }
+
+        $unanswered = array_values(array_diff($owed, array_keys($answers)));
+
+        if ($unanswered !== [] || $notOwed !== []) {
+            throw new MakeupChecksIncompleteException($unanswered, $notOwed);
+        }
+
+        if ($owed === []) {
+            return null;
+        }
+
+        ksort($answers);
+
+        return array_values($answers);
     }
 
     /**

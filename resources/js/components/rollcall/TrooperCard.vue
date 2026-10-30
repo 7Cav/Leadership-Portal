@@ -7,14 +7,28 @@ import AttendanceStrip from '@/components/rollcall/AttendanceStrip.vue';
 import { Badge } from '@/components/ui/badge';
 import { forumDate } from '@/lib/forumDate';
 import { cn } from '@/lib/utils';
-import { fullName, initials, isLocked, optionsFor, placementNote, practiceLabel, signatureLabel } from '@/lib/rollcall';
+import {
+    autoExcusesPractice,
+    autoExcusesSignature,
+    excusedReason,
+    fullName,
+    initials,
+    isLocked,
+    optionsFor,
+    owesMakeup,
+    placementNote,
+    practiceLabel,
+    practiceOf,
+    signatureLabel,
+    signatureOf,
+} from '@/lib/rollcall';
 
 // One trooper on the guided week (mockups/v2/rollcall-r3.html `.rc-card`): who they are, how the
 // current value came to be (the shared source indicator, 3.9), and big status buttons for the step's question — their rollcall
 // signature (step 1) or their Section Practice mark (step 2).
 // The name and buttons sit side by side only when the card itself is wide enough (a container query),
 // since with the sidebar and the summary open a desktop card can be narrower than the buttons need.
-// Signatures stack below @xl and practice, with its wider buttons, below @2xl, so the name keeps about 10rem.
+// Signature and practice stack below @4xl, so the name keeps about 10rem beside four or five long buttons; on a phone the buttons wrap two or three to a row.
 const props = defineProps({
     trooper: { type: Object, required: true },
     // 'signature' | 'practice'
@@ -37,7 +51,14 @@ const cover = computed(() => (props.trooper.loa && !props.trooper.loa.fromSave ?
 // A leave starting next Cav week (`leaveFrom`, `Y-m-d`), so the leader planning the next practice sees it coming.
 const leaveFrom = computed(() => (props.trooper.leaveFrom ? forumDate(`${props.trooper.leaveFrom}T00:00:00Z`) : null));
 const options = computed(() => optionsFor(props.kind));
-const value = computed(() => (props.kind === 'signature' ? props.trooper.rollcall : props.trooper.status));
+// The value as it counts: an automatic Excused shows pressed until a leader picks something else.
+const value = computed(() => (props.kind === 'signature' ? signatureOf(props.trooper) : practiceOf(props.trooper)));
+// The first week after joining or a transfer, excused automatically on this half (2026-10-30), with why.
+const autoExcused = computed(() =>
+    (props.kind === 'signature' ? autoExcusesSignature(props.trooper) : autoExcusesPractice(props.trooper)) ? excusedReason(props.trooper.excused) : null,
+);
+// Asked for a make-up on the roll call and none recorded yet.
+const owes = computed(() => owesMakeup(props.trooper));
 const valueLabel = computed(() => (props.kind === 'signature' ? signatureLabel(value.value) : practiceLabel(value.value)));
 const name = computed(() => fullName(props.trooper));
 // On a week that has ended: moved out or departed since, or joined partway through it.
@@ -51,7 +72,7 @@ const suggestion = computed(() =>
 );
 
 // Swipe on touch (mockup `.rc-under`): right sets the first option (will attend / present), left
-// the second (cannot attend / missed). Mouse pointers use the buttons; `touch-action: pan-y` keeps
+// the second (will not attend / not attended). Mouse pointers use the buttons; `touch-action: pan-y` keeps
 // vertical scrolling native.
 const SWIPE_COMMIT = 90;
 const drag = ref(null);
@@ -89,6 +110,7 @@ const TONE = {
     ok: 'aria-pressed:bg-success/10 aria-pressed:text-success aria-pressed:shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--success)_45%,transparent)]',
     bad: 'aria-pressed:bg-destructive/8 aria-pressed:text-destructive aria-pressed:shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--destructive)_40%,transparent)]',
     info: 'aria-pressed:bg-info/8 aria-pressed:text-info aria-pressed:shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--info)_40%,transparent)]',
+    warn: 'aria-pressed:bg-warning/10 aria-pressed:text-warning aria-pressed:shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--warning)_45%,transparent)]',
     neutral: 'aria-pressed:bg-card aria-pressed:text-foreground aria-pressed:shadow-xs',
 };
 </script>
@@ -124,14 +146,7 @@ const TONE = {
             data-card-face
             :aria-label="`${name}, ${kind === 'signature' ? 'roll call' : 'section practice'}: ${valueLabel}${locked ? ', locked' : ''}`"
         >
-            <div
-                :class="
-                    cn(
-                        'flex flex-col gap-3',
-                        kind === 'practice' ? 'sm:@2xl:flex-row sm:@2xl:items-center' : 'sm:@xl:flex-row sm:@xl:items-center',
-                    )
-                "
-            >
+            <div class="flex flex-col gap-3 sm:@4xl:flex-row sm:@4xl:items-center">
                 <div class="flex min-w-0 flex-1 items-center gap-3">
                     <span
                         class="grid size-10 flex-none place-items-center rounded-full border border-border bg-muted text-xs font-semibold"
@@ -145,14 +160,16 @@ const TONE = {
                             <AttendanceStrip v-if="trooper.history?.length" :weeks="trooper.history" :joined="trooper.joined" />
                             <Badge v-if="note" variant="outline" :title="note.title" data-testid="placement-note">{{ note.label }}</Badge>
                             <LoaBadge v-if="cover" :cover="cover" :sync="loaSync" />
+                            <Badge v-if="autoExcused" variant="warning" :title="autoExcused" data-testid="auto-excused">Excused, automatic</Badge>
+                            <Badge v-if="owes" variant="outline" title="Make-up requested on the roll call, none recorded yet" data-testid="owes-makeup">Owes a make-up</Badge>
                             <Badge v-if="leaveFrom" variant="outline" title="Leave starting next Cav week, from LOA records" data-testid="leave-from">Leave from {{ leaveFrom }}</Badge>
                             <template v-if="locked">
                                 <AttendanceSourceIndicator v-if="!cover" status="loa" :source="trooper.source" />
                             </template>
-                            <AttendanceSourceIndicator v-else-if="kind === 'practice'" :status="trooper.status" :source="trooper.source" />
-                            <span v-else class="inline-flex items-center gap-1" data-testid="signature-line">
+                            <AttendanceSourceIndicator v-else-if="kind === 'practice' && !autoExcused" :status="trooper.status" :source="trooper.source" />
+                            <span v-else-if="kind === 'signature' && !autoExcused" class="inline-flex items-center gap-1" data-testid="signature-line">
                                 <PhSignature class="size-3.5" aria-hidden="true" />
-                                {{ trooper.rollcall === 'unsigned' ? 'Not signed yet' : `Signed: ${valueLabel}` }}
+                                {{ trooper.rollcall === 'unsigned' ? 'Not signed yet' : trooper.rollcall === 'excused' ? 'Excused this week' : `Signed: ${valueLabel}` }}
                             </span>
                             <span v-if="suggestion" class="inline-flex items-center gap-1" data-testid="prior-mark">
                                 <PhClockCounterClockwise class="size-3.5" aria-hidden="true" />Last week: {{ suggestion }}
@@ -161,17 +178,26 @@ const TONE = {
                     </div>
                 </div>
 
+                <!-- The LOA button is on every card on both tabs and never pressed by hand. On LOA (from the LOA data) it shows
+                     pressed on its own and nothing else can be set; otherwise it sits unpressed after the other marks. -->
                 <div
                     v-if="locked"
-                    :class="
-                        cn(
-                            'flex h-11 items-center gap-2 rounded-md border border-dashed border-border px-3 text-[13px] text-muted-foreground sm:h-9',
-                            kind === 'practice' ? 'sm:@2xl:w-[22rem]' : 'sm:@xl:w-[22rem]',
-                        )
-                    "
+                    role="group"
+                    :aria-label="`${kind === 'signature' ? 'Roll call signature' : 'Section practice'} for ${name}`"
+                    :class="cn('flex items-center gap-2 rounded-md bg-muted p-[3px]', 'sm:@4xl:w-[22rem]')"
                 >
-                    <PhLockSimple class="size-4" aria-hidden="true" />LOA, nothing to mark
-                    <Badge variant="outline" class="ml-auto">Locked</Badge>
+                    <button
+                        type="button"
+                        disabled
+                        aria-pressed="true"
+                        title="Set automatically from the LOA thread. Nothing to mark this week."
+                        data-testid="loa-button"
+                        :class="cn('inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-sm px-2 text-[13px] font-medium disabled:cursor-not-allowed sm:min-h-[2.125rem]', TONE.warn)"
+                    >
+                        <PhLockSimple class="size-4" aria-hidden="true" />LOA
+                    </button>
+                    <span class="pr-2 text-[12px] text-muted-foreground">Nothing to mark</span>
+                    <Badge variant="outline" class="mr-1 ml-auto">Locked</Badge>
                 </div>
                 <div
                     v-else
@@ -179,8 +205,9 @@ const TONE = {
                     :aria-label="`${kind === 'signature' ? 'Roll call signature' : 'Section practice'} for ${name}`"
                     :class="
                         cn(
-                            'grid auto-cols-fr grid-flow-col gap-[3px] rounded-md bg-muted p-[3px]',
-                            kind === 'practice' ? 'sm:@2xl:w-[25rem]' : 'sm:@xl:w-[22rem]',
+                            // Four or five long labels: two or three to a row on a phone, one row once the card is wide.
+                            'grid grid-cols-2 gap-[3px] rounded-md bg-muted p-[3px] min-[25rem]:grid-cols-3 sm:@2xl:auto-cols-fr sm:@2xl:grid-flow-col sm:@2xl:grid-cols-none',
+                            kind === 'practice' ? 'sm:@4xl:w-[34rem]' : 'sm:@4xl:w-[38rem]',
                         )
                     "
                 >
@@ -194,7 +221,7 @@ const TONE = {
                         :data-value="option.value"
                         :class="
                             cn(
-                                'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-sm px-1.5 text-[13px] font-medium whitespace-nowrap text-muted-foreground transition-colors enabled:hover:text-foreground disabled:cursor-not-allowed sm:min-h-[2.125rem] sm:px-2.5',
+                                'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-sm px-1.5 text-center text-[13px] leading-tight font-medium text-muted-foreground transition-colors enabled:hover:text-foreground disabled:cursor-not-allowed sm:min-h-[2.125rem] sm:px-2',
                                 TONE[option.tone],
                             )
                         "
@@ -202,6 +229,16 @@ const TONE = {
                     >
                         <component :is="option.icon" class="hidden size-4 sm:block" aria-hidden="true" />
                         {{ option.label }}<span class="sr-only">, key {{ index + 1 }}</span>
+                    </button>
+                    <button
+                        type="button"
+                        disabled
+                        aria-pressed="false"
+                        title="Set automatically from the LOA thread"
+                        data-testid="loa-button"
+                        class="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-sm px-1.5 text-center text-[13px] leading-tight font-medium text-muted-foreground disabled:cursor-not-allowed sm:min-h-[2.125rem] sm:px-2"
+                    >
+                        <PhLockSimple class="hidden size-4 sm:block" aria-hidden="true" />LOA
                     </button>
                 </div>
             </div>

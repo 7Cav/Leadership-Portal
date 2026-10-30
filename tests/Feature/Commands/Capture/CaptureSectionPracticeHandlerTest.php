@@ -480,7 +480,7 @@ it('leaves a manual mark of any status untouched, including its timestamps', fun
     foreach ($troopers as $i => $trooper) {
         linkIdentity($trooper, (string) $i);
     }
-    $statuses = [AttendanceStatus::Missed, AttendanceStatus::Attached, AttendanceStatus::Makeup];
+    $statuses = [AttendanceStatus::Missed, AttendanceStatus::Excused, AttendanceStatus::Makeup];
     foreach ($troopers as $i => $trooper) {
         Attendance::factory()->create([
             'trooper_id' => $trooper->id, 'section_practice_id' => $this->practice->id,

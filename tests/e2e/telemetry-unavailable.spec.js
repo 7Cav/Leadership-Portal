@@ -23,7 +23,7 @@ test('a practice whose last capture failed shows the unavailable banner, the man
 
     // Marking by hand works and is confirmed the same way.
     const park = page.locator('[data-trooper]').filter({ hasText: 'Park.J' });
-    await park.getByRole('button', { name: /^Present/ }).click();
+    await park.getByRole('button', { name: /^Attended/ }).click();
     await expect(park.locator('[data-provenance="manual"]')).toBeVisible();
     await expect(page.getByTestId('save-state')).toContainText('Saved');
 
@@ -32,7 +32,7 @@ test('a practice whose last capture failed shows the unavailable banner, the man
     await expect(page.getByText('Hell Let Loose (WW2) server (CRCON) still could not be read')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('telemetry-banner')).not.toHaveText(lastTried);
     await expect(page.getByTestId('telemetry-banner')).toContainText('Hell Let Loose (WW2) server (CRCON) could not be read');
-    await expect(park.getByRole('button', { name: /^Present/ })).toHaveAttribute('aria-pressed', 'true');
+    await expect(park.getByRole('button', { name: /^Attended/ })).toHaveAttribute('aria-pressed', 'true');
 
     await page.getByTestId('confirm-practice').click();
     await expect(page.getByTestId('confirm-badge')).toHaveText('Confirmed');

@@ -16,6 +16,7 @@ use Carbon\CarbonInterface;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class Eloquent implements TrooperPlacementRepository
 {
@@ -528,5 +529,50 @@ class Eloquent implements TrooperPlacementRepository
         }
 
         return $weeks;
+    }
+
+    public function firstWeekEventsBetween(array $trooperIds, CarbonInterface $from, CarbonInterface $until): array
+    {
+        $trooperIds = array_values(array_unique(array_map('intval', $trooperIds)));
+
+        if ($trooperIds === []) {
+            return [];
+        }
+
+        $from = CarbonImmutable::instance($from)->utc();
+        $until = CarbonImmutable::instance($until)->utc();
+
+        // Placed into a section in the span: a placement row whose start is known (one from before the history began
+        // has none) in a unit of type section.
+        $entered = DB::table('trooper_placements')
+            ->join('units', 'units.id', '=', 'trooper_placements.unit_id')
+            ->where('units.type', UnitType::Section->value)
+            ->whereIn('trooper_placements.trooper_id', $trooperIds)
+            ->whereNotNull('trooper_placements.placed_from')
+            ->where('trooper_placements.placed_from', '>=', $from)
+            ->where('trooper_placements.placed_from', '<', $until)
+            ->select(['trooper_placements.trooper_id', 'trooper_placements.placed_from as at'])
+            ->selectRaw("'transfer' as kind");
+
+        // Joined the Cav in the span: Cav's join date, a date with no time.
+        $joined = DB::table('troopers')
+            ->whereIn('troopers.id', $trooperIds)
+            ->whereNotNull('troopers.tis')
+            ->where('troopers.tis', '>=', $from->toDateString())
+            ->where('troopers.tis', '<', $until->toDateString())
+            ->select(['troopers.id as trooper_id', 'troopers.tis as at'])
+            ->selectRaw("'recruit' as kind");
+
+        $events = [];
+
+        foreach ($entered->unionAll($joined)->get() as $row) {
+            $events[(int) $row->trooper_id][] = ['at' => CarbonImmutable::parse($row->at, 'UTC'), 'kind' => $row->kind];
+        }
+
+        foreach ($events as &$list) {
+            usort($list, fn (array $a, array $b) => $a['at'] <=> $b['at']);
+        }
+
+        return $events;
     }
 }

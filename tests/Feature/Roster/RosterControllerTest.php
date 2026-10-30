@@ -189,14 +189,14 @@ it('flags at-risk from the shared helper, and never an LOA-covered or unmarked t
 it('lays out 20 Cav weeks of marks per trooper with each mark\'s source, null where no practice ran (4.7)', function () {
     $t = rosterTrooper($this->section1);
     rosterMark($t, $this->section1, 0, AttendanceStatus::Present, RollcallSignature::WillAttend, AttendanceSource::Auto);
-    rosterMark($t, $this->section1, 19, AttendanceStatus::Attached, RollcallSignature::CannotAttend);
+    rosterMark($t, $this->section1, 19, AttendanceStatus::Excused, RollcallSignature::MakeupRequested);
     rosterMark($t, $this->section1, 20, AttendanceStatus::Missed); // before the window
 
     $row = collect($this->actingAs($this->leader)->get('/roster')->viewData('page')['props']['troopers'])->firstWhere('id', $t->id);
 
     expect($row['weeks'])->toHaveCount(20)
         ->and($row['weeks'][19])->toBe(['rollcall' => 'will_attend', 'status' => 'present', 'source' => 'auto', 'held' => true, 'sectionId' => $this->section1->id])
-        ->and($row['weeks'][0])->toBe(['rollcall' => 'cannot_attend', 'status' => 'attached', 'source' => 'manual', 'held' => true, 'sectionId' => $this->section1->id])
+        ->and($row['weeks'][0])->toBe(['rollcall' => 'makeup_requested', 'status' => 'excused', 'source' => 'manual', 'held' => false, 'sectionId' => $this->section1->id])
         ->and($row['weeks'][10])->toBeNull();
 });
 
@@ -380,7 +380,7 @@ describe('trooper detail (Sheet)', function () {
             ->assertJsonPath('trooper.weeks.17.section', '1/2/A/1-7')
             ->assertJsonPath('trooper.weeks.19.section', '1/1/A/1-7')
             ->assertJsonPath('trooper.kpis.sp', [2, 2])
-            ->assertJsonPath('trooper.kpis.rc', [2, 4])
+            ->assertJsonPath('trooper.kpis.rc', [2, 3])
             ->assertJsonPath('trooper.transfers', [['at' => '2026-09-30T18:00:00Z', 'from' => '1/2/A/1-7', 'to' => '1/1/A/1-7']]);
     });
 

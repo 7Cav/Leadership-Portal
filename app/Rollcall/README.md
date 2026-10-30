@@ -44,7 +44,7 @@ has no way to edit one; authoring is the company's or the section's command's (a
 
 Leave comes from `Loa/LoaCoverage`, the one definition (3.4, 4.4, AD-21), sent per trooper as `loa` (`LoaCover::toArray()`)
 with the LOA source and last sync (`loaSync`, AD-20). Nothing stores an `loa` mark: a covered trooper's row is locked, listed
-under "On LOA", left out of "Mark all present" and last week's marks, and posts as `LOA`. `MarkAttendance` still refuses a
+under "On LOA", left out of "Mark all attended" and last week's marks, and posts as `LOA`. `MarkAttendance` still refuses a
 practice mark for them; if a leave syncs after the page loaded, the refusal says `loa_covered`, the screen locks the row and
 keeps saving their signature. A leave that needs review asserts nothing (AD-4): the row stays markable and only shows the
 badge. Home's "signed" and "marked" steps count a covered trooper as done.
@@ -68,7 +68,7 @@ practice times exist, with these rules:
 
 - Only while a `cross_section_sightings` row of that trooper in that Cav week supports it, read under a lock.
 - Same Cav week only (`WeekOf`, Saturday to Friday): never an older or a later week.
-- Never a downgrade: `present` or `attached` stays, so does a leader's manual mark of any status and an `loa` mark. An
+- Never a downgrade: `present` stays, so does a leader's manual mark of any status and an `loa` mark. An
   unmarked trooper and an automatic `missed` become the makeup. When their own practice is captured later and sees
   them, the auto makeup becomes `present`.
 - Nothing is written into a week whose own-section weekly report was really sent (AD-12), a practice its leader
@@ -101,7 +101,7 @@ it; it shows the evidence.
   username and answers only id, username, rank and own section designation, never the milpac.
 - **The makeup it brings.** A hand-added guest gets the same automatic makeup on their own section's rollcall as a
   capture sighting, through `MarkAttendanceHandler::preMarkMakeups()` with all its guards (same Cav week, never over
-  `present`/`attached`/`loa` or any manual mark, never into a locked, confirmed or before-floor week, skipped for
+  `present`/`loa` or any manual mark, never into a locked, confirmed or before-floor week, skipped for
   leave and for a trooper no longer serving there). It is written after the entry commits, and only while a sighting
   of that trooper that Cav week still exists, read under a lock taken before their own practice's: an Undo that lands
   in between leaves no makeup behind. It is audited as `attendance.auto_marked` with the host leader as

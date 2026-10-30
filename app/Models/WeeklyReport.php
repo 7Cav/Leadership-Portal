@@ -21,7 +21,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * `training_subject` and `unaccounted` (`[{trooper_id, reason}]`, an `UnaccountedReason` value
  * each) are the structured half of the leader's notes (5.5): saved with a draft, frozen with
- * `notes` on send.
+ * `notes` on send. `makeup_checks` (`[{trooper_id, done}]`) is set only by a section's send: the leader's answer,
+ * for each trooper who asked for a make-up that week and had none recorded, whether they made it up.
  *
  * `status` and the send metadata (`sent_at`, `sent_by`, `content_digest`, `template_version_id`)
  * are deliberately not mass-assignable: only the Repository layer's send path sets them, so a
@@ -45,6 +46,7 @@ class WeeklyReport extends Model
             'status' => WeeklyReportStatus::class,
             'kpis' => 'array',
             'unaccounted' => 'array',
+            'makeup_checks' => 'array',
             'sent_at' => 'immutable_datetime',
             // Demo history (#115): set only by the demo writer, never mass-assigned.
             'is_demo' => 'boolean',

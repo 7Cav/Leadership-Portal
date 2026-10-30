@@ -258,7 +258,7 @@ describe('Needs attention (Story 5.10)', function () {
         app(WeeklyReportRepository::class)->saveDraft($this->s21->id, $this->week, [], null);
 
         dashboard($this->commander)(fn ($page) => $page
-            ->where('attention.totals', ['holding' => 2, 'atRisk' => 0, 'loaReview' => 0])
+            ->where('attention.totals', ['holding' => 2, 'atRisk' => 0, 'loaReview' => 0, 'makeupOwed' => 0])
             ->where('attention.items.0.kind', 'holding')
             ->where('attention.items.0.unit.designation', '2/1/A/1-7')
             ->where('attention.items.0.status', 'draft')
@@ -308,7 +308,7 @@ describe('Needs attention (Story 5.10)', function () {
         // Bravo's draft and at-risk trooper are invisible to Alpha's commander and to a section
         // leader; only 1/1/A's own (unstarted) report is the leader's, and it holds nothing up.
         dashboard($this->commander)(fn ($page) => $page->where('attention.totals.atRisk', 0)->where('attention.totals.holding', 2)->where('attention.items.0.unit.designation', '1/1/A/1-7'));
-        dashboard($this->sectionLeader)(fn ($page) => $page->where('attention.totals', ['holding' => 0, 'atRisk' => 0, 'loaReview' => 0]));
+        dashboard($this->sectionLeader)(fn ($page) => $page->where('attention.totals', ['holding' => 0, 'atRisk' => 0, 'loaReview' => 0, 'makeupOwed' => 0]));
         dashboard(User::factory()->serving()->create(['is_admin' => true]))(fn ($page) => $page->where('attention.totals.atRisk', 1));
     });
 
@@ -317,7 +317,7 @@ describe('Needs attention (Story 5.10)', function () {
         $kpis = new UnitKpis(7, new Ratio(1, 2), new Ratio(1, 2), 0, 0, 0);
         app(WeeklyReportRepository::class)->send($this->p1->id, $this->week, (new ReportSnapshot($kpis, null))->toArray(), null, User::factory()->serving()->create()->id, 'd', null);
 
-        dashboard($this->commander)(fn ($page) => $page->where('attention.items', [])->where('attention.totals', ['holding' => 0, 'atRisk' => 0, 'loaReview' => 0]));
+        dashboard($this->commander)(fn ($page) => $page->where('attention.items', [])->where('attention.totals', ['holding' => 0, 'atRisk' => 0, 'loaReview' => 0, 'makeupOwed' => 0]));
     });
 
     it('has no worklist for a viewer with no scope', function () {
