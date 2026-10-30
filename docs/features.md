@@ -74,6 +74,13 @@ Your scope's units and troopers, from the cached Cav roster.
 
 Related pages reached from the roster:
 
+- Strength trends (`/roster/<id>/strength`, from "Strength trends" on the roster and "Strength" on Home's unit rows):
+  the unit's headcount and in roll call per Cav week over 12, 26, 52 weeks or all, the change over the range, joins and
+  departures per week, a table of the same numbers, and the headcount of each unit under it as small multiples on one
+  scale. A sent week reads the report's frozen snapshot; another week from 2026-10-24 on is rebuilt from the placement
+  history; a week with neither is a gap. Scoped like the roster (view as previews it), read only, three reads whatever
+  the range.
+
 - Milpac page (`/troopers/<id>`): the trooper's ID block (rank, billet, MOS, time in service and grade, section),
   courses, a service record timeline, quick links to their section roster, roll call and platoon readiness matrix, and
   a makeup PM link when they missed a practice, and their transfers between units (newest first; also on the roster
@@ -329,6 +336,13 @@ acting identity's command shows.
   LOR, with a reason (audited as `counseling.overturned`). It is never deleted: it stays in the list, muted, with "Overturned on <date> by <name>:
   <reason>", its document still downloads for whoever could see it, and it no longer counts toward any flag, the no
   favorable action notice or the filing form's forecast. A departed trooper's LOR can be overturned too.
+- A DCS expires 90 days after the date it was counseled (`counseled_on`): day 90 is still active, from day 91 it has
+  expired. It is worked out from the date on every read (`CounselingRecord::isExpired()`), with no job. It is never
+  deleted: the row, its PDF and its Google Drive copy stay. Leaders and the trooper no longer see it, its document
+  included; Admins see it marked "Expired" with the date, read only on the page, and download its PDF. Leaders cannot
+  correct or delete it; Admins keep their rights. Every rule window is 90 days or shorter, so it never counts toward
+  a record dated today; it still counts for a record dated within its window (the repeat DCS within 90 days, the
+  second miss within 30), so those flags stay. An LOR never expires.
 
 ### Staff practices
 

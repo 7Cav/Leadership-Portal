@@ -51,12 +51,20 @@ The portal follows the counseling rules on the 7Cav wiki (7CAV-R-012, 7CAV-R-014
 
 > [!good-to-know] A flag is a reminder of what the regulations call for. It does not file anything or start any action by itself.
 
+## Expired DCSs
+
+1. A DCS expires 90 days after the date it was counseled. On day 90 it is still active; from day 91 it has expired. An LOR never expires.
+2. An expired DCS is never deleted: the record, its document and its Google Drive copy all stay.
+3. Leaders and the trooper no longer see it. Admins still see it, marked "Expired" with the date, read only, and can download its document.
+4. It no longer counts toward the no favorable action notice or the filing form's warnings for a record dated today. It still counts for a record dated within 90 days of it, so a repeat DCS keeps its flag after the first one expires.
+5. Leaders cannot correct or delete an expired DCS. Admins can.
+
 ## Correct or delete a record
 
 1. Choose **Correct** on a record to change its date or reason. Give a **Reason for the correction** and choose **Save correction**. The type and the document stay as filed; to change them, delete the record and file it again.
 2. Choose **Delete** to remove a record and its document from the portal. Give a **Reason for deleting** and choose **Delete record**.
 3. The leader who filed it, the other leaders of the unit they filed it through, and the command above can correct or delete it, as long as they still counsel the trooper. A record an Admin filed is changed by Admins only.
-4. An LOR can be corrected or deleted only in the 72 hours after it is filed, its appeal window: the trooper has 24 hours to say they appeal, and the appeal is done within 72. After that nobody can correct or delete it, Admins included. A DCS can be changed at any time.
+4. An LOR can be corrected or deleted only in the 72 hours after it is filed, its appeal window: the trooper has 24 hours to say they appeal, and the appeal is done within 72. After that nobody can correct or delete it, Admins included. A DCS can be changed until it expires, and after that by Admins only.
 5. Filing, correcting, deleting and overturning are all recorded in the audit log, with the reason.
 
 ## Overturn an LOR

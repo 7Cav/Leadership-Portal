@@ -153,8 +153,8 @@ function entryNote(id) {
                 <Button v-else variant="ghost" size="icon-sm" disabled aria-label="Next week, not open yet"><PhCaretRight /></Button>
             </nav>
             <div v-if="hq" class="w-full sm:ml-auto sm:w-auto sm:text-right">
-                <p v-if="report" class="text-[13px] font-medium" data-testid="sent-line">Sent {{ stamp(report.sentAt) }}Z</p>
-                <p v-else class="text-xs text-muted-foreground" data-testid="due-line">Due {{ stamp(week.due) }}Z</p>
+                <p v-if="report" class="text-[13px] font-medium" data-testid="sent-line">Sent {{ stamp(report.sentAt) }}</p>
+                <p v-else class="text-xs text-muted-foreground" data-testid="due-line">Due {{ stamp(week.due) }}</p>
             </div>
         </section>
 
@@ -312,7 +312,7 @@ function entryNote(id) {
         <Card v-else class="py-10" data-testid="staff-report-unsent">
             <EmptyState :icon="PhUserCheck" title="Not sent yet">
                 <template v-if="week.beforeFloor">This week is too far back to send.</template>
-                <template v-else-if="self && week.ended === false">You can send it from {{ stamp(week.opensAt) }}Z, once the week ends.</template>
+                <template v-else-if="self && week.ended === false">You can send it from {{ stamp(week.opensAt) }}, once the week ends.</template>
                 <template v-else-if="self">You can no longer send this staff report.</template>
                 <template v-else>Only {{ trooper.displayName }} can send their staff report.</template>
             </EmptyState>

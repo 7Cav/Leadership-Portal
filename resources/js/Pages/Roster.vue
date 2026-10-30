@@ -347,6 +347,13 @@ function syncNow() {
                     </template>
                     <template v-else>{{ " " }}No troopers assigned yet.</template>
                 </p>
+                <Link
+                    v-if="unit"
+                    :href="`/roster/${unit.id}/strength`"
+                    class="mt-0.5 inline-block text-[13px] text-primary hover:underline"
+                    data-testid="strength-link"
+                    >Strength trends</Link
+                >
             </div>
 
             <div class="flex flex-wrap items-center gap-2 sm:ml-auto">
