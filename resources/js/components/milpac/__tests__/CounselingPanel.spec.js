@@ -607,6 +607,8 @@ describe('CounselingPanel', () => {
 
             textarea.value = 'It was a misunderstanding.';
             textarea.dispatchEvent(new Event('input'));
+            // The Textarea passes its value up on the next tick.
+            await flushPromises();
             document.body.querySelector('[data-testid="counseling-appeal-form"]').dispatchEvent(new Event('submit'));
             await flushPromises();
 

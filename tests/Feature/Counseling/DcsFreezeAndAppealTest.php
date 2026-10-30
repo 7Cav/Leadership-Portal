@@ -188,8 +188,9 @@ it('refuses the appeal through act as', function () {
     $admin = $this->tree['users']['admin'];
     $this->actingAs($admin)->post('/act-as', ['kind' => 'user', 'id' => $this->self->id]);
 
-    expect(($this->props)($admin)->get($this->dcs->id)['canAppeal'] ?? false)->toBeFalse();
-    $this->actingAs($admin)->post(route('counseling.appeal', $this->dcs->id), ['statement' => 'As them.'])->assertForbidden();
+    // Acting as the trooper does not open their milpac for the one acting, so there is no appeal to offer there.
+    $this->actingAs($admin)->get(route('troopers.show', $this->rifleman->id))->assertNotFound();
+    $this->actingAs($admin)->post(route('counseling.appeal', $this->dcs->id), ['statement' => 'As them.'])->assertNotFound();
 
     expect($this->dcs->fresh()->appealed_at)->toBeNull()
         ->and(AuditLogEntry::query()->where('action', 'counseling.appealed')->count())->toBe(0);

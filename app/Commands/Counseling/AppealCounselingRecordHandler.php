@@ -5,6 +5,7 @@ namespace App\Commands\Counseling;
 use App\Authorization\CounselingAccess;
 use App\Authorization\CounselingPermissions;
 use App\Models\CounselingRecord;
+use App\Models\User;
 use App\Repositories\CounselingRecordRepository;
 use App\Support\Audit\ActingFor;
 use App\Support\Audit\AuditEnvelope;
